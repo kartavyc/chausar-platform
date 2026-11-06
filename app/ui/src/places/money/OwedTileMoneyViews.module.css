@@ -1,0 +1,52 @@
+/* Owed to you: the late count, and the reminders line at the tile's foot. */
+.lateWords {
+  margin-top: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.remind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.remindWho {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.drafts {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: var(--target);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.draftText {
+  min-width: 0;
+}
+
+/* A tile sized to what it holds, not stretched to its neighbour's height (4J20: Owed beside the cash line). */
+.fit {
+  align-self: start;
+}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
-import s from './Team.module.css';
+import sLocal from './TeamIntro.module.css';
 
 /**
  * C5 task 1: introduce each agent once. The engine sends a code-written line for every agent this member has not met
@@ -21,11 +21,11 @@ export function TeamIntro({ lines, onDone }: { lines: readonly { agentId: string
     }
   }
   return (
-    <section className={s.intro} aria-label={t('team.intro.label')}>
-      <ul className={s.introLines}>
+    <section className={sLocal.intro} aria-label={t('team.intro.label')}>
+      <ul className={sLocal.introLines}>
         {lines.map((item) => <li key={item.agentId}>{item.line}</li>)}
       </ul>
-      <button type="button" className={s.introDone} onClick={() => void gotIt()} disabled={busy}>{t('team.intro.gotIt')}</button>
+      <button type="button" className={sLocal.introDone} onClick={() => void gotIt()} disabled={busy}>{t('team.intro.gotIt')}</button>
     </section>
   );
 }

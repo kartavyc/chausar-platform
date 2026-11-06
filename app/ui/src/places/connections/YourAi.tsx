@@ -11,6 +11,7 @@ import { useCliChecks, useCliStatus, CliTool } from './CliStatus';
 import { connectionWords } from './ConnectionWords';
 import { AgentSettings } from './AgentSettings';
 import s from './Connections.module.css';
+import sLocal from './YourAi.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { SwapWords } from '../../parts/Swap';
@@ -81,7 +82,7 @@ export function YourAi({ focus }: { focus: boolean }) {
   }
   return <div className={s.top} data-side={side ? undefined : 'none'}>
     <Tile as="section" labelledBy={headingId}>
-      <div className={s.head}><h2 id={headingId} ref={heading} tabIndex={-1} className={s.title}>{t('connections.ai.title')}</h2>
+      <div className={sLocal.head}><h2 id={headingId} ref={heading} tabIndex={-1} className={s.title}>{t('connections.ai.title')}</h2>
         {draft && <Button size="sm" locked={busy} onClick={() => void check()}>{t('connections.checks.run')}</Button>}
       </div>
       {draft && <p className={s.note}>{t('connections.ai.draft')}</p>}
@@ -90,7 +91,7 @@ export function YourAi({ focus }: { focus: boolean }) {
       {cli.status.error?.code === 'TIER_UNAVAILABLE' && <p className={s.note}>{cli.status.error.message}</p>}
       {cli.status.error && cli.status.error.code !== 'TIER_UNAVAILABLE' && <p className={s.problem} role="alert">{cli.status.error.message}</p>}
       {data && <>
-        <p className={s.spend}><span data-engine-line="">{t('connections.ai.spent', { amount: data.spentThisMonthDisplay })}</span></p>
+        <p className={sLocal.spend}><span data-engine-line="">{t('connections.ai.spent', { amount: data.spentThisMonthDisplay })}</span></p>
         <p className={s.note}>{t('connections.ai.spendNote')}</p>
         {data.sendPolicy === 'nothing' && <p className={s.note}>{t('connections.ai.sendNothing')}</p>}
         {data.replay.active && <p className={s.note}>{t('connections.ai.replay')}</p>}
@@ -102,7 +103,7 @@ export function YourAi({ focus }: { focus: boolean }) {
       {said && <p className={said.problem ? s.problem : s.said} role={said.problem ? 'alert' : 'status'}>{said.text}</p>}
       {data && !draft && <AgentSettings key={venture.data?.venture.id} providers={providers} />}
     </Tile>
-    {side && data && <div className={s.side}><SendRule now={data.sendPolicy} onSaved={() => status.reload()} /></div>}
+    {side && data && <div className={sLocal.side}><SendRule now={data.sendPolicy} onSaved={() => status.reload()} /></div>}
   </div>;
 }
 
@@ -110,7 +111,7 @@ export function YourAi({ focus }: { focus: boolean }) {
 function ConnectedModels({ connections }: { connections: ModelConnectionLite[] }) {
   const t = useT();
   const { drawn, left } = useLeavingList(connections, connection => connection.id);
-  return <ul className={s.modelConnections}>{drawn.map(row => <LeaveRow key={row.key} row={row} left={left}>
+  return <ul className={sLocal.modelConnections}>{drawn.map(row => <LeaveRow key={row.key} row={row} left={left}>
     <p className={s.note} data-model-connection={row.item.id}><span data-code="">{row.item.model}</span>{!row.item.usable && <>. {connectionWords(t, row.item.reason)}</>}</p>
   </LeaveRow>)}</ul>;
 }
@@ -151,7 +152,7 @@ function SendRule({ now, onSaved }: { now: ModelStatusLite['sendPolicy']; onSave
         <fieldset className={s.rule}>
           <legend className={s.title}>{t('connections.ai.sendTitle')}</legend>
           {SEND_RULES.map((rule) => (
-            <label key={rule} className={s.choice}>
+            <label key={rule} className={sLocal.choice}>
               <input type="radio" name={name} checked={chosen === rule} onChange={() => setChosen(rule)} />
               {t(`connections.ai.send.${rule}`)}
             </label>
@@ -211,7 +212,7 @@ function ConnectForm({ choice, draft, onCancel, onDone }: { choice: Choice; draf
   }
 
   return (
-    <Inner card={false} className={s.connect}>
+    <Inner card={false} className={sLocal.connect}>
       {needsKey && (
         <Field
           label={t('connections.ai.key', { name: choice.keyName })}
@@ -225,10 +226,10 @@ function ConnectForm({ choice, draft, onCancel, onDone }: { choice: Choice; draf
         <Field label={t('connections.ai.cap')} hint={t('connections.ai.capHint')} inputMode="decimal" value={cap} onChange={(event) => setCap(event.currentTarget.value)} />
       )}
       <div>
-        <h3 className={s.groupLabel}>{t('connections.ai.consent')}</h3>
-        {consents.map((text) => <p key={text} className={s.consent}>{text}</p>)}
+        <h3 className={sLocal.groupLabel}>{t('connections.ai.consent')}</h3>
+        {consents.map((text) => <p key={text} className={sLocal.consent}>{text}</p>)}
       </div>
-      <label className={s.agree}>
+      <label className={sLocal.agree}>
         <input type="checkbox" checked={agree} onChange={(event) => setAgree(event.currentTarget.checked)} />
         {t('connections.ai.agree')}
       </label>

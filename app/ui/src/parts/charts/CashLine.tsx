@@ -8,6 +8,7 @@ import { FLIP, PLOT, PLOT_UP, svgId } from './plot';
 import { Gutter } from './Ticks';
 import type { CashData, CashPoint } from './types';
 import s from './Charts.module.css';
+import sLocal from './CashLine.module.css';
 
 export interface CashLineProps {
   data: CashData;
@@ -71,14 +72,14 @@ export function CashLine({ data, onReceipt, tips = true, detailsLabel, details }
   return (
     <div className={s.chart} {...chartRoot(proof, { 'data-layout': 'line' })}>
       <ul className={s.legend} data-legend="">
-        {today && <li className={s.key}><span className={s.todayKey} aria-hidden="true" />{t('chart.cash.today')}</li>}
-        {actual.length > 0 && <li className={s.key}><span className={s.lineKey} aria-hidden="true" />{t('chart.cash.actual')}</li>}
-        {forecast.length > 0 && <li className={s.key}><span className={s.lineKey} data-dashed="" aria-hidden="true" />{t('chart.cash.forecast')}</li>}
+        {today && <li className={s.key}><span className={sLocal.todayKey} aria-hidden="true" />{t('chart.cash.today')}</li>}
+        {actual.length > 0 && <li className={s.key}><span className={sLocal.lineKey} aria-hidden="true" />{t('chart.cash.actual')}</li>}
+        {forecast.length > 0 && <li className={s.key}><span className={sLocal.lineKey} data-dashed="" aria-hidden="true" />{t('chart.cash.forecast')}</li>}
       </ul>
-      <div className={s.linePlot} role="img" aria-label={data.label}>
+      <div className={sLocal.linePlot} role="img" aria-label={data.label}>
         {ticks.length > 0 && <Gutter ticks={ticks} height={PLOT} up={PLOT_UP} />}
         <div className={s.lineMain}>
-          <svg className={s.lineSvg} viewBox={`0 0 ${width} 1000`} preserveAspectRatio="none" width="100%" height={PLOT} focusable="false">
+          <svg className={sLocal.lineSvg} viewBox={`0 0 ${width} 1000`} preserveAspectRatio="none" width="100%" height={PLOT} focusable="false">
             <g transform={FLIP}>
               {points.map((point, i) => (
                 <rect key={point.key} className={s.hit} x={i * 100} y="0" width="100" height="1000">
@@ -93,25 +94,25 @@ export function CashLine({ data, onReceipt, tips = true, detailsLabel, details }
               )}
               <Forecast lines={forecast} end={end && endAt !== todayAt ? { x: at(endAt), y: end.forecastPermille! } : null} />
               {actual.map((line) => (
-                <polyline key={line} className={s.actual} data-line="actual" points={line} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                <polyline key={line} className={sLocal.actual} data-line="actual" points={line} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
               ))}
               {today && (
                 <>
-                  <line className={s.todayRing} x1={at(todayAt)} x2={at(todayAt)} y1={today.actualPermille!} y2={today.actualPermille!} strokeWidth="15" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                  <line className={s.today} data-part="today" x1={at(todayAt)} x2={at(todayAt)} y1={today.actualPermille!} y2={today.actualPermille!} strokeWidth="11" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                  <line className={sLocal.todayRing} x1={at(todayAt)} x2={at(todayAt)} y1={today.actualPermille!} y2={today.actualPermille!} strokeWidth="15" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                  <line className={sLocal.today} data-part="today" x1={at(todayAt)} x2={at(todayAt)} y1={today.actualPermille!} y2={today.actualPermille!} strokeWidth="11" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
                 </>
               )}
             </g>
           </svg>
-          <div className={s.axis} data-axis="">
+          <div className={sLocal.axis} data-axis="">
             {data.axis.map((word, i) => <span key={i} data-current={i === todayAt ? '' : undefined}>{word}</span>)}
           </div>
         </div>
       </div>
       {data.assumptions.length > 0 && (
-        <div className={s.notes}>
-          <p id={assumesId} className={s.notesHead}>{t('chart.cash.assumes')}</p>
-          <ul className={s.notesList} aria-labelledby={assumesId}>
+        <div className={sLocal.notes}>
+          <p id={assumesId} className={sLocal.notesHead}>{t('chart.cash.assumes')}</p>
+          <ul className={sLocal.notesList} aria-labelledby={assumesId}>
             {data.assumptions.map((line) => <li key={line}>{line}</li>)}
           </ul>
         </div>
@@ -143,7 +144,7 @@ function Forecast(shape: ForecastShape) {
   const { old, gen, clear } = useSwapped(JSON.stringify(shape), shape);
   return <>
     {old !== null && <OldForecast key={gen} shape={old} done={clear} />}
-    <g key={`now-${gen}`} className={s.forecastNow} data-forecast-new={gen > 0 && old !== null ? '' : undefined}>{forecastLines(shape)}</g>
+    <g key={`now-${gen}`} className={sLocal.forecastNow} data-forecast-new={gen > 0 && old !== null ? '' : undefined}>{forecastLines(shape)}</g>
   </>;
 }
 function OldForecast({ shape, done }: { shape: ForecastShape; done: () => void }) {
@@ -151,14 +152,14 @@ function OldForecast({ shape, done }: { shape: ForecastShape; done: () => void }
   const latest = useRef(done);
   latest.current = done;
   useEffect(() => afterExit(ref.current, () => latest.current()), []);
-  return <g ref={ref} className={s.forecastOld} data-forecast-old="" aria-hidden="true">{forecastLines(shape)}</g>;
+  return <g ref={ref} className={sLocal.forecastOld} data-forecast-old="" aria-hidden="true">{forecastLines(shape)}</g>;
 }
 function forecastLines({ lines, end }: ForecastShape) {
   return <>
-    {lines.map(line => <polyline key={line} className={s.forecast} data-line="forecast" points={line} strokeWidth="1.75" strokeDasharray="4 4" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />)}
+    {lines.map(line => <polyline key={line} className={sLocal.forecast} data-line="forecast" points={line} strokeWidth="1.75" strokeDasharray="4 4" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />)}
     {end && <>
-      <line className={s.endRing} x1={end.x} x2={end.x} y1={end.y} y2={end.y} strokeWidth="12" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      <line className={s.endHole} x1={end.x} x2={end.x} y1={end.y} y2={end.y} strokeWidth="7" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <line className={sLocal.endRing} x1={end.x} x2={end.x} y1={end.y} y2={end.y} strokeWidth="12" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <line className={sLocal.endHole} x1={end.x} x2={end.x} y1={end.y} y2={end.y} strokeWidth="7" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </>}
   </>;
 }

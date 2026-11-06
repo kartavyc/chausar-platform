@@ -1,0 +1,120 @@
+/* Department panels: D's `.dp-head`, `.dp-ic`, `.dp-t`, `.dp-name`, `.dp-line`, `.dp-stats` and `.dp-s`. */
+
+.deptHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--target);
+}
+
+.deptIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--av-40);
+  height: var(--av-40);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+  color: var(--fg2);
+}
+
+.deptIcon[data-large] {
+  width: var(--av-52);
+  height: var(--av-52);
+  border-radius: var(--r-tile);
+}
+
+.deptIcon[data-dept='sales'] { color: var(--sales); }
+.deptIcon[data-dept='mkt'] { color: var(--mkt); }
+.deptIcon[data-dept='prod'] { color: var(--prod); }
+.deptIcon[data-dept='money'] { color: var(--money); }
+.deptIcon[data-dept='ops'] { color: var(--ops); }
+
+/* The name and counts keep room for one line each; the figures drop under them when the panel is narrow. */
+.deptTitle {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.deptName {
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+  line-height: 22px;
+}
+
+.counts {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.counts [data-tone='wait'] {
+  color: var(--wait-strong);
+  font-weight: var(--weight-medium);
+}
+
+.counts [data-tone='fail'] {
+  color: var(--fail);
+  font-weight: var(--weight-medium);
+}
+
+.deptStat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.deptCount {
+  font-size: var(--fig-dept);
+  font-weight: var(--weight-medium);
+  line-height: 22px;
+  letter-spacing: -0.02em;
+}
+
+.deptLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--fg2);
+  white-space: nowrap;
+}
+
+@media (max-width: 759px) {
+
+  .deptStat {
+    align-items: flex-start;
+  }
+}
+
+/* W4 4A2: a department panel's head is its icon, name and jobs, which fit on one line at any panel width; the spend,
+   with the rupees beside it, takes the line under them. */
+.deptHead > .deptStat {
+  margin-left: auto;
+}
+
+.deptSpend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-2);
+  margin-top: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.deptFigure {
+  min-width: 0;
+}
+
+.held {
+  margin-top: var(--sp-2);
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}

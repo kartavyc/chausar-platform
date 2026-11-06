@@ -1,0 +1,209 @@
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.table th {
+  height: 40px;
+  padding: 0 var(--sp-3) 0 0;
+  border-bottom: var(--hair) solid var(--line);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--mute);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table td {
+  height: 60px;
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) 0;
+  border-bottom: var(--hair) solid var(--line-soft);
+  font-size: var(--text-body);
+  color: var(--fg);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-right: 0;
+  text-align: right;
+}
+
+.colNumber { width: 96px; }
+.colAmount { width: 128px; text-align: right; }
+.colStatus { width: 120px; }
+.colDue { width: 120px; }
+.colReceipt { width: 100px; }
+.colAction { width: 148px; }
+
+.table th.colAmount,
+.cellAmount {
+  text-align: right;
+}
+
+/* C4 (T21): a section's heading row (Issued, Paid) and the quiet line under an empty one. */
+.table th.groupHead {
+  height: 36px;
+  padding-top: var(--sp-3);
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}
+
+.table td.groupEmpty {
+  height: 44px;
+  color: var(--mute);
+}
+
+.tr:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: -2px;
+}
+
+.client {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.clientText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.clientName {
+  overflow: hidden;
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 19px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clientSub {
+  overflow: hidden;
+  font-size: var(--text-label);
+  line-height: 17px;
+  color: var(--mute);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount {
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.cellDue {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.cellDue :global(.mono) {
+  color: var(--fg);
+}
+
+/* Words only a phone shows, where the table's column heads are hidden: the amount's label, the due date as a sentence. */
+.phoneOnly {
+  display: none;
+}
+
+.cellLabel {
+  margin-right: var(--sp-2);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.quietSmall {
+  display: block;
+  font-size: var(--text-label);
+  color: var(--fail);
+}
+
+.priced {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-label);
+  color: var(--mute);
+  white-space: nowrap;
+}
+@container invoices (max-width: 839px) {
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .tr {
+    display: grid;
+    grid-template-areas:
+      'client client'
+      'number status'
+      'amount receipt'
+      'due action';
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+    padding: var(--sp-4) 0;
+    border-bottom: var(--hair) solid var(--line-soft);
+  }
+
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .groupRow {
+    display: block;
+  }
+
+  .table th.groupHead,
+  .table td.groupEmpty {
+    display: block;
+    height: auto;
+    padding: var(--sp-3) 0 var(--sp-1);
+    border: 0;
+    text-align: left;
+  }
+
+  .table td {
+    display: block;
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+
+  .table td:last-child {
+    text-align: right;
+  }
+
+  .phoneOnly {
+    display: inline;
+  }
+
+  .wideOnly {
+    display: none;
+  }
+
+  .cellClient { grid-area: client; }
+  .cellNumber { grid-area: number; }
+  .cellStatus { grid-area: status; justify-self: end; }
+  .cellAmount { grid-area: amount; text-align: left; }
+  .cellReceipt { grid-area: receipt; justify-self: end; }
+  .cellDue { grid-area: due; }
+  .cellAction { grid-area: action; }
+}

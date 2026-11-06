@@ -1,0 +1,31 @@
+/* Figure tiles. */
+
+.moneyTile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.tileLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 24px;
+  padding-right: calc(var(--sp-12) * 2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.withRupees {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.rupees {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}

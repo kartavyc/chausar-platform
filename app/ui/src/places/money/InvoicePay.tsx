@@ -34,6 +34,7 @@ import { copyText, performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
 
 import s from './Money.module.css';
+import sLocal from './InvoicePay.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 
@@ -46,9 +47,9 @@ function QrCode({ rows, label }: { rows: string[]; label: string }) {
   const side = rows.length + 8;
   const path = rows.flatMap((row, y) => [...row].flatMap((cell, x) => (cell === '1' ? [`M${x + 4} ${y + 4}h1v1h-1z`] : []))).join('');
   return (
-    <svg className={s.qr} role="img" aria-label={label} viewBox={`0 0 ${side} ${side}`} shapeRendering="crispEdges" focusable="false">
-      <rect className={s.qrLight} width={side} height={side} />
-      <path className={s.qrDark} d={path} />
+    <svg className={sLocal.qr} role="img" aria-label={label} viewBox={`0 0 ${side} ${side}`} shapeRendering="crispEdges" focusable="false">
+      <rect className={sLocal.qrLight} width={side} height={side} />
+      <path className={sLocal.qrDark} d={path} />
     </svg>
   );
 }
@@ -176,9 +177,9 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
       ) : (
         <>
           {pay.upi && (
-            <div className={s.payUpi}>
+            <div className={sLocal.payUpi}>
               <QrCode rows={pay.upi.qr.rows} label={t('money-pay.qr', { number: pay.upi.reference })} />
-              <dl className={s.payFacts} data-figure-group="">
+              <dl className={sLocal.payFacts} data-figure-group="">
                 <div><dt>{t('money-pay.upiId')}</dt><dd data-code="" className="mono" data-content="">{pay.upi.id}</dd></div>
                 <div>
                   <dt>{t('money-pay.amount')}</dt>
@@ -222,11 +223,11 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
           </p>
         </>
       )}
-      {!issued && <ResultLine tone={problem ? 'problem' : 'done'} className={s.result}>{problem ?? said}</ResultLine>}
+      {!issued && <ResultLine tone={problem ? 'problem' : 'done'} className={sLocal.result}>{problem ?? said}</ResultLine>}
     </section>
     {issued && <section className={s.block} aria-labelledby={sendId} data-send-invoice>
       <h3 id={sendId} className={s.blockTitle}>{t('money-pay.send')}</h3>
-      <div className={s.sendButtons}>
+      <div className={sLocal.sendButtons}>
           <Button size="sm" disabled={busy} onClick={() => void save()}>{t('money-pay.saveFile')}</Button>
           <Button size="sm" disabled={busy} onClick={whatsapp}>{t('money-pay.whatsapp')}</Button>
           <Button size="sm" disabled={busy} onClick={() => void email()}>{t('money-pay.email')}</Button>
@@ -234,7 +235,7 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
           {invoice.status === 'issued' && view.sent === false && <Button size="sm" variant="quiet" disabled={busy} onClick={() => void markSent()}>{t('money-pay.markSent')}</Button>}
         </div>
       {/* B4 task 5: Saved, Shared and a refusal share one slot that is there before the press. */}
-      <ResultLine tone={problem ? 'problem' : 'done'} className={s.result} data-engine-line="">{!problem && said && <Icon name="check" size={16} />}{problem ?? said}</ResultLine>
+      <ResultLine tone={problem ? 'problem' : 'done'} className={sLocal.result} data-engine-line="">{!problem && said && <Icon name="check" size={16} />}{problem ?? said}</ResultLine>
       {kept && engine.showShared && (
         <p className={s.payRow}>
           <Button size="sm" variant="quiet" onClick={() => void showKept(kept)}>{t(kept.endsWith('.pdf') ? 'money-pay.showPdf' : 'money-pay.showFile')}</Button>

@@ -1,0 +1,66 @@
+/* Margins per client: a plain table that stacks on a phone. */
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body);
+}
+
+.table th,
+.table td {
+  padding: var(--sp-3) var(--sp-4);
+  border-top: var(--hair) solid var(--line-soft);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table thead th {
+  border-top: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.client {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+@media (max-width: 759px) {
+  .table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .table tr {
+    display: block;
+    padding-block: var(--sp-2);
+    border-top: var(--hair) solid var(--line-soft);
+  }
+
+  .table th,
+  .table td {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-1) var(--sp-4);
+    border-top: 0;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    font-size: var(--text-label);
+    color: var(--mute);
+  }
+}
+
+.basis {
+  display: grid;
+  gap: var(--sp-1);
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}

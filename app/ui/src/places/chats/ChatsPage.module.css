@@ -1,0 +1,10 @@
+/* Chats (D-Chats): the list (`.cv-list`, `.cv-item`, `.cv-g`), the chat (`.cv-head`, `.cv-body`, `.cv-comp`), the chief's
+   answer (`.cm`, `.cm-p`), the worked table (`.fig`, `.frows`), the plan and its next step (`.plan`, `.ps`, `.act`) and
+   the consent. Two panes side by side on a computer; on a phone one at a time. Colour only for state: ink, greys, the
+   accent on the one primary and the "Next step" chip, red for a refusal. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-grid);
+}

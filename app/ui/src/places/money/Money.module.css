@@ -35,26 +35,6 @@
   padding-block: var(--sp-1);
 }
 
-/* Figure tiles. */
-
-.moneyTile {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-.tileLabel {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: 24px;
-  padding-right: calc(var(--sp-12) * 2);
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  line-height: 18px;
-  color: var(--mute);
-}
-
 .tileValue {
   margin-top: var(--sp-2);
 }
@@ -67,29 +47,11 @@
   right: var(--pad-tile-compact);
 }
 
-.owedFigure [data-receipt] {
-  position: absolute;
-  top: var(--pad-tile);
-  right: var(--pad-tile);
-}
-
 /* Engine words around an amount ("₹60.10, includes estimates"): the body face, free to wrap inside the tile. */
 .tileValue[data-phrase] [data-ui-number] {
   font-family: var(--font);
   white-space: normal;
   overflow-wrap: anywhere;
-}
-
-.withRupees {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-}
-
-.rupees {
-  font-size: var(--text-label);
-  line-height: 16px;
-  color: var(--mute);
 }
 
 .tileSub {
@@ -101,62 +63,6 @@
 
 .tileChart {
   margin-top: var(--sp-3);
-}
-
-/* W4 4I2: "of" the month's goal and the percent, under the invoiced figure (D-Money's `.mt` with `.of` and `.pct`). */
-.goalOf {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sp-2);
-  margin-top: var(--sp-1);
-  font-size: var(--text-read);
-  color: var(--mute);
-}
-
-.goalPercent {
-  margin-left: auto;
-  font-size: var(--text-tile);
-  font-weight: var(--weight-medium);
-  color: var(--fg);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Days left, in a pill at the end of the label line (D-Money's `.m-lab .pill`). */
-.tilePill {
-  margin-left: auto;
-  padding: 0 var(--sp-2);
-  border-radius: var(--r-chip);
-  border: var(--hair) solid var(--line);
-  font-size: var(--text-label);
-  line-height: 20px;
-  color: var(--fg2);
-  white-space: nowrap;
-}
-
-/* Under the bar: ready to issue, ahead or behind pace, past the goal by (D-Money's `.mt .ft`). */
-.goalFoot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-3);
-  margin-top: var(--sp-2);
-  font-size: var(--text-label);
-  color: var(--mute);
-}
-
-.goalFootItem {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--sp-1);
-  white-space: nowrap;
-}
-
-.tileFoot {
-  display: flex;
-  align-items: center;
-  margin-top: auto;
-  padding-top: var(--sp-3);
-  font-size: var(--text-label);
 }
 
 /* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
@@ -175,27 +81,6 @@
   color: var(--link-hover);
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-
-/* Who owes you, and due next. */
-
-.owed {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-.owed > :first-child {
-  padding-right: calc(var(--sp-12) * 2);
-}
-
-.owedBody {
-  display: flex;
-  flex-direction: column;
-}
-
-.owedFigure {
-  margin-top: var(--sp-3);
 }
 
 .openList,
@@ -220,48 +105,6 @@
 .openList .openItem:first-child,
 .nextList .openItem:first-child {
   border-top: 0;
-}
-
-.openText {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.openClient {
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  line-height: 19px;
-  color: var(--fg);
-}
-
-.openSub {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 var(--sp-1);
-  font-size: var(--text-label);
-  line-height: 17px;
-  color: var(--mute);
-}
-
-.openAmount {
-  flex: none;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--fg);
-  white-space: nowrap;
-}
-
-.dueNext {
-  display: flex;
-  flex-direction: column;
-}
-
-.dueBody {
-  display: flex;
-  flex-direction: column;
 }
 
 .quietLine {
@@ -386,12 +229,6 @@
   color: var(--fail);
 }
 
-.check {
-  margin-top: var(--sp-1);
-  font-size: var(--text-read);
-  color: var(--wait);
-}
-
 /* The invoices table. */
 
 /* The Tile part's `pad="none"` sets its padding to 0; the table keeps D's own (`.itile`). */
@@ -408,72 +245,6 @@
   container-name: invoices;
 }
 
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.table th {
-  height: 40px;
-  padding: 0 var(--sp-3) 0 0;
-  border-bottom: var(--hair) solid var(--line);
-  font-size: var(--text-label);
-  font-weight: var(--weight-strong);
-  color: var(--mute);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.table td {
-  height: 60px;
-  padding: var(--sp-2) var(--sp-3) var(--sp-2) 0;
-  border-bottom: var(--hair) solid var(--line-soft);
-  font-size: var(--text-body);
-  color: var(--fg);
-  vertical-align: middle;
-}
-
-.table tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.table th:last-child,
-.table td:last-child {
-  padding-right: 0;
-  text-align: right;
-}
-
-.colNumber { width: 96px; }
-.colAmount { width: 128px; text-align: right; }
-.colStatus { width: 120px; }
-.colDue { width: 120px; }
-.colReceipt { width: 100px; }
-.colAction { width: 148px; }
-
-.table th.colAmount,
-.cellAmount {
-  text-align: right;
-}
-
-/* C4 (T21): a section's heading row (Issued, Paid) and the quiet line under an empty one. */
-.table th.groupHead {
-  height: 36px;
-  padding-top: var(--sp-3);
-  color: var(--fg);
-  font-weight: var(--weight-medium);
-}
-
-.table td.groupEmpty {
-  height: 44px;
-  color: var(--mute);
-}
-
-.tr:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: -2px;
-}
-
 .invoiceNo {
   padding: 0;
   border: 0;
@@ -488,92 +259,6 @@
 .invoiceNo:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-
-.client {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  min-width: 0;
-}
-
-.clientText {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.clientName {
-  overflow: hidden;
-  font-size: var(--text-body);
-  font-weight: var(--weight-strong);
-  line-height: 19px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.clientSub {
-  overflow: hidden;
-  font-size: var(--text-label);
-  line-height: 17px;
-  color: var(--mute);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.amount {
-  font-weight: var(--weight-medium);
-  white-space: nowrap;
-}
-
-.cellDue {
-  font-size: var(--text-read);
-  color: var(--mute);
-}
-
-.cellDue :global(.mono) {
-  color: var(--fg);
-}
-
-/* Words only a phone shows, where the table's column heads are hidden: the amount's label, the due date as a sentence. */
-.phoneOnly {
-  display: none;
-}
-
-.cellLabel {
-  margin-right: var(--sp-2);
-  font-size: var(--text-label);
-  color: var(--mute);
-}
-
-.quietSmall {
-  display: block;
-  font-size: var(--text-label);
-  color: var(--fail);
-}
-
-.priced {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--text-label);
-  color: var(--mute);
-  white-space: nowrap;
-}
-
-/* Books. */
-
-.periodRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2) var(--sp-4);
-  margin-bottom: var(--sp-4);
-}
-
-.range {
-  font-size: var(--text-read);
-  color: var(--mute);
 }
 
 .glance > * {
@@ -605,72 +290,11 @@
   margin-top: var(--sp-4);
 }
 
-.caLine {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--control-sm);
-  padding: 0 var(--sp-3);
-  border-radius: var(--r-chip);
-  background: var(--wait-soft);
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--wait);
-}
-
-.taxPart {
-  margin-top: var(--sp-4);
-}
-
-.taxPart:first-child {
-  margin-top: 0;
-}
-
 .blockTitle {
   margin: var(--sp-3) 0 var(--sp-1);
   font-size: var(--text-read);
   font-weight: var(--weight-strong);
   color: var(--fg);
-}
-
-/* Spend and its settings. */
-
-.total {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-2);
-  align-items: baseline;
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  color: var(--fg);
-}
-
-.policyLines {
-  display: grid;
-  gap: var(--sp-2);
-  margin: 0;
-  padding: var(--sp-1) 0 0;
-  list-style: none;
-}
-
-.policyLine {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  font-size: var(--text-body);
-  color: var(--fg);
-}
-
-.policyLine > svg {
-  flex: none;
-  color: var(--mute);
-}
-
-.policyText {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-2);
-  align-items: baseline;
-  min-width: 0;
 }
 
 .rateCard {
@@ -682,51 +306,12 @@
   margin: 0;
 }
 
-.rateLine {
-  display: grid;
-  gap: var(--sp-3);
-  padding-top: var(--sp-3);
-  border-top: var(--hair) solid var(--line-soft);
-}
-
 /* Sheets and forms. */
 
 .sheetCard {
   padding: var(--pad-card);
   border-radius: var(--r-card);
   background: var(--inner);
-}
-
-.sheetFigures {
-  display: grid;
-  margin: 0;
-}
-
-.sheetFigure {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  padding: var(--sp-2) 0;
-  border-top: var(--hair) solid var(--line);
-  font-size: var(--text-read);
-}
-
-.sheetFigure:first-child {
-  border-top: 0;
-}
-
-.sheetFigure[data-key='total'],
-.sheetFigure[data-key='balance'] {
-  font-weight: var(--weight-strong);
-}
-
-.sheetFigure dt {
-  color: var(--fg2);
-}
-
-.sheetFigure dd {
-  margin: 0;
-  color: var(--fg);
 }
 
 .sheetLine {
@@ -739,43 +324,12 @@
   color: var(--fg2);
 }
 
-/* The payment sheet's "Still owed" with the balance and the receipts that explain it. */
-.owedLine {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-2);
-  align-items: center;
-}
-
-.owedLine :global(.mono) {
-  color: var(--fg);
-}
-
 .block {
   margin-top: var(--sp-6);
 }
 
 .sheetCard .block {
   margin-top: var(--sp-4);
-}
-
-.payment {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-2);
-  align-items: center;
-  padding: var(--sp-2) 0;
-  border-top: var(--hair) solid var(--line);
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
-.pre {
-  margin-top: var(--sp-2);
-  font-family: var(--font-mono);
-  font-size: var(--text-read);
-  white-space: pre-wrap;
-  color: var(--fg2);
 }
 
 .notice {
@@ -786,10 +340,6 @@
   margin-top: var(--sp-4);
   font-size: var(--text-read);
   color: var(--fg);
-}
-
-.result {
-  margin-top: var(--sp-2);
 }
 
 .noticeStale {
@@ -827,13 +377,6 @@
 
 .fieldLabel {
   font-size: var(--text-label);
-  color: var(--mute);
-}
-
-/* 4Z3: a select's hint, as the Field part's (D's `.hint`). */
-.fieldHint {
-  font-size: var(--text-read);
-  line-height: 1.4;
   color: var(--mute);
 }
 
@@ -876,130 +419,6 @@
 
 /* Too narrow for the table's columns (a phone, or a sheet open beside the page at 1280): each invoice becomes a small
    card of its own, so Action never scrolls out of view (w3 3I). The column heads stay for screen readers. */
-@container invoices (max-width: 839px) {
-  .table,
-  .table tbody {
-    display: block;
-  }
-
-  .table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-
-  .tr {
-    display: grid;
-    grid-template-areas:
-      'client client'
-      'number status'
-      'amount receipt'
-      'due action';
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--sp-2) var(--sp-3);
-    padding: var(--sp-4) 0;
-    border-bottom: var(--hair) solid var(--line-soft);
-  }
-
-  .table tbody tr:last-child {
-    border-bottom: 0;
-  }
-
-  .groupRow {
-    display: block;
-  }
-
-  .table th.groupHead,
-  .table td.groupEmpty {
-    display: block;
-    height: auto;
-    padding: var(--sp-3) 0 var(--sp-1);
-    border: 0;
-    text-align: left;
-  }
-
-  .table td {
-    display: block;
-    height: auto;
-    padding: 0;
-    border: 0;
-  }
-
-  .table td:last-child {
-    text-align: right;
-  }
-
-  .phoneOnly {
-    display: inline;
-  }
-
-  .wideOnly {
-    display: none;
-  }
-
-  .cellClient { grid-area: client; }
-  .cellNumber { grid-area: number; }
-  .cellStatus { grid-area: status; justify-self: end; }
-  .cellAmount { grid-area: amount; text-align: left; }
-  .cellReceipt { grid-area: receipt; justify-self: end; }
-  .cellDue { grid-area: due; }
-  .cellAction { grid-area: action; }
-}
-
-/* Wave 6 (6D2, 6D3): how clients pay on the invoice sheet. The QR code is dark squares on a light ground in both themes,
-   so any UPI app can read it (--qr-dark and --qr-light). */
-.payUpi {
-  display: grid;
-  gap: var(--sp-3);
-  justify-items: start;
-  margin-top: var(--sp-3);
-}
-
-.qr {
-  inline-size: calc(var(--sp-12) * 4);
-  block-size: calc(var(--sp-12) * 4);
-  padding: var(--sp-2);
-  border-radius: var(--r-card);
-  background: var(--qr-light);
-}
-
-.qrLight {
-  fill: var(--qr-light);
-}
-
-.qrDark {
-  fill: var(--qr-dark);
-}
-
-.payFacts {
-  display: grid;
-  gap: var(--sp-1);
-  margin: 0;
-  font-size: var(--text-read);
-}
-
-.payFacts div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-3);
-  align-items: center;
-}
-
-.payFacts dt {
-  color: var(--fg2);
-}
-
-.payFacts dd {
-  display: inline-flex;
-  gap: var(--sp-2);
-  align-items: center;
-  margin: 0;
-  color: var(--fg);
-}
 
 .payRow {
   display: flex;
@@ -1018,11 +437,4 @@
   font-size: var(--text-label);
   font-weight: var(--weight-regular);
   color: var(--fg2);
-}
-
-.sendButtons { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--gap-grid); }
-
-.journalRow {
-  content-visibility: auto;
-  contain-intrinsic-size: auto var(--target);
 }

@@ -21,6 +21,7 @@ import { BarChart } from '../../parts/charts/BarChart';
 import { Tile, TileHead } from '../../parts/Tile';
 import type { NetworkImportKind, NetworkSourcesView } from '../../engine/types';
 import s from './Network.module.css';
+import sLocal from './NetworkSources.module.css';
 import { Fold } from '../../parts/Fold';
 
 /** Each kind of file with its mark. */
@@ -46,23 +47,23 @@ export function NetworkSources({ view }: { view: NetworkSourcesView }) {
   return (
     <>
       {view.sources.length > 0 && (
-        <Tile as="section" labelledBy={sourcesId} className={s.sources}>
+        <Tile as="section" labelledBy={sourcesId} className={sLocal.sources}>
           <TileHead id={sourcesId} title={t('clients.network.sources.title')} />
           <ul className={s.sourceList}>
             {view.sources.map((source) => (
               <li key={source.kind} className={s.source} data-source={source.kind}>
                 <span className={s.kindMark} aria-hidden="true"><Icon name={KIND_ICONS[source.kind]} size={18} /></span>
-                <div className={s.sourceBody}>
-                  <p className={s.sourceName}>{t(`clients.network.kind.${source.kind}`)}</p>
-                  <p className={s.file}>{source.fileName}</p>
-                  <p className={s.sourceLine}>{source.line}</p>
+                <div className={sLocal.sourceBody}>
+                  <p className={sLocal.sourceName}>{t(`clients.network.kind.${source.kind}`)}</p>
+                  <p className={sLocal.file}>{source.fileName}</p>
+                  <p className={sLocal.sourceLine}>{source.line}</p>
                   {/* 4Z2: the engine's line already says how many it kept; what it left out is said once here. */}
                   {source.dropped > 0 && (
-                    <p className={s.kept}>
+                    <p className={sLocal.kept}>
                       <span>{t('clients.network.sources.dropped', { count: source.dropped })}</span>
                     </p>
                   )}
-                  {source.stale && <p className={s.stale}>{source.stale}</p>}
+                  {source.stale && <p className={sLocal.stale}>{source.stale}</p>}
                   <Button
                     variant="quiet"
                     size="sm"
@@ -79,7 +80,7 @@ export function NetworkSources({ view }: { view: NetworkSourcesView }) {
       )}
 
       {view.bands && (
-        <Tile as="section" labelledBy={bandsId} className={s.bands}>
+        <Tile as="section" labelledBy={bandsId} className={sLocal.bands}>
           <TileHead id={bandsId} title={t('clients.network.bands.title')} end={<Receipt id={view.bands.receiptId} />} />
           <p className={s.sub}>{t('clients.network.bands.line')}</p>
           <BarChart
@@ -97,14 +98,14 @@ export function NetworkSources({ view }: { view: NetworkSourcesView }) {
         </Tile>
       )}
 
-      <Tile as="section" labelledBy={privateId} className={s.private}>
-        <div className={s.privateHead}>
+      <Tile as="section" labelledBy={privateId} className={sLocal.private}>
+        <div className={sLocal.privateHead}>
           <span className={s.kindMark} aria-hidden="true"><Icon name="shield-check" size={18} /></span>
-          <h2 id={privateId} className={s.privateTitle}>{t('clients.network.private.title')}</h2>
+          <h2 id={privateId} className={sLocal.privateTitle}>{t('clients.network.private.title')}</h2>
         </div>
         {/* What stays private, and what is kept, one step away: the page at rest stays short. */}
         <Fold summary={t('clients.network.private.keeps')} className={s.keeps}>
-          <Inner card={false} className={s.keepsBody}>
+          <Inner card={false} className={sLocal.keepsBody}>
             <p>{t('clients.network.private.line')}</p>
             <p>{t('clients.network.private.kept')}</p>
             <p>{t('clients.network.private.dropped')}</p>

@@ -37,6 +37,7 @@ import { StoppedRuns, isStopped } from './StoppedRun';
 import { useWorkChanged } from './refresh';
 import { DraftSheet } from './DraftSheet';
 import s from './Work.module.css';
+import sLocal from './WorkPage.module.css';
 import { Ideas } from './Ideas';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { Trackers } from './Trackers';
@@ -206,7 +207,7 @@ function WorkPage() {
         {runs.data && <RunGroups active={going.filter(run => run.state === 'active')} waiting={waiting} done={done} names={tileNames}
           queue={queue.data?.rows} onChanged={reload} primaryId={primaryRun} moreHref={formatHash(routeFor(route, 'done', business))}
           failures={(failedOpen.length > 0 || stoppedRuns.length > 0) ? (
-              <div className={s.stack}>
+              <div className={sLocal.stack}>
                 {stoppedRuns.length > 0 && stoppedTiles(stoppedRuns)}
                 {failedOpen.length > 0 && failedTiles(failedOpen)}
               </div>
@@ -244,25 +245,25 @@ function WorkPage() {
       <PageTitle title={t('place.work')} line={line} count={going.length > 0 ? String(going.length) : undefined} />
       <StorageNotice />
       <PausedNote />
-      <div className={s.toolbar}>
-        <div className={s.chips}>
+      <div className={sLocal.toolbar}>
+        <div className={sLocal.chips}>
           {/* A new business has nothing to filter; a filter in the address keeps the row, as the way back. */}
           {!(empty && filter === 'all' && focus === undefined) && (
             <FilterChips
-              label={t('work.filter')} options={chips} value={focus === undefined ? filter : ''} drawCounts={false} className={s.chipGroup}
+              label={t('work.filter')} options={chips} value={focus === undefined ? filter : ''} drawCounts={false} className={sLocal.chipGroup}
               onChange={(id) => navigate(id === 'waiting' ? { place: 'today', query: {} } : routeFor(route, id as WorkFilter, business))}
             />
           )}
           {businessChips.length > 0 && (
             <FilterChips
-              label={t('work.filter.business')} options={businessChips} value={business ?? ''} className={s.chipGroup}
+              label={t('work.filter.business')} options={businessChips} value={business ?? ''} className={sLocal.chipGroup}
               onChange={(id) => navigate(routeFor(route, focus === undefined ? filter : 'all', id === business ? undefined : id))}
             />
           )}
         </div>
-        <span className={s.toolbarEnd}>
+        <span className={sLocal.toolbarEnd}>
           {/* C1 task 5: the idea pipeline is a page of its own, one quiet link away. */}
-          <a className={s.ideasLink} href="#/work/ideas">{t('kit-rules.chip')}</a>
+          <a className={sLocal.ideasLink} href="#/work/ideas">{t('kit-rules.chip')}</a>
           <Button onClick={(event) => openSheet('new-order', 'new', event.currentTarget)}>
             <Icon name="plus" size={16} />
             {t('work.new')}
@@ -270,7 +271,7 @@ function WorkPage() {
         </span>
       </div>
       {failures.map((e) => <p key={`${e.code}:${e.message}`} className={s.problem} role="status">{t('work.loadFailed', { message: e.message })}</p>)}
-      <div className={s.sections}>{content}<LoadingPlace shape="list" loading={!runs.data && !runs.error} /></div>
+      <div className={sLocal.sections}>{content}<LoadingPlace shape="list" loading={!runs.data && !runs.error} /></div>
     </>
   );
 }

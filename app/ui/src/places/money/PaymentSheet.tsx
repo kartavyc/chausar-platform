@@ -27,6 +27,7 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import { ThankYou } from './ThankYou';
 import { invoiceTitle, statusOf, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
+import sLocal from './PaymentSheet.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 
@@ -94,7 +95,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   // What is still owed, with the receipts that explain it: the one that priced the invoice and each payment's books
   // receipt (one data-figure-group, as in the invoice sheet).
   const owed = current && balance && (
-    <span className={s.owedLine} data-figure-group="">
+    <span className={sLocal.owedLine} data-figure-group="">
       <span>{t('money.payment.owed')}</span>
       <span data-num="">{balance.display}</span>
       {/* 4Z3: the mark named for what is still owed, the amount it sits beside. */}

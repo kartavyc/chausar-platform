@@ -1,0 +1,9 @@
+.dueNext {
+  display: flex;
+  flex-direction: column;
+}
+
+.dueBody {
+  display: flex;
+  flex-direction: column;
+}

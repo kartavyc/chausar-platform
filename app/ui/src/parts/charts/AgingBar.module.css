@@ -1,0 +1,28 @@
+.ageRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(4.5rem, auto);
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 26px;
+  color: var(--fg2);
+  font-size: var(--text-read);
+}
+
+.ageName {
+  min-width: 0;
+}
+
+.ageCount {
+  color: var(--mute);
+  font-size: var(--text-label);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ageAmount {
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}

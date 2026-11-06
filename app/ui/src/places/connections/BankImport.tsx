@@ -9,6 +9,7 @@ import type { BankImportResult } from '../../engine/types';
 import { SAMPLE_STATEMENT_PATH, STATEMENT_FORMATS } from '../../../../../platform/shared/venture/build/bank-formats.ts';
 import type { SheetComponentProps } from '../../shell/sheets';
 import s from './Connections.module.css';
+import sLocal from './BankImport.module.css';
 import { FilePick } from '../../parts/FilePick';
 
 
@@ -93,7 +94,7 @@ export function BankImportForm({ onImported }: { onImported?: () => void }) {
         <div role="status">
           <p className={s.said}>{result.line}</p>
           {result.rejected.length > 0 && (
-            <ul className={s.rejected}>
+            <ul className={sLocal.rejected}>
               {result.rejected.map((line) => <li key={line.line}>{t('connections.bank.rejected', { line: line.line, reason: line.reason })}</li>)}
             </ul>
           )}

@@ -1,0 +1,34 @@
+/* Books. */
+
+.periodRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.range {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.caLine {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-chip);
+  background: var(--wait-soft);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--wait);
+}
+
+.taxPart {
+  margin-top: var(--sp-4);
+}
+
+.taxPart:first-child {
+  margin-top: 0;
+}

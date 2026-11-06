@@ -5,6 +5,7 @@ import { instantIn } from '../../parts/when';
 import { dayKeyIn, dayKeyPlus } from '../../../../../platform/shared/owner-format.ts';
 import { Button } from '../../parts/Button';
 import s from './Chats.module.css';
+import sLocal from './PickTime.module.css';
 
 /**
  * One-shot C4 task 8: "Pick a time" under the snooze presets. A day and a time on the owner's clock (the business's
@@ -31,7 +32,7 @@ export function PickTime({ busy, onPick }: { busy: boolean; onPick: (until: stri
 
   if (!open) return <Button size="sm" variant="quiet" disabled={busy} onClick={() => setOpen(true)}>{t('chats.snooze.pick')}</Button>;
   return (
-    <form className={s.pickTime} onSubmit={(event) => void pick(event)} aria-label={t('chats.snooze.pick')}>
+    <form className={sLocal.pickTime} onSubmit={(event) => void pick(event)} aria-label={t('chats.snooze.pick')}>
       <label htmlFor={dayId}>{t('chats.snooze.day')}</label>
       <input id={dayId} type="date" value={day} onChange={(event) => { setDay(event.target.value); setProblem(null); }} />
       <label htmlFor={timeId}>{t('chats.snooze.time')}</label>

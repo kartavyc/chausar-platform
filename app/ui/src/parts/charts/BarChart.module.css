@@ -1,0 +1,38 @@
+/* ---- Column bars (D-Money in and out, D-TeamDept spend and jobs) ---- */
+
+.columnsPlot {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+
+.columnPlot {
+  display: block;
+  overflow: visible;
+}
+
+/* The track, square where the bar starts and round at its far end; an empty row keeps it. */
+.rankTrack {
+  grid-area: bar;
+  display: block;
+  min-width: 0;
+  height: 10px;
+  border-radius: 0 5px 5px 0;
+  background: var(--wash);
+}
+
+.rankValue {
+  grid-area: value;
+  min-width: 3ch;
+  color: var(--fg);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  text-align: right;
+}
+
+.receipts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+}

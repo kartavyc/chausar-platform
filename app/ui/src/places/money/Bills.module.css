@@ -1,0 +1,33 @@
+/* Bills. */
+.owedBills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.billAside {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+}
+
+.billState {
+  padding-inline: var(--sp-2);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  font-size: var(--text-label);
+  line-height: 20px;
+  color: var(--fg2);
+}
+
+.billState[data-state='overdue'] {
+  border-color: var(--fail-line);
+  background: var(--fail-soft);
+  color: var(--fail);
+}

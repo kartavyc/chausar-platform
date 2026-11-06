@@ -1,0 +1,19 @@
+.repo {
+  margin-left: var(--sp-2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-regular);
+  color: var(--mute);
+}
+
+/* ---- Website build ---- */
+
+.pre {
+  margin: 0;
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--inner);
+  font-size: var(--text-read);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--fg2);
+}

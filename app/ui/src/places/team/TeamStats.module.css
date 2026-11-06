@@ -1,0 +1,58 @@
+/* Stats: D's `.stack`, avatars overlapping with a ring of the tile's white between them. */
+
+.stack {
+  display: inline-flex;
+}
+
+.stack > * {
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* A light overlap (D's 8 px hid the second letter of the initials under the next avatar: "ED" read "EI"; w3 3I). */
+.stack > * + * {
+  margin-left: calc(var(--sp-1) * -1);
+}
+
+/* The spend tile: StatTile's look (`.stat`, `.s-lab`, `.s-val`), drawn here so the figure can go through Money's
+   ProvedFigure with its rupees. A figure never breaks inside itself; when the engine writes words beside the amount
+   ("₹60.10, includes estimates") it is set at the tile figure size and may wrap at its spaces. */
+.spendTile {
+  display: flex;
+  flex-direction: column;
+}
+
+.statLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 18px;
+  color: var(--mute);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 18px;
+}
+
+.statValue {
+  margin-top: calc(var(--sp-1) * 1.5);
+  font-size: var(--fig-stat);
+  line-height: 36px;
+  letter-spacing: -0.03em;
+}
+
+.statValue.worded {
+  font-size: var(--fig-tile);
+  line-height: 26px;
+}
+
+.worded [data-ui-number] {
+  white-space: normal;
+}
+
+@media (max-width: 759px) {
+
+  /* StatTile's phone size, for the spend tile drawn here. */
+  .statValue {
+    font-size: var(--fig-hero);
+    line-height: 30px;
+  }
+}

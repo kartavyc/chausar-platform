@@ -19,6 +19,7 @@ import { useMoment } from './words';
 // W4 4J22a: whether the record of outside actions adds up, and Check a receipt (4J10).
 import { JournalChain } from './JournalChain';
 import s from './Money.module.css';
+import sLocal from './Journal.module.css';
 
 const LIMIT = 50;
 
@@ -84,7 +85,7 @@ function JournalRow({ entry, onSettled }: { entry: JournalEntry; onSettled: (ent
   const sending = phase === 'sending';
   return (
     <Row
-      className={s.journalRow}
+      className={sLocal.journalRow}
       id={entry.id}
       eyebrow={moment(entry.at)}
       title={t('money.journal.title', { action: entry.action, target: entry.target })}
@@ -95,7 +96,7 @@ function JournalRow({ entry, onSettled }: { entry: JournalEntry; onSettled: (ent
       aside={<Chip tone={TONES[entry.state] ?? 'neutral'}>{t(`money.journal.state.${entry.state}`)}</Chip>}
       actions={unknown && phase === 'idle' ? <Button size="sm" onClick={() => setPhase('ask')}>{t('money.journal.resolve')}</Button> : undefined}
     >
-      {unknown && <p className={s.check}>{t('money.journal.check')}</p>}
+      {unknown && <p className={sLocal.check}>{t('money.journal.check')}</p>}
       {unknown && phase !== 'idle' && (
         <div className={s.ask}>
           <p>{t('money.journal.resolveAsk')}</p>

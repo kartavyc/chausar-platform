@@ -30,6 +30,7 @@ import { Failed, Section } from './parts';
 import { onMoney, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import vLocal from './Bills.module.css';
 import { Select } from '../../parts/Select';
 import { useArrivals } from '../../parts/useArrivals';
 import { Reveal } from '../../parts/RevealBlock';
@@ -46,7 +47,7 @@ export function Bills() {
   const bills = list.data?.bills ?? [];
   const owed = list.data?.owed ?? null;
   const [adding, setAdding] = useState(false);
-  const total = bills.length > 1 && owed && <span className={v.owedBills}><span>{t('money.bills.owed')}</span><Figure value={owed.display} receiptId={owed.receiptId} /></span>;
+  const total = bills.length > 1 && owed && <span className={vLocal.owedBills}><span>{t('money.bills.owed')}</span><Figure value={owed.display} receiptId={owed.receiptId} /></span>;
 
   return (
     <>
@@ -106,9 +107,9 @@ function BillRow({ bill, currency, onChanged, arriving }: { bill: BillView; curr
       title={bill.vendor}
       line={bill.purpose ? t('money.bills.lineFor', { purpose: bill.purpose, bill: day(bill.billDate), due: day(bill.dueDate) }) : t('money.bills.line', { bill: day(bill.billDate), due: day(bill.dueDate) })}
       aside={(
-        <span className={v.billAside}>
-          <span className={v.billState} data-state={bill.state}>{t(`money.bills.state.${bill.state}`)}</span>
-          {bill.dueToday && <span className={v.billState} data-state="due-today" data-due-today="">{t('money.bills.dueToday')}</span>}
+        <span className={vLocal.billAside}>
+          <span className={vLocal.billState} data-state={bill.state}>{t(`money.bills.state.${bill.state}`)}</span>
+          {bill.dueToday && <span className={vLocal.billState} data-state="due-today" data-due-today="">{t('money.bills.dueToday')}</span>}
           {bill.recurring && <span className={v.quiet}>{t(`money.bills.repeats.${bill.recurring}`)}</span>}
           {/* What is left to pay, with the receipt of how it was made; a paid bill says so in words. */}
           {bill.receiptId && bill.state !== 'paid' && <Figure value={bill.balance} receiptId={bill.receiptId} />}

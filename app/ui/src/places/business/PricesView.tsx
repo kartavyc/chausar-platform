@@ -12,6 +12,7 @@ import type { BlueprintLite, BlueprintPatchLite, OfferLite, PriceGuideView, Rece
 import { PendingPlanRows, quoteAgain, totalOf, usePlan } from './shared';
 import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
+import sLocal from './PricesView.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { useChanged } from '../../parts/useChanged';
@@ -68,7 +69,7 @@ export function PricesView() {
 function PriceGuideSection({ guide }: { guide: PriceGuideView }) {
   const t = useT();
   return (
-    <Fold summary={t('price-sources.title')} className={s.priceGuide} data-price-guide-fold="" summaryClassName={s.priceGuideTitle}>
+    <Fold summary={t('price-sources.title')} className={sLocal.priceGuide} data-price-guide-fold="" summaryClassName={sLocal.priceGuideTitle}>
       <PriceGuideList guide={guide} />
     </Fold>
   );
@@ -139,16 +140,16 @@ function OfferPrice({ offer, receipt, currency, onChanged, leading, offers }: { 
       <p className={s.line}>{offer.description.value}</p>
       {receipt && total ? (
         // One receipt proves the total and its working: the figures in the fold are the same receipt's.
-        <div className={s.priceBlock} data-figure-group="">
+        <div className={sLocal.priceBlock} data-figure-group="">
           <div className={s.price}>
             <Figure value={total} receiptId={receipt.id} size="tile" />
             <span className={s.unit}>{t(`business.unit.${offer.pricing.quantityUnit}`)}</span>
           </div>
           <Fold summary={t('business.howWorkedOut')} className={s.fold}>
             <div className={s.foldBody}>
-              <dl className={s.figures}>
+              <dl className={sLocal.figures}>
                 {receipt.figures.map((figure) => (
-                  <div key={figure.key} className={s.pair}>
+                  <div key={figure.key} className={sLocal.pair}>
                     <dt>{figure.label}</dt>
                     <dd data-num="">{figure.display}</dd>
                   </div>
@@ -214,7 +215,7 @@ function GstSwitch({ office, onChanged }: { office: BlueprintLite['backOffice'];
     if (!next && office.taxRegistered.value) await send({ taxRegistered: false });
   }
   return (
-    <section className={s.gst} aria-labelledby={headId}>
+    <section className={sLocal.gst} aria-labelledby={headId}>
       <label className={s.agree} id={headId}>
         <input type="checkbox" checked={on} disabled={busy} onChange={(event) => void flip(event.currentTarget.checked)} />
         {t('business.gst.switch')}

@@ -1,0 +1,127 @@
+.planHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--sp-5) / 2);
+  min-height: var(--sp-12);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: var(--hair) solid var(--line-soft);
+}
+
+.planMark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-28);
+  height: var(--av-28);
+  border-radius: var(--radius);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+/* Starts at its own width (4Z walk), so the count wraps below rather than the title breaking a word per line. */
+.planTitle {
+  flex: 1 0 auto;
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.planMeta {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--sp-12);
+  padding: var(--sp-2) var(--sp-4);
+}
+
+.step + .step {
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.stepNumber {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-28);
+  height: var(--av-28);
+  border: var(--hair) solid var(--edge);
+  border-radius: var(--r-chip);
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
+.stepNumber[data-live] {
+  border-color: var(--selected);
+  background: var(--selected);
+  color: var(--on-selected);
+}
+
+.stepBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.stepWhat {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.stepMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.onToday {
+  font-weight: var(--weight-medium);
+  color: var(--link);
+}
+
+.actChip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--sp-1);
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--accent-text);
+}
+
+.actTitle {
+  margin: 0;
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.actLine {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}

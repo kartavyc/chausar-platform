@@ -1,0 +1,19 @@
+/* The limit sheet. */
+.limitLine {
+  font-size: var(--text-body);
+  line-height: 20px;
+  color: var(--fg);
+}
+
+.limitWays {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-4) 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-body);
+}
+
+.limitWay {
+  min-height: var(--control-sm);
+}

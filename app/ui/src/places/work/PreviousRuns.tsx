@@ -13,6 +13,7 @@ import type { DeliveryLite, QueueRow, RunDetail, RunState, RunSummary } from '..
 import { newestRun, previousFailure } from './orders';
 import { againRow, useRunAgain } from './RunAgain';
 import s from './Work.module.css';
+import sLocal from './PreviousRuns.module.css';
 
 const SEP = ' · ';
 
@@ -89,7 +90,7 @@ export function RunRow({ as, run, detail, row, noRetry, onChanged, showAvatar }:
     // How long it worked sits in the line, in words, so a narrow Finished tile keeps its titles wide.
     const took = run.elapsed ? <>{SEP}<span>{tookWords(run, t, 'work.finished.took')}</span></> : null;
     // C4 task 12: who it was for (it opens their sheet) and the owner's date for it.
-    const who = run.client ? <>{SEP}<button type="button" className={s.rowClient} onClick={(event) => openSheet('client', run.client!.id, event.currentTarget)}>{run.client.name}</button></> : null;
+    const who = run.client ? <>{SEP}<button type="button" className={sLocal.rowClient} onClick={(event) => openSheet('client', run.client!.id, event.currentTarget)}>{run.client.name}</button></> : null;
     end = moment(run.finishedAt ?? run.startedAt) || undefined;
     if (run.result === undefined) {
       line = <>{run.agent}{who}{took}</>;
@@ -98,14 +99,14 @@ export function RunRow({ as, run, detail, row, noRetry, onChanged, showAvatar }:
       line = <>{run.agent}{who}{took}{SEP}<ModelEstimate value={run.result} /></>;
     } else {
       // C4 task 17: better instructions wait: the line leads to Use this version on Practice.
-      line = <>{run.agent}{who}{took}{SEP}{run.adoptReady ? <a className={s.rowClient} href="#/business/practice?focus=adopt">{run.result}</a> : run.result}</>;
+      line = <>{run.agent}{who}{took}{SEP}{run.adoptReady ? <a className={sLocal.rowClient} href="#/business/practice?focus=adopt">{run.result}</a> : run.result}</>;
       if (run.receiptId) aside = <Receipt id={run.receiptId} />;
     }
   }
   return (
     <Row
       as={as}
-      className={run.state === 'done' ? s.finishedRow : undefined}
+      className={run.state === 'done' ? sLocal.finishedRow : undefined}
       id={`run-${run.runId}`} dense mark={showAvatar ? <Avatar name={run.agent} state={RINGS[run.state]} size={32} /> : undefined}
       title={run.purpose} line={line} aside={aside} end={end} actions={again.controls} secondAsk={Boolean(again.action?.secondAsk)}
       onOpen={(origin) => { again.opened(); openSheet('run', run.runId, origin); }}
@@ -154,7 +155,7 @@ export function Finished({ runs, moreHref, onChanged, renderRows }: { runs: RunS
   const practice = shown.filter(run => run.practice);
   const more = moreHref && runs.length > shown.length ? { href: moreHref, label: t('work.finished.more') } : undefined;
   return (
-    <Tile as="section" labelledBy={id} className={s.finished}>
+    <Tile as="section" labelledBy={id} className={sLocal.finished}>
       <TileHead id={id} title={t('work.finished')} more={more} />
       {doneToday > 0 && <p className={s.quiet}>{t('work.finished.today', { count: doneToday })}</p>}
       {clientWork.length > 0 && (renderRows ? renderRows(clientWork) : <PreviousRuns runs={clientWork} deliveries={undefined} queue={undefined} onChanged={onChanged} />)}

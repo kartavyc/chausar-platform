@@ -14,6 +14,7 @@ import type { ConnectorCardLite } from '../../engine/types';
 import { PostingLimits } from './PostingLimits';
 import { StepsCheck } from './StepsCheck';
 import s from './Connections.module.css';
+import sLocal from './Posting.module.css';
 
 const TEXT_POSTING = new Set(['linkedin', 'x']);
 
@@ -44,7 +45,7 @@ export function Posting({ card }: { card: ConnectorCardLite }) {
   }
 
   return (
-    <div className={s.tools} data-posting-sign-in="">
+    <div className={sLocal.tools} data-posting-sign-in="">
       <span className={s.toolRow}>
         <Button size="sm" disabled={busy} onClick={() => void signIn()}>
           <span aria-hidden="true">{busy ? t('connections.posting.opening') : t('connections.posting.signIn')}</span>

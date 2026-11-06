@@ -1,0 +1,13 @@
+.splitItem {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.splitAmount {
+  padding-left: var(--sp-4);
+  color: var(--fg);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+}

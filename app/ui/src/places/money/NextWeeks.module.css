@@ -1,0 +1,72 @@
+/* Next three weeks, by date. */
+.weekList {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.weekItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 56px;
+  padding-block: var(--sp-2);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.weekItem:first-child {
+  border-top: 0;
+}
+
+.weekMark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--av-32);
+  block-size: var(--av-32);
+  border-radius: var(--r-chip);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.weekText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.weekLine {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: 19px;
+  color: var(--fg);
+}
+
+.weekSub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--text-label);
+  line-height: 17px;
+  color: var(--mute);
+}
+
+.weekAmount {
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.usual {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1);
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--mute);
+}

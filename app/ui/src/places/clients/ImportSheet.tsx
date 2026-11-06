@@ -27,6 +27,7 @@ import { KIND_ICONS } from './NetworkSources';
 
 import { Fold } from '../../parts/Fold';
 import s from './Network.module.css';
+import sLocal from './ImportSheet.module.css';
 import { FilePick } from '../../parts/FilePick';
 import { Progress } from '../../parts/Progress';
 
@@ -118,7 +119,7 @@ function ImportSteps({ id, onClose, returnFocus }: SheetComponentProps) {
       {hosted ? <p className={s.said}>{t('clients.import.hosted')}</p> : (
         <>
           {choosing && (
-            <fieldset className={s.kinds} aria-labelledby={kindsId}>
+            <fieldset className={sLocal.kinds} aria-labelledby={kindsId}>
               <legend id={kindsId} className={s.heading}>{t('clients.import.kind')}</legend>
               {KINDS.map((item) => (
                 <label key={item} className={s.kindChoice}>
@@ -131,7 +132,7 @@ function ImportSteps({ id, onClose, returnFocus }: SheetComponentProps) {
           )}
 
           {choosing && kind && (
-            <div className={s.pick}>
+            <div className={sLocal.pick}>
               {kind === 'mail-headers' && !desktop && <p className={s.quiet}>{t('clients.import.mailDesktop')}</p>}
               {kind === 'mail-headers' && desktop && (
                 <Field label={t('clients.import.addresses')} hint={t('clients.import.addresses.hint')} value={addresses} onChange={(event) => setAddresses(event.target.value)} autoComplete="off" />
@@ -154,7 +155,7 @@ function ImportSteps({ id, onClose, returnFocus }: SheetComponentProps) {
           )}
 
           {step.kind === 'checked' && (
-            <div className={s.checked}>
+            <div className={sLocal.checked}>
               <p className={s.said}>{step.check.line}</p>
               {step.check.samples.length > 0 && (
                 <>
@@ -169,7 +170,7 @@ function ImportSteps({ id, onClose, returnFocus }: SheetComponentProps) {
               {step.check.dropped.length > 0 && (
                 <>
                   <p className={s.label}>{t('clients.import.dropped')}</p>
-                  <ul className={s.lines}>{step.check.dropped.map((item) => <li className={s.droppedRow} key={item.what}><span>{item.what}</span><Count value={item.count} /></li>)}</ul>
+                  <ul className={s.lines}>{step.check.dropped.map((item) => <li className={sLocal.droppedRow} key={item.what}><span>{item.what}</span><Count value={item.count} /></li>)}</ul>
                 </>
               )}
               <div className={s.actions}>
@@ -181,7 +182,7 @@ function ImportSteps({ id, onClose, returnFocus }: SheetComponentProps) {
           )}
 
           {step.kind === 'imported' && (
-            <div className={s.checked}>
+            <div className={sLocal.checked}>
               <p className={s.said} role="status">{step.done.line}</p>
               <div className={s.actions}><Button onClick={() => void undo(step.done, false)}>{t('clients.import.undo')}</Button></div>
             </div>

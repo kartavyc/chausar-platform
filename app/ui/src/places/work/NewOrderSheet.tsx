@@ -19,6 +19,7 @@ import { kitIntakeFiles, kitIntakeParams, kitIntakeReady, type KitAnswers } from
 import { clearPrefill, peekPrefill, prefillOrder } from './prefill';
 import { workChanged } from './refresh';
 import s from './Work.module.css';
+import sLocal from './NewOrderSheet.module.css';
 import { Select } from '../../parts/Select';
 import { FilePick } from '../../parts/FilePick';
 import { Reveal } from '../../parts/RevealBlock';
@@ -183,7 +184,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
           )}
         </div>
         {error && <p className={s.problem} role="status">{error}</p>}
-        <div className={s.submit}>
+        <div className={sLocal.submit}>
           <Button variant="primary" type="submit" disabled={!ready} disabledReason={missing}>{sending ? t('work.form.sending') : t('work.form.submit')}</Button>
         </div>
       </form>

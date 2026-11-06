@@ -15,6 +15,7 @@ import { LabelTag, PendingPlanRows, TileSection, quoteAgain, totalOf, usePlan } 
 import { RulesSection } from './RulesSection';
 import { Recipes } from './Recipes';
 import s from './Business.module.css';
+import sLocal from './PlanView.module.css';
 import fields from '../../parts/Field.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
@@ -59,7 +60,7 @@ function PlanContent({ view, onChanged }: { view: BlueprintViewLite; onChanged: 
       <div className={s.split} data-ratio="8-4">
         <Tile as="section" labelledBy="business-plan-name">
           <div className={s.body}>
-            <p className={s.kind}>{kind} · {version}{bp.source === 'template' ? ` · ${t('business.fromTemplates')}` : ''}</p>
+            <p className={sLocal.kind}>{kind} · {version}{bp.source === 'template' ? ` · ${t('business.fromTemplates')}` : ''}</p>
             <h2 id="business-plan-name" tabIndex={-1} className={s.name} data-changed={nameChanged}>{bp.name.value}<LabelTag line={bp.name} /></h2>
             {changing ? (
               <ChangeForm plan={bp} onDone={() => { setChanging(false); onChanged(); }} onCancel={() => setChanging(false)} />
@@ -81,9 +82,9 @@ function PlanContent({ view, onChanged }: { view: BlueprintViewLite; onChanged: 
         <TileSection title={t('business.steps')}>
           {bp.flagshipSteps ? (
             // A flagship playbook's plan lists the steps that run on every order, in its own words, and who does each.
-            <ol className={s.flow}>
+            <ol className={sLocal.flow}>
               {bp.flagshipSteps.map((step) => (
-                <li key={step.id} className={s.flowStep}>
+                <li key={step.id} className={sLocal.flowStep}>
                   {step.title.value}
                   <span className={s.stepWho}>{t(`business.who.${step.doneBy}`, { who: step.who })}</span>
                 </li>
@@ -91,9 +92,9 @@ function PlanContent({ view, onChanged }: { view: BlueprintViewLite; onChanged: 
             </ol>
           ) : (
             <>
-              <ol className={s.flow}>
+              <ol className={sLocal.flow}>
                 {bp.deliverySteps.map((step) => (
-                  <li key={step.id} className={s.flowStep}>
+                  <li key={step.id} className={sLocal.flowStep}>
                     {step.title.value}<LabelTag line={step.title} />
                     <span className={s.stepWho}>{step.doneBy === 'you' && step.capability === 'planned' ? t('business.who.youPlanned') : `${t(`business.doneBy.${step.doneBy}`)} · ${t(`business.capability.${step.capability}`)}`}</span>
                   </li>
@@ -107,11 +108,11 @@ function PlanContent({ view, onChanged }: { view: BlueprintViewLite; onChanged: 
             </>
           )}
         </TileSection>
-        <div className={s.column}>
+        <div className={sLocal.column}>
           <TileSection title={t('business.approvals')}>
-            <ul className={s.checks}>
+            <ul className={sLocal.checks}>
               {bp.approvals.map((line, i) => (
-                <li key={i}><span className={s.tick} aria-hidden="true"><Icon name="check" size={14} /></span><span>{line.value}</span></li>
+                <li key={i}><span className={sLocal.tick} aria-hidden="true"><Icon name="check" size={14} /></span><span>{line.value}</span></li>
               ))}
             </ul>
           </TileSection>
@@ -197,7 +198,7 @@ function OfferCard({ view, offerId }: { view: BlueprintViewLite; offerId: string
         ) : (
           <>
             <span className={s.quiet}>{notSet ? t('business.priceNotSet') : t('business.notPriced')}</span>
-            <a className={s.link} href="#/business/prices">{notSet ? t('business.setPrice') : t('business.workOut')}</a>
+            <a className={sLocal.link} href="#/business/prices">{notSet ? t('business.setPrice') : t('business.workOut')}</a>
           </>
         )}
       </div>
@@ -250,7 +251,7 @@ function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: (
       {/* C4 task 1: the offers; one the owner added can be taken out (the plan's own stay), and a new one added. */}
       <fieldset className={fields.field}>
         <legend className={fields.label}>{t('business.offers')}</legend>
-        <ul className={s.checks}>
+        <ul className={sLocal.checks}>
           {plan.offers.map((offer) => (
             <li key={offer.id}>
               {offer.addedByOwner ? (

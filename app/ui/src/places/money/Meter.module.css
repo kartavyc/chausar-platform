@@ -1,0 +1,61 @@
+/* The spend meter on Spend. */
+.meterTile {
+  display: grid;
+  gap: var(--sp-2);
+  margin-bottom: var(--gap-section);
+}
+
+.meterTitle {
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.meterLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.near {
+  font-size: var(--text-read);
+  color: var(--wait-strong);
+}
+
+.meterReached {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--text-body);
+  color: var(--fail);
+}
+
+/* The spend meter as a token-styled bar (4J20): grey track; the accent while there is room, amber near the limit, red
+   once it is used up. */
+.meterBar {
+  inline-size: 100%;
+}
+
+.meterBar svg {
+  display: block;
+}
+
+.meterTrack {
+  fill: var(--chart-rest);
+}
+
+.meterFill {
+  fill: var(--accent);
+}
+
+.meterFill[data-state='near'] {
+  fill: var(--wait);
+}
+
+.meterFill[data-state='over'] {
+  fill: var(--fail);
+}

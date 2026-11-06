@@ -20,7 +20,7 @@ import { copyText } from '../clients/handoff';
 import { ExportButton } from './ExportButton';
 import { monthBefore, useMoment, useMonthWords, useThisMonth } from './words';
 import s from './Money.module.css';
-import v from './MoneyViews.module.css';
+import vLocal from './AccountantSheet.module.css';
 import { Select } from '../../parts/Select';
 
 export function AccountantSheet({ id, onClose, returnFocus }: SheetComponentProps) {
@@ -93,10 +93,10 @@ export function AccountantSheet({ id, onClose, returnFocus }: SheetComponentProp
         </div>
       )}
       {link && (
-        <div className={v.link}>
+        <div className={vLocal.link}>
           {link.url
             ? (
-              <p className={v.linkUrl}>
+              <p className={vLocal.linkUrl}>
                 <span data-code="" className="mono" data-content="">{link.url}</span>
                 <Button size="sm" variant="quiet" onClick={() => void copy(link.url!)}>{t('money.accountant.copy')}</Button>
               </p>
@@ -204,7 +204,7 @@ function MonthlyPack() {
   }
   return (
     <section className={s.form} aria-label={t('money.pack.label')}>
-      <label className={v.packSwitch}>
+      <label className={vLocal.packSwitch}>
         <input type="checkbox" checked={on} disabled={busy} onChange={(event) => void set(event.currentTarget.checked)} />
         {t('money.pack.label')}
       </label>

@@ -27,6 +27,7 @@ import { DraftRecover, DraftWord, useSettingsDraft } from '../business/settingsD
 // 4Z3: the rate said once per page (4A2's rule), on its own line; the limits show only their rupee amounts.
 import { withoutRate } from '../team/departments';
 import s from './Money.module.css';
+import sLocal from './SpendPolicy.module.css';
 import { Select } from '../../parts/Select';
 
 const UNITS: readonly SpendRateUnit[] = ['per-million-tokens', 'per-call', 'per-run-cap'];
@@ -170,33 +171,33 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
       {view && !editing && draft.offer && <DraftRecover offer={draft.offer} onRecover={(kept) => recover(view, kept)} onDecline={draft.decline} />}
       {view && !editing && (
         <>
-          <ul className={s.policyLines}>
+          <ul className={sLocal.policyLines}>
             {/* The owner's own limits, said back in the engine's sentences ("USD 20.0000 a month"): engine words, in the
                 body face, with no receipt of their own. */}
-            <li className={s.policyLine}>
+            <li className={sLocal.policyLine}>
               <Icon name="wallet" size={16} />
-              <span className={s.policyText}>{view.capLead
+              <span className={sLocal.policyText}>{view.capLead
                 ? <><EngineWords>{view.capLead.figure}</EngineWords><Rupees text={view.capLead.other} /></>
                 : <><EngineWords>{view.cap}</EngineWords><Rupees text={view.capRupees && withoutRate(view.capRupees, view.rupeeRate ?? undefined)} /></>}</span>
             </li>
-            <li className={s.policyLine}>
+            <li className={sLocal.policyLine}>
               <Icon name="shield-check" size={16} />
-              <span className={s.policyText}>{view.askFirstLead
+              <span className={sLocal.policyText}>{view.askFirstLead
                 ? <><EngineWords>{view.askFirstLead.figure}</EngineWords><Rupees text={view.askFirstLead.other} /></>
                 : <><EngineWords>{view.askFirst}</EngineWords><Rupees text={view.askFirstRupees && withoutRate(view.askFirstRupees, view.rupeeRate ?? undefined)} /></>}</span>
             </li>
             {view.rupeeRate && (
-              <li className={s.policyLine}>
+              <li className={sLocal.policyLine}>
                 {/* B2: the rupee icon only while rupees lead the spend. */}
                 {view.leads === 'INR' && <Icon name="indian-rupee" size={16} />}
-                <span className={s.policyText}><span className={s.figureLabel}>{t('money.policy.inrPerUsd')}</span>{' '}<EngineWords>{view.rupeeRate}</EngineWords></span>
+                <span className={sLocal.policyText}><span className={s.figureLabel}>{t('money.policy.inrPerUsd')}</span>{' '}<EngineWords>{view.rupeeRate}</EngineWords></span>
               </li>
             )}
             {/* 4Z3: which currency leads AI spend now, as the engine says (dollars without a rate), and why on Auto. */}
             {view.leads && (
-              <li className={s.policyLine} data-shown-first="">
+              <li className={sLocal.policyLine} data-shown-first="">
                 <Icon name="arrow-left-right" size={16} />
-                <span className={s.policyText}>
+                <span className={sLocal.policyText}>
                   {t('money.policy.shownFirst', { currency: (view.currencyLead ?? 'auto') === 'auto' ? t('money.policy.shownFirst.auto', { currency: t(`money.policy.shownFirst.${view.leads}`) }) : t(`money.policy.shownFirst.${view.leads}`) })}
                 </span>
               </li>
@@ -254,7 +255,7 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
             >
               {LEADS.map((choice) => <option key={choice} value={choice}>{t(`money.policy.lead.${choice}`)}</option>)}
             </Select>
-            <p id={`${leadId}-hint`} className={s.fieldHint}>{t('money.policy.leadHint')}</p>
+            <p id={`${leadId}-hint`} className={sLocal.fieldHint}>{t('money.policy.leadHint')}</p>
           </div>
           <div className={s.rateCard} role="group" aria-label={t('money.policy.rates')}>
             <p className={s.fieldLabel}>{t('money.policy.rates')}</p>
@@ -302,7 +303,7 @@ function RateEditor({ rate, disabled, onChange, onRemove }: { rate: RateDraft; d
   const unitId = useId();
   const name = rate.item.trim() || t('money.policy.newRate');
   return (
-    <div className={s.rateLine} role="group" aria-label={name}>
+    <div className={sLocal.rateLine} role="group" aria-label={name}>
       <Field label={t('money.policy.item')} hint={t('money.policy.itemHint')} value={rate.item} autoComplete="off" disabled={disabled} onChange={(event) => onChange({ item: event.currentTarget.value })} />
       <div className={s.field}>
         <label htmlFor={unitId} className={s.fieldLabel}>{t('money.policy.unit')}</label>

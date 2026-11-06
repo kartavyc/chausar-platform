@@ -1,0 +1,109 @@
+.stoppedList {
+  display: grid;
+  gap: var(--gap-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stopTile {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.stopHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+}
+
+.stopMark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--av-36);
+  height: var(--av-36);
+  border-radius: var(--r-button);
+  background: var(--fail-soft);
+  color: var(--fail);
+}
+
+.stopWho {
+  flex: 1 1 14em;
+  min-width: 0;
+}
+
+.stopTitle {
+  font-size: var(--text-tile);
+  line-height: 22px;
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.stopMeta {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.stopChip {
+  flex: none;
+}
+
+/* What went wrong, on the soft red ground (D's `.why`). */
+.why {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--fail-soft);
+}
+
+.whyLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  font-weight: var(--weight-strong);
+  color: var(--fail);
+}
+
+.whyText {
+  margin-top: var(--sp-1);
+  font-size: var(--text-body);
+  line-height: 20px;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.whyTech {
+  margin-top: var(--sp-1);
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* A stop that waits for Resume (not a failure): the clock on the waiting ground, and its why in the same ground. */
+.stopMarkWait {
+  background: var(--wait-soft);
+  color: var(--wait);
+}
+
+.whyWait {
+  background: var(--wait-soft);
+}
+
+.whyLabelWait {
+  color: var(--wait);
+}
+
+/* How to fix it, opened from its button: the engine's fix in the screen's words, on the inner grey. */
+.fix {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.fixLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  font-weight: var(--weight-strong);
+  color: var(--fg2);
+}

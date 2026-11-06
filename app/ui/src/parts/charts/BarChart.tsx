@@ -6,6 +6,7 @@ import { BASE, COLUMN, COLUMN_UP, UPRIGHT, raise } from './plot';
 import { Gutter } from './Ticks';
 import type { BarPoint, BarSeries, ChartTick } from './types';
 import s from './Charts.module.css';
+import sLocal from './BarChart.module.css';
 
 export type BarChartProps = ChartValues & {
   /** One series, or two drawn side by side (In and Out). Both carry the same keys in the same order. */
@@ -70,7 +71,7 @@ export function BarChart(props: BarChartProps) {
             <ChartValue money={money} value={valueOf(point)} />,
             ...(second ? [<ChartValue money={money} value={valueOf(pair)} />] : []),
             ...(noted ? [point.note === undefined ? <ChartValue money value={null} /> : <span data-num="">{point.note}</span>] : []),
-            ...(receipted ? [<span className={s.receipts}>{ids.map((id) => <Receipt key={id} id={id} onOpen={onReceipt} />)}</span>] : []),
+            ...(receipted ? [<span className={sLocal.receipts}>{ids.map((id) => <Receipt key={id} id={id} onOpen={onReceipt} />)}</span>] : []),
           ],
         };
       })}
@@ -87,12 +88,12 @@ export function BarChart(props: BarChartProps) {
                 {point.dept && <span className={s.swatch} data-swatch="" data-dept={point.dept} />}
                 {point.label}
               </span>
-              <span className={s.rankTrack}>
+              <span className={sLocal.rankTrack}>
                 {point.valuePermille !== null && (
                   <meter className={s.rankMeter} data-bar="" min={0} max={1000} value={point.valuePermille} aria-hidden="true" />
                 )}
               </span>
-              <ChartValue money={money} value={valueOf(point)} className={s.rankValue} />
+              <ChartValue money={money} value={valueOf(point)} className={sLocal.rankValue} />
               {noted && (note(point) ?? <span className={s.note} />)}
             </div>
           ))}
@@ -112,7 +113,7 @@ export function BarChart(props: BarChartProps) {
           <li className={s.key}><span className={s.swatch} data-series="1" aria-hidden="true" />{second.label}</li>
         </ul>
       )}
-      <div className={s.columnsPlot} role="img" aria-label={label}>
+      <div className={sLocal.columnsPlot} role="img" aria-label={label}>
         {ticks.length > 0 && <Gutter ticks={ticks} height={COLUMN} up={COLUMN_UP} />}
         <div className={s.columns}>
           {first.points.map((point) => {
@@ -123,7 +124,7 @@ export function BarChart(props: BarChartProps) {
               : t('chart.tip', { label: point.label, value: shown(point) });
             return (
               <div key={point.key} className={s.column} data-key={point.key} data-current={now}>
-                <svg className={s.columnPlot} width="100%" height={COLUMN} focusable="false">
+                <svg className={sLocal.columnPlot} width="100%" height={COLUMN} focusable="false">
                   <rect className={s.hit} x="0" y="0" width="100%" height={COLUMN}>
                     <title>{tip}</title>
                   </rect>

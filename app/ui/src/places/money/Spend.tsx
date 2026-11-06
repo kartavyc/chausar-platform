@@ -26,6 +26,7 @@ import { SpendMeters, SpendMetersToggle } from './SpendMeters';
 import { WriteLimits } from '../connections/WriteLimits';
 import { onRuns } from './words';
 import s from './Money.module.css';
+import sLocal from './Spend.module.css';
 
 export function Spend() {
   const t = useT();
@@ -39,7 +40,7 @@ export function Spend() {
   // 4Z3: the month's total as the engine says it leads (rupees or dollars first); C4 T23: in that currency alone. Without
   // a rupee rate, the dollars and the way to set one.
   const total = spend.data && (
-    <p className={s.total}>
+    <p className={sLocal.total}>
       <EngineWords><Amount text={spend.data.totalLead?.figure ?? spend.data.total} /></EngineWords>
       {spend.data.needsRate && <> <a className={s.more} href={SET_RATE_HREF}>{t('money.setRupeeRate')}</a></>}
     </p>

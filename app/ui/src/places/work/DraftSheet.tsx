@@ -17,6 +17,7 @@ import { decide, undoOf, useTodaySession } from '../../parts/queue-session';
 import { practiceDraft } from './practice-drafts';
 import { workChanged } from './refresh';
 import s from './Work.module.css';
+import sLocal from './DraftSheet.module.css';
 
 /** The longest link a phone or a mail app takes whole; a longer message is copied for the owner to paste. */
 const LINK_MAX = 1800;
@@ -43,9 +44,9 @@ function RehearsalDraft({ id, onClose, returnFocus }: SheetComponentProps) {
   return (
     <Sheet label={t('work.draft.label')} eyebrow={draft.client} title={t('today.edit.title')} onClose={onClose} returnFocus={returnFocus}>
       <p className={s.draftLine} data-draft-practice="">{t('work.draft.practice')}</p>
-      <div className={s.draftMessage} data-content="" data-draft-message="">{toPlainMessage(draft.text)}</div>
+      <div className={sLocal.draftMessage} data-content="" data-draft-message="">{toPlainMessage(draft.text)}</div>
       {failed.length > 0 && (
-        <ul className={s.draftChecks} data-draft-checks="">
+        <ul className={sLocal.draftChecks} data-draft-checks="">
           {failed.map((check) => <li key={check.check} className={s.failure} data-check="failed">{check.detail}</li>)}
         </ul>
       )}
@@ -157,19 +158,19 @@ function RunDraft({ id, onClose, returnFocus }: SheetComponentProps) {
     >
       {decided && <p className={s.draftLine} role="status" data-sheet-decided="">{decided.line}{undo && <UndoButton row={decided.row} undo={undo} />}</p>}
       {practice && <p className={s.draftLine} data-draft-practice="">{t('work.draft.practice')}</p>}
-      {ownerLine && <p className={s.draftNote} data-engine-line="">{ownerLine}</p>}
+      {ownerLine && <p className={sLocal.draftNote} data-engine-line="">{ownerLine}</p>}
       {message === null
-        ? <p className={s.draftNote}>{t('work.draft.noText')}</p>
-        : <div className={s.draftMessage} data-content="" data-draft-message=""><AmountsText text={message} amounts={view.data?.amounts ?? []} /></div>}
+        ? <p className={sLocal.draftNote}>{t('work.draft.noText')}</p>
+        : <div className={sLocal.draftMessage} data-content="" data-draft-message=""><AmountsText text={message} amounts={view.data?.amounts ?? []} /></div>}
       {(failed.length > 0 || passed > 0 || notChecked > 0) && (
         <div data-draft-checks="">
           {failed.length > 0 && (
-            <ul className={s.draftChecks}>
+            <ul className={sLocal.draftChecks}>
               {failed.map((check) => <li key={check.id} className={s.failure} data-check="failed">{check.detail}</li>)}
             </ul>
           )}
-          {passed > 0 && <p className={s.draftNote} data-check="passed">{t('work.draft.passed', { count: passed })}</p>}
-          {notChecked > 0 && <p className={s.draftNote} data-check="not-checked">{t('work.draft.notChecked', { count: notChecked })}</p>}
+          {passed > 0 && <p className={sLocal.draftNote} data-check="passed">{t('work.draft.passed', { count: passed })}</p>}
+          {notChecked > 0 && <p className={sLocal.draftNote} data-check="not-checked">{t('work.draft.notChecked', { count: notChecked })}</p>}
         </div>
       )}
       {said && <p className={said.problem ? s.problem : s.draftLine} role="status">{said.line}</p>}
@@ -180,7 +181,7 @@ function RunDraft({ id, onClose, returnFocus }: SheetComponentProps) {
           <Button variant="primary" data-confirm="" disabled={busy} onClick={asking.run}>{asking.label}</Button>
         </div>
       ) : (
-        <div className={s.draftActs}>
+        <div className={sLocal.draftActs}>
           {editable && (
             <Button variant="quiet" disabled={busy} onClick={(event) => openSheet('edit-draft', row!.id, event.currentTarget)}>
               {t(approve ? 'today.edit.open' : 'work.draft.editHere')}

@@ -1,0 +1,46 @@
+.priceBlock {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: auto;
+}
+
+.figures {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: var(--sp-1) var(--sp-5);
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.pair {
+  display: contents;
+}
+
+.figures dd {
+  margin: 0;
+  text-align: right;
+  color: var(--fg);
+}
+
+/* W6 6C3 (D17): the profession's price ranges under the offers, each with its sources. */
+.priceGuide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-5);
+}
+
+.priceGuideTitle {
+  margin: 0;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+}
+
+/* C5 task 13: I charge GST, a quiet switch above the prices; its fields show only once it is on. */
+.gst {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-block: var(--sp-3);
+}

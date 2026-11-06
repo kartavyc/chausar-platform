@@ -1,0 +1,12 @@
+.transcribe {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--pad-card) var(--sp-4);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.transcribe:empty {
+  display: none;
+}

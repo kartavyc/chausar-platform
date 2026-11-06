@@ -5,6 +5,7 @@ import { refusalWords } from '../../parts/custody';
 import { Button } from '../../parts/Button';
 import type { RunDetail, RunSummary } from '../../engine/types';
 import s from './Work.module.css';
+import sLocal from './StopDialog.module.css';
 
 export interface StopRun {
   /** "Stop", named "Stop run 31"; nothing on a run that is stopping, stopped, done or failed. */
@@ -90,14 +91,14 @@ export function useStopRun(run: RunSummary, detail: RunDetail | undefined, onCha
 
   const dialog = open ? (
     <div
-      id={dialogId} role="dialog" aria-labelledby={titleId} className={s.stopDialog}
+      id={dialogId} role="dialog" aria-labelledby={titleId} className={sLocal.stopDialog}
       onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }}
     >
-      <p id={titleId} className={s.stopDialogTitle}>{t('work.stop.title')}</p>
-      <p className={s.stopDialogLine}>
+      <p id={titleId} className={sLocal.stopDialogTitle}>{t('work.stop.title')}</p>
+      <p className={sLocal.stopDialogLine}>
         {phase === 'force' ? t('work.stop.forceAsk', { step: step ?? run.purpose }) : t('work.stop.line')}
       </p>
-      <div className={s.stopDialogActs}>
+      <div className={sLocal.stopDialogActs}>
         <Button ref={notNowRef} size="sm" variant="quiet" onClick={close}>{t('approval.cancel')}</Button>
         {phase === 'ask' ? (
           <>

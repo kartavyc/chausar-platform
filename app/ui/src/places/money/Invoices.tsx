@@ -38,6 +38,7 @@ import { EngineWords, Failed, Section } from './parts';
 import { Recurring } from './Recurring';
 import { invoiceChip, onMoney, useDay } from './words';
 import s from './Money.module.css';
+import sLocal from './Invoices.module.css';
 import v from './MoneyViews.module.css';
 
 const ORDER: Readonly<Record<InvoiceLite['status'], number>> = { draft: 0, issued: 1, 'part-paid': 1, paid: 2, void: 2 };
@@ -73,27 +74,27 @@ export function Invoices() {
         <section className={s.section} aria-labelledby={headId}>
           <SectionHead id={headId} title={t('money.sub.invoices')} />
           <Tile pad="none" className={s.tableTile}>
-            <table className={s.table} role="table">
+            <table className={sLocal.table} role="table">
               <caption className="sr-only">{t('money.table.caption')}</caption>
               <thead role="rowgroup">
                 <tr role="row">
-                  <th scope="col" role="columnheader" className={s.colNumber}>{t('money.table.invoice')}</th>
+                  <th scope="col" role="columnheader" className={sLocal.colNumber}>{t('money.table.invoice')}</th>
                   <th scope="col" role="columnheader">{t('money.table.client')}</th>
-                  <th scope="col" role="columnheader" className={s.colAmount}>{t('money.table.amount')}</th>
-                  <th scope="col" role="columnheader" className={s.colStatus}>{t('money.table.status')}</th>
-                  <th scope="col" role="columnheader" className={s.colDue}>{t('money.table.due')}</th>
-                  <th scope="col" role="columnheader" className={s.colReceipt}>{t('money.table.receipt')}</th>
-                  <th scope="col" role="columnheader" className={s.colAction}><span className="sr-only">{t('money.table.action')}</span></th>
+                  <th scope="col" role="columnheader" className={sLocal.colAmount}>{t('money.table.amount')}</th>
+                  <th scope="col" role="columnheader" className={sLocal.colStatus}>{t('money.table.status')}</th>
+                  <th scope="col" role="columnheader" className={sLocal.colDue}>{t('money.table.due')}</th>
+                  <th scope="col" role="columnheader" className={sLocal.colReceipt}>{t('money.table.receipt')}</th>
+                  <th scope="col" role="columnheader" className={sLocal.colAction}><span className="sr-only">{t('money.table.action')}</span></th>
                 </tr>
               </thead>
               {GROUPS.filter(({ group, always }) => always || inGroup(group).length > 0).map(({ group, key }) => (
                 <tbody key={key} role="rowgroup" data-group={key}>
-                  <tr role="row" className={s.groupRow}>
-                    <th role="rowheader" scope="colgroup" colSpan={COLUMNS} className={s.groupHead}>{t(`money.invoices.group.${key}`)}</th>
+                  <tr role="row" className={sLocal.groupRow}>
+                    <th role="rowheader" scope="colgroup" colSpan={COLUMNS} className={sLocal.groupHead}>{t(`money.invoices.group.${key}`)}</th>
                   </tr>
                   {inGroup(group).map((invoice) => <InvoiceRow key={invoice.id} invoice={invoice} client={names.get(invoice.clientId)} request={requests.get(invoice.orderId)} />)}
                   {inGroup(group).length === 0 && (
-                    <tr role="row" className={s.groupRow}><td role="cell" colSpan={COLUMNS} className={s.groupEmpty}>{t('money.invoices.groupEmpty')}</td></tr>
+                    <tr role="row" className={sLocal.groupRow}><td role="cell" colSpan={COLUMNS} className={sLocal.groupEmpty}>{t('money.invoices.groupEmpty')}</td></tr>
                   )}
                 </tbody>
               ))}
@@ -137,14 +138,14 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
   if (owing && invoice.dueDate) {
     due = (
       <>
-        <span className={s.wideOnly} data-num="">{day(invoice.dueDate)}</span>
-        <span className={s.phoneOnly} data-phone-label="">{t('money.due', { date: day(invoice.dueDate) })}</span>
+        <span className={sLocal.wideOnly} data-num="">{day(invoice.dueDate)}</span>
+        <span className={sLocal.phoneOnly} data-phone-label="">{t('money.due', { date: day(invoice.dueDate) })}</span>
       </>
     );
   } else if (invoice.status === 'draft') {
     due = (
       <>
-        <span className={cx(s.phoneOnly, s.cellLabel)} data-phone-label="">{t('money.table.due')}</span>
+        <span className={cx(sLocal.phoneOnly, sLocal.cellLabel)} data-phone-label="">{t('money.table.due')}</span>
         {dueInDays === undefined ? t('money.table.dueOnIssue') : t('money.table.dueAfter', { count: String(dueInDays) })}
       </>
     );
@@ -168,8 +169,8 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
   }
 
   return (
-    <tr className={s.tr} role="row" data-row="" data-row-id={invoice.id} tabIndex={-1} data-figure-group={proved ? '' : undefined}>
-      <td role="cell" className={s.cellNumber}>
+    <tr className={sLocal.tr} role="row" data-row="" data-row-id={invoice.id} tabIndex={-1} data-figure-group={proved ? '' : undefined}>
+      <td role="cell" className={sLocal.cellNumber}>
         <button
           type="button"
           data-code="" className={cx(s.invoiceNo, invoice.number && 'mono')}
@@ -180,28 +181,28 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
           {invoice.number ?? t('money.invoices.unnumbered')}
         </button>
       </td>
-      <td role="cell" className={s.cellClient}>
-        <span className={s.client}>
+      <td role="cell" className={sLocal.cellClient}>
+        <span className={sLocal.client}>
           <Avatar name={who} size={32} />
-          <span className={s.clientText}>
-            <span className={s.clientName}>{who}</span>
-            {request && <span className={s.clientSub}>{request}</span>}
+          <span className={sLocal.clientText}>
+            <span className={sLocal.clientName}>{who}</span>
+            {request && <span className={sLocal.clientSub}>{request}</span>}
           </span>
         </span>
       </td>
-      <td role="cell" className={s.cellAmount}>
-        {proved && <span className={cx(s.phoneOnly, s.cellLabel)} data-phone-label="">{t('money.table.amount')}</span>}
-        {proved && <span className={s.amount} data-num="">{total}</span>}
-        {view.error && <EngineWords className={s.quietSmall}>{t('money.failed', { message: view.error.message })}</EngineWords>}
+      <td role="cell" className={sLocal.cellAmount}>
+        {proved && <span className={cx(sLocal.phoneOnly, sLocal.cellLabel)} data-phone-label="">{t('money.table.amount')}</span>}
+        {proved && <span className={sLocal.amount} data-num="">{total}</span>}
+        {view.error && <EngineWords className={sLocal.quietSmall}>{t('money.failed', { message: view.error.message })}</EngineWords>}
       </td>
-      <td role="cell" className={s.cellStatus}><StateChip kind="invoice" value={invoiceChip(invoice)} /></td>
-      <td role="cell" className={s.cellDue}>
+      <td role="cell" className={sLocal.cellStatus}><StateChip kind="invoice" value={invoiceChip(invoice)} /></td>
+      <td role="cell" className={sLocal.cellDue}>
         {due}
         {/* 4J4: how late, from the engine's whole days (its line worded here). */}
         {owing && invoice.late && <span className={v.late} data-late="">{t('money.late', { count: String(invoice.late.days) })}</span>}
       </td>
-      <td role="cell" className={s.cellReceipt}>{proved && <Receipt id={receiptId} amount={total} />}</td>
-      <td role="cell" className={s.cellAction}>{action}</td>
+      <td role="cell" className={sLocal.cellReceipt}>{proved && <Receipt id={receiptId} amount={total} />}</td>
+      <td role="cell" className={sLocal.cellAction}>{action}</td>
     </tr>
   );
 }
@@ -266,7 +267,7 @@ function OrderRow({ order, client, onPrepared }: { order: OrderLite; client: str
       mark={<Avatar name={client ?? t('money.aClient')} size={32} />}
       title={t('money.order.title', { client: client ?? t('money.aClient'), request: order.request })}
       line={order.deliveredOn ? t('money.order.delivered', { date: day(order.deliveredOn) }) : t('money.order.notDelivered')}
-      aside={<span className={s.priced}><span>{t('money.order.priced')}</span><Receipt id={order.priceReceiptId} /></span>}
+      aside={<span className={sLocal.priced}><span>{t('money.order.priced')}</span><Receipt id={order.priceReceiptId} /></span>}
       actions={<Button variant="primary" data-key="primary" disabled={busy} onClick={(event) => void prepare(event.currentTarget)}>{t('money.invoices.prepare')}</Button>}
     >
       {refusal && <p className={s.refusal} role="status" data-engine-line="">{refusal}</p>}

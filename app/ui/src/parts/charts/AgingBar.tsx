@@ -3,6 +3,7 @@ import { ChartData, ChartFoot, chartRoot } from './ChartData';
 import { Stack } from './Stack';
 import type { AgingBucketId, AgingData } from './types';
 import s from './Charts.module.css';
+import sLocal from './AgingBar.module.css';
 
 /** Oldest last: the order the bar and the legend always take, whatever order the engine sends. */
 const AGE_ORDER: readonly AgingBucketId[] = ['not-due', '1-30', '31-60', '61-90', 'over-90'];
@@ -45,11 +46,11 @@ export function AgingBar({ data, onReceipt, legend = 'all' }: AgingBarProps) {
       />
       <ul className={s.ageList}>
         {buckets.filter((bucket) => legend === 'all' || bucket.permille > 0).map((bucket) => (
-          <li key={bucket.id} className={s.ageRow} data-bucket={bucket.id}>
+          <li key={bucket.id} className={sLocal.ageRow} data-bucket={bucket.id}>
             <span className={s.swatch} data-swatch="" data-bucket={bucket.id} data-zero={bucket.permille > 0 ? undefined : ''} aria-hidden="true" />
-            <span className={s.ageName}>{bucket.label}</span>
-            <span className={s.ageCount}>{bucket.count}</span>
-            <span className={s.ageAmount} data-num="">{bucket.amount}</span>
+            <span className={sLocal.ageName}>{bucket.label}</span>
+            <span className={sLocal.ageCount}>{bucket.count}</span>
+            <span className={sLocal.ageAmount} data-num="">{bucket.amount}</span>
           </li>
         ))}
       </ul>

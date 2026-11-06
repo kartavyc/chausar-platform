@@ -21,6 +21,7 @@ import { TeamStats } from './TeamStats';
 import { TeamIntro } from './TeamIntro';
 import { useNeedsYou } from '../../shell/needsYou';
 import s from './Team.module.css';
+import sLocal from './TeamPage.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
@@ -79,7 +80,7 @@ function PlaceBody() {
     <>
       {/* B4 task 14: hiring stays in the header row at every width; on a phone it is the icon alone. C7: its own sheet. */}
       <PageTitle title={t('place.team')} line={line} count={some ? count : undefined} tools={some && split ? (
-        <button type="button" className={s.addAgent} aria-label={t('team.addAgent')} onClick={(event) => openSheet('hire', 'new', event.currentTarget)}><Icon name="plus" size={16} /><span className={s.addAgentWords}>{t('team.addAgent')}</span></button>
+        <button type="button" className={sLocal.addAgent} aria-label={t('team.addAgent')} onClick={(event) => openSheet('hire', 'new', event.currentTarget)}><Icon name="plus" size={16} /><span className={sLocal.addAgentWords}>{t('team.addAgent')}</span></button>
       ) : undefined} />
       {team.error && <p className={s.failed}>{t('team.failed', { message: team.error.message })}</p>}
       {agents?.length === 0 && (
@@ -90,14 +91,14 @@ function PlaceBody() {
       {some && (
         <div className={s.page}>
           {split && (
-            <div className={s.toolbar}>
+            <div className={sLocal.toolbar}>
               {/* C1: one row of departments at every width, with their counts; what does not fit goes under More. */}
               <Tabs mode="buttons" label={t('dept.show')} items={withCounts(departmentChoices(t), members, split.departments).filter((item) => item.id === 'all' || item.id === chosen || item.count > 0)} value={chosen} onChange={show} />
             </div>
           )}
           <LoadingPlace shape="tiles" loading={!team.data && !team.error} />
           {team.data?.teamHealth && team.data.teamHealth.status !== 'healthy' && (
-            <section className={s.teamHealth} aria-label={t('team.health.team')}>
+            <section className={sLocal.teamHealth} aria-label={t('team.health.team')}>
               <HealthLine health={team.data.teamHealth} agentId="team" onCleared={team.reload} />
             </section>
           )}

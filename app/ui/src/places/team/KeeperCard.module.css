@@ -1,0 +1,42 @@
+.keeperFold {
+  margin-top: var(--sp-3);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.keeperSee {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.jobs {
+  display: grid;
+  gap: var(--sp-3);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.job {
+  min-width: 0;
+}
+
+.jobHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-2);
+}
+
+.jobName {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.jobLine {
+  margin-top: var(--sp-1);
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}

@@ -18,6 +18,7 @@ import { Tile } from '../../parts/Tile';
 import { onMoney, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import vLocal from './Recurring.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 
@@ -43,14 +44,14 @@ export function Recurring() {
     // Simple first (4J20): one step away, in a fold under the invoices; its title is all it shows until opened.
     <Fold summary={t('money.recurring.title')} className={`${v.moreFold} ${s.section}`} summaryClassName={v.moreSummary}>
       {/* The summary names it once; the tile under it carries no second label. */}
-      <Tile className={v.repeatTile}>
+      <Tile className={vLocal.repeatTile}>
       {!adding && offers.length > 0 && (clients.data ?? []).length > 0 && <p className={s.buttons}><Button size="sm" onClick={() => setAdding(true)}>{t('money.recurring.add')}</Button></p>}
       {items.length === 0 && !adding && <p className={s.quietLine}>{t('money.recurring.none')}</p>}
       {items.length > 0 && (
-        <ul className={v.plainList}>
+        <ul className={vLocal.plainList}>
           {items.map((item) => (
-            <li key={item.id} className={v.plainItem}>
-              <span className={v.plainTitle}>{words(item)}</span>
+            <li key={item.id} className={vLocal.plainItem}>
+              <span className={vLocal.plainTitle}>{words(item)}</span>
               <span className={v.quiet}>
                 {item.nextOn ? t('money.recurring.next', { date: day(item.nextOn) }) : t('money.recurring.ended')}
                 {item.end && ` · ${t('money.recurring.until', { date: day(item.end) })}`}

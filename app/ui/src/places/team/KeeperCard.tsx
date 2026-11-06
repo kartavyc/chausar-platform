@@ -10,6 +10,7 @@ import type { DeptId } from '../../parts/icons';
 import type { Member } from './departments';
 import { RING } from './shared';
 import s from './Team.module.css';
+import sLocal from './KeeperCard.module.css';
 import { Fold } from '../../parts/Fold';
 
 /** Keeper's jobs change when one of them runs (keeper.ran), and with the business. */
@@ -36,7 +37,7 @@ function JobList({ name, keeper }: { name: string; keeper: ReturnType<typeof use
   if (keeper.error) return <p className={s.problem}>{t('team.keeper.failed', { message: keeper.error.message })}</p>;
   if (!keeper.data) return null;
   return (
-    <ul className={s.jobs} aria-label={t('team.keeper.jobs', { name })}>
+    <ul className={sLocal.jobs} aria-label={t('team.keeper.jobs', { name })}>
       {keeper.data.jobs.map((job) => <JobRow key={job.id} job={job} />)}
     </ul>
   );
@@ -49,14 +50,14 @@ function JobList({ name, keeper }: { name: string; keeper: ReturnType<typeof use
 function JobRow({ job }: { job: KeeperJobView }) {
   const t = useT();
   return (
-    <li className={s.job} data-job={job.id}>
-      <p className={s.jobHead}>
-        <span className={s.jobName}>{job.name}</span>
+    <li className={sLocal.job} data-job={job.id}>
+      <p className={sLocal.jobHead}>
+        <span className={sLocal.jobName}>{job.name}</span>
         {job.lastRun && <Chip tone={OUTCOME_TONE[job.lastRun.outcome]}>{t(`team.keeper.outcome.${job.lastRun.outcome}`)}</Chip>}
         {!job.lastRun && job.note === null && <Chip tone="neutral">{t('team.keeper.notRun')}</Chip>}
       </p>
-      {job.lastRun && <p className={s.jobLine}>{job.lastRun.line}</p>}
-      {!job.lastRun && job.note !== null && <p className={s.jobLine}>{job.note}</p>}
+      {job.lastRun && <p className={sLocal.jobLine}>{job.lastRun.line}</p>}
+      {!job.lastRun && job.note !== null && <p className={sLocal.jobLine}>{job.note}</p>}
     </li>
   );
 }
@@ -100,7 +101,7 @@ export function KeeperCard({ member, dept, ground, open = false }: { member: Mem
         <KeeperSummary jobs={keeper.data?.jobs} />
         {/* Operations shown alone has room for the jobs as rows; among all five departments they wait one step away. */}
         {open ? <JobList name={agent.name} keeper={keeper} /> : (
-          <Fold summary={t('team.keeper.see')} className={s.keeperFold} summaryClassName={s.keeperSee}>
+          <Fold summary={t('team.keeper.see')} className={sLocal.keeperFold} summaryClassName={sLocal.keeperSee}>
             <JobList name={agent.name} keeper={keeper} />
           </Fold>
         )}

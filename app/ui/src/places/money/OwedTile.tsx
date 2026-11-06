@@ -29,7 +29,8 @@ import { keepDraft } from '../clients/handoff';
 import { Counted, InvoiceRef, lineProof } from './parts';
 import { onMoney, useDay, type OpenInvoice } from './words';
 import s from './Money.module.css';
-import v from './MoneyViews.module.css';
+import sLocal from './OwedTile.module.css';
+import vLocal from './OwedTileMoneyViews.module.css';
 
 export interface OwedTileProps {
   line: MoneyOverviewLine | undefined;
@@ -50,21 +51,21 @@ export function OwedTile({ line, open, aging, agingView, span }: OwedTileProps) 
   // Balances are shown only under the receipt that sums them; a model-written figure proves nothing under it.
   const receipted = proof !== null && proof.receiptId !== undefined;
   const figure = aged
-    ? <Figure value={aged.total.display} receiptId={aged.total.receiptId} size="stat" className={s.owedFigure} />
-    : line && proof && <Figure {...proof} value={line.value} size="stat" className={s.owedFigure} />;
+    ? <Figure value={aged.total.display} receiptId={aged.total.receiptId} size="stat" className={sLocal.owedFigure} />
+    : line && proof && <Figure {...proof} value={line.value} size="stat" className={sLocal.owedFigure} />;
   const list = open && open.length > 0 && !aged && <OpenList items={open} balances={receipted} />;
   const count = aged ? aged.invoices.length : open?.length;
   const late = aged ? aged.invoices.filter((invoice) => invoice.late !== null).length : 0;
 
   return (
-    <Tile as="section" labelledBy={id} span={span} className={`${s.owed} ${v.fit}`}>
+    <Tile as="section" labelledBy={id} span={span} className={`${sLocal.owed} ${vLocal.fit}`}>
       <TileHead id={id} title={t('money.owed.title')} meta={count !== undefined ? <Counted text={t('money.owed.count', { count: String(count) })} count={count} /> : undefined} />
-      <div className={s.owedBody} data-figure-group={receipted && list ? '' : undefined}>
+      <div className={sLocal.owedBody} data-figure-group={receipted && list ? '' : undefined}>
         {figure}
         {/* 4J20: what the late ones owe, with its own receipt; from an engine without it, how many are late. */}
         {aged?.late
-          ? <span className={v.lateWords} data-late-figure=""><Figure value={aged.late.display} receiptId={aged.late.receiptId} />{t('money.owed.lateOf')}</span>
-          : late > 0 && <span className={v.lateWords}><Counted text={t('money.owed.late', { count: String(late) })} count={late} /></span>}
+          ? <span className={vLocal.lateWords} data-late-figure=""><Figure value={aged.late.display} receiptId={aged.late.receiptId} />{t('money.owed.lateOf')}</span>
+          : late > 0 && <span className={vLocal.lateWords}><Counted text={t('money.owed.late', { count: String(late) })} count={late} /></span>}
         {list}
       </div>
       {/* The five ages at rest as the bar, a visual cue with almost no words; each age in words, with its count and
@@ -115,8 +116,8 @@ function Reminders({ aging }: { aging: AgingView }) {
   }
 
   return (
-    <div className={v.remind}>
-      <p className={v.remindWho}>
+    <div className={vLocal.remind}>
+      <p className={vLocal.remindWho}>
         <Icon name="file-pen" size={14} />
         <span>{t('money.remind.who')}</span>
       </p>
@@ -126,7 +127,7 @@ function Reminders({ aging }: { aging: AgingView }) {
         </Button>
       )}
       {drafted.length > 0 && (
-        <ul className={v.drafts} aria-label={t('money.remind.drafted')}>
+        <ul className={vLocal.drafts} aria-label={t('money.remind.drafted')}>
           {drafted.map((invoice) => <Drafted key={invoice.id} invoice={invoice} client={owed.get(invoice.id)?.client ?? t('money.aClient')} />)}
         </ul>
       )}
@@ -139,8 +140,8 @@ function Reminders({ aging }: { aging: AgingView }) {
 function Drafted({ invoice, client }: { invoice: InvoiceLite; client: string }) {
   const t = useT();
   return (
-    <li className={v.draft}>
-      <span className={v.draftText}>{t('money.remind.ready', { client, number: invoice.number ?? '' })}</span>
+    <li className={vLocal.draft}>
+      <span className={vLocal.draftText}>{t('money.remind.ready', { client, number: invoice.number ?? '' })}</span>
       <Button size="sm" variant="quiet" onClick={(event) => openSheet('outreach', invoice.next!.draftId!, event.currentTarget)}>{t('money.remind.open')}</Button>
     </li>
   );
@@ -154,15 +155,15 @@ export function OpenList({ items, balances, className }: { items: readonly OpenI
     <ul className={className ?? s.openList}>
       {items.map((item) => (
         <li key={item.invoiceId} className={s.openItem}>
-          <span className={s.openText}>
-            <span className={s.openClient} data-client="">{item.clientName}</span>
-            <span className={s.openSub}>
+          <span className={sLocal.openText}>
+            <span className={sLocal.openClient} data-client="">{item.clientName}</span>
+            <span className={sLocal.openSub}>
               <InvoiceRef id={item.invoiceId} number={item.number} />
               <span aria-hidden="true">·</span>
               <span>{t('money.due', { date: day(item.dueDate) })}</span>
             </span>
           </span>
-          {balances && <span className={s.openAmount} data-num="">{item.balanceDisplay}</span>}
+          {balances && <span className={sLocal.openAmount} data-num="">{item.balanceDisplay}</span>}
         </li>
       ))}
     </ul>

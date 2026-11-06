@@ -16,6 +16,7 @@ import { OpenList } from './OwedTile';
 import { lineProof } from './parts';
 import type { OpenInvoice } from './words';
 import s from './Money.module.css';
+import sLocal from './DueNext.module.css';
 
 /** How many invoices the tile lists: the next few, as on the board. */
 const SHOWN = 4;
@@ -28,8 +29,8 @@ export function DueNext({ line, open, today, span }: { line: MoneyOverviewLine |
   const next = (open ?? []).filter((item) => !today || item.dueDate >= today).slice(0, SHOWN);
 
   return (
-    <Tile as="section" labelledBy={id} span={span} className={s.dueNext}>
-      <div className={s.dueBody} data-figure-group={receiptId && next.length > 0 ? '' : undefined}>
+    <Tile as="section" labelledBy={id} span={span} className={sLocal.dueNext}>
+      <div className={sLocal.dueBody} data-figure-group={receiptId && next.length > 0 ? '' : undefined}>
         <TileHead id={id} title={t('money.next.title')} meta={t('money.next.meta')} end={receiptId && next.length > 0 ? <Receipt id={receiptId} /> : undefined} />
         {open && next.length === 0 && <p className={s.quietLine}>{t('money.next.none')}</p>}
         {next.length > 0 && <OpenList items={next} balances={receiptId !== undefined} className={s.nextList} />}

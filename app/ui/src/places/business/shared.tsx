@@ -9,6 +9,7 @@ import { cx } from '../../parts/cx';
 import type { BlueprintViewLite, EngineClient, LabelledLite, QueueDecision, QueueRow } from '../../engine/types';
 import { formatDay } from '../../../../../platform/shared/owner-format.ts';
 import s from './Business.module.css';
+import sLocal from './shared.module.css';
 
 
 
@@ -31,7 +32,7 @@ export function TileSection({ title, meta, end, more, className, children }: {
 }) {
   const headingId = useId();
   return (
-    <Tile as="section" plain labelledBy={headingId} className={cx(s.section, className)}>
+    <Tile as="section" plain labelledBy={headingId} className={cx(sLocal.section, className)}>
       <TileHead id={headingId} title={title} meta={meta} end={end} more={more} />
       <div className={s.body}>{children}</div>
     </Tile>
@@ -43,7 +44,7 @@ export function LabelTag({ line }: { line: Pick<LabelledLite<unknown>, 'label' |
   const t = useT();
   return (
     <>
-      <span className={s.tag}>{t(`business.label.${line.label}`)}</span>
+      <span className={sLocal.tag}>{t(`business.label.${line.label}`)}</span>
       {line.estimate && <> <ModelEstimate /></>}
     </>
   );

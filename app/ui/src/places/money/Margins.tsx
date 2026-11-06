@@ -18,6 +18,7 @@ import { EngineWords, Failed, SET_RATE_HREF } from './parts';
 import { onMoney, onRuns, useMonthWords } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import vLocal from './Margins.module.css';
 
 const onMargins = (event: Parameters<typeof onMoney>[0]) => onMoney(event) || onRuns(event);
 
@@ -34,7 +35,7 @@ export function Margins({ month }: { month: string }) {
       {view && view.rows.length === 0 && <Tile><EmptyState title={t('money.margins.none')} /></Tile>}
       {view && view.rows.length > 0 && (
         <Tile pad="none" className={s.tableTile}>
-          <table className={v.table} role="table">
+          <table className={vLocal.table} role="table">
             <caption className="sr-only">{t('money.margins.caption', { month: monthWords(month) })}</caption>
             <thead role="rowgroup">
               <tr role="row">
@@ -47,7 +48,7 @@ export function Margins({ month }: { month: string }) {
             <tbody role="rowgroup">
               {view.rows.map((row) => (
                 <tr key={row.clientId} role="row">
-                  <th scope="row" role="rowheader" className={v.client}>{row.client}</th>
+                  <th scope="row" role="rowheader" className={vLocal.client}>{row.client}</th>
                   <td role="cell" data-label={t('money.margins.invoiced')}><Kinded figure={row.invoiced} /></td>
                   <td role="cell" data-label={t('money.margins.spend')}>{row.spend ? <Kinded figure={row.spend} /> : <span className={v.quiet}>{t('money.margins.notCounted')}</span>}</td>
                   <td role="cell" data-label={t('money.margins.margin')}>{row.margin ? <Kinded figure={row.margin} /> : <span className={v.quiet}>{t('money.margins.notCounted')}</span>}</td>
@@ -58,7 +59,7 @@ export function Margins({ month }: { month: string }) {
         </Tile>
       )}
       {view && (
-        <Fold summary={t('money.books.about')} className={v.basis}>
+        <Fold summary={t('money.books.about')} className={vLocal.basis}>
           {/* The engine's sentence: the month, before tax, and the rate the spend was counted at (or why it was not). */}
           <p>
             <EngineWords>{view.line}</EngineWords>

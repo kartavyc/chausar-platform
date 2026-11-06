@@ -10,6 +10,7 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 import s from './Team.module.css';
+import sLocal from './HireSheet.module.css';
 
 const DEPT_KEY: Readonly<Record<string, string>> = { sales: 'dept.sales', marketing: 'dept.mkt', production: 'dept.prod', money: 'dept.money', operations: 'dept.ops' };
 
@@ -76,13 +77,13 @@ export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
     const toggle = (read: string) => setHire({ ...hire, reads: chosen.has(read) ? hire.reads.filter((item) => item.read !== read) : [...hire.reads, { read, why: '' }] });
     body = (
       <div className={s.hireForm} data-hire-step="reads">
-        <fieldset className={s.hireReads}>
+        <fieldset className={sLocal.hireReads}>
           <legend>{t('team.hire.reads')}</legend>
           {hire.choices.map((read) => (
             <label key={read}><input type="checkbox" checked={chosen.has(read)} onChange={() => toggle(read)} /> {t(`team.hire.read.${read}`)}</label>
           ))}
         </fieldset>
-        <label className={s.hireSelect}>{t('team.hire.department')}
+        <label className={sLocal.hireSelect}>{t('team.hire.department')}
           <Select value={edits.department ?? hire.department} onChange={(event) => setEdits({ ...edits, department: event.currentTarget.value })}>
             {hire.departments.map((id) => <option key={id} value={id}>{t(DEPT_KEY[id] ?? 'dept.ops')}</option>)}
           </Select>
@@ -102,11 +103,11 @@ export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
   } else {
     body = (
       <div className={s.hireForm} data-hire-step="review">
-        <h3 className={s.hireHead}>{hire.role?.name}</h3>
+        <h3 className={sLocal.hireHead}>{hire.role?.name}</h3>
         <p className={s.hireLine}>{hire.role?.job}</p>
-        <h4 className={s.hireHead}>{t('team.hire.does')}</h4>
+        <h4 className={sLocal.hireHead}>{t('team.hire.does')}</h4>
         <ul className={s.hireList}>{hire.card?.does.map((line) => <li key={line} data-content="">{line}</li>)}</ul>
-        <h4 className={s.hireHead}>{t('team.hire.readsCard')}</h4>
+        <h4 className={sLocal.hireHead}>{t('team.hire.readsCard')}</h4>
         <ul className={s.hireList}>{hire.card?.reads.map((item) => <li key={item.read}>{t(`team.hire.read.${item.read}`)}</li>)}</ul>
         <Fold summary={t('team.hire.never')} className={s.hireFold}>
           <ul className={s.hireList}>{hire.card?.never.map((line) => <li key={line}>{line}</li>)}</ul>

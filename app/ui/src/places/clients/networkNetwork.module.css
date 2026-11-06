@@ -1,0 +1,16 @@
+/* Open in LinkedIn drawn as the outlined button (Button.module.css's base), as a link on the web. */
+.linkButton {
+  text-decoration: none;
+}
+
+.path {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.pathLine {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}

@@ -1,0 +1,58 @@
+.owedFigure [data-receipt] {
+  position: absolute;
+  top: var(--pad-tile);
+  right: var(--pad-tile);
+}
+
+/* Who owes you, and due next. */
+
+.owed {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.owed > :first-child {
+  padding-right: calc(var(--sp-12) * 2);
+}
+
+.owedBody {
+  display: flex;
+  flex-direction: column;
+}
+
+.owedFigure {
+  margin-top: var(--sp-3);
+}
+
+.openText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.openClient {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: 19px;
+  color: var(--fg);
+}
+
+.openSub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--sp-1);
+  font-size: var(--text-label);
+  line-height: 17px;
+  color: var(--mute);
+}
+
+.openAmount {
+  flex: none;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  white-space: nowrap;
+}

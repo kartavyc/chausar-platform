@@ -9,6 +9,7 @@ import { ProvedFigure, lineProof, spendShown } from '../money/parts';
 import { HeldLine } from './DepartmentPanel';
 import { DEPT_OF, spendOf, withoutRate, type Member } from './departments';
 import s from './Team.module.css';
+import sLocal from './TeamStats.module.css';
 
 /** Letters in the engine's spend text: it carries words beside the amount ("₹60.10, includes estimates"), so it is set
  *  at the tile figure size, where it fits on a line or two, instead of the stat size. */
@@ -22,7 +23,7 @@ function joined(names: string[], language: 'en' | 'hi'): string {
 /** D's `.stack`: overlapping avatars, hidden, because the names are said in words under them. */
 function Stack({ members, ring }: { members: Member[]; ring?: boolean | undefined }) {
   return (
-    <span className={s.stack} aria-hidden="true">
+    <span className={sLocal.stack} aria-hidden="true">
       {members.map(({ agent, state }) => (
         <Avatar key={agent.id} name={agent.name} dept={agent.department ? DEPT_OF[agent.department] : undefined} state={ring ? state : undefined} size={28} />
       ))}
@@ -44,11 +45,11 @@ function SpendTile({ line, held, span }: { line: MoneyOverviewLine; held?: { wor
   // 4Z3: the figure as the engine says it leads (rupees or dollars first), the other currency beneath it.
   const shown = spendShown(line.lead, line.value, line.rupees);
   return (
-    <Tile span={span} pad="compact" card className={s.spendTile}>
+    <Tile span={span} pad="compact" card className={sLocal.spendTile}>
       {/* B2: the rupee icon only beside a figure that leads in rupees, never beside dollars. */}
       {/* B4 task 14: a neutral label, whichever currency leads. */}
-      <p className={s.statLabel}>{t('team.stats.spend')}</p>
-      <div className={cx(s.statValue, WORDS.test(shown.value) && s.worded)}>
+      <p className={sLocal.statLabel}>{t('team.stats.spend')}</p>
+      <div className={cx(sLocal.statValue, WORDS.test(shown.value) && sLocal.worded)}>
         <ProvedFigure value={shown.value} proof={proof} rupees={shown.rupees} />
       </div>
       {held && <HeldLine held={held} className={s.statHeld} />}

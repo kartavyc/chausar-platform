@@ -1,0 +1,18 @@
+/* Money across businesses. */
+.business {
+  display: flex;
+  flex-direction: column;
+}
+
+.leftOut {
+  margin: var(--sp-2) 0 0;
+  padding-left: var(--sp-5);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+/* The total across businesses: its receipt sits at the tile's top right, as on a figure tile. */
+.acrossTotal {
+  position: relative;
+}

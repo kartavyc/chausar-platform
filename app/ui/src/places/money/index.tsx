@@ -42,7 +42,7 @@ import { Spend } from './Spend';
 import { notYet } from './views';
 import { monthsOffered, useChosenMonth, useMonthWords } from './words';
 import s from './Money.module.css';
-import v from './MoneyViews.module.css';
+import vLocal from './MoneyViewsPage.module.css';
 import { Select } from '../../parts/Select';
 
 const SUBS = ['invoices', 'bills', 'books', 'margins', 'spend', 'journal', 'businesses'] as const;
@@ -79,10 +79,10 @@ function PlaceBody() {
         <Tabs mode="links" label={t('money.nav')} value={sub ?? 'overview'} items={links} primary={MONEY_PRIMARY} />
       </div>
       {monthly && (
-        <div className={v.bar}>
+        <div className={vLocal.bar}>
           {/* A compact row of the businesses over the overview, only when there is more than one (4J6). */}
           {sub === undefined && <AcrossChips across={across} chosen={null} overview />}
-          <span className={v.barEnd}>
+          <span className={vLocal.barEnd}>
             <MonthPicker month={month} />
           </span>
         </div>
@@ -95,7 +95,7 @@ function PlaceBody() {
                 : sub === 'journal' ? <Journal />
                   : sub === 'businesses' ? (
                     <>
-                      <div className={v.bar}><AcrossChips across={across} chosen={chosen ?? 'all'} /></div>
+                      <div className={vLocal.bar}><AcrossChips across={across} chosen={chosen ?? 'all'} /></div>
                       <AcrossView across={across} chosen={chosen ?? 'all'} error={notYet(error) ? undefined : error} />
                     </>
                   )

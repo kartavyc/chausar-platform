@@ -1,0 +1,5 @@
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+}

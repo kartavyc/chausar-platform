@@ -14,6 +14,7 @@ import type { IconName } from '../../parts/icons';
 import { SectionHead, Tile, type TileSpan } from '../../parts/Tile';
 import type { EngineError, MoneyOverviewLine, SpendLead } from '../../engine/types';
 import s from './Money.module.css';
+import sLocal from './parts.module.css';
 
 /**
  * The proof of a Money at a glance line, or null when it has none (then the figure is left out, never shown bare).
@@ -34,9 +35,9 @@ export function lineProof(line: MoneyOverviewLine | undefined): FigureProof | nu
 export function ProvedFigure({ value, proof, size, rupees, className }: { value: string; proof: FigureProof; size?: FigureSize | undefined; rupees?: string | undefined; className?: string | undefined }) {
   if (!rupees) return <Figure {...proof} value={value} size={size} className={className} />;
   return (
-    <span className={cx(s.withRupees, className)} data-figure-group="">
+    <span className={cx(sLocal.withRupees, className)} data-figure-group="">
       <Figure {...proof} value={value} size={size} />
-      <span className={s.rupees}>{rupees}</span>
+      <span className={sLocal.rupees}>{rupees}</span>
     </span>
   );
 }
@@ -139,8 +140,8 @@ export function Section({ title, end, tile = true, children }: { title: string; 
 export function MoneyTile({ label, icon, span, children, className, aside }: { label: string; icon: IconName; span: TileSpan; children?: ReactNode; className?: string | undefined; aside?: ReactNode }) {
   const id = useId();
   return (
-    <Tile as="section" labelledBy={id} span={span} pad="compact" className={cx(s.moneyTile, className)}>
-      <p className={s.tileLabel}>
+    <Tile as="section" labelledBy={id} span={span} pad="compact" className={cx(sLocal.moneyTile, className)}>
+      <p className={sLocal.tileLabel}>
         <Icon name={icon} size={14} />
         <span id={id}>{label}</span>
         {aside}

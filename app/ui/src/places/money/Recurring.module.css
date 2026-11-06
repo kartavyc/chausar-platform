@@ -1,0 +1,28 @@
+/* Lists in the Invoices page: invoices that repeat. */
+.plainList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plainItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding-block: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.plainItem:first-child {
+  border-top: 0;
+}
+
+.plainTitle {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.repeatTile {
+  margin-top: var(--sp-3);
+}

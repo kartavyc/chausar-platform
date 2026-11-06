@@ -1,0 +1,14 @@
+/* The level labels' gutter: its width is set in ch of this font, as many as the longest label plus one. */
+.gutter {
+  display: block;
+  flex: none;
+  overflow: visible;
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.tick {
+  fill: var(--mute);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+}

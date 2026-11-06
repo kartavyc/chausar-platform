@@ -1,0 +1,11 @@
+/* The payment sheet's "Still owed" with the balance and the receipts that explain it. */
+.owedLine {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: center;
+}
+
+.owedLine :global(.mono) {
+  color: var(--fg);
+}

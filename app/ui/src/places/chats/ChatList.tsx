@@ -22,6 +22,7 @@ import { LineWithAmounts } from '../../parts/LineWithAmounts';
 import { cx } from '../../parts/cx';
 import { Icon } from '../../parts/Icon';
 import s from './Chats.module.css';
+import sLocal from './ChatList.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { useFlip } from '../../parts/flip';
 import { useLeavingList } from '../../parts/useLeaving';
@@ -79,9 +80,9 @@ export function ChatList({ threads, selected, onNew, newDisabled }: ChatListProp
   const now = clock();
 
   return (
-    <nav className={s.list} aria-labelledby={titleId}>
-      <div className={s.listHead}>
-        <h2 id={titleId} className={s.listTitle}>{t('chats.list.title')}</h2>
+    <nav className={sLocal.list} aria-labelledby={titleId}>
+      <div className={sLocal.listHead}>
+        <h2 id={titleId} className={sLocal.listTitle}>{t('chats.list.title')}</h2>
         <Button variant="ink" size="sm" onClick={onNew} disabled={newDisabled}>
           <Icon name="plus" size={16} />
           {t('chats.list.new')}
@@ -90,14 +91,14 @@ export function ChatList({ threads, selected, onNew, newDisabled }: ChatListProp
         {/* 6G1: settled chats leave the list for Old chats in Settings (D42: the archive lives in Settings). C1 task 12: the
             way there is here whenever the business has had a chat, with the count once any have settled. */}
         {(settled > 0 || groups.length > 0) && needle === '' && (
-          <a className={s.settledLink} href="#/business/chats" aria-label={oldChats} title={oldChats}>
+          <a className={sLocal.settledLink} href="#/business/chats" aria-label={oldChats} title={oldChats}>
             <Icon name="history" size={16} /><span>{oldChats}</span>
           </a>
         )}
-      <div className={s.search}>
+      <div className={sLocal.search}>
         <Icon name="search" size={16} />
         <label className="sr-only" htmlFor={searchId}>{t('chats.list.search')}</label>
-        <input id={searchId} className={s.searchInput} type="search" value={query} placeholder={t('chats.list.search')} autoComplete="off" onChange={(event) => setQuery(event.target.value)} />
+        <input id={searchId} className={sLocal.searchInput} type="search" value={query} placeholder={t('chats.list.search')} autoComplete="off" onChange={(event) => setQuery(event.target.value)} />
       </div>
       <div className={s.groups}>
         {threads.error && !threads.data && <p className={s.problem} role="alert">{t('chats.failed', { message: threads.error.message })}</p>}
@@ -123,9 +124,9 @@ function Group({ label, threads, selected, now, zone, snoozed, found }: { label:
   const { drawn, left } = useLeavingList(threads, threadKey);
   const list = useFlip<HTMLUListElement>(threads.map(threadKey).join(' '));
   return (
-    <section className={s.group} aria-labelledby={headingId}>
-      <h3 id={headingId} className={s.groupTitle}>{label}</h3>
-      <ul ref={list} className={s.threads}>
+    <section className={sLocal.group} aria-labelledby={headingId}>
+      <h3 id={headingId} className={sLocal.groupTitle}>{label}</h3>
+      <ul ref={list} className={sLocal.threads}>
         {drawn.map((row, place) => {
           const thread = row.item;
           const here = thread.id === selected;
@@ -135,25 +136,25 @@ function Group({ label, threads, selected, now, zone, snoozed, found }: { label:
           const amounts = snippet?.amounts ?? thread.amounts;
           return (
             <LeaveRow key={row.key} row={row} left={left} place={place} flipId={row.key}>
-            <div className={cx(s.chat, here && s.on)}>
-              <span className={s.chatMark} aria-hidden="true"><Icon name="messages-square" size={16} /></span>
-              <span className={s.chatText}>
-                <a className={s.chatLink} href={`#/chats?thread=${encodeURIComponent(thread.id)}`} aria-current={here ? 'page' : undefined}>
-                  <span className={s.chatTitle} data-content="">{thread.title}</span>
+            <div className={cx(sLocal.chat, here && sLocal.on)}>
+              <span className={sLocal.chatMark} aria-hidden="true"><Icon name="messages-square" size={16} /></span>
+              <span className={sLocal.chatText}>
+                <a className={sLocal.chatLink} href={`#/chats?thread=${encodeURIComponent(thread.id)}`} aria-current={here ? 'page' : undefined}>
+                  <span className={sLocal.chatTitle} data-content="">{thread.title}</span>
                   {thread.unread > 0 && <span className="sr-only">{t('chats.list.unread')}</span>}
                 </a>
-                {line && <span className={s.chatLine} data-last-line=""><LineWithAmounts line={line} amounts={amounts} /></span>}
+                {line && <span className={sLocal.chatLine} data-last-line=""><LineWithAmounts line={line} amounts={amounts} /></span>}
               </span>
-              <span className={s.chatSide}>
+              <span className={sLocal.chatSide}>
                 {snoozed && thread.snoozedUntil ? (
-                  <span className={s.chatTime}>
+                  <span className={sLocal.chatTime}>
                     <span className="sr-only">{t('chats.list.wakes')} </span>
                     <time dateTime={thread.snoozedUntil}>{whenOf(thread.snoozedUntil, now, zone)}</time>
                   </span>
                 ) : (
-                  <time className={s.chatTime} dateTime={thread.lastAt}>{whenOf(thread.lastAt, now, zone)}</time>
+                  <time className={sLocal.chatTime} dateTime={thread.lastAt}>{whenOf(thread.lastAt, now, zone)}</time>
                 )}
-                {thread.unread > 0 && <span className={s.unread} aria-hidden="true" />}
+                {thread.unread > 0 && <span className={sLocal.unread} aria-hidden="true" />}
               </span>
             </div>
             </LeaveRow>

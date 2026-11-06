@@ -14,6 +14,7 @@ import { Button } from '../../parts/Button';
 import type { ConnectorCardLite } from '../../engine/types';
 import { useDay } from '../money/words';
 import s from './Connections.module.css';
+import sLocal from './StepsCheck.module.css';
 
 
 
@@ -53,7 +54,7 @@ export function StepsCheck({ card }: { card: ConnectorCardLite }) {
 
   return (
     <span className={s.toolRow} data-posting-steps="">
-      <span className={s.quiet}>{dateLine}</span>{' '}
+      <span className={sLocal.quiet}>{dateLine}</span>{' '}
       <Button size="sm" disabled={busy} onClick={() => void check()}>
         <span aria-hidden="true">{busy ? t('connections.steps.checking') : t('connections.steps.check')}</span>
         <span className="sr-only">{t('connections.steps.checkName', { name: card.name })}</span>

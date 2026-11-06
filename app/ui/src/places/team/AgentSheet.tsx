@@ -24,6 +24,7 @@ import { Instructions } from './Instructions';
 import { KeeperJobs } from './KeeperCard';
 import { RING, Result, agentRow, elapsedOf, refreshOn, toneOf } from './shared';
 import s from './Team.module.css';
+import sLocal from './AgentSheet.module.css';
 import { Fold } from '../../parts/Fold';
 import c from './AgentChat.module.css';
 
@@ -195,12 +196,12 @@ function RunLine({ run, agentId }: { run: RunSummary; agentId: string }) {
   const t = useT();
   return (
     <li className={s.run} data-row="" tabIndex={-1}>
-      <span className={s.runRing}>{run.progress && <ProgressRing progress={run.progress} tone={toneOf(run)} />}</span>
-      <div className={s.runBody}>
+      <span className={sLocal.runRing}>{run.progress && <ProgressRing progress={run.progress} tone={toneOf(run)} />}</span>
+      <div className={sLocal.runBody}>
         <button type="button" className={s.runOpen} data-open="" onClick={(event) => openSheet('run', run.runId, agentRow(agentId) ?? event.currentTarget)}>
           {run.purpose}
         </button>
-        <p className={s.runMeta}>
+        <p className={sLocal.runMeta}>
           <StateChip kind="run" value={run.state} />
           {elapsedOf(run) && <span className={s.elapsed}>{elapsedOf(run)}</span>}
         </p>

@@ -17,6 +17,7 @@ import { Tile, TileHead } from '../../parts/Tile';
 import { categoryIcon } from './categories';
 import { connectionWords, localizedConnectionCard } from './ConnectionWords';
 import s from './Connections.module.css';
+import sLocal from './CanDo.module.css';
 
 interface Way { id: string; card: ConnectorCardLite; what: string }
 
@@ -45,7 +46,7 @@ export function CanDo({ cards }: { cards: ConnectorCardLite[] }) {
             <Row
               key={way.id}
               id={`can-do-${way.id}`}
-              mark={<span className={s.mini} aria-hidden="true"><Icon name={categoryIcon(way.card.category)} size={16} /></span>}
+              mark={<span className={sLocal.mini} aria-hidden="true"><Icon name={categoryIcon(way.card.category)} size={16} /></span>}
               title={<span data-can-do-name="">{way.card.name}</span>}
               line={<span data-can-do-what="">{connectionWords(t, way.what)}</span>}
               aside={<ConnectorLabel label="write" />}
@@ -53,7 +54,7 @@ export function CanDo({ cards }: { cards: ConnectorCardLite[] }) {
           ))}
         </ul>
       )}
-      <p className={s.stopLine}><Icon name="history" size={16} />{t('connections.canDo.stop')}</p>
+      <p className={sLocal.stopLine}><Icon name="history" size={16} />{t('connections.canDo.stop')}</p>
     </Tile>
   );
 }

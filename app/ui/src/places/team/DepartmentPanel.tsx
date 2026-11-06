@@ -12,6 +12,7 @@ import { Panel, usePlainTiles, type TileSpan } from '../../parts/Tile';
 import { AgentList } from './AgentCard';
 import { withoutRate, type DepartmentData } from './departments';
 import s from './Team.module.css';
+import sLocal from './DepartmentPanel.module.css';
 
 /**
  * A department's counts in words, only the ones above zero: "1 working · 1 waiting on you · 1 run stopped · 2 idle".
@@ -26,7 +27,7 @@ export function CountsLine({ counts, as: Tag = 'p' }: { counts: DepartmentData['
   if (counts.idle > 0) parts.push(<span key="idle">{t('team.dept.idle', { count: counts.idle })}</span>);
   if (parts.length === 0) return null;
   return (
-    <Tag className={s.counts} data-counts="">
+    <Tag className={sLocal.counts} data-counts="">
       {parts.map((part, at) => <Fragment key={at}>{at > 0 && ' · '}{part}</Fragment>)}
     </Tag>
   );
@@ -35,7 +36,7 @@ export function CountsLine({ counts, as: Tag = 'p' }: { counts: DepartmentData['
 /** The department's icon in D's white rounded box (`.dp-ic`), in the department's ink. */
 export function DeptIcon({ dept, large }: { dept: DepartmentData['dept']; large?: boolean | undefined }) {
   return (
-    <span className={s.deptIcon} data-dept={dept} data-large={large ? '' : undefined} aria-hidden="true">
+    <span className={sLocal.deptIcon} data-dept={dept} data-large={large ? '' : undefined} aria-hidden="true">
       <Icon name={DEPT_ICONS[dept]} size={large ? 22 : 20} />
     </span>
   );
@@ -61,24 +62,24 @@ export function DepartmentPanel({ data, span, onChanged }: { data: DepartmentDat
   const quiet = empty && (data.jobs ?? 0) === 0 && (data.spend?.share ?? 0) === 0;
   return (
     <Panel as="article" dept={data.dept} span={span} labelledBy={headId} className={s.panel}>
-      <div className={s.deptHead}>
+      <div className={sLocal.deptHead}>
         {plain ? <DeptDot dept={data.dept} /> : <DeptIcon dept={data.dept} />}
-        <div className={s.deptTitle}>
-          <h2 id={headId} className={s.deptName}>{name}</h2>
+        <div className={sLocal.deptTitle}>
+          <h2 id={headId} className={sLocal.deptName}>{name}</h2>
           {empty && <CountsLine counts={data.counts} />}
         </div>
         {data.jobs !== undefined && !quiet && (
-          <div className={s.deptStat}>
-            <Count value={data.jobs} className={s.deptCount} />
-            <span className={s.deptLabel}>{t('team.dept.jobs')}</span>
+          <div className={sLocal.deptStat}>
+            <Count value={data.jobs} className={sLocal.deptCount} />
+            <span className={sLocal.deptLabel}>{t('team.dept.jobs')}</span>
           </div>
         )}
       </div>
       {/* No spend line where the engine's share is 0: nothing, or under a thousandth of the month (Money lists it). */}
       {data.spend && proof && !quiet && data.spend.share !== 0 && (
-        <p className={s.deptSpend}>
-          <span className={s.deptLabel}>{t('team.dept.month')}</span>{' '}
-          <ProvedFigure value={data.spend.value} proof={proof} rupees={data.spend.other ?? (data.spend.rupees && withoutRate(data.spend.rupees, data.spend.rate))} size="dept" className={s.deptFigure} />
+        <p className={sLocal.deptSpend}>
+          <span className={sLocal.deptLabel}>{t('team.dept.month')}</span>{' '}
+          <ProvedFigure value={data.spend.value} proof={proof} rupees={data.spend.other ?? (data.spend.rupees && withoutRate(data.spend.rupees, data.spend.rate))} size="dept" className={sLocal.deptFigure} />
         </p>
       )}
       {data.members.length > 0
@@ -94,7 +95,7 @@ export function DepartmentPanel({ data, span, onChanged }: { data: DepartmentDat
  */
 export function HeldLine({ held, className }: { held: { words: string; receiptId: string }; className?: string | undefined }) {
   return (
-    <p className={cx(s.held, className)} data-held="" data-figure-group="">
+    <p className={cx(sLocal.held, className)} data-held="" data-figure-group="">
       {held.words} <Receipt id={held.receiptId} />
     </p>
   );

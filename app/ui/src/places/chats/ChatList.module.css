@@ -1,0 +1,223 @@
+/* The list */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+  padding: var(--pad-tile) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.listHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2);
+}
+
+.listTitle {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--target);
+  margin: 0 var(--sp-2);
+  padding: 0 var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button-lg);
+  color: var(--mute);
+}
+
+.search:has(input:focus-visible) {
+  outline: var(--focus) solid var(--link);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.searchInput::placeholder {
+  color: var(--mute);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.groupTitle {
+  margin: 0;
+  padding: 0 var(--sp-1);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.threads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat {
+  /* One-shot C3 task 16: a row off screen costs nothing until it nears the view. Room is kept for a focus ring. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--target);
+  overflow-clip-margin: var(--sp-1);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--sp-12);
+  padding: var(--sp-2);
+  border-radius: var(--r-card);
+  color: var(--fg);
+}
+
+/* The chat's link covers its whole row; the receipts in its last line sit above it, buttons of their own. */
+.chatLink {
+  display: flex;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.chatLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.chatLink:focus-visible {
+  outline: none;
+}
+
+.chat:has(.chatLink:focus-visible) {
+  outline: var(--focus) solid var(--link);
+  outline-offset: var(--focus);
+}
+
+.chatLine [data-receipt] {
+  position: relative;
+  z-index: 1;
+}
+
+.chat:hover {
+  background: var(--wash);
+}
+
+.chat.on {
+  background: var(--selected);
+  color: var(--on-selected);
+}
+
+.chatMark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-36);
+  height: var(--av-36);
+  border-radius: var(--r-button);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.chat.on .chatMark {
+  background: var(--count-on-selected);
+  color: var(--on-selected);
+}
+
+.chatText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chatTitle {
+  overflow: hidden;
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chatLine {
+  overflow: hidden;
+  font-size: var(--text-label);
+  line-height: 1.5;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--mute);
+}
+
+.chat.on .chatLine,
+.chat.on .chatTime {
+  color: var(--on-selected);
+}
+
+.chatSide {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-1);
+}
+
+.chatTime {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.unread {
+  width: var(--sp-2);
+  height: var(--sp-2);
+  border-radius: var(--r-chip);
+  background: var(--fg);
+}
+
+.chat.on .unread {
+  background: var(--on-selected);
+}
+
+.settledLink {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: var(--control-sm);
+  padding: var(--sp-2) var(--pad-tile);
+  justify-content: flex-start;
+  border-radius: var(--r-button);
+  color: var(--mute);
+}
+
+.settledLink:hover {
+  color: var(--fg);
+}

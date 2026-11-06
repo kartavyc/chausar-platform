@@ -20,21 +20,6 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.side {
-  display: grid;
-  align-content: start;
-  gap: var(--gap-grid);
-  min-width: 0;
-}
-
-.head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-1) var(--sp-2);
-  min-height: 24px;
-}
-
 .title {
   margin: 0;
   padding: 0;
@@ -52,12 +37,6 @@
 .title:focus-visible {
   outline: var(--focus) solid var(--link);
   outline-offset: 4px;
-}
-
-.meta {
-  font-size: var(--text-read);
-  line-height: 18px;
-  color: var(--mute);
 }
 
 .end {
@@ -96,16 +75,6 @@
   color: var(--fg2);
 }
 
-.spend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-3);
-  align-items: baseline;
-  margin: var(--sp-4) 0 0;
-  font-size: var(--text-body);
-  color: var(--fg);
-}
-
 .rows {
   margin: var(--sp-2) 0 0;
   padding: 0;
@@ -135,20 +104,8 @@
   margin-top: var(--sp-3);
 }
 
-.groupLabel {
-  margin: var(--sp-2) 0 0;
-  font-size: var(--text-label);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.02em;
-  color: var(--mute);
-}
-
 .fixLine {
   color: var(--fg2);
-}
-
-.quiet {
-  color: var(--mute);
 }
 
 /* The privacy rule and transcription, each a tile of its own beside Your AI. */
@@ -177,147 +134,12 @@
   clear: both;
 }
 
-/* Radio cards: each choice a full-width target with its words, the chosen one outlined in ink. */
-.choice {
-  display: flex;
-  gap: var(--sp-3);
-  align-items: center;
-  min-height: var(--target);
-  padding: var(--sp-2) var(--sp-3);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  font-size: var(--text-body);
-  line-height: 1.35;
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.choice:has(input:checked) {
-  border-color: var(--selected);
-}
-
-.choice input {
-  flex: none;
-  margin: 0;
-  accent-color: var(--selected);
-}
-
-.agree {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: center;
-  min-height: var(--target);
-  font-size: var(--text-body);
-  color: var(--fg);
-}
-
-.consent {
-  margin: 0;
-  font-size: var(--text-read);
-  line-height: 1.5;
-  color: var(--fg2);
-}
-
 .buttons {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
   align-items: center;
   justify-content: flex-end;
-}
-
-/* The connect form opens under its row on the inner grey. */
-.connect {
-  display: grid;
-  gap: var(--sp-3);
-  margin-top: var(--sp-3);
-}
-
-/* ---- What Chausar can do on this computer ---- */
-
-.mini {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: var(--av-32);
-  height: var(--av-32);
-  border-radius: calc(var(--av-32) * 0.3);
-  background: var(--wash);
-  color: var(--fg2);
-}
-
-.stopLine {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: center;
-  margin: var(--sp-3) 0 0;
-  padding-top: var(--sp-3);
-  border-top: var(--hair) solid var(--line-soft);
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
-/* ---- The connectors, one group per category ---- */
-
-/* The groups share the page's 12 columns: a category of one or two tiles sits beside the next one, so small
-   categories line up in a row instead of leaving the rest of the line empty. */
-.groups {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: var(--gap-section) var(--gap-grid);
-  margin-top: var(--gap-section);
-}
-
-.group {
-  grid-column: span 12;
-  min-width: 0;
-}
-
-.group[data-cols='1'] {
-  grid-column: span 4;
-}
-
-.group[data-cols='2'] {
-  grid-column: span 8;
-}
-
-.groupHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sp-1) var(--sp-3);
-  margin-bottom: var(--sp-3);
-}
-
-.groupTitle {
-  margin: 0;
-  font-size: var(--text-section);
-  line-height: 26px;
-  font-weight: var(--weight-strong);
-  letter-spacing: -0.01em;
-  color: var(--fg);
-}
-
-.groupTitle:focus {
-  outline: none;
-}
-
-.cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--gap-grid);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.cards[data-cols='1'] {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.cards[data-cols='2'] {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .connector {
@@ -332,12 +154,6 @@
   border-color: var(--dash);
   background: transparent;
   box-shadow: none;
-}
-
-.tileTop {
-  display: flex;
-  gap: var(--sp-3);
-  align-items: flex-start;
 }
 
 .catIcon {
@@ -359,50 +175,6 @@
   color: var(--mute);
 }
 
-.who {
-  flex: 1;
-  min-width: 0;
-}
-
-/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
-.name {
-  composes: hit from '../../parts/touch.module.css';
-}
-
-.name {
-  display: block;
-  max-width: 100%;
-  min-height: 24px;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: var(--text-tile);
-  line-height: 22px;
-  font-weight: var(--weight-strong);
-  text-align: left;
-  color: var(--fg);
-  overflow-wrap: anywhere;
-  cursor: pointer;
-}
-
-.name:hover {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-}
-
-.name:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 2px;
-  border-radius: var(--r-button-sm);
-}
-
-.labelSlot {
-  display: block;
-  margin-top: var(--sp-1);
-}
-
 .note {
   margin: 0;
   font-size: var(--text-read);
@@ -415,43 +187,6 @@
   font-size: var(--text-read);
   line-height: 1.45;
   color: var(--fg2);
-}
-
-.works {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: center;
-  margin: 0;
-  font-size: var(--text-read);
-  color: var(--accent-text);
-}
-
-/* Posting: the label and mode on one line, the engine's reason under it; the sign-in, the steps and the limits below. */
-.posting {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  align-items: flex-start;
-  margin: 0;
-  padding-top: var(--sp-3);
-  border-top: var(--hair) solid var(--line-soft);
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
-.postingWord {
-  font-weight: var(--weight-medium);
-  color: var(--fg2);
-}
-
-.reason {
-  color: var(--mute);
-}
-
-.tools {
-  display: grid;
-  gap: var(--sp-2);
-  min-width: 0;
 }
 
 .toolRow {
@@ -511,18 +246,6 @@
   margin-left: auto;
 }
 
-/* ---- The connector sheet ---- */
-
-.sheetIcon {
-  display: grid;
-  place-items: center;
-  width: var(--av-40);
-  height: var(--av-40);
-  border-radius: var(--r-card);
-  background: var(--wash);
-  color: var(--fg2);
-}
-
 /* The sheet's body spaces its sections; inside one, the heading sits close to its list. */
 .sheetSection {
   display: grid;
@@ -536,144 +259,15 @@
   color: var(--fg2);
 }
 
-.modes {
-  display: grid;
-  gap: var(--gap-cards);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.modeHead {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  align-items: center;
-  margin: 0 0 var(--sp-2);
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  color: var(--fg);
-}
-
-.status {
-  font-size: var(--text-label);
-  font-weight: var(--weight-medium);
-  color: var(--accent-text);
-}
-
-.setupHead {
-  margin: var(--sp-3) 0 var(--sp-1);
-  font-size: var(--text-label);
-  font-weight: var(--weight-medium);
-  color: var(--mute);
-}
-
-/* Setup steps, numbered by the list itself. */
-.setup {
-  display: grid;
-  gap: var(--sp-1);
-  margin: 0;
-  padding-left: var(--sp-5);
-  font-size: var(--text-read);
-  line-height: 1.45;
-  color: var(--fg2);
-}
-
-.setup li::marker {
-  color: var(--mute);
-  font-variant-numeric: tabular-nums;
-}
-
-.fact {
-  margin: var(--sp-2) 0 0;
-  font-size: var(--text-read);
-  color: var(--mute);
-}
-
-/* ---- Bank statement import ---- */
-
-.rejected {
-  margin: var(--sp-2) 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--text-read);
-  color: var(--mute);
-}
-
-.rejected li + li {
-  margin-top: var(--sp-1);
-}
-
-/* The place's own width decides the columns, so a sheet open beside the page narrows them as a phone does. */
-.place {
-  container-type: inline-size;
-}
-
 @container (max-width: 759px) {
   .top,
   .second,
   .jobs {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  .group[data-cols] {
-    grid-column: 1 / -1;
-  }
-
-  .cards[data-cols='3'] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 /* A phone stacks everything in one column. */
-@container (max-width: 559px) {
-  .cards[data-cols] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* Your network (4D4): the owner's own files as rows in one tile, each with its honest Reads label. */
-.network {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.networkList {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
-  gap: var(--sp-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.networkSource {
-  display: flex;
-  gap: var(--sp-3);
-  min-width: 0;
-}
-
-.networkBody {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  min-width: 0;
-}
-
-.networkHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  margin: 0;
-}
-
-.networkName {
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  color: var(--fg);
-}
 
 .networkFold {
   display: flex;
@@ -689,12 +283,4 @@
 .needsLink {
   margin-bottom: var(--sp-4);
   font-size: var(--text-body);
-}
-
-.needsRow { padding: var(--sp-3) 0; border-bottom: 1px solid var(--line); }
-
-.modelConnections {
-  list-style: none;
-  margin: 0;
-  padding: 0;
 }

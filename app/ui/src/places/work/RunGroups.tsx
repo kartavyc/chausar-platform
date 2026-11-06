@@ -6,6 +6,7 @@ import { useArrivals } from '../../parts/useArrivals';
 import { FINISHED_AT_REST, Finished, RunRow, useRunDetails } from './PreviousRuns';
 import { RunTile, RunTiles } from './RunTiles';
 import s from './Work.module.css';
+import sLocal from './RunGroups.module.css';
 import motion from '../../parts/Leave.module.css';
 
 /** A run owns one list item. Only its host changes; React continues to own the portal's content. */
@@ -26,7 +27,7 @@ class RunFocus extends Component<{ root: RefObject<HTMLDivElement | null>; child
     const target = row?.contains(kept.element) ? kept.element : row?.querySelector<HTMLElement>('[data-open]');
     target?.focus({ preventScroll: true });
   }
-  render() { return <div ref={this.props.root} className={s.runGroups}>{this.props.children}</div>; }
+  render() { return <div ref={this.props.root} className={sLocal.runGroups}>{this.props.children}</div>; }
 }
 
 function MovingRun({ id, hosts, arriving, children }: {
@@ -36,7 +37,7 @@ function MovingRun({ id, hosts, arriving, children }: {
     const element = document.createElement('li');
     element.dataset.runId = id;
     element.dataset.flipId = id;
-    element.className = `${s.runContainer} ${motion.arrive}`;
+    element.className = `${sLocal.runContainer} ${motion.arrive}`;
     return element;
   });
   useLayoutEffect(() => {
@@ -81,7 +82,7 @@ export function RunGroups({ active, waiting, done, names, queue, onChanged, prim
     <RunFocus root={root}>
       {waiting.length > 0 && running(waiting)}
       {active.length > 0 && running(active)}
-      {(failures || done.length > 0) && <div className={s.pair}>
+      {(failures || done.length > 0) && <div className={sLocal.pair}>
         {failures}
         {done.length > 0 && <Finished runs={done} moreHref={moreHref} onChanged={onChanged} renderRows={(list, label) => <ul ref={hostFor(list)} className={s.rows} aria-label={label} />} />}
       </div>}

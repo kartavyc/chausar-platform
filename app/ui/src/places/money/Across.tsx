@@ -24,6 +24,7 @@ import { Counted, Failed, ProvedFigure, spendShown } from './parts';
 import { onMoney, useMoment, useMonthWords } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import vLocal from './Across.module.css';
 
 type Business = AcrossMoneyView['businesses'][number];
 
@@ -78,7 +79,7 @@ export function AcrossView({ across, chosen, error }: { across: AcrossMoneyView 
   return (
     <section className={s.overview} aria-label={t('money.across.title')}>
       {chosen === 'all' && (
-        <Tile as="section" labelledBy={id} className={v.acrossTotal}>
+        <Tile as="section" labelledBy={id} className={vLocal.acrossTotal}>
           <TileHead id={id} title={t('money.across.invoiced', { month: monthWords(across.month) })} />
           {across.total && (
             <div className={s.tileValue}>
@@ -87,7 +88,7 @@ export function AcrossView({ across, chosen, error }: { across: AcrossMoneyView 
           )}
           <p className={s.tileSub}>{totalWords(t, across)}</p>
           {across.notCounted.length > 0 && (
-            <ul className={v.leftOut}>
+            <ul className={vLocal.leftOut}>
               {across.notCounted.map((item) => <li key={item.businessId}>{leftOutWords(t, item, monthWords)}</li>)}
             </ul>
           )}
@@ -116,7 +117,7 @@ function BusinessCard({ business }: { business: Business }) {
   // 4Z3: the spend as the engine says it leads (rupees or dollars first), the other currency beneath it.
   const spend = spendShown(business.spendLead, business.spend ?? '', rupees);
   return (
-    <Tile as="section" labelledBy={id} span={6} className={v.business} data-business={business.businessId}>
+    <Tile as="section" labelledBy={id} span={6} className={vLocal.business} data-business={business.businessId}>
       <TileHead id={id} title={business.name} />
       <p className={s.tileSub} data-line-key={business.lineKey}>{lineWords(t, business, moment)}</p>
       {figures.length > 0 && (

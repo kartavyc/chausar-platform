@@ -1,0 +1,214 @@
+.paneHead {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--pad-tile);
+  border-bottom: var(--hair) solid var(--line-soft);
+}
+
+.paneText {
+  flex: 1;
+  min-width: 0;
+}
+
+.paneTitle {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+  line-height: 1.35;
+  color: var(--fg);
+}
+
+.paneRole {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.back {
+  flex: none;
+  font-size: var(--text-read);
+  color: var(--link);
+}
+
+.log {
+  flex: 1;
+}
+
+/* B4 task 4: a long failure line can make this taller than the pane holds. It scrolls; the pane never cuts it. */
+.compose {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-3) var(--pad-tile) var(--sp-4);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+/* The chief's answer */
+
+.answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.whoName {
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.words {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.7;
+  color: var(--fg);
+}
+
+.estimate {
+  white-space: normal;
+}
+
+.dropped {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.routed {
+  align-self: flex-start;
+  font-size: var(--text-read);
+  color: var(--link);
+}
+
+.worked {
+  width: 100%;
+  border-collapse: collapse;
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.workedTitle {
+  padding: var(--sp-3) var(--sp-4) var(--sp-1);
+  font-size: var(--text-label);
+  text-align: left;
+  color: var(--mute);
+}
+
+.workedLabel,
+.workedValue {
+  padding: var(--sp-2) var(--sp-4);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  font-weight: var(--weight-regular);
+  text-align: left;
+  color: var(--fg2);
+}
+
+.workedValue {
+  text-align: right;
+  color: var(--fg);
+}
+
+/* The counts by code, worded here */
+
+.counted {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.countedTitle {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.countedList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+/* The consent before the first message */
+
+.consent {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: var(--sp-3) var(--pad-tile) 0;
+  padding: var(--sp-4);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.consentTitle {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.consentWaits {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.5;
+  color: var(--fg2);
+}
+
+@media (max-width: 759px) {
+  .paneHead {
+    flex-wrap: wrap;
+  }
+}
+
+/* W6 6G1 (D42): a chat's actions in its head, the snooze choices under it, the change with Undo, and the count of
+   settled chats under the list. Quiet buttons and links only; no new colour. */
+
+.paneActions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* C7: a part of Chausar's guide in a Chats answer: its title, its words as written, and the link to read it there. */
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-top: var(--sp-2);
+}
+
+.guideText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--fg2);
+}

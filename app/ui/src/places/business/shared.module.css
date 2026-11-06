@@ -1,0 +1,14 @@
+/* A plain section after another in the same column is parted by one hairline rule (B4 task 1). */
+.section + .section[data-plain] {
+  padding-top: var(--gap-grid);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.tag {
+  margin-left: var(--sp-2);
+  font-size: var(--text-label);
+  font-weight: var(--weight-regular);
+  letter-spacing: 0;
+  color: var(--mute);
+  white-space: nowrap;
+}

@@ -26,6 +26,7 @@ import { OpenList } from './OwedTile';
 import { Amount, EngineWords, Failed, MoneyTile, Section } from './parts';
 import { byDue, onMoney, useDay } from './words';
 import s from './Money.module.css';
+import sLocal from './Books.module.css';
 import { Fold } from '../../parts/Fold';
 
 const PERIODS: readonly BooksPeriodKey[] = ['all', 'this-month', 'last-month', 'this-year'];
@@ -50,11 +51,11 @@ export function Books() {
         <Button variant="primary" onClick={(event) => openSheet('accountant', 'books', event.currentTarget)}>{t('money.accountant.share')}</Button>
         {linksWork && <Button variant="quiet" onClick={(event) => openSheet('accountant', 'books', event.currentTarget)}>{t('money.accountant.invite')}</Button>}
       </div>
-      <div className={s.periodRow}>
+      <div className={sLocal.periodRow}>
         <Select aria-label={t('money.books.period')} value={chosen} onChange={event => setQuery({ ...route.query, period: event.currentTarget.value })}>
           {periods.map(period => <option key={period.key} value={period.key}>{period.label}</option>)}
         </Select>
-        {data && <p className={s.range}>{t('money.books.range', { from: day(data.period.from), to: day(data.period.to) })}</p>}
+        {data && <p className={sLocal.range}>{t('money.books.range', { from: day(data.period.from), to: day(data.period.to) })}</p>}
       </div>
       {books.error && <Failed error={books.error} />}
       {data && (
@@ -111,9 +112,9 @@ function TaxDetails() {
         {open && (
           <Section title={data ? t('money.tax.title', { period: data.period }) : t('money.tax.titlePlain')}>
             {working.error && <Failed error={working.error} />}
-            {data?.needsCaConfirmation && <p className={s.caLine}>{t('money.tax.needsCa')}</p>}
+            {data?.needsCaConfirmation && <p className={sLocal.caLine}>{t('money.tax.needsCa')}</p>}
             {sections.map((section) => (
-              <div key={section.id} className={s.taxPart}>
+              <div key={section.id} className={sLocal.taxPart}>
                 <h3 className={s.blockTitle}>{section.title}</h3>
                 {section.lines.length > 0 && (
                   <ul className={s.lines}>

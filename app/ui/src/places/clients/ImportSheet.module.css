@@ -1,0 +1,21 @@
+/* The import sheet */
+
+.kinds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pick,
+.checked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding-top: var(--sp-4);
+}
+
+.droppedRow { display: flex; justify-content: space-between; gap: var(--gap-grid); }

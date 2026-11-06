@@ -13,6 +13,7 @@ import { Icon } from '../../parts/Icon';
 import { Tile, TileHead } from '../../parts/Tile';
 import { KIND_ICONS } from '../clients/NetworkSources';
 import s from './Connections.module.css';
+import sLocal from './YourNetwork.module.css';
 import { Fold } from '../../parts/Fold';
 
 export function YourNetwork() {
@@ -21,7 +22,7 @@ export function YourNetwork() {
   const sources = useResource('venture.network.sources', {}, { refreshOn: (event) => event.type === 'queue.changed' });
   if (!sources.data && !sources.error) return null;
   return (
-    <Tile as="section" labelledBy={titleId} className={s.network}>
+    <Tile as="section" labelledBy={titleId} className={sLocal.network}>
       <TileHead id={titleId} title={t('connections.network.title')} more={{ href: '#/clients/network', label: t('connections.network.open') }} />
       {sources.error && <p className={s.problem} role="alert">{t('connections.network.failed', { message: sources.error.message })}</p>}
       {sources.data && sources.data.sources.length === 0 && <p className={s.note}>{t('connections.network.none')}</p>}
@@ -29,13 +30,13 @@ export function YourNetwork() {
         // One fold, so the page at rest stays short: the files open one step away.
         <Fold summary={t('connections.network.files', { count: sources.data.sources.length })} className={s.networkFold}>
           <p className={s.note}>{t('connections.network.line')}</p>
-          <ul className={s.networkList}>
+          <ul className={sLocal.networkList}>
             {sources.data.sources.map((source) => (
-              <li key={source.kind} className={s.networkSource} data-network-source={source.kind}>
+              <li key={source.kind} className={sLocal.networkSource} data-network-source={source.kind}>
                 <span className={s.catIcon} aria-hidden="true"><Icon name={KIND_ICONS[source.kind]} size={18} /></span>
-                <div className={s.networkBody}>
-                  <p className={s.networkHead}>
-                    <span className={s.networkName}>{t(`connections.network.kind.${source.kind}`)}</span>
+                <div className={sLocal.networkBody}>
+                  <p className={sLocal.networkHead}>
+                    <span className={sLocal.networkName}>{t(`connections.network.kind.${source.kind}`)}</span>
                     <ConnectorLabel label="read" />
                   </p>
                   <p className={s.note}>{source.line}</p>

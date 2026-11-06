@@ -14,6 +14,7 @@ import { GuidanceReport } from './GuidanceReport';
 // W6 6C4: the two launch stages and the button that moves the business up.
 import { LaunchStages } from './LaunchStages';
 import s from './Business.module.css';
+import sLocal from './PracticeView.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { Progress } from '../../parts/Progress';
 import { ConfirmSlot } from '../../parts/Confirm';
@@ -167,7 +168,7 @@ function Rehearsal({ onSuggested }: { onSuggested: () => void }) {
                       <p className={s.line}>{failureOf(episode)}</p>
                       <ul className={s.plain}>
                         {episodes.map(item => <li key={item.scenarioId}>
-                          {item.renderedText ? <button type="button" className={s.rowLink} onClick={event => openDraft(item, event.currentTarget)}>{title(item.scenarioId)}</button> : title(item.scenarioId)}
+                          {item.renderedText ? <button type="button" className={sLocal.rowLink} onClick={event => openDraft(item, event.currentTarget)}>{title(item.scenarioId)}</button> : title(item.scenarioId)}
                         </li>)}
                       </ul>
                     </li>
@@ -175,7 +176,7 @@ function Rehearsal({ onSuggested }: { onSuggested: () => void }) {
                   const words = episode.passed ? t('business.practice.passedRow', { client: title(episode.scenarioId) }) : t('business.practice.failure', { client: title(episode.scenarioId), failure: failureOf(episode) });
                   return (
                     <li key={`${episode.scenarioId}-${episode.index}`}>
-                      {episode.renderedText ? <button type="button" className={s.rowLink} onClick={(event) => openDraft(episode, event.currentTarget)}>{words}</button> : words}
+                      {episode.renderedText ? <button type="button" className={sLocal.rowLink} onClick={(event) => openDraft(episode, event.currentTarget)}>{words}</button> : words}
                     </li>
                   );
                 })}

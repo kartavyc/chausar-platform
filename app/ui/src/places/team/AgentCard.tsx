@@ -14,6 +14,7 @@ import { KeeperCard } from './KeeperCard';
 import { canChat } from './chat';
 import { RING, Result, busyFirst, elapsedOf, stateWords, toneOf } from './shared';
 import s from './Team.module.css';
+import sLocal from './AgentCard.module.css';
 import c from './AgentChat.module.css';
 import x from './AgentExtras.module.css';
 
@@ -60,7 +61,7 @@ export function AgentCard({ member, dept, ground, helps, onChanged, helpers }: A
               {agent.name}
             </button>
             <p className={s.role}>{agent.role}</p>
-            {helps && <p className={s.helps}>{t('team.helps', { name: helps })}</p>}
+            {helps && <p className={sLocal.helps}>{t('team.helps', { name: helps })}</p>}
           </div>
         </div>
         <p className={s.now}>
@@ -78,18 +79,18 @@ export function AgentCard({ member, dept, ground, helps, onChanged, helpers }: A
         </p>
         <HealthLine health={agent.health} agentId={agent.id} onCleared={onChanged} />
         {run?.progress && (
-          <div className={s.progress}>
-            <ProgressBar progress={run.progress} tone={toneOf(run)} className={s.bar} />
+          <div className={sLocal.progress}>
+            <ProgressBar progress={run.progress} tone={toneOf(run)} className={sLocal.bar} />
             {elapsedOf(run) && <span className={s.elapsed}>{elapsedOf(run)}</span>}
           </div>
         )}
         {/* Its last result, only while it has nothing on now (D-Team's idle cards); the rest are in its panel's runs. */}
         {!run && agent.last && (
-          <p className={s.last}>
+          <p className={sLocal.last}>
             <Result line={agent.last.line} receiptId={agent.last.receiptId} estimate={agent.last.estimate} />
           </p>
         )}
-        <div className={s.foot}>
+        <div className={sLocal.foot}>
           <PostureChip posture={agent.posture} />
           {/* A role whose steps are code (W4 4A1 kind 'code'): said in words, as Keeper says it. */}
           {agent.kind === 'code' && <Chip tone="line">{t('team.keeper.code')}</Chip>}
@@ -152,7 +153,7 @@ export function AgentList({ members, label, dept, ground, onChanged, keeperOpen 
 
   return (
     <>
-      <ul ref={list} className={s.agents} aria-label={label}>
+      <ul ref={list} className={sLocal.agents} aria-label={label}>
         {shown.map(function card(member: Member): ReactNode {
           if (isKeeper(member.agent)) return <KeeperCard key={member.agent.id} member={member} dept={dept} ground={ground} open={keeperOpen} />;
           const helping = ordered.filter((other) => parentOf(other) === member.agent.id);
@@ -170,7 +171,7 @@ export function AgentList({ members, label, dept, ground, onChanged, keeperOpen 
         })}
       </ul>
       {folded > 0 && (
-        <button type="button" className={s.fold} aria-expanded={false} onClick={unfold}>
+        <button type="button" className={sLocal.fold} aria-expanded={false} onClick={unfold}>
           {t('team.showIdle', { count: folded })}
         </button>
       )}

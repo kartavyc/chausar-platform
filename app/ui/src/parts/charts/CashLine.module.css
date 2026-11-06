@@ -1,0 +1,91 @@
+.lineKey {
+  flex: none;
+  width: 16px;
+  height: 0;
+  border-top: 2px solid var(--chart-ink);
+}
+
+.lineKey[data-dashed] {
+  border-top: 1.75px dashed var(--chart-forecast);
+}
+
+.todayKey {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-chip);
+  background: var(--accent);
+}
+
+/* ---- The cash line (D's .cash) ---- */
+
+.linePlot {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+
+.lineSvg {
+  display: block;
+  overflow: visible;
+}
+
+.actual { fill: none; stroke: var(--chart-ink); }
+.forecast { fill: none; stroke: var(--chart-forecast); }
+.today { stroke: var(--accent); }
+.todayRing,
+.endHole { stroke: var(--ring-ground); }
+.endRing { stroke: var(--chart-forecast); }
+
+.axis {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  padding-top: var(--sp-2);
+  color: var(--mute);
+  font-size: var(--text-label);
+  line-height: 1.35;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.axis [data-current] {
+  color: var(--fg);
+  font-weight: var(--weight-strong);
+}
+@container (max-width: 620px) {
+  .axis:has(> :nth-child(8)) > :nth-child(even) {
+    visibility: hidden;
+  }
+}
+
+@container (max-width: 380px) {
+  .axis:has(> :nth-child(8)) > :not(:nth-child(4n + 1), :last-child) {
+    visibility: hidden;
+  }
+}
+
+.notes {
+  color: var(--fg2);
+  font-size: var(--text-read);
+  line-height: 1.45;
+}
+
+.notesHead {
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}
+
+.notesList {
+  padding-left: var(--sp-5);
+  list-style: disc;
+}
+
+.forecastOld {
+  animation: global(ink-page-out) var(--t-sheet) var(--ease) 1 both;
+  pointer-events: none;
+}
+
+.forecastNow[data-forecast-new] {
+  animation: global(ink-fade-in) var(--t-sheet) var(--ease) 1 both;
+}

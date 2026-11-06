@@ -17,6 +17,7 @@ import { Button } from '../../parts/Button';
 import { cx } from '../../parts/cx';
 import { Icon } from '../../parts/Icon';
 import s from './Chats.module.css';
+import sLocal from './PlanCard.module.css';
 
 export type AgentLookup = (id: string) => { name: string; dept: DeptId | undefined } | undefined;
 
@@ -57,21 +58,21 @@ export function PlanCard({ proposals, agentOf, onChanged }: { proposals: readonl
 
   return (
     <section className={s.plan} aria-labelledby={titleId}>
-      <div className={s.planHead}>
-        <span className={s.planMark} aria-hidden="true"><Icon name="target" size={16} /></span>
-        <h3 id={titleId} className={s.planTitle}>{t('chats.plan.title')}</h3>
-        <span className={s.planMeta}>{t('chats.plan.meta', { count: shown.length })}</span>
+      <div className={sLocal.planHead}>
+        <span className={sLocal.planMark} aria-hidden="true"><Icon name="target" size={16} /></span>
+        <h3 id={titleId} className={sLocal.planTitle}>{t('chats.plan.title')}</h3>
+        <span className={sLocal.planMeta}>{t('chats.plan.meta', { count: shown.length })}</span>
       </div>
-      <ol className={s.steps}>
+      <ol className={sLocal.steps}>
         {shown.map((proposal, index) => {
           const agent = proposal.agent ? agentOf(proposal.agent) : undefined;
           return (
-            <li key={proposal.id} className={s.step} data-status={proposal.status}>
-              <span className={s.stepNumber} data-num="" data-live={proposal.status === 'drafted' || proposal.status === 'raised' ? '' : undefined} aria-hidden="true">{index + 1}</span>
-              <div className={s.stepBody}>
-                <p className={s.stepTitle} data-step-title="">{proposal.title}</p>
-                {proposal.what && <p className={s.stepWhat}>{proposal.what}</p>}
-                <p className={s.stepMeta}>
+            <li key={proposal.id} className={sLocal.step} data-status={proposal.status}>
+              <span className={sLocal.stepNumber} data-num="" data-live={proposal.status === 'drafted' || proposal.status === 'raised' ? '' : undefined} aria-hidden="true">{index + 1}</span>
+              <div className={sLocal.stepBody}>
+                <p className={sLocal.stepTitle} data-step-title="">{proposal.title}</p>
+                {proposal.what && <p className={sLocal.stepWhat}>{proposal.what}</p>}
+                <p className={sLocal.stepMeta}>
                   {agent && (
                     <>
                       <Avatar name={agent.name} dept={agent.dept} size={24} />
@@ -88,10 +89,10 @@ export function PlanCard({ proposals, agentOf, onChanged }: { proposals: readonl
       </ol>
       {next && (
         <div className={s.act} data-next="">
-          <p className={s.actChip}><Icon name="sparkles" size={14} />{t('chats.plan.next')}</p>
-          <p className={s.actTitle}>{next.title}</p>
-          <p className={s.actLine}>{next.line}</p>
-          {next.secondAsk && <p className={s.actLine}>{t('chats.plan.asksAgain')}</p>}
+          <p className={sLocal.actChip}><Icon name="sparkles" size={14} />{t('chats.plan.next')}</p>
+          <p className={sLocal.actTitle}>{next.title}</p>
+          <p className={sLocal.actLine}>{next.line}</p>
+          {next.secondAsk && <p className={sLocal.actLine}>{t('chats.plan.asksAgain')}</p>}
           <div className={s.actions}>
             <Button disabled={busy} onClick={() => void act('dismiss', next)}>{t('chats.plan.notNow')}</Button>
             <Button variant="primary" disabled={busy} onClick={() => void act('raise', next)}>{t('chats.plan.start')}</Button>
@@ -110,7 +111,7 @@ function Where({ proposal, next }: { proposal: ProposalView; next: boolean }) {
   switch (proposal.status) {
     case 'drafted': return <span>{t(next ? 'chats.plan.state.next' : 'chats.plan.state.drafted')}</span>;
     // The card's subject (?row=proposal:<id>, as an agent's chat links it), so Today brings it into view even when folded.
-    case 'raised': return <a className={s.onToday} href={`#/today?row=${encodeURIComponent(`proposal:${proposal.id}`)}`}>{t('chats.plan.onToday')}</a>;
+    case 'raised': return <a className={sLocal.onToday} href={`#/today?row=${encodeURIComponent(`proposal:${proposal.id}`)}`}>{t('chats.plan.onToday')}</a>;
     case 'dismissed': return <span>{t('chats.plan.state.dismissed')}</span>;
     default: return <span>{proposal.line}</span>;
   }

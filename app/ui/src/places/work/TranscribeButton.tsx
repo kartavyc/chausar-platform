@@ -5,6 +5,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import type { OrderLite } from '../../engine/types';
 import s from './Work.module.css';
+import sLocal from './TranscribeButton.module.css';
 
 const never = () => false;
 
@@ -45,7 +46,7 @@ export function TranscribeButton({ order }: { order: OrderLite }) {
   const canMake = files.data !== undefined && !files.loading && transcripts.length === 0;
 
   return (
-    <div className={s.transcribe}>
+    <div className={sLocal.transcribe}>
       {transcripts.length > 0 && (
         <ul className={s.files} aria-label={t('work.transcribe.files')}>
           {transcripts.map((f) => (

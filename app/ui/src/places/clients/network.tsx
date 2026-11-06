@@ -15,6 +15,7 @@ import b from '../../parts/Button.module.css';
 import { EngineError, type EngineClient, type PersonSummary, type TieBand, type UiRunEvent, type WarmPathView } from '../../engine/types';
 import { onDesktop, openExternal, openProblem, safeUrl } from '../connections/external';
 import s from './Network.module.css';
+import sLocal from './networkNetwork.module.css';
 
 /**
  * "Someone was forgotten", per engine client (memory only), so the results drop them at once. The engine sends no
@@ -51,12 +52,12 @@ export function LinkedInButton({ href }: { href: string }) {
   if (onDesktop()) {
     return (
       <>
-        <button type="button" className={cx(b.button, s.linkButton)} data-variant="secondary" data-size="md" onClick={() => { setProblem(null); openExternal(url).catch((error: unknown) => setProblem(openProblem(error, t))); }}>{content}</button>
+        <button type="button" className={cx(b.button, sLocal.linkButton)} data-variant="secondary" data-size="md" onClick={() => { setProblem(null); openExternal(url).catch((error: unknown) => setProblem(openProblem(error, t))); }}>{content}</button>
         {problem && <span className={s.problem} role="status">{problem}</span>}
       </>
     );
   }
-  return <a className={cx(b.button, s.linkButton)} data-variant="secondary" data-size="md" href={url} target="_blank" rel="noopener noreferrer">{content}</a>;
+  return <a className={cx(b.button, sLocal.linkButton)} data-variant="secondary" data-size="md" href={url} target="_blank" rel="noopener noreferrer">{content}</a>;
 }
 
 /** The network's lists reload on a queue change and on a pipeline change (a card added or gone). */
@@ -89,9 +90,9 @@ export function WarmPath({ path, name, layout = 'named' }: { path: WarmPathView;
   // A direct tie the engine finds cold is no path to draw ("You know them directly" would claim more): its line says so.
   const drawn = !(path.kind === 'direct' && path.strength === 'cold');
   return (
-    <div className={s.path} data-path={path.kind} data-confirmed={String(path.confirmed)}>
+    <div className={sLocal.path} data-path={path.kind} data-confirmed={String(path.confirmed)}>
       {drawn && <PathLine people={people} layout={layout} strength={path.confirmed && path.via ? strengthOf(path.strength) : undefined} />}
-      <p className={s.pathLine}>{path.line}</p>
+      <p className={sLocal.pathLine}>{path.line}</p>
     </div>
   );
 }

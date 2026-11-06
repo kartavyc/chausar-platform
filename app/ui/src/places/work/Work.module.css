@@ -1,50 +1,5 @@
-/* Work in the direction D look (D-Work.dc.html): the toolbar of filter chips, Running now (`.runs`, `.rt*`), the
-   stopped run (`.stopped`, `.sd-*`, `.why`) beside Finished (`.fin`), and orders grouped by client (`.cg*`, `.oc*`,
-   without `.osteps`, which wait for the engine's order steps). D's 11.5 and 12.5 px words become 12 and 13 px. */
-
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
-  align-items: center;
-  justify-content: space-between;
-  min-height: var(--target);
-  margin-bottom: var(--sp-4);
-}
-
-/* The kinds, then the businesses as their own group, a wider gap apart (D's thin separator would start a line of its
-   own when the row wraps beside an open sheet). */
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-5);
-  align-items: center;
-  min-width: 0;
-}
-
 /* On a phone the kinds and the businesses are one row that scrolls sideways (D's phone `.hscroll`), with room for the
    focus ring that a scrolling box would clip. */
-@media (max-width: 759px) {
-  .chips {
-    flex: 1 1 100%;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding: var(--sp-1);
-    margin: calc(var(--sp-1) * -1);
-    scrollbar-width: none;
-  }
-
-  .chips > .chipGroup {
-    flex: none;
-    flex-wrap: nowrap;
-  }
-}
-
-.sections {
-  display: grid;
-  gap: var(--gap-section);
-  container-type: inline-size;
-}
 
 .block {
   display: grid;
@@ -94,57 +49,6 @@
   text-underline-offset: 3px;
 }
 
-/* Running now: four tiles across at full width, fewer as the page narrows, one on a phone. */
-.runs {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 288px), 1fr));
-  gap: var(--gap-grid);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.runGroups { display: contents; }
-.runContainer { min-width: 0; list-style: none; }
-
-.runTile {
-  display: flex;
-  flex-direction: column;
-}
-
-.runTop {
-  display: flex;
-  gap: var(--sp-3);
-  align-items: center;
-  min-height: var(--av-40);
-}
-
-.runWho {
-  flex: 1;
-  min-width: 0;
-}
-
-.runAgent {
-  font-size: var(--text-body);
-  line-height: 19px;
-  font-weight: var(--weight-strong);
-  color: var(--fg);
-}
-
-.runBusiness {
-  font-size: var(--text-label);
-  line-height: 16px;
-  color: var(--mute);
-}
-
-.runTitle {
-  margin-top: var(--sp-3);
-  font-size: var(--text-body);
-  line-height: 19px;
-  font-weight: var(--weight-strong);
-  color: var(--fg);
-}
-
 .runStep {
   display: flex;
   gap: var(--sp-2);
@@ -164,155 +68,11 @@
   flex: none;
 }
 
-.arcTrack {
-  stroke: var(--line);
-  stroke-width: 2.5;
-}
-
-.arcPart {
-  stroke: var(--accent);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-}
-
-/* The run's question on the waiting ground (D's `.rt-q`). */
-.question {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: flex-start;
-  margin-top: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-button);
-  background: var(--wait-soft);
-  color: var(--wait);
-  font-size: var(--text-label);
-  line-height: 16px;
-  font-weight: var(--weight-medium);
-}
-
-.question > svg {
-  flex: none;
-  margin-top: calc(var(--sp-1) / 4);
-}
-
-.runFoot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  align-items: center;
-  justify-content: space-between;
-  margin-top: auto;
-  padding-top: var(--sp-4);
-  font-size: var(--text-label);
-  color: var(--mute);
-  overflow-wrap: anywhere;
-}
-
-/* The stopped runs (left, D's `c7`) beside Finished (right, `c5`); one alone takes the row; narrow pages stack. */
-.pair {
-  display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  gap: var(--gap-grid);
-  align-items: start;
-}
-
-.pair > :only-child {
-  grid-column: 1 / -1;
-}
-
-@container (max-width: 760px) {
-  .pair {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.stoppedList {
-  display: grid;
-  gap: var(--gap-grid);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.stopTile {
-  display: grid;
-  gap: var(--sp-4);
-}
-
-.stopHead {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
-  align-items: center;
-}
-
-.stopMark {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: var(--av-36);
-  height: var(--av-36);
-  border-radius: var(--r-button);
-  background: var(--fail-soft);
-  color: var(--fail);
-}
-
-.stopWho {
-  flex: 1 1 14em;
-  min-width: 0;
-}
-
-.stopTitle {
-  font-size: var(--text-tile);
-  line-height: 22px;
-  font-weight: var(--weight-strong);
-  color: var(--fg);
-}
-
-.stopMeta {
-  font-size: var(--text-read);
-  line-height: 18px;
-  color: var(--mute);
-  overflow-wrap: anywhere;
-}
-
-.stopChip {
-  flex: none;
-}
-
-/* What went wrong, on the soft red ground (D's `.why`). */
-.why {
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r-card);
-  background: var(--fail-soft);
-}
-
-.whyLabel {
-  font-size: var(--text-label);
-  line-height: 16px;
-  font-weight: var(--weight-strong);
-  color: var(--fail);
-}
-
-.whyText {
-  margin-top: var(--sp-1);
-  font-size: var(--text-body);
-  line-height: 20px;
-  color: var(--fg);
-  overflow-wrap: anywhere;
-}
-
 /* 4Z2: the engine's technical line, one step away under the plain words. */
 .whyMore {
   margin-top: var(--sp-2);
   font-size: var(--text-label);
   color: var(--fg);
-}
-
-.whyTech {
-  margin-top: var(--sp-1);
-  line-height: 18px;
-  overflow-wrap: anywhere;
 }
 
 .stopActs {
@@ -328,157 +88,11 @@
   flex: 1 1 auto;
 }
 
-.finished {
-  align-self: start;
-  min-width: 0;
-}
-
 /* Runs as D's list rows (Finished, and an order's runs). */
 .rows {
   margin: var(--sp-2) 0 0;
   padding: 0;
   list-style: none;
-}
-
-/* Orders grouped by client: a client with two or more orders takes the row, one with a single order half of it. */
-.clientTiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--gap-grid);
-}
-
-.clientTileWide,
-.clientTilesFull > * {
-  grid-column: 1 / -1;
-}
-
-@container (max-width: 760px) {
-  .clientTiles {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.clientTile {
-  display: grid;
-  gap: var(--sp-4);
-  align-content: start;
-}
-
-.clientHead {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
-  align-items: center;
-}
-
-.clientWho {
-  flex: 1 1 12em;
-  min-width: 0;
-}
-
-.clientName {
-  font-size: var(--text-tile);
-  line-height: 22px;
-  font-weight: var(--weight-strong);
-  color: var(--fg);
-}
-
-.clientSub {
-  font-size: var(--text-read);
-  line-height: 18px;
-  color: var(--mute);
-}
-
-.owes {
-  display: grid;
-  justify-items: end;
-  flex: none;
-  margin-left: auto;
-}
-
-.owesLabel {
-  font-size: var(--text-label);
-  line-height: 16px;
-  color: var(--mute);
-}
-
-.owesFigure {
-  font-size: var(--text-row);
-  font-weight: var(--weight-medium);
-}
-
-.orderCards {
-  display: grid;
-  gap: var(--gap-cards);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.orderCardsTwo {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-@container (max-width: 760px) {
-  .orderCardsTwo {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* One order: D's `.inner.oc`, a grey inner card on the white tile. */
-.order {
-  --ring-ground: var(--inner);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  min-width: 0;
-  padding: var(--pad-card) var(--sp-4);
-  border-radius: var(--r-card);
-  background: var(--inner);
-  list-style: none;
-}
-
-.order:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 2px;
-}
-
-.orderTop {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  align-items: center;
-  justify-content: space-between;
-}
-
-.orderTitle {
-  flex: 1 1 10em;
-  min-width: 0;
-  margin: 0;
-  font-size: var(--text-row);
-  line-height: 20px;
-  font-weight: var(--weight-regular);
-  color: var(--fg);
-}
-
-.orderMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-2);
-  align-items: center;
-  font-size: var(--text-read);
-  line-height: 18px;
-  color: var(--mute);
-}
-
-.orderFoot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-3);
-  align-items: center;
-  margin-top: auto;
-  padding-top: var(--sp-3);
-  border-top: var(--hair) solid var(--line);
 }
 
 .say {
@@ -494,39 +108,6 @@
 .say.wait {
   color: var(--fg2);
   font-weight: var(--weight-medium);
-}
-
-.orderActs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin-left: auto;
-}
-
-/* "Open on Today": a link that looks like D's secondary `.btn`. */
-.linkButton {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--control);
-  padding: 0 var(--sp-3);
-  border: var(--hair) solid var(--btn-line);
-  border-radius: var(--r-button);
-  background: var(--surface);
-  color: var(--fg);
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.linkButton:hover {
-  background: var(--wash);
-  color: var(--fg);
-}
-
-.linkButton:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 2px;
 }
 
 .confirm {
@@ -558,45 +139,8 @@
   text-decoration: none;
 }
 
-.toolbarEnd {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: var(--sp-4);
-}
-
-/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
-.ideasLink {
-  composes: hit from '../../parts/touch.module.css';
-}
-
-.ideasLink {
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  color: var(--link);
-  text-decoration: none;
-}
-
-.ideasLink:hover {
-  color: var(--link-hover);
-  text-decoration: underline;
-}
-
 .back:hover {
   color: var(--link-hover);
-}
-
-.transcribe {
-  display: grid;
-  gap: var(--sp-1);
-  padding: var(--pad-card) var(--sp-4);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
-}
-
-.transcribe:empty {
-  display: none;
 }
 
 /* Lines inside an order's tiles (the judge, the preview link, posting, the calendar file): who, what, then where it
@@ -728,23 +272,6 @@
   color: var(--mute);
 }
 
-.select {
-  width: 100%;
-  min-height: var(--control);
-  padding: var(--sp-2) var(--sp-3);
-  border: var(--hair) solid var(--edge);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--fg);
-  font-size: var(--text-body);
-}
-
-.select:focus-visible,
-.file:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 0;
-}
-
 .hint {
   font-size: var(--text-label);
   color: var(--mute);
@@ -763,12 +290,6 @@
 .group legend {
   margin-bottom: var(--sp-1);
   padding: 0;
-}
-
-.choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-4);
 }
 
 .choice {
@@ -814,14 +335,6 @@
   }
 }
 
-.submit {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--sp-1);
-  text-align: end;
-}
-
 /* Preview links under a draft: the address as text to select or copy, when it stops working, Copy and Revoke. */
 .links {
   grid-column: 2 / -1;
@@ -856,53 +369,6 @@
 }
 
 /* A phone (3H1): a link drawn as a button is a full 44 px touch target. */
-@media (max-width: 759px) {
-  .linkButton {
-    min-height: var(--target);
-  }
-}
-
-/* W4 4F3: run controls. Stop and the tile's own button share the foot; a run the engine says is stopping reads so. */
-.runActs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  align-items: center;
-}
-
-.stopping {
-  font-weight: var(--weight-medium);
-  color: var(--wait);
-}
-
-/* The small Stop dialog under the tile's foot (or a row): the question, its line, Not now, Force stop and Stop. */
-.stopDialog {
-  display: grid;
-  gap: var(--sp-2);
-  margin-top: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r-card);
-  background: var(--wait-soft);
-}
-
-.stopDialogTitle {
-  font-size: var(--text-read);
-  font-weight: var(--weight-strong);
-  color: var(--fg);
-}
-
-.stopDialogLine {
-  font-size: var(--text-read);
-  color: var(--fg);
-  overflow-wrap: anywhere;
-}
-
-.stopDialogActs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  justify-content: flex-end;
-}
 
 /* What the engine answered to a stop or a resume, in its words. */
 .stopSaid {
@@ -911,113 +377,8 @@
   color: var(--fg2);
   overflow-wrap: anywhere;
 }
-
-/* The round gate on a waiting tile: the engine's line, the optional note, Stop and Continue. */
-.gate {
-  display: grid;
-  gap: var(--sp-3);
-  margin-top: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r-card);
-  background: var(--wait-soft);
-}
-
-.gateLine {
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--wait);
-}
-
-.gateActs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  justify-content: flex-end;
-}
-
-/* The stopped runs above the failed ones, in the pair's left column. */
-.stack {
-  display: grid;
-  gap: var(--gap-grid);
-  min-width: 0;
-}
-
-/* A stop that waits for Resume (not a failure): the clock on the waiting ground, and its why in the same ground. */
-.stopMarkWait {
-  background: var(--wait-soft);
-  color: var(--wait);
-}
-
-.whyWait {
-  background: var(--wait-soft);
-}
-
-.whyLabelWait {
-  color: var(--wait);
-}
-
-/* How to fix it, opened from its button: the engine's fix in the screen's words, on the inner grey. */
-.fix {
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r-card);
-  background: var(--inner);
-}
-
-.fixLabel {
-  font-size: var(--text-label);
-  line-height: 16px;
-  font-weight: var(--weight-strong);
-  color: var(--fg2);
-}
-
-/* C4 task 12: the client in a Finished row's line, a quiet link to their sheet. */
-.rowClient {
-  all: unset;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.rowClient:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 2px;
-}
-
-/* C4 task 13: the draft sheet: the message as the client gets it, its checks, its actions. */
-.finishedRow {
-  content-visibility: auto;
-  contain-intrinsic-size: auto var(--target);
-}
-
-.draftMessage {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: var(--text-read);
-  line-height: 20px;
-  color: var(--fg);
-  margin-block: var(--sp-3);
-}
 .draftLine {
   margin: var(--sp-2) 0;
   font-size: var(--text-read);
   color: var(--fg);
-}
-.draftNote {
-  margin: var(--sp-2) 0;
-  font-size: var(--text-small);
-  color: var(--mute);
-}
-.draftChecks {
-  margin: var(--sp-2) 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: var(--sp-1);
-  font-size: var(--text-read);
-}
-.draftActs {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--sp-2);
-  margin-top: var(--sp-3);
 }

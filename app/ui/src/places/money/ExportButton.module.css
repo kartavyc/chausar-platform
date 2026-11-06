@@ -1,0 +1,17 @@
+.export {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.exportSaid,
+.exportProblem {
+  font-size: var(--text-label);
+  line-height: 17px;
+  color: var(--mute);
+}
+
+.exportProblem {
+  color: var(--fail);
+}

@@ -20,6 +20,7 @@ import { PageTitle } from '../../parts/PageTitle';
 import { ChatList } from './ChatList';
 import { ChiefThread } from './ChiefThread';
 import s from './Chats.module.css';
+import sLocal from './ChatsPage.module.css';
 
 /** The list reads again when Chausar answers in any chat. */
 const LIST_EVENTS = (event: UiRunEvent) => event.type === 'chief.message';
@@ -41,7 +42,7 @@ export function Place() {
   const showThread = !phone || Boolean(threadId) || newChat;
 
   return (
-    <div className={s.page}>
+    <div className={sLocal.page}>
       <PageTitle title={t('chats.title')} line={t('chats.line')} />
       <div className={s.layout} data-phone={phone ? '' : undefined}>
         {showList && <ChatList threads={threads} selected={threadId} newDisabled={!threadId && showThread} onNew={() => askChausar('')} />}

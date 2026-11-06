@@ -1,0 +1,42 @@
+/* Review of A1 (row 1): the copies Delete kept, one per row, each with its own Show in folder. */
+.kept {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.deletedNote {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.choices {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.backupList {
+  display: contents;
+}
+
+.backupRow {
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.backupLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  align-items: baseline;
+}
+
+.backupLine > button {
+  margin-left: auto;
+}

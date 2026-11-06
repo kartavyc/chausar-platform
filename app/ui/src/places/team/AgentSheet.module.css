@@ -1,0 +1,18 @@
+.runRing {
+  flex: none;
+  width: var(--av-40);
+}
+
+.runBody {
+  display: grid;
+  flex: 1;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.runMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}

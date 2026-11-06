@@ -7,7 +7,7 @@
 import { useT } from '../../text';
 import { Button } from '../../parts/Button';
 import { cx } from '../../parts/cx';
-import s from './Chats.module.css';
+import sLocal from './ChangeNotice.module.css';
 
 export interface ChangeNoticeProps {
   line: string;
@@ -19,7 +19,7 @@ export interface ChangeNoticeProps {
 export function ChangeNotice({ line, busy, onUndo, className }: ChangeNoticeProps) {
   const t = useT();
   return (
-    <p className={cx(s.change, className)} role="status" aria-label={t('chats.change.label')}>
+    <p className={cx(sLocal.change, className)} role="status" aria-label={t('chats.change.label')}>
       <span>{line}</span>
       <Button variant="quiet" size="sm" disabled={busy} onClick={onUndo}>{t('chats.change.undo')}</Button>
     </p>

@@ -5,6 +5,7 @@ import type { AgentHealth } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
 import s from './Team.module.css';
+import sLocal from './HealthLine.module.css';
 
 export interface HealthLineProps {
   health: AgentHealth | undefined;
@@ -74,18 +75,18 @@ export function HealthLine({ health, agentId, onCleared }: HealthLineProps) {
   }
 
   return (
-    <div className={s.health} data-health={status}>
-      <p className={s.healthLine}>
+    <div className={sLocal.health} data-health={status}>
+      <p className={sLocal.healthLine}>
         <Chip tone={TONE[status]}>{t(`team.health.${status}`)}</Chip>{' '}
-        <span className={s.healthReason}>{health.reason}</span>
+        <span className={sLocal.healthReason}>{health.reason}</span>
       </p>
       {status === 'quarantined' && !asking && (
         <Button ref={clearRef} variant="secondary" size="sm" onClick={ask}>{t('team.health.clear')}</Button>
       )}
       {status === 'quarantined' && asking && (
-        <div className={s.healthAsk} role="group" aria-label={t('team.health.clear')}>
-          <p className={s.healthQuestion}>{t('team.health.ask')}</p>
-          <div className={s.healthButtons}>
+        <div className={sLocal.healthAsk} role="group" aria-label={t('team.health.clear')}>
+          <p className={sLocal.healthQuestion}>{t('team.health.ask')}</p>
+          <div className={sLocal.healthButtons}>
             <Button ref={yesRef} variant="primary" size="sm" disabled={busy} onClick={() => void clear(health.digest)}>{t('team.health.yes')}</Button>
             <Button variant="quiet" size="sm" disabled={busy} onClick={keep}>{t('team.health.keep')}</Button>
           </div>

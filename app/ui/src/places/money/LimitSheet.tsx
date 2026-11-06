@@ -12,7 +12,7 @@ import type { LimitReachedView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { useDay } from './words';
 import s from './Money.module.css';
-import v from './MoneyViews.module.css';
+import vLocal from './LimitSheet.module.css';
 
 /** Where each way on is done. Waiting is done nowhere: it is said, not linked. */
 const WHERE: Readonly<Record<'raise' | 'connect', (limit: LimitReachedView) => string>> = {
@@ -34,10 +34,10 @@ export function LimitSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       {limit && (
         <>
           {/* The engine's own sentence: what stopped and why (it may name the limit, which the meter's receipt proves). */}
-          <p className={v.limitLine} data-engine-line="">{limit.line}</p>
-          <ul className={v.limitWays}>
+          <p className={vLocal.limitLine} data-engine-line="">{limit.line}</p>
+          <ul className={vLocal.limitWays}>
             {limit.options.map((option) => (
-              <li key={option.id} className={v.limitWay}>
+              <li key={option.id} className={vLocal.limitWay}>
                 {option.id === 'wait'
                   ? <span>{reset ? t('money.limit.wait', { date: day(reset) }) : option.label}</span>
                   : <a className={s.more} href={WHERE[option.id](limit)} onClick={onClose}>{t(option.id === 'raise' ? (limit.scope === 'key' ? 'money.limit.raiseKey' : 'money.limit.raise') : 'money.limit.connect')}</a>}

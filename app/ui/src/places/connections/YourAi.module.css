@@ -1,0 +1,87 @@
+.side {
+  display: grid;
+  align-content: start;
+  gap: var(--gap-grid);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  min-height: 24px;
+}
+
+.spend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  align-items: baseline;
+  margin: var(--sp-4) 0 0;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.groupLabel {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  color: var(--mute);
+}
+
+/* Radio cards: each choice a full-width target with its words, the chosen one outlined in ink. */
+.choice {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  min-height: var(--target);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  font-size: var(--text-body);
+  line-height: 1.35;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--selected);
+}
+
+.choice input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--selected);
+}
+
+.agree {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  min-height: var(--target);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.consent {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.5;
+  color: var(--fg2);
+}
+
+/* The connect form opens under its row on the inner grey. */
+.connect {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+.modelConnections {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

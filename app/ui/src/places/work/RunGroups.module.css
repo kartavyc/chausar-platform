@@ -1,0 +1,20 @@
+.runGroups { display: contents; }
+.runContainer { min-width: 0; list-style: none; }
+
+/* The stopped runs (left, D's `c7`) beside Finished (right, `c5`); one alone takes the row; narrow pages stack. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: var(--gap-grid);
+  align-items: start;
+}
+
+.pair > :only-child {
+  grid-column: 1 / -1;
+}
+
+@container (max-width: 760px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

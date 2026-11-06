@@ -20,6 +20,7 @@ import { refusalWords } from '../../parts/custody';
 // W4 4J19: the order's stage steps and what waits on the owner.
 import { OrderSteps } from './OrderSteps';
 import s from './Work.module.css';
+import sLocal from './OrderList.module.css';
 import { useFlip } from '../../parts/flip';
 
 /** One plain sentence for where an order stands (CogSend wording). */
@@ -139,18 +140,18 @@ function OrderCard({ view, canOpen, onChanged, primary }: { view: OrderView; can
 
   return (
     <li
-      className={s.order} data-card="" data-row="" data-flip-id={order.id} data-row-id={`order-${order.id}`} data-second-ask={action === 'deliver' ? '' : undefined}
+      className={sLocal.order} data-card="" data-row="" data-flip-id={order.id} data-row-id={`order-${order.id}`} data-second-ask={action === 'deliver' ? '' : undefined}
       tabIndex={-1} aria-labelledby={titleId}
     >
-      <div className={s.orderTop}>
-        <h4 id={titleId} className={s.orderTitle}>
+      <div className={sLocal.orderTop}>
+        <h4 id={titleId} className={sLocal.orderTitle}>
           {canOpen && view.run ? (
             <button type="button" className={s.titleButton} data-open="" onClick={(event) => openSheet('run', view.run!.id, event.currentTarget)}>{order.request}</button>
           ) : order.request}
         </h4>
         {invoice ? <StateChip kind="invoice" value={invoice.status} /> : run ? <StateChip kind="delivery" value={run.status} /> : null}
       </div>
-      <p className={s.orderMeta}>
+      <p className={sLocal.orderMeta}>
         <span>{t('work.order.ordered', { date: day(order.at) })}</span>
         <span aria-hidden="true">·</span>
         {/* C4 task 11: the order's price as its receipt says it; without one, where the price is. */}
@@ -162,7 +163,7 @@ function OrderCard({ view, canOpen, onChanged, primary }: { view: OrderView; can
         )}
       </p>
       {invoice?.number && (
-        <p className={s.orderMeta}>
+        <p className={sLocal.orderMeta}>
           <span data-code="" className="mono">{invoice.number}</span>
           {invoice.total && totalReceipt && (
             <>
@@ -179,13 +180,13 @@ function OrderCard({ view, canOpen, onChanged, primary }: { view: OrderView; can
         </p>
       )}
       <OrderSteps order={order} />
-      <div className={s.orderFoot}>
+      <div className={sLocal.orderFoot}>
         <p className={cx(s.say, state === 'waiting' && s.wait)}>{orderSentence(view, t)}</p>
         {(waitsOnYou(view) || readable || (action && phase !== 'confirm' && !needsConsent)) && (
-          <div className={s.orderActs}>
+          <div className={sLocal.orderActs}>
             {readable
               ? <Button variant={primary ? 'primary' : 'secondary'} onClick={(event) => openSheet('draft', readable.id, event.currentTarget)}>{t('work.readDraft')}</Button>
-              : waitsOnYou(view) && <a className={s.linkButton} href="#/today">{t('work.order.onToday')}</a>}
+              : waitsOnYou(view) && <a className={sLocal.linkButton} href="#/today">{t('work.order.onToday')}</a>}
             {action && phase !== 'confirm' && !needsConsent && (
               <Button variant={primary && !readable ? 'primary' : 'secondary'} data-key="primary" disabled={phase === 'busy'} onClick={() => (action === 'deliver' ? setPhase('confirm') : void act(action))}>
                 {t(ACTION_LABEL[action])}
@@ -237,25 +238,25 @@ function ClientOrders({ clientId, client, clientsRead, views, runIds, onChanged,
   const sub = [client ? t('work.client.since', { date: day(client.at) }) : null, t('work.client.orders', { count: views.length })].filter(Boolean).join(' · ');
   const owed = client?.owed && proofOf(client.owed) ? client.owed : undefined;
   return (
-    <Tile as="article" plain labelledBy={nameId} className={cx(s.clientTile, wide && s.clientTileWide)}>
-      <header className={s.clientHead}>
+    <Tile as="article" plain labelledBy={nameId} className={cx(sLocal.clientTile, wide && sLocal.clientTileWide)}>
+      <header className={sLocal.clientHead}>
         <Avatar name={name} size={40} />
-        <div className={s.clientWho}>
-          <h3 id={nameId} className={s.clientName}>
+        <div className={sLocal.clientWho}>
+          <h3 id={nameId} className={sLocal.clientName}>
             {client ? (
               <button type="button" className={s.titleButton} onClick={(event) => openSheet('client', client.id, event.currentTarget)}>{client.name}</button>
             ) : name}
           </h3>
-          <p className={s.clientSub}>{sub}</p>
+          <p className={sLocal.clientSub}>{sub}</p>
         </div>
         {owed && (
-          <div className={s.owes}>
-            <p className={s.owesLabel}>{t('work.client.owes')}</p>
-            <Figure value={owed.display} receiptId={owed.receiptId} className={s.owesFigure} />
+          <div className={sLocal.owes}>
+            <p className={sLocal.owesLabel}>{t('work.client.owes')}</p>
+            <Figure value={owed.display} receiptId={owed.receiptId} className={sLocal.owesFigure} />
           </div>
         )}
       </header>
-      <ul ref={cards} className={cx(s.orderCards, wide && s.orderCardsTwo)}>
+      <ul ref={cards} className={cx(sLocal.orderCards, wide && sLocal.orderCardsTwo)}>
         {views.map((view) => <OrderCard key={view.order.id} view={view} canOpen={!!view.run && runIds.has(view.run.id)} onChanged={onChanged} primary={view.order.id === primaryId} />)}
       </ul>
     </Tile>
@@ -281,7 +282,7 @@ export function OrderList({ views, clients, runIds, onChanged, full = false, pri
   const groups = new Map<string, OrderView[]>();
   for (const view of views) groups.set(view.order.clientId, [...(groups.get(view.order.clientId) ?? []), view]);
   return (
-    <div className={cx(s.clientTiles, full && s.clientTilesFull)}>
+    <div className={cx(sLocal.clientTiles, full && sLocal.clientTilesFull)}>
       {[...groups].map(([clientId, mine]) => (
         <ClientOrders
           key={clientId} clientId={clientId} client={clients?.find((c) => c.id === clientId)} clientsRead={!!clients}

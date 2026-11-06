@@ -47,6 +47,7 @@ import { localizedConnectionCard } from './ConnectionWords';
 // W6 6C7: what this business needs from outside, the same list as the first run's last step.
 import { BusinessNeeds } from '../onboarding/BusinessNeeds';
 import s from './Connections.module.css';
+import sLocal from './ConnectionsPage.module.css';
 
 /** The engine's refusals that the Website build page resolves: no brief, a brief that failed its checks, no accepted plan. */
 const BUILD_FIRST = new Set(['BRIEF_NOT_FOUND', 'BRIEF_LINT_FAILED', 'BLUEPRINT_NOT_ACCEPTED']);
@@ -103,15 +104,15 @@ export function Place() {
     return (
       <>
         <PageTitle title={t('place.connections')} line={t('connections.line')} />
-        <div className={s.place}><BusinessNeeds place="connections" /></div>
+        <div className={sLocal.place}><BusinessNeeds place="connections" /></div>
       </>
     );
   }
   return (
     <>
       <PageTitle title={t('place.connections')} line={t('connections.line')} />
-      {venture.data && <div className={s.needsRow}><a href="#/connections/needs">{t('first-run.needs.link')}</a></div>}
-      <div className={s.place}>
+      {venture.data && <div className={sLocal.needsRow}><a href="#/connections/needs">{t('first-run.needs.link')}</a></div>}
+      <div className={sLocal.place}>
         <YourAi focus={route.sub === 'ai'} />
         {venture.data && <ChecksTile />}
         {(cards.data || local) && (
@@ -121,7 +122,7 @@ export function Place() {
           </div>
         )}
         {cards.error && <p className={s.problem} role="alert">{t('connections.failed', { message: cards.error.message })}</p>}
-        {groups.length > 0 && <div className={s.groups}>{groups.map((group) => <GroupSection key={group.category} group={group} />)}</div>}
+        {groups.length > 0 && <div className={sLocal.groups}>{groups.map((group) => <GroupSection key={group.category} group={group} />)}</div>}
         {/* C5 task 3: pair a phone by its QR code, on the desktop app only (the phone page itself cannot pair). */}
         {venture.data && local && <PhoneRow />}
         {venture.data && <YourNetwork />}
@@ -142,12 +143,12 @@ function GroupSection({ group }: { group: Group }) {
   const wide = group.cards.some(isWide);
   const cols = wide ? 2 : Math.min(group.cards.length, 3);
   return (
-    <section className={s.group} aria-labelledby={headingId} data-cols={wide ? 3 : cols}>
-      <div className={s.groupHead}>
-        <h2 id={headingId} className={s.groupTitle}>{group.label}</h2>
-        <span className={s.meta}>{t('connections.groupMeta', { count: live, live, total: group.cards.length })}</span>
+    <section className={sLocal.group} aria-labelledby={headingId} data-cols={wide ? 3 : cols}>
+      <div className={sLocal.groupHead}>
+        <h2 id={headingId} className={sLocal.groupTitle}>{group.label}</h2>
+        <span className={sLocal.meta}>{t('connections.groupMeta', { count: live, live, total: group.cards.length })}</span>
       </div>
-      <ul className={s.cards} data-cols={cols}>
+      <ul className={sLocal.cards} data-cols={cols}>
         {group.cards.map((card) => <ConnectorTile key={card.id} card={card} />)}
       </ul>
     </section>
@@ -188,11 +189,11 @@ function ConnectorTile({ card: originalCard }: { card: ConnectorCardLite }) {
 
   return (
     <Tile as="li" card labelledBy={nameId} className={cx(s.connector, !live && s.planned)}>
-      <div className={s.tileTop} data-tile-state={live ? 'live' : 'planned'}>
+      <div className={sLocal.tileTop} data-tile-state={live ? 'live' : 'planned'}>
         <span className={s.catIcon} data-category-icon={card.category} aria-hidden="true"><Icon name={categoryIcon(card.category)} size={18} /></span>
-        <div className={s.who}>
-          <button type="button" id={nameId} className={s.name} data-connector-name="" onClick={(event) => openSheet('connector', card.id, event.currentTarget)}>{card.name}</button>
-          <span className={s.labelSlot} data-connector-label=""><ConnectorLabel label={label} /></span>
+        <div className={sLocal.who}>
+          <button type="button" id={nameId} className={sLocal.name} data-connector-name="" onClick={(event) => openSheet('connector', card.id, event.currentTarget)}>{card.name}</button>
+          <span className={sLocal.labelSlot} data-connector-label=""><ConnectorLabel label={label} /></span>
         </div>
       </div>
       <p className={s.note}>{card.note}</p>
@@ -200,20 +201,20 @@ function ConnectorTile({ card: originalCard }: { card: ConnectorCardLite }) {
           that line says Planned. */}
       {card.id === BANK && (
         <>
-          <p className={s.works}><Icon name="check" size={14} />{t('connections.bank.works')}</p>
-          <p className={s.posting} data-bank-direct=""><span className={s.postingWord}>{t('connections.bank.direct')}</span><ConnectorLabel label="planned" /></p>
+          <p className={sLocal.works}><Icon name="check" size={14} />{t('connections.bank.works')}</p>
+          <p className={sLocal.posting} data-bank-direct=""><span className={sLocal.postingWord}>{t('connections.bank.direct')}</span><ConnectorLabel label="planned" /></p>
         </>
       )}
       {card.posting && (
-        <p className={s.posting} data-posting="">
-          <span className={s.postingWord}>{t(`connections.posting.mode.${card.posting.mode}`)}</span>
+        <p className={sLocal.posting} data-posting="">
+          <span className={sLocal.postingWord}>{t(`connections.posting.mode.${card.posting.mode}`)}</span>
           <PostingLabel option={card.posting} />
-          {card.posting.status === 'planned' && card.posting.reason && <span className={s.reason}>{card.posting.reason}</span>}
+          {card.posting.status === 'planned' && card.posting.reason && <span className={sLocal.reason}>{card.posting.reason}</span>}
         </p>
       )}
       {plannedApi && (
-        <p className={s.posting} data-posting-planned="api">
-          <span className={s.postingWord}>{t('connections.posting.api')}</span>
+        <p className={sLocal.posting} data-posting-planned="api">
+          <span className={sLocal.postingWord}>{t('connections.posting.api')}</span>
           <ConnectorLabel label="planned" />
         </p>
       )}
@@ -249,7 +250,7 @@ function ConnectorSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const cards = useResource('venture.connectors.list', {});
   const card = cards.data?.find((c) => c.id === id);
-  const icon = card && <span className={s.sheetIcon} aria-hidden="true"><Icon name={categoryIcon(card.category)} size={20} /></span>;
+  const icon = card && <span className={sLocal.sheetIcon} aria-hidden="true"><Icon name={categoryIcon(card.category)} size={20} /></span>;
   return (
     <Sheet label={t('connections.sheet.label')} title={card?.name ?? id} name={card?.name} line={card?.categoryLabel} avatar={icon} onClose={onClose} returnFocus={returnFocus}>
       {cards.error && <p className={s.problem}>{t('connections.failed', { message: cards.error.message })}</p>}
@@ -271,16 +272,16 @@ function SheetBody({ card: originalCard }: { card: ConnectorCardLite }) {
       </div>
       <section className={s.sheetSection}>
         <h3 className={s.sheetHeading}>{t('connections.sheet.modes')}</h3>
-        <ul className={s.modes}>
+        <ul className={sLocal.modes}>
           {card.modes.map((mode) => (
             <li key={mode.mode} data-mode={mode.mode}>
               <Inner card={false}>
-                <p className={s.modeHead}>
+                <p className={sLocal.modeHead}>
                   <ConnectorLabel label={mode.status === 'available' ? mode.mode : 'planned'} />
-                  {mode.status === 'available' && <span className={s.status}>{t('connections.status.available')}</span>}
+                  {mode.status === 'available' && <span className={sLocal.status}>{t('connections.status.available')}</span>}
                 </p>
                 <p className={s.line}>{mode.what}</p>
-                {mode.status === 'available' && <p className={s.fact}>{t(`connections.qualification.${mode.qualification}`)}</p>}
+                {mode.status === 'available' && <p className={sLocal.fact}>{t(`connections.qualification.${mode.qualification}`)}</p>}
                 <LadderWord ladder={mode.ladder} />
               </Inner>
             </li>
@@ -291,7 +292,7 @@ function SheetBody({ card: originalCard }: { card: ConnectorCardLite }) {
       {card.postingOptions.length > 0 && (
         <section className={s.sheetSection}>
           <h3 className={s.sheetHeading}>{t('connections.sheet.posting')}</h3>
-          <ul className={s.modes}>
+          <ul className={sLocal.modes}>
             {card.postingOptions.map((option) => <PostingOption key={option.mode} option={option} />)}
           </ul>
         </section>
@@ -311,7 +312,7 @@ function PostingOption({ option }: { option: PostingOptionLite }) {
   return (
     <li data-posting-option={option.mode}>
       <Inner card={false}>
-        <p className={s.modeHead}>
+        <p className={sLocal.modeHead}>
           <span>{t(`connector.mode.${option.mode}`)}</span>
           {/* The title already names the way of posting, so the label says only what it does and its risk. */}
           <ConnectorLabel label={option.status === 'available' ? 'write' : 'planned'} risk={option.risk ?? undefined} />
@@ -320,13 +321,13 @@ function PostingOption({ option }: { option: PostingOptionLite }) {
         {option.requires.length > 0 && (
           <>
             {/* A way that works lists its setup steps; a planned way lists what it needs before it can work. */}
-            <p id={stepsId} className={s.setupHead}>{t(option.status === 'available' ? 'connections.sheet.setup' : 'connections.sheet.needsFirst')}</p>
-            <ol className={s.setup} aria-labelledby={stepsId}>
+            <p id={stepsId} className={sLocal.setupHead}>{t(option.status === 'available' ? 'connections.sheet.setup' : 'connections.sheet.needsFirst')}</p>
+            <ol className={sLocal.setup} aria-labelledby={stepsId}>
               {option.requires.map((line) => <li key={line}>{line}</li>)}
             </ol>
           </>
         )}
-        {option.reason && <p className={s.fact}>{option.reason}</p>}
+        {option.reason && <p className={sLocal.fact}>{option.reason}</p>}
         <LadderWord ladder={option.ladder} />
       </Inner>
     </li>

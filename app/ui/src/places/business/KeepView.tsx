@@ -18,6 +18,7 @@ import { KeepCopy } from './KeepCopy';
 import { LeftContext } from '../../shell/started';
 import { TileSection } from './shared';
 import s from './Business.module.css';
+import sLocal from './KeepView.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { CountrySetting } from './CountrySetting';
@@ -88,7 +89,7 @@ export function KeepView() {
     return (
       <div className={s.page}>
         <p className={s.problem} role="alert">{t('business.failed', { message: custody.error.message })}</p>
-        <TileSection title={t('business.keepMore')}><div className={s.more}>{leave(null)}</div></TileSection>
+        <TileSection title={t('business.keepMore')}><div className={sLocal.more}>{leave(null)}</div></TileSection>
       </div>
     );
   }
@@ -125,9 +126,9 @@ export function KeepView() {
     <div className={s.page} ref={scrollOpenedFold}>
       <CountrySetting />
       <Tile>
-        <div className={s.where}>
-          <span className={s.whereIcon} aria-hidden="true"><Icon name={locked ? 'lock' : 'shield-check'} size={20} /></span>
-          <div className={s.whereText}>
+        <div className={sLocal.where}>
+          <span className={sLocal.whereIcon} aria-hidden="true"><Icon name={locked ? 'lock' : 'shield-check'} size={20} /></span>
+          <div className={sLocal.whereText}>
             <p className={s.lead}>{locked ? t('business.keepPassphraseWhere') : computer.where}</p>
             {loss && <p className={s.note}>{loss}</p>}
             {client.transport !== 'desktop' && client.transport !== 'fake' && business.storage === 'experimental-file' && <p className={s.warn}>{t('business.experimental')}</p>}
@@ -165,7 +166,7 @@ export function KeepView() {
         />
       )}
       <TileSection title={t('business.keepMore')}>
-        <div className={s.more}>
+        <div className={sLocal.more}>
           {!hosted && <MoveAway locked={locked} madeAt={business.moveMadeAt ?? null} noCode={!made} onChanged={refresh} onMakeCode={makeCode} open={custodyAction === 'move'} onOpenChange={open => setCustodyAction(current => open ? 'move' : current === 'move' ? null : current)} />}
           <PassphraseFold custody={custody.data} onCode={setCode} onChanged={refresh} open={custodyAction === 'passphrase'} onOpenChange={open => setCustodyAction(current => open ? 'passphrase' : current === 'passphrase' ? null : current)} />
           {leave(business.unlock)}
@@ -275,7 +276,7 @@ function CodeOnce({ code, folder, name, onDone }: { code: string; folder: string
         <h2 ref={heading} tabIndex={-1} className={s.name}>{t('business.recovery')}</h2>
         <p className={s.line}>{t('business.codeOnce')}</p>
         <div className={s.buttons}>
-        <div data-code="" className={`${s.code} mono`} role="group" aria-label={t('business.codeLabel')}>
+        <div data-code="" className={`${sLocal.code} mono`} role="group" aria-label={t('business.codeLabel')}>
           {(code.match(/.{1,4}/g) ?? []).map((part, i) => <span key={i}>{part}</span>)}
         </div>
           <Button variant="quiet" onClick={() => { void navigator.clipboard?.writeText(code).then(() => setCopied(true), () => setCopied(false)); }}>{t('business.copy')}</Button>
@@ -308,10 +309,10 @@ function PrintCode({ code, name, onDone }: { code: string; name: string; onDone:
     return () => window.removeEventListener('afterprint', onDone);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return createPortal(
-    <div className={s.printView} data-print-view="">
+    <div className={sLocal.printView} data-print-view="">
       <p className={s.name}>{name}</p>
       <p className={s.line}>{t('custody.printTitle')}</p>
-      <p data-code="" className={`${s.code} mono`}>{(code.match(/.{1,4}/g) ?? []).map((part, i) => <span key={i}>{part}</span>)}</p>
+      <p data-code="" className={`${sLocal.code} mono`}>{(code.match(/.{1,4}/g) ?? []).map((part, i) => <span key={i}>{part}</span>)}</p>
     </div>,
     document.body,
   );

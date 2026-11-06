@@ -7,6 +7,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { QueueAction, QueueRow, RunDetail } from '../../engine/types';
 import s from './Work.module.css';
+import sLocal from './RoundGate.module.css';
 
 /** The engine's longest note for the next step, in characters (delivery/run-controls.ts). */
 const MAX_NOTE = 500;
@@ -51,12 +52,12 @@ export function RoundGate({ detail, row, onChanged, primary = true }: { detail: 
   }
 
   return (
-    <div role="group" aria-label={waiting.line} className={s.gate}>
-      <p className={s.gateLine}>{waiting.line}</p>
+    <div role="group" aria-label={waiting.line} className={sLocal.gate}>
+      <p className={sLocal.gateLine}>{waiting.line}</p>
       {row && go && (
         <>
           <Field label={t('work.gate.note')} value={note} maxLength={MAX_NOTE} disabled={busy} onChange={(event) => setNote(event.currentTarget.value)} />
-          <div className={s.gateActs}>
+          <div className={sLocal.gateActs}>
             {stop && <Button size="sm" disabled={busy} onClick={() => void decide(row, stop)}>{stop.label}</Button>}
             <Button size="sm" variant={primary ? 'primary' : 'secondary'} disabled={busy} onClick={() => void decide(row, go)}>{go.label}</Button>
           </div>

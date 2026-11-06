@@ -463,3 +463,7 @@ describe('figures stay whole', () => {
 it('error formatting is imported from the shared helper, never redefined in a screen', () => {
   for (const { f, text } of code) expect(text, f).not.toMatch(/\b(?:function\s+messageOf\s*\(|(?:const|let|var)\s+messageOf\s*=)/);
 });
+it('CSS modules stay component-sized (D11)', () => {
+  const oversized = code.filter(({ f, text }) => f.endsWith('.module.css') && text.trimEnd().split(/\r?\n/).length > 600).map(({ f }) => f);
+  expect(oversized).toEqual([]);
+});

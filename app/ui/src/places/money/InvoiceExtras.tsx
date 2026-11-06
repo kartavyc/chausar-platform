@@ -23,7 +23,9 @@ import type { InvoiceViewLite, PaymentLite } from '../../engine/types';
 import { keepDraft } from '../clients/handoff';
 import { typedWords, useDay } from './words';
 import s from './Money.module.css';
+import sLocal from './InvoiceExtras.module.css';
 import v from './MoneyViews.module.css';
+import vLocal from './InvoiceExtrasMoneyViews.module.css';
 
 type Changed = (next?: InvoiceViewLite) => void;
 
@@ -51,7 +53,7 @@ export function NextStep({ view }: { view: InvoiceViewLite }) {
   }
 
   return (
-    <div className={v.nextStep} data-next={next.action}>
+    <div className={vLocal.nextStep} data-next={next.action}>
       <p>
         {late && <span className={v.late}>{t('money.late', { count: String(late.days) })}</span>}
         <span>{words}</span>
@@ -85,7 +87,7 @@ export function RateChange({ view, onChanged }: { view: InvoiceViewLite; onChang
   }
 
   return (
-    <div className={v.banner} role="status">
+    <div className={vLocal.banner} role="status">
       {/* The engine's sentence names the rate charged and the rate now (rates, never amounts). */}
       <p data-engine-line="">{change.line}</p>
       <p className={v.quiet}>{t('money.rate.choice')}</p>
@@ -116,13 +118,13 @@ export function PaymentLine({ payment, onChanged }: { payment: PaymentLite; onCh
   }
 
   return (
-    <li className={s.payment}>
+    <li className={sLocal.payment}>
       <span>
         {pending ? t('money.cheque.waiting', { date: day(payment.receivedOn) }) : t('money.invoice.payment', { date: day(payment.receivedOn), method: t(`money.method.${payment.method}`) })}
         {payment.chequeOn && !pending && <span className={v.quiet}> · {t('money.cheque.came', { date: day(payment.chequeOn) })}</span>}
       </span>
       {payment.booksReceiptId ? <Receipt id={payment.booksReceiptId} /> : payment.booksNote ? <span className={s.note} data-engine-line="">{payment.booksNote}</span> : null}
-      {payment.tds && <span className={v.tds}>{t('money.payment.tdsLine', { section: payment.tds.section })}</span>}
+      {payment.tds && <span className={vLocal.tds}>{t('money.payment.tdsLine', { section: payment.tds.section })}</span>}
       {pending && phase === 'idle' && <Button size="sm" onClick={() => setPhase('ask')}>{t('money.cheque.clear')}</Button>}
       {pending && phase !== 'idle' && (
         <span className={s.ask}>
@@ -151,8 +153,8 @@ export function Credits({ view }: { view: InvoiceViewLite }) {
       {credits.length > 0 && (
         <ul className={s.plain}>
           {credits.map((credit) => (
-            <li key={credit.id} className={v.credit} data-state={credit.state}>
-              <span className={v.creditState}>{credit.number ?? t(`money.credit.state.${credit.state}`)}</span>
+            <li key={credit.id} className={vLocal.credit} data-state={credit.state}>
+              <span className={vLocal.creditState}>{credit.number ?? t(`money.credit.state.${credit.state}`)}</span>
               {/* 4J20: the note's amount, with the receipt of the balance it is part of. */}
               {credit.receiptId && <Figure value={credit.amount} receiptId={credit.receiptId} />}
               {credit.number && <span>{t(`money.credit.state.${credit.state}`)}</span>}
@@ -233,9 +235,9 @@ export function Timeline({ view }: { view: InvoiceViewLite }) {
   return (
     <section className={s.block} aria-label={t('money.timeline.title')}>
       <h3 className={s.blockTitle}>{t('money.timeline.title')}</h3>
-      <ol className={v.timeline}>
+      <ol className={vLocal.timeline}>
         {entries.map((entry, index) => (
-          <li key={`${index}:${entry.what}`} className={v.timelineItem} data-what={entry.what}>
+          <li key={`${index}:${entry.what}`} className={vLocal.timelineItem} data-what={entry.what}>
             <span>{t(entry.what === 'shared' && entry.how ? `money.timeline.shared.${entry.how}` : `money.timeline.${entry.what}`)}</span>
             <span className={v.quiet}>{day(entry.on)}</span>
           </li>

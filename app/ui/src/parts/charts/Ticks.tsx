@@ -1,6 +1,6 @@
 import { UPRIGHT, raise } from './plot';
 import type { ChartTick } from './types';
-import s from './Charts.module.css';
+import sLocal from './Ticks.module.css';
 
 /**
  * The level labels to the left of a plot (D's y axis words), drawn at their per mille heights through the plot's own
@@ -10,11 +10,11 @@ import s from './Charts.module.css';
 export function Gutter({ ticks, height, up }: { ticks: ChartTick[]; height: number; up: string }) {
   const longest = ticks.reduce((most, tick) => Math.max(most, tick.label.length), 0);
   return (
-    <svg className={s.gutter} data-gutter="" width={`${longest + 1}ch`} height={height} focusable="false">
+    <svg className={sLocal.gutter} data-gutter="" width={`${longest + 1}ch`} height={height} focusable="false">
       <g transform={up}>
         {ticks.map((tick) => (
           <g key={tick.permille} transform={raise(tick.permille)}>
-            <text className={s.tick} data-tick="" transform={UPRIGHT} x="100%" dx="-6" y="4" textAnchor="end">{tick.label}</text>
+            <text className={sLocal.tick} data-tick="" transform={UPRIGHT} x="100%" dx="-6" y="4" textAnchor="end">{tick.label}</text>
           </g>
         ))}
       </g>

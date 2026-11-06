@@ -4,7 +4,7 @@ import { cx } from '../cx';
 import type { FigureProof } from '../Figure';
 import { ModelEstimate } from '../ModelEstimate';
 import { Receipt } from '../Receipt';
-import s from './Charts.module.css';
+import sLocal from './ChartData.module.css';
 import { Fold } from '../Fold';
 
 export interface ChartDataRow {
@@ -31,8 +31,8 @@ export interface ChartDataProps {
 export function ChartData({ caption, columns, rows, summary, children }: ChartDataProps) {
   const t = useT();
   return (
-    <Fold summary={summary ?? t('chart.data.view')} className={s.data} summaryClassName={s.dataSummary}>
-      <table className={s.table}>
+    <Fold summary={summary ?? t('chart.data.view')} className={sLocal.data} summaryClassName={sLocal.dataSummary}>
+      <table className={sLocal.table}>
         <caption className="sr-only">{caption}</caption>
         <thead>
           <tr>
@@ -89,10 +89,10 @@ export function chartRoot(proof: ChartProof | undefined, extra?: Record<string, 
 /** A chart's last line: its data table, and its proof on the right. */
 export function ChartFoot({ proof, onReceipt, children }: ChartProofProps & { children: ReactNode }) {
   return (
-    <div className={s.foot}>
+    <div className={sLocal.foot}>
       {children}
       {proof && proof !== 'each' && (
-        <span className={s.proof}>
+        <span className={sLocal.proof}>
           {proof.estimate ? <ModelEstimate /> : <Receipt id={proof.receiptId} onOpen={onReceipt} />}
         </span>
       )}
@@ -104,6 +104,6 @@ export function ChartFoot({ proof, onReceipt, children }: ChartProofProps & { ch
  *  says N/A in words, never 0. */
 export function ChartValue({ money, value, className }: { money: boolean; value: string | null; className?: string | undefined }) {
   const t = useT();
-  if (value === null) return <span className={cx(s.none, className)}>{t('chart.none')}</span>;
-  return money ? <span className={cx(s.num, className)} data-num="">{value}</span> : <span className={cx(s.num, className)} data-num="" data-count="">{value}</span>;
+  if (value === null) return <span className={cx(sLocal.none, className)}>{t('chart.none')}</span>;
+  return money ? <span className={cx(sLocal.num, className)} data-num="">{value}</span> : <span className={cx(sLocal.num, className)} data-num="" data-count="">{value}</span>;
 }

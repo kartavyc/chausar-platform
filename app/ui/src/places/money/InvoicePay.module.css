@@ -1,0 +1,56 @@
+.result {
+  margin-top: var(--sp-2);
+}
+
+/* Wave 6 (6D2, 6D3): how clients pay on the invoice sheet. The QR code is dark squares on a light ground in both themes,
+   so any UPI app can read it (--qr-dark and --qr-light). */
+.payUpi {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+  margin-top: var(--sp-3);
+}
+
+.qr {
+  inline-size: calc(var(--sp-12) * 4);
+  block-size: calc(var(--sp-12) * 4);
+  padding: var(--sp-2);
+  border-radius: var(--r-card);
+  background: var(--qr-light);
+}
+
+.qrLight {
+  fill: var(--qr-light);
+}
+
+.qrDark {
+  fill: var(--qr-dark);
+}
+
+.payFacts {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  font-size: var(--text-read);
+}
+
+.payFacts div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  align-items: center;
+}
+
+.payFacts dt {
+  color: var(--fg2);
+}
+
+.payFacts dd {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin: 0;
+  color: var(--fg);
+}
+
+.sendButtons { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--gap-grid); }

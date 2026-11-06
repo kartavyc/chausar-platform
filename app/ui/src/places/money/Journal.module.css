@@ -1,0 +1,10 @@
+.check {
+  margin-top: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--wait);
+}
+
+.journalRow {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--target);
+}

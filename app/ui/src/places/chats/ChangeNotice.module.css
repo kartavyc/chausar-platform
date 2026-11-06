@@ -1,0 +1,10 @@
+.change {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}

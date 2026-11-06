@@ -13,6 +13,7 @@ import { TileSection } from './shared';
 import { SiteEdits } from './SiteEdits';
 import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
+import sLocal from './BuildView.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { Progress } from '../../parts/Progress';
@@ -67,7 +68,7 @@ export function BuildView() {
           {brief.wordsBy === 'template' && <p className={s.note}>{t('business.fromTemplates')}</p>}
           {brief.wordsBy === 'mixed' && <p className={s.note}>{t('business.fromTemplatesSome')}</p>}
           <Fold summary={t('business.readBrief')} className={s.fold}>
-            <pre className={s.pre}>{brief.markdown}</pre>
+            <pre className={sLocal.pre}>{brief.markdown}</pre>
           </Fold>
           <div className={s.buttons}><Button size="sm" variant="quiet" disabled={busy} onClick={() => void writeBrief()}>{t('business.writeAgain')}</Button></div>
         </>
@@ -218,7 +219,7 @@ function GitHub({ status, onChanged }: { status: BuildStatusView; onChanged: () 
           <p className={s.strong}>
             <span>{t(`business.buildWord.${current.word}`)}</span>
             {current.syncConflictBranch && <span> {t('business.onBranch', { branch: current.syncConflictBranch })}</span>}
-            <span data-code="" className={`${s.repo} mono`}>{repoName}</span>
+            <span data-code="" className={`${sLocal.repo} mono`}>{repoName}</span>
           </p>
           {current.uiWorkflow === 'needs-fix' || current.uiWorkflow === 'missing' ? <p className={s.warn}>{t(`business.workflow.${current.uiWorkflow}`)}</p> : null}
           {current.lastCommit && (

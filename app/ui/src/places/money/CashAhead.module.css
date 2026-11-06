@@ -1,0 +1,50 @@
+.key {
+  flex: none;
+  inline-size: 14px;
+  block-size: 0;
+  border-top: 2px solid var(--chart-ink);
+}
+
+.key[data-mark='today'] {
+  inline-size: 8px;
+  block-size: 8px;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--accent);
+}
+
+.key[data-mark='dashed'] {
+  border-top-style: dashed;
+  border-top-color: var(--chart-forecast);
+}
+
+.empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+/* What issuing a draft today brings in, under the cash line. */
+.issue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-2);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.issueLink {
+  margin-left: auto;
+}
+
+.assumes {
+  margin: var(--sp-2) 0 0;
+  padding-left: var(--sp-5);
+  line-height: 18px;
+}

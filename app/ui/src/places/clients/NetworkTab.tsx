@@ -39,6 +39,7 @@ import { NetworkSources } from './NetworkSources';
 import { NetworkDrafts } from './NetworkDrafts';
 import { codeOf, dotsOf, LinkedInButton, networkRefresh, quoted, roleLine, usePersonForgotten, WarmPath } from './network';
 import s from './Network.module.css';
+import sLocal from './NetworkTab.module.css';
 import { Fold } from '../../parts/Fold';
 
 /** How many people Browse everyone shows at a time. */
@@ -84,18 +85,18 @@ export function NetworkTab({ count }: { count: Resource<PeopleView> }) {
     );
   }
   return (
-    <div className={s.frame}>
-      <div className={s.layout}>
-        <div className={s.main}>
+    <div className={sLocal.frame}>
+      <div className={sLocal.layout}>
+        <div className={sLocal.main}>
           <SearchTile search={search} setSearch={setSearch} webSearch={sources.data?.webSearch ?? 'not-set-up'} />
           {search.kind === 'done' && <Results search={search} setSearch={setSearch} />}
           {browsing ? <Everyone /> : count.data.total > 0 && (
-            <div className={s.browse}>
+            <div className={sLocal.browse}>
               <Button variant="quiet" onClick={() => setBrowsing(true)}><Icon name="users" size={16} />{t('clients.network.browse', { count: String(count.data.total) })}</Button>
             </div>
           )}
         </div>
-        <div className={s.side}>
+        <div className={sLocal.side}>
           {sources.error && <p className={s.problem} role="alert">{t('sheet.failed', { message: sources.error.message })}</p>}
           {sources.data && <NetworkSources view={sources.data} />}
         </div>
@@ -159,18 +160,18 @@ function SearchTile({ search, setSearch, webSearch }: { search: Search; setSearc
   }
 
   return (
-    <Tile as="section" labelledBy={titleId} className={s.search}>
+    <Tile as="section" labelledBy={titleId} className={sLocal.search}>
       <TileHead id={titleId} title={t('clients.network.search.title')} />
-      <form className={s.query} role="search" onSubmit={submit}>
-        <div className={s.box}>
+      <form className={sLocal.query} role="search" onSubmit={submit}>
+        <div className={sLocal.box}>
           <Icon name="search" size={18} />
           <label className="sr-only" htmlFor={boxId}>{t('clients.network.search.label')}</label>
-          <input id={boxId} type="search" className={s.input} value={text} placeholder={t('clients.network.search.label')} onChange={(event) => setText(event.target.value)} autoComplete="off" />
+          <input id={boxId} type="search" className={sLocal.input} value={text} placeholder={t('clients.network.search.label')} onChange={(event) => setText(event.target.value)} autoComplete="off" />
         </div>
         <Button type="submit" variant="primary" size="lg" disabled={search.kind === 'busy'}>{search.kind === 'busy' ? t('clients.network.search.busy') : t('clients.network.search.go')}</Button>
       </form>
       {webSearch === 'set-up' ? (
-        <div className={s.option}>
+        <div className={sLocal.option}>
           <label className={s.check}>
             <input type="checkbox" checked={web} onChange={(event) => setWeb(event.target.checked)} />
             {t('clients.network.web')}
@@ -178,18 +179,18 @@ function SearchTile({ search, setSearch, webSearch }: { search: Search; setSearc
           <span className={s.meta}>{t('clients.network.web.line')}</span>
         </div>
       ) : <p className={s.meta}>{t('clients.network.web.notSetUp')}</p>}
-      <div className={s.starters} role="group" aria-label={t('clients.network.try')}>
+      <div className={sLocal.starters} role="group" aria-label={t('clients.network.try')}>
         <span className={s.meta} aria-hidden="true">{t('clients.network.try')}</span>
         {/* C5 task 10: chips from the owner's own network when the engine has some, else the fixed starters. */}
         {chips.length > 0
-          ? chips.map((chip) => <button key={chip} type="button" className={s.starter} onClick={() => setText(chip)}>{chip}</button>)
+          ? chips.map((chip) => <button key={chip} type="button" className={sLocal.starter} onClick={() => setText(chip)}>{chip}</button>)
           : STARTERS.map((starter) => (
-            <button key={starter.label} type="button" className={s.starter} onClick={() => setText(t(starter.fill))}>{t(starter.label)}</button>
+            <button key={starter.label} type="button" className={sLocal.starter} onClick={() => setText(t(starter.fill))}>{t(starter.label)}</button>
           ))}
       </div>
       {search.kind === 'consent' && (
-        <Inner card={false} className={s.consent}>
-          <p className={s.consentTitle}>{t('clients.network.consent.title')}</p>
+        <Inner card={false} className={sLocal.consent}>
+          <p className={sLocal.consentTitle}>{t('clients.network.consent.title')}</p>
           <ConsentWords line={t('consent.searchLine')} text={search.text} />
           <div className={s.actions}><Button size="sm" onClick={() => void agree(search)}>{t('clients.network.consent.agree')}</Button></div>
           {search.problem && <p className={s.problem} role="alert">{search.problem}</p>}
@@ -203,9 +204,9 @@ function SearchTile({ search, setSearch, webSearch }: { search: Search; setSearc
 /** A search the engine refused: a protected trait (a quiet note) and a missing AI in the UI's words, anything else in the engine's. */
 function Refusal({ code, message }: { code: string; message: string }) {
   const t = useT();
-  if (code === 'NETWORK_TRAIT_PROTECTED') return <p className={s.note} role="status">{t('clients.network.protected')}</p>;
+  if (code === 'NETWORK_TRAIT_PROTECTED') return <p className={sLocal.note} role="status">{t('clients.network.protected')}</p>;
   if (code === 'NO_MODEL_CONNECTED') {
-    return <p className={s.problem} role="alert">{t('clients.network.noAi')} <a className={s.link} href="#/connections/ai">{t('clients.network.connectAi')}</a></p>;
+    return <p className={s.problem} role="alert">{t('clients.network.noAi')} <a className={sLocal.link} href="#/connections/ai">{t('clients.network.connectAi')}</a></p>;
   }
   return <p className={s.problem} role="alert">{t('clients.network.failed', { message })}</p>;
 }
@@ -260,14 +261,14 @@ function Results({ search, setSearch }: { search: Extract<Search, { kind: 'done'
     : view.web === 'skipped' || view.web === 'found' ? view.webLine : null;
 
   return (
-    <section className={s.results} aria-labelledby={headId}>
-      <div className={s.resultsHead}>
-        <h2 id={headId} className={s.resultsTitle}>{head}</h2>
+    <section className={sLocal.results} aria-labelledby={headId}>
+      <div className={sLocal.resultsHead}>
+        <h2 id={headId} className={sLocal.resultsTitle}>{head}</h2>
         {rest && <span className={s.meta}>{rest}</span>}
-        {saving === null && !saved && <Button size="sm" className={s.end} onClick={() => setSaving(view.text.slice(0, 60))}><Icon name="tag" size={14} />{t('clients.network.save')}</Button>}
+        {saving === null && !saved && <Button size="sm" className={sLocal.end} onClick={() => setSaving(view.text.slice(0, 60))}><Icon name="tag" size={14} />{t('clients.network.save')}</Button>}
       </div>
       {saving !== null && (
-        <form className={s.saveForm} onSubmit={(event) => void save(event)}>
+        <form className={sLocal.saveForm} onSubmit={(event) => void save(event)}>
           <Field label={t('clients.network.save.name')} value={saving} maxLength={60} onChange={(event) => setSaving(event.target.value)} />
           <div className={s.actions}>
             <Button variant="quiet" size="sm" onClick={() => setSaving(null)}>{t('clients.network.save.cancel')}</Button>
@@ -277,19 +278,19 @@ function Results({ search, setSearch }: { search: Extract<Search, { kind: 'done'
       )}
       {saved && <p className={s.said} role="status">{t('clients.network.saved', { name: saved })}</p>}
       {view.traits.length > 0 && (
-        <div className={s.traits}>
+        <div className={sLocal.traits}>
           <span id={tracesId} className={s.meta}>{t('clients.network.lookedFor')}</span>
-          <ul className={s.traitList} aria-labelledby={tracesId}>
-            {view.traits.map((trait, index) => <li key={trait.id} className={s.trait}><span data-num="">{index + 1}</span>{trait.label}</li>)}
+          <ul className={sLocal.traitList} aria-labelledby={tracesId}>
+            {view.traits.map((trait, index) => <li key={trait.id} className={sLocal.trait}><span data-num="">{index + 1}</span>{trait.label}</li>)}
           </ul>
         </div>
       )}
-      {webWords && <p className={s.webLine}>{webWords}</p>}
+      {webWords && <p className={sLocal.webLine}>{webWords}</p>}
       <ul className={s.resultList}>
         {results.map((result, index) => <ResultCard key={result.person?.id ?? `${result.url}-${index}`} result={result} searchId={view.id} />)}
       </ul>
       {more && (
-        <div className={s.more}>
+        <div className={sLocal.more}>
           <Button disabled={busy} onClick={() => void findMore()}>{t('clients.network.more')}</Button>
           <span className={s.meta}>{t('clients.network.more.line')}</span>
         </div>
@@ -332,24 +333,24 @@ function ResultCard({ result, searchId }: { result: SearchResultView; searchId: 
   const why = result.why.startsWith('Why: ') ? <><b>{result.why.slice(0, 4)}</b>{quoted(result.why.slice(4))}</> : quoted(result.why);
   return (
     <li>
-      <Tile as="article" card labelledBy={nameId} className={s.result} data-cold={result.cold ? '' : undefined}>
-        <div className={s.top}>
+      <Tile as="article" card labelledBy={nameId} className={sLocal.result} data-cold={result.cold ? '' : undefined}>
+        <div className={sLocal.top}>
           {person ? <Avatar name={person.name} size={52} /> : <span className={s.coldMark} aria-hidden="true"><Icon name="search" size={20} /></span>}
-          <div className={s.who}>
-            <div className={s.nameRow}>
-              <h3 id={nameId} className={s.name}>{name}</h3>
-              {person?.degree && <span className={s.degree} data-num="">{t(`clients.network.degree.${person.degree}`)}</span>}
+          <div className={sLocal.who}>
+            <div className={sLocal.nameRow}>
+              <h3 id={nameId} className={sLocal.name}>{name}</h3>
+              {person?.degree && <span className={sLocal.degree} data-num="">{t(`clients.network.degree.${person.degree}`)}</span>}
             </div>
-            {role && <p className={s.role}>{role}</p>}
+            {role && <p className={sLocal.role}>{role}</p>}
           </div>
           {person && (
-            <div className={s.strength}>
+            <div className={sLocal.strength}>
               <StrengthDots level={dotsOf(person)} onOpen={() => (result.receiptId ? openSheet('receipt', result.receiptId) : openSheet('person', person.id))} />
               {result.receiptId && <Receipt id={result.receiptId} />}
             </div>
           )}
         </div>
-        <p className={s.why} data-why="">{why}</p>
+        <p className={sLocal.why} data-why="">{why}</p>
         {result.checks.length > 0 && (
           <Fold summary={t('clients.network.checks')} className={s.checks}>
             <ul className={s.checkList}>
@@ -364,7 +365,7 @@ function ResultCard({ result, searchId }: { result: SearchResultView; searchId: 
           </Fold>
         )}
         {result.path && person && <Inner card={false} className={s.pathBox}><WarmPath path={result.path} name={person.name} /></Inner>}
-        <div className={s.resultActions}>
+        <div className={sLocal.resultActions}>
           {person && (stage
             ? <Chip tone="line">{t('clients.network.inPipeline', { stage: t(`clients.network.stage.${stage}`) })}</Chip>
             : <Button disabled={busy} onClick={() => void add()}>{t('clients.network.add')}</Button>)}
@@ -416,7 +417,7 @@ function Everyone() {
   useClientsChanged(engine, () => people.reload());
   const view = people.data;
   return (
-    <Tile as="section" labelledBy={titleId} pad="compact" className={s.everyone}>
+    <Tile as="section" labelledBy={titleId} pad="compact" className={sLocal.everyone}>
       <TileHead id={titleId} title={t('clients.network.people.title')} meta={view && view.total > 0 ? t('clients.network.people.shown', { shown: String(view.people.length), total: String(view.total) }) : undefined} />
       <Field label={t('clients.network.people.filter')} value={typed} onChange={(event) => setTyped(event.target.value)} autoComplete="off" />
       {people.error && <p className={s.problem} role="alert">{t('sheet.failed', { message: people.error.message })}</p>}

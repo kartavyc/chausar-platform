@@ -1,0 +1,7 @@
+/* C4 task 8: Pick a time, a day and a time on one quiet line. */
+.pickTime {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}

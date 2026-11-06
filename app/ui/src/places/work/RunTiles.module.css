@@ -1,0 +1,104 @@
+/* Running now: four tiles across at full width, fewer as the page narrows, one on a phone. */
+.runs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 288px), 1fr));
+  gap: var(--gap-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.runTile {
+  display: flex;
+  flex-direction: column;
+}
+
+.runTop {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  min-height: var(--av-40);
+}
+
+.runWho {
+  flex: 1;
+  min-width: 0;
+}
+
+.runAgent {
+  font-size: var(--text-body);
+  line-height: 19px;
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.runBusiness {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.runTitle {
+  margin-top: var(--sp-3);
+  font-size: var(--text-body);
+  line-height: 19px;
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.arcTrack {
+  stroke: var(--line);
+  stroke-width: 2.5;
+}
+
+.arcPart {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+/* The run's question on the waiting ground (D's `.rt-q`). */
+.question {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-button);
+  background: var(--wait-soft);
+  color: var(--wait);
+  font-size: var(--text-label);
+  line-height: 16px;
+  font-weight: var(--weight-medium);
+}
+
+.question > svg {
+  flex: none;
+  margin-top: calc(var(--sp-1) / 4);
+}
+
+.runFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: var(--sp-4);
+  font-size: var(--text-label);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+/* W4 4F3: run controls. Stop and the tile's own button share the foot; a run the engine says is stopping reads so. */
+.runActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.stopping {
+  font-weight: var(--weight-medium);
+  color: var(--wait);
+}

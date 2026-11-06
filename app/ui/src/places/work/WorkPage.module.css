@@ -1,0 +1,75 @@
+/* Work in the direction D look (D-Work.dc.html): the toolbar of filter chips, Running now (`.runs`, `.rt*`), the
+   stopped run (`.stopped`, `.sd-*`, `.why`) beside Finished (`.fin`), and orders grouped by client (`.cg*`, `.oc*`,
+   without `.osteps`, which wait for the engine's order steps). D's 11.5 and 12.5 px words become 12 and 13 px. */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--target);
+  margin-bottom: var(--sp-4);
+}
+
+/* The kinds, then the businesses as their own group, a wider gap apart (D's thin separator would start a line of its
+   own when the row wraps beside an open sheet). */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  align-items: center;
+  min-width: 0;
+}
+@media (max-width: 759px) {
+  .chips {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: var(--sp-1);
+    margin: calc(var(--sp-1) * -1);
+    scrollbar-width: none;
+  }
+
+  .chips > .chipGroup {
+    flex: none;
+    flex-wrap: nowrap;
+  }
+}
+
+.sections {
+  display: grid;
+  gap: var(--gap-section);
+  container-type: inline-size;
+}
+
+.toolbarEnd {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.ideasLink {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.ideasLink {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--link);
+  text-decoration: none;
+}
+
+.ideasLink:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* The stopped runs above the failed ones, in the pair's left column. */
+.stack {
+  display: grid;
+  gap: var(--gap-grid);
+  min-width: 0;
+}

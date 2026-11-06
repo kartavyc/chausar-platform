@@ -1,0 +1,42 @@
+.policyLines {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-1) 0 0;
+  list-style: none;
+}
+
+.policyLine {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.policyLine > svg {
+  flex: none;
+  color: var(--mute);
+}
+
+.policyText {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.rateLine {
+  display: grid;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+/* 4Z3: a select's hint, as the Field part's (D's `.hint`). */
+.fieldHint {
+  font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--mute);
+}

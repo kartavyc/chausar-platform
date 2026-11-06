@@ -19,6 +19,7 @@ import type { CashView, KindedFigure } from '../../engine/types';
 import { useDay } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import vLocal from './CashAhead.module.css';
 
 export function CashAhead({ cash, view, span }: { cash: CashData | undefined; view: CashView | undefined; span: TileSpan }) {
   const t = useT();
@@ -42,21 +43,21 @@ export function CashAhead({ cash, view, span }: { cash: CashData | undefined; vi
       {/* The line, and what the forecast assumes one step away (simple first, 4J20). */}
       {cash && <div className={s.tileChart}><CashLine data={{ ...cash, assumptions: [] }} tips={false}
         detailsLabel={t('money.cash.assumes')}
-        details={cash.assumptions.length > 0 ? <ul className={v.assumes}>{cash.assumptions.map(line => <li key={line}>{line}</li>)}</ul> : undefined}
+        details={cash.assumptions.length > 0 ? <ul className={vLocal.assumes}>{cash.assumptions.map(line => <li key={line}>{line}</li>)}</ul> : undefined}
       /></div>}
       {view && view.points.length === 0 && (
-        <div className={v.empty}>
+        <div className={vLocal.empty}>
           <p className={s.quietLine}>{t('money.cash.noStatement')}</p>
           <Button size="sm" onClick={(event) => openSheet('bank-import', 'statement', event.currentTarget)}>{t('money.cash.import')}</Button>
         </div>
       )}
       {/* 4J20: what issuing the first draft today brings in, and in which week, proved by its price receipt. */}
       {issue && (
-        <p className={v.issue} data-if-issued="">
+        <p className={vLocal.issue} data-if-issued="">
           <span>{t('money.cash.issue', { client: issue.client })}</span>
           <Figure value={issue.amount.display} receiptId={issue.amount.receiptId} />
           <span>{t('money.cash.issueWeek', { date: day(issue.week) })}</span>
-          <a className={`${s.more} ${v.issueLink}`} href="#/today">{t('money.cash.onToday')}</a>
+          <a className={`${s.more} ${vLocal.issueLink}`} href="#/today">{t('money.cash.onToday')}</a>
         </p>
       )}
     </Tile>
@@ -69,7 +70,7 @@ function Stat({ label, figure, sub, mark }: { label: string; figure: KindedFigur
   return (
     <div className={v.stat}>
       <dt className={v.statLabel}>
-        <span className={v.key} data-mark={mark} aria-hidden="true" />
+        <span className={vLocal.key} data-mark={mark} aria-hidden="true" />
         {label}
       </dt>
       <dd className={v.statValue}>

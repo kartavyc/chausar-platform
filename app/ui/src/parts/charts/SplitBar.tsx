@@ -3,6 +3,7 @@ import { ChartData, ChartFoot, chartRoot } from './ChartData';
 import { Stack } from './Stack';
 import type { SplitData, SplitPartId } from './types';
 import s from './Charts.module.css';
+import sLocal from './SplitBar.module.css';
 
 /** The order the bar and the legend always take, whatever order the engine sends. It keeps the departments whose
  *  colours are closest (Production and Money, Marketing and Sales) apart. */
@@ -41,12 +42,12 @@ export function SplitBar({ data, onReceipt }: SplitBarProps) {
       />
       <ul className={s.splitList}>
         {legend.filter((part) => part.permille > 0).map((part) => (
-          <li key={part.dept} className={s.splitItem} data-dept={part.dept}>
+          <li key={part.dept} className={sLocal.splitItem} data-dept={part.dept}>
             <span className={s.splitName}>
               <span className={s.swatch} data-swatch="" data-dept={part.dept} data-zero={part.permille > 0 ? undefined : ''} aria-hidden="true" />
               {name(part.dept)}
             </span>
-            <span className={s.splitAmount} data-num="">{part.amount}</span>
+            <span className={sLocal.splitAmount} data-num="">{part.amount}</span>
           </li>
         ))}
       </ul>

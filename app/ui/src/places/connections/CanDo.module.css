@@ -1,0 +1,23 @@
+/* ---- What Chausar can do on this computer ---- */
+
+.mini {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-32);
+  height: var(--av-32);
+  border-radius: calc(var(--av-32) * 0.3);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.stopLine {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin: var(--sp-3) 0 0;
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}

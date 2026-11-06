@@ -1,0 +1,67 @@
+.num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* N/A for a missing value: words, not a figure. */
+.none {
+  color: var(--mute);
+  font-size: var(--text-label);
+  white-space: nowrap;
+}
+
+/* ---- The foot: View chart data, and the chart's proof (D's .rc in the tile head) ---- */
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.proof {
+  display: inline-flex;
+  flex: none;
+}
+
+.data {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.dataSummary {
+  min-height: 24px;
+  font-size: var(--text-label);
+}
+
+.table {
+  width: 100%;
+  margin-top: var(--sp-2);
+  border-collapse: collapse;
+  color: var(--fg2);
+  font-size: var(--text-read);
+}
+
+.table th,
+.table td {
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) 0;
+  border-bottom: var(--hair) solid var(--line-soft);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table th[scope='row'],
+.table td:first-child {
+  text-align: left;
+}
+
+.table th {
+  color: var(--mute);
+  font-weight: var(--weight-medium);
+}
+
+.table th[scope='row'] {
+  color: var(--fg2);
+  font-weight: var(--weight-regular);
+}

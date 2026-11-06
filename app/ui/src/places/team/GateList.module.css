@@ -1,0 +1,54 @@
+.stepNo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--fg2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+}
+
+.stepIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--av-32);
+  height: var(--av-32);
+  border-radius: var(--r-button);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.stepIcon[data-dept='sales'] { background: var(--sales-tint); color: var(--sales); }
+.stepIcon[data-dept='mkt'] { background: var(--mkt-tint); color: var(--mkt); }
+.stepIcon[data-dept='prod'] { background: var(--prod-tint); color: var(--prod); }
+.stepIcon[data-dept='money'] { background: var(--money-tint); color: var(--money); }
+.stepIcon[data-dept='ops'] { background: var(--ops-tint); color: var(--ops); }
+
+.stepText {
+  display: grid;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.stepTitle {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 19px;
+  color: var(--fg);
+}
+
+.stepSub {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.purpose {
+  flex: 1;
+  min-width: 0;
+}

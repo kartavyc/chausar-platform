@@ -7,6 +7,7 @@ import { Field } from '../../parts/Field';
 import type { SiteEditLite } from '../../engine/types';
 import { TileSection } from './shared';
 import s from './Business.module.css';
+import sLocal from './SiteEdits.module.css';
 import { Reveal } from '../../parts/RevealBlock';
 
 export type DiffLine = { kind: 'same' | 'removed' | 'added'; text: string };
@@ -132,13 +133,13 @@ function EditLine({ edit, onChanged }: { edit: SiteEditLite; onChanged: (edit: S
     <li className={s.step} data-row="" data-row-id={edit.id} data-second-ask="" tabIndex={-1} aria-labelledby={titleId}>
       <span id={titleId}>{edit.summary}</span>
       <span className={s.stepWho}><span data-code="" className="mono">{edit.path}</span> · {t(`business.site.state.${edit.state}`)}</span>
-      <div className={s.diff} role="group" aria-label={t('business.site.diff', { path: edit.path })}>
+      <div className={sLocal.diff} role="group" aria-label={t('business.site.diff', { path: edit.path })}>
         {diff.map((line, i) => (line.kind === 'removed' ? (
-          <del key={i} className={s.removed}><span className="sr-only">{t('business.site.removed')} </span>{line.text || ' '}</del>
+          <del key={i} className={sLocal.removed}><span className="sr-only">{t('business.site.removed')} </span>{line.text || ' '}</del>
         ) : line.kind === 'added' ? (
-          <ins key={i} className={s.added}><span className="sr-only">{t('business.site.added')} </span>{line.text || ' '}</ins>
+          <ins key={i} className={sLocal.added}><span className="sr-only">{t('business.site.added')} </span>{line.text || ' '}</ins>
         ) : (
-          <span key={i} className={s.same}>{line.text || ' '}</span>
+          <span key={i} className={sLocal.same}>{line.text || ' '}</span>
         )))}
       </div>
       {edit.state !== 'staged' && edit.log.length > 0 && (

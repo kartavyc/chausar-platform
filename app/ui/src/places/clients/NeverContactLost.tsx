@@ -16,6 +16,7 @@ import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
 
 import s from './Network.module.css';
+import sLocal from './NeverContactLost.module.css';
 
 export function NeverContactLost() {
   const t = useT();
@@ -44,8 +45,8 @@ export function NeverContactLost() {
 
   if (done) return <p className={s.said} role="status">{done}</p>;
   return (
-    <div className={s.lost} data-never-contact-lost="">
-      <p className={s.lostLine} role="alert"><Icon name="triangle-alert" size={16} />{t('clients.network.neverContact.line')}</p>
+    <div className={sLocal.lost} data-never-contact-lost="">
+      <p className={sLocal.lostLine} role="alert"><Icon name="triangle-alert" size={16} />{t('clients.network.neverContact.line')}</p>
       {!asking ? (
         <Button size="sm" onClick={() => setAsking(true)}>{t('clients.network.neverContact.reset')}</Button>
       ) : (

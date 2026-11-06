@@ -1,0 +1,23 @@
+/* Money's wave 4 views (W4 4J20): the bar above the overview (business chips, the month, Export for your CA), the
+   lines around the charts on D-Money (`.cash` figures, `.lt` next three weeks, `.ow-f` reminders), money across
+   businesses, bills, margins, the spend meter and the invoice sheet's extras. Figures are in the body font through the Figure
+   part; colour is for state only (amber waiting, red overdue), the charts' own greys and the accent. Spacing is on
+   tokens only. */
+
+/* The bar above the overview: chips at the start, the month and the export at the end. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.barEnd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}

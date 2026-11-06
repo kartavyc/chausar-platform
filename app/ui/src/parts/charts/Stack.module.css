@@ -1,0 +1,40 @@
+/* ---- Stacked bars: aging and split (D's .aging, .sbar) ---- */
+
+.stack {
+  display: block;
+  width: 100%;
+  height: 14px;
+  border-radius: var(--r-chip);
+  background: var(--line-soft);
+  overflow: hidden;
+}
+
+.stack[data-size='thin'] {
+  height: 8px;
+}
+
+/* The 2 px gap between segments, in the ground the chart sits on (tiles, inner cards and panels set it). */
+.gap {
+  stroke: var(--ring-ground);
+}
+
+.seg[data-bucket='not-due'] { fill: var(--chart-ink); }
+.seg[data-bucket='1-30'] { fill: var(--age-30); }
+.seg[data-bucket='31-60'] { fill: var(--age-60); }
+.seg[data-bucket='61-90'] { fill: var(--age-90); }
+.seg[data-bucket='over-90'] { fill: var(--age-over); }
+
+.seg[data-dept='sales'] { fill: var(--sales); }
+.seg[data-dept='mkt'] { fill: var(--mkt); }
+.seg[data-dept='prod'] { fill: var(--prod); }
+.seg[data-dept='money'] { fill: var(--money); }
+.seg[data-dept='ops'] { fill: var(--ops); }
+.seg[data-dept='shared'] { fill: var(--chart-rest); }
+
+.seg {
+  transition: width var(--t-settle) var(--ease);
+}
+
+.offset {
+  transition: transform var(--t-settle) var(--ease);
+}

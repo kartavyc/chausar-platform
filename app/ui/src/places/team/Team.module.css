@@ -24,85 +24,11 @@
 }
 
 /* A phone-wide page: every stat box of one department on its own row, so a long figure is never cut or spilled. */
-@container team (max-width: 439px) {
-  .one .heroStat {
-    flex: 1 1 100%;
-  }
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  min-width: 0;
-}
 
 .failed {
   margin-top: var(--sp-4);
   font-size: var(--text-read);
   color: var(--fail);
-}
-
-/* Stats: D's `.stack`, avatars overlapping with a ring of the tile's white between them. */
-
-.stack {
-  display: inline-flex;
-}
-
-.stack > * {
-  box-shadow: 0 0 0 2px var(--surface);
-}
-
-/* A light overlap (D's 8 px hid the second letter of the initials under the next avatar: "ED" read "EI"; w3 3I). */
-.stack > * + * {
-  margin-left: calc(var(--sp-1) * -1);
-}
-
-/* The spend tile: StatTile's look (`.stat`, `.s-lab`, `.s-val`), drawn here so the figure can go through Money's
-   ProvedFigure with its rupees. A figure never breaks inside itself; when the engine writes words beside the amount
-   ("₹60.10, includes estimates") it is set at the tile figure size and may wrap at its spaces. */
-.spendTile {
-  display: flex;
-  flex-direction: column;
-}
-
-.statLabel {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: 18px;
-  color: var(--mute);
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  line-height: 18px;
-}
-
-.statValue {
-  margin-top: calc(var(--sp-1) * 1.5);
-  font-size: var(--fig-stat);
-  line-height: 36px;
-  letter-spacing: -0.03em;
-}
-
-.statValue.worded {
-  font-size: var(--fig-tile);
-  line-height: 26px;
-}
-
-.worded [data-ui-number] {
-  white-space: normal;
-}
-
-/* Agent cards: D's `.agents` and `.acard`. One column in a narrow panel, two or three in a wide one. */
-
-.agents {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
-  gap: var(--gap-cards);
-  margin: var(--sp-4) 0 0;
-  padding: 0;
-  list-style: none;
 }
 
 .agent {
@@ -201,30 +127,10 @@
   color: var(--wait);
 }
 
-.progress {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-width: 0;
-  margin-top: var(--sp-2);
-}
-
-.bar {
-  flex: 0 1 140px;
-}
-
 .elapsed {
   flex: none;
   color: var(--mute);
   font-size: var(--text-label);
-}
-
-.last {
-  margin-top: var(--sp-2);
-  font-size: var(--text-read);
-  line-height: 18px;
-  color: var(--fg2);
-  overflow-wrap: anywhere;
 }
 
 .lastLabel {
@@ -237,205 +143,12 @@
   color: var(--mute);
 }
 
-.foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  margin-top: auto;
-  padding-top: var(--sp-3);
-}
-
-.fold {
-  margin-top: var(--sp-3);
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--fg);
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-
-/* Department panels: D's `.dp-head`, `.dp-ic`, `.dp-t`, `.dp-name`, `.dp-line`, `.dp-stats` and `.dp-s`. */
-
-.deptHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3);
-  min-height: var(--target);
-}
-
-.deptIcon {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: var(--av-40);
-  height: var(--av-40);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-lift);
-  color: var(--fg2);
-}
-
-.deptIcon[data-large] {
-  width: var(--av-52);
-  height: var(--av-52);
-  border-radius: var(--r-tile);
-}
-
-.deptIcon[data-dept='sales'] { color: var(--sales); }
-.deptIcon[data-dept='mkt'] { color: var(--mkt); }
-.deptIcon[data-dept='prod'] { color: var(--prod); }
-.deptIcon[data-dept='money'] { color: var(--money); }
-.deptIcon[data-dept='ops'] { color: var(--ops); }
-
-/* The name and counts keep room for one line each; the figures drop under them when the panel is narrow. */
-.deptTitle {
-  flex: 1 1 150px;
-  min-width: 0;
-}
-
-.deptName {
-  font-size: var(--text-tile);
-  font-weight: var(--weight-strong);
-  line-height: 22px;
-}
-
-.counts {
-  font-size: var(--text-read);
-  line-height: 18px;
-  color: var(--fg2);
-}
-
-.counts [data-tone='wait'] {
-  color: var(--wait-strong);
-  font-weight: var(--weight-medium);
-}
-
-.counts [data-tone='fail'] {
-  color: var(--fail);
-  font-weight: var(--weight-medium);
-}
-
 .deptStats {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--sp-2) var(--sp-4);
   margin-left: auto;
-}
-
-.deptStat {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.deptCount {
-  font-size: var(--fig-dept);
-  font-weight: var(--weight-medium);
-  line-height: 22px;
-  letter-spacing: -0.02em;
-}
-
-.deptLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-size: var(--text-label);
-  line-height: 16px;
-  color: var(--fg2);
-  white-space: nowrap;
-}
-
-/* One department: D-TeamDept's hero row, agents, the flow with gates, recent work and the jobs chart. */
-
-.one {
-  display: grid;
-  gap: var(--gap-grid);
-}
-
-.one .hero {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-4) var(--sp-5);
-  padding: var(--sp-6);
-}
-
-.heroText {
-  flex: 1 1 260px;
-  min-width: 0;
-}
-
-.heroName {
-  font-size: var(--text-section);
-  font-weight: var(--weight-strong);
-  line-height: 26px;
-  letter-spacing: -0.01em;
-}
-
-.heroLine {
-  margin-top: var(--sp-1);
-  font-size: var(--text-body);
-  line-height: 20px;
-  color: var(--fg2);
-}
-
-.heroChips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin-top: var(--sp-3);
-}
-
-.heroStats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
-}
-
-/* A stat box is as wide as its figure and never shrinks below it; the row wraps instead. */
-.heroStat {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 120px;
-  min-height: 76px;
-}
-
-.heroCount {
-  font-size: var(--fig-hero);
-  font-weight: var(--weight-medium);
-  line-height: 30px;
-  letter-spacing: -0.03em;
-}
-
-.heroLabel {
-  font-size: var(--text-label);
-  line-height: 16px;
-  color: var(--mute);
-  white-space: nowrap;
-}
-
-.column {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.flowSub {
-  margin-top: var(--sp-2);
-  font-size: var(--text-read);
-  line-height: 18px;
-  color: var(--mute);
 }
 
 .flow {
@@ -469,99 +182,6 @@
   background: var(--btn-line);
 }
 
-.stepNo {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-chip);
-  background: var(--surface);
-  color: var(--fg2);
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-}
-
-.stepIcon {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: var(--av-32);
-  height: var(--av-32);
-  border-radius: var(--r-button);
-  background: var(--wash);
-  color: var(--fg2);
-}
-
-.stepIcon[data-dept='sales'] { background: var(--sales-tint); color: var(--sales); }
-.stepIcon[data-dept='mkt'] { background: var(--mkt-tint); color: var(--mkt); }
-.stepIcon[data-dept='prod'] { background: var(--prod-tint); color: var(--prod); }
-.stepIcon[data-dept='money'] { background: var(--money-tint); color: var(--money); }
-.stepIcon[data-dept='ops'] { background: var(--ops-tint); color: var(--ops); }
-
-.stepText {
-  display: grid;
-  flex: 1 1 160px;
-  min-width: 0;
-}
-
-.stepTitle {
-  font-size: var(--text-body);
-  font-weight: var(--weight-strong);
-  line-height: 19px;
-  color: var(--fg);
-}
-
-.stepSub {
-  font-size: var(--text-read);
-  line-height: 18px;
-  color: var(--mute);
-}
-
-.flowFoot {
-  margin-top: auto;
-  padding-top: var(--sp-3);
-  border-top: var(--hair) solid var(--line-soft);
-  font-size: var(--text-read);
-  line-height: 18px;
-  color: var(--mute);
-}
-
-.recent {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
-  gap: var(--gap-cards);
-  margin: var(--sp-4) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.recentItem {
-  display: flex;
-  min-width: 0;
-}
-
-.work {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-
-.workKind {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.workTitle {
-  font-size: var(--text-body);
-  font-weight: var(--weight-strong);
-  line-height: 19px;
-}
-
 .workOpen {
   color: var(--fg);
   font: inherit;
@@ -572,10 +192,6 @@
   font-size: var(--text-read);
   color: var(--fg2);
   overflow-wrap: anywhere;
-}
-
-.workBar {
-  margin-top: auto;
 }
 
 .failure,
@@ -734,11 +350,6 @@
   color: var(--fg2);
 }
 
-.purpose {
-  flex: 1;
-  min-width: 0;
-}
-
 .step .problem,
 .flowStep .problem {
   flex-basis: 100%;
@@ -753,29 +364,10 @@
   border-top: var(--hair) solid var(--line-soft);
 }
 
-.runRing {
-  flex: none;
-  width: var(--av-40);
-}
-
-.runBody {
-  display: grid;
-  flex: 1;
-  gap: var(--sp-1);
-  min-width: 0;
-}
-
 .runOpen {
   color: var(--fg);
   font-size: var(--text-body);
   font-weight: var(--weight-medium);
-}
-
-.runMeta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
 }
 
 @media (max-width: 759px) {
@@ -783,79 +375,9 @@
     justify-content: flex-start;
     margin-left: 0;
   }
-
-  .deptStat {
-    align-items: flex-start;
-  }
-
-  .one .hero {
-    padding: var(--pad-panel);
-  }
-
-  .heroStats {
-    width: 100%;
-  }
-
-  /* StatTile's phone size, for the spend tile drawn here. */
-  .statValue {
-    font-size: var(--fig-hero);
-    line-height: 30px;
-  }
-}
-
-/* W4 4A2: a department panel's head is its icon, name and jobs, which fit on one line at any panel width; the spend,
-   with the rupees beside it, takes the line under them. */
-.deptHead > .deptStat {
-  margin-left: auto;
-}
-
-.deptSpend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sp-1) var(--sp-2);
-  margin-top: var(--sp-2);
-  font-size: var(--text-read);
-  color: var(--fg2);
-  overflow-wrap: anywhere;
-}
-
-.deptFigure {
-  min-width: 0;
-}
-
-/* W4 4A2: "Add an agent" beside the department toggle (D-Team's outline button), the held line under a spend, the
-   team's own health above the departments, an agent's health on its card, and Keeper's jobs. Amber words use
-   --wait-strong, which holds on white, the inner grey and a department tint alike. */
-
-.addAgent {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: var(--control);
-  padding: 0 var(--sp-4);
-  border: var(--hair) solid var(--btn-line);
-  border-radius: var(--r-button);
-  background: var(--surface);
-  color: var(--fg);
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  text-decoration: none;
-  white-space: nowrap;
 }
 
 /* A narrow page: the department chips keep the whole row, and "Add an agent" goes under them. */
-@container team (max-width: 759px) {
-  .toolbar {
-    flex-wrap: wrap;
-  }
-
-  .toolbar > :first-child {
-    flex: 1 1 100%;
-    min-width: 0;
-  }
-}
 
 /* B4 task 14: the empty departments and a still team are one plain line across the grid. */
 .emptyDepts,
@@ -865,145 +387,13 @@
   font-size: var(--text-body);
 }
 
-@media (max-width: 759px) {
-  .addAgentWords {
-    display: none;
-  }
-}
-
-.addAgent:hover {
-  background: var(--hover);
-}
-
-.addAgent:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 2px;
-}
-
-.held {
-  margin-top: var(--sp-2);
-  font-size: var(--text-label);
-  line-height: 16px;
-  color: var(--fg2);
-  overflow-wrap: anywhere;
-}
-
 .heroHeld,
 .statHeld {
   margin-top: var(--sp-1);
 }
 
-.helps {
-  font-size: var(--text-label);
-  line-height: 16px;
-  color: var(--mute);
-}
-
-.teamHealth {
-  padding: var(--pad-tile-compact);
-  border: var(--hair) solid var(--fail-line);
-  border-radius: var(--r-tile);
-  background: var(--surface);
-  box-shadow: var(--shadow-tile);
-}
-
-.health {
-  display: grid;
-  justify-items: start;
-  gap: var(--sp-2);
-  margin-top: var(--sp-2);
-}
-
-.healthLine {
-  font-size: var(--text-read);
-  line-height: 18px;
-  color: var(--fg2);
-  overflow-wrap: anywhere;
-}
-
-.healthReason {
-  vertical-align: middle;
-}
-
-.healthAsk {
-  display: grid;
-  gap: var(--sp-2);
-}
-
-.healthQuestion {
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--fg);
-}
-
-.healthButtons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
-
 .now[data-tone='wait'] {
   color: var(--wait-strong);
-}
-
-.keeperFold {
-  margin-top: var(--sp-3);
-}
-
-/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
-.keeperSee {
-  composes: hit from '../../parts/touch.module.css';
-}
-
-.jobs {
-  display: grid;
-  gap: var(--sp-3);
-  margin: var(--sp-3) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.job {
-  min-width: 0;
-}
-
-.jobHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-1) var(--sp-2);
-}
-
-.jobName {
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--fg);
-}
-
-.jobLine {
-  margin-top: var(--sp-1);
-  font-size: var(--text-label);
-  line-height: 16px;
-  color: var(--fg2);
-  overflow-wrap: anywhere;
-}
-
-/* C5 task 1: the quiet introduction lines above the team, plain text with one small button. */
-.intro {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sp-2) var(--sp-4);
-  margin-top: var(--sp-4);
-}
-
-.introLines {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--text-read);
-  color: var(--fg2);
 }
 
 /* C7: the hire sheet: one step at a time, plain fields, the card of what the agent does. */
@@ -1019,45 +409,11 @@
   color: var(--fg2);
 }
 
-.introDone {
-  font: inherit;
-  font-size: var(--text-read);
-  color: var(--link);
-  background: none;
-  border: 0;
-  padding: 0;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
 .hireProblem {
   margin: 0;
   font-size: var(--text-read);
   color: var(--fail);
   overflow-wrap: anywhere;
-}
-
-.hireReads {
-  display: grid;
-  gap: var(--sp-1);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  font-size: var(--text-read);
-}
-
-.hireSelect {
-  display: grid;
-  gap: var(--sp-1);
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
-.hireHead {
-  margin: 0;
-  font-size: var(--text-row);
-  font-weight: var(--weight-strong);
-  color: var(--fg);
 }
 
 .hireList {

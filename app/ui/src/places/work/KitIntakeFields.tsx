@@ -8,6 +8,7 @@ import { Button } from '../../parts/Button';
 import type { OfferIntakeLite } from '../../engine/types';
 import { KIT_FILE_ACCEPT, isKitFile, kitFileProblem, type KitAnswers, type KitPerson } from './kit-intake';
 import s from './Work.module.css';
+import sLocal from './KitIntakeFields.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 import { FilePick } from '../../parts/FilePick';
@@ -33,7 +34,7 @@ export function KitIntakeFields({ ask, answers, onChange, currency = null }: { a
     </div>;
     if (field.kind === 'choice' || field.kind === 'yes-no') return <div className={s.field} key={field.id}>
       <label className={s.label} htmlFor={inputId}>{label}</label>
-      <Select id={inputId} className={s.select} aria-describedby={`${inputId}-help`} value={typeof value === 'boolean' ? value ? 'yes' : 'no' : typeof value === 'string' ? value : ''} onChange={event => put(field.id, field.kind === 'yes-no' && event.currentTarget.value !== '' ? event.currentTarget.value === 'yes' : event.currentTarget.value)}>
+      <Select id={inputId} className={sLocal.select} aria-describedby={`${inputId}-help`} value={typeof value === 'boolean' ? value ? 'yes' : 'no' : typeof value === 'string' ? value : ''} onChange={event => put(field.id, field.kind === 'yes-no' && event.currentTarget.value !== '' ? event.currentTarget.value === 'yes' : event.currentTarget.value)}>
         <option value="">{t('kit-intake.choose')}</option>
         {field.kind === 'yes-no' ? <><option value="yes">{t('kit-intake.yes')}</option><option value="no">{t('kit-intake.no')}</option></> : field.options?.map(option => <option key={option} value={option}>{kitIntakeWords(t, option)}</option>)}
       </Select><p id={`${inputId}-help`} className={s.hint}>{help}</p>
@@ -44,7 +45,7 @@ export function KitIntakeFields({ ask, answers, onChange, currency = null }: { a
         {people.map((person, index) => <div className={s.form} key={index}>
           <div className={s.field}>
             <label className={s.label} htmlFor={inputId + '-' + index}>{t('kit-intake.consent')}</label>
-            <Select className={s.select} id={inputId + '-' + index} value={person.consentId ?? ''} aria-describedby={inputId + '-consent-help'} onChange={event => {
+            <Select className={sLocal.select} id={inputId + '-' + index} value={person.consentId ?? ''} aria-describedby={inputId + '-consent-help'} onChange={event => {
               const consent = currentConsents.find(item => item.id === event.currentTarget.value);
               put(field.id, people.map((item, at) => at === index ? { name: consent?.speaker ?? '', consentId: consent?.id ?? null } : item));
             }}><option value="">{t('kit-intake.choose')}</option>{currentConsents.map(consent => <option key={consent.id} value={consent.id}>{consent.speaker}</option>)}</Select>

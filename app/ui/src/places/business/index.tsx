@@ -59,7 +59,7 @@ import { SettingsList } from './SettingsList';
 // One-shot C3: This app, the Animations switch.
 import { ThisAppView } from './ThisAppView';
 import { UpdatesView } from './UpdatesView';
-import s from './Business.module.css';
+import sLocal from './BusinessPage.module.css';
 
 const PAGES = [
   { sub: 'plan', title: 'business.plan', View: PlanView },
@@ -116,10 +116,10 @@ export function Place() {
   const page = asked ?? PAGES[0];
   const { View } = page;
   return (
-    <div className={s.settings} data-settings="">
-      {!narrow && <div className={s.settingsList}><SettingsList groups={groups} current={page.sub} /></div>}
-      <div className={s.settingsPage}>
-        {narrow && <a className={s.settingsBack} href={SETTINGS_HREF} data-settings-back="">{t('business.settings.back')}</a>}
+    <div className={sLocal.settings} data-settings="">
+      {!narrow && <div className={sLocal.settingsList}><SettingsList groups={groups} current={page.sub} /></div>}
+      <div className={sLocal.settingsPage}>
+        {narrow && <a className={sLocal.settingsBack} href={SETTINGS_HREF} data-settings-back="">{t('business.settings.back')}</a>}
         <PageTitle title={t(page.title)} />
         {page.sub !== 'keep' && <StorageNotice />}
         <View key={page.sub} />

@@ -48,6 +48,7 @@ import { PushToTalk } from './PushToTalk';
 import { ReadAloud } from './ReadAloud';
 import { PickTime } from './PickTime';
 import s from './Chats.module.css';
+import sLocal from './ChiefThread.module.css';
 
 /** The thread reads again when Chausar answers anywhere, and when a proposal's card moves on Today. */
 const THREAD_EVENTS = (event: UiRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed' || event.type === 'proposal.created';
@@ -278,15 +279,15 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
 
   return (
     <section ref={area} className={s.pane} data-empty={entries.length === 0 ? "" : undefined} aria-labelledby={titleId}>
-      <header className={s.paneHead}>
-        {phone && <a className={s.back} href="#/chats">{t('chats.thread.back')}</a>}
+      <header className={sLocal.paneHead}>
+        {phone && <a className={sLocal.back} href="#/chats">{t('chats.thread.back')}</a>}
         <ChausarAvatar size={40} />
-        <div className={s.paneText}>
-          <h2 id={titleId} className={s.paneTitle}>{thread ? <span data-content="">{thread.title}</span> : t('chats.thread.new')}</h2>
-          <p className={s.paneRole}>{t('chats.thread.role')}</p>
+        <div className={sLocal.paneText}>
+          <h2 id={titleId} className={sLocal.paneTitle}>{thread ? <span data-content="">{thread.title}</span> : t('chats.thread.new')}</h2>
+          <p className={sLocal.paneRole}>{t('chats.thread.role')}</p>
         </div>
         {thread && (
-          <div className={s.paneActions} role="group" aria-label={t('chats.thread.actions')}>
+          <div className={sLocal.paneActions} role="group" aria-label={t('chats.thread.actions')}>
             <Button variant="quiet" size="sm" aria-pressed={thread.pinned} disabled={pinning}
               onClick={() => void setState({ threadId: thread.id, state: thread.pinned ? 'active' : 'pinned' })}>
               {t('chats.thread.pin')}
@@ -330,13 +331,13 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
       {threadId && view.error && !shown && !fallback ? (
         <p className={cx(s.problem, s.paneNote)} role="alert">{t('chats.thread.failed', { message: view.error.message })}</p>
       ) : entries.length > 0 ? (
-        <ChatThread agent={{ name: t('chats.chief.name'), chausar: true }} entries={entries} className={s.log} />
+        <ChatThread agent={{ name: t('chats.chief.name'), chausar: true }} entries={entries} className={sLocal.log} />
       ) : (
         <p className={cx(s.quiet, s.paneNote)}>{threadId ? '' : t('chats.thread.start')}</p>
       )}
       {refusal && <InlineError className={s.paneNote}>{refusal}</InlineError>}
       {consent && <Consent stale={consent.stale} text={consent.text} words={consent.words} problem={consent.problem} busy={consent.busy} onAgree={() => void agree()} onNotNow={notNow} />}
-      <div className={s.compose}>
+      <div className={sLocal.compose}>
         <Composer
           waitLabel={t('progress.writing')}
           key={box.n}
@@ -362,10 +363,10 @@ function Consent({ stale, text, words, problem, busy, onAgree, onNotNow }: { sta
   const t = useT();
   const titleId = useId();
   return (
-    <section className={s.consent} aria-labelledby={titleId}>
-      <h3 id={titleId} className={s.consentTitle}>{t(stale ? 'chats.consent.titleStale' : 'chats.consent.title')}</h3>
+    <section className={sLocal.consent} aria-labelledby={titleId}>
+      <h3 id={titleId} className={sLocal.consentTitle}>{t(stale ? 'chats.consent.titleStale' : 'chats.consent.title')}</h3>
       <ConsentWords line={t('consent.chatLine')} text={text} />
-      <p className={s.consentWaits}>{t('chats.consent.waits')} <span data-content="">{words}</span></p>
+      <p className={sLocal.consentWaits}>{t('chats.consent.waits')} <span data-content="">{words}</span></p>
       <div className={s.actions}>
         <Button disabled={busy} onClick={onNotNow}>{t('chats.consent.notNow')}</Button>
         <Button variant="primary" disabled={busy} onClick={onAgree}>{t('chats.consent.agree')}</Button>
@@ -382,29 +383,29 @@ function ChiefAnswer({ message, threadId, agentOf, onChanged }: { message: Chief
   const at = new Date(message.at);
   const time = Number.isNaN(at.getTime()) ? null : formatTime(at, zone);
   return (
-    <div className={s.answer} data-chief-message="">
-      <p className={s.who}>
-        <span className={s.whoName}>{t('chats.chief.name')}</span>
+    <div className={sLocal.answer} data-chief-message="">
+      <p className={sLocal.who}>
+        <span className={sLocal.whoName}>{t('chats.chief.name')}</span>
         {time && <time data-num="" dateTime={message.at}>{time}</time>}
       </p>
-      {message.parts.length > 0 && <p className={s.words} dir="auto">{partsOf(message.parts, t, message.worked)}</p>}
+      {message.parts.length > 0 && <p className={sLocal.words} dir="auto">{partsOf(message.parts, t, message.worked)}</p>}
       {message.worked.length > 0 && (
-        <table className={s.worked}>
-          <caption className={s.workedTitle}>{t('chats.worked.title')}</caption>
+        <table className={sLocal.worked}>
+          <caption className={sLocal.workedTitle}>{t('chats.worked.title')}</caption>
           <tbody>
             {message.worked.map((line) => (
               <tr key={`${line.receiptId}:${line.label}`}>
-                <th scope="row" className={s.workedLabel}>{line.label}</th>
-                <td className={s.workedValue}><Figure value={line.value} receiptId={line.receiptId} /></td>
+                <th scope="row" className={sLocal.workedLabel}>{line.label}</th>
+                <td className={sLocal.workedValue}><Figure value={line.value} receiptId={line.receiptId} /></td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
       {message.counted && <Counted counted={message.counted} />}
-      {message.dropped.map((line) => <p key={line} className={s.dropped}>{line}</p>)}
+      {message.dropped.map((line) => <p key={line} className={sLocal.dropped}>{line}</p>)}
       {message.routedTo && (
-        <a className={s.routed} href={`#/team?sheet=agent:${message.routedTo.agent}`}>
+        <a className={sLocal.routed} href={`#/team?sheet=agent:${message.routedTo.agent}`}>
           {t('chats.routed', { name: message.routedTo.name })}
         </a>
       )}
@@ -428,9 +429,9 @@ function Counted({ counted }: { counted: ChiefCounted }) {
   const titleId = useId();
   const monthOf = (month: string) => formatMonth(month);
   return (
-    <div className={s.counted} role="group" aria-labelledby={titleId} data-counted="">
-      <p id={titleId} className={s.countedTitle}>{t('chats.counted.title')}</p>
-      <ul className={s.countedList}>
+    <div className={sLocal.counted} role="group" aria-labelledby={titleId} data-counted="">
+      <p id={titleId} className={sLocal.countedTitle}>{t('chats.counted.title')}</p>
+      <ul className={sLocal.countedList}>
         {counted.entities.filter((entity) => COUNTED_KINDS.has(entity.kind)).map((entity) => (
           <li key={entity.kind}>{t(`chats.counted.kind.${entity.kind}`, { count: entity.count })}</li>
         ))}
@@ -447,13 +448,13 @@ function partsOf(parts: readonly ChatPart[], t: T, worked: ChiefMessageView['wor
     if (part.kind === 'figure' && worked.some(line => line.receiptId === part.receiptId && line.value === part.display)) return [...gap, t('chats.worked.below')];
     if (part.kind === 'figure') return [...gap, <Figure key={index} value={part.display} receiptId={part.receiptId} />];
     if (part.kind === 'estimate') {
-      return [...gap, <span key={index} className={s.estimate}><span data-estimate="">{part.text}</span> <ModelEstimate /></span>];
+      return [...gap, <span key={index} className={sLocal.estimate}><span data-estimate="">{part.text}</span> <ModelEstimate /></span>];
     }
     // C7: a part of Chausar's guide, quoted as written there, with the link to read it in the guide.
     if (part.kind === 'guide') {
-      return [...gap, <span key={index} className={s.guide} data-guide={part.anchor}>
+      return [...gap, <span key={index} className={sLocal.guide} data-guide={part.anchor}>
         <strong>{part.title}</strong>
-        <span className={s.guideText} data-content="">{part.text}</span>
+        <span className={sLocal.guideText} data-content="">{part.text}</span>
         <a href={part.link} target="_blank" rel="noreferrer">{t('chats.guide.read')}</a>
       </span>];
     }

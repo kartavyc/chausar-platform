@@ -1,0 +1,39 @@
+.sheetFigures {
+  display: grid;
+  margin: 0;
+}
+
+.sheetFigure {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-read);
+}
+
+.sheetFigure:first-child {
+  border-top: 0;
+}
+
+.sheetFigure[data-key='total'],
+.sheetFigure[data-key='balance'] {
+  font-weight: var(--weight-strong);
+}
+
+.sheetFigure dt {
+  color: var(--fg2);
+}
+
+.sheetFigure dd {
+  margin: 0;
+  color: var(--fg);
+}
+
+.pre {
+  margin-top: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-read);
+  white-space: pre-wrap;
+  color: var(--fg2);
+}

@@ -19,6 +19,7 @@ import { withoutRate, type DepartmentData } from './departments';
 import { GateList } from './GateList';
 import { Result, elapsedOf, toneOf } from './shared';
 import s from './Team.module.css';
+import sLocal from './OneDepartment.module.css';
 
 /** Recent work shows the department's latest runs, at most this many. */
 const MOST_RECENT = 3;
@@ -56,53 +57,53 @@ export function OneDepartment({ data, onChanged }: OneDepartmentProps) {
   const { counts } = data;
 
   return (
-    <div className={s.one}>
-      <Panel as="section" dept={data.dept} labelledBy={heroId} className={s.hero}>
+    <div className={sLocal.one}>
+      <Panel as="section" dept={data.dept} labelledBy={heroId} className={sLocal.hero}>
         <DeptIcon dept={data.dept} large />
-        <div className={s.heroText}>
-          <h2 id={heroId} className={s.heroName}>{name}</h2>
-          <p className={s.heroLine}>{t(`team.dept.about.${data.dept}`)}</p>
+        <div className={sLocal.heroText}>
+          <h2 id={heroId} className={sLocal.heroName}>{name}</h2>
+          <p className={sLocal.heroLine}>{t(`team.dept.about.${data.dept}`)}</p>
           {(counts.working > 0 || counts.stopped > 0 || counts.waiting > 0) && (
-            <p className={s.heroChips}>
+            <p className={sLocal.heroChips}>
               {counts.working > 0 && <Chip tone="working">{t('team.dept.working', { count: counts.working })}</Chip>}
               {counts.stopped > 0 && <Chip tone="fail">{t('team.dept.stopped', { count: counts.stopped })}</Chip>}
               {counts.waiting > 0 && <Chip tone="wait">{t('team.dept.waiting', { count: counts.waiting })}</Chip>}
             </p>
           )}
         </div>
-        <div className={s.heroStats}>
+        <div className={sLocal.heroStats}>
           {data.jobs !== undefined && (
-            <Lift card={false} className={s.heroStat}>
-              <Count value={data.jobs} className={s.heroCount} />
-              <span className={s.heroLabel}>{t('team.dept.jobs')}</span>
+            <Lift card={false} className={sLocal.heroStat}>
+              <Count value={data.jobs} className={sLocal.heroCount} />
+              <span className={sLocal.heroLabel}>{t('team.dept.jobs')}</span>
             </Lift>
           )}
           {data.spend && proof && (
-            <Lift card={false} className={s.heroStat}>
+            <Lift card={false} className={sLocal.heroStat}>
               <ProvedFigure value={data.spend.value} proof={proof} rupees={data.spend.rupees} size="hero" />
-              <span className={s.heroLabel}>{t('team.dept.spent')}</span>
+              <span className={sLocal.heroLabel}>{t('team.dept.spent')}</span>
               {/* The rate is said once, beside the figure above; the held words follow without it. */}
               {data.spend.held && <HeldLine held={{ ...data.spend.held, words: withoutRate(data.spend.held.words, data.spend.rate) }} className={s.heroHeld} />}
             </Lift>
           )}
-          <Lift card={false} className={s.heroStat}>
-            <Count value={steps} className={s.heroCount} />
-            <span className={s.heroLabel}>{t('team.dept.steps')}</span>
+          <Lift card={false} className={sLocal.heroStat}>
+            <Count value={steps} className={sLocal.heroCount} />
+            <span className={sLocal.heroLabel}>{t('team.dept.steps')}</span>
           </Lift>
         </div>
       </Panel>
 
       <Bento className={s.split}>
         {/* A department of code alone (Operations with Keeper) has no playbook steps: its agents take the row. */}
-        <Tile as="section" span={steps > 0 ? 5 : 12} labelledBy={agentsId} className={s.column}>
+        <Tile as="section" span={steps > 0 ? 5 : 12} labelledBy={agentsId} className={sLocal.column}>
           <TileHead id={agentsId} title={t('team.dept.agentsHead')} />
           <AgentList members={data.members} label={t('team.dept.agents', { dept: name })} dept={data.dept} ground="inner" onChanged={onChanged} keeperOpen />
         </Tile>
-        {steps > 0 && <Tile as="section" span={7} labelledBy={flowId} className={s.column}>
+        {steps > 0 && <Tile as="section" span={7} labelledBy={flowId} className={sLocal.column}>
           <TileHead id={flowId} title={t('team.dept.flow', { dept: name })} meta={data.version ? t('team.dept.versionNow', { version: data.version.current }) : undefined} />
-          <p className={s.flowSub}>{t('team.dept.flowSub')}</p>
+          <p className={sLocal.flowSub}>{t('team.dept.flowSub')}</p>
           <GateList agents={agents} look="flow" dept={data.dept} />
-          {data.version && <p className={s.flowFoot}>{t('team.dept.version', { version: data.version.next })}</p>}
+          {data.version && <p className={sLocal.flowFoot}>{t('team.dept.version', { version: data.version.next })}</p>}
         </Tile>}
       </Bento>
 
@@ -111,7 +112,7 @@ export function OneDepartment({ data, onChanged }: OneDepartmentProps) {
         <Tile as="section" span={chart ? (chart.spend ? 6 : 8) : 12} labelledBy={recentId}>
           <TileHead id={recentId} title={t('team.dept.recent')} more={{ href: '#/work', label: t('team.dept.openWork') }} />
           {recent.length > 0
-            ? <ul className={s.recent}>{recent.map((run) => <RecentRun key={run.runId} run={run} />)}</ul>
+            ? <ul className={sLocal.recent}>{recent.map((run) => <RecentRun key={run.runId} run={run} />)}</ul>
             : <p className={s.quiet}>{t('team.runsNone')}</p>}
         </Tile>
         {chart && (
@@ -147,20 +148,20 @@ function RecentRun({ run }: { run: RunSummary }) {
   const t = useT();
   const titleId = useId();
   return (
-    <li className={s.recentItem}>
-      <Inner as="article" labelledBy={titleId} className={s.work}>
-        <p className={s.workKind}>
+    <li className={sLocal.recentItem}>
+      <Inner as="article" labelledBy={titleId} className={sLocal.work}>
+        <p className={sLocal.workKind}>
           <StateChip kind="run" value={run.state} />
           {elapsedOf(run) && <span className={s.elapsed}>{elapsedOf(run)}</span>}
         </p>
-        <h3 id={titleId} className={s.workTitle}>
+        <h3 id={titleId} className={sLocal.workTitle}>
           <button type="button" className={s.workOpen} onClick={(event) => openSheet('run', run.runId, event.currentTarget)}>{run.purpose}</button>
         </h3>
         {run.state === 'failed' && <p className={s.failure}>{run.result ?? t('run.stopped')}</p>}
         {run.state === 'done' && run.result !== undefined && (
           <p className={s.workLine}><Result line={run.result} receiptId={run.receiptId} estimate={run.estimate} /></p>
         )}
-        {(run.state === 'active' || run.state === 'waiting') && run.progress && <ProgressBar progress={run.progress} tone={toneOf(run)} className={s.workBar} />}
+        {(run.state === 'active' || run.state === 'waiting') && run.progress && <ProgressBar progress={run.progress} tone={toneOf(run)} className={sLocal.workBar} />}
       </Inner>
     </li>
   );

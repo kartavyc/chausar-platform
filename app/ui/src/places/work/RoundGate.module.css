@@ -1,0 +1,22 @@
+/* The round gate on a waiting tile: the engine's line, the optional note, Stop and Continue. */
+.gate {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
+}
+
+.gateLine {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--wait);
+}
+
+.gateActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}

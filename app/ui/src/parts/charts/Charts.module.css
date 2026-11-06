@@ -12,18 +12,6 @@
   min-width: 0;
 }
 
-.num {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/* N/A for a missing value: words, not a figure. */
-.none {
-  color: var(--mute);
-  font-size: var(--text-label);
-  white-space: nowrap;
-}
-
 /* ---- Keys and swatches (D's .io-leg, .lgd, .sq, .sw-l, .ag-d, .sl-d) ---- */
 
 .legend,
@@ -81,25 +69,6 @@
   background: transparent;
 }
 
-.lineKey {
-  flex: none;
-  width: 16px;
-  height: 0;
-  border-top: 2px solid var(--chart-ink);
-}
-
-.lineKey[data-dashed] {
-  border-top: 1.75px dashed var(--chart-forecast);
-}
-
-.todayKey {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: var(--r-chip);
-  background: var(--accent);
-}
-
 /* ---- The goal bar (D's .g-bar on the dark goal card, .gb on a white tile) ---- */
 
 .goalBar {
@@ -111,28 +80,7 @@
   height: 10px;
 }
 
-.goalTrack,
-.goalPace {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.goalTrack {
-  border-radius: var(--r-chip);
-  overflow: hidden;
-}
-
-.goalPace {
-  overflow: visible;
-}
-
 .goalGround { fill: var(--goal-track); }
-/* One-shot C3 task 14: a fill moves from its old length to its new one, through a transition on its own geometry: the
-   engine's numbers stay attributes and nothing is sized in code. A first draw has nothing to move from. */
-.goalFill { fill: var(--accent); transition: width var(--t-settle) var(--ease), x var(--t-settle) var(--ease); }
 .goalStripe { fill: var(--goal-bg); fill-opacity: 0.55; }
 .paceGround { stroke: var(--goal-bg); }
 .paceMark { stroke: var(--goal-fg); }
@@ -163,11 +111,6 @@
   color: var(--mute);
 }
 
-.keySwatch {
-  flex: none;
-  display: block;
-}
-
 /* ---- Stat-tile bars (D-Team "Done this week") ---- */
 
 .mini {
@@ -180,14 +123,6 @@
    bottom of their box, and 2 px there is 62.5 of its units. */
 .miniBar { fill: var(--chart-rest); clip-path: inset(0 round 0 0 2px 2px / 0 0 62.5px 62.5px); }
 .miniBar[data-current] { fill: var(--chart-ink); }
-
-/* ---- Column bars (D-Money in and out, D-TeamDept spend and jobs) ---- */
-
-.columnsPlot {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-1);
-}
 
 .columns {
   flex: 1;
@@ -202,11 +137,6 @@
   flex-direction: column;
   align-items: stretch;
   min-width: 0;
-}
-
-.columnPlot {
-  display: block;
-  overflow: visible;
 }
 
 .hit {
@@ -384,16 +314,6 @@
   }
 }
 
-/* The track, square where the bar starts and round at its far end; an empty row keeps it. */
-.rankTrack {
-  grid-area: bar;
-  display: block;
-  min-width: 0;
-  height: 10px;
-  border-radius: 0 5px 5px 0;
-  background: var(--wash);
-}
-
 /* Each bar is a meter from 0 to 1000: the browser draws its length (nothing is divided in code), and only its data
    end is rounded. */
 .rankMeter {
@@ -434,92 +354,15 @@
 .rankRow[data-dept='money'] .rankMeter::-moz-meter-bar { background: var(--money); }
 .rankRow[data-dept='ops'] .rankMeter::-moz-meter-bar { background: var(--ops); }
 
-.rankValue {
-  grid-area: value;
-  min-width: 3ch;
-  color: var(--fg);
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  text-align: right;
-}
-
-/* ---- Stacked bars: aging and split (D's .aging, .sbar) ---- */
-
-.stack {
-  display: block;
-  width: 100%;
-  height: 14px;
-  border-radius: var(--r-chip);
-  background: var(--line-soft);
-  overflow: hidden;
-}
-
-.stack[data-size='thin'] {
-  height: 8px;
-}
-
-/* The 2 px gap between segments, in the ground the chart sits on (tiles, inner cards and panels set it). */
-.gap {
-  stroke: var(--ring-ground);
-}
-
-.seg[data-bucket='not-due'] { fill: var(--chart-ink); }
-.seg[data-bucket='1-30'] { fill: var(--age-30); }
-.seg[data-bucket='31-60'] { fill: var(--age-60); }
-.seg[data-bucket='61-90'] { fill: var(--age-90); }
-.seg[data-bucket='over-90'] { fill: var(--age-over); }
-
-.seg[data-dept='sales'] { fill: var(--sales); }
-.seg[data-dept='mkt'] { fill: var(--mkt); }
-.seg[data-dept='prod'] { fill: var(--prod); }
-.seg[data-dept='money'] { fill: var(--money); }
-.seg[data-dept='ops'] { fill: var(--ops); }
-.seg[data-dept='shared'] { fill: var(--chart-rest); }
-
 .ageList {
   display: flex;
   flex-direction: column;
-}
-
-.ageRow {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto minmax(4.5rem, auto);
-  align-items: center;
-  gap: var(--sp-3);
-  min-height: 26px;
-  color: var(--fg2);
-  font-size: var(--text-read);
-}
-
-.ageName {
-  min-width: 0;
-}
-
-.ageCount {
-  color: var(--mute);
-  font-size: var(--text-label);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.ageAmount {
-  color: var(--fg);
-  font-weight: var(--weight-medium);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  white-space: nowrap;
 }
 
 .splitList {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
   gap: var(--sp-2);
-}
-
-.splitItem {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
 }
 
 .splitName {
@@ -536,182 +379,15 @@
   height: 8px;
 }
 
-.splitAmount {
-  padding-left: var(--sp-4);
-  color: var(--fg);
-  font-size: var(--text-label);
-  font-weight: var(--weight-medium);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ---- The cash line (D's .cash) ---- */
-
-.linePlot {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-1);
-}
-
-/* The level labels' gutter: its width is set in ch of this font, as many as the longest label plus one. */
-.gutter {
-  display: block;
-  flex: none;
-  overflow: visible;
-  font-size: var(--text-label);
-  font-variant-numeric: tabular-nums;
-}
-
-.tick {
-  fill: var(--mute);
-  font-size: var(--text-label);
-  font-variant-numeric: tabular-nums;
-}
-
 .lineMain {
   container-type: inline-size;
   flex: 1;
   min-width: 0;
 }
 
-.lineSvg {
-  display: block;
-  overflow: visible;
-}
-
 .lineMain .hit:hover {
   fill: var(--hover);
 }
 
-.actual { fill: none; stroke: var(--chart-ink); }
-.forecast { fill: none; stroke: var(--chart-forecast); }
-.today { stroke: var(--accent); }
-.todayRing,
-.endHole { stroke: var(--ring-ground); }
-.endRing { stroke: var(--chart-forecast); }
-
-.axis {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  padding-top: var(--sp-2);
-  color: var(--mute);
-  font-size: var(--text-label);
-  line-height: 1.35;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.axis [data-current] {
-  color: var(--fg);
-  font-weight: var(--weight-strong);
-}
-
 /* Twelve-px words for thirteen weeks need about 46 px a week. Narrower, every other week keeps its place but not its
    words; on a phone, every fourth. Today (the first) and the last week always keep theirs. */
-@container (max-width: 620px) {
-  .axis:has(> :nth-child(8)) > :nth-child(even) {
-    visibility: hidden;
-  }
-}
-
-@container (max-width: 380px) {
-  .axis:has(> :nth-child(8)) > :not(:nth-child(4n + 1), :last-child) {
-    visibility: hidden;
-  }
-}
-
-.notes {
-  color: var(--fg2);
-  font-size: var(--text-read);
-  line-height: 1.45;
-}
-
-.notesHead {
-  color: var(--fg);
-  font-weight: var(--weight-medium);
-}
-
-.notesList {
-  padding-left: var(--sp-5);
-  list-style: disc;
-}
-
-/* ---- The foot: View chart data, and the chart's proof (D's .rc in the tile head) ---- */
-
-.foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--sp-2) var(--sp-3);
-}
-
-.proof {
-  display: inline-flex;
-  flex: none;
-}
-
-.data {
-  flex: 1 1 8rem;
-  min-width: 0;
-}
-
-.dataSummary {
-  min-height: 24px;
-  font-size: var(--text-label);
-}
-
-.table {
-  width: 100%;
-  margin-top: var(--sp-2);
-  border-collapse: collapse;
-  color: var(--fg2);
-  font-size: var(--text-read);
-}
-
-.table th,
-.table td {
-  padding: var(--sp-1) var(--sp-3) var(--sp-1) 0;
-  border-bottom: var(--hair) solid var(--line-soft);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.table th[scope='row'],
-.table td:first-child {
-  text-align: left;
-}
-
-.table th {
-  color: var(--mute);
-  font-weight: var(--weight-medium);
-}
-
-.table th[scope='row'] {
-  color: var(--fg2);
-  font-weight: var(--weight-regular);
-}
-
-.receipts {
-  display: inline-flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--sp-1);
-}
-
-.seg {
-  transition: width var(--t-settle) var(--ease);
-}
-
-.offset {
-  transition: transform var(--t-settle) var(--ease);
-}
-
-.forecastOld {
-  animation: global(ink-page-out) var(--t-sheet) var(--ease) 1 both;
-  pointer-events: none;
-}
-
-.forecastNow[data-forecast-new] {
-  animation: global(ink-fade-in) var(--t-sheet) var(--ease) 1 both;
-}

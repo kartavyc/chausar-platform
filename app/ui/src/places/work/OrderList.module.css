@@ -1,0 +1,178 @@
+/* Orders grouped by client: a client with two or more orders takes the row, one with a single order half of it. */
+.clientTiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap-grid);
+}
+
+.clientTileWide,
+.clientTilesFull > * {
+  grid-column: 1 / -1;
+}
+
+@container (max-width: 760px) {
+  .clientTiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.clientTile {
+  display: grid;
+  gap: var(--sp-4);
+  align-content: start;
+}
+
+.clientHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+}
+
+.clientWho {
+  flex: 1 1 12em;
+  min-width: 0;
+}
+
+.clientName {
+  font-size: var(--text-tile);
+  line-height: 22px;
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.clientSub {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.owes {
+  display: grid;
+  justify-items: end;
+  flex: none;
+  margin-left: auto;
+}
+
+.owesLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.owesFigure {
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+}
+
+.orderCards {
+  display: grid;
+  gap: var(--gap-cards);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orderCardsTwo {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@container (max-width: 760px) {
+  .orderCardsTwo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* One order: D's `.inner.oc`, a grey inner card on the white tile. */
+.order {
+  --ring-ground: var(--inner);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--pad-card) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--inner);
+  list-style: none;
+}
+
+.order:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.orderTop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.orderTitle {
+  flex: 1 1 10em;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-row);
+  line-height: 20px;
+  font-weight: var(--weight-regular);
+  color: var(--fg);
+}
+
+.orderMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: center;
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.orderFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line);
+}
+
+.orderActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+/* "Open on Today": a link that looks like D's secondary `.btn`. */
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control);
+  padding: 0 var(--sp-3);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.linkButton:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.linkButton:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+@media (max-width: 759px) {
+  .linkButton {
+    min-height: var(--target);
+  }
+}

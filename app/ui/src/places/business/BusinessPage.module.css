@@ -1,0 +1,49 @@
+/* Settings in the D look (D-STYLE section 4; no board of its own): the grouped list beside the page (C1 task 7), then
+   tiles. The simple path sits at rest; tax details, a price's working, rate-table sources and other inner workings
+   wait one fold away. Text classes carry no margin of their own: the tile body and forms space them with grid gaps. */
+
+/* From 760 px: the list on the left, sticky in the page's scroll and scrolling on its own when taller than the window,
+   and the page on the right. A phone shows one or the other (index.tsx). */
+.settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap-section);
+  align-items: start;
+}
+
+@media (min-width: 760px) {
+  .settings {
+    grid-template-columns: calc(var(--sp-12) * 4 + var(--sp-2)) minmax(0, 1fr);
+  }
+
+  .settingsList {
+    position: sticky;
+    top: 0;
+    max-height: calc(100dvh - var(--sp-12));
+    overflow-y: auto;
+  }
+}
+
+.settingsPage {
+  min-width: 0;
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.settingsBack {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.settingsBack {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: var(--sp-2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--link);
+  text-decoration: none;
+}
+
+.settingsBack:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}

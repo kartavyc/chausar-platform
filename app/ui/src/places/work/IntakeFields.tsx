@@ -4,6 +4,7 @@ import { Field } from '../../parts/Field';
 import type { OfferIntakeLite } from '../../engine/types';
 import { basisFor, CALENDAR_CHANNELS, RULE_LISTS, WEEKDAYS, type IntakeDraft } from './intake';
 import s from './Work.module.css';
+import sLocal from './IntakeFields.module.css';
 
 const FLAGS = ['aiVoice', 'aiPresenter', 'paidPromotion'] as const;
 
@@ -50,7 +51,7 @@ export function IntakeFields({ ask, draft, onChange }: { ask: OfferIntakeLite | 
       {ask.fields.includes('format') && (
         <fieldset className={s.group}>
           <legend className={s.label}>{t('work.intake.format')}</legend>
-          <div className={s.choices}>
+          <div className={sLocal.choices}>
             {(['long', 'short'] as const).map((format) => (
               <label key={format} className={s.choice}>
                 <input type="radio" name={`${id}-format`} checked={draft.format === format} onChange={() => onChange({ ...draft, format })} />
@@ -84,7 +85,7 @@ export function IntakeFields({ ask, draft, onChange }: { ask: OfferIntakeLite | 
           />
           <fieldset className={s.group}>
             <legend className={s.label}>{t('work.intake.calendar.channels')}</legend>
-            <div className={s.choices}>
+            <div className={sLocal.choices}>
               {CALENDAR_CHANNELS.map((channel) => (
                 <label key={channel} className={s.choice}>
                   <input type="checkbox" checked={draft.channels.includes(channel)} onChange={(event) => onChange({ ...draft, channels: toggled(draft.channels, channel, event.currentTarget.checked) })} />
@@ -99,7 +100,7 @@ export function IntakeFields({ ask, draft, onChange }: { ask: OfferIntakeLite | 
           />
           <fieldset className={s.group}>
             <legend className={s.label}>{t('work.intake.calendar.weekdays')}</legend>
-            <div className={s.choices}>
+            <div className={sLocal.choices}>
               {WEEKDAYS.map((day) => (
                 <label key={day} className={s.choice}>
                   <input type="checkbox" checked={draft.weekdays.includes(day)} onChange={(event) => onChange({ ...draft, weekdays: toggled(draft.weekdays, day, event.currentTarget.checked) })} />

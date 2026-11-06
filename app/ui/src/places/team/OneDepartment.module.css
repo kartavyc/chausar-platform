@@ -1,0 +1,147 @@
+@container team (max-width: 439px) {
+  .one .heroStat {
+    flex: 1 1 100%;
+  }
+}
+
+/* One department: D-TeamDept's hero row, agents, the flow with gates, recent work and the jobs chart. */
+
+.one {
+  display: grid;
+  gap: var(--gap-grid);
+}
+
+.one .hero {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4) var(--sp-5);
+  padding: var(--sp-6);
+}
+
+.heroText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.heroName {
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+  line-height: 26px;
+  letter-spacing: -0.01em;
+}
+
+.heroLine {
+  margin-top: var(--sp-1);
+  font-size: var(--text-body);
+  line-height: 20px;
+  color: var(--fg2);
+}
+
+.heroChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.heroStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+/* A stat box is as wide as its figure and never shrinks below it; the row wraps instead. */
+.heroStat {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 120px;
+  min-height: 76px;
+}
+
+.heroCount {
+  font-size: var(--fig-hero);
+  font-weight: var(--weight-medium);
+  line-height: 30px;
+  letter-spacing: -0.03em;
+}
+
+.heroLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.flowSub {
+  margin-top: var(--sp-2);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.flowFoot {
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.recent {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: var(--gap-cards);
+  margin: var(--sp-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recentItem {
+  display: flex;
+  min-width: 0;
+}
+
+.work {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.workKind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.workTitle {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 19px;
+}
+
+.workBar {
+  margin-top: auto;
+}
+
+@media (max-width: 759px) {
+
+  .one .hero {
+    padding: var(--pad-panel);
+  }
+
+  .heroStats {
+    width: 100%;
+  }
+}

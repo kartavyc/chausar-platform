@@ -27,6 +27,7 @@ import { ExternalLink } from '../connections/external';
 import { clientsChanged, useClientsChanged } from './signals';
 import { dotsOf, LinkedInButton, networkRefresh, personForgotten, roleLine, WarmPath } from './network';
 import s from './Network.module.css';
+import sLocal from './PersonSheet.module.css';
 
 export function PersonSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
@@ -88,7 +89,7 @@ function Body({ view, reload }: { view: PersonView; reload: () => void }) {
 
   return (
     <>
-      <div className={s.sheetTop}>
+      <div className={sLocal.sheetTop}>
         <StrengthDots level={dotsOf(person)} onOpen={tie ? () => openSheet('receipt', tie) : undefined} />
         {person.hidden && <p className={s.quiet}>{t('clients.person.hidden')}</p>}
       </div>
@@ -112,7 +113,7 @@ function Body({ view, reload }: { view: PersonView; reload: () => void }) {
       <section className={s.sheetSection} aria-labelledby={pipelineId}>
         <h3 id={pipelineId} className={s.heading}>{t('clients.person.pipeline')}</h3>
         {view.card ? (
-          <p className={s.cardLine}>
+          <p className={sLocal.cardLine}>
             <Chip tone="line">{t('clients.network.inPipeline', { stage: t(`clients.network.stage.${view.card.stage}`) })}</Chip>
             {view.card.next && <span>{view.card.next.line}</span>}
           </p>
@@ -131,15 +132,15 @@ function Body({ view, reload }: { view: PersonView; reload: () => void }) {
 
       <section className={s.sheetSection} aria-labelledby={keepsId}>
         <h3 id={keepsId} className={s.heading}>{t('clients.person.keeps')}</h3>
-        <dl className={s.fields}>
+        <dl className={sLocal.fields}>
           {view.fields.map((field, index) => (
-            <div key={index} className={s.fieldRow}>
+            <div key={index} className={sLocal.fieldRow}>
               <dt>{field.field}</dt>
               <dd><span data-content="">{field.value}</span><span className={s.source}>{field.source}</span></dd>
             </div>
           ))}
         </dl>
-        {view.linkedin && <p className={s.linkLine}><LinkedInButton href={view.linkedin} /></p>}
+        {view.linkedin && <p className={sLocal.linkLine}><LinkedInButton href={view.linkedin} /></p>}
       </section>
 
       {view.merged && <Split id={splitId} view={view} onDone={setSplitLine} />}
@@ -269,7 +270,7 @@ function Leave({ view, busy, act }: {
   }
 
   return (
-    <div className={s.leave}>
+    <div className={sLocal.leave}>
       <div className={s.actions}>
         <Button size="sm" disabled={busy} onClick={() => void act(() => engine.request('venture.network.hide', { personId: person.id, hidden: !person.hidden }))}>
           {person.hidden ? t('clients.person.show') : t('clients.person.hide')}

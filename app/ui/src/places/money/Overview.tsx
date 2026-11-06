@@ -34,11 +34,13 @@ import { useMoneyViews, type FlowData, type MoneyViews } from './views';
 import { byDue, onMoney, onRuns, useChosenMonth, useMonthWords } from './words';
 import { GOAL_EVENTS, goalFromView } from '../today/goal';
 import s from './Money.module.css';
+import sLocal from './Overview.module.css';
 // W6 6H3 (D40): the overview's layout as data, and the AI's changes with Undo and Keep.
 import { drawnBlocks, useLayout } from '../../parts/layout/useLayout';
 import { LayoutNotice } from '../../parts/layout/LayoutNotice';
 import ls from '../../parts/layout/Layout.module.css';
 import v from './MoneyViews.module.css';
+import vLocal from './OverviewMoneyViews.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace, useArrived } from '../../parts/Skeleton';
 
@@ -102,7 +104,7 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
   const anyFold = [2, 3].some((index) => drawn[index]?.shown && (drawn[index]!.id === 'flow' ? hasFlow : hasDue));
 
   return (
-    <section className={`${s.overview} ${v.page}`} aria-label={t('money.sub.overview')} data-arrived={arrived ? '' : undefined}>
+    <section className={`${s.overview} ${vLocal.page}`} aria-label={t('money.sub.overview')} data-arrived={arrived ? '' : undefined}>
       <LayoutNotice layout={layout.data} reload={layout.reload} />
       {overview.error && <Failed error={overview.error} />}
       {books.error && <Failed error={books.error} />}
@@ -111,7 +113,7 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
       {emptyMonth && <EmptyState title={t('money.empty')} actions={[{ label: t('money.firstInvoice'), href: '#/money/invoices' }]} />}
       {!emptyMonth && <>
       {slot(0, () => (
-        <Bento className={`${s.glance} ${v.glanceRow}`}>
+        <Bento className={`${s.glance} ${vLocal.glanceRow}`}>
           <InvoicedTile billed={billed} goal={views.goal} month={month === thisMonth ? null : month} />
           <ReceivedTile line={month === thisMonth ? line('received') : undefined} books={books.data} chosen={month === thisMonth ? null : month} />
           <SpendTile line={line('spent')} split={views.split} />
@@ -119,14 +121,14 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
       ))}
       {/* Simple first (4J20): the headline tiles; owed with what the late ones owe, and cash ahead beside it. */}
       {slot(1, () => (
-        <Bento className={v.pairRow}>
+        <Bento className={vLocal.pairRow}>
           <OwedTile line={line('owed')} open={open} aging={views.aging} agingView={views.engine?.aging} span={5} />
           {ahead ? <CashAhead cash={cash} view={cashView} span={7} /> : next(7)}
         </Bento>
       ))}
       {/* One step away, closed: in and out by month, and what is due in the next three weeks. */}
       {anyFold ? (
-        <div className={v.more}>
+        <div className={vLocal.more}>
           {fold(2)}
           {fold(3)}
         </div>
@@ -163,7 +165,7 @@ function InvoicedTile({ billed, goal, month }: { billed: BooksFigureLite | undef
   return (
     <MoneyTile
       label={t('money.tile.invoiced')} icon="target" span={5}
-      aside={target && !month ? <span className={s.tilePill} data-pill="">{target.daysLeft}</span> : undefined}
+      aside={target && !month ? <span className={sLocal.tilePill} data-pill="">{target.daysLeft}</span> : undefined}
     >
       {data?.invoiced && (
         <div className={s.tileValue}>
@@ -185,18 +187,18 @@ function InvoicedTile({ billed, goal, month }: { billed: BooksFigureLite | undef
         </>
       )}
       {target && (
-        <p className={s.goalOf}>
+        <p className={sLocal.goalOf}>
           {t('today.goal.of')}
           <ProvedFigure value={target.goal.value} proof={{ receiptId: target.goal.receiptId! }} />
-          <span className={s.goalPercent}>{target.percent}</span>
+          <span className={sLocal.goalPercent}>{target.percent}</span>
         </p>
       )}
       {bar && <div className={s.tileChart}><GoalBar data={bar} tone="light" /></div>}
       {target && !month && (ready || pace || pastBy) && (
-        <p className={s.goalFoot} data-goal-foot="">
-          {ready && <span className={s.goalFootItem}><ProvedFigure value={ready.value} proof={{ receiptId: ready.receiptId }} />{t('money.goal.ready')}</span>}
-          {pace && <span className={s.goalFootItem}><ProvedFigure value={pace.display} proof={{ receiptId: pace.receiptId }} />{t(view?.pace === 'ahead' ? 'money.goal.ahead' : 'money.goal.behind')}</span>}
-          {pastBy && <span className={s.goalFootItem}>{t('today.goal.foot.past')}<ProvedFigure value={pastBy.display} proof={{ receiptId: pastBy.receiptId }} /></span>}
+        <p className={sLocal.goalFoot} data-goal-foot="">
+          {ready && <span className={sLocal.goalFootItem}><ProvedFigure value={ready.value} proof={{ receiptId: ready.receiptId }} />{t('money.goal.ready')}</span>}
+          {pace && <span className={sLocal.goalFootItem}><ProvedFigure value={pace.display} proof={{ receiptId: pace.receiptId }} />{t(view?.pace === 'ahead' ? 'money.goal.ahead' : 'money.goal.behind')}</span>}
+          {pastBy && <span className={sLocal.goalFootItem}>{t('today.goal.foot.past')}<ProvedFigure value={pastBy.display} proof={{ receiptId: pastBy.receiptId }} /></span>}
         </p>
       )}
       {/* One-shot C6 (SCREENS 94): the engine's line when every invoice of the month is paid, with its receipt; shown
@@ -232,7 +234,7 @@ function ReceivedTile({ line, books, chosen }: { line: MoneyOverviewLine | undef
       )}
       <p className={s.tileSub}>{chosen ? monthWords(chosen) : t('money.tile.thisMonth')}</p>
       {before && books?.previous && !(before.zero && books.figures.find(figure => figure.operation === 'received')?.zero) && (
-        <p className={v.before} data-previous="">
+        <p className={vLocal.before} data-previous="">
           <span>{monthWords(books.previous.month)}</span>
           <ProvedFigure value={before.display} proof={{ receiptId: before.receiptId }} />
         </p>
@@ -270,7 +272,7 @@ function SpendTile({ line, split }: { line: MoneyOverviewLine | undefined; split
       )}
       {/* The split by department (W4 4A2) only under the very figure it splits: the same receipt, whose sum its parts make. */}
       {!empty && split && line?.receiptId && split.proof.receiptId === line.receiptId && <div className={s.tileChart}><SplitBar data={split} /></div>}
-      <p className={s.tileFoot}>
+      <p className={sLocal.tileFoot}>
         <a className={s.more} href="#/money/spend">{t('money.spentEach')}</a>
         {!empty && line?.needsRate && <a className={s.more} href={SET_RATE_HREF}>{t('money.setRupeeRate')}</a>}
       </p>

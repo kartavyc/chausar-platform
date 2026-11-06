@@ -13,6 +13,7 @@ import { Tile, TileHead, type TileSpan } from '../../parts/Tile';
 import type { CashView } from '../../engine/types';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import vLocal from './NextWeeks.module.css';
 
 export function NextWeeks({ cash, span }: { cash: CashView; span: TileSpan }) {
   const t = useT();
@@ -23,18 +24,18 @@ export function NextWeeks({ cash, span }: { cash: CashView; span: TileSpan }) {
       <TileHead id={id} title={t('money.weeks.title')} meta={t('money.next.meta')} />
       {items.length === 0 && <p className={s.quietLine}>{t('money.weeks.none')}</p>}
       {items.length > 0 && (
-        <ul className={v.weekList}>
+        <ul className={vLocal.weekList}>
           {items.map((item) => (
-            <li key={`${item.on}:${item.line}`} className={v.weekItem} data-direction={item.direction}>
-              <span className={v.weekMark} aria-hidden="true">
+            <li key={`${item.on}:${item.line}`} className={vLocal.weekItem} data-direction={item.direction}>
+              <span className={vLocal.weekMark} aria-hidden="true">
                 <Icon name={item.direction === 'in' ? 'trending-up' : 'trending-down'} size={16} />
               </span>
-              <span className={v.weekText}>
-                <span className={v.weekLine}>{item.line}</span>
+              <span className={vLocal.weekText}>
+                <span className={vLocal.weekLine}>{item.line}</span>
                 {/* The amount under the words, so a narrow tile keeps the words whole (the figure carries its receipt). */}
-                <span className={v.weekSub}>
+                <span className={vLocal.weekSub}>
                   <span>{t(item.direction === 'in' ? 'money.weeks.in' : 'money.weeks.out')}</span>
-                  <span className={v.weekAmount}>
+                  <span className={vLocal.weekAmount}>
                     <Figure value={item.amount.display} receiptId={item.amount.receiptId} />
                     {/* A forecast says so, wherever the engine marks one. */}
                     {item.amount.projected && <span className={v.projected} data-projected="">{t('money.projected')}</span>}
@@ -46,7 +47,7 @@ export function NextWeeks({ cash, span }: { cash: CashView; span: TileSpan }) {
         </ul>
       )}
       {cash.usualCosts && (
-        <p className={v.usual}>
+        <p className={vLocal.usual}>
           {t('money.weeks.usual')}
           <Figure value={cash.usualCosts.display} receiptId={cash.usualCosts.receiptId} />
           {t('money.weeks.usualEach')}

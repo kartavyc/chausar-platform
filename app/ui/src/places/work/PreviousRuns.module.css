@@ -1,0 +1,22 @@
+.finished {
+  align-self: start;
+  min-width: 0;
+}
+
+/* C4 task 12: the client in a Finished row's line, a quiet link to their sheet. */
+.rowClient {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rowClient:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+/* C4 task 13: the draft sheet: the message as the client gets it, its checks, its actions. */
+.finishedRow {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--target);
+}

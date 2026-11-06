@@ -14,6 +14,7 @@ import { previousFailure } from './orders';
 import { superseded, useRunDetails } from './PreviousRuns';
 import { againRow, useRunAgain } from './RunAgain';
 import s from './Work.module.css';
+import sLocal from './StoppedRun.module.css';
 import { Fold } from '../../parts/Fold';
 
 /** A run the engine stopped (the owner, a breaker, a crash) and that waits for Resume; never a failed one. */
@@ -137,11 +138,11 @@ function StoppedRun({ run, detail, business, row, noRetry, onChanged, primary }:
   }
 
   return (
-    <Tile as="li" labelledBy={titleId} tone={red ? 'fail' : 'wait'} card className={s.stopTile}>
-      <div className={s.stopHead} ref={headRef}>
-        <span className={cx(s.stopMark, !red && s.stopMarkWait)} aria-hidden="true"><Icon name={red ? 'triangle-alert' : 'clock'} size={18} /></span>
-        <div className={s.stopWho}>
-          <h3 id={titleId} className={s.stopTitle}>
+    <Tile as="li" labelledBy={titleId} tone={red ? 'fail' : 'wait'} card className={sLocal.stopTile}>
+      <div className={sLocal.stopHead} ref={headRef}>
+        <span className={cx(sLocal.stopMark, !red && sLocal.stopMarkWait)} aria-hidden="true"><Icon name={red ? 'triangle-alert' : 'clock'} size={18} /></span>
+        <div className={sLocal.stopWho}>
+          <h3 id={titleId} className={sLocal.stopTitle}>
             <button
               type="button" className={s.titleButton} data-open=""
               onClick={(event) => { again.opened(); openSheet('run', run.runId, event.currentTarget); }}
@@ -149,23 +150,23 @@ function StoppedRun({ run, detail, business, row, noRetry, onChanged, primary }:
               {run.purpose}
             </button>
           </h3>
-          <p className={s.stopMeta}>{meta}</p>
+          <p className={sLocal.stopMeta}>{meta}</p>
         </div>
-        <Chip tone={red ? 'fail' : 'wait'} className={s.stopChip}>{chip}</Chip>
+        <Chip tone={red ? 'fail' : 'wait'} className={sLocal.stopChip}>{chip}</Chip>
       </div>
-      <div className={cx(s.why, !red && s.whyWait)}>
-        <p className={cx(s.whyLabel, !red && s.whyLabelWait)}>{whyLabel}</p>
-        <p className={s.whyText}>{why}</p>
+      <div className={cx(sLocal.why, !red && sLocal.whyWait)}>
+        <p className={cx(sLocal.whyLabel, !red && sLocal.whyLabelWait)}>{whyLabel}</p>
+        <p className={sLocal.whyText}>{why}</p>
         {technical && (
           <Fold summary={t('work.failedRun.details')} className={s.whyMore}>
-            <p className={s.whyTech}>{technical}</p>
+            <p className={sLocal.whyTech}>{technical}</p>
           </Fold>
         )}
       </div>
       {fix && fixOpen && (
-        <div id={fixId} className={s.fix}>
-          <p className={s.fixLabel}>{t('work.fix.button')}</p>
-          <p className={s.whyText}>{fix}</p>
+        <div id={fixId} className={sLocal.fix}>
+          <p className={sLocal.fixLabel}>{t('work.fix.button')}</p>
+          <p className={sLocal.whyText}>{fix}</p>
         </div>
       )}
       {steps.length > 0 && <Steps steps={steps} waitingWord={stopped ? t('work.stop.waitsResume') : undefined} errors={!plain} />}
@@ -223,7 +224,7 @@ export function StoppedRuns({ runs, names, deliveries, queue, onChanged, kind = 
   return (
     <section aria-labelledby={id} className={s.block}>
       <h2 id={id} className="sr-only">{t(kind === 'stopped' ? 'work.stop.heading' : 'work.failedRun.heading')}</h2>
-      <ul className={s.stoppedList}>
+      <ul className={sLocal.stoppedList}>
         {runs.map((run) => (
           <StoppedRun
             key={run.runId} run={run} detail={details[run.runId]} business={names.get(run.businessId)} row={againRow(queue, run.runId)}

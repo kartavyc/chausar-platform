@@ -1,0 +1,10 @@
+.payment {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: center;
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}

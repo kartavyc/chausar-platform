@@ -14,6 +14,7 @@ import { formatBytes, formatTime } from '../../../../../platform/shared/owner-fo
 import { LeftContext, StartedContext } from '../../shell/started';
 import { CopyImport } from '../onboarding/CopyImport';
 import s from './Business.module.css';
+import sLocal from './KeepMore.module.css';
 import { Fold } from '../../parts/Fold';
 import { Reveal } from '../../parts/RevealBlock';
 import { LoadingPlace } from '../../parts/Skeleton';
@@ -134,9 +135,9 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
   const list = (items: BackupLite[]) => (
       <ul className={s.list}>
         {items.map((backup) => (
-          <li key={backup.file} className={`${s.backupRow} ${motion.arrive}`} data-backup={backup.file} data-flip-id={backup.file} data-arriving={arrivals.has(backup.file) ? '' : undefined}>
+          <li key={backup.file} className={`${sLocal.backupRow} ${motion.arrive}`} data-backup={backup.file} data-flip-id={backup.file} data-arriving={arrivals.has(backup.file) ? '' : undefined}>
             <ConfirmSlot asking={asking === backup.file}>
-            <div className={s.backupLine}>
+            <div className={sLocal.backupLine}>
               <span className={s.strong}>{momentOf(backup.at, zone)}</span>
               {/* C4 task 36 (203.x1): each copy's size. Seam: C5 task 20 labels the copies, C6 tasks 1 and 2 their contents. */}
               <span className={s.quiet} data-bytes="">{formatBytes(backup.bytes)}</span>
@@ -156,7 +157,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
         ))}
       </ul>
   );
-  return <div ref={rows} className={s.backupList}>
+  return <div ref={rows} className={sLocal.backupList}>
     {list(backups.slice(0, 3))}
     {backups.length > 3 && <Fold summary={t('business.olderBackups', { count: backups.length - 3 })} className={s.fold}>{list(backups.slice(3))}</Fold>}
   </div>;
@@ -357,7 +358,7 @@ export function ExportCopy() {
   return (
     <Fold summary={t('business.export')} className={s.fold} id={EXPORT_FOLD}>
       <form className={s.form} onSubmit={(event) => void go(event)}>
-        <fieldset className={s.choices}>
+        <fieldset className={sLocal.choices}>
           <legend className="sr-only">{t('business.exportKind')}</legend>
           <label className={s.agree}>
             <input type="radio" name={name} checked={!readable} onChange={() => { setReadable(false); setSure(false); setProblem(null); setSaved(null); }} />
@@ -479,7 +480,7 @@ export function DeletedNote({ result }: { result: Deleted }) {
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
   return (
-    <section className={s.deletedNote} aria-label={t('business.deleted')}>
+    <section className={sLocal.deletedNote} aria-label={t('business.deleted')}>
       <h2 ref={heading} tabIndex={-1} className={s.name}>{t('business.deleted')}</h2>
       {/* C4 task 37 (211.x1, 212.x1): what went, by name and count. */}
       {result.name && <p className={s.line}>{t(result.backupsRemoved === 1 ? 'business.deletedNamed.one' : 'business.deletedNamed', { name: result.name, count: String(result.backupsRemoved ?? 0) })}</p>}
@@ -487,7 +488,7 @@ export function DeletedNote({ result }: { result: Deleted }) {
       {kept.length > 0 && (
         <>
           <p className={s.line}>{t('business.deletedKept')}</p>
-          <ul className={s.kept}>
+          <ul className={sLocal.kept}>
             {kept.map((copy) => (
               <li key={copy.path}>
                 <span className={s.said} data-content="">{copy.name}</span>

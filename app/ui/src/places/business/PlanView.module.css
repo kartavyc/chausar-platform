@@ -1,0 +1,103 @@
+.column {
+  display: grid;
+  align-content: start;
+  gap: var(--gap-grid);
+  min-width: 0;
+}
+
+/* ---- Words ---- */
+
+.kind {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.link {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--link);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.link:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* ---- Steps and lists ---- */
+
+/* The playbook's steps, numbered by the list (the number is drawn, so each item's words stay as they are). */
+.flow {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: flow;
+}
+
+.flowStep {
+  position: relative;
+  min-height: calc(var(--av-28) + var(--sp-6));
+  padding: var(--sp-3) 0 var(--sp-3) calc(var(--av-28) + var(--sp-3));
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-body);
+  line-height: 1.45;
+  color: var(--fg);
+  counter-increment: flow;
+}
+
+.flowStep:first-child {
+  border-top: 0;
+}
+
+.flowStep::before {
+  content: counter(flow);
+  position: absolute;
+  top: var(--sp-3);
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: var(--av-28);
+  height: var(--av-28);
+  border-radius: var(--r-chip);
+  background: var(--wash);
+  color: var(--fg2);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* What the owner approves: each line with a tick. */
+.checks {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.checks li {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+}
+
+.tick {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-24);
+  height: var(--av-24);
+  border-radius: var(--r-chip);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}

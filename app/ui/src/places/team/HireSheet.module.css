@@ -1,0 +1,22 @@
+.hireReads {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-read);
+}
+
+.hireSelect {
+  display: grid;
+  gap: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.hireHead {
+  margin: 0;
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}

@@ -1,0 +1,64 @@
+/* The rows at the end of Keep: each a hairline row, a fold whose summary is the way in or one quiet action. */
+.more {
+  display: grid;
+}
+
+.more > * {
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.more > :first-child {
+  border-top: 0;
+}
+
+/* Where this business's key is kept: the first tile on Keep. */
+.where {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+}
+
+.whereIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-40);
+  height: var(--av-40);
+  border-radius: var(--r-card);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.whereText {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+/* ---- Keep this business ---- */
+
+.code {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  font-size: var(--text-row);
+  color: var(--fg);
+}
+
+/* C4 task 35: the recovery code print view: only this prints; on screen it is not drawn. */
+.printView {
+  display: none;
+}
+
+@media print {
+  :global(body) > *:not(.printView) {
+    display: none !important;
+  }
+
+  .printView {
+    display: grid;
+    gap: var(--sp-3);
+    padding: var(--sp-6);
+  }
+}

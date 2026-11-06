@@ -1,0 +1,28 @@
+/* The small Stop dialog under the tile's foot (or a row): the question, its line, Not now, Force stop and Stop. */
+.stopDialog {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
+}
+
+.stopDialogTitle {
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.stopDialogLine {
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.stopDialogActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}

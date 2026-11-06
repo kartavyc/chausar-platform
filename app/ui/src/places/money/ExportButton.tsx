@@ -21,6 +21,7 @@ import { Select } from '../../parts/Select';
 import { Icon } from '../../parts/Icon';
 import { useMonthWords } from './words';
 import v from './MoneyViews.module.css';
+import vLocal from './ExportButton.module.css';
 
 type Said = { text: string; problem: boolean; id?: string | undefined };
 
@@ -76,7 +77,7 @@ export function ExportButton({ month }: { month: string }) {
   }
 
   return (
-    <span className={v.export}>
+    <span className={vLocal.export}>
       <Select className={v.monthSelect} aria-label={t('money.export.format')} value={format} disabled={busy} onChange={(event) => setPicked(event.currentTarget.value as MoneyExportFormat)}>
         <option value="csv">{t('money.export.csv')}</option>
         <option value="tally-xml">{t('money.export.tally')}</option>
@@ -88,7 +89,7 @@ export function ExportButton({ month }: { month: string }) {
         <span className="sr-only">{t('money.export.month', { month: monthWords(month) })}</span>
       </Button>
       {receipts && <Button size="sm" variant="quiet" onClick={() => download(receipts.name, receipts.text, 'application/json')}>{t('money.export.receipts')}</Button>}
-      {said && <span className={said.problem ? v.exportProblem : v.exportSaid} role="status" data-engine-line={said.problem ? '' : undefined}>{said.text}</span>}
+      {said && <span className={said.problem ? vLocal.exportProblem : vLocal.exportSaid} role="status" data-engine-line={said.problem ? '' : undefined}>{said.text}</span>}
       {said?.id && engine.showSavedExport && <Button size="sm" variant="quiet" onClick={() => { void engine.showSavedExport!(said.id!).catch((error: unknown) => setSaid({ text: t('money.export.failed', { message: messageOf(error) }), problem: true })); }}>{t('money.export.show')}</Button>}
     </span>
   );

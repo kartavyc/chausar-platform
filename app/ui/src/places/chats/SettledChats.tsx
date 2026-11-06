@@ -15,6 +15,7 @@ import { Button } from '../../parts/Button';
 import { TileSection } from '../business/shared';
 import { ChangeNotice } from './ChangeNotice';
 import s from './Chats.module.css';
+import sLocal from './SettledChats.module.css';
 import { Select } from '../../parts/Select';
 
 /** The quiet-day choices; the owner's own number, when it is another, is offered too. */
@@ -70,9 +71,9 @@ export function SettledChats() {
     <>
       <TileSection title={t('chats.archive.list')}>
         {days !== null && (
-          <div className={s.choice}>
-            <label className={s.choiceLabel} htmlFor={daysId}>{t('chats.archive.after')}</label>
-            <Select id={daysId} className={s.choiceSelect} value={String(days)} disabled={busy}
+          <div className={sLocal.choice}>
+            <label className={sLocal.choiceLabel} htmlFor={daysId}>{t('chats.archive.after')}</label>
+            <Select id={daysId} className={sLocal.choiceSelect} value={String(days)} disabled={busy}
               onChange={(event) => { const next = Number(event.currentTarget.value); void run(() => daysChange(next)); }}>
               {choices.map((count) => <option key={count} value={String(count)}>{t('chats.archive.days', { count })}</option>)}
               <option value="0">{t('chats.archive.never')}</option>
@@ -85,11 +86,11 @@ export function SettledChats() {
         {threads.error && !threads.data && <p className={s.problem} role="alert">{t('chats.failed', { message: threads.error.message })}</p>}
         {threads.data && settled.length === 0 && <p className={s.quiet}>{t('chats.archive.none')}</p>}
         {settled.length > 0 && (
-          <ul className={s.archive} aria-label={t('chats.archive.list')}>
+          <ul className={sLocal.archive} aria-label={t('chats.archive.list')}>
             {settled.map((thread) => (
-              <li key={thread.id} className={s.archiveRow}>
-                <span className={s.archiveText}>
-                  <a className={s.archiveTitle} href={`#/chats?thread=${encodeURIComponent(thread.id)}`} data-content="">{thread.title}</a>
+              <li key={thread.id} className={sLocal.archiveRow}>
+                <span className={sLocal.archiveText}>
+                  <a className={sLocal.archiveTitle} href={`#/chats?thread=${encodeURIComponent(thread.id)}`} data-content="">{thread.title}</a>
                   <span className={s.quiet}>{why(thread)}</span>
                 </span>
                 <Button size="sm" disabled={busy} onClick={() => void run(() => stateChange({ threadId: thread.id, state: 'active' }))}>{t('chats.archive.reopen')}</Button>

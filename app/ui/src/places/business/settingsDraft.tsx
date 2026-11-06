@@ -4,6 +4,7 @@ import { useTime } from '../../parts/when';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import b from './Business.module.css';
+import bLocal from './settingsDraft.module.css';
 
 /** How long typing rests before the unsent edits are kept. */
 const REST_MS = 700;
@@ -71,7 +72,7 @@ export function DraftRecover<V>({ offer, onRecover, onDecline }: { offer: DraftO
   const id = useId();
   const time = useTime();
   return (
-    <div className={b.draftOffer} role="group" aria-labelledby={id} data-draft-offer="">
+    <div className={bLocal.draftOffer} role="group" aria-labelledby={id} data-draft-offer="">
       <p id={id} className={b.line}>{t('business.owner.recover', { time: time(offer.at) })}</p>
       <span className={b.buttons}>
         <Button size="sm" onClick={() => onRecover(offer.values)}>{t('business.owner.recoverGo')}</Button>

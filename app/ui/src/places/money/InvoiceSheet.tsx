@@ -29,6 +29,7 @@ import { BillPart, HowToPay } from './InvoicePay';
 import { ThankYou } from './ThankYou';
 import { onMoney, statusOf, useDay } from './words';
 import s from './Money.module.css';
+import sLocal from './InvoiceSheet.module.css';
 import { Fold } from '../../parts/Fold';
 
 type Notice = { kind: 'done' | 'stale' | 'refused'; text: string; receiptId?: string | undefined };
@@ -122,15 +123,15 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       {/* The figures, the receipt that priced them and each payment's books receipt: every amount here is explained by
           the receipts beside it (one data-figure-group). */}
       <div className={s.sheetCard} data-figure-group="">
-        <dl className={s.sheetFigures}>
+        <dl className={sLocal.sheetFigures}>
           {shownFigures.map((figure) => (
-            <div key={figure.key} className={s.sheetFigure} data-key={figure.key}>
+            <div key={figure.key} className={sLocal.sheetFigure} data-key={figure.key}>
               <dt>{figure.label}</dt>
               <dd data-num="">{figure.display}</dd>
             </div>
           ))}
         </dl>
-        {restFigures.length > 0 && <Fold summary={t('money.invoice.details')}><dl className={s.sheetFigures}>{restFigures.map(figure => <div key={figure.key} className={s.sheetFigure}><dt>{figure.label}</dt><dd data-num>{figure.display}</dd></div>)}</dl></Fold>}
+        {restFigures.length > 0 && <Fold summary={t('money.invoice.details')}><dl className={sLocal.sheetFigures}>{restFigures.map(figure => <div key={figure.key} className={sLocal.sheetFigure}><dt>{figure.label}</dt><dd data-num>{figure.display}</dd></div>)}</dl></Fold>}
         <p className={s.sheetLine}>
           <span className={s.figureLabel}>{t('money.invoice.priced')}</span>
           {/* 4Z3: the mark named for the total the price receipt proves, when the engine sent it. */}
@@ -163,7 +164,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       <Fold summary={t('money.invoice.more')}><Credits view={current} /><Timeline view={current} /></Fold>
       <Fold open summary={t('money.invoice.document')} className={`${s.fold} ${s.block}`}>
         {/* The invoice as the client gets it, quoted as written; its figures are the ones above, with their receipts. */}
-        <pre className={s.pre} data-content="">{current.documentText}</pre>
+        <pre className={sLocal.pre} data-content="">{current.documentText}</pre>
       </Fold>
       {/* Issued and changed-since are this screen's own words; only a refusal carries the engine's, which may name an
           amount. */}

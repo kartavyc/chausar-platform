@@ -1,0 +1,34 @@
+.health {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.healthLine {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.healthReason {
+  vertical-align: middle;
+}
+
+.healthAsk {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.healthQuestion {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.healthButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}

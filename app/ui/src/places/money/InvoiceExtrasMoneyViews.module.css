@@ -1,0 +1,65 @@
+/* The invoice sheet's extras. */
+.nextStep {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.banner {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--hair) solid var(--wait);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.tds {
+  flex-basis: 100%;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.credit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  padding-block: var(--sp-2);
+  font-size: var(--text-read);
+}
+
+.creditState {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timelineItem {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding-block: var(--sp-2);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.timelineItem:first-child {
+  border-top: 0;
+}

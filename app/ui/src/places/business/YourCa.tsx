@@ -11,6 +11,7 @@ import { Receipt } from '../../parts/Receipt';
 import type { CaLatestPapers, CaOfRecord, CaPendingRate, CaReceiptView, CaSignoffRequest } from '../../engine/types';
 import { TileSection, dayOf } from './shared';
 import s from './Business.module.css';
+import sLocal from './YourCa.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
 
@@ -193,7 +194,7 @@ function OfRecord({ ca, onSaved }: { ca: CaOfRecord | null; onSaved: () => void 
         </>
       ) : changing ? form : (
         <>
-          <div className={s.who}>
+          <div className={sLocal.who}>
             <Avatar name={ca.name} size={40} />
             <div>
               <p className={s.strong}>{ca.name}</p>
@@ -279,7 +280,7 @@ function RateTables({ rates, onConfirmed }: { rates: CaPendingRate[]; onConfirme
               </li>
             ))}
           </ul>
-          <div className={s.inlineForm}>
+          <div className={sLocal.inlineForm}>
             <Field label={t('business.ca.caNumber')} value={number} inputMode="numeric" maxLength={6} autoComplete="off" spellCheck={false} onChange={(event) => setNumber(event.currentTarget.value)} />
             <Button type="submit" disabled={busy}>{t('business.ca.confirm')}</Button>
           </div>
