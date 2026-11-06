@@ -6,15 +6,14 @@
  * rehearsal business has started, has its plan and its AI, and has earned nothing yet.
  */
 
-import { diagnosticsLine } from '../../../../platform/runtime/venture/views/diagnostics-core';
+import { diagnosticsLine } from '../../../../platform/shared/venture/views/diagnostics-core.ts';
 import { EngineError } from './types';
 import type { FeedbackCrashKept, FeedbackView } from './types';
 import type { W4DeskHost } from './fake-w4';
-import { REPORT_ANSWERS, REPORT_MILESTONES, type ReportMilestone } from '../../../../platform/runtime/venture/core/telemetry';
-import {
-  ANSWER_LABELS, CRASH_QUEUE_LIMIT, CRASH_SOURCES, FEEDBACK_NOTICE_DIGEST, FEEDBACK_NOTICE_TEXT, FEEDBACK_WORDS, QUESTION_MILESTONES, QUESTION_TEXT,
-  feedbackPreview, keptCrash, type CrashSource, type KeptCrash,
-} from '../../../../platform/runtime/venture/core/feedback-core';
+import { REPORT_ANSWERS, REPORT_MILESTONES } from '../../../../platform/shared/venture/core/telemetry.ts';
+import type { ReportMilestone } from '../../../../platform/runtime/venture/core/telemetry.ts';
+import { ANSWER_LABELS, CRASH_QUEUE_LIMIT, CRASH_SOURCES, FEEDBACK_NOTICE_DIGEST, FEEDBACK_NOTICE_TEXT, FEEDBACK_WORDS, QUESTION_MILESTONES, QUESTION_TEXT, feedbackPreview, keptCrash } from '../../../../platform/shared/venture/core/feedback-core.ts';
+import type { CrashSource, KeptCrash } from '../../../../platform/runtime/venture/core/feedback-core.ts';
 
 const METHODS = new Set(['venture.diagnostics.today', 'venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete']);
 /** The milestones the rehearsal business has reached. */

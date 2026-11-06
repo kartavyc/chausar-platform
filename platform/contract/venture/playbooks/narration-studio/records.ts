@@ -1,0 +1,13 @@
+// Canonical browser-safe types, shared by the engine and renderer.
+import type { NarrationDestination } from '../../../../shared/venture/playbooks/narration-studio/master-core.ts';
+import type { NarrationTextSegment } from '../../../../shared/venture/playbooks/narration-studio/markup.ts';
+import type { NarrationVerification } from '../../../../shared/venture/playbooks/narration-studio/segments.ts';
+import type { NarrationMeasurements } from '../../../../shared/venture/playbooks/narration-studio/master-core.ts';
+
+export type NarrationQuote={spend:{micros:string;figure:string;rateDigest:string;source:string;checkedOn:string;confirmed:boolean};provider:string;voice:string;chars:number;micros:string;figure:string;price:{microsPerMillionChars:string;checkedOn:string;source:string};textDigest:string};
+
+export type NarrationSegmentBody={orderId:string;clientId:string;sourceDigest:string;fileId:string;destination:NarrationDestination;sequence:number;segment:NarrationTextSegment;explainer:{url:string;quote:{start:number;end:number;text:string}}|null;pending:{quote:NarrationQuote;keyVersion:string;binding:string;expiresAt:string}|null;attempts:NarrationAttempt[];verification:NarrationVerification|null;measurements:NarrationMeasurements|null;masterFileId:string|null;masterDigest:string|null;exportApproval:string|null;aiRequest:{preview:NarrationPreview;binding:string}|null;aiCallIds:string[];reel:{name:string;bytes:number;digest:string;contentBase64:string}|null};
+
+export type NarrationAttempt={id:string;keyVersion:string;phase:'sending'|'made'|'unknown';quote:NarrationQuote;audioFileId:string|null;audioDigest:string|null;failure:string|null};
+
+export type NarrationPreview={clientAi?:import('../../../../shared/venture/clients/ai-consent-core.ts').ClientAiContextBinding;callId:string;payloadText:string;digest:string;presetId:string;model:string|null;endpoint:string;estimatedMaxCostMicros:string;estimatedMaxCostDisplay:string;payer?:string};

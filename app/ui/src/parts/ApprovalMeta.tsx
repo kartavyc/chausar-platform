@@ -6,7 +6,7 @@ import { Count, Figure } from './Figure';
 import { Icon } from './Icon';
 import type { IconName } from './icons';
 import s from './ApprovalMeta.module.css';
-import { formatCount, HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
+import { formatCount, HOLDS_MONEY } from '../../../../platform/shared/owner-format.ts';
 import { Fold } from './Fold';
 
 /**

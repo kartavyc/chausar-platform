@@ -12,10 +12,10 @@
  * fake has none. Run again starts a new run id, as the engine does. Away is a list built from records; Chausar sends nothing.
  */
 
-import { formatDay, formatMoney } from '../../../../platform/runtime/owner-format';
+import { formatDay, formatMoney } from '../../../../platform/shared/owner-format.ts';
 import { EngineError, type AwayView, type BillView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail } from './types';
 import type { W4DeskHost } from './fake-w4';
-import {redactSecrets,screenReadback} from '../../../../platform/runtime/venture/core/secrets';
+import { redactSecrets, screenReadback } from '../../../../platform/shared/venture/core/secrets.ts';
 
 export const FAKE_4F3_METHODS: readonly string[] = [
   'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set', 'venture.away.get', 'venture.away.preview',

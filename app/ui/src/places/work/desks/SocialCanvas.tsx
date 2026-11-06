@@ -7,7 +7,7 @@ import { Tile, TileHead } from '../../../parts/Tile';
 import { Button } from '../../../parts/Button';
 import { Figure } from '../../../parts/Figure';
 import { Field } from '../../../parts/Field';
-import type { SocialCanvasView, CanvasPost } from '../../../../../../platform/runtime/venture/playbooks/social/canvas';
+import type { SocialCanvasView, CanvasPost } from '../../../../../../platform/runtime/venture/playbooks/social/canvas.ts';
 import type { RevisionQuote } from '../../../../../../platform/runtime/venture/playbooks/social/revision-types';
 import s from './SocialCanvas.module.css';
 import { Select } from '../../../parts/Select';

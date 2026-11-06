@@ -1,3 +1,5 @@
+import type { State, Member, Role, TrustPolicy, Fact } from '../contract/contracts.ts';
+export type { State, Member, Role, TrustPolicy, Fact } from '../contract/contracts.ts';
 import { runClock, runIdentity } from './venture/replay/scope.ts';
 import { randomUUID } from 'node:crypto';
 import {ChausarError,check,hash} from './portable.ts';
@@ -16,17 +18,12 @@ export function minor(value: string | number): string {
 }
 // One-shot B2: an amount in minor units in the owner form ("₹2,000", "$5,000"), the same as owner-format.ts formatMoney.
 export const money = (value: string | bigint, currency = 'INR') => formatMoney(value, currency);
-export type Role = 'owner' | 'cofounder' | 'accountant' | 'viewer';
+
 export type Context = { memberId: string; role: Role; epoch: number; channel?: 'desktop' | 'web' | 'phone' | 'mcp'; sourceTainted?: boolean };
-export type TrustPolicy = { send: 'nothing' | 'shape' | 'samples'; autonomy: boolean; allowedSources: string[]; retentionDays: number; sharing: boolean };
-export type Member = { id: string; name: string; role: Role; active: boolean; epoch: number; branches: string[] };
-export type Fact = { id: string; entityId: string; sourceId: string; sourceRow: number; kind: string; validFrom: string; validTo: string | null; learnedAt: string; supersededAt: string | null; fields: Record<string, unknown>; deletedAt?: string; branch?: string };
-export type State = {
-  schemaVersion: number; revision: number; workspace: { id: string; name: string; currency: string; demo: boolean; createdAt: string };
-  members: Member[]; policy: TrustPolicy; ontology: any; facts: Fact[]; imports: any[]; receipts: any[]; answers: any[]; decisions: any[];
-  actions: any[]; jobs: any[]; learning: any[]; plugins: any[]; modelReceipts: any[]; activity: any[]; conflicts: any[]; merges: any[]; tombstones: any[];
-  conversations: any[]; routes: any[]; sessions: any[]; unsupported: any[]; schedules: any[]; sourceRules: any[];
-};
+
+
+
+
 export interface StateStore {
   read(): State;
   update<T>(change: (state: State) => T | Promise<T>): Promise<T>;

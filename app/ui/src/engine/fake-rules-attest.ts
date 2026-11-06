@@ -4,16 +4,17 @@
 // bound to the rule's words. The rules, the digest, the words and the hard stops come from the engine's own pure modules
 // (the eight attestation playbooks' rule registers only), and the browser parity test holds them equal to the engine.
 import { EngineError, type RuleLocksLite } from './types';
-import { type AttestableRule, ATTESTATION_PLAYBOOKS, ATTEST_WORDS, LOCKED_ELSEWHERE, LOCKED_ELSEWHERE_LINE, NOT_ATTESTABLE_WORDS, ruleDigest, ruleIsLocked } from '../../../../platform/runtime/venture/playbooks/kit/attestation';
-import { HARD_STOPS, HARD_STOP_WORDS } from '../../../../platform/runtime/venture/policy/hard-stops';
-import { SUPPORT_RULES } from '../../../../platform/runtime/venture/playbooks/support-desk/rules';
-import { LEAD_RULES } from '../../../../platform/runtime/venture/playbooks/lead-generation/rules';
-import { RECRUITING_RULES } from '../../../../platform/runtime/venture/playbooks/recruiting-desk/rules';
-import { CAREER_PRIVACY_RULE } from '../../../../platform/runtime/venture/playbooks/job-search-desk/metadata-core';
-import { NEWSLETTER_PRIVACY_RULE, NEWSLETTER_SPONSOR_RULE, NEWSLETTER_US_RULE } from '../../../../platform/runtime/venture/playbooks/newsletter-studio/legal-core';
-import { NARRATION_RULES } from '../../../../platform/runtime/venture/playbooks/narration-studio/rules';
-import { FORMS_ACCESS_RULE } from '../../../../platform/runtime/venture/playbooks/data-entry-desk/rules';
-import { APP_TESTING_RULES } from '../../../../platform/runtime/venture/playbooks/app-testing/rules';
+import type { AttestableRule } from '../../../../platform/runtime/venture/playbooks/kit/attestation.ts';
+import { ATTESTATION_PLAYBOOKS, ATTEST_WORDS, LOCKED_ELSEWHERE, LOCKED_ELSEWHERE_LINE, NOT_ATTESTABLE_WORDS, ruleDigest, ruleIsLocked } from '../../../../platform/shared/venture/playbooks/kit/attestation.ts';
+import { HARD_STOPS, HARD_STOP_WORDS } from '../../../../platform/shared/venture/policy/hard-stops.ts';
+import { SUPPORT_RULES } from '../../../../platform/shared/venture/playbooks/support-desk/rules.ts';
+import { LEAD_RULES } from '../../../../platform/shared/venture/playbooks/lead-generation/rules.ts';
+import { RECRUITING_RULES } from '../../../../platform/shared/venture/playbooks/recruiting-desk/rules.ts';
+import { CAREER_PRIVACY_RULE } from '../../../../platform/shared/venture/playbooks/job-search-desk/metadata-core.ts';
+import { NEWSLETTER_PRIVACY_RULE, NEWSLETTER_SPONSOR_RULE, NEWSLETTER_US_RULE } from '../../../../platform/shared/venture/playbooks/newsletter-studio/legal-core.ts';
+import { NARRATION_RULES } from '../../../../platform/shared/venture/playbooks/narration-studio/rules.ts';
+import { FORMS_ACCESS_RULE } from '../../../../platform/shared/venture/playbooks/data-entry-desk/rules.ts';
+import { APP_TESTING_RULES } from '../../../../platform/shared/venture/playbooks/app-testing/rules.ts';
 
 type Rule = AttestableRule & { sources: readonly { title: string; url: string }[] };
 const locked = (rules: readonly unknown[]): readonly Rule[] => (rules as readonly Rule[]).filter(ruleIsLocked);

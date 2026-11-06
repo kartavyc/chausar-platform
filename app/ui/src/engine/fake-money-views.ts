@@ -16,12 +16,12 @@
  * figure, where the engine's calculator works earned out from the books.
  */
 
-import { formatMoney } from '../../../../platform/runtime/owner-format';
+import { formatMoney } from '../../../../platform/shared/owner-format.ts';
 import { EngineError, type AgingBucketId, type AgingView, type BooksFigureLite, type BooksSummaryLite, type CashView, type FlowView, type KindedFigure, type MarginsView, type MoneyExportFile, type ReceiptLite, type SpendPolicyView, type TotalBasis } from './types';
 import { inr, type MoneyLedger } from './fake-money';
-import { currencyMinorDigits } from '../../../../platform/runtime/currency';
-import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
-import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { currencyMinorDigits } from '../../../../platform/shared/currency.ts';
+import { COUNTRY_TIME_ZONES } from '../../../../platform/shared/venture/local-day-data.ts';
+import { countryProfile } from '../../../../platform/shared/venture/core/countries.ts';
 import type { VentureViewLite } from './types';
 import { dayMonthYear } from './fake-bank';
 import { SPEND } from './fixtures';

@@ -4,7 +4,7 @@ import {useT} from '../../../text';
 import {Tile,TileHead} from '../../../parts/Tile';
 import {Button} from '../../../parts/Button';
 import {Figure} from '../../../parts/Figure';
-import type {InfluencerCaseCreator} from '../../../../../../platform/runtime/venture/playbooks/social/influencer-case';
+import type { InfluencerCaseCreator } from '../../../../../../platform/runtime/venture/playbooks/social/influencer-case.ts';
 import {InfluencerInput,InfluencerSelect,type InfluencerAct} from './influencer-ui';
 import s from './SocialCanvas.module.css';
 import { Fold } from '../../../parts/Fold';

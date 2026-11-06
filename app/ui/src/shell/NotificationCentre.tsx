@@ -10,7 +10,7 @@ import { useId, useState } from 'react';
 import { useT } from '../text';
 import { useOwnerZone } from './clock';
 import { useDayKey, useLocalToday } from '../parts/when';
-import { formatMoment } from '../../../../platform/runtime/owner-format';
+import { formatMoment } from '../../../../platform/shared/owner-format.ts';
 import { useEngine } from '../engine/context';
 import { Button } from '../parts/Button';
 import { Chip } from '../parts/Chip';

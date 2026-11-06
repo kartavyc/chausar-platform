@@ -1,3 +1,5 @@
+import type { AgentDriverSettings } from '../../../contract/venture/agent-runtime/driver-types.ts';
+export type { AgentDriverSettings } from '../../../contract/venture/agent-runtime/driver-types.ts';
 /** Trusted host contracts. Credentials and MCP capabilities are ephemeral, never saved settings. */
 // W6 6H3 (D40): the five UI tools (ui-tools.ts UI_TOOL_NAMES) joined the pinned list deliberately. Codex refuses a server
 // whose tools differ from this list and Claude Code may call only these, so every job's toolbox carries them.
@@ -8,12 +10,7 @@ export type AgentJobScope = {
   agentId: string; memberId: string; epoch: number; consentId: string; consentRevision: number; generation: number;
 };
 
-export type AgentDriverSettings = {
-  model: string; effort: 'low' | 'medium' | 'high' | 'max'; autoReview: boolean;
-  webSearch: boolean; network: boolean; shell: boolean; fallbackModel?: string;
-  /** W6 6F5 (D34): the owner turned on the tool's own Gmail connection. Used only with a plan login, never with a key. */
-  connectors?: boolean;
-};
+
 export type AgentMcpConnection = { name: string; command: string; args: string[]; env: Record<string, string> };
 export type AgentDriverCredentials = { apiKey: string; baseUrl?: string };
 export type AgentUsage = {

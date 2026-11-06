@@ -2,7 +2,7 @@ import { useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useClock, useOwnerZone } from '../../shell/clock';
 import { instantIn } from '../../parts/when';
-import { dayKeyIn, dayKeyPlus } from '../../../../../platform/runtime/owner-format';
+import { dayKeyIn, dayKeyPlus } from '../../../../../platform/shared/owner-format.ts';
 import { Button } from '../../parts/Button';
 import s from './Chats.module.css';
 

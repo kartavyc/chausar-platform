@@ -126,7 +126,7 @@ export async function filesTranscribeHandler(deps: VentureDeps, ctx: Context, pa
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
   const cutFile = order.intake?.cutFile ?? null;
   check(cutFile, 'INVALID_VENTURE_REQUEST', 'This order names no finished cut on this computer. Add the transcript as an SRT or VTT file instead.');
-  const problem = localPathProblem(cutFile);
+  const problem = localPathProblem(cutFile, process.platform);
   check(!problem, 'INVALID_VENTURE_REQUEST', `The cut: ${problem}`);
   const ofOrder =(uploads: readonly UploadRecord[]) => uploads.filter(upload => upload.scope.kind === 'order' && upload.scope.orderId === orderId);
   roomForTranscript(ofOrder(listRecords(state, 'venture-upload', venture.id)));

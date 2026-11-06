@@ -2,8 +2,9 @@
 import {EngineError} from './types';
 import type {FakeDeskKind,FakeForgottenPerson} from './fake-playbooks';
 import type {W4DeskHost} from './fake-w4';
-import {d3Object,check} from '../../../../platform/runtime/venture/playbooks/social/d3-core';
-import {openConnectionInput,openSetup,openWebhook,type OpenPlatform,type OpenPostingAccount,type OpenAccountView} from '../../../../platform/runtime/venture/build/open-posting-core';
+import { d3Object, check } from '../../../../platform/shared/venture/playbooks/social/d3-core.ts';
+import { openConnectionInput, openSetup, openWebhook } from '../../../../platform/shared/venture/build/open-posting-core.ts';
+import type { OpenPlatform, OpenPostingAccount, OpenAccountView } from '../../../../platform/runtime/venture/build/open-posting-core.ts';
 const platforms=['bluesky','mastodon','telegram','discord'] as const;
 type Row={account:OpenPostingAccount;active:boolean;revision:number};
 export function fakeOpenPosting(host:W4DeskHost):FakeDeskKind&{endSession():void;forgetPeople(people:readonly FakeForgottenPerson[],erase:boolean):void}{

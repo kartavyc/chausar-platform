@@ -3,8 +3,9 @@ import { EngineError } from './types';
 import type { FakeDeskKind } from './fake-playbooks';
 import type { W4DeskHost } from './fake-w4';
 import { fakeCheckedFetchUrl } from './fake-kit-connect';
-import { localPathProblem } from '../../../../platform/runtime/local-paths';
-import { checkedMonitorPlan, type SeoMonitorItem } from '../../../../platform/runtime/venture/playbooks/seo-visibility/monitor-core';
+import { localPathProblem } from '../../../../platform/shared/local-paths.ts';
+import { checkedMonitorPlan } from '../../../../platform/shared/venture/playbooks/seo-visibility/monitor-core.ts';
+import type { SeoMonitorItem } from '../../../../platform/runtime/venture/playbooks/seo-visibility/monitor-core.ts';
 const need = (ok: unknown, code: string, words: string): void => { if (!ok)
     throw new EngineError(code, words); };
 const exact = (raw: unknown, keys: string[], required = keys) => { need(raw && typeof raw === 'object' && !Array.isArray(raw), 'INVALID_VENTURE_REQUEST', 'Send one request object.'); const p = raw as Record<string, unknown>; need(Object.keys(p).every(key => keys.includes(key)) && required.every(key => Object.hasOwn(p, key)), 'INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.'); return p; };

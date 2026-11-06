@@ -190,7 +190,7 @@ test('the worker starts with a minimal environment and Node\'s permission model:
     const { options } = seen[0];
     assert.deepEqual(Object.keys(options.env).sort(), ['ELECTRON_RUN_AS_NODE', 'SystemRoot'], 'no NODE_OPTIONS, PATH or secrets reach the worker');
     const runtime = join(WORKER, '..', '..', '..');
-    assert.deepEqual(options.execArgv, ['--experimental-strip-types', '--permission', `--allow-fs-read=${runtime}`, `--allow-fs-read=${path}`]);
+    assert.deepEqual(options.execArgv, ['--experimental-strip-types', '--permission', `--allow-fs-read=${runtime}`, `--allow-fs-read=${join(runtime, '..', 'shared')}`, `--allow-fs-read=${path}`]);
     assert.deepEqual(fake.sent, [{ path, kind: 'mail-headers', ownerAddresses: OWNER, maxSourceBytes: files.MAX_SOURCE_BYTES['mail-headers'], maxSendBytes: files.MAX_SEND_BYTES }]);
   });
   await withFile(MBOX, 'real.mbox', async path => {
@@ -198,7 +198,7 @@ test('the worker starts with a minimal environment and Node\'s permission model:
       const real = await picker(path).pick({ kind: 'mail-headers', ownerAddresses: OWNER });
       assert.equal(real.ok, true, 'the permissions given are enough to read the picked file');
       const { fork } = require('node:child_process');
-      const child = fork(WORKER, [], { execArgv: ['--experimental-strip-types', '--permission', `--allow-fs-read=${join(WORKER, '..', '..', '..')}`, `--allow-fs-read=${path}`], stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'json', env: { ELECTRON_RUN_AS_NODE: '1', SystemRoot: process.env.SystemRoot ?? '' } });
+      const child = fork(WORKER, [], { execArgv: ['--experimental-strip-types', '--permission', `--allow-fs-read=${join(WORKER, '..', '..', '..')}`, `--allow-fs-read=${join(WORKER, '..', '..', '..', '..', 'shared')}`, `--allow-fs-read=${path}`], stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'json', env: { ELECTRON_RUN_AS_NODE: '1', SystemRoot: process.env.SystemRoot ?? '' } });
       const answer: any = await new Promise(resolve => { child.once('message', resolve); child.send({ path: other, kind: 'contacts-csv' }); });
       assert.deepEqual([answer.ok, answer.error.code], [false, 'NETWORK_FILE_INVALID']);
       assert.match(answer.error.message, /may read only the file you picked/);

@@ -11,7 +11,7 @@ import type { BooksSummaryLite, GoalFigure, GoalSuggestion, GoalView, MoneyFigur
 import type { T } from '../../text';
 import type { FigureProof } from '../../parts/Figure';
 import type { GoalBarData } from '../../parts/charts/types';
-import { formatMonth } from '../../../../../platform/runtime/owner-format';
+import { formatMonth } from '../../../../../platform/shared/owner-format.ts';
 
 /** An amount the card shows: the engine's text and its receipt (or "model estimate"). stale: the books changed since
  *  that receipt was written, which the card says in Money's words. */

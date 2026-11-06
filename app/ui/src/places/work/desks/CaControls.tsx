@@ -1,5 +1,5 @@
 // Original shared CA desk controls. No money is parsed or calculated in the screen.
-import {useId,type ReactNode} from 'react';import {useT} from '../../../text';import {Field} from '../../../parts/Field';import {Button} from '../../../parts/Button';import {CA_TEMPLATES} from '../../../../../../platform/runtime/venture/playbooks/ca-firm/owner-input';import s from './CaFirmDesk.module.css';
+import {useId,type ReactNode} from 'react';import {useT} from '../../../text';import {Field} from '../../../parts/Field';import {Button} from '../../../parts/Button';import { CA_TEMPLATES } from '../../../../../../platform/shared/venture/playbooks/ca-firm/owner-input.ts';import s from './CaFirmDesk.module.css';
 import { Select } from '../../../parts/Select';
 import { FilePick } from '../../../parts/FilePick';
 export type CaAct=(action:string,payload:Record<string,unknown>,id?:string,digest?:string,kind?:'working'|'data-pack')=>Promise<any|null>;

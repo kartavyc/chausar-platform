@@ -1,4 +1,4 @@
-import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { countryProfile } from '../../../../platform/shared/venture/core/countries.ts';
 import type { BlueprintLite } from './types';
 
 /** Mirrors the native country reset. No old price is converted into another currency. */

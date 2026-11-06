@@ -1,2 +1,4 @@
+import type { CareerPackFile } from '../../../../contract/venture/playbooks/job-search-desk/file-types.ts';
+export type { CareerPackFile } from '../../../../contract/venture/playbooks/job-search-desk/file-types.ts';
 // Portable metadata for actual rendered career files.
-export type CareerPackFile={name:string;mime:string;contentBase64:string;bytes:number;sha256:string};
+

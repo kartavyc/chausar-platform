@@ -6,7 +6,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
 import type { BankImportResult } from '../../engine/types';
-import { SAMPLE_STATEMENT_PATH, STATEMENT_FORMATS } from '../../../../../platform/runtime/venture/build/bank-formats';
+import { SAMPLE_STATEMENT_PATH, STATEMENT_FORMATS } from '../../../../../platform/shared/venture/build/bank-formats.ts';
 import type { SheetComponentProps } from '../../shell/sheets';
 import s from './Connections.module.css';
 import { FilePick } from '../../parts/FilePick';

@@ -1,13 +1,14 @@
 // Original browser format ports for tender sources and exports. No provider is contacted.
-import {tenderMoneyReceipts} from '../../../../platform/runtime/venture/playbooks/tender-desk/money';
-import {check} from '../../../../platform/runtime/portable';
+import { tenderMoneyReceipts } from '../../../../platform/shared/venture/playbooks/tender-desk/money.ts';
+import { check } from '../../../../platform/shared/portable.ts';
 import {EngineError,type OrderLite} from './types';
 import type {W4DeskHost} from './fake-w4';
-import {loadTenderSourcesCore,type TenderSourceReader} from '../../../../platform/runtime/venture/playbooks/tender-desk/sources-core';
-import {tenderColumnMap,readIssuerTenderParts,fillIssuerTenderParts,tenderExportParts} from '../../../../platform/runtime/venture/playbooks/tender-desk/export-core';
-import {unzipBrowser,storedZipBytes} from '../../../../platform/runtime/venture/playbooks/kit/ooxml/browser';
-import {scanZip} from '../../../../platform/runtime/venture/playbooks/kit/ooxml/zip-core';
-import {readXlsxParts} from '../../../../platform/runtime/venture/playbooks/kit/ooxml/read-parts';
+import { loadTenderSourcesCore } from '../../../../platform/shared/venture/playbooks/tender-desk/sources-core.ts';
+import type { TenderSourceReader } from '../../../../platform/runtime/venture/playbooks/tender-desk/sources-core.ts';
+import { tenderColumnMap, readIssuerTenderParts, fillIssuerTenderParts, tenderExportParts } from '../../../../platform/shared/venture/playbooks/tender-desk/export-core.ts';
+import { unzipBrowser, storedZipBytes } from '../../../../platform/shared/venture/playbooks/kit/ooxml/browser.ts';
+import { scanZip } from '../../../../platform/shared/venture/playbooks/kit/ooxml/zip-core.ts';
+import { readXlsxParts } from '../../../../platform/shared/venture/playbooks/kit/ooxml/read-parts.ts';
 import type {TenderQuestionBody} from '../../../../platform/runtime/venture/playbooks/tender-desk/records';
 const encode=(bytes:Uint8Array)=>{let s='';for(const byte of bytes)s+=String.fromCharCode(byte);return btoa(s);};
 // Match Node's accepted base64 spellings for existing upload records, including omitted padding.

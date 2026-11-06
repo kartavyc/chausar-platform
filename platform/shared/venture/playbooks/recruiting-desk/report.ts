@@ -1,0 +1,8 @@
+// Original Chausar recruiting report: ledger facts only, with fixed wording and count receipts.
+import type { RecruitCandidateBody, RecruitTouchBody, RecruitRoleBody } from '../../../../contract/venture/playbooks/recruiting-desk/records.ts';
+type RecruitCandidateRecord=RecruitCandidateBody&{id:string;at:string};type RecruitTouchRecord=RecruitTouchBody&{id:string;at:string};type RecruitRoleRecord=RecruitRoleBody&{id:string};
+import { ledgerReport, doneWhen } from './ledger.ts';
+import type { CountryProfile } from '../../../../contract/venture/core/country-types.ts';
+export function recruitingReport(role:RecruitRoleRecord,candidates:readonly RecruitCandidateRecord[],touches:readonly RecruitTouchRecord[],day:string,country:Pick<CountryProfile,'code'>|null){const rows=candidates.filter(c=>c.roleId===role.id),events=touches.filter(t=>t.roleId===role.id).map(t=>({...t,kind:t.touchType,at:t.sentOn??t.at}));const data=ledgerReport(rows,events,day,role.id,country);return {...data,complete:doneWhen(rows,events),weekly:{role:role.brief?.title??'',lines:rows.map(c=>({name:c.name,stage:c.stage,recommendation:c.recommendation??'Not screened',evidence:c.findings.filter(f=>f.quote).map(f=>({criterionId:f.criterionId,quote:f.quote!})),waiting:c.skipReason??data.waiting.find(w=>w.id===c.id)?.reason??null}))}};}
+/** Client report wording is generated from saved facts; model prose cannot add another candidate or result. */
+export function recruitReportText(data:ReturnType<typeof recruitingReport>){return [data.weekly.role,...data.weekly.lines.flatMap(c=>[c.name+': '+c.stage+'. '+c.recommendation+'.',...c.evidence.map(e=>e.criterionId+': "'+e.quote+'"'),...(c.waiting?['Waiting: '+c.waiting]:[])])].join('\n');}
