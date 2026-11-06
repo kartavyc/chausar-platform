@@ -200,3 +200,14 @@
     min-height: var(--target);
   }
 }
+
+/* C4 task 5: the paused dot beside the business name, in the waiting tone. */
+.pausedDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: var(--sp-1);
+  border-radius: 50%;
+  background: var(--wait);
+  vertical-align: middle;
+}

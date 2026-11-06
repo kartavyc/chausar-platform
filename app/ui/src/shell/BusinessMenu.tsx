@@ -196,7 +196,13 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
       <button ref={button} type="button" className={s.business} data-variant={variant} aria-haspopup="dialog" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen((o) => !o)}>
         {venture.data && <span className={s.square} data-initials="" aria-hidden="true">{initialsOf(name)}</span>}
         <span className={s.words}>
-          {loading ? <span className={s.nameLoading} data-loading="" aria-hidden="true" /> : <span className={s.name}>{name}</span>}
+          {loading ? <span className={s.nameLoading} data-loading="" aria-hidden="true" /> : (
+            <span className={s.name}>
+              {name}
+              {/* C4 task 5: a small dot beside the name while the business is paused, with its word for readers. */}
+              {venture.data?.paused && <span className={s.pausedDot} data-paused-dot="" title={t('business.paused')}><span className="sr-only">{t('business.paused')}</span></span>}
+            </span>
+          )}
           {variant === 'rail' && kindLine(kind, name) && <span className={s.kind}>{kindLine(kind, name)}</span>}
         </span>
         <Icon name={variant === 'bar' ? 'chevron-down' : 'chevrons-up-down'} size={16} className={s.chevrons} />

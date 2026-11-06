@@ -10,6 +10,7 @@
   "today.greeting.morning": "Good morning",
   "today.greeting.afternoon": "Good afternoon",
   "today.greeting.evening": "Good evening",
+  "today.paused.locked": "Paused. Unpause to start new work.",
   "today.action.read": "Read",
   "today.action.accept": "Accept",
   "today.action.approve": "Approve",

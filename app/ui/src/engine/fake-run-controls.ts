@@ -74,6 +74,10 @@ const day = (iso: string) => iso.slice(0, 10);
 const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
 /** '2026-10-01' as '1 Oct 2026', the engine's day-month-year order (records.ts formatVentureDate). */
 const say = (iso: string) => formatDay(iso.slice(0, 10), 'UTC');
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** C4 task 40, as the engine's delivery/away.ts replyDay: '10 Nov', or '2 Jan 2027' when it is not this year. */
+const replyDay = (iso: string, year: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}${iso.slice(0, 4) === year ? '' : ` ${iso.slice(0, 4)}`}`;
+const replyRange = (from: string, to: string, year: string) => (from.slice(0, 7) === to.slice(0, 7) ? `${Number(from.slice(8, 10))} to ${replyDay(to, year)}` : `${replyDay(from, year)} to ${replyDay(to, year)}`);
 const isDay = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`));
 
 export class FakeRunControls {
@@ -355,6 +359,13 @@ export class FakeRunControls {
   }
 
   private awaySet(p: Record<string, unknown>): AwayView {
+    // C4 task 40, as the engine: { clear: true } ends Away now, planned or under way.
+    if (Object.hasOwn(p, 'clear')) {
+      if (Object.keys(p).length !== 1 || p.clear !== true) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send clear: true to clear the days away.');
+      if (!this.away || this.away.to < day(this.host.now())) throw new EngineError('INVALID_VENTURE_REQUEST', 'You are not away, so there are no days to clear.');
+      this.away = null;
+      return this.awayView();
+    }
     if (Object.keys(p).some((key) => key !== 'from' && key !== 'to')) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
     if (!isDay(p.from)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The first day away must be a date like 2026-10-15.');
     if (!isDay(p.to)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The last day away must be a date like 2026-10-15.');
@@ -376,7 +387,11 @@ export class FakeRunControls {
     if (!live) return { away: null, promises: [], keepsRunning, approvalsWaiting: waiting, autoReply: null, line: NOT_AWAY };
     const back = addDays(live.to, 1);
     const name = this.businessName(this.host.current());
-    const autoReply = `Thank you for your message. I am away from ${say(live.from)} to ${say(live.to)} and back on ${say(back)}. I will reply after I am back.\n\n${name}`;
+    // C4 task 40, as the engine: the owner's words, signed with their first name and the business.
+    let first: string | null = null;
+    try { first = (this.host.ask('venture.owner.get', {}) as { firstName?: string | null } | null)?.firstName ?? null; } catch { first = null; }
+    const year = today.slice(0, 4);
+    const autoReply = `Thanks for your message! I'm away ${replyRange(live.from, live.to, year)} and back on ${replyDay(back, year)}. I'll reply then.\n\n${first ? `${first}, ${name}` : name}`;
     const waits = `${waiting} ${waiting === 1 ? 'thing waits' : 'things wait'} for you.`;
     const started = today >= live.from;
     const line = today > live.to ? `You were away from ${say(live.from)} to ${say(live.to)}.`
