@@ -2,7 +2,6 @@ import { useLanguage, useT } from '../../text';
 import type { MoneyOverviewLine, TeamListView } from '../../engine/types';
 import { Avatar } from '../../parts/Avatar';
 import { cx } from '../../parts/cx';
-import { Icon } from '../../parts/Icon';
 import { MiniBars } from '../../parts/charts/MiniBars';
 import { StatTile } from '../../parts/StatTile';
 import { Bento, Tile, type TileSpan } from '../../parts/Tile';
@@ -47,7 +46,8 @@ function SpendTile({ line, held, span }: { line: MoneyOverviewLine; held?: { wor
   return (
     <Tile span={span} pad="compact" card className={s.spendTile}>
       {/* B2: the rupee icon only beside a figure that leads in rupees, never beside dollars. */}
-      <p className={s.statLabel}>{line.lead?.currency === 'INR' && <Icon name="indian-rupee" size={14} />}{t('team.stats.spend')}</p>
+      {/* B4 task 14: a neutral label, whichever currency leads. */}
+      <p className={s.statLabel}>{t('team.stats.spend')}</p>
       <div className={cx(s.statValue, WORDS.test(shown.value) && s.worded)}>
         <ProvedFigure value={shown.value} proof={proof} rupees={shown.rupees} />
       </div>
@@ -93,17 +93,20 @@ export function TeamStats({ members, spent, totals, bars, needsYou }: {
   // same partition as the departments, with what running work holds.
   const span: TileSpan = totals ? 3 : 4;
   const line = totals ? totalsLine(totals) : spent;
+  const still = working.length === 0 && waits === 0;
   return (
     <Bento as="section" label={t('team.stats')} className={s.stats}>
-      <StatTile
+      {/* B4 task 14: nobody working and nothing waiting is one line, not two tiles of zeros. */}
+      {still && <p className={s.statsLine}>{t('team.stats.workingNone')}</p>}
+      {!still && <StatTile
         span={span}
         dot="working"
         label={t('team.stats.working')}
         count={working.length}
         side={working.length > 0 ? <Stack members={working} /> : undefined}
         sub={working.length > 0 ? joined(working.map((m) => m.agent.name), language) : t('team.stats.workingNone')}
-      />
-      <StatTile
+      />}
+      {!still && <StatTile
         span={span}
         dot="wait"
         tone={waits > 0 ? 'wait' : undefined}
@@ -114,8 +117,8 @@ export function TeamStats({ members, spent, totals, bars, needsYou }: {
           ? t('team.stats.waitingOne', { agent: one.agent.name, purpose: one.run.purpose })
           : waiting.length > 0 ? joined(waiting.map((m) => m.agent.name), language)
             : waits > 0 ? t('today.needs.count', { count: waits }) : t('team.stats.waitingNone')}
-      />
-      {totals && (
+      />}
+      {totals && totals.doneThisWeek.count > 0 && (
         <StatTile
           span={span}
           icon="check"

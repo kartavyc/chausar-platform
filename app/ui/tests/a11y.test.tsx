@@ -136,8 +136,8 @@ const SHEETS: Case[] = [
   { name: 'agent, notes', hash: '#/team?sheet=agent:editor&tab=notes' },
   // W4 4J22b: Instructions with how it talks and a test's replies shown, Can do with skills, and with a planned step.
   { name: 'agent, how it talks tested', hash: '#/team?sheet=agent:editor&tab=instructions', press: ['Test'], openFolds: true },
-  { name: 'agent, can do with skills', hash: '#/team?sheet=agent:editor&tab=cando' },
-  { name: 'agent, can do', hash: '#/team?sheet=agent:publisher&tab=cando' },
+  { name: 'agent, can do with skills', hash: '#/team?sheet=agent:editor&tab=instructions', openFolds: true },
+  { name: 'agent, can do', hash: '#/team?sheet=agent:publisher&tab=instructions', openFolds: true },
   { name: 'new order', hash: '#/work?sheet=new-order:new' },
   { name: 'client', hash: '#/clients?sheet=client:c-boat' },
   { name: 'add client', hash: '#/clients?sheet=client:new' },

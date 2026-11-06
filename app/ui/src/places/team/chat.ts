@@ -14,7 +14,7 @@ import { refreshOn } from './shared';
  * button opens Chat. W4 4J22b adds Can do (its skills with "Try this", then its capability page); how it talks (the
  * persona and the agent file) sits inside Instructions, so the row keeps to five at 390 px, in Hindi too.
  */
-export const AGENT_TABS = ['chat', 'instructions', 'runs', 'notes', 'cando'] as const;
+export const AGENT_TABS = ['chat', 'instructions', 'runs', 'notes'] as const;
 export type AgentTab = (typeof AGENT_TABS)[number];
 export const FIRST_TAB: AgentTab = 'instructions';
 

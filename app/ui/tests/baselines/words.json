@@ -3,7 +3,7 @@
   "firstTotal": 9670,
   "budgets": {
     "today": 460,
-    "team": 220,
+    "team": 210,
     "work": 310,
     "clients/pipeline": 190,
     "money": 100,
@@ -73,10 +73,9 @@
     "invoice": 90,
     "payment": 50,
     "client": 250,
-    "agent": 230,
-    "agent/chat": 250,
-    "agent/instructions": 230,
-    "agent/cando": 420,
+    "agent": 220,
+    "agent/chat": 240,
+    "agent/instructions": 220,
     "agent/notes": 70,
     "import": 70,
     "accountant": 80
@@ -90,7 +89,6 @@
     "agent": 230,
     "agent/chat": 250,
     "agent/instructions": 230,
-    "agent/cando": 420,
     "agent/notes": 80,
     "import": 70,
     "accountant": 80

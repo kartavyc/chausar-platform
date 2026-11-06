@@ -40,7 +40,6 @@ export const SHEETS: SheetAtRest[] = [
   { id: 'agent', hash: '#/team?sheet=agent:editor' },
   { id: 'agent/chat', hash: '#/team?sheet=agent:editor&tab=chat' },
   { id: 'agent/instructions', hash: '#/team?sheet=agent:editor&tab=instructions' },
-  { id: 'agent/cando', hash: '#/team?sheet=agent:editor&tab=cando' },
   { id: 'agent/notes', hash: '#/team?sheet=agent:editor&tab=notes' },
   { id: 'import', hash: '#/clients/network?sheet=network-import:new' },
   { id: 'accountant', hash: '#/money?sheet=accountant:books' },

@@ -107,7 +107,7 @@ export function ChatThread({ agent, entries, older, now, className }: ChatThread
   const blocks = blocksOf(entries, t, now ?? clock(), zone);
   const olderBlocks = blocksOf(older ?? [], t, now ?? clock(), zone);
   return (
-    <div ref={log} className={cx(s.thread, className)} role="log" aria-live="polite" aria-label={t('thread.label', { name: agent.name })} onScroll={onScroll}>
+    <div ref={log} className={cx(s.thread, className)} data-empty={blocks.length === 0 && olderBlocks.length === 0 ? '' : undefined} role="log" aria-live="polite" aria-label={t('thread.label', { name: agent.name })} onScroll={onScroll}>
       {blocks.length === 0 && olderBlocks.length === 0 && <p className={s.empty}>{t('thread.empty')}</p>}
       {olderBlocks.length > 0 && <div className={s.older} aria-live="off" data-older="">{olderBlocks.map(drawBlock)}</div>}
       {blocks.map(drawBlock)}
