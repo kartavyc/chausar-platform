@@ -56,7 +56,7 @@ describe('Money overview', () => {
     // A cost estimate is not a number a model wrote: it opens its receipt, never "model estimate".
     expect(spent.textContent).not.toContain('model estimate');
     // With the month's goal (W4 4I2) the invoiced figure is the goals view's, with its own receipt (money-goal.test.tsx).
-    const invoiced = await tileOf('Invoiced this month');
+    const invoiced = await tileOf('Invoiced');
     await waitFor(() => expect(invoiced.querySelector('[data-ui-number]')?.textContent).toBe('₹1,12,400'));
     expect(invoiced.querySelector('[data-ui-number] ~ [data-receipt], [data-figure] [data-receipt]')).not.toBeNull();
   });

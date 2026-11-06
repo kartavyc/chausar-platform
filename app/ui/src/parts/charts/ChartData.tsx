@@ -20,16 +20,18 @@ export interface ChartDataProps {
   caption: string;
   columns: string[];
   rows: ChartDataRow[];
+  summary?: string | undefined;
+  children?: ReactNode;
 }
 
 /**
  * Every chart's text equivalent: "View chart data", a closed `details` holding a plain table of the engine strings
  * the chart drew. Nothing in it is hover-only and nothing is computed.
  */
-export function ChartData({ caption, columns, rows }: ChartDataProps) {
+export function ChartData({ caption, columns, rows, summary, children }: ChartDataProps) {
   const t = useT();
   return (
-    <Fold summary={t('chart.data.view')} className={s.data} summaryClassName={s.dataSummary}>
+    <Fold summary={summary ?? t('chart.data.view')} className={s.data} summaryClassName={s.dataSummary}>
       <table className={s.table}>
         <caption className="sr-only">{caption}</caption>
         <thead>
@@ -47,6 +49,7 @@ export function ChartData({ caption, columns, rows }: ChartDataProps) {
           ))}
         </tbody>
       </table>
+      {children}
     </Fold>
   );
 }

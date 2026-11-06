@@ -22,7 +22,7 @@
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { openSheet } from '../../shell/navigation';
+import { useRoute, openSheet } from '../../shell/navigation';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { StateChip } from '../../parts/Chip';
@@ -120,6 +120,7 @@ export function Invoices() {
 function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client: string | undefined; request: string | undefined }) {
   const t = useT();
   const day = useDay();
+  const route = useRoute();
   const carried = invoice.total !== undefined && invoice.receiptId !== undefined;
   const view = useResource('venture.invoice.get', { invoiceId: invoice.id }, { refreshOn: onMoney, skip: carried });
   const who = client ?? view.data?.client.name ?? t('money.aClient');
@@ -151,7 +152,7 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
   let action;
   const next = invoice.next;
   if (invoice.status === 'draft') {
-    action = <Button variant="primary" size="sm" data-key="primary" onClick={(event) => open(event.currentTarget)}>{t('money.invoices.issue')}</Button>;
+    action = <Button variant={route.sheet ? "secondary" : "primary"} size="sm" data-key="primary" onClick={(event) => open(event.currentTarget)}>{t('money.invoices.issue')}</Button>;
   } else if (owing && next?.action === 'remind') {
     // 4J5: the reminder's day has come. Drafted already: open it to send it yourself; else ask the Billing agent for it.
     action = next.draftId
@@ -175,7 +176,7 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
           aria-label={invoice.number ? t('money.invoiceRef', { number: invoice.number }) : t('money.invoices.draftTitle', { client: who })}
           onClick={(event) => open(event.currentTarget)}
         >
-          {invoice.number ?? t('money.status.draftShort')}
+          {invoice.number ?? t('money.invoices.unnumbered')}
         </button>
       </td>
       <td role="cell" className={s.cellClient}>

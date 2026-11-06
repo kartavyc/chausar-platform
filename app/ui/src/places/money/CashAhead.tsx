@@ -19,7 +19,6 @@ import type { CashView, KindedFigure } from '../../engine/types';
 import { useDay } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
-import { Fold } from '../../parts/Fold';
 
 export function CashAhead({ cash, view, span }: { cash: CashData | undefined; view: CashView | undefined; span: TileSpan }) {
   const t = useT();
@@ -41,12 +40,10 @@ export function CashAhead({ cash, view, span }: { cash: CashData | undefined; vi
       {/* C4 T28: why a line with nothing due in or out stays flat, in the engine's words. */}
       {view?.flat && <p className={s.quietLine} data-flat="">{view.flat}</p>}
       {/* The line, and what the forecast assumes one step away (simple first, 4J20). */}
-      {cash && <div className={s.tileChart}><CashLine data={{ ...cash, assumptions: [] }} tips={false} /></div>}
-      {cash && cash.assumptions.length > 0 && (
-        <Fold summary={t('money.cash.assumes')} className={s.fold}>
-          <ul className={v.assumes}>{cash.assumptions.map((line) => <li key={line}>{line}</li>)}</ul>
-        </Fold>
-      )}
+      {cash && <div className={s.tileChart}><CashLine data={{ ...cash, assumptions: [] }} tips={false}
+        detailsLabel={t('money.cash.assumes')}
+        details={cash.assumptions.length > 0 ? <ul className={v.assumes}>{cash.assumptions.map(line => <li key={line}>{line}</li>)}</ul> : undefined}
+      /></div>}
       {view && view.points.length === 0 && (
         <div className={v.empty}>
           <p className={s.quietLine}>{t('money.cash.noStatement')}</p>

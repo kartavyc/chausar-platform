@@ -71,8 +71,8 @@ const BRIDGE = '(function(){"use strict";var pending={},seq=0,done;var ready=new
   + 'if(m.method==="ui/resource-teardown"&&m.id!=null){send({jsonrpc:"2.0",id:m.id,result:{}});return;}'
   + 'if(m.method==="ui/notifications/host-context-changed")theme(m.params);});'
   + `ask("ui/initialize",{protocolVersion:"${APP_PROTOCOL_VERSION}",appCapabilities:{},clientInfo:{name:"chausar-mini-app",version:"1"}}).then(function(r){theme(r&&r.hostContext);send({jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}});done(r);});`
-  + 'function size(){send({jsonrpc:"2.0",method:"ui/notifications/size-changed",params:{width:document.documentElement.scrollWidth,height:document.documentElement.scrollHeight}});}'
-  + 'if(window.ResizeObserver)new ResizeObserver(size).observe(document.documentElement);window.addEventListener("load",size);'
+  + 'function size(){send({jsonrpc:"2.0",method:"ui/notifications/size-changed",params:{width:document.documentElement.scrollWidth,height:Math.ceil(document.body.getBoundingClientRect().height)}});}'
+  + 'window.addEventListener("load",function(){if(window.ResizeObserver)new ResizeObserver(size).observe(document.body);size();});'
   + 'window.chausar=Object.freeze({ready:ready,call:function(name,args){return ready.then(function(){return ask("tools/call",{name:String(name),arguments:args||{}});}).then(function(r){'
   + 'if(r&&r.isError)throw new Error(String(r.content&&r.content[0]&&r.content[0].text||"Chausar refused this."));return r?r.structuredContent:null;});}});})();';
 
