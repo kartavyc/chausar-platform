@@ -15,7 +15,7 @@ export const LAUNCH_WORDS = {
 } as const;
 
 /** What the fake knows about the open business when it answers. */
-export type LaunchFacts = { stored: string; accepted: boolean; connected: boolean; acceptedDeliveries: number };
+export type LaunchFacts = { stored: string; liveSince: string | null; accepted: boolean; connected: boolean; acceptedDeliveries: number };
 
 function blockedOf(facts: LaunchFacts): string | null {
   if (!facts.accepted) return LAUNCH_WORDS.acceptPlan;
@@ -29,6 +29,7 @@ export function fakeLaunchStatus(facts: LaunchFacts): LaunchStatusView {
   const open = stage === 'live' || blocked === null;
   return {
     stage,
+    liveSince: stage === 'live' ? facts.liveSince : null,
     stages: [
       { stage: 'practice', allowed: true, reason: LAUNCH_WORDS.practice, current: stage === 'practice' },
       { stage: 'live', allowed: open, reason: open ? LAUNCH_WORDS.live : blocked!, current: stage === 'live' },

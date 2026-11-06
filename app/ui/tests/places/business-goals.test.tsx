@@ -40,6 +40,10 @@ async function start({ override = {}, folder }: { override?: Override; folder?: 
 }
 
 const tile = (name: string) => screen.findByRole('region', { name });
+async function edit(goal: HTMLElement) {
+  const change = within(goal).queryByRole('button', { name: 'Change' });
+  if (change) await act(async () => { fireEvent.click(change); });
+}
 
 describe('Business > Goals', () => {
   it('is a page of its own in the business pages, after Prices', async () => {
@@ -59,7 +63,7 @@ describe('Business > Goals', () => {
     expect(goal.textContent).toContain('74%');
     expect(within(goal).getByRole('img').getAttribute('aria-label')).toBe("74% of the goal invoiced. Today's pace is 74%.");
     // A goal is set: no suggestion is offered, and none is ever asked for.
-    expect(within(goal).queryByRole('button', { name: 'Suggest a goal' })).toBeNull();
+    expect(within(goal).queryByRole('button', { name: 'Suggest one' })).toBeNull();
     assertFiguresProved(goal);
     assertOnePrimary(goal);
     assertInkRules(document.body);
@@ -72,6 +76,7 @@ describe('Business > Goals', () => {
       },
     });
     const goal = await tile('October 2026 goal');
+    await edit(goal);
     const last = await waitFor(() => { const found = goal.querySelector('[data-last-month]'); expect(found).not.toBeNull(); return found as HTMLElement; });
     expect(last.textContent).toContain('Invoiced in September');
     expect(within(last).getByRole('button', { name: receiptMark('R-0777') })).toBeTruthy();
@@ -91,27 +96,27 @@ describe('Business > Goals', () => {
       },
     });
     const goal = await tile('October 2026 goal');
+    await edit(goal);
     await waitFor(() => expect(goal.querySelector('[data-last-month]')?.textContent).toBe('No invoices last month'));
   });
 
-  it('sets a goal for a later month, sent as typed for the engine to read', async () => {
+  it('changes the current goal, sent as typed for the engine to read, then closes the form', async () => {
     const { calls } = await start();
     const goal = await tile('October 2026 goal');
-    await act(async () => { fireEvent.change(within(goal).getByLabelText('Month'), { target: { value: '2026-11' } }); });
+    await edit(goal);
+    fireEvent.change(within(goal).getByLabelText('Goal amount'), { target: { value: '2,00,000.5' } });
+    await act(async () => { fireEvent.click(within(goal).getByRole('button', { name: 'Change the goal' })); });
     await settle();
-    const next = await tile('November 2026 goal');
-    expect(next.textContent).toContain('No goal for November 2026 yet.');
-    fireEvent.change(within(next).getByLabelText('Goal amount'), { target: { value: '2,00,000.5' } });
-    await act(async () => { fireEvent.click(within(next).getByRole('button', { name: 'Set the goal' })); });
-    await settle();
-    expect(calls).toContainEqual(['venture.goals.set', { month: '2026-11', amount: '2,00,000.5' }]);
-    await waitFor(() => expect(next.textContent).toContain('₹2,00,000.50'));
-    expect(within(next).getByRole('status').textContent).toBe('Goal set for November 2026.');
+    expect(calls).toContainEqual(['venture.goals.set', { month: '2026-10', amount: '2,00,000.5' }]);
+    await waitFor(() => expect(goal.textContent).toContain('₹2,00,000.50'));
+    expect(within(goal).getByRole('button', { name: 'Change' })).toBeTruthy();
+    expect(within(goal).queryByLabelText('Goal amount')).toBeNull();
   });
 
   it('an amount the engine cannot read is asked again in words, and no goal is kept; an empty field sends nothing', async () => {
     const { calls } = await start();
     const goal = await tile('October 2026 goal');
+    await edit(goal);
     fireEvent.change(within(goal).getByLabelText('Goal amount'), { target: { value: '' } });
     await act(async () => { fireEvent.click(within(goal).getByRole('button', { name: 'Change the goal' })); });
     expect(within(goal).getByRole('alert').textContent).toBe('Type the goal like 150000 or 150000.50.');
@@ -129,6 +134,7 @@ describe('Business > Goals', () => {
   it("the engine's refusals are worded here: a month that is over", async () => {
     await start({ override: { 'venture.goals.set': () => { throw new EngineError('GOAL_MONTH_PAST', 'September 2026 is over. Choose this month or a later one.'); } } });
     const goal = await tile('October 2026 goal');
+    await edit(goal);
     fireEvent.change(within(goal).getByLabelText('Goal amount'), { target: { value: '150000' } });
     await act(async () => { fireEvent.click(within(goal).getByRole('button', { name: 'Change the goal' })); });
     await settle();
@@ -139,9 +145,9 @@ describe('Business > Goals', () => {
     const suggestion: GoalSuggestion = { amountMinor: '20000000', display: '₹2,00,000', estimate: true, line: 'A model estimate from your offers and prices. Change it to what you aim for.', typed: '200000.00' };
     const { calls } = await start({ folder: 'ledgerline', override: { 'venture.goals.suggest': () => suggestion } });
     const goal = await tile('October 2026 goal');
-    await waitFor(() => expect(within(goal).getByRole('button', { name: 'Suggest a goal' })).toBeTruthy());
+    await waitFor(() => expect(within(goal).getByRole('button', { name: 'Suggest one' })).toBeTruthy());
     expect(calls.some(([method]) => method === 'venture.goals.suggest')).toBe(false);
-    await act(async () => { fireEvent.click(within(goal).getByRole('button', { name: 'Suggest a goal' })); });
+    await act(async () => { fireEvent.click(within(goal).getByRole('button', { name: 'Suggest one' })); });
     await settle();
     const suggested = [...goal.querySelectorAll('[data-figure]')].find((f) => f.textContent?.includes('₹2,00,000'))!;
     expect(suggested.querySelector('[data-estimate]')?.textContent).toBe('model estimate');
@@ -157,9 +163,9 @@ describe('Business > Goals', () => {
   it('a null suggestion says why, and pressing again asks again', async () => {
     const { calls } = await start({ folder: 'ledgerline', override: { 'venture.goals.suggest': () => null } });
     const goal = await tile('October 2026 goal');
-    await waitFor(() => expect(within(goal).getByRole('button', { name: 'Suggest a goal' })).toBeTruthy());
+    await waitFor(() => expect(within(goal).getByRole('button', { name: 'Suggest one' })).toBeTruthy());
     for (let i = 0; i < 2; i++) {
-      await act(async () => { fireEvent.click(within(goal).getByRole('button', { name: 'Suggest a goal' })); });
+      await act(async () => { fireEvent.click(within(goal).getByRole('button', { name: 'Suggest one' })); });
       await settle();
     }
     expect(goal.textContent).toContain("Chausar can't suggest a goal yet. It needs your AI and a priced offer.");
@@ -205,9 +211,8 @@ describe('Business > Goals', () => {
     assertFiguresProved(earlier);
   });
 
-  it('says so when no month before had a goal', async () => {
+  it('omits earlier goals when no month before had a goal', async () => {
     await start();
-    const earlier = await tile('Earlier goals');
-    await waitFor(() => expect(earlier.textContent).toContain('No goals in the three months before.'));
+    expect(screen.queryByRole('region', { name: 'Earlier goals' })).toBeNull();
   });
 });

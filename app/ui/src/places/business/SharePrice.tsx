@@ -14,7 +14,6 @@ import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Tabs } from '../../parts/Tabs';
-import { Tile } from '../../parts/Tile';
 import type { OfferLite } from '../../engine/types';
 import { salesWords } from '../clients/Proposal';
 import s from './Business.module.css';
@@ -59,8 +58,7 @@ export function ShareFold({ offers, onChanged }: { offers: readonly OfferLite[];
   }
 
   return (
-    <Tile className={own.tile}>
-      <Fold summary={t('kit-sales.share.fold')} className={s.fold} data-share-fold="">
+      <Fold summary={t('kit-sales.share.fold')} className={own.tile} data-share-fold="">
         <div className={s.foldBody}>
           <p className={s.note}>{t('kit-sales.share.line')}</p>
           {offers.length > 1 && (
@@ -79,6 +77,5 @@ export function ShareFold({ offers, onChanged }: { offers: readonly OfferLite[];
           {problem && <p className={s.problem} role="alert">{problem}</p>}
         </div>
       </Fold>
-    </Tile>
   );
 }
