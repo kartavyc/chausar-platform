@@ -1,0 +1,26 @@
+name: Browser finding fixes
+on:
+  push:
+    branches: ['b2c/os-ui-fix-*']
+permissions:
+  contents: read
+jobs:
+  nearby:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --max-old-space-size=3072 scripts/gen-contract.mjs
+      - run: npm run typecheck:ui
+      - run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/source-rules.test.ts app/ui/tests/tokens.test.ts app/ui/tests/contrast.test.ts app/ui/tests/places/layout-motion-c3.test.tsx app/ui/tests/places/today-quiet-b4.test.tsx app/ui/tests/places/today-v2.test.tsx app/ui/tests/parts/motion-c3.test.tsx
+        if: '!cancelled()'
+      - run: npm run build:ui
+        if: '!cancelled()'
+      - run: node scripts/ui-chunks.mjs --check
+        if: '!cancelled()'
