@@ -16,7 +16,7 @@
 import { REFERENCE_RATE, REFERENCE_SOURCE } from './reference-rate.ts';
 import { formatCount, formatMoney, formatUsd, formatRate } from '../../owner-format.ts';
 import { ChausarError, check, money, type Context, type State } from '../../contracts.ts';
-import { ESTIMATE_WORDS, microsAsUsd, recordedCallMicros, usdToMicros } from '../models/cost.ts';
+import { ESTIMATE_WORDS, microsAsUsd, usdToMicros } from '../models/cost.ts';
 import { modelBudgetUsed } from '../models/budget.ts';
 import { NOT_REPORTED } from '../models/types.ts';
 import { modelLabel } from '../models/written-by.ts';
