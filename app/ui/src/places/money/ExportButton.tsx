@@ -6,11 +6,13 @@
  * replaces a file (saveMoneyExport); a file that appeared under the picked name meanwhile is left alone
  * (EXPORT_EXISTS). On the web and the hosted app the page asks the engine for the month's CSV (venture.money.export)
  * and offers it as a download, exactly as sent. The file is the engine's: the page never reads or changes a cell.
+ * C5 task 18: a format pick beside it: the same month for Tally, or shaped for GSTR-1. Chausar files nothing.
  */
 
 import { useState } from 'react';
 import { useT } from '../../text';
-import { useEngine } from '../../engine/context';
+import { useEngine, useResource } from '../../engine/context';
+import type { MoneyExportFormat } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import { messageOf, useMonthWords } from './words';
@@ -39,6 +41,11 @@ export function ExportButton({ month }: { month: string }) {
   const [said, setSaid] = useState<Said | null>(null);
   /** 4J20: the signed receipts of the file just downloaded, offered as a second file (web and hosted). */
   const [receipts, setReceipts] = useState<{ name: string; text: string } | null>(null);
+  // C5 task 18: the file for the CA's own tools. The GST return is offered only with GST on; the engine holds the same rule.
+  const plan = useResource('venture.blueprint.get', {});
+  const gst = plan.data?.blueprint?.backOffice?.taxRegistered?.value === true;
+  const [picked, setPicked] = useState<MoneyExportFormat>('csv');
+  const format: MoneyExportFormat = picked === 'gstr1-csv' && !gst ? 'csv' : picked;
 
   async function exportMonth() {
     setBusy(true);
@@ -46,12 +53,12 @@ export function ExportButton({ month }: { month: string }) {
     setReceipts(null);
     try {
       if (engine.saveMoneyExport) {
-        const saved = await engine.saveMoneyExport(month);
+        const saved = await (format === 'csv' ? engine.saveMoneyExport(month) : engine.saveMoneyExport(month, format));
         if (saved) setSaid({ text: saved.receipts ? t('money.export.savedBoth', { name: saved.name, receipts: saved.receipts }) : t('money.export.saved', { name: saved.name }), problem: false });
       } else {
-        const file = await engine.request('venture.money.export', { month });
-        download(file.fileName, file.csv);
-        setSaid({ text: t('money.export.downloaded', { name: file.fileName }), problem: false });
+        const file = await engine.request('venture.money.export', format === 'csv' ? { month } : { month, format });
+        download(file.fileName, file.csv, format === 'tally-xml' ? 'application/xml;charset=utf-8' : undefined);
+        setSaid({ text: format === 'csv' ? t('money.export.downloaded', { name: file.fileName }) : file.line, problem: false });
         if (file.receipts) setReceipts({ name: file.fileName.replace(/\.csv$/, '-receipts.json'), text: `${JSON.stringify(file.receipts, null, 2)}\n` });
       }
     } catch (error) {
@@ -63,6 +70,11 @@ export function ExportButton({ month }: { month: string }) {
 
   return (
     <span className={v.export}>
+      <select className={v.monthSelect} aria-label={t('money.export.format')} value={format} disabled={busy} onChange={(event) => setPicked(event.currentTarget.value as MoneyExportFormat)}>
+        <option value="csv">{t('money.export.csv')}</option>
+        <option value="tally-xml">{t('money.export.tally')}</option>
+        {gst && <option value="gstr1-csv">{t('money.export.gstr1')}</option>}
+      </select>
       <Button size="sm" disabled={busy} title={t('money.export.label', { month: monthWords(month) })} onClick={() => void exportMonth()}>
         <Icon name="file-text" size={16} />
         {t('money.export.button')}

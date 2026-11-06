@@ -100,12 +100,20 @@ async function commit(list, fs) {
   }
 }
 
-/** The request: one month like 2026-10. Never a path, and no replace flag: the system dialog asks about that. */
+/** C5 task 18: each format's file name ending and what the save dialog calls it. */
+const FORMATS = Object.freeze({
+  csv: { file: /^[a-z0-9-]{1,80}\.csv$/, filter: { name: 'CSV', extensions: ['csv'] } },
+  'tally-xml': { file: /^[a-z0-9-]{1,80}\.xml$/, filter: { name: 'Tally XML', extensions: ['xml'] } },
+  'gstr1-csv': { file: /^[a-z0-9-]{1,80}\.csv$/, filter: { name: 'CSV', extensions: ['csv'] } },
+});
+
+/** The request: one month like 2026-10, and a format the engine knows. Never a path, and no replace flag: the system dialog asks about that. */
 function saveRequest(input) {
-  if (!isRecord(input) || Object.keys(input).some(key => key !== 'month') || typeof input.month !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month)) {
+  if (!isRecord(input) || Object.keys(input).some(key => key !== 'month' && key !== 'format') || typeof input.month !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month)
+    || (input.format !== undefined && !Object.hasOwn(FORMATS, input.format))) {
     throw failure('INVALID_REQUEST', 'Choose a month to export.');
   }
-  return { month: input.month };
+  return input.format === undefined ? { month: input.month } : { month: input.month, format: input.format };
 }
 
 /**
@@ -116,12 +124,13 @@ async function saveMoneyExport(event, input, deps) {
   try {
     deps.assertTrustedSender(event, deps.window?.webContents);
     const request = saveRequest(input);
-    const file = await deps.engine.request('venture.money.export', { month: request.month });
-    if (!isRecord(file) || typeof file.csv !== 'string' || typeof file.fileName !== 'string' || !/^[a-z0-9-]{1,80}\.csv$/.test(file.fileName)) {
+    const file = await deps.engine.request('venture.money.export', request);
+    const kind = FORMATS[request.format ?? 'csv'];
+    if (!isRecord(file) || typeof file.csv !== 'string' || typeof file.fileName !== 'string' || !kind.file.test(file.fileName)) {
       throw failure('REQUEST_FAILED', 'The export could not be made.');
     }
     const chosen = await deps.dialog.showSaveDialog(deps.window, {
-      title: 'Save for your CA', defaultPath: join(deps.documents, file.fileName), filters: [{ name: 'CSV', extensions: ['csv'] }],
+      title: 'Save for your CA', defaultPath: join(deps.documents, file.fileName), filters: [kind.filter],
       properties: ['showOverwriteConfirmation', 'createDirectory'],
     });
     if (!chosen || chosen.canceled || typeof chosen.filePath !== 'string' || chosen.filePath === '') return { ok: true, result: null };

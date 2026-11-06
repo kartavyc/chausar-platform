@@ -126,7 +126,7 @@ type CaEngines = {
 type Built = { lines: GstLine[]; counted: InvoiceRecord[]; left: { label: string; value: string }[] };
 
 /** The firm's issued invoices as the engine's sale lines. An invoice the engine cannot take is left out with its reason. */
-function saleLines(state: State, venture: VentureRecord, invoices: InvoiceRecord[], gstin: string): Built {
+export function saleLines(state: State, venture: VentureRecord, invoices: InvoiceRecord[], gstin: string): Built {
   const clients = new Map(listRecords(state, 'venture-client', venture.id).map(client => [client.id, client]));
   const built: Built = { lines: [], counted: [], left: [] };
   for (const invoice of invoices) {
