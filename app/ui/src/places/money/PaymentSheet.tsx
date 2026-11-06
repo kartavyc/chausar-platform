@@ -39,6 +39,8 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const [amount, setAmount] = useState('');
   const [receivedOn, setReceivedOn] = useState(today);
   const [method, setMethod] = useState<PaymentMethod>('bank-transfer');
+  // C5 task 12: the method starts from the engine's default, until the owner picks one.
+  const methodPicked = useRef(false);
   const [tdsSection, setTdsSection] = useState('');
   const [tdsAmount, setTdsAmount] = useState('');
   const [split, setSplit] = useState(false);
@@ -54,6 +56,8 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   useEffect(() => { if (phase === 'confirm') cancelRef.current?.focus(); }, [phase]);
 
   const current = recorded?.view ?? view.data;
+  const startMethod = current?.paymentDefaults?.method;
+  useEffect(() => { if (startMethod && !methodPicked.current) setMethod(startMethod); }, [startMethod]);
   const balance = current?.figures.find((figure) => figure.key === 'balance');
   const takesPayment = current?.invoice.status === 'issued' || current?.invoice.status === 'part-paid';
   // A split needs at least one part typed before it can be recorded.
@@ -122,10 +126,12 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
             label={t('money.payment.amount')} hint={t('money.payment.amountHint', { currency })} value={amount} inputMode="decimal" autoComplete="off"
             disabled={locked} onChange={(event) => setAmount(event.currentTarget.value)}
           />
+          {/* C5 task 12: copies the engine's balance figure as it reads; nothing is worked out here. */}
+          {balance && <p className={s.sheetLine}><Button variant="quiet" disabled={locked} onClick={() => setAmount(balance.display)}>{t('money.payment.full')}</Button></p>}
           <Field label={t('money.payment.on')} type="date" value={receivedOn} disabled={locked} onChange={(event) => setReceivedOn(event.currentTarget.value)} />
           <div className={s.field}>
             <label htmlFor={methodId} className={s.fieldLabel}>{t('money.payment.method')}</label>
-            <select id={methodId} className={s.select} value={method} disabled={locked} onChange={(event) => setMethod(event.currentTarget.value as PaymentMethod)}>
+            <select id={methodId} className={s.select} value={method} disabled={locked} onChange={(event) => { methodPicked.current = true; setMethod(event.currentTarget.value as PaymentMethod); }}>
               {METHODS.map((option) => <option key={option} value={option}>{t(`money.method.${option}`)}</option>)}
             </select>
           </div>
