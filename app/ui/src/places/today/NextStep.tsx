@@ -57,7 +57,7 @@ export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
   // The card's own note: why it is locked, else that it asks once more.
   const note = primary.locked ? primary.note : primary.asksAgain ? t('today.next.asksAgain') : undefined;
   return (
-    <section className={s.next} aria-labelledby={titleId} data-card="" data-plain={plain ? '' : undefined}>
+    <section className={s.next} aria-labelledby={titleId} data-card="" data-next-step="" data-plain={plain ? '' : undefined}>
       <div className={s.body}>
         <div className={s.top}>
           <span className={s.eyebrow}><Icon name="sparkles" size={14} />{t('today.next.eyebrow')}</span>

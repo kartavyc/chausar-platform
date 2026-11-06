@@ -19,6 +19,45 @@ export const RECEIPTED = {
   ],
 };
 
+export interface SheetAtRest {
+  id: string;
+  /** The address that opens the sheet over its place. */
+  hash: string;
+}
+
+/**
+ * Every sheet with a word budget (B4 task 11), measured at rest in tests/budgets.test.tsx against the "sheets" list of
+ * tests/baselines/words.json. To add one: a line here, and run the budgets test: it says what to write there.
+ */
+export const SHEETS: SheetAtRest[] = [
+  { id: 'plan', hash: '#/today?sheet=view:plan:plan-ledgerline-1' },
+  { id: 'run', hash: '#/work?sheet=run:29' },
+  { id: 'invoice', hash: '#/money/invoices?sheet=invoice:inv-0039' },
+  { id: 'payment', hash: '#/money/invoices?sheet=payment:inv-0039' },
+  { id: 'client', hash: '#/clients?sheet=client:c-boat' },
+  { id: 'agent', hash: '#/team?sheet=agent:editor' },
+  { id: 'agent/chat', hash: '#/team?sheet=agent:editor&tab=chat' },
+  { id: 'agent/instructions', hash: '#/team?sheet=agent:editor&tab=instructions' },
+  { id: 'agent/cando', hash: '#/team?sheet=agent:editor&tab=cando' },
+  { id: 'agent/notes', hash: '#/team?sheet=agent:editor&tab=notes' },
+  { id: 'import', hash: '#/clients/network?sheet=network-import:new' },
+  { id: 'accountant', hash: '#/money?sheet=accountant:books' },
+];
+
+export interface CardAtRest {
+  id: string;
+  hash: string;
+  /** The card on that page; the first match is measured. */
+  selector: string;
+}
+
+/** Every card with a word budget (B4 task 11), against the "cards" list of tests/baselines/words.json. */
+export const CARDS: CardAtRest[] = [
+  { id: 'approval', hash: '#/today', selector: 'article[data-card][data-row-id]' },
+  { id: 'next-step', hash: '#/today', selector: '[data-next-step]' },
+  { id: 'goal', hash: '#/today', selector: 'section[data-card][data-state]' },
+];
+
 export const PLACES: PlaceAtRest[] = [
   { id: 'today', hash: '#/today' },
   // W4 4C2: Chats, a new chat beside the list.

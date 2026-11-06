@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { App } from '../src/shell/App';
 import { FakeEngine, createFakeClient } from '../src/engine/fake';
-import { PLACES, RECEIPTED } from './helpers/places';
+import { CARDS, PLACES, RECEIPTED, SHEETS } from './helpers/places';
 
 /**
  * Word budgets (w3 3I; catalogue U14). Direction D carries far more on each screen than the Ink v1 desk's "35 to 45
@@ -18,13 +18,16 @@ import { PLACES, RECEIPTED } from './helpers/places';
  * engine answer it used: the overview as the real engine sends it, every line with its receipt.
  */
 
-interface Budgets { about: string; firstTotal: number; budgets: Record<string, number>; first: Record<string, number> }
+interface Budgets {
+  about: string; firstTotal: number; budgets: Record<string, number>; first: Record<string, number>;
+  sheets: Record<string, number>; firstSheets: Record<string, number>; cards: Record<string, number>; firstCards: Record<string, number>;
+}
 const BASELINE = JSON.parse(readFileSync(join(import.meta.dirname, 'baselines/words.json'), 'utf8')) as Budgets;
 
 const LOADING = /^Loading$/;
 const flush = async () => { for (let i = 0; i < 4; i++) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); };
 
-async function open(place: (typeof PLACES)[number]) {
+async function open(place: { hash: string; receipted?: boolean }) {
   window.location.hash = place.hash;
   const client = createFakeClient(new FakeEngine({ now: () => '2026-10-23T13:35:00.000Z' }));
   if (place.receipted) {
@@ -82,6 +85,57 @@ function closedAround(element: Element): boolean {
 }
 
 const roundUp = (n: number) => Math.ceil(n / 10) * 10;
+
+/** Waits until a sheet or card has stopped loading and its count holds still, then returns the count. */
+async function settled(find: () => Element | null, what: string): Promise<number> {
+  await waitFor(() => {
+    const found = find();
+    expect(found, `${what} is not on the page`).not.toBeNull();
+    expect(found!.textContent ?? '').not.toMatch(/Loading/);
+  }, { timeout: 5000 });
+  let before = -1;
+  for (let i = 0; i < 8; i++) {
+    await flush();
+    const now = words(find()!).length;
+    if (now === before) break;
+    before = now;
+  }
+  return before;
+}
+
+/** The same rule as the places: over the budget fails, and a whole step under it says to lower it. */
+function holds(what: string, list: string, count: number, budget: number | undefined): void {
+  expect(budget, `${what} has no baseline yet: measured ${count}, so add "${what}": ${roundUp(count)} under "${list}"`).toBeDefined();
+  expect(count, `${what} shows ${count} words at rest, over its baseline of ${budget}: cut words, or ask the founder to raise it in the PR`).toBeLessThanOrEqual(budget!);
+  expect(count, `${what} shows ${count} words at rest, a whole step under its baseline of ${budget}: lower the baseline to ${roundUp(count)}`).toBeGreaterThan(budget! - 10);
+}
+
+describe('word budgets for sheets and cards (B4 task 11)', () => {
+  for (const [name, ids, now, first] of [
+    ['sheets', SHEETS.map((s) => s.id), BASELINE.sheets, BASELINE.firstSheets],
+    ['cards', CARDS.map((c) => c.id), BASELINE.cards, BASELINE.firstCards],
+  ] as const) {
+    it(`the ${name} baselines list every one, and only shrink from their first measure`, () => {
+      expect(Object.keys(now ?? {}).sort()).toEqual([...ids].sort());
+      expect(Object.keys(first ?? {}).sort()).toEqual([...ids].sort());
+      for (const id of ids) expect(now[id], `${id} may only shrink from ${first[id]}`).toBeLessThanOrEqual(first[id]!);
+    });
+  }
+
+  for (const sheet of SHEETS) {
+    it(`the ${sheet.id} sheet stays within its words`, async () => {
+      await open({ hash: sheet.hash });
+      holds(sheet.id, 'sheets', await settled(() => document.querySelector('[data-sheet]'), `the ${sheet.id} sheet`), BASELINE.sheets?.[sheet.id]);
+    });
+  }
+
+  for (const card of CARDS) {
+    it(`the ${card.id} card stays within its words`, async () => {
+      await open({ hash: card.hash });
+      holds(card.id, 'cards', await settled(() => document.querySelector(card.selector), `the ${card.id} card`), BASELINE.cards?.[card.id]);
+    });
+  }
+});
 
 describe('word budgets at rest', () => {
   it('the baselines only shrink: each place stays at or under its first measure, and so does the total', () => {
