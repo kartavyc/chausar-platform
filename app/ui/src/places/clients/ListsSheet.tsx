@@ -45,7 +45,7 @@ export function ListsSheet({ onClose, returnFocus }: SheetComponentProps) {
   }
 
   return (
-    <Sheet label={t('crm.lists.sheet')} title={t('crm.lists.sheet')} onClose={onClose} returnFocus={returnFocus}>
+    <Sheet label={t('crm.lists.sheet')} title={t('crm.lists.sheet')} loading={!lists.data && !lists.error} onClose={onClose} returnFocus={returnFocus}>
       {lists.error && <p className={s.failed} role="alert">{messageOf(lists.error)}</p>}
       {lists.data && (lists.data.length === 0 ? <p className={s.quiet}>{t('crm.lists.empty')}</p> : (
         <ul className={s.items}>
@@ -78,7 +78,7 @@ export function ListSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const title = view.error ? t('crm.lists.notFound') : shown ? shown.list.name : t('sheet.loading');
   const changed = (next: CrmListView) => { setData(next); setProblem(null); view.reload(); };
   return (
-    <Sheet label={t('crm.lists.sheet')} title={title} onClose={onClose} returnFocus={returnFocus}>
+    <Sheet label={t('crm.lists.sheet')} title={title} loading={!shown && !view.error} onClose={onClose} returnFocus={returnFocus}>
       {shown && (
         <>
           <p className={s.quiet}>{shown.line}</p>

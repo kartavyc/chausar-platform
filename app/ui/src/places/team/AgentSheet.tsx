@@ -77,7 +77,7 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   }
   if (!agent) {
     const title = team.data ? t('team.notFound') : team.error ? t('team.failed', { message: team.error.message }) : t('team.loading');
-    return <Sheet label={t('team.sheet')} title={title} onClose={onClose} returnFocus={returnFocus} width="panel" />;
+    return <Sheet label={t('team.sheet')} title={title} loading={!team.data && !team.error} onClose={onClose} returnFocus={returnFocus} width="panel" />;
   }
 
   const state = stateOf(agent, runs.data?.runs);
