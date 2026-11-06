@@ -2,7 +2,7 @@
 const { fork } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const { EventEmitter } = require('node:events');
-const { validateRequest, validateVentureEvent } = require('./ipc-contract.cjs');
+const { validateHostRequest, validateVentureEvent } = require('./ipc-contract.cjs');
 const { createFormsRelay } = require('./owner-browser-relay.cjs');
 const { createCredentialRelay } = require('./credential-relay.cjs');
 const { WINDOW_PHASES } = require('./diagnostics.cjs');
@@ -137,7 +137,7 @@ class EngineHarness extends EventEmitter {
   }
   request(method, payload = {}) {
     let input;
-    try { input = validateRequest({ method, payload }); } catch (error) { return Promise.reject(error); }
+    try { input = validateHostRequest({ method, payload }); } catch (error) { return Promise.reject(error); }
     const sent = this.#send(input, this.options.requestTimeoutMs), timing = this.options.onTiming;
     if (!timing) return sent;
     // C5 task 26: the method, the milliseconds and the bytes each way go to rpc.jsonl; never what was asked or answered.
