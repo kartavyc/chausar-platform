@@ -11,6 +11,7 @@
 //             at the AI hold the event for the owner and nothing runs.
 // Only api.razorpay.com and api.cal.com are ever asked. Fixture-tested against the public API docs' shapes until the
 // founder runs one with test-mode keys; the screens say so.
+import { InternalError } from '../../contracts.ts';
 import { screenUntrusted } from '../policy/untrusted.ts';
 import { linkAnswer } from '../money/razorpay.ts';
 import type { PaymentHttp } from '../money/billing-types.ts';
@@ -40,7 +41,7 @@ export const NEW_PERSON = 'a new person';
 const TIMEOUT_MS = 20_000;
 /** The most of one answer the real call reads (review round 1, LOW-6). */
 export const CONFIRM_ANSWER_BYTES = 1024 * 1024;
-const tooBig = () => Object.assign(new Error('The service answered more than Chausar reads.'), { code: 'EVENT_ANSWER_TOO_BIG' });
+const tooBig = () => new InternalError('EVENT_ANSWER_TOO_BIG', 'The service answered more than Chausar reads.');
 
 export const CONFIRM_WORDS = Object.freeze({
   noRazorpay: 'Razorpay is not connected, so this payment could not be checked. Nothing ran.',

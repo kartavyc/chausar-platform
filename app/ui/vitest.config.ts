@@ -13,6 +13,7 @@ export const NEEDS_DOM = [
   'tests/text-keys-runtime-b1.test.tsx', // renders every place to collect the keys it asks for
   'tests/engine/fake-translation-media-public.test.ts', // renders the captions sheet
   'tests/engine/storefront-widget.test.ts', // runs the widget script against DOMParser
+  'tests/engine/reads.test.tsx', // renders the read store's readers and walks places
 ];
 const logicFiles = LOGIC.flatMap(pattern => globSync(pattern, { cwd: root })).map(file => file.replaceAll('\\', '/'))
   .filter(file => !NEEDS_DOM.includes(file)).sort();
