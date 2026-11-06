@@ -21,6 +21,8 @@ async function engine(): Promise<EngineClient> {
 }
 
 async function start() {
+  // One-shot C3 task 17: long tasks kept on the window for the walk; never in a production build.
+  if (import.meta.env.DEV) void import('./shell/long-tasks').then(({ watchLongTasks }) => watchLongTasks());
   const lang = pickLanguage();
   document.documentElement.lang = lang;
   const client = await engine();
