@@ -1,0 +1,26 @@
+name: B4 header review red
+on:
+  push:
+    branches: ['b2c/os-b4-lows-*']
+permissions:
+  contents: read
+jobs:
+  red:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck:ui
+      - run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/parts/talk.test.tsx app/ui/tests/places/team-chat.test.tsx app/ui/tests/places/first-run-w6.test.tsx app/ui/tests/places/layout.test.tsx --maxWorkers=1 --reporter=default --reporter=json --outputFile=$RUNNER_TEMP/settings.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: settings
+          path: ${{ runner.temp }}/settings.json
