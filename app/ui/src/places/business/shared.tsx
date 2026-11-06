@@ -5,6 +5,7 @@ import { ApprovalRow } from '../../parts/ApprovalRow';
 import { decide as decideRow, reread as rereadRow, useTodaySession } from '../today/session';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import { Tile, TileHead } from '../../parts/Tile';
+import { cx } from '../../parts/cx';
 import type { BlueprintViewLite, EngineClient, LabelledLite, QueueDecision, QueueRow } from '../../engine/types';
 import { formatDay } from '../../../../../platform/runtime/owner-format';
 import s from './Business.module.css';
@@ -21,8 +22,8 @@ export function dayOf(at: string, zone: string): string {
 }
 
 /**
- * One tile of a business page (D's `.tile` with its `.th` head): a region named by its heading, and its words under it
- * spaced by the grid. Every business page is built from these.
+ * One section of a business page: a region named by its heading, and its words under it spaced by the grid. Plain
+ * (B4 task 1): no box; a section after another is parted by one hairline rule. Every business page is built from these.
  */
 export function TileSection({ title, meta, end, more, className, children }: {
   title: string; meta?: ReactNode; end?: ReactNode; more?: { href: string; label: string } | undefined;
@@ -30,7 +31,7 @@ export function TileSection({ title, meta, end, more, className, children }: {
 }) {
   const headingId = useId();
   return (
-    <Tile as="section" labelledBy={headingId} className={className}>
+    <Tile as="section" plain labelledBy={headingId} className={cx(s.section, className)}>
       <TileHead id={headingId} title={title} meta={meta} end={end} more={more} />
       <div className={s.body}>{children}</div>
     </Tile>

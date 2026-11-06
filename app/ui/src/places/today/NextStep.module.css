@@ -15,6 +15,16 @@
   color: var(--fg);
 }
 
+/* Plain tiles (B4, PLACE_TILES): a plain row on the page ground, no gradient, no border, no shadow. */
+.next[data-plain] {
+  --ring-ground: var(--bg);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
 .top {
   display: flex;
   flex-wrap: wrap;
@@ -131,10 +141,11 @@
   gap: var(--sp-2);
 }
 
+/* The folded step sits inside the goal card, so it reads the card's own colours (--gc-*, GoalCard.module.css). */
 .foldedEyebrow {
   font-size: var(--text-label);
   line-height: 16px;
-  color: var(--goal-mute);
+  color: var(--gc-mute);
 }
 
 .foldedLine {
@@ -145,7 +156,7 @@
   font-size: var(--text-body);
   line-height: 20px;
   font-weight: var(--weight-strong);
-  color: var(--goal-fg);
+  color: var(--gc-fg);
 }
 
 .foldedNote {
@@ -153,7 +164,7 @@
   align-items: center;
   gap: var(--sp-2);
   font-size: var(--text-read);
-  color: var(--goal-fg2);
+  color: var(--gc-fg2);
 }
 
 .folded > button {

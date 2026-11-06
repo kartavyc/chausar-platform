@@ -143,6 +143,10 @@
 .goalBar[data-tone='light'] .paceMark { stroke: var(--fg); }
 .goalKey[data-tone='light'] .paceSwatch { fill: var(--fg); }
 
+.goalKey[data-tone='light'] {
+  color: var(--mute);
+}
+
 .goalKey {
   display: flex;
   flex-wrap: wrap;

@@ -6,6 +6,7 @@ import { Button } from '../../parts/Button';
 import { Figure } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
 import { cx } from '../../parts/cx';
+import { usePlainTiles } from '../../parts/Tile';
 import type { NextBestStep, QueueRow } from '../../engine/types';
 import { goalAmount, type GoalAmount } from './goal';
 import { wordedRow } from './OutreachRows';
@@ -49,11 +50,12 @@ export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
   const t = useT();
   const titleId = useId();
   const noteId = useId();
+  const plain = usePlainTiles();
   const who = [data.agent, data.business].filter(Boolean).join(' · ');
   // The card's own note: why it is locked, else that it asks once more.
   const note = primary.locked ? primary.note : primary.asksAgain ? t('today.next.asksAgain') : undefined;
   return (
-    <section className={s.next} aria-labelledby={titleId} data-card="">
+    <section className={s.next} aria-labelledby={titleId} data-card="" data-plain={plain ? '' : undefined}>
       <div className={s.top}>
         <span className={s.eyebrow}><Icon name="sparkles" size={14} />{t('today.next.eyebrow')}</span>
         {who && (
@@ -170,12 +172,13 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
 function FoldedStep({ title, total, primary, onPrimary }: { title: string; total?: GoalAmount | undefined; primary: ApprovalPrimary; onPrimary: () => void }) {
   const t = useT();
   const noteId = useId();
+  const plain = usePlainTiles();
   return (
     <div className={s.folded} data-next-folded="">
       <p className={s.foldedEyebrow}>{t('today.next.eyebrow')}</p>
       <p className={s.foldedLine}>
         <span>{title}</span>
-        {total && <Figure {...total} tone="dark" />}
+        {total && <Figure {...total} tone={plain ? undefined : 'dark'} />}
       </p>
       {primary.locked && primary.note && <p id={noteId} className={s.foldedNote}><Icon name="lock" size={14} />{primary.note}</p>}
       <Button

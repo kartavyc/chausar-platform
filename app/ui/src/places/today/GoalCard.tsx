@@ -8,6 +8,7 @@ import { Figure, proofOf, type FigureSize } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
 import { GoalBar, GoalBarKey } from '../../parts/charts/GoalBar';
 import { cx } from '../../parts/cx';
+import { usePlainTiles } from '../../parts/Tile';
 import {
   GOAL_EVENTS, goalFromBooks, goalFromView, monthBefore, monthOf, useGoalSuggestion, type GoalAmount, type GoalCardData, type GoalFootItem,
   type SuggestionState,
@@ -28,7 +29,7 @@ export interface GoalCardProps {
 }
 
 /**
- * The dark goal card (D-Today `section.goal`). With a goal (W4 4I2) it shows what was invoiced this month, before
+ * The goal card (D-Today `section.goal`; dark with D's tiles, on the page ground when the place's tiles are plain). With a goal (W4 4I2) it shows what was invoiced this month, before
  * tax, "of" the goal, the engine's percent, the bar with what is ready to issue and today's pace, days left and the
  * foot figures, each with its receipt. With no goal for the month it still says what was invoiced, then asks for one,
  * with last month's figure; a suggestion, a model estimate on the owner's own AI, is asked for only on a press.
@@ -37,6 +38,8 @@ export interface GoalCardProps {
 export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProps) {
   const t = useT();
   const headingId = useId();
+  const plain = usePlainTiles();
+  const tone = plain ? undefined : 'dark';
   const none = data.state === 'none';
   const received = data.state === 'none' || data.state === 'unset' ? data.received : null;
   const foot: GoalFootItem[] = data.state === 'set'
@@ -45,7 +48,7 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
   const sub = none ? t('today.goal.beforeTax') : t('today.goal.invoiced');
 
   return (
-    <section className={s.goal} aria-labelledby={headingId} data-card="" data-state={data.state}>
+    <section className={s.goal} aria-labelledby={headingId} data-card="" data-state={data.state} data-plain={plain ? '' : undefined}>
       <div className={s.top}>
         <span className={s.icon}><Icon name="target" size={16} /></span>
         <h2 id={headingId} className={s.label}>{none ? t('today.goal.invoiced') : t('today.goal.month', { month: data.month })}</h2>
@@ -79,9 +82,9 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
 
       {data.state === 'set' && (
         <>
-          <div className={s.bar}><GoalBar data={data.bar} /></div>
+          <div className={s.bar}><GoalBar data={data.bar} tone={plain ? 'light' : 'dark'} /></div>
           <div className={s.key}>
-            <GoalBarKey ready={data.ready ? <GoalFigure amount={data.ready} /> : undefined} />
+            <GoalBarKey tone={plain ? 'light' : 'dark'} ready={data.ready ? <GoalFigure amount={data.ready} /> : undefined} />
           </div>
         </>
       )}
@@ -98,7 +101,7 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
           {data.suggested && (
             <p className={s.suggest}>
               <span>{t('today.goal.suggested')}</span>
-              <Figure value={data.suggested} estimate tone="dark" />
+              <Figure value={data.suggested} estimate tone={tone} />
             </p>
           )}
           {suggestion && <SuggestionLine state={suggestion.state} />}
@@ -135,15 +138,21 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
   );
 }
 
+/** Figures on the goal card take the dark tone on D's dark card and the page's own on plain tiles. */
+function useGoalTone(): 'dark' | undefined {
+  return usePlainTiles() ? undefined : 'dark';
+}
+
 /** The suggestion the owner asked for: the engine's figure as a model estimate with the engine's own words, or why not. */
 function SuggestionLine({ state }: { state: SuggestionState }) {
   const t = useT();
+  const tone = useGoalTone();
   if (state.state === 'sent') {
     return (
       <>
         <p className={s.suggest}>
           <span>{t('today.goal.suggested')}</span>
-          <Figure value={state.suggestion.display} estimate tone="dark" />
+          <Figure value={state.suggestion.display} estimate tone={tone} />
         </p>
         <p className={s.suggestLine}>{state.suggestion.line}</p>
       </>
@@ -154,10 +163,11 @@ function SuggestionLine({ state }: { state: SuggestionState }) {
   return null;
 }
 
-/** An amount on the dark card, with its receipt (or "model estimate"). */
+/** An amount on the card, with its receipt (or "model estimate"): the dark tone on D's dark card. */
 function GoalFigure({ amount, size, className }: { amount: GoalAmount; size?: FigureSize | undefined; className?: string | undefined }) {
+  const tone = useGoalTone();
   const proof = proofOf(amount);
-  return proof ? <Figure {...proof} value={amount.value} size={size} tone="dark" className={className} /> : null;
+  return proof ? <Figure {...proof} value={amount.value} size={size} tone={tone} className={className} /> : null;
 }
 
 /**

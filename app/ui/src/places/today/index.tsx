@@ -14,6 +14,7 @@ import { StartAtLogin } from '../onboarding/StartAtLogin';
 import { PausedNote } from '../../shell/PausedNote';
 import { useNarrow } from '../../shell/useNarrow';
 import { refusalWords } from '../../parts/custody';
+import { PlaceTiles } from '../../parts/Tile';
 import { LeftContext } from '../onboarding/started';
 import { ApprovalRow, decidedWords, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
 import type { AvatarState } from '../../parts/Avatar';
@@ -110,6 +111,11 @@ function sentences(first: string | undefined, second: string | undefined): strin
 }
 
 export function Place() {
+  // The place's tiles follow PLACE_TILES: plain, or D's tiles (one-shot B4, the founder's comparison).
+  return <PlaceTiles><PlaceBody /></PlaceTiles>;
+}
+
+function PlaceBody() {
   const t = useT();
   const client = useEngine();
   const left = useContext(LeftContext);

@@ -85,7 +85,7 @@ describe('Today: the goal card with a goal set (W4 4I2)', () => {
     expect(foot.textContent).toContain('₹37,600');
     expect(foot.textContent).toContain('Received so far');
     expect(within(foot).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
-    expect(foot.querySelectorAll('[data-receipt][data-tone="dark"]')).toHaveLength(3);
+    expect(foot.querySelectorAll('[data-receipt]')).toHaveLength(3);
     // A goal is set, so no suggestion is ever asked for, and nothing reads the pace receipt on its own.
     expect(calls.some(([method]) => method === 'venture.goals.suggest' || method === 'venture.receipt.get')).toBe(false);
     assertFiguresProved(goal);

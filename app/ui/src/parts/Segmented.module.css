@@ -1,7 +1,7 @@
 /* Segmented: D's `.seg` (buttons, `.on`) and its count `.sc`. The same look serves the department toggle (buttons)
    and sub-pages held in the address (links). The department dot is Chip's DeptDot. The count is --mute, not D's
    lighter grey: on the hover wash that grey reads below 4.5:1. The pill's own padding keeps room for the focus ring
-   when it scrolls. */
+   when it scrolls. No outer frame around the tabs (B4 task 1). */
 
 .seg {
   position: relative;
@@ -11,10 +11,6 @@
   max-width: 100%;
   overflow-x: auto;
   padding: var(--sp-1);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-tile);
   scrollbar-width: none;
 }
 

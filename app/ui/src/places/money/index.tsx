@@ -18,6 +18,7 @@ import { useT } from '../../text';
 import { setQuery, useRoute } from '../../shell/navigation';
 import { StorageNotice } from '../../shell/StorageNotice';
 import { PageTitle } from '../../parts/PageTitle';
+import { PlaceTiles } from '../../parts/Tile';
 // W6 6H3 (D40): the overview's layout is the owner's; the Arrange sheet opens from the page tools.
 import { ArrangeButton } from '../../parts/layout/ArrangeButton';
 import { Segmented, type SegmentLink } from '../../parts/Segmented';
@@ -60,6 +61,11 @@ const ICONS: Readonly<Record<Sub | 'overview', IconName>> = {
 
 
 export function Place() {
+  // The place's tiles follow PLACE_TILES: plain, or D's tiles (one-shot B4, the founder's comparison).
+  return <PlaceTiles><PlaceBody /></PlaceTiles>;
+}
+
+function PlaceBody() {
   const t = useT();
   const route = useRoute();
   const sub = isSub(route.sub) ? route.sub : undefined;
