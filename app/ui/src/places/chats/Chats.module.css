@@ -144,6 +144,10 @@
 }
 
 .chat {
+  /* One-shot C3 task 16: a row off screen costs nothing until it nears the view. Room is kept for a focus ring. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--target);
+  overflow-clip-margin: var(--sp-1);
   position: relative;
   display: flex;
   align-items: center;
