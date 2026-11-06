@@ -35,7 +35,7 @@ test('the pinned counts: 384 venture methods, 364 reached through the hosted hos
   // One-shot A2: venture.ai.setup.trust, the owner's choice of Codex, answered by the engine (hosted refuses it).
   assert.equal(VENTURE_METHODS.length, 385); // C3 added venture.work.list
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 364);
+  assert.equal(hosted.length, 365); // C3 added venture.work.list
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 

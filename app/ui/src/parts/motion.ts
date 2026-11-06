@@ -96,7 +96,7 @@ export function scrollToView(element: Element | null | undefined): void {
 /** The longest of a comma list of CSS times ("0.14s, 200ms"), in ms. */
 function longest(times: string): number {
   return Math.max(0, ...times.split(',').map((time) => {
-    const value = Number.parseFloat(time);
+    const value = Number(time.replace(/m?s\s*$/, ''));
     if (!Number.isFinite(value)) return 0;
     return /ms\s*$/.test(time) ? value : value * 1000;
   }));
