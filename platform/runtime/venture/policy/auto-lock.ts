@@ -7,7 +7,7 @@ import type { LaunchStage, Posture } from '../contracts.ts';
 
 /** The drill runs in a row the lock words name; the readiness drills item counts the same number. */
 export const CLEAN_DRILL_RUNS = 2;
-export const AUTO_LOCKED_WORDS = "Auto with spot checks is built but locked. It opens after two clean drill runs and the founder's yes.";
+export const AUTO_LOCKED_WORDS = "Routine-step approval is not available yet.";
 /** The loosest posture any agent works at while auto is locked: a vault that says auto still asks at each step. */
 export const LOCKED_POSTURE_CAP: Posture = 'approve-each';
 

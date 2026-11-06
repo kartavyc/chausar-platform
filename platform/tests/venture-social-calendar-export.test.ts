@@ -5,6 +5,8 @@
 // with every reason, and the post ids are the ones posting takes ('<run>.post-<n>', counted over post lines only).
 // Times in the file are the business's own clock (India), never UTC by default.
 import test from 'node:test';
+import {scriptedAgent,consentForOrder,SCRIPTED_AGENT_SETTINGS} from './fixtures/venture/scripted-agent.ts';
+import {waitForAgentWork} from '../runtime/venture/agent-runtime/runner.ts';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
@@ -142,15 +144,15 @@ test("with the client's approval: one row per slot, in date order, each post on 
   assert.doesNotMatch(file.csv, /Z\b|T\d\d:\d\d:\d\d/);
 });
 
-test('a draft edited after the client approved: the file and posting give the same answer for every post', async () => {
+test('a draft edited after client approval leaves the export empty and LinkedIn posting stays manual', async () => {
   const env = await setup();
   const browser = { async probe() { return { present: true, reason: 'Playwright with Chromium found on this computer.' }; }, async post() { return { outcome: 'posted' as const, line: 'Posted.', url: null }; } };
   env.deps = { ...env.deps, connectors: { browser, appReviewed: [], postTimeoutMs: 40 } } as VentureDeps;
   const { run } = await socialDraft(env);
   await clientApproves(env, run);
-  // Approved as it is: post-1 is in the file, and posting takes it.
+  // Approved as it is: post-1 is in the file; LinkedIn remains a manual handoff.
   assert.equal((await calendarOf(env, run.id)).rows, 6);
-  assert.equal((await call<{ draftId: string }>(env.deps, 'venture.posting.propose', { draftId: `${run.id}.post-1` })).draftId, `${run.id}.post-1`);
+  await assert.rejects(call(env.deps, 'venture.posting.propose', { draftId: `${run.id}.post-1` }), error=>error instanceof ChausarError&&error.code==='NOT_BUILT_YET'&&/copy-and-open only/.test(error.message));
 
   // The owner then changes one post (post-3). The client approved other words, so no post of this draft goes anywhere.
   const changed = DRAFTS.map(line => (line === LINKEDIN[1] ? 'LinkedIn: Breathe first, then move, then rest.' : line));
@@ -165,7 +167,7 @@ test('a draft edited after the client approved: the file and posting give the sa
   assert.deepEqual(file.blocked.map(item => item.draftId), [1, 2, 3, 4, 5, 6].map(n => `${run.id}.post-${n}`));
   for (const item of file.blocked) assert.match(item.line, /^The draft changed after it was approved\./);
   for (const n of [1, 3]) {
-    await assert.rejects(call(env.deps, 'venture.posting.propose', { draftId: `${run.id}.post-${n}` }), code('POST_DRAFT_CHANGED'), `post-${n}`);
+    await assert.rejects(call(env.deps, 'venture.posting.propose', { draftId: `${run.id}.post-${n}` }), code('NOT_BUILT_YET'), `post-${n}`);
   }
 });
 
@@ -293,7 +295,7 @@ class DraftPort implements ModelPort {
     this.#previews.set(callId, digest(payloadText));
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-21T10:30:00.000Z',
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -342,13 +344,21 @@ test('through a real run: the drafted posts reach the file by their numbers, eac
   const env = await socialBusiness();
   assert.equal(env.offers[0].playbookOffer, 'content-calendar');
   const order = await env.run('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Posts for our morning yoga classes in Goa this month.', intake: { calendar: CALENDAR } });
-  const waiting = await env.run('venture.delivery.run', { orderId: order.id });
-  const sections = [{ heading: 'Drafts', lines: DRAFTS }, { heading: 'Alt text', lines: [ALT] }, { heading: 'Hashtags', lines: ['Use #yoga and #goa on every post.'] }];
-  env.models.drafts.push({
-    title: 'Posts for November', questionsForClient: [],
-    sections: sections.map(section => ({ heading: section.heading, parts: section.lines.map(text => ({ kind: 'text', text, ref: '' })) })),
-  });
-  const ready: DeliveryRunView = await env.run('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
+  await env.deps.store.update(state=>{state.policy.send='shape';});await consentForOrder(env.deps,owner,order.id);
+  const sections = [{ heading: 'Post plan', lines: ['Question','Contrast','Lesson','Story','How to','Mistake'].map((hook,i)=>`Post ${i+1} | Value | Goal: Teach useful practice | Reader action: Try it | Hook: ${hook}`) },{ heading: 'Drafts', lines: DRAFTS }, { heading: 'Alt text', lines: [ALT] }, { heading: 'Hashtags', lines: ['Use #yoga and #goa on every post.'] }];
+  const draft={title:'Posts for November',questionsForClient:[],sections:sections.map(section=>({heading:section.heading,parts:section.lines.map(text=>({kind:'text',text,ref:''}))}))};
+  env.deps.agentRoute=async()=>({settings:SCRIPTED_AGENT_SETTINGS,driver:scriptedAgent(()=>{
+   const stage=(env.deps.store.read().conversations as any[]).find(row=>row.kind==='venture-order'&&row.id===order.id).chainStage;
+   return stage<3?{title:'Studio guidance',questionsForClient:[],sections:(stage===1?['Voice','Pillars','Words to avoid']:['Calendar','Topics and hooks']).map(heading=>({heading,parts:[{kind:'text',text:'Clear useful studio guidance.',ref:''}]}))}:draft;
+  })});
+  let waiting=await env.run('venture.delivery.run',{orderId:order.id});
+  for(let stage=1;stage<3;stage++){
+   await waitForAgentWork(env.deps.store,waiting.id);
+   await env.run('venture.delivery.review',{runId:waiting.id,verdict:'accepted'});
+   waiting=(env.deps.store.read().conversations as any[]).filter(row=>row.kind==='venture-delivery-run'&&row.orderId===order.id).at(-1);
+  }
+  await waitForAgentWork(env.deps.store,waiting.id);
+  const ready:DeliveryRunView=(await env.run('venture.delivery.list')).find((row:DeliveryRunView)=>row.id===waiting.id);
   assert.equal(ready.canAccept, true, ready.acceptBlocked ?? '');
 
   const before = await env.run('venture.social.calendar', { runId: ready.id }) as SocialCalendarFile;

@@ -1,0 +1,4 @@
+// Original bounded UTF-8 source boundary, using the established CSV parser and SHA-256 library.
+import {sha256} from '@noble/hashes/sha2.js';import {bytesToHex} from '@noble/hashes/utils.js';import {csvRows} from '../../../csv.ts';import {NewsletterError,requireNewsletter} from './core.ts';
+export function newsletterCsv(text:string){try{return csvRows(text);}catch{throw new NewsletterError('NEWSLETTER_INPUT_INVALID','Use a complete CSV with balanced quotes and the requested columns.');}}
+export function newsletterCsvSource(bytes:Uint8Array){requireNewsletter(bytes.length>0&&bytes.length<=1500000,'NEWSLETTER_SOURCE_REQUIRED','Use a non-empty CSV below one and a half megabytes.');let text:string;try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw new NewsletterError('NEWSLETTER_INPUT_INVALID','Save the CSV as valid UTF-8 text.');}return {text,fingerprint:bytesToHex(sha256(bytes))};}

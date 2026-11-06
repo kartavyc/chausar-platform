@@ -138,7 +138,7 @@ test('rules-judge: left out when no judge ruled; a verdict counted by code passe
   assert.equal(uncited.passed, false, 'a vote citing nothing in the run never counts as a pass');
   assert.match(uncited.detail, /Not settled/);
 
-  const unruled = runChecks({ ...base, rules: notRuled(DRAFT_RULES, 'No AI judge connected.') }).find(result => result.check === 'rules-judge')!;
+  const unruled = runChecks({ ...base, rules: notRuled(DRAFT_RULES, 'No AI quality check connected.') }).find(result => result.check === 'rules-judge')!;
   assert.equal(unruled.passed, false);
 });
 
@@ -161,7 +161,7 @@ test('rules-judge: the judge sees the trace, the client message and the draft; a
   const ids = (seen[0].input as { trace: { id: string }[] }).trace.map(event => event.id);
   assert.ok(ids.includes('t1.1') && ids.includes('client-message') && ids.includes('draft'), ids.join(','));
 
-  const refused = await judgeDraftRules(async () => { throw new ChausarError('MODEL_OUTPUT_REJECTED', 'The judge did not answer in the expected shape.'); }, {
+  const refused = await judgeDraftRules(async () => { throw new ChausarError('MODEL_OUTPUT_REJECTED', 'The quality check did not answer in the expected shape.'); }, {
     draft: 'Draft words.', clientRequest: 'Hello.', containsClientData: false, context: '',
   });
   assert.equal(refused.outcome, 'unverified');

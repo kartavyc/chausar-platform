@@ -1,0 +1,1 @@
+export function writeDemoState(path:string,text:string,io?:{writeFileSync(path:string,text:string,options:{mode:number;flag:string}):void;renameSync(from:string,to:string):void;unlinkSync(path:string):void}):void;

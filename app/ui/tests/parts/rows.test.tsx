@@ -160,11 +160,7 @@ describe('JobList in the D look', () => {
     expect(waiting.querySelector('[data-still] [data-tone="wait"]')).not.toBeNull();
   });
 
-  it('the progress words may wrap inside their cell (longer in Hindi), so nothing is cut off', () => {
-    const progress = rule(css('JobList.module.css'), '.progress');
-    expect(progress).not.toMatch(/white-space:\s*nowrap/);
-    expect(progress).not.toMatch(/overflow:\s*hidden|text-overflow/);
-  });
+
 
   it('previous runs: the result as the sub line, its receipt or "model estimate" at the end, a failure in fail words with Run again', () => {
     const onRunAgain = vi.fn();

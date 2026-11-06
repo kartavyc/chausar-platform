@@ -76,11 +76,11 @@ export const CA_VIEWS: Record<string, CaView> = {
     ca: { name: 'Meera Joshi', membershipNo: '412345' },
     pendingRates: [
       {
-        tableId: 'gst-services', title: 'GST rates for services', version: '3', validFrom: '2025-09-22', validTo: null,
+        tableId: 'in-gst-rates', title: 'GST rates for services', version: '2', validFrom: '2025-09-22', validTo: null,
         citations: ['CBIC rate notification for services, September 2025'],
       },
       {
-        tableId: 'tds-2026', title: 'TDS rates, 2026-27', version: '1', validFrom: '2026-04-01', validTo: '2027-03-31',
+        tableId: 'in-tds-fy-2026-27', title: 'TDS rates, 2026-27', version: '1', validFrom: '2026-04-01', validTo: '2027-03-31',
         citations: ['Income-tax Act, 2025, TDS rate table', 'Section numbers changed in April 2026: your CA confirms them'],
       },
     ],

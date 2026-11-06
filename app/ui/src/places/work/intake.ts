@@ -9,7 +9,7 @@
 import type { EngineMethods, OfferIntakeLite, RightsBasisLite } from '../../engine/types';
 
 /** The channels a content calendar can post on, in the order the sheet lists them (the engine's SOCIAL_CHANNELS). */
-export const CALENDAR_CHANNELS = ['linkedin', 'instagram', 'x', 'facebook', 'threads', 'tiktok', 'youtube-shorts'] as const;
+export const CALENDAR_CHANNELS = ['linkedin', 'instagram', 'x', 'facebook', 'threads', 'tiktok', 'youtube-shorts', 'bluesky', 'mastodon', 'telegram', 'discord'] as const;
 /** ISO weekdays, Monday (1) to Sunday (7). */
 export const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 /** The client's word lists, each typed as one line with commas between the entries. */

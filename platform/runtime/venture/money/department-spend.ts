@@ -64,16 +64,16 @@ export function teamLedger(state: State, venture: VentureRecord): TeamLedger {
 }
 
 /** The steps a run followed: its own playbook's, else the playbook in use's, else the flagship's own. */
-export function runStepsIn(ledger: TeamLedger, run: Pick<DeliveryRunRecord, 'id' | 'playbookId'>): PlaybookStep[] {
+export function runStepsIn(ledger: TeamLedger, run: Pick<DeliveryRunRecord, 'id' | 'playbookId' | 'workflow'>): PlaybookStep[] {
   const known = ledger.steps.get(run.id);
   if (known) return known;
-  const steps = ledger.playbooks.get(run.playbookId) ?? ledger.inUse ?? (ledger.flagship ? [...ledger.flagship.steps] : []);
+  const steps = run.workflow?.steps ?? ledger.playbooks.get(run.playbookId) ?? ledger.inUse ?? (ledger.flagship ? [...ledger.flagship.steps] : []);
   ledger.steps.set(run.id, steps);
   return steps;
 }
 
 /** The step that drafts a run's reply, as delivery/playbook.ts flagshipDraft picks it; null on the eight fixed steps. */
-export function draftStepIn(ledger: TeamLedger, run: Pick<DeliveryRunRecord, 'id' | 'playbookId' | 'orderId'>): string | null {
+export function draftStepIn(ledger: TeamLedger, run: Pick<DeliveryRunRecord, 'id' | 'playbookId' | 'orderId' | 'workflow'>): string | null {
   if (!ledger.flagship) return null;
   if (ledger.drafts.has(run.id)) return ledger.drafts.get(run.id)!;
   const steps = runStepsIn(ledger, run);

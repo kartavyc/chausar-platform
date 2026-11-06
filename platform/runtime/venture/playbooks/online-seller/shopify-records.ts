@@ -1,0 +1,3 @@
+// Original F3 account-scoped state. Secret credentials are held only by SecretShelf.
+import type {SellerCaps} from './staging.ts';import type {ShopifyRead,ShopifyWrite} from './shopify-state.ts';import type {ShopifyCatalogueRow} from '../../build/shopify-admin-core.ts';
+export type SellerShopifyBody={connection:{domain:string;storeId:string;clientId:string;credentialDigest:string;connectedAt:string};caps:SellerCaps;catalogue:{rows:ShopifyCatalogueRow[];truncated:boolean;total:number|null;reason:string|null;receiptId:string}|null;reads:(ShopifyRead&{breakEvenMinor:string|null})[];writes:(ShopifyWrite&{receiptId:string})[];receiptIds:string[]};

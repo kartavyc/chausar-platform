@@ -6,6 +6,8 @@ import type { CompositionRecord } from '../onboarding-contracts.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
 import { flagshipOffer, flagshipPlan } from '../playbooks/plan.ts';
 import { offerIntakeAsk } from '../playbooks/intake.ts';
+import {youtubeServiceOffer} from '../playbooks/youtube/service-offer.ts';
+import { priceGuideForPlaybook, type PriceGuideView } from './price-ranges.ts';
 
 /**
  * The flagship playbook an idea picks, as the screens show it. An empty object when none fits, so a view spreads it
@@ -14,6 +16,16 @@ import { offerIntakeAsk } from '../playbooks/intake.ts';
 export function playbookField(idea: string): { playbook?: PlaybookPick } {
   const pick = pickPlaybook(idea);
   return pick ? { playbook: { id: pick.id, label: pick.label } } : {};
+}
+
+/**
+ * W6 6C3 (D17): what clients pay for the profession the idea's playbook serves, with sources and the date checked, or
+ * "No reliable data" (core/price-ranges.ts). Spread into a plan view; absent when no profession fits. Worked out each
+ * time, never stored, and never a price: it changes no record, digest or offer.
+ */
+export function priceGuideField(idea: string, countryCode: string): { priceGuide?: PriceGuideView } {
+  const guide = priceGuideForPlaybook(pickPlaybook(idea)?.id, countryCode);
+  return guide ? { priceGuide: guide } : {};
 }
 
 /** The venture's interview record (one per venture, made at create). */
@@ -69,7 +81,7 @@ export function intakeField(idea: string, blueprint: Pick<BlueprintRecord, 'offe
   const plan = flagshipPlan(idea);
   const asks: Record<string, OfferIntakeAsk> = {};
   for (const offer of blueprint.offers) {
-    const own = flagshipOffer(plan, offer);
+    const own = youtubeServiceOffer(plan,offer)??flagshipOffer(plan, offer);
     const ask = plan && own ? offerIntakeAsk(plan.id, own, host) : null;
     if (ask) asks[offer.id] = ask;
   }
@@ -79,5 +91,5 @@ export function intakeField(idea: string, blueprint: Pick<BlueprintRecord, 'offe
 /** host: what the intake asks depends on it (the hosted server never asks for a file on the owner's computer). */
 export function blueprintView(state: State, blueprint: BlueprintRecord, host: VentureHostKind): BlueprintView {
   const venture = findRecord(state, 'venture-record', blueprint.ventureId);
-  return { blueprint, offerReceipts: offerReceipts(state, blueprint), ...(venture ? { ...playbookField(venture.idea), ...intakeField(venture.idea, blueprint, host) } : {}) };
+  return { blueprint, offerReceipts: offerReceipts(state, blueprint), ...(venture ? { ...playbookField(venture.idea), ...intakeField(venture.idea, blueprint, host), ...priceGuideField(venture.idea, blueprint.country?.code ?? venture.country.code) } : {}) };
 }

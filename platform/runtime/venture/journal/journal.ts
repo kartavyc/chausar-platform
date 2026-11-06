@@ -40,6 +40,7 @@ export const JOURNAL_ACTIONS: Readonly<Record<JournalActionId, JournalActionSpec
   'site.apply': { label: 'Edit website', effect: 'irreversible', unknownCodes: [] },
   'bank.alert': { label: 'Send bank alert', effect: 'irreversible', unknownCodes: [] },
   'connector.write': { label: 'Write to a connected service', effect: 'irreversible', unknownCodes: [] },
+  'owner.handoff': { label: 'Hand off to owner', effect: 'atomic', unknownCodes: [] },
   // Ink v2 wave 4 (4G3): a phone alert, the count alone, to one of the owner's browsers or to the owner's relay.
   'notify.push': { label: 'Send phone alert', effect: 'irreversible', unknownCodes: [] },
   'notify.relay': { label: 'Send relay alert', effect: 'irreversible', unknownCodes: [] },
@@ -244,7 +245,7 @@ export function approveIn(tx: VentureTx, ctx: Context, store: object, input: App
   // standing setting; everything else has a person.
   check(!input.standing || (record.kind === 'venture-journal-entry' && ((record.action === 'delivery.send' && record.subject.includes(':judge:'))
     || (STANDING_ALERTS.has(record.action) && record.subject.startsWith(record.action === 'notify.push' ? 'notify-push:' : 'notify-relay:')))),
-    'INVALID_VENTURE_REQUEST', 'Only the judge and phone alerts go under a standing setting; a person approves everything else.');
+    'INVALID_VENTURE_REQUEST', 'Only the quality check and phone alerts go under a standing setting; a person approves everything else.');
   if (record.state !== 'described') throw decidedRefusal(record);
   check(digestOf(record) === input.digest, 'APPROVAL_STALE', 'This changed since you opened it.');
   const nowMs = Date.parse(tx.now);

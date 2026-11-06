@@ -17,6 +17,8 @@ import { Segmented } from '../../parts/Segmented';
 import type { VentureRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
 import { ClientSheet } from './ClientSheet';
+import { CompanySheet } from './CompanySheet';
+import { ListSheet, ListsSheet } from './ListsSheet';
 import { ClientsTab } from './ClientsTab';
 import { ImportSheet } from './ImportSheet';
 import { LeadSheet } from './Leads';
@@ -25,11 +27,12 @@ import { OutreachSheet } from './OutreachSheet';
 import { pipelineRefresh } from './pipeline';
 import { networkRefresh } from './network';
 import { NetworkTab } from './NetworkTab';
+import { ProposalSheet } from './Proposal';
 import { PersonSheet } from './PersonSheet';
 import { PipelineTab } from './PipelineTab';
+import { SendingLimits } from './SendingLimits';
 import { useClientsChanged } from './signals';
 import s from './Clients.module.css';
-
 const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
 
 type Tab = 'clients' | 'pipeline' | 'network';
@@ -68,6 +71,8 @@ function Clients({ tab }: { tab: Tab }) {
       <>
         <Button data-import-network="" onClick={(event) => openSheet('network-import', 'new', event.currentTarget)}><Icon name="upload" size={16} />{t('clients.pipeline.import')}</Button>
         <Button data-add-lead="" onClick={(event) => openSheet('lead', 'new', event.currentTarget)}><Icon name="plus" size={16} />{t('clients.leads.add')}</Button>
+        {/* W6 6G3: the owner's other pipelines, each a list with its own stages. */}
+        <Button data-crm-lists="" onClick={(event) => openSheet('lists', 'all', event.currentTarget)}>{t('crm.lists.open')}</Button>
       </>
     );
   } else if (tab === 'network' && peopleCount) {
@@ -90,9 +95,14 @@ function Clients({ tab }: { tab: Tab }) {
         />
         {tool && <div className={s.tools}>{tool}</div>}
       </div>
+      {tab === 'pipeline' && <SendingLimits />}
       {tab === 'clients' ? <ClientsTab clients={clients} /> : tab === 'pipeline' ? <PipelineTab board={board} leads={leads.data?.leads ?? []} /> : <NetworkTab count={people} />}
     </>
   );
 }
 
-export const sheets: Readonly<Record<string, SheetComponent>> = { client: ClientSheet, lead: LeadSheet, person: PersonSheet, 'network-import': ImportSheet, card: CardSheet, outreach: OutreachSheet };
+export const sheets: Readonly<Record<string, SheetComponent>> = {
+  client: ClientSheet, lead: LeadSheet, person: PersonSheet, 'network-import': ImportSheet, card: CardSheet, outreach: OutreachSheet,
+  proposal: ProposalSheet, // W5 5A2: a sales proposal for a client or a pipeline person
+  company: CompanySheet, lists: ListsSheet, list: ListSheet, // W6 6G3: a company with its links, and the owner's lists
+};

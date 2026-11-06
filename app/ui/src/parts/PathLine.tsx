@@ -57,7 +57,7 @@ export function PathLine({ people, owner, layout = 'card', strength, className }
       label = `${t('path.label', { chain })} ${people.length === 2 ? t('path.bothConfirmed') : t('path.allConfirmed', { count: people.length })}`;
     } else {
       const words = unconfirmed.map((step) => (step <= ORDINALS ? t(`path.ordinal.${step}`) : t('path.ordinal.n', { n: step })));
-      const which = new Intl.ListFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { type: 'conjunction' }).format(words);
+      const which = new Intl.ListFormat('en-IN', { type: 'conjunction' }).format(words);
       label = `${t('path.labelPossible', { chain })} ${t('path.unconfirmed', { count: unconfirmed.length, which })}`;
     }
   }

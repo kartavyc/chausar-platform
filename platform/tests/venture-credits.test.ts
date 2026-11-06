@@ -227,7 +227,7 @@ test('a cheque split across invoices waits as one: clearing it clears every part
 async function otherClient(env: GoalEnv) {
   const other = await env.money<{ id: string }>('venture.client.add', { name: 'Brew Lab Demo', countryCode: 'IN', stateCode: '27' });
   const order = await env.money<OrderRecord>('venture.order.create', { clientId: other.id, offerId: 'offer_1', request: 'Close the month of books.' });
-  const prepared = await env.money<InvoiceView>('venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-03' });
+  const prepared = await env.money<InvoiceView>('venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-03', dueInDays: 15 });
   return env.money<InvoiceView>('venture.invoice.issue', { invoiceId: prepared.invoice.id, digest: prepared.invoice.digest });
 }
 

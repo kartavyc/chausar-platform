@@ -1,0 +1,18 @@
+/* Source review uses Ink tokens and keeps source text inside the phone column. */
+.root { display:grid;gap:var(--gap-cards);min-width:0;overflow-wrap:anywhere; }
+.root label { display:grid;gap:var(--gap-cards);min-width:0; }
+.root select { min-width:0;max-width:100%;width:100%;font:inherit;color:var(--fg);background:var(--surface);border:var(--hair) solid var(--line);border-radius:var(--r-button);padding:var(--gap-cards); }
+.actions { display:flex;flex-wrap:wrap;gap:var(--gap-cards); }
+.source { white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;font-size:var(--text-read);max-width:100%; }
+.mapping { display:grid;gap:var(--gap-cards);min-width:0;border:var(--hair) solid var(--line);border-radius:var(--r-card); }
+.prompter { background:var(--surface);color:var(--fg);padding:var(--pad-card);overflow:auto;max-width:100%; }
+.scriptLines { font-size:var(--text-prompter-medium);overflow-wrap:anywhere; }
+.prompter[data-size="20"] .scriptLines { font-size:var(--text-prompter-small); }
+.prompter[data-size="24"] .scriptLines { font-size:var(--text-prompter-normal); }
+.prompter[data-size="40"] .scriptLines { font-size:var(--text-prompter-large); }
+.prompter[data-size="48"] .scriptLines { font-size:var(--text-prompter-largest); }
+.scriptLines [aria-current="true"] { border-inline-start:var(--sp-1) solid var(--fg);padding-inline-start:var(--gap-cards); }
+.scriptLines [data-cue="true"] { font-size:var(--text-body);font-style:italic; }
+
+.root label:has(> input[type="checkbox"]) { display:flex;align-items:flex-start;gap:var(--gap-cards); }
+.root label > input[type="checkbox"] { flex:none;width:auto; }

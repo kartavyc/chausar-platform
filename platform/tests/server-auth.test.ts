@@ -124,7 +124,7 @@ test('the nine draft methods need the trusted local owner bootstrap session, nev
   const { rpc, member } = await fixture(t);
   const cofounder = await member('Partner', 'cofounder', ['*']);
   const methods = ['venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
-    'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update'];
+    'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update', 'venture.country.suggest'];
   for (const method of methods) {
     const refused = await rpc(method, {}, cofounder.token);
     assert.equal(refused.status, 403, method);

@@ -100,8 +100,10 @@ The factory benchmark emits a machine-readable report and fails on failed, cance
 | `platform/helpers/` | Registered Python analytical helpers |
 | `platform/tests/` | Numerical, security, transport and acceptance cases |
 | `fixtures/plugins/` | Synthetic WASM fixtures |
-| `enterprise/` | Separately recovered enterprise product engine and Python contracts |
-| `docs/specs/` | Supplied architecture, build plan and quest log |
 | `docs/evidence/` | Actual current verification records |
 
-Read [security boundaries](SECURITY.md), [acceptance](docs/acceptance.md), [enterprise setup](docs/enterprise.md), [release qualification](docs/releases.md) and [GitHub handoff](docs/github-handoff.md) before expanding deployment scope.
+Read [security boundaries](SECURITY.md), [acceptance](docs/acceptance.md), [release qualification](docs/releases.md) and [GitHub handoff](docs/github-handoff.md) before expanding deployment scope.
+
+## Licence
+
+Chausar is free software under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`), copyright Kartavy Chauhan; see [LICENSE](LICENSE). [NOTICE](NOTICE) lists third-party packages and their licences, and carries one additional permission under section 7 of the AGPL, for linking the Claude Agent SDK. To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md) and agree to the [CLA](CLA.md).

@@ -1,8 +1,8 @@
 // The price arithmetic. Pure BigInt code on integer minor-unit strings: no model, no state, no floats.
 // Every step is returned with the inputs it used and the rounding rule, so a receipt can show its work.
-import { check } from '../../contracts.ts';
+import { check } from '../../portable.ts';
 import { currencyMinorDigits } from '../../currency.ts';
-import type { BpsString, MinorString, PriceStep, TaxTreatment } from '../contracts.ts';
+import type { BpsString, MinorString, PriceStep, TaxTreatment } from './price-types.ts';
 
 export const TAX_TREATMENTS: readonly TaxTreatment[] = Object.freeze(['none', 'single', 'cgst-sgst', 'igst', 'zero-rated-lut'] as const);
 

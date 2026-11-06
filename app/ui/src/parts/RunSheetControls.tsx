@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
-import { useT } from '../text';
+import { useT, useLanguage } from '../text';
+import { runScopeWords } from './run-scope-words';
 import { refusalWords } from './custody';
 import { Button } from './Button';
 import { Field } from './Field';
@@ -19,23 +20,24 @@ const MAX_NOTE = 500;
  */
 
 /** The scope line with its spend cap as a figure with its receipt, cut once where the engine wrote the cap in it. */
-function withCap(scope: NonNullable<RunDetail['scope']>): ReactNode {
-  const at = scope.line.indexOf(scope.cap);
-  if (at < 0 || !scope.capReceiptId) return scope.line;
+function withCap(scope: NonNullable<RunDetail['scope']>, words: ReturnType<typeof runScopeWords>): ReactNode {
+  const at = words.line.indexOf(scope.cap);
+  if (at < 0 || !scope.capReceiptId) return words.line;
   // The cap in rupees at the owner's own rate, when the engine sends it, beside the cap and proved by the same receipt.
-  const rupees = scope.capRupees && scope.capRate
-    ? <> (<Figure value={`${scope.capRupees} at ${scope.capRate}`} receiptId={scope.capReceiptId} />)</> : null;
-  return <>{scope.line.slice(0, at)}<Figure value={scope.cap} receiptId={scope.capReceiptId} />{rupees}{scope.line.slice(at + scope.cap.length)}</>;
+  const rupees = words.rupees
+    ? <> (<Figure value={words.rupees} receiptId={scope.capReceiptId} />)</> : null;
+  return <>{words.line.slice(0, at)}<Figure value={scope.cap} receiptId={scope.capReceiptId} />{rupees}{words.line.slice(at + scope.cap.length)}</>;
 }
 
 /** The scope line under the run's title, and its tools and outside actions in a fold (O21). Nothing without a scope. */
 export function RunScope({ run }: { run: RunDetail }) {
   const t = useT();
+  const language = useLanguage();
   if (!run.scope) return null;
   const { scope } = run;
   return (
     <div className={s.scope}>
-      <p className={s.scopeLine}>{withCap(scope)}</p>
+      <p className={s.scopeLine}>{withCap(scope, runScopeWords(scope, language, t))}</p>
       <details className={s.fold} data-fold="scope">
         <summary>{t('runsheet.scope.more')}</summary>
         {scope.tools.length > 0 && (
@@ -56,16 +58,17 @@ export function RunScope({ run }: { run: RunDetail }) {
 }
 
 /** A stop on its way or done, in the engine's words; a stopped run offers Resume when the sheet can resume it (O1). */
-export function RunStopNote({ run, onResume }: { run: RunDetail; onResume?: (() => void | Promise<void>) | undefined }) {
+export function RunStopNote({ run, onResume, onRunAgain }: { run: RunDetail; onResume?: (() => void | Promise<void>) | undefined; onRunAgain?: (() => void | Promise<void>) | undefined }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   if (!run.stop) return null;
+  const restart=run.agentProgress?.canResume===false,action=restart?onRunAgain:onResume;
   async function resume() {
-    if (!onResume) return;
+    if (!action || busy) return;
     setBusy(true);
     setProblem(null);
-    try { await onResume(); } catch (error) {
+    try { await action(); } catch (error) {
       setProblem(t('runsheet.resumeFailed', { message: refusalWords(error, t) }));
     } finally { setBusy(false); }
   }
@@ -77,11 +80,11 @@ export function RunStopNote({ run, onResume }: { run: RunDetail; onResume?: (() 
         {stopped ? t(run.interrupted ? 'work.stop.interrupted' : 'work.stop.chip') : t('work.stop.stopping')}
       </p>
       <p className={s.stopLine}>{run.stop.line}</p>
-      {stopped && onResume && (
+      {stopped && action && (
         <div className={s.acts}>
-          <Button variant="primary" size="lg" disabled={busy} onClick={() => void resume()}>
+          <Button variant="primary" size="lg" locked={busy} onClick={() => void resume()}>
             <Icon name="play" size={16} />
-            {t('runsheet.resume')}
+            {t(restart?'run.again':'runsheet.resume')}
           </Button>
         </div>
       )}

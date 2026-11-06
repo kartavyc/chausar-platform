@@ -15,6 +15,7 @@
  */
 
 import { EngineError, type EngineClient, type InterviewAnswer, type InterviewQuestionLite, type Transport, type WorkspaceCreated } from '../../engine/types';
+import { COUNTRY_TIME_ZONES } from '../../../../../platform/runtime/venture/local-day-data';
 
 /** venture.preview and venture.create take 10 to 2000 characters. */
 export const OPEN_BOX = { min: 10, max: 2000 } as const;
@@ -27,27 +28,42 @@ export type Request = EngineClient['request'];
 /** What the owner wrote and where, with the name the vault gets. */
 export interface Sentence { idea: string; countryCode: string; name: string }
 
-/** The region of the browser's language: 'en-IN' gives 'IN'. */
-export function browserRegion(language: string | undefined): string | null {
-  const region = (language ?? '').split('-')[1];
-  return region && /^[A-Za-z]{2}$/.test(region) ? region.toUpperCase() : null;
+const ZONE_COUNTRIES: Readonly<Record<string, string>> = Object.freeze({
+  ...Object.fromEntries(Object.entries(COUNTRY_TIME_ZONES).map(([country, zone]) => [zone, country])),
+  'Asia/Calcutta': 'IN',
+  'America/Los_Angeles': 'US', 'America/Chicago': 'US', 'America/Denver': 'US', 'America/Phoenix': 'US',
+  'America/Detroit': 'US', 'America/Anchorage': 'US', 'America/Adak': 'US', 'Pacific/Honolulu': 'US',
+  'America/Boise': 'US', 'America/Juneau': 'US', 'America/Nome': 'US', 'America/Sitka': 'US', 'America/Yakutat': 'US',
+  'America/Vancouver': 'CA', 'America/Edmonton': 'CA', 'America/Winnipeg': 'CA', 'America/Halifax': 'CA',
+  'America/St_Johns': 'CA', 'America/Regina': 'CA', 'America/Whitehorse': 'CA', 'America/Dawson': 'CA',
+  'America/Moncton': 'CA', 'America/Glace_Bay': 'CA', 'America/Goose_Bay': 'CA', 'America/Iqaluit': 'CA',
+  'America/Rankin_Inlet': 'CA', 'America/Resolute': 'CA', 'America/Cambridge_Bay': 'CA', 'America/Inuvik': 'CA',
+  'America/Dawson_Creek': 'CA', 'America/Fort_Nelson': 'CA', 'America/Swift_Current': 'CA',
+  'Pacific/Chatham': 'NZ', 'Europe/Busingen': 'DE',
+});
+
+/** A supported country from the computer's IANA time zone. Unknown zones need the owner's choice. */
+export function timeZoneCountry(zone: string | undefined): string | null {
+  if (!zone) return null;
+  if (zone.startsWith('Australia/')) return 'AU';
+  if (zone.startsWith('America/Indiana/') || zone.startsWith('America/Kentucky/') || zone.startsWith('America/North_Dakota/')) return 'US';
+  return ZONE_COUNTRIES[zone] ?? null;
 }
 
-/** The browser's country when Chausar has a table for it, else "another country". */
+export function computerCountry(): string | null {
+  try { return timeZoneCountry(Intl.DateTimeFormat().resolvedOptions().timeZone); }
+  catch { return null; }
+}
+
+/** The time zone's country when Chausar has a table for it, else "another country". */
 export function pickCountry(codes: readonly string[], region: string | null): string {
   if (region && codes.includes(region)) return region;
   return codes.includes('XX') ? 'XX' : codes[0] ?? 'XX';
 }
 
-/**
- * A country's name as the reader's language writes it (4Z2): the engine sends a code and an English name, so a Hindi
- * screen names the country itself from the code ("भारत"), and "another country" in its own words. English keeps the
- * engine's name.
- */
-export function countryWords(country: { code: string; name: string }, language: 'en' | 'hi', t: (key: string) => string): string {
-  if (language === 'en') return country.name;
-  if (country.code === 'XX') return t('onboarding.country.other');
-  try { return new Intl.DisplayNames([language], { type: 'region' }).of(country.code) ?? country.name; } catch { return country.name; }
+/** Country labels keep the engine's English wording. Translation plumbing remains at the call sites. */
+export function countryWords(country: { code: string; name: string }, _language: 'en', _t: (key: string) => string): string {
+  return country.name;
 }
 
 /** The sentence as the engine will read it: Windows line ends made plain, spaces trimmed. */

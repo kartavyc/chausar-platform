@@ -52,6 +52,10 @@
  * through `<Sheet receipt>`). That sheet IS the proof: its figures are the receipt's own lines in plain DM Mono, with no
  * chip pointing back at the sheet they sit in, so money text inside it passes. As with engine lines, only the money-text
  * check is relaxed: a `[data-ui-number]` or `[data-figure]` inside a receipt sheet is checked like anywhere else.
+ *
+ * `[data-sourced-range]` (w6 6C3, DECISIONS D17): a price range from credible published sources (src/parts/PriceSources.tsx).
+ * Its proof is its sources and the date checked, behind the (i) button `[data-price-sources]` it must hold, the way a
+ * receipt mark proves a figure. Money text inside it passes; one without its sources button fails.
  */
 
 // Exported so the file reads as a module from its first statement: `node --check` (scripts/check.mjs) only strips
@@ -63,7 +67,7 @@ const MONEY = /(?:[₹$€]\s?|\b(?:INR|USD|EUR|GBP|AED|SGD|AUD|CAD)\s?)\d/;
 /** Where money-looking text may sit: proved, labelled, quoted, an engine row line (until W4 4J1, see above), a receipt
  *  sheet (the proof itself, see above), or typed by the owner. Counts are left to their own, clearer check. Receipt ids
  *  (R-0419) never hold a currency sign, so they need no exemption, and none is given. */
-const MONEY_ALLOWED = '[data-figure], [data-figure-group], [data-estimate], [data-count], [data-content], [data-engine-line], [data-receipt-sheet], input, textarea, select, option, script, style';
+const MONEY_ALLOWED = '[data-figure], [data-figure-group], [data-estimate], [data-count], [data-content], [data-engine-line], [data-receipt-sheet], [data-sourced-range], input, textarea, select, option, script, style';
 
 /** `selector` matches inside `root`, and on `root` itself when it is an element. */
 function within(root: Root, selector: string): Element[] {
@@ -179,6 +183,10 @@ function figureProblems(root: Root): { problems: string[]; numbers: Element[] } 
   for (const group of within(root, '[data-figure-group]')) {
     const problem = proofProblem(group, `figure group "${textOf(group)}"`);
     if (problem) problems.push(problem);
+  }
+  // w6 6C3: a sourced range holds the (i) button that shows its sources and the date checked.
+  for (const range of within(root, '[data-sourced-range]')) {
+    if (!range.querySelector('button[data-price-sources][aria-controls]')) problems.push(`sourced range "${textOf(range)}" has no sources button: show it through PriceRange or PriceSources`);
   }
   const numbers = within(root, '[data-ui-number]');
   for (const number of numbers) {

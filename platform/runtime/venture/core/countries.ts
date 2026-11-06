@@ -1,9 +1,9 @@
 // Chausar venture launcher, core (P1): the fifteen-row country table.
 // Plain data. minorDigits is filled from currencyMinorDigits when listCountries() runs.
 // No row is legal or tax advice; every screen that shows a note says so.
-import { check } from '../../contracts.ts';
+import { check } from '../../portable.ts';
 import { currencyMinorDigits } from '../../currency.ts';
-import type { CountryCode, CountryProfile, DateOrder, TaxMode } from '../contracts.ts';
+import type { CountryCode, CountryProfile, DateOrder, TaxMode } from './country-types.ts';
 
 export const COUNTRIES_CHECKED_ON = '2026-10-15';
 

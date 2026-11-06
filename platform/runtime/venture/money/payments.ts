@@ -16,6 +16,7 @@ import { invoiceView } from './invoices.ts';
 import { freeBalance, paymentState, settledBy } from './ledger.ts';
 import { recordId } from './shared.ts';
 import { tdsSection } from './tax-kinds.ts';
+import { invoiceCountry } from '../core/country-history.ts';
 import type { InvoiceRecord, InvoiceView, IsoDate, MinorString, PaymentMethod, PaymentRecord, VentureDeps } from '../contracts.ts';
 
 export const PAYMENT_METHODS: readonly PaymentMethod[] = Object.freeze(['bank-transfer', 'upi', 'card', 'cash', 'payment-link', 'other', 'cheque'] as const);
@@ -111,7 +112,7 @@ export function recordPaymentMinor(tx: VentureTx, deps: VentureDeps, input: Paym
 
   let tds: PaymentRecord['tds'] | null = null;
   if (input.tds) {
-    check(venture.country.code === 'IN', 'INVALID_VENTURE_REQUEST', 'TDS is an Indian withholding. Record only the money that came in.');
+    check(invoiceCountry(tx.state, venture, invoice).code === 'IN', 'INVALID_VENTURE_REQUEST', 'TDS is an Indian withholding. Record only the money that came in.');
     const withheld = minorOf(input.tds.amount, invoice.currency);
     check(withheld > 0n, 'INVALID_AMOUNT', 'The TDS must be above zero.');
     tds = { section: input.tds.section, amountMinor: String(withheld) };
@@ -156,10 +157,16 @@ function partsInput(value: unknown): { invoiceId: string; typed: string }[] {
 }
 
 /** The calculator's received receipt for each payment the books can now count, kept on the payment. After a commit. */
-async function sealBooks(deps: VentureDeps, ctx: Context, counted: readonly Counted[]): Promise<void> {
+export async function sealBooks(deps: VentureDeps, ctx: Context, counted: readonly Counted[]): Promise<void> {
   if (!counted.length) return;
   const books: { id: string; receiptId: string | null; note: string | null }[] = [];
-  for (const item of counted) books.push({ id: item.paymentId, ...await booksReceiptFor(deps, ctx, 'received', item.date, item.orderId, item.amountMinor, RECEIVED_COVERS_MORE) });
+  const { state, venture } = readVenture(deps, ctx);
+  const payments = listRecords(state, 'venture-payment', venture.id);
+  for (const item of counted) {
+    const payment = payments.find(row => row.id === item.paymentId);
+    check(payment, 'INVALID_VENTURE_REQUEST', 'This payment was not found.');
+    books.push({ id: item.paymentId, ...await booksReceiptFor(deps, ctx, 'received', item.date, item.orderId, item.amountMinor, RECEIVED_COVERS_MORE, payment.currency) });
+  }
   await ventureAction(deps, ctx, 'prepare', 'payment.books', tx => {
     for (const item of books) {
       const payment = tx.find('venture-payment', item.id);
@@ -199,7 +206,9 @@ export async function recordPayment(deps: VentureDeps, ctx: Context, payload: un
     if (!parts) return [recordPaymentMinor(tx, deps, { invoiceId, amount: { typed }, receivedOn, method, ...(tds ? { tds } : {}) })];
     const venture = tx.venture;
     check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
-    const currency = venture.country.currency;
+    const firstInvoice = tx.find('venture-invoice', parts[0].invoiceId);
+    check(firstInvoice, 'INVOICE_NOT_FOUND', 'This invoice was not found.');
+    const currency = firstInvoice.currency;
     const total = BigInt(decimalMinor(typed, currency));
     const minors = parts.map(part => ({ invoiceId: part.invoiceId, minor: BigInt(decimalMinor(part.typed, currency)) }));
     const sum = minors.reduce((added, part) => added + part.minor, 0n);

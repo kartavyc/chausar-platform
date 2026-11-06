@@ -7,7 +7,7 @@ import { receiptMark } from '../helpers/ink-rules';
 
 type Fake = ReturnType<typeof createFakeClient>;
 
-function start(hash = '#/clients', options: { language?: 'en' | 'hi'; override?: (client: Fake) => void } = {}) {
+function start(hash = '#/clients', options: { language?: 'en'; override?: (client: Fake) => void } = {}) {
   window.location.hash = hash;
   const client = createFakeClient(new FakeEngine());
   options.override?.(client);
@@ -276,10 +276,5 @@ describe('client sheet', () => {
     expect(screen.queryByRole('button', { name: 'Boat Audio' })).toBeNull();
   });
 
-  it('renders in Hindi with no missing text', async () => {
-    const { container } = start('#/clients?sheet=client:c-boat', { language: 'hi' });
-    await screen.findByRole('complementary', { name: 'Boat Audio' });
-    await waitFor(() => expect(container.textContent).toContain('partners@boataudio.in'));
-    expect(container.textContent).not.toMatch(/clients\.[a-z]/);
-  });
+
 });

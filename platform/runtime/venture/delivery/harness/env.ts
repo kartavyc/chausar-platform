@@ -15,6 +15,8 @@ import type { Approval } from '../../policy/ladder.ts';
 import { screenSettingOf } from '../../policy/untrusted-methods.ts';
 import { runControlHooks } from './controls.ts';
 import { toolWriteCap } from './write-caps.ts';
+import type { RunPlaybook } from '../workflow.ts';
+import { invoiceCountry } from '../../core/country-history.ts';
 
 /** The order's files, oldest first. */
 export function orderUploads(state: State, ventureId: string, orderId: string): UploadRecord[] {
@@ -65,10 +67,13 @@ export type EnvInput = {
 export function buildToolEnv(input: EnvInput): ToolEnv {
   const { deps, ctx, state, venture } = input;
   const runRef = input.runRef;
+  const run = runRef.kind === 'delivery' ? findRecord(state, 'venture-delivery-run', runRef.runId) : null;
+  const order = run ? findRecord(state, 'venture-order', run.orderId) : null;
+  const country = order?.ventureId === venture.id ? invoiceCountry(state, venture, order) : venture.country;
   return {
-    deps, ventureId: venture.id, memberId: ctx.memberId, epoch: ctx.epoch, currency: venture.country.currency, dateOrder: venture.country.dateOrder,
+    deps, ventureId: venture.id, memberId: ctx.memberId, epoch: ctx.epoch, currency: country.currency, dateOrder: country.dateOrder,
     runRef: input.runRef, files: input.files, tables: [...(input.tables ?? [])], receipts: [...(input.receipts ?? [])],
-    dictionary: dictionaryEntries(state, venture, input.playbook.aliases ?? {}, ownerDefinitions(deps, ctx)),
+    dictionary: (input.playbook as RunPlaybook).runWorkflow?.dictionary ?? dictionaryEntries(state, venture, input.playbook.aliases ?? {}, ownerDefinitions(deps, ctx)),
     sandbox: deps.sandbox, now: () => deps.clock().toISOString(), allowed: [...input.allowed], delegateOffer: [...(input.delegateOffer ?? [])],
     // 4J1: the vault's store, so the context reads this session's allowances (policy/allow-session.ts).
     policy: { context: harnessPolicyContext({ state, venture, playbook: input.playbook, runRef: input.runRef, store: deps.store, ...(input.approval ? { approval: input.approval } : {}) }) },

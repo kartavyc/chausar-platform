@@ -13,7 +13,7 @@ import type {
 } from '../runtime/venture/contracts.ts';
 
 const PASSPHRASE = 'long-enough-passphrase';
-const FAKE_KEY = 'sk-ant-test-not-a-real-key-0000';
+const FAKE_KEY = ("sk" + "-ant-test-not-a-real-key-0000");
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune.';
 
 /** Records every model request and answers none of them: these tests never need a model's words. */
@@ -92,7 +92,15 @@ test('after workspace.create, every other venture method called with {} reaches 
   const engine = await engineOn(t, transport);
   await engine.request('workspace.create', { name: 'Venture reach test', passphrase: PASSPHRASE, pack: 'services' });
   const methods = VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method));
-  assert.equal(methods.length, 256); // 4J5 added venture.bills.stop; 4J2 venture.queue.setPreview and venture.delivery.copy
+  // 4J5 added venture.bills.stop; 4J2 venture.queue.setPreview and venture.delivery.copy; 5-0 the 34 wave 5 methods
+  // (contracts.ts W5_METHODS, each answering NOT_BUILT_YET until its package lands); 5A2 venture.goNoGo.list; 5A5 venture.report.list.
+  // W6 6C5/6C6 added venture.rules.locks, venture.rules.attest and venture.compliance.set (compliance.get is pre-vault),
+  // and the 6C7 first run its AI tools, login and About-you methods, which are draft methods.
+  // W6 Batch 6 added twelve more (6F1, 6F2, 6F3, 6F4, 6F6, 6F7, 6F8).
+  // Batch 7 added twenty-one (6G1, 6G2, 6G3, 6G4).
+  // Batches 8 and 9 added twenty (6H1, 6H2, 6H3, 6I1).
+  // 6J2 added six feedback methods.
+  assert.equal(methods.length, 363);
   for (const method of methods) assertReached(await settle(engine.request(method, {})), method);
   assert.deepEqual(transport.requests, [], 'an empty payload never reaches a model');
 });

@@ -9,6 +9,7 @@
 // The judge rules ask what code cannot see, as yes or no questions with their own floors (delivery/judge/rules.ts),
 // and a committed baseline of held-back cases (baselines/ca-firm.json) fails the suite if quality drops.
 import { checkClaims, type SourceText } from '../../delivery/judge/claim-check.ts';
+import {caSourceCasePasses} from './baseline-source.ts';
 import { loadBaseline, type BaselineFile } from '../../delivery/judge/baseline.ts';
 import { validateRules, type JudgeRule } from '../../delivery/judge/rules.ts';
 import type { ToolEnvelope } from '../../contracts.ts';
@@ -114,6 +115,7 @@ export function receiptSources(receipts: readonly CaReceipt[]): SourceText[] {
 
 /** Section numbers the draft cites, written as the draft writes them, in order and once each. */
 export function citedSections(draft: string): string[] {
+  draft = draft.replace(/\[source:[^\]\r\n]+\]/g, ' ');
   const found: string[] = [];
   for (const match of draft.matchAll(SECTION_REF)) found.push(match[1].toUpperCase());
   for (const match of mask(draft, [SECTION_REF]).matchAll(BARE_SECTION)) found.push(match[1].toUpperCase());
@@ -131,6 +133,10 @@ function figuresFromReceipts(input: CaDraftInput): CaFinding {
 
 /** The workings whose tax figure the calculator works, the engines whose receipts may hold it, and its name in words. */
 const TAX_WORKINGS: Readonly<Partial<Record<CaOfferId, { engines: readonly CaEngine[]; tax: string }>>> = Object.freeze({
+  'itr-computation-only': { engines: ['income-tax'], tax: 'income tax' },
+  'itr-check-draft': { engines: ['income-tax','portal-diff'], tax: 'income tax' },
+  'check-return-elsewhere': { engines: ['income-tax','portal-diff'], tax: 'income tax' },
+  'advance-tax-freelancer': { engines: ['advance-tax'], tax: 'advance tax' },
   'gst-working': { engines: ['gst-working'], tax: 'GST' },
   'tds-working': { engines: ['tds-working'], tax: 'TDS' },
   'itr-salaried': { engines: ['income-tax', 'interest-234'], tax: 'income tax' },
@@ -138,6 +144,7 @@ const TAX_WORKINGS: Readonly<Partial<Record<CaOfferId, { engines: readonly CaEng
 });
 /** The figures on a calculator receipt that are the tax itself or its total, by engine: a working quotes one of these. */
 const TAX_FIGURE_KEYS: Readonly<Partial<Record<CaEngine, RegExp>>> = Object.freeze({
+  'advance-tax': /^(?:instalment-|estimated-net-tax)/,
   'gst-working': /^(?:(?:output|cash)-(?:igst|cgst|sgst)|net-payable)$/,
   'tds-working': /^tds-/,
   'income-tax': /^(?:slab-tax|tax-after-rebate|tax-liability|tax-liability-rounded|balance)$/,
@@ -189,6 +196,10 @@ function taxFigureReceipted(input: CaDraftInput): CaFinding {
 }
 
 function noFilingClaims(input: CaDraftInput): CaFinding {
+  if (/\b(?:skip (?:the |my |your )?CA|just file|file it)\b/i.test(input.clientRequest ?? '')) {
+    const safe = REFUSAL.test(input.draft) && /\b(?:file|filing|submit)\b/i.test(input.draft) && /\bCA\b/.test(input.draft) && /\b(?:prepare|gather|working papers|checklist|computation)\b/i.test(input.draft);
+    if (!safe) return { check: 'no-filing-claims', passed: false, detail: 'Refuse filing or skipping the CA, and offer preparation or a checklist within scope.' };
+  }
   const found = FILING_CLAIMS.map(pattern => pattern.exec(input.draft)?.[0]).filter((item): item is string => !!item);
   return found.length
     ? { check: 'no-filing-claims', passed: false, detail: `The draft says ${found.map(text => `"${text}"`).join(' and ')}. Agents never file, sign or e-verify; the CA or the client does.` }
@@ -263,6 +274,11 @@ export function checkCaDraft(input: CaDraftInput): { passed: boolean; findings: 
 
 /** The questions only a reader can answer, each with its own floor. Code counts the votes (delivery/judge/rules.ts). */
 export const CA_JUDGE_RULES: readonly JudgeRule[] = Object.freeze(validateRules([
+  {id:'whatif-assumptions-shown',question:'Are all scenario assumptions explicitly shown when what-if work is present? Otherwise answer yes.',text:'Show the exact calculator assumptions and keep the scenario separate from a client fact.',floor:{kind:'required-yes'}},
+  {id:'finding-has-evidence',question:'Does every books health finding cite source evidence and the CA decision, without implying unread data is clean? Otherwise answer yes.',text:'Evidence, full supplied-source coverage and CA review are required for health findings.',floor:{kind:'required-yes'}},
+  { id:'citation-current', question:'Are every section and dated mapping checked, with unknown references held for the CA?', text:'Every citation must match the confirmed dated rule table.', floor:{kind:'required-yes'} },
+  { id:'fact-check-form', question:'For a tax question note, are Supports, Conflicts, Unknowns and Coverage present with a source id for each claim? Otherwise answer yes.', text:'Tax question notes must use the source-backed fact-check form.', floor:{kind:'required-yes'} },
+  { id:'assumption-labelled', question:'Are client estimates explicitly labelled assumptions wherever used?', text:'A client estimate must never be presented as an established fact.', floor:{kind:'required-yes'} },
   { id: 'right-head', question: 'Is every income item under its right head, and every deduction under the section its receipt names?', text: 'Each income item must sit under its right head, and each deduction under the section its receipt names.', floor: { kind: 'required-yes' } },
   { id: 'no-over-claim', question: 'Does the draft avoid claiming a deduction or credit the documents do not support?', text: 'A deduction or credit must never go beyond what the documents support or the confirmed rate table allows.', floor: { kind: 'required-yes' } },
   { id: 'no-skipped-income', question: 'Does every income item in AIS or 26AS appear in the working or among the open items?', text: 'Every income item in AIS or 26AS must appear in the working or among the open items for the client.', floor: { kind: 'required-yes' } },
@@ -275,6 +291,8 @@ export const CA_JUDGE_RULES: readonly JudgeRule[] = Object.freeze(validateRules(
 export const CA_BASELINE_DIR = new URL('./baselines/', import.meta.url);
 
 /** The committed baseline for this playbook. */
-export function loadCaBaseline(): Promise<BaselineFile> {
-  return loadBaseline('ca-firm', CA_BASELINE_DIR);
+export async function loadCaBaseline(): Promise<BaselineFile> {
+  const file=await loadBaseline('ca-firm', CA_BASELINE_DIR);
+  for(const item of file.cases)if(!caSourceCasePasses(item))throw new Error(`CA source baseline failed: ${item.id}`);
+  return file;
 }

@@ -15,6 +15,8 @@ import { handlers as delivery } from '../runtime/venture/delivery/index.ts';
 import { handlers as views } from '../runtime/venture/views/index.ts';
 import { PRACTICE_FILES } from '../runtime/venture/delivery/harness/practice.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import { scriptedAgent, consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 
 export const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 export const phone: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'phone' };
@@ -63,7 +65,7 @@ export class ScriptPort implements ModelPort {
     const payloadText = JSON.stringify({ system: task.instructions, input: task.input });
     this.#previews.set(callId, { digest: digest(payloadText), task, used: false });
     await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview' }); });
-    return { callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-16T10:30:00.000Z' };
+    return { callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010' };
   }
   async runPreview<T>(ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
     await this.store.update(() => undefined);
@@ -181,7 +183,6 @@ export function call<T>(env: Env, method: string, payload: unknown = {}, ctx: Co
   return handler(env.deps, ctx, payload) as Promise<T>;
 }
 
-export const approve = (env: Env, run: DeliveryRunView) => call<DeliveryRunView>(env, 'venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
 export const stop = (env: Env, runId: string, force = false, ctx: Context = owner) => call<RunControlResult>(env, 'venture.runs.stop', force ? { runId, force } : { runId }, ctx);
 export const getRun = (env: Env, runId: string) => call<RunDetail>(env, 'venture.runs.get', { runId });
 export const record = (env: Env, runId: string): DeliveryRunRecord => findRecord(env.store.read(), 'venture-delivery-run', runId)!;
@@ -194,51 +195,32 @@ export async function controlRow(env: Env, runId: string) {
   return (await queue(env)).rows.find(row => row.id.startsWith('runctl:') && row.viewRef?.id === runId);
 }
 
-export const turnOf = (note: string, calls: [string, unknown][], finished = false) => ({ note, calls: calls.map(([tool, input]) => ({ tool, input: JSON.stringify(input) })), finished });
 const part = (text: string) => ({ kind: 'text', text, ref: '' });
 const fig = (ref: string) => ({ kind: 'figure', text: '', ref });
-export const REPORT = {
-  title: 'Your September books',
-  sections: [
-    { heading: 'Summary', parts: [part('We reconciled your bank statement against your bills, and the statement balances.')] },
-    { heading: 'What we did', parts: [part('We matched each payment to a bill.'), fig('w1.matched-count'), part('The closing balance on the statement is below.'), fig('w1.statement-closing')] },
-    { heading: 'What needs your answer', parts: [part('Nothing is open from this month.')] },
-    { heading: 'Next steps', parts: [part('The fee for the month is below.'), fig('order.total')] },
-  ],
-  questionsForClient: [],
-};
-export const READ = turnOf('Look at the statement and the bills', [['files.list', {}], ['files.read', { target: 'f1', part: 'sample' }], ['files.read', { target: 'f2', part: 'sample' }]]);
-export const RECONCILE = turnOf('Reconcile the statement against the bills', [['books.reconcile', {
-  bank: 'f1', date: 'Date', description: 'Narration', moneyOut: 'Withdrawal', moneyIn: 'Deposit', balance: 'Balance',
-  bills: [{ table: 'f2', vendor: 'Supplier', amount: 'Amount', date: 'Bill date', number: 'Bill number' }],
-}]]);
-export const PYTHON = turnOf('Sort the bills by supplier kind', [
-  ['files.list', {}], ['sandbox.python', { table: 'f2', code: 'def transform(row):\n    return {"kind": "supplies"}' }], ['files.read', { target: 'f1', part: 'sample' }],
-]);
-export const BROKEN = turnOf('Try reading tables that are not there', [['files.read', { target: 'f9', part: 'sample' }], ['files.read', { target: 'f8', part: 'sample' }]]);
-export const DONE = turnOf('Ready to write the report', [], true);
-/**
- * A reading turn that differs from the ones before it, so a run can read for many turns without the repeat-failure
- * breaker (4F2) taking it for a loop: across six of them no step repeats more than twice.
- */
-export const lookAround = (n: number) => {
-  const parts = ['columns', 'sample', 'rows'];
-  return turnOf('Look at the files again', [
-    ['dictionary.browse', { query: `bank words, look ${'again '.repeat(n).trim() || 'first'}` }],
-    ['files.read', { target: 'f1', part: parts[n % 3] }], ['files.read', { target: 'f2', part: parts[(n + 1) % 3] }],
-  ]);
-};
 
-/** The agent's turns in order (the last one repeats) and the report the write step returns. */
-export function scriptTurns(env: Env, turns: unknown[], report: unknown = REPORT) {
-  let next = 0;
-  env.models.respond['agent-turn'] = () => turns[Math.min(next++, turns.length - 1)];
-  env.models.respond.delivery = () => report;
-}
-
-/** A started agent run on an order with files, waiting for approval of its first turn. */
-export async function startRun(env: Env, turns: unknown[]): Promise<DeliveryRunView> {
-  const order = await orderWithFiles(env);
-  scriptTurns(env, turns);
-  return call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
+/** Explicit fixture consent and a real scoped native agent. No outside action is performed. */
+export async function startNativeDraft(env: Env, options: {
+  order?: OrderRecord; draft?: unknown; beforeDraft?: () => Promise<void>;
+  work?: Parameters<typeof scriptedAgent>[3];
+  observe?: Parameters<typeof scriptedAgent>[2];
+} = {}): Promise<DeliveryRunView> {
+  const order = options.order ?? await orderWithFiles(env);
+  await env.store.update(state => { state.policy.send = 'shape'; });
+  await consentForOrder(env.deps, owner, order.id);
+  let headings: string[] = [];
+  const observe: NonNullable<Parameters<typeof scriptedAgent>[2]> = (name, data) => {
+    if (name === 'read_business') headings = (data as { sections: string[] }).sections;
+    options.observe?.(name, data);
+  };
+  const draft = () => (typeof options.draft === 'function' ? options.draft() : options.draft) ?? {
+    title: 'Books for your review',
+    sections: headings.map((heading, index) => ({ heading, parts: index === headings.length - 1
+      ? [part('The agreed fee follows.'), fig('order.total')]
+      : [part('Please review the attached books and confirm the records are complete.')] })),
+    questionsForClient: [],
+  };
+  env.deps.agentRoute = async () => ({ driver: scriptedAgent(draft, options.beforeDraft, observe, options.work), settings: SCRIPTED_AGENT_SETTINGS });
+  const run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, run.id);
+  return (await call<DeliveryRunView[]>(env, 'venture.delivery.list')).find(item => item.id === run.id)!;
 }

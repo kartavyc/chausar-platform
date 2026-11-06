@@ -44,8 +44,8 @@ function fromCueFile(text: string): Cue[] {
   for (const line of text.split(/\r?\n/)) {
     const stamp = STAMP_LINE.exec(line);
     if (stamp) {
-      const startMs = parseTimestamp(stamp[1]);
-      const endMs = parseTimestamp(stamp[2]);
+      const startMs = parseTimestamp(stamp[1]!);
+      const endMs = parseTimestamp(stamp[2]!);
       current = startMs === null || endMs === null ? null : { startMs, endMs, lines: [] };
       if (current) cues.push(current);
       if (cues.length >= MAX_CUES) break;

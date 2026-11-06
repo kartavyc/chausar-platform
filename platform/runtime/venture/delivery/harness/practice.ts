@@ -5,6 +5,8 @@
 import { digest } from '../../records.ts';
 import type { Scenario } from '../../contracts.ts';
 import type { FileLike } from './files.ts';
+import { CA_PRACTICE } from '../../playbooks/ca-firm/practice.ts';
+import { kitPracticeClient, practiceFormat } from '../../playbooks/kit/practice.ts';
 
 type PracticeFile = { name: string; content: string };
 
@@ -72,15 +74,22 @@ function sourceScenario(scenario: Pick<Scenario, 'id' | 'serviceType' | 'source'
   return scenario.source === 'signal' ? `${scenario.serviceType}-messy` : scenario.id;
 }
 
+/** A scenario's practice files: the service type's, or (Ink v2 wave 5, 5A1) a kit playbook's practice client's. */
+function filesOf(key: string): readonly PracticeFile[] {
+  if (key.startsWith('ca-firm-')) return CA_PRACTICE.find(row=>'ca-firm-'+row.id===key)?.files.map(file=>({name:file.name,content:file.text}))??[];
+  if (Object.hasOwn(PRACTICE_FILES, key)) return PRACTICE_FILES[key];
+  return kitPracticeClient(key)?.client.files.map(file => ({ name: file.name, content: file.text })) ?? [];
+}
+
 export function practiceFileNames(scenario: Pick<Scenario, 'id' | 'serviceType' | 'source'>): string[] {
-  return (PRACTICE_FILES[sourceScenario(scenario)] ?? []).map(file => file.name);
+  return filesOf(sourceScenario(scenario)).map(file => file.name);
 }
 
 /** The scenario's practice files as the tools read them. Ids are stable, so the same rehearsal reads the same tables. */
 export function practiceFiles(scenario: Pick<Scenario, 'id' | 'serviceType' | 'source'>): FileLike[] {
   const key = sourceScenario(scenario);
-  return (PRACTICE_FILES[key] ?? []).map((file, index) => {
+  return filesOf(key).map((file, index) => {
     const contentBase64 = Buffer.from(file.content, 'utf8').toString('base64');
-    return { id: `practice_${key}_${index + 1}`, name: file.name, format: 'csv' as const, bytes: Buffer.byteLength(file.content), digest: digest(contentBase64), contentBase64, clientData: false };
+    return { id: `practice_${key}_${index + 1}`, name: file.name, format: practiceFormat(file.name) ?? 'csv', bytes: Buffer.byteLength(file.content), digest: digest(contentBase64), contentBase64, clientData: false };
   });
 }

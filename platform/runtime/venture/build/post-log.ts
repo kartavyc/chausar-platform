@@ -5,15 +5,14 @@
 // before it goes out, from any vault: when, and short unsalted fingerprints (the first 16 hex characters of a sha256)
 // of its word groups and of the sites it links, not the words. Short and unsalted, so a guessed text can be matched
 // against them; they sit on the owner's own computer beside the browser profiles, which hold far more. It keeps the
-// last 30 days, 200 entries at most; an entry whose time cannot be read, or that is more than a day ahead, is dropped.
+// last 30 days of fingerprints, plus its first and last timestamps; an entry whose time cannot be read, or that is more than a day ahead, is dropped.
 // A log Chausar cannot read or write never stops a post: the vault's own history still counts.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { PostLogEntry, PostLogPort } from '../contracts.ts';
+import type { PostLogEntry, PostLogPort, VentureDeps } from '../contracts.ts';
 
 const KEEP_DAYS = 30;
-const KEEP_ENTRIES = 200;
 
 /** The folder the browser profiles live in, as build/browser.ts finds it. */
 export function profileRoot(): string {
@@ -30,9 +29,12 @@ function wellFormed(value: unknown, nowMs: number): value is PostLogEntry {
   return Number.isFinite(at) && at - nowMs <= DAY && !!entry.print && Array.isArray(entry.print.shingles) && Array.isArray(entry.print.domains);
 }
 
-/** The last 200 entries written within the last 30 days. */
+/** Keep recent fingerprints and only the endpoint timestamps needed for long owner-selected pacing. */
 function trimmed(entries: PostLogEntry[], nowMs: number): PostLogEntry[] {
-  return entries.filter(entry => nowMs - Date.parse(entry.at) < KEEP_DAYS * DAY).slice(-KEEP_ENTRIES);
+  const sorted = [...entries].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const first = sorted[0], last = sorted.at(-1);
+  return sorted.flatMap(entry => nowMs - Date.parse(entry.at) < KEEP_DAYS * DAY ? [entry]
+    : entry === first || entry === last ? [{ ...entry, print: { shingles: [], domains: [] } }] : []);
 }
 
 /** The log on disk: <profile root>/<connector>.posts.json. Read and write failures are swallowed. */
@@ -42,13 +44,23 @@ export function diskPostLog(root: string = profileRoot(), now: () => number = Da
     try {
       const parsed = JSON.parse(readFileSync(path(connectorId), 'utf8')) as unknown;
       const nowMs = now();
-      return Array.isArray(parsed) ? parsed.filter((item): item is PostLogEntry => wellFormed(item, nowMs)).filter(entry => entry.connectorId === connectorId) : [];
+      return Array.isArray(parsed) ? trimmed(parsed.filter((item): item is PostLogEntry => wellFormed(item, nowMs)).filter(entry => entry.connectorId === connectorId), nowMs) : [];
     } catch {
       return [];
     }
   };
   return {
     read,
+    remove(connectorId, ids) {
+      const file = path(connectorId);
+      let parsed: unknown;
+      try { parsed = JSON.parse(readFileSync(file, 'utf8')); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error; }
+      if (!Array.isArray(parsed)) throw new Error('The posting history could not be cleared.');
+      const gone = new Set(ids), kept = parsed.filter(entry => !gone.has(entry?.id));
+      if (kept.length) writeFileSync(file, `${JSON.stringify(kept, null, 2)}\n`, 'utf8');
+      else unlinkSync(file);
+    },
     append(entry) {
       try {
         const next = trimmed([...read(entry.connectorId).filter(item => item.id !== entry.id), entry], now());
@@ -66,6 +78,7 @@ export function memoryPostLog(): PostLogPort & { entries: PostLogEntry[] } {
   const entries: PostLogEntry[] = [];
   return {
     entries,
+    remove(connectorId, ids) { const gone = new Set(ids); for (let i = entries.length - 1; i >= 0; i--) if (entries[i].connectorId === connectorId && gone.has(entries[i].id)) entries.splice(i, 1); },
     read: connectorId => entries.filter(entry => entry.connectorId === connectorId).map(entry => structuredClone(entry)),
     append(entry) {
       const at = entries.findIndex(item => item.id === entry.id);
@@ -73,4 +86,14 @@ export function memoryPostLog(): PostLogPort & { entries: PostLogEntry[] } {
       entries.push(structuredClone(entry));
     },
   };
+}
+
+/** Delete only the approved person's affected entries, including historical timestamp anchors. Failure is visible. */
+export function removePostingLogEntries(deps: VentureDeps, entries: readonly Pick<PostLogEntry, 'id' | 'connectorId'>[]): void {
+  if (!entries.length) return;
+  const log = deps.connectors?.postLog ?? (deps.connectors === undefined && (deps.host === 'desktop' || deps.host === 'local-web') ? diskPostLog() : null);
+  if (!log) return;
+  for (const connectorId of new Set(entries.map(entry => entry.connectorId))) {
+    log.remove(connectorId, entries.filter(entry => entry.connectorId === connectorId).map(entry => entry.id));
+  }
 }

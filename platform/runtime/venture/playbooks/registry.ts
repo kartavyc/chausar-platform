@@ -9,6 +9,7 @@ import type { ServiceType } from '../contracts.ts';
 import { CA_FIRM_REGISTRATION } from './ca-firm/registration.ts';
 import { YOUTUBE_REGISTRATION } from './youtube/registration.ts';
 import { SOCIAL_AGENCY_REGISTRATION } from './social/registration.ts';
+import { PLAYBOOK_REGISTRATIONS } from './registrations.ts';
 
 export type PlaybookRegistration = {
   /** The folder name: short and lowercase. */
@@ -40,7 +41,24 @@ export const PLAYBOOK_REGISTRY: readonly PlaybookRegistration[] = Object.freeze(
   CA_FIRM_REGISTRATION,
   YOUTUBE_REGISTRATION,
   SOCIAL_AGENCY_REGISTRATION,
+  // Ink v2 wave 5 (5A1): every kit playbook whose package landed (playbooks/registrations.ts; a stub still null is left out).
+  ...PLAYBOOK_REGISTRATIONS,
 ]);
+
+let testRegistrations: readonly PlaybookRegistration[] = Object.freeze([]);
+
+/**
+ * The registry as it is now: PLAYBOOK_REGISTRY, then any kit playbook a test installed (kit/installed.ts). The default
+ * of every function here, read when the function is called.
+ */
+export function currentRegistry(): readonly PlaybookRegistration[] {
+  return testRegistrations.length ? [...PLAYBOOK_REGISTRY, ...testRegistrations] : PLAYBOOK_REGISTRY;
+}
+
+/** Tests only (kit/installed.ts installTestPlaybooks): the fixture registrations beside the real ones. */
+export function setTestRegistrations(registrations: readonly PlaybookRegistration[]): void {
+  testRegistrations = Object.freeze([...registrations]);
+}
 
 const ID = /^[a-z][a-z0-9-]{0,40}$/;
 
@@ -55,19 +73,19 @@ function realDay(value: unknown): boolean {
  * Ids are unique and short, every registration has a label, a risk level and the day it was last reviewed, and no
  * phrase picks two playbooks.
  */
-export function validateRegistry(registry: readonly PlaybookRegistration[] = PLAYBOOK_REGISTRY): void {
+export function validateRegistry(registry: readonly PlaybookRegistration[] = currentRegistry()): void {
   const ids = new Set<string>();
   const phrases = new Map<string, string>();
   for (const entry of registry) {
-    if (!ID.test(entry.id)) throw new Error(`The playbook id ${JSON.stringify(entry.id)} is not a short lowercase name.`);
-    if (ids.has(entry.id)) throw new Error(`The playbook ${entry.id} is registered twice.`);
+    if (!ID.test(entry.id)) throw new Error(`The work plan id ${JSON.stringify(entry.id)} is not a short lowercase name.`);
+    if (ids.has(entry.id)) throw new Error(`The work plan ${entry.id} is registered twice.`);
     ids.add(entry.id);
-    if (typeof entry.label !== 'string' || !entry.label.trim()) throw new Error(`The playbook ${entry.id} has no label.`);
-    if (!RISK_LEVELS.includes(entry.riskLevel)) throw new Error(`The playbook ${entry.id} needs a risk level: low, medium or high.`);
-    if (!realDay(entry.lastReviewed)) throw new Error(`The playbook ${entry.id} needs the day it was last reviewed, like 2026-10-23.`);
-    if (!entry.picks.length) throw new Error(`The playbook ${entry.id} has no phrases that pick it.`);
+    if (typeof entry.label !== 'string' || !entry.label.trim()) throw new Error(`The work plan ${entry.id} has no label.`);
+    if (!RISK_LEVELS.includes(entry.riskLevel)) throw new Error(`The work plan ${entry.id} needs a risk level: low, medium or high.`);
+    if (!realDay(entry.lastReviewed)) throw new Error(`The work plan ${entry.id} needs the day it was last reviewed, like 2026-10-23.`);
+    if (!entry.picks.length) throw new Error(`The work plan ${entry.id} has no phrases that pick it.`);
     for (const phrase of entry.picks) {
-      if (phrase !== phrase.toLowerCase().trim() || !phrase) throw new Error(`The playbook ${entry.id} has a phrase that is not lower case: ${JSON.stringify(phrase)}.`);
+      if (phrase !== phrase.toLowerCase().trim() || !phrase) throw new Error(`The work plan ${entry.id} has a phrase that is not lower case: ${JSON.stringify(phrase)}.`);
       const other = phrases.get(phrase);
       if (other && other !== entry.id) throw new Error(`The phrase ${JSON.stringify(phrase)} picks both ${other} and ${entry.id}.`);
       phrases.set(phrase, entry.id);
@@ -80,7 +98,7 @@ export function validateRegistry(registry: readonly PlaybookRegistration[] = PLA
  * longest phrase found wins, and a tie goes to the playbook registered first. No phrase found gives null, and the
  * plain service type serves the business.
  */
-export function pickPlaybook(idea: string, registry: readonly PlaybookRegistration[] = PLAYBOOK_REGISTRY): PlaybookRegistration | null {
+export function pickPlaybook(idea: string, registry: readonly PlaybookRegistration[] = currentRegistry()): PlaybookRegistration | null {
   const text = idea.toLowerCase().replace(/\s+/g, ' ');
   let best: PlaybookRegistration | null = null;
   let bestLength = 0;
@@ -92,11 +110,11 @@ export function pickPlaybook(idea: string, registry: readonly PlaybookRegistrati
   return best;
 }
 
-export function findPlaybook(id: string, registry: readonly PlaybookRegistration[] = PLAYBOOK_REGISTRY): PlaybookRegistration | null {
+export function findPlaybook(id: string, registry: readonly PlaybookRegistration[] = currentRegistry()): PlaybookRegistration | null {
   return registry.find(entry => entry.id === id) ?? null;
 }
 
 /** The human label for a registered playbook, or null when the id is not registered. */
-export function playbookLabel(id: string, registry: readonly PlaybookRegistration[] = PLAYBOOK_REGISTRY): string | null {
+export function playbookLabel(id: string, registry: readonly PlaybookRegistration[] = currentRegistry()): string | null {
   return findPlaybook(id, registry)?.label ?? null;
 }

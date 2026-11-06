@@ -23,7 +23,7 @@ import { turnDownEditIn } from '../journal/action-extras.ts';
 import { reportEndState } from '../journal/end-states.ts';
 
 export type SiteTarget = {
-  kind: 'local-folder' | 'github';
+  kind: 'local-folder' | 'github' | 'cloudflare-kv';
   identity: string; // 'folder:<absolute path>' or 'github:<owner>/<repo>@<branch>'
   writable: boolean;
   read(path: string): Promise<string | null>; // null when the file does not exist
@@ -114,6 +114,7 @@ export function githubSiteTarget(input: {
 
 /** The honest label for a target, shown wherever its edits are. */
 export function siteTargetLabel(target: SiteTarget): { mode: 'read' | 'write'; status: 'available'; what: string } {
+  if (target.kind === 'cloudflare-kv') return { mode: 'write', status: 'available', what: 'Replaces reviewed keys in your existing Cloudflare namespace and can restore the previous value. Readback may lag; uncertain results need inspection.' };
   if (target.kind === 'github') {
     return target.writable
       ? { mode: 'write', status: 'available', what: 'Applies edits you reviewed to your repo with the write grant you gave, and reads them back.' }

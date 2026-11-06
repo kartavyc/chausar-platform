@@ -1,0 +1,50 @@
+import {refuseYoutubeDraft} from '../runtime/venture/playbooks/youtube/run-guard.ts';
+import {listRecords} from '../runtime/venture/records.ts';
+// Chausar finishing freshness through the real owner desk, original regression.
+import test from 'node:test';import assert from 'node:assert/strict';
+import {mkdtemp,writeFile,rm} from 'node:fs/promises';import {join} from 'node:path';import {tmpdir} from 'node:os';
+import {business,owner} from './venture-judge-helpers.ts';import {YOUTUBE_DESK} from '../runtime/venture/playbooks/youtube/desk.ts';
+test('screencast owner export requires three measured Shorts and current finishing evidence',async()=>{
+ const folder=await mkdtemp(join(tmpdir(),'youtube-finish-binding-'));
+ try{
+  const source=join(folder,'source.mp4'),output=join(folder,'output.mp4');await writeFile(source,'original source');await writeFile(output,'finished output');
+  const f=await business('A YouTube channel for small makers in India');const added=await f.call('venture.blueprint.update',{patch:{addOffer:{youtubeService:'screencast-tutorial'}}}),offer=added.blueprint.offers.at(-1)!;const priced=await f.call('venture.blueprint.update',{patch:{offers:[{id:offer.id,unitPrice:'1500'}]}});await f.call('venture.blueprint.accept',{digest:priced.blueprint.digest});
+  f.deps.ffmpeg={locate:()=>'/ffmpeg',run:async(_bin,args)=>({code:0,timedOut:false,startError:null,stdout:'',stderr:args.includes('-af')?'First {"input_i":"-14","input_tp":"-1"}':'Duration: 00:01:30.000\nStream #0:0: Video: h264, yuv420p, 1920x1080, 25 fps\ncrop=1920:1080:0:0'})};
+  const order=await f.call('venture.order.create',{clientId:f.client.id,offerId:offer.id,request:'Edit my video.',intake:{rights:{basis:'own-footage',holder:'Asha'},format:'long',cutFile:source,fields:{channelUrl:'https://youtube.com/@makers',hoursPerWeek:'4',targetQueries:['stock count','shop sales','cash flow'],scripted:false}}});
+  await f.call('venture.files.add',{orderId:order.id,name:'source.srt',contentBase64:Buffer.from('1\n00:00:00,000 --> 00:01:00,000\nA complete sentence.').toString('base64')});
+  const made=await YOUTUBE_DESK.edit.act!(f.deps,owner,{playbook:'youtube',kind:'edit',id:'new',action:'create',payload:{orderId:order.id,source:{label:'Words',durationMs:90000,words:Array.from({length:9},(_,index)=>({id:'w'+(index+1),text:['A','complete','sentence.'][index%3]!,startMs:index*10000,endMs:(index+1)*10000}))},sourceRef:{kind:'transcript',orderId:order.id}}});
+  const get=()=>YOUTUBE_DESK.board.get!(f.deps,owner,{playbook:'youtube',kind:'board',id:made.id});
+  const act=async(action:string,payload:any)=>{const row=await get();return YOUTUBE_DESK.board.act!(f.deps,owner,{playbook:'youtube',kind:'board',id:made.id,action,payload,digest:row.digest});};
+  await act('prepare',{rate:25,publishing:[{platform:'youtube',text:'Video'}]});
+  for(const row of ((await get()).item as any).board.outputs)await act('decide',{outputId:row.id,decision:'approved'});
+  await assert.rejects(act('export',{}),{code:'CLIP_RULES_FAILED'});await act('clips',{format:'shorts',picks:[1,2,3].map(i=>({from:'w'+((i-1)*3+1),to:'w'+(i*3),hook:'Learn this step',firstLine:'Try this lesson.',overlayMs:2000,loopTo:'w'+((i-1)*3+1)}))});await assert.rejects(act('export',{}),{code:'FINISHING_FAILED'});await act('finishing',{file:output,platform:'youtube',boxes:[]});const result=await act('export',{});assert.equal((result.result as any).screencast.clipCount,3);assert.equal((result.result as any).screencast.capability,'handoff');const venture=listRecords(f.store.read(),'venture-record')[0]!,live=()=>listRecords(f.store.read(),'venture-order').find(row=>row.id===order.id)!;const calls=[{tool:'youtube.export',outcome:'succeeded',envelope:{ok:true,result:result.result}}] as any;refuseYoutubeDraft(f.store.read(),venture,live(),f.deps.clock().toISOString(),calls);await act('publishing',{outputId:'publishing-youtube',text:'Changed publishing words'});assert.throws(()=>refuseYoutubeDraft(f.store.read(),venture,live(),f.deps.clock().toISOString(),calls),{code:'OUTPUT_APPROVAL_REQUIRED'});await act('decide',{outputId:'publishing-youtube',decision:'approved'});assert.throws(()=>refuseYoutubeDraft(f.store.read(),venture,live(),f.deps.clock().toISOString(),calls),{code:'DERIVED_STALE'});
+  await writeFile(output,'replaced delivery after measurement');
+  await assert.rejects(act('export',{}),{code:'DERIVED_STALE'});
+ }finally{await rm(folder,{recursive:true,force:true});}
+});
+
+test('scripted screencast uses the exact approved speech and refuses missing words',async()=>{
+ const folder=await mkdtemp(join(tmpdir(),'youtube-finish-binding-'));
+ try{
+  const source=join(folder,'source.mp4'),output=join(folder,'output.mp4');await writeFile(source,'original source');await writeFile(output,'finished output');
+  const f=await business('A YouTube channel for small makers in India');const added=await f.call('venture.blueprint.update',{patch:{addOffer:{youtubeService:'screencast-tutorial'}}}),offer=added.blueprint.offers.at(-1)!;const priced=await f.call('venture.blueprint.update',{patch:{offers:[{id:offer.id,unitPrice:'1500'}]}});await f.call('venture.blueprint.accept',{digest:priced.blueprint.digest});
+  f.deps.ffmpeg={locate:()=>'/ffmpeg',run:async(_bin,args)=>({code:0,timedOut:false,startError:null,stdout:'',stderr:args.includes('-af')?'First {"input_i":"-14","input_tp":"-1"}':'Duration: 00:01:30.000\nStream #0:0: Video: h264, yuv420p, 1920x1080, 25 fps\ncrop=1920:1080:0:0'})};
+  const order=await f.call('venture.order.create',{clientId:f.client.id,offerId:offer.id,request:'Edit my video.',intake:{rights:{basis:'own-footage',holder:'Asha'},format:'long',cutFile:source,fields:{channelUrl:'https://youtube.com/@makers',hoursPerWeek:'4',targetQueries:['stock count','shop sales','cash flow'],scripted:true}}});
+  await f.call('venture.files.add',{orderId:order.id,name:'source.srt',contentBase64:Buffer.from('1\n00:00:00,000 --> 00:01:00,000\nA complete sentence.').toString('base64')});
+  const csv='kind,text\nspeech,A complete sentence.\n';const upload=await f.call('venture.files.add',{orderId:order.id,name:'approved-script.csv',contentBase64:Buffer.from(csv).toString('base64')});
+  await YOUTUBE_DESK.research!.act!(f.deps,owner,{playbook:'youtube',kind:'research',id:'new',action:'create',payload:{mode:'script',orderId:order.id,fileId:listRecords(f.store.read(),'venture-upload').find(row=>row.name==='approved-script.csv')!.id,mapping:{kind:'kind',text:'text'},options:{wordsPerMinute:150,textSize:24},sourceConsent:true}});
+  const script=await YOUTUBE_DESK.research!.get!(f.deps,owner,{playbook:'youtube',kind:'research',id:order.id});await YOUTUBE_DESK.research!.act!(f.deps,owner,{playbook:'youtube',kind:'research',id:order.id,action:'approve',payload:{},digest:script.digest});
+  const made=await YOUTUBE_DESK.edit.act!(f.deps,owner,{playbook:'youtube',kind:'edit',id:'new',action:'create',payload:{orderId:order.id,source:{label:'Words',durationMs:90000,words:Array.from({length:9},(_,index)=>({id:'w'+(index+1),text:['A','complete','sentence.'][index%3]!,startMs:index*10000,endMs:(index+1)*10000}))},sourceRef:{kind:'transcript',orderId:order.id}}});
+  const get=()=>YOUTUBE_DESK.board.get!(f.deps,owner,{playbook:'youtube',kind:'board',id:made.id});
+  const act=async(action:string,payload:any)=>{const row=await get();return YOUTUBE_DESK.board.act!(f.deps,owner,{playbook:'youtube',kind:'board',id:made.id,action,payload,digest:row.digest});};
+  await act('prepare',{rate:25,publishing:[{platform:'youtube',text:'Video'}]});
+  for(const row of ((await get()).item as any).board.outputs)await act('decide',{outputId:row.id,decision:'approved'});
+  await assert.rejects(act('export',{}),{code:'CLIP_RULES_FAILED'});await act('clips',{format:'shorts',picks:[1,2,3].map(i=>({from:'w'+((i-1)*3+1),to:'w'+(i*3),hook:'Learn this step',firstLine:'Try this lesson.',overlayMs:2000,loopTo:'w'+((i-1)*3+1)}))});await assert.rejects(act('export',{}),{code:'FINISHING_FAILED'});await act('finishing',{file:output,platform:'youtube',boxes:[]});const result=await act('export',{});assert.equal((result.result as any).screencast.clipCount,3);assert.equal((result.result as any).screencast.capability,'handoff');const venture=listRecords(f.store.read(),'venture-record')[0]!,live=()=>listRecords(f.store.read(),'venture-order').find(row=>row.id===order.id)!;const calls=[{tool:'youtube.export',outcome:'succeeded',envelope:{ok:true,result:result.result}}] as any;refuseYoutubeDraft(f.store.read(),venture,live(),f.deps.clock().toISOString(),calls);await act('publishing',{outputId:'publishing-youtube',text:'Changed publishing words'});assert.throws(()=>refuseYoutubeDraft(f.store.read(),venture,live(),f.deps.clock().toISOString(),calls),{code:'OUTPUT_APPROVAL_REQUIRED'});await act('decide',{outputId:'publishing-youtube',decision:'approved'});assert.throws(()=>refuseYoutubeDraft(f.store.read(),venture,live(),f.deps.clock().toISOString(),calls),{code:'DERIVED_STALE'});
+  const changed=await f.call('venture.files.add',{orderId:order.id,name:'script-with-missing.csv',contentBase64:Buffer.from('kind,text\nspeech,A complete sentence. A missing conclusion.\n').toString('base64')});
+  await YOUTUBE_DESK.research!.act!(f.deps,owner,{playbook:'youtube',kind:'research',id:'new',action:'create',payload:{mode:'script',orderId:order.id,fileId:listRecords(f.store.read(),'venture-upload').find(row=>row.name==='script-with-missing.csv')!.id,mapping:{kind:'kind',text:'text'},options:{wordsPerMinute:150,textSize:24},sourceConsent:true}});
+  const nextScript=await YOUTUBE_DESK.research!.get!(f.deps,owner,{playbook:'youtube',kind:'research',id:order.id});await YOUTUBE_DESK.research!.act!(f.deps,owner,{playbook:'youtube',kind:'research',id:order.id,action:'approve',payload:{},digest:nextScript.digest});
+  await assert.rejects(act('export',{}),{code:'SCRIPT_COVERAGE_FAILED'});
+  await writeFile(output,'replaced delivery after measurement');
+  await assert.rejects(act('export',{}),{code:'DERIVED_STALE'});
+ }finally{await rm(folder,{recursive:true,force:true});}
+});

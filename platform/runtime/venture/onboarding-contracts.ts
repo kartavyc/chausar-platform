@@ -8,13 +8,18 @@ import type {
   Offer, PlanFlagshipStep, PricingModel, RecordBase, SecretShelf, ServiceType,
 } from './contracts.ts';
 
+import type { AboutRead, FamilyId, ToolView, ToolsView } from './core/first-run-types.ts';
+
 export const ONBOARDING_CONTRACT_VERSION = 'chausar.dev/venture-onboarding/v1alpha2' as const;
 
-/** The nine new methods. All are answered before the vault check by the engine's draft desk. contracts.ts lists them
+/** The onboarding methods. All are answered before the vault check by the engine's draft desk. contracts.ts lists them
  *  again as DRAFT_METHODS (a test pins the two lists equal); they are not PRE_VAULT_METHODS. */
 export const ONBOARDING_METHODS = [
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
+  'venture.country.suggest',
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
+  'venture.about.read', 'venture.about.pick', 'venture.about.families',
 ] as const;
 export type OnboardingMethod = typeof ONBOARDING_METHODS[number];
 
@@ -59,10 +64,10 @@ export const NOTE_BLOCK_IDS = ['licence-may-apply', 'insurance', 'personal-data'
 export type NoteBlockId = typeof NOTE_BLOCK_IDS[number];
 
 /**
- * Offer refs in a plan. The AI composes at most BLOCK_LIMITS.offers of them; offer_4 is only ever a flagship playbook's
- * own fourth offer (the social agency's monthly report, playbooks/plan.ts).
+ * Code-owned identities for the largest registered flagship offer set. The AI still composes only
+ * BLOCK_LIMITS.offers and its schema exposes only that smaller prefix. Owner-added offers have their own cap.
  */
-export const OFFER_REFS = ['offer_1', 'offer_2', 'offer_3', 'offer_4'] as const;
+export const OFFER_REFS = ['offer_1', 'offer_2', 'offer_3', 'offer_4', 'offer_5', 'offer_6', 'offer_7', 'offer_8', 'offer_9', 'offer_10', 'offer_11', 'offer_12', 'offer_13', 'offer_14'] as const;
 export type OfferRef = typeof OFFER_REFS[number];
 export const STEP_REFS = ['step_1', 'step_2', 'step_3', 'step_4', 'step_5', 'step_6'] as const;
 export type StepRef = typeof STEP_REFS[number];
@@ -279,7 +284,7 @@ export type AiOption = {
   line: string;
   why: string;
   status: AiOptionStatus; // the weakest of the row's presets, by AI_STATUS_ORDER
-  canConnect: boolean; // always false for chatgpt-sign-in, and for claude-code while the terms gate is pending
+  canConnect: boolean; // always false for chatgpt-sign-in; disabled Claude Code is omitted from the options
   presetIds: ModelPresetId[]; // [] for chatgpt-sign-in
   recommended: { fast: ModelPresetId; main: ModelPresetId } | null; // api-key: Haiku fast, Sonnet main
 };
@@ -290,7 +295,7 @@ export type AiStatusView = ModelStatusView & {
 };
 export type AiOptionsView = {
   options: AiOption[];
-  presets: ModelPreset[]; // with live availability, including the Claude Code terms gate
+  presets: ModelPreset[]; // with live availability; an explicit pending override omits Claude Code
   status: AiStatusView;
   /** True when any row that can connect holds a preset with verification 'not-live-verified'. */
   unchecked: boolean;
@@ -337,7 +342,10 @@ export interface DraftHandoverPort {
 // 8. Payloads and results of the nine methods (contracts.ts copies them into VenturePayloads and VentureResults)
 // ---------------------------------------------------------------------------
 
+export type CountrySuggestion = { country: Pick<CountryProfile, 'code' | 'name' | 'currency'> | null; evidence: string | null; source: 'ai' | 'not-connected' };
+
 export type OnboardingPayloads = {
+  'venture.country.suggest': { text: string };
   'venture.ai.options': Record<string, never>;
   'venture.ai.connect': { presetId: ModelPresetId; consentDigest: string; apiKey?: string; model?: string; tiers?: ModelTier[]; monthlyCapUsd?: string };
   'venture.ai.disconnect': { connectionId: string };
@@ -347,8 +355,15 @@ export type OnboardingPayloads = {
   'venture.compose.fill': { composeId: string };
   'venture.compose.get': Record<string, never>;
   'venture.compose.update': { composeId: string; patch: ComposePatch };
+  'venture.ai.tools': Record<string, never>;
+  'venture.ai.login.start': { cli: 'codex' | 'claude-code' };
+  'venture.ai.login.cancel': { cli: 'codex' | 'claude-code' };
+  'venture.about.read': { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } };
+  'venture.about.pick': { familyId: FamilyId; text?: string };
+  'venture.about.families': Record<string, never>;
 };
 export type OnboardingResults = {
+  'venture.country.suggest': CountrySuggestion;
   'venture.ai.options': AiOptionsView;
   'venture.ai.connect': AiStatusView;
   'venture.ai.disconnect': AiStatusView;
@@ -358,4 +373,10 @@ export type OnboardingResults = {
   'venture.compose.fill': ComposedPlan;
   'venture.compose.get': ComposeState | null;
   'venture.compose.update': ComposedPlan;
+  'venture.ai.tools': ToolsView;
+  'venture.ai.login.start': ToolView;
+  'venture.ai.login.cancel': ToolView;
+  'venture.about.read': AboutRead;
+  'venture.about.pick': AboutRead;
+  'venture.about.families': { families: { id: FamilyId; label: string; line: string }[] };
 };

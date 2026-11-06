@@ -1,0 +1,2 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {teleprompterPlan} from '../runtime/venture/playbooks/youtube/teleprompter.ts';
+test('teleprompter schedule counts speech only and assigns no scroll duration to visual cues',()=>{const plan=teleprompterPlan([{kind:'cue',text:'Look at camera for a long pause'},{kind:'speech',text:'One two three four'},{kind:'cue',text:'Show chart'},{kind:'speech',text:'Five six'}],120,32);assert.deepEqual(plan.lines.map(line=>(line as any).durationMs),[0,2000,0,1000]);assert.equal(plan.durationMs,3000);});

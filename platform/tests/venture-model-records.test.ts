@@ -25,6 +25,7 @@ import { handlers as deliveryHandlers } from '../runtime/venture/delivery/index.
 import { flagshipDelivery } from '../runtime/venture/playbooks/steps.ts';
 import { owner as viewsOwner, seedBlueprint, seedOrder, seedRun, setup as viewsSetup, type Env } from './venture-views-env.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import type { HostCredentialPort } from '../runtime/venture/models/credential-port.ts';
 
 // This file's command-line calls make their temp folders in a folder of its own, so the leftover checks of
 // venture-models.test.ts, which node --test runs beside it in another process, never count them.
@@ -106,6 +107,12 @@ async function setup(options: { codexCli?: unknown } = {}) {
   const store = new VentureTestStore();
   const clock = () => new Date(START);
   const secrets = new MemoryShelf();
+  const savedCredentials = new Map<string, string>();
+  const credentials: HostCredentialPort = {
+    async get(workspaceId, name) { return savedCredentials.get(workspaceId + ':' + name) ?? null; },
+    async set(workspaceId, name, value) { savedCredentials.set(workspaceId + ':' + name, value); },
+    async delete(workspaceId, name) { savedCredentials.delete(workspaceId + ':' + name); },
+  };
   const fake = fakeTransport();
   const port = createModelPort({
     store, clock, transport: fake.transport, secrets, host: 'desktop', demo: false, codexCli: options.codexCli, claudeCodeTerms: 'accepted',
@@ -113,7 +120,7 @@ async function setup(options: { codexCli?: unknown } = {}) {
     locateCli: command => (isAbsolute(command) ? command : join(OWN_TEMP, 'bin', `${command}.exe`)),
   });
   const deps = {
-    store, clock, models: port, services: { trust: new TrustService(store), calculator: unused, ontology: unused }, github: unused, secrets,
+    store, clock, models: port, services: { trust: new TrustService(store), calculator: unused, ontology: unused }, github: unused, secrets, credentials,
     host: 'desktop', demo: false, storage: 'experimental-file', claudeCodeTerms: 'accepted',
   } as unknown as VentureDeps;
   await ventureAction(deps, owner, 'admin', 'create', tx => tx.put({

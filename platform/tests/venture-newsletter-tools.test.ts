@@ -1,0 +1,3 @@
+// Original public harness scope checks. Newsletter tools only read the calling order's saved artifacts.
+import test from 'node:test';import assert from 'node:assert/strict';import {NEWSLETTER_STUDIO_TOOLS} from '../runtime/venture/delivery/harness/tools-newsletter-studio.ts';
+test('newsletter tools are implemented read-only computation and reject an unrelated rehearsal context',async()=>{for(const spec of Object.values(NEWSLETTER_STUDIO_TOOLS)){assert.equal(spec.effect,'compute');await assert.rejects(spec.run({deps:{store:{read:()=>({records:[]})}},runRef:{kind:'rehearsal',runId:'other'},ventureId:'v'} as any,{}),{code:'NEWSLETTER_NOT_FOUND'});}});

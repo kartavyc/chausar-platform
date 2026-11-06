@@ -1,18 +1,13 @@
-// Ink v2 wave 2, package 2G: the evidence ledger fed by an agent tool. On a real order the agent notes a fact about the
-// order's client or the business with evidence.record and says where it came from; code checks the claim against the
-// run's own tool calls (a file it read that shows the value, a calculator receipt that holds it) and keeps it as a
-// suggestion for the owner on Today. A real order is latched by the taint latch from its first turn, so the latch lets
-// this one internal write through while every outbound effect still waits for the owner, and nothing the agent notes
-// is applied on its own, even when two files agree. Through venture.delivery.run and venture.delivery.approve, then
-// venture.queue.list and venture.evidence.apply. The model port is a script; no network, no paid calls.
+// Retained rehearsal/development evidence tools: invoke tools directly and persist their checked ledger suggestions.
+// These fixtures exercise source validation and owner application without recreating the retired production AI loop.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import { PURPOSE_TIER, STEP_PLAN } from '../runtime/venture/contracts.ts';
+import { STEP_PLAN } from '../runtime/venture/contracts.ts';
 import type {
-  BlueprintRecord, ClientRecord, CountryProfile, DeliveryRunView, EvidenceItem, EvidenceRecord, ModelOutcome, ModelPort, ModelPreset, ModelPreview, ModelPurpose,
-  ModelStatusView, ModelTask, OrderRecord, PlaybookPatch, PlaybookRecord, PlaybookStep, PriceFigure, PriceReceiptRecord, QueueList, RunDetail, SecretShelf,
-  SimulationRunRecord, ToolName, VentureDeps, VentureMethod, VentureRecord,
+  BlueprintRecord, ClientRecord, CountryProfile, EvidenceItem, EvidenceRecord, ModelOutcome, ModelPort, ModelPreset, ModelPreview,
+  ModelStatusView, ModelTask, OrderRecord, PlaybookPatch, PlaybookRecord, PlaybookStep, PriceFigure, PriceReceiptRecord, QueueList, SecretShelf,
+  ToolName, VentureDeps, VentureMethod, VentureRecord,
 } from '../runtime/venture/contracts.ts';
 import { digest, findRecord, listRecords, ventureAction, type VentureTx } from '../runtime/venture/records.ts';
 import { handlers as deliveryHandlers } from '../runtime/venture/delivery/index.ts';
@@ -24,6 +19,8 @@ import { OntologyService, starterPacks } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { PRACTICE_FILES, practiceFiles } from '../runtime/venture/delivery/harness/practice.ts';
 import { callTool, type ToolEnv } from '../runtime/venture/delivery/harness/tools.ts';
+import { storeRunEvidence } from '../runtime/venture/delivery/harness/tools-evidence.ts';
+import type { ToolCallRecord } from '../runtime/venture/contracts.ts';
 import { expectedPlaybookHash, validatePlaybook } from '../runtime/venture/delivery/playbook.ts';
 import { HELD_SUGGESTION, recordEvidence } from '../runtime/venture/evidence/ledger.ts';
 import { UNCHECKED } from '../runtime/venture/evidence/types.ts';
@@ -54,15 +51,11 @@ const IN: CountryProfile = {
 };
 
 // ---------------------------------------------------------------------------
-// A scripted model port (the pattern of venture-harness-runs.test.ts)
+// Built-in setup only; evidence tests never dispatch a model.
 // ---------------------------------------------------------------------------
 
-type Responder = (task: ModelTask<any>) => unknown;
-class ScriptPort implements ModelPort {
+class TemplatePort implements ModelPort {
   store: VentureTestStore;
-  respond: Partial<Record<ModelPurpose, Responder>> = {};
-  #previews = new Map<string, { digest: string; task: ModelTask<any>; used: boolean }>();
-  #calls = 0;
   constructor(store: VentureTestStore) { this.store = store; }
   status(): ModelStatusView {
     const tier = (presetId: 'anthropic-haiku-5-5' | 'anthropic-sonnet-5-5') => ({ presetId, model: presetId, usable: true, reason: 'Uses your Anthropic key.' });
@@ -73,34 +66,12 @@ class ScriptPort implements ModelPort {
   async generate<T>(_ctx: Context, task: ModelTask<T>): Promise<ModelOutcome<T>> {
     await this.store.update(() => undefined);
     if (task.containsClientData) throw new ChausarError('CLIENT_DATA_NEEDS_APPROVAL', 'Client data needs your approval.');
-    assert.ok(PURPOSE_TIER[task.purpose]);
-    const responder = this.respond[task.purpose];
-    // Setting a business up (the interview, the plan) takes the built-in templates.
-    if (!responder && task.template) return { value: task.template(), by: 'template', callId: null, presetId: 'built-in-templates', model: null, costMicros: '0', priceConfirmed: true };
-    assert.ok(responder, `no responder for ${task.purpose}`);
-    this.#calls += 1;
-    return { value: task.validate(structuredClone(responder(task))), by: 'model', callId: `call_${this.#calls}`, presetId: 'anthropic-sonnet-5-5', model: 'stub', costMicros: '100', priceConfirmed: true };
+    assert.ok(task.template, 'Only built-in setup runs here.');
+    return { value: task.template(), by: 'template', callId: null, presetId: 'built-in-templates', model: null, costMicros: '0', priceConfirmed: true };
   }
-  async preview<T>(_ctx: Context, task: ModelTask<T>): Promise<ModelPreview | null> {
-    await this.store.update(() => undefined);
-    this.#calls += 1;
-    const callId = `call_${this.#calls}`;
-    const payloadText = JSON.stringify({ system: task.instructions, input: task.input });
-    this.#previews.set(callId, { digest: digest(payloadText), task, used: false });
-    await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview' }); });
-    return { callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-23T10:30:00.000Z' };
-  }
-  async runPreview<T>(ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
-    await this.store.update(() => undefined);
-    if (ctx.channel !== 'desktop') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Approve this inside the Chausar app.');
-    const held = this.#previews.get(callId);
-    if (!held || held.used || held.digest !== approved) throw new ChausarError('APPROVAL_STALE', 'Run it again; the approved text is no longer available.');
-    held.used = true;
-    await this.store.update(state => { const call = state.conversations.find(record => record?.id === callId); if (call) call.status = 'completed'; });
-    const responder = this.respond[held.task.purpose];
-    assert.ok(responder, `no responder for ${held.task.purpose}`);
-    return { value: validate(structuredClone(responder(held.task))), by: 'model', callId, presetId: 'anthropic-sonnet-5-5', model: 'stub', costMicros: '200', priceConfirmed: true };
-  }
+  async preview<T>():Promise<ModelPreview|null>{throw new Error('No model preview in retained tool tests.');}
+  async runPreview<T>():Promise<ModelOutcome<T>>{throw new Error('No model dispatch in retained tool tests.');}
+
 }
 
 // ---------------------------------------------------------------------------
@@ -136,11 +107,11 @@ function receiptRecord(tx: VentureTx, subject: PriceReceiptRecord['subject'], bl
   };
 }
 
-type Env = { store: VentureTestStore; models: ScriptPort; deps: VentureDeps; venture: VentureRecord; blueprint: BlueprintRecord; pdfReads: number };
+type Env = { store: VentureTestStore; models: TemplatePort; deps: VentureDeps; venture: VentureRecord; blueprint: BlueprintRecord; pdfReads: number; cases?: (() => {calls:{tool:string;input:string}[]})[] };
 
 async function setup(): Promise<Env> {
   const store = new VentureTestStore();
-  const models = new ScriptPort(store);
+  const models = new TemplatePort(store);
   const env = { store, models, pdfReads: 0 } as Env;
   // The Python helper's PDF reader, stubbed: the page text is what follows the PDF header in the file.
   const helper = {
@@ -182,20 +153,38 @@ function call<T>(env: Env, method: string, payload: unknown = {}, ctx: Context =
   assert.ok(handler, method);
   return handler(env.deps, ctx, payload) as Promise<T>;
 }
-const approve = (env: Env, run: DeliveryRunView) => call<DeliveryRunView>(env, 'venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
-const turnOf = (note: string, calls: [string, unknown][], finished = false) => ({ note, calls: calls.map(([tool, input]) => ({ tool, input: JSON.stringify(input) })), finished });
-/** The agent's turns, each built when its turn runs, so a turn can quote what an earlier one made. */
-function scriptTurns(env: Env, turns: (() => unknown)[]) {
-  let next = 0;
-  env.models.respond['agent-turn'] = () => turns[Math.min(next++, turns.length - 1)]();
+const toolBatch = (_note: string, calls: [string, unknown][]) => ({ calls: calls.map(([tool,input])=>({tool,input:JSON.stringify(input)})) });
+function setToolCases(env:Env,cases:(()=>{calls:{tool:string;input:string}[]})[]){env.cases=cases;}
+type ToolRun={id:string;harness:{grant:ToolName[];toolCalls:ToolCallRecord[];taint:{turn:number;source:'client-request';toolCallId:null;tool:null}}};
+async function runRetainedTools(env:Env,order:OrderRecord):Promise<ToolRun>{
+ const plan=await call<PlaybookRecord>(env,'venture.delivery.playbook');
+ const grant=[...new Set(plan.steps.flatMap(step=>step.tools??[]))];
+ const toolCalls:ToolCallRecord[]=[];
+ const taint={turn:1,source:'client-request' as const,toolCallId:null,tool:null};
+ const record=await ventureAction(env.deps,owner,'prepare','test.retained-evidence-trace',tx=>tx.put({...tx.base('venture-delivery-run'),orderId:order.id,playbookId:plan.id,status:'stopped',harness:{grant,toolCalls,taint},checks:[],practice:false} as any));
+ const run={id:record.id,harness:{grant,toolCalls,taint}};
+ const toolEnv:ToolEnv={sandbox:undefined,deps:env.deps,ventureId:env.venture.id,memberId:owner.memberId,epoch:owner.epoch,currency:'INR',dateOrder:'day-month-year',runRef:{kind:'delivery',runId:run.id},files:listRecords(env.store.read(),'venture-upload').filter(file=>file.scope.kind==='order'&&file.scope.orderId===order.id),tables:[],receipts:[],dictionary:[],allowed:[],now:()=>clock().toISOString(),calls:toolCalls};
+ // Fixed policy input for retained-tool unit tests, not a production approval or model turn.
+ toolEnv.policy={context:harnessPolicyContext({state:env.store.read(),venture:env.venture,playbook:plan,runRef:toolEnv.runRef,approval:{kind:'owner-turn'}})};
+ let notes=0,tables=0,receipts=0;
+ for(const [turn,batch]of(env.cases??[]).entries()){
+  for(const [index,command]of batch().calls.entries())toolCalls.push((await callTool(toolEnv,grant,turn+1,index,command,[],taint)).record);
+  await ventureAction(env.deps,owner,'prepare','test.checked-evidence-ledger',tx=>{
+   tx.replace({...tx.find('venture-delivery-run',run.id)!,harness:{...record.harness,toolCalls:structuredClone(toolCalls)}});
+   for(const row of toolEnv.tables.slice(tables))tx.put(row);for(const row of toolEnv.receipts.slice(receipts))tx.put(row);
+   storeRunEvidence(tx,(toolEnv.evidence??[]).slice(notes),{runId:run.id,clientId:order.clientId});
+  });
+  notes=toolEnv.evidence?.length??0;tables=toolEnv.tables.length;receipts=toolEnv.receipts.length;
+ }
+ return run;
 }
 const evidence = (env: Env) => listRecords(env.store.read(), 'venture-evidence') as EvidenceRecord[];
 const clientOf = (env: Env, order: OrderRecord) => findRecord(env.store.read(), 'venture-client', order.clientId) as ClientRecord;
-const envelopeOf = (run: DeliveryRunView, id: string) => run.harness!.toolCalls.find(item => item.id === id)!.envelope;
-const failCode = (run: DeliveryRunView, id: string) => { const envelope = envelopeOf(run, id); return envelope.ok ? null : envelope.error.code; };
+const envelopeOf = (run: ToolRun, id: string) => run.harness!.toolCalls.find(item => item.id === id)!.envelope;
+const failCode = (run: ToolRun, id: string) => { const envelope = envelopeOf(run, id); return envelope.ok ? null : envelope.error.code; };
 const note = (fields: Record<string, string>) => ['evidence.record', fields] as [string, unknown];
 /** How many evidence.record calls told the agent its note was kept. */
-const recordedAnswers = (run: DeliveryRunView) => run.harness!.toolCalls.filter(item => item.tool === 'evidence.record' && item.envelope.ok && (item.envelope.result as { recorded?: unknown }).recorded === true).length;
+const recordedAnswers = (run: ToolRun) => run.harness!.toolCalls.filter(item => item.tool === 'evidence.record' && item.envelope.ok && (item.envelope.result as { recorded?: unknown }).recorded === true).length;
 
 // ---------------------------------------------------------------------------
 // 1. A fact read from a client's file: a suggestion on Today, applied only by the owner
@@ -204,13 +193,12 @@ const recordedAnswers = (run: DeliveryRunView) => run.harness!.toolCalls.filter(
 test('evidence.record: a value the agent read in an invoice is kept as a strong suggestion, shown on Today, and the owner applies it', async () => {
   const env = await setup();
   const order = await orderWith(env, [{ name: 'invoice-october.pdf', contentBase64: pdf(INVOICE) }]);
-  scriptTurns(env, [() => turnOf('Read the invoice and note the email', [
+  setToolCases(env, [() => toolBatch('Read the invoice and note the email', [
     ['files.read', { target: 'f1', part: 'pages' }],
     note({ subject: 'client', field: 'email', value: 'asha@example.in', type: 'document', from: 'f1', source: 'invoice page 1' }),
   ])]);
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
+  const run = await runRetainedTools(env, order);
   assert.ok(run.harness!.grant.includes('evidence.record'), 'the fixed steps grant it');
-  run = await approve(env, run);
 
   // The tool ran on a real order: the run is latched (taint), yet this internal note was not held.
   assert.ok(run.harness!.taint, 'a real order is latched from its first turn');
@@ -219,13 +207,6 @@ test('evidence.record: a value the agent read in an invoice is kept as a strong 
   assert.ok(result.ok);
   assert.deepEqual(result.ok && { recorded: (result.result as any).recorded, checked: (result.result as any).checked, backedBy: (result.result as any).backedBy, applied: (result.result as any).applied },
     { recorded: true, checked: true, backedBy: 't1.1', applied: false });
-  assert.equal(run.status, 'waiting-for-you', 'the next turn waits for the owner as usual');
-  // The run view says what the note did; only the file read is called a read.
-  const detail = await call<RunDetail>(env, 'venture.runs.get', { runId: run.id });
-  const named = detail.steps.flatMap(step => (step.tools ?? []).map(tool => tool.name));
-  assert.ok(named.includes('Noted where a client fact came from'), JSON.stringify(named));
-  assert.deepEqual(named.filter(name => /\bread\b/i.test(name)), ['Read a client file'], JSON.stringify(named));
-
   const [item] = evidence(env);
   assert.equal(evidence(env).length, 1);
   assert.deepEqual(
@@ -263,25 +244,22 @@ test('evidence.record: a claim no tool call in the run backs is kept as the AI\'
     { name: bills.name, contentBase64: b64(bills.content) },
   ]);
   const billsTotal = () => listRecords(env.store.read(), 'venture-work-receipt')[0].figures[0].display;
-  scriptTurns(env, [
-    () => turnOf('Look at the statement columns and add up the bills', [['files.read', { target: 'f2', part: 'columns' }], ['calc.sum', { table: 'f3', amountColumn: 'Amount' }]]),
-    () => turnOf('Note what the files say', [
+  setToolCases(env, [
+    () => toolBatch('Look at the statement columns and add up the bills', [['files.read', { target: 'f2', part: 'columns' }], ['calc.sum', { table: 'f3', amountColumn: 'Amount' }]]),
+    () => toolBatch('Note what the files say', [
       note({ subject: 'business', field: 'city', value: 'Pune', type: 'document', from: 'f1' }), // f1 was never read
       note({ subject: 'client', field: 'note', value: 'UPI/Power Grid Electricity', type: 'document', from: 'f2' }), // only its columns were read
       note({ subject: 'business', field: 'monthlyBills', value: billsTotal(), type: 'tool-verified', from: 'w1', source: 'the bills total' }),
       note({ subject: 'business', field: 'billsTotal', value: 'INR 1.00', type: 'tool-verified', from: 'w1' }), // not on the receipt
     ]),
-    () => turnOf('Read the invoice and note more', [
+    () => toolBatch('Read the invoice and note more', [
       ['files.read', { target: 'f1', part: 'pages' }],
       note({ subject: 'client', field: 'email', value: 'priya@example.in', type: 'document', from: 'f1' }), // the invoice does not show it
       note({ subject: 'business', field: 'bankName', value: 'HDFC', type: 'tool-verified', from: 'f2' }), // a file is not a calculator
       note({ subject: 'business', field: 'rent', value: 'INR 25,000.00', type: 'tool-verified', from: 'w9' }), // no such receipt
     ]),
   ]);
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  run = await approve(env, run);
-  run = await approve(env, run);
-  run = await approve(env, run);
+  const run = await runRetainedTools(env, order);
   assert.equal(failCode(run, 't3.4'), 'TOOL_FAILED');
   assert.match(envelopeOf(run, 't3.4').ok ? '' : (envelopeOf(run, 't3.4') as any).error.message, /w9/);
 
@@ -311,13 +289,11 @@ test('evidence.record: two files that agree make a value verified, but a run tha
   const order = await orderWith(env, [{ name: 'invoice-october.pdf', contentBase64: pdf(INVOICE) }, { name: 'order-form.pdf', contentBase64: pdf(ORDER_FORM) }]);
   const email = (from: string) => note({ subject: 'client', field: 'email', value: 'asha@example.in', type: 'document', from, source: from === 'f1' ? 'invoice page 1' : 'order form' });
   const name = () => note({ subject: 'client', field: 'name', value: 'Asha Rao', type: 'document', from: 'f1' });
-  scriptTurns(env, [
-    () => turnOf('Read both files and note the email from each', [['files.read', { target: 'f1', part: 'pages' }], ['files.read', { target: 'f2', part: 'pages' }], email('f1'), email('f2')]),
-    () => turnOf('Read the invoice again and note the name twice', [['files.read', { target: 'f1', part: 'pages' }], name(), name()]),
+  setToolCases(env, [
+    () => toolBatch('Read both files and note the email from each', [['files.read', { target: 'f1', part: 'pages' }], ['files.read', { target: 'f2', part: 'pages' }], email('f1'), email('f2')]),
+    () => toolBatch('Read the invoice again and note the name twice', [['files.read', { target: 'f1', part: 'pages' }], name(), name()]),
   ]);
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  run = await approve(env, run);
-  run = await approve(env, run);
+  const run = await runRetainedTools(env, order);
   assert.ok(run.harness!.taint);
 
   const emails = evidence(env).filter(item => item.field === 'email');
@@ -346,14 +322,13 @@ test('evidence.record: only this order\'s client or the business, secrets screen
   const env = await setup();
   const order = await orderWith(env, [{ name: 'invoice-october.pdf', contentBase64: pdf(INVOICE) }]);
   const key = 'sk-' + 'ant-' + 'api03-' + 'Zq8Lm3Np5Rt7Vx9Bc2Df4Gh6Jk8';
-  scriptTurns(env, [() => turnOf('Note some facts', [
+  setToolCases(env, [() => toolBatch('Note some facts', [
     note({ subject: 'client:client_someone_else', field: 'email', value: 'x@example.in', type: 'model-inferred' }),
     note({ subject: 'supplier', field: 'email', value: 'x@example.in', type: 'model-inferred' }),
     note({ subject: 'client', field: 'two words', value: 'x@example.in', type: 'model-inferred' }),
     note({ subject: 'business', field: 'note', value: `Their portal key is ${key}`, type: 'model-inferred' }),
   ])]);
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  run = await approve(env, run);
+  const run = await runRetainedTools(env, order);
   assert.deepEqual(['t1.1', 't1.2', 't1.3'].map(id => failCode(run, id)), ['TOOL_FAILED', 'TOOL_FAILED', 'TOOL_FAILED']);
   const kept = evidence(env);
   assert.equal(kept.length, 1);
@@ -361,25 +336,6 @@ test('evidence.record: only this order\'s client or the business, secrets screen
   assert.ok(!kept[0].value.includes(key) && kept[0].value.includes(REDACTED), kept[0].value);
   assert.ok(!JSON.stringify(run.harness!.toolCalls).includes(key), 'the stored trace never holds the key');
   assert.equal(recordedAnswers(run), kept.length, 'the agent is told the truth about what was kept');
-
-  // The same business rehearses on its practice clients: the agent notes a fact, the tool answers practice, nothing is kept.
-  scriptTurns(env, [
-    () => turnOf('Note the city', [note({ subject: 'business', field: 'city', value: 'Pune', type: 'model-inferred' })]),
-    () => turnOf('Ready to write', [], true),
-  ]);
-  env.models.respond['client-sim'] = () => ({ message: 'Hello, I need help with my books for the month.', asksForPerson: false });
-  env.models.respond.delivery = task => ({
-    title: 'Your books', questionsForClient: [],
-    sections: (task.input as { requiredSections: string[] }).requiredSections.map(heading => ({ heading, parts: [{ kind: 'text', text: 'Plain words about the work.', ref: '' }] })),
-  });
-  env.models.respond.judge = task => task.schemaName === 'venture-judge-rules'
-    ? { votes: (task.input as { rules: { id: string }[] }).rules.map(rule => ({ rule: rule.id, answer: 'yes', cites: [], quote: '', reason: 'Fine.' })) }
-    : { answers: ['goal-met', 'tone-fits', 'policy-followed', 'no-unbacked-claims'].map(question => ({ question, answer: 'yes', reason: 'Fine.' })) };
-  const rehearsal = await call<SimulationRunRecord>(env, 'venture.simulation.run', { scenarioIds: ['bookkeeping-clean'] });
-  const noted = rehearsal.episodes.flatMap(episode => episode.harness?.toolCalls ?? []).filter(item => item.tool === 'evidence.record');
-  assert.ok(noted.length >= 1, JSON.stringify(rehearsal.episodes.map(episode => [episode.firstFailure, episode.harness?.toolCalls.map(item => item.tool)])));
-  for (const item of noted) assert.deepEqual(item.envelope, { ok: true, result: { recorded: false, practice: true } });
-  assert.equal(evidence(env).length, 1, 'a rehearsal keeps no evidence');
 
   // A rehearsal or an improvement run works on made-up clients: the tool answers and keeps nothing.
   for (const runRef of [{ kind: 'rehearsal' as const, scenarioId: 'bookkeeping-clean', episode: 0 }, { kind: 'improvement' as const, runId: 'improve_1', scenarioId: 'bookkeeping-clean' }]) {
@@ -401,7 +357,9 @@ test('evidence.record: only this order\'s client or the business, secrets screen
 // ---------------------------------------------------------------------------
 
 test('taint latch: evidence.record is an internal suggestion the latch lets through on a real order, while outbound calls stay held', async () => {
-  assert.deepEqual([...INTERNAL_SUGGESTIONS], ['evidence.record']);
+  // Ink v2 wave 5 (5A3): ideas.add, an idea in the owner's own ideas Inbox, is another internal suggestion; (5A4)
+  // assets.record, where a delivered file came from, the third.
+  assert.deepEqual([...INTERNAL_SUGGESTIONS], ['evidence.record', 'ideas.add', 'assets.record']);
   const taint = { turn: 1, source: 'client-request' as const, toolCallId: null, tool: null };
   const action = (name: string, effect: PolicyAction['effect'], input: Record<string, unknown> = {}): PolicyAction => ({ phase: 'tool-call', name, effect, inputDigest: 'd1', input });
   const input = { subject: 'client', field: 'email', value: 'asha@example.in', type: 'document', from: 'f1' };
@@ -413,12 +371,11 @@ test('taint latch: evidence.record is an internal suggestion the latch lets thro
   // The policy context of a real order's run, as the run builds it, with the owner's turn approval.
   const env = await setup();
   const order = await orderWith(env, [{ name: 'invoice-october.pdf', contentBase64: pdf(INVOICE) }]);
-  scriptTurns(env, [() => turnOf('Read the invoice and note the email', [
+  setToolCases(env, [() => toolBatch('Read the invoice and note the email', [
     ['files.read', { target: 'f1', part: 'pages' }],
     note({ subject: 'client', field: 'email', value: 'asha@example.in', type: 'document', from: 'f1' }),
   ])]);
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  run = await approve(env, run);
+  const run = await runRetainedTools(env, order);
   assert.equal(run.harness!.toolCalls[1].outcome, 'succeeded');
   const state = env.store.read();
   const venture = findRecord(state, 'venture-record', env.venture.id)!;
@@ -435,7 +392,7 @@ test('taint latch: evidence.record is an internal suggestion the latch lets thro
 // 6. Grants: every playbook's gather steps and the eight fixed steps' work step
 // ---------------------------------------------------------------------------
 
-test('grants: the fixed gather and work steps and every flagship playbook\'s gather steps hold evidence.record', async () => {
+test('grants: the fixed gather and work steps and every flagship work plan\'s gather steps hold evidence.record', async () => {
   const env = await setup();
   const fixed = await call<{ steps: { id: string; kind: string; tools?: ToolName[] }[] }>(env, 'venture.delivery.playbook');
   for (const id of ['gather', 'work']) assert.ok(fixed.steps.find(step => step.id === id)!.tools!.includes('evidence.record'), id);
@@ -457,15 +414,13 @@ const PROTOTYPE_NAMES = ['toString', 'constructor', 'valueOf', 'hasOwnProperty',
 test('field names: a member of every object (toString, constructor, __proto__, ...) is refused by the tool and by the ledger', async () => {
   const env = await setup();
   const order = await orderWith(env, [{ name: 'invoice-october.pdf', contentBase64: pdf(INVOICE) }]);
-  // Two names a run: the repeat-failure breaker (Ink v2 wave 4, 4F2) stops a run whose agent meets the same refusal
-  // three times, so each run tries two and every name is still tried through the tool.
-  const calls: NonNullable<DeliveryRunView['harness']>['toolCalls'] = [];
+  // Every reserved field reaches the retained tool validator and then the ledger validator.
+  const calls: ToolCallRecord[] = [];
   for (let start = 0; start < PROTOTYPE_NAMES.length; start += 2) {
     const names = PROTOTYPE_NAMES.slice(start, start + 2);
     const each = start === 0 ? order : await orderWith(env, [{ name: 'invoice-october.pdf', contentBase64: pdf(INVOICE) }]);
-    scriptTurns(env, [() => turnOf('Note odd fields', names.map(field => note({ subject: 'client', field, value: 'Asha Rao', type: 'model-inferred' })))]);
-    let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: each.id });
-    run = await approve(env, run);
+    setToolCases(env, [() => toolBatch('Note odd fields', names.map(field => note({ subject: 'client', field, value: 'Asha Rao', type: 'model-inferred' })))]);
+    const run = await runRetainedTools(env, each);
     calls.push(...run.harness!.toolCalls.filter(item => item.tool === 'evidence.record'));
     assert.equal(recordedAnswers(run), 0);
   }
@@ -508,23 +463,21 @@ test('evidence.record: only a page, a transcript line or a table cell backs a va
     { name: 'order-form.pdf', contentBase64: pdf(ORDER_FORM) },
     { name: bank.name, contentBase64: b64(bank.content) },
   ]);
-  scriptTurns(env, [
-    () => turnOf('Read the order form and the statement', [
+  setToolCases(env, [
+    () => toolBatch('Read the order form and the statement', [
       ['files.read', { target: 'f2', part: 'pages' }],
       ['files.read', { target: 'f3', part: 'sample' }],
       note({ subject: 'client', field: 'note', value: 'or', type: 'document', from: 'f2' }), // inside "Order form" only
       note({ subject: 'business', field: 'coverage', value: 'Text extraction only.', type: 'document', from: 'f2' }), // the reader's own line
     ]),
-    () => turnOf('Note more', [
+    () => toolBatch('Note more', [
       note({ subject: 'business', field: 'fileName', value: 'f2', type: 'document', from: 'f2' }), // Chausar's short name for the file
       note({ subject: 'business', field: 'statementColumn', value: 'Narration', type: 'document', from: 'f3' }), // a column name, not a cell
       note({ subject: 'client', field: 'note', value: 'Card sales settlement', type: 'document', from: 'f3' }),
       note({ subject: 'client', field: 'name', value: 'Asha Rao', type: 'document', from: 'f2' }),
     ]),
   ]);
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  run = await approve(env, run);
-  run = await approve(env, run);
+  const run = await runRetainedTools(env, order);
   const byValue = new Map(evidence(env).map(item => [item.value, item]));
   for (const value of ['or', 'Text extraction only.', 'f2', 'Narration']) {
     const item = byValue.get(value)!;
@@ -539,7 +492,6 @@ test('evidence.record: only a page, a transcript line or a table cell backs a va
 // 9. A playbook stored before wave 2 gets the new step tools on its next run
 // ---------------------------------------------------------------------------
 
-const SALES_REGISTER = ['Invoice,Date,GSTIN,State,HSN,Taxable,Rate', 'S-101,2026-10-02,,27,9983,"10,000.00",18'].join('\n');
 
 /** An AI-native CA firm on the template route, at approve each, with one client (the pattern of venture-playbook-wiring-delivery.test.ts). */
 async function caBusiness() {
@@ -550,7 +502,7 @@ async function caBusiness() {
   pack.gstMode = 'unregistered';
   for (const definition of pack.definitions) definition.currency = 'INR';
   await ontology.publish(owner, pack);
-  const models = new ScriptPort(store);
+  const models = new TemplatePort(store);
   const secrets = { get: () => null, set: () => undefined, delete: () => undefined, has: () => false, clear: () => undefined } as unknown as SecretShelf;
   const deps = {
     store, clock, models, services: { calculator, ontology, trust }, secrets, host: 'test', demo: true, storage: 'experimental-file',
@@ -612,10 +564,7 @@ test('grants: a playbook stored before wave 2 gets the tools its steps grant now
   assert.deepEqual(findRecord(ca.store.read(), 'venture-playbook', old.id), old, 'the stored version is never overwritten');
   assert.equal((await ca.run('venture.delivery.playbook')).id, topped.id, 'reading again makes no further version');
 
-  // The next run holds the new tools.
-  const order = await ca.run('venture.order.create', { clientId: ca.client.id, offerId: 'offer_2', request: 'GST working for October.' });
-  await ca.run('venture.files.add', { orderId: order.id, name: 'sales-register-october.csv', contentBase64: b64(SALES_REGISTER) });
-  const first: DeliveryRunView = await ca.run('venture.delivery.run', { orderId: order.id });
-  for (const tool of ['tax.gst', 'evidence.record'] as const) assert.ok(first.harness!.grant.includes(tool), tool);
-  assert.equal(findRecord(ca.store.read(), 'venture-delivery-run', first.id)!.playbookId, topped.id);
+  const grants = new Set(topped.steps.flatMap(step=>step.tools??[]));
+  for (const tool of ['tax.gst','evidence.record'] as const) assert.ok(grants.has(tool),tool);
+
 });

@@ -14,7 +14,7 @@ import { assertInkRules } from '../helpers/ink-rules';
 
 type Seed = Omit<QueueRow, 'digest'>;
 
-function start(hash: string, engine = new FakeEngine(), language: 'en' | 'hi' = 'en') {
+function start(hash: string, engine = new FakeEngine(), language: 'en' = 'en') {
   window.location.hash = hash;
   render(<App client={createFakeClient(engine)} language={language} />);
   return engine;
@@ -87,10 +87,7 @@ describe('#/approve/<rowId>', () => {
     await waitFor(() => expect(cards()).toHaveLength(1));
   });
 
-  it('in Hindi', async () => {
-    start('#/approve/q-gone', new FakeEngine(), 'hi');
-    expect(await screen.findByText('इस पर फ़ैसला पहले ही हो चुका है।')).toBeTruthy();
-  });
+
 });
 
 describe('the approval page: every answer the engine can give', () => {

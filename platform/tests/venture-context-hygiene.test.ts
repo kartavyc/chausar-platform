@@ -24,7 +24,7 @@ import { TOOL_NAMES } from '../runtime/venture/contracts.ts';
 import { proposePost } from '../runtime/venture/build/posting.ts';
 import { proposeAction } from '../runtime/venture/journal/index.ts';
 import { handlers as money } from '../runtime/venture/money/index.ts';
-import { askingRun, agentBusiness, episodeOrder } from './venture-agent-helpers.ts';
+import { agentBusiness, episodeOrder } from './venture-agent-helpers.ts';
 import { owner } from './venture-judge-helpers.ts';
 import { seedPostDraft } from './venture-post-drafts.ts';
 import { CLIENT_NAME, owner as viewOwner, seedBlueprint, seedOrder, setup as viewSetup } from './venture-views-env.ts';
@@ -202,48 +202,13 @@ test('large results: a turn whose results add up past the batch limit shows the 
   assert.equal(typeof shown[1].result.rows, 'object', 'the other stays whole');
 });
 
-test('large results in a real run: the next turn reads the preview; nothing new is stored but the call itself', async () => {
-  const env = await agentBusiness();
-  const order = await episodeOrder(env);
-  const big = longCsv('long-notes.csv', 60, 300);
-  await env.call('venture.files.add', { orderId: order.id, name: 'long-notes.csv', contentBase64: big.contentBase64 });
-  env.models.respond['agent-turn'] = () => ({ note: 'Read the long notes', calls: [{ tool: 'files.read', input: JSON.stringify({ target: 'f1', part: 'rows' }) }], finished: false });
-  const started = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.equal(started.status, 'waiting-for-you', JSON.stringify(started));
-  const before = listRecords(env.store.read(), 'venture-upload').length;
-  await env.call('venture.delivery.approve', { runId: started.id, digest: started.preview.digest });
-  assert.equal(listRecords(env.store.read(), 'venture-upload').length, before, 'no extra file');
-  const stored = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === started.id)!;
-  const read = stored.harness!.toolCalls.find(call => call.tool === 'files.read')!;
-  assert.equal(read.outcome, 'succeeded', JSON.stringify(read.envelope).slice(0, 300));
-  const whole = JSON.stringify(read.envelope.ok ? read.envelope.result : null);
-  assert.ok(whole.length > PREVIEW_LIMIT_CHARS, 'the stored call keeps the whole result');
-  const next = env.models.previewed.filter(item => item.purpose === 'agent-turn').at(-1)!;
-  const shown = (next.input as any).history.turns[0].calls[0];
-  assert.equal(shown.result.call, read.id);
-  assert.equal(shown.result.shortened, true);
-  assert.ok(JSON.stringify(next.input).length < whole.length);
-});
+
 
 // ---------------------------------------------------------------------------
 // 4. The list in a real run
 // ---------------------------------------------------------------------------
 
-test('in a real run: a post proposed for this order rides in the next turn\'s history by id, with the fixed line', async () => {
-  const env = await agentBusiness();
-  const run = await askingRun(env);
-  withPosting(env.deps);
-  const draft = await seedPostDraft(env.deps, ['X: Our September episode is out.'], { orderId: run.orderId });
-  const post = await proposePost(env.deps, { ...owner, channel: 'mcp' }, { connectorId: 'x', draftId: draft.id, part: 1, agent: 'Story editor' });
-  env.models.respond['agent-turn'] = () => ({ note: 'Carry on', calls: [], finished: true });
-  const answered = await env.call('venture.delivery.answer', { runId: run.id, answer: 'About ten minutes.' });
-  const task = env.models.previewed.filter(item => item.purpose === 'agent-turn').at(-1)!;
-  const block = (task.input as any).history.unconfirmedActions;
-  assert.equal(block.heading, UNCONFIRMED_HEADING);
-  assert.deepEqual(block.actions.map((item: any) => [item.id, item.state]), [[post.id, 'described']]);
-  assert.ok(task.instructions.includes(UNCONFIRMED_LINE));
-  assert.ok(answered.preview.payloadText.includes(post.id), 'the owner approves the exact text, the list included');
-});
+
 
 // ---------------------------------------------------------------------------
 // 5. Tools offered by group

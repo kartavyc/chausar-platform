@@ -16,6 +16,7 @@ import { createModelPort, createReplayTransport, defaultModelTransport } from '.
 import { DRAFT_HANDLERS, type ComposeSession, type DeskHandle } from './handlers.ts';
 import { createHandover } from './handover.ts';
 import { DraftStore } from './store.ts';
+import { LoginDesk } from '../models/login.ts';
 
 export type DraftDeskOptions = VentureHostOptions & {
   demo: boolean;
@@ -23,6 +24,10 @@ export type DraftDeskOptions = VentureHostOptions & {
   ventureExists: () => boolean;
   /** True while any vault is open: the idle timer stays paused (the resume path, and Keep it safe). */
   vaultOpen: () => boolean;
+  /** Wave 6 (6C2): the trusted PDF helper, for a resume PDF read before the vault. */
+  helper?: VentureEngineServices['helper'];
+  /** Wave 6 (6C1): trusted test hook for the tools' own logins; the engine never sets it. */
+  login?: LoginDesk;
 };
 
 export const VENTURE_EXISTS_WORDS = 'Your business already has its AI settings under Trust.';
@@ -47,6 +52,7 @@ export class DraftDesk {
   #held = false;
   #timer: ReturnType<typeof setTimeout> | null = null;
   #generation = 0;
+  #login: LoginDesk | null = null;
   readonly handover: DraftHandoverPort;
 
   constructor(options: DraftDeskOptions) {
@@ -77,6 +83,7 @@ export class DraftDesk {
       idleUntil: () => this.#idleUntil(),
       session: () => (this.#generation === generation ? this.#session : null),
       keep: session => { if (this.#generation === generation && this.#parts === parts) this.#session = session; },
+      login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ claudeTerms: this.#options.claudeCodeTerms ?? 'accepted' })),
     };
     const handler = DRAFT_HANDLERS[method];
     check(handler, 'NOT_BUILT_YET', 'This part of Chausar is not built yet.');
@@ -93,6 +100,8 @@ export class DraftDesk {
   /** Wipes the shelf, the store and the session, and ends any pause. The next request starts fresh. */
   clear(): void {
     this.#generation += 1;
+    this.#login?.clear();
+    this.#login = null;
     this.#parts?.shelf.clear();
     this.#parts = null;
     this.#pending = null;
@@ -163,13 +172,13 @@ export class DraftDesk {
     const store = new DraftStore(countryProfile('XX'));
     const shelf = createSecretShelf();
     const host = options.host ?? 'test';
-    const claudeCodeTerms = options.claudeCodeTerms === 'accepted' ? 'accepted' : 'pending';
+    const claudeCodeTerms = options.claudeCodeTerms ?? 'accepted';
     const port: ModelPort = createModelPort({
       store, clock: this.#clock, transport, secrets: shelf, host, demo: options.demo, claudeCodeTerms,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),
     });
     const deps: VentureDeps = Object.freeze({
-      store, clock: this.#clock, models: port, services: NO_SERVICES,
+      store, clock: this.#clock, models: port, services: options.helper ? Object.freeze({ ...NO_SERVICES, helper: options.helper }) : NO_SERVICES,
       github: Object.freeze({ kind: 'fixture' as const, read: async () => { throw new ChausarError('NOT_BUILT_YET', 'There is no vault yet.'); } }),
       secrets: shelf, host, demo: options.demo, storage: 'experimental-file' as const, claudeCodeTerms,
     });

@@ -18,6 +18,8 @@ const REQUIRED_EXPORTS: Record<VenturePackageId, string[]> = {
   chief: ['handlers', 'appendChiefMessage', 'draftProposal'],
   network: ['handlers', 'personById', 'listPeople'],
   notify: ['handlers'],
+  // Ink v2 wave 5 (package 5-0): the playbooks package.
+  playbooks: ['handlers'],
 };
 
 async function loadAll(): Promise<Record<VenturePackageId, VenturePackageModule>> {
@@ -35,7 +37,7 @@ test('each venture package exports what the host loads', async () => {
   }
 });
 
-test('the ten handler tables cover every venture method, each in its owner package only', async () => {
+test('the eleven handler tables cover every venture method, each in its owner package only', async () => {
   const modules = await loadAll();
   const tables = Object.fromEntries(Object.entries(modules).map(([id, module]) => [id, module.handlers])) as Record<VenturePackageId, VenturePackageModule['handlers']>;
   assert.deepEqual(missingHandlers(tables), []);
@@ -43,8 +45,9 @@ test('the ten handler tables cover every venture method, each in its owner packa
     for (const method of Object.keys(table)) {
       assert.ok((VENTURE_METHODS as readonly string[]).includes(method), `${id} registers ${method}, which is not a venture method`);
       assert.equal(METHOD_OWNERS[method as VentureMethod], id, `${id} registers ${method}, which belongs to ${METHOD_OWNERS[method as VentureMethod]}`);
-      assert.equal(PRE_VAULT_METHODS.includes(method as VentureMethod), false, `${method} is answered before any vault, outside the tables`);
-      assert.equal(DRAFT_METHODS.includes(method as VentureMethod), false, `${method} is answered by the engine's draft desk, outside the tables`);
+      // Compliance (6C6) answers before any vault for onboarding and from the table once a business exists.
+      assert.equal(PRE_VAULT_METHODS.includes(method as VentureMethod), method === 'venture.compliance.get', `${method} is answered before any vault, outside the tables`);
+      assert.equal(DRAFT_METHODS.includes(method as VentureMethod), method === 'venture.country.suggest', `${method}: only country suggestion also has an existing-business handler`);
       assert.equal(typeof table[method], 'function', `${id} ${method} is a function`);
     }
   }

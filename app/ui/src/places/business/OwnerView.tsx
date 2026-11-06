@@ -6,6 +6,7 @@ import { Field } from '../../parts/Field';
 import type { OwnerView as Owner } from '../../engine/types';
 import { TileSection, messageOf } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
+import { SizeSetting } from './SizeSetting';
 import b from './Business.module.css';
 import s from './OwnerView.module.css';
 
@@ -23,7 +24,8 @@ const sameValues = (a: OwnerValues, b: OwnerValues) => JSON.stringify(a) === JSO
  * greeting, and the services the business does not sell, which drafts to clients never offer (4E2 reads them). Save
  * sends both, as typed, to venture.owner.set; the engine checks the name (any script) and says its rule when it refuses.
  * "Take my name back" removes it and shows Forget's line about backups. Unsent edits are kept in the vault as they are
- * typed ("Saved"), and a draft left behind is offered back when the page opens.
+ * typed ("Saved"), and a draft left behind is offered back when the page opens. W6 (3 November 2026): below it, the
+ * business's size (SizeSetting), shown only when a rule of the business's profession counts size.
  */
 export function OwnerView() {
   const t = useT();
@@ -103,6 +105,8 @@ export function OwnerView() {
           </div>
         </form>
       </TileSection>
+      {/* W6 (3 November 2026): the business's size, only when a rule of its profession counts it. */}
+      <SizeSetting />
     </div>
   );
 }

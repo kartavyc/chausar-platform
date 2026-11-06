@@ -1,0 +1,154 @@
+/* Connections, the shared connectors of wave 5 (5A6): pages you watch, mail files, your own apps, your n8n or Make,
+   speech from text. Lists sit on hairlines, no boxes; colour only for state. Spacing and type on tokens only. */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line);
+  min-width: 0;
+}
+
+.itemHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.small {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.content {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.code {
+  margin: 0;
+  padding: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-read);
+  color: var(--fg);
+  background: var(--wash);
+  border-radius: var(--r-button);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.kinds legend {
+  padding: 0;
+  margin-bottom: var(--sp-1);
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
+.kinds label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--fg);
+  min-height: var(--target);
+}
+
+.file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control);
+  padding: 0 var(--sp-4);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.file:focus-within {
+  outline: var(--hair) solid var(--focus);
+}
+
+.open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--target);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.open:focus-visible {
+  outline: var(--hair) solid var(--focus);
+}
+
+.fold {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.summary {
+  min-height: var(--target);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  list-style: none;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.summary:focus-visible {
+  outline: var(--hair) solid var(--focus);
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold[open] > .summary > svg {
+  transform: rotate(90deg);
+}

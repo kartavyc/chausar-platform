@@ -1,0 +1,13 @@
+import {appScreenCleanup} from './screen-cleanup.ts';
+// Original current order, source and owner authority boundary for emulator testing.
+import {check,type Context} from '../../../contracts.ts';import type {VentureDeps,OrderRecord} from '../../contracts.ts';import {findRecord,listRecords,digest} from '../../records.ts';import {readAs,acceptedBlueprintOrNull} from '../../delivery/shared.ts';import {pausedNow} from '../../delivery/run-guards.ts';import {AndroidTestPort} from '../../build/android.ts';import {assertClientApk} from './apk-source.ts';
+import {appOrderDigest} from './order-digest.ts';export {appOrderDigest} from './order-digest.ts';
+export function appTestOrder(deps:VentureDeps,ctx:Context,id:string,level:'read'|'approve'='read'){
+ const {state,venture}=readAs(deps,ctx,level),order=findRecord(state,'venture-order',id);check(order?.ventureId===venture.id&&['open','invoiced'].includes(order.status),'ORDER_NOT_FOUND','Choose a current app testing order.');const offer=acceptedBlueprintOrNull(state,venture)?.offers.find(o=>o.id===order.offerId);check(offer?.playbookOffer==='app-test-round','APP_TEST_ORDER_REQUIRED','Choose an app test round.');if(level==='approve'){check(ctx.role==='owner','OWNER_REQUIRED','Only the owner approves emulator actions.');check(!pausedNow(state,venture.id),'BUSINESS_PAUSED','This business is paused.');check(deps.host!=='hosted-web','TIER_UNAVAILABLE','App testing runs only on your desktop emulator.');check(!deps.closing?.signal.aborted,'APPROVAL_STALE','This workspace is closing.');}return {state,venture,order};
+}
+export function liveAppTest(deps:VentureDeps,ctx:Context,id:string,level:'read'|'approve'='read'){
+ const live=appTestOrder(deps,ctx,id,level),row=listRecords(live.state,'venture-test-finding',live.venture.id).find(r=>r.orderId===id&&r.clientId===live.order.clientId);check(row,'APP_TEST_NOT_FOUND','Import the client APK first.');check(row.orderDigest===appOrderDigest(live.order),'APPROVAL_STALE','The client or order changed. Import the current client build again.');return {...live,row};
+}
+/** Immediate authority, current record and original byte equality. Call after every awaited preflight, just before dispatch. */
+export function guardAppTest(deps:VentureDeps,ctx:Context,id:string,expected:string){const live=liveAppTest(deps,ctx,id,'approve');check(!live.venture.appTestScreenErasure?.length,'APP_TEST_CLEANUP_PENDING','Finish clearing the earlier emulator screen before another test action.');check(digest(live.row)===expected,'APPROVAL_STALE','The test plan or exact step changed. Review it again.');assertClientApk(live.row.apk);return live;}
+export const appAndroid=(deps:VentureDeps,ctx:Context)=>new AndroidTestPort(deps.android,appScreenCleanup(deps,ctx));

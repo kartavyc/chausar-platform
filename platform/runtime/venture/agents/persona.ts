@@ -16,7 +16,7 @@ import { acceptedBlueprint, readAs } from '../delivery/shared.ts';
 import { screenReadback, secretFindings } from '../core/secrets.ts';
 import { FLOOR_REASON, MONEY_REASON, ownerControlReason, plainHindi } from '../delivery/harness/patches.ts';
 import { ENGLISH_NUMBER_WORDS, holdsHindiNumber } from './number-words.ts';
-import { scenariosFor } from '../delivery/scenarios.ts';
+import { businessScenarios } from '../delivery/scenarios.ts';
 import { costDisplay } from '../models/cost.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
 import { AGENT_ID } from '../views/shared.ts';
@@ -256,7 +256,7 @@ export async function personaTestHandler(deps: VentureDeps, ctx: Context, payloa
   const persona = checkPersona(body.persona);
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const agent = chatAgent(state, venture, agentId);
-  const scenarios = scenariosFor(acceptedBlueprint(state, venture).serviceType);
+  const scenarios = businessScenarios(state, venture.id, acceptedBlueprint(state, venture).serviceType);
   const results: PersonaTestView['results'] = [];
   const spent: string[] = [];
   let confirmed = true;

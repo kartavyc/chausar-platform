@@ -69,16 +69,16 @@ test('least privilege: GitHub asks for one repo read only and no commit statuses
   assert.deepEqual([...new URL(TOKEN_LINK).searchParams.entries()].filter(([, value]) => value === 'read').map(([key]) => key).sort(), ['actions', 'contents', 'deployments', 'metadata']);
   assert.equal(github.sends, 'Sends: nothing, so nothing here can change your repo. Chausar reads it and never pushes.');
   const zoho = byId('zoho-books');
-  assert.equal(zoho.sends, 'Sends: nothing, so nothing here can change Zoho Books.');
-  assert.match(zoho.steps[0], /^1\. Nothing to set up in Chausar yet: linking Zoho Books is planned\.$/);
-  assert.match(zoho.skipped, /Don't make a key/);
-  assert.match(zoho.agentLimits, /can't use Zoho Books/);
+  assert.match(zoho.sends, /exact owner-approved.*invoice.*settlement.*master.*opening balance/);
+  assert.match(zoho.steps[0], /bookkeeping desk.*client organisation/);
+  assert.match(zoho.skipped, /correct client organisation and region/);
+  assert.match(zoho.agentLimits, /cannot send directly.*manual bookkeeper path/);
   const youtube = byId('youtube');
   assert.match(youtube.steps[0], /linking YouTube is planned/);
   assert.equal(youtube.steps.some(step => /^\d+\. Chausar copies/.test(step)), false, 'copying for YouTube is planned, so nothing says Chausar does it');
   assert.match(byId('chausar-templates').steps[1], /needs no key or sign-in/);
   assert.match(byId('linkedin').agentLimits, /waits for your approval/);
-  assert.match(byId('linkedin').sends, /from the LinkedIn account you signed in to/);
+  assert.match(byId('linkedin').sends, /nothing to LinkedIn.*LinkedIn account you signed in to/);
 });
 
 test('the mailbox and calendar guides: app passwords, 2-Step Verification, the admin block, the secret address; no "no key yet"', () => {
@@ -132,6 +132,7 @@ test("guides: the UI's fake engine keeps the engine's own guides and capability 
   const fake = JSON.parse(await readFile(new URL('../../app/ui/src/engine/fixtures-guides.json', import.meta.url), 'utf8')) as Record<string, unknown>;
   const ids = Object.keys(fake).filter(id => id !== 'about');
   assert.ok(ids.length > 0);
+  for (const id of ['overpass','nominatim','own-site','happenstance']) assert.ok(ids.includes(id), `implemented lead connector ${id} has fake guide evidence`);
   for (const id of ids) {
     const item = CONNECTOR_CATALOGUE.find(entry => entry.id === id);
     assert.ok(item, `${id} is in the engine's catalogue`);

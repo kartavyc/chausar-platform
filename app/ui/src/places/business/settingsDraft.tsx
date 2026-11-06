@@ -69,7 +69,7 @@ export function DraftRecover<V>({ offer, onRecover, onDecline }: { offer: DraftO
   const t = useT();
   const language = useLanguage();
   const id = useId();
-  const time = useMemo(() => new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }), [language]);
+  const time = useMemo(() => new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }), [language]);
   return (
     <div className={b.draftOffer} role="group" aria-labelledby={id} data-draft-offer="">
       <p id={id} className={b.line}>{t('business.owner.recover', { time: time.format(new Date(offer.at)) })}</p>

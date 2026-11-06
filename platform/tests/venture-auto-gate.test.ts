@@ -55,15 +55,15 @@ test('every readiness item can be met, and auto with spot checks still answers A
   assert.equal(view.agent, 'delivery');
   assert.match(view.line, /^1 of 8 steps has every item met\. /);
   assert.ok(view.line.endsWith(AUTO_LOCKED_WORDS));
-  assert.equal(AUTO_LOCKED_WORDS, "Auto with spot checks is built but locked. It opens after two clean drill runs and the founder's yes.");
+  assert.equal(AUTO_LOCKED_WORDS, 'Routine-step approval is not available yet.');
   const locked = (error: any) => { assert.equal(error.code, 'AUTO_LOCKED'); assert.equal(error.message, AUTO_LOCKED_WORDS); return true; };
   await assert.rejects(deliveryHandlers['venture.launch.advance']!(env.deps, owner, { to: 'auto-spot-check' }), locked);
   await assert.rejects(call(env, 'venture.team.posture', { agentId: 'delivery', posture: 'auto-spot-check' }), locked);
   await assert.rejects(call(env, 'venture.policy.allowSession', { stepId: 'draft' }), code('AUTO_LOCKED'));
   const status = await deliveryHandlers['venture.launch.status']!(env.deps, owner, {}) as LaunchStatus;
-  const auto = status.stages.find(stage => stage.stage === 'auto-spot-check')!;
-  assert.deepEqual([auto.allowed, auto.reason], [false, AUTO_LOCKED_WORDS]);
-  assert.equal(status.stage, 'approve-each', 'nothing moved');
+  // 6C4: unfinished stages are hidden; the owner sees Practice and Live only.
+  assert.deepEqual(status.stages.map(stage => stage.stage), ['practice', 'live']);
+  assert.equal(status.stage, 'live', 'nothing moved');
 });
 
 test('auto stays locked at every rung, from the ladder and from Team, whatever readiness says', async () => {
@@ -74,8 +74,8 @@ test('auto stays locked at every rung, from the ladder and from Team, whatever r
     await assert.rejects(deliveryHandlers['venture.launch.advance']!(env.deps, owner, { to: 'auto-spot-check' }), code('AUTO_LOCKED'));
     await assert.rejects(call(env, 'venture.team.posture', { agentId: 'delivery', posture: 'auto-spot-check' }), code('AUTO_LOCKED'));
   }
-  // The other rungs still behave as before.
-  await assert.rejects(deliveryHandlers['venture.launch.advance']!(env.deps, owner, { to: 'approve-sample' }), code('STAGE_PLANNED'));
+  // 6C4: the hidden sample stage is not a choice at all.
+  await assert.rejects(deliveryHandlers['venture.launch.advance']!(env.deps, owner, { to: 'approve-sample' }), code('INVALID_VENTURE_REQUEST'));
   const tightened = await call<{ agent: { posture: string } }>(env, 'venture.team.posture', { agentId: 'delivery', posture: 'shadow' });
   assert.equal(tightened.agent.posture, 'shadow');
 });
@@ -91,7 +91,7 @@ test('readiness says what is missing, item by item, in plain words', async () =>
   assert.equal(item(view, 'drills').met, false);
   assert.match(item(view, 'drills').line, /Run the drills twice/);
   assert.equal(CLEAN_DRILL_RUNS, 2);
-  assert.match(AUTO_LOCKED_WORDS, /two clean drill runs/, 'the lock words and the readiness item count the same runs');
+  assert.equal(AUTO_LOCKED_WORDS, 'Routine-step approval is not available yet.', 'legacy readiness never grants routine-step approval');
   await deliveryHandlers['venture.drills.run']!(env.deps, owner, {});
   const once = item(await readiness(env), 'drills');
   assert.equal(once.met, false);
@@ -135,7 +135,7 @@ test('readiness goes stale: an old real run, an old drill, a drill before the la
   });
   view = await readiness(env);
   assert.equal(item(view, 'drills').met, false);
-  assert.match(item(view, 'drills').line, /since the playbook last changed/);
+  assert.match(item(view, 'drills').line, /since the work instructions last changed/);
 });
 
 test('a decision model may lower friction but never authorises; any doubt goes to the owner', async () => {

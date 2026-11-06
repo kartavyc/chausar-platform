@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 
-function start(hash = '#/today', language: 'en' | 'hi' = 'en') {
+function start(hash = '#/today', language: 'en' = 'en') {
   window.location.hash = hash;
   render(<App client={createFakeClient(new FakeEngine())} language={language} />);
   return screen.getByRole('navigation', { name: language === 'en' ? 'Places' : 'जगहें' });
@@ -52,18 +52,18 @@ describe('the rail', () => {
     expect(button.textContent).not.toContain(' · ');
   });
 
-  it('lists Today, Chats, Team, Work, Clients, Money and Connections, each with its icon and word (W4 4C2 added Chats)', async () => {
+  it('lists Today, Chats, Team, Work, Clients, Money, Apps and Connections, each with its icon and word (W4 4C2 added Chats, W6 6H1 Apps)', async () => {
     const rail = start('#/team');
     const places = within(within(rail).getByRole('list')).getAllByRole('link');
-    expect(places.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/connections']);
+    expect(places.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/apps', '#/connections']);
     const icons = places.map((a) => {
       const svg = a.querySelector('svg')!;
       expect(svg.getAttribute('aria-hidden')).toBe('true');
       return [...svg.classList].find((c) => c.startsWith('lucide-'));
     });
-    expect(icons).toEqual(['lucide-sun', 'lucide-messages-square', 'lucide-users', 'lucide-briefcase', 'lucide-contact', 'lucide-wallet', 'lucide-plug']);
-    expect(places.map((a) => a.textContent!.replace(/\d.*$/, '').replace(/New, new$/, ''))).toEqual(['Today', 'Chats', 'Team', 'Work', 'Clients', 'Money', 'Connections']);
-    expect(places.map((a) => a.getAttribute('aria-current'))).toEqual([null, null, 'page', null, null, null, null]);
+    expect(icons).toEqual(['lucide-sun', 'lucide-messages-square', 'lucide-users', 'lucide-briefcase', 'lucide-contact', 'lucide-wallet', 'lucide-layout-grid', 'lucide-plug']);
+    expect(places.map((a) => a.textContent!.replace(/\d.*$/, '').replace(/New, new$/, ''))).toEqual(['Today', 'Chats', 'Team', 'Work', 'Clients', 'Money', 'Apps', 'Connections']);
+    expect(places.map((a) => a.getAttribute('aria-current'))).toEqual([null, null, 'page', null, null, null, null, null]);
     // W4 4C2 flipped this line: Chats is a real place now.
     expect(within(rail).getByRole('link', { name: /^Chats/ }).getAttribute('href')).toBe('#/chats');
   });
@@ -82,11 +82,6 @@ describe('the rail', () => {
     expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('.mono')!.hasAttribute('data-tone')).toBe(false);
   });
 
-  it('speaks Hindi, the brand keeping its own name', async () => {
-    const rail = start('#/today', 'hi');
-    expect(within(rail).getByRole('link', { name: 'Chausar, आज' })).toBeTruthy();
-    await waitFor(() => expect(within(rail).getByRole('button', { name: /Lumen Studio/ }).textContent).toContain('बिज़नेस बदलें'));
-  });
 });
 
 describe('the app icon', () => {

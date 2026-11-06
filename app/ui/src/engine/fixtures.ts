@@ -7,6 +7,7 @@
 import type { AgentView, BooksSummaryLite, BusinessOnComputer, ClientLite, ConnectorCardLite, DeliveryLite, EvidenceItem, JournalEntry, OrderLite, QueueRow, ReceiptLite, RunDetail, ServiceType, SpendRow, UploadLite } from './types';
 
 import type { CountryLite } from './types';
+import { SERVICE_KEYWORDS as ENGINE_SERVICE_KEYWORDS } from '../../../../platform/runtime/venture/core/service-keywords';
 
 export interface FakeBusiness { id: string; name: string; serviceType: ServiceType; opens: BusinessOnComputer['opens'] }
 
@@ -32,17 +33,11 @@ export const COUNTRIES: CountryLite[] = [
 ];
 export const SERVICE_LABELS: Readonly<Record<ServiceType, string>> = {
   agency: 'Marketing agency', studio: 'Creative studio', consulting: 'Consulting practice', bookkeeping: 'Bookkeeping studio',
-  research: 'Research desk', content: 'Content shop', support: 'Support team for hire', other: 'Service business',
+  research: 'Research desk', content: 'Content shop', support: 'Support team for hire',
+  teaching: 'Teaching and coaching', 'local-services': 'Local service business', licensed: 'Licensed practice', other: 'Service business',
 };
-export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, readonly string[]>> = {
-  agency: ['marketing', 'ads', 'advert', 'social media', 'agency', 'leads', 'outreach', 'growth', 'campaign'],
-  studio: ['podcast', 'video', 'design', 'edit', 'photo', 'logo', 'brand', 'studio', 'animation'],
-  consulting: ['consult', 'advis', 'coach', 'strategy', 'audit', 'mentor'],
-  bookkeeping: ['bookkeep', 'accounts', 'accounting', 'gst', 'tax', 'ledger', 'payroll', 'invoice', 'books'],
-  research: ['research', 'lead list', 'market', 'report', 'analysis', 'data', 'survey'],
-  content: ['blog', 'newsletter', 'copy', 'writing', 'seo', 'article', 'content', 'script'],
-  support: ['support', 'customer service', 'inbox', 'helpdesk', 'help desk', 'chat', 'tickets'],
-};
+/** W6 6E1: the engine's own keywords (a pure file), so the fake guesses a service type exactly as the engine does. */
+export const SERVICE_KEYWORDS: Readonly<Record<Exclude<ServiceType, 'other'>, readonly string[]>> = ENGINE_SERVICE_KEYWORDS;
 /** The words the engine's queue view uses for a new business (platform/runtime/venture/views/queue.ts). */
 export const NEW_BUSINESS_ROWS = {
   plan: { title: 'Your plan is ready. Read it.', read: 'Read', accept: 'Accept' },
@@ -132,10 +127,10 @@ export const QUEUE: RowSeed[] = [
     actions: [{ id: 'later', label: 'Later', primary: false }, { id: 'answer', label: 'Answer', primary: true }],
   },
   {
-    // The engine's connector row (posting.ts connectorQueueRows). LinkedIn, not Instagram: posting a picture or video
+    // The engine's connector row uses X. LinkedIn is copy-and-open only; posting a picture or video
     // through the browser is not built, so the engine never proposes an Instagram post; a text post is.
     id: 'post:linkedin-ep13:v1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Publisher', kind: 'connector', createdAt: '2026-10-21T10:02:00.000Z',
-    title: 'Post to LinkedIn', line: "Chausar will post in a browser window on this computer. Please don't type in that window until the post is done. The platform may restrict this account.",
+    title: 'Post to X', line: "Chausar will post in a browser window on this computer. Please don't type in that window until the post is done. The platform may restrict this account.",
     viewRef: { kind: 'draft', id: 'post-linkedin-ep13' },
     // 4J19 review: the engine's post: subject, and the whole text shown, so the sample can be approved in a set.
     descriptionComplete: true,
@@ -200,7 +195,7 @@ export const QUEUE_VIEWS: import('./types').QueueItemView[] = [
     ],
   },
   {
-    kind: 'draft', id: 'post-linkedin-ep13', businessName: 'Lumen Studio', agent: 'Publisher', title: 'LinkedIn post for episode 13', line: 'Posts from your own account, after you approve',
+    kind: 'draft', id: 'post-linkedin-ep13', businessName: 'Lumen Studio', agent: 'Publisher', title: 'X post for episode 13', line: 'Posts from your own account, after you approve',
     sections: [
       { heading: 'Post', lines: ['We tested five budget mics in one room. The ₹2,000 one surprised us.', 'Full episode on the channel, link in the comments.'] },
       { heading: 'Attached', lines: ['Short 1 from episode 13, 48 s, 1080 x 1920'] },
@@ -245,7 +240,7 @@ export const RUNS: RunDetail[] = [
     progress: { done: 1, total: 3 },
     // W4 4F3: the error alone; the fix and its code as the engine's fixOf sends them (delivery/failure-words.ts).
     error: 'The renderer stopped: ffmpeg was not found on this computer.',
-    fix: 'Install ffmpeg, or turn off the finishing check, then run again.', fixKind: 'install-ffmpeg',
+    fix: 'Install ffmpeg, then run the required finishing checks again.', fixKind: 'install-ffmpeg',
     steps: [
       { id: 's1', purpose: 'Picked 3 frames for thumbnails', state: 'done', elapsed: '22s' },
       { id: 's2', purpose: 'Render the thumbnails', state: 'failed', elapsed: '18s', error: 'ffmpeg was not found on this computer.' },
@@ -296,7 +291,6 @@ export const AGENTS: Record<string, AgentView[]> = {
         { id: 'cut', purpose: 'Cut the episode', gate: 'auto', floor: false },
         { id: 'shorts', purpose: 'Cut shorts from the episode', gate: 'auto', floor: false },
         { id: 'finish', purpose: 'Finishing check', gate: 'hold', floor: false },
-        { id: 'publish', purpose: 'Publish to YouTube', gate: 'hold', floor: true },
       ],
     },
     {
@@ -312,8 +306,6 @@ export const AGENTS: Record<string, AgentView[]> = {
       last: { line: 'Priced the sponsor slot', receiptId: 'R-0415' },
       steps: [
         { id: 'brief', purpose: 'Read sponsor briefs', gate: 'auto', floor: false },
-        { id: 'price', purpose: 'Change prices', gate: 'hold', floor: true },
-        { id: 'send', purpose: 'Send a quote to the sponsor', gate: 'hold', floor: true },
       ],
     },
     {
@@ -328,7 +320,6 @@ export const AGENTS: Record<string, AgentView[]> = {
       steps: [
         { id: 'match', purpose: 'Match bank lines to invoices', gate: 'auto', floor: false },
         { id: 'gst', purpose: 'Prepare the GST working', gate: 'hold', floor: false },
-        { id: 'portal', purpose: 'Anything on the GST portal', gate: 'hold', floor: true },
       ],
     },
     {
@@ -345,6 +336,11 @@ export const RECEIPTS: ReceiptLite[] = [
   { id: 'R-0430', at: '2026-10-21T10:30:00.000Z', explanation: 'The open balance of every issued invoice, added up.', stale: false, figures: [{ key: 'total', label: 'Clients owe you', display: 'Sum of open balances' }] },
   { id: 'R-0431', at: '2026-10-21T10:31:00.000Z', explanation: 'AI and tool calls this month: settled calls at their cost, running calls at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI and tools this month', display: 'USD 0.7198' }] },
   { id: 'R-0412', at: '2026-10-21T07:34:00.000Z', explanation: 'Bank lines matched to issued invoices by amount, date and reference.', stale: false, figures: [{ key: 'total', label: 'Lines matched', display: '212 of 214' }] },
+  // W6 6G5 (D44): the sums behind the spend meter rows and a run's model receipt, as money/spend-meter.ts spentByPlan words them.
+  { id: 'R-0451', at: '2026-10-21T10:31:00.000Z', explanation: '1 paid call: Model calls for episode 14 USD 0.5041. Added together: USD 0.5041.', stale: false, figures: [{ key: 'total', label: 'AI spend of Editor this month', display: 'USD 0.5041' }] },
+  { id: 'R-0452', at: '2026-10-21T10:31:00.000Z', explanation: '1 paid call: Title comparison, running USD 0.2156 (estimate). Added together: USD 0.2156. Calls not settled yet count at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI spend of Researcher this month', display: 'USD 0.2156' }] },
+  { id: 'R-0453', at: '2026-10-21T10:31:00.000Z', explanation: 'No paid calls.', stale: false, figures: [{ key: 'total', label: 'AI spend this month', display: 'USD 0.0000' }] },
+  { id: 'R-0454', at: '2026-10-21T07:12:00.000Z', explanation: '1 paid call: Claude Sonnet 5.5, delivery USD 0.0412. Added together: USD 0.0412.', stale: false, figures: [{ key: 'total', label: 'AI spend of this run', display: 'USD 0.0412' }] },
   {
     id: 'R-0415', at: '2026-10-21T10:04:00.000Z', explanation: 'Two mentions at ₹15,000 each, no discount, priced before tax.', stale: false,
     figures: [{ key: 'unit', label: 'Per mention', display: '₹15,000.00' }, { key: 'subtotal', label: 'Two mentions', display: '₹30,000.00' }, { key: 'total', label: 'Total before tax', display: '₹30,000.00' }],
@@ -502,7 +498,7 @@ export const DELIVERIES: Record<string, DeliveryLite[]> = {
       servedBy: 'model', practiceNow: false, canAccept: false, acceptBlocked: null,
       // 4J19 review: which engine wrote it, as DeliveryRunView carries it (Ledgerline's main tier is its own Sonnet key).
       writtenBy: 'Written by Claude Sonnet 5.5',
-      judge: { status: 'done', preview: null, auto: true, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: "Your edit is your own words, so the judge does not read it. Any verdict here is on the agent's draft." },
+      judge: { status: 'done', preview: null, auto: true, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: "Your edit is your own words, so the quality check does not read it. Any verdict here is on the agent's draft." },
     },
   ],
 };

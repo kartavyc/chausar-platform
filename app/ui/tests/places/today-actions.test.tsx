@@ -86,7 +86,7 @@ describe('Today: the engine\'s previews on the cards (4J3)', () => {
     // The post and the title question sit past the five full cards in the sample: shown on their own, they are full.
     document.body.innerHTML = '';
     start({ queue: QUEUE.filter((row) => row.id === 'post:linkedin-ep13:v1' || row.id === 'q-question-title') });
-    const post = await cardTitled('Post to LinkedIn');
+    const post = await cardTitled('Post to X');
     expect(post.querySelector('[data-preview="post"] [data-content]')!.textContent).toContain('We tested five budget mics in one room.');
     expect(post.querySelector('[data-sends-to="public"]')!.textContent).toBe('Goes public');
     // 4Z2: far under the platform's limit, the count is not shown.
@@ -212,7 +212,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     await press(within(box).getByRole('button', { name: 'Send back' }));
     expect(calls(spy, 'venture.queue.sendBack')).toEqual([{ rowId: 'run:d-ep14:review-1', digest: expect.any(String), text: 'Revise this to cut the intro to 20 seconds' }]);
     const decided = document.querySelector<HTMLElement>('[data-row-id="run:d-ep14:review-1"][data-decided]')!;
-    expect(decided.textContent).toContain('Sent back. The revision waits for your approval before anything goes to your AI.');
+    expect(decided.textContent).toContain('Sent back. The revised draft will wait for your review.');
     await press(within(decided).getByRole('button', { name: 'Undo' }));
     expect(calls(spy, 'venture.queue.undo')).toEqual([{ rowId: 'run:d-ep14:review-1' }]);
     expect(document.querySelector('[data-row-id="run:d-ep14:review-1"]')!.textContent).toContain('Restored until you edit this again.');
@@ -242,15 +242,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     expect(send().disabled).toBe(false);
   });
 
-  it('the box starts in Hindi in Hindi', async () => {
-    window.location.hash = '#/today';
-    const client = createFakeClient(new FakeEngine({ now: () => NOW }));
-    render(<ClockProvider now={() => new Date(NOW)}><App client={client} language="hi" /></ClockProvider>);
-    const card = (await screen.findByRole('heading', { level: 3, name: 'Episode 14 is cut' })).closest('article') as HTMLElement;
-    await press(within(card).getByRole('button', { name: 'वापस भेजें' }));
-    const box = card.querySelector<HTMLElement>('[data-send-back]')!;
-    expect((within(box).getByRole('textbox') as HTMLTextAreaElement).value).toBe('इसे ऐसे बदलें: ');
-  });
+
 
   it('after failed checks it asks "Fix all, or tell me which?" and a pick calls venture.delivery.fix', async () => {
     const row: Seed = {
@@ -465,7 +457,7 @@ describe('Today: approve several (O9)', () => {
     },
     {
       id: 'post:p13:v1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Publisher', kind: 'connector', createdAt: '2026-10-21T10:02:00.000Z',
-      title: 'Post to LinkedIn', line: 'From your own browser on this computer.', viewRef: { kind: 'draft', id: 'post-linkedin-ep13' }, descriptionComplete: true,
+      title: 'Post to X', line: 'From your own browser on this computer.', viewRef: { kind: 'draft', id: 'post-linkedin-ep13' }, descriptionComplete: true,
       actions: [{ id: 'deny', label: 'Do not post', primary: false }, { id: 'approve', label: 'Approve and post', primary: true, secondAsk: true }],
     },
     {
@@ -477,7 +469,7 @@ describe('Today: approve several (O9)', () => {
 
   it('nothing is picked, money is not offered, an unread item blocks the set until it is opened, and the second ask comes once', async () => {
     const { spy } = start({ queue: rows });
-    await cardTitled('Post to LinkedIn');
+    await cardTitled('Post to X');
     await press(screen.getByRole('button', { name: 'Approve several' }));
     const picker = document.querySelector<HTMLElement>('[data-set-picker]')!;
     expect(within(picker).queryByRole('button', { name: /approve all/i })).toBeNull();
@@ -490,7 +482,7 @@ describe('Today: approve several (O9)', () => {
 
     fireEvent.click(within(picker).getByRole('checkbox', { name: /Episode 14 is cut/ }));
     await settle();
-    fireEvent.click(within(picker).getByRole('checkbox', { name: /Post to LinkedIn/ }));
+    fireEvent.click(within(picker).getByRole('checkbox', { name: /Post to X/ }));
     await settle();
     expect(calls(spy, 'venture.queue.setPreview').at(-1)).toEqual({ rowIds: ['run:r1:review-1', 'post:p13:v1'] });
     // The cards drew their previews from the views, without opened: the engine kept no view mark for them.
@@ -531,7 +523,7 @@ describe('Today: approve several, the review round (4J19)', () => {
   };
   const post: Seed = {
     id: 'post:p13:v1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Publisher', kind: 'connector', createdAt: '2026-10-21T10:02:00.000Z',
-    title: 'Post to LinkedIn', line: 'From your own browser.', viewRef: { kind: 'draft', id: 'post-linkedin-ep13' }, descriptionComplete: true,
+    title: 'Post to X', line: 'From your own browser.', viewRef: { kind: 'draft', id: 'post-linkedin-ep13' }, descriptionComplete: true,
     actions: [{ id: 'deny', label: 'Do not post', primary: false }, { id: 'approve', label: 'Approve and post', primary: true }],
   };
   const others: Seed[] = [
@@ -543,23 +535,23 @@ describe('Today: approve several, the review round (4J19)', () => {
 
   it('the sample: the engine-shaped draft and post of the open business can be approved together, and one alone is no set', async () => {
     const { client } = start();
-    await cardTitled('Post to LinkedIn');
+    await cardTitled('Post to X');
     // The open business is found the way the engine lists it (its id is a venture_ record id, never a row's business).
     expect((await client.request('venture.get', {}))!.venture.id).toMatch(/^venture_/);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Approve several' })).toBeTruthy());
     document.body.innerHTML = '';
     start({ queue: [post] });
-    await cardTitled('Post to LinkedIn');
+    await cardTitled('Post to X');
     await settle();
     expect(screen.queryByRole('button', { name: 'Approve several' })).toBeNull();
   });
 
   it('offers only the posts and drafts of the open business that a set takes', async () => {
     start({ queue: [draft, post, ...others] });
-    await cardTitled('Post to LinkedIn');
+    await cardTitled('Post to X');
     await press(screen.getByRole('button', { name: 'Approve several' }));
     const picker = document.querySelector<HTMLElement>('[data-set-picker]')!;
-    expect(within(picker).getAllByRole('checkbox').map((box) => box.closest('label')!.textContent)).toEqual(['Spot of episode 14Draft', 'Post to LinkedInPost']);
+    expect(within(picker).getAllByRole('checkbox').map((box) => box.closest('label')!.textContent)).toEqual(['Spot of episode 14Draft', 'Post to XPost']);
   });
 
   it('a set the engine calls stale says so in its own words and is read again; a row that left is dropped from the pick', async () => {
@@ -571,12 +563,12 @@ describe('Today: approve several, the review round (4J19)', () => {
         return undefined;
       },
     });
-    await cardTitled('Post to LinkedIn');
+    await cardTitled('Post to X');
     await press(screen.getByRole('button', { name: 'Approve several' }));
     const picker = document.querySelector<HTMLElement>('[data-set-picker]')!;
     fireEvent.click(within(picker).getByRole('checkbox', { name: /Spot of episode 14/ }));
     await settle();
-    fireEvent.click(within(picker).getByRole('checkbox', { name: /Post to LinkedIn/ }));
+    fireEvent.click(within(picker).getByRole('checkbox', { name: /Post to X/ }));
     await settle();
     const before = calls(spy, 'venture.queue.setPreview').length;
     await press(within(picker).getByRole('button', { name: 'Approve 2' }));

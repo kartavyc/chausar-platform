@@ -1,10 +1,11 @@
 import { useEffect, useId, useState, type KeyboardEvent } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
-import type { AgentView, RunSummary } from '../../engine/types';
+import type { RunSummary } from '../../engine/types';
 import { openSheet, setQuery, useRoute } from '../../shell/navigation';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { Avatar } from '../../parts/Avatar';
+import { Button } from '../../parts/Button';
 import { Chip, DeptChip, StateChip } from '../../parts/Chip';
 import { cx } from '../../parts/cx';
 import { ProgressRing, measuredSteps } from '../../parts/ProgressRing';
@@ -14,6 +15,8 @@ import { AgentNotes } from './AgentNotes';
 // W4 4J22b: its skills and what it can and cannot do (how it talks sits in Instructions).
 import { AgentCanDo } from './AgentCanDo';
 import { AGENT_TABS, FIRST_TAB, canChat, chatRefresh, type AgentTab } from './chat';
+// W6 6G2: the check before an agent retires, and a retired agent's read-only panel with Bring back.
+import { AgentRetire, RetiredPanel } from './AgentRetire';
 import { DEPT_OF, isKeeper, stateOf } from './departments';
 import { HealthLine } from './HealthLine';
 import { Instructions } from './Instructions';
@@ -30,7 +33,7 @@ const CODE_TABS: readonly AgentTab[] = ['instructions', 'runs'];
  * state in the head, then four tabs (W4 4B3), held in the address as `&tab=`. Chat: every run of the agent as a
  * conversation, and talking to it (AgentChat); opened from the quiet Chat button on its card, never on its own.
  * Instructions, with the version in use: how it works in words, its standing orders and going back from a change, its
- * posture and who set it, when each step asks the owner, its AI and its spend (Instructions). Runs: its runs with their
+ * AI review settings, step instructions, its AI and its spend (Instructions). Runs: its runs with their
  * rings and state words, each opening the run sheet. Notes: what it keeps from the owner's words (AgentNotes). Opened by
  * its name, the panel shows Instructions. Keeper is code, not AI: its jobs instead. W4 4J22b adds Can do: its skills
  * (whose "Try this" opens Chat with the question in the box, unsent, once) and its capability page; how it talks
@@ -43,22 +46,35 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const runsId = useId();
   const team = useResource('venture.team.list', {}, { refreshOn });
   const runs = useResource('venture.runs.list', { state: 'all' }, { refreshOn });
-  // The engine's answer to a gate or posture change, shown until the list itself is read again.
-  const [saved, setSaved] = useState<AgentView | null>(null);
-  useEffect(() => { setSaved(null); }, [team.data]);
   // The tab pressed here shows at once; the address follows, and an address that names another tab wins.
   const [picked, setPicked] = useState<AgentTab | null>(null);
   useEffect(() => { setPicked(null); }, [route.query.tab, id]);
   // A skill's "Try this" question (W4 4J22b): put in the chat box once, then let go, so the box never fills again
   // by itself. Each new one gets its own key, so the box opens afresh with it.
   const [starter, setStarter] = useState<{ text: string; key: number } | null>(null);
-  useEffect(() => { setStarter(null); }, [id]);
+  // W6 6G2: the check before it retires, shown in place of the tab; and what retiring said, for the retired panel.
+  const [retiring, setRetiring] = useState(false);
+  const [retiredSaid, setRetiredSaid] = useState<string | null>(null);
+  useEffect(() => { setStarter(null); setRetiring(false); setRetiredSaid(null); }, [id]);
 
-  const agent = saved ?? team.data?.agents.find((a) => a.id === id);
+  const agent = team.data?.agents.find((a) => a.id === id);
+  // W6 6G2: an agent on the Retired shelf opens read only, with Bring back.
+  const shelved = agent ? undefined : team.data?.retired?.find((item) => item.id === id);
   // The version in use, the agent's steps with their guidance and checks, its standing orders and what Undo would do:
   // read-level, so opening the panel never writes (a role whose steps are code has none of these).
   const standing = useResource('venture.agents.orders.list', { agent: id }, { refreshOn: chatRefresh, skip: !agent || !canChat(agent) });
   const version = standing.data?.playbook?.version;
+  if (shelved) {
+    const shelfDept = shelved.department ? DEPT_OF[shelved.department] : undefined;
+    return (
+      <Sheet
+        label={t('team.sheet')} eyebrow={<Chip tone="line">{t('team.shelf.chip')}</Chip>} title={shelved.name} line={shelved.role}
+        avatar={<Avatar name={shelved.name} dept={shelfDept} state="idle" size={40} />} width="panel" name={shelved.name} onClose={onClose} returnFocus={returnFocus}
+      >
+        <RetiredPanel key={shelved.id} item={shelved} said={retiredSaid} onChanged={team.reload} />
+      </Sheet>
+    );
+  }
   if (!agent) {
     const title = team.data ? t('team.notFound') : team.error ? t('team.failed', { message: team.error.message }) : t('team.loading');
     return <Sheet label={t('team.sheet')} title={title} onClose={onClose} returnFocus={returnFocus} width="panel" />;
@@ -173,15 +189,17 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
         {tab === 'chat' && (
           <AgentChat key={agent.id} agent={agent} dept={dept} peers={peers} playbook={standing.data?.playbook ?? undefined} onPlaybookChanged={standing.reload} initial={starter?.text} initialKey={starter?.key} onInitialUsed={() => setStarter((was) => (was ? { ...was, text: '' } : was))} />
         )}
-        {tab === 'instructions' && (
+        {tab === 'instructions' && !retiring && (
           <Instructions
             agent={agent}
             standing={standing}
-            onSaved={setSaved}
-            onFloor={team.reload}
             onPlaybookChanged={standing.reload}
           />
         )}
+        {/* W6 6G2: Retire sits last in Instructions, quiet; it opens the check in place of the tab. */}
+        {tab === 'instructions' && canChat(agent) && (retiring
+          ? <AgentRetire agent={agent} onCancel={() => setRetiring(false)} onRetired={(said) => { setRetiredSaid(said); setRetiring(false); team.reload(); }} />
+          : <p><Button size="sm" variant="quiet" onClick={() => setRetiring(true)} data-retire="">{t('team.retire.open')}</Button></p>)}
         {tab === 'runs' && (
           <section className={s.section}>
             <h3 id={runsId} className={s.small}>{t('team.runs')}</h3>

@@ -1,12 +1,14 @@
 // The YouTube playbook's built pieces as agent tools, through a real order (Ink v2 wave 2, package 2E1, rows Y1 and
 // Y17). A YouTube business with an order whose transcript came as an SRT file runs turn by turn through
-// venture.delivery.approve: the agent writes hooks and code keeps the best two in a table; code builds the edit list
+// scoped MCP tools: the agent writes hooks and code keeps the best two in a table; code builds the edit list
 // from segment ids under the rights recorded at intake; code drafts chapters from the pauses, and the package may
 // carry their times; code reads a Studio retention export with what was said at each drop. The write step sees what
 // code worked out, and the hook check judges the better kept hook. Only the YouTube playbook's agents hold the tools.
 // The YouTube upload connector says uploads stay private until the owner chooses, and when to tick the altered or
 // synthetic content setting.
 import test from 'node:test';
+import {scriptedAgent,consentForOrder,SCRIPTED_AGENT_SETTINGS} from './fixtures/venture/scripted-agent.ts';
+import {waitForAgentWork} from '../runtime/venture/agent-runtime/runner.ts';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
@@ -95,6 +97,7 @@ class Port implements ModelPort {
   turns: Turn[] = [];
   write: (task: ModelTask<any>) => Draft = () => packageDraft({});
   previewed: ModelTask<any>[] = [];
+  reads:{name:string;data:any}[]=[];
   clock: () => Date;
   #calls = 0;
   #previews = new Map<string, { digest: string; task: ModelTask<any> }>();
@@ -121,7 +124,7 @@ class Port implements ModelPort {
     this.#previews.set(callId, { digest: digest(payloadText), task });
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: new Date(this.clock().getTime() + 1800000).toISOString(),
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -183,26 +186,25 @@ async function order(env: Env, offerId: string, files: [string, string][], right
   return made;
 }
 
-/** Runs the order turn by turn, approving each previewed text, until the draft is ready for review. */
-async function drive(env: Env, orderId: string): Promise<DeliveryRunView> {
-  let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId });
-  for (let step = 0; step < 8 && run.status === 'waiting-for-you'; step += 1) {
-    run = await env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
+/** The synthetic agent reads actual MCP results before constructing its test draft. */
+async function drive(env:Env,orderId:string,failed=false):Promise<DeliveryRunView>{
+ await env.store.update(state=>{state.policy.send='shape';});await consentForOrder(env.deps,owner,orderId);
+ const tables:any[]=[];env.models.reads=[];
+ env.deps.agentRoute=async()=>({settings:SCRIPTED_AGENT_SETTINGS,driver:scriptedAgent(()=>env.models.write({input:tables.length?{worked:{tables,note:'Keep the code-derived words word for word.'}}:{}} as ModelTask<any>),undefined,(name,data)=>env.models.reads.push({name,data}),async call=>{
+  for(const step of env.models.turns)for(const request of step.calls){
+   const args=JSON.parse(request.input);
+   if(request.tool==='files.read'){const list=await call('list_files');await call('read_file',{fileId:list.files[0].id,offset:0,limit:12000});continue;}
+   const response=await call('calculate',{operation:request.tool.replaceAll('.','_').replace(/[A-Z]/g,c=>'_'+c.toLowerCase()),arguments:args});
+   const result=response.result;if(!result.ok)continue;
+   if(request.tool==='youtube.hooks')tables.push({table:result.result.table,name:'Hooks the scorer kept',columns:['Hook'],rows:result.result.kept.map((row:any)=>({Hook:row.hook}))});
+   if(request.tool==='youtube.chapters'&&result.result.table)tables.push({table:result.result.table,name:'Chapters drafted from the pauses',columns:['At','Label'],rows:result.result.chapters.map((row:any)=>({At:row.at,Label:row.label}))});
   }
-  assert.equal(run.status, 'ready-for-review', JSON.stringify(run.harness?.toolCalls.map(item => item.envelope)));
-  return run;
+ })});
+ const pending=await env.call('venture.delivery.run',{orderId});await waitForAgentWork(env.store,pending.id);
+ const run:DeliveryRunView=(await env.call('venture.delivery.list')).find((row:DeliveryRunView)=>row.id===pending.id);
+ assert.equal(run.status,failed?'failed':'ready-for-review',JSON.stringify(env.models.reads.filter(row=>row.name==='tool_error')));
+ return run;
 }
-
-/** Runs the order's act turns and stops with the write step previewed: the next approve sends the package. */
-async function untilWrite(env: Env, orderId: string): Promise<DeliveryRunView> {
-  let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId });
-  for (let step = 0; step < 8 && run.harness?.phase === 'act'; step += 1) {
-    run = await env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
-  }
-  assert.equal(run.harness!.phase, 'write');
-  return run;
-}
-const sendWrite = (env: Env, run: DeliveryRunView) => env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
 
 /** A package laid out as the YouTube package guidance asks, with the hooks and description lines given. */
 function packageDraft(input: { hooks?: string[]; chapters?: string[]; summary?: string[] }): Draft {
@@ -224,7 +226,8 @@ function tableOf(env: Env, tool: string): WorkTableRecord {
   assert.ok(table, `no table from ${tool}`);
   return table;
 }
-const callsOf = (run: DeliveryRunView, tool: string) => run.harness!.toolCalls.filter(item => item.tool === tool);
+const callsOf = (env:Env,run:DeliveryRunView,tool?:string) => listRecords(env.store.read(),'venture-delivery-run').find(row=>row.id===run.id)!.agentJob!.calculations!.filter(item=>!tool||item.tool===tool);
+const tablesOf=(env:Env,run:DeliveryRunView)=>listRecords(env.store.read(),'venture-work-table').filter(row=>row.runRef.kind==='delivery'&&row.runRef.runId===run.id).map(row=>row.id);
 const playbookCheck = (run: DeliveryRunView, id: string) => {
   const found = run.playbookChecks?.find(item => item.check === id);
   assert.ok(found, `no ${id} check`);
@@ -250,7 +253,7 @@ test('hooks: the agent writes five, code keeps the best two in a table, the writ
   env.models.write = task => { seen.task = task; return packageDraft({ hooks: worked(task).find(item => item.name === 'Hooks the scorer kept')!.rows.map(row => row.Hook).reverse() }); };
   const run = await drive(env, made.id);
 
-  const [hooks] = callsOf(run, 'youtube.hooks');
+  const [hooks] = callsOf(env,run, 'youtube.hooks');
   assert.equal(hooks.outcome, 'succeeded', JSON.stringify(hooks.envelope));
   const result = (hooks.envelope as any).result;
   assert.equal(result.table, 't1');
@@ -261,7 +264,7 @@ test('hooks: the agent writes five, code keeps the best two in a table, the writ
   assert.deepEqual(table.rows.map(row => [row.cells.Hook, row.cells.Score, row.cells.Band]), ranked.slice(0, 2).map(item => [item.hook, String(item.verdict), item.band]));
   assert.deepEqual(table.source, { kind: 'computed', tool: 'youtube.hooks', uploadIds: [] });
   assert.deepEqual(table.runRef, { kind: 'delivery', runId: run.id });
-  assert.deepEqual(run.harness!.tableIds, [table.id]);
+  assert.deepEqual(tablesOf(env,run), [table.id]);
 
   assert.ok(seen.task, 'the write step ran');
   assert.deepEqual(worked(seen.task).map(item => item.table), ['t1'], 'the write step sees what code worked out');
@@ -286,7 +289,7 @@ test('hooks: a package hook the scorer did not keep fails the hook check and blo
   ]), turnOf('Score a hook with a hidden character', [['youtube.hooks', { hooks: ['Why your budget\u200b leaks?', 'Why your savings shrink?'] }]]), DONE];
   env.models.write = () => packageDraft({ hooks: [ranked[0].hook, 'Budgets are hard, but you can fix yours this weekend.'] });
   const run = await drive(env, made.id);
-  const [one, same, number, good, hidden] = callsOf(run, 'youtube.hooks');
+  const [one, same, number, good, hidden] = callsOf(env,run, 'youtube.hooks');
   assert.equal((number.envelope as any).error.code, 'TOOL_FAILED');
   // Only a number is put in the tool's own words; any other refusal of the words keeps its own code and words.
   assert.equal((hidden.envelope as any).error.code, 'MODEL_OUTPUT_REJECTED');
@@ -320,7 +323,7 @@ test('edit list: code cuts frame ranges from segment ids under the rights record
     ['youtube.editList', { picks: [{ from: 'seg-2', to: 'seg-99' }], fps: '30' }],
   ]), DONE];
   const run = await drive(env, shorts.id);
-  const [cut, wrong] = callsOf(run, 'youtube.editList');
+  const [cut, wrong] = callsOf(env,run, 'youtube.editList');
   assert.equal(cut.outcome, 'succeeded', JSON.stringify(cut.envelope));
   const expected = buildEditList(CUES, picks, { fps: 30, intake: { rights: { ...OWN_FOOTAGE, reference: null, scope: null, expiresOn: null, recordedAt: START, recordedBy: 'owner' } }, today: '2026-10-21' });
   const result = (cut.envelope as any).result;
@@ -339,7 +342,7 @@ test('edit list: code cuts frame ranges from segment ids under the rights record
   env.time.now = '2026-11-02T10:00:00.000Z';
   env.models.turns = [turnOf('Pick the moments for the shorts', [['youtube.editList', { picks, fps: '30' }]]), DONE];
   const late = await drive(env, ended.id);
-  const [refused] = callsOf(late, 'youtube.editList');
+  const [refused] = callsOf(env,late, 'youtube.editList');
   assert.equal((refused.envelope as any).error.code, 'RIGHTS_REQUIRED');
   assert.match((refused.envelope as any).error.message, /ended on 2026-10-25/);
   assert.equal(listRecords(env.store.read(), 'venture-work-table').filter(item => item.runRef.kind === 'delivery' && item.runRef.runId === late.id).length, 0);
@@ -361,7 +364,7 @@ test('chapters: code drafts them from the pauses, the package carries their time
     return packageDraft({ chapters: chapters.rows.map(row => `${row.At} ${row.Label}`) });
   };
   const run = await drive(env, made.id);
-  const [chapters] = callsOf(run, 'youtube.chapters');
+  const [chapters] = callsOf(env,run, 'youtube.chapters');
   assert.equal(chapters.outcome, 'succeeded', JSON.stringify(chapters.envelope));
   const result = (chapters.envelope as any).result;
   assert.equal(result.valid, true);
@@ -383,19 +386,22 @@ test('chapters: code drafts them from the pauses, the package carries their time
   const second = await order(env, 'offer_1', [['episode.srt', TRANSCRIPT]]);
   env.models.turns = [turnOf('Draft the chapters', [['youtube.chapters', {}]]), DONE];
   env.models.write = () => packageDraft({ chapters: ['0:00 Budgets', '0:07 A time nobody drafted', '1:00 Investing'] });
-  await assert.rejects(sendWrite(env, await untilWrite(env, second.id)), code('MODEL_OUTPUT_REJECTED'));
+  assert.equal((await drive(env,second.id,true)).deliverable,null);
 
   // A drafted time outside the chapters heading is refused too.
   const third = await order(env, 'offer_1', [['episode.srt', TRANSCRIPT]]);
   env.models.turns = [turnOf('Draft the chapters', [['youtube.chapters', {}]]), DONE];
   env.models.write = () => packageDraft({ chapters: lines, summary: [lines[1]] });
-  await assert.rejects(sendWrite(env, await untilWrite(env, third.id)), code('MODEL_OUTPUT_REJECTED'));
+  assert.equal((await drive(env,third.id,true)).deliverable,null);
 
   // A run with no chapters call of its own: another run's drafted times are refused, and a package with none is fine.
   const fourth = await order(env, 'offer_1', [['episode.srt', TRANSCRIPT]]);
   env.models.turns = [turnOf('Read the transcript', [['files.read', { target: 'f1', part: 'pages' }]]), DONE];
   env.models.write = () => packageDraft({ chapters: lines });
-  await assert.rejects(sendWrite(env, await untilWrite(env, fourth.id)), code('MODEL_OUTPUT_REJECTED'));
+  assert.equal((await drive(env,fourth.id,true)).deliverable,null);
+  // Three deliberately refused drafts quarantine the agent. The fixture owner clears that exact finding before the next independent example.
+  const team=await env.call('venture.team.list');
+  for(const agent of team.agents.filter((agent:any)=>agent.health?.status==='quarantined'))await env.call('venture.team.clearQuarantine',{agentId:agent.id,digest:agent.health.digest});
   const fifth = await order(env, 'offer_1', [['episode.srt', TRANSCRIPT]]);
   env.models.turns = [turnOf('Read the transcript', [['files.read', { target: 'f1', part: 'pages' }]]), DONE];
   let plainTask: ModelTask<any> | null = null;
@@ -409,10 +415,10 @@ test('chapters: code drafts them from the pauses, the package carries their time
   env.models.turns = [turnOf('Draft the chapters', [['youtube.chapters', {}]]), DONE];
   env.models.write = () => packageDraft({});
   const run3 = await drive(env, short.id);
-  const [few] = callsOf(run3, 'youtube.chapters');
+  const [few] = callsOf(env,run3, 'youtube.chapters');
   assert.equal((few.envelope as any).result.valid, false);
   assert.match((few.envelope as any).result.problems[0], /six/);
-  assert.deepEqual(run3.harness!.tableIds, []);
+  assert.deepEqual(tablesOf(env,run3), []);
 });
 
 // ---------------------------------------------------------------------------
@@ -424,7 +430,7 @@ test('retention: code reads the Studio export with what was said at each drop; t
   const made = await order(env, 'offer_1', [['episode.srt', TRANSCRIPT], ['retention.csv', RETENTION], ['short.csv', SHORT_RETENTION]]);
   env.models.turns = [turnOf('Read the retention export', [['youtube.retention', { file: 'f2' }], ['youtube.retention', { file: 'f3' }], ['youtube.retention', { file: 'f1' }]]), DONE];
   const run = await drive(env, made.id);
-  const [read, short, wrong] = callsOf(run, 'youtube.retention');
+  const [read, short, wrong] = callsOf(env,run, 'youtube.retention');
   assert.equal(read.outcome, 'succeeded', JSON.stringify(read.envelope));
   const expected = readRetentionExport(RETENTION, { durationMs: CUES.at(-1)!.endMs, cues: CUES });
   const result = (read.envelope as any).result;
@@ -480,14 +486,14 @@ test('screen: the writer gets only the kept hooks and the chapters, as screened;
   let seen: ModelTask<any> | null = null;
   env.models.write = task => { seen = task; return packageDraft({}); };
   const run = await drive(env, made.id);
-  assert.deepEqual(run.harness!.toolCalls.map(item => [item.tool, item.outcome]), [['youtube.hooks', 'succeeded'], ['youtube.editList', 'succeeded'], ['youtube.chapters', 'succeeded'], ['youtube.retention', 'succeeded']]);
-  assert.ok(tableOf(env, 'youtube.hooks').rows.some(row => row.cells.Hook.includes(pan)), 'the stored table keeps what the agent wrote');
+  assert.deepEqual(callsOf(env,run).map(item => [item.tool, item.outcome]), [['youtube.hooks', 'failed'], ['youtube.editList', 'succeeded'], ['youtube.chapters', 'succeeded'], ['youtube.retention', 'succeeded']]);
+  assert.equal(listRecords(env.store.read(),'venture-work-table').some(row=>row.source.kind==='computed'&&row.source.tool==='youtube.hooks'),false,'a private identifier cannot become an agent-written hook');
   const task = seen as ModelTask<any> | null;
   assert.ok(task);
-  assert.deepEqual(worked(task).map(item => item.name), ['Hooks the scorer kept', 'Chapters drafted from the pauses'], 'never the edit list, the retention drops or another table');
+  assert.deepEqual(worked(task).map(item => item.name), ['Chapters drafted from the pauses'], 'never a refused hook, the edit list, the retention drops or another table');
   const words = JSON.stringify((task.input as any).worked);
   assert.ok(!words.includes(pan), words);
-  assert.match(words, /redacted PAN/, 'the screened hook, not the raw one');
+  assert.ok(!JSON.stringify(env.models.reads).includes(pan),'all MCP source and calculation outputs screen the private identifier');
 });
 
 test('edit list: with no intake, as in a rehearsal, the cut is refused for want of rights and nothing is made', async () => {

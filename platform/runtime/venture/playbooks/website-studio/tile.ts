@@ -1,0 +1,2 @@
+import type {StartTile} from '../kit/define.ts';
+export const WEBSITE_TILE:StartTile={category:'content',icon:'globe',line:'Business sites and landing pages for clients, checked against their requirements before every release.',youDo:{hoursMin:3,hoursMax:5,line:'Talk to clients, approve releases.'},team:{roleIds:['builder','writer','checker','billing'],line:'Writes briefs, checks builds, keeps sites healthy.'},pay:{minRupees:15000,maxRupees:60000,per:'per site'}};

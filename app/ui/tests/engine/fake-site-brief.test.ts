@@ -1,0 +1,2 @@
+import {it,expect} from 'vitest';import {templateBrief} from '../../src/engine/fixtures-business';
+it('fake Build brief includes the same code-written screen destinations and observed CI artifact contract',()=>{const text=templateBrief('Shop',1);expect(text).toContain('### Screen flow');expect(text).toContain('Home: See offers opens Offers and prices.');expect(text).toContain('artifact named lintapple-report');});

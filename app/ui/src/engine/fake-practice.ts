@@ -10,6 +10,8 @@
  * client fails the house style, and the judge passes every draft it reads. Costs are the engine's text, never summed.
  */
 
+import { bindFakeClientAi } from './fake-client-ai-consent';
+
 import {
   EngineError, type BlueprintViewLite, type CheckLite, type DeliveryLite, type EpisodeLite, type ImprovementReadinessLite,
   type ImprovementRunLite, type ImprovementStatusLite, type JudgeAutoView, type JudgePreview, type ModelStatusLite, type PlaybookLite,
@@ -35,25 +37,25 @@ const PRACTICE_METHODS = new Set<string>([
 
 /** The engine's words (delivery/judge-run.ts, delivery/improve.ts, delivery/launch.ts, delivery/runs.ts, delivery/checks.ts). */
 export const PRACTICE_WORDS = Object.freeze({
-  judgeOn: "The judge reads every draft that goes to a client or the public once it passes the code checks. It runs on your own AI, so your client's words go to your AI with the draft, and each check costs a little.",
-  judgeOff: 'The judge reads a draft only when you ask it to, from the draft in Work.',
-  failedCheck: 'Fix the failed check first; the judge reads only drafts that pass the code checks.',
-  notReady: 'The judge reads a draft once it is ready for your review.',
-  outline: 'The judge reads drafts an agent wrote; this is a template outline.',
+  judgeOn: "The quality check reads every draft that goes to a client or the public once it passes the code checks. It runs on your own AI, so your client's words go to your AI with the draft, and each check costs a little.",
+  judgeOff: 'The quality check reads a draft only when you ask, from the draft in Work.',
+  failedCheck: 'Fix the failed check first; the quality check reads only drafts that pass the code checks.',
+  notReady: 'The quality check reads a draft once it is ready for your review.',
+  outline: 'The quality check reads drafts an agent wrote; this is a template outline.',
   practice: 'Practice drafts are not for clients. Move to approve each to use drafts.',
-  noAi: 'Connect an AI for quick work first; the judge runs on your own AI.',
-  already: 'The judge already read this draft.',
-  notWaiting: 'Ask the judge first, then send it.',
+  noAi: 'Connect an AI for quick work first; the quality check runs on your own AI.',
+  already: 'The quality check already read this draft.',
+  notWaiting: 'Ask the quality check first, then send it.',
   readAgain: 'This changed since you read it. Read it again.',
-  changed: 'The draft changed since you asked the judge. Ask again.',
-  expired: 'Ask the judge again; the call you read is no longer available.',
+  changed: 'The draft changed since you asked the quality check. Ask again.',
+  expired: 'Ask the quality check again; the call you read is no longer available.',
   passed: 'Every rule passed its own floor. Each yes cited something code found in the run.',
-  due: 'There are enough reviewed drafts to improve the playbook. The improvement loop tries one change and keeps it only if it wins.',
+  due: 'There are enough reviewed drafts to improve the work plan. The improvement loop tries one change and keeps it only if it wins.',
   notDue: 'The improvement loop can run once a draft was rejected or edited, a check failed or a rehearsal failed. It learns more from more reviewed drafts.',
   nothingToImprove: 'There is nothing to improve yet: no draft was rejected or edited, no check failed and no rehearsal failed.',
   acceptPlan: 'Accept your plan first.',
   /** runs.ts JUDGE_EDIT_LINE: on a judged draft the owner edited, the judge's line says its verdict is on the agent's words. */
-  edited: "Your edit is your own words, so the judge does not read it. Any verdict here is on the agent's draft.",
+  edited: "Your edit is your own words, so the quality check does not read it. Any verdict here is on the agent's draft.",
 });
 /** scenarios.ts SOURCE_WORDS: where a signal case came from. */
 const SIGNAL_WORDS = { 'owner-edited': 'a draft you edited', 'owner-rejected': 'a draft you rejected', 'check-failed': 'a draft that failed a check' } as const;
@@ -61,8 +63,6 @@ const SIGNAL_WORDS = { 'owner-edited': 'a draft you edited', 'owner-rejected': '
 interface Signal { run: DeliveryLite; source: keyof typeof SIGNAL_WORDS }
 
 const MINUTE_MS = 60_000;
-/** models/types.ts PREVIEW_TTL_MS: a previewed call waits thirty minutes. */
-const PREVIEW_MINUTES = 30;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 const DIGEST = /^[a-f0-9]{64}$/;
 const ID = /^[A-Za-z0-9_.:-]{1,200}$/;
@@ -83,6 +83,10 @@ const PERSONAS: Readonly<Record<ServiceType, readonly [string, string, string]>>
   research: ['A startup founder who needs a list of possible partners.', 'A manager with a vague question about the market.', 'A client who wants exact numbers guaranteed and extra reports for free.'],
   content: ['A dentist who wants regular blog posts for the clinic site.', 'A founder who wants content but has no topics or voice in mind.', 'A client who wants more posts for the same price and no edits.'],
   support: ['An online shop owner who wants help answering customer emails.', 'A founder whose inbox is overflowing and who is not sure what help they need.', 'A client who wants refunds promised to every customer and a lower fee.'],
+  // W6 6E1 (D2).
+  teaching: ['A parent who wants weekly maths tuition for a school student.', 'An adult learner who wants to speak better English but is not sure where to start.', 'A parent who wants guaranteed marks and free extra classes.'],
+  'local-services': ['A family who needs a plumber for a leaking kitchen tap.', 'A busy shop owner who writes in a hurry about a fault.', 'A customer who wants a discount and a free extra job.'],
+  licensed: ['A shop owner who wants a rental agreement reviewed before signing.', 'A worried person with a problem and no papers in order.', 'A client who wants a promised outcome and a free first meeting.'],
   other: ['A small business owner with a clear request.', 'A busy owner who writes in a hurry and leaves out what they need.', 'A client who wants a discount and extra work for free.'],
 };
 /** The code checks each sample episode passes, in the engine's words. */
@@ -126,6 +130,7 @@ export class FakePracticeDesk {
   private rehearsals: Record<string, SimulationRunLite[]> = {};
   private improvements: Record<string, ImprovementRunLite[]> = {};
   private judgeAuto: Record<string, { auto: boolean; consentAt: string | null }> = {};
+  private judgeBindings = new Map<string, { digest: string; clientAi: ReturnType<typeof bindFakeClientAi> }>();
   private seq = 0;
 
   constructor(host: PracticeHost, options: { fresh?: boolean } = {}) {
@@ -297,7 +302,7 @@ export class FakePracticeDesk {
     if (run.rolledBack) return 'You went back from this version. Run the loop again to try another change.';
     const current = this.inUse[biz];
     if (current === candidate.id) return 'This version is already in use.';
-    if (current !== run.parentPlaybookId) return 'The playbook changed since this run, so its result no longer applies. Run the loop again.';
+    if (current !== run.parentPlaybookId) return 'The work instructions changed since this run, so its result no longer applies. Run the loop again.';
     if (!this.fits(candidate)) return 'Your plan changed since this run. Run the loop again.';
     return null;
   }
@@ -374,7 +379,7 @@ export class FakePracticeDesk {
   /** venture.improve.rollback (the owner's, in the app): back from an improved version to the one it was made from. */
   private rollback(biz: string, p: Record<string, unknown>): PlaybookLite {
     const body = exact(p, ['playbookId', 'digest'], ['playbookId', 'digest']);
-    const playbookId = identifier(body.playbookId, 'Playbook');
+    const playbookId = identifier(body.playbookId, 'How the work is done');
     if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the version you saw in use.');
     const current = this.find(biz, this.inUse[biz]);
     const parent = this.find(biz, playbookId);
@@ -434,17 +439,21 @@ export class FakePracticeDesk {
   private judge(p: Record<string, unknown>): JudgePreview {
     const runId = identifier(exact(p, ['runId'], ['runId']).runId, 'Draft reply');
     const run = this.run(runId);
+    const clientAi = bindFakeClientAi(this.host, run.orderId);
+    const key = `${this.host.current()}:${runId}`;
+    const binding = this.judgeBindings.get(key);
     const refused = this.notJudgeable(run);
     if (refused) throw refused;
     const draftDigest = this.draftDigest(run);
     const held = run.judge;
     if (held?.status === 'done' && held.draftDigest === draftDigest) throw new EngineError('JUDGE_ALREADY_SENT', PRACTICE_WORDS.already);
-    if (held?.status === 'waiting' && held.preview && held.draftDigest === draftDigest && Date.parse(held.preview.expiresAt) > Date.parse(this.host.now())) {
+    if (held?.status === 'waiting' && held.preview && held.draftDigest === draftDigest && binding?.digest === held.preview.digest && JSON.stringify(binding.clientAi) === JSON.stringify(clientAi)) {
       return { runId, ...held.preview, containsClientData: true };
     }
     if (!this.aiServes()) throw new EngineError('NO_MODEL_CONNECTED', PRACTICE_WORDS.noAi);
     const at = this.host.now();
-    const preview = { digest: this.hex({ runId, call: ++this.seq }), estimatedMaxCostDisplay: JUDGE_COST, expiresAt: new Date(Date.parse(at) + PREVIEW_MINUTES * MINUTE_MS).toISOString() };
+    const preview = { digest: this.hex({ runId, call: ++this.seq }), estimatedMaxCostDisplay: JUDGE_COST };
+    this.judgeBindings.set(key, { digest: preview.digest, clientAi });
     this.host.reviseDelivery(runId, (current) => ({ ...current, judge: { status: 'waiting', preview, auto: false, estimatedMaxCostDisplay: JUDGE_COST, line: null, draftDigest } }));
     this.host.emit({ type: 'run.step', businessId: this.host.current(), runId, at });
     return { runId, ...preview, containsClientData: true };
@@ -457,7 +466,7 @@ export class FakePracticeDesk {
   private judgeSend(biz: string, p: Record<string, unknown>): DeliveryLite {
     const body = exact(p, ['runId', 'digest'], ['runId', 'digest']);
     const runId = identifier(body.runId, 'Draft reply');
-    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the judge call you read.');
+    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the quality check call you read.');
     const run = this.run(runId);
     const held = run.judge;
     if (held?.status === 'done') throw new EngineError('JUDGE_ALREADY_SENT', PRACTICE_WORDS.already);
@@ -466,11 +475,9 @@ export class FakePracticeDesk {
     const refused = this.notJudgeable(run);
     if (refused) throw refused;
     if (held.draftDigest !== this.draftDigest(run)) throw new EngineError('APPROVAL_STALE', PRACTICE_WORDS.changed);
+    const binding = this.judgeBindings.get(`${biz}:${runId}`);
+    bindFakeClientAi(this.host, run.orderId, binding?.digest === held.preview.digest ? binding : {});
     const at = this.host.now();
-    if (Date.parse(held.preview.expiresAt) <= Date.parse(at)) {
-      this.host.reviseDelivery(runId, (current) => ({ ...current, judge: { ...held, status: 'failed', preview: null, line: `The judge did not finish: ${PRACTICE_WORDS.expired} Ask the judge again.` } }));
-      throw new EngineError('APPROVAL_STALE', PRACTICE_WORDS.expired);
-    }
     // Sending the automatic call that was shown with the setting's own words is the standing consent, recorded once.
     // A call the owner asked for records nothing.
     const setting = this.judgeAuto[biz] ?? { auto: true, consentAt: null };

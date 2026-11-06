@@ -1,11 +1,14 @@
 // Ink v2 wave 2, package 2A1 (catalogue CA1, audit safety item 2): the CA firm's tax engines as agent tools. The agent
 // picks the rule, the table columns and the amount ids; the engine works the number and its CA receipt, which is kept
 // whole on a work receipt (inputs included, so it can be worked again). Everything goes through the real caller:
-// venture.delivery.run, then venture.delivery.approve turn by turn, with a scripted model port that never touches the
+// venture.delivery.run with scoped scripted-agent tools that never touch the
 // network. Refusals the calculator gives every time are marked do not retry (and a repeat of the same call is answered
 // from the run without running); mistakes the agent can fix are plain tool failures. A case the calculator does not
 // model must reach the CA through the open items. The checks read the draft the way the client sees it.
 import test from 'node:test';
+import { calculatorAgent, calculatorEvents, calculatorRun, type CalculatorStep } from './fixtures/venture/calculator-agent.ts';
+import { consentForOrder } from './fixtures/venture/scripted-agent.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
@@ -17,6 +20,7 @@ import type {
   ToolCallRecord, VentureDeps, VentureMethod, WorkReceiptRecord, WorkTableRecord,
 } from '../runtime/venture/contracts.ts';
 import { digest, listRecords, ventureAction } from '../runtime/venture/records.ts';
+import { handlers as caHandlers } from '../runtime/venture/playbooks/index.ts';
 import { handlers as coreHandlers } from '../runtime/venture/core/index.ts';
 import { handlers as moneyHandlers } from '../runtime/venture/money/index.ts';
 import { handlers as deliveryHandlers } from '../runtime/venture/delivery/index.ts';
@@ -85,7 +89,7 @@ class Port implements ModelPort {
     this.#previews.set(callId, { digest: digest(payloadText), task });
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-21T10:30:00.000Z',
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -104,7 +108,7 @@ function judgeYes(task: ModelTask<any>): unknown {
   return { answers: JUDGE_QUESTIONS.map(question => ({ question, answer: 'yes', reason: 'The draft does this.' })) };
 }
 
-const HANDLERS = { ...coreHandlers, ...moneyHandlers, ...deliveryHandlers, ...viewHandlers } as Record<string, (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<any>>;
+const HANDLERS = { ...caHandlers, ...coreHandlers, ...moneyHandlers, ...deliveryHandlers, ...viewHandlers } as Record<string, (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<any>>;
 
 type Env = Awaited<ReturnType<typeof business>>;
 
@@ -128,7 +132,8 @@ async function business(idea: string, options: { pdfText?: string; clientTaxId?:
     github: { kind: 'fixture', async read() { throw new ChausarError('GITHUB_READ_FAILED', 'No GitHub here.'); } },
     secrets, host: 'test', demo: true, storage: 'experimental-file',
   };
-  const call = (method: VentureMethod, payload: unknown = {}): Promise<any> => {
+  const call = async (method: VentureMethod, payload: unknown = {}): Promise<any> => {
+    if(method==='venture.delivery.run'){await trust.updatePolicy(owner,{send:'shape'});await consentForOrder(deps,owner,(payload as {orderId:string}).orderId);}
     const handler = HANDLERS[method];
     assert.ok(handler, `no handler for ${method}`);
     return handler(deps, owner, payload);
@@ -184,17 +189,18 @@ function script(env: Env, turns: unknown[], draft: unknown) {
   env.models.respond['agent-turn'] = () => turns[Math.min(next++, turns.length - 1)];
   env.models.respond.delivery = () => draft;
   env.models.respond.judge = judgeYes;
+  calculatorAgent(env.deps,turns as CalculatorStep[],draft);
 }
 
-const approve = (env: Env, run: DeliveryRunView): Promise<DeliveryRunView> => env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
+const approve = (env: Env, run: DeliveryRunView): Promise<DeliveryRunView> => settled(env,run);
 /** Runs an order to its end: each turn approved as the owner would, then the draft. */
 async function deliver(env: Env, orderId: string): Promise<DeliveryRunView> {
-  let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId });
-  for (let guard = 0; run.status === 'waiting-for-you' && guard < 8; guard += 1) run = await approve(env, run);
-  return run;
+ const run=await env.call('venture.delivery.run',{orderId});return settled(env,run);
 }
+async function settled(env:Env,run:DeliveryRunView):Promise<DeliveryRunView>{await waitForAgentWork(env.store,run.id);const current=(await env.call('venture.delivery.list')).find((row:DeliveryRunView)=>row.id===run.id);nativeRuns.set(run.id,calculatorRun(env.deps,run.id));return current;}
+const nativeRuns=new Map<string,ReturnType<typeof calculatorRun>>();
 
-const calls = (run: DeliveryRunView, tool: string): ToolCallRecord[] => run.harness!.toolCalls.filter(item => item.tool === tool);
+const calls = (run: DeliveryRunView, tool: string): ToolCallRecord[] => (nativeRuns.get(run.id)?.agentJob?.calculations??[]).filter(item => item.tool === tool);
 const errorOf = (record: ToolCallRecord) => (record.envelope.ok ? null : record.envelope.error);
 const playbookCheck = (run: DeliveryRunView, id: string) => {
   const found = run.playbookChecks?.find(item => item.check === id);
@@ -268,7 +274,7 @@ test('tax.gst: the agent maps the sales register column by column and the calcul
   const result = gst.envelope.ok ? gst.envelope.result as { receipt: string; figures: { ref: string }[] } : null;
   assert.equal(result?.receipt, 'w1');
   assert.ok(result!.figures.some(item => item.ref === 'w1.output-igst'));
-  assert.ok(run.harness!.proofs.some(proof => proof.kind === 'totals' && proof.receiptId === receipt.id), 'the auditor kept the calculator proof');
+  assert.ok(calculatorRun(env.deps,run.id).agentJob!.calculations!.some(call=>call.receiptIds.includes(receipt.id)), 'the native calculator kept the receipt provenance');
 
   for (const id of ['tax-figure-receipted', 'figures-from-receipts', 'rates-confirmed', 'rates-in-window', 'not-modelled-refused', 'sections-flagged']) {
     assert.equal(playbookCheck(run, id).outcome, 'pass', `${id}: ${playbookCheck(run, id).detail}`);
@@ -288,7 +294,7 @@ test('tax.gst: a figure from another receipt beside the words about tax fails, a
     open: [words('Nothing is open for you.')],
   }));
   const run = await deliver(env, order.id);
-  assert.equal(run.status, 'ready-for-review');
+  assert.equal(run.status, 'ready-for-review',JSON.stringify(calculatorEvents.get(env.deps)?.filter(row=>row.name==='tool_error')));
   const check = playbookCheck(run, 'tax-figure-receipted');
   assert.equal(check.outcome, 'fail', check.detail);
   assert.match(check.detail, /on no calculator receipt/);
@@ -365,11 +371,7 @@ test('tax.gst: a table the CA has not confirmed refuses with do not retry, makes
   assert.equal(errorOf(refused)!.code, 'RATE_UNCONFIRMED');
   assert.equal((errorOf(refused)!.details as { retry: boolean }).retry, false);
   assert.deepEqual(workReceipts(env), [], 'no receipt from a refused working');
-  // The next act turn tells the agent not to try again.
-  // 4J11: the history is { summary, turns }.
-  const history = (env.models.previewed.at(-1)!.input as { history: { turns: { calls: { tool: string; error?: { message: string } }[] }[] } }).history.turns;
-  const line = history.flatMap(item => item.calls).find(item => item.tool === 'tax.gst')!.error!.message;
-  assert.match(line, /^Do not retry: Your CA has not confirmed /);
+  assert.equal((errorOf(refused)!.details as {retry:boolean}).retry,false, 'The native refusal tells the agent not to retry.');
 
   await env.call('venture.ca.confirmRates', { tableIds: ['in-gst-rates'], membershipNo: CA.membershipNo });
   script(env, [turn('Work the GST from the sales register', [['tax.gst', GST_CALL]]), DONE], GST_PAPERS);
@@ -379,14 +381,14 @@ test('tax.gst: a table the CA has not confirmed refuses with do not retry, makes
   assert.equal(playbookCheck(again, 'rates-confirmed').outcome, 'pass');
 });
 
-test('rehearsal: the CA firm\'s practice client sends a sales register, and the tool works on unconfirmed tables, marked rehearsal only', async () => {
+test('rehearsal: the CA firm\'s practice client sends typed income, and the tool works on unconfirmed tables, marked rehearsal only', async () => {
   assert.ok(PRACTICE_FILES['bookkeeping-clean'].some(file => file.name === 'sales-register-september.csv'), 'the clean practice client sends a sales register');
   const env = await business(CA_IDEA);
-  const practice = { ...GST_CALL, gstin: '27AAACL1234F1ZZ', period: '2026-09', outward: { ...GST_CALL.outward, table: 'f3' } };
-  script(env, [turn('Work the GST from the practice sales register', [['tax.gst', practice]]), DONE], GST_PAPERS);
-  const run: SimulationRunRecord = await env.call('venture.simulation.run', { scenarioIds: ['bookkeeping-clean'] });
+  const practice = { assessmentYear:'2026-27', regime:'new', residency:'resident', ageBand:'below-60', salary:[{table:'f1',row:'r1',column:'Amount'}], otherIncome:[{table:'f1',row:'r2',column:'Amount'}] };
+  script(env, [turn('Work tax from the practice income table', [['tax.income', practice]]), DONE], incomePapers('Your CA reviews these papers.'));
+  const run: SimulationRunRecord = await env.call('venture.simulation.run', { scenarioIds: ['ca-firm-clean'] });
   const [episode] = run.episodes;
-  const toolCall = episode.harness!.toolCalls.find(item => item.tool === 'tax.gst')!;
+  const toolCall = episode.harness!.toolCalls.find(item => item.tool === 'tax.income')!;
   assert.equal(toolCall.outcome, 'succeeded', JSON.stringify(toolCall.envelope));
   const rates = episode.playbookChecks!.find(item => item.check === 'rates-confirmed')!;
   assert.equal(rates.outcome, 'pass');
@@ -395,9 +397,9 @@ test('rehearsal: the CA firm\'s practice client sends a sales register, and the 
 
 test('rehearsal: a refusal from the calculator reaches the practice draft\'s checks as do not retry', async () => {
   const env = await business(CA_IDEA);
-  const income = { assessmentYear: '2027-28', regime: 'new', residency: 'resident', ageBand: 'below-60', otherIncome: [{ table: 'f2', row: 'r1', column: 'Amount' }], alsoHas: ['capital-gains'] };
+  const income = { assessmentYear: '2027-28', regime: 'new', residency: 'resident', ageBand: 'below-60', otherIncome: [{ table: 'f1', row: 'r2', column: 'Amount' }], alsoHas: ['capital-gains'] };
   script(env, [turn('Work the tax', [['tax.income', income]]), DONE], papers('Your month', { work: [words('The papers follow.')], open: [words('Your capital gains go to your CA.')] }));
-  const run: SimulationRunRecord = await env.call('venture.simulation.run', { scenarioIds: ['bookkeeping-clean'] });
+  const run: SimulationRunRecord = await env.call('venture.simulation.run', { scenarioIds: ['ca-firm-clean'] });
   const [episode] = run.episodes;
   assert.equal(errorOf(episode.harness!.toolCalls.find(item => item.tool === 'tax.income')!)!.code, 'NOT_MODELLED');
   const check = episode.playbookChecks!.find(item => item.check === 'tax-figure-receipted')!;
@@ -424,7 +426,7 @@ const incomePapers = (open: string) => papers('Income tax computation', {
   open: [words(open)],
 });
 
-test('tax.income: a case the calculator does not model is refused, do not retry; asked again it is answered from the run, and the draft must hand it to the CA', async () => {
+test('tax.income: a case the calculator does not model is refused, do not retry; an identical retry stays refused, and the draft must hand it to the CA', async () => {
   const env = await business(CA_IDEA, { pdfText: FORM_16 });
   await caReady(env, ['in-income-tax-ay-2027-28']);
   const request = 'Income tax for my salary this year, from the Form 16 I sent.';
@@ -439,15 +441,15 @@ test('tax.income: a case the calculator does not model is refused, do not retry;
   await env.call('venture.files.add', { orderId: order.id, name: 'form-16.pdf', contentBase64: b64(pdf(FORM_16)) });
   script(env, turns, incomePapers('Your capital gains go to your CA, who works them into the return.'));
   const run = await deliver(env, order.id);
-  assert.equal(run.status, 'ready-for-review');
+  assert.equal(run.status, 'ready-for-review',JSON.stringify(calculatorEvents.get(env.deps)?.filter(row=>row.name==='tool_error')));
 
   const [refused, repeated, worked] = calls(run, 'tax.income');
   assert.equal(errorOf(refused)!.code, 'NOT_MODELLED');
   assert.deepEqual(errorOf(refused)!.details, { retry: false });
   assert.match(errorOf(refused)!.message, /does not compute capital gains/);
-  // The same call again is not run: the run's own answer comes back, saying which call it came from.
+  // An identical retry cannot turn a deterministic refusal into a figure.
   assert.equal(errorOf(repeated)!.code, 'NOT_MODELLED');
-  assert.deepEqual(errorOf(repeated)!.details, { retry: false, answeredFrom: refused.id });
+  assert.deepEqual(errorOf(repeated)!.details, { retry: false });
   assert.equal(worked.outcome, 'succeeded');
   // Just above the rebate limit: the rebate is the marginal relief, so the tax is only what the income is above it.
   const [receipt] = workReceipts(env);
@@ -553,7 +555,7 @@ test('tax.interest: takes the tax from the income tax receipt by key and works 2
     DONE,
   ], papers('Tax and interest', { work: [words('Interest for the late return and the short advance tax:'), fig('w3.interest-total')], open: [words('Nothing is open for you.')] }));
   const run = await deliver(env, order.id);
-  assert.equal(run.status, 'ready-for-review');
+  assert.equal(run.status, 'ready-for-review',JSON.stringify(calculatorEvents.get(env.deps)?.filter(row=>row.name==='tool_error')));
   const [notIncome, badDate, worked] = calls(run, 'tax.interest');
   assert.equal(errorOf(notIncome)!.code, 'TOOL_FAILED');
   assert.match(errorOf(notIncome)!.message, /w1 is not an income tax receipt/);
@@ -646,7 +648,7 @@ test('hosted server: the four tax tools are code, so they are offered and run th
   script(env, [turn('Work the GST from the sales register', [['tax.gst', GST_CALL]]), DONE], GST_PAPERS);
   const run = await deliver(env, order.id);
   assert.equal(calls(run, 'tax.gst')[0].outcome, 'succeeded');
-  const offered = (env.models.previewed[0].input as { tools: { tool: string }[] }).tools.map(item => item.tool);
+  const offered=(calculatorEvents.get(env.deps)!.find(row=>row.name==='read_business')!.data.calculations as {name:string}[]).map(row=>row.name.replaceAll('_','.'));
   for (const name of ['tax.income', 'tax.interest', 'tax.gst', 'tax.tds']) assert.ok(offered.includes(name), name);
 });
 
@@ -675,3 +677,65 @@ test('the compute step is an agent step holding the four tax tools; only the CA 
   assert.ok(granted.steps.find(step => step.id === 'reconcile')!.tools!.includes('tax.gst'));
 });
 
+
+test('external return delivery recomputes typed figures and holds a draft that omits either receipted side',async()=>{
+ const env=await business(CA_IDEA);await caReady(env,['in-income-tax-ay-2026-27']);
+ const computed=computeIncomeTax({assessmentYear:'2026-27',regime:'new',residency:'resident',ageBand:'below-60',salaryMinor:'200000000'},REHEARSAL);
+ const money=(minor:string)=>{const n=BigInt(minor);return String(n/100n)+'.'+String(n%100n).padStart(2,'0');};
+ const supplied='Key,Amount\n'+computed.figures.map(f=>f.key+','+money(String(BigInt(f.minor)+(f.key==='tax-liability'?100n:0n)))).join('\n');
+ const order=await caOrder(env,'check-return-elsewhere','Check my typed return against my salary. Please prepare papers for my CA.',[{name:'salary.csv',content:'Salary\n2000000.00'},{name:'return.csv',content:supplied}]);
+ const income={assessmentYear:'2026-27',regime:'new',residency:'resident',ageBand:'below-60',salary:[{table:'f1',row:'r1',column:'Salary'}]};
+ script(env,[turn('Recompute',[['tax.income',income]]),turn('Compare',[['tax.portal',{portal:{table:'f2',key:'Key',amount:'Amount'},ours:['w1']}]]),DONE],papers('Return comparison',{work:[fig('w1.tax-liability-rounded')],open:[words('Your CA reviews the difference.')]}));
+ const run=await deliver(env,order.id);assert.equal(calls(run,'tax.income')[0].outcome,'succeeded');assert.equal(calls(run,'tax.portal')[0].outcome,'succeeded',JSON.stringify(calls(run,'tax.portal')[0].envelope));
+ const diff=workReceipts(env).find(row=>row.ca?.engine==='portal-diff')!;assert.equal(diff.figures.find(f=>f.key==='return.tax-liability')!.minor,String(BigInt(computed.figures.find(f=>f.key==='tax-liability')!.minor)+100n));
+ assert.equal(playbookCheck(run,'differences-listed').outcome,'fail');assert.equal(run.canAccept,false);
+ const completeOrder=await caOrder(env,'check-return-elsewhere','Check my typed return and show each difference.',[{name:'salary.csv',content:'Salary\n2000000.00'},{name:'return.csv',content:supplied}]);
+ script(env,[turn('Recompute',[['tax.income',income]]),turn('Compare',[['tax.portal',{portal:{table:'f2',key:'Key',amount:'Amount'},ours:['w1'],keys:['tax-liability']}],['tax.portal',{portal:{table:'f2',key:'Key',amount:'Amount'},ours:['w1']}]]),DONE],papers('Return comparison',{work:[fig('w1.tax-liability-rounded'),words('income-tax: tax-liability'),fig('w2.ours.tax-liability'),fig('w2.return.tax-liability')],open:[words('Your CA reviews the difference.')]}));
+ const complete=await deliver(env,completeOrder.id);assert.equal(calls(complete,'tax.portal')[0].outcome,'failed');assert.equal(calls(complete,'tax.portal')[1].outcome,'succeeded');assert.equal(playbookCheck(complete,'differences-listed').outcome,'pass',JSON.stringify(complete.playbookChecks));
+ const compared=workReceipts(env).filter(row=>row.ca?.engine==='portal-diff').at(-1)!;await env.call('venture.ca.explainDiff',{receiptId:compared.id,key:'tax-liability',note:'The supplied return differs from the recomputed tax. Use the fresh working after reviewing the source.',membershipNo:CA.membershipNo});
+ const {sendToCa,signoffRequests}=await import('../runtime/venture/playbooks/ca-firm/signoff.ts');const request=signoffRequests(env.store.read(),complete.ventureId).find(row=>row.deliveryId===complete.id);assert.ok(request,JSON.stringify(complete.checks));await sendToCa(env.deps,owner,[request.id]);await env.call('venture.ca.recordSignoff',{requestId:request.id,membershipNo:CA.membershipNo});assert.equal((await env.call('venture.delivery.review',{runId:complete.id,verdict:'accepted'})).status,'accepted');
+});
+
+test('the live form chooser ends the turn with a precise client question when a form fact is missing',async()=>{
+ const env=await business(CA_IDEA);await caReady(env);await env.call('venture.ca.confirmCitations',{version:1,membershipNo:CA.membershipNo});
+ const order=await caOrder(env,'itr-form-and-regime','Help select my return form.',[{name:'facts.csv',content:'Total,Gain,Agriculture\n2000000.00,0.00,0.00'}]);
+ const pick=(column:string)=>[{table:'f1',row:'r1',column}];const facts={entity:'individual',residency:'resident',totalIncome:pick('Total'),capitalGainsAmount:pick('Gain'),agriculture:pick('Agriculture'),hasBusinessIncome:'no',presumptive:'no',capitalGains:'none',exclusions:['none'],regimeLastYear:'new',wantedRegime:'new',switchedBack:'no'};
+ script(env,[turn('Choose form',[['tax.formChooser',{assessmentYear:'2026-27',facts}]]),DONE],papers('Form choice',{work:[words('No form chosen yet.')],open:[]}));
+ const waiting=await env.call('venture.delivery.run',{orderId:order.id});const run=await approve(env,waiting);const call=calls(run,'tax.formChooser')[0];assert.equal(errorOf(call)?.code,'NEEDS_FACTS',JSON.stringify(call));assert.match(JSON.stringify(calculatorRun(env.deps,run.id).agentJob?.pendingFacts),/house/i);assert.equal(calculatorRun(env.deps,run.id).agentJob?.calculations?.length,1);assert.notEqual(run.status,'ready-for-review');
+ const hindiOrder=await caOrder(env,'itr-form-and-regime','मेरी आय के लिए सही रिटर्न फॉर्म चुनें।',[{name:'facts.csv',content:'Total,Gain,Agriculture\n2000000.00,0.00,0.00'}]);
+ script(env,[turn('Choose form',[['tax.formChooser',{assessmentYear:'2026-27',facts}]]),DONE],papers('Form choice',{work:[words('No form chosen yet.')],open:[words('Your CA checks the facts.')]}));
+ const hindiWaiting=await env.call('venture.delivery.run',{orderId:hindiOrder.id});const hindi=await approve(env,hindiWaiting);assert.equal((errorOf(calls(hindi,'tax.formChooser')[0])?.details as any).language,'hi');assert.match(calculatorRun(env.deps,hindi.id).agentJob!.pendingFacts!.question,/[\u0900-\u097f]/);
+});
+
+test('all seven new CA offers complete real delivery, wait for exact CA signoff, and then Accept',async()=>{
+ const env=await business(CA_IDEA);await caReady(env,['in-income-tax-ay-2026-27','in-income-tax-interest-ay-2027-28']);await env.call('venture.ca.confirmCitations',{version:1,membershipNo:CA.membershipNo});
+ const {sendToCa,signoffRequests}=await import('../runtime/venture/playbooks/ca-firm/signoff.ts');
+ const computed=computeIncomeTax({assessmentYear:'2026-27',regime:'new',residency:'resident',ageBand:'below-60',salaryMinor:'200000000'},REHEARSAL);
+ const money=(minor:string)=>{const n=BigInt(minor);return String(n/100n)+'.'+String(n%100n).padStart(2,'0');};
+ for(const key of ['itr-form-and-regime','itr-computation-only','itr-check-draft','itr-checklist','check-return-elsewhere','advance-tax-freelancer','tax-question-desk']){
+  const csv='Salary,Gain,Agriculture,Tax,TDS,TCS,Relief\n2000000.00,0.00,0.00,100000.00,0.00,0.00,0.00';
+  const returned='Key,Amount\n'+computed.figures.map(f=>f.key+','+money(f.minor)).join('\n');
+  const order=await caOrder(env,key,'Prepare the requested working papers for my CA from the typed figures.',[{name:'facts.csv',content:csv},{name:'return.csv',content:returned},{name:'law.txt',content:'Eligibility depends on the stated conditions. The client payment date is unknown.'}]);
+  const pick=(column:string)=>[{table:'f1',row:'r1',column}];const turns:unknown[]=[];let work:Part[]=[words('The requested checklist is ready for your CA to review.')];
+  if(key==='itr-form-and-regime'){
+   turns.push(turn('Choose dated form',[['tax.formChooser',{assessmentYear:'2026-27',facts:{entity:'individual',residency:'resident',houseProperties:'2',hasBusinessIncome:'no',presumptive:'no',capitalGains:'none',totalIncome:pick('Salary'),capitalGainsAmount:pick('Gain'),agriculture:pick('Agriculture'),exclusions:['none'],regimeLastYear:'new',wantedRegime:'new',switchedBack:'no'}}]]));
+   work=[words('The dated form choice is ITR-1. Your CA reviews the stated facts.')];
+  }else if(['itr-computation-only','itr-check-draft','check-return-elsewhere'].includes(key)){
+   turns.push(turn('Recompute income tax',[['tax.income',{assessmentYear:'2026-27',regime:'new',residency:'resident',ageBand:'below-60',salary:pick('Salary')}]]));
+   if(key!=='itr-computation-only')turns.push(turn('Compare every typed return line',[['tax.portal',{portal:{table:'f2',key:'Key',amount:'Amount'},ours:['w1']}]]));
+   work=[words('The income tax computation:'),fig('w1.tax-liability-rounded')];
+  }else if(key==='advance-tax-freelancer'){
+   turns.push(turn('Compute advance instalments',[['tax.advance',{financialYear:'2026-27',estimate:{tax:pick('Tax'),tds:pick('TDS'),tcs:pick('TCS'),relief:pick('Relief'),residency:'resident',ageBand:'below-60',hasBusinessIncome:'yes',presumptive:'no'}}]]));
+   work=[words('Based on the client estimate, an assumption:'),fig('w1.instalment-1'),fig('w1.instalment-2'),fig('w1.instalment-3'),fig('w1.instalment-4')];
+  }
+  if(key==='tax-question-desk')turns.push(turn('Check the source section',[['tax.citations',{draft:'section 80C',incomeDate:'2026-03-31'}]]));
+  const draft=papers('CA working papers',{work,open:[words('Your CA reviews the stated facts before you file.') ]});
+  if(key==='tax-question-desk')draft.sections.push({heading:'Supports',parts:[words('Eligibility depends on the stated conditions. [source:ita1961-80C]')]},{heading:'Conflicts',parts:[words('None found.')]},{heading:'Unknowns',parts:[words('Please give the payment date.')]},{heading:'Coverage',parts:[words('This payment only, for your CA to review.')]});
+  script(env,[...turns,DONE],draft);const run=await deliver(env,order.id);assert.equal(run.status,'ready-for-review',key+': '+JSON.stringify({calls:calculatorRun(env.deps,run.id).agentJob?.calculations,errors:calculatorEvents.get(env.deps)?.filter(row=>row.name==='tool_error')}));
+  assert.equal(run.checks?.some(check=>!check.passed&&!check.notChecked),false,key+': '+JSON.stringify(run.checks));assert.equal(run.playbookChecks?.some(check=>check.outcome==='fail'),false,key+': '+JSON.stringify(run.playbookChecks));
+  await assert.rejects(env.call('venture.delivery.review',{runId:run.id,verdict:'accepted'}),(e:any)=>e.code==='CA_SIGNOFF_REQUIRED',key);
+  const request=signoffRequests(env.store.read(),run.ventureId).find(row=>row.deliveryId===run.id)!;assert.ok(request,key);await sendToCa(env.deps,owner,[request.id]);await env.call('venture.ca.recordSignoff',{requestId:request.id,membershipNo:CA.membershipNo});
+  const accepted=await env.call('venture.delivery.review',{runId:run.id,verdict:'accepted'});assert.equal(accepted.status,'accepted',key);
+  const signed=listRecords(env.store.read(),'venture-ca-firm').find(row=>row.entry==='signoff'&&row.requestId===request.id)!;const rechecked=await env.call('venture.ca.signoff.get',{id:signed.id});assert.equal(rechecked.rederived,'same',key);assert.ok(rechecked.receipts.every((receipt:any)=>receipt.digest));assert.match(rechecked.playbookHash,/^[a-f0-9]{64}$/);
+ }
+});

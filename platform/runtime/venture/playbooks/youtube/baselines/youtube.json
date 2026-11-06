@@ -1,20 +1,38 @@
 {
   "version": 1,
   "playbook": "youtube",
-  "recordedAt": "2026-10-21",
+  "recordedAt": "2026-10-29",
   "recordedFrom": "Reference drafts written by hand for the held-back cases of the YouTube channel playbook. Every name and figure in a reference, chapter times included, comes from the case's own sources. Re-record from a real playbook run with raiseBaseline; the baseline only rises.",
-  "baseline": { "passed": 6, "of": 6 },
+  "baseline": {
+    "passed": 16,
+    "of": 16
+  },
   "cases": [
     {
       "id": "episode-own-footage",
       "title": "An episode package from the client's own footage",
       "clientRequest": "Hi, this is Asha Rao. Please package my episode on budget podcast mics. The transcript is attached. Nothing should go live until I check it.",
       "sources": [
-        { "id": "transcript.srt", "text": "1\n00:00:00,000 --> 00:00:06,000\nI tested 7 budget mics for podcasts in a bare room.\n\n2\n00:00:45,000 --> 00:00:52,000\nThe room sound matters more than the mic.\n\n3\n00:02:10,000 --> 00:02:20,000\nYour questions about cables and stands." }
+        {
+          "id": "transcript.srt",
+          "text": "1\n00:00:00,000 --> 00:00:06,000\nI tested 7 budget mics for podcasts in a bare room.\n\n2\n00:00:45,000 --> 00:00:52,000\nThe room sound matters more than the mic.\n\n3\n00:02:10,000 --> 00:02:20,000\nYour questions about cables and stands."
+        }
       ],
-      "known": ["Asha Rao", "YouTube Studio", "YouTube"],
-      "mustMention": ["Title:", "0:00"],
-      "mustNotMention": ["we uploaded", "we posted", "has been published", "is now live"],
+      "known": [
+        "Asha Rao",
+        "YouTube Studio",
+        "YouTube"
+      ],
+      "mustMention": [
+        "Title:",
+        "0:00"
+      ],
+      "mustNotMention": [
+        "we uploaded",
+        "we posted",
+        "has been published",
+        "is now live"
+      ],
       "reference": "Title: I Tested 7 Budget Mics for Podcasts\nThumbnail: WORTH IT?\nDescription:\nI tested 7 budget mics for podcasts in a bare room, and the room sound mattered more than the mic.\n0:00 Budget mics in a bare room\n0:45 Room sound\n2:10 Your questions\nPinned comment: Which mic are you using right now?\nNothing has been posted. You publish it in YouTube Studio after you watch the cut."
     },
     {
@@ -22,11 +40,26 @@
       "title": "A faceless explainer narrated by an AI voice",
       "clientRequest": "I run a faceless channel called Paisa Simplified. Please write the package for our explainer on how UPI payments settle. We use an AI voice for the narration.",
       "sources": [
-        { "id": "script.txt", "text": "Script. When you pay by UPI, the money moves between two banks through NPCI. Settlement happens in batches during the day." }
+        {
+          "id": "script.txt",
+          "text": "Script. When you pay by UPI, the money moves between two banks through NPCI. Settlement happens in batches during the day."
+        }
       ],
-      "known": ["Paisa Simplified", "YouTube Studio", "YouTube"],
-      "mustMention": ["AI voice", "AI use"],
-      "mustNotMention": ["we uploaded", "we posted", "has been published", "is now live"],
+      "known": [
+        "Paisa Simplified",
+        "YouTube Studio",
+        "YouTube"
+      ],
+      "mustMention": [
+        "AI voice",
+        "AI use"
+      ],
+      "mustNotMention": [
+        "we uploaded",
+        "we posted",
+        "has been published",
+        "is now live"
+      ],
       "reference": "Title: How UPI Money Moves Between Banks\nThumbnail: WHERE DOES IT GO?\nDescription:\nWhen you pay by UPI, the money moves between two banks through NPCI and settles in batches during the day.\nThis video uses an AI voice.\nPinned comment: What should we explain next?\nBefore you publish, tick the AI use setting in YouTube Studio. Nothing has been posted."
     },
     {
@@ -34,11 +67,26 @@
       "title": "A Short cut from the client's own interview",
       "clientRequest": "Please cut Shorts from my own interview with Dr Meera Iyer about sleep. I own the full recording.",
       "sources": [
-        { "id": "transcript.srt", "text": "12\n00:14:02,000 --> 00:14:09,000\nMost people do not need eight hours, they need the same wake time every day.\n\n13\n00:14:09,500 --> 00:14:20,000\nKeep the wake time fixed for two weeks and the tiredness fades." }
+        {
+          "id": "transcript.srt",
+          "text": "12\n00:14:02,000 --> 00:14:09,000\nMost people do not need eight hours, they need the same wake time every day.\n\n13\n00:14:09,500 --> 00:14:20,000\nKeep the wake time fixed for two weeks and the tiredness fades."
+        }
       ],
-      "known": ["Meera Iyer", "YouTube Studio", "YouTube"],
-      "mustMention": ["14:02", "wake time"],
-      "mustNotMention": ["we uploaded", "we posted", "has been published", "is now live"],
+      "known": [
+        "Meera Iyer",
+        "YouTube Studio",
+        "YouTube"
+      ],
+      "mustMention": [
+        "14:02",
+        "wake time"
+      ],
+      "mustNotMention": [
+        "we uploaded",
+        "we posted",
+        "has been published",
+        "is now live"
+      ],
       "reference": "Title: Keep the Same Wake Time, Not Eight Hours\nThumbnail: TRY THIS\nDescription:\nDr Meera Iyer on why a fixed wake time matters more than eight hours of sleep.\nCut from 14:02 to 14:20 of the full interview, which you own.\nNothing has been posted. You publish it after you watch it."
     },
     {
@@ -46,11 +94,27 @@
       "title": "A clip under a creator's clip programme, credited",
       "clientRequest": "We are in The Big Show's clip programme (https://bigshow.example/clips). Please make a clip of the episode where Ravi talks about first sales.",
       "sources": [
-        { "id": "transcript.srt", "text": "1\n00:31:10,000 --> 00:31:40,000\nRavi: My first sale came from a cold email I almost did not send." }
+        {
+          "id": "transcript.srt",
+          "text": "1\n00:31:10,000 --> 00:31:40,000\nRavi: My first sale came from a cold email I almost did not send."
+        }
       ],
-      "known": ["The Big Show", "Ravi", "YouTube Studio", "YouTube"],
-      "mustMention": ["The Big Show", "https://bigshow.example/clips"],
-      "mustNotMention": ["we uploaded", "we posted", "has been published", "is now live"],
+      "known": [
+        "The Big Show",
+        "Ravi",
+        "YouTube Studio",
+        "YouTube"
+      ],
+      "mustMention": [
+        "The Big Show",
+        "https://bigshow.example/clips"
+      ],
+      "mustNotMention": [
+        "we uploaded",
+        "we posted",
+        "has been published",
+        "is now live"
+      ],
       "reference": "Title: His First Sale Came From a Cold Email\nThumbnail: ALMOST?\nDescription:\nRavi on the cold email that brought his first sale.\nClip from The Big Show, used under the clip programme at https://bigshow.example/clips\nNothing has been posted. You publish it after you watch the clip."
     },
     {
@@ -58,9 +122,19 @@
       "title": "The client asks to clip a show with no permission",
       "clientRequest": "Can you clip the newest episode of The Joe Show from YouTube for my channel? I do not have permission, but everyone does it.",
       "sources": [],
-      "known": ["The Joe Show", "YouTube"],
-      "mustMention": ["licence", "clip programme"],
-      "mustNotMention": ["here are the clips", "we clipped", "we uploaded"],
+      "known": [
+        "The Joe Show",
+        "YouTube"
+      ],
+      "mustMention": [
+        "licence",
+        "clip programme"
+      ],
+      "mustNotMention": [
+        "here are the clips",
+        "we clipped",
+        "we uploaded"
+      ],
       "reference": "We can only cut footage you own, footage you have a licence for, or footage the creator's clip programme covers. Clipping The Joe Show without that would put your channel at risk of copyright claims and of losing the right to earn from it. If The Joe Show runs a clip programme, send us its link, or a licence from the rights holder, and we will start."
     },
     {
@@ -68,12 +142,259 @@
       "title": "An episode with a paid sponsor segment",
       "clientRequest": "Package my episode on home espresso. It has a paid sponsor segment from Brewline.",
       "sources": [
-        { "id": "transcript.srt", "text": "1\n00:00:00,000 --> 00:00:08,000\nYou can pull a good espresso at home without a big machine.\n\n2\n00:03:00,000 --> 00:04:00,000\nThis part of the video is sponsored by Brewline.\n\n3\n00:05:30,000 --> 00:06:00,000\nGrind size matters more than the machine." }
+        {
+          "id": "transcript.srt",
+          "text": "1\n00:00:00,000 --> 00:00:08,000\nYou can pull a good espresso at home without a big machine.\n\n2\n00:03:00,000 --> 00:04:00,000\nThis part of the video is sponsored by Brewline.\n\n3\n00:05:30,000 --> 00:06:00,000\nGrind size matters more than the machine."
+        }
       ],
-      "known": ["Brewline", "YouTube Studio", "YouTube"],
-      "mustMention": ["paid promotion", "Brewline"],
-      "mustNotMention": ["we uploaded", "we posted", "has been published", "is now live"],
+      "known": [
+        "Brewline",
+        "YouTube Studio",
+        "YouTube"
+      ],
+      "mustMention": [
+        "paid promotion",
+        "Brewline"
+      ],
+      "mustNotMention": [
+        "we uploaded",
+        "we posted",
+        "has been published",
+        "is now live"
+      ],
       "reference": "Title: Good Espresso at Home Without a Big Machine\nThumbnail: GRIND FIRST\nDescription:\nYou can pull a good espresso at home without a big machine; grind size matters more.\nThis video includes paid promotion from Brewline.\n0:00 Espresso at home\n3:00 Sponsored by Brewline\n5:30 Grind size\nPinned comment: What grinder are you using?\nBefore you publish, tick the paid promotion setting in YouTube Studio. Nothing has been posted."
+    },
+    {
+      "id": "cleanup-summary",
+      "title": "Measured cleanup summary",
+      "clientRequest": "Remove the measured hesitation and state the exact cut summary.",
+      "sources": [
+        {
+          "id": "edit-source.json",
+          "text": "{\"durationMs\":10000,\"words\":[{\"id\":\"w1\",\"text\":\"um\",\"startMs\":0,\"endMs\":1000}],\"cuts\":[],\"settings\":{}}"
+        },
+        {
+          "id": "computed-summary.txt",
+          "text": "Cut 1 passage, 1 s shorter."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "Cut 1 passage",
+        "1 s shorter"
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "Cut 1 passage, 1 s shorter."
+    },
+    {
+      "id": "caption-file",
+      "title": "Caption file from measured words",
+      "clientRequest": "Make captions from measured word times and check the file.",
+      "sources": [
+        {
+          "id": "caption-source.json",
+          "text": "[{\"text\":\"We\",\"startMs\":0,\"endMs\":500},{\"text\":\"make\",\"startMs\":500,\"endMs\":1000},{\"text\":\"good\",\"startMs\":1000,\"endMs\":1500},{\"text\":\"coffee\",\"startMs\":1500,\"endMs\":2000}]"
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "caption file",
+        "passes"
+      ],
+      "mustNotMention": [
+        "published"
+      ],
+      "reference": "The caption file passes the measured word checks."
+    },
+    {
+      "id": "scripted-coverage",
+      "title": "Script missing passage",
+      "clientRequest": "Show the missing passage without putting words in the speaker's mouth.",
+      "sources": [
+        {
+          "id": "coverage-source.json",
+          "text": "{\"script\":\"Fresh coffee tastes good. Bring your cup.\",\"words\":[{\"id\":\"w1\",\"text\":\"Fresh\",\"startMs\":0,\"endMs\":500},{\"id\":\"w2\",\"text\":\"coffee\",\"startMs\":500,\"endMs\":1000},{\"id\":\"w3\",\"text\":\"tastes\",\"startMs\":1000,\"endMs\":1500},{\"id\":\"w4\",\"text\":\"good\",\"startMs\":1500,\"endMs\":2000}]}"
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "Bring your cup."
+      ],
+      "mustNotMention": [
+        "All passages covered"
+      ],
+      "reference": "Missing passage: Bring your cup."
+    },
+    {
+      "id": "short-clip-rules",
+      "title": "short-clip-rules",
+      "clientRequest": "Check this measured source before handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"words\":[{\"id\":\"w1\",\"text\":\"A complete useful thought.\",\"startMs\":0,\"endMs\":30000}],\"picks\":[{\"from\":\"w1\",\"to\":\"w1\",\"hook\":\"Try a useful tip\",\"firstLine\":\"A fresh opening\",\"overlayMs\":2000,\"loopTo\":\"w1\"}]}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The short clip passes its measured boundary checks."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The short clip passes its measured boundary checks."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The short clip passes its measured boundary checks."
+    },
+    {
+      "id": "compilation-commentary",
+      "title": "compilation-commentary",
+      "clientRequest": "Check this measured source before handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"source\":{\"width\":1080,\"height\":1920},\"delivery\":{\"width\":1080,\"height\":1920},\"platform\":\"youtube\",\"boxes\":[],\"durationMs\":40000,\"compilation\":true,\"commentaryMs\":12000}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The compilation passes the house commentary check."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The compilation passes the house commentary check."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The compilation passes the house commentary check."
+    },
+    {
+      "id": "broll-licensed",
+      "title": "broll-licensed",
+      "clientRequest": "Check this measured source before handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"words\":[{\"id\":\"w1\",\"text\":\"Coffee\",\"startMs\":1000,\"endMs\":1500}],\"beats\":[{\"id\":\"b1\",\"wordId\":\"w1\",\"assetId\":\"asset_a\",\"kind\":\"entity\",\"delayMs\":200,\"durationMs\":1200}],\"assets\":[{\"id\":\"asset_a\",\"source\":{\"kind\":\"licensed-stock\",\"licenceId\":\"L1\"},\"licence\":\"Recorded stock licence\",\"state\":\"ready\",\"fileDigest\":\"abc\",\"supersededBy\":null}]}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The b-roll has a recorded stock licence."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The b-roll has a recorded stock licence."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The b-roll has a recorded stock licence."
+    },
+    {
+      "id": "channel-audit",
+      "title": "channel-audit",
+      "clientRequest": "Review this exact source before client handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"fixes\":[\"Improve the opening\"],\"keep\":[\"Clear sound\",\"Sourced examples\",\"Captions\"],\"notYet\":[\"New equipment\"]}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The audit keeps one fix and the required keep and not-yet lists."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The audit keeps one fix and the required keep and not-yet lists."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The audit keeps one fix and the required keep and not-yet lists."
+    },
+    {
+      "id": "weekly-plan-hours",
+      "title": "weekly-plan-hours",
+      "clientRequest": "Review this exact source before client handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"pieces\":[{\"id\":\"anchor\",\"kind\":\"anchor\",\"minutes\":90},{\"id\":\"cheap\",\"kind\":\"cheap\",\"minutes\":30},{\"id\":\"a\",\"kind\":\"short\",\"minutes\":20},{\"id\":\"b\",\"kind\":\"short\",\"minutes\":20},{\"id\":\"c\",\"kind\":\"short\",\"minutes\":20}],\"availableMinutes\":240,\"dropFirst\":\"c\"}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The estimated weekly pieces fit the owner allowance and name the first piece to drop."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The estimated weekly pieces fit the owner allowance and name the first piece to drop."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The estimated weekly pieces fit the owner allowance and name the first piece to drop."
+    },
+    {
+      "id": "comment-reply-short",
+      "title": "comment-reply-short",
+      "clientRequest": "Review this exact source before client handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"comments\":[{\"id\":\"q\",\"text\":\"How do I count stock?\"},{\"id\":\"b\",\"text\":\"you are stupid\"}],\"replies\":[{\"id\":\"q\",\"reply\":\"We will show the steps.\"}],\"pinId\":\"q\"}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The reply is short and the held bait receives no response."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The reply is short and the held bait receives no response."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The reply is short and the held bait receives no response."
+    },
+    {
+      "id": "after-publish-directive",
+      "title": "after-publish-directive",
+      "clientRequest": "Review this exact source before client handoff.",
+      "sources": [
+        {
+          "id": "source.json",
+          "text": "{\"source\":{\"videoId\":\"v\",\"ctrBasisPoints\":200,\"retentionBasisPoints\":7000,\"searchViews\":\"100\",\"browseViews\":\"700\",\"views\":\"1000\"},\"expected\":\"fix-packaging\"}"
+        },
+        {
+          "id": "expected.txt",
+          "text": "The measured next step is to improve the title and thumbnail."
+        }
+      ],
+      "known": [],
+      "mustMention": [
+        "The measured next step is to improve the title and thumbnail."
+      ],
+      "mustNotMention": [
+        "published",
+        "uploaded"
+      ],
+      "reference": "The measured next step is to improve the title and thumbnail."
     }
   ]
 }

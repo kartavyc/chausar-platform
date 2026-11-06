@@ -57,3 +57,58 @@ export async function sendUsage(raw: Readonly<Record<string, unknown>>, send: (b
   await send(structuredClone(body));
   return body;
 }
+
+// ---------------------------------------------------------------------------
+// Wave 6 package 6J2 (D47): the fields an opt-in report may carry, per PostHog event. The same rule as usage counters:
+// each field is a count, a flag, a fixed word or a range word; nothing here can hold words a person wrote, a name, an
+// amount, a file name or an id that points at a person. The one id a report carries is its random report id, sent as
+// PostHog's distinct_id, never as a property. core/feedback-core.ts builds the events and passes every one through here.
+// ---------------------------------------------------------------------------
+
+/** The steps a business reaches, in the order an owner usually reaches them (drop-off is read from where they stop). */
+export const REPORT_MILESTONES = Object.freeze(['business_started', 'plan_accepted', 'ai_connected', 'first_client', 'first_order', 'first_job_done', 'first_invoice', 'first_payment'] as const);
+export type ReportMilestone = typeof REPORT_MILESTONES[number];
+/** Earnings only as one of these ranges, in whole units of the business's currency (code buckets minor units). */
+export const EARNING_RANGES = Object.freeze(['none', 'under-1k', '1k-10k', '10k-50k', '50k-200k', '200k-plus'] as const);
+export type EarningRange = typeof EARNING_RANGES[number];
+/** The answers a short question after a milestone takes. Never free text. */
+export const REPORT_ANSWERS = Object.freeze(['easy', 'okay', 'hard'] as const);
+export type ReportAnswer = typeof REPORT_ANSWERS[number];
+
+const always = (value: unknown) => value === true;
+const channel = oneOf(['desktop', 'hosted-web', 'local-web', 'test']);
+const milestone = oneOf(REPORT_MILESTONES);
+const range = oneOf(EARNING_RANGES);
+const COMMON = { channel, $geoip_disable: always } as const;
+
+/** Every PostHog event a report may send, and the fields each may carry with their shape. */
+export const REPORT_EVENTS: Readonly<Record<string, Readonly<Record<string, (value: unknown) => boolean>>>> = Object.freeze({
+  chausar_report: Object.freeze({
+    ...COMMON,
+    appVersion: USAGE_FIELDS.appVersion!.valid,
+    os: oneOf(['windows', 'linux', 'mac', 'other']),
+    furthestMilestone: oneOf(['none', ...REPORT_MILESTONES]),
+    weeksSinceStart: count,
+    aiRoute: oneOf(['codex', 'claude-code', 'api-key', 'none']),
+    runsStarted30d: count, runsFinished30d: count, runsFailed30d: count, runsStopped30d: count,
+    aiCallsDone30d: count, aiCallsFailed30d: count,
+    draftsAccepted30d: count, draftsEdited30d: count, draftsRejected30d: count, cardsDenied30d: count,
+    invoicedThisMonth: range, receivedThisMonth: range,
+    currency: (value: unknown) => typeof value === 'string' && /^[A-Z]{3}$/.test(value),
+  }),
+  chausar_milestone: Object.freeze({ ...COMMON, milestone }),
+  chausar_answer: Object.freeze({ ...COMMON, question: milestone, answer: oneOf(REPORT_ANSWERS) }),
+  chausar_deletion_requested: Object.freeze({ ...COMMON }),
+});
+
+/** Exactly the properties a report event would send: the allowlisted, well-shaped fields only; an unknown event, none. */
+export function reportProperties(event: string, raw: Readonly<Record<string, unknown>>): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
+  const fields = Object.hasOwn(REPORT_EVENTS, event) ? REPORT_EVENTS[event]! : null;
+  if (!fields || raw === null || typeof raw !== 'object') return out;
+  for (const [field, valid] of Object.entries(fields)) {
+    if (!Object.hasOwn(raw, field) || !valid(raw[field])) continue;
+    out[field] = raw[field] as string | number | boolean;
+  }
+  return out;
+}

@@ -62,8 +62,8 @@ async function seed(deps: VentureDeps) {
 const list = (deps: VentureDeps) => handlers['venture.connectors.list']!(deps, owner, {}) as Promise<ConnectorCard[]>;
 const option = (card: ConnectorCard, mode: string) => card.postingOptions.find(item => item.mode === mode)!;
 
-test('posting connectors: LinkedIn, X, Instagram and YouTube carry three modes; every other card carries none', () => {
-  assert.deepEqual([...POSTING_CONNECTORS].sort(), ['instagram', 'linkedin', 'x', 'youtube']);
+test('posting connectors: the eight registered networks carry three modes; every other card carries none', () => {
+  assert.deepEqual([...POSTING_CONNECTORS].sort(), ['bluesky', 'discord', 'instagram', 'linkedin', 'mastodon', 'telegram', 'x', 'youtube']);
   for (const item of CONNECTOR_CATALOGUE) {
     const card = connectorCard(item, false);
     if (!POSTING_CONNECTORS.includes(item.id as any)) {
@@ -116,24 +116,26 @@ test('owner-browser-session: planned with the reason when no local Playwright an
   for (const card of (await list(absent.deps)).filter(c => POSTING_CONNECTORS.includes(c.id as any))) {
     const browser = option(card, 'owner-browser-session');
     assert.equal(browser.status, 'planned', card.id);
-    assert.equal(browser.risk, OWNER_SESSION_RISK);
-    assert.equal(browser.risk, 'The platform may restrict this account.');
+    assert.equal(browser.risk, card.id === 'linkedin' ? null : OWNER_SESSION_RISK);
+    if (card.id === 'linkedin') assert.match(browser.reason!, /copy-and-open only/);
+    else assert.equal(browser.risk, 'The platform may restrict this account.');
   }
   assert.equal(option((await list(absent.deps)).find(c => c.id === 'x')!, 'owner-browser-session').reason, ABSENT.reason);
 
   const present = setup({ browser: fakeBrowser(true).port });
   await seed(present.deps);
   const cards = await list(present.deps);
-  for (const id of ['x', 'linkedin']) {
+  for (const id of ['x']) {
     const browser = option(cards.find(c => c.id === id)!, 'owner-browser-session');
     assert.equal(browser.status, 'available', id);
     assert.equal(browser.qualification, 'unqualified', 'never checked against the live site');
-    assert.match(browser.what, /approve each post/);
+    assert.match(browser.what, /Posts approved text through your signed-in X browser/);
     assert.match(browser.what, /not yet checked against the live site/i);
     assert.equal(browser.risk, OWNER_SESSION_RISK);
     const card = cards.find(c => c.id === id)!;
     assert.deepEqual([card.posting?.mode, card.posting?.status, card.posting?.risk], ['owner-browser-session', 'available', OWNER_SESSION_RISK]);
   }
+  for (const mode of ['api', 'owner-browser-session']) { const linkedin = option(cards.find(card => card.id === 'linkedin')!, mode); assert.equal(linkedin.status, 'planned'); assert.equal(linkedin.risk, null); assert.match(linkedin.reason!, /copy-and-open only/); }
   for (const id of ['instagram', 'youtube']) {
     const browser = option(cards.find(c => c.id === id)!, 'owner-browser-session');
     assert.equal(browser.status, 'planned', id);
@@ -187,9 +189,9 @@ test('each post is its own connector queue row; the owner denies one and approve
   const browser = fakeBrowser(true);
   const { deps, store } = setup({ browser: browser.port });
   await seed(deps);
-  const draft = await seedPostDraft(deps, ['X: Post one', 'LinkedIn: Post two']);
-  const first = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, agent: 'Social writer' });
-  const second = await proposePost(deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id });
+  const draft = await seedPostDraft(deps, ['X: Post one', 'X: Post two']);
+  const first = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 1, agent: 'Social writer' });
+  const second = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 2 });
 
   const rows = connectorQueueRows(store.read());
   assert.equal(rows.length, 2);
@@ -259,15 +261,15 @@ test('the platform never reached: rejected by the platform with the reason; a cr
   const browser = fakeBrowser(true, [{ outcome: 'not-sent', line: 'Sign in to X in the Chausar browser window first.' }]);
   const { deps, store } = setup({ browser: browser.port });
   await seed(deps);
-  const draft = await seedPostDraft(deps, ['X: Signed out', 'LinkedIn: Crashed']);
-  const post = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id });
+  const draft = await seedPostDraft(deps, ['X: Signed out', 'X: Crashed']);
+  const post = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 1 });
   const decision = await decidePost(deps, owner, { postId: post.id, digest: post.digest, action: 'approve' });
   assert.equal(decision.post.state, 'rejected');
   assert.equal(decision.post.outcome?.by, 'platform');
   assert.match(decision.line, /Sign in to X/);
 
   // A crash after the claim: the record says approved with a claim and nothing else.
-  const crashed = await proposePost(deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id });
+  const crashed = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 2 });
   await store.update(state => {
     const record = state.conversations.find(r => r.id === crashed.id) as ConnectorPostRecord;
     record.state = 'approved';

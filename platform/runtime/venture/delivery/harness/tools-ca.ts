@@ -1,3 +1,4 @@
+import {HEALTH_CHECK} from './tools-ca-health.ts';
 // Chausar delivery harness: the AI-native CA firm's tax engines as agent tools (Ink v2 wave 2, package 2A1): income
 // tax, interest on late tax, the GST working and the TDS working. The agent picks the rule, the table columns and the
 // amount ids; code reads the cells (playbooks/ca-firm/tool-inputs.ts) and the engine gives every number with its CA
@@ -32,6 +33,10 @@ import {
 } from '../../playbooks/ca-firm/tool-inputs.ts';
 import { fail, receiptOut, refusal, text, type Field, type Spec, type ToolEnv, type ToolResult } from './tools.ts';
 import { pdfPages, tablesOfFile } from './files.ts';
+import { CITATIONS, FORM_CHOOSER, ADVANCE } from './tools-ca-rules.ts';
+import { WHAT_IF } from './tools-ca-what-if.ts';
+import { DOC_ENTRY } from './tools-ca-entry.ts';
+import { notBuiltTool } from './tool-stub.ts';
 import type { WorkReceiptDraft } from './work.ts';
 
 type CaToolName = Extract<ToolName, 'tax.income' | 'tax.interest' | 'tax.gst' | 'tax.tds'>;
@@ -80,9 +85,9 @@ function factsLanguage(env: ToolEnv): 'en' | 'hi' {
  * was refused NEEDS_FACTS for may be filled in only once a question to the client since then was really answered (not
  * a timeout); else it is asked again. A NEEDS_FACTS refusal carries the client's language for the question.
  */
-async function askingClient<T>(env: ToolEnv, tool: CaToolName, input: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
+export async function askingClient<T>(env: ToolEnv, tool: CaToolName | 'tax.formChooser' | 'tax.advance', input: Record<string, unknown>, work: () => Promise<T>): Promise<T> {
   try {
-    requireFacts(ENGINE_WORDS[tool], guessedFacts(env.calls ?? [], env.handoffs ?? [], tool, input));
+    requireFacts(tool === 'tax.formChooser' ? 'ITR form choice' : tool === 'tax.advance' ? 'advance tax' : ENGINE_WORDS[tool], guessedFacts(env.calls ?? [], env.handoffs ?? [], tool, input));
     return await work();
   } catch (error) {
     if (error instanceof ChausarError && error.code === 'NEEDS_FACTS') {
@@ -429,3 +434,18 @@ const TDS: Spec = {
 };
 
 export const CA_TOOLS: Readonly<Record<CaToolName, Spec>> = Object.freeze({ 'tax.income': INCOME, 'tax.interest': INTEREST, 'tax.gst': GST, 'tax.tds': TDS });
+
+/**
+ * Ink v2 wave 5: package 5-0's stubs for the CA firm's tools wave 5 builds, each answering NOT_BUILT_YET. A package moves its
+ * tool into the table above (and its name into that table's type) and deletes its stub line here
+ * (delivery/harness/tools-playbooks.ts spreads this table).
+ */
+type CaW5ToolName = Extract<ToolName, 'tax.citations' | 'tax.formChooser' | 'tax.advance' | 'tax.whatIf' | 'books.healthCheck' | 'docs.entry'>;
+export const CA_W5_TOOLS: Readonly<Record<CaW5ToolName, Spec>> = Object.freeze({
+  'tax.citations': CITATIONS,
+  'tax.formChooser': FORM_CHOOSER,
+  'tax.advance': ADVANCE,
+  'tax.whatIf': WHAT_IF,
+  'books.healthCheck': HEALTH_CHECK,
+  'docs.entry': DOC_ENTRY,
+});

@@ -9,6 +9,8 @@ import { EngineError } from '../../engine/types';
 import { FILE_ACCEPT, fileProblem, readBase64 } from './files';
 import { EMPTY_INTAKE, intakeParams, intakeReady, type IntakeDraft } from './intake';
 import { IntakeFields } from './IntakeFields';
+import { KitIntakeFields } from './KitIntakeFields';
+import { kitIntakeFiles, kitIntakeParams, kitIntakeReady, type KitAnswers } from './kit-intake';
 import { messageOf } from './PreviousRuns';
 import { clearPrefill, peekPrefill } from './prefill';
 import { workChanged } from './refresh';
@@ -31,6 +33,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const ids = useId();
   const clients = useResource('venture.client.list', {}, { refreshOn: never });
   const plan = useResource('venture.blueprint.get', {}, { refreshOn: never });
+  const business = useResource('venture.get', {}, { refreshOn: never });
   const [clientId, setClientId] = useState(id === 'new' ? '' : id);
   const [name, setName] = useState('');
   // W4 4B3: an agent's chat may open this sheet with the service and request filled in (prefill.ts).
@@ -40,6 +43,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const [request, setRequest] = useState(prefill?.request ?? '');
   const [intake, setIntake] = useState<IntakeDraft>(EMPTY_INTAKE);
   const [files, setFiles] = useState<File[]>([]);
+  const [kitAnswers, setKitAnswers] = useState<KitAnswers>({});
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
   const [failures, setFailures] = useState<{ name: string; message: string }[] | null>(null);
@@ -51,7 +55,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   // What the engine says this service asks at intake; null for a service that asks nothing.
   const ask = (what && plan.data?.intake?.[what]) || null;
   const filesOk = files.every((f) => fileProblem(f) === null);
-  const ready = !sending && (who === NEW_CLIENT ? name.trim() !== '' : who !== '') && what !== '' && request.trim() !== '' && intakeReady(ask, intake) && filesOk;
+  const ready = !sending && !!business.data?.venture.country && (who === NEW_CLIENT ? name.trim() !== '' : who !== '') && what !== '' && request.trim() !== '' && intakeReady(ask, intake) && kitIntakeReady(ask, kitAnswers) && filesOk;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -59,6 +63,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
     setSending(true);
     setError(undefined);
     try {
+      const intakeFiles = await kitIntakeFiles(ask, kitAnswers);
       let forClient = who;
       if (who === NEW_CLIENT) {
         const added = await engine.request('venture.client.add', { name: name.trim() });
@@ -67,8 +72,8 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
         setClientId(added.id);
         clients.reload();
       }
-      const told = intakeParams(ask, intake);
-      const order = await engine.request('venture.order.create', { clientId: forClient, offerId: what, request: request.trim(), ...(told ? { intake: told } : {}) });
+      const told = ask?.kit ? { ...intakeParams(ask, intake), ...kitIntakeParams(ask, kitAnswers) } : intakeParams(ask, intake);
+      const order = await engine.request('venture.order.create', { clientId: forClient, offerId: what, request: request.trim(), ...(told ? { intake: told } : {}), ...(Object.keys(intakeFiles).length ? { intakeFiles } : {}) });
       const refused: { name: string; message: string }[] = [];
       for (const file of files) {
         try {
@@ -99,11 +104,11 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
         </ul>
       </div>
     );
-  } else if (plan.error || clients.error) {
-    body = <p className={s.problem}>{t('work.loadFailed', { message: (plan.error ?? clients.error)!.message })}</p>;
+  } else if (plan.error || clients.error || business.error) {
+    body = <p className={s.problem}>{t('work.loadFailed', { message: (plan.error ?? clients.error ?? business.error)!.message })}</p>;
   } else if (plan.data === null || (plan.data && offers.length === 0)) {
     body = <p className={s.note}>{t('work.form.noServices')}</p>;
-  } else if (!plan.data || !clients.data) {
+  } else if (!plan.data || !clients.data || !business.data) {
     body = <p className={s.quiet}>{t('sheet.loading')}</p>;
   } else {
     body = (
@@ -128,6 +133,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
           </select>
         </div>
         <IntakeFields ask={ask} draft={intake} onChange={setIntake} />
+        <KitIntakeFields currency={business.data?.venture.country?.currency} ask={ask} answers={kitAnswers} onChange={setKitAnswers} />
         <Field multiline label={t('work.form.request')} value={request} onChange={(event) => setRequest(event.currentTarget.value)} />
         <div className={s.field}>
           <label htmlFor={`${ids}-files`} className={s.label}>{t('work.form.files')}</label>

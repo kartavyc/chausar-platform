@@ -1,0 +1,2 @@
+import type {PlaybookRegistration} from '../registry.ts';
+export const WEBSITE_REGISTRATION:PlaybookRegistration={id:'website-studio',label:'Website builder',serviceType:'studio',picks:['website builder','website design service','build websites for','web design agency','landing page service'],summary:'Agents write the brief, check what the builder made against your client requirements, and keep the site healthy; you approve every release.',riskLevel:'medium',lastReviewed:'2026-10-29'};

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "hidden-requirement-missed",
+    "request": "Check this website source boundary.",
+    "draft": "Keep the hidden consent requirement visible.",
+    "meta": {
+      "source": "{\"requirements\": [{\"id\": \"quote\", \"text\": \"A quote request is possible.\", \"excerpt\": \"A quote request is possible.\", \"origin\": \"explicit\", \"severity\": \"critical\"}, {\"id\": \"consent\", \"text\": \"The request has a consent notice.\", \"excerpt\": \"A quote request is possible.\", \"origin\": \"hidden\", \"severity\": \"major\"}], \"requiredHiddenId\": \"consent\"}"
+    }
+  },
+  {
+    "id": "inconclusive-not-fail",
+    "request": "Check this website source boundary.",
+    "draft": "The result is inconclusive, not a failing behavior.",
+    "meta": {
+      "source": "{\"requirements\": [{\"id\": \"quote\", \"text\": \"A quote request is possible.\", \"excerpt\": \"A quote request is possible.\", \"origin\": \"explicit\", \"severity\": \"critical\"}], \"audit\": {\"verdict\": \"inconclusive\", \"reason\": \"The request handler is absent.\", \"readPaths\": [\"index.html\"]}, \"files\": {\"index.html\": \"hash\"}, \"commit\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
+    }
+  },
+  {
+    "id": "health-check-blocks-release",
+    "request": "Check this website source boundary.",
+    "draft": "A failed marker blocks release.",
+    "meta": {
+      "source": "{\"release\": {\"projectId\": \"p\", \"connection\": {\"accountId\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"projectName\": \"client-site\", \"productionBranch\": \"main\"}, \"manifest\": {\"marker.txt\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}, \"marker\": {\"path\": \"marker.txt\", \"text\": \"expected\"}, \"sourceDigest\": \"source\", \"previousProduction\": \"old\"}, \"preview\": {\"id\": \"preview\", \"url\": \"https://abc.client-site.pages.dev\", \"environment\": \"preview\"}, \"health\": {\"status\": 200, \"url\": \"https://abc.client-site.pages.dev/marker.txt\", \"text\": \"wrong\"}, \"at\": \"2026-10-29T10:00:00Z\"}"
+    }
+  }
+]

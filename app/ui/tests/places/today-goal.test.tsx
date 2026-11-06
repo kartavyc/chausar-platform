@@ -48,7 +48,7 @@ function client(engine: FakeEngine, override: Override = {}) {
   return { client: wrapped, calls };
 }
 
-async function start({ engine = new FakeEngine({ now: () => NOW }), override, folder, narrow = false, language = 'en' }: { engine?: FakeEngine; override?: Override; folder?: string; narrow?: boolean; language?: 'en' | 'hi' } = {}) {
+async function start({ engine = new FakeEngine({ now: () => NOW }), override, folder, narrow = false, language = 'en' }: { engine?: FakeEngine; override?: Override; folder?: string; narrow?: boolean; language?: 'en' } = {}) {
   stubWidth(narrow);
   const made = client(engine, override);
   if (folder) {
@@ -285,14 +285,5 @@ describe('Today: the next best step (W4 4I2)', () => {
     const card = screen.getByRole('region', { name: 'Needs you' }).querySelector<HTMLElement>('[data-row-id="q-price-sponsor"]')!;
     expect(within(card).getByRole('button', { name: 'Not now' })).toBeTruthy();
     expect(calls.some(([method]) => method === 'venture.queue.decide')).toBe(false);
-  });
-});
-
-describe('Today: the goal card in Hindi', () => {
-  it('words the days left and the reading of the bar in Hindi', async () => {
-    await start({ language: 'hi' });
-    const goal = await screen.findByRole('region', { name: /लक्ष्य/ });
-    await waitFor(() => expect(goal.textContent).toContain('8 दिन बाकी'));
-    expect(within(goal).getByRole('img').getAttribute('aria-label')).toMatch(/74%/);
   });
 });

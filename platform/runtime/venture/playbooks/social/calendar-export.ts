@@ -1,3 +1,4 @@
+import { actualSocialPosts } from './post-label.ts';
 // Chausar flagship playbook, social media agency: the calendar file (Ink v2 wave 2 package 2F2, catalogue S1 calendar
 // export). venture.social.calendar { runId } (read) builds, by code, the CSV of a content calendar's posts from the
 // approved draft only. Nothing here posts, schedules or stores anything: the owner imports the file into their own
@@ -29,7 +30,7 @@ import { localTimeAt } from '../../local-day.ts';
 import { calendarExport, calendarText, startsLikeFormula, type CalendarItem } from './approvals.ts';
 import { channelCapability } from './channels.ts';
 import { DRAFTS_SECTION, assignSlots, calendarSlots } from './draft-posts.ts';
-import { postOfLine, threadParts } from './post-lines.ts';
+import { threadParts } from './post-lines.ts';
 import { draftApprovalsOfRun, needsClientApproval, scheduleReasons, type RunPostApproval } from './run-approvals.ts';
 import { SOCIAL_AGENCY_ID } from './registration.ts';
 
@@ -42,26 +43,6 @@ export const CALENDAR_WORDS = Object.freeze({
 });
 /** A UTF-8 byte order mark: spreadsheets on Windows then read the file as UTF-8. */
 const BOM = '﻿';
-const HEADING = /^##[ \t]+(.+?)[ \t]*$/;
-
-/**
- * The heading each post line of a text sits under, in post order (post lines counted as run-approvals.ts postsOfText
- * counts them; a '## ' heading line is never a post line), and whether the text has a Drafts heading at all.
- */
-function postHeadings(text: string): { headings: string[]; hasDrafts: boolean } {
-  const headings: string[] = [];
-  let current = '';
-  let hasDrafts = false;
-  for (const line of text.split(/\r?\n/)) {
-    const heading = HEADING.exec(line);
-    if (heading) {
-      current = heading[1];
-      hasDrafts ||= current === DRAFTS_SECTION;
-    } else if (postOfLine(line)) headings.push(current);
-  }
-  return { headings, hasDrafts };
-}
-
 /**
  * One row's input for calendarExport, for a post the gate let through: the draft and its approval exactly as the gate
  * read them, so calendarExport's own gate checks the approved digest again. The thread parts go only into the cell. The
@@ -100,8 +81,8 @@ export async function socialCalendarHandler(deps: VentureDeps, ctx: Context, pay
   const text = clientDraft(run).text;
   check(text && text.trim().length > 0, 'DELIVERY_NOT_READY', CALENDAR_WORDS.noDraft);
 
-  const { headings, hasDrafts } = postHeadings(text);
-  const counted = draftApprovalsOfRun(state, run.id).filter(item => !hasDrafts || headings[item.post.n - 1] === DRAFTS_SECTION);
+  const headings = actualSocialPosts(text).map(post => post.section);
+  const counted = draftApprovalsOfRun(state, run.id);
   const assignment = assignSlots(counted.map(item => ({ id: item.post.draftId, section: headings[item.post.n - 1] ?? '', channel: item.post.channel, text: item.post.text })), slots);
   const dates = new Map(assignment.filled.map(fill => [fill.post.id, fill.slot.date]));
   const options = { clientApproval: needsClientApproval(state, run) };

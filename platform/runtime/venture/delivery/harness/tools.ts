@@ -38,6 +38,8 @@ import { CA_CHECK_TOOLS } from './tools-ca-checks.ts';
 import { YOUTUBE_TOOLS } from './tools-youtube.ts';
 import { SOCIAL_TOOLS } from './tools-social.ts';
 import { EVIDENCE_TOOLS } from './tools-evidence.ts';
+// Ink v2 wave 5 (package 5-0): the kit's tools, the flagships' wave 5 tools and every new playbook's tools.
+import { PLAYBOOK_TOOLS } from './tools-playbooks.ts';
 import { FIELDS_LATER, toolGroup } from './tool-groups.ts';
 import { mockToolFor, runMockTool, type MockTool } from './mocks.ts';
 import { askCard, heldFacts, type AskInput } from '../../agents/questions.ts';
@@ -136,7 +138,7 @@ export type ToolEnv = {
 export type EvidenceNote = { subject: 'client' | 'business'; field: string; value: string; type: EvidenceType; backedBy: string | null; source: string | null };
 
 const OUTBOX_TARGETS: Readonly<Record<string, string>> = Object.freeze({ 'mail-app': 'Your mail app', 'payment-link': 'A payment link' });
-const SHADOW_NOTE = 'Shadow: nothing was sent and nothing waits for approval. This is what would have happened, and what Chausar could not know without sending it.';
+const SHADOW_NOTE = 'Practice on real orders: nothing was sent and nothing waits for approval. This is what would have happened, and what Chausar could not know without sending it.';
 
 /**
  * At shadow (the business, the agent and this real order tightened together), an outside write is journalled as a
@@ -506,7 +508,7 @@ let allTools: Readonly<Record<ToolName, Spec>> | null = null;
  * helpers, so the table is built only once every one of them has loaded, whichever loaded first.
  */
 function tools(): Readonly<Record<ToolName, Spec>> {
-  return allTools ??= Object.freeze({ ...CORE_TOOLS, ...CA_TOOLS, ...CA_CHECK_TOOLS, ...YOUTUBE_TOOLS, ...SOCIAL_TOOLS, ...EVIDENCE_TOOLS });
+  return allTools ??= Object.freeze({ ...CORE_TOOLS, ...CA_TOOLS, ...CA_CHECK_TOOLS, ...YOUTUBE_TOOLS, ...SOCIAL_TOOLS, ...EVIDENCE_TOOLS, ...PLAYBOOK_TOOLS });
 }
 
 function madeTable(env: ToolEnv, source: SourceTable, columns: string[], rows: string[][], how: { tier: ExecutionTier; driver: string; programDigest: string; moduleDigest: string | null }): ToolResult {

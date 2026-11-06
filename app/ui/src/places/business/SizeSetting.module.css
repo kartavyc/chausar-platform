@@ -1,0 +1,27 @@
+/* Business > About you, the business's size (SizeSetting.tsx): the ranges, each sized rule's verdict, Save size. */
+
+.form {
+  display: grid;
+  gap: var(--sp-4);
+  max-width: 560px;
+}
+
+.rules {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.title {
+  display: block;
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.verdict {
+  display: block;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}

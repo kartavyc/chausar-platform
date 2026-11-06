@@ -157,4 +157,5 @@ async function saveMoneyExport(event, input, deps) {
   }
 }
 
-module.exports = Object.freeze({ saveMoneyExport, writeAtomic });
+// stage, commit and discard: the same atomic export for a client report's folder (report-save.cjs, Ink v2 wave 5 5A5).
+module.exports = Object.freeze({ saveMoneyExport, writeAtomic, stage, commit, discard });

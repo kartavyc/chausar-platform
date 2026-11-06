@@ -3,6 +3,8 @@
 // each, never raise it past that. The next write past a cap does not happen (WRITE_CAP_REACHED, in plain words), a
 // Today row says so, and venture.runs.allowWrites (approve, app only) raises that cap once for the day.
 import test from 'node:test';
+import { nativeContext } from './fixtures/venture/native-context.ts';
+import { orderUploads } from '../runtime/venture/delivery/harness/env.ts';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
 import type { AllowWritesView, DeliveryRunView, SpendPolicyView, ToolName, VentureDeps } from '../runtime/venture/contracts.ts';
@@ -18,36 +20,24 @@ import { setSpendPolicy } from '../runtime/venture/money/spend.ts';
 import type { BrowserPort } from '../runtime/venture/contracts.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 import { seedPostDraft } from './venture-post-drafts.ts';
-import {
-  approve, call, code, decide, owner, phone, queue, RECONCILE, DONE, record, setup, startRun, turnOf, type Env,
-} from './venture-run-controls-env.ts';
+import { call, code, decide, owner, phone, queue, record, setup, startNativeDraft, orderWithFiles, type Env } from './venture-run-controls-env.ts';
 
 const policySet = (env: Env, payload: unknown, ctx: Context = owner) =>
   (money as Record<string, (d: VentureDeps, c: Context, p: unknown) => Promise<SpendPolicyView>>)['venture.spend.policy.set'](env.deps, ctx, payload);
 const policyGet = (env: Env) => (money as Record<string, (d: VentureDeps, c: Context, p: unknown) => Promise<SpendPolicyView>>)['venture.spend.policy.get'](env.deps, owner, {});
 const capRow = async (env: Env, kind: string) => (await queue(env)).rows.find(row => row.id.startsWith(`writecap:${kind}`));
 
-/** One agent draft, start to finish: reconcile, finish, then write. Returns the run waiting on its write turn. */
-async function upToWrite(env: Env): Promise<DeliveryRunView> {
-  let run = await startRun(env, [RECONCILE, DONE]);
-  run = await approve(env, run);
-  run = await approve(env, run);
-  assert.equal(run.harness!.phase, 'write');
-  return run;
-}
-
 test('drafts: counted from the draft records, stamped when each became ready, so a flood of events cannot hide them', async () => {
   const env = await setup();
   await policySet(env, { writeCaps: { drafts: 1 } });
-  const first = await upToWrite(env);
-  const ready = await approve(env, first);
+  const first = await startNativeDraft(env);
+  const ready = first;
   assert.equal(ready.status, 'ready-for-review');
   assert.equal(record(env, first.id).readyAt, env.deps.clock().toISOString(), 'stamped in the commit that kept the draft');
   // More than the 500 events a business keeps: the draft's own ready event is pruned away.
   await ventureAction(env.deps, owner, 'prepare', 'seed.flood', tx => { for (let n = 0; n < 520; n += 1) tx.emit('run.step', { runId: 'flood' }); });
   assert.equal(listRecords(env.store.read(), 'venture-event').some(event => event.name === 'delivery-ready'), false, 'the ready event is gone');
-  const second = await upToWrite(env);
-  await assert.rejects(approve(env, second), code('WRITE_CAP_REACHED'));
+  await assert.rejects(startNativeDraft(env), code('WRITE_CAP_REACHED'));
 });
 
 test('drafts: the real model port reads the cap again inside the claim that lets a draft-writing call go', async () => {
@@ -67,7 +57,7 @@ test('drafts: the real model port reads the cap again inside the claim that lets
   assert.equal(env.sent.length, 1);
 });
 
-test('write caps: 30 drafts, 500 books lines and 40 messages a day; the owner may lower each, never raise it', async () => {
+test('write caps: 30 drafts, 500 books lines and 40 messages a day; the owner may change each', async () => {
   assert.deepEqual({ ...WRITE_CAPS }, { drafts: 30, 'books-lines': 500, messages: 40 });
   assert.ok(Object.isFrozen(WRITE_CAPS));
   const env = await setup();
@@ -76,28 +66,27 @@ test('write caps: 30 drafts, 500 books lines and 40 messages a day; the owner ma
   assert.equal(before.writeCaps![0].line, "Chausar stops agents at 30 drafts a day so a stuck agent can't flood you.");
   const lowered = await policySet(env, { writeCaps: { drafts: 5, messages: 0 } });
   assert.deepEqual(lowered.writeCaps!.map(item => [item.kind, item.cap]), [['drafts', 5], ['books-lines', 500], ['messages', 0]]);
-  await assert.rejects(policySet(env, { writeCaps: { drafts: 31 } }), code('INVALID_VENTURE_REQUEST'));
+  assert.equal((await policySet(env, { writeCaps: { drafts: 31 } })).writeCaps![0].cap, 31);
   await assert.rejects(policySet(env, { writeCaps: { pages: 3 } }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(policySet(env, { writeCaps: { drafts: 2 } }, phone), code('APP_APPROVAL_REQUIRED'));
-  assert.equal((await policySet(env, { askFirstUsd: '1.00' })).writeCaps![0].cap, 5, 'other changes keep the caps');
+  assert.equal((await policySet(env, { askFirstUsd: '1.00' })).writeCaps![0].cap, 31, 'other changes keep the caps');
 });
 
 test('drafts: past the cap the next draft is not sent; Today says so; Allow more raises it once for the day; the next day starts again', async () => {
   const env = await setup();
   await policySet(env, { writeCaps: { drafts: 1 } });
-  const first = await upToWrite(env);
-  assert.equal((await approve(env, first)).status, 'ready-for-review');
+  const first = await startNativeDraft(env);
+  assert.equal(first.status, 'ready-for-review');
   assert.equal(await capRow(env, 'drafts') !== undefined, true, 'the cap is reached: Today says so');
 
-  const second = await upToWrite(env);
   const sent = env.models.sent;
-  await assert.rejects(approve(env, second), (error: any) => {
+  await assert.rejects(startNativeDraft(env), (error: any) => {
     assert.equal(error.code, 'WRITE_CAP_REACHED');
     assert.equal(error.message, "Chausar stops agents at 1 draft a day so a stuck agent can't flood you. Allow more for today on Today, or wait until tomorrow.");
     return true;
   });
   assert.equal(env.models.sent, sent, 'nothing was sent or charged');
-  assert.equal(record(env, second.id).status, 'waiting-for-you', 'the draft waits; nothing is lost');
+  assert.equal(listRecords(env.store.read(),'venture-delivery-run').length,1,'no blocked job was created');
   const row = (await capRow(env, 'drafts'))!;
   assert.equal(row.title, "Agents reached today's cap of 1 draft");
   assert.equal(row.line, "Chausar stops agents at 1 draft a day so a stuck agent can't flood you.");
@@ -107,7 +96,7 @@ test('drafts: past the cap the next draft is not sent; Today says so; Allow more
   const decided = await decide(env, row, 'approve');
   assert.equal(decided.outcome, 'done');
   assert.equal(decided.line, 'Agents may make 1 more draft today. The cap starts again tomorrow.');
-  assert.equal((await approve(env, { ...second, preview: record(env, second.id).preview })).status, 'ready-for-review');
+  assert.equal((await startNativeDraft(env)).status, 'ready-for-review');
   await assert.rejects(call<AllowWritesView>(env, 'venture.runs.allowWrites', { kind: 'drafts' }), (error: any) => {
     assert.equal(error.code, 'WRITE_CAP_REACHED');
     assert.equal(error.message, 'You already allowed more drafts today. The cap starts again tomorrow.');
@@ -127,28 +116,37 @@ test('drafts: past the cap the next draft is not sent; Today says so; Allow more
 const BILL_ROWS = PRACTICE_FILES['bookkeeping-clean'][1].content.trim().split('\n').length - 1;
 const sort = (n: number) => ['sandbox.python', { table: 'f2', code: `def transform(row):\n    return {"kind": "s${n}"}` }] as [string, unknown];
 
-test('books lines: once the cap is reached the next table-making call does not run; the rows already made count', async () => {
+/** Directly qualify the retained developer-playbook helper, not the retired turn loop. */
+async function retainedToolEnv(env:Env,t:{after(fn:()=>Promise<void>):void}) {
+  const order=await orderWithFiles(env);const native=await nativeContext(env.deps,owner,order.id);t.after(()=>native.job.close());
+  const state=env.store.read(),venture=findRecord(state,'venture-record',env.venture.id)!;
+  const playbook=findRecord(state,'venture-playbook',native.run.playbookId)!;
+  const toolEnv=buildToolEnv({deps:env.deps,ctx:owner,state,venture,playbook,runRef:{kind:'delivery',runId:native.run.id},files:orderUploads(state,venture.id,order.id),allowed:[],approval:{kind:'owner-turn',callId:null}});
+  return {toolEnv,run:native.run};
+}
+
+test('books lines: once the cap is reached the next table-making call does not run; the rows already made count', async t => {
   const env = await setup();
   await policySet(env, { writeCaps: { 'books-lines': BILL_ROWS } });
-  const run = await startRun(env, [turnOf('Sort the bills twice', [sort(1), sort(2)]), DONE]);
-  await approve(env, run);
-  const calls = record(env, run.id).harness!.toolCalls;
+  const {toolEnv}=await retainedToolEnv(env,t);
+  const calls=[];
+  for(const [index,input] of [sort(1),sort(2)].entries())calls.push((await callTool(toolEnv,['sandbox.python'],1,index,{tool:input[0],input:JSON.stringify(input[1])})).record);
   assert.deepEqual(calls.map(item => item.outcome), ['succeeded', 'cancelled']);
   const refused = calls[1].envelope;
   assert.ok(!refused.ok && refused.error.code === 'WRITE_CAP_REACHED');
   assert.equal(!refused.ok && refused.error.message, `Chausar stops agents at ${BILL_ROWS} books lines a day so a stuck agent can't flood your books. Allow more for today on Today, or wait until tomorrow. Nothing ran.`);
   assert.equal(env.containerRuns, 1, 'the second program never ran');
+  await ventureAction(env.deps,owner,'prepare','fixture.tables',tx=>{for(const table of toolEnv.tables)tx.put(table);});
   const row = (await capRow(env, 'books-lines'))!;
   assert.equal(row.title, `Agents reached today's cap of ${BILL_ROWS} books lines`);
   assert.equal((await policyGet(env)).writeCaps!.find(item => item.kind === 'books-lines')!.used, BILL_ROWS);
 });
 
-test('books lines: a call whose rows would take the count past the cap has its table dropped, and says so', async () => {
+test('books lines: a call whose rows would take the count past the cap has its table dropped, and says so', async t => {
   const env = await setup();
   await policySet(env, { writeCaps: { 'books-lines': BILL_ROWS - 1 } });
-  const run = await startRun(env, [turnOf('Sort the bills', [sort(1)]), DONE]);
-  await approve(env, run);
-  const [made] = record(env, run.id).harness!.toolCalls;
+  const {toolEnv}=await retainedToolEnv(env,t);
+  const input=sort(1);const made=(await callTool(toolEnv,['sandbox.python'],1,0,{tool:input[0],input:JSON.stringify(input[1])})).record;
   assert.equal(made.outcome, 'cancelled');
   assert.ok(!made.envelope.ok && made.envelope.error.code === 'WRITE_CAP_REACHED');
   assert.match(!made.envelope.ok ? made.envelope.error.message : '', /The table it made was not kept\.$/);
@@ -167,14 +165,13 @@ test('books lines: only tables of agent programs and picked bills count, not tab
   assert.equal((await policyGet(env)).writeCaps!.find(item => item.kind === 'books-lines')!.used, 0);
 });
 
-test('messages: a message for people past the cap is not recorded, in a real order\'s own tool environment', async () => {
+test('messages: a message for people past the cap is not recorded, in a real order\'s own tool environment', async t => {
   const env = await setup();
-  const run = await startRun(env, [RECONCILE, DONE]);
+  const {toolEnv,run}=await retainedToolEnv(env,t);
   await policySet(env, { writeCaps: { messages: 0 } });
   const state = env.store.read();
   const venture = findRecord(state, 'venture-record', env.venture.id)!;
   const playbook = findRecord(state, 'venture-playbook', run.playbookId)!;
-  const toolEnv = buildToolEnv({ deps: env.deps, ctx: owner, state, venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files: [], allowed: [], approval: { kind: 'owner-turn', callId: run.callId! } });
   const grant: ToolName[] = ['outbox.propose'];
   const outcome = await callTool(toolEnv, grant, 1, 0, { tool: 'outbox.propose', input: JSON.stringify({ connector: 'mail-app', summary: 'Send the September report to the client' }) });
   assert.equal(outcome.record.outcome, 'cancelled');
@@ -207,15 +204,17 @@ test('messages: a post an agent proposes past the cap is refused; the owner\'s o
   } as never), { create: true });
   await setSpendPolicy(deps, owner, { writeCaps: { messages: 1 } });
   const agentCtx: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'mcp' };
-  const draft = await seedPostDraft(deps, ['X: Fresh pastries at 8.', 'LinkedIn: Fresh pastries at 8.']);
+  const draft = await seedPostDraft(deps, ['X: Fresh pastries at 8.']);
   await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, agent: 'Social writer' });
-  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id, agent: 'Social writer' }), (error: any) => {
+  await assert.rejects(proposePost(deps, owner, { connectorId: 'linkedin', draftId: draft.id }), code('NOT_BUILT_YET'));
+  const nextDraft = await seedPostDraft(deps, ['X: Fresh bread from the morning oven.']);
+  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'x', draftId: nextDraft.id, agent: 'Social writer' }), (error: any) => {
     assert.equal(error.code, 'WRITE_CAP_REACHED');
     assert.match(error.message, /^Chausar stops agents at 1 message for people a day so a stuck agent can't flood anyone\./);
     return true;
   });
   // A proposal from outside the app is an agent's, named or not.
-  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'linkedin', draftId: draft.id }), code('WRITE_CAP_REACHED'));
-  const own = await proposePost(deps, owner, { connectorId: 'linkedin', draftId: draft.id });
+  await assert.rejects(proposePost(deps, agentCtx, { connectorId: 'x', draftId: nextDraft.id }), code('WRITE_CAP_REACHED'));
+  const own = await proposePost(deps, owner, { connectorId: 'x', draftId: nextDraft.id });
   assert.equal(own.agent, null);
 });

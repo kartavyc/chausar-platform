@@ -636,3 +636,18 @@
   border-radius: var(--r-card);
   background: var(--wash);
 }
+
+/* W6 6C3 (D17): the profession's price ranges under the offers, each with its sources. */
+.priceGuide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-5);
+}
+
+.priceGuideTitle {
+  margin: 0;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}

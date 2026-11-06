@@ -28,19 +28,21 @@ import type { QueueRow, RunSummary, VentureRunEvent } from '../../engine/types';
 import { NewOrderSheet } from './NewOrderSheet';
 import { OrderFocus } from './OrderFocus';
 import { OrderList, waitsOnYou } from './OrderList';
+import { PlaybookDesk } from './PlaybookDesk';
 import { orderView, type OrderView } from './orders';
 import { Finished, superseded } from './PreviousRuns';
 import { RunTiles } from './RunTiles';
 import { StoppedRuns, isStopped } from './StoppedRun';
 import { useWorkChanged } from './refresh';
 import s from './Work.module.css';
+import { Ideas } from './Ideas';
 
 /** The filters the address can hold. `orders` (every order, paid and cancelled too) has no chip; the order focus's
- *  "All orders" link leads there. */
-export const FILTERS = ['waiting', 'active', 'failed', 'done', 'orders'] as const;
+ *  "All orders" link leads there. `ideas` (Ink v2 wave 5, 5A3) is the idea pipeline, where Today's grade card leads. */
+export const FILTERS = ['waiting', 'active', 'failed', 'done', 'orders', 'ideas'] as const;
 export type WorkFilter = 'all' | (typeof FILTERS)[number];
-/** The chips, in D's order: All, Needs you, Running, Failed, Done. */
-const CHIPS = ['all', 'waiting', 'active', 'failed', 'done'] as const;
+/** The chips, in D's order: All, Needs you, Running, Failed, Done; then Ideas (5A3). */
+const CHIPS = ['all', 'waiting', 'active', 'failed', 'done', 'ideas'] as const;
 
 export function readFilter(value: string | undefined): WorkFilter {
   return (FILTERS as readonly string[]).includes(value ?? '') ? (value as WorkFilter) : 'all';
@@ -161,10 +163,14 @@ export function Place() {
     content = runs.data && (failed.length > 0 ? failedTiles(failed) : <EmptyState title={t('work.none.failed')} />);
   } else if (filter === 'done') {
     content = runs.data && (done.length > 0 ? finished(done, false) : <EmptyState title={t('work.none.done')} />);
+  } else if (filter === 'ideas') {
+    content = <Ideas />; // 5A3: the idea pipeline
   } else if (filter === 'orders') {
     content = ordersReady && (views.length > 0 && ordersHere ? <Orders views={views}>{orderList}</Orders> : <EmptyState title={t('work.none.orders')} />);
+    // W5 5A1: the business's own desk, where its orders are.
+    if (ordersHere) content = <>{content}<PlaybookDesk /></>;
   } else if (runs.data && orders.data && all.length === 0 && orders.data.length === 0) {
-    content = <EmptyState title={t('work.empty')} line={t('work.emptyLine')} />;
+    content = <><EmptyState title={t('work.empty')} line={t('work.emptyLine')} /><PlaybookDesk /></>;
   } else {
     const ordersMeta = t('work.orders.meta', { count: current.length, clients: t('work.line.clients', { count: new Set(current.map((v) => v.order.clientId)).size }) });
     content = (
@@ -183,6 +189,8 @@ export function Place() {
           </div>
         )}
         {ordersHere && current.length > 0 && <Orders views={current} meta={ordersMeta}>{orderList}</Orders>}
+        {/* W5 5A1: the business's own desk (its records), where its orders are, once its package marks it ready. */}
+        {ordersHere && <PlaybookDesk />}
       </>
     );
   }
@@ -193,7 +201,7 @@ export function Place() {
     ? headerLine(t, going.length, failedOpen.length, counted.length, new Set(counted.map((v) => v.order.clientId)).size, stoppedRuns.length)
     : undefined;
 
-  const chips: FilterOption[] = CHIPS.map((id) => ({ id, label: t(`work.filter.${id}`) }));
+  const chips: FilterOption[] = CHIPS.map((id) => ({ id, label: t(id === 'ideas' ? 'kit-rules.chip' : `work.filter.${id}`) }));
   const businessChips: FilterOption[] = offerBusinesses
     ? businessIds.map((id) => ({ id, label: names.get(id)!, business: true }))
     : [];

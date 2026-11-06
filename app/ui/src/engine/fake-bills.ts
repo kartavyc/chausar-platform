@@ -10,15 +10,16 @@
 
 import { EngineError, PAYMENT_METHODS, type BillView, type MoneyFigure, type ReceiptLite } from './types';
 import { inr } from './fake-money';
+import { decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
 
 interface HeldLine { description: string; amount: number; taxName: string; rate: number }
 interface HeldBill {
-  id: string; at: string; businessId: string; vendor: string; lines: HeldLine[]; billDate: string; dueDate: string;
+  id: string; at: string; businessId: string; currency: string; vendor: string; lines: HeldLine[]; billDate: string; dueDate: string;
   recurring: 'monthly' | 'quarterly' | null; status: 'draft' | 'posted' | 'cancelled'; total: number; paid: number;
 }
 
 /** What the bills desk needs from the money desk around it. */
-export interface BillsHost { now: () => string; business: () => string }
+export interface BillsHost { now: () => string; business: () => string; currency?: () => string }
 
 export const FAKE_4J5_BILL_METHODS: readonly string[] = ['venture.bills.add', 'venture.bills.pay', 'venture.bills.list', 'venture.bills.stop'];
 
@@ -33,18 +34,15 @@ const text = (value: unknown, field: string, max: number): string => {
 };
 
 /** 4J20: an amount as typed ('1,500.50') or in minor units ('150050'), exactly one, above zero, as credits.ts typedOrMinor. */
-function typedOrMinor(typed: unknown, minor: unknown, field: string): number {
+function typedOrMinor(typed: unknown, minor: unknown, field: string, currency: string): number {
   if ((typed === undefined) === (minor === undefined)) throw new EngineError('INVALID_AMOUNT', `Give ${field.toLowerCase()} once, as you would type it, like 1500 or 1500.50.`);
   if (minor !== undefined) {
     if (typeof minor !== 'string' || !MINOR.test(minor) || minor === '0') throw new EngineError('INVALID_AMOUNT', `${field} must be a whole amount in minor units, above zero.`);
     return Number.parseInt(minor, 10);
   }
-  const text = typeof typed === 'string' && typed.length <= 40 ? typed.replace(/[\s,]/g, '') : '';
-  const match = /^(\d{1,13})(?:\.(\d+))?$/.exec(text);
-  const fraction = (match?.[2] ?? '').replace(/0+$/, '');
-  if (!match || fraction.length > 2) throw new EngineError('INVALID_AMOUNT', `${field} must be a positive amount like 2499 or 2499.50.`);
-  const paise = Number.parseInt(match[1]!, 10) * 100 + Number.parseInt(fraction.padEnd(2, '0'), 10);
-  if (paise <= 0) throw new EngineError('INVALID_AMOUNT', `${field} must be above zero.`);
+  let paise: number;
+  try { if (typeof typed !== 'string' || typed.length > 40) throw new Error('Type an amount.'); paise = Number(decimalMinor(typed.replace(/[\s,]/g, ''), currency)); } catch { throw new EngineError('INVALID_AMOUNT', `${field} must be a positive amount like 2499 or 2499.50.`); }
+  if (!Number.isSafeInteger(paise) || paise <= 0) throw new EngineError('INVALID_AMOUNT', `${field} must be above zero.`);
   return paise;
 }
 
@@ -56,7 +54,7 @@ export class FakeBills {
   /** 4J20: one receipt per distinct balance of a bill. */
   private balanceIds = new Map<string, string>();
   /** 4J20: each payment of a bill with its day, as the books' cost facts keep it. */
-  private payments: { billId: string; vendor: string; paidOn: string; amount: number }[] = [];
+  private payments: { billId: string; vendor: string; paidOn: string; amount: number; currency: string }[] = [];
   private readonly host: BillsHost;
 
   constructor(host: BillsHost) {
@@ -83,47 +81,49 @@ export class FakeBills {
    * 4J20: the open business's bills in paise for the money views (fake-money-views.ts): each bill still to pay (posted,
    * or expected from a repeat), and each payment the owner made with its day, which the books count as a cost.
    */
-  ledger(): { due: { billId: string; vendor: string; dueDate: string; balance: number; expected: boolean; currency: string }[]; paid: { billId: string; vendor: string; paidOn: string; amount: number }[] } {
+  ledger(): { due: { billId: string; vendor: string; dueDate: string; balance: number; expected: boolean; currency: string }[]; paid: { billId: string; vendor: string; paidOn: string; amount: number; currency: string }[] } {
     const mine = this.mine();
     return {
-      due: mine.filter((b) => b.total > b.paid).map((b) => ({ billId: b.id, vendor: b.vendor, dueDate: b.dueDate, balance: b.total - b.paid, expected: b.status === 'draft', currency: 'INR' })),
+      due: mine.filter((b) => b.total > b.paid).map((b) => ({ billId: b.id, vendor: b.vendor, dueDate: b.dueDate, balance: b.total - b.paid, expected: b.status === 'draft', currency: b.currency })),
       paid: this.payments.filter((p) => mine.some((b) => b.id === p.billId)).map((p) => ({ ...p })),
     };
   }
 
+  private currency(): string { return this.host.currency?.() ?? 'INR'; }
+  private money(minor: number, currency = this.currency()): string { return currency === 'INR' ? inr(minor) : formatMinor(String(minor), currency); }
   private today(): string { return this.host.now().slice(0, 10); }
   private mine(): HeldBill[] { return this.bills.filter((b) => b.businessId === this.host.business() && b.status !== 'cancelled'); }
 
   private view(bill: HeldBill, withReceipt = false): BillView {
     const balance = bill.total - bill.paid;
     const state: BillView['state'] = bill.status === 'draft' ? 'draft' : balance <= 0 ? 'paid' : bill.dueDate < this.today() ? 'overdue' : bill.paid > 0 ? 'partial' : 'posted';
-    return { id: bill.id, vendor: bill.vendor, billDate: bill.billDate, dueDate: bill.dueDate, total: inr(bill.total), paid: inr(bill.paid), balance: inr(balance), state, recurring: bill.recurring, ...(withReceipt ? { receiptId: this.balanceReceipt(bill) } : {}) };
+    return { id: bill.id, vendor: bill.vendor, billDate: bill.billDate, dueDate: bill.dueDate, total: this.money(bill.total, bill.currency), paid: this.money(bill.paid, bill.currency), balance: this.money(balance, bill.currency), state, recurring: bill.recurring, ...(withReceipt ? { receiptId: this.balanceReceipt(bill) } : {}) };
   }
 
   /** 4J20: one bill's balance receipt, as bills.list proves each row: its lines and their tax less each payment. */
   private balanceReceipt(bill: HeldBill): string {
-    const parts = [...bill.lines.map((line) => `${line.description} ${inr(line.amount)}`), ...bill.lines.filter((line) => lineTax(line) > 0).map((line) => `${line.taxName} on ${line.description} ${inr(lineTax(line))}`), ...(bill.paid ? [`Paid ${inr(-bill.paid)}`] : [])];
-    const explanation = `${parts.join('; ')}. Added together: ${inr(bill.total - bill.paid)}.`;
+    const parts = [...bill.lines.map((line) => `${line.description} ${this.money(line.amount, bill.currency)}`), ...bill.lines.filter((line) => lineTax(line) > 0).map((line) => `${line.taxName} on ${line.description} ${this.money(lineTax(line), bill.currency)}`), ...(bill.paid ? [`Paid ${this.money(-bill.paid, bill.currency)}`] : [])];
+    const explanation = `${parts.join('; ')}. Added together: ${this.money(bill.total - bill.paid, bill.currency)}.`;
     const key = `${bill.id}|${explanation}`;
     const held = this.balanceIds.get(key);
     if (held) return held;
     const id = `R-0${this.receiptSeq++}`;
     this.balanceIds.set(key, id);
-    this.receipts.push({ id, at: this.host.now(), stale: false, explanation, figures: [{ key: 'total', label: `Left to pay to ${bill.vendor}`, display: inr(bill.total - bill.paid) }] });
+    this.receipts.push({ id, at: this.host.now(), stale: false, explanation, figures: [{ key: 'total', label: `Left to pay to ${bill.vendor}`, display: this.money(bill.total - bill.paid, bill.currency) }] });
     return id;
   }
 
   /** What posted bills still owe, with a receipt listing each, as the engine's 'bills' sum receipt does; null for none. */
   private owed(): MoneyFigure | null {
-    const open = this.mine().filter((b) => b.status === 'posted' && b.total > b.paid).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const open = this.mine().filter((b) => b.currency === this.currency() && b.status === 'posted' && b.total > b.paid).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
     if (!open.length) return null;
     const total = open.reduce((sum, b) => sum + b.total - b.paid, 0);
     const id = `R-0${this.receiptSeq++}`;
     this.receipts.push({
-      id, at: this.host.now(), stale: false, explanation: `${open.length === 1 ? '1 bill' : `${open.length} bills`}: ${open.map((b) => `${b.vendor}, due ${b.dueDate} ${inr(b.total - b.paid)}`).join('; ')}. Added together: ${inr(total)}.`,
-      figures: [{ key: 'total', label: 'Owed on bills', display: inr(total) }],
+      id, at: this.host.now(), stale: false, explanation: `${open.length === 1 ? '1 bill' : `${open.length} bills`}: ${open.map((b) => `${b.vendor}, due ${b.dueDate} ${this.money(b.total - b.paid, b.currency)}`).join('; ')}. Added together: ${this.money(total)}.`,
+      figures: [{ key: 'total', label: 'Owed on bills', display: this.money(total) }],
     });
-    return { display: inr(total), receiptId: id };
+    return { display: this.money(total), receiptId: id };
   }
 
   private lines(value: unknown): HeldLine[] {
@@ -133,7 +133,7 @@ export class FakeBills {
       if (keys.some((key) => !['description', 'amount', 'amountMinor', 'taxName', 'taxRate', 'taxRateBps'].includes(key)) || !keys.includes('description') || !keys.includes('taxName')) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
       const description = text(item.description, 'A line', 200);
       // 4J20: the amount as typed or in minor units, and the rate as typed (a percentage) or in basis points; one of each.
-      const amount = typedOrMinor(item.amount, item.amountMinor, 'A line amount');
+      const amount = typedOrMinor(item.amount, item.amountMinor, 'A line amount', this.currency());
       if ((item.taxRate === undefined) === (item.taxRateBps === undefined)) throw new EngineError('INVALID_TAX_RATE', 'Give the tax rate once, like 18 for 18%, or 0 for no tax.');
       const typedRate = item.taxRate === undefined ? null : /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(String(item.taxRate).replace(/[\s%]/g, ''));
       if (item.taxRate !== undefined && !typedRate) throw new EngineError('INVALID_TAX_RATE', 'The tax rate must be a rate like 18 or 8.25.');
@@ -155,7 +155,7 @@ export class FakeBills {
     // The real bill takes a waiting expected one's place, keeping its repeat unless told.
     const expected = this.mine().find((b) => b.status === 'draft' && vendorKey(b.vendor) === vendorKey(vendor));
     const recurring = p.recurring === undefined ? (expected?.recurring ?? null) : (p.recurring as HeldBill['recurring']);
-    const fields = { vendor, lines, billDate: p.billDate, dueDate: p.dueDate, recurring, status: 'posted' as const, total };
+    const fields = { vendor, currency: this.currency(), lines, billDate: p.billDate, dueDate: p.dueDate, recurring, status: 'posted' as const, total };
     let bill: HeldBill;
     if (expected) {
       Object.assign(expected, fields);
@@ -171,16 +171,16 @@ export class FakeBills {
   private pay(p: Record<string, unknown>): { bill: BillView; receiptId?: string } {
     const bill = this.mine().find((b) => b.id === p.billId);
     if (!bill) throw new EngineError('INVALID_VENTURE_REQUEST', 'This bill was not found.');
-    const amount = typedOrMinor(p.amount, p.amountMinor, 'The payment');
+    const amount = typedOrMinor(p.amount, p.amountMinor, 'The payment', bill.currency);
     if (typeof p.paidOn !== 'string' || !DATE.test(p.paidOn)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Date paid must be a date like 2026-10-15.');
     if (!(PAYMENT_METHODS as readonly string[]).includes(String(p.method)) && p.method !== 'cheque') throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose how you paid it.');
     const balance = bill.total - bill.paid;
-    if (amount > balance) throw new EngineError('BILL_PAYMENT_TOO_LARGE', balance <= 0 ? 'This bill is already paid in full.' : `This is more than the ${inr(balance)} left to pay on this bill.`);
+    if (amount > balance) throw new EngineError('BILL_PAYMENT_TOO_LARGE', balance <= 0 ? 'This bill is already paid in full.' : `This is more than the ${this.money(balance, bill.currency)} left to pay on this bill.`);
     bill.paid += amount;
     bill.status = 'posted';
-    this.payments.push({ billId: bill.id, vendor: bill.vendor, paidOn: p.paidOn, amount });
+    this.payments.push({ billId: bill.id, vendor: bill.vendor, paidOn: p.paidOn, amount, currency: bill.currency });
     const id = `R-0${this.receiptSeq++}`;
-    this.receipts.push({ id, at: this.host.now(), stale: false, explanation: `A payment you made of the ${bill.vendor} bill on ${p.paidOn}, counted in your costs.`, figures: [{ key: 'total', label: 'Costs', display: inr(amount) }] });
+    this.receipts.push({ id, at: this.host.now(), stale: false, explanation: `A payment you made of the ${bill.vendor} bill on ${p.paidOn}, counted in your costs.`, figures: [{ key: 'total', label: 'Costs', display: this.money(amount, bill.currency) }] });
     return { bill: this.view(bill), receiptId: id };
   }
 

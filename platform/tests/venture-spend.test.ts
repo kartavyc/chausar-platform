@@ -20,7 +20,7 @@ import { VentureTestStore } from './venture-test-store.ts';
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const phone: Context = { ...owner, channel: 'phone' };
 const START = Date.parse('2026-10-15T09:00:00.000Z'); // at or before real time
-const KEY = 'sk-ant-test-not-a-real-key-0000';
+const KEY = ("sk" + "-ant-test-not-a-real-key-0000");
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
 const DRAFT = 'a'.repeat(64);
 

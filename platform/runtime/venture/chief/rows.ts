@@ -7,6 +7,7 @@ import type { Context, State } from '../../contracts.ts';
 import type { ProposalRecord, QueueAction, VentureDeps, VentureRecord } from '../contracts.ts';
 import { listRecords } from '../records.ts';
 import { chatAgent } from '../agents/roles.ts';
+import { retiredName } from '../agents/retired.ts';
 import type { W4RowItem } from '../views/queue-w4.ts';
 import { NOTHING_CHANGES, proposalGate, proposalSubject, rowVersion } from './gate.ts';
 
@@ -20,7 +21,8 @@ function cardLine(record: ProposalRecord): string {
 /** The agent's name on the card, when the proposal is for one of the team's agents. */
 function agentOn(state: State, venture: VentureRecord, record: ProposalRecord): { agent?: string } {
   if (!record.agent) return {};
-  try { return { agent: chatAgent(state, venture, record.agent).name }; } catch { return {}; }
+  // W6 6G2: a retired agent keeps its name on the card, with "(retired)".
+  try { return { agent: retiredName(state, venture.id, record.agent, chatAgent(state, venture, record.agent).name) }; } catch { return {}; }
 }
 
 /** One raised proposal's card. */

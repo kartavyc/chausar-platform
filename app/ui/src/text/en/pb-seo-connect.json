@@ -1,0 +1,20 @@
+{
+ "pb-seo-connect.title":"Search publishing connections",
+ "pb-seo-connect.scope":"Credentials stay in this open session. WordPress saves drafts only; you publish them yourself.",
+ "pb-seo-connect.wordpress":"Connect WordPress",
+ "pb-seo-connect.url":"WordPress site",
+ "pb-seo-connect.username":"WordPress username",
+ "pb-seo-connect.password":"Application password",
+ "pb-seo-connect.removeWordpress":"Remove WordPress connection",
+ "pb-seo-connect.edge":"Advanced: Cloudflare overrides",
+ "pb-seo-connect.edgeScope":"Use an existing Worker and KV namespace prepared by your developer. Every key change is reviewed separately and keeps its previous value for undo.",
+ "pb-seo-connect.site":"Client website",
+ "pb-seo-connect.account":"Cloudflare account ID",
+ "pb-seo-connect.namespace":"KV namespace ID",
+ "pb-seo-connect.token":"Cloudflare API token",
+ "pb-seo-connect.connectEdge":"Connect Cloudflare",
+ "pb-seo-connect.removeEdge":"Remove Cloudflare connection",
+ "pb-seo-connect.connected":"Connected for this session. Each change still asks.",
+ "pb-seo-connect.removed":"Connection removed.",
+ "pb-seo-connect.failed":"Could not save this connection. Check the site and credentials."
+}

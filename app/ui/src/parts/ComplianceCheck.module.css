@@ -1,0 +1,98 @@
+/* The day-job and compliance check onboarding mounts (ComplianceCheck.tsx, W6 6C6). Tokens only. */
+
+.check {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.question {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--mute);
+}
+
+.choices {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choices legend {
+  padding: 0;
+}
+
+.choice {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.list {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding-left: var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.tag {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+/* W6 6E6: the official page a checked statute was read on. */
+.source {
+  font-size: var(--text-label);
+  color: var(--link);
+}
+
+/* W6 F4: what a statute's size threshold counts, under its line. */
+.size {
+  display: block;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+/* W6 (3 November 2026): what applies at the owner's size, under the size line. */
+.verdict {
+  display: block;
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
+.subheading {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--wait);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}

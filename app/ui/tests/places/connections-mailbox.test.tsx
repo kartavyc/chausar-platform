@@ -46,7 +46,7 @@ describe('Connections: the mailbox', () => {
     expect(password.closest('form')).toBeNull();
     expect(card.textContent).toContain("Make one in your mail account's security settings. Chausar keeps it only while the app is open.");
     expect(card.querySelector('[data-oauth-line]')?.textContent).toBe("An account that allows only Google or Microsoft sign-in can't connect this way. Record replies by hand instead.");
-    expect(card.textContent).toContain('It never sends mail or marks it read.');
+    expect(card.textContent).toContain('Never sends mail or marks it read.');
     assertInkRules(document.body);
   });
 

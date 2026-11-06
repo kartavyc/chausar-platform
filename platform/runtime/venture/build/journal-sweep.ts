@@ -14,12 +14,15 @@ import { reworkTiesDaily } from '../network/strength.ts';
 import { readCalendarFeedDaily } from '../network/calendar-feed.ts';
 import { settleInbound } from '../network/inbound-rows.ts';
 import { runMoneySchedules } from '../money/recurring.ts';
+import { recoverNativeJobs } from '../agent-runtime/recovery.ts';
 
 /** The longest any journalled effect may take before its claim counts as interrupted: a turn on the owner's AI with its tools. */
 export const JOURNAL_CLAIM_LIMIT_MS = 30 * 60_000;
 
 /** Sweeps every kind of journalled effect of the open business. Returns what moved. */
 export async function sweepWholeJournal(deps: VentureDeps, ctx: Context, claimLimitMs: number = JOURNAL_CLAIM_LIMIT_MS): Promise<Journalled[]> {
+  // The host uses a one-millisecond claim limit on vault open. Ordinary ticks must not interrupt startup work.
+  if (claimLimitMs === 1) await recoverNativeJobs(deps, ctx);
   const posts = await sweepStaleClaims(deps, ctx);
   const rest = await sweepJournal(deps, ctx, {
     claimLimitMs,
@@ -42,6 +45,11 @@ export async function sweepWholeJournal(deps: VentureDeps, ctx: Context, claimLi
   }
   await reworkTiesDaily(deps, ctx); // 4D2: once a day, every tie worked out again as they fade (records its own failure)
   await readCalendarFeedDaily(deps, ctx); // 4E3: each morning, the owner's calendar address read again (records its own failure)
+  await import('../playbooks/monitored-data/schedule.ts').then(module => module.checkWatchedSourcesDue(deps, ctx)).catch(() => undefined); // 5R5: exact-approved selected source checks
+  await import('./monitors.ts').then(module => module.checkMonitorsDue(deps, ctx)).catch(() => undefined); // 5A6 (K16): due page monitors (never throws)
+  await import('../playbooks/seo-visibility/monitor-desk.ts').then(module => module.runSeoMonitorsDue(deps, ctx)).catch(() => undefined); // 5E1: exact-approved bounded evidence collection
+  await import('../playbooks/seo-visibility/site-recheck.ts').then(module => module.runWebsiteRechecksDue(deps, ctx)).catch(() => undefined); // 5E1: approved installed website re-checks
+  await import('../playbooks/social/scheduled.ts').then(module => module.runSocialScheduledDue(deps, ctx)).catch(() => undefined); // 5D1 S12: exact approved single slots
   await settleInbound(deps, ctx); // 4E3: replies whose row can no longer be are marked processed, so unread means unread
   await runMoneySchedules(deps, ctx); // 4J5: recurring invoices and bills due today, or missed, drafted (never throws)
   await import('../agents/routine-runner.ts').then(module => module.routineTick(deps, ctx, claimLimitMs)).catch(() => undefined); // 4J13: leases, timed questions, routines (never throws)

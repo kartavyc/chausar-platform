@@ -17,7 +17,7 @@ import { assertInkRules } from '../helpers/ink-rules';
  */
 
 type Intercept = (params: unknown, original: () => Promise<unknown>) => unknown;
-interface Start { hash?: string; language?: 'en' | 'hi'; hosted?: boolean; engine?: FakeEngine; intercept?: Partial<Record<MethodName, Intercept>> }
+interface Start { hash?: string; language?: 'en'; hosted?: boolean; engine?: FakeEngine; intercept?: Partial<Record<MethodName, Intercept>> }
 function start({ hash = '#/connections', language = 'en', hosted = false, engine, intercept = {} }: Start = {}) {
   window.location.hash = hash;
   const fake = createFakeClient(engine ?? new FakeEngine(hosted ? { hosted: true } : undefined));
@@ -62,25 +62,25 @@ const MISMATCH: CliStatusView = {
   ...SEEN, flags: 'mismatch', missingFlags: ['--output-schema', '--sandbox'], state: 'needs-setup',
   line: "Your Codex 0.131.0 doesn't know --output-schema and --sandbox.", fix: 'Update it, or use an OpenAI key.',
 };
-// Only Codex ran: Claude Code is located, never run, behind the terms gate (cli-status.ts cliListLine).
-const LIST_LINE = 'Chausar ran only the version, help and sign-in commands of Codex on this computer. It never reads its sign-in files or keys.';
+// Both enabled tools answered their harmless status commands (cli-status.ts cliListLine).
+const LIST_LINE = 'Chausar ran only the version, help and sign-in commands of Claude Code and Codex on this computer. It never reads their sign-in files or keys.';
 const CODEX_FIX = "Chausar's reviewed setup for Codex isn't on this computer yet. Use an OpenAI key for now.";
 
 describe('the fake engine answers the CLI status and the role models as the engine does', () => {
-  it('on the desktop: Claude Code waits on the terms (located, never run) and Codex on its reviewed setup, in that order', async () => {
+  it('on the desktop: Claude Code is enabled and unverified, and Codex waits on its reviewed setup', async () => {
     const answer = (await new FakeEngine().request('venture.models.cli.status', {})) as { clis: CliStatusView[]; line: string };
     expect(answer.line).toBe(LIST_LINE);
     expect(answer.clis.map((c) => c.cli)).toEqual(['claude-code', 'codex']);
     const [claude, codex] = answer.clis as [CliStatusView, CliStatusView];
     expect(claude).toMatchObject({
-      label: 'Claude Code', terms: 'pending', version: null, flags: 'unknown', signedIn: 'unknown', state: 'needs-setup', lastTask: null,
-      line: "Chausar hasn't yet accepted Anthropic's terms for running Claude Code.", fix: 'Use an Anthropic key for now.',
+      label: 'Claude Code', terms: 'accepted', version: '2.3.1', flags: 'match', signedIn: 'yes', state: 'unverified', lastTask: null,
+      line: 'Claude Code 2.3.1 is on this computer and signed in. Not yet tried on a real task.', fix: null,
     });
     expect(codex).toMatchObject({ label: 'Codex', terms: 'not-needed', flags: 'match', state: 'needs-setup', fix: CODEX_FIX });
     // The home folder shows as ~ (cli-status.ts homePath).
     expect(claude.path).toBe('~\\.local\\bin\\claude.exe');
     // The preset list says the same thing the status does.
-    expect(MODEL_PRESETS.find((p) => p.id === 'claude-code-cli')!.availabilityReason).toBe(`${claude.line} ${claude.fix}`);
+    expect(MODEL_PRESETS.find((p) => p.id === 'claude-code-cli')!.availability).toBe(claude.state);
     expect(MODEL_PRESETS.find((p) => p.id === 'codex-cli')!.availabilityReason).toBe(codex.fix);
     // Never signed in without the tool's own status command saying so, and never ready before a real task worked.
     for (const view of answer.clis) {
@@ -118,19 +118,20 @@ describe('Your AI: Your AI apps', () => {
     const section = await region('Your AI apps');
     await within(section).findByText('Claude Code', { selector: 'h3' });
     const claude = tool(section, 'Claude Code');
-    // The terms gate is pending: said plainly, never drawn as available.
-    expect(claude.querySelector('[data-cli-state]')!.getAttribute('data-cli-state')).toBe('needs-setup');
-    expect(claude.textContent).toContain('Needs setup');
+    // Enabled does not claim that a real task has worked.
+    expect(claude.querySelector('[data-cli-state]')!.getAttribute('data-cli-state')).toBe('unverified');
+    expect(claude.textContent).toContain('Not yet tried');
     expect(claude.textContent).not.toContain('Ready');
-    expect(claude.textContent).toContain("Chausar hasn't yet accepted Anthropic's terms for running Claude Code.");
-    expect(claude.querySelector('[data-fix-line]')!.textContent).toBe('Use an Anthropic key for now.');
-    // Not ready: the fix is the next step, at rest; the engine's line and the facts are one fold away.
+    expect(claude.textContent).not.toContain('terms');
+    expect(claude.querySelector('[data-fix-line]')).toBeNull();
+    // Untried: the line is at rest and tool facts are one fold away.
     const fold = claude.querySelector('details')!;
     expect(fold.open).toBe(false);
     expect(fold.contains(claude.querySelector('[data-fix-line]'))).toBe(false);
-    expect(fold.contains(within(claude).getByText("Chausar hasn't yet accepted Anthropic's terms for running Claude Code."))).toBe(true);
+    expect(fold.contains(claude.querySelector('[data-cli-line]'))).toBe(false);
     fireEvent.click(within(claude).getByText('Details'));
-    expect(facts(claude)).toMatchObject({ Found: 'Yes', Version: 'Not read', Flags: 'Not checked', 'Signed in': "Can't tell yet", 'Anthropic terms': 'Not yet accepted by Chausar', 'Last task': 'None yet' });
+    expect(facts(claude)).toMatchObject({ Found: 'Yes', Version: '2.3.1', Flags: 'Knows every flag Chausar uses', 'Signed in': 'Yes', 'Last task': 'None yet' });
+    expect(facts(claude)['Anthropic terms']).toBeUndefined();
     const codex = tool(section, 'Codex');
     expect(codex.textContent).toContain('Codex 0.131.0 is on this computer. Chausar runs it only through the reviewed Codex setup.');
     expect(codex.querySelector('[data-fix-line]')!.textContent).toBe(CODEX_FIX);
@@ -377,15 +378,6 @@ describe('Team: which AI serves each role', () => {
   });
 });
 
-describe('in Hindi', () => {
-  it('the CLI tile and the agent panel speak Hindi, with the engine words kept as they are', async () => {
-    start({ language: 'hi' });
-    const section = await region('आपके AI ऐप');
-    await within(section).findByText('Claude Code', { selector: 'h3' });
-    expect(within(section).getByRole('button', { name: 'फिर से जाँचें' })).toBeTruthy();
-    expect(section.textContent).toContain("Chausar hasn't yet accepted Anthropic's terms for running Claude Code.");
-    expect(section.textContent).not.toMatch(/connections\.cli\./);
-  });
-});
+
 
 vi.setConfig({ testTimeout: 15_000 });

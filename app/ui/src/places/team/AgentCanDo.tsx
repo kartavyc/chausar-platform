@@ -4,6 +4,7 @@ import { useResource } from '../../engine/context';
 import type { AgentView, CapabilityItemView } from '../../engine/types';
 import { Chip, type ChipTone } from '../../parts/Chip';
 import { AgentSkills } from './AgentSkills';
+import { capabilityPageWords, capabilityWords } from './CapabilityWords';
 import s from './AgentExtras.module.css';
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -15,10 +16,10 @@ const LISTS: readonly CapabilityItemView['list'][] = ['see', 'do', 'off'];
 /**
  * The agent panel's Can do tab (W4 4J22b): its skills (AgentSkills), then its capability page (4J18's capabilities.ts;
  * catalogue A16): what the agent can see, what it
- * can do, and "If it is off here, it can't do it", each line in the engine's words with its honest state worded here
+ * can do, and "If it is off here, it can't do it", with exact known static lines localized and honest states worded here
  * (works, reads, only recorded, you pass it on, planned, off). The engine's line on top says the order's AI team
  * shares one tool list, and the list itself says each step goes to the owner's own AI provider. Nothing is claimed
- * beyond what the engine lists; an empty list is said as the engine says it, never as everything.
+ * beyond what the engine lists. Changed evidence and client-authored step purposes stay verbatim.
  */
 export function AgentCanDo({ agent, onTry }: { agent: AgentView; onTry: (starter: string) => void }) {
   const t = useT();
@@ -30,7 +31,7 @@ export function AgentCanDo({ agent, onTry }: { agent: AgentView; onTry: (starter
   return (
     <div className={s.tab}>
       <AgentSkills agent={agent} onTry={onTry} />
-      <p className={s.line}>{page.line}</p>
+      <p className={s.line}>{capabilityPageWords(t, page.line)}</p>
       {LISTS.map((list) => {
         const items = page.items.filter((item) => item.list === list);
         const headId = `${base}-${list}`;
@@ -41,7 +42,7 @@ export function AgentCanDo({ agent, onTry }: { agent: AgentView; onTry: (starter
               {items.map((item) => (
                 <li key={`${item.key}:${item.line}`} className={s.item} data-item="">
                   <span data-state={item.state} className={s.state}><Chip tone={TONE[item.state]}>{t(`team.cando.state.${item.state}`)}</Chip></span>
-                  <span className={s.itemLine}>{item.line}</span>
+                  <span className={s.itemLine}>{capabilityWords(t, item.key, item.line)}</span>
                 </li>
               ))}
             </ul>

@@ -24,7 +24,7 @@ test('practice clients: every template client lists the rules judge among its ch
 test('practice clients of a CA firm get a rules judge result over the CA rules; a plain business gets the draft rules', async () => {
   const ca = await business(CA_IDEA);
   const run = await ca.call('venture.simulation.run', {});
-  assert.deepEqual(run.scenarioIds, ['bookkeeping-clean', 'bookkeeping-messy', 'bookkeeping-pushback']);
+  assert.deepEqual(run.scenarioIds, ['ca-firm-clean', 'ca-firm-messy', 'ca-firm-pushy']);
   for (const id of run.scenarioIds) {
     const episode = run.episodes.find((item: any) => item.scenarioId === id);
     const judged = episode.checks.find((item: any) => item.check === 'rules-judge');
@@ -55,6 +55,6 @@ test('practice with built-in templates: no rules judge result, and the runs view
   const detail = await env.call('venture.runs.get', { runId: run.id });
   for (const step of detail.steps) {
     // 4J14 (Q7): a judge that was never asked did not run, so it reads "Not run" from the one table.
-    assert.ok(step.evidence?.some((item: any) => item.id === 'rules-judge' && item.label === 'Not run: no judge connected.'), JSON.stringify(step));
+    assert.ok(step.evidence?.some((item: any) => item.id === 'rules-judge' && item.label === 'Not run: no quality check connected.'), JSON.stringify(step));
   }
 });

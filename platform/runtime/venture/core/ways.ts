@@ -9,10 +9,15 @@
 import type { State } from '../../contracts.ts';
 import type { WaysView, WayView } from '../contracts.ts';
 import { currentVenture, exactPayload } from '../records.ts';
-import { PLAYBOOK_REGISTRY, pickPlaybook, type PlaybookRegistration } from '../playbooks/registry.ts';
+import { currentRegistry, pickPlaybook, type PlaybookRegistration } from '../playbooks/registry.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
 import { departmentOfRole, departmentOfService } from '../playbooks/departments.ts';
-import { UP_TO_HOURS, UP_TO_WORDS, WAY_AI_NEED, WAY_CATEGORIES, WAY_SOURCE, WAYS, type WayData } from '../playbooks/ways.ts';
+import { UP_TO_HOURS, UP_TO_WORDS, WAY_AI_NEED, WAY_CATEGORIES, WAY_SAVES_SOURCE, WAY_SOURCE, WAYS, type WayData } from '../playbooks/ways.ts';
+import { kitDefinitions } from '../playbooks/kit/installed.ts';
+import { kitWay } from '../playbooks/kit/tile.ts';
+import { wayPrice } from './price-ranges.ts';
+import { familiesForPlaybook } from './professions.ts';
+import { FAMILIES } from './families.ts';
 
 /** A business on this computer as a way sees it: its folder id, its name, and the playbook its idea picks (or none). */
 export type WayBusiness = { businessId: string; name: string; playbook: string | null };
@@ -29,30 +34,43 @@ export function initialsOf(name: string): string {
 const RUPEES = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 const rupees = (amount: number) => `₹${RUPEES.format(amount)}`;
 
+/**
+ * W6 6C3 (D17): what clients usually pay. A sourced range that prices the way's own service replaces the model
+ * estimate (its words, unit and publishers with the date checked); otherwise the model estimate stays with its basis.
+ * The profession's guide rides along either way, so the gallery can show its sources or "No reliable data".
+ */
+function clientsPayOf(way: WayData, estimate: string): WayView['clientsPay'] {
+  const price = wayPrice(way.playbook);
+  const guide = price ? { guide: price.guide } : {};
+  if (price?.range && price.source) return { text: price.range.text, per: price.range.per, estimate: false, source: price.source, ...guide, rangeId: price.range.id };
+  return { text: estimate, per: way.en.per, estimate: true, source: WAY_SOURCE.en, ...guide };
+}
+
 /** One way's view, or null when its playbook is not registered or does not deliver: no tile for an unbuilt one. */
 function wayView(way: WayData, registry: readonly PlaybookRegistration[], businesses: readonly WayBusiness[]): WayView | null {
   const registration = registry.find(entry => entry.id === way.playbook);
   const delivery = registration ? flagshipDelivery(registration.id) : null;
   if (!registration || !delivery) return null;
-  // The AI team is the playbook's agents only: its code (checks, the calculator) is never shown as AI.
-  const agents = delivery.roles.filter(role => role.kind === 'agent');
+  // The AI team is the playbook's agents only: its code (checks, the calculator) is never shown as AI. A tile that names
+  // its team (Ink v2 wave 5, 5A1) shows those roles, in its order.
+  const shown = way.team ? way.team.flatMap(id => delivery.roles.filter(role => role.id === id)) : delivery.roles;
+  const agents = shown.filter(role => role.kind === 'agent');
   const team = agents.map(role => ({ role: role.name, initials: initialsOf(role.name), department: departmentOfRole(delivery, role.id) }));
-  const pay = { en: `${rupees(way.pay.minRupees)} to ${rupees(way.pay.maxRupees)}`, hi: `${rupees(way.pay.minRupees)} से ${rupees(way.pay.maxRupees)}` };
+  // W6 F4: a desk for the owner's own use shows what it saves them (a model estimate), never what clients pay.
+  const value: Pick<WayView, 'clientsPay' | 'saves'> = way.saves
+    ? { saves: { text: `${way.saves.min} to ${way.saves.max} h a month`, line: way.saves.line, estimate: true, source: WAY_SAVES_SOURCE.en } }
+    : way.pay ? { clientsPay: clientsPayOf(way, `${rupees(way.pay.minRupees)} to ${rupees(way.pay.maxRupees)}`) } : {};
   return {
     id: way.playbook, playbook: way.playbook, label: way.en.label, category: way.category,
     department: departmentOfService(registration.serviceType), line: way.en.line,
     hours: `${way.hours.min} to ${way.hours.max} h a week`, minHours: way.hours.min, maxHours: way.hours.max, hoursEstimate: true,
     youDo: way.en.youDo, team, teamLine: way.en.teamLine,
-    clientsPay: { text: pay.en, per: way.en.per, estimate: true, source: WAY_SOURCE.en },
+    ...value,
     needs: { ai: WAY_AI_NEED.en, connections: way.en.needs },
     starter: way.en.starter,
     yours: businesses.filter(business => business.playbook === way.playbook).map(business => ({ businessId: business.businessId, name: business.name })),
-    hi: {
-      label: way.hi.label, line: way.hi.line, hours: `हफ़्ते में ${way.hours.min} से ${way.hours.max} घंटे`, youDo: way.hi.youDo,
-      team: agents.map(role => way.roles[role.id] ?? role.name), teamLine: way.hi.teamLine,
-      pay: pay.hi, per: way.hi.per, source: WAY_SOURCE.hi, starter: way.hi.starter,
-      needs: { ai: WAY_AI_NEED.hi, connections: way.hi.needs },
-    },
+    families: familiesForPlaybook(way.playbook),
+
   };
 }
 
@@ -67,9 +85,13 @@ export function waysView(data: readonly WayData[], registry: readonly PlaybookRe
     .map(way => (way ? wayView(way, registry, businesses) : null))
     .filter((way): way is WayView => way !== null);
   const categories = WAY_CATEGORIES
-    .map(category => ({ id: category.id, label: category.en, hi: category.hi, count: ways.filter(way => way.category === category.id).length }))
+    .map(category => ({ id: category.id, label: category.en,  count: ways.filter(way => way.category === category.id).length }))
     .filter(category => category.count > 0);
-  return { ways, categories, upTo: { maxHours: UP_TO_HOURS, label: UP_TO_WORDS.en, hi: UP_TO_WORDS.hi, count: waysUpTo(ways, UP_TO_HOURS).length } };
+  // W6 6E6 (D2): the families, in their order, that have at least one way, with the count of ways serving each.
+  const families = FAMILIES
+    .map(family => ({ id: family.id, label: family.label, count: ways.filter(way => way.families.includes(family.id)).length }))
+    .filter(family => family.count > 0);
+  return { ways, categories, upTo: { maxHours: UP_TO_HOURS, label: UP_TO_WORDS.en,  count: waysUpTo(ways, UP_TO_HOURS).length }, families };
 }
 
 /**
@@ -78,7 +100,8 @@ export function waysView(data: readonly WayData[], registry: readonly PlaybookRe
  */
 export function listWays(payload: unknown, businesses: readonly WayBusiness[] = []): WaysView {
   exactPayload(payload, []);
-  return waysView(WAYS, PLAYBOOK_REGISTRY, businesses);
+  // Ink v2 wave 5 (5A1): every kit playbook that landed has its tile from its definition (playbooks/kit/tile.ts).
+  return waysView([...WAYS, ...kitDefinitions().map(kitWay)], currentRegistry(), businesses);
 }
 
 /** The open business as a way's "You run this": its name and the playbook its idea picks, or null with no business. */
@@ -98,9 +121,9 @@ export function waysUpTo<T extends Pick<WayView, 'maxHours'>>(ways: readonly T[]
  * fewest hours goes by the most hours a week, then the fewest, then the name; name goes by the shown name in the
  * owner's language.
  */
-export function orderWays(ways: readonly WayView[], by: WaySort, fitWayId: string | null = null, language: 'en' | 'hi' = 'en'): WayView[] {
-  const nameOf = (way: WayView) => (language === 'hi' ? way.hi.label : way.label);
-  const locale = language === 'hi' ? 'hi-IN' : 'en-IN';
+export function orderWays(ways: readonly WayView[], by: WaySort, fitWayId: string | null = null, _language: 'en' = 'en'): WayView[] {
+  const nameOf = (way: WayView) => way.label;
+  const locale = 'en-IN';
   const byName = (a: WayView, b: WayView) => nameOf(a).localeCompare(nameOf(b), locale);
   const list = [...ways];
   if (by === 'name') return list.sort(byName);

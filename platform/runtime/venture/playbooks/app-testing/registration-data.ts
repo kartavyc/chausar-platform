@@ -1,0 +1,2 @@
+import type {PlaybookRegistration} from '../registry.ts';
+export const APP_TESTING_REGISTRATION_DATA:PlaybookRegistration={id:'app-testing',label:'App testing and demo videos',serviceType:'consulting',picks:['app testing service','mobile app testing','qa for apps','demo video service','product demo videos','tutorial videos for software'],summary:"Agents test small makers' Android apps on an emulator on this computer and record software demos in a throwaway desktop; you review every finding and every video.",riskLevel:'high',lastReviewed:'2026-10-29'};

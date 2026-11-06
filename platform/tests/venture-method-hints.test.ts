@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS, W4_METHOD_LEVELS, W4_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS, W4_METHOD_LEVELS, W4_METHODS, W5_METHOD_LEVELS, W5_METHODS } from '../runtime/venture/contracts.ts';
 import { METHOD_HINTS, METHOD_LEVEL_OF } from '../runtime/venture/method-hints.ts';
 import { ACTOR_ACTIONS } from '../runtime/hosted/runtime/contract.ts';
 import { VentureHost } from '../runtime/venture/host.ts';
@@ -21,10 +21,20 @@ const UI_METHODS = [...block.matchAll(/^\s*'([a-z]+(?:\.[A-Za-z]+)+)':/gm)].map(
 const venture = (methods: readonly string[]) => [...new Set(methods.filter(method => method.startsWith('venture.')))].sort();
 const sorted = (methods: readonly string[]) => [...methods].sort();
 
-test('the pinned counts: 268 venture methods, 256 reached through the hosted host', () => {
-  assert.equal(VENTURE_METHODS.length, 268);
+test('the pinned counts: 383 venture methods, 363 reached through the hosted host', () => {
+  // Wave 6 adds consent, native settings and exact approvals, and removes three obsolete turn methods. 6C1 and 6C2 add
+  // six draft methods (not hosted); 6C7 adds venture.needs.list, which the hosted host reaches. 6D adds billing get and
+  // set, the invoice PDF and Razorpay payment links, all reached (hosted has no print port or key storage, and says so). 6C5
+  // adds rule locks and attestation and 6C6 compliance set, all reached; compliance get also answers before any vault.
+  // 6F6 adds venture.notify.telegram and 6F7 venture.phone.access, both reached (hosted refuses each in plain words).
+  // 6F1 adds the curated MCP list and OAuth sign-in, and 6F2 lists, adds and removes packs: five more, all reached.
+  // 6F3 adds web search and read, 6F8 people services and lookup, and 6F4 webhook send: five more, all reached.
+  // Batch 7: 6G1 chat states (2), 6G2 retire, retired shelf and bring back (3), 6G3 CRM and 6G4 dated facts (16), all reached.
+  // Batches 8 and 9: 6H1 mini apps (10), 6H2 recorded flows (2), 6H3 layout (2), 6I1 push-to-talk (6), all reached.
+  // Batch 10: 6J2 feedback (6), all reached (hosted has no report keys composed and says so).
+  assert.equal(VENTURE_METHODS.length, 383);
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 256);
+  assert.equal(hosted.length, 363);
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 
@@ -54,6 +64,8 @@ test('every hint is the four booleans and nothing else', () => {
 
 test('every read-level method is readOnly, and only reads are; a read is safe to repeat and has nothing to undo', () => {
   for (const method of W4_METHODS) assert.equal(METHOD_LEVEL_OF[method], W4_METHOD_LEVELS[method], `${method}: wave 4 levels are the contract's`);
+  // 5-0: and wave 5's.
+  for (const method of W5_METHODS) assert.equal(METHOD_LEVEL_OF[method], W5_METHOD_LEVELS[method], `${method}: wave 5 levels are the contract's`);
   for (const method of VENTURE_METHODS) {
     const hint = METHOD_HINTS[method];
     const read = METHOD_LEVEL_OF[method] === 'read';
@@ -68,7 +80,7 @@ test('what the hints say about the methods that matter most', () => {
     assert.equal(METHOD_HINTS[method].undoable, false, method);
   }
   // Each one that sends something off this computer says so.
-  for (const method of ['venture.delivery.approve', 'venture.delivery.judgeSend', 'venture.posting.signIn', 'venture.site.apply', 'venture.share.create', 'venture.mailbox.sync', 'venture.agents.thread.send', 'venture.chief.thread.send', 'venture.queue.decide'] as const) {
+  for (const method of ['venture.delivery.judgeSend', 'venture.posting.signIn', 'venture.site.apply', 'venture.share.create', 'venture.mailbox.sync', 'venture.agents.thread.send', 'venture.chief.thread.send', 'venture.queue.decide'] as const) {
     assert.equal(METHOD_HINTS[method].reachesOutside, true, method);
   }
   // A handoff opens the owner's own mail or LinkedIn; Chausar never sends it.

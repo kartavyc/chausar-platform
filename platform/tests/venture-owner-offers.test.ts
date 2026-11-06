@@ -128,7 +128,7 @@ test('owner offers: words hold no price or number, the plan\'s own offers stay, 
   });
 });
 
-test('owner offers: on a flagship playbook\'s plan the playbook\'s offers stay untouched, and a rewrite keeps the added one', async t => {
+test('owner offers: on a flagship work plan\'s plan the work plan\'s offers stay untouched, and a rewrite keeps the added one', async t => {
   const { engine } = await engineFor(t, { transport: replay([]) });
   await engine.request('workspace.create', { name: 'Lumen Studio', passphrase: PASSPHRASE, pack: 'services' });
   await engine.request('venture.create', { idea: 'Run a YouTube channel that explains personal finance in plain words', countryCode: 'IN', workingName: 'Lumen Studio' });

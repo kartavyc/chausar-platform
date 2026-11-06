@@ -1,0 +1,16 @@
+{
+ "pb-seo-strategy.title":"Learn from a measured experiment",
+ "pb-seo-strategy.boundary":"Choose checked article evidence and a frozen panel for the same order. Learning waits for a verified publication and complete baseline and later captures. Two flat windows stop the experiment.",
+ "pb-seo-strategy.work":"Checked article evidence",
+ "pb-seo-strategy.panel":"Frozen answer panel",
+ "pb-seo-strategy.panelNumber":"Panel {number}: {questions} questions",
+ "pb-seo-strategy.start":"Start this experiment",
+ "pb-seo-strategy.experiment":"Experiment {number}",
+ "pb-seo-strategy.publication":"Verified published article",
+ "pb-seo-strategy.measure":"Check the completed windows",
+ "pb-seo-strategy.state.candidate":"Candidate saved. Complete the publication and observation evidence before learning from it.",
+ "pb-seo-strategy.state.held":"Held until the complete, unchanged evidence supports a result.",
+ "pb-seo-strategy.state.remembered":"Remembered from the measured experiment. This is evidence, not a ranking promise.",
+ "pb-seo-strategy.state.stopped":"Stopped after two flat windows.",
+ "pb-seo-strategy.failed":"Could not bind this experiment. Recheck the article source, same-order panel and verified publication."
+}

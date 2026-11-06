@@ -168,7 +168,7 @@ export function TodayGoal({ next, spans }: { next: NextStepHost; spans: boolean 
   const t = useT();
   const language = useLanguage();
   const phone = useNarrow();
-  const locale = language === 'hi' ? 'hi-IN' : 'en-IN';
+  const locale = 'en-IN';
   const goals = useResource('venture.goals.get', {}, { refreshOn: GOAL_EVENTS });
   const view = goals.data;
   const fallback = !view && Boolean(goals.error);

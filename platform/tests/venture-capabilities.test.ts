@@ -16,7 +16,7 @@ import { playbookSteps } from '../runtime/venture/delivery/playbook.ts';
 import { flagshipDelivery } from '../runtime/venture/playbooks/steps.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import {
-  capabilityPage, capabilityTeam, EFFECT_OFF_WORDS, INPUT_WORDS, NO_CLI, NO_TOOLS_LINE, TEAM_LINE, TOOL_WORDS, type CapabilityTeam,
+  capabilityPage, capabilityTeam, EFFECT_OFF_WORDS, INPUT_WORDS, NO_TOOLS_LINE, TEAM_LINE, TOOL_WORDS, type CapabilityTeam,
 } from '../runtime/venture/agents/capabilities.ts';
 import { business, code, owner, phone, PLAIN_IDEA } from './venture-judge-helpers.ts';
 import { agentBusiness } from './venture-agent-helpers.ts';
@@ -37,7 +37,7 @@ const step = (patch: Partial<PlaybookStep>): PlaybookStep => ({
   id: 'one', kind: 'gather', title: 'Read the order', tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: [], guidance: [], ...patch,
 });
 const teamOf = (steps: PlaybookStep[], patch: Partial<CapabilityTeam> = {}): CapabilityTeam => ({ steps, floor: {}, spends: new Set(), serviceType: null, flagship: true, ...patch });
-const desktop = { host: 'desktop' as const, delegate: true, judge: true };
+const desktop = { host: 'desktop' as const, judge: true };
 const ACT = new Set(['gather', 'question', 'work']);
 
 test('every tool, every input a turn carries and every effect kind have owner words: the page cannot drift', () => {
@@ -72,7 +72,7 @@ test('the fixed steps: the delivery agent shows the run\'s grant; the hands-on w
   const view = await page(env, 'delivery');
   const plan = listRecords(env.store.read(), 'venture-blueprint').find(entry => entry.status === 'accepted')!;
   const steps = playbookSteps(plan, null);
-  assert.deepEqual(toolsOn(view), [...playbookGrant({ steps })].sort());
+  assert.deepEqual(toolsOn(view), [...playbookGrant({ steps })].filter(name=>name!=='agent.delegate').sort());
   const work = item(view, 'step:work');
   assert.equal(work.state, 'planned', 'the owner\'s own hands-on work never shows as working');
   assert.equal(work.line, `${steps.find(entry => entry.id === 'work')!.title}. ${STEP_PLAN[1].note}`);
@@ -86,11 +86,13 @@ test('the Story editor: the team\'s tools, everything a turn carries, its step, 
   assert.equal(view.agent, 'story-editor');
   assert.deepEqual(keys(view, 'see'), [
     'tool:files.list', 'tool:files.read', 'tool:youtube.hooks', 'tool:youtube.editList', 'tool:youtube.chapters', 'tool:youtube.retention',
+    'tool:youtube.editOps', 'tool:youtube.clean', 'tool:youtube.captions', 'tool:youtube.coverage', 'tool:youtube.dictionary', 'tool:youtube.style', 'tool:youtube.clips', 'tool:youtube.broll', 'tool:youtube.beats',
+    'tool:youtube.afterPublish', 'tool:youtube.outliers', 'tool:youtube.niche', 'tool:youtube.comments', 'tool:youtube.publicStats', 'tool:youtube.archive',
     'input:request', 'input:files', 'input:dictionary', 'input:answers', 'input:notes', 'input:knowledge',
   ]);
   assert.ok(view.items.filter(entry => entry.list === 'see').every(entry => entry.state === 'reads'));
   assert.match(INPUT_WORDS.knowledge, /other clients/);
-  assert.deepEqual(keys(view, 'do'), ['step:find', 'tool:handoff.client', 'tool:handoff.owner', 'tool:evidence.record', 'model:provider']);
+  assert.deepEqual(keys(view, 'do'), ['step:find', 'tool:handoff.client', 'tool:handoff.owner', 'tool:evidence.record', 'tool:youtube.export', 'model:provider']);
   assert.equal(item(view, 'tool:handoff.client').state, 'hands-off');
   assert.equal(item(view, 'model:provider').line, 'Send each step, with what it reads, to your own AI provider: your key or the CLI you set up.');
   assert.deepEqual(keys(view, 'off'), ['effect:send', 'effect:money'], 'it reads beyond the order (sources), notes evidence and sends to your AI, so only send and money are off');
@@ -103,7 +105,7 @@ test('the Packager writes with no tools: it sees what the team found and the sou
   const env = await agentBusiness();
   const view = await page(env, 'packager');
   assert.deepEqual(keys(view, 'see'), ['input:request', 'input:proven', 'input:answers', 'input:knowledge']);
-  assert.deepEqual(view.canDo, ['Draft the title, thumbnail text, description, chapters and pinned comment. You check the draft before anything leaves Chausar.', item(view, 'model:provider').line]);
+  assert.deepEqual(view.canDo, ['Draft the title, thumbnail text, description, chapters and pinned comment. You check the draft before anything leaves Chausar.', 'Packaging per video. You check the draft before anything leaves Chausar.', 'Screencast tutorial. You check the draft before anything leaves Chausar.', item(view, 'model:provider').line]);
   assert.deepEqual(keys(view, 'off'), ['effect:read', 'effect:write', 'effect:send', 'effect:money']);
   assert.equal(view.line, NO_TOOLS_LINE);
 });
@@ -116,9 +118,9 @@ test('a code role reads the files by code (never "can\'t open" them); a floor th
   assert.equal(item(view, 'step:score').line, 'Score the hooks and keep the best two. Code does this, with no AI.');
   const assemble = item(view, 'step:assemble');
   assert.equal(assemble.state, 'planned');
-  assert.equal(assemble.line, "Build the edit list from the chosen segments, with any paid voice quoted first. Code does this, with no AI. Paid generation spends money, so it asks you first at every posture. Paying for it is planned: Chausar can't buy it yet, so nothing is spent.");
+  assert.equal(assemble.line, "Build the edit list from the chosen segments, with any paid voice quoted first. Code does this, with no AI. Paid generation spends money, so it asks you first with every approval setting. Paying for it is planned: Chausar can't buy it yet, so nothing is spent.");
   assert.ok(!keys(view, 'off').includes('effect:money'), 'a step that spends counts money as reached');
-  assert.equal(item(view, 'step:verify').line, 'Check the package and the finished cut. Code runs the checks, then an AI judge reads the draft on your own AI.');
+  assert.equal(item(view, 'step:verify').line, 'Check the package and the finished cut. Code runs the checks, then an AI quality check reads the draft on your own AI.');
   assert.equal(view.line, `Chausar is code, not AI: it does the same steps the same way every time. ${APPROVAL}`);
 });
 
@@ -127,16 +129,16 @@ test('the social checker: code checks, then the AI judge, or only code when the 
   const own = (role: string) => delivery.steps.filter(entry => delivery.roleOf[entry.id] === role);
   const team = teamOf([...delivery.steps], { floor: delivery.floor, spends: new Set(['creative-briefs']) });
   const on = capabilityPage({ id: 'checker', name: 'Checker', kind: 'agent', steps: own('checker') }, team, desktop);
-  assert.equal(item(on, 'step:check').line, 'Run the code checks, then the yes or no judge. Code runs the checks, then an AI judge reads the draft on your own AI.');
+  assert.equal(item(on, 'step:check').line, 'Run the code checks, then the yes or no quality check. Code runs the checks, then an AI quality check reads the draft on your own AI.');
   const off = capabilityPage({ id: 'checker', name: 'Checker', kind: 'agent', steps: own('checker') }, team, { ...desktop, judge: false });
-  assert.equal(item(off, 'step:check').line, 'Run the code checks, then the yes or no judge. Code runs the checks. The AI judge is off for this business.');
+  assert.equal(item(off, 'step:check').line, 'Run the code checks, then the yes or no quality check. Code runs the checks. The AI quality check is off for this business.');
   assert.ok(!on.items.some(entry => /with no AI/.test(entry.line)));
   const creative = capabilityPage({ id: 'creative', name: 'Creative', kind: 'agent', steps: own('creative') }, team, desktop);
   assert.equal(item(creative, 'step:creative-briefs').state, 'planned');
   assert.ok(!keys(creative, 'off').includes('effect:money'));
 });
 
-test('the business\'s own team says which steps spend, from the playbook\'s own data', async () => {
+test('the business\'s own team says which steps spend, from the work plan\'s own data', async () => {
   const env = await agentBusiness();
   const state = env.store.read();
   const team = capabilityTeam(state, listRecords(state, 'venture-record')[0])!;
@@ -171,37 +173,34 @@ test('outside actions it may propose are only recorded: the mail app records the
 });
 
 test('a step that needs a connector mode that is only planned is planned too, never shown as working', () => {
-  // 4J7: Zoho Mail's inbox is read now (4E3's IMAP), so a still-planned mode stands in: reading Zoho Books.
-  const inbox = step({ kind: 'work', title: 'Read the books', needs: [{ connector: 'zoho-books', mode: 'read' }] });
+  // Xero remains planned; Zoho Books now has a fixture-tested reader.
+  const inbox = step({ kind: 'work', title: 'Read the books', needs: [{ connector: 'xero', mode: 'read' }] });
   const view = capabilityPage({ id: 'x', name: 'Helper', kind: 'agent', steps: [inbox] }, teamOf([inbox]), desktop);
   assert.equal(item(view, 'step:one').state, 'planned');
-  assert.equal(item(view, 'step:one').line, 'Read the books. Planned: it needs Zoho Books to read, which this build does not do yet.');
+  assert.equal(item(view, 'step:one').line, 'Read the books. Planned: it needs Xero to read, which this build does not do yet.');
 });
 
-test('Claude Code or Codex: works only when one is set up here; on the hosted app the server\'s own reason', async () => {
+test('primary agent capability pages do not advertise the retired heavy-work delegate', async () => {
   const env = await business(PLAIN_IDEA);
   const local = await page(env, 'delivery');
-  assert.equal(item(local, 'cli:agent.delegate').state, 'off', 'no CLI is set up in tests');
-  assert.equal(item(local, 'cli:agent.delegate').line, `${TOOL_WORDS['agent.delegate']} Off here: ${NO_CLI}`);
-  const work = step({ kind: 'work', tools: ['agent.delegate'] });
-  assert.equal(item(capabilityPage({ id: 'x', name: 'Helper', kind: 'agent', steps: [work] }, teamOf([work]), desktop), 'tool:agent.delegate').state, 'works');
-  env.deps.host = 'hosted-web';
-  const hosted = await page(env, 'delivery');
-  assert.equal(item(hosted, 'host:agent.delegate').line, `${TOOL_WORDS['agent.delegate']} Off here: ${hostRefusal('hosted-web', 'agent.delegate')}`);
-  assert.ok(hosted.items.some(entry => entry.key === 'host:sandbox.python'));
-  assert.ok(!keys(hosted, 'see').includes('tool:sandbox.python'));
+  assert.equal(local.items.some(row=>row.key.includes('agent.delegate')),false);
+  const work = step({kind:'work',tools:['agent.delegate']});
+  const view=capabilityPage({id:'x',name:'Helper',kind:'agent',steps:[work]},teamOf([work]),desktop);
+  assert.equal(view.items.some(row=>row.key.includes('agent.delegate')),false);
+  env.deps.host='hosted-web';const hosted=await page(env,'delivery');
+  assert.ok(hosted.items.some(entry=>entry.key==='host:sandbox.python'));
 });
 
 test('the judge setting of the business is read: turned off, the check step says only code checks', async () => {
   const env = await agentBusiness();
   await ventureAction(env.deps, owner, 'admin', 'seed.judge', tx => tx.put({ ...tx.base('venture-judge-setting'), auto: false, consent: null } as any));
   const view = await page(env, 'chausar');
-  assert.equal(item(view, 'step:verify').line, 'Check the package and the finished cut. Code runs the checks. The AI judge is off for this business.');
+  assert.equal(item(view, 'step:verify').line, 'Check the package and the finished cut. Code runs the checks. The AI quality check is off for this business.');
 });
 
 test('the CA firm\'s check step never says the AI judge reads its papers: only a draft for a client goes to the judge', () => {
   const delivery = flagshipDelivery('ca-firm')!;
   const own = delivery.steps.filter(entry => delivery.roleOf[entry.id] === 'checker');
   const view = capabilityPage({ id: 'checker', name: 'Checks', kind: 'code', steps: own }, teamOf([...delivery.steps], { floor: delivery.floor, flagshipId: 'ca-firm' }), desktop);
-  assert.equal(item(view, 'step:verify').line, 'Check the papers against the receipts and the rules. Code runs the checks. Papers for your CA of record never go to the AI judge; only a draft that goes to a client does, on your own AI.');
+  assert.equal(item(view, 'step:verify').line, 'Check the papers against the receipts and the rules. Code runs the checks. Papers for your CA of record never go to the AI quality check; only a draft that goes to a client does, on your own AI.');
 });

@@ -8,6 +8,7 @@ import { check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import { digest, exactPayload, formatVentureDate, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
+import { invoiceCountry } from '../core/country-history.ts';
 import { addDaysUtc } from './dates.ts';
 import { daysFrom, lateWords, paymentState } from './ledger.ts';
 import { oneLine, recordId } from './shared.ts';
@@ -18,10 +19,16 @@ import type { InvoiceNext, InvoiceRecord, IsoDate, OutreachRecord, OutreachView,
 /** The days late a reminder is due on when the invoice's schedule picked none. */
 export const REMINDER_DAYS: readonly number[] = Object.freeze([3, 10, 30]);
 
-/** The reminder days of an invoice: its recurring schedule's own, else 3, 10 and 30. */
-export function reminderDaysFor(state: State, venture: VentureRecord, invoice: Pick<InvoiceRecord, 'id'>): readonly number[] {
+/**
+ * The reminder days of an invoice: its own (6D1), else its recurring schedule's, else the owner's default in billing
+ * settings, else 3, 10 and 30.
+ */
+export function reminderDaysFor(state: State, venture: VentureRecord, invoice: Pick<InvoiceRecord, 'id'> & { reminderDays?: number[] }): readonly number[] {
+  if (invoice.reminderDays?.length) return invoice.reminderDays;
   const schedule = listRecords(state, 'venture-recurring-invoice', venture.id).find(item => (item.made ?? []).some(made => made.invoiceId === invoice.id));
-  return schedule?.reminderDays?.length ? schedule.reminderDays : REMINDER_DAYS;
+  if (schedule?.reminderDays?.length) return schedule.reminderDays;
+  const owner = venture.billing?.reminderDays;
+  return owner?.length ? owner : REMINDER_DAYS;
 }
 
 /** The reminders drafted for an invoice, oldest first. */
@@ -39,6 +46,7 @@ function countsFrom(record: OutreachRecord, venture: VentureRecord): IsoDate {
  * the first reminder day; on a reminder day reached, draft a reminder, send the one drafted, or wait after sending it.
  */
 export function reminderStep(state: State, venture: VentureRecord, invoice: InvoiceRecord, today: IsoDate): InvoiceNext {
+  venture = { ...venture, country: invoiceCountry(state, venture, invoice) };
   const date = (iso: IsoDate) => formatVentureDate(iso, venture.country.dateOrder);
   if (invoice.dueDate === null) return { action: 'wait', line: 'Awaiting payment.' };
   const late = daysFrom(invoice.dueDate, today);
@@ -116,7 +124,7 @@ export async function invoiceRemind(deps: VentureDeps, ctx: Context, payload: un
     const plan = tx.list('venture-blueprint').find(item => item.id === current.acceptedBlueprintId);
     const today = localDayAt(tx.now, current.country);
     const subject = `Payment reminder: ${latest.number}`;
-    const text = reminderText(current, latest, client.name, plan?.name.value ?? current.workingName, today);
+    const text = reminderText({ ...current, country: invoiceCountry(tx.state, current, latest) }, latest, client.name, plan?.name.value ?? current.workingName, today);
     const record: OutreachRecord = {
       ...tx.base('venture-outreach'), opportunityId: null, invoiceId: latest.id, personId: null, outreachKind: 'reminder', channel: 'email',
       to: client.email, subject, text, blurb: null, footer: null, sourceUrl: null, basis: 'existing-contact', lints: [], by: 'owner', callId: null,

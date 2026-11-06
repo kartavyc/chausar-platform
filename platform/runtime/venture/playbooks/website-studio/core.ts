@@ -1,0 +1,6 @@
+// Original bounded website inputs. Shared browser-safe domain failures, no external code copied.
+import {ChausarError} from '../../../portable.ts';
+export function requireSite(ok:unknown,code:string,message:string):asserts ok{if(!ok)throw new ChausarError(code,message);}
+export function siteObject(raw:unknown,allowed:readonly string[],required:readonly string[]=allowed,code='SITE_INPUT_INVALID'){requireSite(raw!==null&&typeof raw==='object'&&!Array.isArray(raw),code,'Use the requested website fields.');const value=raw as Record<string,unknown>;requireSite(Object.keys(value).every(k=>allowed.includes(k))&&required.every(k=>Object.hasOwn(value,k)),code,'Use only the requested website fields.');return value;}
+export function siteText(raw:unknown,max=2000,code='SITE_INPUT_INVALID'){requireSite(typeof raw==='string'&&raw.trim().length>0&&raw.length<=max&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(raw),code,'Use bounded plain words.');return raw.trim();}
+export function siteRelativePath(raw:unknown,code='SITE_INPUT_INVALID'){const value=siteText(raw,300,code);requireSite(!/[\\:\u0000-\u001f]/.test(value)&&!value.startsWith('/')&&value.split('/').every(p=>p!=='.'&&p!=='..'&&p!==''&&p!=='.git'),code,'Choose a file inside the client site.');return value;}

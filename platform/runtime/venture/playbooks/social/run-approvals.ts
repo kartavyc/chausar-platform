@@ -8,10 +8,10 @@
 // calls an import before a function runs.
 import { check, type State } from '../../../contracts.ts';
 import type { DeliveryRunRecord, DraftPostView } from '../../contracts.ts';
-import { currentVenture, listRecords } from '../../records.ts';
+import { currentVenture, listRecords, findRecord, digest } from '../../records.ts';
 import { clientDraft } from '../../build/draft-text.ts';
 import { draftPostChecks } from '../../build/posting.ts';
-import { postOfLine } from './post-lines.ts';
+import { actualSocialPosts } from './post-label.ts';
 import { channelCapability, type SocialChannel } from './channels.ts';
 import { draftDigest, scheduleGate, type DraftApproval, type DraftLike, type GateOptions } from './approvals.ts';
 import { SOCIAL_AGENCY_ID } from './registration.ts';
@@ -35,9 +35,7 @@ export function parsePostId(value: unknown): { runId: string; n: number } | null
 export function postsOfText(runId: string, text: string | null): DraftPost[] {
   const posts: DraftPost[] = [];
   const perConnector = new Map<string, number>();
-  for (const line of (text ?? '').split(/\r?\n/)) {
-    const post = postOfLine(line);
-    if (!post) continue;
+  for (const post of actualSocialPosts(text ?? '')) {
     const connectorId = channelCapability(post.channel).connectorId;
     const part = connectorId ? (perConnector.get(connectorId) ?? 0) + 1 : null;
     if (connectorId) perConnector.set(connectorId, part!);
@@ -105,8 +103,13 @@ export function draftApprovalsOfRun(state: State, runId: string): RunPostApprova
       ? (latest.decision.digest !== current ? 'the-draft-changed-since-the-answer'
         : answered ? draftDigest({ id: post.draftId, channel: answered.channel, text: answered.text }) : 'not-on-the-answered-link')
       : draftDigest(draft);
+    const perPost=findRecord(state,'venture-order',run.orderId)?.socialGhostwriting?.decisions['post-'+post.n];
+    const exactPost=perPost?.digest===digest({postId:post.draftId,channel:post.channel,text:post.text});
+    const usePerPost=perPost&&(!latest||perPost.at>latest.decision.at||perPost.at===latest.decision.at&&(perPost.decision!=='approved'||latest.decision.decision==='approved'));
+    const clientAnswer:DraftApproval['client']=usePerPost?{decision:exactPost?perPost.decision:null,via:perPost.via??'owner-recorded',at:perPost.at,comment:perPost.comment}:client;
+    const postDigest=usePerPost?(exactPost?draftDigest(draft):'the-post-changed-since-the-answer'):approvedDigest;
     const checked = draftPostChecks(state, run, post);
-    return { post, draft, approval: { draftId: post.draftId, digest: approvedDigest, checks: checked.checks, owner, client }, checkLines: checked.lines };
+    return { post, draft, approval: { draftId: post.draftId, digest: postDigest, checks: checked.checks, owner, client:clientAnswer }, checkLines: checked.lines };
   });
 }
 

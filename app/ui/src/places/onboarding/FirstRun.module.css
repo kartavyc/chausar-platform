@@ -1,0 +1,277 @@
+/* The wave 6 first run (reference-ui/Main.dc.html, OnboardA, OnboardB): the top bar with the logo and the three setup
+   steps, then one step at a time inside a centred column of tiles. Only tokens; D's 12.5 and 11.5 px labels snap to 13
+   and 12. The A-to-B motion lives in AboutYou.module.css, the one file here allowed to animate. */
+
+.page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  justify-items: center;
+  padding: var(--sp-6) var(--gutter-phone) var(--sp-12);
+}
+
+.main:focus {
+  outline: none;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3) var(--sp-6);
+  width: min(1024px, 100%);
+  margin-bottom: var(--sp-8);
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--dim);
+  font-size: var(--text-label);
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.step[aria-current='step'] {
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}
+
+.stepMark {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  font-size: var(--text-label);
+}
+
+.step[aria-current='step'] .stepMark {
+  border-color: var(--fg);
+}
+
+.step[data-done] .stepMark {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+
+.wrap {
+  display: grid;
+  gap: var(--sp-2);
+  width: min(984px, 100%);
+  min-width: 0;
+}
+
+.eyebrow {
+  color: var(--dim);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+}
+
+.title {
+  font-size: var(--text-title);
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.sub {
+  max-width: 60ch;
+  color: var(--fg2);
+  font-size: var(--text-body);
+}
+
+.grid {
+  margin-top: var(--sp-6);
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-height: 220px;
+}
+
+.optionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.optionName {
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+}
+
+.optionLine {
+  color: var(--fg2);
+  font-size: var(--text-body);
+}
+
+.optionAction {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: auto;
+}
+
+.optionAction > button {
+  width: 100%;
+}
+
+.hint {
+  color: var(--dim);
+  font-size: var(--text-label);
+}
+
+.finish {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-6);
+}
+
+.finishText {
+  display: grid;
+  flex: 1 1 320px;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.finishTitle {
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+}
+
+.finishTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.codeBox {
+  display: grid;
+  flex: 0 1 360px;
+  justify-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-5);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: var(--text-title);
+  letter-spacing: 0.08em;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--fg2);
+  font-size: var(--text-body);
+}
+
+.footer > p {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.keyPanel {
+  margin-top: var(--sp-2);
+}
+
+.problem {
+  color: var(--fail);
+  font-size: var(--text-body);
+}
+
+.status {
+  color: var(--dim);
+  font-size: var(--text-label);
+}
+
+.status:empty {
+  display: none;
+}
+
+.back {
+  justify-self: center;
+  margin-top: var(--sp-4);
+}
+
+/* Connect what your business needs: one row per service, its label, why, and its actions. */
+.needs {
+  display: grid;
+  gap: var(--sp-3);
+  margin: var(--sp-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.need {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-5);
+}
+
+.needText {
+  display: grid;
+  flex: 1 1 320px;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.needHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.needName {
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+}
+
+.needWhy {
+  color: var(--fg2);
+  font-size: var(--text-body);
+}
+
+.needActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.needsFoot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--sp-6);
+}

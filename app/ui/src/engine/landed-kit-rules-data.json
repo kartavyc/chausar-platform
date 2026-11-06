@@ -1,0 +1,4691 @@
+{
+  "seo-visibility": {
+    "view": {
+      "playbook": {
+        "id": "seo-visibility",
+        "label": "Search and AI-search visibility",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-10-27"
+      },
+      "rules": [
+        {
+          "id": "google-title-links",
+          "platform": "Search visibility",
+          "rule": "Write clear, descriptive titles. Google may choose a different title link.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "refresh"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Google title links",
+            "url": "https://developers.google.com/search/docs/appearance/title-link"
+          },
+          "sources": [
+            {
+              "title": "Google title links",
+              "url": "https://developers.google.com/search/docs/appearance/title-link"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "google-snippets",
+          "platform": "Search visibility",
+          "rule": "Use an accurate page description. Google may generate a snippet from other page content.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "refresh"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Google snippets",
+            "url": "https://developers.google.com/search/docs/appearance/snippet"
+          },
+          "sources": [
+            {
+              "title": "Google snippets",
+              "url": "https://developers.google.com/search/docs/appearance/snippet"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "google-structured-data",
+          "platform": "Search visibility",
+          "rule": "Structured data must represent visible, accurate page content. Eligibility does not guarantee a rich result.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "refresh"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Google structured data",
+            "url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies"
+          },
+          "sources": [
+            {
+              "title": "Google structured data",
+              "url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "google-business-profile",
+          "platform": "Search visibility",
+          "rule": "Represent the real business accurately, with a precise address or service area and one eligible profile.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "refresh"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Google Business Profile guidelines",
+            "url": "https://support.google.com/business/answer/3038177"
+          },
+          "sources": [
+            {
+              "title": "Google Business Profile guidelines",
+              "url": "https://support.google.com/business/answer/3038177"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "wordpress-draft-only",
+          "platform": "Search visibility",
+          "rule": "Use an application password to create drafts only. The owner publishes them in WordPress.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "write"
+          ],
+          "limitations": [
+            "The client and owner approve the current article before any draft is sent."
+          ],
+          "source": {
+            "title": "WordPress draft posts",
+            "url": "https://developer.wordpress.org/rest-api/reference/posts/"
+          },
+          "sources": [
+            {
+              "title": "WordPress draft posts",
+              "url": "https://developer.wordpress.org/rest-api/reference/posts/"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "wordpress-application-password",
+          "platform": "Search visibility",
+          "rule": "Keep the owner supplied application password in the session secret shelf. Never include it in client files.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "write"
+          ],
+          "limitations": [
+            "The owner supplies credentials for their authorised client installation."
+          ],
+          "source": {
+            "title": "WordPress application passwords",
+            "url": "https://developer.wordpress.org/advanced-administration/security/application-passwords/"
+          },
+          "sources": [
+            {
+              "title": "WordPress application passwords",
+              "url": "https://developer.wordpress.org/advanced-administration/security/application-passwords/"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "cloudflare-kv-consistency",
+          "platform": "Search visibility",
+          "rule": "Existing KV keys can be updated through the REST API. Readback may lag; an uncertain write must be inspected, never replayed.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "refresh"
+          ],
+          "limitations": [
+            "An existing Worker and namespace are required. Chausar does not provision either and cannot promise global instant propagation."
+          ],
+          "source": {
+            "title": "Cloudflare KV consistency",
+            "url": "https://developers.cloudflare.com/kv/concepts/how-kv-works/"
+          },
+          "sources": [
+            {
+              "title": "Cloudflare KV consistency",
+              "url": "https://developers.cloudflare.com/kv/concepts/how-kv-works/"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "robots",
+          "platform": "Search visibility",
+          "rule": "Respect the site robots rules before reading a page.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "diagnose"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Robots access",
+            "url": "https://developers.google.com/search/docs/crawling-indexing/robots/intro"
+          },
+          "sources": [
+            {
+              "title": "Robots access",
+              "url": "https://developers.google.com/search/docs/crawling-indexing/robots/intro"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "googlebot",
+          "platform": "Search visibility",
+          "rule": "Googlebot is a search crawler.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "diagnose"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Google search crawler",
+            "url": "https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers"
+          },
+          "sources": [
+            {
+              "title": "Google search crawler",
+              "url": "https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "google-extended",
+          "platform": "Search visibility",
+          "rule": "Google-Extended controls model uses separately from Google search.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "diagnose"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Google training control",
+            "url": "https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers"
+          },
+          "sources": [
+            {
+              "title": "Google training control",
+              "url": "https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "oai-searchbot",
+          "platform": "Search visibility",
+          "rule": "OAI-SearchBot is for search rather than model training.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "diagnose"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "OpenAI search crawler",
+            "url": "https://developers.openai.com/api/docs/bots"
+          },
+          "sources": [
+            {
+              "title": "OpenAI search crawler",
+              "url": "https://developers.openai.com/api/docs/bots"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "gptbot",
+          "platform": "Search visibility",
+          "rule": "GPTBot is a model training crawler, counted separately from search.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "diagnose"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "OpenAI training crawler",
+            "url": "https://developers.openai.com/api/docs/bots"
+          },
+          "sources": [
+            {
+              "title": "OpenAI training crawler",
+              "url": "https://developers.openai.com/api/docs/bots"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "claude-searchbot",
+          "platform": "Search visibility",
+          "rule": "Claude-SearchBot indexes content for search.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "diagnose"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Claude search crawler",
+            "url": "https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler"
+          },
+          "sources": [
+            {
+              "title": "Claude search crawler",
+              "url": "https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "claudebot",
+          "platform": "Search visibility",
+          "rule": "ClaudeBot collects content that may contribute to training.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "diagnose"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Claude training crawler",
+            "url": "https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler"
+          },
+          "sources": [
+            {
+              "title": "Claude training crawler",
+              "url": "https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "perplexitybot",
+          "platform": "Search visibility",
+          "rule": "PerplexityBot is a search crawler, separate from user initiated fetching.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "diagnose"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Perplexity search crawler",
+            "url": "https://docs.perplexity.ai/docs/resources/perplexity-crawlers"
+          },
+          "sources": [
+            {
+              "title": "Perplexity search crawler",
+              "url": "https://docs.perplexity.ai/docs/resources/perplexity-crawlers"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "spam-policies",
+          "platform": "Search visibility",
+          "rule": "Never cloak pages, promise rankings or build doorway pages.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "no-ranking-promise"
+          ],
+          "limitations": [
+            "Published controls describe access, never a ranking guarantee."
+          ],
+          "source": {
+            "title": "Search spam policies",
+            "url": "https://developers.google.com/search/docs/essentials/spam-policies"
+          },
+          "sources": [
+            {
+              "title": "Search spam policies",
+              "url": "https://developers.google.com/search/docs/essentials/spam-policies"
+            }
+          ],
+          "line": "Current. Read the official documentation on build day."
+        },
+        {
+          "id": "llms-proposal",
+          "platform": "Search visibility",
+          "rule": "The llms.txt file is a proposal, not a ranking requirement.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "diagnose"
+          ],
+          "limitations": [
+            "Its presence does not prove visibility."
+          ],
+          "source": {
+            "title": "The llms.txt proposal",
+            "url": "https://llmstxt.org/"
+          },
+          "sources": [
+            {
+              "title": "The llms.txt proposal",
+              "url": "https://llmstxt.org/"
+            }
+          ],
+          "line": "Current. Read the proposal on build day."
+        }
+      ],
+      "summary": "17 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "evidence-first",
+          "name": "Evidence before claims",
+          "whenToUse": "Before writing a visibility report.",
+          "steps": [
+            {
+              "do": "Read the source gaps before the findings.",
+              "why": "Missing pages cannot prove a failure."
+            }
+          ],
+          "howToRead": "Open the evidence behind each finding.",
+          "mistakes": [
+            "Promising rankings from an access check."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Captured answers",
+          "canSay": "What appeared in those captured slots.",
+          "cannotSay": "What every buyer sees in an app."
+        },
+        {
+          "evidence": "Site HTML",
+          "canSay": "What was visible without JavaScript.",
+          "cannotSay": "How the site will rank."
+        }
+      ]
+    },
+    "metadata": {
+      "google-title-links": {
+        "topic": "Google title links",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "google-snippets": {
+        "topic": "Google snippets",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "google-structured-data": {
+        "topic": "Google structured data",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "google-business-profile": {
+        "topic": "Google Business Profile guidelines",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "wordpress-draft-only": {
+        "topic": "WordPress draft posts",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "wordpress-application-password": {
+        "topic": "WordPress application passwords",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "cloudflare-kv-consistency": {
+        "topic": "Cloudflare KV consistency",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "robots": {
+        "topic": "Robots access",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "googlebot": {
+        "topic": "Google search crawler",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "google-extended": {
+        "topic": "Google training control",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "oai-searchbot": {
+        "topic": "OpenAI search crawler",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "gptbot": {
+        "topic": "OpenAI training crawler",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "claude-searchbot": {
+        "topic": "Claude search crawler",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "claudebot": {
+        "topic": "Claude training crawler",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "perplexitybot": {
+        "topic": "Perplexity search crawler",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "spam-policies": {
+        "topic": "Search spam policies",
+        "how": "Read the official documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "llms-proposal": {
+        "topic": "The llms.txt proposal",
+        "how": "Read the proposal on build day.",
+        "read": "secondary",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "online-seller": {
+    "view": {
+      "playbook": {
+        "id": "online-seller",
+        "label": "Online seller and seller services",
+        "riskLevel": "high",
+        "lastReviewed": "2026-10-27"
+      },
+      "rules": [
+        {
+          "id": "seller-storefront-permission",
+          "platform": "India",
+          "rule": "Show the AI disclosure and approved purpose notice, ask before sending each buyer question to the owner and their model, and remove buyer text when the session ends.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "storefront-approve"
+          ],
+          "limitations": [
+            "Hosted buyer questions remain planned until a named lawyer confirms the notice and provider handling. Open the Shopify shop meanwhile."
+          ],
+          "source": {
+            "title": "Digital Personal Data Protection Act",
+            "url": "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023-1.pdf"
+          },
+          "sources": [
+            {
+              "title": "Digital Personal Data Protection Act",
+              "url": "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023-1.pdf"
+            }
+          ],
+          "line": "Current. Read notice, consent, withdrawal and erasure provisions. Current applicability and provider terms need legal review. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "seller-change-caps",
+          "platform": "seller",
+          "rule": "Recheck source provenance and owner caps before preparing your exact copy.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "financial-draft"
+          ],
+          "limitations": [
+            "Every outside change needs your approval."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Chausar house rule."
+        },
+        {
+          "id": "seller-stock-movements",
+          "platform": "seller",
+          "rule": "Write stock movements under one authority and keep refunds separate from earnings.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "financial-draft"
+          ],
+          "limitations": [
+            "Every outside change needs your approval."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Chausar house rule."
+        },
+        {
+          "id": "seller-research-review",
+          "platform": "seller",
+          "rule": "Show deterministic evidence and every risk before any model view or buying decision.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "research-draft"
+          ],
+          "limitations": [
+            "Every outside change needs your approval."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Chausar house rule."
+        },
+        {
+          "id": "seller-photo-reference",
+          "platform": "seller",
+          "rule": "Keep the real main product photo in every image brief and require an exact quote approval.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "photo-draft"
+          ],
+          "limitations": [
+            "Every outside change needs your approval."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Chausar house rule."
+        },
+        {
+          "id": "seller-tcs",
+          "platform": "india",
+          "rule": "Tax collection is a credit to reconcile, not an extra expense.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "economics",
+            "financial-draft"
+          ],
+          "limitations": [
+            "Your CA confirms applicability and the tax base before client work."
+          ],
+          "source": {
+            "title": "CBIC notifications explained by PIB",
+            "url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2087659"
+          },
+          "sources": [
+            {
+              "title": "CBIC notifications explained by PIB",
+              "url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2087659"
+            }
+          ],
+          "line": "Current. Read the official summary of the notification. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "seller-tds",
+          "platform": "india",
+          "rule": "Income tax deducted is a credit to reconcile with the seller statement.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "economics",
+            "financial-draft"
+          ],
+          "limitations": [
+            "Your CA confirms the current Act mapping, applicability and statement base."
+          ],
+          "source": {
+            "title": "Income Tax Department, e-commerce deduction",
+            "url": "https://www.incometaxindia.gov.in/w/section-194-o-5"
+          },
+          "sources": [
+            {
+              "title": "Income Tax Department, e-commerce deduction",
+              "url": "https://www.incometaxindia.gov.in/w/section-194-o-5"
+            }
+          ],
+          "line": "Current. Read the official section and its amendment note. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "seller-india",
+          "platform": "india",
+          "rule": "Check the package MRP, country of origin and seller details before delivery.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "india-listing",
+            "listing-draft"
+          ],
+          "limitations": [
+            "Recent amendments and category exemptions need a lawyer to confirm them."
+          ],
+          "source": {
+            "title": "Consumer Affairs legal metrology notices",
+            "url": "https://consumeraffairs.gov.in/pages/latest-news"
+          },
+          "sources": [
+            {
+              "title": "Consumer Affairs legal metrology notices",
+              "url": "https://consumeraffairs.gov.in/pages/latest-news"
+            },
+            {
+              "title": "Official declaration summary",
+              "url": "https://www.pib.gov.in/Pressreleaseshare.aspx?PRID=1843147"
+            }
+          ],
+          "line": "Current. Read the ministry notices and the official declaration summary. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "seller-listing-rubric",
+          "platform": "listing",
+          "rule": "Use our own rubric and state missing data before any score.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "listing"
+          ],
+          "limitations": [
+            "Category-specific title rules can differ; other marketplace thresholds are house guidance."
+          ],
+          "source": {
+            "title": "Amazon India public title announcement",
+            "url": "https://sellercentral.amazon.in/seller-forums/discussions/t/ad1b21a8-548c-4a01-a809-bf8d4469f108"
+          },
+          "sources": [
+            {
+              "title": "Amazon India public title announcement",
+              "url": "https://sellercentral.amazon.in/seller-forums/discussions/t/ad1b21a8-548c-4a01-a809-bf8d4469f108"
+            },
+            {
+              "title": "Amazon India image guide",
+              "url": "https://sell.amazon.in/ss/beginners-guide"
+            }
+          ],
+          "line": "Current. Read public title and image guidance."
+        },
+        {
+          "id": "seller-no-filing",
+          "platform": "all",
+          "rule": "Never file a claim or buy or reward a review.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "estimate-not-receivable",
+            "no-incentivised-reviews"
+          ],
+          "limitations": [
+            "The seller sends every claim."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Chausar house rule."
+        }
+      ],
+      "summary": "10 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "exports-first",
+          "name": "Check the source first",
+          "whenToUse": "Before writing a seller audit.",
+          "steps": [
+            {
+              "do": "Read the fee card and the export dates.",
+              "why": "Fees and tax bases can change."
+            }
+          ],
+          "howToRead": "Read missing inputs before the figures.",
+          "mistakes": [
+            "Treating an unknown input as zero."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Seller exports",
+          "canSay": "What the supplied rows and fee card support.",
+          "cannotSay": "Future profit or an entitlement to reimbursement."
+        }
+      ]
+    },
+    "metadata": {
+      "seller-storefront-permission": {
+        "topic": "Store assistant notice and buyer permission",
+        "how": "Read notice, consent, withdrawal and erasure provisions. Current applicability and provider terms need legal review.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "seller-change-caps": {
+        "topic": "Owner change limits",
+        "how": "Chausar house rule.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "seller-stock-movements": {
+        "topic": "Stock and payout records",
+        "how": "Chausar house rule.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "seller-research-review": {
+        "topic": "Product research boundaries",
+        "how": "Chausar house rule.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "seller-photo-reference": {
+        "topic": "Real product references",
+        "how": "Chausar house rule.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "seller-tcs": {
+        "topic": "Marketplace tax collection",
+        "how": "Read the official summary of the notification.",
+        "read": "official",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "seller-tds": {
+        "topic": "Marketplace income tax deduction",
+        "how": "Read the official section and its amendment note.",
+        "read": "official",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "seller-india": {
+        "topic": "Packaged goods and seller declarations",
+        "how": "Read the ministry notices and the official declaration summary.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "seller-listing-rubric": {
+        "topic": "Listing health rubric",
+        "how": "Read public title and image guidance.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "seller-no-filing": {
+        "topic": "Claims and reviews",
+        "how": "Chausar house rule.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "support-desk": {
+    "view": {
+      "playbook": {
+        "id": "support-desk",
+        "label": "Support desk for small shops",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-10-27"
+      },
+      "rules": [
+        {
+          "id": "consumer-grievance",
+          "platform": "support",
+          "rule": "Keep grievance acknowledgement and resolution separate from shop response targets.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "draft"
+          ],
+          "limitations": [
+            "Shop business hours never extend a legal deadline. Applicability and amendments need a lawyer."
+          ],
+          "source": {
+            "title": "Department of Consumer Affairs, consumer protection rules and amendments",
+            "url": "https://consumeraffairs.gov.in/pages/consumer-protection-acts"
+          },
+          "sources": [
+            {
+              "title": "Department of Consumer Affairs, consumer protection rules and amendments",
+              "url": "https://consumeraffairs.gov.in/pages/consumer-protection-acts"
+            }
+          ],
+          "line": "Current. Read the official rules index; a lawyer must confirm the current rules and amendments for the shop. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "support-privacy",
+          "platform": "support",
+          "rule": "Keep only the customer data needed for the support request and honour erasure.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "mail-in"
+          ],
+          "limitations": [
+            "A privacy notice and lawful purpose are required by house policy now. A lawyer confirms legal commencement and duties."
+          ],
+          "source": {
+            "title": "MeitY, Digital Personal Data Protection Rules",
+            "url": "https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf"
+          },
+          "sources": [
+            {
+              "title": "MeitY, Digital Personal Data Protection Rules",
+              "url": "https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf"
+            }
+          ],
+          "line": "Current. Read the official Gazette. Notice provisions have phased commencement; legal application needs confirmation. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "mail-threading",
+          "platform": "support",
+          "rule": "Use message references before a signed address; a visible number alone proves nothing.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "thread"
+          ],
+          "limitations": [
+            "A matching reference threads mail; it does not grant permission to disclose customer data."
+          ],
+          "source": {
+            "title": "RFC, Internet Message Format",
+            "url": "https://www.rfc-editor.org/rfc/rfc5322.html"
+          },
+          "sources": [
+            {
+              "title": "RFC, Internet Message Format",
+              "url": "https://www.rfc-editor.org/rfc/rfc5322.html"
+            }
+          ],
+          "line": "Current. Read the identification fields in the mail format standard."
+        },
+        {
+          "id": "mail-auto-replies",
+          "platform": "support",
+          "rule": "No automatic replies or tracking pixels; the owner sends each approved reply.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "send",
+            "not-done-yet"
+          ],
+          "limitations": [
+            "Mail files are unsent drafts, not proof that mail was delivered."
+          ],
+          "source": {
+            "title": "RFC, Automatic Responses to Electronic Mail",
+            "url": "https://www.rfc-editor.org/rfc/rfc3834.html"
+          },
+          "sources": [
+            {
+              "title": "RFC, Automatic Responses to Electronic Mail",
+              "url": "https://www.rfc-editor.org/rfc/rfc3834.html"
+            }
+          ],
+          "line": "Current. Read the automatic response recommendations; owner sending is a stricter Chausar house rule."
+        }
+      ],
+      "summary": "4 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "facts-before-reply",
+          "name": "Facts before a reply",
+          "whenToUse": "A customer asks about a shop order.",
+          "steps": [
+            {
+              "do": "Read the shop record before drafting.",
+              "why": "A customer request alone cannot prove an order outcome."
+            }
+          ],
+          "howToRead": "Check the cited source beside the draft.",
+          "mistakes": [
+            "Promising money before the owner decides."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "A customer request",
+          "canSay": "What the customer asked for.",
+          "cannotSay": "That a refund or replacement happened."
+        },
+        {
+          "evidence": "A saved reply",
+          "canSay": "The exact words waiting for approval.",
+          "cannotSay": "That the customer received it."
+        }
+      ]
+    },
+    "metadata": {
+      "consumer-grievance": {
+        "topic": "Consumer grievance deadlines",
+        "how": "Read the official rules index; a lawyer must confirm the current rules and amendments for the shop.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "support-privacy": {
+        "topic": "Customer privacy",
+        "how": "Read the official Gazette. Notice provisions have phased commencement; legal application needs confirmation.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "mail-threading": {
+        "topic": "Mail threading",
+        "how": "Read the identification fields in the mail format standard.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "mail-auto-replies": {
+        "topic": "Mail reply safety",
+        "how": "Read the automatic response recommendations; owner sending is a stricter Chausar house rule.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "recruiting-desk": {
+    "view": {
+      "playbook": {
+        "id": "recruiting-desk",
+        "label": "Recruiting desk",
+        "riskLevel": "high",
+        "lastReviewed": "2026-10-28"
+      },
+      "rules": [
+        {
+          "id": "candidate-privacy",
+          "platform": "India",
+          "rule": "Keep only professional evidence, show the privacy notice and honour deletion requests.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "source",
+            "approve-message"
+          ],
+          "limitations": [
+            "A lawyer confirms the client purpose, notice and applicable duties before live candidate work."
+          ],
+          "source": {
+            "title": "Digital Personal Data Protection Act 2023",
+            "url": "https://www.meity.gov.in/writereaddata/files/Digital%20Personal%20Data%20Protection%20Act%202023.pdf"
+          },
+          "sources": [
+            {
+              "title": "Digital Personal Data Protection Act 2023",
+              "url": "https://www.meity.gov.in/writereaddata/files/Digital%20Personal%20Data%20Protection%20Act%202023.pdf"
+            },
+            {
+              "title": "DPDP commencement notification",
+              "url": "https://www.meity.gov.in/static/uploads/2025/11/c56ceae6c383460ca69577428d36828b.pdf"
+            }
+          ],
+          "line": "Current. Read the official privacy law and commencement materials. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "job-related-only",
+          "platform": "house",
+          "rule": "Never assess protected traits or their proxies. Missing evidence stays unknown.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "approve-rules",
+            "screen"
+          ],
+          "limitations": [
+            "This is a product restriction, not a legal assessment of a candidate."
+          ],
+          "source": {
+            "title": "Transgender Persons Act",
+            "url": "https://www.indiacode.nic.in/bitstream/123456789/13091/1/A2019-40.pdf"
+          },
+          "sources": [
+            {
+              "title": "Transgender Persons Act",
+              "url": "https://www.indiacode.nic.in/bitstream/123456789/13091/1/A2019-40.pdf"
+            },
+            {
+              "title": "Rights of Persons with Disabilities Act 2016",
+              "url": "https://www.indiacode.nic.in/bitstream/123456789/13684/1/a2016-49_act.pdf"
+            }
+          ],
+          "line": "Current. House screening restrictions are stricter than a legal eligibility test."
+        },
+        {
+          "id": "linkedin-manual",
+          "platform": "LinkedIn",
+          "rule": "No automated LinkedIn messages or profile scraping.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "source",
+            "send"
+          ],
+          "limitations": [
+            "The owner opens the site and sends approved words themselves."
+          ],
+          "source": {
+            "title": "LinkedIn User Agreement",
+            "url": "https://www.linkedin.com/legal/user-agreement"
+          },
+          "sources": [
+            {
+              "title": "LinkedIn User Agreement",
+              "url": "https://www.linkedin.com/legal/user-agreement"
+            }
+          ],
+          "line": "Current. Read the restrictions on automated access and messaging."
+        },
+        {
+          "id": "public-greenhouse",
+          "platform": "Greenhouse",
+          "rule": "Read published job listings only. No profile collection or applications.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "source"
+          ],
+          "limitations": [
+            "Unclear pay stays unverified. Installing a board seeds current jobs without alerts."
+          ],
+          "source": {
+            "title": "Greenhouse public job API",
+            "url": "https://docs.greenhouse.io/job-board.html"
+          },
+          "sources": [
+            {
+              "title": "Greenhouse public job API",
+              "url": "https://docs.greenhouse.io/job-board.html"
+            }
+          ],
+          "line": "Current. Read the public posting API documentation."
+        },
+        {
+          "id": "public-lever",
+          "platform": "Lever",
+          "rule": "Read published job listings only. No profile collection or applications.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "source"
+          ],
+          "limitations": [
+            "Unclear pay stays unverified. Installing a board seeds current jobs without alerts."
+          ],
+          "source": {
+            "title": "Lever public job API",
+            "url": "https://github.com/lever/postings-api"
+          },
+          "sources": [
+            {
+              "title": "Lever public job API",
+              "url": "https://github.com/lever/postings-api"
+            }
+          ],
+          "line": "Current. Read the public posting API documentation."
+        },
+        {
+          "id": "public-ashby",
+          "platform": "Ashby",
+          "rule": "Read published job listings only. No profile collection or applications.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "source"
+          ],
+          "limitations": [
+            "Unclear pay stays unverified. Installing a board seeds current jobs without alerts."
+          ],
+          "source": {
+            "title": "Ashby public job API",
+            "url": "https://developers.ashbyhq.com/docs/public-job-posting-api"
+          },
+          "sources": [
+            {
+              "title": "Ashby public job API",
+              "url": "https://developers.ashbyhq.com/docs/public-job-posting-api"
+            }
+          ],
+          "line": "Current. Read the public posting API documentation."
+        }
+      ],
+      "summary": "6 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "proof-before-decision",
+          "name": "Proof before a decision",
+          "whenToUse": "Screening a client resume.",
+          "steps": [
+            {
+              "do": "Read the exact quote beside each criterion.",
+              "why": "Missing evidence cannot prove a failure."
+            }
+          ],
+          "howToRead": "Resolve unknown evidence before making a decision.",
+          "mistakes": [
+            "Rejecting someone automatically."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "A resume quote",
+          "canSay": "What the candidate stated.",
+          "cannotSay": "That the statement was independently verified."
+        },
+        {
+          "evidence": "A calendar export",
+          "canSay": "No overlap appears in this export.",
+          "cannotSay": "That every attendee is free or an invite was sent."
+        }
+      ]
+    },
+    "metadata": {
+      "candidate-privacy": {
+        "topic": "Candidate privacy",
+        "how": "Read the official privacy law and commencement materials.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "job-related-only": {
+        "topic": "Job-related criteria",
+        "how": "House screening restrictions are stricter than a legal eligibility test.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "linkedin-manual": {
+        "topic": "Manual profile work",
+        "how": "Read the restrictions on automated access and messaging.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "public-greenhouse": {
+        "topic": "Greenhouse public jobs",
+        "how": "Read the public posting API documentation.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "public-lever": {
+        "topic": "Lever public jobs",
+        "how": "Read the public posting API documentation.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "public-ashby": {
+        "topic": "Ashby public jobs",
+        "how": "Read the public posting API documentation.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "job-search-desk": {
+    "view": {
+      "playbook": {
+        "id": "job-search-desk",
+        "label": "Job-search and career desk",
+        "riskLevel": "high",
+        "lastReviewed": "2026-10-29"
+      },
+      "rules": [
+        {
+          "id": "career-privacy",
+          "platform": "India",
+          "rule": "Use the minimum client data and honour a deletion request.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "tailor",
+            "approve"
+          ],
+          "limitations": [
+            "Live client work waits for a lawyer to confirm the notice and purpose."
+          ],
+          "source": {
+            "title": "Digital Personal Data Protection Act",
+            "url": "https://www.meity.gov.in/writereaddata/files/Digital%20Personal%20Data%20Protection%20Act%202023.pdf"
+          },
+          "sources": [
+            {
+              "title": "Digital Personal Data Protection Act",
+              "url": "https://www.meity.gov.in/writereaddata/files/Digital%20Personal%20Data%20Protection%20Act%202023.pdf"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Reuse the privacy reference from the recruiting desk; current application needs review. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "career-manual-boards",
+          "platform": "house",
+          "rule": "Never read LinkedIn or Naukri automatically. Ask the owner to paste the job text.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "listings",
+            "handoff"
+          ],
+          "limitations": [
+            "No job-board login, automated application or message is provided."
+          ],
+          "source": {
+            "title": "LinkedIn User Agreement",
+            "url": "https://www.linkedin.com/legal/user-agreement"
+          },
+          "sources": [
+            {
+              "title": "LinkedIn User Agreement",
+              "url": "https://www.linkedin.com/legal/user-agreement"
+            },
+            {
+              "title": "Naukri Terms",
+              "url": "https://www.naukri.com/termsconditions"
+            }
+          ],
+          "line": "Current. LinkedIn restrictions were read. Naukri blocked access to its terms; the manual house restriction remains."
+        },
+        {
+          "id": "career-verdicts",
+          "platform": "house",
+          "rule": "Show coverage first, use fixed verdicts and explain dropped listings.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "shortlist"
+          ],
+          "limitations": [
+            "A match is a review aid, never a hiring promise."
+          ],
+          "source": {
+            "title": "Pinloop CLI",
+            "url": "https://github.com/pinloop-ai/pinloop-cli"
+          },
+          "sources": [
+            {
+              "title": "Pinloop CLI",
+              "url": "https://github.com/pinloop-ai/pinloop-cli"
+            }
+          ],
+          "line": "Current. Read the public verdict and coverage code."
+        }
+      ],
+      "summary": "2 current, 0 to recheck, 1 not confirmed against a source yet.",
+      "recipes": [
+        {
+          "id": "facts-before-fluency",
+          "name": "Facts before polished prose",
+          "whenToUse": "Before tailoring a career pack.",
+          "steps": [
+            {
+              "do": "Read each approved fact and every qualifier.",
+              "why": "Fluent wording cannot justify invented experience."
+            }
+          ],
+          "howToRead": "Check the source, boundaries and client voice before approval.",
+          "mistakes": [
+            "Removing an internship qualifier."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Approved facts and source quotes",
+          "canSay": "The pack repeats these approved statements.",
+          "cannotSay": "The client is guaranteed a job or every claim is independently verified."
+        }
+      ]
+    },
+    "metadata": {
+      "career-privacy": {
+        "topic": "Client privacy review",
+        "how": "Reuse the privacy reference from the recruiting desk; current application needs review.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "career-manual-boards": {
+        "topic": "Manual restricted job boards",
+        "how": "LinkedIn restrictions were read. Naukri blocked access to its terms; the manual house restriction remains.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "career-verdicts": {
+        "topic": "Shortlist coverage and reasons",
+        "how": "Read the public verdict and coverage code.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "translation-studio": {
+    "view": {
+      "playbook": {
+        "id": "translation-studio",
+        "label": "Translation and subtitles",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-10-28"
+      },
+      "rules": [
+        {
+          "id": "webvtt",
+          "platform": "translation-studio",
+          "rule": "Use ordered cues with valid times and escaped text.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Checks cannot certify meaning, legal advice or provider availability."
+          ],
+          "source": {
+            "title": "WebVTT format",
+            "url": "https://www.w3.org/TR/webvtt/"
+          },
+          "sources": [
+            {
+              "title": "WebVTT format",
+              "url": "https://www.w3.org/TR/webvtt/"
+            }
+          ],
+          "line": "Current. Read the published source and record its limits."
+        },
+        {
+          "id": "caption-reading",
+          "platform": "translation-studio",
+          "rule": "House caption profiles need client review for each language.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Checks cannot certify meaning, legal advice or provider availability."
+          ],
+          "source": {
+            "title": "Subtitle reading guidance",
+            "url": "https://partnerhelp.netflixstudios.com/hc/en-us/articles/217350977-English-USA-Timed-Text-Style-Guide"
+          },
+          "sources": [
+            {
+              "title": "Subtitle reading guidance",
+              "url": "https://partnerhelp.netflixstudios.com/hc/en-us/articles/217350977-English-USA-Timed-Text-Style-Guide"
+            },
+            {
+              "title": "Hindi Timed Text Style Guide",
+              "url": "https://partnerhelp.netflixstudios.com/hc/en-us/articles/115003196707-Hindi-Timed-Text-Style-Guide"
+            }
+          ],
+          "line": "Current. Read the published source and record its limits."
+        },
+        {
+          "id": "adaptation-rights",
+          "platform": "translation-studio",
+          "rule": "A licence must cover the intended translation and adaptation.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Checks cannot certify meaning, legal advice or provider availability."
+          ],
+          "source": {
+            "title": "Translation rights review",
+            "url": "https://copyright.gov.in/Copyright_Act_1957/"
+          },
+          "sources": [
+            {
+              "title": "Translation rights review",
+              "url": "https://copyright.gov.in/Copyright_Act_1957/"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Read the published source and record its limits. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "public-service-terms",
+          "platform": "translation-studio",
+          "rule": "Review current terms before calling any public service.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Checks cannot certify meaning, legal advice or provider availability."
+          ],
+          "source": {
+            "title": "Public service terms",
+            "url": "https://github.com/bilibili/Index-Translate"
+          },
+          "sources": [
+            {
+              "title": "Public service terms",
+              "url": "https://github.com/bilibili/Index-Translate"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Read the published source and record its limits."
+        },
+        {
+          "id": "dub-youtube-disclosure",
+          "platform": "translation-studio",
+          "rule": "Disclose realistic altered or synthetic audio using YouTube current AI use setting. Chausar always labels its AI voice.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Provider access and human listening are not certified by these checks."
+          ],
+          "source": {
+            "title": "YouTube AI disclosure",
+            "url": "https://support.google.com/youtube/answer/14328491?hl=en"
+          },
+          "sources": [
+            {
+              "title": "YouTube AI disclosure",
+              "url": "https://support.google.com/youtube/answer/14328491?hl=en"
+            }
+          ],
+          "line": "Current. Read current official documentation."
+        },
+        {
+          "id": "dub-cloning-terms",
+          "platform": "translation-studio",
+          "rule": "Google Instant Custom Voice needs allow-listed access and speaker consent recording. This build does not call it.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Provider access and human listening are not certified by these checks."
+          ],
+          "source": {
+            "title": "Google Instant Custom Voice",
+            "url": "https://docs.cloud.google.com/text-to-speech/docs/chirp3-instant-custom-voice"
+          },
+          "sources": [
+            {
+              "title": "Google Instant Custom Voice",
+              "url": "https://docs.cloud.google.com/text-to-speech/docs/chirp3-instant-custom-voice"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Read current official documentation. A lawyer has not confirmed it yet, so it works in practice runs only."
+        }
+      ],
+      "summary": "3 current, 0 to recheck, 3 not confirmed against a source yet.",
+      "recipes": [
+        {
+          "id": "source-first",
+          "name": "Review beside the source",
+          "whenToUse": "Before client delivery.",
+          "steps": [
+            {
+              "do": "Read each source and target together.",
+              "why": "Code does not certify meaning."
+            }
+          ],
+          "howToRead": "Resolve flagged blocks before approval.",
+          "mistakes": [
+            "Adding explanations to the translated body."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Code checks",
+          "canSay": "These checks cover protected facts and structure.",
+          "cannotSay": "The translation is legally certified or semantically perfect."
+        }
+      ]
+    },
+    "metadata": {
+      "webvtt": {
+        "topic": "WebVTT format",
+        "how": "Read the published source and record its limits.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "caption-reading": {
+        "topic": "Subtitle reading guidance",
+        "how": "Read the published source and record its limits.",
+        "read": "secondary",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "adaptation-rights": {
+        "topic": "Translation rights review",
+        "how": "Read the published source and record its limits.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "public-service-terms": {
+        "topic": "Public service terms",
+        "how": "Read the published source and record its limits.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "dub-youtube-disclosure": {
+        "topic": "YouTube AI disclosure",
+        "how": "Read current official documentation.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "dub-cloning-terms": {
+        "topic": "Voice cloning access and consent",
+        "how": "Read current official documentation.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      }
+    }
+  },
+  "bookkeeping-cfo": {
+    "view": {
+      "playbook": {
+        "id": "bookkeeping-cfo",
+        "label": "Bookkeeping and CFO help",
+        "riskLevel": "high",
+        "lastReviewed": "2026-10-27"
+      },
+      "rules": [
+        {
+          "id": "seller-tax-credit-review",
+          "platform": "seller-books",
+          "rule": "Reconcile source amounts separately; a CA confirms each applicable tax section before client reliance.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "legal-review"
+          ],
+          "limitations": [
+            "CA confirmation remains pending. Tax credits are review items; filing is outside this service."
+          ],
+          "source": {
+            "title": "GST Council TCS FAQ index",
+            "url": "https://gstcouncil.gov.in/faq"
+          },
+          "sources": [
+            {
+              "title": "GST Council TCS FAQ index",
+              "url": "https://gstcouncil.gov.in/faq"
+            },
+            {
+              "title": "Income Tax Department tax credit mismatch guidance",
+              "url": "https://www.incometax.gov.in/iec/foportal/help/all-topics/e-filing-services/tax-credit-mismatch"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Located official GST and income-tax credit guidance. Exact applicable sections remain unconfirmed by a CA; this build calculates source differences only. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "msme-payment-review",
+          "platform": "collections",
+          "rule": "A qualified reviewer checks statutory deadlines and interest before any legal collection letter.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "legal-review"
+          ],
+          "limitations": [
+            "No statutory interest or deadline is calculated here."
+          ],
+          "source": {
+            "title": "MSMED Act, sections 15 and 16",
+            "url": "https://www.incometaxindia.gov.in/w/section-16-185"
+          },
+          "sources": [
+            {
+              "title": "MSMED Act, sections 15 and 16",
+              "url": "https://www.incometaxindia.gov.in/w/section-16-185"
+            }
+          ],
+          "line": "Current. Read the official delayed-payment interest page; applicability and deadlines need professional confirmation. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "msme-tax-review",
+          "platform": "cfo",
+          "rule": "The CA checks payment-linked deduction rules and the current Act mapping before giving a tax conclusion.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "legal-review"
+          ],
+          "limitations": [
+            "The current Act section number is not asserted or used in a client calculation."
+          ],
+          "source": {
+            "title": "Income-tax Act, 1961 section 43B and 2025 Act mapping",
+            "url": "https://www.incometaxindia.gov.in/w/section-43b-40"
+          },
+          "sources": [
+            {
+              "title": "Income-tax Act, 1961 section 43B and 2025 Act mapping",
+              "url": "https://www.incometaxindia.gov.in/w/section-43b-40"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Located the official legacy provision; the current Act mapping remains for the CA to verify. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "spending-only-scope",
+          "platform": "checkup",
+          "rule": "Review spending only and give no advice on securities or investment products.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "legal-review"
+          ],
+          "limitations": [
+            "No investment recommendation or regulated financial planning is offered."
+          ],
+          "source": {
+            "title": "SEBI Investment Advisers Regulations, 2013",
+            "url": "https://www.sebi.gov.in/legal/regulations/feb-2025/securities-and-exchange-board-of-india-investment-advisers-regulations-2013-last-amended-on-february-10-2025-_92319.html"
+          },
+          "sources": [
+            {
+              "title": "SEBI Investment Advisers Regulations, 2013",
+              "url": "https://www.sebi.gov.in/legal/regulations/feb-2025/securities-and-exchange-board-of-india-investment-advisers-regulations-2013-last-amended-on-february-10-2025-_92319.html"
+            }
+          ],
+          "line": "Current. Read the regulator regulation index and official investor guidance; a lawyer confirms the client-service boundary. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "cash-limits-review",
+          "platform": "books",
+          "rule": "Ask the CA to check cash receipt and payment limits before relying on a cash transaction for tax work.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "legal-review"
+          ],
+          "limitations": [
+            "No numeric cash threshold or tax treatment is claimed."
+          ],
+          "source": {
+            "title": "Income Tax Department, current Act guidance",
+            "url": "https://www.incometax.gov.in/iec/foportal/help/all-topics/e-filing-services/objective-and-scope-new-act-faq"
+          },
+          "sources": [
+            {
+              "title": "Income Tax Department, current Act guidance",
+              "url": "https://www.incometax.gov.in/iec/foportal/help/all-topics/e-filing-services/objective-and-scope-new-act-faq"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Current numeric thresholds and exceptions have not been verified for this build. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "client-sends",
+          "platform": "collections",
+          "rule": "Reminder drafts go only to the service client, who approves and sends each one.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "no-debtor-contact",
+            "approve"
+          ],
+          "limitations": [
+            "Chausar never contacts a debtor or changes payment details."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Chausar approval and no-debtor-contact boundary."
+        }
+      ],
+      "summary": "3 current, 0 to recheck, 3 not confirmed against a source yet.",
+      "recipes": [
+        {
+          "id": "validate-first",
+          "name": "Validate the ledger first",
+          "whenToUse": "Before any finance report.",
+          "steps": [
+            {
+              "do": "Check duplicates, signs and the period.",
+              "why": "An invalid ledger makes every later figure untrustworthy."
+            }
+          ],
+          "howToRead": "Open the source rows and calculator receipts.",
+          "mistakes": [
+            "Treating a missing balance as zero."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Client supplied ledgers and statements",
+          "canSay": "What was recorded and what the stated scenarios imply.",
+          "cannotSay": "Unrecorded cash, guaranteed savings or future investment returns."
+        }
+      ]
+    },
+    "metadata": {
+      "seller-tax-credit-review": {
+        "topic": "Seller GST, TCS and TDS credit sections",
+        "how": "Located official GST and income-tax credit guidance. Exact applicable sections remain unconfirmed by a CA; this build calculates source differences only.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "msme-payment-review": {
+        "topic": "Micro and small supplier payment terms",
+        "how": "Read the official delayed-payment interest page; applicability and deadlines need professional confirmation.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "msme-tax-review": {
+        "topic": "Small supplier deduction timing",
+        "how": "Located the official legacy provision; the current Act mapping remains for the CA to verify.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "spending-only-scope": {
+        "topic": "Spending check-up boundary",
+        "how": "Read the regulator regulation index and official investor guidance; a lawyer confirms the client-service boundary.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "cash-limits-review": {
+        "topic": "Cash receipt and payment limits",
+        "how": "Current numeric thresholds and exceptions have not been verified for this build.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "client-sends": {
+        "topic": "Client sends every reminder",
+        "how": "Chausar approval and no-debtor-contact boundary.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "podcast-to-article": {
+    "view": {
+      "playbook": {
+        "id": "podcast-to-article",
+        "label": "Podcast to articles",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-10-28"
+      },
+      "rules": [
+        {
+          "id": "house-style",
+          "platform": "house",
+          "rule": "Compare measured rates with the labelled Chausar house samples.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "article-evidence",
+            "draft",
+            "check"
+          ],
+          "limitations": [
+            "House samples are guidance, not a population benchmark. Chinese source rates are not reused."
+          ],
+          "source": {
+            "title": "Podcast article workflow",
+            "url": "https://github.com/orange2ai/podcast-to-article/blob/main/SKILL.md"
+          },
+          "sources": [
+            {
+              "title": "Podcast article workflow",
+              "url": "https://github.com/orange2ai/podcast-to-article/blob/main/SKILL.md"
+            }
+          ],
+          "line": "Current. Original English and Hindi sample paragraphs measured in code."
+        },
+        {
+          "id": "quote-share",
+          "platform": "house",
+          "rule": "Keep the quotation share in the house band and check exact source quotations.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "article-evidence",
+            "draft",
+            "check"
+          ],
+          "limitations": [
+            "Matching words cannot confirm context or meaning. The owner still reviews attribution."
+          ],
+          "source": {
+            "title": "Podcast article workflow",
+            "url": "https://github.com/orange2ai/podcast-to-article/blob/main/SKILL.md"
+          },
+          "sources": [
+            {
+              "title": "Podcast article workflow",
+              "url": "https://github.com/orange2ai/podcast-to-article/blob/main/SKILL.md"
+            }
+          ],
+          "line": "Current. Count quoted characters in code and compare quotations with cited episode facts."
+        },
+        {
+          "id": "guest-quotation-rights",
+          "platform": "house",
+          "rule": "Record the show rights and guest permission before quoting. A lawyer confirms the client use.",
+          "checkedOn": "2026-10-28",
+          "stale": false,
+          "usedBy": [
+            "approve",
+            "handoff"
+          ],
+          "limitations": [
+            "Live client use waits for professional review. Prepare and deliver the client work manually meanwhile."
+          ],
+          "source": {
+            "title": "Podcast article evidence workflow",
+            "url": "https://github.com/orange2ai/podcast-to-article/blob/main/SKILL.md"
+          },
+          "sources": [
+            {
+              "title": "Podcast article evidence workflow",
+              "url": "https://github.com/orange2ai/podcast-to-article/blob/main/SKILL.md"
+            }
+          ],
+          "line": "Current. Chausar permission boundary; this is not a statement of copyright exceptions. A lawyer has not confirmed it yet, so it works in practice runs only."
+        }
+      ],
+      "summary": "3 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "source-before-prose",
+          "name": "Source before prose",
+          "whenToUse": "Turning an episode into an article.",
+          "steps": [
+            {
+              "do": "Choose the direction and source sections first.",
+              "why": "The episode evidence bounds the article."
+            },
+            {
+              "do": "Review quotations in their original context.",
+              "why": "Exact words alone cannot confirm their meaning."
+            }
+          ],
+          "howToRead": "Resolve source and permission questions before publishing.",
+          "mistakes": [
+            "Presenting an invented quote as episode evidence."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "An exact transcript quote",
+          "canSay": "The supplied transcript contains these words.",
+          "cannotSay": "The claim is independently verified or publication is authorised."
+        }
+      ]
+    },
+    "metadata": {
+      "house-style": {
+        "topic": "English and Hindi house style",
+        "how": "Original English and Hindi sample paragraphs measured in code.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "quote-share": {
+        "topic": "Episode quote share",
+        "how": "Count quoted characters in code and compare quotations with cited episode facts.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "guest-quotation-rights": {
+        "topic": "Guest quotation permission",
+        "how": "Chausar permission boundary; this is not a statement of copyright exceptions.",
+        "read": "house",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      }
+    }
+  },
+  "lead-generation": {
+    "view": {
+      "playbook": {
+        "id": "lead-generation",
+        "label": "Lead generation and appointment setting",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-10-27"
+      },
+      "rules": [
+        {
+          "id": "osm-licence",
+          "platform": "lead-generation",
+          "rule": "Keep attribution and the database licence with each prospect; publish derived databases only under the required licence.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "source",
+            "lead-has-source"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "OpenStreetMap attribution",
+            "url": "https://www.openstreetmap.org/copyright"
+          },
+          "sources": [
+            {
+              "title": "OpenStreetMap attribution",
+              "url": "https://www.openstreetmap.org/copyright"
+            }
+          ],
+          "line": "Current. Read the official provider documentation on build day."
+        },
+        {
+          "id": "nominatim-policy",
+          "platform": "lead-generation",
+          "rule": "Only deliberate city lookups, cached and serialised; no autocomplete or periodic geocoding.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "source"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "City lookup limits",
+            "url": "https://operations.osmfoundation.org/policies/nominatim/"
+          },
+          "sources": [
+            {
+              "title": "City lookup limits",
+              "url": "https://operations.osmfoundation.org/policies/nominatim/"
+            }
+          ],
+          "line": "Current. Read the official provider documentation on build day."
+        },
+        {
+          "id": "overpass-policy",
+          "platform": "lead-generation",
+          "rule": "Use bounded city queries with the named Chausar user agent.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "source"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "Overpass usage",
+            "url": "https://wiki.openstreetmap.org/wiki/Overpass_API"
+          },
+          "sources": [
+            {
+              "title": "Overpass usage",
+              "url": "https://wiki.openstreetmap.org/wiki/Overpass_API"
+            }
+          ],
+          "line": "Current. Read the official provider documentation on build day."
+        },
+        {
+          "id": "google-places-policy",
+          "platform": "lead-generation",
+          "rule": "Look-up use awaits a current terms review; never scrape Maps or resell its listings.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "source"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "Google Places",
+            "url": "https://developers.google.com/maps/terms"
+          },
+          "sources": [
+            {
+              "title": "Google Places",
+              "url": "https://developers.google.com/maps/terms"
+            }
+          ],
+          "line": "Current. Read the official provider documentation on build day."
+        },
+        {
+          "id": "trai-dnd",
+          "platform": "lead-generation",
+          "rule": "No cold promotional calls or SMS; confirm the commercial communication rules with a lawyer.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "outreach-allowed"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "Commercial calls and SMS",
+            "url": "https://www.trai.gov.in/node/768"
+          },
+          "sources": [
+            {
+              "title": "Commercial calls and SMS",
+              "url": "https://www.trai.gov.in/node/768"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Source located; a lawyer must confirm its application. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "whatsapp-opt-in",
+          "platform": "lead-generation",
+          "rule": "WhatsApp drafts need recorded opt-in or a message they sent first.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "outreach-allowed"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "WhatsApp permission",
+            "url": "https://business.whatsapp.com/policy"
+          },
+          "sources": [
+            {
+              "title": "WhatsApp permission",
+              "url": "https://business.whatsapp.com/policy"
+            }
+          ],
+          "line": "Current. Read the official provider documentation on build day."
+        },
+        {
+          "id": "gmail-senders",
+          "platform": "lead-generation",
+          "rule": "The owner checks sender authentication and provider requirements before using their mail app.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "draft"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "Gmail sender requirements",
+            "url": "https://support.google.com/a/answer/81126"
+          },
+          "sources": [
+            {
+              "title": "Gmail sender requirements",
+              "url": "https://support.google.com/a/answer/81126"
+            }
+          ],
+          "line": "Current. Read the official provider documentation on build day."
+        },
+        {
+          "id": "can-spam",
+          "platform": "lead-generation",
+          "rule": "A lawyer must confirm the message, disclosure, address and opt-out rules before client use.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "outreach-allowed"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "United States commercial email",
+            "url": "https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business"
+          },
+          "sources": [
+            {
+              "title": "United States commercial email",
+              "url": "https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Source located; a lawyer must confirm its application. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "dpdp-contact-data",
+          "platform": "lead-generation",
+          "rule": "Keep only necessary contact data and honour withdrawal and Forget; a lawyer confirms the applicable notice and basis.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "outreach-allowed"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "Contact data privacy",
+            "url": "https://www.meity.gov.in/content/digital-personal-data-protection-act-2023-0"
+          },
+          "sources": [
+            {
+              "title": "Contact data privacy",
+              "url": "https://www.meity.gov.in/content/digital-personal-data-protection-act-2023-0"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Source located; a lawyer must confirm its application. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "linkedin-handoff",
+          "platform": "lead-generation",
+          "rule": "Only copy the text and open the profile; no automated reading or messaging.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "send"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "Copy for LinkedIn",
+            "url": "https://www.linkedin.com/legal/user-agreement"
+          },
+          "sources": [
+            {
+              "title": "Copy for LinkedIn",
+              "url": "https://www.linkedin.com/legal/user-agreement"
+            }
+          ],
+          "line": "Current. Read the official provider documentation on build day."
+        },
+        {
+          "id": "reddit-access",
+          "platform": "lead-generation",
+          "rule": "Reddit API reading waits for access; use owner-pasted posts under community rules meanwhile.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "report"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "Community API access",
+            "url": "https://redditinc.com/policies/data-api-terms"
+          },
+          "sources": [
+            {
+              "title": "Community API access",
+              "url": "https://redditinc.com/policies/data-api-terms"
+            }
+          ],
+          "line": "Current. Read the official provider documentation on build day."
+        },
+        {
+          "id": "happenstance-price",
+          "platform": "lead-generation",
+          "rule": "Show the dated credit cost and obtain exact approval before a paid search.",
+          "checkedOn": "2026-10-27",
+          "stale": false,
+          "usedBy": [
+            "source"
+          ],
+          "limitations": [
+            "Permission to read a source is not permission to contact someone."
+          ],
+          "source": {
+            "title": "Happenstance search credits",
+            "url": "https://developer.happenstance.ai/openapi.json"
+          },
+          "sources": [
+            {
+              "title": "Happenstance search credits",
+              "url": "https://developer.happenstance.ai/openapi.json"
+            }
+          ],
+          "line": "Current. Read the official provider documentation on build day."
+        }
+      ],
+      "summary": "9 current, 0 to recheck, 3 not confirmed against a source yet.",
+      "recipes": [
+        {
+          "id": "source-before-draft",
+          "name": "Sources before drafts",
+          "whenToUse": "Researching a new local market.",
+          "steps": [
+            {
+              "do": "Check the source and permission before drafting.",
+              "why": "A listing does not mean consent."
+            }
+          ],
+          "howToRead": "Review sources and refusals before choosing a contact.",
+          "mistakes": [
+            "Treating a public listing as permission."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "A public business listing",
+          "canSay": "The business listed these public details.",
+          "cannotSay": "The owner wants to buy or agreed to be contacted."
+        }
+      ]
+    },
+    "metadata": {
+      "osm-licence": {
+        "topic": "OpenStreetMap attribution",
+        "how": "Read the official provider documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "nominatim-policy": {
+        "topic": "City lookup limits",
+        "how": "Read the official provider documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "overpass-policy": {
+        "topic": "Overpass usage",
+        "how": "Read the official provider documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "google-places-policy": {
+        "topic": "Google Places",
+        "how": "Read the official provider documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "trai-dnd": {
+        "topic": "Commercial calls and SMS",
+        "how": "Source located; a lawyer must confirm its application.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "whatsapp-opt-in": {
+        "topic": "WhatsApp permission",
+        "how": "Read the official provider documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "gmail-senders": {
+        "topic": "Gmail sender requirements",
+        "how": "Read the official provider documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "can-spam": {
+        "topic": "United States commercial email",
+        "how": "Source located; a lawyer must confirm its application.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "dpdp-contact-data": {
+        "topic": "Contact data privacy",
+        "how": "Source located; a lawyer must confirm its application.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "linkedin-handoff": {
+        "topic": "Copy for LinkedIn",
+        "how": "Read the official provider documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "reddit-access": {
+        "topic": "Community API access",
+        "how": "Read the official provider documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "happenstance-price": {
+        "topic": "Happenstance search credits",
+        "how": "Read the official provider documentation on build day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "newsletter-studio": {
+    "view": {
+      "playbook": {
+        "id": "newsletter-studio",
+        "label": "Newsletter service",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-10-29"
+      },
+      "rules": [
+        {
+          "id": "newsletter-consent",
+          "platform": "India",
+          "rule": "Keep the owner attestation that each imported person agreed to this newsletter. Honour withdrawal and Forget.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "gather",
+            "send",
+            "newsletter-source"
+          ],
+          "limitations": [
+            "Live client list import and export wait for a named lawyer. Prepare the issue and use the owner tool manually meanwhile."
+          ],
+          "source": {
+            "title": "Digital Personal Data Protection Act",
+            "url": "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023-1.pdf"
+          },
+          "sources": [
+            {
+              "title": "Digital Personal Data Protection Act",
+              "url": "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023-1.pdf"
+            }
+          ],
+          "line": "Current. Consent and withdrawal provisions; applicability still needs a lawyer. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "newsletter-sponsor",
+          "platform": "India",
+          "rule": "Identify paid sponsor copy plainly as Sponsored.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "send"
+          ],
+          "limitations": [
+            "A label does not verify an advertising claim. The lawyer confirms applicability."
+          ],
+          "source": {
+            "title": "ASCI code and digital disclosure guidance",
+            "url": "https://www.ascionline.in/wp-content/uploads/2025/04/Code-Book_Codes-2025.pdf"
+          },
+          "sources": [
+            {
+              "title": "ASCI code and digital disclosure guidance",
+              "url": "https://www.ascionline.in/wp-content/uploads/2025/04/Code-Book_Codes-2025.pdf"
+            }
+          ],
+          "line": "Current. Read the advertising code and permitted disclosure labels. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "newsletter-us-postal",
+          "platform": "United States recipients",
+          "rule": "Use truthful headers, an honest subject, the sender postal address and a working opt-out.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "send"
+          ],
+          "limitations": [
+            "The lawyer confirms the rules for messages sent to United States recipients."
+          ],
+          "source": {
+            "title": "FTC CAN-SPAM compliance guide",
+            "url": "https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business"
+          },
+          "sources": [
+            {
+              "title": "FTC CAN-SPAM compliance guide",
+              "url": "https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business"
+            }
+          ],
+          "line": "Current. Read the commercial message requirements in the official guide. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "gmail-bulk",
+          "platform": "Gmail recipients",
+          "rule": "The sending tool must authenticate mail and support visible and one-click unsubscribe.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "review",
+            "send"
+          ],
+          "limitations": [
+            "Chausar cannot inspect the owner tool settings. The owner checks them before sending."
+          ],
+          "source": {
+            "title": "Gmail sender guidelines",
+            "url": "https://support.google.com/a/answer/81126?hl=en"
+          },
+          "sources": [
+            {
+              "title": "Gmail sender guidelines",
+              "url": "https://support.google.com/a/answer/81126?hl=en"
+            }
+          ],
+          "line": "Current. Read sender authentication and bulk unsubscribe requirements."
+        },
+        {
+          "id": "yahoo-bulk",
+          "platform": "Yahoo recipients",
+          "rule": "The sending tool must authenticate mail and support one-click unsubscribe.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "review",
+            "send"
+          ],
+          "limitations": [
+            "Confirm the current Yahoo requirements in the sending tool before sending."
+          ],
+          "source": {
+            "title": "Yahoo sender best practices",
+            "url": "https://senders.yahooinc.com/best-practices/"
+          },
+          "sources": [
+            {
+              "title": "Yahoo sender best practices",
+              "url": "https://senders.yahooinc.com/best-practices/"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Official search excerpts were available; the full current page could not be retrieved."
+        },
+        {
+          "id": "one-click",
+          "platform": "bulk email",
+          "rule": "Use the standard HTTPS unsubscribe header and its companion POST header in the sending tool.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "review",
+            "send"
+          ],
+          "limitations": [
+            "An HTML footer link alone does not implement the header or its server action."
+          ],
+          "source": {
+            "title": "RFC 8058",
+            "url": "https://www.rfc-editor.org/rfc/rfc8058"
+          },
+          "sources": [
+            {
+              "title": "RFC 8058",
+              "url": "https://www.rfc-editor.org/rfc/rfc8058"
+            }
+          ],
+          "line": "Current. Read the list unsubscribe and POST header requirements."
+        },
+        {
+          "id": "newsletter-slice-limits",
+          "platform": "house",
+          "rule": "Start with a small engaged slice and wait for reported results before releasing more.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "review",
+            "send",
+            "report"
+          ],
+          "limitations": [
+            "These are conservative house gates, not a provider guarantee or proof of delivery."
+          ],
+          "source": {
+            "title": "MailCheap first-send workflow, ideas only",
+            "url": "https://github.com/marclou/mailcheap/blob/main/lib/first-send.js"
+          },
+          "sources": [
+            {
+              "title": "MailCheap first-send workflow, ideas only",
+              "url": "https://github.com/marclou/mailcheap/blob/main/lib/first-send.js"
+            }
+          ],
+          "line": "Current. Original code computes bounded slices and compares source-reported ratios."
+        }
+      ],
+      "summary": "6 current, 0 to recheck, 1 not confirmed against a source yet.",
+      "recipes": [
+        {
+          "id": "consent-before-export",
+          "name": "Review the sources and consent",
+          "whenToUse": "Client newsletters",
+          "steps": [
+            {
+              "do": "Approve each list import with consent.",
+              "why": "Each person agreed to this newsletter."
+            },
+            {
+              "do": "Check before export",
+              "why": "The owner tool reported these counts."
+            }
+          ],
+          "howToRead": "Use your newsletter tool for sending and provider setup.",
+          "mistakes": [
+            "Bought lists",
+            "Unapproved sends"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "A newsletter tool export",
+          "canSay": "The owner tool reported these counts.",
+          "cannotSay": "Chausar independently measured delivery or attention."
+        }
+      ]
+    },
+    "metadata": {
+      "newsletter-consent": {
+        "topic": "Subscriber permission",
+        "how": "Consent and withdrawal provisions; applicability still needs a lawyer.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "newsletter-sponsor": {
+        "topic": "Sponsor disclosure",
+        "how": "Read the advertising code and permitted disclosure labels.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "newsletter-us-postal": {
+        "topic": "Commercial email disclosure",
+        "how": "Read the commercial message requirements in the official guide.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "gmail-bulk": {
+        "topic": "Gmail sender setup",
+        "how": "Read sender authentication and bulk unsubscribe requirements.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "yahoo-bulk": {
+        "topic": "Yahoo sender setup",
+        "how": "Official search excerpts were available; the full current page could not be retrieved.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "one-click": {
+        "topic": "One-click unsubscribe",
+        "how": "Read the list unsubscribe and POST header requirements.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "newsletter-slice-limits": {
+        "topic": "First audience limits",
+        "how": "Original code computes bounded slices and compares source-reported ratios.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "tender-desk": {
+    "view": {
+      "playbook": {
+        "id": "tender-desk",
+        "label": "Tender and proposal desk",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-10-29"
+      },
+      "rules": [
+        {
+          "id": "tender-portal-handoff",
+          "platform": "house",
+          "rule": "Chausar never signs in to a tender portal or submits a bid.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "submit"
+          ],
+          "limitations": [
+            "A prepared file is not a submitted or accepted bid."
+          ],
+          "source": {
+            "title": "CPPP bidders manual kit",
+            "url": "https://www.eprocure.gov.in/eprocure/app?page=BiddersManualKit&service=page"
+          },
+          "sources": [
+            {
+              "title": "CPPP bidders manual kit",
+              "url": "https://www.eprocure.gov.in/eprocure/app?page=BiddersManualKit&service=page"
+            }
+          ],
+          "line": "Current. Read the official manual index. The owner uses the portal manually."
+        },
+        {
+          "id": "gem-current-terms",
+          "platform": "GeM",
+          "rule": "The owner checks current portal terms before using the export.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "submit"
+          ],
+          "limitations": [
+            "Chausar does not certify eligibility, portal terms or legal compliance."
+          ],
+          "source": {
+            "title": "Government e Marketplace",
+            "url": "https://gem.gov.in/"
+          },
+          "sources": [
+            {
+              "title": "Government e Marketplace",
+              "url": "https://gem.gov.in/"
+            }
+          ],
+          "line": "Not confirmed against a source yet. Read the official portal entry. Current seller contract terms were not verified."
+        },
+        {
+          "id": "tender-answer-length",
+          "platform": "house",
+          "rule": "The owner chooses the word limit and tone for each question type.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "draft",
+            "approve"
+          ],
+          "limitations": [
+            "A word limit does not prove that an answer satisfies the issuer."
+          ],
+          "source": {
+            "title": "Chausar wave five tender specification",
+            "url": "https://github.com/kartavyc/chausar-platform"
+          },
+          "sources": [
+            {
+              "title": "Chausar wave five tender specification",
+              "url": "https://github.com/kartavyc/chausar-platform"
+            }
+          ],
+          "line": "Current. Code counts words and refuses an answer beyond the chosen limit."
+        }
+      ],
+      "summary": "2 current, 0 to recheck, 1 not confirmed against a source yet.",
+      "recipes": [
+        {
+          "id": "source-first",
+          "name": "Sources before answers",
+          "whenToUse": "Every tender",
+          "steps": [
+            {
+              "do": "Gather client documents",
+              "why": "Every factual claim is supported by current client documents."
+            },
+            {
+              "do": "Write every commercial answer yourself.",
+              "why": "Calculates owner-set prices."
+            }
+          ],
+          "howToRead": "Review the full source question and its evidence.",
+          "mistakes": [
+            "Unsupported certifications",
+            "Automatic portal submission"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Client documents",
+          "canSay": "These claims match the supplied client documents.",
+          "cannotSay": "The issuer accepts the bid or verifies every claim."
+        }
+      ]
+    },
+    "metadata": {
+      "tender-portal-handoff": {
+        "topic": "Portal submission",
+        "how": "Read the official manual index. The owner uses the portal manually.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "gem-current-terms": {
+        "topic": "Current portal terms",
+        "how": "Read the official portal entry. Current seller contract terms were not verified.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "tender-answer-length": {
+        "topic": "Answer length and tone",
+        "how": "Code counts words and refuses an answer beyond the chosen limit.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "website-studio": {
+    "view": {
+      "playbook": {
+        "id": "website-studio",
+        "label": "Website builder",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-10-29"
+      },
+      "rules": [
+        {
+          "id": "site-form-permission",
+          "platform": "India",
+          "rule": "Collect only the fields needed to answer the request, show the approved purpose notice and honour withdrawal and Forget.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "build"
+          ],
+          "limitations": [
+            "Client form capture stays planned until a named lawyer confirms the notice and applicable obligations. Add a client manually meanwhile."
+          ],
+          "source": {
+            "title": "Digital Personal Data Protection Act",
+            "url": "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023-1.pdf"
+          },
+          "sources": [
+            {
+              "title": "Digital Personal Data Protection Act",
+              "url": "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023-1.pdf"
+            }
+          ],
+          "line": "Current. Read notice, consent, withdrawal and erasure provisions. Applicability requires a lawyer. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "site-accessibility",
+          "platform": "website UI",
+          "rule": "Check phone and desktop in light and dark, with readable text and usable controls.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "ui-check"
+          ],
+          "limitations": [
+            "A lint report is evidence of its checks, not a complete accessibility certification."
+          ],
+          "source": {
+            "title": "WCAG 2.2",
+            "url": "https://www.w3.org/TR/WCAG22/"
+          },
+          "sources": [
+            {
+              "title": "WCAG 2.2",
+              "url": "https://www.w3.org/TR/WCAG22/"
+            }
+          ],
+          "line": "Current. Read the published accessibility recommendation."
+        },
+        {
+          "id": "site-pages-release",
+          "platform": "Cloudflare Pages",
+          "rule": "Use exact uploaded assets, check the preview marker, then ask separately before production.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "preview",
+            "release"
+          ],
+          "limitations": [
+            "Preview deployments cannot be promoted by rollback. Production deploys the same approved asset manifest."
+          ],
+          "source": {
+            "title": "Cloudflare Pages deployments",
+            "url": "https://developers.cloudflare.com/api/resources/pages/subresources/projects/subresources/deployments/methods/create/"
+          },
+          "sources": [
+            {
+              "title": "Cloudflare Pages deployments",
+              "url": "https://developers.cloudflare.com/api/resources/pages/subresources/projects/subresources/deployments/methods/create/"
+            }
+          ],
+          "line": "Current. Read Direct Upload creation, branch controls and production rollback restrictions."
+        }
+      ],
+      "summary": "3 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "preview-before-release",
+          "name": "Check before release",
+          "whenToUse": "Client websites",
+          "steps": [
+            {
+              "do": "Audit each requirement",
+              "why": "The report describes these saved checks."
+            },
+            {
+              "do": "Approve the exact release",
+              "why": "Every production deployment always asks."
+            }
+          ],
+          "howToRead": "Inspect missing evidence before a release.",
+          "mistakes": [
+            "Claiming an unchecked site is safe"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Saved source audits and a CI artifact",
+          "canSay": "The report describes these saved checks.",
+          "cannotSay": "A report proves the entire website is safe."
+        }
+      ]
+    },
+    "metadata": {
+      "site-form-permission": {
+        "topic": "Website form notice and permission",
+        "how": "Read notice, consent, withdrawal and erasure provisions. Applicability requires a lawyer.",
+        "read": "official",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "site-accessibility": {
+        "topic": "Accessible website checks",
+        "how": "Read the published accessibility recommendation.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "site-pages-release": {
+        "topic": "Staged website release",
+        "how": "Read Direct Upload creation, branch controls and production rollback restrictions.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "narration-studio": {
+    "view": {
+      "playbook": {
+        "id": "narration-studio",
+        "label": "Narration and audiobooks",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-10-29"
+      },
+      "rules": [
+        {
+          "id": "narration-rights",
+          "platform": "narration-studio",
+          "rule": "The manuscript and voice licence must cover the intended narration and delivery.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "synthesize",
+            "deliver"
+          ],
+          "limitations": [
+            "Recorded ownership is not a legal opinion. Paid client production waits for review."
+          ],
+          "source": {
+            "title": "Copyright Act",
+            "url": "https://copyright.gov.in/Copyright_Act_1957/"
+          },
+          "sources": [
+            {
+              "title": "Copyright Act",
+              "url": "https://copyright.gov.in/Copyright_Act_1957/"
+            }
+          ],
+          "line": "Not confirmed against a source yet. No named lawyer has confirmed this client-use rule. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "narration-distributors",
+          "platform": "distribution",
+          "rule": "Spotify requires digital voice disclosure. ACX and unqualified Google Play import routes are blocked.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "manuscript",
+            "deliver"
+          ],
+          "limitations": [
+            "Owner upload only. A technical pass is not distributor acceptance."
+          ],
+          "source": {
+            "title": "Spotify digital narration",
+            "url": "https://support.spotify.com/us/authors/article/digital-voice-narration/"
+          },
+          "sources": [
+            {
+              "title": "Spotify digital narration",
+              "url": "https://support.spotify.com/us/authors/article/digital-voice-narration/"
+            },
+            {
+              "title": "ACX audio requirements",
+              "url": "https://help.acx.com/s/article/what-are-the-acx-audio-submission-requirements"
+            },
+            {
+              "title": "Google Play auto-narration policies",
+              "url": "https://support.google.com/books/partner/answer/10013009?hl=en"
+            }
+          ],
+          "line": "Current. Read each official policy page."
+        },
+        {
+          "id": "narration-audio-specs",
+          "platform": "audio",
+          "rule": "Measure actual audio against the selected dated specification. Missing measurements never pass.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "master",
+            "listen-back"
+          ],
+          "limitations": [
+            "Speech intervals are measured at transcript-cue precision; stress and natural pacing need owner listening."
+          ],
+          "source": {
+            "title": "Spotify audio guide",
+            "url": "https://support.spotifycdn.com/pdf/SFA%20Metadata_Asset%20Guide_2024.pdf"
+          },
+          "sources": [
+            {
+              "title": "Spotify audio guide",
+              "url": "https://support.spotifycdn.com/pdf/SFA%20Metadata_Asset%20Guide_2024.pdf"
+            },
+            {
+              "title": "ACX audio requirements",
+              "url": "https://help.acx.com/s/article/what-are-the-acx-audio-submission-requirements"
+            }
+          ],
+          "line": "Current. Read official technical requirements and compare measured file values."
+        },
+        {
+          "id": "narration-ai-disclosure",
+          "platform": "house",
+          "rule": "Every narration delivery says AI narration.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "deliver"
+          ],
+          "limitations": [
+            "Disclosure does not replace rights or consent."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Founder rule, including when a distributor permits narrower disclosure."
+        }
+      ],
+      "summary": "3 current, 0 to recheck, 1 not confirmed against a source yet.",
+      "recipes": [
+        {
+          "id": "listen-after-master",
+          "name": "Listen after mastering",
+          "whenToUse": "Every narration delivery",
+          "steps": [
+            {
+              "do": "Check the source and voice before synthesis.",
+              "why": "A paid call must use the exact approved source."
+            },
+            {
+              "do": "Listen again after mastering.",
+              "why": "New audio needs a fresh owner listening decision."
+            }
+          ],
+          "howToRead": "Measured similarity cannot judge natural speech.",
+          "mistakes": [
+            "Treating a word score as listening approval."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "A measured audio check",
+          "canSay": "The current audio meets the selected measured technical checks.",
+          "cannotSay": "The distributor accepts it or the voice sounds natural without listening."
+        }
+      ]
+    },
+    "metadata": {
+      "narration-rights": {
+        "topic": "Narration rights review",
+        "how": "No named lawyer has confirmed this client-use rule.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "narration-distributors": {
+        "topic": "Synthetic narration destination",
+        "how": "Read each official policy page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "narration-audio-specs": {
+        "topic": "Measured mastering",
+        "how": "Read official technical requirements and compare measured file values.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "narration-ai-disclosure": {
+        "topic": "AI narration disclosure",
+        "how": "Founder rule, including when a distributor permits narrower disclosure.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "virtual-assistant": {
+    "view": {
+      "playbook": {
+        "id": "virtual-assistant",
+        "label": "Virtual assistant service",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-10-29"
+      },
+      "rules": [
+        {
+          "id": "routine-limits",
+          "platform": "house",
+          "rule": "Every routine and its run waits for owner approval.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "routines"
+          ],
+          "limitations": [
+            "Manual actions remain the owner responsibility."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked against the approval and source tests."
+        },
+        {
+          "id": "payment-refusal",
+          "platform": "house",
+          "rule": "Chausar never types payment details. Pay it yourself.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "handoff"
+          ],
+          "limitations": [
+            "Manual actions remain the owner responsibility."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked against the approval and source tests."
+        }
+      ],
+      "summary": "2 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "brief-before-work",
+          "name": "Agree the brief first",
+          "whenToUse": "Before client work",
+          "steps": [
+            {
+              "do": "Approve the current brief version.",
+              "why": "Changes need a fresh owner decision."
+            }
+          ],
+          "howToRead": "Keep every report line with its source.",
+          "mistakes": [
+            "Publishing a pending revision",
+            "Typing payment details"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Saved source records",
+          "canSay": "These records were read for this report.",
+          "cannotSay": "A message was sent or a purchase was made."
+        }
+      ]
+    },
+    "metadata": {
+      "routine-limits": {
+        "topic": "Routine approval",
+        "how": "Checked against the approval and source tests.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "payment-refusal": {
+        "topic": "Payment details",
+        "how": "Checked against the approval and source tests.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "app-testing": {
+    "view": {
+      "playbook": {
+        "id": "app-testing",
+        "label": "App testing and demo videos",
+        "riskLevel": "high",
+        "lastReviewed": "2026-10-29"
+      },
+      "rules": [
+        {
+          "id": "app-test-client-permission",
+          "platform": "app-testing",
+          "rule": "Client execution, recording and delivery need permission covering the build, test account, captured data and intended use.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "run",
+            "record",
+            "deliver"
+          ],
+          "limitations": [
+            "Preparation is available. Actual client execution and delivery wait for a lawyer review; no legal conclusion is inferred from a checkbox."
+          ],
+          "source": {
+            "title": "Digital Personal Data Protection Act",
+            "url": "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023.pdf"
+          },
+          "sources": [
+            {
+              "title": "Digital Personal Data Protection Act",
+              "url": "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023.pdf"
+            },
+            {
+              "title": "Copyright Act",
+              "url": "https://copyright.gov.in/Copyright_Act_1957/"
+            }
+          ],
+          "line": "Not confirmed against a source yet. No named lawyer has confirmed this client-use rule. A lawyer has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "app-test-emulator-only",
+          "platform": "house",
+          "rule": "Use a clean Android emulator or the owned throwaway desktop. No real phone, personal account or owner desktop recording.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "run",
+            "record"
+          ],
+          "limitations": [
+            "The client supplies test accounts and fictional data. Missing tools need manual installation by the owner."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Founder boundary."
+        },
+        {
+          "id": "app-test-ai-disclosure",
+          "platform": "house",
+          "rule": "An AI-voiced demo must say so in its video description; voice permission and exact paid-call approval still apply.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "voice",
+            "deliver"
+          ],
+          "limitations": [
+            "A technical check is not a licence or legal opinion."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Founder rule and shared voice-consent checks."
+        },
+        {
+          "id": "app-test-fixed-tools",
+          "platform": "tools",
+          "rule": "Only approved fixed Android operations and owned container operations run. Unknown effects are not retried automatically.",
+          "checkedOn": "2026-10-29",
+          "stale": false,
+          "usedBy": [
+            "run",
+            "record"
+          ],
+          "limitations": [
+            "Fixture-tested adapters still need installed tools and an actual local capability check."
+          ],
+          "source": {
+            "title": "Android adb",
+            "url": "https://developer.android.com/tools/adb"
+          },
+          "sources": [
+            {
+              "title": "Android adb",
+              "url": "https://developer.android.com/tools/adb"
+            },
+            {
+              "title": "Docker run",
+              "url": "https://docs.docker.com/reference/cli/docker/container/run/"
+            }
+          ],
+          "line": "Current. Read official command documentation and implemented explicit argument lists."
+        }
+      ],
+      "summary": "3 current, 0 to recheck, 1 not confirmed against a source yet.",
+      "recipes": [
+        {
+          "id": "source-before-action",
+          "name": "Check the source before acting",
+          "whenToUse": "Before each client operation",
+          "steps": [
+            {
+              "do": "Read the current build or recording and approve its exact operation.",
+              "why": "A changed source or screen needs a fresh decision."
+            }
+          ],
+          "howToRead": "Keep source receipts beside owner review.",
+          "mistakes": [
+            "Treating an unknown operation as safe to retry",
+            "Calling a plan an executed test"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Recorded emulator logs and local media",
+          "canSay": "Evidence covers only the recorded tests and media.",
+          "cannotSay": "The app is safe on every real device or every user account."
+        }
+      ]
+    },
+    "metadata": {
+      "app-test-client-permission": {
+        "topic": "Client test data and recording permission",
+        "how": "No named lawyer has confirmed this client-use rule.",
+        "read": "unconfirmed",
+        "window": 90,
+        "needs": "lawyer",
+        "confirmed": false
+      },
+      "app-test-emulator-only": {
+        "topic": "Isolated client tests",
+        "how": "Founder boundary.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "app-test-ai-disclosure": {
+        "topic": "Disclosed synthetic voice",
+        "how": "Founder rule and shared voice-consent checks.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "app-test-fixed-tools": {
+        "topic": "Bounded local commands",
+        "how": "Read official command documentation and implemented explicit argument lists.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "trading-journal": {
+    "view": {
+      "playbook": {
+        "id": "trading-journal",
+        "label": "Trading journal",
+        "riskLevel": "high",
+        "lastReviewed": "2026-11-01"
+      },
+      "rules": [
+        {
+          "id": "securities-guard",
+          "platform": "house",
+          "rule": "Chausar never places, suggests or automates a trade, never gives buy, sell or hold advice, tips, target prices or promised returns, and never connects to a broker that can place orders.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "notes",
+            "no-securities-advice"
+          ],
+          "limitations": [
+            "A back office for SEBI registered advisers or analysts is not built yet."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Enforced in code on every model text, chat answer, offer and outside tool server."
+        },
+        {
+          "id": "securities-transaction-tax",
+          "platform": "charges",
+          "rule": "Securities transaction tax is worked per contract note line from the dated rates for delivery, intraday, futures and options.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "charges"
+          ],
+          "limitations": [
+            "Options exercised at expiry are charged differently and are not read from a tradebook."
+          ],
+          "source": {
+            "title": "BSE notice 20260331-7 (rates in force from 1 October 2024 until 31 March 2026)",
+            "url": "https://www.kotakneo.com/uploads/20260331_7_c3867dfe94.pdf"
+          },
+          "sources": [
+            {
+              "title": "BSE notice 20260331-7 (rates in force from 1 October 2024 until 31 March 2026)",
+              "url": "https://www.kotakneo.com/uploads/20260331_7_c3867dfe94.pdf"
+            },
+            {
+              "title": "BSE notice 20260331-7, as per the Finance Act 2026 (NSE circular NSE/FATAX/73524 not read)",
+              "url": "https://www.kotakneo.com/uploads/20260331_7_c3867dfe94.pdf"
+            }
+          ],
+          "line": "Current. Read on the issuer's own page."
+        },
+        {
+          "id": "exchange-charges",
+          "platform": "charges",
+          "rule": "Exchange charges and the investor protection charge are worked from the dated exchange rates; the protection charge is folded into the exchange rate from March.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "charges"
+          ],
+          "limitations": [
+            "BSE cash uses the rate for its main groups only."
+          ],
+          "source": {
+            "title": "NSE circular NSE/FA/64232 and BSE notice 20240927-37, as quoted by Zerodha",
+            "url": "https://zerodha.com/marketintel/bulletin/391488"
+          },
+          "sources": [
+            {
+              "title": "NSE circular NSE/FA/64232 and BSE notice 20240927-37, as quoted by Zerodha",
+              "url": "https://zerodha.com/marketintel/bulletin/391488"
+            },
+            {
+              "title": "NSE circular NSE/FA/73061 (investor protection charge folded in), as quoted by Upstox and Zerodha",
+              "url": "https://zerodha.com/charges"
+            }
+          ],
+          "line": "Current. Read where a broker quotes the issuer."
+        },
+        {
+          "id": "fees-stamp-gst",
+          "platform": "charges",
+          "rule": "The SEBI turnover fee, stamp duty on the buy side and GST on broker services are worked from their published rates.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "charges"
+          ],
+          "limitations": [
+            "Brokers may round stamp duty and the transaction tax to the rupee."
+          ],
+          "source": {
+            "title": "SEBI turnover fee, Rs 10 a crore (notification SEBI/LAD-NRO/GN/2019/03), as quoted by brokers",
+            "url": "https://zerodha.com/charges"
+          },
+          "sources": [
+            {
+              "title": "SEBI turnover fee, Rs 10 a crore (notification SEBI/LAD-NRO/GN/2019/03), as quoted by brokers",
+              "url": "https://zerodha.com/charges"
+            },
+            {
+              "title": "Indian Stamp Act rates from 1 July 2020, buy side, as quoted by brokers (statute not read)",
+              "url": "https://zerodha.com/charges"
+            },
+            {
+              "title": "GST at 18% on broker services, as stated on broker charge pages (CBIC notification not read)",
+              "url": "https://zerodha.com/charges"
+            }
+          ],
+          "line": "Current. Read where a broker quotes the issuer."
+        },
+        {
+          "id": "brokerage-dp",
+          "platform": "charges",
+          "rule": "Brokerage is worked per executed order and DP charges per scrip on each delivery sell day, from each broker's own charges page.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "charges"
+          ],
+          "limitations": [
+            "Older trades may have been charged at older brokerage."
+          ],
+          "source": {
+            "title": "Zerodha charges page",
+            "url": "https://zerodha.com/charges"
+          },
+          "sources": [
+            {
+              "title": "Zerodha charges page",
+              "url": "https://zerodha.com/charges"
+            },
+            {
+              "title": "Groww pricing pages (stocks, futures and options)",
+              "url": "https://groww.in/pricing"
+            },
+            {
+              "title": "Upstox brokerage charges page",
+              "url": "https://upstox.com/brokerage-charges/"
+            },
+            {
+              "title": "Dhan pricing page (DP charge per ISIN; whether it applies to sells only is not stated)",
+              "url": "https://dhan.co/pricing/"
+            }
+          ],
+          "line": "Current. Read on each broker's own charges page; the pages show no start day."
+        },
+        {
+          "id": "speculative-intraday",
+          "platform": "tax",
+          "rule": "Equity bought and sold on the same day without delivery is a speculative transaction, kept apart from other business.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "pack"
+          ],
+          "limitations": [
+            "Your CA decides how losses are set off and carried forward."
+          ],
+          "source": {
+            "title": "Income-tax Act 1961, section 43(5)",
+            "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-43-64"
+          },
+          "sources": [
+            {
+              "title": "Income-tax Act 1961, section 43(5)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-43-64"
+            },
+            {
+              "title": "Income-tax Act 2025, section 66(31) and 26(3)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-66-126"
+            }
+          ],
+          "line": "Current. Read on the income tax department's section pages. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "fno-business",
+          "platform": "tax",
+          "rule": "Futures and options traded on a recognised exchange are not speculative; their profit or loss is business income, and turnover is counted without sign.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "pack"
+          ],
+          "limitations": [
+            "Whether a tax audit applies is for your CA."
+          ],
+          "source": {
+            "title": "Income-tax Act 1961, section 43(5) proviso (d)",
+            "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-43-64"
+          },
+          "sources": [
+            {
+              "title": "Income-tax Act 1961, section 43(5) proviso (d)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-43-64"
+            },
+            {
+              "title": "Income-tax Act 2025, section 66(33)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-66-126"
+            }
+          ],
+          "line": "Current. Read on the income tax department's section pages. The turnover method follows the ICAI guidance note, not read in full. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "capital-gains",
+          "platform": "tax",
+          "rule": "Listed equity held for more than twelve months is long term; long-term gains above the yearly limit and short-term gains each have their own rate.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "pack"
+          ],
+          "limitations": [
+            "Chausar shows the rule's rate and never works out a tax to pay."
+          ],
+          "source": {
+            "title": "Income-tax Act 1961, section 111A",
+            "url": "https://incometaxindia.gov.in/w/section-111a"
+          },
+          "sources": [
+            {
+              "title": "Income-tax Act 1961, section 111A",
+              "url": "https://incometaxindia.gov.in/w/section-111a"
+            },
+            {
+              "title": "Income-tax Act 1961, section 112A",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-31-118"
+            },
+            {
+              "title": "Income-tax Act 2025, section 196",
+              "url": "https://incometaxindia.gov.in/w/section-196-78"
+            },
+            {
+              "title": "Income-tax Act 2025, section 198",
+              "url": "https://incometaxindia.gov.in/w/section-198-76"
+            }
+          ],
+          "line": "Current. Read on the income tax department's section pages. A CA has not confirmed it yet, so it works in practice runs only."
+        },
+        {
+          "id": "grandfathering",
+          "platform": "tax",
+          "rule": "For shares bought before the grandfathering day, cost is the higher of the actual cost and the lower of the fair market value you enter and the sale value.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "pack"
+          ],
+          "limitations": [
+            "Chausar does not bundle market prices; you enter the fair market value and its source."
+          ],
+          "source": {
+            "title": "Income-tax Act 1961, section 55(2)(ac)",
+            "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-90-114"
+          },
+          "sources": [
+            {
+              "title": "Income-tax Act 1961, section 55(2)(ac)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-90-114"
+            },
+            {
+              "title": "Income-tax Act 2025, section 90(7) and 90(8)(b)",
+              "url": "https://wm.incometaxindia.gov.in/web/guest/w/section-90-114"
+            }
+          ],
+          "line": "Current. Read on the income tax department's section pages. A CA has not confirmed it yet, so it works in practice runs only."
+        }
+      ],
+      "summary": "9 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "year-end-pack",
+          "name": "Year-end pack for your CA",
+          "whenToUse": "After the year closes",
+          "steps": [
+            {
+              "do": "Import every tradebook for the year from each broker.",
+              "why": "A sell needs its earlier buy to work the gain."
+            },
+            {
+              "do": "Add holdings bought before your first tradebook as opening holdings.",
+              "why": "Older buys carry the cost and date the gain needs."
+            },
+            {
+              "do": "Prepare the tax pack and compare the charges with your contract notes.",
+              "why": "Brokers can round some charges differently."
+            }
+          ],
+          "howToRead": "Read each figure with the rule and the year it rests on, then ask your CA.",
+          "mistakes": [
+            "Leaving out a broker's tradebook",
+            "Treating the pack as tax advice"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Your broker tradebook",
+          "canSay": "These trades were in the file you imported.",
+          "cannotSay": "These are all your trades, or your broker charged exactly this."
+        },
+        {
+          "evidence": "The tax pack",
+          "canSay": "These figures were worked by code under the rule shown.",
+          "cannotSay": "How much tax you owe, or anything about your return."
+        }
+      ]
+    },
+    "metadata": {
+      "securities-guard": {
+        "topic": "No trades, tips or advice",
+        "how": "Enforced in code on every model text, chat answer, offer and outside tool server.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "securities-transaction-tax": {
+        "topic": "Securities transaction tax",
+        "how": "Read on the issuer's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "exchange-charges": {
+        "topic": "Exchange transaction charges",
+        "how": "Read where a broker quotes the issuer.",
+        "read": "secondary",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "fees-stamp-gst": {
+        "topic": "SEBI fee, stamp duty and GST",
+        "how": "Read where a broker quotes the issuer.",
+        "read": "secondary",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "brokerage-dp": {
+        "topic": "Brokerage and DP charges",
+        "how": "Read on each broker's own charges page; the pages show no start day.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "speculative-intraday": {
+        "topic": "Intraday is speculative",
+        "how": "Read on the income tax department's section pages.",
+        "read": "official",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "fno-business": {
+        "topic": "Futures and options are business income",
+        "how": "Read on the income tax department's section pages. The turnover method follows the ICAI guidance note, not read in full.",
+        "read": "official",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "capital-gains": {
+        "topic": "Short and long term gains on listed equity",
+        "how": "Read on the income tax department's section pages.",
+        "read": "official",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      },
+      "grandfathering": {
+        "topic": "Shares bought before the grandfathering day",
+        "how": "Read on the income tax department's section pages.",
+        "read": "official",
+        "window": 90,
+        "needs": "ca",
+        "confirmed": false
+      }
+    }
+  },
+  "lesson-desk": {
+    "view": {
+      "playbook": {
+        "id": "lesson-desk",
+        "label": "Lesson desk for tutors and teachers",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-11-01"
+      },
+      "rules": [
+        {
+          "id": "child-data-consent",
+          "platform": "house",
+          "rule": "A child's lesson records reach your AI only while their parent's recorded consent is current. Withdrawal stops it at once.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "gather",
+            "draft"
+          ],
+          "limitations": [
+            "Whether a recorded consent meets the legal test for a parent's checked consent is for a lawyer. Chausar keeps the recording's digest and the words agreed."
+          ],
+          "source": {
+            "title": "MeitY, Digital Personal Data Protection framework",
+            "url": "https://www.meity.gov.in/data-protection-framework"
+          },
+          "sources": [
+            {
+              "title": "MeitY, Digital Personal Data Protection framework",
+              "url": "https://www.meity.gov.in/data-protection-framework"
+            }
+          ],
+          "line": "Current. Chausar house rule and hard stop. The Act was read for its section on a child's data and a parent's consent."
+        },
+        {
+          "id": "figures-from-chausar",
+          "platform": "house",
+          "rule": "Attendance, quiz scores and fees come from Chausar's counts and invoices. A draft never states them.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "draft",
+            "figures-from-chausar"
+          ],
+          "limitations": [
+            "The counts are only as right as the marks and answers you enter."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked by the desk counts and the figures check on every draft."
+        },
+        {
+          "id": "owner-sends-parent-messages",
+          "platform": "house",
+          "rule": "Parent messages go out only when you approve the exact words and send them from your own app.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "approve",
+            "send"
+          ],
+          "limitations": [
+            "Chausar cannot tell whether a message reached the parent."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked by the exact approval in the action journal and the handoff tests."
+        }
+      ],
+      "summary": "3 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "counts-before-notes",
+          "name": "Counts before notes",
+          "whenToUse": "Writing a progress note for a parent.",
+          "steps": [
+            {
+              "do": "Mark attendance and score the quiz in the desk first.",
+              "why": "The note's figures come from Chausar's counts."
+            },
+            {
+              "do": "Write what the learner did and what comes next.",
+              "why": "Parents want specific and kind words."
+            }
+          ],
+          "howToRead": "Read the counts beside the note before you send it.",
+          "mistakes": [
+            "Guessing attendance or marks in the words of a note."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "Attendance marks",
+          "canSay": "Which classes a learner was marked present, late or absent.",
+          "cannotSay": "How much the learner understood."
+        },
+        {
+          "evidence": "A quiz score",
+          "canSay": "How many answers matched the key.",
+          "cannotSay": "The learner's ability or rank."
+        }
+      ]
+    },
+    "metadata": {
+      "child-data-consent": {
+        "topic": "Children's data and parent consent",
+        "how": "Chausar house rule and hard stop. The Act was read for its section on a child's data and a parent's consent.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "figures-from-chausar": {
+        "topic": "Attendance, scores and fees",
+        "how": "Checked by the desk counts and the figures check on every draft.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "owner-sends-parent-messages": {
+        "topic": "Messages to parents",
+        "how": "Checked by the exact approval in the action journal and the handoff tests.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "booking-desk": {
+    "view": {
+      "playbook": {
+        "id": "booking-desk",
+        "label": "Booking desk for local services",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-11-01"
+      },
+      "rules": [
+        {
+          "id": "deposit-is-an-invoice",
+          "platform": "house",
+          "rule": "A deposit is an advance invoice on the booking's order, paid through its How to pay link. Chausar takes no money any other way.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "deposit",
+            "quote"
+          ],
+          "limitations": [
+            "Chausar learns a deposit was paid only when you mark it paid."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked by the deposit tests against the invoice code."
+        },
+        {
+          "id": "quote-from-your-prices",
+          "platform": "house",
+          "rule": "A quote is the order's price receipt from your own prices. A draft never states an amount.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "quote",
+            "no-amounts"
+          ],
+          "limitations": [
+            "Travel or materials you add by hand need their own order line."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked by the amounts check on every draft and the quote tests."
+        },
+        {
+          "id": "owner-sends-reminders",
+          "platform": "house",
+          "rule": "Reminders go out only when you approve the exact words and send them from your own app.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "approve",
+            "send"
+          ],
+          "limitations": [
+            "Chausar cannot tell whether a reminder reached the client."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Checked by the exact approval in the action journal and the handoff tests."
+        },
+        {
+          "id": "booking-privacy",
+          "platform": "house",
+          "rule": "Keep only the address and phone a booking needs, and honour Forget at once.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "intake"
+          ],
+          "limitations": [
+            "Legal duties for your business are for a lawyer to confirm."
+          ],
+          "source": {
+            "title": "MeitY, Digital Personal Data Protection framework",
+            "url": "https://www.meity.gov.in/data-protection-framework"
+          },
+          "sources": [
+            {
+              "title": "MeitY, Digital Personal Data Protection framework",
+              "url": "https://www.meity.gov.in/data-protection-framework"
+            }
+          ],
+          "line": "Current. Chausar house rule, read beside the data protection framework."
+        }
+      ],
+      "summary": "4 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "hold-then-deposit",
+          "name": "Hold, then ask for the deposit",
+          "whenToUse": "A new booking from an enquiry.",
+          "steps": [
+            {
+              "do": "Quote from an order with your price, then hold a slot.",
+              "why": "The quote and the time come from your own records."
+            },
+            {
+              "do": "Issue the deposit invoice and send its UPI link.",
+              "why": "The client pays the exact amount the invoice shows."
+            }
+          ],
+          "howToRead": "Read the slot, the quote and the deposit beside each message before you send it.",
+          "mistakes": [
+            "Promising a price or a time in a message before the desk holds it."
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "A held slot",
+          "canSay": "That time is kept for this client in your desk.",
+          "cannotSay": "That the client will turn up."
+        },
+        {
+          "evidence": "An issued deposit invoice",
+          "canSay": "What the client was asked to pay, from your price.",
+          "cannotSay": "That the client paid, until you mark it paid."
+        }
+      ]
+    },
+    "metadata": {
+      "deposit-is-an-invoice": {
+        "topic": "Deposits",
+        "how": "Checked by the deposit tests against the invoice code.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "quote-from-your-prices": {
+        "topic": "Quotes",
+        "how": "Checked by the amounts check on every draft and the quote tests.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "owner-sends-reminders": {
+        "topic": "Reminders",
+        "how": "Checked by the exact approval in the action journal and the handoff tests.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "booking-privacy": {
+        "topic": "Client details",
+        "how": "Chausar house rule, read beside the data protection framework.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "signoff-desk": {
+    "view": {
+      "playbook": {
+        "id": "signoff-desk",
+        "label": "Sign-off desk",
+        "riskLevel": "high",
+        "lastReviewed": "2026-11-01"
+      },
+      "rules": [
+        {
+          "id": "signoff-every-output",
+          "platform": "house",
+          "rule": "Every client output waits for the named professional of record to sign its exact papers.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "signoff"
+          ],
+          "limitations": [
+            "A signature in Chausar is not a filing, a stamp or a portal signature."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Code compares the signed digest with the papers at accept, share and post."
+        },
+        {
+          "id": "bci-rule-36",
+          "platform": "advocate",
+          "rule": "An advocate does not solicit work or advertise, directly or indirectly.",
+          "checkedOn": "2026-11-02",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Bar Council of India Rules, Part VI, Chapter II, Section IV, Rule 36",
+            "url": "https://www.barcouncilofindia.org/info/bar-counci-g36acc"
+          },
+          "sources": [
+            {
+              "title": "Bar Council of India Rules, Part VI, Chapter II, Section IV, Rule 36",
+              "url": "https://www.barcouncilofindia.org/info/bar-counci-g36acc"
+            }
+          ],
+          "line": "Current. Read on the regulator's own page."
+        },
+        {
+          "id": "nmc-2002-6-1-1",
+          "platform": "doctor",
+          "rule": "Soliciting patients, directly or indirectly, is unethical.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Code of Medical Ethics Regulations, 2002, clause 6.1.1",
+            "url": "https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002"
+          },
+          "sources": [
+            {
+              "title": "Code of Medical Ethics Regulations, 2002, clause 6.1.1",
+              "url": "https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002"
+            }
+          ],
+          "line": "Current. Read on the regulator's own page."
+        },
+        {
+          "id": "nmc-2002-1-4-1",
+          "platform": "doctor",
+          "rule": "A prescription carries the doctor's registration number.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Code of Medical Ethics Regulations, 2002, clause 1.4.1",
+            "url": "https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002"
+          },
+          "sources": [
+            {
+              "title": "Code of Medical Ethics Regulations, 2002, clause 1.4.1",
+              "url": "https://www.nmc.org.in/page/rules-regulations-rules-regulations-of-erstwhile-mci-code-of-medical-ethics-regulations-2002"
+            }
+          ],
+          "line": "Current. Read on the regulator's own page."
+        },
+        {
+          "id": "telemedicine-2020",
+          "platform": "doctor",
+          "rule": "Only a registered medical practitioner counsels patients or prescribes; an AI tool does not.",
+          "checkedOn": "2026-11-02",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Telemedicine Practice Guidelines, 2020, sections 5.4 and 3.2.5",
+            "url": "https://esanjeevani.mohfw.gov.in/assets/guidelines/Telemedicine_Practice_Guidelines.pdf"
+          },
+          "sources": [
+            {
+              "title": "Telemedicine Practice Guidelines, 2020, sections 5.4 and 3.2.5",
+              "url": "https://esanjeevani.mohfw.gov.in/assets/guidelines/Telemedicine_Practice_Guidelines.pdf"
+            }
+          ],
+          "line": "Current. Read on the regulator's own page."
+        },
+        {
+          "id": "sebi-ia-2013",
+          "platform": "financial-planner",
+          "rule": "Advice on securities needs SEBI investment adviser registration; advisers never promise or imply assured returns.",
+          "checkedOn": "2026-11-03",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "SEBI (Investment Advisers) Regulations, 2013, regulation 3(1), and the Master Circular for Investment Advisers, 2026",
+            "url": "https://www.sebi.gov.in/sebi_data/attachdocs/aug-2026/1785912187595.pdf"
+          },
+          "sources": [
+            {
+              "title": "SEBI (Investment Advisers) Regulations, 2013, regulation 3(1), and the Master Circular for Investment Advisers, 2026",
+              "url": "https://www.sebi.gov.in/sebi_data/attachdocs/aug-2026/1785912187595.pdf"
+            }
+          ],
+          "line": "Current. Read on the regulator's own page."
+        },
+        {
+          "id": "sebi-ra-2014",
+          "platform": "financial-planner",
+          "rule": "Buy, sell or hold calls, price targets and trading calls on listed securities need SEBI research analyst registration.",
+          "checkedOn": "2026-11-03",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "SEBI (Research Analysts) Regulations, 2014, regulation 3(1) read with regulation 2(1)(wa)",
+            "url": "https://www.sebi.gov.in/sebi_data/attachdocs/oct-2026/1792127227860.pdf"
+          },
+          "sources": [
+            {
+              "title": "SEBI (Research Analysts) Regulations, 2014, regulation 3(1) read with regulation 2(1)(wa)",
+              "url": "https://www.sebi.gov.in/sebi_data/attachdocs/oct-2026/1792127227860.pdf"
+            }
+          ],
+          "line": "Current. Read on the regulator's own page."
+        },
+        {
+          "id": "cs-act-1980",
+          "platform": "company-secretary",
+          "rule": "A practising company secretary does not solicit clients or advertise, except through a write-up under ICSI guidelines.",
+          "checkedOn": "2026-11-03",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Company Secretaries Act, 1980, First Schedule, Part I, items (6) and (7)",
+            "url": "https://stimulate.icsi.edu/practicingcompanysecretary/images/PM/Second-Schedules.pdf"
+          },
+          "sources": [
+            {
+              "title": "Company Secretaries Act, 1980, First Schedule, Part I, items (6) and (7)",
+              "url": "https://stimulate.icsi.edu/practicingcompanysecretary/images/PM/Second-Schedules.pdf"
+            }
+          ],
+          "line": "Current. Read on the regulator's own page."
+        },
+        {
+          "id": "ca-act-1949",
+          "platform": "chartered-accountant",
+          "rule": "A practising chartered accountant does not solicit clients or advertise, except through a write-up under ICAI guidelines.",
+          "checkedOn": "2026-11-03",
+          "stale": false,
+          "usedBy": [
+            "check"
+          ],
+          "limitations": [
+            "Chausar does not give legal, medical or investment advice; the professional decides."
+          ],
+          "source": {
+            "title": "Chartered Accountants Act, 1949, First Schedule, Part I, items (6) and (7)",
+            "url": "https://resource.cdn.icai.org/75789ca-act-61309.pdf"
+          },
+          "sources": [
+            {
+              "title": "Chartered Accountants Act, 1949, First Schedule, Part I, items (6) and (7)",
+              "url": "https://resource.cdn.icai.org/75789ca-act-61309.pdf"
+            }
+          ],
+          "line": "Current. Read on the regulator's own page."
+        }
+      ],
+      "summary": "9 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "sign-before-send",
+          "name": "Signature before sending",
+          "whenToUse": "Every regulated paper",
+          "steps": [
+            {
+              "do": "Draft the papers",
+              "why": "Drafts regulated papers from the client files."
+            },
+            {
+              "do": "The professional of record signs these exact papers.",
+              "why": "Signs every regulated paper."
+            }
+          ],
+          "howToRead": "Read the draft, then the signature line in the sign-off desk.",
+          "mistakes": [
+            "Sending papers before the signature",
+            "An AI diagnosis or a stock tip"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "The professional's signature",
+          "canSay": "The named professional signed these exact papers in Chausar.",
+          "cannotSay": "A court, council or portal accepts these papers."
+        }
+      ]
+    },
+    "metadata": {
+      "signoff-every-output": {
+        "topic": "Signature before any client output",
+        "how": "Code compares the signed digest with the papers at accept, share and post.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "bci-rule-36": {
+        "topic": "Advocates and solicitation",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "nmc-2002-6-1-1": {
+        "topic": "Doctors and soliciting patients",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "nmc-2002-1-4-1": {
+        "topic": "Registration number on prescriptions",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "telemedicine-2020": {
+        "topic": "Who counsels and prescribes",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "sebi-ia-2013": {
+        "topic": "Investment advice",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "sebi-ra-2014": {
+        "topic": "Research calls and target prices",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "cs-act-1980": {
+        "topic": "Company secretaries and advertising",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "ca-act-1949": {
+        "topic": "Chartered accountants and advertising",
+        "how": "Read on the regulator's own page.",
+        "read": "official",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  },
+  "document-desk": {
+    "view": {
+      "playbook": {
+        "id": "document-desk",
+        "label": "Document desk",
+        "riskLevel": "medium",
+        "lastReviewed": "2026-11-01"
+      },
+      "rules": [
+        {
+          "id": "figures-from-receipt",
+          "platform": "house",
+          "rule": "Every amount a document shows comes from the figures table and its code receipt.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "figures",
+            "review",
+            "document-figures"
+          ],
+          "limitations": [
+            "A receipt proves the arithmetic, not the rates or quantities the owner entered."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Code refuses section text with an amount the receipt does not prove."
+        },
+        {
+          "id": "owner-sends-documents",
+          "platform": "house",
+          "rule": "The owner approves the exact document and sends it to the client.",
+          "checkedOn": "2026-11-01",
+          "stale": false,
+          "usedBy": [
+            "review",
+            "send"
+          ],
+          "limitations": [
+            "Chausar does not file or submit a document anywhere."
+          ],
+          "source": null,
+          "sources": [
+            {
+              "title": "Chausar's own rule",
+              "url": ""
+            }
+          ],
+          "line": "Current. Code binds the approval to a digest of the brief and every section."
+        }
+      ],
+      "summary": "2 current, 0 to recheck.",
+      "recipes": [
+        {
+          "id": "brief-first",
+          "name": "Brief before drafting",
+          "whenToUse": "Every document",
+          "steps": [
+            {
+              "do": "Approve the outline, files and figures before AI work.",
+              "why": "Reads the client files for the facts each section needs."
+            },
+            {
+              "do": "Approve the exact finished document.",
+              "why": "Approves the brief and the finished document, and sends it."
+            }
+          ],
+          "howToRead": "Read each section against its brief and the figures table.",
+          "mistakes": [
+            "Amounts typed into the text",
+            "Facts that are not in the client files"
+          ]
+        }
+      ],
+      "boundaries": [
+        {
+          "evidence": "The figures receipt",
+          "canSay": "Code computed these amounts from the quantities and rates you entered.",
+          "cannotSay": "The rates, quantities or projections are right for the client."
+        }
+      ]
+    },
+    "metadata": {
+      "figures-from-receipt": {
+        "topic": "Figures in documents",
+        "how": "Code refuses section text with an amount the receipt does not prove.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      },
+      "owner-sends-documents": {
+        "topic": "Sending documents",
+        "how": "Code binds the approval to a digest of the brief and every section.",
+        "read": "house",
+        "window": 90,
+        "needs": null,
+        "confirmed": false
+      }
+    }
+  }
+}

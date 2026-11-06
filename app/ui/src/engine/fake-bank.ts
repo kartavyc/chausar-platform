@@ -11,6 +11,7 @@ import {
   type QueueRow, type VentureRunEvent,
 } from './types';
 import { inr } from './fake-money';
+import { decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
 
 export interface BankHost {
   current(): string;
@@ -30,6 +31,7 @@ const ALERTS_SENT_LINE = 'Alerts go to the address you set, as a count only. Tod
 const ALERTS_TODAY_LINE = 'Alerts show on Today only. No address is set, so nothing is sent.';
 
 interface HeldAccount {
+  currency?: string;
   id: string; label: string; consent: BankLedgerView['accounts'][number]['consent']; rules: BankAlertRuleLite[]; address: string | null;
 }
 /** A kept row: minor units as a whole number of paise, signed (money in positive). */
@@ -71,11 +73,12 @@ export function dayMonthYear(iso: string): string {
   return `${day} ${MONTHS[Number(month) - 1]} ${year}`;
 }
 
-function ruleLine(rule: BankAlertRuleLite): string {
-  if (rule.kind === 'large-debit') return `When ${inr(Number(rule.minor))} or more goes out in one payment.`;
-  if (rule.kind === 'balance-below') return `When the balance falls below ${inr(Number(rule.minor))}.`;
+function ruleLine(rule: BankAlertRuleLite, currency = 'INR'): string {
+  const show = (minor: string) => currency === 'INR' ? inr(Number(minor)) : formatMinor(minor, currency);
+  if (rule.kind === 'large-debit') return `When ${show(rule.minor)} or more goes out in one payment.`;
+  if (rule.kind === 'balance-below') return `When the balance falls below ${show(rule.minor)}.`;
   if (rule.kind === 'credit-matching') return `When money comes in that mentions ${rule.text}.`;
-  return `When no payment of ${inr(Number(rule.minor))} or more that mentions ${rule.text} has come in by ${rule.by}.`;
+  return `When no payment of ${show(rule.minor)} or more that mentions ${rule.text} has come in by ${rule.by}.`;
 }
 
 /** The engine's refusal of an address inside the computer or its network, in the spellings a test reaches for. */
@@ -172,7 +175,7 @@ export class FakeBankDesk {
   private alertsView(): BankAlertsView {
     return {
       accounts: this.mine().accounts.map((a) => ({
-        account: a.label, accountId: a.id, rules: a.rules.map((rule) => ({ ...rule })), ruleLines: a.rules.map(ruleLine),
+        account: a.label, accountId: a.id, rules: a.rules.map((rule) => ({ ...rule })), ruleLines: a.rules.map(rule => ruleLine(rule, a.currency ?? 'INR')),
         destination: a.address ? ALERTS_SENT_LINE : ALERTS_TODAY_LINE,
       })),
     };
@@ -182,14 +185,17 @@ export class FakeBankDesk {
     const label = typeof p.account === 'string' ? p.account.trim() : '';
     if (!label || label.length > 80) throw new EngineError('INVALID_VENTURE_REQUEST', 'The account name must be between 1 and 80 characters.');
     if (!Array.isArray(p.rules) || p.rules.length > 10) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send a list of at most 10 alert rules.');
+    const existing = this.mine().accounts.find(account => sameLabel(account.label, label));
+    const current = this.host.ask('venture.get', {}) as { venture?: { country?: { currency?: string } } } | null;
+    const currency = existing ? existing.currency ?? 'INR' : current?.venture?.country?.currency ?? 'INR';
     const rules = (p.rules as Record<string, unknown>[]).map((rule): BankAlertRuleLite => {
       if (rule.kind === 'credit-matching' && typeof rule.text === 'string') return { kind: 'credit-matching', text: rule.text };
       if (rule.kind !== 'large-debit' && rule.kind !== 'balance-below') throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose a kind of alert Chausar checks.');
       if (typeof rule.minor === 'string' && /^\d{1,18}$/.test(rule.minor) && rule.amount === undefined) return { kind: rule.kind, minor: rule.minor };
       const typed = typeof rule.amount === 'string' && rule.minor === undefined ? rule.amount.replace(/[\s,]/g, '') : '';
-      const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(typed);
-      if (!match) throw new EngineError('INVALID_VENTURE_REQUEST', 'Type the amount for this alert like 50000 or 50000.00.');
-      const minor = `${match[1]}${(match[2] ?? '').padEnd(2, '0')}`.replace(/^0+(?=\d)/, '');
+      if (!/^\d+(?:\.\d+)?$/.test(typed)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Type a positive amount for this alert.');
+      let minor: string;
+      try { minor = decimalMinor(typed, currency); } catch { throw new EngineError('INVALID_VENTURE_REQUEST', 'Use the account currency’s decimal places for this amount.'); }
       if (/^0+$/.test(minor)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The amount for this alert must be above zero.');
       return { kind: rule.kind, minor };
     });
@@ -205,7 +211,7 @@ export class FakeBankDesk {
     const { accounts } = this.mine();
     let account = accounts.find((a) => sameLabel(a.label, label));
     if (!account) {
-      account = { id: `bankaccount-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, label, consent: null, rules: [], address: null };
+      account = { id: `bankaccount-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, label, currency, consent: null, rules: [], address: null };
       accounts.push(account);
     }
     account.rules = rules;

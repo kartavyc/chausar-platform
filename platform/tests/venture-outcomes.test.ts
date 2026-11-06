@@ -11,7 +11,8 @@ import { decideFirstSchema, readDecideFirst } from '../runtime/venture/delivery/
 import { actOutcome, deliverableReport, runOutcome } from '../runtime/venture/delivery/outcomes.ts';
 import { coverageView } from '../runtime/venture/delivery/coverage.ts';
 import { call, harness, owner, seedBlueprint, seedOrder, seedRun, setup } from './venture-views-env.ts';
-import { business, noOn, PLAIN_IDEA, readyDraft } from './venture-judge-helpers.ts';
+import { noOn, PLAIN_IDEA } from './venture-judge-helpers.ts';
+import { nativeJudgeBusiness as business, readyNativeDraft as readyDraft } from './native-judge-business.ts';
 import { DRAFT_RULES } from '../runtime/venture/delivery/judge/rules.ts';
 import { REVIEW_INCOMPLETE } from '../runtime/venture/delivery/verdicts.ts';
 import { answer, chatConsent, chiefBusiness, proposalFields, scriptChief, text, tools } from './venture-chief-helpers.ts';
@@ -109,7 +110,7 @@ test('the report: a complete review with a failed safety check is DO NOT SEND; a
     playbook: null, checks: [{ check: 'house-style', passed: true, detail: 'Fine.' }, { check: 'no-numeric-prose', passed: false, detail: 'The draft writes 12 in words.' }],
     playbookChecks: [], judge: NO_JUDGE, coverage: null, generatedAt: AT, draftAt: null,
   });
-  assert.deepEqual([report.verdict, report.verdictLine], ['do-not-send', 'DO NOT SEND: 1 check that guards what goes out failed. No AI judge looked at it.']);
+  assert.deepEqual([report.verdict, report.verdictLine], ['do-not-send', 'DO NOT SEND: 1 check that guards what goes out failed. No AI quality check looked at it.']);
   assert.deepEqual(report.review, { complete: true, line: null });
   assert.equal(report.result, undefined, 'no client files, so no coverage and no partial word');
 });
@@ -119,9 +120,9 @@ test('the report: no judge is "Not run" in the looked-at column, PASS says so, a
     playbook: null, checks: [{ check: 'house-style', passed: true, detail: 'Fine.' }], playbookChecks: [], judge: NO_JUDGE,
     coverage: coverageView(130, 130, 'rows', 'read'), generatedAt: AT, draftAt: '2026-10-15T11:00:00.000Z',
   });
-  assert.deepEqual(report.lookedAt, [{ id: 'rules-judge', outcome: 'not-run', line: 'Not run: no AI judge looked at this draft.', detail: 'no AI judge looked at this draft.' }]);
+  assert.deepEqual(report.lookedAt, [{ id: 'rules-judge', outcome: 'not-run', line: 'Not run: no AI quality check looked at this draft.', detail: 'no AI quality check looked at this draft.' }]);
   assert.equal(report.verdict, 'pass');
-  assert.equal(report.verdictLine, 'PASS: every check ran and passed. No AI judge looked at it.');
+  assert.equal(report.verdictLine, 'PASS: every check ran and passed. No AI quality check looked at it.');
   assert.deepEqual(report.generatedBy, ['code']);
   assert.equal(report.result, 'complete');
   assert.equal(report.stale, true);
@@ -132,9 +133,9 @@ test('the report: no judge is "Not run" in the looked-at column, PASS says so, a
 test('the report: a judge that waits, is due or failed reads Not run, and the review stays incomplete with no verdict', () => {
   const base = { playbook: null, checks: [{ check: 'house-style' as const, passed: false, detail: 'Too long.' }], playbookChecks: [], coverage: null, generatedAt: AT, draftAt: null };
   const lines = {
-    waiting: "Not run: the judge's call waits for you to send it.",
-    pending: 'Not run: the judge is due and has not read this draft yet.',
-    failed: "Not run: the judge's call failed. The provider did not answer.",
+    waiting: "Not run: the quality check's call waits for you to send it.",
+    pending: 'Not run: the quality check is due and has not read this draft yet.',
+    failed: "Not run: the quality check's call failed. The provider did not answer.",
   } as const;
   for (const state of ['waiting', 'pending', 'failed'] as const) {
     const report = deliverableReport({ ...base, judge: { state, rules: null, line: state === 'failed' ? 'The provider did not answer.' : null } });
@@ -197,7 +198,7 @@ test("judgeSend keeps each rule's result on the run, and the report words them w
   const run = await readyDraft(env);
   const waiting = await env.call('venture.delivery.judge', { runId: run.id });
   const before = await env.call('venture.runs.get', { runId: run.id });
-  assert.deepEqual(before.report.lookedAt.map((item: any) => [item.outcome, item.line]), [['not-run', "Not run: the judge's call waits for you to send it."]]);
+  assert.deepEqual(before.report.lookedAt.map((item: any) => [item.outcome, item.line]), [['not-run', "Not run: the quality check's call waits for you to send it."]]);
   assert.deepEqual([before.report.verdict, before.report.review.complete], [null, false]);
   await env.call('venture.delivery.judgeSend', { runId: run.id, digest: waiting.digest });
   const stored = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id)!;

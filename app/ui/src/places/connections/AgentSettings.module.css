@@ -1,0 +1,41 @@
+.form, .group, .task, .label {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.group {
+  margin: 0;
+  padding: var(--sp-3) 0;
+  border: 0;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14em), 1fr));
+  gap: var(--sp-3);
+}
+.label, .check, .notes {
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+.select {
+  width: 100%;
+  min-width: 0;
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  padding: var(--sp-2);
+}
+.select:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+.check, .actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.actions { flex-wrap: wrap; }
+.check input { accent-color: var(--selected); }
+.notes p { margin: 0 0 var(--sp-2); }

@@ -318,18 +318,7 @@ describe('Today on a phone: the tip', () => {
     expect(screen.queryByText(TIP)).toBeNull();
   });
 
-  it('reads in Hindi with no key showing', async () => {
-    stubWidth(true);
-    window.location.hash = '#/today';
-    render(<App client={createFakeClient(new FakeEngine())} language="hi" />);
-    const tip = await waitFor(() => {
-      const found = document.querySelector('[data-tip]');
-      if (!found) throw new Error('no tip');
-      return found as HTMLElement;
-    });
-    expect(tip.textContent).not.toMatch(/today\.|phone\./);
-    expect(within(tip).getByRole('button').getAttribute('aria-label')).not.toMatch(/^today\./);
-  });
+
 });
 
 describe('Today on a phone: rows that scroll and the goal card', () => {

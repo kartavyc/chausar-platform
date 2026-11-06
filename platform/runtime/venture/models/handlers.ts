@@ -1,12 +1,12 @@
 // Chausar venture launcher, package P2 (models): the RPC handlers. The five of P2, and Ink v2 wave 4's two (4H1): the
 // CLI status checked against the installed tools, and which AI answers for each role (roles.ts).
-// Keys go to the memory-only SecretShelf before the write and never into a record, a log or an error.
-import { authorize, check, type Context } from '../../contracts.ts';
+// Desktop model keys persist through the private OS-protected host port; the unlocked shelf is only a cache.
+import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
 import { DELEGATE_CLIS, MODEL_PRESET_IDS, MODEL_PURPOSES } from '../contracts.ts';
 import type {
   CliCheckRecord, CliFinding, CliStatusList, ModelPresetId, ModelPurpose, ModelStatusView, ModelTier, VentureDeps, VentureHandlerTable, VentureResults,
 } from '../contracts.ts';
-import { currentVenture, exactPayload, identifier, listRecords, requireAppChannel, requireVenture, smallInteger, ventureAction } from '../records.ts';
+import { currentVenture, exactPayload, identifier, listRecords, readVenture, requireAppChannel, requireVenture, smallInteger, ventureAction } from '../records.ts';
 import { CLI_STATUS_WORDS, cliListLine, cliStatusView, lastCliTask } from './cli-status.ts';
 import { monthlyCapMicros } from './cost.ts';
 import { listCalls, newestFirst, putRecord, replaceRecord, viewCall } from './port.ts';
@@ -15,7 +15,10 @@ import { rolesHandler } from './roles.ts';
 import type { ConnectionRecord } from './types.ts';
 import { payerChangeLine } from '../money/spend.ts';
 
+import { credentialChange, assertCredentialSession } from './credential-state.ts';
+
 const SECRET = (id: ModelPresetId) => `model:${id}` as const;
+const GATEWAY_MODEL_ID = /^~?[a-z0-9][a-z0-9._-]{0,63}\/[a-z0-9][a-z0-9._:-]{0,127}$/;
 const MODEL_ID = /^[a-z0-9][a-z0-9.-]{1,63}$/;
 
 async function presets(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureResults['venture.models.presets']> {
@@ -32,7 +35,10 @@ export type ConnectOptions = { draft?: boolean };
  * templates are refused there. Claude Code is refused while the terms gate is pending, in both places. A command-line
  * tool is started only once everything the request itself says has passed (the consent, key, model, tiers and limit).
  */
-export async function connectModel(deps: VentureDeps, ctx: Context, payload: unknown, options: ConnectOptions = {}): Promise<ModelStatusView> {
+export function connectModel(deps: VentureDeps, ctx: Context, payload: unknown, options: ConnectOptions = {}): Promise<ModelStatusView> {
+  return credentialChange(deps, () => connectModelUnlocked(deps, ctx, payload, options));
+}
+async function connectModelUnlocked(deps: VentureDeps, ctx: Context, payload: unknown, options: ConnectOptions): Promise<ModelStatusView> {
   const input = exactPayload(payload, ['presetId', 'consentDigest', 'apiKey', 'model', 'tiers', 'monthlyCapUsd'], ['presetId', 'consentDigest']);
   authorize(deps.store, ctx, 'admin');
   requireAppChannel(ctx, 'venture.models.connect');
@@ -54,8 +60,8 @@ export async function connectModel(deps: VentureDeps, ctx: Context, payload: unk
   }
   let model = spec.model;
   if (input.model !== undefined) {
-    check(spec.modelEditable, 'INVALID_VENTURE_REQUEST', 'Only GPT-6 Luna takes a typed model id.');
-    check(typeof input.model === 'string' && MODEL_ID.test(input.model), 'INVALID_VENTURE_REQUEST', 'Type the model id your account shows, in lower case, like gpt-6-luna.');
+    check(spec.modelEditable, 'INVALID_VENTURE_REQUEST', 'This option has a fixed model.');
+    check(typeof input.model === 'string' && (presetId === 'openrouter' ? GATEWAY_MODEL_ID : MODEL_ID).test(input.model), 'INVALID_VENTURE_REQUEST', 'Type the model id your account shows, in lower case, like gpt-6-luna.');
     model = input.model;
   }
   let tiers: ModelTier[] = [...spec.tiers];
@@ -74,11 +80,21 @@ export async function connectModel(deps: VentureDeps, ctx: Context, payload: unk
 
   const secretName = SECRET(presetId);
   const previousKey = apiKey !== null ? deps.secrets.get(secretName) : null;
-  if (apiKey !== null) deps.secrets.set(secretName, apiKey);
+  const credentials = options.draft ? undefined : deps.credentials;
+  check(apiKey === null || options.draft || deps.host !== 'desktop' || deps.demo || credentials, 'CREDENTIAL_UNAVAILABLE', 'Protected key storage is unavailable on this computer.');
+  const workspaceId = deps.store.read().workspace.id;
+  let previousSaved: string | null = null, attemptedSave = false;
   // Ink v2 wave 4 (4F2, M7): when this connection takes over work another one did, connect's answer says who now pays.
   const answer: { payerLine: string | null } = { payerLine: null };
   try {
+    if (apiKey !== null && credentials) {
+      previousSaved = await credentials.get(workspaceId, secretName); assertCredentialSession(deps, ctx);
+      attemptedSave = true; await credentials.set(workspaceId, secretName, apiKey);
+    }
+    assertCredentialSession(deps, ctx);
+    if (apiKey !== null) deps.secrets.set(secretName, apiKey);
     await ventureAction(deps, ctx, 'admin', 'models.connect', tx => {
+      assertCredentialSession(deps, ctx);
       for (const older of tx.list('venture-model-connection')) {
         if (older.presetId === presetId && older.status === 'connected') replaceRecord(tx, { ...older, status: 'disconnected' as const });
       }
@@ -94,8 +110,12 @@ export async function connectModel(deps: VentureDeps, ctx: Context, payload: unk
     });
   } catch (error) {
     if (apiKey !== null) {
-      if (previousKey !== null) deps.secrets.set(secretName, previousKey);
-      else deps.secrets.delete(secretName);
+      let open = true; try { assertCredentialSession(deps); } catch { open = false; }
+      if (open && previousKey !== null) deps.secrets.set(secretName, previousKey); else deps.secrets.delete(secretName);
+      if (attemptedSave && credentials) {
+        try { if (previousSaved !== null) await credentials.set(workspaceId, secretName, previousSaved); else await credentials.delete(workspaceId, secretName); }
+        catch { deps.secrets.delete(secretName); throw new ChausarError('CREDENTIAL_UNAVAILABLE', 'The saved key could not be restored. Reconnect this AI before using it.'); }
+      }
     }
     throw error;
   }
@@ -113,22 +133,35 @@ async function connect(deps: VentureDeps, ctx: Context, payload: unknown): Promi
   return connectModel(deps, ctx, payload);
 }
 
-export async function disconnect(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureResults['venture.models.disconnect']> {
-  const input = exactPayload(payload, ['connectionId'], ['connectionId']);
-  const connectionId = identifier(input.connectionId, 'connectionId');
-  const result = await ventureAction(deps, ctx, 'admin', 'models.disconnect', tx => {
-    const connection = tx.find('venture-model-connection', connectionId);
+export function disconnect(deps: VentureDeps, ctx: Context, payload: unknown): Promise<VentureResults['venture.models.disconnect']> {
+  return credentialChange(deps, async () => {
+    const input = exactPayload(payload, ['connectionId'], ['connectionId']);
+    const connectionId = identifier(input.connectionId, 'connectionId');
+    authorize(deps.store, ctx, 'admin'); requireAppChannel(ctx, 'venture.models.disconnect');
+    const state = deps.store.read(), connection = listRecords(state, 'venture-model-connection').find(row => row.id === connectionId);
     check(connection, 'INVALID_VENTURE_REQUEST', 'This AI connection was not found.');
-    if (connection.status === 'connected') {
-      replaceRecord(tx, { ...connection, status: 'disconnected' as const });
-      tx.emit('model-disconnected', { presetId: connection.presetId, connectionId });
+    const stillUsed = listRecords(state, 'venture-model-connection').some(row => row.id !== connection.id && row.presetId === connection.presetId && row.status === 'connected');
+    const name = SECRET(connection.presetId), removeKey = !stillUsed && presetSpec(connection.presetId).needsKey;
+    const credentials = removeKey ? deps.credentials : undefined;
+    let previous: string | null = null, attemptedDelete = false;
+    try {
+      if (credentials) { previous = await credentials.get(state.workspace.id, name); assertCredentialSession(deps, ctx); attemptedDelete = true; await credentials.delete(state.workspace.id, name); }
+      assertCredentialSession(deps, ctx);
+      await ventureAction(deps, ctx, 'admin', 'models.disconnect', tx => {
+        assertCredentialSession(deps, ctx);
+        const current = tx.find('venture-model-connection', connectionId); check(current, 'INVALID_VENTURE_REQUEST', 'This AI connection was not found.');
+        if (current.status === 'connected') { replaceRecord(tx, { ...current, status: 'disconnected' as const }); tx.emit('model-disconnected', { presetId: current.presetId, connectionId }); }
+      });
+    } catch (error) {
+      if (attemptedDelete && credentials && previous !== null) {
+        try { await credentials.set(state.workspace.id, name, previous); }
+        catch { deps.secrets.delete(name); throw new ChausarError('CREDENTIAL_UNAVAILABLE', 'The saved key could not be restored. Reconnect this AI before using it.'); }
+      }
+      throw error;
     }
-    const stillUsed = tx.list('venture-model-connection')
-      .some(item => item.id !== connection.id && item.presetId === connection.presetId && item.status === 'connected');
-    return { presetId: connection.presetId, stillUsed };
+    if (removeKey) deps.secrets.delete(name);
+    return deps.models.status(ctx);
   });
-  if (!result.stillUsed && presetSpec(result.presetId).needsKey) deps.secrets.delete(SECRET(result.presetId));
-  return deps.models.status(ctx);
 }
 
 export async function status(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ModelStatusView> {
@@ -172,7 +205,10 @@ async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Pro
   check(inspect, 'CLI_UNAVAILABLE', CLI_STATUS_WORDS.noPort);
   const fresh = input.fresh === true;
   const findings: CliFinding[] = [];
-  for (const cli of DELEGATE_CLIS) findings.push(await inspect(cli, fresh ? { fresh: true } : undefined));
+  for (const cli of DELEGATE_CLIS) {
+    if (cli === 'claude-code' && !claudeTermsOpen(deps.claudeCodeTerms)) continue;
+    findings.push(await inspect(cli, fresh ? { fresh: true } : undefined));
+  }
   const state = deps.store.read();
   const venture = currentVenture(state);
   const clis = findings.map(finding => cliStatusView(finding, { claudeTerms: deps.claudeCodeTerms, lastTask: lastCliTask(state, venture?.id ?? null, finding.cli) }));
@@ -206,7 +242,22 @@ async function keepChecks(deps: VentureDeps, ctx: Context, clis: CliStatusList['
   });
 }
 
+import { setMcpCredential } from '../agent-runtime/external-credentials.ts';
+import { getAgentSettings, setAgentSettings } from '../agent-runtime/settings-methods.ts';
+import { startMcpOAuth } from '../agent-runtime/mcp-oauth.ts';
+import { curatedMcpRequest } from '../agent-runtime/mcp-registry.ts';
+import { addPack, listPacks, removePack } from '../packs/packs.ts';
+
 export const handlers: VentureHandlerTable = {
+  'venture.agentSettings.get': getAgentSettings,
+  'venture.agentSettings.set': setAgentSettings,
+  'venture.mcpCredential.set': setMcpCredential,
+  // W6 6F1, 6F2
+  'venture.mcpRegistry.list': async (deps, ctx, raw) => { readVenture(deps, ctx); return curatedMcpRequest(raw); },
+  'venture.mcpOAuth.start': startMcpOAuth,
+  'venture.packs.list': listPacks,
+  'venture.packs.add': addPack,
+  'venture.packs.remove': removePack,
   'venture.models.presets': presets,
   'venture.models.connect': connect,
   'venture.models.disconnect': disconnect,

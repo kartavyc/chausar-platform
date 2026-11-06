@@ -55,7 +55,6 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
   const client = useEngine();
   const clock = useClock();
   const waitingId = useId();
-  const box = useRef<HTMLDivElement>(null);
   const thread = useResource('venture.agents.thread.list', { agent: agent.id }, { refreshOn: chatRefresh });
   // W4 4J22b: a skill's question is in the box once it is drawn; the panel then lets it go.
   useEffect(() => { if (initial) onInitialUsed?.(); }, [initial, initialKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -64,7 +63,6 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [line, setLine] = useState<string | null>(null);
   const [asking, setAsking] = useState<Asking | null>(null);
-  const [answering, setAnswering] = useState(false);
   /**
    * Decisions the engine has taken, with the version in use when they were taken, until the thread and the version are
    * read again; and the changes the owner undid from their card here.
@@ -94,7 +92,6 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
       await askConsent(fresh.consent);
       result = await client.request('venture.agents.thread.send', { agent: agent.id, text });
     }
-    setAnswering(false);
     setLine(result.line);
     thread.reload();
   }
@@ -155,11 +152,6 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
     setLine(result.line);
     onPlaybookChanged();
     thread.reload();
-  }
-
-  function answer() {
-    setAnswering(true);
-    requestAnimationFrame(() => box.current?.querySelector('textarea')?.focus());
   }
 
   const entriesOf = (list: readonly AgentThreadItem[]) => list.flatMap((item): ThreadEntry[] => {
@@ -276,7 +268,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
         <section className={c.waiting} aria-labelledby={waitingId} data-waiting="">
           <h3 id={waitingId} className={c.waitingHead}>{t('team.chat.waiting')}</h3>
           <p className={c.question} data-content="">{waiting.question}</p>
-          <Button size="sm" onClick={answer}>{t('team.chat.answer')}</Button>
+          <Button size="sm" onClick={(event) => openSheet('run', waiting.runId, event.currentTarget)}>{t('team.chat.answer')}</Button>
         </section>
       )}
       {thread.error && !data && <p className={c.problem}>{t('team.chat.failed', { message: thread.error.message })}</p>}
@@ -290,17 +282,22 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
         </>
       )}
       {line && <p className={c.line} role="status">{line}</p>}
-      <div ref={box} className={c.compose}>
-        {asking && <ChatConsent view={asking.view} onAgree={agree} onCancel={decline} />}
-        <Composer
-          key={initialKey ?? 0}
-          initial={initial || undefined}
-          label={answering ? t('team.chat.answerLabel', { name: agent.name }) : t('team.chat.label', { name: agent.name })}
-          onSend={send}
-          suggestions={[t('team.chat.suggest.ask'), t('team.chat.suggest.standing'), t('team.chat.suggest.note')]}
-          hint={t('team.chat.hint', { name: agent.name })}
-        />
-      </div>
+      {/* W6 6G2: a retired agent's chat is read only on the Retired shelf: its history, and no box to write in. */}
+      {data?.retired ? (
+        <p className={c.quiet} data-retired="">{data.retired.line}</p>
+      ) : (
+        <div className={c.compose}>
+          {asking && <ChatConsent view={asking.view} onAgree={agree} onCancel={decline} />}
+          <Composer
+            key={initialKey ?? 0}
+            initial={initial || undefined}
+            label={t('team.chat.label', { name: agent.name })}
+            onSend={send}
+            suggestions={[t('team.chat.suggest.ask'), t('team.chat.suggest.standing'), t('team.chat.suggest.note')]}
+            hint={t('team.chat.hint', { name: agent.name })}
+          />
+        </div>
+      )}
     </div>
   );
 }

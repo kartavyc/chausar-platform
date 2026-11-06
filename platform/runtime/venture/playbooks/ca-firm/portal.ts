@@ -7,10 +7,10 @@
 import { invalid, signedPaise } from './money.ts';
 import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
 
-export type OurFigure = { key: string; label: string; minor: string; receiptId: string };
+export type OurFigure = { key: string; label: string; minor: string; receiptId: string; rule?: string };
 export type PortalFigure = { key: string; minor: string };
 export type PortalRowState = 'same' | 'differs' | 'missing-on-portal' | 'only-on-portal';
-export type PortalDiffRow = { key: string; label: string; state: PortalRowState; oursMinor: string | null; portalMinor: string | null; deltaMinor: string; receiptId: string | null };
+export type PortalDiffRow = { key: string; label: string; state: PortalRowState; oursMinor: string | null; portalMinor: string | null; deltaMinor: string; receiptId: string | null; rule?: string };
 export type PortalDiff = { rows: PortalDiffRow[]; clean: boolean; differences: number };
 
 const KEY = /^[a-z0-9][a-z0-9.-]{0,79}$/;
@@ -36,7 +36,7 @@ export function diffAgainstPortal(input: { ours: OurFigure[]; portal: PortalFigu
     const mine = ours.get(key), theirs = portal.get(key);
     const state: PortalRowState = !theirs ? 'missing-on-portal' : !mine ? 'only-on-portal' : BigInt(mine.minor) === BigInt(theirs.minor) ? 'same' : 'differs';
     const delta = (theirs ? BigInt(theirs.minor) : 0n) - (mine ? BigInt(mine.minor) : 0n);
-    return { key, label: mine?.label ?? key, state, oursMinor: mine?.minor ?? null, portalMinor: theirs?.minor ?? null, deltaMinor: String(delta), receiptId: mine?.receiptId ?? null };
+    return { key, label: mine?.label ?? key, state, oursMinor: mine?.minor ?? null, portalMinor: theirs?.minor ?? null, deltaMinor: String(delta), receiptId: mine?.receiptId ?? null, ...(mine?.rule ? { rule: mine.rule } : {}) };
   });
   const differences = rows.filter(row => row.state !== 'same').length;
   return { rows, clean: differences === 0, differences };
@@ -50,11 +50,17 @@ const STATE_WORDS: Readonly<Record<PortalRowState, string>> = {
  * The diff as a CA receipt (Ink v2 2A2): one figure per key, the portal's figure less ours, so a stored diff can be
  * worked again from its inputs and quoted by reference. The same inputs always give the same receipt.
  */
-export function portalDiffReceipt(input: { ours: OurFigure[]; portal: PortalFigure[] }): CaReceipt<PortalDiff> {
+export function portalDiffReceipt(input: { ours: OurFigure[]; portal: PortalFigure[]; includeBothSides?: boolean }): CaReceipt<PortalDiff> {
   const diff = diffAgainstPortal(input);
   if (!diff.rows.length) invalid('There is nothing to compare: name our figures and the portal figures.');
   const builder = new ReceiptBuilder('portal-diff');
-  for (const row of diff.rows) builder.step(row.key, `${row.label}: ${STATE_WORDS[row.state]}`, BigInt(row.deltaMinor));
+  for (const row of diff.rows) {
+    if (input.includeBothSides) {
+      if (row.oursMinor !== null) builder.step('ours.' + row.key, row.label + ': fresh computation', BigInt(row.oursMinor));
+      if (row.portalMinor !== null) builder.step('return.' + row.key, row.label + ': supplied return', BigInt(row.portalMinor));
+    }
+    builder.step(row.key, row.label + ': ' + STATE_WORDS[row.state], BigInt(row.deltaMinor));
+  }
   builder.assume('Figures are compared by key, to the paisa. A key only one side has is a difference too.');
   const open = diff.rows.filter(row => row.state !== 'same').map(row => row.key);
   return builder.build(input, diff, open.length

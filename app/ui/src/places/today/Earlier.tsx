@@ -28,7 +28,7 @@ const TONE: Readonly<Record<JournalEntry['state'], StatusTone>> = {
 /** "21 Oct", the day a line was written, in the reader's language. */
 function dayOf(at: string, language: string): string {
   const date = new Date(at);
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short' }).format(date);
+  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(date);
 }
 
 /**
@@ -38,7 +38,8 @@ function dayOf(at: string, language: string): string {
  * known says "Check it", which goes to Money > Journal, where W1's Resolve settles it. The engine's system-line
  * grammar for these lines is placeholder until W4 4J.
  */
-export const Earlier = memo(function Earlier() {
+/** W6 6H3: `title`, the name the owner (or their AI) gave this block; left out, its own. */
+export const Earlier = memo(function Earlier({ title }: { title?: string | undefined } = {}) {
   const t = useT();
   const language = useLanguage();
   const headingId = useId();
@@ -46,7 +47,7 @@ export const Earlier = memo(function Earlier() {
   const entries = journal.data?.entries ?? [];
   return (
     <Tile as="section" labelledBy={headingId} className={s.listTile}>
-      <TileHead id={headingId} title={t('today.earlier.title')} more={{ href: '#/money/journal', label: t('today.earlier.open') }} />
+      <TileHead id={headingId} title={title ?? t('today.earlier.title')} more={{ href: '#/money/journal', label: t('today.earlier.open') }} />
       {journal.data && entries.length === 0 && <EmptyState title={t('today.earlier.none')} />}
       {entries.length > 0 && (
         <ul className={s.list}>

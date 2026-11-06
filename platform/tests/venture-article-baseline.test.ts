@@ -1,0 +1,4 @@
+// The committed baseline executes the article core and cannot pass without actual source evidence.
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
+import {scoreArticleBaseline} from '../runtime/venture/playbooks/podcast-to-article/baseline.ts';
+test('all episode baseline cases run on typed source and reject missing or corrupt source',()=>{const cases=JSON.parse(readFileSync(new URL('../runtime/venture/playbooks/podcast-to-article/baselines/podcast-to-article.json',import.meta.url),'utf8'));assert.deepEqual(cases.map((c:any)=>c.id),['uncited-sentence','insider-said-refused','quote-not-in-transcript','hindi-episode']);for(const item of cases){assert.equal(scoreArticleBaseline(item,item.draft).pass,true,item.id);assert.equal(scoreArticleBaseline({...item,meta:{}},item.draft).pass,false,item.id);assert.equal(scoreArticleBaseline({...item,meta:{source:'{}'}},item.draft).pass,false,item.id);}});

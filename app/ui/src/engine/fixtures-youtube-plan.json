@@ -1,0 +1,147 @@
+{
+  "plan": {
+    "id": "youtube",
+    "label": "YouTube channel",
+    "serviceType": "studio",
+    "oneLiner": "Agents script, package and cut videos from footage the client owns or has licensed; the owner checks every draft and publishes it.",
+    "offers": [
+      {
+        "key": "episode-package",
+        "name": "Episode package",
+        "description": "From the client's raw footage or idea: a script with scored hooks, an edit list and first cut, a title and thumbnail pair, a description with chapters, and a pinned comment.",
+        "model": "project",
+        "block": "package",
+        "rights": [
+          "own-footage",
+          "licence"
+        ]
+      },
+      {
+        "key": "shorts-from-own-video",
+        "name": "Shorts from your own video",
+        "description": "From one long video the client owns: self-contained vertical clips with captions and a title for each.",
+        "model": "project",
+        "block": "package",
+        "rights": [
+          "own-footage"
+        ]
+      },
+      {
+        "key": "licensed-clips",
+        "name": "Clips under a licence or clip programme",
+        "description": "Clips from another creator's show, only under a licence or the creator's clip programme recorded at intake, each crediting the source.",
+        "model": "monthly",
+        "block": "retainer",
+        "rights": [
+          "licence",
+          "creator-clip-programme"
+        ]
+      }
+    ],
+    "approvals": [
+      {
+        "key": "rights-at-intake",
+        "words": "Confirm the footage is the client's own, licensed, or covered by the creator's clip programme. No rights, no order.",
+        "block": "client-files"
+      },
+      {
+        "key": "quote-before-paid-generation",
+        "words": "Approve the quote for any AI voice, presenter or generated footage before it is paid for. One approval buys one run of that exact script.",
+        "block": "prices-invoices"
+      },
+      {
+        "key": "draft-after-viewing",
+        "words": "Watch the cut and read the package before it reaches the client.",
+        "block": "each-draft"
+      },
+      {
+        "key": "owner-publishes",
+        "words": "You or the client publish in YouTube Studio. Chausar never says a video was posted.",
+        "block": "posts-in-your-name"
+      }
+    ],
+    "connectors": [
+      "youtube",
+      "mail-app"
+    ]
+  },
+  "intakes": {
+    "desktop": [
+      {
+        "rights": [
+          "own-footage",
+          "licence"
+        ],
+        "fields": [
+          "format",
+          "aiVoice",
+          "aiPresenter",
+          "paidPromotion",
+          "cutFile"
+        ]
+      },
+      {
+        "rights": [
+          "own-footage"
+        ],
+        "fields": [
+          "format",
+          "aiVoice",
+          "aiPresenter",
+          "paidPromotion",
+          "cutFile"
+        ]
+      },
+      {
+        "rights": [
+          "licence",
+          "creator-clip-programme"
+        ],
+        "fields": [
+          "format",
+          "aiVoice",
+          "aiPresenter",
+          "paidPromotion",
+          "cutFile"
+        ]
+      }
+    ],
+    "hosted-web": [
+      {
+        "rights": [
+          "own-footage",
+          "licence"
+        ],
+        "fields": [
+          "format",
+          "aiVoice",
+          "aiPresenter",
+          "paidPromotion"
+        ]
+      },
+      {
+        "rights": [
+          "own-footage"
+        ],
+        "fields": [
+          "format",
+          "aiVoice",
+          "aiPresenter",
+          "paidPromotion"
+        ]
+      },
+      {
+        "rights": [
+          "licence",
+          "creator-clip-programme"
+        ],
+        "fields": [
+          "format",
+          "aiVoice",
+          "aiPresenter",
+          "paidPromotion"
+        ]
+      }
+    ]
+  }
+}

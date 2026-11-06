@@ -216,6 +216,14 @@ export class SpeechService {
    * A sound file on this computer as SRT text, through the local whisper.cpp only: one run with the prompt given
    * (the business's words), in a temporary folder removed afterwards. Never uploaded, never retried, no fallback.
    */
+  /** 5B1 trusted host read: hash the exact files selected by localTranscriber before a pinned tier runs. */
+  localTranscriptionFiles(context: Context): { providerId: string; command: string; model: string } | null {
+    authorize(this.store, context, 'prepare');
+    const local = this.localTranscriber();
+    if (!local.ready) return null;
+    const provider = this.#providers.get(local.providerId)!;
+    return { providerId: provider.id, command: provider.command!, model: provider.model! };
+  }
   async transcribeFile(context: Context, input: { path: string; prompt?: string; timeoutMs?: number; signal?: AbortSignal }): Promise<{ srt: string; providerId: string }> {
     authorize(this.store, context, 'prepare');
     check(!input.signal?.aborted, 'TRANSCRIBE_STOPPED', STOPPED_WORKSPACE_CLOSED);

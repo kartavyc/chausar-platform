@@ -1,0 +1,7 @@
+// Source-backed influencer cases run the same code used by the owner desk.
+import {check} from './d3-core.ts';import {influencerFairPrice} from './fair-price.ts';import {changeInfluencerCase,newInfluencerCase} from './influencer-case.ts';
+export function socialD3Baseline(id:string,source:string,draft:Record<string,unknown>):string[]{try{const input=JSON.parse(source);check(input&&typeof input==='object','INFLUENCER_INPUT_INVALID','Use retained source facts.');
+ if(id==='creator-price-cap'){let refused=false;try{influencerFairPrice(input.quote);}catch(e){refused=(e as {code?:string}).code==='INFLUENCER_PRICE_CAP';}check(refused&&draft.outcome==='held'&&draft.code==='INFLUENCER_PRICE_CAP','INFLUENCER_PRICE_INVALID','An offer over the owner cap must be refused.');}
+ else if(id==='influencer-disclosure'){const initial=changeInfluencerCase(newInfluencerCase('fixture',input.at),'creator',{creator:input.creator},input.at),next=changeInfluencerCase(initial,'brief',input.brief,input.at),brief=next.creators[0]!.brief!;check(draft.disclosure===brief.disclosure&&draft.platformLabel===brief.platformLabel&&draft.published===false,'INFLUENCER_INPUT_INVALID','Retain the ASCI disclosure and paid-partnership brief without claiming a post.');}
+ else check(false,'INFLUENCER_INPUT_INVALID','Choose a known source-backed case.');return[];
+ }catch{return['The source-backed influencer boundary did not pass.'];}}

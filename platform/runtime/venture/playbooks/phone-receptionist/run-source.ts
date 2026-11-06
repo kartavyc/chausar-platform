@@ -1,0 +1,8 @@
+// Native current-client source authority for receptionist tools, local reports and final acceptance.
+import {check,type State} from '../../../contracts.ts';import {listRecords,findRecord,digest} from '../../records.ts';import {phoneReport} from './report.ts';import {receptionistOrderDigest} from './view.ts';import {callCostReceipt} from './receipt.ts';
+export function phoneRunSource(state:State,ventureId:string,orderId:string){
+ const venture=findRecord(state,'venture-record',ventureId),order=listRecords(state,'venture-order',ventureId).find(o=>o.id===orderId),row=listRecords(state,'venture-call-log',ventureId).find(r=>r.orderId===orderId),offer=venture?.acceptedBlueprintId?findRecord(state,'venture-blueprint',venture.acceptedBlueprintId)?.offers.find(o=>o.id===order?.offerId):null;
+ check(order&&order.status==='open'&&offer&&['receptionist-setup','receptionist-monthly'].includes(offer.playbookOffer??''),'ORDER_NOT_FOUND','Choose a current receptionist order.');check(row,'CALL_SETUP_REQUIRED','Add and approve the client facts first.');check(row.clientId===order.clientId&&row.orderDigest===receptionistOrderDigest(order),'APPROVAL_STALE','The client or order changed. Prepare the current receptionist setup.');
+ for(const entry of row.logs){const proof=findRecord(state,'venture-work-receipt',entry.receiptId),expected=callCostReceipt(order.id,{id:row.id,digest:entry.importDigest},entry.cost);check(proof&&proof.ventureId===ventureId&&Object.entries(expected).every(([key,value])=>digest(value)===digest((proof as unknown as Record<string,unknown>)[key])),'DERIVED_STALE','A call cost receipt changed or is missing. Review this source export.');}
+ return {row,report:phoneReport(row)};
+}

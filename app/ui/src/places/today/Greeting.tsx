@@ -18,14 +18,14 @@ const never = () => false;
 
 /** "Friday, 23 October" in the reader's language, from the clock. */
 function dayOf(now: Date, language: string): string {
-  return new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'long', day: 'numeric', month: 'long' }).format(now);
+  return new Intl.DateTimeFormat('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }).format(now);
 }
 
 /**
  * Today's header (D's `header.phead`): the date as the eyebrow, the greeting as the page title, and one line under it,
  * the engine's summary of what needs the owner and how many agents are working, the count in bold.
  */
-export function Greeting({ line, count }: { line?: ReactNode; count?: string | undefined }) {
+export function Greeting({ line, count, tools }: { line?: ReactNode; count?: string | undefined; tools?: ReactNode }) {
   const t = useT();
   const language = useLanguage();
   const now = useClock()();
@@ -34,5 +34,5 @@ export function Greeting({ line, count }: { line?: ReactNode; count?: string | u
   const owner = useResource('venture.owner.get', {}, { refreshOn: never });
   const name = owner.data?.firstName;
   const key = greetingKey(now.getHours());
-  return <PageTitle eyebrow={dayOf(now, language)} title={name ? t(`${key}Named`, { name }) : t(key)} line={line} count={count} />;
+  return <PageTitle eyebrow={dayOf(now, language)} title={name ? t(`${key}Named`, { name }) : t(key)} line={line} count={count} tools={tools} />;
 }

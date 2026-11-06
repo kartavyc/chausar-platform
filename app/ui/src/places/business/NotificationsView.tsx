@@ -23,6 +23,7 @@ import { useBrowserPush, type PushPermission } from '../../shell/push';
 import { EngineError, type NotifySettingsView, type ParamsOf } from '../../engine/types';
 import { TileSection, messageOf } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
+import { PhoneReach } from './PhoneReach';
 import s from './Business.module.css';
 import n from './Notifications.module.css';
 
@@ -80,6 +81,8 @@ function Reach({ settings, change, reread }: { settings: NotifySettingsView; cha
         <>
           <Tray on={settings.tray} change={change} />
           <Relay view={relay.data} />
+          {/* W6 6F6 and 6F7: Telegram alerts and phone access, each in a closed fold. */}
+          <PhoneReach />
         </>
       )}
       {relay.error && relay.error.code !== 'TIER_UNAVAILABLE' && <p className={s.problem}>{t('sheet.failed', { message: relay.error.message })}</p>}

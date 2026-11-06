@@ -1,0 +1,8 @@
+// Original Chausar D2 model-entry checks. Only actual bound owner sources become model inputs.
+import {requireSocial,requireClipRights,socialText} from './d2-core.ts';import {adStyle} from './ad-style.ts';import {diagnosePost,diagnosisCsv} from './diagnosis.ts';
+export function socialD2Preflight(key:string|undefined,fields:Record<string,unknown>,rights:unknown,files:{id:string;format:string;text:string}[]){
+ if(['reel-from-clips','hook-variations','local-instagram','cross-posting'].includes(key??'')){requireClipRights(rights);requireSocial(Array.isArray(fields.clipFiles)&&fields.clipFiles.length>0&&fields.clipFiles.every(f=>socialText(f,4000)),'MEDIA_FILE_REQUIRED','List the client clips at intake.');}
+ if(key==='video-ads'){const file=files.find(f=>f.id===fields.productPhoto&&f.format==='image');requireSocial(fields.productPhotoReal===true&&file,'PRODUCT_PHOTO_REQUIRED','Add and confirm an actual product photo before drafting an ad.');adStyle(String(fields.productCategory),{id:file.id,digest:file.id,kind:'client'});}
+ if(key==='post-diagnosis'){requireSocial(['export','typed-by-you'].includes(String(fields.diagnosisSource)));if(fields.diagnosisSource==='export'){const file=files.find(f=>f.id===fields.insightsFile&&f.format==='csv');requireSocial(file,'UPLOAD_NOT_FOUND','Choose this order Insights CSV.');return diagnosisCsv(file.text);}for(const key of ['durationMs','hookMs','averageWatchMs'])requireSocial(typeof fields[key]==='string'&&/^\d+$/.test(fields[key] as string));return diagnosePost({durationMs:Number(fields.durationMs),hookMs:Number(fields.hookMs),averageWatchMs:Number(fields.averageWatchMs),retention:[],source:'typed-by-you'});}
+ return null;
+}

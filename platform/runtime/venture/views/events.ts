@@ -22,7 +22,7 @@ const whole = (value: unknown): value is number => Number.isSafeInteger(value) &
 export function runEventFromActor(event: LoggedEvent, businessId: string): VentureRunEvent | null {
   if (!(VENTURE_RUN_EVENT_TYPES as readonly string[]).includes(event.name) || !ID.test(businessId) || !ISO.test(event.at)) return null;
   const data = event.data && typeof event.data === 'object' && !Array.isArray(event.data) ? event.data as Record<string, unknown> : {};
-  const runId = typeof data.runId === 'string' && ID.test(data.runId) ? data.runId : undefined;
+  const runId = event.name !== 'privacy.forgotten' && typeof data.runId === 'string' && ID.test(data.runId) ? data.runId : undefined;
   const count = event.name === 'notify.new' && whole(data.count) ? data.count : undefined;
   return {
     type: event.name as VentureRunEventType, businessId, ...(runId ? { runId } : {}), at: event.at,

@@ -1,0 +1,3 @@
+import {it,expect} from 'vitest';
+import {RULE_DATA} from '../../src/engine/fixtures-rules-data';
+it('the fake dated social register carries the current manual-only and house rules',()=>{const rules=RULE_DATA['social-agency'];if(!rules)throw new Error('Social rules are missing.');for(const id of ['linkedin-manual-only','selling-share-house','revision-rounds-house'])expect(rules.find(rule=>rule.id===id)?.checkedOn).toBe('2026-10-27');expect(rules.find(rule=>rule.id==='linkedin-manual-only')?.rule).toContain('copy-and-open only');expect(rules.find(rule=>rule.id==='owner-session-house')?.rule).toContain('LinkedIn is copy-and-open only.');});

@@ -5,6 +5,9 @@
 // that Chausar writes from the list (never the model's words), the rest of the turn does not run, and no receipt is
 // made. Once the client answers, the same call may run again. The words exist in English and Hindi (machine-drafted).
 import test from 'node:test';
+import { calculatorAgent, calculatorRun } from './fixtures/venture/calculator-agent.ts';
+import { consentForOrder } from './fixtures/venture/scripted-agent.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 import assert from 'node:assert/strict';
 import { ChausarError } from '../runtime/contracts.ts';
 import type { VentureDeps, WorkReceiptRecord } from '../runtime/venture/contracts.ts';
@@ -228,14 +231,16 @@ test('a real CA order: NEEDS_FACTS reaches Today as the question row, in Hindi f
   const offer = env.offers.find(item => item.playbookOffer === 'itr-salaried')!;
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: offer.id, request: 'कृपया इस साल का मेरा आयकर रिटर्न तैयार कर दीजिए। बचत खाते के ब्याज की फ़ाइल भेजी है।' });
   await env.call('venture.files.add', { orderId: order.id, name: 'savings.csv', contentBase64: Buffer.from('Bank,Interest\nState Bank,"4,200.00"').toString('base64') });
-  env.models.respond['agent-turn'] = () => ({ note: 'Work the tax from the interest', calls: [{ tool: 'tax.income', input: JSON.stringify(SHORT_CALL) }], finished: false });
+  calculatorAgent(env.deps,[{calls:[{tool:'tax.income',input:JSON.stringify(SHORT_CALL)}]}],null);
+  await env.deps.services.trust.updatePolicy(owner,{send:'shape'});await consentForOrder(env.deps,owner,order.id);
   const waiting = await env.call('venture.delivery.run', { orderId: order.id });
   assert.equal(waiting.status, 'waiting-for-you', JSON.stringify(waiting));
-  const asked = await env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
-  assert.equal(asked.status, 'needs-answer', JSON.stringify(asked.harness?.toolCalls?.map((item: any) => item.envelope)));
+  await waitForAgentWork(env.store,waiting.id);
+  const asked=calculatorRun(env.deps,waiting.id);
+  assert.equal(asked.status, 'needs-answer', JSON.stringify(asked.agentJob?.calculations?.map(item=>item.envelope)));
   const question = factsQuestion([{ field: 'residency' }, { field: 'ageBand' }], 'hi');
-  const open = asked.harness.handoffs.at(-1);
-  assert.deepEqual([open.to, open.question, open.expiresAt], ['client', question, null]);
+  const open=asked.agentJob!.pendingFacts!;
+  assert.equal(open.question,question);assert.equal(Object.hasOwn(open,'expiresAt'),false);
   assert.equal(listRecords(env.store.read(), 'venture-work-receipt').length, 0, 'no figure was worked');
   const row = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'question' && item.viewRef?.id === waiting.id);
   assert.ok(row, 'the question is on Today');

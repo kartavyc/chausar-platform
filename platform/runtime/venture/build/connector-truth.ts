@@ -74,8 +74,9 @@ export function connectorEvidence(state: State, ventureId: string): ConnectorEvi
     else if (row.connectorId === 'calendar') reads.delete('google-calendar');
     else reads.delete(row.connectorId);
   }
+  // Telegram private channels and Discord confirm message identity without a public address.
   for (const post of listRecords(state, 'venture-connector-post', ventureId) as ConnectorPostRecord[]) {
-    if (post.state === 'applied' && post.outcome?.by === 'platform' && typeof post.outcome.url === 'string' && post.outcome.url) writes.add(`${post.connectorId}:${post.mode}`);
+    if (post.state === 'applied' && post.outcome?.by === 'platform' && (typeof post.outcome.url === 'string'&&post.outcome.url || post.mode==='api'&&['telegram','discord'].includes(post.connectorId))) writes.add(`${post.connectorId}:${post.mode}`);
   }
   return { reads, writes };
 }
@@ -113,6 +114,9 @@ export function postingLadder(connectorId: string, option: Pick<PostingOption, '
  * takes no account at all: venture.posting.propose refuses one for it (CONNECTOR_FIELD_UNSUPPORTED).
  */
 export const CONNECTOR_CAPABILITIES: Readonly<Record<string, readonly ConnectorCapability[]>> = Object.freeze({
+  'career-links':[{operation:'read-complete-listing',mode:'read',fields:['url']}],
+  'career-boards':[{operation:'read-public-index',mode:'read',fields:['provider','slug','gates']}],
+  ...Object.fromEntries(['career-pinloop','career-linkedin','career-naukri'].map(id=>[id,[{operation:'manual-client-handoff',mode:'handoff' as const,fields:['approved-pack']}]])),
   lovable: [{ operation: 'open-with-brief', mode: 'handoff', fields: ['brief'] }],
   replit: [{ operation: 'open-with-brief', mode: 'handoff', fields: ['brief'] }],
   bolt: [{ operation: 'copy-brief', mode: 'handoff', fields: ['brief'] }],
@@ -126,8 +130,13 @@ export const CONNECTOR_CAPABILITIES: Readonly<Record<string, readonly ConnectorC
   'google-calendar': [{ operation: 'read-feed', mode: 'read', fields: ['url'] }],
   'chausar-crm': [{ operation: 'list', mode: 'read', fields: [] }, { operation: 'add', mode: 'write', fields: ['client', 'order'] }],
   'chausar-books': [{ operation: 'list', mode: 'read', fields: [] }, { operation: 'issue', mode: 'write', fields: ['invoice', 'payment'] }],
-  linkedin: [{ operation: 'post', mode: 'owner-browser-session', fields: ['text'] }],
+  linkedin: [{ operation: 'copy-and-open', mode: 'handoff', fields: ['text'] }],
   x: [{ operation: 'post', mode: 'owner-browser-session', fields: ['text'] }],
+  bluesky: [{operation:'post',mode:'api',fields:['text']}],
+  mastodon: [{operation:'post',mode:'api',fields:['text']}],
+  telegram: [{operation:'post',mode:'api',fields:['text']}],
+  discord: [{operation:'post',mode:'api',fields:['text']}],
+
 });
 
 /** The operations a connector takes; empty when it takes none in this build (every planned connector). */

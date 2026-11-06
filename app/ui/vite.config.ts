@@ -6,7 +6,7 @@ const root = fileURLToPath(new URL('.', import.meta.url));
 
 /** The built page carries the same strict policy the servers send: no inline script or style. Dev mode skips it
  *  because Vite's dev client injects styles at runtime; the built files never do. */
-export const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'";
+export const CSP = "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; media-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'";
 function strictPolicy(): Plugin {
   return {
     name: 'chausar-strict-policy',

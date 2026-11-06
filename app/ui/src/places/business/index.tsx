@@ -3,6 +3,7 @@
  *   #/business/plan    plan and playbook (Team's empty state links here)
  *   #/business/prices  prices with receipts (Today's "Set prices")
  *   #/business/goals   the monthly goal, money invoiced before tax (W4 4I2; Today's goal card opens it)
+ *   #/business/go-no-go  a GO, HOLD or NO-GO card before something new, with the most it could lose (W5 5A2)
  *   #/business/build   website build
  *   #/business/practice  practice clients, the improvement loop and the judge setting (PracticeView); W4 4J22a adds
  *                      drills, what the loop tried and the guidance report
@@ -31,6 +32,7 @@ import { BuildView } from './BuildView';
 // W4 4J19: who decided what, on what rule (catalogue O17).
 import { DecisionsView } from './DecisionsView';
 import { GoalsView } from './GoalsView';
+import { GoNoGoCard } from './GoNoGoCard';
 import { KeepView } from './KeepView';
 // W4 4J22b: the business's voice, and what the AI knows.
 import { KnowledgeView } from './KnowledgeView';
@@ -42,12 +44,20 @@ import { PracticeView } from './PracticeView';
 import { VoiceView } from './VoiceView';
 import { RoutinesView } from './RoutinesView';
 import { YourCa } from './YourCa';
+// W6 6C5: the locked rules the owner can tick, and the hard stops.
+import { YourRules } from './YourRules';
+// W6 6G1: the chats archive (D42: it lives in Settings).
+import { SettledChats } from '../chats/SettledChats';
+// W6 6J2: reports, the opt-in Send report with its preview and Delete my reports.
+import { ReportsView } from './ReportsView';
 import s from './Business.module.css';
 
 const PAGES = [
   { sub: 'plan', title: 'business.plan', View: PlanView },
   { sub: 'prices', title: 'business.prices', View: PricesView },
   { sub: 'goals', title: 'business.goals', View: GoalsView },
+  // W5 5A2: a GO, HOLD or NO-GO card before something new, with the most it could lose (catalogue M18).
+  { sub: 'go-no-go', title: 'kit-sales.page', View: GoNoGoCard },
   { sub: 'build', title: 'business.build', View: BuildView },
   { sub: 'practice', title: 'business.practice', View: PracticeView },
   // W4 4J22a: questions on a schedule with a time zone, each run waiting on Today, and their history.
@@ -64,6 +74,13 @@ const PAGES = [
   // W4 4J22b: how the business talks in every draft, and the sources agents read.
   { sub: 'voice', title: 'business.voice', View: VoiceView },
   { sub: 'knowledge', title: 'business.knowledge', View: KnowledgeView },
+  // W6 6C5: the locked rules the owner can tick (one screen each) and the hard stops; listed only while it is the page.
+  { sub: 'rules', title: 'business.yourRules', View: YourRules },
+  // W6 6G1 (D42): settled chats and the quiet days before one settles; from the business menu and the Chats list,
+  // listed only while it is the page.
+  { sub: 'chats', title: 'business.chats', View: SettledChats },
+  // W6 6J2 (D47): reports, off by default, from the business menu; listed only while it is the page.
+  { sub: 'reports', title: 'feedback.page', View: ReportsView },
 ] as const;
 
 /** The flagship playbook whose businesses have a CA of record. */
@@ -76,7 +93,8 @@ export function Place() {
   const page = PAGES.find((p) => p.sub === route.sub) ?? PAGES[0];
   const { View } = page;
   const caFirm = venture.data?.playbook?.id === CA_FIRM;
-  const listed = PAGES.filter((p) => p.sub !== 'ca' || caFirm);
+  // W5 5A2: Go or no go opens from the business menu, and joins the pages only while it is the page (simple first).
+  const listed = PAGES.filter((p) => (p.sub !== 'ca' || caFirm) && (p.sub !== 'go-no-go' || page.sub === 'go-no-go') && (p.sub !== 'rules' || page.sub === 'rules') && (p.sub !== 'chats' || page.sub === 'chats') && (p.sub !== 'reports' || page.sub === 'reports'));
   return (
     <>
       <PageTitle title={t(page.title)} line={venture.data?.venture.workingName} />

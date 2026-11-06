@@ -12,11 +12,13 @@ import type { BlueprintRecord, Offer, OwnerOfferRecord, PricingModel } from '../
 import { exactPayload, listRecords, singleLine, type VentureTx } from '../records.ts';
 import { isPricingModel, UNIT_OF } from './interview.ts';
 import { noNumberWords, toldByYou } from './words.ts';
+import {youtubeService,type YoutubeServiceId} from '../playbooks/youtube/offers2.ts';
+import {pickPlaybook} from '../playbooks/registry.ts';
 
 export const OWNER_OFFER_PREFIX = 'offer_own_';
 /** How many offers the owner may have added at once. */
 export const OWNER_OFFERS_MAX = 5;
-export type OwnerOfferInput = { name: string; description: string; pricingModel: PricingModel };
+export type OwnerOfferInput = { name: string; description: string; pricingModel: PricingModel; youtubeService?:YoutubeServiceId };
 
 /** The offers the owner added and has not taken out, oldest first. */
 export function liveOwnerOffers(state: State, ventureId: string): OwnerOfferRecord[] {
@@ -37,6 +39,10 @@ export function ownerOfferWords(value: unknown, field: string, max: number): str
 
 /** An addOffer as sent: a name, a description and how it is charged; never a price. */
 export function ownerOfferInput(value: unknown): OwnerOfferInput {
+  if(value&&typeof value==='object'&&!Array.isArray(value)&&Object.hasOwn(value,'youtubeService')){
+    const body=exactPayload(value,['youtubeService'],['youtubeService']),service=youtubeService(body.youtubeService);
+    return {name:service.name,description:service.description,pricingModel:service.pricing,youtubeService:service.id};
+  }
   const body = exactPayload(value, ['name', 'description', 'pricingModel'], ['name', 'description', 'pricingModel']);
   const name = ownerOfferWords(body.name, 'The offer name', 60);
   const description = ownerOfferWords(body.description, 'The offer description', 200);
@@ -45,19 +51,24 @@ export function ownerOfferInput(value: unknown): OwnerOfferInput {
 }
 
 /** A plan offer for an owner's offer record: the owner's words, its pricing, and no price. */
-export function ownerOfferOn(record: Pick<OwnerOfferRecord, 'offerId' | 'name' | 'description' | 'pricingModel'>): Offer {
+export function ownerOfferOn(record: Pick<OwnerOfferRecord, 'offerId' | 'name' | 'description' | 'pricingModel' | 'youtubeService'>): Offer {
   return {
-    id: record.offerId, addedByOwner: true, name: toldByYou(record.name), description: toldByYou(record.description),
+    id: record.offerId, addedByOwner: true, name: toldByYou(record.name), description: toldByYou(record.description), ...(record.youtubeService?{playbookOffer:record.youtubeService}:{}),
     pricing: { model: record.pricingModel, quantityUnit: UNIT_OF[record.pricingModel], unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' },
   };
 }
 
 /** Adds an owner's offer to the plan's next version, with its record. Returns the new offer's id. */
 export function addOwnerOffer(tx: VentureTx, next: BlueprintRecord, input: OwnerOfferInput): string {
+  if(input.youtubeService){
+    check(pickPlaybook(tx.venture?.idea??'')?.id==='youtube','YOUTUBE_SERVICE_INVALID','Add a YouTube service only to a YouTube business.');
+    youtubeService(input.youtubeService);
+    check(!liveOwnerOffers(tx.state,next.ventureId).some(row=>row.youtubeService===input.youtubeService),'YOUTUBE_SERVICE_EXISTS','This service is already on your plan. Set its price or open that service.');
+  }
   check(next.offers.filter(offer => offer.addedByOwner).length < OWNER_OFFERS_MAX, 'INVALID_VENTURE_REQUEST', 'Your plan holds five offers you added. Take one out first.');
   const offerId = `${OWNER_OFFER_PREFIX}${tx.list('venture-owner-offer').length + 1}`;
   check(!next.offers.some(offer => offer.id === offerId), 'INVALID_VENTURE_REQUEST', 'Your plan has that offer already.');
-  const record: OwnerOfferRecord = { ...tx.base('venture-owner-offer'), offerId, name: input.name, description: input.description, pricingModel: input.pricingModel, removedAt: null };
+  const record: OwnerOfferRecord = { ...tx.base('venture-owner-offer'), offerId, name: input.name, description: input.description, pricingModel: input.pricingModel, removedAt: null, ...(input.youtubeService?{youtubeService:input.youtubeService}:{}) };
   tx.put(record);
   next.offers.push(ownerOfferOn(record));
   return offerId;

@@ -1,0 +1,10 @@
+/* Original Ink layout for the finance-skills (MIT idea) collections desk. */
+.desk, .form { display: grid; gap: var(--gap-cards); min-width: 0; }
+.boundary { color: var(--mute); font-size: var(--text-read); }
+.list { list-style: none; margin: 0; padding: 0; }
+.row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--gap-cards); padding-block: var(--gap-cards); border-bottom: var(--hair) solid var(--line); overflow-wrap: anywhere; }
+.row p { margin: 0; }
+.select { min-width: 0; min-height: var(--control); border: var(--hair) solid var(--btn-line); border-radius: var(--r-button); color: var(--fg); background: var(--surface); font: inherit; }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--gap-cards); }
+.stage { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--gap-cards); padding-block: var(--gap-cards); }
+.error { color: var(--fail); }

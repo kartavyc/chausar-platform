@@ -146,7 +146,7 @@ type Options = {
 
 async function setup(options: Options = {}) {
   const tools = options.tools ?? {};
-  const claudeCodeTerms = options.claudeCodeTerms ?? 'accepted';
+  const claudeCodeTerms = options.claudeCodeTerms;
   const host = options.host ?? 'desktop';
   let now = START;
   const clock = () => new Date(now);
@@ -471,19 +471,18 @@ test('the hosted app: TIER_UNAVAILABLE in plain words, no CLI listed, nothing st
   for (const id of ['claude-code-cli', 'codex-cli']) assert.equal(deps.models.presets().find(item => item.id === id)!.availability, 'unavailable');
 });
 
-test('the Claude Code terms gate: pending shows its words; Claude Code is only looked for, never run, as heavy work does', async () => {
+test('disabled Claude Code is hidden from status and never run, as heavy work does', async () => {
   const { deps, fake, port } = await setup({ tools: { claude: CLAUDE_OK, codex: CODEX_OK }, claudeCodeTerms: 'pending' });
-  const [claude, codex] = (await status(deps)).clis;
-  assert.deepEqual([claude.found, claude.path, claude.version, claude.flags, claude.signedIn, claude.terms, claude.state], [true, homePath(CLAUDE_EXE), null, 'unknown', 'unknown', 'pending', 'needs-setup']);
-  assert.equal(claude.line, "Chausar hasn't yet accepted Anthropic's terms for running Claude Code.");
-  assert.equal(claude.fix, 'Use an Anthropic key for now.');
+  const clis = (await status(deps)).clis;
+  assert.deepEqual(clis.map(cli => cli.cli), ['codex']);
+  const codex = clis[0];
   assert.equal(fake.seen.some(request => isClaude(request.command)), false, 'nothing of Claude Code ran, not even --version');
   assert.equal(codex.version, '0.154.0', 'Codex is not behind the gate');
   // 4H2: the line of what ran names only Codex: Claude Code was located, never run.
   assert.equal((await status(deps)).line, 'Chausar ran only the version, help and sign-in commands of Codex on this computer. It never reads its sign-in files or keys.');
   // Not installed is still the terms words: installing it would not help yet.
   const absent = await setup({ tools: {}, claudeCodeTerms: 'pending' });
-  assert.equal((await status(absent.deps)).clis[0].line, "Chausar hasn't yet accepted Anthropic's terms for running Claude Code.");
+  assert.deepEqual((await status(absent.deps)).clis.map(cli => cli.cli), ['codex']);
   // The port's own check refuses with the terms words and runs nothing either.
   await assert.rejects(port.checkCli('claude-code-cli'), code('PRESET_UNAVAILABLE', AVAILABILITY_REASONS.claudeTerms));
   assert.equal(fake.seen.some(request => isClaude(request.command)), false);
@@ -837,7 +836,7 @@ test('one look shared with heavy work: the same program from the same search pat
     assert.equal(delegated.state === 'needs-setup', !looked.answered, printed);
   }
   // The terms gate: pending runs nothing of Claude Code in either; Codex is not behind it.
-  assert.deepEqual([cliGateOpen('claude-code', 'pending'), cliGateOpen('claude-code', undefined), cliGateOpen('claude-code', 'accepted'), cliGateOpen('codex', 'pending')], [false, false, true, true]);
+  assert.deepEqual([cliGateOpen('claude-code', 'pending'), cliGateOpen('claude-code', undefined), cliGateOpen('claude-code', 'accepted'), cliGateOpen('codex', 'pending')], [false, true, true, true]);
   const started: string[] = [];
   const spy = { locate: async () => CLAUDE_EXE, process: async (request: DelegateProcessRequest) => { started.push(request.command); return { exitCode: 0, stdout: '', stderr: '', timedOut: false, truncated: false }; } };
   await delegateAvailability(spy, 'claude-code', 'pending');
@@ -866,9 +865,9 @@ test('VentureHost: on the desktop the CLI status reaches the port through the ho
       },
     };
     const empty = async () => ({ handlers: {} });
-    const loaders = { core: empty, models: async () => models, money: empty, build: empty, delivery: empty, views: empty, agents: empty, chief: empty, network: empty, notify: empty };
+    const loaders = { core: empty, models: async () => models, money: empty, build: empty, delivery: empty, views: empty, agents: empty, chief: empty, network: empty, notify: empty, playbooks: empty }; // 5-0 added playbooks
     const host = new VentureHost(new VentureTestStore(), hostServices, {
-      demo: false, storage: 'experimental-file', host: kind, modelTransport: fake.transport, claudeCodeTerms: 'accepted', clock: () => new Date(START),
+      demo: false, storage: 'experimental-file', host: kind, modelTransport: fake.transport, clock: () => new Date(START),
     }, loaders);
     if (kind === 'desktop') {
       const result = await host.request(owner, 'venture.models.cli.status', {}) as CliStatusList;

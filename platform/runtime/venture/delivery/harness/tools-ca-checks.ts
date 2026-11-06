@@ -8,6 +8,8 @@
 // Each answer is a work receipt (operation 'ca.engine', engine 'reconcile' or 'portal-diff') whose figures are exactly
 // the engine's and whose ca field keeps its inputs, so venture.ca.receipt can work it again (stored-receipt.ts).
 import type { Json, ToolName, WorkReceiptRecord } from '../../contracts.ts';
+import { findRecord } from '../../records.ts';
+import { caOfferFor } from '../../playbooks/ca-firm/signoff-gate.ts';
 import { reconcileTaxStatements, type StatementCategory, type StatementEntry, type StatementSource } from '../../playbooks/ca-firm/reconcile.ts';
 import { portalDiffReceipt, type OurFigure, type PortalDiff, type PortalFigure } from '../../playbooks/ca-firm/portal.ts';
 import { amountTable, cellOf, columnOf, moneyCell, newLog, noteSource, requireRupees, type ReadLog } from '../../playbooks/ca-firm/tool-inputs.ts';
@@ -148,6 +150,14 @@ const PORTAL: Spec = {
     return noRetry(async () => {
       requireRupees(env);
       const log = newLog();
+      const state = env.deps.store.read();
+      const venture = findRecord(state, 'venture-record', env.ventureId);
+      const run = env.runRef.kind === 'delivery' ? findRecord(state, 'venture-delivery-run', env.runRef.runId) : null;
+      const offer = venture && run ? caOfferFor(state, venture, run.orderId) : null;
+      const fullReturn = offer?.id === 'check-return-elsewhere' || offer?.id === 'itr-check-draft';
+      if (fullReturn && input.keys?.length) fail('Compare every return line. Do not select only some receipt keys.');
+      const selected = [...new Set(input.ours as string[])].map(name => calculatorReceipt(env, name));
+      if (fullReturn && !selected.some(receipt => receipt.ca?.engine === 'income-tax' && receipt.runRef.kind === 'delivery' && env.runRef.kind === 'delivery' && receipt.runRef.runId === env.runRef.runId)) fail('First run tax.income for this order, then compare its fresh receipt.');
       const ours: OurFigure[] = [];
       const from = new Map<string, string>();
       for (const name of [...new Set(input.ours as string[])]) {
@@ -157,7 +167,7 @@ const PORTAL: Spec = {
           const key = keyOf(figure.key);
           if (from.has(key)) fail(`${from.get(key)} and ${name} both have a figure ${key}. Compare them one at a time, or name the keys.`);
           from.set(key, name);
-          ours.push({ key, label: figure.label, minor: figure.minor, receiptId: receipt.id });
+          ours.push({ key, label: figure.label, minor: figure.minor, receiptId: receipt.id, ...(fullReturn ? { rule: receipt.ca!.engine + ': ' + key } : {}) });
         }
       }
       let chosen = ours;
@@ -194,17 +204,18 @@ const PORTAL: Spec = {
         portal.push({ key, minor: String(amount) });
         log.rowIds.push(`${alias}.${row.id}`);
       }
+      if (fullReturn && skipped.length) fail('Every supplied return amount needs a named field before comparison.');
       if (skipped.length) {
         log.notCounted.push(...skipped.map(line => ({ line, reason: 'The field name is empty, so this amount was not compared. Name the field and compare again.' })));
         log.steps.push({ op: 'count', inputs: skipped, result: String(skipped.length), rule: `rows in ${alias} with an amount and no field name, not compared` });
       }
       log.steps.push({ op: 'compare', inputs: [...log.rowIds], result: String(portal.length), rule: `the portal's fields read from ${alias}, compared by key with ${chosen.length} receipt figures` });
-      const engineInput = { ours: chosen, portal };
+      const engineInput = { ours: chosen, portal, ...(fullReturn ? { includeBothSides: true } : {}) };
       const receipt = portalDiffReceipt(engineInput);
       const diff: PortalDiff = receipt.working;
       const self = `w${env.receipts.length + 1}`;
       return caAnswer(env, receipt, engineInput, log, {
-        rows: diff.rows.map(row => ({ key: row.key, state: row.state, difference: `${self}.${row.key}` })),
+        rows: diff.rows.map(row => ({ key: row.key, state: row.state, difference: `${self}.${row.key}`, ...(fullReturn ? { computed: row.oursMinor === null ? null : `${self}.ours.${row.key}`, suppliedReturn: row.portalMinor === null ? null : `${self}.return.${row.key}`, rule: row.rule ?? 'No matching computed line. Ask the CA to identify the applicable rule.' } : {}) })),
         forYourCa: diff.clean ? 'The portal agrees with the receipts on every key.' : 'Your CA accepts or explains each difference in Chausar before anything is filed.',
       });
     });

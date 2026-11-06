@@ -10,7 +10,7 @@
  *                                       the parts W4 feeds (goal card, next step, gallery, paths, board, chat, charts),
  *                                       drawn with test-style props and marked "Sample props" on the page
  *
- * `?lang=hi` draws it in Hindi, as on the app's own page.
+ * The specimen page uses the same English-only catalogue as the app.
  */
 
 import { StrictMode } from 'react';
@@ -26,7 +26,7 @@ import { withDepartments } from './departments';
 import { Specimens } from './Specimens';
 
 const params = new URLSearchParams(window.location.search);
-const language = params.get('lang') === 'hi' ? 'hi' : 'en';
+const language = 'en';
 document.documentElement.lang = language;
 
 function client(start: string): EngineClient {

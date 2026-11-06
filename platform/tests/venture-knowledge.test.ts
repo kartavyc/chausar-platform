@@ -15,11 +15,13 @@ import { handlers as networkHandlers } from '../runtime/venture/network/index.ts
 import { KNOWLEDGE_LINE } from '../runtime/venture/agents/knowledge.ts';
 import { knowledgeForTurn } from '../runtime/venture/agents/knowledge-recall.ts';
 import { code, owner, phone, NOW } from './venture-judge-helpers.ts';
-import { agentBusiness, askingRun, consent, episodeOrder, TEST_CARD, type AgentEnv } from './venture-agent-helpers.ts';
+import { agentBusiness, pendingFactsRun, consent, episodeOrder, TEST_CARD, type AgentEnv } from './venture-agent-helpers.ts';
 import { pages } from './venture-network-search-env.ts';
 import { emptyShelf, withNetworkKey } from './venture-network-env.ts';
 import { realPortEnv, wordsTask } from './venture-real-port-env.ts';
 import { ERASED_SOURCE_CALL } from '../runtime/venture/agents/knowledge.ts';
+/** 5A6: every self-made read asks robots.txt first; these checks are about the pages themselves. */
+const pagesOnly = (fetched: readonly string[]) => fetched.filter(url => !url.endsWith('/robots.txt'));
 
 const POLICY = 'Refunds are paid within 7 days of a cancelled order.\nDelivery times are three working days for every episode.';
 const PAGE = 'https://studio.example/faq';
@@ -31,11 +33,12 @@ const stored = (env: AgentEnv) => listRecords(env.store.read(), 'venture-knowled
 
 /** A delivery run whose agent asked the owner these questions, seeded as the harness leaves it. */
 async function asked(env: AgentEnv, questions: string[], options: { practice?: boolean; to?: 'owner' | 'client' } = {}) {
-  const order = await episodeOrder(env);
-  await ventureAction(env.deps, owner, 'admin', 'seed.run', tx => tx.put({
-    ...tx.base('venture-delivery-run'), orderId: order.id, status: 'needs-answer', practice: options.practice ?? false,
-    harness: { turns: [], handoffs: questions.map((question, turn) => ({ to: options.to ?? 'owner', question, turn, answer: null, answeredBy: null })) },
-  } as any));
+  const made = await pendingFactsRun(env, questions[0]);
+  await ventureAction(env.deps, owner, 'admin', 'seed.native-questions', tx => {
+    const run=tx.find('venture-delivery-run',made.id)!,{pendingFacts:_pending,...job}=run.agentJob!;
+    tx.replace({...run,status:'stopped',practice:options.practice??false,agentJob:{...job,
+      factAnswers:options.to==='client'?[]:questions.map((question,turn)=>({question,digest:String(turn),answer:'Fixture owner reply.',at:tx.now,by:owner.memberId,turn}))}});
+  });
 }
 
 const SIX = [
@@ -103,7 +106,7 @@ test('knowledge: a web page is read through the network guard and the untrusted 
   }, { 'intranet.studio.example': '10.0.0.5' });
   env.deps.net = { resolve: site.resolve, send: site.send };
   const made = await add(env, { kind: 'link', url: PAGE });
-  assert.deepEqual(site.fetched, [PAGE]);
+  assert.deepEqual(pagesOnly(site.fetched), [PAGE]);
   assert.equal(made.source.kind, 'link');
   assert.equal(made.source.title, 'Studio FAQ');
   // 4J16 (Q19): one page is a single source, so the line says it is not confirmed elsewhere.
@@ -119,7 +122,7 @@ test('knowledge: a web page is read through the network guard and the untrusted 
   await assert.rejects(add(env, { kind: 'link', url: 'https://moved.example/page' }), code('RESEARCH_HOST_REFUSED'), 'a redirect to a profile is refused at the hop');
   await assert.rejects(add(env, { kind: 'link', url: 'https://intranet.studio.example/wiki' }), code('NET_ADDRESS_REFUSED'));
   await assert.rejects(add(env, { kind: 'link', url: 'file:///etc/passwd' }), code('NET_URL_REFUSED'));
-  assert.deepEqual(site.fetched, [PAGE, 'https://bad.example/page', 'https://encoded.example/page', 'https://moved.example/page'], 'the profile, the inside address and the file address were never opened');
+  assert.deepEqual(pagesOnly(site.fetched), [PAGE, 'https://bad.example/page', 'https://encoded.example/page', 'https://moved.example/page'], 'the profile, the inside address and the file address were never opened');
   assert.equal(stored(env).length, 1, 'nothing from a refused or held page was kept');
 });
 
@@ -253,7 +256,7 @@ test('knowledge: questions agents handed to the owner that no source answers bec
 
 test('knowledge: a real question a run handed to the owner counts', async () => {
   const env = await agentBusiness();
-  await askingRun(env, 'What is the refund policy?');
+  await pendingFactsRun(env, 'What is the refund policy?');
   assert.deepEqual((await list(env)).requests, ['To answer 1 question from October 2026 well, add a file about refund policy.']);
 });
 

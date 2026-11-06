@@ -108,7 +108,7 @@ class ScriptPort implements ModelPort {
     const payloadText = JSON.stringify({ system: task.instructions, input: task.input });
     this.#previews.set(callId, { digest: digest(payloadText), task, used: false });
     await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview' }); });
-    return { callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-16T10:30:00.000Z' };
+    return { callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010' };
   }
   async runPreview<T>(ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
     await this.store.update(() => undefined);
@@ -199,76 +199,11 @@ function script(env: HarnessEnv, turns: unknown[]) {
 const quoteRow = async (deps: VentureDeps) => (await viewsCall<QueueList>(deps, 'venture.queue.list')).rows.find(row => row.kind === 'quote');
 const runViewOf = async (deps: VentureDeps) => (await delivery['venture.delivery.list']!(deps, owner, {}) as DeliveryRunView[])[0];
 
-test('delivery: each send to your AI is a journal entry approved with a bound token, and no token ever reaches the model', async () => {
-  const env = await harnessSetup();
-  script(env, [READ, DONE]);
-  // A real token exists in this process the whole time: the owner approved some other action and kept the token.
-  const other = await proposeAction(env.deps, agentCtx, { action: 'connector.write', subject: 'mail_1', target: 'Mail app', actionDigest: 'e'.repeat(64), line: 'Send the reminder email.', operation: 'send-deliverable' });
-  const { token } = await approveAction(env.deps, owner, { entryId: other.id, digest: other.actionDigest });
 
-  let run = await delivery['venture.delivery.run']!(env.deps, owner, { orderId: env.order.id }) as DeliveryRunView;
-  assert.equal(run.status, 'waiting-for-you');
-  // The first turn from Today, the rest from venture.delivery.approve: both paths are journalled.
-  const row = await quoteRow(env.deps);
-  assert.ok(row);
-  const decided = await viewsCall<QueueDecision>(env.deps, 'venture.queue.decide', { id: row.id, digest: row.digest, action: 'approve', viewed: true });
-  assert.equal(decided.outcome, 'done');
-  run = await runViewOf(env.deps);
-  for (let turn = 0; turn < 5 && run.status === 'waiting-for-you'; turn += 1) {
-    run = await delivery['venture.delivery.approve']!(env.deps, owner, { runId: run.id, digest: run.preview!.digest }) as DeliveryRunView;
-  }
-  assert.equal(run.status, 'ready-for-review');
 
-  const sends = journal(env.deps).filter(entry => entry.action === 'delivery.send');
-  assert.equal(sends.length, env.models.sent);
-  assert.ok(sends.length >= 3);
-  for (const entry of sends) {
-    assert.equal(entry.state, 'applied');
-    assert.equal(entry.target, 'Cafe Aroma Demo');
-    assert.deepEqual(entry.quote, { figure: '1000', payer: 'anthropic-sonnet-5-5' });
-    assert.match(entry.approval!.tokenHash, /^[a-f0-9]{64}$/);
-    assert.ok(entry.approval!.usedAt);
-    assert.ok(Date.parse(entry.expiresAt!) <= Date.parse('2026-10-16T10:30:00.000Z'), 'never later than the preview it sends');
-  }
 
-  // Model context: every prompt the agent was given, every payload shown for approval, and the run's own history.
-  const prompts = env.models.previewed.map(task => JSON.stringify({ instructions: task.instructions, input: task.input }));
-  const state = env.store.read();
-  const payloads = listRecords(state, 'venture-delivery-run').flatMap(item => [item.preview?.payloadText ?? '', JSON.stringify(item.harness ?? null)]);
-  for (const text of [...prompts, ...payloads, JSON.stringify(state)]) {
-    assert.ok(!containsApprovalToken(text), 'no approval token in model context');
-    assert.ok(!text.includes(token), 'not even the token the owner holds');
-  }
-  const { entries } = await journalList(env.deps);
-  assert.ok(entries.some(entry => entry.action === 'Send to your AI' && entry.state === 'applied'));
-});
 
-test('delivery: a send that times out is outcome_unknown with a check line, the run stops, and the call is never sent again', async () => {
-  const env = await harnessSetup();
-  script(env, [READ, DONE]);
-  const run = await delivery['venture.delivery.run']!(env.deps, owner, { orderId: env.order.id }) as DeliveryRunView;
-  env.models.failNext = new ChausarError('MODEL_TIMEOUT', 'Your AI did not answer in time.');
-  const row = await quoteRow(env.deps);
-  const decided = await viewsCall<QueueDecision>(env.deps, 'venture.queue.decide', { id: row!.id, digest: row!.digest, action: 'approve', viewed: true });
-  assert.deepEqual([decided.outcome, decided.reason], ['refused', 'MODEL_TIMEOUT']);
-  const [entry] = journal(env.deps);
-  assert.equal(entry.state, 'outcome_unknown');
-  assert.ok(entry.journal.at(-1)!.line.includes(CHECK_BEFORE_RETRYING));
-  assert.equal((await runViewOf(env.deps)).status, 'failed');
-  await assert.rejects(delivery['venture.delivery.approve']!(env.deps, owner, { runId: run.id, digest: run.preview!.digest }), code('DELIVERY_NOT_WAITING'));
-  assert.equal(env.models.sent, 1);
-  assert.equal(journal(env.deps).length, 1);
-});
 
-test('delivery: a stale digest is refused before the journal, and an agent channel never approves a send', async () => {
-  const env = await harnessSetup();
-  script(env, [READ, DONE]);
-  const run = await delivery['venture.delivery.run']!(env.deps, owner, { orderId: env.order.id }) as DeliveryRunView;
-  await assert.rejects(delivery['venture.delivery.approve']!(env.deps, owner, { runId: run.id, digest: 'f'.repeat(64) }), code('APPROVAL_STALE'));
-  await assert.rejects(delivery['venture.delivery.approve']!(env.deps, agentCtx, { runId: run.id, digest: run.preview!.digest }), code('APP_APPROVAL_REQUIRED'));
-  assert.equal(journal(env.deps).length, 0);
-  assert.equal(env.models.sent, 0);
-});
 
 // ---------------------------------------------------------------------------
 // 3. Posting uses the general journal

@@ -1,0 +1,6 @@
+[
+ {"id":"uncited-sentence","request":"Check a paragraph with an uncited ending.","draft":"The uncited sentence needs a source ID before approval.","meta":{"source":"{\"text\":\"Dev: The shop checks receipts.\",\"host\":\"Anu\",\"guests\":[\"Dev\"],\"candidate\":\"Dev checks receipts. [L1] The shop has no errors.\"}"}},
+ {"id":"insider-said-refused","request":"Check anonymous attribution.","draft":"Use the named speaker from the episode; refuse an anonymous insider.","meta":{"source":"{\"text\":\"Dev: The shop checks receipts.\",\"host\":\"Anu\",\"guests\":[\"Dev\"],\"candidate\":\"An insider said the shop checks receipts. [L1]\"}"}},
+ {"id":"quote-not-in-transcript","request":"Check a fabricated quotation.","draft":"This quotation is not in the transcript and cannot be approved.","meta":{"source":"{\"text\":\"Dev: The shop checks receipts.\",\"host\":\"Anu\",\"guests\":[\"Dev\"],\"candidate\":\"Dev said, \\\"The shop never makes a mistake.\\\" [L1]\"}"}},
+ {"id":"hindi-episode","request":"Keep the Hindi speaker and evidence separate.","draft":"देव के शब्द स्रोत में हैं और उन्हीं के नाम से लिखे गए हैं।","meta":{"source":"{\"text\":\"देव: दुकान में हर रसीद की जाँच होती है।\",\"host\":\"अनु\",\"guests\":[\"देव\"],\"candidate\":\"देव कहते हैं कि दुकान में हर रसीद की जाँच होती है। [L1]\"}"}}
+]

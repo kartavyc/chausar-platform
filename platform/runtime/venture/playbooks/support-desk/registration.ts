@@ -1,0 +1,3 @@
+// Support registration. nexusdesk (Apache-2.0), ResolveHQ (source-available, ideas only); independently written.
+import type { PlaybookRegistration } from '../registry.ts';
+export const SUPPORT_DESK_REGISTRATION: PlaybookRegistration = Object.freeze({id:'support-desk',label:'Support desk for small shops',serviceType:'support',picks:['support desk','customer support service','customer service for shops','helpdesk service','support inbox','ticket handling'],summary:'Agents sort customer mail and draft replies with sources; you approve and send every reply from the shop mailbox.',riskLevel:'medium',lastReviewed:'2026-10-27'});

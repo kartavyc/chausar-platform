@@ -1,0 +1,16 @@
+/* Original tender workbench. Ink tokens, stacked phone forms and wrapping source text. */
+.stack{display:grid;gap:var(--sp-4);min-width:0}
+.form{display:grid;gap:var(--sp-3);min-width:0}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3);min-width:0}
+.line{color:var(--fg2);font-size:var(--text-read);overflow-wrap:anywhere}
+.quote{white-space:pre-wrap;overflow-wrap:anywhere;font-size:var(--text-read);margin:var(--sp-2) 0;min-width:0}
+.actions{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center}
+.label{display:grid;gap:var(--sp-1);font-size:var(--text-read);min-width:0}
+.label select{font:inherit;min-height:var(--target);min-width:0;max-width:100%;color:var(--fg);background:var(--surface);border:var(--hair) solid var(--line);border-radius:var(--r-button);padding:var(--sp-2)}
+.check{display:flex;align-items:center;gap:var(--sp-2);min-height:var(--target);font-size:var(--text-read);overflow-wrap:anywhere}
+.error{color:var(--fail);font-size:var(--text-read)}
+.list{display:grid;gap:var(--sp-2);padding-left:var(--sp-4);overflow-wrap:anywhere}
+@media(max-width:560px){.pair{grid-template-columns:minmax(0,1fr)}}
+
+.form dd{margin:0;overflow-wrap:anywhere;min-width:0}
+.form>div{min-width:0}

@@ -60,7 +60,7 @@ export const BOARDS = [
     board: 'D-TeamDept', title: 'One department', address: '#/team?dept=prod', cases: ['team-dept-prod', 'team-dept'],
     matches: [
       'In the app now (W4 4A2): the toggle with Production chosen; the hero panel on the Production tint with icon, purpose, jobs this week, spend with its receipt and playbook steps.',
-      '"How Production runs" with its version: numbered steps with Auto and Hold, the publish step "Always asks you", and "A change makes version 5. You can undo it".',
+      '"How Production runs" with its version: assigned agent steps with Auto and Hold, and "A change makes version 5. You can undo it". Owner-only publication stays outside the agent assignments.',
       'Agents in the department, Recent work as cards with state and progress, and Spend and jobs by week.',
     ],
     differs: [
@@ -183,7 +183,6 @@ export const FIXED = [
 
 /** Seen in the shots, the hand walk and the review, not fixed here; for the integrator or the founder. */
 export const LISTED = [
-  'Hindi: some words the engine writes stay English (row lines, some action labels, engine notes in chat), because the fake engine writes English; dates in mono read wide; every Hindi string is machine-drafted and waits for a native reviewer (src/text/hi-review.json, with the engine files that carry their own Hindi).',
   'Connections: a connector with one mode that writes and one planned shows both labels on one card (LinkedIn: browser posting writes, API posting is planned).',
   'Initials: Bookkeeper is "BO" and Ledgerline "LE" by the initials rule, where D drew "BK" and "LL".',
   'Dark theme: the locked primary (mute on accent soft, 5.2:1) reads quiet by design; the goal card is lifted to #1f2124 with a border, softer than D\'s black card.',

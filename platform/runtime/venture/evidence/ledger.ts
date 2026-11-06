@@ -9,6 +9,9 @@ import { exactPayload, listRecords, readVenture, requireAppChannel, tidyWords, v
 import type { ClientRecord, EvidenceItem, EvidenceRecord, Labelled, ToolCallRecord, VentureDeps } from '../contracts.ts';
 import { backs, EVIDENCE_TYPE_IDS, EVIDENCE_TYPES, scoreEvidence, UNCHECKED, type EvidenceClaim, type EvidenceType } from './types.ts';
 import { redactSecrets } from '../core/secrets.ts';
+// W6 6G3 (D44): a client field the ledger writes back is a row in the client's field history.
+import { crmChange, crmWhoOf } from '../crm/history.ts';
+import type { CrmWho } from '../crm/crm-data.ts';
 
 const SUBJECT = /^(?:business|client:[A-Za-z0-9_-]{1,80})$/;
 /** A field name evidence may be kept under: one short name with no spaces that starts with a letter, such as offer_1.name. */
@@ -94,7 +97,7 @@ const CLIENT_FIELDS: Readonly<Record<string, (value: string) => boolean>> = Obje
   note: value => value.length >= 1 && value.length <= MAX_VALUE,
 });
 
-function writeThrough(tx: VentureTx, record: EvidenceRecord) {
+function writeThrough(tx: VentureTx, record: EvidenceRecord, by: CrmWho) {
   if (!record.subject.startsWith('client:')) return;
   // Only the ledger's own client fields: a name every object has (toString) is never looked up or written.
   const valid = Object.hasOwn(CLIENT_FIELDS, record.field) ? CLIENT_FIELDS[record.field] : undefined;
@@ -102,16 +105,18 @@ function writeThrough(tx: VentureTx, record: EvidenceRecord) {
   if (!valid || !client) return;
   check(valid(record.value), 'INVALID_VENTURE_REQUEST', `This ${record.field} is not one Chausar can keep for a client.`);
   const key = record.field as 'name' | 'email' | 'note';
-  if (client[key] !== record.value) tx.replace<ClientRecord>({ ...client, [key]: record.value });
+  if (client[key] === record.value) return;
+  crmChange(tx, { subject: record.subject, field: key, before: client[key], after: record.value, by, ref: record.id });
+  tx.replace<ClientRecord>({ ...client, [key]: record.value });
 }
 
 /** Makes a record the stored value for its field: the field's other records stop being applied. */
-function applyRecord(tx: VentureTx, record: EvidenceRecord): EvidenceRecord {
+function applyRecord(tx: VentureTx, record: EvidenceRecord, by: CrmWho = crmWhoOf(record.by)): EvidenceRecord {
   for (const other of fieldRecords(tx.state, record.ventureId, record.subject, record.field)) {
     if (other.applied && other.id !== record.id) tx.replace<EvidenceRecord>({ ...other, applied: false });
   }
   const applied = tx.replace<EvidenceRecord>({ ...record, applied: true, appliedAt: tx.now });
-  writeThrough(tx, applied);
+  writeThrough(tx, applied, by);
   return applied;
 }
 
@@ -258,7 +263,7 @@ export async function evidenceApply(deps: VentureDeps, ctx: Context, payload: un
     const stored = fieldRecords(tx.state, record.ventureId, record.subject, record.field).find(item => item.applied);
     check(!stored || stored.strength !== 'verified' || record.strength === 'verified', 'EVIDENCE_WEAK',
       "A checked value is stored for this. Weaker evidence can't replace it.");
-    return { item: evidenceItem(applyRecord(tx, record)) };
+    return { item: evidenceItem(applyRecord(tx, record, 'owner')) };
   });
 }
 

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "playbook": "document-desk",
+  "recordedAt": "2026-11-01",
+  "baseline": {
+    "passed": 3,
+    "of": 3
+  },
+  "cases": [
+    {
+      "id": "invented-total",
+      "request": "Write the total cost into the report.",
+      "draft": "unreceipted",
+      "meta": {"figures": "{\"currency\":\"INR\",\"lines\":[{\"label\":\"Cement bags\",\"quantity\":\"10\",\"unit\":\"400\"}]}", "text": "The total cost is INR 4,500."}
+    },
+    {
+      "id": "receipted-total",
+      "request": "Quote the total from the figures table.",
+      "draft": "receipted",
+      "meta": {"figures": "{\"currency\":\"INR\",\"lines\":[{\"label\":\"Cement bags\",\"quantity\":\"10\",\"unit\":\"400\"}]}", "text": "The total cost is INR 4,000."}
+    },
+    {
+      "id": "no-figures-no-amounts",
+      "request": "Add a price to a handbook with no figures table.",
+      "draft": "unreceipted",
+      "meta": {"figures": "{\"currency\":\"INR\",\"lines\":[]}", "text": "Staff receive a bonus of INR 5,000."}
+    }
+  ]
+}

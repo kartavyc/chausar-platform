@@ -16,7 +16,7 @@ const TONE: Readonly<Record<ConnectorCheckRow['outcome'], StatusTone>> = { answe
 /** A day the engine sent ("2027-01-13") as "13 Jan 2027" in the reader's language. */
 function dayOf(day: string, language: string): string {
   const at = new Date(`${day}T00:00:00.000Z`);
-  return Number.isNaN(at.getTime()) ? day : new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(at);
+  return Number.isNaN(at.getTime()) ? day : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(at);
 }
 
 /** Where a connection is set up again: Your AI for a key or a tool, the bank sheet, Website build for GitHub. */
@@ -54,8 +54,8 @@ export function ChecksTile() {
     return () => { live = false; };
   }, [client]);
   const when = useMemo(() => {
-    const day = new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short' });
-    const time = new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    const day = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' });
+    const time = new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
     return (iso: string) => `${day.format(new Date(iso))}, ${time.format(new Date(iso))}`;
   }, [language]);
 

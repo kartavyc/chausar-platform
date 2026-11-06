@@ -1,5 +1,5 @@
 {
-  "_source": "The engine's own data (platform/runtime/venture/core/ways.ts listWays with no business open, core/checklist.ts CHECKLIST_ITEMS). platform/tests/venture-ways.test.ts pins both equal; make it again when the engine changes them. The Hindi is the engine's, machine-drafted for a native reviewer.",
+  "_source": "The engine's own data (platform/runtime/venture/core/ways.ts listWays with no business open, core/checklist.ts CHECKLIST_ITEMS). platform/tests/venture-ways.test.ts pins both equal; make it again when the engine changes them.",
   "ways": {
     "ways": [
       {
@@ -8,40 +8,86 @@
         "label": "CA practice",
         "category": "money-and-tax",
         "department": "money",
-        "line": "Books, GST, TDS and income tax working papers for small businesses. Your CA of record signs anything regulated.",
+        "line": "Books, GST, TDS and income tax working papers for small businesses; your CA of record signs anything regulated.",
         "hours": "6 to 10 h a week",
         "minHours": 6,
         "maxHours": 10,
         "hoursEstimate": true,
-        "youDo": "Meet clients, review every draft, and work with your CA.",
+        "youDo": "Meet clients, review drafts, work with your CA.",
         "team": [
-          {
-            "role": "Intake clerk",
-            "initials": "IC",
-            "department": "sales"
-          },
-          {
-            "role": "Tax preparer",
-            "initials": "TP",
-            "department": "money"
-          },
           {
             "role": "Reconciler",
             "initials": "RE",
             "department": "money"
           },
           {
-            "role": "Working papers writer",
-            "initials": "WP",
+            "role": "Tax preparer",
+            "initials": "TP",
             "department": "money"
           }
         ],
-        "teamLine": "Read client files, match statements, pick the tax rules and write working papers. Code works out every figure.",
+        "teamLine": "Books, workings, receipts for every figure.",
         "clientsPay": {
           "text": "₹5,000 to ₹20,000",
           "per": "a client a month",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "chartered-accountant",
+            "label": "Chartered accountant",
+            "family": "money-and-tax",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "ca-itr-salary",
+                "label": "Income tax return with salary or other income",
+                "currency": "INR",
+                "lowMinor": "400000",
+                "highMinor": "800000",
+                "kind": "minimums",
+                "text": "₹4,000 to ₹8,000 or more",
+                "per": "per return",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://caalley.com/ca/minimum_fees_icai.pdf",
+                    "publisher": "ICAI Committee for Members in Practice",
+                    "title": "Revised Minimum Recommended Scale of Fees (reprinted on caalley.com)",
+                    "published": "2020-02-11"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "ICAI recommended minimum fees, from class C cities (low) to class A cities such as Mumbai or Delhi (high). They are guidance, not mandatory."
+              },
+              {
+                "id": "ca-gst-monthly",
+                "label": "GST returns, the monthly part of the fee",
+                "currency": "INR",
+                "lowMinor": "200000",
+                "highMinor": "400000",
+                "kind": "minimums",
+                "text": "₹2,000 to ₹4,000 or more",
+                "per": "per month",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://caalley.com/ca/minimum_fees_icai.pdf",
+                    "publisher": "ICAI Committee for Members in Practice",
+                    "title": "Revised Minimum Recommended Scale of Fees (reprinted on caalley.com)",
+                    "published": "2020-02-11"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "ICAI recommended minimums for class C to class A cities. The scale adds a separate fixed fee on top. Guidance, not mandatory."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -49,27 +95,9 @@
         },
         "starter": "A CA practice: books, GST and income tax working papers for small businesses.",
         "yours": [],
-        "hi": {
-          "label": "CA प्रैक्टिस",
-          "line": "छोटे बिज़नेस के लिए बही-खाते, GST, TDS और इनकम टैक्स के वर्किंग पेपर्स। जो भी काम नियमों के तहत है, उस पर आपके CA दस्तख़त करते हैं।",
-          "hours": "हफ़्ते में 6 से 10 घंटे",
-          "youDo": "क्लाइंट से मिलें, हर ड्राफ़्ट जाँचें और अपने CA के साथ काम करें।",
-          "team": [
-            "इनटेक क्लर्क",
-            "टैक्स प्रिपेयरर",
-            "रिकंसाइलर",
-            "वर्किंग पेपर्स राइटर"
-          ],
-          "teamLine": "क्लाइंट की फ़ाइलें पढ़ते हैं, स्टेटमेंट मिलाते हैं, टैक्स के नियम चुनते हैं और वर्किंग पेपर्स लिखते हैं। हर आँकड़ा कोड निकालता है।",
-          "pay": "₹5,000 से ₹20,000",
-          "per": "प्रति क्लाइंट, हर महीने",
-          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
-          "starter": "CA practice: छोटे बिज़नेस के लिए बही-खाते, GST और इनकम टैक्स के वर्किंग पेपर्स।",
-          "needs": {
-            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
-            "connections": "क्लाइंट की फ़ाइलें (PDF, CSV या Excel) और आपका अपना मेल ऐप। अगर आप Tally इस्तेमाल करते हैं, तो इस कंप्यूटर पर Tally। टैक्स पोर्टल पर फ़ाइलिंग कोई व्यक्ति करता है।"
-          }
-        }
+        "families": [
+          "money-tax"
+        ]
       },
       {
         "id": "youtube",
@@ -77,16 +105,16 @@
         "label": "YouTube channel",
         "category": "content",
         "department": "production",
-        "line": "Hooks, edit lists, titles, descriptions and chapters for client videos, from footage the client owns or has licensed.",
+        "line": "Episodes, shorts, packaging and audits for your own channel or a client's, from footage you own or license.",
         "hours": "4 to 8 h a week",
         "minHours": 4,
         "maxHours": 8,
         "hoursEstimate": true,
-        "youDo": "Talk to clients, cut each video from the edit list in your own editor, then you or the client publish.",
+        "youDo": "Record, watch each cut, meet sponsors.",
         "team": [
           {
-            "role": "Intake clerk",
-            "initials": "IC",
+            "role": "Story editor",
+            "initials": "SE",
             "department": "production"
           },
           {
@@ -95,22 +123,28 @@
             "department": "sales"
           },
           {
-            "role": "Story editor",
-            "initials": "SE",
-            "department": "production"
-          },
-          {
             "role": "Packager",
             "initials": "PA",
             "department": "marketing"
           }
         ],
-        "teamLine": "Read each brief, ask the client what is missing, write hooks, pick moments for the edit list, and draft titles and chapters.",
+        "teamLine": "Edits, shorts, titles and sponsor quotes.",
         "clientsPay": {
           "text": "₹5,000 to ₹30,000",
           "per": "per video",
           "estimate": true,
-          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "video-editor",
+            "label": "Video editor",
+            "family": "creative-work",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and the rate text that did load reads as generic copy, not data.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
         },
         "needs": {
           "ai": "Your own AI, paid by you directly.",
@@ -118,27 +152,9 @@
         },
         "starter": "A YouTube channel service: hooks, titles and chapters for client videos.",
         "yours": [],
-        "hi": {
-          "label": "YouTube चैनल",
-          "line": "क्लाइंट के वीडियो के लिए हुक, एडिट लिस्ट, टाइटल, डिस्क्रिप्शन और चैप्टर, उसी फ़ुटेज से जो क्लाइंट का अपना है या लाइसेंस पर है।",
-          "hours": "हफ़्ते में 4 से 8 घंटे",
-          "youDo": "क्लाइंट से बात करें, एडिट लिस्ट से अपने एडिटर में हर वीडियो एडिट करें, फिर आप या क्लाइंट पब्लिश करें।",
-          "team": [
-            "इनटेक क्लर्क",
-            "प्रोड्यूसर",
-            "स्टोरी एडिटर",
-            "पैकेजर"
-          ],
-          "teamLine": "हर ब्रीफ़ पढ़ते हैं, क्लाइंट से कमी पूछते हैं, हुक लिखते हैं, एडिट लिस्ट के लिए पल चुनते हैं और टाइटल व चैप्टर का ड्राफ़्ट बनाते हैं।",
-          "pay": "₹5,000 से ₹30,000",
-          "per": "प्रति वीडियो",
-          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
-          "starter": "क्लाइंट के वीडियो के लिए YouTube चैनल सर्विस: हुक, टाइटल और चैप्टर।",
-          "needs": {
-            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
-            "connections": "क्लाइंट की ट्रांसक्रिप्ट (SRT या VTT) और फ़ुटेज के नोट्स, फ़ाइलों में। इस कंप्यूटर पर ffmpeg हो तो कटे हुए वीडियो की जाँच भी होती है, पर ज़रूरी नहीं।"
-          }
-        }
+        "families": [
+          "creative"
+        ]
       },
       {
         "id": "social-agency",
@@ -146,18 +162,13 @@
         "label": "Social media agency",
         "category": "marketing",
         "department": "marketing",
-        "line": "Calendars, posts, replies and monthly reports for local shops, clinics and coaches.",
+        "line": "Posts, replies, reels and monthly reports for local shops, clinics and coaches.",
         "hours": "4 to 6 h a week",
         "minHours": 4,
         "maxHours": 6,
         "hoursEstimate": true,
-        "youDo": "Approve every draft and post, talk to clients, and post or hand off.",
+        "youDo": "Approve drafts, talk to clients, post or hand off.",
         "team": [
-          {
-            "role": "Intake",
-            "initials": "IN",
-            "department": "sales"
-          },
           {
             "role": "Strategist",
             "initials": "ST",
@@ -172,19 +183,9 @@
             "role": "Creative",
             "initials": "CR",
             "department": "production"
-          },
-          {
-            "role": "Checker",
-            "initials": "CH",
-            "department": "operations"
-          },
-          {
-            "role": "Analyst",
-            "initials": "AN",
-            "department": "marketing"
           }
         ],
-        "teamLine": "Voice sheets, calendars, captions, reply drafts, ad briefs, and report words from the client's own exports.",
+        "teamLine": "Calendars, posts, reply drafts, report figures from exports.",
         "clientsPay": {
           "text": "₹8,000 to ₹25,000",
           "per": "a client a month",
@@ -197,57 +198,1518 @@
         },
         "starter": "A social media agency: calendars, posts and replies for local shops.",
         "yours": [],
-        "hi": {
-          "label": "सोशल मीडिया एजेंसी",
-          "line": "लोकल दुकानों, क्लिनिक और कोच के लिए कैलेंडर, पोस्ट, जवाब और महीने की रिपोर्ट।",
-          "hours": "हफ़्ते में 4 से 6 घंटे",
-          "youDo": "हर ड्राफ़्ट और पोस्ट मंज़ूर करें, क्लाइंट से बात करें, और ख़ुद पोस्ट करें या क्लाइंट को सौंपें।",
-          "team": [
-            "इनटेक",
-            "स्ट्रैटेजिस्ट",
-            "राइटर",
-            "क्रिएटिव",
-            "चेकर",
-            "एनालिस्ट"
-          ],
-          "teamLine": "वॉइस शीट, कैलेंडर, कैप्शन, जवाबों के ड्राफ़्ट, ऐड ब्रीफ़, और क्लाइंट के अपने एक्सपोर्ट से रिपोर्ट के शब्द।",
-          "pay": "₹8,000 से ₹25,000",
-          "per": "प्रति क्लाइंट, हर महीने",
-          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
-          "starter": "Social media agency: लोकल दुकानों के लिए कैलेंडर, पोस्ट और जवाब।",
-          "needs": {
-            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
-            "connections": "क्लाइंट की ब्रांड फ़ाइलें और प्लेटफ़ॉर्म के एक्सपोर्ट, और आपका अपना मेल ऐप। पोस्ट आप अपने अकाउंट से करते हैं, या कैलेंडर फ़ाइल अपने शेड्यूलर में डालते हैं।"
+        "families": [
+          "creative",
+          "writing"
+        ]
+      },
+      {
+        "id": "seo-visibility",
+        "playbook": "seo-visibility",
+        "label": "Search and AI-search visibility",
+        "category": "marketing",
+        "department": "marketing",
+        "line": "Site checks and captured AI-answer checks for local businesses.",
+        "hours": "3 to 5 h a week",
+        "minHours": 3,
+        "maxHours": 5,
+        "hoursEstimate": true,
+        "youDo": "Approve reports and fixes, talk to clients.",
+        "team": [
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "marketing"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "marketing"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
           }
-        }
+        ],
+        "teamLine": "Checks sites, drafts reports, keeps the evidence.",
+        "clientsPay": {
+          "text": "₹10,000 to ₹35,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "marketing-seo-blogs",
+            "label": "Marketing executive (SEO blogs)",
+            "family": "writing-and-content",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and the rate text that did load reads as generic copy, not data.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with WordPress drafts, Cloudflare overrides, Google Business Profile, Client site and Search Console export."
+        },
+        "starter": "Seo agency: Site checks and captured AI-answer checks for local businesses.",
+        "yours": [],
+        "families": [
+          "writing"
+        ]
+      },
+      {
+        "id": "online-seller",
+        "playbook": "online-seller",
+        "label": "Online seller and seller services",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Listing, ads and settlement audits from the seller exports you add.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Check exports and approve every draft.",
+        "team": [
+          {
+            "role": "Analyst",
+            "initials": "AN",
+            "department": "marketing"
+          },
+          {
+            "role": "Auditor",
+            "initials": "AU",
+            "department": "money"
+          }
+        ],
+        "teamLine": "Checks margins, listings and payouts.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹20,000",
+          "per": "per audit or a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "marketplace-seller-ops",
+            "label": "Ex-retail staff (marketplaces)",
+            "family": "shop-and-back-office",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplaces leave fees to seller and provider; only unverified ads were found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Shopify Admin, Shopify Storefront, Your image app, Seller export files and Your seller dashboard."
+        },
+        "starter": "Online seller and seller services: Listing, ads and settlement audits from the seller exports you add.",
+        "yours": [],
+        "families": [
+          "creative",
+          "shop-office"
+        ]
+      },
+      {
+        "id": "support-desk",
+        "playbook": "support-desk",
+        "label": "Support desk for small shops",
+        "category": "shops-and-firms",
+        "department": "sales",
+        "line": "Customer mail sorted, replies drafted and due times kept for small shops.",
+        "hours": "5 to 7 h a week",
+        "minHours": 5,
+        "maxHours": 7,
+        "hoursEstimate": true,
+        "youDo": "Approve and send replies, settle refunds.",
+        "team": [
+          {
+            "role": "Sorter",
+            "initials": "SO",
+            "department": "operations"
+          },
+          {
+            "role": "Replier",
+            "initials": "RE",
+            "department": "sales"
+          }
+        ],
+        "teamLine": "Sorts mail, drafts replies with sources, writes help pages.",
+        "clientsPay": {
+          "text": "₹6,000 to ₹20,000",
+          "per": "a shop a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "customer-service",
+            "label": "Customer service",
+            "family": "shop-and-back-office",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "No credible published price per support agent was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Mail files, Read-only mailbox and Your mail app."
+        },
+        "starter": "Support desk for small shops: Customer mail sorted, replies drafted and due times kept for small shops.",
+        "yours": [],
+        "families": [
+          "shop-office"
+        ]
+      },
+      {
+        "id": "recruiting-desk",
+        "playbook": "recruiting-desk",
+        "label": "Recruiting desk",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Role rules, shortlists with quoted proof and interview scheduling.",
+        "hours": "5 to 8 h a week",
+        "minHours": 5,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Talk to clients and candidates, approve messages.",
+        "team": [
+          {
+            "role": "Sourcer",
+            "initials": "SO",
+            "department": "sales"
+          },
+          {
+            "role": "Screener",
+            "initials": "SC",
+            "department": "production"
+          },
+          {
+            "role": "Scheduler",
+            "initials": "SC",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Screens resumes with quotes, keeps the ledger, drafts invites.",
+        "clientsPay": {
+          "text": "₹25,000 to ₹80,000",
+          "per": "per hire",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "hr-recruiter",
+            "label": "HR recruiter",
+            "family": "people-and-careers",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Only recruiters' own blogs were found; the news pages would not load.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client resumes, Imported mail, Greenhouse, Lever, Ashby, Calendar export, LinkedIn and Naukri."
+        },
+        "starter": "Recruiting desk: Role rules, shortlists with quoted proof and interview scheduling.",
+        "yours": [],
+        "families": [
+          "people"
+        ]
+      },
+      {
+        "id": "job-search-desk",
+        "playbook": "job-search-desk",
+        "label": "Job-search and career desk",
+        "category": "content",
+        "department": "production",
+        "line": "Shortlists, resumes, preparation packs and outreach drafts.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Meet clients and approve packs.",
+        "team": [
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "sales"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          }
+        ],
+        "teamLine": "Finds roles, prepares resumes and drafts outreach.",
+        "clientsPay": {
+          "text": "₹3,000 to ₹15,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "senior-mentor",
+            "label": "Senior mentor",
+            "family": "teaching-and-coaching",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "mentor-30-min",
+                "label": "Career coaching call",
+                "currency": "INR",
+                "lowMinor": "8100",
+                "highMinor": "120500",
+                "kind": "range",
+                "text": "₹81 to ₹1,205",
+                "per": "per 30 minute call",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://topmate.io/s/career-guidance",
+                    "publisher": "Topmate",
+                    "title": "Career coaching in India",
+                    "published": null
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "Lowest and highest of the seven priced 30 minute calls listed on the page. Prices vary widely."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client job links, Public job boards, Your Pinloop account, LinkedIn manual path and Naukri manual path."
+        },
+        "starter": "Job search help: Shortlists, resumes, preparation packs and outreach drafts.",
+        "yours": [],
+        "families": [
+          "teaching",
+          "people"
+        ]
+      },
+      {
+        "id": "translation-studio",
+        "playbook": "translation-studio",
+        "label": "Translation and subtitles",
+        "category": "content",
+        "department": "production",
+        "line": "Documents and subtitles with source checks and review.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Review meaning and talk to clients.",
+        "team": [
+          {
+            "role": "Translator",
+            "initials": "TR",
+            "department": "production"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "production"
+          }
+        ],
+        "teamLine": "Drafts translations, checks terms and prepares files.",
+        "clientsPay": {
+          "text": "₹100 to ₹400",
+          "per": "per video minute",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "translator",
+            "label": "Translator",
+            "family": "writing-and-content",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "translator-per-word",
+                "label": "Translation at government rates",
+                "currency": "INR",
+                "lowMinor": "50",
+                "highMinor": "125",
+                "kind": "range",
+                "text": "₹0.50 to ₹1.25",
+                "per": "per word",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://www.ntm.org.in/announcements/Rates%20for%20translators,%20data%20entry,%20copy%20eidtor,%20proof%20reader%20and%20reviewers.pdf",
+                    "publisher": "National Translation Mission (Ministry of Education)",
+                    "title": "Rates for translators, data entry, copy editors, proof readers and reviewers",
+                    "published": "2020-09-22"
+                  },
+                  {
+                    "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/mar/doc202437320701.pdf",
+                    "publisher": "Press Information Bureau",
+                    "title": "Guidelines for empanelment of casual and online translators",
+                    "published": "2024-03"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "Low is the National Translation Mission's general rate; high is PIB's online translator rate. Government rates sit at the low end of the market."
+              },
+              {
+                "id": "translator-shift",
+                "label": "Casual translator at PIB",
+                "currency": "INR",
+                "lowMinor": "180000",
+                "highMinor": "200000",
+                "kind": "range",
+                "text": "₹1,800 to ₹2,000",
+                "per": "per shift",
+                "city": "New Delhi",
+                "sources": [
+                  {
+                    "url": "https://static.pib.gov.in/WriteReadData/specificdocs/documents/2024/mar/doc202437320701.pdf",
+                    "publisher": "Press Information Bureau",
+                    "title": "Guidelines for empanelment of casual and online translators",
+                    "published": "2024-03"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "Junior translator (low) and senior translator (high) rates per shift."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Source text, Your AI, Consented stock voices and Local captions."
+        },
+        "starter": "Translation service: Documents and subtitles with source checks and review.",
+        "yours": [],
+        "families": [
+          "writing"
+        ]
+      },
+      {
+        "id": "bookkeeping-cfo",
+        "playbook": "bookkeeping-cfo",
+        "label": "Bookkeeping and CFO help",
+        "category": "money-and-tax",
+        "department": "production",
+        "line": "Collections drafts, cash packs and spending checks for small firms.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Review the books, approve reports and talk to clients.",
+        "team": [
+          {
+            "role": "Finance analyst",
+            "initials": "FA",
+            "department": "money"
+          }
+        ],
+        "teamLine": "Reads ledgers, calculates figures and prepares reports.",
+        "clientsPay": {
+          "text": "₹499 to ₹15,000",
+          "per": "per month",
+          "estimate": false,
+          "source": "IndiaMART. Checked 1 Nov 2026.",
+          "guide": {
+            "profession": "accountant",
+            "label": "Accountant",
+            "family": "money-and-tax",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "accountant-monthly-books",
+                "label": "Monthly bookkeeping for a small business",
+                "currency": "INR",
+                "lowMinor": "49900",
+                "highMinor": "1500000",
+                "kind": "range",
+                "text": "₹499 to ₹15,000",
+                "per": "per month",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://m.indiamart.com/impcat/accounting-services.html",
+                    "publisher": "IndiaMART",
+                    "title": "Accounting Services",
+                    "published": null
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "Lowest and highest of twelve monthly prices that sellers posted, from several cities. What each covers varies by seller."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          },
+          "rangeId": "accountant-monthly-books"
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client files and statements, Chausar books, Tally exports, Zoho Books and Your mail app."
+        },
+        "starter": "Bookkeeping and CFO help: Collections drafts, cash packs and spending checks for small firms.",
+        "yours": [],
+        "families": [
+          "money-tax",
+          "research"
+        ]
+      },
+      {
+        "id": "podcast-to-article",
+        "playbook": "podcast-to-article",
+        "label": "Podcast to articles",
+        "category": "content",
+        "department": "marketing",
+        "line": "An article, show notes and a newsletter blurb from every episode.",
+        "hours": "2 to 3 h a week",
+        "minHours": 2,
+        "maxHours": 3,
+        "hoursEstimate": true,
+        "youDo": "Pick the angle, approve the article.",
+        "team": [
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          },
+          {
+            "role": "Editor",
+            "initials": "ED",
+            "department": "production"
+          }
+        ],
+        "teamLine": "Ledger of facts, drafts that cite the episode.",
+        "clientsPay": {
+          "text": "₹2,500 to ₹8,000",
+          "per": "per episode",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "podcaster",
+            "label": "Podcaster",
+            "family": "writing-and-content",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Only one studio's own price page was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Episode transcript, Local transcription and Blog and newsletter."
+        },
+        "starter": "Podcast to articles: An article, show notes and a newsletter blurb from every episode.",
+        "yours": [],
+        "families": [
+          "writing"
+        ]
+      },
+      {
+        "id": "lead-generation",
+        "playbook": "lead-generation",
+        "label": "Lead generation and appointment setting",
+        "category": "marketing",
+        "department": "marketing",
+        "line": "Researched local leads, outreach drafts, follow-ups and booked meetings for your own offers.",
+        "hours": "4 to 6 h a week",
+        "minHours": 4,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Send the messages, take the calls.",
+        "team": [
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "marketing"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "marketing"
+          },
+          {
+            "role": "Producer",
+            "initials": "PR",
+            "department": "sales"
+          }
+        ],
+        "teamLine": "Finds leads with sources, drafts outreach, keeps follow-ups.",
+        "clientsPay": {
+          "text": "₹15,000 to ₹40,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "sales-executive",
+            "label": "Sales executive",
+            "family": "research-and-analysis",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "No credible published price for lead generation or sales outsourcing was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with OpenStreetMap Overpass, Nominatim city lookup, Business own site, Happenstance, Your mail app, LinkedIn and WhatsApp."
+        },
+        "starter": "Lead generation and appointment setting: Researched local leads, outreach drafts, follow-ups and booked meetings for your own offers.",
+        "yours": [],
+        "families": [
+          "research"
+        ]
+      },
+      {
+        "id": "newsletter-studio",
+        "playbook": "newsletter-studio",
+        "label": "Newsletter service",
+        "category": "content",
+        "department": "marketing",
+        "line": "A newsletter for a niche, a local business or your own list, checked before every send.",
+        "hours": "2 to 4 h a week",
+        "minHours": 2,
+        "maxHours": 4,
+        "hoursEstimate": true,
+        "youDo": "Approve each issue and send it from your tool.",
+        "team": [
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "marketing"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          },
+          {
+            "role": "Editor",
+            "initials": "ED",
+            "department": "production"
+          }
+        ],
+        "teamLine": "Writes and checks each issue, reads the results.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹20,000",
+          "per": "per client per month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "journalist-newsletter",
+            "label": "Journalist (newsletters)",
+            "family": "writing-and-content",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "No Indian outlet or survey publishes current freelance rates.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Your newsletter tool."
+        },
+        "starter": "Newsletter service: A newsletter for a niche, a local business or your own list, checked before every send.",
+        "yours": [],
+        "families": [
+          "writing"
+        ]
+      },
+      {
+        "id": "tender-desk",
+        "playbook": "tender-desk",
+        "label": "Tender and proposal desk",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "RFP answers from your client documents, with an export pack for manual submission.",
+        "hours": "4 to 8 h a week",
+        "minHours": 4,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Write the prices, approve answers, submit.",
+        "team": [
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "sales"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Extracts questions, drafts grounded answers, builds the pack.",
+        "clientsPay": {
+          "text": "₹10,000 to ₹50,000",
+          "per": "per bid",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "tender-bid-writer",
+            "label": "Tender or GeM bid writer",
+            "family": "documents-and-reports",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Only seller listings with unclear units were found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client documents, RFP files, GeM, CPPP, State portals and Your mail app."
+        },
+        "starter": "Tender and proposal desk: RFP answers from your client documents, with an export pack for manual submission.",
+        "yours": [],
+        "families": [
+          "documents"
+        ]
+      },
+      {
+        "id": "website-studio",
+        "playbook": "website-studio",
+        "label": "Website builder",
+        "category": "content",
+        "department": "production",
+        "line": "Business sites and landing pages for clients, checked against their requirements before every release.",
+        "hours": "3 to 5 h a week",
+        "minHours": 3,
+        "maxHours": 5,
+        "hoursEstimate": true,
+        "youDo": "Talk to clients, approve releases.",
+        "team": [
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "marketing"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Writes briefs, checks builds, keeps sites healthy.",
+        "clientsPay": {
+          "text": "₹15,000 to ₹60,000",
+          "per": "per site",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "website-developer",
+            "label": "Software engineer (websites)",
+            "family": "tech-services",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Only agency and hosting blogs were found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with GitHub, Lovable, Replit, Cloudflare Pages, Vercel and Netlify."
+        },
+        "starter": "Website builder: Business sites and landing pages for clients, checked against their requirements before every release.",
+        "yours": [],
+        "families": [
+          "tech"
+        ]
+      },
+      {
+        "id": "narration-studio",
+        "playbook": "narration-studio",
+        "label": "Narration and audiobooks",
+        "category": "content",
+        "department": "production",
+        "line": "Books, lessons and short explainers with disclosed AI narration.",
+        "hours": "2 to 4 h a week",
+        "minHours": 2,
+        "maxHours": 4,
+        "hoursEstimate": true,
+        "youDo": "Approve the voice and listen to the result.",
+        "team": [
+          {
+            "role": "Narrator",
+            "initials": "NA",
+            "department": "production"
+          },
+          {
+            "role": "Producer",
+            "initials": "PR",
+            "department": "sales"
+          }
+        ],
+        "teamLine": "Marks the script, makes audio, checks the reading.",
+        "clientsPay": {
+          "text": "₹3,000 to ₹12,000",
+          "per": "per finished hour",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "voice-artist",
+            "label": "Voice artist",
+            "family": "creative-work",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "voice-others",
+                "label": "Narration for a programme, most voices",
+                "currency": "INR",
+                "lowMinor": "300000",
+                "highMinor": "500000",
+                "kind": "range",
+                "text": "₹3,000 to ₹5,000",
+                "per": "per programme",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://prasarbharati.gov.in/?p=27720",
+                    "publisher": "Prasar Bharati (Doordarshan)",
+                    "title": "Rate Card for Artist and Casual Assignees",
+                    "published": "2023-07-04"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "Doordarshan's rate card for its own programmes: the regional rate (low) and the national rate (high). Private work may pay differently."
+              },
+              {
+                "id": "voice-acclaimed",
+                "label": "Narration for a programme, acclaimed voices",
+                "currency": "INR",
+                "lowMinor": "500000",
+                "highMinor": "3000000",
+                "kind": "range",
+                "text": "₹5,000 to ₹30,000",
+                "per": "per programme",
+                "city": null,
+                "sources": [
+                  {
+                    "url": "https://prasarbharati.gov.in/?p=27720",
+                    "publisher": "Prasar Bharati (Doordarshan)",
+                    "title": "Rate Card for Artist and Casual Assignees",
+                    "published": "2023-07-04"
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "From the regional rate for regionally acclaimed voices to the national rate for nationally acclaimed ones."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Manuscript files, Google Cloud speech, Local audio checks, Your AI, Public source page and Spotify for Authors."
+        },
+        "starter": "Narration and audiobooks: Books, lessons and short explainers with disclosed AI narration.",
+        "yours": [],
+        "families": [
+          "teaching",
+          "creative"
+        ]
+      },
+      {
+        "id": "virtual-assistant",
+        "playbook": "virtual-assistant",
+        "label": "Virtual assistant service",
+        "category": "shops-and-firms",
+        "department": "sales",
+        "line": "Routines, research and client requests with exact approvals.",
+        "hours": "5 to 10 h a week",
+        "minHours": 5,
+        "maxHours": 10,
+        "hoursEstimate": true,
+        "youDo": "Meet clients and approve each file you send.",
+        "team": [
+          {
+            "role": "Assistant",
+            "initials": "AS",
+            "department": "operations"
+          },
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "marketing"
+          }
+        ],
+        "teamLine": "Prepares work notes and source-backed reports.",
+        "clientsPay": {
+          "text": "₹8,000 to ₹25,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "executive-assistant",
+            "label": "Executive assistant",
+            "family": "shop-and-back-office",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and no other credible source was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Saved mail, Saved page monitors and Your own send and purchase."
+        },
+        "starter": "Virtual assistant service: Routines, research and client requests with exact approvals.",
+        "yours": [],
+        "families": [
+          "shop-office"
+        ]
+      },
+      {
+        "id": "data-entry-desk",
+        "playbook": "data-entry-desk",
+        "label": "Data entry desk",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Client source records, each submit approved and read back.",
+        "hours": "4 to 8 h a week",
+        "minHours": 4,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Sign in and approve each record.",
+        "team": [
+          {
+            "role": "Operator",
+            "initials": "OP",
+            "department": "operations"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Proposes mappings and compares saved records.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹20,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "data-entry",
+            "label": "Data entry",
+            "family": "shop-and-back-office",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and no other credible source was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client source files."
+        },
+        "starter": "Data entry service: Client source records, each submit approved and read back.",
+        "yours": [],
+        "families": [
+          "shop-office"
+        ]
+      },
+      {
+        "id": "app-testing",
+        "playbook": "app-testing",
+        "label": "App testing and demo videos",
+        "category": "content",
+        "department": "production",
+        "line": "Emulator test rounds for small app makers, and recorded software demos.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Review findings and videos.",
+        "team": [
+          {
+            "role": "Tester",
+            "initials": "TE",
+            "department": "production"
+          },
+          {
+            "role": "Recorder",
+            "initials": "RE",
+            "department": "production"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Runs the app, reads crashes, records demos.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹25,000",
+          "per": "per round",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "qa-tester",
+            "label": "QA tester",
+            "family": "tech-services",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and no other credible source was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Your stock speech voice and Reviewed files you send."
+        },
+        "starter": "App testing service: Emulator test rounds for small app makers, and recorded software demos.",
+        "yours": [],
+        "families": [
+          "tech"
+        ]
+      },
+      {
+        "id": "dev-agency",
+        "playbook": "dev-agency",
+        "label": "Dev agency: maintenance, QA and security reviews",
+        "category": "content",
+        "department": "production",
+        "line": "Maintenance retainers, QA before release and security reviews for small web apps.",
+        "hours": "4 to 8 h a week",
+        "minHours": 4,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Approve pull requests, talk to clients.",
+        "team": [
+          {
+            "role": "Reviewer",
+            "initials": "RE",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Works on a local copy, finds issues, writes the report.",
+        "clientsPay": {
+          "text": "₹10,000 to ₹40,000",
+          "per": "per client per month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "website-developer",
+            "label": "Software engineer (websites)",
+            "family": "tech-services",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Only agency and hosting blogs were found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with GitHub and Your coding tool."
+        },
+        "starter": "Maintenance retainer: Maintenance retainers, QA before release and security reviews for small web apps.",
+        "yours": [],
+        "families": [
+          "tech"
+        ]
+      },
+      {
+        "id": "monitored-data",
+        "playbook": "monitored-data",
+        "label": "Monitored data service",
+        "category": "marketing",
+        "department": "production",
+        "line": "Price lists and tender boards watched for clients, from pages whose terms allow it.",
+        "hours": "2 to 4 h a week",
+        "minHours": 2,
+        "maxHours": 4,
+        "hoursEstimate": true,
+        "youDo": "Pick sources, check the terms.",
+        "team": [
+          {
+            "role": "Analyst",
+            "initials": "AN",
+            "department": "marketing"
+          }
+        ],
+        "teamLine": "Reviews sources and prepares updates.",
+        "clientsPay": {
+          "text": "₹3,000 to ₹12,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "market-research-analyst",
+            "label": "Market research analyst",
+            "family": "research-and-analysis",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "Marketplace rate pages would not load, and no other credible source was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Permitted page monitors and Source workbook download."
+        },
+        "starter": "Price monitoring: Price lists and tender boards watched for clients, from pages whose terms allow it.",
+        "yours": [],
+        "families": [
+          "research"
+        ]
+      },
+      {
+        "id": "it-triage",
+        "playbook": "it-triage",
+        "label": "IT triage desk",
+        "category": "shops-and-firms",
+        "department": "sales",
+        "line": "Help-channel triage summaries for small teams, every reply approved.",
+        "hours": "3 to 6 h a week",
+        "minHours": 3,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Approve replies, fix what needs a person.",
+        "team": [
+          {
+            "role": "Triage lead",
+            "initials": "TL",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Prepares source summaries for people.",
+        "clientsPay": {
+          "text": "₹8,000 to ₹25,000",
+          "per": "a team a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "it-support",
+            "label": "IT support",
+            "family": "tech-services",
+            "status": "sourced",
+            "ranges": [
+              {
+                "id": "computer-repair-visit",
+                "label": "Laptop or computer repair visit",
+                "currency": "INR",
+                "lowMinor": "15900",
+                "highMinor": "59900",
+                "kind": "range",
+                "text": "₹159 to ₹599",
+                "per": "per visit",
+                "city": "Noida",
+                "sources": [
+                  {
+                    "url": "https://www.urbancompany.com/delhi-ncr-laptop-repair-sector-23-noida",
+                    "publisher": "Urban Company",
+                    "title": "Laptop repair, Sector 23 Noida",
+                    "published": null
+                  }
+                ],
+                "checkedOn": "2026-11-01",
+                "checked": "1 Nov 2026",
+                "note": "From the inspection charge to the starting price of a service. Spare parts cost extra."
+              }
+            ],
+            "line": null,
+            "reason": null,
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Approved reply you send."
+        },
+        "starter": "It support desk: Help-channel triage summaries for small teams, every reply approved.",
+        "yours": [],
+        "families": [
+          "tech"
+        ]
+      },
+      {
+        "id": "phone-receptionist",
+        "playbook": "phone-receptionist",
+        "label": "AI phone receptionist",
+        "category": "shops-and-firms",
+        "department": "sales",
+        "line": "An AI receptionist for clinics and shops that says it is an AI and hands bookings to a person.",
+        "hours": "2 to 4 h a week",
+        "minHours": 2,
+        "maxHours": 4,
+        "hoursEstimate": true,
+        "youDo": "Set facts, call people back.",
+        "team": [
+          {
+            "role": "Receptionist",
+            "initials": "RE",
+            "department": "sales"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Prepares facts and logs callbacks.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹15,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price.",
+          "guide": {
+            "profession": "ai-receptionist",
+            "label": "Call centre agent (AI receptionist)",
+            "family": "tech-services",
+            "status": "no-reliable-data",
+            "ranges": [],
+            "line": "No reliable data",
+            "reason": "No credible published monthly price for a call answering service was found.",
+            "checkedOn": "2026-11-01",
+            "checked": "1 Nov 2026"
+          }
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Call exports."
+        },
+        "starter": "AI phone receptionist: An AI receptionist for clinics and shops that says it is an AI and hands bookings to a person.",
+        "yours": [],
+        "families": [
+          "tech"
+        ]
+      },
+      {
+        "id": "trading-journal",
+        "playbook": "trading-journal",
+        "label": "Trading journal",
+        "category": "money-and-tax",
+        "department": "money",
+        "line": "Tradebooks become charges, profit or loss and a tax pack for your CA.",
+        "hours": "1 to 4 h a week",
+        "minHours": 1,
+        "maxHours": 4,
+        "hoursEstimate": true,
+        "youDo": "Import tradebooks and share the pack with your CA.",
+        "team": [
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "money"
+          }
+        ],
+        "teamLine": "Code works every charge; notes for your CA.",
+        "saves": {
+          "text": "2 to 6 h a month",
+          "line": "Charges, profit or loss and tax records kept straight for your CA.",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in November 2026 from general knowledge of doing this work by hand. Not measured, and not a promise."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Broker tradebook file and Your mail app."
+        },
+        "starter": "Trading journal: Tradebooks become charges, profit or loss and a tax pack for your CA.",
+        "yours": [],
+        "families": [
+          "money-tax"
+        ]
+      },
+      {
+        "id": "lesson-desk",
+        "playbook": "lesson-desk",
+        "label": "Lesson desk for tutors and teachers",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Batches, attendance, worksheets, quizzes, progress notes and fees for tutors and teachers.",
+        "hours": "6 to 20 h a week",
+        "minHours": 6,
+        "maxHours": 20,
+        "hoursEstimate": true,
+        "youDo": "Teach the classes, check the work and send parent messages.",
+        "team": [
+          {
+            "role": "Planner",
+            "initials": "PL",
+            "department": "production"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          }
+        ],
+        "teamLine": "Plans lessons, drafts worksheets and quizzes, counts attendance and scores.",
+        "clientsPay": {
+          "text": "₹1,500 to ₹8,000",
+          "per": "a learner a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Your mail app, WhatsApp chat and UPI link on invoices."
+        },
+        "starter": "Lesson desk for tutors and teachers: Batches, attendance, worksheets, quizzes, progress notes and fees for tutors and teachers.",
+        "yours": [],
+        "families": [
+          "teaching"
+        ]
+      },
+      {
+        "id": "booking-desk",
+        "playbook": "booking-desk",
+        "label": "Booking desk for local services",
+        "category": "shops-and-firms",
+        "department": "operations",
+        "line": "Enquiries, open slots, quotes, deposits by UPI and reminders for local services.",
+        "hours": "10 to 40 h a week",
+        "minHours": 10,
+        "maxHours": 40,
+        "hoursEstimate": true,
+        "youDo": "Do the visits, confirm bookings and send reminders.",
+        "team": [
+          {
+            "role": "Reader",
+            "initials": "RE",
+            "department": "sales"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "sales"
+          }
+        ],
+        "teamLine": "Reads enquiries, drafts confirmations, keeps slots and deposits.",
+        "clientsPay": {
+          "text": "₹500 to ₹25,000",
+          "per": "a booking",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Your mail app, WhatsApp chat and UPI link on invoices."
+        },
+        "starter": "Booking desk for local services: Enquiries, open slots, quotes, deposits by UPI and reminders for local services.",
+        "yours": [],
+        "families": [
+          "local-services",
+          "licensed"
+        ]
+      },
+      {
+        "id": "signoff-desk",
+        "playbook": "signoff-desk",
+        "label": "Sign-off desk",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Regulated papers your licensed professional signs before a client sees them.",
+        "hours": "3 to 8 h a week",
+        "minHours": 3,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Review, get it signed, send.",
+        "team": [
+          {
+            "role": "Drafter",
+            "initials": "DR",
+            "department": "production"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Drafts papers within regulator limits.",
+        "clientsPay": {
+          "text": "₹2,000 to ₹20,000",
+          "per": "per paper",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client files and Your mail app."
+        },
+        "starter": "Sign-off desk: Regulated papers your licensed professional signs before a client sees them.",
+        "yours": [],
+        "families": [
+          "money-tax",
+          "licensed"
+        ]
+      },
+      {
+        "id": "document-desk",
+        "playbook": "document-desk",
+        "label": "Document desk",
+        "category": "shops-and-firms",
+        "department": "production",
+        "line": "Handbooks, SOPs, reports and estimates from client files; code works out figures.",
+        "hours": "3 to 10 h a week",
+        "minHours": 3,
+        "maxHours": 10,
+        "hoursEstimate": true,
+        "youDo": "Set the brief, approve, send.",
+        "team": [
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "production"
+          },
+          {
+            "role": "Researcher",
+            "initials": "RE",
+            "department": "operations"
+          }
+        ],
+        "teamLine": "Drafts sections and builds the export.",
+        "clientsPay": {
+          "text": "₹3,000 to ₹40,000",
+          "per": "per document",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "Works with Client files and Your mail app."
+        },
+        "starter": "Document desk: Handbooks, SOPs, reports and estimates from client files; code works out figures.",
+        "yours": [],
+        "families": [
+          "documents"
+        ]
       }
     ],
     "categories": [
       {
         "id": "content",
         "label": "Content",
-        "hi": "कंटेंट",
-        "count": 1
+        "count": 9
       },
       {
         "id": "marketing",
         "label": "Marketing",
-        "hi": "मार्केटिंग",
-        "count": 1
+        "count": 4
       },
       {
         "id": "money-and-tax",
         "label": "Money and tax",
-        "hi": "पैसा और टैक्स",
-        "count": 1
+        "count": 3
+      },
+      {
+        "id": "shops-and-firms",
+        "label": "Shops and firms",
+        "count": 12
       }
     ],
     "upTo": {
       "maxHours": 5,
       "label": "Up to 5 h a week",
-      "hi": "हफ़्ते में 5 घंटे तक",
-      "count": 0
-    }
+      "count": 8
+    },
+    "families": [
+      {
+        "id": "money-tax",
+        "label": "Money and tax",
+        "count": 4
+      },
+      {
+        "id": "teaching",
+        "label": "Teaching and coaching",
+        "count": 3
+      },
+      {
+        "id": "creative",
+        "label": "Creative work",
+        "count": 4
+      },
+      {
+        "id": "writing",
+        "label": "Writing and content",
+        "count": 5
+      },
+      {
+        "id": "local-services",
+        "label": "Local services",
+        "count": 1
+      },
+      {
+        "id": "documents",
+        "label": "Documents and reports",
+        "count": 2
+      },
+      {
+        "id": "research",
+        "label": "Research and analysis",
+        "count": 3
+      },
+      {
+        "id": "people",
+        "label": "People and careers",
+        "count": 2
+      },
+      {
+        "id": "shop-office",
+        "label": "Shop and back office",
+        "count": 4
+      },
+      {
+        "id": "tech",
+        "label": "Tech services",
+        "count": 5
+      },
+      {
+        "id": "licensed",
+        "label": "Licensed work",
+        "count": 2
+      }
+    ]
   },
   "checklist": [
     {

@@ -9,7 +9,7 @@ import { EngineError, type DeliveryLite, type DraftPostLite, type MethodName, ty
 // it came, under the name the engine gave it, and shows the engine's words. No file is built in Ink.
 
 type Call = { method: string; params: unknown };
-interface StartOptions { language?: 'en' | 'hi'; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
+interface StartOptions { language?: 'en'; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
 
 function start(hash: string, options: StartOptions = {}) {
   window.location.hash = hash;
@@ -136,14 +136,7 @@ describe('Work: the calendar file', () => {
     await waitFor(() => expect(within(region).getByRole('alert').textContent).toBe("Couldn't make the calendar file: This run has no draft yet. The calendar file comes from a draft you approved."));
   });
 
-  it('in Hindi: the same place, heading, button and left-out list, in Hindi words', async () => {
-    start('#/work?order=o-boat-14', { language: 'hi', intercept: social(() => FILE) });
-    const region = await screen.findByRole('region', { name: 'कैलेंडर फ़ाइल' });
-    expect(within(region).getByRole('button', { name: 'कैलेंडर फ़ाइल डाउनलोड करें' })).toBeTruthy();
-    const left = within(region).getByRole('list', { name: 'फ़ाइल से बाहर रखी गई पोस्ट' });
-    expect(within(left).getByText('Breathe first, then move.')).toBeTruthy();
-    expect(region.textContent).not.toContain('Download the calendar file');
-  });
+
 });
 
 describe('the fake engine answers the calendar file by the engine rules', () => {

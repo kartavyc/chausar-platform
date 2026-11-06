@@ -14,6 +14,8 @@ import { TIE_SUPERSEDED, tieReceipt } from '../network/strength.ts';
 import { ownerToday } from '../local-day.ts';
 import type { RowFigureReceipt, TieReceipt } from '../contracts.ts';
 import { receiptSignature } from '../journal/signing.ts';
+import { blueprintCountry } from '../core/country-history.ts';
+import type { ForeignPrice } from './billing-types.ts';
 
 export type PriceSubject = PriceReceiptRecord['subject'];
 
@@ -116,15 +118,19 @@ export function receiptDigest(record: PriceReceiptRecord): string {
  * the tax, so tax-kinds.ts splits it; a treatment with no rate (not registered, an export under LUT) has nothing to split.
  */
 export function buildPriceReceipt(
-  tx: VentureTx, subject: PriceSubject, inputs: { quantity: string; taxInclusive?: boolean },
+  tx: VentureTx, subject: PriceSubject, inputs: { quantity: string; taxInclusive?: boolean; foreign?: ForeignPrice },
   blueprint: BlueprintRecord, offer: Offer, client: ClientRecord | null,
 ): PriceReceiptRecord {
   check(tx.venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
   const backOffice = blueprint.backOffice;
-  const currency = backOffice.currency;
-  check(currency === tx.venture.country.currency, 'CURRENCY_CONFLICT', `This business keeps its books in ${tx.venture.country.currency}.`);
-  const unitPriceMinor = requirePrice(offer);
-  const decision = taxDecision(backOffice, client, tx.venture.country);
+  const country = blueprintCountry(tx.venture, blueprint);
+  check(backOffice.currency === country.currency, 'CURRENCY_CONFLICT', 'This price does not match its saved country.');
+  // 6D4: a client abroad may be priced in their own currency at the owner's own price; nothing is converted.
+  const foreign = inputs.foreign ?? null;
+  const currency = foreign ? foreign.currency : backOffice.currency;
+  const unitPriceMinor = foreign ? foreign.unitPriceMinor : requirePrice(offer);
+  const decision = taxDecision(backOffice, client, country);
+  if (foreign) requireForeignTax(decision, country.currency);
   const inclusive = inputs.taxInclusive === true && splitsInclusive(decision.treatment);
   const priceInput = { unitPriceMinor, quantity: inputs.quantity, discountBps: '0', taxRateBps: decision.rateBps, currency, taxTreatment: decision.treatment };
   const priced = inclusive ? computeInclusivePrice(priceInput) : computePrice(priceInput);
@@ -151,6 +157,7 @@ export function buildPriceReceipt(
       taxRateBy: backOffice.taxRateBy,
       blueprintDigest: blueprint.digest,
       ...(inclusive ? { taxInclusive: true as const } : {}),
+      ...(foreign ? { currencyBy: 'order' as const } : {}),
     },
     steps: priced.steps,
     figures,
@@ -163,6 +170,16 @@ export function buildPriceReceipt(
   numberGuard(record.explanation, record);
   record.digest = receiptDigest(record);
   return tx.put(record);
+}
+
+/**
+ * 6D4: an invoice in a client's own currency carries no tax Chausar would have to convert: an Indian export under LUT
+ * (zero-rated) or a business that charges no tax on it. IGST on an export without LUT is paid in rupees at an exchange
+ * rate, so it is refused with the way out.
+ */
+export function requireForeignTax(decision: TaxDecision, homeCurrency: string): void {
+  check(decision.treatment !== 'igst', 'FOREIGN_NEEDS_LUT', `Confirm your Letter of Undertaking (LUT) in your plan to bill this client in their currency, or bill them in ${homeCurrency}.`);
+  check(decision.treatment === 'zero-rated-lut' || BigInt(decision.rateBps) === 0n, 'FOREIGN_NEEDS_LUT', `Tax on this sale is worked out in ${homeCurrency}, so bill this client in ${homeCurrency}.`);
 }
 
 /** One figure of a receipt by key, or null. */
@@ -210,6 +227,8 @@ export async function getReceipt(deps: VentureDeps, ctx: Context, payload: unkno
   // 4J5: a waiting credit note's card, its balance worked out again from the records (money/credits.ts), loaded on use.
   if (id.startsWith('credit-balance:')) return (await import('./credits.ts')).creditBalanceReceipt(state, venture, id);
   if (id.startsWith('credit-note:')) return (await import('./credits.ts')).creditNoteReceipt(state, venture, id); // 4J20
+  // 5A2: a GO card's maximum loss, worked out again from the stored card (playbooks/kit/go-no-go.ts), loaded on use.
+  if (id.startsWith('gonogo_')) return (await import('../playbooks/kit/go-no-go.ts')).goNoGoReceipt(state, venture, id);
   // 4J10 (H26): a stored receipt comes with the business's signature on it and the public half that checks it.
   const signed = <R extends object>(served: R): R => {
     const signature = receiptSignature(state, venture.id, id);
@@ -225,6 +244,23 @@ export async function getReceipt(deps: VentureDeps, ctx: Context, payload: unkno
   if (receipt.subject.type !== 'offer') return signed(receipt);
   const latest = latestBlueprint(listRecords(state, 'venture-blueprint', venture.id));
   return signed({ ...receipt, stale: receipt.stale || latest === null || latest.digest !== receipt.inputs.blueprintDigest });
+}
+
+// ---------------------------------------------------------------------------
+// Ink v2 wave 5 (5A2): a share of a recorded amount
+// ---------------------------------------------------------------------------
+
+/**
+ * A share of a recorded amount in minor units: base times basis points over 10000, in BigInt, rounded half up to the
+ * minor unit ('833' of '120000000' is '9996000': 8.33% of 12,00,000.00 rupees is 99,960.00). Pure arithmetic; the
+ * base must be recorded (SHARE_BASE_MISSING), the share from 0.01% to 100% (INVALID_SHARE), the base whole and more
+ * than zero (INVALID_AMOUNT). money/share-price.ts checks the base's evidence before it calls this.
+ */
+export function quoteShare(input: { bps: string; baseMinor: string | null | undefined }): MinorString {
+  check(input.baseMinor !== null && input.baseMinor !== undefined, 'SHARE_BASE_MISSING', 'Record the amount this share is of first, with the file that shows it.');
+  check(typeof input.bps === 'string' && /^[1-9]\d{0,4}$/.test(input.bps) && BigInt(input.bps) <= 10000n, 'INVALID_SHARE', 'A share must be from 0.01% to 100%.');
+  check(typeof input.baseMinor === 'string' && /^[1-9]\d{0,19}$/.test(input.baseMinor), 'INVALID_AMOUNT', 'The amount must be a whole number of paise, more than zero.');
+  return String((BigInt(input.baseMinor) * BigInt(input.bps) + 5000n) / 10000n);
 }
 
 // ---------------------------------------------------------------------------

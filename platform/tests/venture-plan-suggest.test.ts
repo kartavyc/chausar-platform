@@ -271,7 +271,7 @@ test('suggest: no plan yet, or no AI to ask, is said plainly and sends nothing',
   assert.deepEqual(bodies, []);
 });
 
-test('suggest: a flagship playbook\'s offers are its own words; the summary and customer lines can change and an offer can be added', async t => {
+test('suggest: a flagship work plan\'s offers are its own words; the summary and customer lines can change and an offer can be added', async t => {
   const { engine } = await engineFor(t, { transport: recording([]).transport });
   await engine.request('workspace.create', { name: 'Lumen Studio', passphrase: PASSPHRASE, pack: 'services' });
   const idea = 'Run a YouTube channel that explains personal finance in plain words';

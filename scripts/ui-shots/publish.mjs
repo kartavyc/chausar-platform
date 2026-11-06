@@ -1,5 +1,6 @@
 // Pages the Ink walk writes: the local review page (app/ui/.shots/index.html, every shot beside its board) and, with
-// --publish, the founder's side-by-side page and WALK.md in docs/superpowers/designs/ink-v2-direction-d/, with the
+// --publish, the founder's side-by-side page and WALK.md in the private checkout's docs/superpowers/designs/ink-v2-direction-d/
+// (../chausar-private, or CHAUSAR_PRIVATE_DIR), with the
 // shots that match a board copied into walk/ (1280 light and 390 light only, to keep the repo small).
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -9,10 +10,12 @@ import { listedMd } from './accepted.mjs';
 import { BOARDS, FIXED, LISTED, WAVE4_FIRST_WALK } from './boards.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const DESIGNS = join(ROOT, 'docs/superpowers/designs/ink-v2-direction-d');
+// The design boards are private: they live in the chausar-private checkout next to this repository.
+const PRIVATE = process.env.CHAUSAR_PRIVATE_DIR ? resolve(process.env.CHAUSAR_PRIVATE_DIR) : resolve(ROOT, '..', 'chausar-private');
+const DESIGNS = join(PRIVATE, 'docs/superpowers/designs/ink-v2-direction-d');
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const shotName = (id, width, theme, hindi = false) => `${id}--${width}-${theme}${hindi ? '-hi' : ''}.png`;
+const shotName = (id, width, theme) => `${id}--${width}-${theme}.png`;
 
 /** Tokens and base styles shared by both pages: light and dark from the computer, as the app does. */
 const STYLE = `
@@ -81,7 +84,6 @@ export function writeIndex(out, cases, results) {
     if (c.phone) phone.push(frame(`${boardsDir}/${c.phone}.png`, `${c.phone} board`, `${c.phone} (board)`));
     phone.push(img(shotName(c.id, 390, 'light'), `${c.id} at 390, light`, '390, light'));
     phone.push(img(shotName(c.id, 390, 'dark'), `${c.id} at 390, dark`, '390, dark'));
-    if (has.has(shotName(c.id, 390, 'light', true))) phone.push(img(shotName(c.id, 390, 'light', true), `${c.id} in Hindi`, '390, Hindi'));
     if ((c.widths ?? [1280, 390]).includes(390)) parts.push(`<div class="pair phone">${phone.join('')}</div>`);
     parts.push('</section>');
   }
@@ -114,7 +116,7 @@ export function publish(out, cases, report) {
 function sideBySide(copied) {
   const body = [
     '<h1>Direction D beside the app</h1>',
-    '<p class="lead">Each direction D board on the left, the app on the right, as wave 4 leaves it: the fake engine of <code>npm run dev:ui</code>, 1280 wide, light theme (the phone boards at 390), with the data the engine now sends. Boards are cut at 1100 px tall; the app shots hold the whole page, so scroll inside a frame to see the rest. Each section says what matches, what differs and why, and what is still to come.</p>',
+    '<p class="lead">Each direction D board on the left, the app on the right, in the latest captured wave 5 walk: the fake engine of <code>npm run dev:ui</code>, 1280 wide, light theme (the phone boards at 390), with the data the engine now sends. Boards are cut at 1100 px tall; some app shots are height-capped, so scroll inside a frame to see its captured content. Each section says what matches, what differs and why, and what is still to come.</p>',
     `<nav class="toc" aria-label="Boards">${BOARDS.map((b) => `<a href="#${esc(b.board)}">${esc(b.title)}</a>`).join('')}</nav>`,
   ];
   for (const b of BOARDS) {
@@ -131,17 +133,17 @@ function sideBySide(copied) {
     if (phoneShot && copied.has(phoneShot)) body.push(`<div class="pair phone">${frame(`walk/${phoneShot}`, `${b.title} at 390`, 'The app, 390, light')}</div>`);
     body.push('</section>');
   }
-  body.push('<section class="board" id="findings"><div class="head"><h2>What the walk fixed, and what it lists</h2></div>');
-  body.push(`<div class="notes"><div><h3>Fixed</h3>${list(FIXED.map(plain))}</div><div><h3>Listed for you or the integrator</h3>${list(LISTED.map(plain))}</div></div>`);
-  body.push('<p class="lead">The full table, the checks and the word baselines are in WALK.md beside this page.</p></section>');
+  body.push('<section class="board" id="findings"><div class="head"><h2>Historical wave 3 and 4 review notes</h2></div>');
+  body.push(`<div class="notes"><div><h3>Fixed then</h3>${list(FIXED.map(plain))}</div><div><h3>Listed then for you or the integrator</h3>${list(LISTED.map(plain))}</div></div>`);
+  body.push('<p class="lead">These are historical findings, not a fresh review of the current captures. The current checks and measured word allowances are in WALK.md beside this page; the wave 5 handoff tracks its cold review.</p></section>');
   return page('Direction D beside the app', body.join('\n'));
 }
 
 function walkMd(report) {
   const lines = [
-    '# The walk, board by board (waves 3 and 4)',
+    '# The walk, board by board (waves 3, 4 and 5)',
     '',
-    'Written by `node scripts/ui-shots/walk.mjs --publish` (packages 3I and 4Z) from `scripts/ui-shots/boards.mjs` and the walk\'s report. Each direction D board, the address it is compared with, what matches, what differs and why, and what is still to come. The pictures are in `side-by-side.html` beside this file (board left, app right) and in `walk/` (1280 light and 390 light). Every shot, in both themes and in Hindi, is in `app/ui/.shots/` after a walk (not committed). Addresses on `parts.html` are the dev server\'s parts page: the app or its parts on other fake starts or with sample props, never built into the app.',
+    'Written by `node scripts/ui-shots/walk.mjs --publish` (packages 3I and 4Z) from `scripts/ui-shots/boards.mjs` and the walk\'s report. Each direction D board, the address it is compared with, what matches, what differs and why, and what is still to come. The pictures are in `side-by-side.html` beside this file (board left, app right) and in `walk/` (1280 light and 390 light). Every shot, in both themes, is in `app/ui/.shots/` after a walk (not committed). Addresses on `parts.html` are the dev server\'s parts page: the app or its parts on other fake starts or with sample props, never built into the app.',
     '',
     '| Board | Address | What matches | What differs, and why | Still to come |',
     '|---|---|---|---|---|',
@@ -154,34 +156,34 @@ function walkMd(report) {
   const axeCount = shots.reduce((n, r) => n + r.axe.length, 0);
   const listed = shots.reduce((n, r) => n + (r.listed?.length ?? 0), 0);
   const unsure = shots.reduce((n, r) => n + (r.contrastUnsure?.length ?? 0), 0);
-  const hindi = shots.filter((r) => r.hindi).length;
-  lines.push('', '## The real-browser checks', '');
-  lines.push(`Last walk: ${report.at.slice(0, 16).replace('T', ' ')} UTC, headless Chrome on the fake engine of \`npm run dev:ui\`: ${shots.length} shots over ${report.cases} cases (every place, its main states, sheets and the forms and second asks inside them, at 1280 and 390, light and dark, and ${hindi} in Hindi at 390).`);
+  lines.push('', '## Current walk', '');
+  lines.push(`Last walk: ${report.at.slice(0, 16).replace('T', ' ')} UTC, headless Chrome on the fake engine of \`npm run dev:ui\`: ${shots.length} shots over ${report.cases} cases (every place, its main states, sheets and the forms and second asks inside them, at 1280 and 390, light and dark).`);
   const contrast = shots.reduce((n, r) => n + [...r.axe, ...(r.listed ?? [])].filter((v) => v.id === 'color-contrast').length, 0);
   lines.push('', `- axe-core (from node_modules) on the whole page with colour contrast on: ${axeCount} open violation${axeCount === 1 ? '' : 's'}; ${listed ? `${listed} listed below with their reason` : 'none listed as accepted'}; ${contrast} colour-contrast violation${contrast === 1 ? '' : 's'} in either theme.`);
   lines.push(`- Focus, pressed through with real keys and clicks: ${focus.filter((r) => !r.problems.length).length} of ${focus.length} pass (J and K move through Today's cards; Approve asks again and focus lands on "Not now", then back on Approve; a sheet takes focus on its title and Esc returns it to the button that opened it; the business menu takes focus and Esc returns it; on a phone, Tab never leaves a covering sheet).`);
-  lines.push(`- No sideways scroll, no text key on screen, no em dash, no console error, and in Hindi every count in the body face: ${shots.filter((r) => !r.problems.length).length} of ${shots.length} shots clean.`);
-  if (unsure) lines.push(`- axe could not decide the contrast of ${unsure} text nodes (white text on the video previews, text over gradients, boxes that overlap): they were looked at in the shots; the preview text is white on the theme-invariant preview ground, over 10:1 by the token table.`);
+  lines.push(`- No sideways scroll, no text key on screen, no em dash, no console error: ${shots.filter((r) => !r.problems.length).length} of ${shots.length} shots clean.`);
+  if (unsure) lines.push(`- axe could not decide the contrast of ${unsure} text nodes. These undecided checks are neither recorded violations nor proof of sufficient contrast. Visual review is limited to the captured content inspected; see [the wave 5 handoff](../../plans/w5/HANDOFF.md) for the linked review evidence and coverage limits. This report does not claim that every undecided node was manually checked.`);
 
-  lines.push('', '## Wave 4', '');
-  lines.push(`Package 4Z walked every wave 4 address and opened state with the rest. The first walk: ${WAVE4_FIRST_WALK.checks} checks, ${WAVE4_FIRST_WALK.failed} failed, ${WAVE4_FIRST_WALK.axe} axe violations:`, '', ...WAVE4_FIRST_WALK.why.map((w) => `- ${w}`), '');
-  lines.push(`The last walk: ${report.jobs} checks over ${report.cases} cases, ${report.failed} failed, ${listed} listed as accepted (${shots.length} shots, ${hindi} of them in Hindi at 390 chosen by the computer's languages, and ${focus.length} focus checks). Every wave 4 flow was also walked by hand in the running fake app; what that found is in "Fixed during the walk" and "Listed, not fixed" below, marked Wave 4.`);
-  lines.push('', '## Fixed during the walk', '', ...FIXED.map((f) => `- ${f}`));
-  lines.push('', '## Listed, not fixed', '', 'From the shots and an unprimed review of them (catalogue Q24: a fresh reviewer given only the shots and the boards).', '', ...LISTED.map((f) => `- ${f}`));
+  lines.push('', `Current report: ${report.jobs} checks over ${report.cases} cases, ${report.failed} failed, ${listed} listed as accepted (${shots.length} shots, ${focus.length} focus checks). This automated report does not establish completion of the separate cold visual review; see the wave 5 handoff for that checkpoint.`);
+  lines.push('', '## Historical wave 4 walk', '');
+  lines.push(`Package 4Z walked every wave 4 address and opened state with the rest. Its first walk: ${WAVE4_FIRST_WALK.checks} checks, ${WAVE4_FIRST_WALK.failed} failed, ${WAVE4_FIRST_WALK.axe} axe violations:`, '', ...WAVE4_FIRST_WALK.why.map((w) => `- ${w}`), '');
+  lines.push('Every wave 4 flow was also walked by hand in the running fake app at that time. The historical findings below are marked Wave 3 or Wave 4; they are not a new assessment of the current captures.');
+  lines.push('', '## Historical fixes during waves 3 and 4', '', ...FIXED.map((f) => `- ${f}`));
+  lines.push('', '## Historical items listed, not fixed', '', 'From the earlier shots and an unprimed review of them (catalogue Q24: a fresh reviewer given only the shots and the boards). Their current status is not inferred from this historical list.', '', ...LISTED.map((f) => `- ${f}`));
   const accepted = listedMd(report).filter((l) => l.startsWith('- '));
-  if (accepted.length) lines.push('', 'axe findings the walk lists rather than fails on (`scripts/ui-shots/accepted.mjs`):', '', ...accepted);
+  if (accepted.length) lines.push('', 'Current-report axe findings listed rather than failed (`scripts/ui-shots/accepted.mjs`):', '', ...accepted);
 
   const failed = report.results.filter((r) => r.axe.length || r.problems.length);
   if (failed.length) {
     lines.push('', '## Open findings from the last walk', '');
     for (const r of failed) {
-      for (const v of r.axe) lines.push(`- ${r.id}, ${r.width}, ${r.theme}${r.hindi ? ', Hindi' : ''}: axe ${v.id}: ${v.help} (\`${v.target}\`)`);
-      for (const p of r.problems) lines.push(`- ${r.id}, ${r.width}, ${r.theme}${r.hindi ? ', Hindi' : ''}: ${p}`);
+      for (const v of r.axe) lines.push(`- ${r.id}, ${r.width}, ${r.theme}: axe ${v.id}: ${v.help} (\`${v.target}\`)`);
+      for (const p of r.problems) lines.push(`- ${r.id}, ${r.width}, ${r.theme}: ${p}`);
     }
   }
 
   const words = JSON.parse(readFileSync(join(ROOT, 'app/ui/tests/baselines/words.json'), 'utf8'));
-  lines.push('', '## Word baselines, for the founder to confirm', '', 'Words a reader sees in each place at rest, measured on the fake engine and rounded up to the next 10 (`app/ui/tests/baselines/words.json`, held by `app/ui/tests/budgets.test.tsx`; they may only shrink). Ink v1 kept every place to 35 to 45 words; direction D carries far more. Every page\'s sub line is at most 20 words and every approval card\'s own copy at most 12. The numbers below are the file as it stands; the integrator settles the wave 4 places from the measures before the wave 4 PR.', '', '| Place | Words at rest |', '|---|---|');
+  lines.push('', '## Word baselines, for the founder to confirm', '', 'Words a reader sees in each place at rest, measured on the fake engine and rounded up to the next 10 (`app/ui/tests/baselines/words.json`, held by `app/ui/tests/budgets.test.tsx`; they may only shrink). Ink v1 kept every place to 35 to 45 words; direction D carries far more. Every page\'s sub line is at most 20 words and every approval card\'s own copy at most 12. The numbers below are the current measured allowances from that file. The wave 5 PR lists every rise from wave 4 for founder confirmation.', '', '| Place | Words at rest |', '|---|---|');
   for (const [place, n] of Object.entries(words.budgets)) lines.push(`| ${place} | ${n} |`);
   return `${lines.join('\n')}\n`;
 }

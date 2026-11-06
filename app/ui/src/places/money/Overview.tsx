@@ -32,6 +32,10 @@ import { useMoneyViews, type FlowData, type MoneyViews } from './views';
 import { byDue, onMoney, onRuns, useChosenMonth, useMonthWords } from './words';
 import { GOAL_EVENTS, goalFromView } from '../today/goal';
 import s from './Money.module.css';
+// W6 6H3 (D40): the overview's layout as data, and the AI's changes with Undo and Keep.
+import { drawnBlocks, useLayout } from '../../parts/layout/useLayout';
+import { LayoutNotice } from '../../parts/layout/LayoutNotice';
+import ls from '../../parts/layout/Layout.module.css';
 import v from './MoneyViews.module.css';
 
 /** The overview moves when money does (an invoice issued, a payment recorded) and when a paid call settles. */
@@ -55,6 +59,7 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
   const sent = useMoneyViews();
   const views = given ?? sent;
   const overview = useResource('venture.money.overview', {}, { refreshOn: onOverview });
+  const layout = useLayout('money');
   const books = useResource('venture.books.summary', { period: month === thisMonth ? 'this-month' : month }, { refreshOn: onMoney });
   const line = (id: MoneyOverviewLine['id']) => overview.data?.lines.find((item) => item.id === id);
   const billed = books.data?.figures.find((figure) => figure.operation === 'billed');
@@ -68,27 +73,54 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
     ? <NextWeeks cash={cashView} span={span} />
     : <DueNext line={line('owed')} open={open} today={books.data?.today} span={span} />);
 
+  // W6 6H3 (D40): the owner's layout. The headline tiles and owed with cash ahead are money totals: they always show and
+  // keep their slots. The two folds fill the last two slots in the owner's order, can be hidden, and take only names that
+  // mean the same.
+  const drawn = drawnBlocks('money', layout.data);
+  const foldTitle = (id: string, own: string) => drawn.find((block) => block.id === id)?.name ?? own;
+  const folds: Readonly<Record<string, () => ReactNode>> = {
+    flow: () => (flow ? <Fold title={foldTitle('flow', t('money.fold.flow'))}><Bento><InOutTile flow={flow} notes={views.engine?.flow} span={12} /></Bento></Fold> : null),
+    weeks: () => (ahead ? <Fold title={foldTitle('weeks', cashView ? t('money.fold.weeks') : t('money.next.title'))}><Bento>{next(12)}</Bento></Fold> : null),
+  };
+  const slot = (index: number, content: () => ReactNode) => {
+    const block = drawn[index];
+    if (!block?.shown) return null;
+    return <div key={block.id} className={ls.block} data-block={block.id}>{content()}</div>;
+  };
+  const fold = (index: number) => slot(index, () => folds[drawn[index]!.id]?.());
+  const anyFold = [2, 3].some((index) => drawn[index]?.shown && (drawn[index]!.id === 'flow' ? Boolean(flow) : ahead));
+
   return (
     <section className={`${s.overview} ${v.page}`} aria-label={t('money.sub.overview')}>
+      <LayoutNotice layout={layout.data} reload={layout.reload} />
       {overview.error && <Failed error={overview.error} />}
       {books.error && <Failed error={books.error} />}
       {views.failed && <Failed error={views.failed} />}
-      <Bento className={`${s.glance} ${v.glanceRow}`}>
-        <InvoicedTile billed={billed} goal={views.goal} month={month === thisMonth ? null : month} />
-        <ReceivedTile line={month === thisMonth ? line('received') : undefined} books={books.data} chosen={month === thisMonth ? null : month} />
-        <SpendTile line={line('spent')} split={views.split} />
-      </Bento>
+      {slot(0, () => (
+        <Bento className={`${s.glance} ${v.glanceRow}`}>
+          <InvoicedTile billed={billed} goal={views.goal} month={month === thisMonth ? null : month} />
+          <ReceivedTile line={month === thisMonth ? line('received') : undefined} books={books.data} chosen={month === thisMonth ? null : month} />
+          <SpendTile line={line('spent')} split={views.split} />
+        </Bento>
+      ))}
       {/* Simple first (4J20): the headline tiles; owed with what the late ones owe, and cash ahead beside it. */}
-      <Bento className={v.pairRow}>
-        <OwedTile line={line('owed')} open={open} aging={views.aging} agingView={views.engine?.aging} span={5} />
-        {ahead ? <CashAhead cash={cash} view={cashView} span={7} /> : next(7)}
-      </Bento>
+      {slot(1, () => (
+        <Bento className={v.pairRow}>
+          <OwedTile line={line('owed')} open={open} aging={views.aging} agingView={views.engine?.aging} span={5} />
+          {ahead ? <CashAhead cash={cash} view={cashView} span={7} /> : next(7)}
+        </Bento>
+      ))}
       {/* One step away, closed: in and out by month, and what is due in the next three weeks. */}
-      {(flow || ahead) && (
+      {anyFold ? (
         <div className={v.more}>
-          {flow && <Fold title={t('money.fold.flow')}><Bento><InOutTile flow={flow} notes={views.engine?.flow} span={12} /></Bento></Fold>}
-          {ahead && <Fold title={cashView ? t('money.fold.weeks') : t('money.next.title')}><Bento>{next(12)}</Bento></Fold>}
+          {fold(2)}
+          {fold(3)}
         </div>
+      ) : (
+        <>
+          {fold(2)}
+          {fold(3)}
+        </>
       )}
     </section>
   );

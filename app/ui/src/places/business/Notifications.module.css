@@ -69,3 +69,27 @@
   font-size: var(--text-read);
   color: var(--fg2);
 }
+
+/* W6 6F7: the pairing link's QR code (as the invoice sheet draws the UPI code) and the link itself, which may wrap. */
+.qr {
+  inline-size: calc(var(--sp-12) * 4);
+  block-size: calc(var(--sp-12) * 4);
+  padding: var(--sp-2);
+  border-radius: var(--r-card);
+  background: var(--qr-light);
+}
+
+.qrLight {
+  fill: var(--qr-light);
+}
+
+.qrDark {
+  fill: var(--qr-dark);
+}
+
+.link {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}

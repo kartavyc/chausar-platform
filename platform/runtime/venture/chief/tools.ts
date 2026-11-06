@@ -15,7 +15,8 @@ import { buildPriceReceipt } from '../money/quote.ts';
 import { acceptedBlueprintOrNull, readAs } from '../delivery/shared.ts';
 import { screenUntrusted } from '../policy/untrusted.ts';
 import { screenSettingOf } from '../policy/untrusted-methods.ts';
-import { queueListHandler } from '../views/queue.ts';
+import { queueListHandler, queueRowsWithSubjects } from '../views/queue.ts';
+import type { ChiefClientContext } from './client-context.ts';
 import { runsListHandler } from '../views/runs.ts';
 import { teamListHandler } from '../views/team.ts';
 import { journalListHandler } from '../journal/list.ts';
@@ -53,7 +54,7 @@ export const OPEN_ONLY_LINE = 'Chausar can read only the open business.';
 export const SNAPSHOT_LINE = 'Other businesses are read from what Chausar saved when each was last open, every figure as of then. A locked one is never read.';
 
 type Read = { data: Json; figures: ToolFigure[] };
-type Tool = (deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord) => Promise<Read>;
+type Tool = (deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, scope?: ChiefClientContext) => Promise<Read>;
 
 /** Outside words as the chat may send them: through the untrusted screen in enforce mode, else left out (null). */
 export function outsideWords(state: State, venture: VentureRecord, text: string | null | undefined, max = 160): string | null {
@@ -90,9 +91,12 @@ function label(state: State, venture: VentureRecord, outside: string | null | un
   return words === null ? fallback : said(words);
 }
 
-const queue: Tool = async (deps, ctx, state, venture) => {
+const queue: Tool = async (deps, ctx, state, venture, scope) => {
   const list = await queueListHandler(deps, ctx, {});
-  const rows = list.rows.filter(row => row.kind !== 'locked').slice(0, 20);
+  const allowed = scope ? new Set((await queueRowsWithSubjects(deps, ctx)).filter(({ row, subject }) =>
+    ['setup:ai', 'setup:prices', 'setup:keep', 'connector:github'].includes(subject)
+    || scope.subject(subject) || (row.viewRef && scope.record(row.viewRef.id))).map(({ row }) => row.id)) : null;
+  const rows = list.rows.filter(row => row.kind !== 'locked' && (!allowed || allowed.has(row.id))).slice(0, 20);
   const fresh = deps.store.read();
   return {
     data: {
@@ -105,8 +109,8 @@ const queue: Tool = async (deps, ctx, state, venture) => {
   };
 };
 
-const runs: Tool = async (deps, ctx, state, venture) => {
-  const list = (await runsListHandler(deps, ctx, {})).runs.slice(0, 15);
+const runs: Tool = async (deps, ctx, state, venture, scope) => {
+  const list = (await runsListHandler(deps, ctx, {})).runs.filter(run => !scope || scope.record(run.runId)).slice(0, 15);
   const fresh = deps.store.read();
   return {
     data: { runs: list.map(run => ({ id: run.runId, agent: run.agent, purpose: outsideWords(state, venture, run.purpose), state: run.state, startedAt: run.startedAt })) },
@@ -114,7 +118,7 @@ const runs: Tool = async (deps, ctx, state, venture) => {
   };
 };
 
-const team: Tool = async (deps, ctx, state, venture) => {
+const team: Tool = async (deps, ctx, state, venture, scope) => {
   const view = await teamListHandler(deps, ctx, {});
   const figures: ToolFigure[] = [];
   const fresh = deps.store.read();
@@ -128,14 +132,14 @@ const team: Tool = async (deps, ctx, state, venture) => {
   }
   return {
     data: {
-      agents: view.agents.map(agent => ({ id: agent.id, name: agent.name, kind: agent.kind ?? 'agent', department: agent.department ?? null, state: agent.state ?? null, now: outsideWords(state, venture, agent.now) })),
+      agents: view.agents.map(agent => ({ id: agent.id, name: agent.name, kind: agent.kind ?? 'agent', department: agent.department ?? null, state: agent.state ?? null, now: scope ? null : outsideWords(state, venture, agent.now) })),
       departments: (view.departments ?? []).map(department => ({ id: department.id, name: department.name, ...department.counts })),
     },
     figures,
   };
 };
 
-const money: Tool = async (deps, ctx, state, venture) => {
+const money: Tool = async (deps, ctx, state, venture, scope) => {
   const figures: ToolFigure[] = [];
   const overview = await moneyOverview(deps, ctx, {});
   let fresh = deps.store.read();
@@ -151,7 +155,7 @@ const money: Tool = async (deps, ctx, state, venture) => {
     ['Still to invoice for the goal', goal.stillToInvoice], ['Received so far this month', goal.receivedSoFar],
   ];
   for (const [label, item] of goalFigures) if (item?.receiptId) figures.push(...stored(fresh, item.receiptId, label));
-  const open = (await listInvoices(deps, ctx, {})).filter(invoice => (invoice.status === 'issued' || invoice.status === 'part-paid') && invoice.number !== null);
+  const open = (await listInvoices(deps, ctx, {})).filter(invoice => (invoice.status === 'issued' || invoice.status === 'part-paid') && invoice.number !== null && (!scope || scope.record(invoice.id)));
   for (const invoice of open) figures.push(...stored(fresh, invoice.priceReceiptId, `Invoice ${invoice.number} total`));
   return {
     data: {
@@ -162,11 +166,11 @@ const money: Tool = async (deps, ctx, state, venture) => {
   };
 };
 
-const clients: Tool = async (deps, ctx, state, venture) => {
-  const rows = await listClients(deps, ctx, {});
+const clients: Tool = async (deps, ctx, state, venture, scope) => {
+  const rows = (await listClients(deps, ctx, {})).filter(row => !scope || scope.client(row.id));
   const fresh = deps.store.read();
   const offers = new Map((acceptedBlueprintOrNull(fresh, venture)?.offers ?? []).map(offer => [offer.id, offer.name.value]));
-  const orders = listRecords(fresh, 'venture-order', venture.id).filter(order => order.status === 'open' || order.status === 'delivered');
+  const orders = listRecords(fresh, 'venture-order', venture.id).filter(order => (order.status === 'open' || order.status === 'delivered') && (!scope || scope.order(order.id)));
   const figures: ToolFigure[] = [];
   for (const row of rows) if (row.owed) figures.push(...stored(fresh, row.owed.receiptId, label(state, venture, row.name, name => `${name} owes`, 'A client owes')));
   for (const order of orders) {
@@ -226,12 +230,13 @@ const plan: Tool = async (deps, ctx, state, venture) => {
   };
 };
 
-const journal: Tool = async (deps, ctx, state, venture) => {
+const journal: Tool = async (deps, ctx, state, venture, scope) => {
   const entries = (await journalListHandler(deps, ctx, { limit: 20 })).entries;
+  const detailed = new Set(entries.filter(entry => !scope || scope.record(entry.id)).map(entry => entry.id));
   const fresh = deps.store.read();
   return {
-    data: { entries: entries.map(entry => ({ action: entry.action, state: entry.state, at: entry.at, line: outsideWords(state, venture, entry.line) })) },
-    figures: entries.flatMap(entry => stored(fresh, entry.receiptId, `Journal: ${entry.action}`)),
+    data: { entries: entries.map(entry => ({ action: entry.action, state: entry.state, at: entry.at, line: detailed.has(entry.id) ? outsideWords(state, venture, entry.line) : null })) },
+    figures: entries.filter(entry => detailed.has(entry.id)).flatMap(entry => stored(fresh, entry.receiptId, `Journal: ${entry.action}`)),
   };
 };
 
@@ -316,12 +321,13 @@ const ways: Tool = async deps => {
 const TOOLS: Readonly<Record<string, Tool>> = Object.freeze({ queue, runs, team, money, clients, plan, journal, businesses, ways });
 
 /** Runs one read tool by name: its facts and figures, TOOL_NOT_ALLOWED for a name it does not know, or the refusal it met. */
-export async function runTool(deps: VentureDeps, ctx: Context, name: string): Promise<ToolResult> {
+export async function runTool(deps: VentureDeps, ctx: Context, name: string, scope?: ChiefClientContext): Promise<ToolResult> {
   const tool = Object.hasOwn(TOOLS, name) ? TOOLS[name] : undefined;
   if (!tool) return { tool: name, error: 'TOOL_NOT_ALLOWED', line: TOOL_NOT_ALLOWED_LINE };
   const { state, venture } = readAs(deps, ctx, 'read');
   try {
-    const read = await tool(deps, ctx, state, venture);
+    const read = await tool(deps, ctx, state, venture, scope);
+    scope?.assert();
     return { tool: name, data: read.data, figures: read.figures };
   } catch (error) {
     const code = (error as { code?: unknown } | null)?.code;

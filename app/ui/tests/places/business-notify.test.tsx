@@ -31,7 +31,7 @@ function fakeBrowser(permission: PushPermission = 'default', answer: PushPermiss
   return { browser, state, change };
 }
 
-function start(options: { hosted?: boolean; browser?: BrowserPush; language?: 'en' | 'hi'; refuse?: Record<string, EngineError> } = {}) {
+function start(options: { hosted?: boolean; browser?: BrowserPush; language?: 'en'; refuse?: Record<string, EngineError> } = {}) {
   window.location.hash = '#/business/notifications';
   const engine = new FakeEngine({ now: () => NOW, hosted: options.hosted ?? false });
   const client = createFakeClient(engine);
@@ -70,7 +70,7 @@ describe('Business > Notifications on this computer', () => {
     expect(within(nav).getByRole('link', { name: 'Notifications' }).getAttribute('aria-current')).toBe('page');
     await screen.findByText('The tray shows how many things need you. Quiet hours: 22:00 to 07:00. Daily digest at 08:00.');
     const reach = await region('How alerts reach you');
-    await within(reach).findByText('Phone alerts need the hosted app. On this computer the tray shows the count.');
+    await within(reach).findByText('On this computer, phone alerts come by Telegram below; the tray shows the count.');
     expect(within(reach).queryByRole('button', { name: 'Turn on phone alerts' })).toBeNull();
     expect((within(reach).getByRole('checkbox', { name: 'Show the count in the tray' }) as HTMLInputElement).checked).toBe(true);
     assertInkRules(document.body);
@@ -160,7 +160,7 @@ describe('Business > Notifications: what each setting means, and what the engine
   it('shows the tray and the relay only when the engine answers for the relay', async () => {
     start({ refuse: { 'venture.notify.relay': new EngineError('NOT_BUILT_YET', 'Not built yet.') } });
     const reach = await region('How alerts reach you');
-    await within(reach).findByText('Phone alerts need the hosted app. On this computer the tray shows the count.');
+    await within(reach).findByText('On this computer, phone alerts come by Telegram below; the tray shows the count.');
     await within(reach).findByText("Couldn't load this: Not built yet.");
     expect(within(reach).queryByRole('checkbox', { name: 'Show the count in the tray' })).toBeNull();
     expect(within(reach).queryByLabelText('Your relay address')).toBeNull();
@@ -235,11 +235,7 @@ describe('Business > Notifications on the hosted app', () => {
     await within(running).findByText('Nothing. On the hosted app, Chausar sleeps while nobody has it open.');
   });
 
-  it('in Hindi', async () => {
-    start({ hosted: true, language: 'hi' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'सूचनाएँ' })).toBeTruthy();
-    await screen.findByRole('button', { name: 'फ़ोन अलर्ट चालू करें' });
-  });
+
 });
 
 describe('phone alerts at every load of the hosted app', () => {

@@ -1,0 +1,27 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {kitBusiness,owner} from './fixtures/venture/kit-business.ts';
+import {handlers} from '../runtime/venture/playbooks/index.ts';
+import {ventureAction,findRecord,listRecords} from '../runtime/venture/records.ts';
+import {CONTACTS,net} from './venture-network-env.ts';
+async function setup(){const env=await kitBusiness({now:new Date('2026-10-28T10:00:00Z')},{idea:'A social media agency'});const offer=env.offers.find(o=>o.playbookOffer==='reply-inbox');assert.ok(offer);const order=await env.call('venture.order.create',{clientId:env.client.id,offerId:offer.id,request:'Reply to client comments'});return {...env,order};}
+const act=(env:any,action:string,payload:unknown,id=env.order.id,digest?:string)=>env.call('venture.desk.act',{playbook:'social-agency',kind:'inbox',id,action,payload,...(digest?{digest}:{})});
+test('public social inbox persists imported comments and exact staged approvals, without sending',async()=>{
+ const env=await setup();const imported=await act(env,'import',{channel:'instagram',source:'paste',items:[{id:'comment1',author:'Raj',text:'How can I book?'}]});const id=imported.result[0].id;
+ const get=()=>env.call('venture.desk.get',{playbook:'social-agency',kind:'inbox',id});let row=await get();
+ await assert.rejects(act(env,'handoff',{},id,row.digest),{code:'SOCIAL_APPROVAL_REQUIRED'});
+ await act(env,'edit',{reply:'Please message the shop to book.',assignee:'Asha'},id,row.digest);row=await get();
+ await assert.rejects(handlers['venture.desk.act']!(env.deps,{...owner,channel:'mcp'},{playbook:'social-agency',kind:'inbox',id,action:'approve-owner',payload:{},digest:row.digest}),{code:'APP_APPROVAL_REQUIRED'});
+ await act(env,'approve-owner',{},id,row.digest);await assert.rejects(act(env,'approve-client',{},id,row.digest),{code:'APPROVAL_STALE'});row=await get();await act(env,'approve-client',{},id,row.digest);row=await get();const out=await act(env,'handoff',{},id,row.digest);assert.equal(out.result.sent,false);
+ assert.equal(listRecords(env.store.read(),'venture-social-inbox-item').length,1);
+ await act(env,'import',{channel:'instagram',source:'paste',items:[{id:'comment1',author:'Raj',text:'Changed question?'}]});row=await get();assert.equal(row.item.ownerApproved,false);assert.equal(row.item.clientApproved,false);
+ await assert.rejects(act(env,'handoff',{},id,row.digest),{code:'SOCIAL_APPROVAL_REQUIRED'});
+ await act(env,'edit',{optedOut:true},id,row.digest);await act(env,'import',{channel:'instagram',source:'export',items:[{id:'comment1',author:'Raj',text:'Changed export after opt out'}]});row=await get();assert.equal(row.item.optedOut,true);assert.equal(row.item.state,'ignored');
+});
+test('all seven D2 offers are selectable, owner-priced, and advertise real handoffs',async()=>{
+ const env=await setup();for(const id of ['reel-from-clips','hook-variations','local-instagram','reply-inbox','post-diagnosis','video-ads','cross-posting'])assert.ok(env.offers.some(o=>o.playbookOffer===id),id);
+});
+test('Forget deletes imported personal comments and their draft replies',async()=>{const env=await setup();await net(env,'venture.network.import',{kind:'contacts-csv',name:'contacts.csv',text:CONTACTS});const person=listRecords(env.store.read(),'venture-person').find(row=>row.name==='Asha Rao')!;await act(env,'import',{channel:'instagram',source:'paste',items:[{id:'c1',author:'Asha Rao',text:'Please send the menu'}]});assert.equal(listRecords(env.store.read(),'venture-social-inbox-item').length,1);await net(env,'venture.network.forget',{id:person.id});assert.equal(listRecords(env.store.read(),'venture-social-inbox-item').length,0);});
+
+test('Forget removes saved production words and their dependent quote receipt',async()=>{const env=await setup();await net(env,'venture.network.import',{kind:'contacts-csv',name:'contacts.csv',text:CONTACTS});const person=listRecords(env.store.read(),'venture-person').find(row=>row.name==='Asha Rao')!;await ventureAction(env.deps,owner,'approve','test.production',tx=>{const current=tx.find('venture-order',env.order.id)!;tx.replace({...current,socialProduction:{cross:{video:{id:'own.mp4',digest:'digest',kind:'client'},capability:'handoff',posts:[{platform:'instagram',text:'Asha Rao and our shop',ownerApproved:true,clientApproved:true}],upload:'planned'},reel:null,ad:null}});});await net(env,'venture.network.forget',{id:person.id});assert.equal(findRecord(env.store.read(),'venture-order',env.order.id)?.socialProduction,undefined);});
+
+test('Forget clears opaque production and ledger for a linked client without relying on names',async()=>{const env=await setup();await net(env,'venture.network.import',{kind:'contacts-csv',name:'contacts.csv',text:CONTACTS});const person=listRecords(env.store.read(),'venture-person').find(row=>row.name==='Asha Rao')!;await ventureAction(env.deps,owner,'approve','test.clientlink',tx=>{tx.replace({...tx.find('venture-person',person.id)!,clientId:env.client.id});const order=tx.find('venture-order',env.order.id)!;tx.replace({...order,socialProduction:{cross:null,reel:null,ad:null}});tx.put({...tx.base('venture-ad-ledger-entry'),orderId:order.id,source:'opaque source',status:'live',format:'video',capturedBy:'owner',capturedAt:tx.now});});await net(env,'venture.network.forget',{id:person.id});assert.equal(listRecords(env.store.read(),'venture-ad-ledger-entry').length,0);assert.equal(findRecord(env.store.read(),'venture-order',env.order.id)?.socialProduction,undefined);});

@@ -182,6 +182,7 @@ export class Engine {
     const pending = this.#draftPending ??= import('./venture/draft/index.ts').then(module => {
       const desk = module.createDraftDesk({
         ...(this.options.venture ?? {}), demo: !!this.options.demo,
+        ...(this.services.helper ? { helper: this.services.helper } : {}),
         ventureExists: () => !!this.vault && this.vault.read().conversations.some(record => record?.kind === 'venture-record'),
         vaultOpen: () => !!this.vault,
       }) as DraftDeskHandle;
@@ -596,7 +597,7 @@ export class Engine {
     });
   }
   private async adapter(folder = 'main') {
-    if (this.options.storage === 'experimental-file' && this.options.demo) {
+    if (this.options.storage === 'experimental-file' && (this.options.demo || this.options.venture?.host === 'desktop')) {
       if (!this.options.vaultStorage) return 'experimental-file' as const;
       // A trusted host's own file store (the hosted server's capped one, 4J23); the same folder-name check first.
       this.workspacePath(folder);
@@ -610,7 +611,7 @@ export class Engine {
       if (adapter.kind !== 'postgres') { await adapter.close?.(); throw new ChausarError('INVALID_POSTGRES_CONFIG', 'PostgreSQL storage needs a PostgreSQL vault adapter.'); }
       return adapter;
     }
-    check(this.options.storage === 'postgres' && this.options.postgresUrl, 'DATABASE_REQUIRED', 'Production requires configured PostgreSQL. File storage is available only in the explicitly experimental demo.');
+    check(this.options.storage === 'postgres' && this.options.postgresUrl, 'DATABASE_REQUIRED', 'Use the desktop encrypted file store or configure PostgreSQL for this host.');
     const url = new URL(this.options.postgresUrl);
     check(url.protocol === 'postgresql:' || url.protocol === 'postgres:', 'INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL.');
     return PostgresSnapshotAdapter.connect({ host: url.hostname.replace(/^\[|\]$/g, '') as '127.0.0.1' | '::1', port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password), database: decodeURIComponent(url.pathname.slice(1)), vaultSlot: hash(this.workspacePath(folder)) });
@@ -990,6 +991,11 @@ export class Engine {
       ...(this.options.workspaceCustody ? { ...(this.vault && this.#openUnlock ? { unlock: this.#openUnlock } : {}), closedByOwner: this.#closedByOwner } : {}) };
     if (method === 'venture.countries') return (await this.#ventureModule()).ventureCountries();
     if (method === 'venture.preview') return (await this.#ventureModule()).venturePreview(payload);
+    // Wave 6 (6C6): onboarding shows the profession's rules when it is picked, before any vault exists.
+    if (method === 'venture.compliance.get' && !this.vault) return (await import('./venture/core/compliance.ts')).complianceBeforeVault(payload);
+    if (method === 'venture.country.suggest' && !this.vault?.read().conversations.some(record => record?.kind === 'venture-record')) {
+      return (await this.#draftDesk()).request(this.context, method, payload);
+    }
     // The ways to earn (4J8); while a vault is open its state is read (never written) so its business says "You run this".
     // The other businesses here say it from what Chausar saved when each was last open (4J6), never their vaults.
     if (method === 'venture.playbooks.list') return (await this.#ventureModule()).venturePlaybooks(payload, this.vault ? { state: this.vault.read(), businessId: (this.options.venture?.workspace ?? this.#ventureWorkspace).current().id } : null,
@@ -1005,6 +1011,13 @@ export class Engine {
       case 'venture.compose.fill':
       case 'venture.compose.get':
       case 'venture.compose.update':
+      // Wave 6 (6C1, 6C2): the tools' own sign-in and About you, before the vault.
+      case 'venture.ai.tools':
+      case 'venture.ai.login.start':
+      case 'venture.ai.login.cancel':
+      case 'venture.about.read':
+      case 'venture.about.pick':
+      case 'venture.about.families':
         return (await this.#draftDesk()).request(this.context, method, payload);
     }
     // Keeping the vault key on this computer (KEYCHAIN-SPEC 2 to 4). Answered before the vault check.
@@ -1655,6 +1668,7 @@ export class Engine {
       }
       case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); const deletedVault = store.vaultId, deletedFolder = this.#openFolder; await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       case 'venture.create':
+      case 'venture.country.suggest':
       case 'venture.get':
       case 'venture.events':
       case 'venture.interview.next':
@@ -1667,11 +1681,27 @@ export class Engine {
       case 'venture.models.connect':
       case 'venture.models.disconnect':
       case 'venture.models.status':
+      case 'venture.agentSettings.get':
+      case 'venture.agentSettings.set':
+      case 'venture.mcpCredential.set':
+      case 'venture.mcpRegistry.list':
+      case 'venture.mcpOAuth.start':
+      case 'venture.packs.list':
+      case 'venture.packs.add':
+      case 'venture.packs.remove':
+      case 'venture.agentApproval.decide':
       case 'venture.models.calls':
       case 'venture.price.quote':
       case 'venture.receipt.get':
       case 'venture.client.add':
       case 'venture.client.list':
+      case 'venture.client.aiConsent.get':
+      case 'venture.client.aiConsent.agree':
+      case 'venture.client.aiConsent.withdraw':
+      case 'venture.billing.get':
+      case 'venture.billing.set':
+      case 'venture.invoice.pdf':
+      case 'venture.invoice.payLink':
       case 'venture.order.create':
       case 'venture.order.list':
       case 'venture.order.deliver':
@@ -1699,19 +1729,16 @@ export class Engine {
       case 'venture.launch.status':
       case 'venture.launch.advance':
       case 'venture.delivery.run':
-      case 'venture.delivery.approve':
       case 'venture.delivery.review':
       case 'venture.delivery.list':
       case 'venture.capabilities':
       case 'venture.files.add':
       case 'venture.files.list':
-      case 'venture.delivery.answer':
       case 'venture.work.get':
       case 'venture.improve.status':
       case 'venture.improve.run':
       case 'venture.improve.get':
       case 'venture.improve.adopt':
-      case 'venture.delivery.delegate':
       case 'venture.delegate.get':
       case 'venture.queue.list':
       case 'venture.queue.decide':
@@ -1763,6 +1790,10 @@ export class Engine {
       case 'venture.ca.receipt':
       case 'venture.ca.explainDiff':
       case 'venture.rules.list':
+      case 'venture.rules.locks':
+      case 'venture.rules.attest':
+      case 'venture.compliance.get':
+      case 'venture.compliance.set':
       case 'venture.judge.auto.get':
       case 'venture.judge.auto.set':
       case 'venture.posting.limits.get':
@@ -1786,6 +1817,12 @@ export class Engine {
       case 'venture.chief.thread.list':
       case 'venture.chief.thread.send':
       case 'venture.chief.thread.pin':
+      case 'venture.chief.thread.state':
+      case 'venture.chief.settle.set':
+      case 'venture.layout.get':
+      case 'venture.layout.change':
+      case 'venture.flows.list':
+      case 'venture.flows.act':
       case 'venture.chief.fit':
       case 'venture.proposals.raise':
       case 'venture.proposals.dismiss':
@@ -1837,6 +1874,53 @@ export class Engine {
       case 'venture.notify.push.subscribe':
       case 'venture.notify.push.unsubscribe':
       case 'venture.notify.relay':
+      case 'venture.notify.telegram':
+      case 'venture.phone.access':
+      case 'venture.web.search':
+      case 'venture.web.read':
+      case 'venture.people.services':
+      case 'venture.people.lookup':
+      case 'venture.crm.client':
+      case 'venture.crm.client.edit':
+      case 'venture.crm.companies':
+      case 'venture.crm.company':
+      case 'venture.crm.company.save':
+      case 'venture.crm.link':
+      case 'venture.crm.log':
+      case 'venture.crm.lists':
+      case 'venture.crm.list':
+      case 'venture.crm.list.save':
+      case 'venture.crm.list.place':
+      case 'venture.memory.list':
+      case 'venture.memory.add':
+      case 'venture.memory.replace':
+      case 'venture.memory.visibility':
+      case 'venture.memory.forget':
+      case 'venture.agents.retire.check':
+      case 'venture.agents.retire':
+      case 'venture.agents.restore':
+      case 'venture.apps.list':
+      case 'venture.apps.get':
+      case 'venture.apps.make':
+      case 'venture.apps.grant':
+      case 'venture.apps.revoke':
+      case 'venture.apps.restore':
+      case 'venture.apps.pin':
+      case 'venture.apps.export':
+      case 'venture.apps.call':
+      case 'venture.apps.remove':
+      case 'venture.talk.get':
+      case 'venture.talk.consent':
+      case 'venture.talk.setup':
+      case 'venture.talk.start':
+      case 'venture.talk.hear':
+      case 'venture.talk.say':
+      case 'venture.feedback.get':
+      case 'venture.feedback.consent':
+      case 'venture.feedback.send':
+      case 'venture.feedback.answer':
+      case 'venture.feedback.crash':
+      case 'venture.feedback.delete':
       case 'venture.models.cli.status':
       case 'venture.models.roles':
       case 'venture.goals.get':
@@ -1879,6 +1963,7 @@ export class Engine {
       case 'venture.blueprint.suggest':
       case 'venture.owner.get':
       case 'venture.owner.set':
+      case 'venture.needs.list':
       case 'venture.receipt.verify':
       case 'venture.journal.chain':
       case 'venture.journal.acceptBreak':
@@ -1911,6 +1996,44 @@ export class Engine {
       case 'venture.ideas.start':
       case 'venture.ideas.dismiss':
       case 'venture.agents.capabilities':
+      // Ink v2 wave 5 (venture/contracts.ts W5_METHODS)
+      case 'venture.order.chain':
+      case 'venture.salesProposal.draft':
+      case 'venture.salesProposal.get':
+      case 'venture.goNoGo.card':
+      case 'venture.goNoGo.list':
+      case 'venture.ideas.add':
+      case 'venture.ideas.move':
+      case 'venture.ideas.grade':
+      case 'venture.brandKit.get':
+      case 'venture.brandKit.set':
+      case 'venture.assets.list':
+      case 'venture.assets.rerun':
+      case 'venture.assets.reuse':
+      case 'venture.voiceConsent.record':
+      case 'venture.voiceConsent.revoke':
+      case 'venture.voiceConsent.list':
+      case 'venture.report.render':
+      case 'venture.report.share':
+      case 'venture.report.shareRotate':
+      case 'venture.report.shareDisable':
+      case 'venture.report.list':
+      case 'venture.monitors.list':
+      case 'venture.monitors.add':
+      case 'venture.monitors.remove':
+      case 'venture.mail.import':
+      case 'venture.mail.threads':
+      case 'venture.localApps.list':
+      case 'venture.webhook.set':
+      case 'venture.webhook.send':
+      case 'venture.speechOut.providers':
+      case 'venture.ca.confirmCitations':
+      case 'venture.ca.signoff.get':
+      case 'venture.ca.differential.add':
+      case 'venture.ca.dataPack.export':
+      case 'venture.desk.list':
+      case 'venture.desk.get':
+      case 'venture.desk.act':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
     }
@@ -2319,7 +2442,7 @@ export class Engine {
   private custodyFiles(): CustodyFiles { return this.#custodyFiles ??= new CustodyFiles(this.options.directory); }
   private custodyNow(): number { return this.custodyHost()?.clock() ?? Date.now(); }
   private storageKind(): 'experimental-file' | 'postgres' {
-    return this.vault?.storageKind ?? (this.options.storage === 'experimental-file' && this.options.demo ? 'experimental-file' : 'postgres');
+    return this.vault?.storageKind ?? (this.options.storage === 'experimental-file' && (this.options.demo || this.options.venture?.host === 'desktop') ? 'experimental-file' : 'postgres');
   }
   /** One custody change, backup write, rotation or reseal at a time. */
   private custodySerial<T>(work: () => Promise<T>): Promise<T> {

@@ -27,14 +27,7 @@ function worker(languages?: string[]) {
 const count = (n: number) => ({ json: () => ({ count: n }) });
 
 describe('the service worker says only the count, in the browser\'s language', () => {
-  it('in Hindi when the browser prefers Hindi', async () => {
-    const sw = worker(['hi-IN', 'en-IN']);
-    await sw.push(count(3));
-    await sw.push(count(1));
-    await sw.push(null);
-    expect(sw.shown.map((n) => n.title)).toEqual(['Chausar', 'Chausar', 'Chausar']);
-    expect(sw.shown.map((n) => n.options.body)).toEqual(['3 चीज़ों में आपकी ज़रूरत है', '1 चीज़ में आपकी ज़रूरत है', 'Chausar में किसी चीज़ में आपकी ज़रूरत है।']);
-  });
+
 
   it('in English otherwise, and with no language known', async () => {
     for (const sw of [worker(['en-IN']), worker()]) {

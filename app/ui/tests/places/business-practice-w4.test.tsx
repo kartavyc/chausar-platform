@@ -38,7 +38,7 @@ describe('Business > Practice: drills (4J22a)', () => {
     await act(async () => { fireEvent.click(within(tile).getByRole('button', { name: 'Run the drills' })); });
     expect(calls.some((c) => c.method === 'venture.drills.run')).toBe(true);
     await waitFor(() => expect(tile.querySelector('[data-drill-run]')).not.toBeNull());
-    expect(tile.querySelector('[data-drill-summary]')!.textContent).toBe('Passed: 7 of 7 drills were stopped, and each harmless twin went through. Playbook version 4.');
+    expect(tile.querySelector('[data-drill-summary]')!.textContent).toBe('Passed: 7 of 7 drills were stopped, and each harmless twin went through. Work instructions, version 4.');
     const fold = tile.querySelector('details[data-fold="drills"]') as HTMLDetailsElement;
     expect(fold.open).toBe(false);
     const items = [...fold.querySelectorAll('li')];
@@ -58,7 +58,7 @@ describe('Business > Practice: drills (4J22a)', () => {
       }] }),
     });
     const tile = await screen.findByRole('region', { name: 'Drills' });
-    await waitFor(() => expect(tile.querySelector('[data-drill-summary]')!.textContent).toBe('Failed: 1 of 2 drills were stopped, and each harmless twin went through. A playbook version no longer kept.'));
+    await waitFor(() => expect(tile.querySelector('[data-drill-summary]')!.textContent).toBe('Failed: 1 of 2 drills were stopped, and each harmless twin went through. Work instructions no longer kept.'));
     expect(tile.querySelector('[data-drill-failed]')!.textContent).toBe('A client send without your approval: Not stopped: this guard let the drill through.');
   });
 });
@@ -82,7 +82,7 @@ describe('Business > Practice: what the loop tried, and the guidance report (4J2
         },
       }),
     });
-    const tile = await screen.findByRole('region', { name: 'Improve the playbook' });
+    const tile = await screen.findByRole('region', { name: 'Improve how the work is done' });
     const fold = await waitFor(() => tile.querySelector('details[data-fold="experiments"]') as HTMLDetailsElement);
     expect(fold.querySelector('summary')!.textContent).toBe('What it tried');
     const item = fold.querySelector('li[data-experiment]')!;

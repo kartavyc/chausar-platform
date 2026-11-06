@@ -1,0 +1,30 @@
+// Stored CA sign-off integration: original Chausar tests for CA11.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { setup, owner, seedBlueprint, seedOrder } from './venture-views-env.ts';
+import { handlers } from '../runtime/venture/playbooks/index.ts';
+import { requestCaSignoff, recordCaSignoff, sendToCa, setCaOfRecord } from '../runtime/venture/playbooks/ca-firm/signoff.ts';
+import { ventureAction, digest } from '../runtime/venture/records.ts';
+test('stored sign-off binds the CA, time, playbook and exact receipts; a changed receipt is never same', async () => {
+    const env = await setup();
+    const plan = await seedBlueprint(env);
+    const { order } = await seedOrder(env, plan);
+    await setCaOfRecord(env.deps, owner, { name: 'CA Asha Rao', membershipNumber: '123456' });
+    const request = await requestCaSignoff(env.deps, owner, { subjectKind: 'itr-data-pack', title: 'Return working', workingDigest: digest('papers'), receiptIds: [order.priceReceiptId], playbookHash: digest('playbook') });
+    await sendToCa(env.deps, owner, [request.id]);
+    const signed = await recordCaSignoff(env.deps, owner, { requestId: request.id, decision: 'signed', membershipNumber: '123456' });
+    const get = () => handlers['venture.ca.signoff.get']!(env.deps, owner, { id: signed.id }) as Promise<any>;
+    const view = await get();
+    assert.equal(view.rederived, 'same');
+    assert.equal(view.ca.name, 'CA Asha Rao');
+    assert.equal(view.ca.membershipNumber, '123456');
+    assert.equal(view.at, signed.at);
+    assert.equal(view.playbookHash, digest('playbook'));
+    assert.equal(view.receipts[0].id, order.priceReceiptId);
+    assert.match(view.receipts[0].digest, /^[a-f0-9]{64}$/);
+    await ventureAction(env.deps, owner, 'admin', 'test.change-price-receipt', tx => { const row = tx.find('venture-price-receipt', order.priceReceiptId)!; tx.replace({ ...row, digest: digest('changed') }); });
+    const changed = await get();
+    assert.equal(changed.rederived, 'differs');
+    assert.equal(changed.differs.key, order.priceReceiptId);
+    await assert.rejects(handlers['venture.ca.signoff.get']!(env.deps, owner, { id: request.id + '_missing' }), (error: any) => error.code === 'SIGNOFF_NOT_FOUND');
+});

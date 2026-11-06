@@ -1,0 +1,200 @@
+{
+  "registration": {
+    "id": "lead-generation",
+    "label": "Lead generation and appointment setting",
+    "serviceType": "agency",
+    "picks": [
+      "lead generation",
+      "appointment setting",
+      "cold email agency",
+      "cold outreach service",
+      "book meetings for",
+      "local business leads"
+    ],
+    "summary": "Agents find local businesses from sources that allow it, draft outreach and follow-ups, and keep the pipeline; you send every message yourself.",
+    "riskLevel": "medium",
+    "lastReviewed": "2026-10-27"
+  },
+  "offers": [
+    {
+      "id": "researched-pipeline",
+      "name": "Researched pipeline",
+      "description": "Qualified local prospects for your own offer, with sources and follow-ups.",
+      "pricing": "monthly",
+      "unit": "a client a month",
+      "price": "owner-sets",
+      "stages": [
+        "draft"
+      ],
+      "includes": [
+        "Prospects with sources",
+        "Outreach drafts",
+        "Follow-ups due"
+      ],
+      "pilotable": true,
+      "rights": [],
+      "intake": [
+        "city",
+        "vertical",
+        "count",
+        "ownOffer",
+        "postalAddress",
+        "sendDays",
+        "sendTime"
+      ],
+      "audience": "client"
+    },
+    {
+      "id": "cold-email-month",
+      "name": "Cold email month",
+      "description": "A bounded lead list and a short sequence you send yourself.",
+      "pricing": "project",
+      "unit": "per project",
+      "price": "owner-sets",
+      "stages": [
+        "draft"
+      ],
+      "includes": [
+        "Prospects with sources",
+        "Outreach drafts"
+      ],
+      "pilotable": false,
+      "rights": [],
+      "intake": [
+        "city",
+        "vertical",
+        "ownOffer",
+        "postalAddress"
+      ],
+      "audience": "client"
+    },
+    {
+      "id": "linkedin-desk",
+      "name": "LinkedIn outreach desk",
+      "description": "Drafted notes and replies; copy the text and open the profile yourself.",
+      "pricing": "monthly",
+      "unit": "a client a month",
+      "price": "owner-sets",
+      "stages": [
+        "draft"
+      ],
+      "includes": [
+        "Outreach drafts"
+      ],
+      "pilotable": false,
+      "rights": [],
+      "intake": [
+        "ownOffer"
+      ],
+      "audience": "client"
+    },
+    {
+      "id": "community-report",
+      "name": "Community lead report",
+      "description": "Quoted problems from owner-pasted community posts, with evidence and coverage.",
+      "pricing": "project",
+      "unit": "per weekly report",
+      "price": "owner-sets",
+      "stages": [
+        "report"
+      ],
+      "includes": [
+        "A community report"
+      ],
+      "pilotable": false,
+      "rights": [],
+      "intake": [
+        "ownOffer"
+      ],
+      "audience": "client"
+    }
+  ],
+  "intakeFields": [
+    {
+      "id": "city",
+      "label": "City",
+      "help": "The city to research, not a personal address.",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "vertical",
+      "label": "Business kind",
+      "help": "An OSM tag such as shop=bakery.",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "count",
+      "label": "Daily prospect count",
+      "help": "Leave blank for the default daily limit.",
+      "kind": "text",
+      "required": false
+    },
+    {
+      "id": "ownOffer",
+      "label": "Your own offer",
+      "help": "What you sell to these businesses.",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "postalAddress",
+      "label": "Business postal address",
+      "help": "Required on cold email drafts.",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "sendDays",
+      "label": "Sending days",
+      "help": "Your allowed weekdays, recorded in the pipeline settings.",
+      "kind": "list",
+      "required": false
+    },
+    {
+      "id": "sendTime",
+      "label": "Sending time",
+      "help": "Your local sending time, recorded in the pipeline settings.",
+      "kind": "text",
+      "required": false
+    }
+  ],
+  "roles": [
+    {
+      "id": "researcher",
+      "name": "Researcher",
+      "kind": "agent",
+      "department": "marketing",
+      "job": "Finds prospects with sources."
+    },
+    {
+      "id": "writer",
+      "name": "Writer",
+      "kind": "agent",
+      "department": "marketing",
+      "job": "Drafts outreach you send."
+    },
+    {
+      "id": "producer",
+      "name": "Producer",
+      "kind": "agent",
+      "department": "sales",
+      "job": "Keeps the pipeline and meetings."
+    },
+    {
+      "id": "chausar",
+      "name": "Chausar",
+      "kind": "code",
+      "department": "operations",
+      "job": "Checks sources, duplicates, mail servers and caps in code."
+    },
+    {
+      "id": "billing",
+      "name": "Billing",
+      "kind": "code",
+      "department": "money",
+      "job": "Works out owner-set prices in code."
+    }
+  ]
+}

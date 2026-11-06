@@ -39,15 +39,16 @@ export const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32}$/;
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 /** The token at the end of a share address made on this server, or a file request's (4J7: '/share/<token>/upload'), or null. */
 function shareTokenOf(url: string): string | null {
-  const match = /\/share\/([A-Za-z0-9_-]{32})(?:\/upload)?$/.exec(url);
+  const match = /\/(?:share|support-rating|site-form|store-assistant)\/([A-Za-z0-9_-]{32})(?:\/upload)?$/.exec(url);
   return match ? match[1] : null;
 }
 /** What the share page shows (SharePage in venture/build/share-links.ts). Text only; the page escapes every field. */
 export type SharePageView = {
+  canRequest?: boolean;
   businessName: string; title: string; text: string; expires: string; digest: string;
   decision: { decision: 'approved' | 'changes'; comment: string | null } | null;
   /** 4J7 (O20): what the link shares, whether it may answer now, the posts a comment can name, the comments so far. */
-  kind?: 'draft' | 'order-status' | 'statement' | 'books'; canAnswer?: boolean;
+  kind?: 'draft' | 'order-status' | 'statement' | 'books' | 'report'; canAnswer?: boolean;
   items?: { id: string; name: string; text: string }[]; comments?: { item: string; text: string }[];
 };
 /** What the file request page shows (FileRequestPage in venture/build/file-requests.ts). Text only. */
@@ -368,6 +369,20 @@ export class HostedApp {
     // 4J7 (K9): a client file request link is noted the same way, so /share/<token>/upload finds the business.
     if (method === 'venture.share.create' || method === 'venture.share.request') await this.#indexShare(key, result);
     if (method === 'venture.share.revoke') await this.#unindexShare(key, result);
+    // 5A5: a report link the same way; a rotated one leads only by its new token, a turned-off one nowhere.
+    if (method === 'venture.report.shareRotate' || method === 'venture.report.shareDisable') await this.#unindexShare(key, result);
+    if (method === 'venture.report.share' || method === 'venture.report.shareRotate') await this.#indexShare(key, result);
+    // 5G: an owner-created plain customer rating link uses the same opaque token directory.
+    if (method === 'venture.desk.act' && (input as any).playbook === 'support-desk' && (input as any).action === 'rating-link') await this.#indexShare(key, (result as any)?.result);
+    // 5P: standing form capture uses an opaque token; rotation and pause remove the old directory entry.
+    if (method === 'venture.desk.act' && (input as any).playbook === 'website-studio' && ['capture-enable','capture-pause'].includes((input as any).action)) {
+      await this.#unindexShare(key, {id:(result as any)?.id});
+      if ((input as any).action === 'capture-enable') await this.#indexShare(key, (result as any)?.result);
+    }
+    if(method==='venture.desk.act'&&(input as any).playbook==='online-seller'&&(input as any).kind==='storefront'&&['enable','pause','configure'].includes((input as any).action)){
+      await this.#unindexShare(key,{id:(result as any)?.id});
+      if((input as any).action==='enable')await this.#indexShare(key,(result as any)?.result);
+    }
     return result;
   }
 
@@ -411,6 +426,22 @@ export class HostedApp {
     return await handle.shareLink('page', token, { preview: head || this.#isOwner(viewer, owner.user.id) }) as SharePageView | null;
   }
 
+  /** 5G: public rating, with no customer words exposed; the vault checks the opaque token and decides once. */
+  async supportRating(token: string, address: string, score?: number): Promise<import('../venture/playbooks/support-desk/rating-link.ts').SupportRatingPage | null> {
+    const target = this.#shareTarget(token, address);
+    if (!target || typeof target.handle.shareLink !== 'function') return null;
+    return await target.handle.shareLink(score === undefined ? 'page' : 'decide', token, { supportRating: true, ...(score === undefined ? {} : { score }) }) as import('../venture/playbooks/support-desk/rating-link.ts').SupportRatingPage | null;
+  }
+  /** 5P: trusted form capture entry, with the live standing approval checked inside the vault. */
+  async siteForm(token:string,address:string,input:Record<string,unknown>):Promise<Awaited<ReturnType<typeof import('../venture/playbooks/website-studio/form-entry.ts').siteFormEntry>>> {
+    const target=this.#shareTarget(token,address);if(!target||typeof target.handle.shareLink!=='function')return null;
+    return await target.handle.shareLink(input.operation==='page'?'page':'decide',token,{...input,siteForm:true}) as Awaited<ReturnType<typeof import('../venture/playbooks/website-studio/form-entry.ts').siteFormEntry>>;
+  }
+  /** 5F3: a public request only prepares a session question; the owner action separately approves each paid call. */
+  async storefront(token:string,address:string,input:Record<string,unknown>):Promise<unknown>{
+    const target=this.#shareTarget(token,address);if(!target||typeof target.handle.shareLink!=='function')return null;
+    return target.handle.shareLink(input.operation==='page'?'page':'decide',token,{...input,storefront:true});
+  }
   /** Whether a session cookie is a live session of this account (the owner looking at their own link). Never throws. */
   #isOwner(viewer: string | undefined, userId: string): boolean {
     if (!viewer) return false;
@@ -628,4 +659,3 @@ export class HostedApp {
     return () => { for (const off of offs) off(); unwatch(); };
   }
 }
-

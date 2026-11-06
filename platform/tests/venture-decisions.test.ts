@@ -235,7 +235,7 @@ test('allowSession: at every stage it is refused in the lock words and promises 
     const { env } = await business(stage);
     await assert.rejects(allow(env, 'gather'), (error: any) => {
       assert.equal(error.code, 'AUTO_LOCKED');
-      assert.match(error.message, /built but locked/);
+      assert.equal(error.message, 'Routine-step approval is not available yet.');
       return true;
     });
     assert.equal(listRecords(env.store.read(), 'venture-decision').length, 0);

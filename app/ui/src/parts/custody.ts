@@ -24,6 +24,7 @@ const PLAIN = new Set([
 
 /** The refusal in plain words: Ink's own for the codes above, the engine's for the rest. */
 export function refusalWords(error: unknown, t: T): string {
+  if(error instanceof EngineError&&['SOCIAL_VOICE_CHANGED','SOCIAL_REPORT_MONTH_REQUIRED','SOCIAL_EXPORTS_REQUIRED'].includes(error.code))return t('pb-social.error.'+error.code);
   if (error instanceof EngineError && PLAIN.has(error.code)) return t(`custody.refused.${error.code}`);
   return error instanceof Error ? error.message : String(error);
 }
@@ -39,7 +40,7 @@ export function groupsOf(code: string): string[] {
 /** A moment as the reader's calendar writes it: "21 Oct 2026, 11:30 am". Dates only; no figure is formatted here. */
 export function momentOf(at: string, language: string): string {
   const date = new Date(at);
-  return Number.isNaN(date.getTime()) ? at : new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return Number.isNaN(date.getTime()) ? at : new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
 /**

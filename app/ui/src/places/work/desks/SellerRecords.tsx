@@ -1,0 +1,27 @@
+// Chausar seller case and movement forms. Spree/sealeap MIT ideas, original implementation.
+import {useState} from 'react';
+import {useT} from '../../../text';
+import {useEngine,useResource} from '../../../engine/context';
+import {Button} from '../../../parts/Button';
+import {Field} from '../../../parts/Field';
+import {SellerSelect,SellerFigures,sellerUpload,type SellerAct} from './SellerOperations';
+import type {SellerCaseBody} from '../../../../../../platform/runtime/venture/playbooks/online-seller/records';
+import s from './OnlineSellerDesk.module.css';
+type MovementResult=Parameters<typeof SellerFigures>[0]['result'];
+/** Internal records only. The owner sends the follow-up and applies stock changes outside Chausar. */
+export function SellerRecords({act,busy,orderId}:{act:SellerAct;busy:boolean;orderId:string}) {
+ const t=useT(),engine=useEngine(),[kind,setKind]=useState('movement'),[reference,setReference]=useState(''),[status,setStatus]=useState('open'),[deadline,setDeadline]=useState(''),[deadlineKind,setDeadlineKind]=useState('owner'),[source,setSource]=useState(''),[note,setNote]=useState(''),[date,setDate]=useState(''),[evidence,setEvidence]=useState<File[]>([]),[sku,setSku]=useState(''),[counter,setCounter]=useState('onHand'),[delta,setDelta]=useState(''),[authority,setAuthority]=useState(''),[result,setResult]=useState<MovementResult|null>(null),[saved,setSaved]=useState<SellerCaseBody['data']|null>(null),[uploading,setUploading]=useState(false),[problem,setProblem]=useState(false);
+ const cases=useResource('venture.desk.list',{playbook:'online-seller',kind:'operations',filter:{orderId,view:'cases'}});
+ async function save(){if(busy||uploading)return;setProblem(false);setUploading(true);try{if(kind==='movement'){const answer=await act('movement',{movement:{id:reference,sku,counter,delta,authority,source,at:date}}) as MovementResult|null;if(answer)setResult(answer);return;}
+  const attachments:string[]=[];for(const file of evidence){const added=await engine.request('venture.files.add',{orderId,...await sellerUpload(file)});attachments.push(added.id);}
+  const answer=await act('case',{data:{reference,status,deadline:deadline?{on:deadline,kind:deadlineKind,source}:null,attachments,timeline:note?[{on:date,text:note,source}]:[]}}) as SellerCaseBody|null;if(answer){setSaved(answer.data);cases.reload();}}catch{setProblem(true);}finally{setUploading(false);}
+ }
+ return <div className={s.body}><SellerSelect label={t('pb-seller-ops.record')} value={kind} onChange={setKind}>{['movement','case'].map(value=><option key={value} value={value}>{t('pb-seller-ops.record.'+value)}</option>)}</SellerSelect>
+ <Field label={t(kind==='movement'?'pb-seller-ops.movementId':'pb-seller-ops.caseReference')} value={reference} onChange={e=>setReference(e.currentTarget.value)}/>
+ {kind==='movement'?<><Field label={t('pb-seller-ops.productCode')} value={sku} onChange={e=>setSku(e.currentTarget.value)}/><SellerSelect label={t('pb-seller-ops.counter')} value={counter} onChange={setCounter}>{['onHand','allocated','reserved','incoming'].map(value=><option key={value} value={value}>{t('pb-seller-ops.figure.'+value)}</option>)}</SellerSelect><Field label={t('pb-seller-ops.delta')} value={delta} onChange={e=>setDelta(e.currentTarget.value)}/><Field label={t('pb-seller-ops.authority')} value={authority} onChange={e=>setAuthority(e.currentTarget.value)}/><Field label={t('pb-seller-ops.sourceTime')} value={date} onChange={e=>setDate(e.currentTarget.value)}/><Field label={t('pb-seller-ops.evidenceSource')} value={source} onChange={e=>setSource(e.currentTarget.value)}/></>:<><SellerSelect label={t('pb-seller-ops.caseStatus')} value={status} onChange={setStatus}>{['open','waiting','closed'].map(value=><option key={value} value={value}>{t('pb-seller-ops.status.'+value)}</option>)}</SellerSelect><Field type="date" label={t('pb-seller-ops.deadline')} value={deadline} onChange={e=>setDeadline(e.currentTarget.value)}/>{deadline&&<SellerSelect label={t('pb-seller-ops.deadlineKind')} value={deadlineKind} onChange={setDeadlineKind}><option value="owner">{t('pb-seller-ops.ownerSource')}</option><option value="official">{t('pb-seller-ops.officialSource')}</option></SellerSelect>}<Field multiline label={t('pb-seller-ops.timelineNote')} value={note} onChange={e=>setNote(e.currentTarget.value)}/>{note&&<Field type="date" label={t('pb-seller-ops.noteDate')} value={date} onChange={e=>setDate(e.currentTarget.value)}/ >}{(deadline||note)&&<Field label={t('pb-seller-ops.evidenceSource')} value={source} onChange={e=>setSource(e.currentTarget.value)}/>}<Field type="file" multiple label={t('pb-seller-ops.evidenceFiles')} onChange={e=>setEvidence(Array.from(e.currentTarget.files??[]))}/></>}
+ <Button variant="primary" disabled={busy||uploading} locked={!reference} lockedReason={t('pb-seller-ops.recordFirst')} onClick={()=>void save()}>{t(kind==='movement'?'pb-seller-ops.saveMovement':'pb-seller-ops.saveCase')}</Button>
+ {kind==='movement'&&result&&<SellerFigures result={result}/ >}
+ {kind==='case'&&<>{saved&&<div className={s.body}><p>{t('pb-seller-ops.caseBoundary')}</p><p data-content="">{saved.followup}</p></div>}<ul className={s.list}>{(cases.data?.rows as (SellerCaseBody&{id:string})[]??[]).map(row=><li key={row.id}><span data-content="">{row.data.reference}</span><Button variant="quiet" onClick={()=>setSaved(row.data)}>{t('pb-seller-ops.openRecord')}</Button></li>)}</ul></>}
+ {problem&&<p role="alert">{t('pb-seller-ops.error.generic')}</p>}
+ </div>;
+}

@@ -1,0 +1,9 @@
+// Original browser-safe influencer and open-posting input boundaries.
+import {check} from '../../../portable.ts';
+export {check};
+export function d3Object(raw:unknown,keys:readonly string[],required:readonly string[]=keys):Record<string,unknown>{check(!!raw&&typeof raw==='object'&&!Array.isArray(raw),'INVALID_VENTURE_REQUEST','Send only the requested fields.');const p=raw as Record<string,unknown>;check(Object.keys(p).every(k=>keys.includes(k))&&required.every(k=>Object.hasOwn(p,k)),'INVALID_VENTURE_REQUEST','Send only the requested fields.');return p;}
+export function d3Text(raw:unknown,max=2000,code='INFLUENCER_INPUT_INVALID'):string{check(typeof raw==='string'&&raw.trim().length>0&&raw.length<=max&&!/[\u0000-\u001f\u007f]/u.test(raw),code,'Use bounded plain words.');return raw.trim();}
+export function d3Day(raw:unknown,code='INFLUENCER_PRICE_INVALID'):string{check(typeof raw==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(raw)&&Number.isFinite(Date.parse(raw))&&new Date(raw).toISOString().slice(0,10)===raw,code,'Use a real calendar date.');return raw;}
+export function d3PublicUrl(raw:unknown,code='INFLUENCER_CREATOR_INVALID'):string{const text=d3Text(raw,2000,code);let u:URL;try{u=new URL(text);}catch{check(false,code,'Use a public HTTPS address.');}check(u!.protocol==='https:'&&!u!.username&&!u!.password&&!u!.port&&u!.hostname.includes('.')&&!/[\[\]:]/.test(u!.hostname)&&!/^\d+(?:\.\d+)*$/.test(u!.hostname)&&!/(^|\.)(?:localhost|local|internal|test|invalid)$/.test(u!.hostname),code,'Use a public HTTPS address without credentials.');return u!.href;}
+
+export function d3Time(raw:unknown,code='INFLUENCER_PRICE_INVALID'):string{check(typeof raw==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(raw)&&Number.isFinite(Date.parse(raw))&&new Date(raw).toISOString()===raw.replace(/Z$/,raw.includes('.')?'Z':'.000Z'),code,'Use a complete real UTC publication time.');return new Date(raw).toISOString();}

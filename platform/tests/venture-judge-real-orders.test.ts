@@ -1,21 +1,22 @@
+import {nativeJudgeBusiness as business,readyNativeDraft as readyDraft,waitNativeDraft} from './native-judge-business.ts';
 // The rules judge on real orders (Ink v2 wave 2, package 2C1, catalogue Q1 and the founder's decision of 23 Oct).
 // "Ask the judge" (venture.delivery.judge) previews the judge's call on a ready agent draft; "Send to the judge"
 // (venture.delivery.judgeSend) sends it once through the action journal and code counts the votes. A failed verdict
 // blocks Accept with the judge's reason; a vote code could not check settles nothing and blocks nothing. With judgeAuto
 // on (the default), the judge runs on its own on every ready draft that goes to a client or the public, once per draft,
-// under the standing consent recorded once; internal papers for the CA never trigger it.
+// under the client's recorded AI permission; internal papers for the CA never trigger it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { DRAFT_RULES } from '../runtime/venture/delivery/judge/rules.ts';
 import { CA_JUDGE_RULES } from '../runtime/venture/playbooks/ca-firm/claims.ts';
-import { autoJudge, JUDGE_AUTO_ON_LINE, JUDGE_EDIT_LINE, JUDGE_UNSHOWN_LINE, recheckJudgeSend } from '../runtime/venture/delivery/judge-run.ts';
-import { JUDGE_READING } from '../runtime/venture/delivery/runs.ts';
+import { autoJudge, JUDGE_EDIT_LINE } from '../runtime/venture/delivery/judge-run.ts';
 import { diagnose } from '../runtime/venture/delivery/improve.ts';
 import { signalScenario } from '../runtime/venture/delivery/scenarios.ts';
 import { draftPostChecks } from '../runtime/venture/build/posting.ts';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import { approveFromToday, business, CA_IDEA, code, noOn, owner, phone, plainDraft, PLAIN_IDEA, readyDraft, type Business } from './venture-judge-helpers.ts';
+import { CA_IDEA, code, noOn, owner, phone, plainDraft, PLAIN_IDEA, type Business } from './venture-judge-helpers.ts';
+import { consentForOrder } from './fixtures/venture/scripted-agent.ts';
 
 const accountant: Context = { memberId: 'owner', role: 'accountant', epoch: 1, channel: 'desktop' };
 const desktop: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
@@ -30,6 +31,67 @@ async function manual(idea = PLAIN_IDEA, stage: 'shadow' | 'approve-each' = 'app
   await env.call('venture.judge.auto.set', { auto: false });
   return env;
 }
+
+test('manual quality refuses a cancelled order before preparing client data', async () => {
+  const env = await manual(), run = await readyDraft(env);
+  await ventureAction(env.deps, owner, 'prepare', 'test.cancel-manual-quality-order', tx => {
+    const { agentJob: _nativeJob, ...prepared } = tx.find('venture-delivery-run', run.id)!;
+    tx.replace(prepared);
+    tx.replace({ ...tx.find('venture-order', run.orderId)!, status: 'cancelled' });
+  });
+  const before = env.models.previewed.length;
+  await assert.rejects(env.call('venture.delivery.judge', { runId: run.id }), code('JOB_SOURCE_CHANGED'));
+  assert.equal(env.models.previewed.length, before);
+});
+
+for (const phase of ['preview', 'confirm', 'dispatch', 'response'] as const) test(`manual quality preview binds the original client grant at ${phase}`, async () => {
+  const env = await manual(), run = await readyDraft(env);
+  // Retained desk model drafts have no native agent job. Exercise their supported quality-check path explicitly.
+  await ventureAction(env.deps, owner, 'prepare', 'test.separately-prepared-model-draft', tx => {
+    const { agentJob: _nativeJob, ...prepared } = tx.find('venture-delivery-run', run.id)!;
+    tx.replace(prepared);
+  });
+  const replaceGrant = async () => {
+    await env.call('venture.client.aiConsent.withdraw', { clientId: env.client.id });
+    await consentForOrder(env.deps, owner, run.orderId);
+  };
+  let preparedCall = '';
+  if (phase === 'preview') env.models.onPreview = async () => {
+    await env.store.update(state => { const call = state.conversations.filter(row => row.kind === 'venture-model-call').at(-1)!;
+      preparedCall = call.id; Object.assign(call, { ventureId: runOf(env, run.id).ventureId, payloadText: 'Private manual quality source.', payloadTruncated: false }); });
+    await replaceGrant();
+  };
+  if (phase === 'preview') {
+    await assert.rejects(env.call('venture.delivery.judge', { runId: run.id }), code('CLIENT_AI_CONSENT_CHANGED'));
+    const abandoned = listRecords(env.store.read(), 'venture-model-call').find(row => row.id === preparedCall)!;
+    assert.equal(abandoned.status, 'expired'); assert.equal(abandoned.payloadText, '');
+    return;
+  }
+  const preview = await env.call('venture.delivery.judge', { runId: run.id });
+  if (phase === 'confirm') {
+    // The fixture port keeps minimal calls; give this retention assertion the real call's business scope.
+    const callId = runOf(env, run.id).judge!.callId, ventureId = runOf(env, run.id).ventureId;
+    await env.store.update(state => { const call = state.conversations.find(row => row.id === callId)!; call.ventureId = ventureId; });
+  }
+  const sent = env.models.sent;
+  if (phase === 'confirm') await replaceGrant();
+  const send = env.models.runPreview.bind(env.models);
+  env.models.runPreview = async (ctx, id, approved, validate, options) => {
+    if (phase === 'dispatch') await replaceGrant();
+    const outcome = await send(ctx, id, approved, validate, options);
+    if (phase === 'response') await replaceGrant();
+    return outcome;
+  };
+  await assert.rejects(env.call('venture.delivery.judgeSend', { runId: run.id, digest: preview.digest }), code('CLIENT_AI_CONSENT_CHANGED'));
+  assert.equal(env.models.sent - sent, phase === 'response' ? 1 : 0);
+  assert.notEqual(runOf(env, run.id).judge?.status, 'done');
+  if (phase === 'confirm') {
+    const previousCall = runOf(env, run.id).judge!.callId;
+    await env.call('venture.delivery.judge', { runId: run.id });
+    assert.notEqual(runOf(env, run.id).judge!.callId, previousCall, 'a fresh explicit request can bind the replacement permission');
+    assert.equal(listRecords(env.store.read(), 'venture-model-call').find(row => row.id === previousCall)!.status, 'expired');
+  }
+});
 
 // ---------------------------------------------------------------------------
 // The setting
@@ -80,7 +142,7 @@ test('ask the judge: a preview of the rules task with the client\'s words, waiti
   const trace = (task.input as any).trace as { id: string; summary: string }[];
   assert.ok(trace.some(event => event.id === 'client-message' && event.summary.includes('pricing for the new product line')));
   assert.ok(trace.some(event => event.id === 'draft'));
-  assert.equal(env.models.sent, 1, 'only the draft was sent; the judge waits');
+  assert.equal(env.models.sent, 0, 'the native agent produced the draft; the quality call still waits');
   const stored = runOf(env, run.id);
   assert.equal(stored.judge!.status, 'waiting');
   assert.equal(stored.judge!.preview!.digest, preview.digest);
@@ -100,10 +162,9 @@ test('ask the judge: refused for a draft that is not ready, failed a check, is p
 
   env.models.respond.delivery = task => { const draft = plainDraft(task) as any; return { ...draft, sections: draft.sections.slice(0, -1) }; };
   const failed = await readyDraft(env);
-  assert.ok(failed.checks.some((item: any) => !item.passed), 'a heading is missing');
+  assert.equal(failed.status, 'failed', 'the native draft tool refuses a missing heading before saving it');
   await assert.rejects(env.call('venture.delivery.judge', { runId: failed.id }), (error: any) => {
-    assert.equal(error.code, 'JUDGE_NOT_READY');
-    assert.equal(error.message, 'Fix the failed check first; the judge reads only drafts that pass the code checks.');
+    assert.equal(error.code, 'DRAFT_CHANGED');
     return true;
   });
 
@@ -227,89 +288,43 @@ test('send to the judge: a call that fails after it was claimed marks the judge 
 const ORDER = 'Please look at my pricing for the new product line and advise.';
 const rulesTask = (task: any) => task.schemaName === 'venture-judge-rules';
 
-test('judgeAuto on: the write turn says the judge will read the draft and what it could cost, before any judge call', async () => {
-  const env = await business(PLAIN_IDEA);
-  const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: ORDER });
-  const waiting = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.ok(waiting.judgeNotice.startsWith(JUDGE_AUTO_ON_LINE), waiting.judgeNotice);
-  assert.match(waiting.judgeNotice, /the judge's check could cost up to USD \d+\.\d{4}\.$/);
-  const [listed] = await env.call('venture.delivery.list');
-  assert.equal(listed.judgeNotice, waiting.judgeNotice, 'Work reads it on the waiting turn');
-  const row = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'quote');
-  assert.ok(row.line.includes(JUDGE_AUTO_ON_LINE), 'Today shows it on the approval row');
-  assert.equal(env.models.rulesTasks().length, 0, 'no judge call yet');
-  assert.equal(settings(env).length, 0, 'no consent yet');
-
-  // Approved on Today, whose row binds the notice it showed: that is where the standing consent is given.
-  const run = await approveFromToday(env, waiting.id);
-  const write = journal(env).find(entry => entry.subject === `${waiting.id}:${waiting.callId}`)!;
-  assert.match(write.describe, /^Send the next step for Asha Rao to your AI\. Then the judge reads the ready draft on your AI, with your client's words, for up to USD /);
-  const [setting] = settings(env);
-  assert.deepEqual(setting.consent, { at: '2026-10-21T10:00:00.000Z', by: 'owner', how: 'default', entryId: write.id }, 'consent recorded against the approved entry');
-  assert.equal(judgeOf(run).passed, true, 'then the judge ran on its own');
-  assert.equal(run.judge.auto, true);
-  assert.equal(run.judge.estimatedMaxCostDisplay, 'USD 0.0010');
-  assert.deepEqual(env.models.consents, ['approved-preview', 'standing-judge'], "the judge's call goes on the standing consent, not as the owner's approval");
-  const standing = judgeEntries(env)[0];
-  assert.match(standing.describe, /standing consent/);
-  const approval = standing.journal.find(step => step.state === 'approved')!;
-  assert.equal(approval.line, 'Sent under your standing judge setting.', 'never "You approved this."');
-  assert.equal(approval.by, 'engine');
-  assert.equal(standing.decidedBy, null);
-  assert.equal(standing.approval!.approvedBy, null, 'no owner is recorded as approving the judge call');
-  assert.equal(run.judgeNotice, null);
-
-  const next = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Please advise on my bundle prices.' });
-  const second = await env.call('venture.delivery.run', { orderId: next.id });
-  // Once consented, the setting's words are not repeated, but the judge's cost is still shown before the write turn.
-  assert.match(second.judgeNotice, /^Once this draft is ready, the judge reads it on your AI; that check could cost up to USD \d+\.\d{4}\.$/);
-  assert.ok(!second.judgeNotice.includes(JUDGE_AUTO_ON_LINE));
-  const secondRow = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'quote');
-  assert.ok(secondRow.line.includes(second.judgeNotice), 'Today shows the cost too');
-  const judged = await env.call('venture.delivery.approve', { runId: second.id, digest: second.preview.digest });
-  const secondWrite = journal(env).find(entry => entry.subject === `${second.id}:${second.callId}`)!;
-  assert.match(secondWrite.describe, /Then the judge reads the ready draft on your AI, for up to USD /);
-  assert.equal(judgeOf(judged).passed, true);
-  assert.equal(settings(env).length, 1, 'the consent is recorded once');
-  await assert.rejects(env.call('venture.delivery.judge', { runId: judged.id }), code('JUDGE_ALREADY_SENT'));
+test('judgeAuto native: one client-authorized quality call per exact draft, with no outside approval invented', async()=>{
+ const env=await business(PLAIN_IDEA);const run=await readyDraft(env);
+ assert.equal(judgeOf(run).passed,true);assert.equal(run.judge.auto,true);
+ assert.deepEqual(env.models.consents,['client-ai']);assert.equal(judgeEntries(env).length,0);
+ assert.equal(settings(env).length,0,'client permission does not invent a standing judge consent');
+ const before=env.models.rulesTasks().length;await autoJudge(env.deps,desktop,runOf(env,run.id));
+ assert.equal(env.models.rulesTasks().length,before,'same draft is not charged twice');
+ assert.equal(env.models.rulesTasks()[0].agentId,runOf(env,run.id).agentJob!.scope.agentId,'quality uses the assigned agent cap');
+ assert.equal(env.models.rulesTasks()[0].agentJobId,runOf(env,run.id).agentJob!.scope.jobId,'each billed quality call remains bound to its job');
 });
 
-test("judgeAuto on: with no consent recorded, the first judge call waits with the setting's words; sending it records the consent", async () => {
-  const env = await manual();
-  const run = await readyDraft(env);
-  // A business whose setting was stored on with no consent (before consent was recorded): nothing goes on its own.
-  await ventureAction(env.deps, desktop, 'admin', 'seed.setting', tx => { tx.put({ ...tx.base('venture-judge-setting'), auto: true, consent: null }); });
-  const view: any = await autoJudge(env.deps, desktop, run);
-  assert.equal(view.judge.status, 'waiting');
-  assert.equal(view.judge.line, JUDGE_AUTO_ON_LINE);
-  assert.equal(env.models.rulesTasks().length, 0, 'nothing sent without consent');
-  const judged = await env.call('venture.delivery.judgeSend', { runId: run.id, digest: view.judge.preview.digest });
-  assert.equal(judgeOf(judged).passed, true);
-  assert.equal(env.models.consents.at(-1), 'approved-preview', "the owner's own send");
-  const consent = settings(env).at(-1)!.consent!;
-  assert.equal(consent.how, 'send');
-  assert.equal(consent.entryId, judgeEntries(env)[0].id);
+test('judgeAuto native: permission withdrawn while preparing the quality call prevents physical dispatch',async()=>{
+ const env=await business(PLAIN_IDEA);
+ let preparedCall='';
+ env.models.onPreview=async task=>{if(rulesTask(task)){
+   const ventureId=listRecords(env.store.read(),'venture-record')[0]!.id;
+   await env.store.update(state=>{const call=state.conversations.filter(row=>row.kind==='venture-model-call').at(-1)!;preparedCall=call.id;Object.assign(call,{ventureId,payloadText:'Private native quality source.',payloadTruncated:false});});
+   await env.call('venture.client.aiConsent.withdraw',{clientId:env.client.id});
+ }};
+ const run=await readyDraft(env);assert.equal(env.models.sent,0);assert.equal(judgeOf(run),undefined);
+ assert.equal(run.judge.status,'failed');assert.match(run.judge.line,/permission|consent|AI/i);
+ const abandoned=listRecords(env.store.read(),'venture-model-call').find(row=>row.id===preparedCall)!;
+ assert.equal(abandoned.status,'expired');assert.equal(abandoned.payloadText,'');
 });
 
-test('judgeAuto on with no consent: an owner who asks the judge by hand gives no standing consent', async () => {
-  const env = await manual();
-  const run = await readyDraft(env);
-  await ventureAction(env.deps, desktop, 'admin', 'seed.setting', tx => { tx.put({ ...tx.base('venture-judge-setting'), auto: true, consent: null }); });
-  const preview = await env.call('venture.delivery.judge', { runId: run.id });
-  const judged = await env.call('venture.delivery.judgeSend', { runId: run.id, digest: preview.digest });
-  assert.equal(judgeOf(judged).passed, true);
-  assert.equal(settings(env).at(-1)!.consent, null, "a call the owner asked for is not the automatic one shown with the setting's words");
-});
+
 
 test('judgeAuto: turning it off while the judge call is being prepared stops the send and leaves it off', async () => {
   const env = await business(PLAIN_IDEA);
   env.models.onPreview = async task => { if (rulesTask(task)) await env.call('venture.judge.auto.set', { auto: false }); };
   const run = await readyDraft(env);
   assert.equal(env.models.rulesTasks().length, 0, 'nothing was sent');
-  assert.equal(run.judge, undefined);
+  assert.equal(run.judge.status, 'failed');
+  assert.match(run.judge.line, /switched off/);
   assert.equal(judgeOf(run), undefined);
   assert.equal((await env.call('venture.judge.auto.get')).auto, false, 'it stays off');
-  assert.deepEqual(settings(env).map(item => item.auto), [true, false], 'the consent of the approved turn, then off; nothing turned it back on');
+  assert.deepEqual(settings(env).map(item => item.auto), [false], 'client consent does not turn the owner setting back on');
 });
 
 test('judgeAuto on: a failing verdict blocks Accept as soon as the draft is ready', async () => {
@@ -339,7 +354,7 @@ test('judgeAuto on: a refused automatic ballot settles nothing and blocks nothin
   const view = await env.call('venture.queue.view', { id: run.id, kind: 'draft' });
   const counted = run.checks.filter((item: any) => !item.notChecked).length;
   assert.deepEqual(view.sections.find((section: any) => section.heading === 'Checks').lines[0],
-    `${counted} of ${counted} checks passed. The judge settled no rule, so its check is not counted.`);
+    `${counted} of ${counted} checks passed. The quality check settled no rule, so its check is not counted.`);
   const stored = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id)!;
   assert.equal(draftPostChecks(env.store.read(), stored, { channel: 'linkedin', text: 'Our new prices start this week.' }).checks, 'passed');
   const failedJudge = { ...stored, checks: [...stored.checks.filter(item => item.check !== 'rules-judge'), { check: 'rules-judge' as const, passed: false, detail: 'Failed: goal-met.' }] };
@@ -381,7 +396,7 @@ test('judgeAuto on: internal papers for the CA, practice drafts and a business w
   const auditOrder = await ca.call('venture.order.create', { clientId: ca.client.id, offerId: 'offer_3', request: 'Please gather the papers for my tax audit.' });
   const auditWaiting = await ca.call('venture.delivery.run', { orderId: auditOrder.id });
   assert.equal(auditWaiting.judgeNotice, null, 'no notice on internal papers');
-  const papers = await ca.call('venture.delivery.approve', { runId: auditWaiting.id, digest: auditWaiting.preview.digest });
+  const papers = await waitNativeDraft(ca, auditWaiting.id);
   ca.models.respond.delivery = plainDraft;
   assert.equal(papers.status, 'ready-for-review');
   assert.ok(papers.checks.every((item: any) => item.passed), JSON.stringify(papers.checks.filter((item: any) => !item.passed)));
@@ -418,7 +433,7 @@ test('judgeAuto on: a CA firm draft the judge fails records its first failed rul
   assert.equal(diagnosis.chosen?.reason, 'right-head');
   const practiceCase = signalScenario(signals[0], 'bookkeeping');
   assert.ok(practiceCase.checks.includes('rules-judge'), 'its practice case asks the judge again');
-  assert.match(practiceCase.expectedOutcome, /Watch for the judge's rule right-head\./);
+  assert.match(practiceCase.expectedOutcome, /Watch for the quality check's rule right-head\./);
 });
 
 test('judgeAuto on: a preview that cannot be made, or a send refused before it went, leaves the run saying why', async () => {
@@ -432,45 +447,15 @@ test('judgeAuto on: a preview that cannot be made, or a send refused before it w
   const env = await business(PLAIN_IDEA);
   env.models.refuseSend = task => rulesTask(task) ? new ChausarError('BUDGET_REACHED', 'Your monthly AI limit is reached.') : null;
   const held = await readyDraft(env);
-  assert.equal(held.judge.status, 'waiting', 'the call still waits for the owner');
-  assert.match(held.judge.line, /The judge did not run on its own: Your monthly AI limit is reached\./);
+  assert.equal(held.judge.status, 'failed', 'a refused call is not reported as running');
+  assert.match(held.judge.line, /The quality check did not finish: Your monthly AI limit is reached\./);
   assert.equal(env.models.rulesTasks().length, 0);
   env.models.refuseSend = null;
-  const judged = await env.call('venture.delivery.judgeSend', { runId: held.id, digest: held.judge.preview.digest });
+  const retry = await env.call('venture.delivery.judge', { runId: held.id });
+  const judged = await env.call('venture.delivery.judgeSend', { runId: held.id, digest: retry.digest });
   assert.equal(judgeOf(judged).passed, true);
 });
 
-async function agentRun(env: Business): Promise<any> {
-  const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Please look at my price list and advise.' });
-  await env.call('venture.files.add', { orderId: order.id, name: 'prices.csv', contentBase64: Buffer.from('Item,Price\nTea,120\nCake,250\n').toString('base64') });
-  let run = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.ok(run.harness, 'files on the order run the agent loop');
-  while (run.status === 'waiting-for-you') run = await approveFromToday(env, run.id);
-  assert.equal(run.status, 'ready-for-review');
-  return run;
-}
-
-test("judgeAuto on: an agent run counts the judge's cost; a call past its spend cap waits for the owner to send it", async () => {
-  const env = await business(PLAIN_IDEA);
-  const run = await agentRun(env);
-  assert.equal(run.judge.status, 'done');
-  assert.equal(run.harness.used.costMicros, String(200 * env.models.sent), "every call at 200, the judge's own included");
-
-  const capped = await business(PLAIN_IDEA);
-  capped.models.estimateFor = task => rulesTask(task) ? '300000' : '1000';
-  const waiting = await agentRun(capped);
-  assert.equal(waiting.judge.status, 'waiting');
-  assert.match(waiting.judge.line, /spend cap/);
-  assert.equal(capped.models.rulesTasks().length, 0, 'nothing was sent on its own');
-  const before = waiting.harness.used.costMicros;
-  const judged = await capped.call('venture.delivery.judgeSend', { runId: waiting.id, digest: waiting.judge.preview.digest });
-  assert.equal(judgeOf(judged).passed, true, 'the owner sends it with the cost in view');
-  assert.equal(judged.harness.used.costMicros, before, "the owner's own send is outside the run's cap");
-});
-
-// ---------------------------------------------------------------------------
-// Second review: Accept while the judge reads, Today's words, cost on refusal, the loop, the guard, the price
-// ---------------------------------------------------------------------------
 
 test('judgeAuto on: Accept waits while the automatic call is out, and a verdict never lands on a draft decided meanwhile', async () => {
   const env = await business(PLAIN_IDEA);
@@ -480,15 +465,15 @@ test('judgeAuto on: Accept waits while the automatic call is out, and a verdict 
     if (!rulesTask(task)) return;
     const [listed] = await env.call('venture.delivery.list');
     await assert.rejects(env.call('venture.delivery.review', { runId: listed.id, verdict: 'accepted' }), (error: any) => {
-      assert.equal(error.code, 'INVALID_VENTURE_REQUEST');
-      assert.equal(error.message, 'The judge is reading this draft. Accept it once its answer is in.');
+      assert.equal(error.code, 'DELIVERY_NOT_READY');
+      assert.equal(error.message, 'AI work must finish before you can approve this draft.');
       return true;
     });
     during = listed;
   };
   const run = await readyDraft(env);
   assert.equal(during.canAccept, false);
-  assert.equal(during.acceptBlocked, 'The judge is reading this draft. Accept it once its answer is in.');
+  assert.equal(during.acceptBlocked, 'AI work must finish before you can approve this draft.');
   assert.equal(run.canAccept, false, 'the failing verdict landed before anything was accepted');
   assert.match(run.acceptBlocked, /offers a discount/);
 
@@ -509,31 +494,25 @@ test('judgeAuto on: Today and the draft view say when the judge has not read a d
   refused.models.respond['judge-rules'] = () => ({ answer: 'looks fine' });
   const run = await readyDraft(refused);
   const row = (await refused.call('venture.queue.list')).rows.find((item: any) => item.kind === 'draft');
-  assert.match(row.line, /Not checked by the judge\./);
+  assert.match(row.line, /Not checked by the quality check\./);
   const view = await refused.call('venture.queue.view', { id: run.id, kind: 'draft' });
-  assert.ok(view.sections.find((section: any) => section.heading === 'Checks').lines.some((line: string) => line.includes('Not checked by the judge.')));
+  assert.ok(view.sections.find((section: any) => section.heading === 'Checks').lines.some((line: string) => line.includes('Not checked by the quality check.')));
 
   const capped = await business(PLAIN_IDEA);
-  capped.models.estimateFor = task => rulesTask(task) ? '300000' : '1000';
-  const waiting = await agentRun(capped);
+  capped.models.refuseSend = task => rulesTask(task) ? new ChausarError('BUDGET_REACHED', 'Your monthly AI limit is reached.') : null;
+  const waiting = await readyDraft(capped);
   const cappedRow = (await capped.call('venture.queue.list')).rows.find((item: any) => item.kind === 'draft');
-  assert.match(cappedRow.line, /The judge has not read this draft\. The judge did not run on its own: this run is at its spend cap/);
+  assert.match(cappedRow.line, /The quality check has not read this draft\. The quality check did not finish: Your monthly AI limit is reached/ );
   const cappedView = await capped.call('venture.queue.view', { id: waiting.id, kind: 'draft' });
-  assert.ok(cappedView.sections.find((section: any) => section.heading === 'Checks').lines.some((line: string) => line.startsWith('The judge has not read this draft.')));
+  assert.ok(cappedView.sections.find((section: any) => section.heading === 'Checks').lines.some((line: string) => line.startsWith('The quality check has not read this draft.')));
 
   const passed = await business(PLAIN_IDEA);
   await readyDraft(passed);
   const passedRow = (await passed.call('venture.queue.list')).rows.find((item: any) => item.kind === 'draft');
-  assert.doesNotMatch(passedRow.line, /judge/, 'a passing verdict adds nothing');
+  assert.doesNotMatch(passedRow.line, /quality check/, 'a passing verdict adds nothing');
 });
 
-test('judgeAuto on: a refused automatic ballot still counts the cost the port billed against the run, once', async () => {
-  const env = await business(PLAIN_IDEA);
-  env.models.respond['judge-rules'] = () => ({ answer: 'looks fine' });
-  const run = await agentRun(env);
-  assert.equal(judgeOf(run).notChecked, true);
-  assert.equal(run.harness.used.costMicros, String(200 * env.models.sent), "the refused judge call's cost is counted");
-});
+
 
 test('the improvement loop reads social and YouTube judge rules as clusters, each on a step its playbook has', async () => {
   const { applyPatch } = await import('../runtime/venture/delivery/harness/patches.ts');
@@ -562,77 +541,21 @@ test('the improvement loop reads social and YouTube judge rules as clusters, eac
   }
 });
 
-test('the gate again before a standing send: the setting must be on with its consent', async () => {
-  const env = await business(PLAIN_IDEA);
-  await env.call('venture.judge.auto.set', { auto: false });
-  const run = await readyDraft(env);
-  const preview = await env.call('venture.delivery.judge', { runId: run.id });
-  const held = runOf(env, run.id).judge!.preview!;
-  assert.equal(held.digest, preview.digest);
-  const ventureId = runOf(env, run.id).ventureId;
-  assert.throws(() => recheckJudgeSend(env.deps, ventureId, run.id, held, true), code('POLICY_DENIED'), 'off: nothing goes on its own');
-  assert.doesNotThrow(() => recheckJudgeSend(env.deps, ventureId, run.id, held, false), "the owner's own send");
-  await ventureAction(env.deps, desktop, 'admin', 'seed.setting', tx => { tx.put({ ...tx.base('venture-judge-setting'), auto: true, consent: null }); });
-  assert.throws(() => recheckJudgeSend(env.deps, ventureId, run.id, held, true), code('POLICY_DENIED'), 'on with no consent: nothing goes on its own');
-  await env.call('venture.judge.auto.set', { auto: true });
-  assert.doesNotThrow(() => recheckJudgeSend(env.deps, ventureId, run.id, held, true));
-});
 
-test("the judge's cost bound is priced with the owner's rate card, as the port prices the call", async () => {
-  const listed = await business(PLAIN_IDEA);
-  listed.models.replay = false;
-  const listOrder = await listed.call('venture.order.create', { clientId: listed.client.id, offerId: 'offer_1', request: ORDER });
-  const atList = (await listed.call('venture.delivery.run', { orderId: listOrder.id })).judgeNotice as string;
 
-  const carded = await business(PLAIN_IDEA);
-  carded.models.replay = false;
-  await carded.call('venture.spend.policy.set', { rates: [{
-    item: 'model:anthropic-haiku-5-5', unit: 'per-million-tokens', inputMicrosPerMillion: '10000000', outputMicrosPerMillion: '50000000',
-    source: 'My own contract', checkedOn: '2026-10-20',
-  }] });
-  const cardOrder = await carded.call('venture.order.create', { clientId: carded.client.id, offerId: 'offer_1', request: ORDER });
-  const atCard = (await carded.call('venture.delivery.run', { orderId: cardOrder.id })).judgeNotice as string;
-  const cost = (line: string) => Number(/USD (\d+\.\d{4})/.exec(line)![1]);
-  assert.ok(cost(atCard) > cost(atList) * 50, `${atCard} against ${atList}`);
-});
-
-// ---------------------------------------------------------------------------
-// Third review: the bound shown before the spend, the gap before the judge, Today as the consent path, the guards
-// ---------------------------------------------------------------------------
-
-test('judgeAuto: approving in Work shows the notice but gives no standing consent; the first judge call then waits for the owner', async () => {
-  const env = await business(PLAIN_IDEA);
-  const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: ORDER });
-  const waiting = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.ok(waiting.judgeNotice.startsWith(JUDGE_AUTO_ON_LINE));
-  const run = await env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
-  assert.equal(settings(env).length, 0, 'delivery.approve does not bind the notice, so it gives no consent');
-  assert.equal(run.judge.status, 'waiting');
-  assert.equal(run.judge.line, JUDGE_AUTO_ON_LINE);
-  assert.equal(env.models.rulesTasks().length, 0);
-  const judged = await env.call('venture.delivery.judgeSend', { runId: run.id, digest: run.judge.preview.digest });
-  assert.equal(judgeOf(judged).passed, true);
-  assert.equal(settings(env).at(-1)!.consent!.how, 'send');
-});
-
-test('judgeAuto: a judge call whose cost was not shown before the write turn was approved waits for the owner', async () => {
-  // The setting turned on while the write call was out: the approval showed no judge cost.
-  const turnedOn = await manual();
-  turnedOn.models.onSend = async task => { if (task.purpose === 'delivery') await turnedOn.call('venture.judge.auto.set', { auto: true }); };
-  const unshown = await readyDraft(turnedOn);
-  assert.equal(unshown.judge.status, 'waiting');
-  assert.equal(unshown.judge.line, JUDGE_UNSHOWN_LINE);
-  assert.equal(turnedOn.models.rulesTasks().length, 0, 'nothing spent that was not shown');
-
-  // The judge's call came out dearer than the bound shown (a changed AI or rate card): it waits too.
-  const dearer = await business(PLAIN_IDEA);
-  dearer.models.estimateFor = task => rulesTask(task) ? '999999' : '1000';
-  const held = await readyDraft(dearer);
-  assert.equal(held.judge.status, 'waiting');
-  assert.equal(held.judge.line, JUDGE_UNSHOWN_LINE);
-  assert.equal(dearer.models.rulesTasks().length, 0);
-  const judged = await dearer.call('venture.delivery.judgeSend', { runId: held.id, digest: held.judge.preview.digest });
-  assert.equal(judgeOf(judged).passed, true, 'the owner sends it with its own cost in view');
+test("the quality preview uses the owner's rate card in the real model port",async()=>{
+ const env=await manual();const run=await readyDraft(env);await env.call('venture.delivery.judge',{runId:run.id});
+ const task=env.models.previewed.at(-1)!;
+ const {createModelPort,handlers,PRESETS}=await import('../runtime/venture/models/index.ts');
+ const values=new Map<string,string>();const secrets={get:(name:string)=>values.get(name)??null,set:(name:string,value:string)=>{values.set(name,value);},delete:(name:string)=>{values.delete(name);},has:(name:string)=>values.has(name),clear:()=>values.clear()};
+ const transport={replay:false,async http(){throw new Error('Preview must not dispatch');},async process(){throw new Error('Preview must not dispatch');}};
+ const port=createModelPort({...env.deps,transport,secrets,host:'test',demo:false,claudeCodeTerms:'accepted'} as any);
+ const deps={...env.deps,models:port,secrets};const preset=PRESETS.find(item=>item.id==='anthropic-haiku-5-5')!;
+ await handlers['venture.models.connect']!(deps,owner,{presetId:preset.id,consentDigest:preset.consentDigest,apiKey:['sk','ant','test','not','a','real','key'].join('-')});
+ const list=await port.preview(owner,task);assert.ok(list);
+ await env.call('venture.spend.policy.set',{rates:[{item:'model:anthropic-haiku-5-5',unit:'per-million-tokens',inputMicrosPerMillion:'10000000',outputMicrosPerMillion:'50000000',source:'My own contract',checkedOn:'2026-10-20'}]});
+ const card=await port.preview(owner,task);assert.ok(card);
+ assert.ok(BigInt(card.estimatedMaxCostMicros)>BigInt(list.estimatedMaxCostMicros)*50n,'owner pricing applies to the exact quality payload');
 });
 
 test('judgeAuto: between the ready draft and the judge, Accept waits; an accepted draft the judge never read says so', async () => {
@@ -642,54 +565,38 @@ test('judgeAuto: between the ready draft and the judge, Accept waits; an accepte
     if (!rulesTask(task)) return;
     const [listed] = await env.call('venture.delivery.list');
     between = listed;
-    await assert.rejects(env.call('venture.delivery.review', { runId: listed.id, verdict: 'accepted' }), code('INVALID_VENTURE_REQUEST'));
+    await assert.rejects(env.call('venture.delivery.review', { runId: listed.id, verdict: 'accepted' }), code('DELIVERY_NOT_READY'));
   };
   const run = await readyDraft(env);
   assert.equal(between.status, 'ready-for-review');
   assert.equal(between.canAccept, false, 'the judge is due, so Accept waits for it');
-  assert.equal(between.acceptBlocked, JUDGE_READING);
+  assert.equal(between.acceptBlocked, 'AI work must finish before you can approve this draft.');
   assert.equal(judgeOf(run).passed, true);
   assert.equal(run.canAccept, true);
   assert.equal(run.judgePending ?? null, null, 'the marker is gone once the judge is in');
 
   const unread = await business(PLAIN_IDEA);
-  unread.models.estimateFor = task => rulesTask(task) ? '999999' : '1000';
+  unread.models.refuseSend = task => rulesTask(task) ? new ChausarError('BUDGET_REACHED', 'Your monthly AI limit is reached.') : null;
   const waiting = await readyDraft(unread);
   assert.equal(waiting.canAccept, true, 'a judge call waiting for the owner does not hold Accept');
   await unread.call('venture.delivery.review', { runId: waiting.id, verdict: 'accepted' });
   const view = await unread.call('venture.queue.view', { id: waiting.id, kind: 'draft' });
-  assert.ok(view.sections.find((section: any) => section.heading === 'Checks').lines.includes('The judge never read this draft before you accepted it.'));
+  assert.ok(view.sections.find((section: any) => section.heading === 'Checks').lines.includes('The quality check never read this draft before you accepted it.'));
 });
 
-test('judgeAuto: a call left reading after its time is up stops holding Accept and stops saying it is reading', async () => {
-  const env = await business(PLAIN_IDEA);
-  const run = await readyDraft(env);
-  // A judge call that never came back (the app closed while it was out), its preview now past its time.
-  await ventureAction(env.deps, desktop, 'admin', 'seed.stuck', tx => {
-    const current = tx.find('venture-delivery-run', run.id)!;
-    tx.replace({
-      ...current, checks: current.checks.filter(item => item.check !== 'rules-judge'),
-      judge: { status: 'waiting', callId: 'call_stuck', preview: { ...run.judge.preview ?? {}, callId: 'call_stuck', digest: 'a'.repeat(64), payloadText: '{}', presetId: 'anthropic-haiku-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-21T10:30:00.000Z' }, at: tx.now, draftDigest: 'd', auto: true, estimatedMaxCostDisplay: 'USD 0.0010', line: null },
-    });
-  });
-  const reading = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'draft');
-  assert.equal(reading.line, JUDGE_READING, 'while its time lasts, Accept waits');
-  env.setNow('2026-10-21T10:31:00.000Z');
-  const open = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'draft');
-  assert.match(open.line, /The judge has not read this draft\./);
-  assert.doesNotMatch(open.line, /reading/);
-});
+
 
 test('judgeAuto: a verdict that comes back after an edit or a reject keeps the run line and never asks to try again', async () => {
   const edited = await business(PLAIN_IDEA);
   edited.models.onSend = async task => {
     if (!rulesTask(task)) return;
     const [listed] = await edited.call('venture.delivery.list');
-    await edited.call('venture.delivery.review', { runId: listed.id, verdict: 'edited', editedText: 'My own words for the client.' });
+    await assert.rejects(edited.call('venture.delivery.review', { runId: listed.id, verdict: 'edited', editedText: 'My own words for the client.' }),code('DELIVERY_NOT_READY'));
+    await ventureAction(edited.deps,desktop,'approve','test.concurrent-edit',tx=>{const live=tx.find('venture-delivery-run',listed.id)!;tx.replace({...live,status:'edited',verdict:{choice:'edited',reason:null,at:tx.now},renderedText:'My own words for the client.'});});
   };
   const run = await readyDraft(edited);
   assert.equal(run.status, 'edited');
-  assert.equal(run.judge.line, JUDGE_EDIT_LINE);
+  assert.match(run.judge.line, /draft changed/i);
   assert.equal(judgeOf(run), undefined);
 
   const rejected = await business(PLAIN_IDEA);
@@ -700,8 +607,8 @@ test('judgeAuto: a verdict that comes back after an edit or a reject keeps the r
   };
   const gone = await readyDraft(rejected);
   assert.equal(gone.status, 'rejected');
-  assert.equal(gone.judge.line, 'The draft was decided while the judge read it, so its answer is not kept.');
-  assert.doesNotMatch(gone.judge.line, /Ask the judge again/);
+  assert.match(gone.judge.line, /draft changed/i);
+  assert.doesNotMatch(gone.judge.line, /Ask the quality check again/);
 });
 
 test('the journal: a standing approval is only for the judge\'s own send, and approveAction never makes one', async () => {

@@ -1,0 +1,85 @@
+/* Business > Go or no go (Ink v2 wave 5, 5A2; catalogue M18): the form, then each card as a tile, newest first. The
+   verdict is a chip in words (never colour alone); the most you could lose is a figure with its receipt. Tokens only. */
+
+.form {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.amounts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+.end {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cards {
+  display: grid;
+  gap: var(--gap-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3) var(--sp-6);
+  margin: 0;
+}
+
+.pair {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.pair dt {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.pair dd {
+  margin: 0;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.unknown {
+  margin: 0;
+  padding-left: var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--fail);
+}
+
+@media (max-width: 759px) {
+  .amounts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

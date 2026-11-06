@@ -1,0 +1,93 @@
+/* The client's brand kit on the client sheet (Ink v2 wave 5, 5A4). Tokens only; rows on D's soft dividers; it
+   stacks at phone width. */
+.kit {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.quote {
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.fields {
+  margin: 0;
+  display: grid;
+}
+
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.field:first-child {
+  border-top: 0;
+}
+
+.label {
+  flex: 0 0 9em;
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.value {
+  flex: 1 1 14em;
+  min-width: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: baseline;
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.source {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.form {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.pick {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.select {
+  composes: input from '../../parts/Field.module.css';
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}

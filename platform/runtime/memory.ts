@@ -5,7 +5,8 @@ export type FactInput = { entityId: string; sourceId: string; sourceRow: number;
 export type Period = { from: string; to: string };
 export type FactFilter = { period?: Period; asOf?: string; branch?: string; customerId?: string; orderId?: string; kinds?: string[] };
 export type FactSelection = { facts: Fact[]; conflicts: { entityId: string; kind: string; rowIds: string[]; reason: string }[]; excluded: { rowId: string; reason: string }[]; asOf: string };
-export function validDate(value: unknown): value is string { if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false; const d = new Date(`${value}T00:00:00.000Z`); return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === value; }
+import {validDate} from './date-core.ts';
+export {validDate} from './date-core.ts';
 export function gstinValid(input: unknown): input is string {
   if (typeof input !== 'string' || !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(input)) return false;
   const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'; let sum = 0, factor = 2;

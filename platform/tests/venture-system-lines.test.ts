@@ -23,7 +23,7 @@ const decide = (env: Env, row: QueueRow, action: string, extra: Record<string, u
 
 test('systemLineOk: a subject and its verb first, at most one consequence, one line, no dash, no shouting', () => {
   for (const line of [
-    'Plan accepted.', 'Plan accepted · you send it to the client', 'Draft accepted. You send it to the client.', 'The judge is reading this draft.',
+    'Plan accepted.', 'Plan accepted · you send it to the client', 'Draft accepted. You send it to the client.', 'The quality check is reading this draft.',
     "Allowed by your Auto setting on 'Cut the episode', without asking", 'Waiting since yesterday', 'Issued INV-0001.', '3 need you',
   ]) assert.equal(systemLineProblem(line), null, line);
   for (const [line, problem] of [

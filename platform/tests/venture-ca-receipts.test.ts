@@ -1,10 +1,13 @@
 // Ink v2 wave 2, package 2A2 (catalogue CA1, audit finance "stored CA receipts"): the CA firm's statements reconcile and
 // the portal diff as agent tools, CA receipts stored whole and worked again on the exact table versions they stamped,
 // and the CA's explanation of each portal difference. Everything goes through the real callers: venture.delivery.run
-// and venture.delivery.approve with a scripted model port that never touches the network, venture.ca.receipt and
+// with scoped scripted-agent tools that never touch the network, venture.ca.receipt and
 // venture.ca.explainDiff. Also the interest table for the tax year 2026-27 (assessment year 2027-28), sections 423, 424
 // and 425 of the Income-tax Act, 2025, unconfirmed until the CA confirms it.
 import test from 'node:test';
+import { calculatorAgent, calculatorRun, type CalculatorStep } from './fixtures/venture/calculator-agent.ts';
+import { consentForOrder } from './fixtures/venture/scripted-agent.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
@@ -81,7 +84,7 @@ class Port implements ModelPort {
     this.#previews.set(callId, { digest: digest(payloadText), task });
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-21T10:30:00.000Z',
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -121,7 +124,8 @@ async function business() {
     github: { kind: 'fixture', async read() { throw new ChausarError('GITHUB_READ_FAILED', 'No GitHub here.'); } },
     secrets, host: 'test', demo: true, storage: 'experimental-file',
   };
-  const call = (method: VentureMethod, payload: unknown = {}, ctx: Context = owner): Promise<any> => {
+  const call = async (method: VentureMethod, payload: unknown = {}, ctx: Context = owner): Promise<any> => {
+    if(method==='venture.delivery.run'){await trust.updatePolicy(owner,{send:'shape'});await consentForOrder(deps,owner,(payload as {orderId:string}).orderId);}
     const handler = HANDLERS[method];
     assert.ok(handler, `no handler for ${method}`);
     return handler(deps, ctx, payload);
@@ -174,15 +178,16 @@ function script(env: Env, turns: unknown[], draft: unknown) {
   env.models.respond['agent-turn'] = () => turns[Math.min(next++, turns.length - 1)];
   env.models.respond.delivery = () => draft;
   env.models.respond.judge = judgeYes;
+  calculatorAgent(env.deps,turns as CalculatorStep[],draft);
 }
 
 async function deliver(env: Env, orderId: string): Promise<DeliveryRunView> {
-  let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId });
-  for (let guard = 0; run.status === 'waiting-for-you' && guard < 8; guard += 1) run = await env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
-  return run;
+ const run=await env.call('venture.delivery.run',{orderId});return settled(env,run);
 }
+async function settled(env:Env,run:DeliveryRunView):Promise<DeliveryRunView>{await waitForAgentWork(env.store,run.id);const current=(await env.call('venture.delivery.list')).find((row:DeliveryRunView)=>row.id===run.id);nativeRuns.set(run.id,calculatorRun(env.deps,run.id));return current;}
+const nativeRuns=new Map<string,ReturnType<typeof calculatorRun>>();
 
-const calls = (run: DeliveryRunView, tool: string): ToolCallRecord[] => run.harness!.toolCalls.filter(item => item.tool === tool);
+const calls = (run: DeliveryRunView, tool: string): ToolCallRecord[] => (nativeRuns.get(run.id)?.agentJob?.calculations??[]).filter(item => item.tool === tool);
 const errorOf = (record: ToolCallRecord) => (record.envelope.ok ? null : record.envelope.error);
 const playbookCheck = (run: { playbookChecks?: DeliveryRunView['playbookChecks'] }, id: string) => {
   const found = run.playbookChecks?.find(item => item.check === id);
@@ -240,7 +245,7 @@ test('tax.statements: the agent maps the books and AIS column by column; the cal
   // Kept whole: worked again from its inputs it is the same receipt.
   const again = reconcileTaxStatements(receipt.ca!.inputs as unknown as { entries: StatementEntry[] });
   assert.equal(again.id, receipt.ca!.caReceiptId);
-  assert.ok(run.harness!.proofs.some(proof => proof.kind === 'totals' && proof.receiptId === receipt.id), 'the auditor kept the calculator proof');
+  assert.ok(calculatorRun(env.deps,run.id).agentJob!.calculations!.some(call=>call.receiptIds.includes(receipt.id)), 'the native calculator kept the receipt provenance');
   const result = (matched.envelope.ok ? matched.envelope.result : null) as { receipt: string; differences: { amount: string; line: string }[] };
   assert.equal(result.receipt, 'w1');
   assert.deepEqual(result.differences.map(item => item.amount), [`w1.${INTEREST_DIFF}-amount`]);
@@ -276,7 +281,7 @@ test('tax.statements: a column, a category or an amount it cannot read fails and
     ['tax.statements', { entries: [books, { ...ais, categories: [{ written: 'Lottery', category: 'other' }] }] }],
   ]), DONE], papers('AIS', { work: [words('Matched.')], open: [words('Nothing is open.')] }));
   let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId: order.id });
-  run = await env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
+  run = await settled(env,run);
   const [booksOnly, noColumn, noCategory, mapped] = calls(run, 'tax.statements');
   assert.equal(errorOf(booksOnly)!.code, 'TOOL_FAILED');
   assert.match(errorOf(booksOnly)!.message, /AIS, 26AS or Form 16/);
@@ -402,7 +407,7 @@ test('tax.portal: the portal\'s figures against the named receipts by key; the d
   assert.deepEqual(diff.figures.map(item => [item.key, item.minor]), [['net-payable', R(75)], ['output-cgst', '0'], ['output-igst', '0'], ['output-sgst', '0']]);
   const again = portalDiffReceipt(diff.ca!.inputs as unknown as { ours: OurFigure[]; portal: PortalFigure[] });
   assert.equal(again.id, diff.ca!.caReceiptId);
-  assert.ok(run.harness!.proofs.some(proof => proof.kind === 'totals' && proof.receiptId === diff.id), 'the auditor kept the calculator proof');
+  assert.ok(calculatorRun(env.deps,run.id).agentJob!.calculations!.some(call=>call.receiptIds.includes(diff.id)), 'the native calculator kept the receipt provenance');
 
   const explained = playbookCheck(run, 'portal-diff-explained');
   assert.equal(explained.outcome, 'fail');
@@ -463,13 +468,12 @@ test('an explanation the CA records while the run is still working counts when t
   const order = await caOrder(env, 'gst-working', 'GST working for October, and the portal summary I exported.', [
     { name: 'sales-register-october.csv', content: SALES_REGISTER }, { name: 'gstr3b-portal.csv', content: PORTAL },
   ]);
-  script(env, [turn('Work the GST, then compare the portal', [['tax.gst', GST_CALL], ['tax.portal', PORTAL_CALL]]), DONE], GST_PAPERS);
-  let run: DeliveryRunView = await env.call('venture.delivery.run', { orderId: order.id });
-  run = await env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
-  assert.equal(run.status, 'waiting-for-you');
-  const diff = workReceipts(env).find(item => item.ca?.engine === 'portal-diff')!;
-  await env.call('venture.ca.explainDiff', { receiptId: diff.id, key: 'net-payable', note: 'The portal rounds the payable; the CA accepts it.', membershipNo: CA.membershipNo });
-  while (run.status === 'waiting-for-you') run = await env.call('venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
+  calculatorAgent(env.deps,[turn('Work the GST, then compare the portal', [['tax.gst', GST_CALL], ['tax.portal', PORTAL_CALL]])],GST_PAPERS,undefined,async()=>{
+    const diff=workReceipts(env).find(item=>item.ca?.engine==='portal-diff')!;
+    assert.equal(calculatorRun(env.deps,(diff.runRef as {runId:string}).runId).status,'waiting-for-you');
+    await env.call('venture.ca.explainDiff',{receiptId:diff.id,key:'net-payable',note:'The portal rounds the payable; the CA accepts it.',membershipNo:CA.membershipNo});
+  });
+  const run=await deliver(env,order.id);
   assert.equal(run.status, 'ready-for-review');
   const check = playbookCheck(run, 'portal-diff-explained');
   assert.equal(check.outcome, 'pass', check.detail);
@@ -584,7 +588,7 @@ test('the reconcile step holds tax.statements beside its old tools, and the comp
   const reconcile = CA_STEPS.find(step => step.id === 'reconcile')!;
   assert.deepEqual([...reconcile.tools], ['files.read', 'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick', 'tax.statements', 'handoff.client', 'handoff.owner']);
   const compute = CA_STEPS.find(step => step.id === 'compute')!;
-  assert.deepEqual([...compute.tools], ['files.read', 'tax.income', 'tax.interest', 'tax.gst', 'tax.tds', 'tax.portal', 'handoff.owner']);
+  assert.deepEqual([...compute.tools], ['files.read', 'tax.income', 'tax.interest', 'tax.gst', 'tax.tds', 'tax.portal', 'tax.citations', 'tax.formChooser', 'tax.advance', 'tax.whatIf', 'books.healthCheck', 'docs.entry', 'handoff.owner']);
   const portal = CA_STEPS.find(step => step.id === 'portal-diff')!;
   assert.deepEqual([portal.tier, portal.tools.length, portal.gate], ['code', 0, 'ca-accepts-portal-diff']);
   assert.equal(validatePlaybook(caFirmPlaybookSteps()).validated, true);

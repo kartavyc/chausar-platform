@@ -17,7 +17,7 @@ import { manifest } from './harness/dictionary.ts';
 import {
   actTask, answerHandoff, applyTurn, finishWrite, harnessRefs, newHarnessState, playbookGrant, provenSentences, REPORT_SECTIONS, runCapMicros, skipActs, writeGuidance, writeTask,
 } from './harness/loop.ts';
-import { youtubeWorked } from './harness/tools-youtube.ts';
+import { youtubeWorked } from './harness/youtube-worked.ts';
 import { practiceFiles } from './harness/practice.ts';
 import { judgedAnswers, judgeTask, notJudged } from './judge.ts';
 import { ensurePlaybook, flagshipDraft, playbookLimits } from './playbook.ts';

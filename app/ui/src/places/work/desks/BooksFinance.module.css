@@ -1,0 +1,4 @@
+/* Original token-only layout. Long client order labels remain within a phone viewport. */
+.root { display: grid; gap: var(--gap-cards); min-width: 0; }
+.root label { display: grid; gap: var(--gap-cards); min-width: 0; }
+.root select { width: 100%; max-width: 100%; min-width: 0; }

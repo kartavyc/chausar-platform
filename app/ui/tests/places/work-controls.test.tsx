@@ -15,7 +15,7 @@ import { assertInkRules, assertOnePrimary } from '../helpers/ink-rules';
 
 type Call = { method: string; params: unknown };
 type Intercept = (params: unknown, real: () => Promise<unknown>) => unknown;
-interface StartOptions { language?: 'en' | 'hi'; intercept?: Partial<Record<MethodName, Intercept>> }
+interface StartOptions { language?: 'en'; intercept?: Partial<Record<MethodName, Intercept>> }
 
 const NOW = () => new Date('2026-10-23T19:05:00.000+05:30');
 
@@ -46,7 +46,7 @@ const STOPPED: RunDetail = {
   runId: '25', businessId: 'lumen', agent: 'Editor', purpose: 'Rendering the poster set', state: 'waiting', startedAt: '2026-10-21T09:40:00.000Z', elapsed: '2m',
   progress: { done: 1, total: 3 }, result: 'Stopped: the same error came back three times: ffmpeg was not found on this computer.',
   stop: { state: 'stopped', line: 'Stopped: the same error came back three times: ffmpeg was not found on this computer.', trigger: 'same-error' },
-  fix: 'Install ffmpeg, or turn off the finishing check, then run again.', fixKind: 'install-ffmpeg',
+  fix: 'Install ffmpeg, then run the required finishing checks again.', fixKind: 'install-ffmpeg',
   steps: [
     { id: 's1', purpose: 'Picked 3 frames for the poster', state: 'done', elapsed: '20s' },
     { id: 's2', purpose: 'Render the poster', state: 'waiting' },
@@ -98,7 +98,7 @@ describe('Work: Stop on each running tile (O1)', () => {
     await click(resume);
     expect(of(calls, 'venture.runs.resume')).toEqual([{ runId: '31' }]);
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Stopped' })).toBeNull());
-  });
+  }, 15_000);
 
   it('Force stop names what is lost and asks once more; Not now leaves the run alone', async () => {
     const { calls } = await start();
@@ -139,7 +139,7 @@ describe('Work: the stopped tile (O1, O14)', () => {
     expect(fix.getAttribute('aria-expanded')).toBe('false');
     await click(fix);
     expect(fix.getAttribute('aria-expanded')).toBe('true');
-    expect(within(tile).getByText('Install ffmpeg, or turn off the finishing check, then run again.')).toBeTruthy();
+    expect(within(tile).getByText('Install ffmpeg, then run the required finishing checks again.')).toBeTruthy();
     expect(within(tile).getByRole('button', { name: 'Resume' }).getAttribute('data-variant')).toBe('primary');
     assertInkRules();
     await click(within(tile).getByRole('button', { name: 'Run again' }));
@@ -158,38 +158,7 @@ describe('Work: the stopped tile (O1, O14)', () => {
     expect(within(tile).queryByRole('button', { name: 'How to fix it' })).toBeNull();
   });
 
-  it('a failed run with a fix from the engine offers How to fix it; the fix is worded in Hindi too', async () => {
-    const fixed = (p: unknown, real: () => Promise<unknown>) => ((p as { runId: string }).runId === '28'
-      ? real().then((run) => ({ ...(run as RunDetail), fix: 'Install ffmpeg, or turn off the finishing check, then run again.', fixKind: 'install-ffmpeg' }))
-      : real());
-    await start('#/work', { language: 'hi', intercept: { 'venture.runs.get': fixed } });
-    const tile = await tileOf('Rendering the thumbnail set');
-    const fix = await within(tile).findByRole('button', { name: 'ठीक कैसे करें' });
-    await click(fix);
-    expect(within(tile).getByText('ffmpeg इंस्टॉल करें, या फ़िनिशिंग जाँच बंद करें, फिर दोबारा चलाएँ।')).toBeTruthy();
-  });
-});
 
-describe('Work: the round gate (O2)', () => {
-  it('the gate row shows on the waiting tile with an optional note, and Continue carries it into the next step', async () => {
-    const gated = (p: unknown, real: () => Promise<unknown>) => ((p as { runId: string }).runId === '29'
-      ? real().then((run) => ({ ...(run as RunDetail), question: undefined, gate: { on: true, every: 1, waiting: { round: 2, reason: 'finished', line: 'Round 2 is done: 3 tool calls, 1 failed.' } } }))
-      : real());
-    const row: QueueRow = {
-      id: 'runctl:29:gate-2', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Producer', kind: 'question', createdAt: '2026-10-21T10:05:00.000Z',
-      title: 'Round 2 of the draft for Boat Club is done: 3 tool calls, 1 failed. Continue or stop?', line: 'Round 2 is done: 3 tool calls, 1 failed.', digest: 'd-gate',
-      viewRef: { kind: 'run', id: '29' }, actions: [{ id: 'stop', label: 'Stop', primary: false }, { id: 'continue', label: 'Continue', primary: true }],
-    };
-    const { calls } = await start('#/work', { intercept: { 'venture.runs.get': gated, 'venture.queue.list': withRows(row) } });
-    const tile = await tileOf('Pricing the sponsor slot');
-    const gate = await within(tile).findByRole('group', { name: 'Round 2 is done: 3 tool calls, 1 failed.' });
-    expect(within(tile).queryByRole('button', { name: 'Stop run 29' })).toBeNull();
-    fireEvent.change(within(gate).getByLabelText('Anything for the next step? (optional)'), { target: { value: 'Keep the price under the brief.' } });
-    expect(within(gate).getByRole('button', { name: 'Continue' }).getAttribute('data-variant')).toBe('primary');
-    assertOnePrimary();
-    await click(within(gate).getByRole('button', { name: 'Continue' }));
-    expect(of(calls, 'venture.queue.decide')).toEqual([{ id: 'runctl:29:gate-2', digest: 'd-gate', action: 'continue', viewed: false, answer: 'Keep the price under the brief.' }]);
-  });
 });
 
 describe('Today: Stop in Working now', () => {
@@ -263,7 +232,7 @@ describe('4F3 review', () => {
     expect(await screen.findByText('Paused by you. No new work starts until you unpause.')).toBeTruthy();
   });
 
-  it("a stopped run's step reads Waiting for Resume; the tile's Stop hides while the round gate waits", async () => {
+  it("a stopped run's step reads Waiting for Resume", async () => {
     await start('#/work', { intercept: withRun({ ...STOPPED, stop: { state: 'stopped', line: 'Stopped by you. Finished steps are kept.' } }) });
     const tile = await tileOf('Rendering the poster set');
     expect(await within(tile).findByText('Waiting for Resume')).toBeTruthy();
@@ -277,7 +246,7 @@ describe('4F3 review', () => {
   });
 
   it('after Resume the focus goes to the next tile', async () => {
-    await start('#/work', { intercept: { ...withRun(STOPPED), 'venture.runs.resume': () => ({ run: STOPPED, line: 'Resumed. Approve the next step when you are ready.' }) } });
+    await start('#/work', { intercept: { ...withRun(STOPPED), 'venture.runs.resume': () => ({ run: STOPPED, line: 'Resumed in a new AI session.' }) } });
     const tile = await tileOf('Rendering the poster set');
     await click(within(tile).getByRole('button', { name: 'Resume' }));
     await waitFor(() => expect(document.activeElement?.closest('li')).toBe(screen.getByRole('heading', { level: 3, name: 'Rendering the thumbnail set' }).closest('li')));

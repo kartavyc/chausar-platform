@@ -17,13 +17,13 @@ const STAGE_POSTURE: Readonly<Record<LaunchStage, Posture>> = Object.freeze({
 
 /** How a reason names each posture: "In shadow, each step waits for you." */
 export const POSTURE_WORDS: Readonly<Record<Posture, string>> = Object.freeze({
-  rehearsal: 'In rehearsal', shadow: 'In shadow', 'approve-each': 'While you approve each one', 'auto-spot-check': 'With spot checks',
+  rehearsal: 'In rehearsal', shadow: 'In practice on real orders', 'approve-each': 'While you approve each one', 'auto-spot-check': 'With spot checks',
 });
 
 /** 0 for the strictest. An unknown posture is refused, never ranked. */
 export function postureRank(posture: Posture): number {
   const rank = POSTURES.indexOf(posture);
-  check(rank >= 0, 'INVALID_VENTURE_REQUEST', 'That is not a posture.');
+  check(rank >= 0, 'INVALID_VENTURE_REQUEST', 'Choose how much it asks you.');
   return rank;
 }
 

@@ -9,6 +9,11 @@ import { formatHash, parseHash, type PlaceId, type Route } from './routes';
 
 let origin: { element: HTMLElement | null; rowId: string | null } = { element: null, rowId: null };
 
+/** Release detached private DOM and row identities when Forget resets the frame. */
+export function forgetFocusOrigin(): void {
+  origin = { element: null, rowId: null };
+}
+
 function subscribe(callback: () => void) {
   window.addEventListener('hashchange', callback);
   return () => window.removeEventListener('hashchange', callback);

@@ -1,3 +1,16 @@
+import {eraseTriageNaming} from '../playbooks/it-triage/privacy.ts';
+import {eraseWatchNaming} from '../playbooks/monitored-data/privacy.ts';
+import {eraseDevNaming} from '../playbooks/dev-agency/privacy.ts';
+import {eraseFormsNaming,clearForgottenFormSignIns} from '../playbooks/data-entry-desk/privacy.ts';
+import {eraseAppTesting,clearForgottenDemoDesktops,clearForgottenAppTests} from '../playbooks/app-testing/privacy.ts';
+import {eraseReceptionist} from '../playbooks/phone-receptionist/privacy.ts';
+import {eraseLessons} from '../playbooks/lesson-desk/privacy.ts';
+import {eraseBookings} from '../playbooks/booking-desk/privacy.ts';
+import { eraseAppNaming } from '../apps/privacy.ts';
+import {eraseOpenPostingNaming} from '../build/open-posting-privacy.ts';
+import { removePostingLogEntries } from '../build/post-log.ts';
+import {eraseCareerNaming} from '../playbooks/job-search-desk/privacy.ts';
+import {eraseClientRooms} from '../playbooks/kit/client-room-privacy.ts';
 // Chausar venture launcher, network (Ink v2 wave 4, package 4D1): Forget, the DPDP erasure of one person, in one step.
 // The person goes, and so does everything kept about them: ties, evidence rows, pipeline cards and drafts, their place
 // in plain-English search results, inbound mail from them or matched to their cards, leads with their email,
@@ -20,8 +33,31 @@ import { eraseContractsNaming } from '../money/order-contracts.ts';
 import { eraseKnowledgeNaming } from '../agents/knowledge.ts';
 import { eraseFileCallsNaming } from '../core/attachment.ts';
 import { eraseFileRequestsNaming } from '../build/file-requests.ts';
+import { importedMailOf } from '../build/mail-in.ts';
+import { eraseSocialChainNaming } from '../playbooks/social/chain-privacy.ts';
+import { eraseSocialD2Naming } from '../playbooks/social/d2-privacy.ts';
+import { eraseInfluencerNaming } from '../playbooks/social/influencer-privacy.ts';
+import {eraseYoutubeResearch} from '../playbooks/youtube/research-privacy.ts';
+import { eraseScheduledNaming } from '../playbooks/social/scheduled-privacy.ts';
+import {eraseRecruitingNaming} from '../playbooks/recruiting-desk/privacy.ts';
+import {eraseTranslationNaming} from '../playbooks/translation-studio/privacy.ts';
+import {eraseArticleNaming} from '../playbooks/podcast-to-article/privacy.ts';
+import {eraseSiteNaming} from '../playbooks/website-studio/privacy.ts';
+import {eraseNewsletterNaming} from '../playbooks/newsletter-studio/privacy.ts';
+import {eraseNarrationNaming} from '../playbooks/narration-studio/privacy.ts';
+import {eraseTenderNaming} from '../playbooks/tender-desk/privacy.ts';
+import {eraseDocumentNaming} from '../playbooks/document-desk/privacy.ts';
+import {eraseSignoffNaming} from '../playbooks/signoff-desk/privacy.ts';
+import { eraseSupportNaming } from '../playbooks/support-desk/privacy.ts';
+import {eraseCaNaming} from '../playbooks/ca-firm/privacy.ts';
+import { eraseSellerNaming } from '../playbooks/online-seller/privacy.ts';
+import {eraseBooksNaming} from '../playbooks/bookkeeping-cfo/privacy.ts';
 import { eraseRoutinesNaming } from '../agents/routines.ts';
 import { eraseCallText, removeFromSearches } from './saved-searches.ts';
+import { eraseAgentJobs, eraseAgentJobRecords } from '../agent-runtime/privacy.ts';
+import { stopClientAgentJobs, stopAgentJob } from '../agent-runtime/lifecycle.ts';
+import { eraseCrmNaming } from '../crm/crm.ts';
+import { eraseFactsNaming } from '../memory/facts.ts';
 
 /** Said with every Forget: a backup the owner made earlier is a copy Chausar cannot reach into. */
 /** What a model call's stored text reads as once it named someone the owner asked Chausar to forget (4E3). */
@@ -197,7 +233,8 @@ const sharesHandle = (person: PersonRecord, emails: ReadonlySet<string>, phones:
  * fact without them. An Undo (erase false) removes only what the import's people had: ties, evidence, cards and drafts.
  * Answers how many pipeline cards and drafts went.
  */
-export function removePersonData(tx: VentureTx, people: PersonRecord[], options: { erase: boolean }): { cards: number; drafts: number } {
+export function removePersonData(tx: VentureTx, people: PersonRecord[], options: { erase: boolean; secrets?: VentureDeps['secrets']; captions?: VentureDeps }): { cards: number; drafts: number } {
+  const priorPosts = options.erase ? tx.list('venture-connector-post').map(post => ({ id: post.id, connectorId: post.connectorId, text: post.text })) : [];
   const ids = new Set(people.map(person => person.id));
   if (!ids.size) return { cards: 0, drafts: 0 };
   const emails = new Set(people.flatMap(person => person.handles.emails));
@@ -242,7 +279,11 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     if (!scrubbed && absorbed?.length === record.absorbed?.length && before?.length === record.before?.length) continue;
     tx.replace<NetworkImportRecord>({ ...record, ...(absorbed ? { absorbed } : {}), ...(before ? { before } : {}) });
   }
+  // W6 6G3: the field history, company links, list places and logged timeline entries kept about them and their client.
+  eraseCrmNaming(tx, { personIds: gone, clientIds: new Set(options.erase ? people.flatMap(person => (person.clientId ? [person.clientId] : [])) : []), erase: options.erase, handles: [...emails, ...phones, ...urls], mentionsName });
   if (options.erase) {
+    const agentRuns = tx.list('venture-delivery-run').filter(run => run.agentJob);
+    eraseAgentJobs(tx, new Set(people.flatMap(person => person.clientId ? [person.clientId] : [])));
     // 4D2: a link the owner made leads to someone who stays, directly or through the merges they took in; one that
     // leads to no one any more goes too.
     const staying = tx.list('venture-person').filter(person => !ids.has(person.id));
@@ -272,7 +313,43 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     // 4J12: messages between agents, and order contract words (with their marks and a run's contract check), that name them.
     if (names) { eraseRelaysNaming(tx, mentionsName); eraseContractsNaming(tx, mentionsName); }
     // 4J18: their name in what the AI knows (the sources' titles, words and page addresses) and in kept ideas.
-    if (names) eraseKnowledgeNaming(tx, names);
+    // 5A3 review: an idea's words lose their email and phone too.
+    eraseKnowledgeNaming(tx, names, [...emails, ...phones]);
+    // W6 6G4: the dated facts about their clients, and any fact whose words name them, with every version.
+    eraseFactsNaming(tx, { clientIds: new Set(people.flatMap(person => (person.clientId ? [person.clientId] : []))), handles: [...emails, ...phones, ...urls], mentionsName });
+    eraseSupportNaming(tx, emails, mentionsName, phones);
+    eraseTriageNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseWatchNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseDevNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseFormsNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseCareerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseClientRooms(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseSellerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
+    eraseBooksNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
+    eraseCaNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseRecruitingNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);
+    eraseTranslationNaming(tx,new Set([...emails,...phones,...urls]),mentionsName,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),options.captions);
+    eraseArticleNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseSiteNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
+    eraseNewsletterNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseYoutubeResearch(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseNarrationNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseAppTesting(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseReceptionist(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    // W6 6E2, 6E3: the lesson desk's learners and messages, and the booking desk's bookings, of a forgotten family or client.
+    eraseLessons(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseBookings(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    // W6 6H1 (DPDP): mini app notes and making-chat messages that name them.
+    eraseAppNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseTenderNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    // W6 6E4, 6E5: client documents and sign-off requests.
+    eraseDocumentNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseSignoffNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
+    eraseOpenPostingNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName,options.secrets);
+    eraseScheduledNaming(tx, new Set([...emails,...phones,...urls]), mentionsName);
+    eraseSocialChainNaming(tx,new Set([...emails,...phones,...urls]),mentionsName);
+    eraseSocialD2Naming(tx,new Set([...emails,...phones,...urls]),mentionsName,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])));
+    eraseInfluencerNaming(tx,new Set(people.flatMap(person=>person.clientId?[person.clientId]:[])),new Set([...emails,...phones,...urls]),mentionsName);
     // 4J8: the text of calls that carried a file the owner dropped (the plan, a plan suggestion) when it names them.
     if (names) eraseFileCallsNaming(tx, mentionsName);
     // 4J7 (K9, O20): a file request's note, a client's file name and a share link comment that name them.
@@ -287,6 +364,12 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     const naming = (text: unknown) => typeof text === 'string' && (mentionsName(text) || handles.some(handle => text.toLowerCase().includes(handle.toLowerCase())));
     eraseCallText(tx, new Set(), ERASED_NAMED_CALL, call => Object.entries(call).some(([key, value]) => key.endsWith('Text') && naming(value))
       || naming((call as { error?: { message?: unknown } | null }).error?.message));
+    // Domain erasure may clear a run's source or draft before its nested native copies are reached.
+    // Its original snapshot retains exact call links; unrelated jobs and client consent stay intact.
+    eraseAgentJobRecords(tx, agentRuns.filter(run => {
+      const before = JSON.stringify(run), current = tx.find('venture-delivery-run', run.id);
+      return naming(before) || !current || JSON.stringify(current) !== before;
+    }));
     // 4E3: the calls Today would ask for notes about leave them out; a call left with no one goes.
     for (const feed of tx.list('venture-calendar-feed')) {
       const events = feed.events.map(event => ({ ...event, personIds: event.personIds.filter(id => !ids.has(id)) })).filter(event => event.personIds.length > 0);
@@ -294,6 +377,8 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
     }
   }
   let cards = 0, drafts = 0;
+  // 5A6: imported mail keeps words and files, so each imported message of a thread they wrote in, were sent or copied in.
+  const importedGone = options.erase && tx.venture ? importedMailOf(tx.state, tx.venture, emails, mentionsName) : new Set<string>();
   removeRecords(tx, record => {
     switch (record.kind) {
       case 'venture-person': return ids.has(record.id as string);
@@ -308,18 +393,38 @@ export function removePersonData(tx: VentureTx, people: PersonRecord[], options:
         // mail that waits on the owner to say whether it is about one of their cards.
         const bounced = ((record.bounces as { address?: string }[] | undefined) ?? []).some(item => typeof item.address === 'string' && emails.has(item.address));
         const candidates = (record.candidates as { opportunityId?: string }[] | undefined) ?? [];
-        return (typeof record.from === 'string' && emails.has(record.from.trim().toLowerCase())) || (!!matched && (cardIds.has(matched) || leadIds.has(matched)))
+        return importedGone.has(record.id as string)
+          || (typeof record.from === 'string' && emails.has(record.from.trim().toLowerCase())) || (!!matched && (cardIds.has(matched) || leadIds.has(matched)))
           || bounced || (typeof record.personId === 'string' && ids.has(record.personId))
           || candidates.some(item => !!item.opportunityId && (cardIds.has(item.opportunityId) || leadIds.has(item.opportunityId)));
+      }
+      case 'venture-lead-source': {
+        if (!options.erase) return false;
+        const evidence = JSON.stringify(record.community ?? null);
+        return (typeof record.personId === 'string' && ids.has(record.personId)) || mentionsName(evidence) || [...emails, ...phones].some(contact => evidence.toLowerCase().includes(contact.toLowerCase()));
       }
       case 'venture-lead': return options.erase && typeof record.email === 'string' && emails.has(record.email.toLowerCase());
       case 'venture-notification': return options.erase && (mentionsId(record.subject) || mentionsId(record.rowId) || mentionsName(record.title));
       case 'venture-proposal': return options.erase && (mentionsId(JSON.stringify(record.input ?? null)) || mentionsName(record.title) || mentionsName(record.line));
+      // Ink v2 wave 5 (5A2): a sales proposal drafted for them (playbooks/kit/proposal.ts) goes as their drafts do, on an
+      // Undo too; Forget also takes one drafted for their client and any whose words name them.
+      // 5K1: client-linked promises retain contact words and disappear on Forget.
+      case 'venture-promise-to-pay': case 'venture-collection-stage': return options.erase
+        && ((typeof record.clientId === 'string' && people.some(person => person.clientId === record.clientId))
+          || mentionsName(record.statedBy) || mentionsName(JSON.stringify(record.ladder ?? null))
+          || (typeof record.statedBy === 'string' && [...emails, ...phones].some(contact => String(record.statedBy).toLowerCase().includes(contact.toLowerCase()))));
+      case 'venture-sales-proposal': return (typeof record.personId === 'string' && ids.has(record.personId))
+        || (options.erase && ((typeof record.clientId === 'string' && people.some(person => person.clientId === record.clientId))
+          || mentionsName(record.toName) || mentionsName(record.text)));
       case 'venture-sum-receipt': return options.erase && Array.isArray(record.addends)
         && (record.addends as { recordId?: unknown }[]).some(addend => countedIds.has(addend.recordId as string));
       default: return false;
     }
   });
+  if (options.erase && options.captions) {
+    const erased = priorPosts.filter(post => { const current = tx.find('venture-connector-post', post.id); return !current || current.text !== post.text || current.digest === 'erased'; });
+    removePostingLogEntries(options.captions, erased);
+  }
   return { cards, drafts };
 }
 
@@ -337,6 +442,8 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
   const key = networkKey(deps);
   readAs(deps, ctx, 'approve'); // a caller who may not forget adds no one to the shared list (4J6)
   const shared = await shareForgotten(deps, id);
+  let forgottenClient: string | null = null;
+  let forgottenRuns: string[] = [];
   return ventureAction(deps, ctx, 'approve', 'network.forget', tx => {
     const person = tx.find('venture-person', id);
     check(person, 'INVALID_VENTURE_REQUEST', 'This person is not in your network.');
@@ -356,6 +463,7 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
       ...(person.handles.linkedinUrl ? [{ kind: 'linkedin' as const, hash: handleHash(key, 'linkedin', person.handles.linkedinUrl) }] : []),
     ];
     const client = person.clientId ? tx.find('venture-client', person.clientId) : undefined;
+    forgottenClient = client?.id ?? null;
     const invoices = client ? tx.list('venture-invoice').filter(invoice => invoice.clientId === client.id).length : 0;
     const kept = !client ? [] : invoices > 0 ? ['The client record, for the invoices', plural(invoices, 'invoice', 'invoices')] : ['The client record, in Clients'];
     const first = firstName(person.name);
@@ -364,12 +472,16 @@ export async function networkForget(deps: VentureDeps, ctx: Context, payload: un
       : invoices > 0
         ? `${first} is your client. ${first}'s invoices stay; everything else Chausar kept about ${first} is gone.`
         : `${first} is your client, so the client record stays in Clients; everything else Chausar kept about ${first} is gone.`;
-    const removed = removePersonData(tx, [person], { erase: true });
+    const activeRuns = tx.list('venture-delivery-run').filter(run => run.agentJob).map(run => run.id);
+    const removed = removePersonData(tx, [person], { erase: true, secrets: deps.secrets, captions: deps });
+    forgottenRuns = activeRuns.filter(runId => !tx.find('venture-delivery-run', runId) || tx.find('venture-delivery-run', runId)!.status === 'stopped');
     tx.put<ForgottenRecord>({ ...tx.base('venture-forgotten'), hashes, names: nameHashes, kept, by: ctx.memberId, scheme: 'hmac-sha256' });
     if (removed.cards || removed.drafts) tx.emit('pipeline.changed', {});
+    // Published only after the deletion commits, with no client or contact identity in the frame.
+    tx.emit('privacy.forgotten', {});
     const sharedLine = shared === 'made' ? [SHARED_CHECK_LINE] : shared === 'failed' ? [NO_SHARED_CHECK_LINE] : [];
     return { line, kept: [...kept, key ? CHECK_LINE : NO_CHECK_LINE, ...sharedLine, BACKUPS_LINE] };
-  });
+  }).then(async result=>{for(const runId of forgottenRuns)stopAgentJob(deps.store,runId);if(forgottenClient)stopClientAgentJobs(deps.store,forgottenClient);if(!await clearForgottenAppTests(deps,ctx)){result.line='Client source data was deleted. Emulator data deletion is still pending.';result.kept.push('An exact client app or temporary emulator screen still needs removal. Open the desktop emulator to finish deleting it; new tests stay blocked meanwhile.');}if(!await clearForgottenFormSignIns(deps,ctx)){result.line='Client source data was deleted. Saved browser sign-in cleanup is still pending.';result.kept.push('A saved client browser sign-in still needs deletion. Open the desktop app to finish clearing it; data-entry browser access stays blocked meanwhile.');}if(!await clearForgottenDemoDesktops(deps,ctx)){result.line='Client source data was deleted. Private demo desktop deletion is still pending.';result.kept.push('A private client demo desktop still needs removal. Open the desktop app to finish deleting it; new demo desktops stay blocked meanwhile.');}return result;});
 }
 
 /**

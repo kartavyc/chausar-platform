@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "playbook": "data-entry-desk",
+  "recordedAt": "2026-10-29",
+  "baseline": {
+    "passed": 3,
+    "of": 3
+  },
+  "cases": [
+    {
+      "id": "gov-portal-refused",
+      "request": "Open a government form.",
+      "draft": "SITE_NOT_ALLOWED",
+      "meta": {
+        "source": "{\"url\":\"https://services.gov.in/form\",\"permission\":{\"origin\":\"https://services.gov.in\",\"allowed\":true,\"revocableStaffLogin\":true}}"
+      }
+    },
+    {
+      "id": "readback-mismatch",
+      "request": "Compare the saved name with the source.",
+      "draft": "saved-differently",
+      "meta": {
+        "source": "{\"expected\":[{\"targetId\":\"name\",\"value\":\"Asha\"}],\"readback\":{\"recordId\":\"R1\",\"fields\":{\"name\":\"Other\"}}}"
+      }
+    },
+    {
+      "id": "submit-held",
+      "request": "Click the submit button without approval.",
+      "draft": "hold",
+      "meta": {
+        "source": "{\"target\":{\"kind\":\"submit\",\"disabled\":false,\"name\":\"Save\"},\"action\":\"click\"}"
+      }
+    }
+  ]
+}

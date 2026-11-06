@@ -1,0 +1,11 @@
+.stack { display: grid; gap: var(--sp-4); min-width: 0; }
+.line { display: block; margin: var(--sp-2) 0; color: var(--fg2); font-size: var(--text-read); overflow-wrap: anywhere; }
+.form { display: grid; gap: var(--sp-3); margin-top: var(--sp-3); min-width: 0; }
+.list { display: grid; gap: var(--sp-2); list-style: none; margin: var(--sp-3) 0; padding: 0; }
+.list li { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: space-between; min-width: 0; }
+.label { display: grid; gap: var(--sp-1); font-size: var(--text-read); color: var(--fg2); min-width: 0; }
+.label select { max-width: 100%; min-width: 0; min-height: var(--target); font: inherit; color: var(--fg); background: var(--surface); border: var(--hair) solid var(--line); border-radius: var(--r-button); padding: var(--sp-2); }
+.choice { display: flex; align-items: flex-start; gap: var(--sp-2); min-height: var(--target); font-size: var(--text-read); overflow-wrap: anywhere; }
+.group { min-width: 0; border: var(--hair) solid var(--line); border-radius: var(--r-card); padding: var(--sp-3); display: grid; gap: var(--sp-2); }
+.quote { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; max-width: 100%; }
+.error { color: var(--fail); font-size: var(--text-read); }

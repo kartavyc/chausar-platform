@@ -2,29 +2,14 @@
 // text. The draft checks (playbooks/draft-checks.ts) and posting (build/posting.ts) both read a draft's posts here, so
 // they read them the same way. Light on imports on purpose: posting loads this inside an import cycle (channels.ts
 // imports posting), so nothing here runs an import at load time.
+import type { ResolvedKit } from '../kit/records-media.ts';
 import type { DateOrder, OrderIntake } from '../../contracts.ts';
 import type { FileLike } from '../../delivery/harness/files.ts';
 import { sourcesFromFiles, type SourceText } from '../../delivery/judge/claim-check.ts';
 import { SOCIAL_CHANNELS, channelCapability, type SocialChannel } from './channels.ts';
-import { checkSocialDraft, countCharacters, splitThread, type ClientRules, type PostDraft, type SocialCheckId } from './checks.ts';
+import { checkSocialDraft, checkWords, countCharacters, splitThread, type ClientRules, type PostDraft, type SocialCheckId } from './checks.ts';
 
-const POST = /^\s*([A-Za-z][A-Za-z ]{0,20}?)\s*:\s*(.+)$/;
-let channelNames: Map<string, SocialChannel> | null = null;
-/** Channel ids and names (lower case) to channels, built on first use. */
-const channelByName = () => (channelNames ??= new Map<string, SocialChannel>(
-  SOCIAL_CHANNELS.flatMap(id => [[id, id], [channelCapability(id).name.toLowerCase(), id]] as [string, SocialChannel][]),
-));
-
-/**
- * One post in a draft: a line "Channel: text" naming a social channel by its id or name ("X: ...", "LinkedIn: ...",
- * "YouTube Shorts: ..."). null for any other line.
- */
-export function postOfLine(line: string): { channel: SocialChannel; text: string } | null {
-  const match = POST.exec(line);
-  const channel = match ? channelByName().get(match[1].trim().toLowerCase()) : undefined;
-  return channel ? { channel, text: match![2].trim() } : null;
-}
-
+export { postOfLine } from './post-label.ts';
 /**
  * The numbered thread parts code splits a post into (checks.ts splitThread), when the text is longer than one post on a
  * channel that has threads (X, Threads). null when it fits in one post, or when the channel has no threads, where a
@@ -41,9 +26,11 @@ export function threadParts(channel: SocialChannel, text: string): string[] | nu
  * claims, and the client's own word lists from intake (banned words and topics, competitors, phrases never flagged)
  * apply when the order has them. A competitor the client listed is never named in any post (ClientRules.clientCompetitors).
  */
-export function socialRules(input: { request: string; files: readonly FileLike[]; known: readonly string[]; dateOrder: DateOrder; clientRules?: OrderIntake['clientRules'] | null }): ClientRules {
+export function socialRules(input: { request: string; files: readonly FileLike[]; known: readonly string[]; dateOrder: DateOrder; clientRules?: OrderIntake['clientRules'] | null; brandKit?: ResolvedKit }): ClientRules {
   const sources: SourceText[] = [{ id: 'client-message', text: input.request }, ...sourcesFromFiles(input.files)];
-  const own = input.clientRules;
+  const explicit = input.clientRules;
+  const hasOwn = !!explicit && [explicit.bannedWords, explicit.bannedTopics, explicit.competitors, explicit.protectedPhrases].some(list => list.length > 0);
+  const own = hasOwn ? explicit : input.brandKit ? { bannedWords: input.brandKit.bannedWords.value, bannedTopics: input.brandKit.bannedTopics.value, competitors: input.brandKit.competitors.value, protectedPhrases: [] } : explicit;
   return {
     ...(input.known[0] ? { businessName: input.known[0] } : {}), known: [...input.known], proofFiles: sources, dateOrder: input.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year',
     ...(own ? { bannedWords: [...own.bannedWords], bannedTopics: [...own.bannedTopics], clientCompetitors: [...own.competitors], protectedPhrases: [...own.protectedPhrases] } : {}),
@@ -57,9 +44,10 @@ export function socialRules(input: { request: string; files: readonly FileLike[]
  */
 export function socialPostBlocks(input: {
   channel: SocialChannel; text: string; request: string; files: readonly FileLike[]; known: readonly string[]; dateOrder: DateOrder;
-  paid: boolean; ai: { person: boolean; voice: boolean }; clientRules?: OrderIntake['clientRules'] | null;
+  paid: boolean; ai: { person: boolean; voice: boolean }; clientRules?: OrderIntake['clientRules'] | null; brandKit?: ResolvedKit; wordsOnly?: boolean;
 }): string[] {
   const post: PostDraft = { id: 'post', channel: input.channel, text: input.text, paid: input.paid, ai: input.ai, style: 'post', platformLabels: { paidPartnership: input.paid, aiGenerated: input.ai.person || input.ai.voice } };
   const skip: readonly SocialCheckId[] = ['channel-media', 'house-style', 'prompt-leak'];
-  return [...new Set(checkSocialDraft(post, socialRules(input)).findings.filter(item => item.severity === 'block' && !skip.includes(item.check)).map(item => item.line))];
+  const findings = input.wordsOnly ? checkWords(post, socialRules(input)) : checkSocialDraft(post, socialRules(input)).findings;
+  return [...new Set(findings.filter(item => item.severity === 'block' && !skip.includes(item.check)).map(item => item.line))];
 }

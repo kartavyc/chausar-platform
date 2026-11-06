@@ -9,15 +9,16 @@ import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import {
   ACTIVE_MS, BUSY_MS, NO_SOURCES_WARNING, WAITS_BUSY, WAITS_LOCAL, backgroundGateNow, backgroundWaits, deliverReport, reportBack, withReport,
 } from '../runtime/venture/delivery/report-back.ts';
-import { DONE, READ, START, call, owner, record, startRun, setup } from './venture-run-controls-env.ts';
-import { approveFromToday, business, PLAIN_IDEA } from './venture-judge-helpers.ts';
+import { START, call, owner, record, startNativeDraft, setup } from './venture-run-controls-env.ts';
+import { PLAIN_IDEA } from './venture-judge-helpers.ts';
+import { nativeJudgeBusiness as business, waitNativeDraft } from './native-judge-business.ts';
 import { routineTick } from '../runtime/venture/agents/routine-runner.ts';
 
 const steps = (env: Awaited<ReturnType<typeof setup>>, runId: string) => listRecords(env.store.read(), 'venture-event').filter(event => event.name === 'run.step' && (event.data as { runId?: unknown }).runId === runId).length;
 
 test('a report lands in the run that asked once per message id, with its marker in the same write; no sources means a warning', async () => {
   const env = await setup();
-  const run = await startRun(env, [READ, DONE]);
+  const run = await startNativeDraft(env);
   const before = steps(env, run.id);
   const report = { messageId: 'brief:t1.1', from: 'research' as const, line: 'Three supplier prices found.', sources: ['https://example.com/a', ' https://example.com/a ', 'https://example.com/b'] };
   assert.equal(await reportBack(env.deps, owner, run.id, report), true);
@@ -66,7 +67,7 @@ test('background model work waits on the desktop while the owner is active and t
 
 test('the run sheet shows what background jobs reported into the run, with the no-sources warning', async () => {
   const env = await setup();
-  const run = await startRun(env, [READ, DONE]);
+  const run = await startNativeDraft(env);
   await reportBack(env.deps, owner, run.id, { messageId: 'brief:t1.1', from: 'heavy-work', line: 'Claude Code reported back.', sources: [] });
   const detail = await call<RunDetail>(env, 'venture.runs.get', { runId: run.id });
   assert.deepEqual(detail.reports, [{ at: START, from: 'heavy-work', line: 'Claude Code reported back.', sources: [], warning: NO_SOURCES_WARNING }]);
@@ -75,14 +76,14 @@ test('the run sheet shows what background jobs reported into the run, with the n
 test('the judge waits on the desktop while the owner works and the AI is busy, and the sweep asks it once they are not', async () => {
   const env = await business(PLAIN_IDEA);
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Please look at my pricing for the new product line and advise.' });
-  const waiting = await env.call('venture.delivery.run', { orderId: order.id });
   env.deps.host = 'desktop';
   env.deps.watching = () => env.deps.clock().toISOString();
   // The owner's AI answered busy a moment ago (a 429).
   await ventureAction(env.deps, owner, 'prepare', 'test.busy', tx => {
     tx.put({ ...tx.base('venture-model-call'), purpose: 'agent-turn', tier: 'fast', presetId: 'anthropic-haiku-5-5', connectionId: null, routeKind: 'anthropic-messages', model: 'claude-haiku-5-5', consent: 'approved-preview', endpoint: 'https://api.anthropic.com/v1/messages', payloadText: '', payloadDigest: '', payloadTruncated: false, containsClientData: false, status: 'failed', approvedDigest: null, approvedAt: null, approvedBy: null, estimatedMaxCostMicros: '0', priceConfirmed: true, usage: null, costMicros: null, outputDigest: null, error: { code: 'MODEL_FAILED', message: 'Anthropic is busy or your account limit was reached. Try again later.' }, replay: false } as never);
   });
-  const run = await approveFromToday(env, waiting.id);
+  const waiting = await env.call('venture.delivery.run', { orderId: order.id });
+  const run = await waitNativeDraft(env, waiting.id);
   assert.equal(env.models.rulesTasks().length, 0, 'no judge call went on its own');
   // Waiting, not failed: the reason is on the run, and the review reads the judge as Not run, incomplete.
   assert.deepEqual([run.judge.status, run.judge.line, run.judge.preview], ['waiting', `Waiting: ${WAITS_BUSY}`, null]);
@@ -94,7 +95,7 @@ test('the judge waits on the desktop while the owner works and the AI is busy, a
   // A sweep while the owner still works leaves it waiting.
   await routineTick(env.deps, owner);
   assert.equal(env.models.rulesTasks().length, 0);
-  // Once the owner is no longer active, the next sweep asks the judge on its own, within the bound the approval showed.
+  // Once the owner is no longer active, the next sweep asks the judge on its own, under the current recorded client consent.
   env.deps.watching = () => null;
   await routineTick(env.deps, owner);
   assert.equal(env.models.rulesTasks().length, 1);

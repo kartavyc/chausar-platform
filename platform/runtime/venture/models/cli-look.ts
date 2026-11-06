@@ -50,11 +50,11 @@ export function cliVersionOf(cli: DelegateCli, output: string): string | null {
 }
 
 /**
- * The Claude Code terms gate (onboarding spec 2.8): until the trusted host says 'accepted', nothing of Claude Code is
- * run, not even its version. Codex is not behind it.
+ * Claude Code is enabled by default (wave 6 D13). An explicit pending override prevents any run,
+ * including its version check. Codex is not behind this switch.
  */
 export function cliGateOpen(cli: DelegateCli, claudeTerms: 'accepted' | 'pending' | undefined): boolean {
-  return cli !== 'claude-code' || claudeTerms === 'accepted';
+  return cli !== 'claude-code' || claudeTerms !== 'pending';
 }
 
 /**

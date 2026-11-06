@@ -8,6 +8,7 @@
 import { ChausarError } from '../../../contracts.ts';
 import { digest } from '../../records.ts';
 import type { WorkReceiptRecord } from '../../contracts.ts';
+import { advanceTax, type AdvanceInput } from './advance-tax.ts';
 import { computeIncomeTax, type IncomeTaxInput } from './income-tax.ts';
 import { computeInterest234, type InterestInput } from './interest.ts';
 import { gstWorking, type GstWorkingInput } from './gst.ts';
@@ -17,11 +18,20 @@ import { portalDiffReceipt, type OurFigure, type PortalDiff, type PortalFigure }
 import { inr } from './money.ts';
 import { RATE_TABLE_HISTORY, RATE_TABLES, rateTableHash, type RateConfirmation, type RateUse, type TableStamp } from './rates.ts';
 import type { CaEngine, CaReceipt } from './receipt.ts';
+import {packReceipt,type PackFigure} from './pack-core.ts';
+import {whatIf,type WhatIfInput} from './what-if.ts';
+import {documentEntries,type DocumentEntryInput} from './doc-entry.ts';
+import {booksHealthCheck,type HealthInput} from './health-check.ts';
 
 export type Rederived = { rederived: 'same' | 'differs' | 'table-gone'; differs: { key: string; line: string } | null };
 
 /** Each engine, run on a stored receipt's inputs. The reconcile, month close and portal diff use no rate table. */
 const ENGINES: Readonly<Record<CaEngine, (inputs: unknown, use: RateUse) => CaReceipt>> = Object.freeze({
+  'data-pack': inputs => packReceipt(inputs as {figures:PackFigure[]}),
+  'what-if': (inputs, use) => whatIf(inputs as WhatIfInput, use),
+  'doc-entry': inputs => documentEntries(inputs as DocumentEntryInput),
+  'books-health': (inputs,use) => booksHealthCheck(inputs as HealthInput,use),
+  'advance-tax': (inputs, use) => advanceTax(inputs as AdvanceInput, use),
   'income-tax': (inputs, use) => computeIncomeTax(inputs as IncomeTaxInput, use),
   'interest-234': (inputs, use) => computeInterest234(inputs as InterestInput, use),
   'gst-working': (inputs, use) => gstWorking(inputs as GstWorkingInput, use),

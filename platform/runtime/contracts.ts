@@ -1,21 +1,15 @@
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import {ChausarError,check,hash} from './portable.ts';
+export {ChausarError,check,hash} from './portable.ts';
 
-export class ChausarError extends Error {
-  code: string;
-  constructor(code: string, message: string) { super(message); this.name = 'ChausarError'; this.code = code; }
-}
-export function check(condition: unknown, code: string, message: string): asserts condition {
-  if (!condition) throw new ChausarError(code, message);
-}
 export const newId = (prefix = 'item') => `${prefix}_${randomUUID()}`;
-export const hash = (value: unknown) => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 export const now = () => new Date().toISOString();
 export function minor(value: string | number): string {
   const text = String(value).trim().replaceAll(',', '');
   check(/^-?\d+(\.\d{1,2})?$/.test(text), 'INVALID_AMOUNT', 'Use an amount with at most two decimal places.');
   const sign = text.startsWith('-') ? -1n : 1n;
   const [whole, fraction = ''] = text.replace(/^-/, '').split('.');
-  return String(sign * (BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))));
+  return String(sign * (BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))));
 }
 export const money = (value: string | bigint, currency = 'INR') => {
   const n = BigInt(value); const negative = n < 0n; const absolute = negative ? -n : n;

@@ -17,6 +17,12 @@ export function setAskDraft(text: string): void {
   draft = text;
 }
 
+/** Forget clears both in-memory handoffs, including words not yet taken by Chats. */
+export function forgetAskWords(): void {
+  draft = '';
+  pending = null;
+}
+
 /**
  * Opens a new chat with these words in the composer, unsent. Left out, the header box's words go (Ctrl K). Every box
  * that showed the words is emptied.

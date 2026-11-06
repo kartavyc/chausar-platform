@@ -17,6 +17,13 @@ import {
   type PipelineStage, type PipelineView, type ProposalView, type QueueAction, type QueueRow, type ReceiptLite, type StatTileView, type TieBand, type WarmPathView,
 } from './types';
 import type { W4DeskHost } from './fake-w4';
+import type { PipelineSettingsView, OutreachLane } from './types';
+import { effectiveLaneLimits, LANE_WORDS, limitsObject, pipelineCapsInput } from '../../../../platform/runtime/venture/network/limit-settings';
+import { DEFAULT_PIPELINE_SETTINGS, nextAllowedDay, weekStart } from '../../../../platform/runtime/venture/network/followups';
+import { checkScoreRules } from '../../../../platform/runtime/venture/network/score';
+import { formatMinor } from '../../../../platform/runtime/currency';
+
+export type HeldPipelineQuote = PipelineQuoteView & { explanation: string; currency: string; beforeTaxMinor: string };
 
 export const FAKE_4E4_METHODS: readonly string[] = [
   'venture.pipeline.list', 'venture.pipeline.followups', 'venture.pipeline.setNext', 'venture.pipeline.move', 'venture.pipeline.settings',
@@ -27,6 +34,7 @@ export const FAKE_4E4_METHODS: readonly string[] = [
 
 /** What the pipeline desk reads about one person of the network (fake-people.ts). */
 export interface PipelinePerson {
+  connected?: boolean;
   id: string; name: string; company: string | null; band: TieBand | null; emails: string[]; phone: string | null; linkedin: string | null; paths: WarmPathView[];
 }
 /** The people desk as the pipeline desk uses it. */
@@ -109,7 +117,6 @@ const shortDay = (day: string) => `${Number(day.slice(8, 10))} ${MONTHS[Number(d
 const longDay = (day: string) => `${shortDay(day)} ${day.slice(0, 4)}`;
 const lateWords = (due: string, today: string) => { const late = daysBetween(due, today); return late <= 0 ? null : `${late} ${late === 1 ? 'day' : 'days'} late`; };
 /** The next sending day on or after a day: Monday to Friday, the engine's default. */
-const sendingDay = (day: string) => { let at = day; while (weekday(at) > 5) at = addDays(at, 1); return at; };
 const firstOf = (name: string) => name.trim().split(/\s+/)[0] || name;
 const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join('');
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -118,8 +125,9 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 // What the desk keeps
 // ---------------------------------------------------------------------------------------------------------------------
 
-interface Touch { what: 'sent' | 'reply'; on: string; channel: OutreachSentChannel | null; kind: OutreachKind | null }
+interface Touch { ref?: string; what: 'sent' | 'reply'; on: string; channel: OutreachSentChannel | null; kind: OutreachKind | null }
 interface CardState {
+  sending?: { weekdays: number[]; sendTime: string };
   stage: PipelineStage;
   history: { to: PipelineStage; at: string }[];
   touches: Touch[];
@@ -162,7 +170,7 @@ interface Desk {
   /** The desk's blocklist (customers/leads.ts Blocklist): addresses and whole domains no draft, handoff or new card reaches. */
   blocklist: { emails: Set<string>; domains: Set<string> };
   /** The business's quotes (price receipts on an offer), oldest first; the board lists them newest first. */
-  quotes: (PipelineQuoteView & { explanation: string })[];
+  quotes: HeldPipelineQuote[];
 }
 
 type Card = { view: PipelineCardView; state: CardState; lead: LeadView | null };
@@ -180,11 +188,20 @@ const digestOf = (value: unknown) => {
 };
 
 export class FakePipelineDesk {
+  private readonly settingsByBusiness = new Map<string, PipelineSettingsView>();
   private readonly host: W4DeskHost;
   private readonly people: PipelinePeople;
   private readonly meetings: MeetingDrafts;
   private readonly desks = new Map<string, Desk>();
   private seq = 0;
+  private forecasts = new Map<string, { businessId: string; receipt: ReceiptLite }>();
+
+  rememberQuote(quote: HeldPipelineQuote): void { this.desk().quotes.push(structuredClone(quote)); }
+  /** W6 6G3: the sends and replies on the cards a client's timeline reads (a Won card that made them, or a card of a person linked to them). */
+  clientTouches(match: (card: { personId: string; clientName: string | null }) => boolean): { id: string; what: 'sent' | 'reply'; on: string; at: string; channel: string | null }[] {
+    return this.cards().filter((card) => match({ personId: card.view.personId, clientName: card.state.client?.name ?? null }))
+      .flatMap((card) => card.state.touches.map((touch, index) => ({ id: `${card.view.id}:${index}`, what: touch.what, on: touch.on, at: `${touch.on}T00:00:00.000Z`, channel: touch.channel })));
+  }
 
   constructor(host: W4DeskHost, people: PipelinePeople, meetings: MeetingDrafts, options: { fresh?: boolean; due?: boolean } = {}) {
     this.host = host;
@@ -203,7 +220,7 @@ export class FakePipelineDesk {
       case 'venture.pipeline.followups': return this.followups();
       case 'venture.pipeline.setNext': return this.setNext(p);
       case 'venture.pipeline.move': return this.move(p);
-      case 'venture.pipeline.settings': return { weekdays: [1, 2, 3, 4, 5], sendTime: '09:00', caps: { newPerDay: 10, perWeek: 40 }, scoreRules: [], line: 'Your pipeline settings.' };
+      case 'venture.pipeline.settings': return this.settings(p);
       case 'venture.outreach.draft': return this.draft(p);
       case 'venture.outreach.open': return this.open(p);
       case 'venture.outreach.sent': return this.sent(p);
@@ -261,8 +278,8 @@ export class FakePipelineDesk {
     });
     // Two quotes made from the price list: Leela's monthly edits, and a set of short reels nobody is on yet.
     desk.quotes.push(
-      { receiptId: QUOTE_RECEIPT, offer: 'Monthly edits', quantity: '1', value: '₹18,000', at: at(addDays(today, -3)), explanation: 'The quote for monthly edits, worked out from your price list.' },
-      { receiptId: 'R-pipe-quote-reel', offer: 'Short reel', quantity: '4', value: '₹9,600', at: at(addDays(today, -1)), explanation: 'The quote for four short reels, worked out from your price list.' },
+      { receiptId: QUOTE_RECEIPT, offer: 'Monthly edits', quantity: '1', value: '₹18,000', currency: 'INR', beforeTaxMinor: '1800000', at: at(addDays(today, -3)), explanation: 'The quote for monthly edits, worked out from your price list.' },
+      { receiptId: 'R-pipe-quote-reel', offer: 'Short reel', quantity: '4', value: '₹9,600', currency: 'INR', beforeTaxMinor: '960000', at: at(addDays(today, -1)), explanation: 'The quote for four short reels, worked out from your price list.' },
     );
     const leela = addDays(today, -12);
     add('person_leela', {
@@ -365,7 +382,7 @@ export class FakePipelineDesk {
   }
 
   /** Whether the blocklist covers an address, or its domain (customers/leads.ts isBlocked). */
-  private isBlocked(value: string | null | undefined): boolean {
+  isBlocked(value: string | null | undefined): boolean {
     const entry = (value ?? '').trim().toLowerCase();
     if (!entry) return false;
     const list = this.desk().blocklist;
@@ -405,7 +422,7 @@ export class FakePipelineDesk {
     if (kept) return kept;
     if (lead) {
       const stage = this.leadStage(lead);
-      const touches: Touch[] = lead.sends.map((send) => ({ what: 'sent', on: localDay(send.sentAt), channel: 'own-mailbox', kind: 'cold-email' }));
+      const touches: Touch[] = lead.sends.map((send) => ({ ref: send.draftId, what: 'sent', on: localDay(send.sentAt), channel: 'own-mailbox', kind: 'cold-email' }));
       return {
         stage, history: [{ to: 'found', at: lead.addedAt }, ...(stage !== 'found' ? [{ to: stage, at: lead.sends.at(-1)?.sentAt ?? lead.addedAt }] : [])],
         touches, next: null, askAgainFrom: null, lostReason: null, basis: null, trigger: `Found on ${this.where(lead.sourceUrl)}`, score: null,
@@ -455,7 +472,7 @@ export class FakePipelineDesk {
     const step = sent.length - 1;
     const last = sent.at(-1)!;
     if (step >= gaps.length) return { kind: 'park', on: addDays(last.on, 10) };
-    return { kind: 'nudge', step, due: sendingDay(addDays(last.on, gaps[step]!)), channel };
+    return { kind: 'nudge', step, due: nextAllowedDay(addDays(last.on, gaps[step]!), state.sending?.weekdays ?? DEFAULT_PIPELINE_SETTINGS.weekdays), channel };
   }
 
   private nextOf(state: CardState, today: string): PipelineCardView['next'] {
@@ -539,7 +556,7 @@ export class FakePipelineDesk {
       items.push({ what: 'scheduled', at: plan.due, line: `${plan.step === 0 ? 'Follow up' : 'Follow up again'} ${shortDay(plan.due)}${plan.due < today ? `, ${lateWords(plan.due, today)}` : ''}`, estimated: false });
       const gaps = plan.channel === 'email' ? [5, 5] : [4, 10];
       if (plan.step + 1 < gaps.length) {
-        const later = sendingDay(addDays(plan.due, gaps[plan.step + 1]!));
+        const later = nextAllowedDay(addDays(plan.due, gaps[plan.step + 1]!), state.sending?.weekdays ?? DEFAULT_PIPELINE_SETTINGS.weekdays);
         items.push({ what: 'projected', at: later, line: `Second follow-up about ${shortDay(later)}, estimated`, estimated: true });
       } else {
         const park = addDays(plan.due, 10);
@@ -590,13 +607,38 @@ export class FakePipelineDesk {
     });
     const most = Math.max(0, ...funnel.map((item) => item.reached));
     for (const item of funnel) item.reachedPermille = most ? Math.floor((item.reached * 1000) / most) : 0;
-    const closed = cards.filter((card) => CLOSED.has(card.state.stage) && card.state.history.some((move) => CLOSED.has(move.to) && localDay(move.at) >= from)).length;
-    const quotes = [...this.desk().quotes].reverse().map(({ explanation: _, ...quote }) => quote);
-    return { columns, tiles, funnel, forecast: { line: `Not enough history yet: ${plural(closed, 'card', 'cards')} closed in the last 90 days, and a forecast needs 10.` }, quotes };
+    const closed = cards.filter((card) => CLOSED.has(card.state.stage) && card.state.history.some((move) => CLOSED.has(move.to) && localDay(move.at) >= from && localDay(move.at) <= today)).length;
+    const quotes = [...this.desk().quotes].reverse().map(({ explanation: _, currency: _currency, beforeTaxMinor: _minor, ...quote }) => quote);
+    let forecast: PipelineView['forecast'] = { line: `Not enough history yet: ${plural(closed, 'card', 'cards')} closed in the last 90 days, and a forecast needs 10.` };
+    if (closed >= 10) {
+      const business = this.host.ask('venture.get', {}) as { venture?: { country?: { currency?: string } } } | null;
+      const currency = business?.venture?.country?.currency ?? 'INR';
+      const history = cards.filter(card => CLOSED.has(card.state.stage) && card.state.history.some(move => CLOSED.has(move.to) && localDay(move.at) >= from && localDay(move.at) <= today));
+      const values = open.flatMap(card => {
+        const quote = this.desk().quotes.find(item => item.receiptId === card.state.quote?.receiptId && item.currency === currency);
+        if (!quote) return [];
+        const reached = history.filter(item => item.state.history.some(move => move.to === card.state.stage));
+        const share = reached.length ? Math.floor(reached.filter(item => item.state.stage === 'won').length * 1000 / reached.length) : 0;
+        return [{ id: card.view.id, amount: (BigInt(quote.beforeTaxMinor) * BigInt(share) + 500n) / 1000n, quote: quote.receiptId, share }];
+      });
+      if (!values.length) forecast = { line: `No open card has a quote in ${currency}. Other currencies are excluded.` };
+      else {
+        const total = values.reduce((sum, item) => sum + item.amount, 0n);
+        const value = formatMinor(total, currency);
+        const receiptId = 'R-pipe-forecast-' + this.host.digest({ business: this.host.current(), currency, from, today, values: values.map(item => ({ ...item, amount: String(item.amount) })) });
+        this.forecasts.set(receiptId, { businessId: this.host.current(), receipt: { id: receiptId, at: this.host.now(), stale: false, totalMinor: String(total), figures: [{ key: 'total', label: `Forecast in ${currency} only, from your last 90 days`, display: value }], explanation: `Each amount is a forecast in ${currency}, not money anyone owes. Other currencies are excluded. ` + values.map(item => `${item.quote}: before-tax amount times ${item.share} in 1,000, rounded to ${item.amount} minor units.`).join(' ') } });
+        forecast = { value, label: `forecast in ${currency} only, from your last 90 days`, receiptId };
+      }
+    }
+    return { columns, tiles, funnel, forecast, quotes };
   }
 
   /** The count receipts the board's tiles and "How people moved" stand on. */
   receipt(id: string): ReceiptLite | undefined {
+    if (id.startsWith('R-pipe-forecast-')) {
+      const saved = this.forecasts.get(id);
+      return saved?.businessId === this.host.current() ? structuredClone(saved.receipt) : undefined;
+    }
     const quote = this.desk().quotes.find((item) => item.receiptId === id);
     if (quote) return { id, at: quote.at, stale: false, figures: [{ key: 'taxable', label: 'Before tax', display: quote.value }], explanation: quote.explanation };
     if (!id.startsWith('R-pipe-')) return undefined;
@@ -622,11 +664,25 @@ export class FakePipelineDesk {
         channel: draft?.channel ?? plan.channel, draftId: draft?.id ?? null,
       };
       if (plan.due > today) { later.push(view); continue; }
-      if (weekday(today) > 5) { later.push({ ...view, line: `${words}. Today is not one of your sending days.` }); continue; }
+      const sending = card.state.sending ?? DEFAULT_PIPELINE_SETTINGS;
+      if (plan.due === today && localTime(this.host.now()) < sending.sendTime) { later.push({ ...view, line: `${words}. It shows on Today from ${sending.sendTime}.` }); continue; }
+      if (!sending.weekdays.includes(weekday(today))) { later.push({ ...view, line: `${words}. Today is not one of your sending days.` }); continue; }
       due.push({ card, view, daysLate: Math.max(0, daysBetween(plan.due, today)) });
     }
     due.sort((a, b) => (a.view.due < b.view.due ? -1 : a.view.due > b.view.due ? 1 : 0));
-    return { due, later };
+    const settings = this.settings({}), week = weekStart(today);
+    const sends = this.cards().flatMap(card => card.state.touches.filter(touch => touch.what === 'sent'));
+    let dayRoom = Math.max(0, settings.caps.newPerDay - sends.filter(touch => touch.on === today).length);
+    let weekRoom = Math.max(0, settings.caps.perWeek - sends.filter(touch => touch.on >= week && touch.on <= addDays(week, 6)).length);
+    const allowed = due.filter(entry => {
+      if (dayRoom > 0 && weekRoom > 0) { dayRoom--; weekRoom--; return true; }
+      const waits = weekRoom <= 0
+        ? `This week's limit of ${settings.caps.perWeek} is used, so this waits for ${shortDay(nextAllowedDay(addDays(week, 7), entry.card.state.sending?.weekdays ?? DEFAULT_PIPELINE_SETTINGS.weekdays))}.`
+        : `Today's limit of ${settings.caps.newPerDay} is used, so this waits for ${shortDay(nextAllowedDay(addDays(today, 1), entry.card.state.sending?.weekdays ?? DEFAULT_PIPELINE_SETTINGS.weekdays))}.`;
+      later.push({ ...entry.view, line: `${entry.view.line} ${waits}` });
+      return false;
+    });
+    return { due: allowed, later };
   }
 
   private followups(): { due: FollowupView[]; later: FollowupView[] } {
@@ -930,7 +986,7 @@ export class FakePipelineDesk {
     if (card && CLOSED.has(card.state.stage)) throw new EngineError('PIPELINE_STAGE_CLOSED', this.closedLine(card.state));
     if (card && this.cardBlocked(card) && draft.personId === card.view.personId) throw new EngineError('OUTREACH_BLOCKED', blockedLine(draft.toName));
     if (this.isBlocked(draft.to) || (draft.personId && this.personBlocked(draft.personId))) throw new EngineError('OUTREACH_BLOCKED', blockedLine(draft.toName));
-    this.governed(draft.channel, now);
+    this.governed(draft.channel, now, draft);
     const text = draft.kind === 'intro-request' && draft.blurb ? `${draft.text}\n\nA note you can forward:\n${draft.blurb}` : draft.text;
     if (draft.channel === 'linkedin') {
       const what = draft.kind === 'connection-note' ? 'Copy the note, then open the profile and paste it into Connect.' : 'Copy the message, then open the profile and paste it into Message.';
@@ -944,16 +1000,85 @@ export class FakePipelineDesk {
     return url.length > MAX_HANDOFF_URL ? this.copyInstead('whatsapp', draft.to, null, text) : { action: 'whatsapp', url, line: `Opens WhatsApp with the text filled in. ${COUNTED_LINE}` };
   }
 
-  /** The send governor's pause: a channel the owner said was restricted stays shut until its day (CHANNEL_FROZEN). */
-  private governed(channel: OutreachChannel, now: string) {
+  private settings(p: Record<string, unknown>): PipelineSettingsView {
+    limitsObject(p, ['weekdays', 'sendTime', 'caps', 'scoreRules']);
+    const invalid = (line: string): never => { throw new EngineError('INVALID_VENTURE_REQUEST', line); };
+    let weekdays: number[] | undefined;
+    if (p.weekdays !== undefined) {
+      if (!Array.isArray(p.weekdays) || p.weekdays.length < 1 || p.weekdays.length > 7) invalid('Choose the days you send, Monday 1 to Sunday 7.');
+      weekdays = (p.weekdays as unknown[]).map(day => {
+        if (!Number.isInteger(day) || (day as number) < 1 || (day as number) > 7) invalid('A sending day must be a whole number from 1 to 7.');
+        return day as number;
+      }).sort((a, b) => a - b);
+      if (new Set(weekdays).size !== weekdays.length) invalid('Name each sending day once.');
+    }
+    if (p.sendTime !== undefined && (typeof p.sendTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(p.sendTime))) invalid('Give the send time as 09:30.');
+    const caps = p.caps === undefined ? undefined : pipelineCapsInput(p.caps);
+    const scoreRules = p.scoreRules === undefined ? undefined : checkScoreRules(p.scoreRules);
+    const current = this.settingsByBusiness.get(this.host.current()) ?? { ...structuredClone(DEFAULT_PIPELINE_SETTINGS), line: 'Your pipeline settings.' };
+    if (!Object.keys(p).length) return { ...structuredClone(current), line: 'Your pipeline settings.' };
+    const next: PipelineSettingsView = {
+      weekdays: weekdays ?? current.weekdays, sendTime: p.sendTime as string ?? current.sendTime,
+      caps: { ...current.caps, ...caps }, scoreRules: scoreRules ?? current.scoreRules,
+      line: 'Saved. Cards already following up keep the days they started with.',
+    };
+    this.settingsByBusiness.set(this.host.current(), structuredClone(next));
+    this.announce();
+    return next;
+  }
+
+  private lane(draft: Pick<Draft, 'kind' | 'channel' | 'personId'>): OutreachLane {
+    return draft.channel === 'linkedin' ? draft.kind === 'connection-note' || !draft.personId || !this.people.contact(draft.personId)?.connected ? 'linkedin-note' : 'linkedin-message' : draft.channel;
+  }
+
+  /** The same effective caps as the engine; this fake only opens handoff links. */
+  private governed(channel: OutreachChannel, now: string, draft?: Draft) {
     const hold = this.desk().holds[channel];
     if (hold && hold.until > now) throw new EngineError('CHANNEL_FROZEN', hold.line);
+    const settings = this.settings({}), today = localDay(now), kind = draft?.kind ?? 'cold-email';
+    if (kind !== 'reply' && kind !== 'reminder' && !settings.weekdays.includes(weekday(today))) throw new EngineError('OUTREACH_DAILY_CAP', `Today is not one of your sending days. Chausar opens ${CHANNEL_APP[channel]} for this again on ${shortDay(nextAllowedDay(addDays(today, 1), settings.weekdays))}.`);
+    if (kind === 'reminder') return;
+    const lane = draft ? this.lane(draft) : 'email';
+    const sends = this.desk().drafts.filter(item => item.sent && this.lane(item) === lane).map(item => localDay(item.sent!.at));
+    if (lane === 'email') sends.push(...this.leads().flatMap(lead => lead.sends.map(send => localDay(send.sentAt))));
+    const countedIds = new Set([...this.desk().drafts.filter(item => item.sent).map(item => item.id), ...this.leads().flatMap(lead => lead.sends.map(send => send.draftId))]);
+    for (const card of this.cards()) for (const touch of card.state.touches) {
+      if (touch.what !== 'sent' || (touch.ref && countedIds.has(touch.ref))) continue;
+      const touchLane = touch.channel === 'own-mailbox' ? 'email' : touch.channel === 'linkedin' ? 'linkedin-message' : touch.channel === 'whatsapp' ? 'whatsapp' : null;
+      if (touchLane === lane) sends.push(touch.on);
+    }
+    const limits = effectiveLaneLimits(settings.caps, lane, [...sends].sort()[0] ?? null, today);
+    const day = sends.filter(on => on === today).length, week = sends.filter(on => on >= weekStart(today) && on <= today).length;
+    const warming = limits.percent < 100 ? ` while this account warms up (${limits.percent} percent of ${limits.owner ?? limits.house.day} a day)` : '';
+    const counted = (n: number) => `${n} ${LANE_WORDS[lane][n === 1 ? 0 : 1]}`;
+    if (day >= limits.day) throw new EngineError('OUTREACH_DAILY_CAP', `You've sent ${counted(day)} today, your limit${warming}. Chausar opens ${CHANNEL_APP[channel]} again tomorrow.`);
+    if (limits.week !== null && week >= limits.week) throw new EngineError('OUTREACH_DAILY_CAP', `You've sent ${counted(week)} this week, your limit${warming}. Chausar opens ${CHANNEL_APP[channel]} again on Monday.`);
   }
 
   /** Records one send on a card: Found moves to Asked and the follow-ups start. */
-  private recordSend(card: Card, on: string, channel: OutreachSentChannel | null, kind: OutreachKind | null) {
-    card.state.touches.push({ what: 'sent', on, channel, kind });
+  private recordSend(card: Card, on: string, channel: OutreachSentChannel | null, kind: OutreachKind | null, ref?: string) {
+    if (!card.state.touches.some(touch => touch.what === 'sent')) {
+      const settings = this.settings({});
+      card.state.sending = { weekdays: [...settings.weekdays], sendTime: settings.sendTime };
+    }
+    card.state.touches.push({ ...(ref ? { ref } : {}), what: 'sent', on, channel, kind });
     if (card.state.stage === 'found') { card.state.stage = 'asked'; card.state.history.push({ to: 'asked', at: this.host.now() }); }
+    this.keep(card);
+    this.refresh(card);
+  }
+
+  /** Keep lead-list sends on the same per-card calendar as pipeline sends. */
+  recordLeadSend(leadId: string): void {
+    const card = this.cards().find(item => item.view.id === leadId);
+    if (!card?.lead) return;
+    if (!card.state.sending) {
+      const settings = this.settings({});
+      card.state.sending = { weekdays: [...settings.weekdays], sendTime: settings.sendTime };
+    }
+    for (const send of card.lead.sends) if (!card.state.touches.some(touch => touch.ref === send.draftId)) {
+      card.state.touches.push({ ref: send.draftId, what: 'sent', on: localDay(send.sentAt), channel: 'own-mailbox', kind: 'cold-email' });
+    }
+    card.state.stage = this.leadStage(card.lead);
     this.keep(card);
     this.refresh(card);
   }
@@ -992,7 +1117,7 @@ export class FakePipelineDesk {
     if (sentAt < Date.parse(draft.at) || sentAt > Date.parse(now)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The send time must be after the draft and not in the future.');
     draft.sent = { at: new Date(sentAt).toISOString(), channel };
     const card = this.cards().find((item) => item.view.id === draft.cardId);
-    if (card) this.recordSend(card, localDay(draft.sent.at), channel, draft.kind);
+    if (card) this.recordSend(card, localDay(draft.sent.at), channel, draft.kind, draft.id);
     this.announce();
     return { draft: this.draftView(draft), card: card ? structuredClone(card.view) : null, line: this.afterSend(card) };
   }
@@ -1284,7 +1409,7 @@ export class FakePipelineDesk {
       const channel: OutreachSentChannel | null = draft ? SENT_OF[draft.channel] : row.followup?.channel ? SENT_OF[row.followup.channel] : null;
       if (draft) draft.sent = { at: this.host.now(), channel: channel! };
       desk.followupsDone.add(row.id);
-      this.recordSend(card, this.today(), channel, 'follow-up');
+      this.recordSend(card, this.today(), channel, 'follow-up', draft?.id);
       return this.afterSend(card);
     }
     if (row.id.startsWith('meeting:')) {

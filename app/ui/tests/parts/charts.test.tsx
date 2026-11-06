@@ -641,8 +641,5 @@ describe('ChartData', () => {
     expect(within(table).getAllByRole('cell').map((cell) => cell.textContent)).toContain('6');
   });
 
-  it('speaks Hindi in a Hindi app', () => {
-    const { container } = render(<TextProvider language="hi"><AgingBar data={aging} /></TextProvider>);
-    expect(container.querySelector('summary')!.textContent).toBe('चार्ट का डेटा देखें');
-  });
+
 });

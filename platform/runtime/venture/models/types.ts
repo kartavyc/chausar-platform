@@ -27,7 +27,6 @@ export const PROCESS_TIMEOUT_MS = 150_000;
 export const VERSION_CHECK_TIMEOUT_MS = 10_000;
 /** A call still dispatching after this long is reported as failed and no longer reserves budget. */
 export const STALE_DISPATCH_MS = 10 * 60_000;
-export const PREVIEW_TTL_MS = 30 * 60_000;
 export const STALE_DISPATCH_MESSAGE = 'The result was never recorded. Chausar does not retry on its own.';
 export const RESPONSE_LIMIT_BYTES = 1_048_576;
 

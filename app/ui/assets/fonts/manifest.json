@@ -65,32 +65,6 @@
       "operation": "Full source TTF converted to WOFF2; glyph set and layout retained",
       "subsetApplied": false,
       "publisherBytesUnchanged": false
-    },
-    {
-      "file": "NotoSansDevanagari-400.woff2",
-      "bytes": 65984,
-      "sha256": "ff28878c706bfe0b17b9cafeaeb80ff56eca24285409583626440fc17722f36d",
-      "sourceFile": "NotoSansDevanagari-v2.007.zip",
-      "sourceBodySha256": "14ec4af41f27482216d1c2229f417ff9b1425e1babb014e57d1d40d03229853e",
-      "family": "Noto Sans Devanagari",
-      "weight": 400,
-      "width": 100,
-      "operation": "Full source instantiated at normal width100 and target weight, then WOFF2; glyph set and layout retained",
-      "subsetApplied": false,
-      "publisherBytesUnchanged": false
-    },
-    {
-      "file": "NotoSansDevanagari-500.woff2",
-      "bytes": 69332,
-      "sha256": "e88ac298bc698f91b0c35a8e06f5b1afc08e2aeb6b784cf26be9c3918bac172b",
-      "sourceFile": "NotoSansDevanagari-v2.007.zip",
-      "sourceBodySha256": "14ec4af41f27482216d1c2229f417ff9b1425e1babb014e57d1d40d03229853e",
-      "family": "Noto Sans Devanagari",
-      "weight": 500,
-      "width": 100,
-      "operation": "Full source instantiated at normal width100 and target weight, then WOFF2; glyph set and layout retained",
-      "subsetApplied": false,
-      "publisherBytesUnchanged": false
     }
   ],
   "notices": [
@@ -104,12 +78,6 @@
       "file": "DMMono-OFL.txt",
       "bytes": 4484,
       "sha256": "2bada5ea45c3c63b7f1ea1f88ce9672c9e4f0c42b2c3b7378949084fe55a3066",
-      "publisherBytesUnchanged": true
-    },
-    {
-      "file": "NotoSansDevanagari-OFL.txt",
-      "bytes": 4386,
-      "sha256": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",
       "publisherBytesUnchanged": true
     }
   ],
@@ -190,32 +158,9 @@
       "bytes": 4484,
       "sha256": "2bada5ea45c3c63b7f1ea1f88ce9672c9e4f0c42b2c3b7378949084fe55a3066",
       "gitBlobSha": "01450afc0769581ef9548569b1214d88ee28cd1a"
-    },
-    {
-      "file": "NotoSansDevanagari-OFL.txt",
-      "kind": "license",
-      "repository": "notofonts/devanagari",
-      "commit": "e123d230c160ebe949d731cc19017cdb354180d1",
-      "path": "OFL.txt",
-      "url": "https://raw.githubusercontent.com/notofonts/devanagari/e123d230c160ebe949d731cc19017cdb354180d1/OFL.txt",
-      "bytes": 4386,
-      "sha256": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",
-      "gitBlobSha": "cd2cc5c94b4151933eba6ee508e3975274d6fa07"
-    },
-    {
-      "file": "NotoSansDevanagari-v2.007.zip",
-      "kind": "font-archive",
-      "repository": "notofonts/devanagari",
-      "commit": "e123d230c160ebe949d731cc19017cdb354180d1",
-      "url": "https://github.com/notofonts/devanagari/releases/download/NotoSansDevanagari-v2.007/NotoSansDevanagari-v2.007.zip",
-      "bytes": 18449254,
-      "sha256": "820c7da45b1e63562cb41c0a8cac5d9a4202312043a3a040ed1325857ef469b1",
-      "gitBlobSha": null,
-      "archiveMember": "NotoSansDevanagari/googlefonts/variable-ttf/NotoSansDevanagari[wdth,wght].ttf",
-      "archiveMemberSha256": "14ec4af41f27482216d1c2229f417ff9b1425e1babb014e57d1d40d03229853e"
     }
   ],
-  "totalFontBytes": 282804,
+  "totalFontBytes": 147488,
   "exclusiveFontBudgetBytes": 600000,
   "fullSourceGlyphSetsRetained": true,
   "tools": {
@@ -245,6 +190,6 @@
     "branch": "origin/claude/clever-goldberg-49qobq",
     "path": "app/ui/assets/fonts",
     "on": "2026-10-21",
-    "note": "IBM Plex Mono left out: Ink uses Instrument Sans, DM Mono and Noto Sans Devanagari only."
+    "note": "Ink uses Instrument Sans and DM Mono."
   }
 }

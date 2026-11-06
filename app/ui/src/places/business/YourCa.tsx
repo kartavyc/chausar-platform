@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useLanguage, useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
+import { CaRules, StoredCaSignoff } from './CaRules';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
@@ -32,6 +33,7 @@ export function YourCa() {
         <OfRecord ca={of} onSaved={ca.reload} />
         {of && <RateTables rates={pendingRates} onConfirmed={ca.reload} />}
       </div>
+      {of && ca.data.citations && <CaRules rules={ca.data.citations} onConfirmed={ca.reload} />}
       <Requests requests={requests} onRecorded={ca.reload} />
       <Receipts papers={latestPapers ?? null} />
     </div>
@@ -331,6 +333,7 @@ function RequestLine({ request, onRecorded }: { request: CaSignoffRequest; onRec
     <li className={s.step} data-request={request.id}>
       <span>{request.title}</span>
       <span className={s.stepWho}>{t(`business.ca.state.${request.state}`)} · {dayOf(request.at, language)}</span>
+      {request.signoffId && <StoredCaSignoff id={request.signoffId} />}
       {request.state === 'sent' && !open && (
         <div className={s.buttons}><Button onClick={() => setOpen(true)}>{t('business.ca.record')}</Button></div>
       )}

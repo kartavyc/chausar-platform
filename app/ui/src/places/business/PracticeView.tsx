@@ -7,6 +7,8 @@ import { TileSection, dayOf, messageOf } from './shared';
 // W4 4J22a: drills (4J15), experiments (4J16) and the guidance report (4J16).
 import { Drills, Experiments } from './Drills';
 import { GuidanceReport } from './GuidanceReport';
+// W6 6C4: the two launch stages and the button that moves the business up.
+import { LaunchStages } from './LaunchStages';
 import s from './Business.module.css';
 
 /**
@@ -29,6 +31,7 @@ export function PracticeView() {
   return (
     <div className={s.page}>
       <p className={s.lead}>{t('business.practice.lead')}</p>
+      <LaunchStages />
       <Rehearsal />
       <div className={s.split} data-ratio="even">
         <Improvement />

@@ -1,7 +1,7 @@
 // Social media agency, the built pieces in a real order's run (Ink v2 wave 2, package 2F1): calendar slots made by
 // code from the order's intake reach the drafting task and the calendar check; a long X post is split into a thread by
 // code; the client's own word lists from intake feed the words check. Everything goes through venture.order.create
-// and venture.delivery.run and venture.delivery.approve, the way the owner's app calls them.
+// and venture.delivery.run with scoped agent tools, the way the owner's app calls them.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
@@ -25,8 +25,13 @@ import { planCalendar } from '../runtime/venture/playbooks/social/calendar.ts';
 import { checkWords, countCharacters, splitThread } from '../runtime/venture/playbooks/social/checks.ts';
 import { parsePostId, postsOfText } from '../runtime/venture/playbooks/social/run-approvals.ts';
 import { socialDraftPosts } from '../runtime/venture/playbooks/social/draft-posts.ts';
+import {HOOK_FORMULAS} from '../runtime/venture/playbooks/social/post-plan.ts';
+import {socialStages} from '../runtime/venture/playbooks/social/stages.ts';
+import {SOCIAL_LEGAL_RULES} from '../runtime/venture/playbooks/social/legal-confirmation.ts';
 import { socialPostBlocks, threadParts } from '../runtime/venture/playbooks/social/post-lines.ts';
 import { VentureTestStore } from './venture-test-store.ts';
+import {scriptedAgent,consentForOrder,SCRIPTED_AGENT_SETTINGS} from './fixtures/venture/scripted-agent.ts';
+import {waitForAgentWork} from '../runtime/venture/agent-runtime/runner.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.message); return true; };
@@ -48,6 +53,7 @@ const posts = (lines: string[]): Draft => ({
 /** Both tiers are an AI. A preview waits for approval; an approved preview answers with the next queued draft. */
 class Port implements ModelPort {
   drafts: unknown[] = [];
+  reads:{name:string;data:any}[]=[];
   previewed: ModelTask<any>[] = [];
   #calls = 0;
   #previews = new Map<string, string>();
@@ -72,7 +78,7 @@ class Port implements ModelPort {
     this.#previews.set(callId, digest(payloadText));
     return {
       callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: EXPIRES,
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
     };
   }
   async runPreview<T>(_ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -120,12 +126,24 @@ async function business() {
 }
 type Env = Awaited<ReturnType<typeof business>>;
 
-/** One draft for one order: delivery.run previews, delivery.approve answers with the queued draft. */
+/** The agent reads each current writing stage and supplies its checked draft for owner review. */
 async function deliver(env: Env, orderId: string, answer: Draft): Promise<DeliveryRunView> {
-  const waiting = await env.call('venture.delivery.run', { orderId });
-  assert.equal(waiting.status, 'waiting-for-you');
-  env.models.drafts.push(answer);
-  return env.call('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest });
+  await env.deps.store.update(state=>{state.policy.send='shape';});await consentForOrder(env.deps,owner,orderId);
+  const order=(env.deps.store.read().conversations as any[]).find(r=>r.kind==='venture-order'&&r.id===orderId);
+  const stages=socialStages(env.offers.find(o=>o.id===order.offerId)?.playbookOffer);
+  const copy=structuredClone(answer);const postCount=socialDraftPosts(copy as any).length;copy.sections.push({heading:'Post plan',parts:Array.from({length:postCount},(_,i)=>text(`Post ${i+1} | Value | Goal: Teach useful practice | Reader action: Try it | Hook: ${HOOK_FORMULAS[i%HOOK_FORMULAS.length]}`))});
+  env.deps.agentRoute=async()=>({settings:SCRIPTED_AGENT_SETTINGS,driver:scriptedAgent(()=>{
+    const current=(env.deps.store.read().conversations as any[]).find(r=>r.kind==='venture-order'&&r.id===orderId),stage=current.chainStage??1;
+    return stage<stages.length?{title:stage===1?'Voice sheet':'Calendar',questionsForClient:[],sections:(stage===1?['Voice','Pillars','Words to avoid']:['Calendar','Topics and hooks']).map(heading=>({heading,parts:[text('Clear, useful guidance for the studio.')] }))}:copy;
+  },undefined,(name,data)=>env.models.reads.push({name,data}))});
+  let waiting=await env.call('venture.delivery.run',{orderId});
+  while((waiting.chainStage??1)<stages.length){
+   await waitForAgentWork(env.deps.store,waiting.id);
+   const ready=(await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
+   await env.call('venture.delivery.review',{runId:ready.id,verdict:'accepted'});
+   waiting=(env.deps.store.read().conversations.filter((r:any)=>r.kind==='venture-delivery-run'&&r.orderId===orderId) as any[]).at(-1)!;
+  }
+  await waitForAgentWork(env.deps.store,waiting.id);return (await env.call('venture.delivery.list')).find((run:DeliveryRunView)=>run.id===waiting.id);
 }
 const checksOf = (run: { playbookChecks?: PlaybookCheckResult[] }) => Object.fromEntries((run.playbookChecks ?? []).map(item => [item.check, item]));
 
@@ -151,8 +169,8 @@ test('calendar slots: the intake plans them by code, the drafting task lists the
 
   const run = await deliver(env, order.id, posts([...LINKEDIN, ...INSTAGRAM]));
   // The drafting task, not a later judge call on the ready draft.
-  const input = env.models.previewed.filter(task => task.purpose === 'delivery').at(-1)!.input as { guidance: string[] };
-  const guidance = input.guidance.join('\n');
+  const input = env.models.reads.findLast(item=>item.name==='read_business')!.data;
+  const guidance = JSON.stringify(input.workInstructions);
   for (const slot of slots) assert.ok(guidance.includes(`${slot.id} on ${slot.date}`), `the drafting task lists ${slot.id} on ${slot.date}`);
   const slotsCheck = checksOf(run)['calendar-slots'];
   assert.equal(slotsCheck.outcome, 'pass', slotsCheck.detail);
@@ -167,7 +185,7 @@ test('calendar slots: the intake plans them by code, the drafting task lists the
   assert.equal(failed.outcome, 'fail');
   assert.equal(failed.detail, 'LinkedIn has 3 slots and 2 posts.');
   assert.equal(short.canAccept, false);
-  assert.match(short.acceptBlocked!, /LinkedIn has 3 slots and 2 posts/);
+  assert.match(short.acceptBlocked!, /Every code-created calendar slot needs exactly one post and plan|LinkedIn has 3 slots and 2 posts/);
 
   // One numbering for checks, posting and the calendar file: the nth post line is post-n, whatever text comes first.
   const third = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: REQUEST, intake: { calendar: CALENDAR } });
@@ -200,14 +218,14 @@ test('calendar intake: refused in planCalendar\'s words when the month has too f
     return true;
   });
   await assert.rejects(env.call('venture.order.create', { ...base, intake: { calendar: { ...CALENDAR, month: '2025-11' } } }), code('INVALID_VENTURE_REQUEST'));
-  await assert.rejects(env.call('venture.order.create', { ...base, offerId: 'offer_2', intake: { calendar: CALENDAR } }), code('INVALID_VENTURE_REQUEST'), 'reply drafts take no calendar');
+  await assert.rejects(env.call('venture.order.create', { ...base, offerId: 'offer_2', intake: { calendar: CALENDAR,fields:{communityRules:'Be kind.',communityPromotion:false,communityLinks:false} } }), code('INVALID_VENTURE_REQUEST'), 'reply drafts take no calendar');
   await assert.rejects(env.call('venture.order.create', { ...base, intake: { calendar: { ...CALENDAR, extra: true } } }), code('INVALID_VENTURE_REQUEST'));
   const none = await env.call('venture.order.create', base);
-  assert.equal('intake' in none, false, 'a calendar is not required; without one the check says it did not run');
+  assert.equal(none.intake?.calendar??null, null, 'a calendar is not required; without one the check says it did not run');
   const run = await deliver(env, none.id, posts([...LINKEDIN, ...INSTAGRAM]));
   assert.equal(checksOf(run)['calendar-slots'].outcome, 'not-run');
   assert.match(checksOf(run)['calendar-slots'].detail, /^not run: /);
-  const replies = await env.call('venture.order.create', { ...base, offerId: 'offer_2' });
+  const replies = await env.call('venture.order.create', { ...base, offerId: 'offer_2',intake:{fields:{communityRules:'Be kind.',communityPromotion:false,communityLinks:false}} });
   const reply = await deliver(env, replies.id, posts(['Instagram: Thank you, see you on the mat.']));
   assert.equal(checksOf(reply)['calendar-slots'], undefined, 'reply drafts have no calendar check');
 });
@@ -283,7 +301,16 @@ test("client lists: the intake's banned words and competitors feed the words che
   assert.equal(organic.canAccept, false);
   const other = checkWords({ id: 'post', channel: 'instagram', text: 'Congrats to Glow Kitchen on opening.', style: 'post' }, { proofFiles: [], competitors: ['Glow Kitchen'] });
   assert.equal(other[0].severity, 'ask-owner', 'a competitor not on the client\'s list stays for the owner to decide');
-  const ad = await deliver(env, (await make({ paidPromotion: true })).id, posts(['Instagram: Ad. Morning yoga in Goa, kinder than Yoga Hub.']));
+  // This test isolates wording checks after a professional review. The separate
+  // social-confirmation test proves unconfirmed client work never reaches a model.
+  const previous = SOCIAL_LEGAL_RULES.map(rule => rule.confirmedBy);
+  let ad: DeliveryRunView;
+  try {
+    for (const rule of SOCIAL_LEGAL_RULES) rule.confirmedBy = { name: 'Fixture lawyer', on: '2026-10-21' };
+    ad = await deliver(env, (await make({ paidPromotion: true })).id, posts(['Instagram: Ad. Morning yoga in Goa, kinder than Yoga Hub.']));
+  } finally {
+    SOCIAL_LEGAL_RULES.forEach((rule, index) => { rule.confirmedBy = previous[index]; });
+  }
   assert.equal(checksOf(ad).words.outcome, 'fail');
   assert.match(checksOf(ad).words.detail, /This ad names Yoga Hub, a competitor/);
 
@@ -311,7 +338,7 @@ test("client lists: the intake's banned words and competitors feed the words che
   await assert.rejects(make({ clientRules: { bannedWords: 'cheap' } }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(make({ clientRules: { ...clientRules, slogans: [] } }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request, intake: { clientRules: { bannedWords: ['x'.repeat(81)] } } }), code('INVALID_VENTURE_REQUEST'));
-  const partial = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_2', request, intake: { clientRules: { bannedWords: [' cheap ', 'cheap'] } } });
+  const partial = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_2', request, intake: { fields:{communityRules:'Be kind.',communityPromotion:false,communityLinks:false},clientRules: { bannedWords: [' cheap ', 'cheap'] } } });
   assert.deepEqual(partial.intake.clientRules, { bannedWords: ['cheap'], bannedTopics: [], competitors: [], protectedPhrases: [] }, 'trimmed, each once, missing lists empty');
 });
 
@@ -359,4 +386,56 @@ test('the playbook: the calendar guidance sits on the drafting step and still va
   assert.equal(social.orderGuidance('content-calendar', { ...intake, calendar: CALENDAR as never }).length, 2);
   assert.deepEqual(social.orderGuidance('content-calendar', { ...intake, calendar: { ...CALENDAR, postsPerChannel: 40 } as never }), []);
   assert.deepEqual(social.orderGuidance('content-calendar', null), []);
+});
+
+test('a live social run checks the current client brand kit when intake rules are empty', async () => {
+  const env = await business();
+  const { handlers } = await import('../runtime/venture/playbooks/index.ts');
+  await handlers['venture.brandKit.set']!(env.deps, owner, { clientId: env.client.id, kit: { bannedWords: ['cheap'], bannedTopics: ['politics'], competitors: ['Yoga Hub'] } });
+  const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'Morning classes, warm and simple.', intake: { clientRules: { bannedWords: [], bannedTopics: [], competitors: [], protectedPhrases: [] } } });
+  const run = await deliver(env, order.id, posts(['LinkedIn: Try our cheap morning classes.']));
+  assert.equal(checksOf(run).words.outcome, 'fail');
+  assert.match(checksOf(run).words.detail, /client-kit/);
+  assert.equal(run.canAccept, false);
+});
+
+test('social W5 offers expose owner inputs and community rules block before any model preview', async () => {
+  const env = await business();
+  const plan = await env.call('venture.blueprint.get');
+  const keys = plan.blueprint.offers.map((offer: any) => offer.playbookOffer);
+  assert.ok(keys.includes('repurpose-pack'));
+  assert.ok(keys.includes('linkedin-ghostwriting'));
+  const community = env.offers.find(offer => offer.playbookOffer === 'community-replies')!;
+  await assert.rejects(env.call('venture.order.create', { clientId: env.client.id, offerId: community.id, request: 'Draft a reply for the local community.' }), code('INTAKE_FIELD_REQUIRED'));
+  assert.equal(env.models.previewed.length, 0);
+  const blocked = await env.call('venture.order.create', { clientId: env.client.id, offerId: community.id, request: 'Announce our paid yoga class.', intake: { fields: { communityRules: 'No self-promotion.\nNo links.', communityPromotion: true, communityLinks: false } } });
+  await assert.rejects(env.call('venture.delivery.run', { orderId: blocked.id }), code('COMMUNITY_NO_GO'));
+  assert.equal(env.models.previewed.length, 0);
+});
+
+test('repurpose order refuses a thin bound source before any model preview', async () => {
+  const env = await business();
+  const offer = env.offers.find(item => item.playbookOffer === 'repurpose-pack');
+  assert.ok(offer);
+  const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: offer.id, request: 'Repurpose this source.', intake: { fields: { channels: ['linkedin', 'x', 'facebook'] } }, intakeFiles: { sourceFile: { name: 'source.csv', contentBase64: Buffer.from('text\nWe teach yoga.').toString('base64') } } });
+  await assert.rejects(env.call('venture.delivery.run', { orderId: order.id }), code('SOURCE_THIN'));
+  assert.equal(env.models.previewed.length, 0);
+});
+
+test('social canvas reads only this order source and shows channel formats with rule traces', async () => {
+  const env = await business();
+  const offer = env.offers.find(item => item.playbookOffer === 'repurpose-pack')!;
+  const source = 'text\nWe teach yoga.\nWe use mats.\nWe practise breathing.\nWe learned to slow down.';
+  const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: offer.id, request: 'A week of posts.', intake: { fields: { channels: ['linkedin','instagram','x'] } }, intakeFiles: {sourceFile:{name:'source.csv',contentBase64:Buffer.from(source).toString('base64')}} });
+  const { SOCIAL_AGENCY_DESK } = await import('../runtime/venture/playbooks/social/desk.ts');
+  assert.ok(SOCIAL_AGENCY_DESK.canvas);
+  await assert.rejects(SOCIAL_AGENCY_DESK.canvas.list!(env.deps,owner,{playbook:'social-agency',kind:'canvas',extra:true} as any),code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(SOCIAL_AGENCY_DESK.canvas.list!(env.deps,owner,{playbook:'social-agency',kind:'canvas',filter:{orderId:42}} as any),code('INVALID_VENTURE_REQUEST'));
+  const view = await SOCIAL_AGENCY_DESK.canvas.get!(env.deps, owner, {playbook:'social-agency',kind:'canvas',id:order.id});
+  const item = view.item as any;
+  assert.equal(item.inventory.counts.total,4);
+  assert.deepEqual(item.cards.map((card:any)=>card.channel),['linkedin','instagram','x']);
+  assert.equal(item.cards[1].format,'image-brief');
+  assert.ok(item.cards[1].trace.includes('source-image-missing'));
+  await assert.rejects(SOCIAL_AGENCY_DESK.canvas.get!(env.deps, owner, {playbook:'social-agency',kind:'canvas',id:'order_other'}),code('ORDER_NOT_FOUND'));
 });

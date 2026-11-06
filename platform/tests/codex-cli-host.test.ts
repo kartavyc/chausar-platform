@@ -370,7 +370,8 @@ for (const entrypoint of entrypoints) {
     };
     const engine = await entrypoint.create(environment, f.dependencies, false);
     assert.equal(engine.options.directory, environment.CHAUSAR_VAULT_DIRECTORY); assert.equal(engine.options.demo, false);
-    assert.equal(engine.options.storage, 'postgres'); assert.equal(engine.options.postgresUrl, environment.CHAUSAR_POSTGRES_URL);
+    assert.equal(engine.options.storage, entrypoint.label === 'worker' ? 'experimental-file' : 'postgres');
+    assert.equal(engine.options.postgresUrl, entrypoint.label === 'worker' ? undefined : environment.CHAUSAR_POSTGRES_URL);
     assert.equal(engine.options.pythonExecutable, 'synthetic-python'); assert.equal(engine.options.updatePublicKey, 'synthetic-public-key');
     assert.equal(engine.options.durableJobs?.workerId, 'synthetic-worker'); assert.equal(engine.options.durableJobs?.maxActiveJobs, 2);
     assert.equal(engine.options.durableJobs?.leaseMs, 45000); assert.equal(engine.options.durableJobs?.networkAvailable(), false);

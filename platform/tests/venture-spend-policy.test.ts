@@ -16,7 +16,7 @@ const run = async () => ({ value: 'done', billedMicros: null });
 /** The settings this file covers, without the Ink v2 wave 4 (4F2) meters and limits, which venture-spend-meter.test.ts covers,
  *  nor which currency leads (4Z3), which venture-spend-lead.test.ts covers. */
 const base = (view: SpendPolicyView) => {
-  const { dailyCapMicros, dailyCapUsd, dailyCap, dailyCapRupees, alertPermille, alert, meter, limitReached, keyLimits, agentCaps, writeCaps, card, currencyLead, leads, capLead, askFirstLead, ...rest } = view;
+  const { dailyCapMicros, dailyCapUsd, dailyCap, dailyCapRupees, alertPermille, alert, meter, limitReached, keyLimits, agentCaps, writeCaps, card, currencyLead, leads, capLead, askFirstLead, meters, ...rest } = view;
   return rest;
 };
 const call = (key: string, item: string, list: SpendRate | null = null) => ({ key, item, label: `Call ${key}`, payer: 'connector:fal', draftDigest: 'c'.repeat(64), list });

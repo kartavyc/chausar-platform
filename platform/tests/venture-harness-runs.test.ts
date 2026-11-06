@@ -4,6 +4,8 @@
 // from the task it is given, opens an empty store update before each call (so a call inside a transaction fails),
 // and never touches the network.
 import test from 'node:test';
+import { scriptedAgent, consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
+import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { PURPOSE_TIER, REQUIRED_SECTIONS, STEP_PLAN } from '../runtime/venture/contracts.ts';
@@ -84,7 +86,7 @@ class ScriptPort implements ModelPort {
     const payloadText = JSON.stringify({ system: task.instructions, input: task.input });
     this.#previews.set(callId, { digest: digest(payloadText), task, used: false });
     await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview' }); });
-    return { callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-16T10:30:00.000Z' };
+    return { callId, payloadText, digest: digest(payloadText), presetId: 'anthropic-sonnet-5-5', model: 'stub', endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010' };
   }
   async runPreview<T>(ctx: Context, callId: string, approved: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
     await this.store.update(() => undefined);
@@ -169,7 +171,6 @@ function call<T>(env: Env, method: string, payload: unknown = {}, ctx: Context =
   assert.ok(handler, method);
   return handler(env.deps, ctx, payload) as Promise<T>;
 }
-const approve = (env: Env, run: DeliveryRunView) => call<DeliveryRunView>(env, 'venture.delivery.approve', { runId: run.id, digest: run.preview!.digest });
 const eventNames = (env: Env) => listRecords(env.store.read(), 'venture-event').sort((a, b) => a.seq - b.seq).map(event => event.name);
 
 const turnOf = (note: string, calls: [string, unknown][], finished = false) => ({ note, calls: calls.map(([tool, input]) => ({ tool, input: JSON.stringify(input) })), finished });
@@ -223,12 +224,6 @@ async function orderWithFiles(env: Env): Promise<OrderRecord> {
   return order;
 }
 
-function scriptTurns(env: Env, turns: unknown[], report: unknown = REPORT) {
-  let next = 0;
-  env.models.respond['agent-turn'] = () => turns[Math.min(next++, turns.length - 1)];
-  env.models.respond.delivery = () => report;
-}
-
 const READ = turnOf('Look at the statement and the bills', [['files.list', {}], ['files.read', { target: 'f1', part: 'sample' }], ['files.read', { target: 'f2', part: 'sample' }]]);
 const RECONCILE = turnOf('Reconcile the statement against the bills', [['books.reconcile', {
   bank: 'f1', date: 'Date', description: 'Narration', moneyOut: 'Withdrawal', moneyIn: 'Deposit', balance: 'Balance',
@@ -241,190 +236,47 @@ const rulesYes = (task: ModelTask<any>) => task.schemaName === 'venture-judge-ru
   ? { votes: (task.input as { rules: { id: string }[] }).rules.map(rule => ({ rule: rule.id, answer: 'yes', cites: ['draft'], quote: '', reason: 'Fine.' })) }
   : { answers: ['goal-met', 'tone-fits', 'policy-followed', 'no-unbacked-claims'].map(question => ({ question, answer: 'yes', reason: 'Fine.' })) };
 
-test('real order: each turn waits for approval of its exact text, tools run here between turns, and the report cites receipts', async () => {
-  const env = await setup('approve-each');
-  const order = await orderWithFiles(env);
-  scriptTurns(env, [READ, RECONCILE, ASK, DONE]);
 
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  assert.equal(run.status, 'waiting-for-you');
-  assert.equal(run.harness!.phase, 'act');
-  assert.equal(run.uploadIds!.length, 2);
-  assert.ok(run.canApprove && run.awaitingYou);
-  const first = env.models.previewed.at(-1)!;
-  assert.equal(first.purpose, 'agent-turn');
-  assert.equal(first.containsClientData, true, 'every turn of a real order holds client data');
-  assert.ok(run.preview!.payloadText.includes(ORDER_REQUEST));
-  assert.ok(run.preview!.payloadText.includes('bank-statement-aroma.csv'));
-  assert.equal(env.models.generated.length, 0, 'nothing goes out under standing consent');
-  assert.equal(env.models.sent, 0);
 
-  run = await approve(env, run);
-  assert.equal(run.status, 'waiting-for-you');
-  assert.deepEqual(run.harness!.toolCalls.map(item => [item.tool, item.outcome]), [['files.list', 'succeeded'], ['files.read', 'succeeded'], ['files.read', 'succeeded']]);
-  assert.ok(env.models.previewed.at(-1)!.input && JSON.stringify(env.models.previewed.at(-1)!.input).includes('Narration'), 'the next turn sees what the tools read');
-  await assert.rejects(approve(env, { ...run, preview: { ...run.preview!, digest: 'f'.repeat(64) } }), code('APPROVAL_STALE'));
-
-  run = await approve(env, run);
-  const receipts = listRecords(env.store.read(), 'venture-work-receipt');
-  assert.equal(receipts.length, 1);
-  assert.equal(receipts[0].reconciliation!.balanced, true);
-  assert.deepEqual(receipts[0].runRef, { kind: 'delivery', runId: run.id });
-  assert.deepEqual(run.harness!.workReceiptIds, [receipts[0].id]);
-
-  run = await approve(env, run);
-  assert.equal(run.status, 'needs-answer');
-  assert.equal(run.callId, null);
-  assert.equal(run.preview, null);
-  assert.ok(run.awaitingYou && !run.canApprove);
-  assert.equal(run.harness!.toolCalls.at(-1)!.outcome, 'cancelled', 'the call after the hand-off did not run');
-  await assert.rejects(call(env, 'venture.delivery.approve', { runId: run.id, digest: 'a'.repeat(64) }), code('DELIVERY_NOT_WAITING'));
-  await assert.rejects(call(env, 'venture.delivery.answer', { runId: run.id, answer: 'Yes.' }, phone), code('APP_APPROVAL_REQUIRED'));
-  assert.ok(eventNames(env).includes('delivery-needs-answer'));
-
-  run = await call<DeliveryRunView>(env, 'venture.delivery.answer', { runId: run.id, answer: 'Yes, the cafe current account.' });
-  assert.equal(run.status, 'waiting-for-you');
-  assert.ok(run.preview!.payloadText.includes('the cafe current account'));
-  await assert.rejects(call(env, 'venture.delivery.answer', { runId: run.id, answer: 'Again.' }), code('DELIVERY_NOT_ASKING'));
-
-  run = await approve(env, run);
-  assert.equal(run.harness!.phase, 'write');
-  const write = env.models.previewed.at(-1)!;
-  assert.equal(write.purpose, 'delivery');
-  assert.equal(write.containsClientData, true);
-  const input = write.input as any;
-  assert.deepEqual(input.requiredSections, [...REPORT_SECTIONS]);
-  assert.ok(input.figures.some((entry: any) => entry.ref === 'w1.statement-closing'));
-  assert.ok(input.proven.includes('The statement balances: the closing balance worked out equals the one on the statement.'));
-  assert.equal(input.attached, 'A reconciliation table worked out by the calculator.');
-
-  // The ready report goes to the client, so the rules judge reads it (judgeAuto, judge-run.ts).
-  env.models.respond.judge = rulesYes;
-  run = await approve(env, run);
-  assert.equal(run.status, 'ready-for-review');
-  assert.equal(run.harness!.phase, 'done');
-  assert.deepEqual(run.deliverable!.attachments, [{ kind: 'reconciliation', receiptId: receipts[0].id }]);
-  assert.ok(run.checks.every(result => result.passed), JSON.stringify(run.checks));
-  assert.equal(run.checks.find(result => result.check === 'no-done-claims')!.detail, 'Every claim of finished work matches a tool run that proves it.');
-  for (const line of ['Payments matched to bills: 5', 'Closing balance on the statement: INR 77,730.00', '## Reconciliation', 'The statement balances.', 'Total: INR 2,948.82']) {
-    assert.ok(run.renderedText!.includes(line), line);
-  }
-  // Approved here rather than on Today, so no standing consent was given: the judge's call waits for the owner.
-  assert.equal(run.judge!.status, 'waiting');
-  assert.equal(env.models.sent, 5, 'five turns; the judge waits');
-  run = await call<DeliveryRunView>(env, 'venture.delivery.judgeSend', { runId: run.id, digest: run.judge!.preview!.digest });
-  assert.equal(run.checks.find(result => result.check === 'rules-judge')!.passed, true, 'judged with checked votes');
-  assert.equal(env.models.sent, 6, 'five turns, then the judge once');
-  assert.equal(env.models.generated.length, 0);
-  const receipt = await call<WorkReceiptRecord>(env, 'venture.work.get', { id: receipts[0].id });
-  assert.equal(receipt.operation, 'work.reconcile');
-  await assert.rejects(call(env, 'venture.work.get', { id: 'work_missing' }), code('WORK_RECEIPT_NOT_FOUND'));
-  const accepted = await call<DeliveryRunView>(env, 'venture.delivery.review', { runId: run.id, verdict: 'accepted' });
-  assert.equal(accepted.status, 'accepted');
-});
-
-test('real order: at shadow the report is a practice draft, a claim no tool proved blocks Accept, and moving down stops the next send', async () => {
-  const env = await setup('shadow');
-  const order = await orderWithFiles(env);
-  const sent = { ...REPORT, sections: REPORT.sections.map(section => section.heading === 'Next steps' ? { heading: section.heading, parts: [part('We have sent the report to your accountant.')] } : section) };
-  scriptTurns(env, [RECONCILE, DONE], sent);
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  run = await approve(env, run);
-  run = await approve(env, run);
-  run = await approve(env, run);
-  assert.equal(run.status, 'ready-for-review');
-  assert.equal(run.practice, true);
-  const claim = run.checks.find(result => result.check === 'no-done-claims')!;
-  assert.equal(claim.passed, false, 'sending is never proven');
-  assert.match(claim.detail, /We have sent/);
+test('native shadow draft keeps its practice status and refuses an unproved outside-action claim', async () => {
+  const env = await setup('shadow'), order = await orderWithFiles(env);
+  await env.store.update(state => { state.policy.send = 'shape'; });
+  await consentForOrder(env.deps, owner, order.id);
+  const report = { title: 'Report for review', sections: REQUIRED_SECTIONS.bookkeeping.map((heading, index) => ({ heading, parts: [{ kind: 'text', text: index === 0 ? 'We have sent the report to your accountant.' : 'Please review the attached statement.', ref: '' }] })), questionsForClient: [] };
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, driver: scriptedAgent(() => report) });
+  const started = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, started.id);
+  const run = (await call<DeliveryRunView[]>(env, 'venture.delivery.list')).find(row => row.id === started.id)!;
+  assert.equal(run.status, 'ready-for-review', JSON.stringify(run)); assert.equal(run.practice, true);
+  assert.equal(run.checks.find(row => row.check === 'no-done-claims')?.passed, false);
   assert.equal(run.acceptBlocked, PRACTICE_REASON);
   await assert.rejects(call(env, 'venture.delivery.review', { runId: run.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
-  assert.ok(listRecords(env.store.read(), 'venture-signal').some(signal => signal.reason === 'no-done-claims'));
-
-  await ventureAction(env.deps, owner, 'approve', 'seed.stage', tx => { tx.touch({ launchStage: 'approve-each' }); });
-  const view = (await call<DeliveryRunView[]>(env, 'venture.delivery.list')).find(item => item.id === run.id)!;
-  assert.equal(view.acceptBlocked, PRACTICE_REASON, 'a practice draft stays practice');
-
-  // A run waiting at approve each, then the owner moves down to rehearsal: the next turn is never sent.
-  scriptTurns(env, [RECONCILE, DONE]);
-  let next = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  const before = env.models.sent;
-  await ventureAction(env.deps, owner, 'approve', 'seed.stage', tx => { tx.touch({ launchStage: 'rehearsal' }); });
-  await assert.rejects(approve(env, next), code('LAUNCH_STAGE_BLOCKED'));
-  assert.equal(env.models.sent, before);
-  next = (await call<DeliveryRunView[]>(env, 'venture.delivery.list')).find(item => item.id === next.id)!;
-  assert.equal(next.canApprove, false);
+  await ventureAction(env.deps, owner, 'approve', 'fixture.stage', tx => tx.touch({ launchStage: 'approve-each' }));
+  assert.equal((await call<DeliveryRunView[]>(env, 'venture.delivery.list')).find(row => row.id === run.id)!.acceptBlocked, PRACTICE_REASON);
+  // 6C4: Practice still lets the AI draft, so moving Live down to Practice mid-run does not stop the work; the draft
+  // it lands reads as a practice draft now (practiceNow) and can never reach the client.
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, driver: scriptedAgent(() => report, async () => {
+    await ventureAction(env.deps, owner, 'approve', 'fixture.stage', tx => tx.touch({ launchStage: 'rehearsal' }));
+  }) });
+  const next = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, next.id);
+  const moved = (await call<DeliveryRunView[]>(env, 'venture.delivery.list')).find(row => row.id === next.id)!;
+  assert.equal(moved.practiceNow, true, JSON.stringify(moved));
+  assert.equal(moved.acceptBlocked, PRACTICE_REASON);
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: next.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
 });
 
-test('real order: report headings without proven work are refused, and without an AI for quick work the agent writes from the message', async () => {
-  const env = await setup('approve-each');
-  const order = await orderWithFiles(env);
-  scriptTurns(env, [DONE]);
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  run = await approve(env, run);
-  assert.equal(run.harness!.sections, 'reply', 'no tool proved work, so the reply headings apply');
-  assert.deepEqual((env.models.previewed.at(-1)!.input as { requiredSections: string[] }).requiredSections, [...REQUIRED_SECTIONS.bookkeeping]);
-  // The model answers with report headings anyway: the answer is refused and the spent draft is marked failed.
-  await assert.rejects(approve(env, run), code('MODEL_OUTPUT_REJECTED'));
-  assert.equal(listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id)!.status, 'failed');
-
-  env.models.fast = 'template';
-  env.models.respond.delivery = () => ({
-    title: 'Plan for your books',
-    sections: REQUIRED_SECTIONS.bookkeeping.map(heading => ({ heading, parts: [part('We matched every payment already.')] })),
-    questionsForClient: [],
-  });
-  run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  assert.equal(run.harness!.phase, 'write');
-  assert.equal(run.harness!.stopReason, NO_QUICK_AI);
-  assert.equal(env.models.previewed.at(-1)!.purpose, 'delivery');
-  run = await approve(env, run);
-  assert.equal(run.acceptBlocked, DONE_CLAIM_REASON);
-});
-
-test('hosted server: a real bookkeeping order reconciles from CSV with no sandbox, code tools are refused and not offered, and PDFs are refused', async () => {
-  const env = await setup('approve-each');
-  const dockerCalls: unknown[] = [];
-  const helperCalls: unknown[] = [];
+test('hosted server refuses client PDFs and owner-tool jobs without probing Docker or Python', async () => {
+  const env = await setup('approve-each'); const dockerCalls: unknown[] = [], helperCalls: unknown[] = [];
   env.deps.host = 'hosted-web';
   env.deps.sandbox = { process: async request => { dockerCalls.push(request.args); return { exitCode: 0, stdout: '', stderr: '', timedOut: false, truncated: false }; } };
   (env.deps.services as { helper?: unknown }).helper = { async run(operation: string) { helperCalls.push(operation); return { result: { pages: [] }, receipt: {} }; } };
   const order = await seedOrder(env);
   await assert.rejects(call(env, 'venture.files.add', { orderId: order.id, name: 'bill.pdf', contentBase64: b64('%PDF-1.7 synthetic bill') }), code('TIER_UNAVAILABLE'));
-  assert.deepEqual(listRecords(env.store.read(), 'venture-upload'), [], 'a PDF is refused before it is stored');
-  for (const file of PRACTICE_FILES['bookkeeping-clean']) await call(env, 'venture.files.add', { orderId: order.id, name: file.name, contentBase64: b64(file.content) });
-
-  const CODE = turnOf('Try a program for supplier kinds', [
-    ['sandbox.transform', { table: 'f2', program: 'out kind = if contains(lower(col("Supplier")), "dairy") then "Supplies" else "Overheads"' }],
-    ['sandbox.python', { table: 'f2', code: 'def transform(row):\n    return {"kind": "x"}' }],
-  ]);
-  scriptTurns(env, [READ, CODE, RECONCILE, DONE]);
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  const offered = (env.models.previewed.at(-1)!.input as { tools: { tool: string }[] }).tools.map(item => item.tool);
-  for (const name of ['sandbox.transform', 'sandbox.python', 'bills.pick']) assert.ok(!offered.includes(name), `${name} is not offered on the hosted server`);
-  assert.ok(offered.includes('books.reconcile') && offered.includes('files.read'));
-  assert.ok(!run.preview!.payloadText.includes('rowLanguage'));
-  assert.ok(run.harness!.grant.includes('sandbox.transform'), 'the playbook grant itself is unchanged');
-
-  run = await approve(env, run);
-  run = await approve(env, run);
-  const refused = run.harness!.toolCalls.filter(item => item.tool.startsWith('sandbox.'));
-  assert.deepEqual(refused.map(item => [item.tool, item.outcome, item.envelope.ok ? null : item.envelope.error.code]), [
-    ['sandbox.transform', 'failed', 'TIER_UNAVAILABLE'], ['sandbox.python', 'failed', 'TIER_UNAVAILABLE'],
-  ]);
-  assert.deepEqual(listRecords(env.store.read(), 'venture-work-table'), [], 'no table was made by agent code');
-  run = await approve(env, run);
-  run = await approve(env, run);
-  run = await approve(env, run);
-  assert.equal(run.status, 'ready-for-review');
-  const receipts = listRecords(env.store.read(), 'venture-work-receipt');
-  assert.equal(receipts.length, 1);
-  assert.equal(receipts[0].reconciliation!.balanced, true);
-  assert.equal(receipts[0].reconciliation!.matched.length, 5, 'every payment matched without agent keys');
-  assert.ok(run.checks.every(result => result.passed), JSON.stringify(run.checks));
-  for (const line of ['Payments matched to bills: 5', 'Closing balance on the statement: INR 77,730.00', 'The statement balances.']) assert.ok(run.renderedText!.includes(line), line);
-  assert.deepEqual(dockerCalls, [], 'nothing checked for Docker or started a container');
-  assert.deepEqual(helperCalls, [], 'the Python helper never ran');
+  assert.deepEqual(listRecords(env.store.read(), 'venture-upload'), []);
+  await env.store.update(state => { state.policy.send = 'shape'; }); await consentForOrder(env.deps, owner, order.id);
+  await assert.rejects(call(env, 'venture.delivery.run', { orderId: order.id }), code('PRESET_UNAVAILABLE'));
+  assert.deepEqual(dockerCalls, []); assert.deepEqual(helperCalls, []);
 });
 
 // ---------------------------------------------------------------------------
@@ -611,23 +463,4 @@ test('improvement run: templates keep the old version, calculator-only failures 
   await ventureAction(env.deps, owner, 'admin', 'seed.accept', tx => { const record = tx.put(blueprintRecord(tx, 2)); tx.touch({ acceptedBlueprintId: record.id, blueprintId: record.id }); });
   assert.equal((await call<ImprovementStatus>(env, 'venture.improve.status')).candidate, null);
   await assert.rejects(call(env, 'venture.improve.adopt', { runId: kept.id, digest: kept.digest }), code('CANDIDATE_STALE'));
-});
-
-
-test('4J7 (K6): a real run tells its first act turn the capabilities on and off, in the text the owner approves; the next turn does not repeat it', async () => {
-  const env = await setup('approve-each');
-  const order = await orderWithFiles(env);
-  scriptTurns(env, [READ, DONE]);
-  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
-  const first = env.models.previewed.at(-1)!;
-  assert.equal(first.purpose, 'agent-turn');
-  const input = first.input as { tools: { tool: string }[]; capabilities?: { on: string[]; off: { tool: string; why: string }[]; note: string } };
-  assert.ok(input.capabilities, 'the first act turn carries the list');
-  assert.deepEqual([...input.capabilities.on].sort(), input.tools.map(item => item.tool).sort(), 'on is exactly the tools offered');
-  for (const item of input.capabilities.off) assert.ok(item.why.length > 10, item.tool);
-  assert.ok(run.preview!.payloadText.includes('"capabilities"'), 'the owner approves the list with the turn');
-  run = await approve(env, run);
-  const next = env.models.previewed.at(-1)!;
-  assert.equal(next.purpose, 'agent-turn');
-  assert.equal((next.input as { capabilities?: unknown }).capabilities, undefined);
 });

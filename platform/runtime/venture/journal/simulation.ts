@@ -54,6 +54,7 @@ const SIMULATORS: Record<JournalActionId, Simulator<ShadowView>> = {
   'notify.relay': written,
   // Ink v2 wave 4 (4J5): a credit note in Chausar's own books, written down as it would happen.
   'credit.issue': written,
+  'owner.handoff': written,
   'delivery.send': () => ({ kind: 'unsupported', reason: "Your AI's answer cannot be known without sending it." }),
   'connector.post': (_state, entry) => ({ kind: 'unsupported', reason: `How ${entry.target} shows or limits the post cannot be known without posting it.` }),
   'connector.write': (_state, entry) => ({ kind: 'unsupported', reason: `What ${entry.target} does with it cannot be known without sending it.` }),

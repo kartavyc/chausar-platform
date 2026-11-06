@@ -51,20 +51,10 @@ export const CHANNELS_OF: Readonly<Record<OutreachKind, readonly OutreachChannel
  * only in words (a client's "since", a tile's sub line, a nudge's own text) stays the engine's.
  */
 export function useCardWords() {
-  const t = useT();
-  const language = useLanguage();
-  const day = useDay('short');
-  const hindi = language === 'hi';
   return {
-    next: (next: NonNullable<PipelineCardView['next']>) =>
-      hindi ? t(next.late ? 'clients.pipeline.card.nextLate' : 'clients.pipeline.card.nextOn', { text: next.text, day: day(next.due) }) : next.line,
-    /** The engine's own line ("Intro drafted, for Mail"); in Hindi from its channel, since the engine sends no kind apart. */
-    draft: (card: PipelineCardView) => (hindi && card.draftChannel ? t('clients.pipeline.card.draftFor', { channel: t(`clients.outreach.channel.${card.draftChannel}`) }) : card.draft),
-    thread: (thread: NonNullable<PipelineCardView['thread']>) => {
-      if (!hindi) return thread.line;
-      const when = thread.days === 0 ? t('clients.pipeline.when.today') : thread.days === 1 ? t('clients.pipeline.when.yesterday') : t('clients.pipeline.when.days', { count: thread.days });
-      return t(`clients.pipeline.thread.${thread.age}`, { when });
-    },
-    blocked: (line: string) => (hindi ? t('clients.pipeline.card.blockedLine') : line),
+    next: (next: NonNullable<PipelineCardView['next']>) => next.line,
+    draft: (card: PipelineCardView) => card.draft,
+    thread: (thread: NonNullable<PipelineCardView['thread']>) => thread.line,
+    blocked: (line: string) => line,
   };
 }

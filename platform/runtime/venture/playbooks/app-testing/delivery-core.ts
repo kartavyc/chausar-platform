@@ -1,0 +1,6 @@
+// Browser-safe description of the actual reviewed files. It never claims device execution from a written plan.
+import {digest} from '../../../portable.ts';
+import type {ArticleOutput,ArticleDelivery} from '../podcast-to-article/delivery-types.ts';
+export type TestingDeliveryEvidence={kind:'test'|'demo';binding:string;text:string;files:{id:string;name:string;digest:string}[]};
+export function testingDeliverable(source:TestingDeliveryEvidence):ArticleOutput{return{title:source.kind==='test'?'Reviewed app test report':'Reviewed software demo',sections:[{heading:'Reviewed evidence',parts:[{kind:'text',text:source.text}]}],questionsForClient:[]};}
+export function testingDeliveryCheck(input:{deliverable:ArticleDelivery;testingEvidence?:TestingDeliveryEvidence|null}){const source=input.testingEvidence,passed=!!source&&digest(input.deliverable)===digest(testingDeliverable(source));return[{playbook:'app-testing',check:'recorded-evidence',outcome:source?(passed?'pass' as const:'fail' as const):'not-run' as const,detail:source?(passed?'The exact reviewed source and files are current.':'Use the exact reviewed source files without new claims.'):'Open the testing desk and review the actual report or rendered video. A written plan is not execution evidence.'}];}

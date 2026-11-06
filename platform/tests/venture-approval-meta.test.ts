@@ -35,7 +35,7 @@ function sealedDigest(row: QueueRow): string {
 
 const PREVIEW = {
   callId: 'call_1', payloadText: '{"system":"..."}', digest: 'c'.repeat(64), presetId: 'anthropic-sonnet-5-5' as const, model: 'claude-sonnet-5-5',
-  endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010', expiresAt: '2026-10-15T10:30:00.000Z',
+  endpoint: 'https://api.anthropic.com/v1/messages', estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
 };
 const FAL: SpendRate = {
   item: 'connector:fal', unit: 'per-call', inputMicrosPerMillion: null, outputMicrosPerMillion: null, microsPerCall: '150000',
@@ -151,20 +151,14 @@ test('meta: a row waiting over a day says since when; a draft older than 14 days
   assert.deepEqual(late.map(row => [row.id, row.digest]), before.map(row => [row.id, row.digest]));
 });
 
-test('meta: an expiry comes only from a real one: the preview, the spend quote, the post proposal, a timed question', async () => {
+test('meta: only actual spend quotes and post proposals expire', async () => {
   const { env, order, fields } = await agentBusiness();
   await seedRun(env, order, { ...fields, status: 'waiting-for-you', callId: 'call_1', preview: PREVIEW, harness: harness() });
-  const asked: HandoffRequest = { to: 'owner', question: 'Which bank account is the main one?', turn: 1, answer: null, answeredBy: null };
-  // 4J13's timed question carries its own expiry on the hand-off; the row shows it, never one of its own making.
-  await seedRun(env, order, { ...fields, status: 'needs-answer', harness: harness({ phase: 'needs-answer', handoffs: [{ ...asked, expiresAt: '2026-10-16T10:00:00.000Z' } as HandoffRequest] }) });
   await setSpendPolicy(env.deps, owner, { askAboveMicros: '100000' });
   await assert.rejects(paidCall(env.deps, owner, { key: 'render-1', item: 'connector:fal', label: 'Thumbnail render', payer: 'connector:fal', draftDigest: 'b'.repeat(64), list: FAL }, async () => ({ value: 'x', billedMicros: null })), code('QUOTE_WAITING'));
   await seedPost(env, 'x', 'Books closed for September. #books', { expiresAt: '2026-10-15T10:15:00.000Z' });
   const rows = await list(env);
-  const send = rows.find(row => row.kind === 'quote' && row.title.startsWith('Send the next step'))!;
-  assert.equal(send.meta!.expiresAt, PREVIEW.expiresAt);
-  const [question] = kindOf(rows, 'question');
-  assert.equal(question.meta!.expiresAt, '2026-10-16T10:00:00.000Z');
+  assert.equal(rows.some(row => row.title.startsWith('Send the next step')), false);
   const quote = rows.find(row => row.kind === 'quote' && row.title === 'Approve the cost of Thumbnail render')!;
   const [stored] = listRecords(env.store.read(), 'venture-spend-quote');
   assert.equal(quote.meta!.expiresAt, new Date(Date.parse(stored.at) + 60 * 60_000).toISOString());
@@ -182,11 +176,11 @@ test('sendsTo: a post goes to the public; a turn sent to your own AI or a draft 
   await seedPost(env, 'linkedin', 'Our cafe books service is open.');
   const rows = await list(env);
   assert.equal(kindOf(rows, 'connector')[0].sendsTo, 'public');
-  assert.equal(kindOf(rows, 'quote')[0].sendsTo, undefined);
+  assert.equal(kindOf(rows, 'quote').length, 0, 'AI work has no per-turn approval quote');
   for (const row of rows.filter(item => item.kind !== 'connector')) assert.equal(row.sendsTo, undefined, row.id);
 });
 
-test('attempt: Run again says which attempt this was and its last error; an expired draft has no error', async () => {
+test('attempt: Run again says which attempt this was and its last error', async () => {
   const env = await setup();
   const plan = await seedBlueprint(env, { price2: '1500000' });
   const { order } = await seedOrder(env, plan);
@@ -200,12 +194,7 @@ test('attempt: Run again says which attempt this was and its last error; an expi
   assert.equal(failed.title, `The draft for ${CLIENT_NAME} failed`);
   assert.deepEqual(failed.attempt, { n: 2, lastError: 'The provider did not answer.' });
 
-  const second = await agentBusiness();
-  await seedRun(second.env, second.order, { ...second.fields, status: 'waiting-for-you', callId: 'call_1', preview: { ...PREVIEW, expiresAt: '2026-10-15T09:00:00.000Z' }, harness: harness() });
-  const [expired] = kindOf(await list(second.env), 'draft');
-  assert.equal(expired.title, `The draft for ${CLIENT_NAME} needs to start again`);
-  assert.deepEqual(expired.attempt, { n: 1, lastError: null });
-  for (const row of await list(second.env)) if (!row.actions.some(action => action.id === 'run-again')) assert.equal(row.attempt, undefined, row.id);
+
 });
 
 test('counts: a post row counts its characters, and hashtags where the platform caps them, against the limits register', async () => {
@@ -225,29 +214,7 @@ test('counts: a post row counts its characters, and hashtags where the platform 
 // 3. The price beside Approve, and every amount with its receipt
 // ---------------------------------------------------------------------------
 
-test('price: a turn waiting to go to your AI shows the most it can cost, with a receipt, nothing spent yet and the free way', async () => {
-  const { env, order, fields } = await agentBusiness();
-  const run = await seedRun(env, order, { ...fields, status: 'waiting-for-you', callId: 'call_1', preview: PREVIEW, harness: harness({ phase: 'write' }) });
-  const [send] = kindOf(await list(env), 'quote');
-  const id = `fig:cost:${run.id}:call_1`;
-  assert.deepEqual(send.price, { display: 'USD 0.0010', receiptId: id, line: 'Nothing spent yet', free: 'Or use the built-in template, free' });
-  assert.deepEqual(send.change, { label: 'Most it can cost', after: 'USD 0.0010' }, 'the change itself is what the digest covers');
-  assert.deepEqual(send.amounts?.find(amount => amount.where === 'change.after'), { text: 'USD 0.0010', where: 'change.after', start: 0, length: 10, receiptId: id });
-  // The judge's notice in the line states its own cost bound: it gets the judge's receipt, at its place in the line.
-  const judged = moneyIn(send.line);
-  assert.equal(judged.length, 1, send.line);
-  assert.deepEqual(send.amounts?.find(amount => amount.where === 'line'),
-    { text: judged[0], where: 'line', start: send.line!.indexOf(judged[0]), length: judged[0].length, receiptId: `fig:judge:${run.id}:call_1` });
-  await assertAmountsProved(env, send);
-  const served = await receipt(env, id);
-  assert.deepEqual([served.kind, served.operation, served.subject], ['row-figure', 'venture.row-figure', { type: 'call-cost', recordId: run.id }]);
-  assert.deepEqual(served.figures.map(figure => [figure.label, figure.display]), [['Most it can cost', 'USD 0.0010']]);
-  assert.match(served.explanation, /worked out by code/);
-  // Once the run moved on to another call, the receipt says it is stale.
-  await ventureAction(env.deps, owner, 'prepare', 'seed.next', tx => { tx.replace({ ...tx.find('venture-delivery-run', run.id)!, callId: 'call_2', preview: { ...PREVIEW, callId: 'call_2' } }); });
-  assert.equal((await receipt(env, id)).stale, true);
-  await assert.rejects(receipt(env, `fig:cost:delivery_missing:call_1`), code('RECEIPT_NOT_FOUND'));
-});
+
 
 test('price: a spend quote shows its figure with a receipt; the receipt goes stale once the quote is decided', async () => {
   const env = await setup();
@@ -264,22 +231,7 @@ test('price: a spend quote shows its figure with a receipt; the receipt goes sta
   assert.equal((await receipt(env, `fig:quote:${stored.id}`)).stale, true);
 });
 
-test('price: a run at its spend cap shows the room it asks for, in rupees at your rate too, every amount with one receipt', async () => {
-  const { env, order, fields } = await agentBusiness();
-  await setSpendPolicy(env.deps, owner, { inrPerUsd: '83.50' });
-  const capped = harness({ used: { turns: 1, toolCalls: 2, costMicros: '199500' } });
-  const run = await seedRun(env, order, { ...fields, status: 'waiting-for-you', callId: 'call_1', preview: PREVIEW, harness: capped });
-  const [room] = kindOf(await list(env), 'quote');
-  assert.equal(room.title, 'Bookkeeping agent reached its spend cap for this run');
-  const id = `fig:room:${run.id}:call_1`;
-  assert.deepEqual(room.price, { display: 'USD 0.2000', receiptId: id, line: 'Nothing spent yet' });
-  assert.ok(moneyIn(room.line).length >= 3, room.line);
-  for (const amount of room.amounts ?? []) assert.equal(amount.receiptId, id, amount.text);
-  await assertAmountsProved(env, room);
-  const served = await receipt(env, id);
-  assert.equal(served.subject.type, 'cap-room');
-  assert.ok(served.figures.some(figure => figure.display === 'USD 0.2000'));
-});
+
 
 test('amounts: an invoice total keeps its price receipt; a price change gets the plan\'s receipt for both prices', async () => {
   const env = await setup();

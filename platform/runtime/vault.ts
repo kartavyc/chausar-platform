@@ -288,7 +288,7 @@ async function readBounded(path: string): Promise<string> {
   finally { await handle.close(); }
 }
 
-/** Explicit experimental/demo adapter. Production callers must select PostgreSQL. */
+/** Encrypted desktop file storage; other hosts decide whether this adapter is experimental. */
 export class ExperimentalFileSnapshotAdapter implements EncryptedSnapshotAdapter {
   kind = 'experimental-file' as const;
   file: string;

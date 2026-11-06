@@ -343,7 +343,7 @@ export async function bankLedger(deps: VentureDeps, ctx: Context, payload: unkno
 // The owner's decision on one row (venture.bank.apply)
 // ---------------------------------------------------------------------------
 
-type Applied = { as: BankMatchRecord['as']; rowId: string; line: Display; payment: { paymentId: string; orderId: string; amountMinor: string; date: string } | null; cost: { minor: string; date: string } | null };
+type Applied = { as: BankMatchRecord['as']; rowId: string; line: Display; payment: { paymentId: string; orderId: string; amountMinor: string; date: string; currency: string } | null; cost: { minor: string; date: string; currency: string } | null };
 
 /**
  * venture.bank.apply { transactionId, as, invoiceId? } (prepare, inside the app). Once per row: 'payment' records money in
@@ -382,7 +382,7 @@ export async function bankApply(deps: VentureDeps, ctx: Context, payload: unknow
       tx.put<BankMatchRecord>({ ...decision, invoiceId: invoice.id, paymentId: recorded.paymentId, factId: null });
       return {
         as, rowId, line: `Recorded ${formatMinor(amount, entry.data.currency)} as a payment of ${invoice.number ?? 'the invoice'}.`,
-        payment: { ...recorded, date: entry.data.date }, cost: null,
+        payment: { ...recorded, date: entry.data.date, currency: invoice.currency }, cost: null,
       };
     }
     if (as === 'cost') {
@@ -392,7 +392,7 @@ export async function bankApply(deps: VentureDeps, ctx: Context, payload: unknow
       const description = entry.data.description ?? entry.data.counterparty ?? 'Bank payment';
       const fact = insertBooksFact(tx, deps.store, costFact(base.id, minor, entry.data.currency, entry.data.date, description, rowId));
       tx.put<BankMatchRecord>({ ...decision, invoiceId: null, paymentId: null, factId: fact.id });
-      return { as, rowId, line: `Added ${formatMinor(minor, entry.data.currency)} to your costs.`, payment: null, cost: { minor, date: entry.data.date } };
+      return { as, rowId, line: `Added ${formatMinor(minor, entry.data.currency)} to your costs.`, payment: null, cost: { minor, date: entry.data.date, currency: entry.data.currency } };
     }
     tx.put<BankMatchRecord>({ ...decision, invoiceId: null, paymentId: null, factId: null });
     return { as, rowId, line: 'Line skipped. It stays in your bank ledger and is not counted in the books.', payment: null, cost: null };
@@ -400,8 +400,8 @@ export async function bankApply(deps: VentureDeps, ctx: Context, payload: unknow
 
   let receiptId: string | null = null;
   if (applied.payment) {
-    const { paymentId, orderId, amountMinor, date } = applied.payment;
-    const books = await booksReceiptFor(deps, ctx, 'received', date, orderId, amountMinor, RECEIVED_COVERS_MORE);
+    const { paymentId, orderId, amountMinor, date, currency } = applied.payment;
+    const books = await booksReceiptFor(deps, ctx, 'received', date, orderId, amountMinor, RECEIVED_COVERS_MORE, currency);
     await ventureAction(deps, ctx, 'prepare', 'payment.books', tx => {
       const payment = tx.find('venture-payment', paymentId);
       check(payment, 'INVALID_VENTURE_REQUEST', 'This payment was not found.');
@@ -409,7 +409,7 @@ export async function bankApply(deps: VentureDeps, ctx: Context, payload: unknow
     });
     receiptId = books.receiptId;
   } else if (applied.cost) {
-    receiptId = await costReceipt(deps, ctx, applied.cost.date, applied.cost.minor);
+    receiptId = await costReceipt(deps, ctx, applied.cost.date, applied.cost.minor, applied.cost.currency);
   }
   const { state, venture } = readVenture(deps, ctx);
   const row = bankBook(state, venture).byId.get(applied.rowId)!.view;
@@ -417,10 +417,10 @@ export async function bankApply(deps: VentureDeps, ctx: Context, payload: unknow
 }
 
 /** The calculator's costs receipt for the row's day, kept only when its total is exactly this cost. A failure never undoes the cost. */
-async function costReceipt(deps: VentureDeps, ctx: Context, date: string, minor: string): Promise<string | null> {
+async function costReceipt(deps: VentureDeps, ctx: Context, date: string, minor: string, currency: string): Promise<string | null> {
   try {
-    const receipt = await deps.services.calculator.calculate(ctx, { operation: 'costs', period: { from: date, to: date } });
-    return typeof receipt?.id === 'string' && receipt.totalMinor === minor ? receipt.id : null;
+    const receipt = await deps.services.calculator.calculate(ctx, { operation: 'costs', period: { from: date, to: date }, currency });
+    return typeof receipt?.id === 'string' && receipt.currency === currency && receipt.totalMinor === minor ? receipt.id : null;
   } catch {
     return null;
   }
@@ -461,8 +461,8 @@ export async function bankAlertsSet(deps: VentureDeps, ctx: Context, payload: un
     'INVALID_VENTURE_REQUEST', 'Give the alert address as a web address, or nothing to stop alerts going out.');
   return ventureAction(deps, ctx, 'admin', 'bank.alerts', tx => {
     const country = countryOf(tx.venture);
-    const rules = readAlertRules(body.rules, country.currency);
     const account = findAccount(tx, label) ?? tx.put<BankAccountRecord>({ ...tx.base('venture-bank-account'), label, currency: country.currency, consent: null, polls: [] });
+    const rules = readAlertRules(body.rules, account.currency);
     let alertAddress = account.alertAddress ?? null;
     if (body.alertAddress === null) alertAddress = null;
     else if (typeof body.alertAddress === 'string') {

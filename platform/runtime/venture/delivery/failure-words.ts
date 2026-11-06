@@ -80,7 +80,7 @@ export function failureWords(error: KeptError, context: { at: string; dateOrder:
 
 /** Errors a tool met that only the owner can clear, and how. Anything else needs nothing from the owner: no fix. */
 const TOOL_FIXES: readonly { match: RegExp; fix: string; fixKind: FixKind }[] = Object.freeze([
-  { match: /\bffmpeg\b.*\bnot found\b/i, fix: 'Install ffmpeg, or turn off the finishing check, then run again.', fixKind: 'install-ffmpeg' },
+  { match: /\bffmpeg\b.*\bnot found\b/i, fix: 'Install ffmpeg, then run the required finishing checks again.', fixKind: 'install-ffmpeg' },
   { match: /^Needs Docker Desktop\.|Docker Desktop is installed but not running/, fix: 'Set up Docker Desktop and start it, then run again.', fixKind: 'set-up-docker' },
   { match: /is not on this computer\. Chausar never downloads it/, fix: 'Get the Python image once, as the message says, then run again.', fixKind: 'get-python-image' },
   { match: /Neither Claude Code nor Codex is set up|is not set up on this computer/, fix: 'Set up Claude Code or Codex under Connections, Your AI, then run again.', fixKind: 'set-up-cli' },
@@ -106,7 +106,11 @@ export type RunFailureView = { failure?: { kind: FailureKind; line: Display }; f
  * A run the breaker stopped gives the fix for the error that kept coming back; a failed run gives its AI call's
  * failure in the table's words, and the fix when the owner must act. Empty when there is nothing to say.
  */
-export function runFailure(state: State, run: Pick<DeliveryRunRecord, 'status' | 'callId' | 'harness' | 'at'>, dateOrder: DateOrder = 'day-month-year'): RunFailureView {
+export function runFailure(state: State, run: Pick<DeliveryRunRecord, 'status' | 'callId' | 'harness' | 'at' | 'agentJob'>, dateOrder: DateOrder = 'day-month-year'): RunFailureView {
+  if (run.status === 'failed' && run.agentJob?.failure) {
+    const words = run.agentJob.failure;
+    return { failure: { kind: words.kind, line: words.line }, ...(words.fix && words.fixKind ? { fix: words.fix, fixKind: words.fixKind } : {}) };
+  }
   const harness = run.harness;
   if (run.status === 'stopped' && harness?.breaker && harness.control?.line === harness.breaker.line) {
     const trip = harness.breaker;

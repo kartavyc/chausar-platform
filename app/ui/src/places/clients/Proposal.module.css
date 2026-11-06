@@ -1,0 +1,103 @@
+/* The sales proposal sheet (Ink v2 wave 5, 5A2): the proposal as the client will read it, five sections in order, its
+   Investment as figures with their receipts, then the owner's own handoffs once approved. Tokens only. */
+
+.body {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.section {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.lines {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.money {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.moneyRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.reply {
+  margin: 0;
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--inner);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--fail);
+}
+
+.form {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.copy {
+  margin: 0;
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--inner);
+  font-size: var(--text-label);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

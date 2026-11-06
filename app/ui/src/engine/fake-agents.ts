@@ -21,6 +21,7 @@ import {
 } from './types';
 import { MODEL_PRESETS } from './fixtures-business';
 import type { W4DeskHost } from './fake-w4';
+import { RETIRED_LINE } from '../../../../platform/runtime/venture/agents/retired-words';
 
 const AGENT_METHODS = new Set<string>([
   'venture.agents.thread.list', 'venture.agents.thread.send', 'venture.agents.proposal.decide', 'venture.agents.version.undo',
@@ -35,7 +36,6 @@ const NOT_FOUND = 'That agent was not found.';
 const KEY_REFUSED = 'That looks like a key. Keys go in Connections, never in chat.';
 const FLOOR_REPLY = 'That needs your approval on Today.';
 const WORK_REPLY = 'I can start on that as a new order. Check the details in New order, then create it.';
-const ANSWERED_LINE = 'I passed this on as your answer to my question. The next step waits for your approval on Today.';
 const STANDING_REPLY = "You said 'from now on', so here is the change to my instructions.";
 const NOTE_REPLY = 'Here is the note I would keep. Nothing is saved until you accept it.';
 const NOTE_KEPT_LINE = "I'll keep this note. You can correct it, forget it or undo it in my notes.";
@@ -49,7 +49,7 @@ const FORGET_LINE = "Forget erases these words. You can't undo it.";
 const FORGET_FINAL = "Forget erased this note's words, so it can't be undone.";
 const NOTE_CHANGED_LINE = 'This note changed since you opened it. Your draft is still here.';
 const ERASED_MESSAGE = 'Erased: you asked me to forget these words.';
-const FLOOR_REASON = 'Publishing, sending, money out and deleting always ask you first, at every posture. Chat does not change that.';
+const FLOOR_REASON = 'Publishing, sending, money out and deleting always ask you first, with every approval setting. Chat does not change that.';
 const MONEY_REASON = "Spend, prices and discounts are set by you in Money and Business, not by an agent's instructions.";
 const CONTROLS_REASON = 'Tools, checks and limits are not changed from chat.';
 const ALWAYS_LIMIT = 2000;
@@ -131,18 +131,23 @@ interface Book {
 
 /** A request on the floor drafted as a proposal for Today; the Chats desk keeps and raises it (fake-chief.ts). */
 export type FloorDraft = (input: { title: string; line: string; agent: string; spends: boolean; sends: boolean }) => ProposalView;
+/** W6 6G2: a retired agent as it was, when it retired and its thread's line, or null. */
+export type RetiredLookup = (agentId: string) => { agent: AgentView; at: string; line: string } | null;
 
 export class FakeAgentsDesk {
   protected readonly host: W4DeskHost;
   protected readonly fresh: boolean;
   private readonly floor: FloorDraft | null;
+  /** W6 6G2: a retired agent, with when it retired, for its read-only chat on the Retired shelf (fake-retire.ts). */
+  private readonly retired: RetiredLookup;
   private readonly books: Record<string, Book> = {};
   private seq = 0;
 
-  constructor(host: W4DeskHost, options: { fresh?: boolean; floor?: FloorDraft } = {}) {
+  constructor(host: W4DeskHost, options: { fresh?: boolean; floor?: FloorDraft; retired?: RetiredLookup } = {}) {
     this.host = host;
     this.fresh = options.fresh ?? false;
     this.floor = options.floor ?? null;
+    this.retired = options.retired ?? (() => null);
   }
 
   handles(method: string): boolean {
@@ -236,7 +241,8 @@ export class FakeAgentsDesk {
   /** chatAgent: Keeper and code roles have no chat (AGENT_IS_CODE); an id not on this team is AGENT_NOT_FOUND. */
   private agent(agentId: string): AgentView {
     if (agentId === KEEPER_ID) throw new EngineError('AGENT_IS_CODE', KEEPER_IS_CODE);
-    const found = this.agents().find((a) => a.id === agentId);
+    // W6 6G2: a retired agent keeps its own steps for its read-only thread on the Retired shelf.
+    const found = this.agents().find((a) => a.id === agentId) ?? this.retired(agentId)?.agent;
     if (!found) throw new EngineError('AGENT_NOT_FOUND', NOT_FOUND);
     if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each run's steps.`);
     return found;
@@ -420,9 +426,12 @@ export class FakeAgentsDesk {
     const end = body.before === undefined ? all.length : all.findIndex((entry) => entry.id === id(body.before, 'Before'));
     if (end < 0) throw invalid('That item is not in this thread.');
     const start = Math.max(0, end - 50);
+    const retired = this.retired(agent.id);
     return {
       agent: { id: agent.id, name: agent.name, role: agent.role }, items: all.slice(start, end).map((entry) => entry.item),
       waiting: this.waiting(agent), more: start > 0, consent: this.consentView(),
+      // W6 6G2: the Retired shelf's read-only thread.
+      ...(retired ? { retired: { at: retired.at, line: retired.line } } : {}),
     };
   }
 
@@ -445,6 +454,7 @@ export class FakeAgentsDesk {
     const words = body.text.trim();
     if (KEYLIKE.test(words)) throw new EngineError('CHAT_KEY_REFUSED', KEY_REFUSED);
     const agent = this.agent(agentId);
+    if (this.retired(agentId)) throw new EngineError('AGENT_RETIRED', RETIRED_LINE);
     const consent = this.consentView();
     if (consent.state === 'needed') throw new EngineError('CHAT_CONSENT_REQUIRED', consent.text ?? '');
     if (consent.state === 'stale') throw new EngineError('CHAT_CONSENT_STALE', `Your AI connection changed since you agreed, so chats wait until you agree again. ${consent.text ?? ''}`);
@@ -454,7 +464,7 @@ export class FakeAgentsDesk {
     if (kind === 'standing') {
       const control = CONTROL.find((item) => item.pattern.test(words))?.reason ?? null;
       const current = this.current(book);
-      if (!control && !current) throw new EngineError('BLUEPRINT_NOT_ACCEPTED', 'Accept a plan first. The playbook is made from it.');
+      if (!control && !current) throw new EngineError('BLUEPRINT_NOT_ACCEPTED', 'Accept a plan first. The work plan is made from it.');
       const said = this.put(book, agent.id, 'owner', words);
       if (control) return { added: [this.asItem(said), this.asItem(this.put(book, agent.id, 'agent', `I can't take that as an instruction: ${control}`))], line: null };
       const prop = this.storeInstruction(book, agent, current!, said, words);
@@ -465,11 +475,6 @@ export class FakeAgentsDesk {
     if (kind === 'note') return this.noteRequest(book, agent, words);
 
     const waiting = this.waiting(agent);
-    if (waiting && !onlyAsks(words)) {
-      const said = this.put(book, agent.id, 'owner', words, { answered: { runId: waiting.runId } });
-      this.answerRun(waiting.runId);
-      return { added: [this.asItem(said)], line: ANSWERED_LINE };
-    }
     if (!onlyAsks(words) && FLOOR_WORDS.some((pattern) => pattern.test(words))) {
       const said = this.put(book, agent.id, 'owner', words);
       const proposalId = this.raiseFloor(agent, words);
@@ -518,17 +523,6 @@ export class FakeAgentsDesk {
     });
     this.host.ask('venture.proposals.raise', { id: drafted.id });
     return drafted.id;
-  }
-
-  /** A reply while the run waits on the owner's question is its answer: the question closes and the Today card goes. */
-  private answerRun(runId: string): void {
-    const run = this.runs().find((r) => r.runId === runId);
-    if (!run) return;
-    delete run.question;
-    for (const step of run.steps) if (step.state === 'waiting') step.state = 'done';
-    this.host.setRows(this.host.rows().filter((row) => !(row.kind === 'question' && row.viewRef?.kind === 'run' && row.viewRef.id === runId)));
-    this.host.emit({ type: 'run.step', businessId: this.host.current(), runId, at: this.host.now() });
-    this.host.emit({ type: 'queue.changed', businessId: this.host.current(), at: this.host.now() });
   }
 
   /** storeInstruction: the template patch from the owner's words, on the agent's first guided step, as a drafted proposal. */
@@ -757,6 +751,8 @@ export class FakeAgentsDesk {
     if (noteId !== null && basedOn === null) throw invalid('Send the version of the note you corrected.');
     if (typeof body.text !== 'string' || tidy(body.text).length < 2) throw invalid('Tell me what to remember in a few words.');
     if (body.text.length > MAX_NOTE) throw invalid(`A note is at most ${MAX_NOTE} characters.`);
+    // W6 6G2: a retired agent's notes are on the read-only shelf; Forget and Undo still work there.
+    if (this.retired(agent.id)) throw new EngineError('AGENT_RETIRED', RETIRED_LINE);
     const book = this.book();
     const current = noteId === null ? null : book.notes.find((n) => n.id === noteId && n.agent === agent.id) ?? null;
     if (noteId !== null) {

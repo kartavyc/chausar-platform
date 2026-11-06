@@ -18,9 +18,12 @@ export const TAINT_WORDS = 'This run read outside content, so anything that writ
 /**
  * Chausar's own tools whose only write is an internal suggestion: a record in Chausar's own ledger that changes no
  * stored value until the owner applies it, and that nothing outside this computer ever sees (evidence.record, Ink v2
- * wave 2 package 2G). The latch lets that one write through; any other effect their input adds still waits.
+ * wave 2 package 2G; ideas.add, an idea in the owner's ideas Inbox, Ink v2 wave 5 package 5A3; assets.record, where a
+ * delivered file came from, package 5A4: its record can fill a file Rerun asked for or name a handed-over file, but
+ * nothing leaves until the owner accepts the draft, and Accept checks every record again: licence, consent, staleness,
+ * location data). The latch lets that one write through; any other effect their input adds still waits.
  */
-export const INTERNAL_SUGGESTIONS: readonly ToolName[] = Object.freeze(['evidence.record']);
+export const INTERNAL_SUGGESTIONS: readonly ToolName[] = Object.freeze(['evidence.record', 'ideas.add', 'assets.record']);
 
 /**
  * The label on one tool's result in this run. A tool Chausar does not ship is never trusted. A tool that echoes the

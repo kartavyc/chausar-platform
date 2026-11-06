@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DeliveryRunRecord, ModelCallRecord, RunDetail, RunSummary, SimulationRunRecord } from '../runtime/venture/contracts.ts';
-import { listRecords, ventureAction } from '../runtime/venture/records.ts';
+import { digest, listRecords, ventureAction } from '../runtime/venture/records.ts';
+import { nativeContext } from './fixtures/venture/native-context.ts';
 import { handlers as delivery, scenariosFor } from '../runtime/venture/delivery/index.ts';
 import { CLIENT_NAME, START, call, code, harness, owner, seedBlueprint, seedOrder, seedRun, setStage, setup, type Env } from './venture-views-env.ts';
 
@@ -45,14 +46,14 @@ test('runs: a template draft waits on you, its steps skip the agent loop, and it
   assert.deepEqual(await runs(env, 'active'), []);
 });
 
-test('runs: an agent run names its tools by purpose, shows receipts as evidence, and carries its question', async () => {
+test('runs: an agent run names its tools by purpose, shows receipts as evidence, and carries its question', async t => {
   const env = await setup();
   const { order } = await ready(env);
   await setStage(env, 'approve-each');
   const playbook = await delivery['venture.delivery.playbook']!(env.deps, owner, {}) as { id: string; hash: string };
+  const upload = await delivery['venture.files.add']!(env.deps, owner, { orderId: order.id, name: 'aroma-bank.csv', contentBase64: Buffer.from('Date,Amount\n2026-10-01,10\n').toString('base64') });
   await ventureAction(env.deps, owner, 'prepare', 'seed.work', tx => {
     tx.state.conversations.push({ id: 'work_1', kind: 'venture-work-receipt', ventureId: tx.venture!.id, explanation: 'Money out in September adds up to INR 41,250.00.', figures: [] });
-    tx.state.conversations.push({ id: 'upload_1', kind: 'venture-upload', ventureId: tx.venture!.id, name: 'aroma-bank.csv', format: 'csv' });
   });
   const ok = (result: unknown) => ({ ok: true as const, result: result as any });
   const turn = (tool: string, envelope: any, receiptIds: string[] = []) => ({
@@ -60,15 +61,15 @@ test('runs: an agent run names its tools by purpose, shows receipts as evidence,
     effect: null, tier: null, receiptIds, tableIds: [],
   });
   const asking = await seedRun(env, order, {
-    playbookId: playbook.id, playbookHash: playbook.hash, status: 'needs-answer',
+    playbookId: playbook.id, playbookHash: playbook.hash, status: 'stopped',
     harness: harness({
-      phase: 'needs-answer', uploadIds: ['upload_1'], workReceiptIds: ['work_1'],
+      phase: 'act', uploadIds: [upload.id], workReceiptIds: ['work_1'],
       toolCalls: [
         turn('files.read', ok({})), turn('calc.totals', ok({}), ['work_1']),
         turn('sandbox.python', { ok: false, error: { code: 'TIER_UNAVAILABLE', name: 'TierUnavailable', message: 'Docker is not set up on this computer.' } }),
         turn('handoff.owner', ok({})),
       ],
-      handoffs: [{ to: 'owner', question: 'Which bank account is the main one?', turn: 1, answer: null, answeredBy: null }],
+      handoffs: [{ to: 'owner', question: 'Which bank account is the main one?', turn: 1, answer: 'The current account.', answeredBy: 'owner' }],
     }),
   }, ['run.waiting']);
   const detail = await get(env, asking.id);
@@ -79,19 +80,32 @@ test('runs: an agent run names its tools by purpose, shows receipts as evidence,
   assert.deepEqual(detail.progress, { done: 2, total: 8 });
   const [gather, clarify, work] = detail.steps;
   assert.deepEqual(gather.tools, [{ name: 'Read a client file', line: 'Done.' }]);
-  assert.deepEqual(gather.evidence, [{ kind: 'file', id: 'upload_1', label: 'aroma-bank.csv' }]);
+  assert.deepEqual(gather.evidence, [{ kind: 'file', id: upload.id, label: 'aroma-bank.csv' }]);
   assert.deepEqual(clarify.tools, [{ name: 'Asked you a question', line: 'Done.' }]);
   assert.deepEqual(work.tools, [
     { name: 'Worked out totals with the calculator', line: 'Done.' },
     { name: 'Ran a small program in a container', line: 'Docker is not set up on this computer.' },
   ]);
   assert.deepEqual(work.evidence, [{ kind: 'work-receipt', id: 'work_1', label: 'Money out in September adds up to INR 41,250.00.' }]);
-  assert.ok(detail.question);
-  assert.equal(detail.question.text, 'Which bank account is the main one?');
-  // The question id is the Today row that answers it.
-  const queue = await call<{ rows: { id: string; kind: string }[] }>(env, 'venture.queue.list', {});
-  assert.equal(queue.rows.find(row => row.kind === 'question')?.id, detail.question.id);
-  assert.deepEqual((await runs(env, 'active')).map(run => run.runId), [asking.id]);
+  assert.equal(detail.question, undefined, 'the historical code-tool question was already answered');
+  // Current questions belong to the native job. Do not mix an obsolete handoff into its state.
+  env.advance(1000);
+  const native = await nativeContext(env.deps, owner, order.id);
+  t.after(() => native.job.close());
+  const question = 'Which bank account is the main one?';
+  await ventureAction(env.deps, owner, 'prepare', 'seed.native-question', tx => {
+    const run = tx.find('venture-delivery-run', native.run.id)!;
+    tx.replace({ ...run, status: 'needs-answer', agentJob: { ...run.agentJob!,
+      pendingFacts: { digest: digest(question), missing: [], question, callId: 'synthetic-facts', at: tx.now } } });
+  });
+  const current = await get(env, native.run.id);
+  assert.ok(current.question);
+  assert.equal(current.question.text, question);
+  assert.ok(current.agentProgress);
+  // The exact native question id is the Today row that answers it.
+  const queue = await call<{ rows: { id: string; kind: string; viewRef?: { id: string } }[] }>(env, 'venture.queue.list', {});
+  assert.equal(queue.rows.find(row => row.kind === 'question' && row.viewRef?.id === native.run.id)?.id, current.question.id);
+  assert.deepEqual((await runs(env, 'active')).map(run => run.runId), [native.run.id, asking.id]);
 });
 
 test('runs: a failed run shows the engine error; rehearsals are listed; unknown runs and bad payloads are refused', async () => {

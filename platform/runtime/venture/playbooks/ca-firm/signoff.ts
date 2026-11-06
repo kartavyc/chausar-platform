@@ -13,6 +13,7 @@ import { caLabel, validateCaOfRecord, type CaOfRecord } from './playbook.ts';
 import type { PortalDiff } from './portal.ts';
 import { RATE_TABLES, rateTableHash, type RateConfirmation, type RateTable, type RateUse } from './rates.ts';
 import { portalDiffExplained } from './stored-receipt.ts';
+import { signoffReceiptSnapshots } from './stored-signoff.ts';
 
 type EntryName = CaFirmRecord['entry'];
 type Entry<E extends EntryName> = Extract<CaFirmRecord, { entry: E }>;
@@ -118,7 +119,7 @@ export async function requestCaSignoff(deps: VentureDeps, ctx: Context, payload:
   check(typeof body.workingDigest === 'string' && /^[a-f0-9]{64}$/.test(body.workingDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the papers.');
   check(Array.isArray(body.receiptIds) && body.receiptIds.length >= 1 && body.receiptIds.length <= 50
     && body.receiptIds.every(id => typeof id === 'string' && /^[A-Za-z0-9_.:-]{3,80}$/.test(id)), 'INVALID_VENTURE_REQUEST', 'Send the receipts the papers rest on.');
-  check(body.playbookHash === undefined || body.playbookHash === null || (typeof body.playbookHash === 'string' && /^[a-f0-9]{64}$/.test(body.playbookHash)), 'INVALID_VENTURE_REQUEST', 'The playbook hash is a digest.');
+  check(body.playbookHash === undefined || body.playbookHash === null || (typeof body.playbookHash === 'string' && /^[a-f0-9]{64}$/.test(body.playbookHash)), 'INVALID_VENTURE_REQUEST', 'The work plan hash is a digest.');
   return ventureAction(deps, ctx, 'prepare', 'ca-firm.signoff-request', tx => {
     requireCa(tx.state, tx.venture!.id);
     const asked = deliveryId
@@ -170,7 +171,7 @@ export async function recordCaSignoff(deps: VentureDeps, ctx: Context, payload: 
     if (payload.decision === 'signed') membership(payload.membershipNumber, { name: sent.caName, membershipNumber: sent.membershipNumber });
     const record = tx.put<CaFirmRecord>({
       ...tx.base('venture-ca-firm'), entry: 'signoff', requestId: request.id, decision: payload.decision, caName: sent.caName, membershipNumber: sent.membershipNumber,
-      workingDigest: request.workingDigest, receiptIds: [...request.receiptIds], playbookHash: request.playbookHash, note, recordedBy: ctx.memberId,
+      workingDigest: request.workingDigest, receiptIds: [...request.receiptIds], receiptDigests: signoffReceiptSnapshots(tx.state, ventureId, request.receiptIds), playbookHash: request.playbookHash, note, recordedBy: ctx.memberId,
     }) as SignoffRecord;
     tx.emit('queue.changed', { caFirm: 'signoff', requestId: request.id });
     return record;
@@ -234,7 +235,7 @@ export async function recordDiffExplanation(deps: VentureDeps, ctx: Context, pay
     }) as DiffExplanation;
     const run = receipt.runRef.kind === 'delivery' ? tx.find('venture-delivery-run', receipt.runRef.runId) : undefined;
     if (run && run.ventureId === ventureId && run.playbookChecks?.some(item => item.check === 'portal-diff-explained')) {
-      const made = (run.harness?.workReceiptIds ?? []).flatMap(id => { const found = tx.find('venture-work-receipt', id); return found ? [found] : []; });
+      const made = tx.list('venture-work-receipt').filter(row => row.runRef.kind === 'delivery' && row.runRef.runId === run.id);
       const result = portalDiffExplained(made, [...earlier, record]);
       tx.replace({ ...run, playbookChecks: run.playbookChecks.map(item => (item.check === result.check ? { ...item, outcome: result.outcome, detail: result.detail } : item)) });
       tx.emit('run.step', { runId: run.id });

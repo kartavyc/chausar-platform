@@ -6,18 +6,19 @@
 // FLAGSHIP_TOOLS). They read the order's files and send nothing; their effects are declared in policy/effects.ts.
 import { ChausarError } from '../../../contracts.ts';
 import { assertNoNumbers, findRecord, modelWords } from '../../records.ts';
-import type { IsoDate, Json, ToolCallRecord, ToolName, VentureDeps, WorkTableRecord } from '../../contracts.ts';
+import type { IsoDate, ToolName, VentureDeps } from '../../contracts.ts';
 import { localDayAt } from '../../local-day.ts';
 import {
-  buildEditList, chapterProblems, chapterTimesOf, clock, draftChapters, rankHooks, readRetentionExport, sameHook, YOUTUBE_TABLES, type HookScore,
+  buildEditList, chapterProblems, clock, draftChapters, rankHooks, readRetentionExport, sameHook, YOUTUBE_TABLES, type HookScore,
 } from '../../playbooks/youtube/checks.ts';
-import { PACKAGE_SECTIONS } from '../../playbooks/youtube/playbook.ts';
 import type { Cue } from '../../playbooks/youtube/transcript.ts';
 import { transcriptCues, type FileLike } from './files.ts';
-import type { WorkedForWriter } from './loop.ts';
 import { computedTable, fail, fileOf, text, type Spec, type ToolEnv } from './tools.ts';
+import { YOUTUBE_B2_TOOLS } from './tools-youtube-board.ts';
+import { YOUTUBE_EDIT_TOOLS } from './tools-youtube-edit.ts';
+import {YOUTUBE_RESEARCH_TOOLS,YOUTUBE_PUBLIC_TOOL} from './tools-youtube-research.ts';
 
-type YoutubeToolName = Extract<ToolName, 'youtube.hooks' | 'youtube.editList' | 'youtube.chapters' | 'youtube.retention'>;
+type YoutubeToolName = Extract<ToolName, 'youtube.editOps' | 'youtube.clean' | 'youtube.captions' | 'youtube.coverage' | 'youtube.dictionary' | 'youtube.hooks' | 'youtube.editList' | 'youtube.chapters' | 'youtube.retention'>;
 
 /** How many hooks the scorer keeps for the package. */
 const KEEP_HOOKS = 2;
@@ -57,6 +58,7 @@ function runDay(env: ToolEnv): IsoDate {
 const hookRow = (score: HookScore) => ({ Hook: score.hook, Score: String(score.verdict), Band: score.band, Weakest: score.weakest, Fix: score.fix });
 
 export const YOUTUBE_TOOLS: Readonly<Record<YoutubeToolName, Spec>> = Object.freeze({
+  ...YOUTUBE_EDIT_TOOLS,
   'youtube.hooks': {
     name: 'youtube.hooks', effect: 'compute', tier: 'code', endsTurn: false,
     summary: 'Scores the opening hooks you wrote and keeps the best two in a table. Write two to eight, in words; the package uses the kept two word for word.',
@@ -155,52 +157,14 @@ export const YOUTUBE_TOOLS: Readonly<Record<YoutubeToolName, Spec>> = Object.fre
   },
 });
 
-// ---------------------------------------------------------------------------
-// What the write step gets from these tools
-// ---------------------------------------------------------------------------
-
-type Row = Record<string, string>;
-/** The result of the run's newest call to a tool that succeeded, as the run stored it; null when there is none. */
-function newestResult(calls: readonly ToolCallRecord[], tool: YoutubeToolName): Record<string, unknown> | null {
-  const call = [...calls].reverse().find(item => item.tool === tool && item.outcome === 'succeeded' && item.envelope.ok);
-  if (!call || !call.envelope.ok) return null;
-  const result = call.envelope.result;
-  return result !== null && typeof result === 'object' && !Array.isArray(result) ? result as Record<string, unknown> : null;
-}
-/** The rows of a list in a stored result, each with the given string fields, or null when the shape is not that. */
-function rowsOf(value: unknown, fields: Readonly<Record<string, string>>): Row[] | null {
-  if (!Array.isArray(value) || !value.length) return null;
-  const rows: Row[] = [];
-  for (const item of value) {
-    if (item === null || typeof item !== 'object') return null;
-    const row: Row = {};
-    for (const [column, field] of Object.entries(fields)) {
-      const cell = (item as Record<string, unknown>)[field];
-      if (typeof cell !== 'string' && typeof cell !== 'number') return null;
-      row[column] = String(cell);
-    }
-    rows.push(row);
-  }
-  return rows;
-}
-
 /**
- * What the write step uses as given: the hooks the scorer kept and the drafted chapters, and nothing else a tool made
- * (no edit list frames, retention drops or transcript text). Their words come from the results the run stored, which
- * passed the untrusted screen before the agent read them, so a result the screen held gives nothing and a cleaned one
- * stays cleaned. The time codes come from the run's own chapters table, which only code wrote, and are allowed only
- * under the package's chapters heading.
+ * Ink v2 wave 5: package 5-0's stubs for the YouTube tools wave 5 builds, each answering NOT_BUILT_YET. A package moves its
+ * tool into the table above (and its name into that table's type) and deletes its stub line here
+ * (delivery/harness/tools-playbooks.ts spreads this table).
  */
-export function youtubeWorked(calls: readonly ToolCallRecord[], tables: readonly WorkTableRecord[]): WorkedForWriter {
-  const out: Json[] = [];
-  const { hooks, chapters } = YOUTUBE_TABLES;
-  const kept = newestResult(calls, 'youtube.hooks');
-  const keptRows = rowsOf(kept?.kept, { Hook: 'hook', Score: 'score', Band: 'band', Weakest: 'weakest', Fix: 'fix' });
-  if (kept && keptRows) out.push({ table: String(kept.table ?? ''), name: hooks.name, columns: [...hooks.columns], rows: keptRows });
-  const drafted = newestResult(calls, 'youtube.chapters');
-  const chapterRows = rowsOf(drafted?.chapters, { At: 'at', Label: 'label', Length: 'length' });
-  if (drafted && chapterRows) out.push({ table: String(drafted.table ?? ''), name: chapters.name, columns: [...chapters.columns], rows: chapterRows });
-  const codes = chapterTimesOf(tables);
-  const heading = PACKAGE_SECTIONS.find(section => /chapters/i.test(section)) ?? null;
-  return { tables: out, times: codes.length && heading ? { heading, codes } : null };
-}
+type YoutubeW5ToolName = Extract<ToolName, 'youtube.style' | 'youtube.clips' | 'youtube.broll' | 'youtube.beats' | 'youtube.export' | 'youtube.afterPublish' | 'youtube.outliers' | 'youtube.niche' | 'youtube.comments' | 'youtube.publicStats' | 'youtube.archive'>;
+export const YOUTUBE_W5_TOOLS: Readonly<Record<YoutubeW5ToolName, Spec>> = Object.freeze({
+  ...YOUTUBE_B2_TOOLS,
+  ...YOUTUBE_RESEARCH_TOOLS,
+  'youtube.publicStats': YOUTUBE_PUBLIC_TOOL,
+});

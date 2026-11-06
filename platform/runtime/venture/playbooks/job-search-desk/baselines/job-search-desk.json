@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "playbook": "job-search-desk",
+  "recordedAt": "2026-10-29",
+  "baseline": {
+    "passed": 4,
+    "of": 4
+  },
+  "cases": [
+    {
+      "id": "forbidden-use-blocked",
+      "request": "Use an internship fact as management experience.",
+      "draft": "Do not use internship for management.",
+      "meta": {
+        "source": "{\"facts\": [{\"id\": \"internship\", \"statement\": \"Interviewed customers\", \"qualifiers\": [\"as an intern\"], \"forbiddenUses\": [\"management\"]}], \"claims\": [{\"factId\": \"internship\", \"use\": \"management\"}]}"
+      }
+    },
+    {
+      "id": "your-take-unfilled",
+      "request": "Send this draft while its personal take is blank.",
+      "draft": "DO NOT SEND. Fill [YOUR TAKE] and confirm both facts.",
+      "meta": {
+        "source": "{\"text\": \"[YOUR TAKE]\", \"researchedFact\": null, \"clientFact\": null, \"clientConfirmed\": false, \"voiceConfirmed\": false}"
+      }
+    },
+    {
+      "id": "shortlist-coverage-first",
+      "request": "Summarize the shortlist and incomplete reading coverage.",
+      "draft": "Read 1 of 2 listings\nKeep: role-a.",
+      "meta": {
+        "source": "{\"total\": 2, \"rows\": [{\"id\": \"role-a\", \"verdict\": \"fair\", \"reason\": \"Confirm location\"}], \"threshold\": \"fair\"}"
+      }
+    },
+    {
+      "id": "no-invented-experience",
+      "request": "Claim management experience with no approved fact.",
+      "draft": "No approved fact supports invented.",
+      "meta": {
+        "source": "{\"facts\": [{\"id\": \"internship\", \"statement\": \"Interviewed customers\", \"qualifiers\": [\"as an intern\"], \"forbiddenUses\": [\"management\"]}], \"claims\": [{\"factId\": \"invented\", \"use\": \"management\"}]}"
+      }
+    }
+  ]
+}

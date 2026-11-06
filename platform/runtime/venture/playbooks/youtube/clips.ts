@@ -1,0 +1,8 @@
+// Chausar 5B2 clip pages, from recorded fields through the shared 5A5 schema builder.
+export {checkClips,type ClipPick} from './clip-rules.ts';
+import {requireValue,xmlEscape} from './b2-core.ts';import {jsonLdScript,type JsonLdNode} from '../kit/jsonld-core.ts';
+/** The adapter must supply fields read from recorded intake, never model-provided provenance flags. */
+export function clipPage(fields:JsonLdNode['fields']){const script=jsonLdScript({type:'VideoObject',fields});const name=fields.name as {value?:string};return '<!doctype html><html><head><meta charset="utf-8"><title>'+xmlEscape(name?.value??'Video')+'</title>'+script+'</head><body><h1>'+xmlEscape(name?.value??'Video')+'</h1></body></html>';}
+
+/** These exact values are entered by the owner and retained as a pending board output. The adapter never accepts provenance flags. */
+export function recordClipPage(value:unknown){requireValue(value&&typeof value==='object'&&!Array.isArray(value),'CLIP_PAGE_INVALID','Record the clip page details.');const input=value as Record<string,unknown>;const allowed=['name','description','contentUrl','thumbnailUrl','uploadDate'];requireValue(Object.keys(input).every(key=>allowed.includes(key))&&typeof input.name==='string'&&input.name.trim().length>0&&Object.values(input).every(v=>typeof v==='string'&&v.length<=5000),'CLIP_PAGE_INVALID','Use only the recorded title, description, video address, thumbnail address and upload date.');const fields=Object.fromEntries(Object.entries(input).filter(([,value])=>(value as string).trim()).map(([key,value])=>[key,{value:value as string,seen:'intake' as const,where:'youtube.clipPage.'+key}]));return clipPage(fields);}

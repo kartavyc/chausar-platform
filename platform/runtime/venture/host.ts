@@ -18,6 +18,8 @@ import type {
 } from './contracts.ts';
 import { requireAppChannel } from './records.ts';
 import { endSessionAllowances } from './policy/allow-session.ts';
+import {clearSessionMemory} from './core/session-cleanup.ts';
+import { closeCredentialSession } from './models/credential-state.ts';
 
 const NOT_BUILT_MESSAGE = 'This part of Chausar is not built yet.';
 const notBuilt = (message = NOT_BUILT_MESSAGE) => new ChausarError('NOT_BUILT_YET', message);
@@ -50,14 +52,17 @@ export const PACKAGE_LOADERS: PackageLoaders = Object.freeze({
   chief: () => import('./chief/index.ts') as Promise<VenturePackageModule>,
   network: () => import('./network/index.ts') as Promise<VenturePackageModule>,
   notify: () => import('./notify/index.ts') as Promise<VenturePackageModule>,
+  // Ink v2 wave 5 (package 5-0): playbooks (the kit's methods, the CA firm's new ones and every business's desk).
+  playbooks: () => import('./playbooks/index.ts') as Promise<VenturePackageModule>,
 });
 
 function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMethod): boolean {
   return !!table && typeof table === 'object' && Object.hasOwn(table, method) && typeof (table as Record<string, unknown>)[method] === 'function';
 }
 
-/** Answered outside the package tables: the pre-vault methods, and the nine draft methods the engine's draft desk answers. */
+/** Country suggestions use the draft desk before a venture exists, and core with an existing business's AI. */
 export function outsideTables(method: string): boolean {
+  if (method === 'venture.country.suggest') return false;
   return (PRE_VAULT_METHODS as readonly string[]).includes(method) || (DRAFT_METHODS as readonly string[]).includes(method);
 }
 
@@ -170,12 +175,15 @@ export class VentureHost {
       services,
       github: this.#githubProxy(),
       secrets: this.#secrets,
+      ...(options.credentials && options.host !== 'hosted-web' ? { credentials: options.credentials } : {}),
+      ...(options.phoneAccess && options.host !== 'hosted-web' ? { phoneAccess: options.phoneAccess } : {}),
       host: options.host ?? 'test',
       demo: options.demo,
       storage: options.storage,
-      claudeCodeTerms: options.claudeCodeTerms === 'accepted' ? 'accepted' : 'pending',
+      claudeCodeTerms: options.claudeCodeTerms ?? 'accepted',
       ...(options.sandbox ? { sandbox: options.sandbox } : {}),
       ...(options.delegate ? { delegate: options.delegate } : {}),
+      ...(options.agentRoute ? { agentRoute: options.agentRoute } : {}),
       ...(options.draft ? { draft: options.draft } : {}),
       ...(options.workspace ? { workspace: options.workspace } : {}),
       // A folder on this computer: never on the hosted web server.
@@ -198,6 +206,15 @@ export class VentureHost {
       ...(options.net ? { net: options.net } : {}),
       // Ink v2 wave 4 (4J23): whether this business is temporary (no real money, nothing sent), only on the hosted web server.
       ...(options.trial && options.host === 'hosted-web' ? { trial: options.trial } : {}),
+      // Ink v2 wave 5 (5A5): the desktop's report printer; never on the hosted web server.
+      ...(options.print && options.host !== 'hosted-web' ? { print: options.print } : {}),
+      ...(options.formsBrowser && options.host === 'desktop' ? { formsBrowser: options.formsBrowser } : {}),
+      // Wave 6 (6F3): the desktop's hidden reading window for pages that need JavaScript; never elsewhere.
+      ...(options.webRender && options.host === 'desktop' ? { webRender: options.webRender } : {}),
+      // Wave 6 (6H2): the desktop's browser window for recorded flows; never elsewhere.
+      ...(options.flowBrowser && options.host === 'desktop' ? { flowBrowser: options.flowBrowser } : {}),
+      // Wave 6 (6J2): the report services' keys from the build's environment; used only after the owner opts in.
+      ...(options.feedback ? { feedback: options.feedback } : {}),
     });
   }
 
@@ -241,11 +258,16 @@ export class VentureHost {
     if (!ownsHandler(module.handlers, name)) throw notBuilt();
     const handler = (module.handlers as Record<string, Handler>)[name];
     await this.#modelsReady();
+    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'Open your workspace first.');
     try {
       const answer = await handler(this.#deps, ctx, payload ?? {});
       // 4J2 (O22): a settings form's autosaved draft is cleared once its real method succeeded with the same values.
       if (SETTINGS_SAVE_METHODS.has(name)) await import('./core/settings-drafts.ts').then(drafts => drafts.clearSavedDraft(this.#deps, ctx, name, payload ?? {})).catch(() => false);
       return answer;
+    } catch (error) {
+      // Wave 6 (6J2): an error that is not one of Chausar's own refusals is noted as a crash, only while crash reports are on.
+      if (!(error instanceof ChausarError)) await import('./core/feedback.ts').then(feedback => feedback.noteEngineCrash(this.#deps, ctx, error, name)).catch(() => {});
+      throw error;
     } finally {
       // The centre looks at Today before the request answers, so a screen that reads it next sees what changed.
       if (this.#noticesDue) await this.#refreshNotices(ctx);
@@ -340,7 +362,24 @@ export class VentureHost {
     if (typeof page !== 'function' || typeof decide !== 'function' || typeof comment !== 'function' || typeof upload !== 'function') throw notBuilt();
     const body = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
     type Entry = (deps: VentureDeps, ctx: Context, token: string, input: Record<string, unknown>) => Promise<unknown>;
-    if (op === 'page') return (page as Entry)(this.#deps, ctx, token, { preview: body.preview === true });
+    if(body.storefront===true){const entry=(await this.#load('playbooks')).storefrontEntry;const {storefront:_flag,...fields}=body;return typeof entry==='function'?(entry as Entry)(this.#deps,ctx,token,fields):null;}
+    if (body.siteForm === true) {
+      const capture = (await this.#load('playbooks')).siteFormEntry;
+      const {siteForm:_flag,...fields}=body;
+      return typeof capture === 'function' ? (capture as Entry)(this.#deps,ctx,token,fields) : null;
+    }
+    // 5G: a rating token never falls through to a client draft link, and carries no transcript.
+    if (body.supportRating === true) {
+      const rating = (await this.#load('playbooks')).supportRatingEntry;
+      return typeof rating === 'function' ? (rating as Entry)(this.#deps, ctx, token, { operation: op === 'page' ? 'page' : 'rate', score: body.score }) : null;
+    }
+    if (op === 'page') {
+      const found = await (page as Entry)(this.#deps, ctx, token, { preview: body.preview === true });
+      if (found !== null) return found;
+      // Ink v2 wave 5 (5A5): a client report's link (playbooks/kit/report/share.ts), read only, opens on the same page.
+      const report = (await this.#load('playbooks')).reportSharePage;
+      return typeof report === 'function' ? (report as Entry)(this.#deps, ctx, token, { preview: body.preview === true }) : null;
+    }
     if (op === 'comment') return (comment as Entry)(this.#deps, ctx, token, body);
     if (op === 'upload') return (upload as Entry)(this.#deps, ctx, token, body);
     return (decide as Entry)(this.#deps, ctx, token, body);
@@ -390,7 +429,9 @@ export class VentureHost {
     // 4J1: this vault's "allow for this session" ends first, before anything that could throw; other businesses open in
     // this process keep theirs (policy/allow-session.ts).
     endSessionAllowances(this.#store);
+    clearSessionMemory(this.#secrets);
     this.#closed = true;
+    closeCredentialSession(this.#secrets);
     this.#secrets.clear();
     this.#port = null;
     this.#portPending = null;
@@ -441,10 +482,22 @@ export class VentureHost {
     }
     const create = models.createModelPort;
     if (typeof create !== 'function') throw notBuilt();
+    if (this.#deps.credentials) {
+      const state = this.#store.read(), presets = models.PRESETS as readonly ModelPreset[];
+      const ids = new Set(state.conversations.filter(row => row?.kind === 'venture-model-connection' && row.status === 'connected').map(row => row.presetId));
+      for (const id of ids) {
+        if (!presets?.find(preset => preset.id === id)?.needsKey) continue;
+        const name = `model:${id}` as SecretName;
+        let key: string | null = null;
+        try { key = await this.#deps.credentials.get(state.workspace.id, name); } catch { /* Missing protection leaves the connection visibly without a key. */ }
+        if (this.#closed) return;
+        if (key !== null) this.#secrets.set(name, key);
+      }
+    }
     const portOptions: ModelPortOptions = {
       store: this.#store, clock: this.#deps.clock, transport, secrets: this.#secrets, host: this.#deps.host, demo: this.#deps.demo,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),
-      claudeCodeTerms: this.#deps.claudeCodeTerms ?? 'pending',
+      claudeCodeTerms: this.#deps.claudeCodeTerms ?? 'accepted',
     };
     const port = (create as (options: ModelPortOptions) => ModelPort)(portOptions);
     if (!port || typeof port !== 'object') throw notBuilt();
@@ -469,7 +522,7 @@ export class VentureHost {
       },
       async generate<T>(ctx: Context, task: ModelTask<T>) { return port().generate(ctx, task); },
       async preview<T>(ctx: Context, task: ModelTask<T>) { return port().preview(ctx, task); },
-      async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop' }) {
+      async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: Parameters<ModelPort['runPreview']>[4]) {
         return port().runPreview(ctx, callId, approvedDigest, validate, options);
       },
     });

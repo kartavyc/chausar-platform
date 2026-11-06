@@ -18,6 +18,8 @@ import { withPreviews } from '../runtime/venture/views/previews.ts';
 import { CLIENT_NAME, call, harness, owner, seedBlueprint, seedOrder, seedRun, setStage, setup, type Env } from './venture-views-env.ts';
 import { CHAPTERS, editListCall, put, record, seedYoutube, transcriptUpload, youtubeDraft } from './venture-previews-env.ts';
 
+import { nativeContext } from './fixtures/venture/native-context.ts';
+
 const list = (env: Env) => call<QueueList>(env, 'venture.queue.list', {});
 const rowOf = async (env: Env, kind: QueueRow['kind']) => {
   const row = (await list(env)).rows.find(item => item.kind === kind);
@@ -287,46 +289,44 @@ test('previews: an Instagram post counts its hashtags against the platform cap o
   assert.deepEqual(post.counts, [{ label: 'characters', count: 22, limit: 2200 }, { label: 'hashtags', count: 6, limit: 5 }]);
 });
 
-test("previews: a question with choices lists each option, and a model's figure on an option is only an estimate", async () => {
+test('previews: a native facts question stays free text without fabricated choices or estimates', async t => {
   const env = await setup();
   const plan = await seedBlueprint(env);
   const { order } = await seedOrder(env, plan);
   await setStage(env, 'approve-each');
-  await seedRun(env, order, {
-    status: 'needs-answer',
-    harness: harness({
-      phase: 'needs-answer',
-      handoffs: [{
-        to: 'owner', question: 'Which title for episode 15?', turn: 1, answer: null, answeredBy: null,
-        choices: [
-          { label: 'A', text: 'I tried every budget mic' },
-          { label: 'B', text: 'The cheap mic that beat my 20,000 one', estimate: { label: 'Views in 30 days', value: '12,000 to 18,000' } },
-        ],
-      }],
-    }),
+  const native = await nativeContext(env.deps, owner, order.id);
+  t.after(() => native.job.close());
+  const question = 'Which bank account is the main one?';
+  await put(env, tx => {
+    const run = tx.find('venture-delivery-run', native.run.id)!;
+    tx.replace({ ...run, status: 'needs-answer', agentJob: { ...run.agentJob!,
+      pendingFacts: { digest: digest(question), missing: [], question, callId: 'synthetic-facts', at: tx.now } } });
   });
-  const choice = preview(await rowOf(env, 'question'), 'choice');
-  assert.deepEqual(choice.options, [
-    { label: 'A', text: { text: 'I tried every budget mic' } },
-    { label: 'B', text: { text: 'The cheap mic that beat my 20,000 one', estimate: true }, estimate: { label: 'Views in 30 days', value: '12,000 to 18,000' } },
-  ]);
-  assert.equal(choice.question.text, 'Which title for episode 15?');
+  const row = await rowOf(env, 'question');
+  assert.equal(row.line, question);
+  assert.deepEqual(row.viewRef, { kind: 'run', id: native.run.id });
+  assert.deepEqual(row.actions.map(action => action.id), ['answer']);
+  assert.equal('preview' in row, false, 'a free-text facts question invents no options or model estimates');
 });
 
-test('previews: a row with nothing to show has none, and the hook keeps every row, id and digest', async () => {
+test('previews: a row with nothing to show has none, and the hook keeps every row, id and digest', async t => {
   const env = await setup();
   env.workspace.keep = 'not-made';
   await seedBlueprint(env, { status: 'draft' });
   const rows = (await list(env)).rows;
   assert.ok(rows.length >= 3);
   for (const row of rows) assert.equal('preview' in row, false, row.id);
-  // A question with one choice is no choice; a plain question has no preview.
+  // Native missing facts use a plain owner answer, without a choice preview.
   const plan = await seedBlueprint(env);
   const { order } = await seedOrder(env, plan);
   await setStage(env, 'approve-each');
-  await seedRun(env, order, {
-    status: 'needs-answer',
-    harness: harness({ phase: 'needs-answer', handoffs: [{ to: 'owner', question: 'Which bank account?', turn: 1, answer: null, answeredBy: null, choices: [{ label: 'A', text: 'Current' }] }] }),
+  const native = await nativeContext(env.deps, owner, order.id);
+  t.after(() => native.job.close());
+  const question = 'Which bank account?';
+  await put(env, tx => {
+    const run = tx.find('venture-delivery-run', native.run.id)!;
+    tx.replace({ ...run, status: 'needs-answer', agentJob: { ...run.agentJob!,
+      pendingFacts: { digest: digest(question), missing: [], question, callId: 'synthetic-facts', at: tx.now } } });
   });
   assert.equal('preview' in await rowOf(env, 'question'), false);
   const state = env.store.read();

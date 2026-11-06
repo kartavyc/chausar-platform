@@ -82,7 +82,7 @@ function checksLine(run: DeliveryRunRecord): Display | undefined {
   if (!run.checks.length) return undefined;
   const counted = run.checks.filter(item => !item.notChecked);
   const passed = counted.filter(item => item.passed).length;
-  return `${passed} of ${counted.length} checks passed.${counted.length < run.checks.length ? ' The judge settled no rule, so its check is not counted.' : ''}`;
+  return `${passed} of ${counted.length} checks passed.${counted.length < run.checks.length ? ' The quality check settled no rule, so its check is not counted.' : ''}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,6 +245,9 @@ function byRef(deps: VentureDeps, state: State, venture: VentureRecord, head: He
   if (kind === 'file') {
     const invoice = listRecords(state, 'venture-invoice', venture.id).find(item => item.id === id);
     if (invoice) return invoiceItem(state, venture, head, invoice, deps);
+    // Ink v2 wave 5 (5A2): a sales proposal's five sections, as they will be sent (playbooks/kit/proposal.ts).
+    const proposal = listRecords(state, 'venture-sales-proposal', venture.id).find(item => item.id === id);
+    if (proposal) return { kind: 'file', id: proposal.id, ...head, title: `Proposal for ${proposal.toName}`, line: proposal.offerName, sections: proposal.sections.map(section => ({ heading: section.title, lines: section.lines })) };
     return signoffItem(state, venture, head, id);
   }
   return null;

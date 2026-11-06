@@ -29,7 +29,7 @@ test('validateDepartments passes for the three flagships: every role id has exac
     return Object.fromEntries(delivery.roles.map(role => [role.id, departmentOfRole(delivery, role.id)]));
   };
   assert.deepEqual(map('youtube'), {
-    'intake-clerk': 'production', producer: 'sales', chausar: 'production', 'story-editor': 'production', packager: 'marketing',
+    'intake-clerk': 'production', producer: 'sales', chausar: 'production', 'story-editor': 'production', packager: 'marketing', cutter: 'production', analyst:'marketing', 'community-helper':'sales',
   });
   // The CA firm's checks role is the auditor; the calculator is code that works out tax, so it sits with Money.
   assert.deepEqual(map('ca-firm'), {
@@ -54,6 +54,8 @@ test("the eight fixed steps' one agent takes its department from the service typ
   const expected: Record<string, string> = {
     bookkeeping: 'money', agency: 'marketing', content: 'marketing', support: 'sales',
     studio: 'production', consulting: 'production', research: 'production', other: 'production',
+    // W6 6E1: the three new family types.
+    teaching: 'production', 'local-services': 'operations', licensed: 'production',
   };
   assert.deepEqual(Object.fromEntries(SERVICE_TYPES.map(type => [type, departmentOfService(type)])), expected);
 });

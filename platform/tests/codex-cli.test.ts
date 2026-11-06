@@ -32,6 +32,12 @@ test('synthetic completed turn preserves one plan and measured usage', () => {
   assert.deepEqual(output.value, syntheticPlan); assert.deepEqual(output.usage, completed.usage);
   assert.equal(output.completed, true); assert.deepEqual(validatePlan(output.value, ['earned']), { operation: 'earned' });
 });
+test('synthetic read-only model calls disable host skill and plugin discovery', () => {
+  const args = buildCodexCliArguments('synthetic-model', resolve('schema.json'), syntheticProfile);
+  for (const setting of ['features.skip_host_skill_discovery=true', 'skills.bundled.enabled=false', 'features.plugins=false', 'features.skill_search=false', 'suppress_unstable_features_warning=true']) {
+    assert.ok(args.includes(setting), `The isolated quality call must set ${setting}`);
+  }
+});
 test('synthetic completion without usage does not fabricate measurements', () => {
   const output = parseCodexCliOutput(syntheticEvents(final(), { type: 'turn.completed' }));
   assert.equal(output.usage, undefined);
@@ -87,6 +93,13 @@ test('synthetic arguments retain exact schema path, explicit model and CLI-owned
 test('synthetic missing flags, configuration keys, stdin or read-only support refuse argument construction', () => {
   for (const profile of [{ ...syntheticProfile, flags: CODEX_CLI_FLAGS.filter(flag => flag !== '--output-schema') }, { ...syntheticProfile, configKeys: [] }, { ...syntheticProfile, stdinPrompt: false }, { ...syntheticProfile, sandboxModes: ['workspace-write'] }]) assert.throws(() => buildCodexCliArguments('synthetic-model', resolve('schema.json'), profile), refuses('CLI_CAPABILITY_UNSUPPORTED'));
   assert.throws(() => buildCodexCliArguments('synthetic-model', resolve('schema.json'), { ...syntheticProfile, evidence: { kind: 'synthetic-fixture', label: '' } }), refuses('CLI_CAPABILITY_REQUIRED'));
+});
+
+test('Codex model arguments use the unelevated Windows sandbox only on Windows', () => {
+  const args = buildCodexCliArguments('synthetic-model', resolve('schema.json'), syntheticProfile);
+  assert.equal(args.includes('windows.sandbox=unelevated'), process.platform === 'win32');
+  assert.equal(syntheticProfile.configKeys.includes('windows.sandbox'), process.platform === 'win32');
+  assert.equal(args[args.indexOf('--sandbox') + 1], 'read-only');
 });
 test('synthetic fixtures and official documentation cannot qualify a live native process', () => {
   const process = async () => ({ exitCode: 0, stdout: successful() });

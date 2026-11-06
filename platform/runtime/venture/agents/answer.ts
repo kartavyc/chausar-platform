@@ -7,8 +7,9 @@
 // Nothing the consent promises is never sent reaches the AI: card, bank account, Aadhaar and one-time code numbers are
 // screened out of every fact, and client file names and the run's question pass the untrusted screen first.
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { securitiesAdviceIn } from '../policy/securities-guard.ts';
 import type { AgentWaiting, ChatPart, Json, ModelTask, RunDetail, VentureDeps, VentureRecord } from '../contracts.ts';
-import { copiedTokens, listRecords, modelNumbers, tidyWords } from '../records.ts';
+import { copiedTokens, digest, listRecords, modelNumbers, tidyWords } from '../records.ts';
 import { digitCopy, screenReadback } from '../core/secrets.ts';
 import { screenUntrusted } from '../policy/untrusted.ts';
 import { screenSettingOf } from '../policy/untrusted-methods.ts';
@@ -21,6 +22,8 @@ import { standingOrders } from './versions.ts';
 import { onlyAsks } from './standing.ts';
 import type { ChatAgent } from './roles.ts';
 import { usableNoteText } from './recall.ts';
+import { assertAgentAnswerCurrent } from '../agent-runtime/native-job.ts';
+import { requireClientAiConsent } from '../clients/ai-consent.ts';
 
 // ---------------------------------------------------------------------------
 // One chat call: preview, then the send the owner's message in the app approves, under the chat consent
@@ -70,16 +73,22 @@ export function screenFacts(value: Json, field: string | null = null): Json {
  * model); otherwise nothing is sent (CHAT_CONSENT_STALE). Null with templates only, or when the answer came back in a
  * shape Chausar refuses; the caller then answers from code.
  */
-export async function chatCall<T>(deps: VentureDeps, ctx: Context, route: ChatRoute | null, task: ModelTask<T>): Promise<{ value: T; callId: string | null } | null> {
+export async function chatCall<T>(deps: VentureDeps, ctx: Context, route: ChatRoute | null, task: ModelTask<T>, guard?: () => void): Promise<{ value: T; callId: string | null } | null> {
   if (!route) return null;
+  guard?.();
   const preview = await deps.models.preview(ctx, { ...task, input: screenFacts(task.input) });
   if (!preview) return null;
-  const { state, venture } = readAs(deps, ctx, 'prepare');
-  const now = requireChatConsent(deps, ctx, state, venture);
-  check(now && now.presetId === route.presetId && now.model === route.model && now.connectionId === route.connectionId, 'CHAT_CONSENT_STALE', CHANGED_ROUTE);
-  check(preview.presetId === route.presetId && preview.model === route.model, 'CHAT_CONSENT_STALE', CHANGED_ROUTE);
+  const beforeDispatch = () => {
+    const { state, venture } = readAs(deps, ctx, 'prepare');
+    const now = requireChatConsent(deps, ctx, state, venture);
+    check(now && now.presetId === route.presetId && now.model === route.model && now.connectionId === route.connectionId, 'CHAT_CONSENT_STALE', CHANGED_ROUTE);
+    check(preview.presetId === route.presetId && preview.model === route.model, 'CHAT_CONSENT_STALE', CHANGED_ROUTE);
+    guard?.();
+  };
+  beforeDispatch();
   try {
-    const outcome = await deps.models.runPreview(ctx, preview.callId, preview.digest, task.validate);
+    const outcome = await deps.models.runPreview(ctx, preview.callId, preview.digest, task.validate, { beforeDispatch });
+    beforeDispatch();
     return { value: outcome.value, callId: outcome.callId };
   } catch (error) {
     if (error instanceof Error && SHAPE_ERRORS.has((error as { code?: string }).code ?? '')) return null;
@@ -146,25 +155,33 @@ export function offerFor(state: State, venture: VentureRecord, text: string): st
 // The agent's own facts
 // ---------------------------------------------------------------------------
 
-/** The runs this agent owned a step in, newest first, with only its own steps. */
-export function agentRuns(deps: VentureDeps, state: State, venture: VentureRecord, agent: ChatAgent): { detail: RunDetail; steps: RunDetail['steps'] }[] {
+/** Stored owner-visible history, including jobs whose sources have since changed. Erasure happens in the records. */
+export function agentRunHistory(deps: VentureDeps, state: State, venture: VentureRecord, agent: ChatAgent): { detail: RunDetail; steps: RunDetail['steps'] }[] {
   return deliveryRunDetails(deps, state, venture).flatMap(detail => {
     const steps = detail.steps.filter(step => agent.stepIds.includes(step.id));
     return steps.length ? [{ detail, steps }] : [];
   });
 }
 
+/** Only currently authorized runs may contribute client context to another AI call. */
+export function agentRuns(deps: VentureDeps, state: State, venture: VentureRecord, agent: ChatAgent): { detail: RunDetail; steps: RunDetail['steps'] }[] {
+  return agentRunHistory(deps, state, venture, agent).filter(({ detail }) => {
+    const record = listRecords(state, 'venture-delivery-run', venture.id).find(run => run.id === detail.runId);
+    const order = record && listRecords(state, 'venture-order', venture.id).find(order => order.id === record.orderId);
+    if (!record || !order) return false;
+    try {
+      requireClientAiConsent(state, venture.id, order.clientId);
+      if (record.agentJob) assertAgentAnswerCurrent(state, record);
+    } catch { return false; }
+    return true;
+  });
+}
+
 /** The question this agent's run waits on the owner for, kept in one fixed place: the newest one, or null. */
 export function waitingOn(deps: VentureDeps, state: State, venture: VentureRecord, agent: ChatAgent): AgentWaiting | null {
   for (const record of listRecords(state, 'venture-delivery-run', venture.id).reverse()) {
-    const harness = record.harness;
-    if (record.status !== 'needs-answer' || harness?.phase !== 'needs-answer') continue;
-    const index = harness.handoffs.findLastIndex(handoff => handoff.answer === null);
-    if (index < 0) continue;
-    // The role that asked: the turn's role when the harness recorded it, else the role that owns the question step.
-    const role = harness.turns.find(turn => turn.turn === harness.handoffs[index].turn)?.role;
-    const asks = role ? role === agent.id : agent.steps.some(step => step.kind === 'question');
-    if (!asks) continue;
+    if (record.status !== 'needs-answer' || !record.agentJob?.pendingFacts || record.agentJob.scope.agentId !== agent.id) continue;
+    try { assertAgentAnswerCurrent(state, record); } catch { continue; }
     const detail = deliveryRunDetails(deps, state, venture).find(item => item.runId === record.id);
     if (!detail?.question) continue;
     return { runId: record.id, rowId: detail.question.id, question: detail.question.text };
@@ -260,6 +277,8 @@ export function validateAnswer(raw: unknown): AnswerOutput {
       const item = part as Record<string, unknown>;
       if (!item || typeof item !== 'object' || Object.keys(item).length !== 4 || (item.kind !== 'text' && item.kind !== 'figure')) return rejected('A part of the answer had the wrong shape.');
       for (const field of ['text', 'receiptId', 'key']) if (typeof item[field] !== 'string' || (item[field] as string).length > 600 || HIDDEN.test(item[field] as string)) return rejected('A part of the answer was not plain short text.');
+      // W6 6E7 (D49): an answer that gives securities advice is refused, so the template answer is used.
+      if (securitiesAdviceIn(item.text as string)) return rejected('A part of the answer gave securities advice, which Chausar never gives.');
       return { kind: item.kind, text: item.text as string, receiptId: item.receiptId as string, key: item.key as string };
     }),
   };
@@ -303,7 +322,8 @@ const STATE_WORDS: Readonly<Record<RunDetail['state'], string>> = { active: 'in 
 export function templateAnswer(deps: VentureDeps, state: State, venture: VentureRecord, agent: ChatAgent, waiting: AgentWaiting | null): ChatPart[] {
   const lines: string[] = [];
   if (waiting) lines.push(`I am waiting on your answer: ${short(waiting.question, 200)}`);
-  const latest = agentRuns(deps, state, venture, agent)[0];
+  // This code-only answer stays with the owner; AI context uses agentRuns instead.
+  const latest = agentRunHistory(deps, state, venture, agent)[0];
   lines.push(latest ? `My latest run, ${short(latest.detail.purpose, 120)}, is ${STATE_WORDS[latest.detail.state]}.` : 'I have not worked on an order yet.');
   const orders = standingOrders(state, venture, agent).length;
   if (orders) lines.push(`I follow ${orders} standing ${orders === 1 ? 'order' : 'orders'} from you.`);
@@ -320,6 +340,27 @@ export type Answer = { parts: ChatPart[]; author: 'model' | 'template'; callId: 
 export async function answerQuestion(deps: VentureDeps, ctx: Context, route: ChatRoute | null, input: { state: State; venture: VentureRecord; agent: ChatAgent; question: string; waiting: AgentWaiting | null }): Promise<Answer> {
   const { state, venture, agent, question, waiting } = input;
   const facts = factsOf(deps, state, venture, agent);
+  const included = new Set([...facts.runs.map(run => run.runId), ...(waiting ? [waiting.runId] : [])]);
+  const contextRuns = listRecords(state, 'venture-delivery-run', venture.id).filter(run => included.has(run.id)).map(run => {
+    const order = listRecords(state, 'venture-order', venture.id).find(order => order.id === run.orderId)!;
+    const consent = requireClientAiConsent(state, venture.id, order.clientId);
+    return { run, clientId: order.clientId, consentId: consent.id, consentRevision: consent.revision };
+  });
+  const guard = () => {
+    const fresh = readAs(deps, ctx, 'prepare');
+    for (const binding of contextRuns) {
+      const expected = binding.run;
+      const current = listRecords(fresh.state, 'venture-delivery-run', venture.id).find(run => run.id === expected.id);
+      const order = current && listRecords(fresh.state, 'venture-order', venture.id).find(order => order.id === current.orderId);
+      check(current && order && current.orderId === expected.orderId && order.clientId === binding.clientId, 'JOB_SOURCE_CHANGED', 'The client work changed before this chat finished.');
+      requireClientAiConsent(fresh.state, venture.id, binding.clientId, binding);
+      if (!expected.agentJob) continue;
+      check(current?.agentJob && digest(current.agentJob.scope) === digest(expected.agentJob!.scope)
+        && current.agentJob.sourceDigest === expected.agentJob!.sourceDigest
+        && digest(current.agentJob.pendingFacts ?? null) === digest(expected.agentJob!.pendingFacts ?? null), 'JOB_SOURCE_CHANGED', 'The client work changed before this chat finished.');
+      assertAgentAnswerCurrent(fresh.state, current);
+    }
+  };
   // The run's question was written by an agent that read the client's files: outside words, screened like a file name.
   const asked = waiting ? outsideWords(state, venture, waiting.question) : null;
   const task: ModelTask<AnswerOutput> = {
@@ -327,7 +368,7 @@ export async function answerQuestion(deps: VentureDeps, ctx: Context, route: Cha
     input: { agent: { name: agent.name, job: agent.job }, question, waiting: asked, ...facts } as unknown as Json,
     schemaName: 'venture-agent-answer', schema: ANSWER_SCHEMA, validate: validateAnswer, containsClientData: true, maxOutputTokens: 1024,
   };
-  const answered = await chatCall(deps, ctx, route, task);
+  const answered = await chatCall(deps, ctx, route, task, guard);
   if (!answered) {
     const line = route ? "Your AI's answer did not pass Chausar's checks, so this is what Chausar can say from its records." : null;
     return { parts: templateAnswer(deps, state, venture, agent, waiting), author: 'template', callId: null, line };

@@ -16,11 +16,11 @@ import type {
 import { endedSessions, pushBrowsers, pushOn } from './browsers.ts';
 
 /** The settings fields a record holds; relay is 4G3's and only carried forward here. */
-export type NotifySettings = Pick<NotifySettingsRecord, 'pausedUntil' | 'quietHours' | 'digest' | 'push' | 'tray' | 'relay'>;
+export type NotifySettings = Pick<NotifySettingsRecord, 'pausedUntil' | 'quietHours' | 'digest' | 'push' | 'tray' | 'relay'> & { telegram: NonNullable<NotifySettingsRecord['telegram']> | null };
 
 /** Before the owner chooses: quiet at night, a morning digest, the tray on, push off until the browser allows it. */
 export const DEFAULT_NOTIFY_SETTINGS: Readonly<NotifySettings> = Object.freeze({
-  pausedUntil: null, quietHours: { from: '22:00', to: '07:00' }, digest: { hour: 8 }, push: false, tray: true, relay: null,
+  pausedUntil: null, quietHours: { from: '22:00', to: '07:00' }, digest: { hour: 8 }, push: false, tray: true, relay: null, telegram: null,
 });
 /** The longest pause: 30 days. */
 export const MAX_PAUSE_MS = 30 * 24 * 3_600_000;
@@ -32,14 +32,14 @@ const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 const KEEPER_JOBS: readonly [KeeperJobId, string][] = [
   ['backups', 'Backups'], ['journal-sweep', 'Journal sweep'], ['connection-checks', 'Connection checks'], ['rule-freshness', 'Platform rule dates'],
   ['rate-tables', 'Tax rate tables'], ['posting-steps', 'Posting steps'], ['network-strength', 'Network strength'], ['probes', 'Needs-you checks'],
-  ['calendar-feed', 'Calendar feed'],
+  ['calendar-feed', 'Calendar feed'], ['monitors', 'Page monitors'],
 ];
 
 /** The settings in use: the newest record's, else the defaults. */
 export function currentNotifySettings(state: State, ventureId: string): NotifySettings {
   const latest = listRecords(state, 'venture-notify-settings', ventureId).at(-1);
   const from = latest ?? DEFAULT_NOTIFY_SETTINGS;
-  return structuredClone({ pausedUntil: from.pausedUntil, quietHours: from.quietHours, digest: from.digest, push: from.push, tray: from.tray, relay: from.relay });
+  return structuredClone({ pausedUntil: from.pausedUntil, quietHours: from.quietHours, digest: from.digest, push: from.push, tray: from.tray, relay: from.relay, telegram: from.telegram ?? null });
 }
 
 /** The owner's clock at an instant, 'HH:MM', in the business's time zone. */
@@ -59,9 +59,9 @@ export function pausedAt(settings: Pick<NotifySettings, 'pausedUntil'>, nowMs: n
   return settings.pausedUntil !== null && Date.parse(settings.pausedUntil) > nowMs;
 }
 
-/** Whether any channel outside the app is on here: push on the hosted app, the tray elsewhere, or the owner's relay. */
+/** Whether any channel outside the app is on here: push on the hosted app, the tray elsewhere, the owner's relay or (6F6) Telegram bot. */
 export function channelsOn(settings: NotifySettings, host: VentureHostKind): boolean {
-  return settings.relay !== null || (host === 'hosted-web' ? settings.push : settings.tray);
+  return settings.relay !== null || (host !== 'hosted-web' && !!settings.telegram) || (host === 'hosted-web' ? settings.push : settings.tray);
 }
 
 /** Whether an alert's count may ride on notify.new (4G3): only to a channel that shows it, the tray here or push on hosted. */

@@ -37,7 +37,8 @@ export async function goalBusiness(options: { taxAssumed?: boolean; price?: stri
 /** An order of `quantity` months, its invoice drafted with `issueDate` (null: today on the owner's calendar), then issued unless `draft`. */
 export async function invoice(env: GoalEnv, quantity: string, issueDate: string | null, draft = false): Promise<InvoiceView> {
   const order = await env.money<OrderRecord>('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', quantity, request: 'Close the month of books.' });
-  const prepared = await env.money<InvoiceView>('venture.invoice.prepare', { orderId: order.id, ...(issueDate === null ? {} : { issueDate }) });
+  // Due in 15 days, as these scenarios were worked out before wave 6 made 7 days the owner's default (6D1).
+  const prepared = await env.money<InvoiceView>('venture.invoice.prepare', { orderId: order.id, dueInDays: 15, ...(issueDate === null ? {} : { issueDate }) });
   if (draft) return prepared;
   return env.money<InvoiceView>('venture.invoice.issue', { invoiceId: prepared.invoice.id, digest: prepared.invoice.digest });
 }

@@ -1,7 +1,6 @@
 // Calendar dates for money documents and the books. Calendar arithmetic on 'YYYY-MM-DD' only; no money here.
 // "Today" is the owner's local day (local-day.ts), the same day basis everywhere the venture fills in a date.
-import { check } from '../../contracts.ts';
-import { validDate } from '../../memory.ts';
+export {addDaysUtc} from '../../date-core.ts';
 import { ownerToday } from '../local-day.ts';
 import type { BooksPeriodChoice, BooksPeriodKey, CountryProfile, IsoDate } from '../contracts.ts';
 
@@ -10,14 +9,6 @@ export function todayLocal(clock: () => Date, country: Pick<CountryProfile, 'cod
   return ownerToday(clock, country);
 }
 
-/** 'YYYY-MM-DD' plus a whole number of days, on the calendar (no time zone: a date has none). */
-export function addDaysUtc(iso: IsoDate, days: number): IsoDate {
-  check(validDate(iso), 'INVALID_VENTURE_REQUEST', 'Use a date like 2026-10-15.');
-  check(Number.isInteger(days) && days >= 0 && days <= 3660, 'INVALID_VENTURE_REQUEST', 'Use a whole number of days.');
-  const date = new Date(`${iso}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 

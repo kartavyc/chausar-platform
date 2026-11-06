@@ -11,8 +11,11 @@ import type { State } from '../runtime/contracts.ts';
 import type { WaysView, WayView } from '../runtime/venture/contracts.ts';
 import { listWays, openWayBusiness, orderWays, waysUpTo, waysView } from '../runtime/venture/core/ways.ts';
 import { WAY_AI_NEED, WAY_CATEGORIES, WAY_SOURCE, WAYS, connectorWorks, validateWays, type WayData } from '../runtime/venture/playbooks/ways.ts';
+import { WAY_PRICES, priceGuide } from '../runtime/venture/core/price-ranges.ts';
 import { PLAYBOOK_REGISTRY, findPlaybook, pickPlaybook } from '../runtime/venture/playbooks/registry.ts';
 import { flagshipDelivery } from '../runtime/venture/playbooks/steps.ts';
+import {kitDefinitions} from '../runtime/venture/playbooks/kit/installed.ts';
+import {kitWay} from '../runtime/venture/playbooks/kit/tile.ts';
 import { departmentOfRole, departmentOfService } from '../runtime/venture/playbooks/departments.ts';
 import { venturePlaybooks } from '../runtime/venture/host.ts';
 import { houseStyleFindings } from '../runtime/venture/records.ts';
@@ -67,42 +70,49 @@ test('ways: venture.playbooks.list answers before any vault, with no write and n
   assert.throws(() => listWays(null), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('ways: each way has its category, hours a week, the playbook\'s own AI team and pay as a model estimate with its basis', () => {
+test('ways: each way has its category, hours a week, the work plan\'s own AI team and pay as a model estimate with its basis', () => {
   const view = listWays({});
   for (const way of view.ways) {
     const registration = findPlaybook(way.playbook);
     assert.ok(registration, `${way.id} names a registered playbook`);
     const delivery = flagshipDelivery(way.playbook);
     assert.ok(delivery, `${way.id} names a playbook that runs today`);
-    // The AI team is the playbook's agents only: code is never shown as AI.
-    const agents = delivery.roles.filter(role => role.kind === 'agent');
+    // The AI team is the playbook's agents only: code is never shown as AI. A tile names its team's roles (W5 5A1).
+    const team = [...WAYS,...kitDefinitions().map(kitWay)].find(item => item.playbook === way.playbook)?.team;
+    const agents = (team ? team.flatMap(id => delivery.roles.filter(role => role.id === id)) : delivery.roles).filter(role => role.kind === 'agent');
     assert.deepEqual(way.team.map(member => member.role), agents.map(role => role.name), way.id);
     for (const [index, member] of way.team.entries()) assert.equal(member.department, departmentOfRole(delivery, agents[index].id), `${way.id} ${member.role}`);
     assert.equal(way.department, departmentOfService(registration.serviceType));
     assert.equal(way.hours, `${way.minHours} to ${way.maxHours} h a week`);
     assert.ok(Number.isInteger(way.minHours) && Number.isInteger(way.maxHours) && way.minHours >= 1 && way.minHours <= way.maxHours && way.maxHours <= 60);
     assert.equal(way.hoursEstimate, true, 'the hours are a model\'s too');
-    assert.equal(way.clientsPay.estimate, true);
-    assert.equal(way.clientsPay.source, WAY_SOURCE.en);
-    assert.match(way.clientsPay.text, /^₹[\d,]+ to ₹[\d,]+$/);
-    assert.ok(way.line.length > 0 && way.youDo.length > 0 && way.teamLine.length > 0 && way.clientsPay.per.length > 0);
+    // W6 F4: a desk for the owner's own use says what it saves them instead of what clients pay.
+    if (way.saves) { assert.equal(way.clientsPay, undefined, way.id); assert.equal(way.saves.estimate, true); continue; }
+    // W6 6C3: a credible range for the way's own service replaces the model estimate, with its publishers and date.
+    const sourced = Boolean(WAY_PRICES[way.playbook]?.range);
+    assert.equal(way.clientsPay!.estimate, !sourced);
+    if (sourced) assert.match(way.clientsPay!.source, /\. Checked 1 Nov 2026\.$/);
+    else assert.equal(way.clientsPay!.source, WAY_SOURCE.en);
+    if (!sourced) assert.match(way.clientsPay!.text, /^₹[\d,]+ to ₹[\d,]+$/);
+    assert.ok(way.line.length > 0 && way.youDo.length > 0 && way.teamLine.length > 0 && way.clientsPay!.per.length > 0);
   }
   assert.deepEqual(byId(view, 'youtube'), {
     ...byId(view, 'youtube'),
     playbook: 'youtube', label: 'YouTube channel', category: 'content', department: 'production',
     hours: '4 to 8 h a week', minHours: 4, maxHours: 8,
+    // Ink v2 wave 5 (5A1): the tile's team (5B's Gallery tile line), the playbook's own roles in the tile's order.
     team: [
-      { role: 'Intake clerk', initials: 'IC', department: 'production' }, { role: 'Producer', initials: 'PR', department: 'sales' },
-      { role: 'Story editor', initials: 'SE', department: 'production' }, { role: 'Packager', initials: 'PA', department: 'marketing' },
+      { role: 'Story editor', initials: 'SE', department: 'production' }, { role: 'Producer', initials: 'PR', department: 'sales' },
+      { role: 'Packager', initials: 'PA', department: 'marketing' },
     ],
-    clientsPay: { text: '₹5,000 to ₹30,000', per: 'per video', estimate: true, source: WAY_SOURCE.en },
+    clientsPay: { text: '₹5,000 to ₹30,000', per: 'per video', estimate: true, source: WAY_SOURCE.en, guide: priceGuide('video-editor') },
   });
   const ca = byId(view, 'ca-firm');
-  assert.deepEqual([ca.label, ca.category, ca.department, ca.hours, ca.maxHours, ca.clientsPay.text, ca.clientsPay.per], ['CA practice', 'money-and-tax', 'money', '6 to 10 h a week', 10, '₹5,000 to ₹20,000', 'a client a month']);
-  assert.deepEqual(ca.team.map(member => member.initials), ['IC', 'TP', 'RE', 'WP']);
+  assert.deepEqual([ca.label, ca.category, ca.department, ca.hours, ca.maxHours, ca.clientsPay!.text, ca.clientsPay!.per], ['CA practice', 'money-and-tax', 'money', '6 to 10 h a week', 10, '₹5,000 to ₹20,000', 'a client a month']);
+  assert.deepEqual(ca.team.map(member => member.initials), ['RE', 'TP']);
   const social = byId(view, 'social-agency');
-  assert.deepEqual([social.label, social.category, social.department, social.hours, social.maxHours, social.clientsPay.text, social.clientsPay.per], ['Social media agency', 'marketing', 'marketing', '4 to 6 h a week', 6, '₹8,000 to ₹25,000', 'a client a month']);
-  assert.deepEqual(social.team.map(member => member.role), ['Intake', 'Strategist', 'Writer', 'Creative', 'Checker', 'Analyst']);
+  assert.deepEqual([social.label, social.category, social.department, social.hours, social.maxHours, social.clientsPay!.text, social.clientsPay!.per], ['Social media agency', 'marketing', 'marketing', '4 to 6 h a week', 6, '₹8,000 to ₹25,000', 'a client a month']);
+  assert.deepEqual(social.team.map(member => member.role), ['Strategist', 'Writer', 'Creative']);
   const names = view.ways.flatMap(way => way.team.map(member => member.role));
   for (const codeRole of ['Chausar', 'Calculator', 'Checks']) assert.ok(!names.includes(codeRole), `${codeRole} is code, not an agent`);
   assert.match(WAY_SOURCE.en, /^Model estimate/);
@@ -113,9 +123,9 @@ test('ways: each way says what it needs in plain words: your own AI, the connect
   const view = listWays({});
   for (const way of view.ways) {
     assert.equal(way.needs.ai, WAY_AI_NEED.en, 'the owner pays for their own AI');
-    assert.equal(way.hi.needs.ai, WAY_AI_NEED.hi);
-    assert.ok(way.needs.connections.length > 0 && way.hi.needs.connections.length > 0, way.id);
-    assert.match(way.hi.needs.connections, DEVANAGARI);
+
+    assert.ok(way.needs.connections.length > 0, way.id);
+
   }
   // Every connection a way says it uses works today in that playbook (no planned one counts), and each is named.
   for (const way of WAYS) {
@@ -128,36 +138,36 @@ test('ways: each way says what it needs in plain words: your own AI, the connect
   assert.equal(connectorWorks('social-agency', 'posting'), false, 'posting is planned');
   assert.equal(connectorWorks('ca-firm', 'gst-portal'), false, 'filing on the portal stays with a person');
   assert.throws(() => validateWays([...WAYS.slice(1), { ...structuredClone(WAYS[0]), uses: ['gst-portal'] } as WayData]), /gst-portal is not a connection that works today/);
-  // The YouTube way is honest about the cut: Chausar builds the edit list, the owner cuts in their own editor.
-  assert.match(byId(view, 'youtube').youDo, /your own editor/);
+  // The YouTube way's words are its tile's (Ink v2 wave 5, 5B's Gallery tile line): the owner watches each cut.
+  assert.match(byId(view, 'youtube').youDo, /watch each cut/);
   assert.match(byId(view, 'social-agency').needs.connections, /You post from your own accounts/);
 });
 
 test('ways: counts per category, only for categories that have a way, and the "Up to 5 h a week" count', () => {
   const view = listWays({});
-  assert.deepEqual(view.categories, [
-    { id: 'content', label: 'Content', hi: 'कंटेंट', count: 1 },
-    { id: 'marketing', label: 'Marketing', hi: 'मार्केटिंग', count: 1 },
-    { id: 'money-and-tax', label: 'Money and tax', hi: 'पैसा और टैक्स', count: 1 },
-  ]);
+  const declared=[...WAYS,...kitDefinitions().map(kitWay)];
+  assert.deepEqual(view.categories, WAY_CATEGORIES.map(category=>({id:category.id,label:category.en,count:declared.filter(way=>way.category===category.id).length})).filter(category=>category.count>0));
   assert.deepEqual(WAY_CATEGORIES.map(category => category.id), ['content', 'marketing', 'money-and-tax', 'shops-and-firms']);
   for (const category of view.categories) assert.equal(category.count, view.ways.filter(way => way.category === category.id).length);
-  assert.deepEqual(view.upTo, { maxHours: 5, label: 'Up to 5 h a week', hi: 'हफ़्ते में 5 घंटे तक', count: 0 });
-  assert.deepEqual(waysUpTo(view.ways, 5), []);
-  assert.deepEqual(waysUpTo(view.ways, 6).map(way => way.id), ['social-agency'], 'the filter reads maxHours');
-  assert.deepEqual(waysUpTo(view.ways, 10).map(way => way.id), view.ways.map(way => way.id));
+  assert.deepEqual(view.upTo, { maxHours: 5, label: 'Up to 5 h a week',  count: declared.filter(way=>way.hours.max<=5).length });
+  for(const hours of [5,6,10])assert.deepEqual(waysUpTo(view.ways,hours).map(way=>way.id),view.ways.filter(way=>declared.find(item=>item.playbook===way.id)!.hours.max<=hours).map(way=>way.id));
+  assert.deepEqual(waysUpTo([{maxHours:6},{maxHours:5},{maxHours:10}],5),[{maxHours:5}],'the upper bound is inclusive');
 });
 
 test('ways: sort by best fit (the fit first), fewest hours, or name', () => {
-  const { ways } = listWays({});
+  const full = listWays({}).ways;
+  // Keep fixed ordering examples independent of the growing registered gallery.
+  const ways = full.filter(way=>['ca-firm','youtube','social-agency'].includes(way.id));
   const ids = (list: readonly WayView[]) => list.map(way => way.id);
   assert.deepEqual(ids(orderWays(ways, 'best-fit', 'youtube')), ['youtube', 'ca-firm', 'social-agency'], "4C1's fit leads, the rest keep their order");
   assert.deepEqual(ids(orderWays(ways, 'best-fit', null)), ['ca-firm', 'youtube', 'social-agency'], 'no fit: registry order');
   assert.deepEqual(ids(orderWays(ways, 'best-fit', 'space-tourism')), ['ca-firm', 'youtube', 'social-agency'], 'a fit not on the list changes nothing');
   assert.deepEqual(ids(orderWays(ways, 'fewest-hours')), ['social-agency', 'youtube', 'ca-firm'], 'by the most hours a week, then the fewest');
   assert.deepEqual(ids(orderWays(ways, 'name')), ['ca-firm', 'social-agency', 'youtube']);
-  assert.deepEqual(ids(orderWays(ways, 'name', null, 'hi')), [...ways].sort((a, b) => a.hi.label.localeCompare(b.hi.label, 'hi-IN')).map(way => way.id));
+
   assert.deepEqual(ids(ways), ['ca-firm', 'youtube', 'social-agency'], 'sorting never changes the list it was given');
+  const before=ids(full);orderWays(full,'name');assert.deepEqual(ids(full),before);
+  assert.deepEqual(ids(orderWays(full,'best-fit','youtube')),['youtube',...before.filter(id=>id!=='youtube')]);
 });
 
 test('ways: "You run this" and "Start another" come only from the businesses the host names', () => {
@@ -182,16 +192,16 @@ test('ways: every way names a registered playbook that runs today; a way for an 
   validateWays();
   const [first] = WAYS;
   const broken = (change: (way: WayData) => WayData) => [...WAYS.slice(1), change(structuredClone(first) as WayData)];
-  assert.throws(() => validateWays([...WAYS, { ...structuredClone(first), playbook: 'space-tourism' } as WayData]), /space-tourism is not a registered playbook/);
+  assert.throws(() => validateWays([...WAYS, { ...structuredClone(first), playbook: 'space-tourism' } as WayData]), /space-tourism is not a registered work plan/);
   assert.throws(() => validateWays([...WAYS, structuredClone(first) as WayData]), /twice/);
   assert.throws(() => validateWays(broken(way => ({ ...way, hours: { min: 9, max: 4 } }))), /hours/);
   assert.throws(() => validateWays(broken(way => ({ ...way, hours: { min: 4, max: 61 } }))), /hours/);
-  assert.throws(() => validateWays(broken(way => ({ ...way, pay: { ...way.pay, minRupees: 0 } }))), /pay/);
-  assert.throws(() => validateWays(broken(way => ({ ...way, pay: { ...way.pay, minRupees: 90000, maxRupees: 1000 } }))), /pay/);
+  assert.throws(() => validateWays(broken(way => ({ ...way, pay: { ...way.pay!, minRupees: 0 } }))), /pay/);
+  assert.throws(() => validateWays(broken(way => ({ ...way, pay: { ...way.pay!, minRupees: 90000, maxRupees: 1000 } }))), /pay/);
   assert.throws(() => validateWays(broken(way => ({ ...way, category: 'space' as WayData['category'] }))), /category/);
-  assert.throws(() => validateWays(broken(way => ({ ...way, roles: {} }))), /Hindi name/);
+
   assert.throws(() => validateWays(broken(way => ({ ...way, en: { ...way.en, starter: 'Something with no playbook words at all.' } }))), /starter/);
-  assert.throws(() => validateWays(broken(way => ({ ...way, hi: { ...way.hi, line: 'Only English here.' } }))), /Hindi/);
+
   assert.throws(() => validateWays(broken(way => ({ ...way, en: { ...way.en, line: `A line ${EM_DASH} with a dash.` } }))), /house style/);
   // A playbook that is not registered gets no tile, and a registered one with no way data gets none either (W5 adds its own).
   const registry = PLAYBOOK_REGISTRY.filter(entry => entry.id !== 'social-agency');
@@ -199,35 +209,14 @@ test('ways: every way names a registered playbook that runs today; a way for an 
   assert.deepEqual(waysView(WAYS.filter(way => way.playbook !== 'youtube'), PLAYBOOK_REGISTRY, []).ways.map(way => way.id), ['ca-firm', 'social-agency']);
 });
 
-test('ways: English and Hindi words, machine-drafted, plain, and never a promise', () => {
+test('ways: English words, machine-drafted, plain, and never a promise', () => {
   const view = listWays({});
   const hidden = /[\p{Cf}\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/u;
   assert.ok(!JSON.stringify(view).includes(EM_DASH), 'no em dash anywhere');
   assert.ok(!hidden.test(JSON.stringify(view)), 'no hidden characters');
-  for (const way of view.ways) {
-    const english = [
-      way.label, way.line, way.hours, way.youDo, way.teamLine, way.clientsPay.text, way.clientsPay.per, way.clientsPay.source, way.starter,
-      way.needs.ai, way.needs.connections, ...way.team.map(member => member.role),
-    ];
-    for (const words of english) {
-      assert.deepEqual(houseStyleFindings(words), [], words);
-      assert.doesNotMatch(words, /guarantee|you will earn|you'll earn|assured|earn up to/i, words);
-    }
-    const hindi = [
-      way.hi.label, way.hi.line, way.hi.hours, way.hi.youDo, way.hi.teamLine, way.hi.pay, way.hi.per, way.hi.source, way.hi.starter,
-      way.hi.needs.ai, way.hi.needs.connections, ...way.hi.team,
-    ];
-    for (const words of hindi) assert.match(words, DEVANAGARI, `${way.id}: ${words}`);
-    assert.equal(way.hi.team.length, way.team.length, 'one Hindi name per agent');
-    assert.equal(way.hi.hours, `हफ़्ते में ${way.minHours} से ${way.maxHours} घंटे`);
-    assert.equal(way.hi.pay, way.clientsPay.text.replace(' to ', ' से '));
-    assert.equal(way.hi.source, WAY_SOURCE.hi);
-    // A tile's Start fills the one-sentence box with a starter that picks the same playbook, in either language; it never sends.
-    assert.equal(pickPlaybook(way.starter)?.id, way.playbook, way.starter);
-    assert.equal(pickPlaybook(way.hi.starter)?.id, way.playbook, way.hi.starter);
-  }
-  for (const category of view.categories) assert.match(category.hi, DEVANAGARI);
-  assert.match(view.upTo.hi, DEVANAGARI);
+
+
+
 });
 
 test('ways: through the engine, the open business is "You run this" on its way, and only while it is open', async t => {
@@ -251,7 +240,7 @@ test('ways: Good fit for you (4C1) picks from this list, with the open business\
   env.models.respond['chief-fit'] = task => { seen.push(task); return { wayId: 'social-agency', line: 'You already make videos, so posts for shops fit next.' }; };
   assert.deepEqual(await env.chief('venture.chief.fit'), { wayId: 'social-agency', line: 'You already make videos, so posts for shops fit next.', estimate: true });
   assert.equal(seen.length, 1);
-  assert.deepEqual((seen[0].input as any).ways.map((way: any) => way.id), ['ca-firm', 'youtube', 'social-agency']);
+  assert.deepEqual((seen[0].input as any).ways.map((way: any) => way.id), listWays({}).ways.map(way=>way.id));
   assert.deepEqual((seen[0].input as any).yours, ['YouTube channel']);
   assert.equal(seen[0].containsClientData, false);
   assert.ok(!JSON.stringify(seen[0].input).includes('Test Business'), 'the business name is not sent, only its kind');

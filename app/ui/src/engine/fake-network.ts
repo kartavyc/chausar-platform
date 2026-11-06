@@ -32,6 +32,16 @@ export class FakeNetworkDesk {
     this.pipeline = new FakePipelineDesk(host, this.people, meetings, { fresh: this.fresh, ...(options.due === undefined ? {} : { due: options.due }) });
   }
 
+  /** Internal minimum identity from an exactly approved website import. */
+  captureSiteClient(client:{id:string;name:string;email:string}):void {this.people.captureSiteClient(client);}
+
+  recruitingBlocked(email:string|null,personId:string|null):boolean {return this.pipeline.isBlocked(email)||!!personId&&this.pipeline.personBlocked(personId);}
+
+  recordLeadSend(leadId: string): void { this.pipeline.recordLeadSend(leadId); }
+  rememberQuote(quote: import('./fake-pipeline').HeldPipelineQuote): void { this.pipeline.rememberQuote(quote); }
+  /** W6 6G3: the touches on a client's pipeline cards, for the client's timeline (fake-crm.ts). */
+  clientTouches(match: Parameters<FakePipelineDesk['clientTouches']>[0]) { return this.pipeline.clientTouches(match); }
+
   handles(method: string): boolean {
     return NETWORK_METHODS.has(method);
   }
@@ -41,6 +51,10 @@ export class FakeNetworkDesk {
     return this.people.receipt(id) ?? this.pipeline.receipt(id);
   }
 
+  /** Internal hook for erasing proposals with their person or import. */
+  privacyFacts() {
+    return this.people.privacyFacts();
+  }
   /** 4E4: Today's follow-up and reply rows and "Add notes" notices, brought up to date before the queue is listed. */
   syncRows(): void {
     this.pipeline.syncRows();

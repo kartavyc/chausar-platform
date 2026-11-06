@@ -189,8 +189,8 @@ test('a post the browser saw on the platform after posting is shown, through the
     async post() { return { outcome: 'posted', line: 'Posted.', url: null, checked: [{ step: 'confirm', key: 'role:article' }] }; },
   };
   const deps = { ...env.deps, connectors: { browser: port, appReviewed: [], postTimeoutMs: 40 } } as Deps;
-  const draft = await seedPostDraft(deps, ['LinkedIn: Our bakery opens at 8 every weekday.']);
-  const post = await proposePost(deps, { ...viewsOwner, channel: 'mcp' }, { connectorId: 'linkedin', draftId: draft.id });
+  const draft = await seedPostDraft(deps, ['X: Our bakery opens at 8 every weekday.']);
+  const post = await proposePost(deps, { ...viewsOwner, channel: 'mcp' }, { connectorId: 'x', draftId: draft.id });
   await decidePost(deps, viewsOwner, { postId: post.id, digest: post.digest, action: 'approve' });
   const after = listRecords(deps.store.read(), 'venture-connector-post').find(item => item.id === post.id)!;
   assert.equal(after.state, 'applied');

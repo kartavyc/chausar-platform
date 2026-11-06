@@ -1,3 +1,4 @@
+import {playbookLabel} from '../../text/playbook-label';
 import { useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -12,7 +13,9 @@ import { Tile } from '../../parts/Tile';
 import { SERVICE_TYPES, type BlueprintLite, type BlueprintPatchLite, type BlueprintViewLite, type ChecklistItemLite } from '../../engine/types';
 import { LabelTag, PendingPlanRows, TileSection, messageOf, quoteAgain, totalOf, usePlan } from './shared';
 import { RulesSection } from './RulesSection';
+import { Recipes } from './Recipes';
 import s from './Business.module.css';
+import fields from '../../parts/Field.module.css';
 
 /**
  * Plan and playbook (venture.blueprint.get) in the D look: the plan's name and one line with who it is for, how far
@@ -38,7 +41,7 @@ export function PlanView() {
   const view = plan.data;
   const bp = view.blueprint;
   // The playbook's own label when the idea picked a flagship playbook; else the service type's label.
-  const kind = view.playbook?.label ?? (SERVICE_TYPES.includes(bp.serviceType) ? t(`business.kind.${bp.serviceType}`) : bp.serviceType);
+  const kind = playbookLabel(t,view.playbook) ?? (SERVICE_TYPES.includes(bp.serviceType) ? t(`business.kind.${bp.serviceType}`) : bp.serviceType);
   const version = t(bp.status === 'accepted' ? 'business.versionAccepted' : 'business.versionDraft', { version: bp.version });
 
   return (
@@ -104,6 +107,7 @@ export function PlanView() {
         </div>
       </div>
       <RulesSection />
+      <Recipes />
     </div>
   );
 }
@@ -234,6 +238,12 @@ function OfferCard({ view, offerId }: { view: BlueprintViewLite; offerId: string
 function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: () => void; onCancel: () => void }) {
   const t = useT();
   const client = useEngine();
+  const business = useResource('venture.get', {});
+  const countries = useResource('venture.countries', {});
+  const initialCountry = plan.country?.code ?? business.data?.venture.country?.code ?? '';
+  const [countryChoice, setCountryChoice] = useState<string | null>(null);
+  const countryCode = countryChoice ?? initialCountry;
+  const countryId = useId();
   const [name, setName] = useState(plan.name.value);
   const [oneLiner, setOneLiner] = useState(plan.oneLiner.value);
   const [customer, setCustomer] = useState(plan.customer.value);
@@ -243,6 +253,7 @@ function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: (
   async function save(event: FormEvent) {
     event.preventDefault();
     const patch: BlueprintPatchLite = {};
+    if (countryCode && countryCode !== initialCountry) patch.countryCode = countryCode;
     if (name.trim() && name.trim() !== plan.name.value) patch.name = name.trim();
     if (oneLiner.trim() && oneLiner.trim() !== plan.oneLiner.value) patch.oneLiner = oneLiner.trim();
     if (customer.trim() && customer.trim() !== plan.customer.value) patch.customer = customer.trim();
@@ -261,6 +272,13 @@ function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: (
 
   return (
     <form className={s.form} onSubmit={(event) => void save(event)}>
+      <div className={fields.field}>
+        <label className={fields.label} htmlFor={countryId}>{t('business.country')}</label>
+        <select className={fields.input} id={countryId} value={countryCode} onChange={event => setCountryChoice(event.currentTarget.value)} aria-describedby={countryCode !== initialCountry ? countryId + '-warning' : undefined}>
+          {(countries.data ?? []).map(country => <option key={country.code} value={country.code}>{country.name}</option>)}
+        </select>
+        {countryCode !== initialCountry && <p id={countryId + '-warning'} className={fields.hint}>{t('business.countryChange')}</p>}
+      </div>
       <Field label={t('business.fieldName')} value={name} maxLength={60} onChange={(event) => setName(event.currentTarget.value)} />
       <Field label={t('business.fieldOneLiner')} value={oneLiner} maxLength={160} onChange={(event) => setOneLiner(event.currentTarget.value)} />
       <Field multiline label={t('business.fieldCustomer')} value={customer} maxLength={200} rows={2} onChange={(event) => setCustomer(event.currentTarget.value)} />

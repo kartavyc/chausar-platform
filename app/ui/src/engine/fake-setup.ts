@@ -12,9 +12,11 @@
  * The rows are the fake's own sample connections; nothing here is a real check.
  */
 
+import { isFamilyId } from '../../../../platform/runtime/venture/core/families';
 import { EngineError, type ConnectorCardLite, type ConnectorCheckRow, type ConnectorGuideLite, type ConnectorLadder, type ConnectorChecksView, type FileRequestView, type ModelStatusLite, type OwnerView, type SettingsDraftView } from './types';
 import type { W4DeskHost } from './fake-w4';
 import GUIDES from './fixtures-guides.json';
+import { POSTING_WORDS } from './fake-posting';
 
 export const FAKE_4J21_METHODS: readonly string[] = [
   'venture.owner.get', 'venture.owner.set', 'venture.connectors.check', 'venture.share.request', 'venture.settings.draft', 'venture.settings.drafts',
@@ -57,7 +59,7 @@ function singleLine(value: unknown, what: string, max: number): string {
   return value.trim();
 }
 
-interface Profile { firstName: string | null; excludedServices: string[] }
+interface Profile { firstName: string | null; excludedServices: string[]; familyId?: string }
 interface HeldDraft { business: string; form: string; values: unknown; at: string; clearedAt: string | null }
 
 export class FakeSetupDesk {
@@ -105,12 +107,14 @@ export class FakeSetupDesk {
 
   private view(): OwnerView {
     const profile = this.profile();
-    return { firstName: profile.firstName, excludedServices: [...profile.excludedServices], businessName: this.businessName() };
+    return { firstName: profile.firstName, excludedServices: [...profile.excludedServices], businessName: this.businessName(), ...(profile.familyId ? { familyId: profile.familyId } : {}) };
   }
 
   private setOwner(p: Record<string, unknown>): OwnerView {
-    exact(p, ['firstName', 'excludedServices']);
+    exact(p, ['firstName', 'excludedServices', 'familyId']);
     if (Object.keys(p).length === 0) throw invalid('Send your first name, the services you do not sell, or both.');
+    // W6 6C2: the family the plan was kept with (core/owner.ts).
+    if ('familyId' in p && p.familyId !== null && !isFamilyId(p.familyId)) throw invalid('Choose one of the listed fields.');
     let firstName: string | null | undefined;
     if ('firstName' in p) {
       if (p.firstName === null) firstName = null;
@@ -136,7 +140,8 @@ export class FakeSetupDesk {
       }
     }
     const before = this.profile();
-    const next: Profile = { firstName: firstName === undefined ? before.firstName : firstName, excludedServices: services ?? before.excludedServices };
+    const familyId = 'familyId' in p ? (p.familyId as string | null) : before.familyId ?? null;
+    const next: Profile = { firstName: firstName === undefined ? before.firstName : firstName, excludedServices: services ?? before.excludedServices, ...(familyId ? { familyId } : {}) };
     this.profiles.set(this.host.current(), next);
     this.clearDraft('owner', p);
     const removed = firstName === null && before.firstName !== null;
@@ -254,7 +259,8 @@ export function withTruth(cards: ConnectorCardLite[], hosted: boolean): Connecto
       ...mode,
       ladder: (mode.status === 'planned' ? 'documented' : hosted && mode.mode === 'read' && DESKTOP_ONLY_READS.has(card.id) ? 'unavailable' : 'discovered') as ConnectorLadder,
     }));
-    const posting = card.postingOptions.map((option) => ({
+    const sourcePosting = card.id === 'linkedin' ? card.postingOptions.map(option => option.mode === 'handoff' ? option : { ...option, status: 'planned' as const, qualification: 'unqualified' as const, what: POSTING_WORDS.linkedin, risk: null, requires: [], reason: POSTING_WORDS.linkedin }) : card.postingOptions;
+    const posting = sourcePosting.map((option) => ({
       ...option,
       ladder: (option.status === 'available' ? 'discovered' : option.mode === 'owner-browser-session' && (hosted || /not built yet/i.test(option.reason ?? '')) ? 'unavailable' : 'documented') as ConnectorLadder,
     }));

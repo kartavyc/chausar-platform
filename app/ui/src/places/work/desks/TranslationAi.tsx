@@ -1,0 +1,7 @@
+// Original Chausar exact model request approval; source text remains quoted data.
+import {useT} from '../../../text';
+import {Button} from '../../../parts/Button';
+import {Tile,TileHead} from '../../../parts/Tile';
+import type {TranslationView,TranslationAct} from './TranslationSheet';
+import s from './TranslationStudio.module.css';
+export function TranslationAi({job,locked,ready,act}:{job:TranslationView;locked:boolean;ready:boolean;act:TranslationAct}){const t=useT(),preview=job.aiRequest?.preview;if(job.private||!ready)return null;return <Tile as="section" label={t('pb-translation.askAi')}><TileHead title={t('pb-translation.askAi')}/><p className={s.line}>{t('pb-translation.aiHelp')}</p><p className={s.line}>{t('pb-translation.unknown')}</p>{preview?<><p data-content>{preview.model}</p><p data-content>{preview.estimatedMaxCostDisplay} {t('pb-translation.modelEstimate')}</p><details><summary>{t('pb-translation.aiPreview')}</summary><pre className={s.quote} data-content>{preview.payloadText}</pre></details><Button variant="primary" locked={locked} onClick={()=>{if(!locked)void act('ai-confirm',{callId:preview.callId,approvedDigest:preview.digest});}}>{t('pb-translation.aiConfirm')}</Button></>:<Button variant="primary" locked={locked||!job.glossary.approvedDigest} onClick={()=>{if(!locked&&job.glossary.approvedDigest)void act('ai-preview',{});}}>{t('pb-translation.askAi')}</Button>}</Tile>;}

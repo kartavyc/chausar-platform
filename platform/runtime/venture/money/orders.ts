@@ -2,55 +2,97 @@
 // The request text is client data: it stays in the vault and only reaches a model through an approved preview.
 // Ink v2 wave 4 (4J3): the order list carries each order's stage steps and what waits on the owner (order-steps.ts).
 import { check, type Context } from '../../contracts.ts';
-import { activateTerm, exactPayload, isoDate, listRecords, plainText, readVenture, ventureAction } from '../records.ts';
+import { activateTerm, amountText, exactPayload, isoDate, listRecords, plainText, readVenture, ventureAction } from '../records.ts';
+import { currencyMinorDigits, decimalMinor } from '../../currency.ts';
+import type { ForeignPrice } from './billing-types.ts';
 import { insertBooksFact, saleFact } from './facts.ts';
 import { orderIndex, orderSteps } from './order-steps.ts';
 import { buildPriceReceipt, receiptTaxable } from './quote.ts';
 import { newestFirst, oneLine, quantityText, recordId, requireAcceptedBlueprint, requireOffer, requirePrice } from './shared.ts';
-import type { OrderListRow, OrderRecord, VentureDeps } from '../contracts.ts';
+import type { ClientRecord, CountryProfile, OrderListRow, OrderRecord, VentureDeps } from '../contracts.ts';
 import { localDayAt } from '../local-day.ts';
 import { flagshipOffer, flagshipPlan } from '../playbooks/plan.ts';
 import { orderIntake } from '../playbooks/intake.ts';
+import type { PlaybookDefinition } from '../playbooks/kit/define.ts';
+import { attachIntakeFiles, prepareIntakeFiles } from '../playbooks/kit/intake-files.ts';
+import { requireAppChannel } from '../records.ts';
+import {youtubeServiceOffer} from '../playbooks/youtube/service-offer.ts';
+import {requireYoutubeServiceBinding} from '../playbooks/youtube/service-binding.ts';
 
 /**
  * venture.order.create (level prepare). intake: what a flagship playbook's offer asks (playbooks/intake.ts); an offer
  * that cuts footage refuses the order with RIGHTS_REQUIRED until its rights are recorded here. taxInclusive (4J5, M15):
  * the owner's price includes the tax, so the order's receipts split it (money/tax-kinds.ts).
  */
-export async function createOrder(deps: VentureDeps, ctx: Context, payload: unknown): Promise<OrderRecord> {
-  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request', 'intake', 'taxInclusive'], ['clientId', 'offerId', 'request']);
-  const clientId = recordId(body.clientId, 'Client');
+export async function createOrder(deps: VentureDeps, ctx: Context, payload: unknown, options: { definitions?: readonly PlaybookDefinition[] } = {}): Promise<OrderRecord> {
+  // Ink v2 wave 5 (5A2): the honest exit reads the kit playbooks (playbooks/kit/exit.ts), loaded on use; a test passes its own.
+  const exit = await import('../playbooks/kit/exit.ts');
+  const definitions = options.definitions ?? (await import('../playbooks/definitions.ts')).PLAYBOOK_DEFINITIONS;
+  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request', 'intake', 'intakeFiles', 'taxInclusive', 'dueDate', 'currency', 'unitPrice'], ['offerId', 'request']);
+  // 6D1: when the whole order is due, the owner's own date.
+  const dueDate = body.dueDate === undefined ? null : isoDate(body.dueDate, 'Due date');
+  // 6D4: a client abroad may be billed in their own currency at a price the owner types in it; nothing is converted.
+  check((body.currency === undefined) === (body.unitPrice === undefined), 'INVALID_VENTURE_REQUEST', 'Give the currency and your price in it together.');
+  const foreignAsk = body.currency === undefined ? null : { currency: body.currency, typed: amountText(body.unitPrice, 'Your price') };
+  const clientId = body.clientId === undefined ? null : recordId(body.clientId, 'Client');
   const offerId = recordId(body.offerId, 'Offer');
   const quantity = body.quantity === undefined ? null : quantityText(body.quantity);
   const request = plainText(body.request, 'The request', { min: 3, max: 4000 });
   check(body.taxInclusive === undefined || typeof body.taxInclusive === 'boolean', 'INVALID_VENTURE_REQUEST', 'Say whether the price includes tax with true or false.');
   const taxInclusive = body.taxInclusive === true;
+  if (body.intakeFiles !== undefined) requireAppChannel(ctx, 'venture.order.create');
+  const intakeFiles = prepareIntakeFiles(deps, body.intakeFiles);
 
   return ventureAction(deps, ctx, 'prepare', 'order.create', tx => {
     const venture = tx.venture;
     check(venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
     const blueprint = requireAcceptedBlueprint(venture, tx.list('venture-blueprint'));
-    const client = tx.find('venture-client', clientId);
-    check(client, 'CLIENT_NOT_FOUND', 'Add this client first.');
     const offer = requireOffer(blueprint, offerId);
-    requirePrice(offer);
+    requireYoutubeServiceBinding(tx.state,venture,offer);
+    const selectedOffer = youtubeServiceOffer(flagshipPlan(venture.idea),offer)??flagshipOffer(flagshipPlan(venture.idea), offer);
+    const internal = flagshipPlan(venture.idea)?.id === 'online-seller' && selectedOffer?.key === 'own-shop-back-office';
+    const client = internal ? tx.list('venture-client').find(item => item.self) ?? tx.put({ ...tx.base('venture-client'), self: true as const, name: 'Your own shop', email: null, countryCode: venture.country.code, taxId: null, stateCode: null, note: null }) : clientId ? tx.find('venture-client', clientId) : null;
+    check(client, 'CLIENT_NOT_FOUND', 'Add this client first.');
+    check(internal || !client.self, 'INTERNAL_ORDER', 'Your own shop is only used for its internal back-office offer.');
+    const foreignPrice = foreignAsk ? foreignPriceOf(foreignAsk, client, venture.country) : null;
+    if (!foreignPrice) requirePrice(offer);
     // Rights and the other intake fields are checked before anything is written.
-    const intake = orderIntake(body.intake, flagshipOffer(flagshipPlan(venture.idea), offer), {
-      by: ctx.memberId, at: tx.now, today: localDayAt(tx.now, venture.country), host: deps.host,
-    });
     const base = tx.base('venture-order');
+    const rawIntake = attachIntakeFiles(tx, base.id, selectedOffer, body.intake, intakeFiles);
+    const intake = orderIntake(rawIntake, selectedOffer, {
+      by: ctx.memberId, at: tx.now, today: localDayAt(tx.now, venture.country), host: deps.host,
+      // 5A1, 5A4: a kit offer's people need their consent recorded in this business.
+      state: tx.state, venture,
+    });
+    // 5A2 (P4): an ask wholly outside what a kit playbook does makes no order; one partly outside lists the rest on it.
+    const outOfScope = exit.orderScope(venture, request, definitions);
     const orderQuantity = quantity ?? offer.pricing.defaultQuantity;
-    const receipt = buildPriceReceipt(tx, { type: 'order', orderId: base.id }, { quantity: orderQuantity, taxInclusive }, blueprint, offer, client);
+    const receipt = buildPriceReceipt(tx, { type: 'order', orderId: base.id }, { quantity: orderQuantity, taxInclusive, ...(foreignPrice ? { foreign: foreignPrice } : {}) }, blueprint, offer, client);
     const order: OrderRecord = {
       ...base, clientId: client.id, offerId: offer.id, quantity: orderQuantity, request,
-      status: 'open', priceReceiptId: receipt.id, deliveredOn: null, saleFactId: null, ...(intake ? { intake } : {}),
-      ...(taxInclusive ? { taxInclusive: true } : {}),
+      status: 'open', ...(internal ? { internal: true as const } : {}), priceReceiptId: receipt.id, deliveredOn: null, saleFactId: null, ...(intake ? { intake } : {}),
+      ...(taxInclusive ? { taxInclusive: true } : {}), ...(outOfScope ? { outOfScope } : {}),
+      ...(dueDate ? { dueDate } : {}), ...(foreignPrice ? { foreignPrice } : {}),
     };
     const stored = tx.put(order);
     activateTerm(tx, 'order', { recordId: stored.id, kind: 'venture-order' });
     tx.emit('order-created', { orderId: stored.id });
     return stored;
   });
+}
+
+/**
+ * 6D4: the owner's price in a client's own currency: only for a client in another country, in a currency other than the
+ * business's own, typed exactly in that currency's minor units and above zero.
+ */
+function foreignPriceOf(ask: { currency: unknown; typed: string }, client: ClientRecord, country: CountryProfile): ForeignPrice {
+  check(typeof ask.currency === 'string' && /^[A-Z]{3}$/.test(ask.currency), 'INVALID_CURRENCY', 'Use a three-letter currency code like USD.');
+  currencyMinorDigits(ask.currency);
+  check(ask.currency !== country.currency, 'INVALID_VENTURE_REQUEST', `Your prices are in ${country.currency} already; leave the currency out.`);
+  check(client.countryCode !== null && client.countryCode !== country.code, 'INVALID_VENTURE_REQUEST', `Bill a client in their own currency only when they are outside ${country.name}. Add their country first.`);
+  const unitPriceMinor = decimalMinor(ask.typed, ask.currency);
+  check(BigInt(unitPriceMinor) > 0n, 'INVALID_AMOUNT', 'Your price must be above zero.');
+  return { currency: ask.currency, unitPriceMinor };
 }
 
 /** venture.order.list (level read): newest first, each order with its stage steps and what waits on the owner (4J3). */
@@ -83,8 +125,8 @@ export async function deliverOrder(deps: VentureDeps, ctx: Context, payload: unk
     const receipt = tx.find('venture-price-receipt', order.priceReceiptId);
     check(receipt, 'RECEIPT_NOT_FOUND', 'The price receipt of this order was not found.');
     const offerName = tx.list('venture-blueprint').find(b => b.digest === receipt.inputs.blueprintDigest)?.offers.find(o => o.id === order.offerId)?.name.value ?? 'Service';
-    const fact = insertBooksFact(tx, deps.store, saleFact(order, client, receiptTaxable(receipt), receipt.currency, deliveredOn, oneLine(offerName)));
-    const delivered: OrderRecord = { ...order, deliveredOn, saleFactId: fact.id, status: 'delivered' };
+    const fact = order.internal ? null : insertBooksFact(tx, deps.store, saleFact(order, client, receiptTaxable(receipt), receipt.currency, deliveredOn, oneLine(offerName)));
+    const delivered: OrderRecord = { ...order, deliveredOn, saleFactId: fact?.id ?? null, status: 'delivered' };
     const stored = tx.replace(delivered);
     activateTerm(tx, 'deliverable', { recordId: stored.id, kind: 'venture-order' });
     tx.emit('order-delivered', { orderId: stored.id });

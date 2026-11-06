@@ -1,0 +1,4 @@
+// Website kit and source-backed baseline contracts.
+import test from 'node:test';import assert from 'node:assert/strict';
+import {WEBSITE_STUDIO_DEFINITION} from '../runtime/venture/playbooks/website-studio/definition.ts';
+test('website kit exposes owner-set offers, source checks, honest release boundary and all named steps',()=>{const d=WEBSITE_STUDIO_DEFINITION;assert.ok(d);assert.deepEqual(d.offers.map(o=>o.id),['business-site','landing-page','site-care','form-capture']);assert.ok(d.offers.every(o=>o.price==='owner-sets'));assert.deepEqual(d.steps.map(s=>s.id),['gather','brief','approve-brief','build','requirements','ui-check','approve-preview','preview','approve-release','release','care']);assert.deepEqual(d.tools,['site.requirements','site.uiReport','site.flow','site.preview']);assert.ok(d.rules.every(r=>Object.hasOwn(r,'needs')));assert.equal(d.startTile.category,'content');assert.ok(d.approvals.find(a=>a.step==='approve-release')?.floor);});

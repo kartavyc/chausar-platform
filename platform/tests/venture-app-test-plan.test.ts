@@ -1,0 +1,6 @@
+// Original plan approval and client provenance tests.
+import test from 'node:test';import assert from 'node:assert/strict';
+import {appTestPlan,requireTestPlan} from '../runtime/venture/playbooks/app-testing/test-plan.ts';
+const source={description:'A fictional stock list app',packageName:'com.example.demo',apk:{uploadId:'upload_client',sha256:'a'.repeat(64),fromClient:true},steps:[{id:'open-stock',title:'Open the stock list',expected:'The stock list opens without a crash'}]};
+test('plans bind client APK bytes and every reviewed step',()=>{const plan=appTestPlan(source);assert.equal(requireTestPlan(plan,plan.digest).steps[0]!.id,'open-stock');assert.throws(()=>requireTestPlan({...plan,description:'Changed'},plan.digest),{code:'APPROVAL_STALE'});assert.throws(()=>requireTestPlan(plan,null),{code:'APPROVAL_REQUIRED'});});
+test('non-client APKs, executable commands and unknown plan fields are refused',()=>{assert.throws(()=>appTestPlan({...source,apk:{...source.apk,fromClient:false}}),{code:'CLIENT_APK_REQUIRED'});assert.throws(()=>appTestPlan({...source,steps:[{...source.steps[0],command:'adb shell rm'}]}),{code:'INVALID_VENTURE_REQUEST'});assert.throws(()=>appTestPlan({...source,steps:[]}),{code:'INVALID_VENTURE_REQUEST'});});

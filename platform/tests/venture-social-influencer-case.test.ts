@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {newInfluencerCase,changeInfluencerCase,viewInfluencerCase} from '../runtime/venture/playbooks/social/influencer-case.ts';
+const now='2026-10-29T12:00:00.000Z';
+const creator={id:'maya',name:'Maya',channel:'youtube',channelUrl:'https://www.youtube.com/@maya',businessEmail:'maya@example.com',businessEmailSource:'https://creator.example/contact',publicBusinessEmail:true};
+const quote={posts:[{id:'p1',publishedAt:'2026-10-20T12:00:00Z',views:'10000',comparable:true,sourceUrl:'https://www.youtube.com/watch?v=sample',reason:'Same format and audience.'}],asOf:now,targetCpaRupees:'100',capRupees:'5000',coefficients:Object.fromEntries(['clickRate','signupRate','fit','competition'].map(k=>[k,{basisPoints:k==='clickRate'?200:k==='signupRate'?1000:10000,source:'owner',reason:'Owner planning assumption.'}]))};
+test('campaign shortlist, receipted estimate, disclosure brief and sourced actuals remain distinct',()=>{
+ let c=newInfluencerCase('order1',now);
+ c=changeInfluencerCase(c,'creator',{creator},now);
+ c=changeInfluencerCase(c,'price',{creatorId:creator.id,quote},now);
+ assert.equal(viewInfluencerCase(c).creators[0].estimate?.amountMinor,'200000');
+ assert.equal(viewInfluencerCase(c).creators[0].actual,null);
+ c=changeInfluencerCase(c,'brief',{creatorId:creator.id,objective:'Show the real product in use.',deliverables:'One video with the recorded product facts.'},now);
+ assert.match(c.creators[0].brief!.disclosure,/ASCI/);
+ assert.match(c.creators[0].brief!.disclosure,/#Ad/);
+ assert.equal(c.creators[0].brief!.platformLabel,'Paid partnership');
+ c=changeInfluencerCase(c,'actual',{creatorId:creator.id,views:'8000',signups:'20',spendRupees:'1800.50',revenueRupees:'2400',sourceUrl:'https://client.example/campaign-export',observedAt:now,note:'Owner supplied campaign export.'},now);
+ assert.equal(c.creators[0].actual!.spendMinor,'180050');
+ assert.equal(c.creators[0].actual!.revenueMinor,'240000');
+ assert.equal(c.creators[0].estimate!.amountMinor,'200000');
+ assert.equal(c.creators[0].actual!.receipt.output.spendMinor,'180050');
+});
+test('edits invalidate dependent creator evidence and reject invented identities, future actuals and unreceipted price data',()=>{
+ let c=changeInfluencerCase(newInfluencerCase('order1',now),'creator',{creator},now);
+ c=changeInfluencerCase(c,'price',{creatorId:creator.id,quote},now);
+ c=changeInfluencerCase(c,'brief',{creatorId:creator.id,objective:'Show the product.',deliverables:'One video.'},now);
+ c=changeInfluencerCase(c,'creator',{creator:{...creator,channelUrl:'https://www.youtube.com/@different'}},now);
+ assert.equal(c.creators[0].estimate,null);assert.equal(c.creators[0].brief,null);assert.equal(c.creators[0].outreach,null);
+ assert.throws(()=>changeInfluencerCase(c,'price',{creatorId:'missing',quote},now),{code:'INFLUENCER_CREATOR_NOT_FOUND'});
+ assert.throws(()=>changeInfluencerCase(c,'price',{creatorId:creator.id,quote:{...quote,amountMinor:'1'}},now),{code:'INVALID_VENTURE_REQUEST'});
+ assert.throws(()=>changeInfluencerCase(c,'actual',{creatorId:creator.id,views:'1',signups:'2',spendRupees:'1',revenueRupees:'2',sourceUrl:'https://client.example/export',observedAt:'2026-10-30T12:00:00Z',note:'Export.'},now),{code:'INFLUENCER_ACTUAL_INVALID'});
+});

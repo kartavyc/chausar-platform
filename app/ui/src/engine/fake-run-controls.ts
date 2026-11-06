@@ -14,6 +14,7 @@
 
 import { EngineError, type AwayView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail } from './types';
 import type { W4DeskHost } from './fake-w4';
+import {redactSecrets,screenReadback} from '../../../../platform/runtime/venture/core/secrets';
 
 export const FAKE_4F3_METHODS: readonly string[] = [
   'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set', 'venture.away.get',
@@ -84,7 +85,7 @@ export class FakeRunControls {
   constructor(host: W4DeskHost, options: { fresh?: boolean } = {}) {
     this.host = host;
     if (options.fresh) return;
-    for (const run of this.runs()) Object.assign(run, clone(SAMPLE_CONTROLS[run.runId] ?? {}));
+    for (const run of this.runs()) if (!run.agentProgress) Object.assign(run, clone(SAMPLE_CONTROLS[run.runId] ?? {}));
   }
 
   private runs(): RunDetail[] {
@@ -102,6 +103,7 @@ export class FakeRunControls {
    * engine's views/runs.ts scopeRupees), read from the spend policy now.
    */
   view(run: RunDetail): RunDetail {
+    if(run.agentProgress && run.stop?.state==='stopped')return {...run,agentProgress:{...run.agentProgress,canResume:this.host.nativeCanResume?.(run)??false}};
     const rate = this.rate();
     if (!run.scope || !rate) return run;
     return { ...run, scope: { ...run.scope, capRupees: rupeesOf(SAMPLE_CAP_MICROS, rate.perUsd), capRate: rate.words } };
@@ -138,6 +140,9 @@ export class FakeRunControls {
   }
 
   request(method: string, p: Record<string, unknown>): unknown {
+    const fields:Record<string,string[]>={'venture.runs.stop':['runId','force'],'venture.runs.resume':['runId'],'venture.runs.steer':['runId','text'],'venture.runs.roundGate':['runId','on','every']};
+    if(fields[method] && (Object.keys(p).some(key=>!fields[method]!.includes(key)) || typeof p.runId!=='string' || !p.runId.trim()))throw new EngineError('INVALID_VENTURE_REQUEST','Send the required fields and nothing else.');
+    if(method==='venture.runs.stop' && p.force!==undefined && typeof p.force!=='boolean')throw new EngineError('INVALID_VENTURE_REQUEST','force must be true or false.');
     switch (method) {
       case 'venture.runs.stop': return this.stop(p);
       case 'venture.runs.resume': return this.resumeMethod(p);
@@ -151,11 +156,16 @@ export class FakeRunControls {
   }
 
   /** A decision on one of this desk's Today rows (ids start `runctl:`): Resume, Run again, and the gate's Continue and Stop. */
-  decide(row: QueueRow, action: QueueAction['id'], answer?: string): string | null {
+  decide(row: QueueRow, action: QueueAction['id'], answer?: string): string | Promise<string> | null {
     if (!row.id.startsWith('runctl:')) return null;
     const runId = row.id.split(':')[1]!;
-    const run = this.runs().find((r) => r.runId === runId);
+    const run = this.runs().find((r) => r.runId === runId && r.businessId===this.host.current());
     if (!run) return null;
+    if(run.agentProgress){
+      if(action==='resume')return Promise.resolve(this.resumeMethod({runId})).then(result=>result.line);
+      if(action==='run-again')return this.restartNative(run,false).then(()=> 'Started again with the same files.');
+      if(action==='continue')throw new EngineError('RUN_CONTROL_UNAVAILABLE','The AI tool reviews its own steps. Stop this job and start again.');
+    }
     if (action === 'resume') return this.resume(run);
     if (action === 'run-again') {
       // The engine starts a new run of the same order from its files (a fresh run id); the stopped one stays stopped,
@@ -196,6 +206,7 @@ export class FakeRunControls {
     const run = this.runOf(p);
     if (run.stop?.state === 'stopped') throw new EngineError('RUN_ALREADY_STOPPED', ALREADY);
     if (run.state !== 'active' && run.state !== 'waiting') throw new EngineError('RUN_NOT_RUNNING', NOT_RUNNING);
+    if(run.agentProgress){this.stopNow(run,false);return {run:clone(this.view(run)),line:STOPPED_BY_YOU};}
     const force = p.force === true;
     if (run.stop?.state === 'stopping' && !force) return { run: clone(run), line: RECEIVED };
     // The step in progress, named before the stop, for what a force stop loses.
@@ -216,6 +227,7 @@ export class FakeRunControls {
 
   /** The run stops: it waits at the step it stopped on for Resume, its question kept for then, and Today gets its row. */
   private stopNow(run: RunDetail, cut: boolean): void {
+    if(run.agentProgress){this.host.nativeStop?.(run);delete run.agentProgress.pendingApproval;cut=false;}
     const line = cut ? FORCE_STOPPED : STOPPED_BY_YOU;
     if (run.question) this.held.set(run.runId, { question: run.question });
     delete run.question;
@@ -230,7 +242,7 @@ export class FakeRunControls {
     const seed = {
       id: `runctl:${run.runId}:stopped-${n}`, businessId: run.businessId, businessName: this.businessName(run.businessId), agent: run.agent,
       kind: 'draft' as const, createdAt: this.host.now(), title: `${run.purpose} is stopped`, line, viewRef: { kind: 'run' as const, id: run.runId },
-      actions: [{ id: 'run-again' as const, label: 'Run again', primary: false }, { id: 'resume' as const, label: 'Resume', primary: true }],
+      actions: run.agentProgress && !this.host.nativeCanResume?.(run)?[{id:'run-again' as const,label:'Run again',primary:true}]:[{ id: 'run-again' as const, label: 'Run again', primary: false }, { id: 'resume' as const, label: 'Resume', primary: true }],
     };
     this.host.setRows([...this.host.rows(), { ...seed, digest: this.host.digest(seed) }]);
     this.host.emit({ type: 'run.stopped', businessId: run.businessId, runId: run.runId, at: this.host.now() });
@@ -242,6 +254,7 @@ export class FakeRunControls {
     if (run.stop?.state !== 'stopped') throw new EngineError('RUN_NOT_STOPPED', NOT_STOPPED);
     if (this.replaced.has(run.runId)) throw new EngineError('RUN_SUPERSEDED', SUPERSEDED);
     if (this.pausedSince.has(this.host.current())) throw new EngineError('BUSINESS_PAUSED', 'This business is paused, so no new work starts. Unpause it from the business menu.');
+    if(run.agentProgress)return this.restartNative(run,true).then(next=>({run:clone(next),line:'Continued from saved work in a new AI session.'}));
     const line = this.resume(run);
     return { run: clone(run), line };
   }
@@ -257,11 +270,23 @@ export class FakeRunControls {
     return held?.question ? RESUMED_ANSWER : RESUMED;
   }
 
+  private async restartNative(run:RunDetail,resume:boolean):Promise<RunDetail>{
+    if(this.pausedSince.has(this.host.current()))throw new EngineError('BUSINESS_PAUSED','This business is paused, so no new work starts. Unpause it from the business menu.');
+    if(!this.host.nativeRestart)throw new EngineError('RUN_RESTART_REQUIRED','There is no current saved work to continue. Choose Run again to start a fresh AI job.');
+    const next=await this.host.nativeRestart(run,resume);this.replaced.add(run.runId);this.dropRows(run.runId);return next;
+  }
+
   private steer(p: Record<string, unknown>) {
     const raw = typeof p.text === 'string' ? p.text.replace(/\r\n/g, '\n').trim() : null;
     if (raw === null) throw new EngineError('INVALID_VENTURE_REQUEST', 'Your note must be text.');
     if (raw.length < 1 || raw.length > MAX_NOTE_CHARS) throw new EngineError('INVALID_VENTURE_REQUEST', `Your note must be between 1 and ${MAX_NOTE_CHARS} characters.`);
     const run = this.runOf(p);
+    if(run.agentProgress){
+      if(run.state!=='active'&&run.state!=='waiting')throw new EngineError('RUN_CONTROL_UNAVAILABLE','This run cannot receive AI instructions. Start a new AI job.');
+      const line='Instruction saved. Continue in a new AI session when you are ready.';
+      run.steer=[...(run.steer??[]),{text:screenReadback(redactSecrets(raw),{keep:['pan']}).text,at:this.host.now(),line:'Saved for the next AI session.'}];
+      this.stopNow(run,false);return {run:clone(this.view(run)),line};
+    }
     if (run.state !== 'active' && run.state !== 'waiting') throw new EngineError('RUN_NOT_RUNNING', NOT_RUNNING);
     if ((run.steer ?? []).filter((note) => note.line === STEER_SENT).length >= MAX_WAITING_NOTES) {
       throw new EngineError('INVALID_VENTURE_REQUEST', 'Five notes already wait for the next step. Send more once the agent picks them up.');
@@ -279,6 +304,7 @@ export class FakeRunControls {
     if (typeof p.on !== 'boolean') throw new EngineError('INVALID_VENTURE_REQUEST', 'on must be true or false.');
     if (p.every !== undefined && ![1, 2, 3, 5].includes(p.every as number)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose every 1, 2, 3 or 5 rounds.');
     const run = this.runOf(p);
+    if(run.agentProgress)throw new EngineError('RUN_CONTROL_UNAVAILABLE','The AI tool reviews its own steps. Change AI review settings or stop this job.');
     if (run.state !== 'active' && run.state !== 'waiting') throw new EngineError('RUN_NOT_RUNNING', 'This run is not running, so it has no next round.');
     const every = (p.every ?? 1) as 1 | 2 | 3 | 5;
     run.gate = { on: p.on, every, waiting: p.on ? run.gate?.waiting ?? null : null };
@@ -297,7 +323,7 @@ export class FakeRunControls {
     if (p.stopRunning) {
       for (const run of this.runs()) {
         if (run.businessId !== this.host.current() || (run.state !== 'active' && run.state !== 'waiting') || run.stop) continue;
-        if (run.state === 'active') {
+        if (run.state === 'active' && !run.agentProgress) {
           run.stop = { state: 'stopping', line: STOPPING };
           setTimeout(() => { if (run.stop?.state === 'stopping') this.stopNow(run, false); }, FAKE_STOP_SETTLES_MS);
         } else {

@@ -1,0 +1,6 @@
+// Original source-based issue reporting. Counts come only from the owner's imported delivery exports.
+import type {NewsletterIssueBody} from './records.ts';
+import {newsletterStats,type NewsletterStatsSource} from './stats.ts';
+/** Distinct issues, not individual slices, are the comparison denominator. */
+function combined(issue:NewsletterIssueBody&{id:string}):NewsletterStatsSource|null{const rows=issue.slices.flatMap(s=>s.reported?[s.reported.stats]:[]);if(!rows.length)return null;return {id:issue.id,listId:issue.listId,sentAt:rows.map(r=>r.sentAt).sort()[0]!,reportedAt:rows.map(r=>r.reportedAt).sort().at(-1)!,...rows.reduce((n,r)=>({sent:n.sent+r.sent,delivered:n.delivered+r.delivered,opened:n.opened+r.opened,clicked:n.clicked+r.clicked,bounced:n.bounced+r.bounced,complained:n.complained+r.complained}),{sent:0,delivered:0,opened:0,clicked:0,bounced:0,complained:0}),hours:rows.flatMap(r=>r.hours)};}
+export function newsletterReport(issue:NewsletterIssueBody&{id:string},issues:readonly (NewsletterIssueBody&{id:string})[],now:string){const counts=combined(issue);if(!counts)return null;return {counts,sources:issue.slices.flatMap(s=>s.reported?[s.reported.source]:[]),...newsletterStats(counts,issues.filter(i=>i!==issue).flatMap(i=>{const n=combined(i);return n?[n]:[];}),now)};}

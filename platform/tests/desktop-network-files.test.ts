@@ -149,7 +149,7 @@ test('main.cjs registers the network:pickFile channel, and the preload exposes i
     if (name === './network-files.cjs') return files;
     if (name === 'node:fs/promises') return { readFile: async (path: string) => (path.endsWith('package.json') ? JSON.stringify({ chausarPreview: true, version: '2.3.4' }) : ''), mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
       readdir: async () => [{ name: 'index.html', isDirectory: () => false, isFile: () => true }] };
-    return require(name);
+    return createRequire(new URL('../../app/desktop/main.cjs', import.meta.url))(name);
   }, process: { argv: ['electron', '/owned/app'], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
   for (let i = 0; i < 20; i += 1) await new Promise(resolve => setImmediate(resolve));
   assert.equal(contract.PICK_FILE_CHANNEL, 'chausar:network:pickFile');

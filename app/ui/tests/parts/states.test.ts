@@ -42,9 +42,7 @@ describe('state words: one module for every state the engine sends', () => {
       for (const value of values) {
         const word = stateWord(kind as StateKind, value);
         expect(word.key.startsWith('state.'), `${kind}.${value}`).toBe(true);
-        expect(CATALOGUES.en[word.key], word.key).toBeDefined();
-        expect(CATALOGUES.hi[word.key], word.key).toBeDefined();
-        expect(STATE_TONES).toContain(word.tone);
+        expect(CATALOGUES.en[word.key], word.key).toBeDefined();        expect(STATE_TONES).toContain(word.tone);
       }
     }
     expect([...STATE_TONES]).toEqual(['working', 'wait', 'fail', 'idle', 'done', 'neutral']);
@@ -71,7 +69,7 @@ describe('state words: one module for every state the engine sends', () => {
   });
 
   it('uses the posture, invoice, lead and card-kind words the places show', () => {
-    expect(VALUES.posture.map((p) => en(stateWord('posture', p).key))).toEqual(['Rehearsing', 'Shadowing', 'Asks each time', 'Auto with spot checks']);
+    expect(VALUES.posture.map((p) => en(stateWord('posture', p).key))).toEqual(['Rehearsing', 'Practice on real orders', 'Asks each time', 'Auto with spot checks']);
     expect(VALUES.invoice.map((v) => en(stateWord('invoice', v).key))).toEqual(['Draft', 'Sent', 'Part paid', 'Paid', 'Void']);
     expect(stateWord('invoice', 'paid').tone).toBe('done');
     expect(VALUES.lead.map((v) => en(stateWord('lead', v).key))).toEqual(['New', 'Drafted', 'Contacted', 'Replied', 'Won', 'Lost', 'Blocked']);

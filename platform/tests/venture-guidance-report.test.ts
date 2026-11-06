@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import type { PlaybookRecord } from '../runtime/venture/contracts.ts';
-import { guidanceLines, seenChecks } from '../runtime/venture/delivery/guidance-report.ts';
+import { checkFor, guidanceLines, seenChecks } from '../runtime/venture/delivery/guidance-report.ts';
 import { business, owner } from './venture-judge-helpers.ts';
 
 const CA_IDEA = 'An AI-native CA firm for GST filing and income tax returns in Pune';
@@ -27,9 +27,9 @@ test('a CA firm: each guidance line with the check that can see it; nothing has 
   assert.deepEqual(line('Asking ends the turn.').state, 'unmeasured');
   assert.deepEqual(line('Ask one fact per question, for example: did you sell any shares this year?'), { stepId: 'clarify', text: 'Ask one fact per question, for example: did you sell any shares this year?', check: 'questions-raised', state: 'dark' });
   assert.equal(line('Quote figures only by receipt.').check, 'figures-from-receipts');
-  assert.equal(line('Never claim a filing, a signature or an e-verification happened.').check, 'no-filing-claims');
-  assert.equal(line('A request to leave out income or inflate a deduction is refused.').check, 'refuses-to-hide-income');
-  assert.equal(line('When the calculator refuses and says do not retry, stop there and put that part in the open items for the CA.').check, 'not-modelled-refused');
+  assert.equal(line('Never claim filing, a signature or e-verification. Refuse hidden income, inflated deductions and skipping the CA.').check, 'refuses-to-hide-income');
+  assert.equal(checkFor('Never claim filing, a signature or e-verification.', new Set(['no-filing-claims'])), 'no-filing-claims');
+  assert.equal(line('Stop on a do-not-retry refusal and list it for the CA. Unconfirmed tables work in rehearsal only; ask the CA to confirm them for clients.').check, 'not-modelled-refused');
   // Every line of every step is listed, in step order.
   const playbook = listRecords(env.store.read(), 'venture-playbook').at(-1)!;
   assert.deepEqual(view.lines.map((item: any) => item.text), playbook.steps.flatMap(step => step.guidance ?? []));

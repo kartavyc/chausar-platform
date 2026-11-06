@@ -1,0 +1,156 @@
+/* Business > Plan and playbook (Ink v2 wave 5, 5A3): a kit playbook's recipes as inner cards with their steps one
+   fold away, and the measurement-boundaries table, which turns into labelled blocks on a phone. */
+
+.recipes {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.name {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.when,
+.read {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.fold > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--control-sm);
+  font-size: var(--text-label);
+  color: var(--fg2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.body {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.sub {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.steps,
+.mistakes {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding-left: var(--sp-5);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.steps > li {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.do {
+  color: var(--fg);
+}
+
+.why {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.caption {
+  padding-bottom: var(--sp-2);
+  text-align: left;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.table th,
+.table td {
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) 0;
+  border-bottom: var(--hair) solid var(--line-soft);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.table thead th {
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--mute);
+}
+
+.table tbody th {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.cellLabel {
+  display: none;
+}
+
+@media (max-width: 759px) {
+  .table thead {
+    display: none;
+  }
+
+  .table tr,
+  .table tbody th,
+  .table td {
+    display: block;
+  }
+
+  .table tr {
+    padding: var(--sp-2) 0;
+    border-bottom: var(--hair) solid var(--line-soft);
+  }
+
+  .table tbody th,
+  .table td {
+    padding: var(--sp-1) 0;
+    border-bottom: 0;
+  }
+
+  .cellLabel {
+    display: block;
+    font-size: var(--text-label);
+    font-weight: var(--weight-strong);
+    color: var(--mute);
+  }
+}

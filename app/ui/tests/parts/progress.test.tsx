@@ -6,7 +6,6 @@ import { CATALOGUES, TextProvider, format } from '../../src/text';
 import { assertNoInlineStyles } from '../helpers/ink-rules';
 import { rule } from '../helpers/css';
 
-const hi = (key: string, values?: Record<string, string | number>) => format(CATALOGUES.hi, 'hi', key, values);
 
 describe('ProgressRing with long counts and no count', () => {
   it('past 9 steps the hole shows only the steps done; the name still says the whole', () => {
@@ -137,10 +136,7 @@ describe('ProgressRing', () => {
     expect(rule('ProgressRing.module.css', '.arc')).toMatch(/stroke:\s*var\(--ring-colour\)/);
   });
 
-  it('speaks Hindi', () => {
-    render(<TextProvider language="hi"><ProgressRing progress={{ done: 3, total: 5 }} tone="waiting" /></TextProvider>);
-    expect(screen.getByRole('img', { name: hi('ring.stepsWaiting', { done: 3, total: 5, count: 5 }) })).toBeTruthy();
-  });
+
 });
 
 describe('axe on rings and bars', () => {
@@ -204,8 +200,5 @@ describe('ProgressBar', () => {
     expect(rule('ProgressBar.module.css', ".bar[data-tone='failed'] .segment[data-filled]")).toMatch(/background:\s*var\(--fail-ring\)/);
   });
 
-  it('speaks Hindi', () => {
-    render(<TextProvider language="hi"><ProgressBar progress="indeterminate" /></TextProvider>);
-    expect(screen.getByRole('img', { name: hi('bar.indeterminate') })).toBeTruthy();
-  });
+
 });

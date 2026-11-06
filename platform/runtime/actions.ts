@@ -2,15 +2,8 @@ import { authorize, audit, check, ChausarError, hash, newId, now } from './contr
 import type { Context, State, StateStore } from './contracts.ts';
 import { assertSourceAccess } from './trust.ts';
 
-/** Canonical JSON is used for every approval: property ordering never changes its meaning. */
-export function canonical(value: unknown): string {
-  if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
-  if (typeof value === 'number') { check(Number.isFinite(value), 'INVALID_PAYLOAD', 'Numbers must be finite.'); return JSON.stringify(value); }
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  check(typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype, 'INVALID_PAYLOAD', 'Payloads must contain plain JSON data.');
-  return `{${Object.keys(value as object).sort().map(k => `${JSON.stringify(k)}:${canonical((value as any)[k])}`).join(',')}}`;
-}
-export const digest = (value: unknown) => hash(canonical(value));
+import {canonical,digest} from './portable.ts';
+export {canonical,digest} from './portable.ts';
 function providerRecord<T>(value: T): T {
   const serialized = JSON.stringify(value); check(typeof serialized === 'string' && serialized.length <= 2 * 1024 * 1024, 'INVALID_PROVIDER_RESULT', 'Provider results must be bounded JSON records.');
   const clean = JSON.parse(serialized); canonical(clean); return clean;

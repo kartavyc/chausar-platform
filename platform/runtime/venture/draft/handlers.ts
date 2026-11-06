@@ -19,9 +19,12 @@ import type {
 } from '../onboarding-contracts.ts';
 import { applyComposePatch, assembleComposed, composeTask, decideTask, makeDecision, withRepair } from '../core/compose.ts';
 import { countryProfile } from '../core/countries.ts';
+import { countrySuggest } from '../core/country-suggestion.ts';
 import { calls as modelCalls, connectModel, disconnect as modelDisconnect } from '../models/handlers.ts';
 import { droppedFile, screenedFile, sendFileDropTask, withFile, type DroppedFile } from '../core/attachment.ts';
 import { DESK_CONTEXT } from './store.ts';
+import { aboutFamilies, aboutPick, aboutRead } from '../core/about.ts';
+import type { LoginDesk } from '../models/login.ts';
 
 export { ATTACHMENT_LEFT_OUT, ATTACHMENT_MAX_BYTES, type DroppedFile } from '../core/attachment.ts';
 
@@ -43,7 +46,16 @@ export type DeskHandle = {
   session(): ComposeSession | null;
   /** Stores the session unless the desk was cleared while the request ran (a cleared desk never comes back). */
   keep(session: ComposeSession | null): void;
+  /** Wave 6 (6C1): the tools' own logins in flight, stopped when the desk clears. */
+  login(): LoginDesk;
 };
+
+/** venture.ai.login.start and .cancel take { cli } only. */
+function loginCli(payload: unknown): 'codex' | 'claude-code' {
+  const body = exactPayload(payload, ['cli'], ['cli']);
+  check(body.cli === 'codex' || body.cli === 'claude-code', 'INVALID_VENTURE_REQUEST', 'Choose Codex or Claude Code.');
+  return body.cli;
+}
 
 // ---------------------------------------------------------------------------
 // Connect an AI
@@ -69,7 +81,7 @@ export function weakestStatus(statuses: readonly AiOptionStatus[]): AiOptionStat
  */
 export function aiOptionsView(presets: readonly ModelPreset[], status: AiStatusView, claudeTermsAccepted: boolean): AiOptionsView {
   const byId = new Map(presets.map(preset => [preset.id, preset]));
-  const options: AiOption[] = AI_OPTION_IDS.map(id => {
+  const options: AiOption[] = AI_OPTION_IDS.filter(id => id !== 'claude-code' || claudeTermsAccepted).map(id => {
     const words = AI_OPTION_WORDS[id];
     const presetIds = [...ROW_PRESETS[id]].filter(presetId => byId.has(presetId));
     if (id === 'chatgpt-sign-in') {
@@ -85,7 +97,7 @@ export function aiOptionsView(presets: readonly ModelPreset[], status: AiStatusV
     };
   });
   const unchecked = options.some(option => option.canConnect && option.presetIds.some(presetId => byId.get(presetId)?.verification === 'not-live-verified'));
-  return { options, presets: presets.map(preset => structuredClone(preset)), status, unchecked };
+  return { options, presets: presets.filter(preset => preset.id !== 'claude-code-cli' || claudeTermsAccepted).map(preset => structuredClone(preset)), status, unchecked };
 }
 
 export function aiStatus(desk: DeskHandle): AiStatusView {
@@ -95,7 +107,7 @@ export function aiStatus(desk: DeskHandle): AiStatusView {
 
 export async function aiOptions(desk: DeskHandle, payload: unknown): Promise<AiOptionsView> {
   exactPayload(payload, []);
-  return aiOptionsView(desk.deps.models.presets(), aiStatus(desk), desk.deps.claudeCodeTerms === 'accepted');
+  return aiOptionsView(desk.deps.models.presets(), aiStatus(desk), desk.deps.claudeCodeTerms !== 'pending');
 }
 
 export async function aiConnect(desk: DeskHandle, payload: unknown): Promise<AiStatusView> {
@@ -206,6 +218,7 @@ export async function composeUpdate(desk: DeskHandle, payload: unknown): Promise
 }
 
 export const DRAFT_HANDLERS: Readonly<Record<string, (desk: DeskHandle, payload: unknown) => Promise<unknown>>> = Object.freeze({
+  'venture.country.suggest': (desk, payload) => countrySuggest(desk.deps, DESK_CONTEXT, payload),
   'venture.ai.options': aiOptions,
   'venture.ai.connect': aiConnect,
   'venture.ai.disconnect': aiDisconnect,
@@ -215,4 +228,11 @@ export const DRAFT_HANDLERS: Readonly<Record<string, (desk: DeskHandle, payload:
   'venture.compose.fill': composeFill,
   'venture.compose.get': composeGet,
   'venture.compose.update': composeUpdate,
+  // Wave 6 (6C1): each tool's own sign-in; (6C2) About you.
+  'venture.ai.tools': (desk, payload) => { exactPayload(payload, []); return desk.login().tools(); },
+  'venture.ai.login.start': (desk, payload) => desk.login().start(loginCli(payload)),
+  'venture.ai.login.cancel': (desk, payload) => desk.login().cancel(loginCli(payload)),
+  'venture.about.read': (desk, payload) => aboutRead(desk.deps, DESK_CONTEXT, payload),
+  'venture.about.pick': (desk, payload) => aboutPick(desk.deps, DESK_CONTEXT, payload),
+  'venture.about.families': (desk, payload) => aboutFamilies(desk.deps, DESK_CONTEXT, payload),
 });

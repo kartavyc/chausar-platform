@@ -80,7 +80,7 @@ export function KeepView() {
           <div className={s.whereText}>
             <p className={s.lead}>{locked ? t('business.keepPassphraseWhere') : computer.where}</p>
             {loss && <p className={s.note}>{loss}</p>}
-            {business.storage === 'experimental-file' && <p className={s.warn}>{t('business.experimental')}</p>}
+            {client.transport !== 'desktop' && client.transport !== 'fake' && business.storage === 'experimental-file' && <p className={s.warn}>{t('business.experimental')}</p>}
           </div>
         </div>
       </Tile>

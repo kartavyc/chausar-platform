@@ -3,7 +3,7 @@
 // an agent stuck in a loop can never flood a client, the books or the owner. Counts come from stored rows, plus what a
 // turn still running has made: drafts are the replies an AI wrote that became ready; books lines are the rows of the
 // tables an agent's tools made on a real order; messages for people are the outside actions an agent recorded for the
-// owner to approve and the posts an agent proposed. The owner may lower each cap, never raise it past these. The next
+// owner to approve and the posts an agent proposed. The owner may change each default. The next
 // write past a cap does not happen (WRITE_CAP_REACHED) and Today says so; venture.runs.allowWrites (approve, app only)
 // raises that cap once for the day, by its own size. Pinloop's limits (src/shared/limits.ts), a rewrite, not a copy.
 import { check, type Context, type State } from '../../../contracts.ts';
@@ -16,7 +16,7 @@ import { localDayAt } from '../../local-day.ts';
 import type { Denial } from './recheck.ts';
 import type { W4Decision, W4Outcome, W4RowItem } from '../../views/queue-w4.ts';
 
-/** The most agents may write per business per day. Frozen: the owner may only lower them. */
+/** Default writes per business per day; owner settings replace these. */
 export const WRITE_CAPS: Readonly<Record<WriteCapKind, number>> = Object.freeze({ drafts: 30, 'books-lines': 500, messages: 40 });
 export const WRITE_CAP_KINDS: readonly WriteCapKind[] = Object.freeze(['drafts', 'books-lines', 'messages']);
 /** The tools whose call writes one of the capped kinds. Everything else writes nothing the caps count. */
@@ -47,10 +47,10 @@ function latestPolicy(state: State, ventureId: string): SpendPolicyRecord | null
   return listRecords(state, 'venture-spend-policy', ventureId).reduce<SpendPolicyRecord | null>((best, item) => (!best || item.at >= best.at ? item : best), null);
 }
 
-/** The owner's cap for a kind: theirs when they lowered it, else the default. */
+/** The owner's cap for a kind, or the default. */
 export function ownerCap(state: State, ventureId: string, kind: WriteCapKind): number {
   const set = latestPolicy(state, ventureId)?.writeCaps?.[kind];
-  return typeof set === 'number' && Number.isInteger(set) && set >= 0 && set <= WRITE_CAPS[kind] ? set : WRITE_CAPS[kind];
+  return typeof set === 'number' && Number.isSafeInteger(set) && set >= 0 ? set : WRITE_CAPS[kind];
 }
 
 /** What a raise for today adds: the owner's cap again, and at least one. */
@@ -84,6 +84,7 @@ export function writesOn(state: State, venture: VentureRecord, day: string, flig
   const runs: DeliveryRunRecord[] = listRecords(state, 'venture-delivery-run', venture.id);
   const calls = runs.filter(run => run.id !== flight?.runId).flatMap(run => run.harness?.toolCalls ?? []);
   let messages = [...calls, ...(flight?.calls ?? [])].filter(call => recordedMessage(call) && onDay(call.startedAt)).length;
+  messages += runs.filter(run => !run.practice && run.agentJob?.proposal && onDay(run.agentJob.proposalAt)).length;
   messages += listRecords(state, 'venture-connector-post', venture.id).filter(post => post.agent !== null && onDay(post.at)).length;
   return { drafts, 'books-lines': lines, messages };
 }
@@ -95,7 +96,7 @@ export function writeCapsToday(state: State, venture: VentureRecord, nowIso: str
   const raised = new Set(listRecords(state, 'venture-write-allowance', venture.id).filter(item => item.day === day).map(item => item.capKind));
   return WRITE_CAP_KINDS.map(kind => {
     const cap = ownerCap(state, venture.id, kind);
-    return { kind, cap: raised.has(kind) ? cap + raiseOf(cap) : cap, used: used[kind], raised: raised.has(kind), line: capWords(kind, cap) };
+    return { kind, configuredCap: cap, cap: raised.has(kind) ? Math.min(Number.MAX_SAFE_INTEGER, cap + raiseOf(cap)) : cap, used: used[kind], raised: raised.has(kind), line: capWords(kind, cap) };
   });
 }
 

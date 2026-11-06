@@ -4,7 +4,8 @@
  */
 
 /** W4 4C2: Chats, the owner's talk with Chausar as chief of staff, comes second, after Today. */
-export const RAIL_PLACES = ['today', 'chats', 'team', 'work', 'clients', 'money', 'connections'] as const;
+/** W6 6H1 (D39): Apps, the owner's mini apps, sits between Money and Connections. */
+export const RAIL_PLACES = ['today', 'chats', 'team', 'work', 'clients', 'money', 'apps', 'connections'] as const;
 /** approve: the standalone approval page (W4 4G4, O11), `#/approve/next` or `#/approve/<rowId>`; no rail item. */
 export const OTHER_PLACES = ['business', 'onboarding', 'approve'] as const;
 export type PlaceId = (typeof RAIL_PLACES)[number] | (typeof OTHER_PLACES)[number];

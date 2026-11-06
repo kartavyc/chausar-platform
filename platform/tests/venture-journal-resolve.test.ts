@@ -267,43 +267,7 @@ const PREVIEW = {
   expiresAt: '2026-10-15T10:30:00.000Z',
 };
 
-test('the run Approve row and a held call carry it too: true only when the view shows the exact text that goes out', async () => {
-  // The rule: the run's view shows the text line by line up to its cap, and a command-line send also passes a schema file it only names.
-  assert.equal(previewShownWhole(PREVIEW), true);
-  const lines = (count: number) => Array.from({ length: count }, (_, i) => `line ${i}`).join('\n');
-  assert.equal(previewShownWhole({ ...PREVIEW, payloadText: lines(VIEW_MAX_LINES + 1) }), false);
-  assert.equal(previewShownWhole({ ...PREVIEW, payloadText: lines(VIEW_MAX_LINES) }), true);
-  assert.equal(previewShownWhole({ endpoint: 'cli://claude', payloadText: JSON.stringify({ command: 'claude', args: ['--json-schema', '<schema-file>'], stdin: 'Close the books.' }) }), false);
 
-  const env = await viewsSetup();
-  const plan = await seedBlueprint(env, { price2: '1500000' });
-  const { order } = await seedOrder(env, plan);
-  await setStage(env, 'approve-each');
-  env.models.connected = true;
-  const playbook = await delivery['venture.delivery.playbook']!(env.deps, owner, {}) as { id: string; hash: string };
-  const fields = { playbookId: playbook.id, playbookHash: playbook.hash };
-  const whole = await seedRun(env, order, { ...fields, status: 'waiting-for-you', callId: 'call_1', preview: PREVIEW, harness: harness() });
-  const cli = { ...PREVIEW, callId: 'call_2', endpoint: 'cli://claude', payloadText: JSON.stringify({ command: 'claude', args: ['<schema-file>'], stdin: 'x' }) };
-  const named = await seedRun(env, order, { ...fields, status: 'waiting-for-you', callId: 'call_2', preview: cli, harness: harness() });
-  const question = 'Write to the mail app is on hold, so it waits for you. The agent wants to run outbox.propose. Let it run once?';
-  const held = await seedRun(env, order, {
-    ...fields, status: 'needs-answer',
-    harness: harness({
-      phase: 'needs-answer', used: { turns: 1, toolCalls: 0, costMicros: '1000' }, handoffs: [{ to: 'owner', question, turn: 1, answer: null, answeredBy: null }],
-      holds: [{ id: 'h1.1', toolCallId: 't1.1', tool: 'outbox.propose', stepId: 'send', inputDigest: 'd'.repeat(64), code: 'step_on_hold', reason: 'Write to the mail app is on hold, so it waits for you.', turn: 1, handoff: 0, status: 'waiting', validTurn: null }],
-    }),
-  });
-  const rows = (await views['venture.queue.list']!(env.deps, owner, {}) as QueueList).rows;
-  const rowFor = (runId: string) => rows.find(item => item.viewRef?.id === runId)!;
-  assert.equal(rowFor(whole.id).descriptionComplete, true, 'the view shows the exact text that goes to the AI');
-  assert.equal(rowFor(named.id).descriptionComplete, false, 'the schema file is named, not shown');
-  assert.equal(rowFor(held.id).descriptionComplete, false, 'the view names the held tool but not its exact input');
-
-  // The send's own journal entry says the same as the row the owner approved.
-  await assert.rejects(delivery['venture.delivery.approve']!(env.deps, owner, { runId: whole.id, digest: PREVIEW.digest }));
-  const sent = listRecords(env.store.read(), 'venture-journal-entry').find(entry => entry.action === 'delivery.send' && entry.subject === `${whole.id}:call_1`)!;
-  assert.equal(sent.descriptionComplete, true);
-});
 
 // ---------------------------------------------------------------------------
 // 4. Registration and house rules

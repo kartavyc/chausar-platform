@@ -26,7 +26,7 @@
   text-underline-offset: 3px;
 }
 
-/* The dots stay on one line; the word beside them may wrap (Hindi "no signals yet" is long). */
+
 .dots {
   display: inline-flex;
   flex: none;

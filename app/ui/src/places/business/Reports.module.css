@@ -1,0 +1,31 @@
+/* Business > Reports (W6 6J2): the exact events Send report would send, as the engine wrote them. Tokens only. */
+
+.json {
+  margin: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg2);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.choice {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.hint {
+  color: var(--mute);
+}

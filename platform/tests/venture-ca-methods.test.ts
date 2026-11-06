@@ -56,7 +56,7 @@ test('venture.ca.confirmRates: the CA of record types their number; a table id c
   // Version 1 of the FY 2025-26 TDS table is history only (its no-PAN rule was wrong): nothing confirms it now.
   await assert.rejects(call(env, 'venture.ca.confirmRates', { tableIds: ['in-tds-fy-2025-26@1'], membershipNo: '123456' }), code('SIGNOFF_NOT_FOUND'));
   const view = await call<CaFirmView>(env, 'venture.ca.confirmRates', { tableIds: ['in-gst-rates', 'in-tds-fy-2025-26@2'], membershipNo: '123 456' });
-  assert.deepEqual(view.pendingRates.map(rate => rate.tableId).sort(), ['in-income-tax-ay-2026-27', 'in-income-tax-ay-2027-28', 'in-income-tax-interest-ay-2026-27', 'in-income-tax-interest-ay-2027-28', 'in-tds-fy-2026-27'].sort());
+  assert.deepEqual(view.pendingRates.map(rate => rate.tableId).sort(), ['in-books-health-fy-2026-27', 'in-income-tax-ay-2026-27', 'in-income-tax-ay-2027-28', 'in-income-tax-interest-ay-2026-27', 'in-income-tax-interest-ay-2027-28', 'in-tds-fy-2026-27'].sort());
   const confirmed = listRecords(env.store.read(), 'venture-ca-firm').filter(item => item.entry === 'rate-confirmation');
   assert.deepEqual(confirmed.map(item => item.entry === 'rate-confirmation' ? [item.tableId, item.tableVersion, item.caName, item.membershipNumber] : null),
     [['in-gst-rates', 1, 'CA Asha Rao', '123456'], ['in-gst-rates', 2, 'CA Asha Rao', '123456'], ['in-tds-fy-2025-26', 2, 'CA Asha Rao', '123456']]);
@@ -169,7 +169,11 @@ test('no CA request for unregulated work, practice drafts, failed checks, templa
   assert.equal(await requestSignoffForRun(plain.deps, owner, viewOf(plain, plainRun.id)), null, 'a bookkeeping idea is not the CA firm playbook');
 });
 
-test('delivery approve asks the CA after a draft is ready, and a failure there never fails the run', async () => {
+test('native delivery completion asks the CA after review readiness, and a failure there never fails the run', async () => {
   const source = await readFile(new URL('../runtime/venture/delivery/runs.ts', import.meta.url), 'utf8');
-  assert.match(source, /if \(view\.status === 'ready-for-review'\) \{\s*await import\('\.\.\/playbooks\/ca-firm\/delivery-signoff\.ts'\)\.then\(module => module\.requestSignoffForRun\(deps, ctx, view\)\)\.catch\(\(\) => null\);/);
+  const completion = source.slice(source.indexOf("if (result.status === 'completed')"), source.indexOf('} catch (error)', source.indexOf("if (result.status === 'completed')")));
+  assert.ok(completion.includes("current.status !== 'ready-for-review'"));
+  const ready = completion.indexOf('reviewReady: true'), signoff = completion.indexOf('module.requestSignoffForRun(deps, ctx, run)');
+  assert.ok(ready >= 0 && signoff > ready, 'CA request follows settled native quality and review readiness');
+  assert.match(completion, /await import\('\.\.\/playbooks\/ca-firm\/delivery-signoff\.ts'\)\.then\(module => module\.requestSignoffForRun\(deps, ctx, run\)\)\.catch\(\(\) => null\);/);
 });

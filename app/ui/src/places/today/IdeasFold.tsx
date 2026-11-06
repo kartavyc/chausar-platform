@@ -40,7 +40,11 @@ type Started = { idea: IdeaView; proposal: ProposalView | null; line: string; ra
  *     Dismiss sets it aside for good.
  * A fold with nothing in it is not drawn at all.
  */
-export function IdeasFold() {
+/**
+ * W6 6H3: `title`, the name the owner (or their AI) gave the Ideas fold; `ideas` false when the owner's layout hides it.
+ * Waiting on you lists what waits on the owner, so it shows whatever the layout says.
+ */
+export function IdeasFold({ title, ideas: showIdeas = true }: { title?: string | undefined; ideas?: boolean } = {}) {
   const t = useT();
   const engine = useEngine();
   const view = useResource('venture.ideas.list', {}, { refreshOn: IDEA_EVENTS });
@@ -83,7 +87,7 @@ export function IdeasFold() {
     }
   }
 
-  if (ideas.length === 0 && waiting.length === 0 && !said && !problem) return null;
+  if ((!showIdeas || (ideas.length === 0 && !said && !problem)) && waiting.length === 0) return null;
   return (
     <div className={s.folds}>
       {waiting.length > 0 && (
@@ -103,11 +107,11 @@ export function IdeasFold() {
           </ul>
         </details>
       )}
-      {(ideas.length > 0 || said || problem) && (
+      {showIdeas && (ideas.length > 0 || said || problem) && (
         <details className={s.fold} data-today-fold="ideas">
           <summary className={s.summary}>
             <Icon name="sparkles" size={16} />
-            <span className={s.title}>{t('today.ideas.title')}</span>
+            <span className={s.title}>{title ?? t('today.ideas.title')}</span>
             <Count value={live.length} className={s.count} />
             <FoldMark />
           </summary>

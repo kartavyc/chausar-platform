@@ -1,0 +1,6 @@
+// Original browser-safe creator draft inputs. No sending and no platform scraping.
+import {d3Object,d3Text,check} from './d3-core.ts';
+/** Validate the owner's exact draft fields before looking up its mail domain. */
+export function influencerOutreachInput(raw:unknown){const p=d3Object(raw,['creatorId','subject','body','postalAddress']);const creatorId=d3Text(p.creatorId,100,'INVALID_VENTURE_REQUEST'),subject=d3Text(p.subject,160,'INVALID_VENTURE_REQUEST');check(typeof p.body==='string'&&p.body.trim().length>0&&p.body.length<=5000,'INVALID_VENTURE_REQUEST','Write the email body.');check(typeof p.postalAddress==='string'&&p.postalAddress.trim().length>=5,'LEADS_ADDRESS_MISSING','Add your business postal address. Every cold email carries it.');return{creatorId,subject,body:p.body.trim(),postalAddress:d3Text(p.postalAddress,300,'INVALID_VENTURE_REQUEST')};}
+/** Exactly the W4 default cold-email footer, pinned against the real draft path by the public tests. */
+export function influencerEmailText(body:string,businessName:string,postalAddress:string){const footer={businessName,postalAddress,unsubscribe:'To stop these emails, reply with the word unsubscribe and we will not write to you again.'};return{footer,text:`${body.trim()}\n\n--\n${footer.businessName}\n${footer.postalAddress}\n${footer.unsubscribe}`};}

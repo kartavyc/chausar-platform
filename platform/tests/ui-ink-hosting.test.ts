@@ -12,7 +12,7 @@ import { createLocalServer } from '../runtime/server.ts';
 import { listInkFiles } from '../runtime/ui-ink.ts';
 import type { Engine } from '../runtime/engine.ts';
 
-const require = createRequire(import.meta.url);
+const require = createRequire(new URL('../../app/desktop/main.cjs', import.meta.url));
 
 async function dist() {
   const folder = await mkdtemp(join(tmpdir(), 'chausar-ink-'));
@@ -92,7 +92,7 @@ async function desktop(args: string[], env: Record<string, string>, distFiles: R
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
     if (name === './engine-harness.cjs') return { EngineHarness: Harness };
-    if (name === './ipc-contract.cjs') return require('../../app/desktop/ipc-contract.cjs');
+    if (name === './ipc-contract.cjs') return require('./ipc-contract.cjs');
     if (name === 'node:fs/promises') return fs;
     return require(name);
   }, process: { argv: ['electron', '/owned/app', ...args], env, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });

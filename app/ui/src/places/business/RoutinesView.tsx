@@ -7,6 +7,7 @@ import { stateText } from '../../parts/states';
 import type { AgentView, RoutineSchedule, RoutineView } from '../../engine/types';
 import { Tile, TileHead } from '../../parts/Tile';
 import { dayOf, messageOf } from './shared';
+import { ModelReceipt } from '../../parts/ModelReceipt';
 import s from './Business.module.css';
 import r from './RoutinesView.module.css';
 
@@ -33,7 +34,7 @@ function nextOf(routine: RoutineView, t: T, language: string): string {
   if (!routine.on) return t('business.routines.offLine');
   if (!routine.next) return t('business.routines.noMore');
   const timeZone = routine.schedule.kind === 'calendar' ? routine.schedule.timeZone : FIRST_ZONE;
-  const locale = language === 'hi' ? 'hi-IN' : 'en-IN';
+  const locale = 'en-IN';
   const at = new Date(routine.next);
   try {
     const day = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone }).format(at);
@@ -119,8 +120,8 @@ function RoutineCard({ routine, agents, zone, onChanged }: { routine: RoutineVie
 
   // Off or on sends the routine back in its own words (venture.routines.list carries the prompt), only on changed.
   const toggle = () => act(async () => {
-    const { id, name, agent, prompt, schedule } = routine;
-    await client.request('venture.routines.set', { routine: { id, name, agent, prompt: prompt ?? '', schedule, on: !routine.on } });
+    const { id, name, agent, prompt, schedule,recordReport } = routine;
+    await client.request('venture.routines.set', { routine: { id, name, agent, prompt: prompt ?? '', schedule, on: !routine.on,...(recordReport?{recordReport}:{}) } });
     return undefined;
   });
   const remove = () => act(async () => (await client.request('venture.routines.remove', { id: routine.id })).line);
@@ -170,7 +171,9 @@ function History({ id }: { id: string }) {
             // A finished run says Delivered once, with its day; any other says its word and the engine's reason.
             <li key={run.id}>{run.state === 'completed'
               ? t('business.routines.delivered', { word: stateText(t, 'routine', run.state), day: dayOf(run.dueAt, language) })
-              : t('business.routines.run', { word: stateText(t, 'routine', run.state), line: run.line, day: dayOf(run.dueAt, language) })}</li>
+              : t('business.routines.run', { word: stateText(t, 'routine', run.state), line: run.line, day: dayOf(run.dueAt, language) })}
+              {/* W6 6G5 (D44): the model receipt of a run that asked an AI. */}
+              <ModelReceipt receipt={run.receipt} /></li>
           ))}
         </ul>
       )}
@@ -224,7 +227,7 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
     try {
       const schedule: RoutineSchedule = keeps ? initial!.schedule : { kind: 'calendar', weekdays: [...days].sort((a, b) => a - b), time, timeZone: timeZone.trim() };
       await client.request('venture.routines.set', { routine: {
-        ...(initial ? { id: initial.id } : {}), name: name.trim(), agent: agent === '' ? null : agent, prompt: prompt.trim(), on: initial?.on ?? true, schedule,
+        ...(initial ? { id: initial.id,...(initial.recordReport?{recordReport:initial.recordReport}:{}) } : {}), name: name.trim(), agent: agent === '' ? null : agent, prompt: prompt.trim(), on: initial?.on ?? true, schedule,
       } });
       if (!initial) { setName(''); setPrompt(''); setDays([]); }
       onSaved();

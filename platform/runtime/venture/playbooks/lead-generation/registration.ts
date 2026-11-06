@@ -1,0 +1,3 @@
+// Chausar lead generation registration, original; revenue-squad (MIT) informs the workflow only.
+import type { PlaybookRegistration } from '../registry.ts';
+export const LEAD_GENERATION_REGISTRATION: PlaybookRegistration = Object.freeze({ id: 'lead-generation', label: 'Lead generation and appointment setting', serviceType: 'agency', picks: ['lead generation', 'appointment setting', 'cold email agency', 'cold outreach service', 'book meetings for', 'local business leads'], summary: 'Agents find local businesses from sources that allow it, draft outreach and follow-ups, and keep the pipeline; you send every message yourself.', riskLevel: 'medium', lastReviewed: '2026-10-27' });

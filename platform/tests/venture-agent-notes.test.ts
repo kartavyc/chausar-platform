@@ -8,6 +8,7 @@
 // client is asked about, never kept agent-wide. Forget erases the words everywhere and cannot be undone; so does
 // Forget of a person in the owner's network, for every note, change, proposal and message that names them.
 import test from 'node:test';
+import { nativeContext } from './fixtures/venture/native-context.ts';
 import assert from 'node:assert/strict';
 import type { PersonRecord } from '../runtime/venture/contracts.ts';
 import { currentVenture, listRecords, ventureAction } from '../runtime/venture/records.ts';
@@ -380,7 +381,7 @@ test('notes.undo: undo works for edits, and undoing the undo puts the change bac
   assert.deepEqual(changes(env).map(change => change.who), ['owner', 'owner', 'undo', 'undo', 'undo', 'undo']);
 });
 
-test('notes.forget erases the words from the finished calls that carried them: an act turn and a chat answer', async () => {
+test('notes.forget erases native progress and the finished chat call that carried the words', async t => {
   const env = await agentBusiness();
   await consent(env);
   // Like the real port, each call keeps the text it sent, under this business.
@@ -396,17 +397,22 @@ test('notes.forget erases the words from the finished calls that carried them: a
     return made;
   };
   const kept = await edit(env, { text: 'The drummer wants raw stems first.' });
-  // A finished act turn carried the note.
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: 'One long episode from my raw footage.', intake: { rights: { basis: 'own-footage', holder: 'Asha Rao' }, format: 'long' } });
-  await env.call('venture.files.add', { orderId: order.id, name: 'notes.txt', contentBase64: Buffer.from('Budgets first.', 'utf8').toString('base64') });
-  env.models.respond['agent-turn'] = () => ({ note: 'Check the length first', calls: [{ tool: 'handoff.owner', input: JSON.stringify({ question: 'How long should it be?' }) }], finished: false });
-  const run = await env.call('venture.delivery.run', { orderId: order.id });
-  assert.equal((await env.call('venture.delivery.approve', { runId: run.id, digest: run.preview.digest })).status, 'needs-answer');
+  const native = await nativeContext(env.deps, owner, order.id); t.after(() => native.job.close());
+  assert.ok(JSON.stringify((await native.read()).notes).includes('raw stems first'));
+  await ventureAction(env.deps, owner, 'prepare', 'fixture.nativeProgress', tx => {
+    const run = tx.find('venture-delivery-run', native.run.id)!;
+    const chat = tx.put({ ...tx.base('venture-agent-message'), agent: 'delivery', from: 'agent', text: kept.note.text, parts: [{ kind: 'estimate', text: kept.note.text }], author: 'model', callId: null, runId: run.id, proposalId: null, suggestion: null, answered: null } as any);
+    tx.replace({ ...run, renderedText: kept.note.text, editedText: kept.note.text,
+      deliverable: { title: 'Draft', sections: [{ heading: 'Reply', parts: [{ kind: 'text', text: kept.note.text }] }], questionsForClient: [] },
+      agentJob: { ...run.agentJob!, messages: [{ id: 'progress', text: kept.note.text, label: 'model-estimate', chatId: chat.id }],
+        proposal: { kind: 'send-handoff', draftId: run.id, draftDigest: 'd', receiptIds: [], to: '', subject: 'Review', body: kept.note.text, transport: 'copy' } } });
+  });
   // So did a chat answer, to a question in the owner's own words.
   scriptChat(env, { answer: () => ({ parts: [said('I keep one note about the stems.')] }) });
   await send(env, 'What do you know about the drummer?');
   const carried = listRecords(env.store.read(), 'venture-model-call').filter(call => call.payloadText?.includes('raw stems first'));
-  assert.equal(carried.length, 2, 'the act turn and the chat answer');
+  assert.equal(carried.length, 1, 'native context keeps identifiers, while chat records its payload');
   assert.ok(carried.every(call => call.status === 'completed'));
 
   const gone = await env.agents('venture.agents.notes.forget', { agent: EDITOR, noteId: kept.note.id });

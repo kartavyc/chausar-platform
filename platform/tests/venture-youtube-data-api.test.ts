@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {createYoutubeDataReader,YOUTUBE_QUOTA} from '../runtime/venture/playbooks/youtube/data-api.ts';
+const key=['owner','test','key'].join('-');
+test('public reads pin official endpoints, preserve missing counts and count each explicit page attempt',async()=>{
+ const attempts:string[]=[],urls:URL[]=[];const reader=createYoutubeDataReader(key,{resolve:async()=>[{address:'142.250.1.1',family:4}],send:async request=>{urls.push(new URL(request.url));return {status:200,headers:{},body:Buffer.from(JSON.stringify({items:[{id:'abcdefghijk',snippet:{channelId:'UC'+'a'.repeat(22),title:'Shop',publishedAt:'2026-10-01T00:00:00Z'},statistics:{viewCount:'9007199254740993'}}]}))};}},operation=>{attempts.push(operation);});
+ const result=await reader.read({kind:'videos',ids:['abcdefghijk']});assert.equal(result.items[0]?.views,'9007199254740993');assert.equal(result.items[0]?.likes,null);assert.equal(urls[0]?.hostname,'www.googleapis.com');assert.equal(urls[0]?.pathname,'/youtube/v3/videos');assert.equal(result.quota.units,1);assert.deepEqual(attempts,['videos.list']);assert.equal(JSON.stringify(result).includes(key),false);assert.equal(YOUTUBE_QUOTA.search.dailyDefault,100);assert.equal(YOUTUBE_QUOTA.search.units,1);
+});
+test('quota errors name the exact stage; failed and redirected calls count once and never retry',async()=>{
+ let sends=0,calls=0;const reader=createYoutubeDataReader(key,{resolve:async()=>[{address:'142.250.1.1',family:4}],send:async()=>{sends++;return {status:403,headers:{},body:Buffer.from(JSON.stringify({error:{errors:[{reason:'quotaExceeded'}]}}))};}},()=>{calls++;});
+ await assert.rejects(reader.read({kind:'channels',ids:['UC'+'a'.repeat(22)]}),error=>!!error&&typeof error==='object'&&'code'in error&&error.code==='QUOTA_REACHED'&&String(error).includes('channels.list'));assert.equal(sends,1);assert.equal(calls,1);
+ const redirect=createYoutubeDataReader(key,{resolve:async()=>[{address:'142.250.1.1',family:4}],send:async()=>{sends++;return {status:302,headers:{location:'https://example.com/?key='+key},body:Buffer.alloc(0)};}},()=>{});await assert.rejects(redirect.read({kind:'videos',ids:['abcdefghijk']}),error=>!String(error).includes(key));assert.equal(sends,2);
+});
+test('invalid IDs and changed owner authority refuse before any physical request',async()=>{let calls=0;const reader=createYoutubeDataReader(key,{resolve:async()=>[{address:'142.250.1.1',family:4}],send:async()=>{calls++;throw Error('never');}},()=>{throw Object.assign(Error('revoked'),{code:'APPROVAL_CHANGED'});});await assert.rejects(reader.read({kind:'videos',ids:['https://localhost/']}),{code:'YOUTUBE_RESEARCH_INVALID'});await assert.rejects(reader.read({kind:'videos',ids:['abcdefghijk']}),{code:'APPROVAL_CHANGED'});assert.equal(calls,0);});
+
+test('an accidentally asynchronous pre-send guard cannot send or leak an unhandled rejection',async()=>{let sends=0;const reader=createYoutubeDataReader(key,{resolve:async()=>[{address:'142.250.1.1',family:4}],send:async()=>{sends++;throw Error('never');}},(async()=>{throw Error('authority changed');}) as ()=>void);await assert.rejects(reader.read({kind:'videos',ids:['abcdefghijk']}),{code:'YOUTUBE_READ_FAILED'});await new Promise(resolve=>setTimeout(resolve,20));assert.equal(sends,0);});

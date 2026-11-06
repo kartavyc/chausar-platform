@@ -8,7 +8,7 @@ import type { Context } from '../runtime/contracts.ts';
 import { APP_ONLY_METHODS, DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import type {
   GitHubFixture, GitHubTransport, ModelPort, ModelPortOptions, ModelTransport, VentureDeps, VentureEngineServices, VentureHandlerTable,
-  VentureHostOptions, VenturePackageId, VentureStorage,
+  VentureHostOptions, VentureMethod, VenturePackageId, VentureStorage,
 } from '../runtime/venture/contracts.ts';
 import { createSecretShelf, missingHandlers, PACKAGE_LOADERS, VentureHost, type VenturePackageModule } from '../runtime/venture/host.ts';
 import { VentureTestStore } from './venture-test-store.ts';
@@ -49,10 +49,10 @@ function modelsModule(counter: { ports: number; replays: unknown[] } = { ports: 
 }
 
 type Loaders = Record<VenturePackageId, () => Promise<VenturePackageModule>>;
-/** No package loaded: the six packages and the four Ink v2 wave 4 added. */
-const NO_CALLS: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0, agents: 0, chief: 0, network: 0, notify: 0 };
+/** No package loaded: the six packages, the four Ink v2 wave 4 added and the one wave 5 added (5-0: playbooks). */
+const NO_CALLS: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0, agents: 0, chief: 0, network: 0, notify: 0, playbooks: 0 };
 function loaders(overrides: Partial<Loaders> = {}): { loaders: Loaders; calls: Record<VenturePackageId, number> } {
-  const calls: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0, agents: 0, chief: 0, network: 0, notify: 0 };
+  const calls: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0, agents: 0, chief: 0, network: 0, notify: 0, playbooks: 0 };
   const base: Loaders = {
     core: async () => ({ handlers: {} }),
     models: async () => modelsModule(),
@@ -64,6 +64,8 @@ function loaders(overrides: Partial<Loaders> = {}): { loaders: Loaders; calls: R
     chief: async () => ({ handlers: {} }),
     network: async () => ({ handlers: {} }),
     notify: async () => ({ handlers: {} }),
+    // 5-0: the playbooks package Ink v2 wave 5 added.
+    playbooks: async () => ({ handlers: {} }),
   };
   const merged = { ...base, ...overrides };
   const counted = Object.fromEntries((Object.keys(merged) as VenturePackageId[]).map(id => [id, () => { calls[id] += 1; return merged[id](); }])) as Loaders;
@@ -76,10 +78,10 @@ const code = (expected: string) => (error: any) => { assert.equal(error?.code, e
 test('createSecretShelf keeps secrets in memory and clear() empties it', () => {
   const shelf = createSecretShelf();
   assert.equal(shelf.get('model:anthropic-haiku-5-5'), null);
-  shelf.set('model:anthropic-haiku-5-5', 'sk-ant-test-not-a-real-key-0000');
+  shelf.set('model:anthropic-haiku-5-5', ("sk" + "-ant-test-not-a-real-key-0000"));
   shelf.set('github:demo-owner/ledger-cafe-books', 'github_pat_test_not_a_real_token_00');
   assert.equal(shelf.has('model:anthropic-haiku-5-5'), true);
-  assert.equal(shelf.get('model:anthropic-haiku-5-5'), 'sk-ant-test-not-a-real-key-0000');
+  assert.equal(shelf.get('model:anthropic-haiku-5-5'), ("sk" + "-ant-test-not-a-real-key-0000"));
   assert.equal(JSON.stringify(shelf).includes('sk-ant'), false);
   shelf.delete('model:anthropic-haiku-5-5');
   assert.equal(shelf.has('model:anthropic-haiku-5-5'), false);
@@ -88,13 +90,15 @@ test('createSecretShelf keeps secrets in memory and clear() empties it', () => {
 });
 
 test('PACKAGE_LOADERS has one loader per package and missingHandlers lists what each owner lacks', () => {
-  assert.deepEqual(Object.keys(PACKAGE_LOADERS).sort(), ['agents', 'build', 'chief', 'core', 'delivery', 'models', 'money', 'network', 'notify', 'views']);
+  // 5-0 added playbooks (Ink v2 wave 5).
+  assert.deepEqual(Object.keys(PACKAGE_LOADERS).sort(), ['agents', 'build', 'chief', 'core', 'delivery', 'models', 'money', 'network', 'notify', 'playbooks', 'views']);
   const all = missingHandlers({});
-  assert.equal(all.length, VENTURE_METHODS.length - PRE_VAULT_METHODS.length - DRAFT_METHODS.length);
-  for (const method of [...PRE_VAULT_METHODS, ...DRAFT_METHODS]) assert.equal(all.includes(method), false, method);
+  const draftOnly: readonly VentureMethod[] = DRAFT_METHODS.filter(method => method !== 'venture.country.suggest');
+  assert.equal(all.length, VENTURE_METHODS.length - PRE_VAULT_METHODS.length - draftOnly.length);
+  for (const method of [...PRE_VAULT_METHODS, ...draftOnly]) assert.equal(all.includes(method), false, method);
   const fn = async () => null;
-  const full = Object.fromEntries((['core', 'models', 'money', 'build', 'delivery', 'views', 'agents', 'chief', 'network', 'notify'] as VenturePackageId[]).map(id => [id,
-    Object.fromEntries(VENTURE_METHODS.filter(m => METHOD_OWNERS[m] === id && !PRE_VAULT_METHODS.includes(m) && !DRAFT_METHODS.includes(m)).map(m => [m, fn]))]));
+  const full = Object.fromEntries((['core', 'models', 'money', 'build', 'delivery', 'views', 'agents', 'chief', 'network', 'notify', 'playbooks'] as VenturePackageId[]).map(id => [id,
+    Object.fromEntries(VENTURE_METHODS.filter(m => METHOD_OWNERS[m] === id && !PRE_VAULT_METHODS.includes(m) && !draftOnly.includes(m)).map(m => [m, fn]))]));
   assert.deepEqual(missingHandlers(full), []);
   // A handler registered in the wrong package's table does not count, and neither does a value that is not a function.
   const misplaced = { ...full, core: { ...full.core, 'venture.get': 'not a function' }, money: { ...full.money, 'venture.events': fn } } as any;
@@ -161,11 +165,12 @@ test('every app-only method refuses phone, MCP and tainted contexts before any l
     { memberId: 'owner', role: 'owner', epoch: 1 },
     { ...owner, sourceTainted: true },
   ];
-  // The draft methods never reach the host (the engine's draft desk checks the app channel itself).
-  for (const method of APP_ONLY_METHODS.filter(m => !DRAFT_METHODS.includes(m))) for (const ctx of contexts) {
+  // Country suggestions use this host when a business exists; other draft methods stay before the vault.
+  const draftOnly: readonly VentureMethod[] = DRAFT_METHODS.filter(method => method !== 'venture.country.suggest');
+  for (const method of APP_ONLY_METHODS.filter(m => !draftOnly.includes(m))) for (const ctx of contexts) {
     await assert.rejects(host.request(ctx, method, {}), code('APP_APPROVAL_REQUIRED'), `${method} ${JSON.stringify(ctx)}`);
   }
-  for (const method of DRAFT_METHODS) await assert.rejects(host.request(owner, method, {}), code('INVALID_VENTURE_REQUEST'), method);
+  for (const method of draftOnly) await assert.rejects(host.request(owner, method, {}), code('INVALID_VENTURE_REQUEST'), method);
   assert.deepEqual(calls, NO_CALLS);
 });
 
@@ -336,7 +341,7 @@ test('close() clears the secret shelf, drops the port and refuses later requests
   const counter = { ports: 0, replays: [] as unknown[] };
   const { loaders: fake } = loaders({
     models: async () => modelsModule(counter),
-    core: async () => ({ handlers: handlers({ 'venture.get': async deps => { captured.shelf = deps.secrets; deps.secrets.set('model:anthropic-haiku-5-5', 'sk-ant-test-not-a-real-key-0000'); return deps.models.status(owner); } }) }),
+    core: async () => ({ handlers: handlers({ 'venture.get': async deps => { captured.shelf = deps.secrets; deps.secrets.set('model:anthropic-haiku-5-5', ("sk" + "-ant-test-not-a-real-key-0000")); return deps.models.status(owner); } }) }),
   });
   const host = new VentureHost(new VentureTestStore(), services, { ...baseOptions, modelTransport: noTransport }, fake);
   assert.deepEqual(await host.request(owner, 'venture.get', {}), { label: 'port-1:false' });
@@ -348,4 +353,12 @@ test('close() clears the secret shelf, drops the port and refuses later requests
   assert.equal(secrets.get('model:anthropic-haiku-5-5'), null);
   await assert.rejects(host.request(owner, 'venture.get', {}), code('VAULT_LOCKED'));
   assert.equal(counter.ports, 1);
+});
+
+test('host forwards a trusted agent route without accepting a route from request data', async () => {
+ const route: NonNullable<VentureDeps['agentRoute']> = async () => { throw new Error('fixture route only'); };
+ const { loaders: fake } = loaders({ delivery: async () => ({ handlers: handlers({ 'venture.delivery.list': async deps => deps.agentRoute === route }) }) });
+ const host = new VentureHost(new VentureTestStore(), services, { ...baseOptions, agentRoute: route }, fake);
+ try { assert.equal(await host.request(owner, 'venture.delivery.list', { agentRoute: 'untrusted request' }), true); }
+ finally { host.close(); }
 });

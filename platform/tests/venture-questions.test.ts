@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { currentVenture, listRecords } from '../runtime/venture/records.ts';
 import { askCard, parseReply, QUESTION_ESCAPE, roundAnswers, submitLabel } from '../runtime/venture/agents/questions.ts';
 import { code } from './venture-judge-helpers.ts';
-import { agentBusiness, episodeOrder, type AgentEnv } from './venture-agent-helpers.ts';
+import { agentBusiness } from './venture-agent-helpers.ts';
 
 const opt = (text: string, gains = 'Keeps viewers to the end', costs = 'Leaves out the second story') => ({ text, gains, costs });
 const ROUND = {
@@ -106,62 +106,10 @@ test('questions: shorthand is read, free text is always open, and the submit lab
   assert.equal(submitLabel(card, '1 A, and keep the intro'), 'Send: 1 Under ten minutes, and your note');
 });
 
-/** A run whose first act turn asks the owner with this tool input, approved so it waits for the answer. */
-async function asking(env: AgentEnv, input: unknown) {
-  const order = await episodeOrder(env);
-  await env.call('venture.files.add', { orderId: order.id, name: 'notes.txt', contentBase64: Buffer.from('Budgets, then the emergency fund.', 'utf8').toString('base64') });
-  env.models.respond['agent-turn'] = () => ({ note: 'Check the details first', calls: [{ tool: 'handoff.owner', input: JSON.stringify(input) }], finished: false });
-  const started = await env.call('venture.delivery.run', { orderId: order.id });
-  return env.call('venture.delivery.approve', { runId: started.id, digest: started.preview.digest });
-}
 
-test('questions in a run: the card and its choices reach Today checked; an approval inside one is refused to the agent and never asked', async () => {
-  const env = await agentBusiness();
-  const run = await asking(env, { question: 'Which title for the episode?', options: [opt('The budget that stuck'), opt('Budgets for beginners', 'Clear for new viewers', 'Less curious')] });
-  assert.equal(run.status, 'needs-answer');
-  const stored = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id)!;
-  const open = stored.harness!.handoffs.at(-1)!;
-  assert.deepEqual(open.choices!.map(choice => choice.label), ['A', 'B']);
-  assert.equal(open.choices![1].costs, 'Less curious');
-  assert.equal(open.card!.round, 1);
-  const row = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'question' && item.viewRef?.id === run.id);
-  assert.equal(row.preview.kind, 'choice');
-  assert.deepEqual(row.preview.options.map((item: any) => item.label), ['A', 'B']);
-  assert.deepEqual(row.preview.options.map((item: any) => [item.gains, item.costs, item.recommended]), [['Keeps viewers to the end', 'Leaves out the second story', true], ['Clear for new viewers', 'Less curious', false]]);
-  assert.equal(row.preview.card.items.length, 1, 'the whole card reaches Today');
-  const detail = await env.call('venture.runs.get', { runId: run.id });
-  assert.equal(detail.question.card.items[0].options[1].costs, 'Less curious', 'and the run sheet');
 
-  const other = await agentBusiness();
-  const refused = await asking(other, { question: 'Shall I send the draft to the client now?' });
-  assert.notEqual(refused.status, 'needs-answer', 'nothing was asked');
-  const call = listRecords(other.store.read(), 'venture-delivery-run').find(item => item.id === refused.id)!.harness!.toolCalls.at(-1)!;
-  assert.equal(call.envelope.ok, false);
-  assert.equal((call.envelope as any).error.code, 'QUESTION_HAS_APPROVAL');
-});
 
-test('questions in a run: the owner answers a round in shorthand and the next turn reads each answer beside its question', async () => {
-  const env = await agentBusiness();
-  const run = await asking(env, ROUND);
-  assert.equal(run.status, 'needs-answer');
-  const row = (await env.call('venture.queue.list')).rows.find((item: any) => item.kind === 'question' && item.viewRef?.id === run.id);
-  assert.equal(row.preview.kind, 'choice', 'a round has its preview too');
-  assert.deepEqual(row.preview.options, []);
-  assert.deepEqual(row.preview.card.items.map((item: any) => item.guess), ['About ten minutes', 'yes', 'yes']);
-  assert.equal((await env.call('venture.runs.get', { runId: run.id })).question.card.items.length, 3);
-  env.models.respond['agent-turn'] = () => ({ note: 'Ready to write the reply', calls: [], finished: true });
-  await env.call('venture.delivery.answer', { runId: run.id, answer: '1 B, 2 no, 3 ok' });
-  const stored = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id)!;
-  const read = roundAnswers(stored.harness!.handoffs) as any;
-  assert.deepEqual(read.roundAnswers[0].answers, [
-    { number: 1, question: 'How long should the episode be?', answer: 'About twenty minutes' },
-    { number: 2, question: 'Should the hook name the emergency fund?', answer: 'no' },
-    { number: 3, question: 'Is the tone for beginners?', answer: 'yes' },
-  ]);
-  const next = env.models.previewed.filter(task => task.purpose === 'agent-turn').at(-1)!;
-  assert.deepEqual((next.input as any).roundAnswers, read.roundAnswers, 'the next act turn reads each answer beside its question');
-  assert.deepEqual(roundAnswers([]), {}, 'no round: the input stays the same');
-});
+
 
 test('questions: Hindi and Hinglish amounts in a card are refused like any other amount', () => {
   for (const text of ['दो हज़ार रुपये लें', 'पाँच सौ रुपये और लें', 'paanch sau rupaye extra lo', 'do hazaar extra lo']) {

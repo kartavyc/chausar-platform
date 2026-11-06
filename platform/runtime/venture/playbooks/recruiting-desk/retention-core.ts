@@ -1,0 +1,5 @@
+// Exact expiry proposal shared by the stored and demo desks.
+import type {RecruitRoleBody,RecruitCandidateBody} from './records.ts';
+export function recruitRetentionView(role:RecruitRoleBody&{id:string},candidates:readonly (RecruitCandidateBody&{id:string})[]){return {roleId:role.id,closedOn:role.closedOn,retentionDays:role.brief?.retentionDays??null,candidateIds:candidates.map(c=>c.id),names:candidates.map(c=>c.name),sourceThreads:[...new Set(candidates.filter(c=>c.source.kind==='mail').map(c=>c.source.id))],deletes:['Candidate sources and findings','Entire imported candidate conversations and source files','Their messages and interview packs','Copied delivery drafts and shares']};}
+export type RecruitRetentionSnapshot={candidates:readonly unknown[];touches:readonly unknown[];interviews:readonly unknown[];files:readonly unknown[];mail:readonly unknown[];runs:readonly unknown[];reports:readonly unknown[];shares:readonly unknown[]};
+export function recruitRetentionProposal(view:ReturnType<typeof recruitRetentionView>,snapshot:RecruitRetentionSnapshot,digest:(value:unknown)=>string){return {...view,digest:digest({view,...snapshot})};}

@@ -1,0 +1,12 @@
+// Original Chausar binding for the existing hosted share-token transport.
+import {requireRights} from '../../delivery/rights.ts';
+import {TRANSLATION_RIGHTS_RULE} from './rules.ts';
+import type {State} from '../../../contracts.ts';
+import type {ShareLinkStoredRecord} from '../../contracts.ts';
+import {listRecords} from '../../records.ts';
+import {translationApproval,translationView} from './state.ts';
+import {translationSourceFresh} from './source-binding.ts';
+/** A stale or removed source never remains reachable through its old share token. */
+export function translationLinkCurrent(state:State,link:ShareLinkStoredRecord,now:string):boolean{if(!link.translation)return true;if(!TRANSLATION_RIGHTS_RULE.confirmedBy)return false;const job=listRecords(state,'venture-translation-job',link.ventureId).find(j=>j.id===link.translation!.jobId);if(!job)return false;const order=listRecords(state,'venture-order',link.ventureId).find(o=>o.id===job.orderId);let rights;try{rights=requireRights({id:'translation',clipping:true},order?.intake??null,now.slice(0,10));if(rights?.basis==='licence'&&(!rights.scope||!/translation|adaptation|अनुवाद|रूपांतरण/iu.test(rights.scope)))return false;}catch{return false;}return Boolean(order&&order.status!=='cancelled'&&order.clientId===job.clientId&&link.clientId===job.clientId&&order.intake?.fields?.private===job.state.private&&order.intake?.fields?.format===job.state.format&&rights&&['own-footage','licence'].includes(rights.basis)&&job.state.ownerApproval===translationApproval(job.state)&&link.translation.approvalDigest===translationApproval(job.state)&&link.draftDigest===link.translation.approvalDigest&&translationView(job.state).checks.pass&&translationSourceFresh(listRecords(state,'venture-upload',link.ventureId).filter(f=>f.scope.kind==='order'&&f.scope.orderId===job.orderId),job.state.sourceBinding));}
+/** Owner-recorded decisions never stand in for this client's token decision. */
+export function translationClientApproved(state:State,jobId:string,shareId:string,now:string):boolean{const link=listRecords(state,'venture-share-link').find(l=>l.id===shareId&&l.translation?.jobId===jobId);return Boolean(link&&translationLinkCurrent(state,link,now)&&link.served&&link.state!=='revoked'&&link.decisions.some(d=>d.decision==='approved'&&d.via==='share-link'&&d.recordedFor===link.clientId&&d.digest===link.draftDigest&&Date.parse(d.at)<=Date.parse(link.expiresAt)&&Date.parse(d.at)<=Date.parse(now)));}

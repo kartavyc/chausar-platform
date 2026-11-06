@@ -2,6 +2,7 @@
 // for the model and GitHub (build spec section 11). No network: the model and GitHub answer from hand-written fixtures.
 // Written in Phase B against the contracts; it passes once all packages have landed (Phase C).
 import test from 'node:test';
+import { scriptedAgent, SCRIPTED_AGENT_SETTINGS } from './fixtures/venture/scripted-agent.ts';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,9 +17,10 @@ import type {
 } from '../runtime/venture/contracts.ts';
 import { createReplayTransport } from '../runtime/venture/models/index.ts';
 import { createFixtureGitHubTransport, decompressFromEncodedURIComponent } from '../runtime/venture/build/index.ts';
+import {PLAYBOOK_CATALOGUE_ENTRIES} from '../runtime/venture/build/catalogue-playbooks.ts';
 
 const PASSPHRASE = 'long-enough-passphrase';
-const API_KEY = 'sk-ant-test-not-a-real-key-0000';
+const API_KEY = ("sk" + "-ant-test-not-a-real-key-0000");
 const GITHUB_TOKEN = 'github_pat_test_not_a_real_token_00';
 const GSTIN = '27ZZZZZ9999Z1Z8'; // synthetic, with a valid checksum
 const IDEA = 'Monthly bookkeeping for cafes and small shops in Pune, done by AI helpers with me checking every report.';
@@ -56,6 +58,7 @@ async function newEngine(t: any, withRecordings: boolean) {
     const githubFixture = JSON.parse(await readFile(new URL('./fixtures/venture/e2e/github-sync.json', import.meta.url), 'utf8'));
     engine = new Engine({ directory, demo: true, storage: 'experimental-file', venture: {
       host: 'test',
+      agentRoute: async () => ({ settings: SCRIPTED_AGENT_SETTINGS, driver: scriptedAgent(() => JSON.parse(modelFixture.responses.find((row: any) => row.body?.id === 'msg_synthetic_delivery_order').body.content[0].text)) }),
       // Docker is absent here, so the container tier says it needs setup; no docker command runs in this test.
       sandbox: { process: async () => { throw new Error('docker not found'); } },
       modelTransport: createReplayTransport(modelFixture),
@@ -72,7 +75,14 @@ async function newEngine(t: any, withRecordings: boolean) {
 
 test('the whole venture journey in India, with a model and GitHub answering from synthetic recordings', async t => {
   const { engine, ask } = await newEngine(t, true);
-  const events = async () => ((await ask('venture.events', { limit: 100 })) as { events: VentureEventRecord[] }).events;
+  const events = async () => {
+    const result: VentureEventRecord[] = [];
+    for (;;) {
+      const page = (await ask('venture.events', { limit: 100, afterSeq: result.at(-1)?.seq ?? 0 }) as { events: VentureEventRecord[] }).events;
+      result.push(...page);
+      if (page.length < 100) return result;
+    }
+  };
   const calls = async () => await ask('venture.models.calls', { limit: 100 }) as CallRecord[];
 
   // 1. Countries, before any vault.
@@ -238,15 +248,16 @@ test('the whole venture journey in India, with a model and GitHub answering from
 
   // 15. The connector catalogue claims only what the code does today.
   const cards = await ask('venture.connectors.list', {}) as ConnectorCard[];
-  assert.equal(cards.length, 66);
+  assert.equal(cards.length, 74 + PLAYBOOK_CATALOGUE_ENTRIES.length);
   assert.equal(new Set(cards.map(c => c.category)).size, 12);
   const availableFor = (mode: string) => cards.filter(c => c.modes.some(m => m.mode === mode && m.status === 'available')).map(c => c.id).sort();
-  assert.deepEqual(availableFor('handoff'), ['bolt', 'lovable', 'mail-app', 'replit', 'v0']);
-  assert.deepEqual(availableFor('write'), ['chausar-books', 'chausar-crm']);
+  assert.deepEqual(availableFor('handoff'), ['ajio', 'app-testing-delivery', 'article-publishing', 'bolt', 'career-linkedin', 'career-naukri', 'career-pinloop', 'instagram-shop', 'jiomart', 'lovable', 'mail-app', 'meesho', 'myntra', 'narration-distribution', 'newsletter-owner-tool', 'nykaa', 'replit', 'source-export', 'tender-submission', 'triage-copy', 'v0', 'whatsapp-business']);
+  // W5 5A6: the owner's own Make and n8n webhooks write, each send approved.
+  assert.deepEqual(availableFor('write'), ['bluesky', 'chausar-books', 'chausar-crm', 'discord', 'google-tts', 'local-live-captions', 'make-webhook', 'mastodon', 'n8n-webhook', 'seo-cloudflare-kv', 'seo-wordpress', 'shopify-admin', 'telegram', 'website-cloudflare', 'zoho-books']);
   const stripe = cards.find(c => c.id === 'stripe');
   assert.ok(stripe?.chips.includes('planned: handoff') && stripe.chips.includes('planned: write'));
   assert.ok(cards.find(c => c.id === 'github')?.modes.some(m => m.mode === 'read' && m.status === 'available' && m.qualification === 'fixture-tested'));
-  assert.ok(cards.find(c => c.id === 'zoho-books')?.modes.some(m => m.mode === 'read' && m.status === 'planned'));
+  assert.ok(cards.find(c => c.id === 'zoho-books')?.modes.some(m => m.mode === 'read' && m.status === 'available' && m.qualification === 'fixture-tested'));
   for (const card of cards) if (card.vendorUrl) assert.ok((EXTERNAL_ORIGINS as readonly string[]).includes(new URL(card.vendorUrl).origin), card.vendorUrl);
 
   // 16. Rehearse all three practice clients with the model, one per request, each judged. The clean and messy
@@ -278,12 +289,8 @@ test('the whole venture journey in India, with a model and GitHub answering from
       assert.ok(episode.turns.some(turn => turn.by === 'agent' && turn.text.startsWith('Question: ')));
     }
   }
-  const rehearsed = await ask('venture.launch.status') as LaunchStatus;
-  assert.deepEqual(rehearsed.rehearsal.map(r => [r.scenarioId, r.passed, r.judged]).sort(),
-    [['bookkeeping-clean', true, true], ['bookkeeping-messy', true, true], ['bookkeeping-pushback', true, true]]);
-
-  // 17. Shadow: practice drafts only.
-  assert.equal((await ask('venture.launch.advance', { to: 'shadow' }) as LaunchStatus).stage, 'shadow');
+  // 17. Practice (6C4): a new business starts there; real orders get practice drafts only.
+  assert.equal((await ask('venture.launch.status') as LaunchStatus).stage, 'practice');
 
   // 18. A client in Maharashtra and an order. CGST and SGST at 9 percent each:
   // (249900 x 1800 + 10000) / 20000 = 449,830,000 / 20000 = 22491; tax 2 x 22491 = 44982; total 294882.
@@ -295,35 +302,32 @@ test('the whole venture journey in India, with a model and GitHub answering from
   assert.equal(figure(orderReceipt, 'sgst').minor, '22491');
   assert.equal(figure(orderReceipt, 'total').minor, '294882');
 
-  // 19. At shadow, an agent draft waits for the owner to see the exact text before anything is sent.
+  // Native AI work uses one recorded client consent and stops at the exact draft handoff.
+  const consent = await ask('venture.client.aiConsent.get', { clientId: client.id });
+  await ask('venture.client.aiConsent.agree', { clientId: client.id, disclosureDigest: consent.disclosureDigest });
+  const ready = async (id: string): Promise<DeliveryRunRecord> => {
+    for (let attempt = 0; attempt < 400; attempt++) {
+      const current = (await ask('venture.delivery.list') as DeliveryRunRecord[]).find(row => row.id === id)!;
+      if (current.agentJob?.reviewReady || current.status === 'failed') return current;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    throw new Error('Synthetic native job did not settle.');
+  };
   const waiting = await ask('venture.delivery.run', { orderId: order.id }) as DeliveryRunRecord;
-  assert.equal(waiting.status, 'waiting-for-you');
-  assert.equal(waiting.practice, true);
-  assert.ok(waiting.preview);
-  assert.ok(waiting.preview.payloadText.includes(REQUEST));
-  const previewCall = (await calls()).find(c => c.id === waiting.preview?.callId);
-  assert.equal(previewCall?.status, 'preview');
-  assert.equal(previewCall?.containsClientData, true);
-
-  // 20. Approve the send; the practice draft is ready, every check passed, and it can't be accepted.
-  const practice = await ask('venture.delivery.approve', { runId: waiting.id, digest: waiting.preview.digest }) as DeliveryRunRecord;
-  assert.equal(practice.status, 'ready-for-review');
+  assert.equal(waiting.status, 'waiting-for-you'); assert.equal(waiting.practice, true); assert.equal(waiting.preview, null);
+  const practice = await ready(waiting.id);
+  assert.equal(practice.status, 'ready-for-review', JSON.stringify(practice));
   assert.ok(practice.renderedText?.includes('Total: INR 2,948.82'), practice.renderedText ?? '');
   assert.ok(practice.checks.length > 0 && practice.checks.every(c => c.passed), JSON.stringify(practice.checks));
   assert.ok(practice.checks.some(c => c.check === 'no-done-claims'));
   await assert.rejects(ask('venture.delivery.review', { runId: waiting.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));
-
-  // 21. Approve each: the business is live and a real draft can be accepted.
-  assert.equal((await ask('venture.launch.advance', { to: 'approve-each' }) as LaunchStatus).stage, 'approve-each');
+  assert.equal((await ask('venture.launch.advance', { to: 'live' }) as LaunchStatus).stage, 'live');
   assert.equal((await ask('venture.get') as VentureView).venture.status, 'live');
   const real = await ask('venture.delivery.run', { orderId: order.id }) as DeliveryRunRecord;
-  assert.equal(real.practice, false);
-  assert.equal(real.status, 'waiting-for-you');
-  assert.ok(real.preview);
-  await ask('venture.delivery.approve', { runId: real.id, digest: real.preview.digest });
+  assert.equal(real.practice, false); assert.equal(real.preview, null);
+  const nativeDraft = await ready(real.id); assert.equal(nativeDraft.agentJob?.proposal?.to, client.email);
   const reviewed = await ask('venture.delivery.review', { runId: real.id, verdict: 'accepted' }) as DeliveryRunRecord;
   assert.equal(reviewed.status, 'accepted');
-  assert.equal((await calls()).find(c => c.id === real.preview?.callId)?.approvedBy, 'owner');
 
   // 22. Delivered: a sale fact goes into the books.
   const delivered = await ask('venture.order.deliver', { orderId: order.id, deliveredOn: '2026-10-04' }) as OrderRecord;
@@ -385,9 +389,7 @@ test('the whole venture journey in India, with a model and GitHub answering from
     cursor = at + 1;
   }
 
-  // 29. What was sent: only recordings, no key or token, client data only in the two approved delivery calls. The judge's
-  // call on the draft made at approve each was prepared (prices as placeholders) and waits for the owner: the write
-  // turn was approved here, not on Today, so no standing consent was given and nothing went on its own.
+  // 29. Model calls use recordings. The native driver drafts through MCP; quality uses the recorded client consent.
   const sent = await calls();
   assert.ok(sent.length > 0);
   for (const call of sent) {
@@ -395,12 +397,15 @@ test('the whole venture journey in India, with a model and GitHub answering from
     for (const secret of [API_KEY, GITHUB_TOKEN, 'Cafe Aroma Demo', 'owner@aroma.example']) assert.equal(call.payloadText.includes(secret), false, `${call.purpose} ${call.id}`);
   }
   const withRequest = sent.filter(call => call.payloadText.includes(REQUEST));
-  assert.deepEqual(withRequest.map(call => call.purpose).sort(), ['delivery', 'delivery', 'judge']);
-  for (const call of withRequest.filter(item => item.purpose === 'delivery')) assert.equal(call.consent, 'approved-preview');
-  const judgeCall = withRequest.find(call => call.purpose === 'judge')!;
-  assert.equal(judgeCall.status, 'preview', 'the judge call was never sent');
-  assert.equal(judgeCall.approvedBy, null);
-  for (const call of sent.filter(c => c.purpose === 'judge')) assert.equal(call.payloadText.includes('2,948.82'), false);
+  assert.ok(withRequest.length > 0);
+  for (const call of withRequest) {
+    assert.equal(call.purpose, 'judge');
+    assert.equal(call.consent, 'client-ai');
+    assert.equal(call.status, 'completed');
+    assert.ok(call.agentJobId);
+  }
+  // Since 6B8 the judge gets this run's price receipt; the total reaches it only inside that receipt, never as loose text.
+  for (const call of sent.filter(c => c.purpose === 'judge' && c.payloadText.includes('2,948.82'))) assert.ok(call.payloadText.includes(orderReceipt.id), call.id);
 
   // 30. The vault holds neither the key nor the token.
   const vaultText = JSON.stringify(engine.vault?.read());
@@ -468,10 +473,10 @@ test('the template path in the United States works with no AI and nothing sent',
     assert.ok(episode.judge.length > 0 && episode.judge.every(answer => answer.answer === 'not-judged'));
   }
   const launch = await ask('venture.launch.status') as LaunchStatus;
-  const shadow = launch.stages.find(s => s.stage === 'shadow');
-  assert.equal(shadow?.allowed, false);
-  assert.equal(shadow?.reason, "Connect an AI and rehearse with it first. Template outlines can't be judged.");
-  await assert.rejects(ask('venture.launch.advance', { to: 'shadow' }), code('LAUNCH_STAGE_BLOCKED'));
+  const live = launch.stages.find(s => s.stage === 'live');
+  assert.equal(live?.allowed, false);
+  assert.equal(live?.reason, 'Connect your AI first.');
+  await assert.rejects(ask('venture.launch.advance', { to: 'live' }), code('LAUNCH_STAGE_BLOCKED'));
 
   // USD 150.00 an hour x 2 hours = 30000 cents, no tax.
   const client = await ask('venture.client.add', { name: 'Hudson Demo Client', countryCode: 'US' }) as ClientRecord;

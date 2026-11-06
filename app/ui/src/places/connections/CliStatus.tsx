@@ -10,6 +10,7 @@ import { Tile, TileHead } from '../../parts/Tile';
 import { EngineError, type CliStatusView, type ModelAvailability } from '../../engine/types';
 import s from './Connections.module.css';
 import c from './CliStatus.module.css';
+import { connectionWords } from './ConnectionWords';
 
 /** The state chip: words always say it; colour only repeats it. Ready only once a real task on the tool worked. */
 const STATE_TONE: Readonly<Record<ModelAvailability, ChipTone>> = { ready: 'done', unverified: 'line', 'needs-setup': 'wait', unavailable: 'idle' };
@@ -40,8 +41,8 @@ const refreshOn = (event: { type: string }) => event.type === 'queue.changed';
  * this computer (venture.models.cli.status, 4H1), each on an inner card with its state and, while it is not ready, its
  * one fix (or the engine's line) at rest; one fold away, the engine's line of what it found and the facts behind it: whether it was found and where, the
  * version, whether its help lists every flag Chausar sends, whether it is signed in (only ever from the tool's own
- * status command), Anthropic's terms for Claude Code (while they are pending, Claude Code is only located, never run)
- * and the last real task. Nothing is drawn as working that the engine does not say works: a tool is Ready only once a
+ * status command) and the last real task. Disabled tools are omitted by the engine.
+ * Nothing is drawn as working that the engine does not say works: a tool is Ready only once a
  * real task on it worked. Check again asks for a fresh look. Under the cards, once, the engine's line of what
  * the look ran. The hosted app uses keys only, and says so in the engine's words.
  */
@@ -90,7 +91,7 @@ export function CliStatus() {
             {data.clis.map((view) => <Tool key={view.cli} view={view} />)}
           </ul>
           {/* What this look ran, once for the tile, in the engine's words (it names only the tools it started). */}
-          <p className={`${s.note} ${c.how}`} data-cli-ran="">{data.line}</p>
+          <p className={`${s.note} ${c.how}`} data-cli-ran="">{connectionWords(t, data.line)}</p>
         </>
       )}
       {said && <p className={said.problem ? s.problem : s.said} role="status">{said.text}</p>}
@@ -120,11 +121,11 @@ function Tool({ view }: { view: CliStatusView }) {
         </span>
       </div>
       {atRest !== null && (view.fix
-        ? <p className={c.fix} data-fix-line="">{atRest}</p>
-        : <p className={s.line} data-cli-line="">{atRest}</p>)}
+        ? <p className={c.fix} data-fix-line="">{connectionWords(t, atRest)}</p>
+        : <p className={s.line} data-cli-line="">{connectionWords(t, atRest)}</p>)}
       <details className={`${s.fold} ${c.more}`}>
         <summary>{t('connections.cli.details')}</summary>
-        {(atRest === null || view.fix) && <p className={s.line} data-cli-line="">{view.line}</p>}
+        {(atRest === null || view.fix) && <p className={s.line} data-cli-line="">{connectionWords(t, view.line)}</p>}
         <dl className={c.facts}>
           {factsOf(view, t).map(([label, value]) => (
             <div key={label} className={c.fact}>
@@ -148,7 +149,6 @@ function factsOf(view: CliStatusView, t: T): [string, ReactNode][] {
     ? t('connections.cli.flags.mismatch', { flags: view.missingFlags.join(', ') })
     : t(`connections.cli.flags.${view.flags}`)]);
   out.push([t('connections.cli.fact.signedIn'), t(`connections.cli.signedIn.${view.signedIn}`)]);
-  if (view.terms !== 'not-needed') out.push([t('connections.cli.fact.terms'), t(`connections.cli.terms.${view.terms}`)]);
   out.push([t('connections.cli.fact.lastTask'), <LastTask key="last" task={view.lastTask} />]);
   return out;
 }

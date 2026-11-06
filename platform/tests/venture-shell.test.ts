@@ -106,7 +106,7 @@ async function desktop() {
     // readdir lists a one-page Ink build, so main.cjs finds app/ui/dist and opens its window.
     if (name === 'node:fs/promises') return { readFile: async (path: string) => path.endsWith('package.json') ? JSON.stringify({ chausarPreview: true, version: '2.3.4' }) : '', mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
       readdir: async () => [{ name: 'index.html', isDirectory: () => false, isFile: () => true }] };
-    return require(name);
+    return createRequire(new URL('../../app/desktop/main.cjs', import.meta.url))(name);
   }, process: { argv: ['electron', '/owned/app'], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
   await flush();
   return { windows, engines, handlers, errors, opened, permissions };
@@ -232,18 +232,28 @@ test('server.ts and worker.ts never load host.ts, and replay files need demo mod
   t.after(() => rm(directory, { recursive: true, force: true }));
   const replayFiles = { CHAUSAR_VENTURE_MODEL_REPLAY: 'platform/tests/fixtures/venture/demo/model-replay.json', CHAUSAR_VENTURE_GITHUB_REPLAY: 'platform/tests/fixtures/venture/e2e/github-sync.json' };
   const base = { CHAUSAR_VAULT_DIRECTORY: directory };
-  const pending = { claudeCodeTerms: 'pending' };
-  const replayed = { host: 'local-web', ...pending, modelReplayPath: replayFiles.CHAUSAR_VENTURE_MODEL_REPLAY, githubReplayPath: replayFiles.CHAUSAR_VENTURE_GITHUB_REPLAY };
+  const defaults = { claudeCodeTerms: 'accepted' };
+  const replayed = { host: 'local-web', ...defaults, modelReplayPath: replayFiles.CHAUSAR_VENTURE_MODEL_REPLAY, githubReplayPath: replayFiles.CHAUSAR_VENTURE_GITHUB_REPLAY };
 
-  assert.deepEqual((await createServerEngine(base, ['--demo'])).options.venture, { host: 'local-web', ...pending });
-  assert.deepEqual((await createServerEngine({ ...base, ...replayFiles }, ['--demo'])).options.venture, { host: 'local-web', ...pending });
-  assert.deepEqual((await createServerEngine({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1' }, ['--demo'])).options.venture, replayed);
-  assert.deepEqual((await createServerEngine({ ...base, ...replayFiles }, ['--demo', '--replay'])).options.venture, replayed);
-  assert.deepEqual((await createServerEngine({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1' }, [])).options.venture, { host: 'local-web', ...pending }, 'never outside demo mode');
+  // W6 6F7: the local server also hands the engine its phone access port; the rest of the options are unchanged.
+  const server = async (env: Record<string, string>, args: string[]) => {
+    const { phoneAccess, ...rest } = (await createServerEngine(env, args)).options.venture as Record<string, any>;
+    assert.equal(typeof phoneAccess?.link, 'function', 'the local server passes its phone access port');
+    return rest;
+  };
+  assert.deepEqual(await server(base, ['--demo']), { host: 'local-web', ...defaults });
+  assert.deepEqual(await server({ ...base, ...replayFiles }, ['--demo']), { host: 'local-web', ...defaults });
+  assert.deepEqual(await server({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1' }, ['--demo']), replayed);
+  assert.deepEqual(await server({ ...base, ...replayFiles }, ['--demo', '--replay']), replayed);
+  assert.deepEqual(await server({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1' }, []), { host: 'local-web', ...defaults }, 'never outside demo mode');
 
   const worker = { ...base, CHAUSAR_DEMO: '1' };
-  assert.deepEqual((await createWorkerEngine({ ...worker, ...replayFiles })).options.venture, { host: 'desktop', ...pending });
-  assert.deepEqual((await createWorkerEngine({ ...worker, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1' })).options.venture,
-    { ...replayed, host: 'desktop' });
-  assert.deepEqual((await createWorkerEngine({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1', CHAUSAR_DEMO: '0' })).options.venture, { host: 'desktop', ...pending });
+  const desktop = async (env: Record<string, string>) => {
+    const { phoneAccess, ...rest } = (await createWorkerEngine(env)).options.venture as Record<string, any>;
+    assert.equal(typeof phoneAccess?.link, 'function', 'the desktop worker passes its phone access port');
+    return rest;
+  };
+  assert.deepEqual(await desktop({ ...worker, ...replayFiles }), { host: 'desktop', ...defaults });
+  assert.deepEqual(await desktop({ ...worker, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1' }), { ...replayed, host: 'desktop' });
+  assert.deepEqual(await desktop({ ...base, ...replayFiles, CHAUSAR_VENTURE_REPLAY: '1', CHAUSAR_DEMO: '0' }), { host: 'desktop', ...defaults });
 });

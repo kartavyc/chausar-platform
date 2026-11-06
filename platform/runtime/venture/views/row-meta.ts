@@ -115,10 +115,9 @@ function sourceOf(state: State, venture: VentureRecord, row: QueueRow): Source {
   return { client: row.followup?.name ?? null };
 }
 
-/** Only a real expiry: the preview's, the spend quote's hour, a post proposal's, or a timed question's (4J13). */
+/** Only a real outside-action expiry: the spend quote's hour or a post proposal's. */
 function expiryOf(row: QueueRow, source: Source): IsoTime | undefined {
   const run = source.run;
-  if (run && row.kind === 'quote' && run.preview) return run.preview.expiresAt;
   if (run && row.kind === 'question' && run.harness) {
     const open = [...run.harness.handoffs].reverse().find(handoff => handoff.answer === null) as { expiresAt?: unknown } | undefined;
     if (typeof open?.expiresAt === 'string' && !Number.isNaN(Date.parse(open.expiresAt))) return open.expiresAt;
@@ -250,7 +249,8 @@ export function planChangeCount(state: State, venture: VentureRecord): { draft: 
   const details: Display[] = [];
   const priced = draft.offers.filter(offer => {
     const before = accepted.offers.find(item => item.id === offer.id);
-    return before !== undefined && before.pricing.unitPriceMinor !== offer.pricing.unitPriceMinor;
+    // 5A2: a share set or changed is a price change too (money/share-price.ts).
+    return before !== undefined && (before.pricing.unitPriceMinor !== offer.pricing.unitPriceMinor || (before.pricing.share?.bps ?? null) !== (offer.pricing.share?.bps ?? null));
   });
   if (priced.length) parts.push(many(priced.length, 'price changed', 'prices changed'));
   for (const offer of priced) details.push(`${offer.name.value}: ${offerPriceText(accepted.offers.find(item => item.id === offer.id), currency)} to ${offerPriceText(offer, currency)}`);

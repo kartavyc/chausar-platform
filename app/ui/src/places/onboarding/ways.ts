@@ -15,6 +15,8 @@ export interface WayData extends GalleryWay {
   minHours?: number | undefined;
   maxHours?: number | undefined;
   starter?: string | undefined;
+  /** W6 6E6 (D2): the profession families this way serves (the engine's ids). */
+  families?: readonly string[] | undefined;
 }
 
 /** A filter chip: the engine's id, its words and its count. */
@@ -28,6 +30,8 @@ export interface WaysSlot {
   onStart: (id: string) => void;
   categories?: readonly WayFilter[] | undefined;
   upTo?: (WayFilter & { maxHours: number }) | undefined;
+  /** W6 6E6 (D2): the engine's families with their counts; with them the Family list replaces the category chips. */
+  families?: readonly WayFilter[] | undefined;
 }
 
 /** The slot when it holds at least one way; an empty list is no gallery. */
@@ -44,38 +48,42 @@ const CATEGORY_ICON: Readonly<Record<WayCategory, IconName>> = {
   content: 'file-pen', marketing: 'megaphone', 'money-and-tax': 'receipt-text', 'shops-and-firms': 'briefcase',
 };
 
-/** One engine way as a tile, in the owner's language (the engine sends every shown word in Hindi too, `hi`). */
-export function wayData(way: WayView, language: 'en' | 'hi', categories: WaysView['categories']): WayData {
-  const words = language === 'hi' ? way.hi : null;
+/** One engine way as an English tile, preserving every engine-computed figure. */
+export function wayData(way: WayView, language: 'en', categories: WaysView['categories']): WayData {
   const category = categories.find((item) => item.id === way.category);
   return {
     id: way.id,
-    name: words?.label ?? way.label,
-    line: words?.line ?? way.line,
+    name: way.label,
+    line: way.line,
     icon: PLAYBOOK_ICON[way.playbook] ?? CATEGORY_ICON[way.category] ?? 'briefcase',
     dept: DEPT[way.department],
-    category: category ? (language === 'hi' ? category.hi : category.label) : undefined,
+    category: category ? (category.label) : undefined,
     categoryId: way.category,
     running: way.yours[0]?.name,
-    hours: words?.hours ?? way.hours,
+    hours: way.hours,
     hoursEstimate: way.hoursEstimate,
     minHours: way.minHours,
     maxHours: way.maxHours,
-    youDo: words?.youDo ?? way.youDo,
-    team: { names: words?.team ?? way.team.map((member) => member.role), line: words?.teamLine ?? way.teamLine },
-    pay: { range: words?.pay ?? way.clientsPay.text, per: (words?.per ?? way.clientsPay.per) || undefined, source: words?.source ?? way.clientsPay.source },
-    needs: words ? [words.needs.ai, words.needs.connections] : [way.needs.ai, way.needs.connections],
-    starter: words?.starter ?? way.starter,
+    youDo: way.youDo,
+    team: { names: way.team.map((member) => member.role), line: way.teamLine },
+    // W6 6C3: a sourced range keeps its guide and range id, so the tile shows its (i) in place of the estimate label.
+    pay: way.clientsPay ? { range: way.clientsPay.text, per: (way.clientsPay.per) || undefined, source: way.clientsPay.source, estimate: way.clientsPay.estimate, guide: way.clientsPay.guide, sourced: way.clientsPay.rangeId } : undefined,
+    // W6 F4: a desk for the owner's own use: what it saves them, in place of what clients pay.
+    saves: way.saves ? { range: way.saves.text, line: way.saves.line, source: way.saves.source } : undefined,
+    needs: [way.needs.ai, way.needs.connections],
+    starter: way.starter,
+    families: way.families,
   };
 }
 
 /** The engine's list as the gallery's slot (without what a tile's Start does, which the page adds). */
-export function waysSlotOf(view: WaysView, language: 'en' | 'hi', featured: string | null): Omit<WaysSlot, 'onStart'> {
+export function waysSlotOf(view: WaysView, language: 'en', featured: string | null): Omit<WaysSlot, 'onStart'> {
   return {
     ways: view.ways.map((way) => wayData(way, language, view.categories)),
     featured: featured ?? undefined,
-    categories: view.categories.map((item) => ({ id: item.id, label: language === 'hi' ? item.hi : item.label, count: item.count })),
-    upTo: { id: 'up-to', label: language === 'hi' ? view.upTo.hi : view.upTo.label, count: view.upTo.count, maxHours: view.upTo.maxHours },
+    categories: view.categories.map((item) => ({ id: item.id, label: item.label, count: item.count })),
+    upTo: { id: 'up-to', label: view.upTo.label, count: view.upTo.count, maxHours: view.upTo.maxHours },
+    families: (view.families ?? []).map((item) => ({ id: item.id, label: item.label, count: item.count })),
   };
 }
 
@@ -85,10 +93,10 @@ export const WAY_SORTS: readonly WaySort[] = ['best-fit', 'fewest-hours', 'name'
 /**
  * The ways in one of the gallery's orders, as the engine orders them (core/ways.ts orderWays): best fit puts the fit
  * first and keeps the rest as given; fewest hours goes by the most hours a week, then the fewest, then the name; name
- * goes by the shown name in the owner's language (Hindi by hi-IN collation).
+ * goes by the shown English name.
  */
-export function orderWays(ways: readonly WayData[], by: WaySort, fitWayId: string | undefined, language: 'en' | 'hi'): WayData[] {
-  const locale = language === 'hi' ? 'hi-IN' : 'en-IN';
+export function orderWays(ways: readonly WayData[], by: WaySort, fitWayId: string | undefined, language: 'en'): WayData[] {
+  const locale = 'en-IN';
   const byName = (a: WayData, b: WayData) => a.name.localeCompare(b.name, locale);
   const list = [...ways];
   if (by === 'name') return list.sort(byName);
@@ -97,9 +105,13 @@ export function orderWays(ways: readonly WayData[], by: WaySort, fitWayId: strin
   return fit < 0 ? list : [list[fit]!, ...list.slice(0, fit), ...list.slice(fit + 1)];
 }
 
-/** The ways one chip shows: all, one category, or those that need at most the "Up to" hours (they read maxHours). */
-export function filterWays(ways: readonly WayData[], chip: string, upTo: WaysSlot['upTo']): WayData[] {
-  if (chip === 'all') return [...ways];
-  if (upTo && chip === upTo.id) return ways.filter((way) => way.maxHours !== undefined && way.maxHours <= upTo.maxHours);
-  return ways.filter((way) => way.categoryId === chip);
+/**
+ * The ways one chip shows: all, one category, or those that need at most the "Up to" hours (they read maxHours); and,
+ * W6 6E6, only those serving the picked family ('all' for every family).
+ */
+export function filterWays(ways: readonly WayData[], chip: string, upTo: WaysSlot['upTo'], family = 'all'): WayData[] {
+  const inFamily = family === 'all' ? [...ways] : ways.filter((way) => way.families?.includes(family));
+  if (chip === 'all') return inFamily;
+  if (upTo && chip === upTo.id) return inFamily.filter((way) => way.maxHours !== undefined && way.maxHours <= upTo.maxHours);
+  return inFamily.filter((way) => way.categoryId === chip);
 }

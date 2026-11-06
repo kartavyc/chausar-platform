@@ -41,7 +41,7 @@
   color: var(--fg2);
 }
 
-/* The words beside the bar wrap to a second line rather than being cut off (Hindi runs longer). */
+
 .progress > :last-child {
   flex: 0 1 auto;
   min-width: 0;

@@ -9,11 +9,8 @@ import type { CountryProfile, IsoDate } from './contracts.ts';
  * One IANA zone per country in the country table. A country with several zones uses its most populous one, so a
  * business on the US west coast still reads New York's day; 'XX' (another country) uses UTC.
  */
-export const COUNTRY_TIME_ZONES: Readonly<Record<string, string>> = Object.freeze({
-  IN: 'Asia/Kolkata', US: 'America/New_York', GB: 'Europe/London', CA: 'America/Toronto', AU: 'Australia/Sydney',
-  NZ: 'Pacific/Auckland', SG: 'Asia/Singapore', AE: 'Asia/Dubai', DE: 'Europe/Berlin', FR: 'Europe/Paris',
-  NL: 'Europe/Amsterdam', IE: 'Europe/Dublin', ZA: 'Africa/Johannesburg', JP: 'Asia/Tokyo', XX: 'UTC',
-});
+export {COUNTRY_TIME_ZONES} from './local-day-data.ts';
+import {COUNTRY_TIME_ZONES} from './local-day-data.ts';
 
 let rules: CalendarRules | null = null;
 

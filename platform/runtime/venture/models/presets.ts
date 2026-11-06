@@ -12,12 +12,12 @@ function priceTable(input: string, output: string, source: string, confirmed: bo
   return { currency: 'USD', inputMicrosPerMillion: input, outputMicrosPerMillion: output, source, checkedOn: PRICES_CHECKED_ON, confirmed };
 }
 
-export function apiConsentText(provider: 'Anthropic' | 'OpenAI'): string {
-  return `Chausar will send your idea, your answers, your plan's words and practice-client conversations to ${provider} with your key, so the model can write questions, plans, briefs and practice drafts. It never sends your books, receipts, keys or real client details under this consent. Real client work is shown to you first and sent only after you approve it. Every call is listed under What was sent, with its cost. If your privacy setting is send nothing, connecting changes it to send question shapes; setting it back to send nothing stops every call.`;
+export function apiConsentText(provider: 'Anthropic' | 'OpenAI' | 'OpenRouter and its selected model provider'): string {
+  return `Chausar will send your idea, your answers, your plan's words and practice-client conversations to ${provider} with your key, so the model can write questions, plans, briefs and practice drafts. It never sends your books, receipts, keys or real client details under this consent. Client data needs separate permission for each client. Withdraw anytime. Outside actions still need approval. Every call is listed under What was sent, with its cost. If your privacy setting is send nothing, connecting changes it to send question shapes; setting it back to send nothing stops every call.`;
 }
 
 export function cliConsentText(tool: 'Claude Code' | 'Codex'): string {
-  return `Chausar will run ${tool} on this computer, signed in with your own account, and give it your idea, your answers, your plan's words and practice-client conversations. It never passes your books, receipts, keys or real client details under this consent. Real client work is shown to you first and sent only after you approve it. Every run is listed under What was sent. If your privacy setting is send nothing, connecting changes it to send question shapes; setting it back to send nothing stops every run.`;
+  return `Chausar will run ${tool} on this computer, signed in with your own account, and give it your idea, your answers, your plan's words and practice-client conversations. It never passes your books, receipts, keys or real client details under this consent. Client data needs separate permission for each client. Withdraw anytime. Outside actions still need approval. Every run is listed under What was sent. If your privacy setting is send nothing, connecting changes it to send question shapes; setting it back to send nothing stops every run.`;
 }
 
 export const TEMPLATE_CONSENT_TEXT = 'Chausar will use its built-in templates. Nothing is sent to any AI service.';
@@ -64,12 +64,17 @@ export const PRESETS: readonly PresetSpec[] = Object.freeze([
     consentText: apiConsentText('OpenAI'), verification: 'not-live-verified',
   }),
   spec({
+    id: 'openrouter', label: 'OpenRouter', kind: 'openai-responses', model: 'openai/gpt-6-luna', modelEditable: true,
+    tiers: ['fast', 'main'], needsKey: true, keyHint: 'Create a key at openrouter.ai/keys', runsOn: 'provider-api', priceTable: null,
+    consentText: apiConsentText('OpenRouter and its selected model provider'), verification: 'not-live-verified',
+  }),
+  spec({
     id: 'claude-code-cli', label: 'Claude Code on this computer', kind: 'claude-cli', model: 'claude-sonnet-5-5', modelEditable: false,
     tiers: ['fast', 'main'], needsKey: false, keyHint: null, runsOn: 'this-computer', priceTable: null,
     consentText: cliConsentText('Claude Code'), verification: 'not-live-verified',
   }),
   spec({
-    id: 'codex-cli', label: 'Codex on this computer', kind: 'codex-cli', model: 'gpt-6-luna', modelEditable: false,
+    id: 'codex-cli', label: 'Codex on this computer', kind: 'codex-cli', model: 'gpt-6-luna', modelEditable: true,
     tiers: ['fast', 'main'], needsKey: false, keyHint: null, runsOn: 'this-computer', priceTable: null,
     consentText: cliConsentText('Codex'), verification: 'not-live-verified',
   }),
@@ -95,14 +100,14 @@ export const AVAILABILITY_REASONS = Object.freeze({
   codexReady: 'Uses the reviewed Codex install. A past gpt-6-luna probe failed.',
   templates: 'Nothing is sent anywhere.',
   hostedCli: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.',
-  claudeTerms: "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.",
+  claudeTerms: 'Claude Code is disabled on this computer. Choose another AI.',
   cliWorked: 'Found on this computer. Its last task worked.',
   codexNoAnswer: 'Codex did not answer its version check on this computer. Update or reinstall it, then check again.',
 });
 
-/** The Claude Code terms gate (onboarding spec 2.8): open only when the trusted host says 'accepted'. */
+/** Wave 6 D13: accepted by default; an explicit host override can disable Claude Code. */
 export function claudeTermsOpen(terms: 'accepted' | 'pending' | undefined): boolean {
-  return terms === 'accepted';
+  return terms !== 'pending';
 }
 
 // ---------------------------------------------------------------------------
@@ -154,8 +159,8 @@ export function cliProblemWords(finding: CliFinding | null | undefined): CliWord
 /**
  * Availability as of now: the Claude Code check result, the Claude Code terms gate and the Codex host profile all
  * change it. On the hosted web server no command-line tool ever runs, so both are unavailable there whatever the
- * server has installed. Until Chausar accepts Anthropic's terms for running Claude Code (claudeTerms 'accepted'),
- * Claude Code needs setup, before the vault and in it alike. With a look at the installed tool (4H1): a flag it does
+ * server has installed. Claude Code is enabled by default; a pending override refuses direct calls
+ * before the vault and in it alike. With a look at the installed tool (4H1): a flag it does
  * not know or a signed-out tool needs setup in those words; a tool that answered turns 'ready' only once a real task
  * on it worked (worked), and stays 'unverified' until then.
  */
@@ -169,6 +174,8 @@ export function availabilityOf(id: ModelPresetId, live: {
     case 'anthropic-haiku-5-5':
     case 'anthropic-sonnet-5-5':
       return { availability: 'ready', availabilityReason: AVAILABILITY_REASONS.anthropic };
+    case 'openrouter':
+      return { availability: 'unverified', availabilityReason: 'Uses your OpenRouter key and chosen model. Add its exact model price first. Not yet checked with a live key.' };
     case 'openai-gpt-6-luna':
       return { availability: 'unverified', availabilityReason: AVAILABILITY_REASONS.luna };
     case 'claude-code-cli': {
@@ -194,5 +201,5 @@ export function availabilityOf(id: ModelPresetId, live: {
 }
 
 export function endpointFor(spec: PresetSpec): string {
-  return ENDPOINTS[spec.kind];
+  return spec.id === 'openrouter' ? 'https://openrouter.ai/api/v1/responses' : ENDPOINTS[spec.kind];
 }

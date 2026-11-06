@@ -1,0 +1,5 @@
+[
+  {"id":"unconsented-voice-refused","request":"Use a voice with no recorded licence.","draft":"CONSENT_REQUIRED","meta":{"source":"{\"text\":\"Hello world.\",\"voices\":[{\"id\":\"stock\",\"language\":\"en-IN\",\"licence\":\"\"}]}"}},
+  {"id":"segment-review-flag","request":"Review a heard-back segment with two changed words.","draft":"Owner listening required","meta":{"source":"{\"text\":\"one two three four five six seven eight nine ten eleven twelve thirteen fourteen\",\"transcript\":\"one two three four five six seven eight nine ten eleven twelve other changed\"}"}},
+  {"id":"explainer-quotes-only","request":"Reject an invented quote.","draft":"EXPLAINER_QUOTE_REQUIRED","meta":{"source":"{\"text\":\"Exact source words.\",\"lines\":[{\"start\":0,\"end\":19,\"text\":\"Invented new words.\"}]}"}}
+]

@@ -12,7 +12,7 @@ import { assertInkRules, receiptMark } from '../helpers/ink-rules';
  * step away, and a business not registered for GST never sees a GST field.
  */
 
-function start(hash: string, engine = new FakeEngine(), language: 'en' | 'hi' = 'en') {
+function start(hash: string, engine = new FakeEngine(), language: 'en' = 'en') {
   window.location.hash = hash;
   render(<App client={createFakeClient(engine)} language={language} />);
   return engine;
@@ -79,7 +79,7 @@ describe('Business in the Ink v2 look', () => {
     start('#/business/prices');
     const nav = await screen.findByRole('navigation', { name: 'Business pages' });
     expect(within(nav).getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
-      ['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Website build', '#/business/build'],
+      ['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Website build', '#/business/build'],
       ['Practice and improve', '#/business/practice'],
       // W4 4J22a: routines on a schedule, after Practice.
       ['Routines', '#/business/routines'],
@@ -174,7 +174,7 @@ describe('Business in the Ink v2 look', () => {
     assertInkRules(document.body);
   });
 
-  it('the experimental storage note shows under the header on every business page but Keep, which says it once itself', async () => {
+  it('the local web experimental storage note shows under the header on every business page but Keep, which says it once itself', async () => {
     const EXPERIMENTAL = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
     function custody(hash: string) {
       window.location.hash = hash;
@@ -182,6 +182,7 @@ describe('Business in the Ink v2 look', () => {
       const request = fake.request.bind(fake);
       const client: EngineClient = {
         ...fake,
+        transport: 'web',
         request: (async (method: string, params?: unknown) => {
           const reply = await request(method as never, params as never);
           if (method !== 'workspace.custody.get') return reply;
@@ -191,7 +192,7 @@ describe('Business in the Ink v2 look', () => {
       };
       return render(<App client={client} language="en" />);
     }
-    for (const [hash, title] of [['#/business/plan', 'Plan and playbook'], ['#/business/prices', 'Prices'], ['#/business/practice', 'Practice and improve']] as const) {
+    for (const [hash, title] of [['#/business/plan', 'How the work is done'], ['#/business/prices', 'Prices'], ['#/business/practice', 'Practice and improve']] as const) {
       const { unmount } = custody(hash);
       const note = await within(document.querySelector('main')!).findByRole('note');
       expect(note.textContent, hash).toBe(EXPERIMENTAL);
@@ -267,7 +268,7 @@ describe('Business in the Ink v2 look', () => {
     await act(async () => { fireEvent.click(await within(clients).findByRole('button', { name: 'Rehearse now' })); });
     const cost = await within(clients).findByText(/^Cost: /);
     expect(cost.closest('[data-engine-line]')).not.toBeNull();
-    const improve = await region('Improve the playbook');
+    const improve = await region('Improve how the work is done');
     await act(async () => { fireEvent.click(await within(improve).findByRole('button', { name: 'Run the improvement loop' })); });
     const costs = await within(improve).findAllByText(/^Cost: /);
     for (const line of costs) expect(line.closest('[data-engine-line]')).not.toBeNull();
@@ -288,18 +289,7 @@ describe('Business in the Ink v2 look', () => {
     }
   });
 
-  it('speaks Hindi on every business page, with no key showing', async () => {
-    for (const hash of ['#/business/plan', '#/business/prices', '#/business/build', '#/business/keep', '#/business/practice']) {
-      window.location.hash = hash;
-      const view = render(<App client={createFakeClient(new FakeEngine())} language="hi" />);
-      // Each step of the page in turn: the header, then its tiles.
-      await waitFor(() => expect(document.querySelector('main h1')).not.toBeNull());
-      await waitFor(() => expect(document.querySelector('main')!.querySelectorAll('h2, h3').length, hash).toBeGreaterThan(1));
-      for (const fold of document.querySelectorAll('details')) fold.open = true;
-      expect(keyLikeText(document.querySelector('main')!), hash).toEqual([]);
-      view.unmount();
-    }
-  });
+
 
   it('Plan keeps the change form one press away', async () => {
     start('#/business/plan');

@@ -1,0 +1,9 @@
+// Original owner source preparation. Exact markup cannot rewrite spoken words or reuse old audio approval.
+import {check} from '../../../contracts.ts';
+import type {NarrationSegmentRecord} from '../../contracts.ts';
+import {exactPayload,type VentureTx} from '../../records.ts';
+import {removeRecords} from '../../network/people.ts';
+import {narrationMarkupAnswer} from './ai-core.ts';
+import {currentNarrationSource} from './runtime.ts';
+export function retireNarrationRows(tx:VentureTx,rows:readonly NarrationSegmentRecord[]){check(!rows.some(row=>row.attempts.some(a=>a.phase==='sending'||a.phase==='unknown')),'NARRATION_OUTCOME_UNKNOWN','A previous call may have been charged. Check provider usage; Chausar will not retry it.');const callIds=[...new Set(rows.flatMap(row=>row.aiCallIds))],ids=new Set(rows.map(row=>row.id));for(const call of tx.list('venture-model-call'))if(callIds.includes(call.id)&&call.status==='preview')tx.replace({...call,status:'expired',payloadText:'',payloadTruncated:false,erasedAt:tx.now});removeRecords(tx,row=>row.kind==='venture-narration-segment'&&ids.has(String(row.id)));return callIds;}
+export async function ownerNarrationMarkup(tx:VentureTx,rows:NarrationSegmentRecord[],payload:unknown){const p=exactPayload(payload,['segmentId','markup'],['segmentId','markup']),row=rows.find(r=>r.id===p.segmentId);check(row,'NARRATION_NOT_FOUND','Choose a current narration segment.');await currentNarrationSource(tx,row,tx.now);check(row.attempts.length===0,'NARRATION_AUDIO_EXISTS','Review the existing audio before changing its markup.');const parsed=narrationMarkupAnswer([row],{segments:[{id:row.id,markup:p.markup}]})[0];if(row.aiRequest){const call=tx.find('venture-model-call',row.aiRequest.preview.callId);if(call?.status==='preview')tx.replace({...call,status:'expired'});}return tx.replace({...row,segment:parsed.segment,pending:null,aiRequest:null,reel:null});}

@@ -11,6 +11,8 @@
 // calls, each call's state and measured time, and "Usually 3 to 5 min" once three runs of the same steps finished.
 // 4J14: check words come from one table (delivery/verdicts.ts); the run sheet adds coverage on the read step and on work
 // receipts, the checks that could not run, the outcome of what went outside, and the draft's three-column report.
+import { playbookForRun } from '../delivery/workflow.ts';
+import { canResumeAgentJob } from '../agent-runtime/native-job.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { VOICE_PLAYBOOK } from '../playbooks/voice-match.ts';
 import { currentVenture, exactPayload, findRecord, formatMicros, identifier, listRecords } from '../records.ts';
@@ -28,11 +30,11 @@ import { runView } from '../delivery/runs.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
-import { scenariosFor } from '../delivery/scenarios.ts';
+import { businessScenarios } from '../delivery/scenarios.ts';
 import { agentWordsLabeller } from './agent-words.ts';
 import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
-import { caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
-import { questionRowId, runError } from './queue.ts';
+import { regulatedSignoffBlock } from '../playbooks/kit/signoff-gate.ts';
+import { agentFactsRowId, questionRowId, runError } from './queue.ts';
 import { screenSummary } from '../policy/untrusted.ts';
 import { agentName, businessOf, clientNameFor, elapsedText, lastEventAt, plain, short } from './shared.ts';
 // What each tool did, in the owner's words: a leaf module now, so the breaker can read it too (4F2).
@@ -63,6 +65,18 @@ const REASON_WORDS: Readonly<Record<DeliveryReason, string>> = {
 };
 
 const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
+const AGENT_TOOL_KIND:Readonly<Record<string,StepKind>>={read_business:'gather',read_client:'gather',read_order:'gather',list_files:'gather',read_file:'gather',search_records:'gather',calculate:'compute',draft_document:'write'};
+function agentStepState(record:DeliveryRunRecord,kind:StepKind,position:Position):RunStep['state'] {
+  const calls=record.agentJob!.tools.filter(tool=>AGENT_TOOL_KIND[tool.name.split('__').at(-1)!]===kind);
+  if(calls.some(tool=>tool.status==='running'))return record.agentJob!.pendingApproval?'waiting':'current';
+  if(calls.some(tool=>tool.status==='failed'))return 'failed';
+  if(kind==='write')return record.deliverable?'done':position.kind==='write'?position.state:'pending';
+  if(kind==='verify')return record.checks.length?record.checks.every(check=>check.passed)?'done':'failed':'pending';
+  if(kind==='approve')return record.status==='ready-for-review'?'waiting':record.verdict?'done':'pending';
+  // A proposed handoff is still unsent. No model tool completion can count as sending it.
+  if(kind==='operator')return 'pending';
+  return calls.some(tool=>tool.status==='done')?'done':'pending';
+}
 
 /**
  * A check result in the owner's words, through the one table (delivery/verdicts.ts, 4J14). A rules-judge check no vote
@@ -83,7 +97,7 @@ export function playbookCheckLabel(result: PlaybookCheckResult): string {
  * passed. A judge that was never asked did not run (4J14, the one table), so it reads "Not run".
  */
 function judgeMissing(results: readonly CheckResult[]): { kind: string; id: string; label: string } {
-  const why = results.every(result => result.passed) ? 'no judge connected.' : 'a code check failed first, so the judge was not asked.';
+  const why = results.every(result => result.passed) ? 'no quality check connected.' : 'a code check failed first, so the quality check was not asked.';
   return { kind: 'check', id: 'rules-judge', label: `${checkWord('not-run')}: ${why}` };
 }
 /** What a call did. With a round ledger, a call that ran but failed its audit says why it does not count. */
@@ -120,7 +134,7 @@ function stepAudited(calls: readonly ToolCallRecord[], audits: Map<string, StepA
 
 /** The steps a delivery run follows: its own playbook's, else the business's current one, else the accepted plan's. */
 function stepsFor(state: State, venture: VentureRecord, run: DeliveryRunRecord): PlaybookStep[] {
-  const own = findRecord(state, 'venture-playbook', run.playbookId);
+  const own = playbookForRun(state, run);
   if (own && own.ventureId === venture.id) return own.steps;
   const current = currentPlaybook(state, venture);
   if (current) return current.steps;
@@ -140,7 +154,7 @@ function positionOf(run: ReturnType<typeof runView>, nowMs: number): Position {
   };
   switch (run.status) {
     // A stop asked while a turn is out (4F1): the run is still working until that step finishes.
-    case 'waiting-for-you': return { kind: loopKind(), state: stopAsked(run.harness) ? 'current' : 'waiting' };
+    case 'waiting-for-you': return { kind: loopKind(), state: run.agentJob?.pendingApproval ? 'waiting' : run.agentJob || stopAsked(run.harness) ? 'current' : 'waiting' };
     // Stopped (4F1): it waits for the owner's Resume at the step it stopped on; a stopped run never reads as done.
     case 'stopped': return { kind: run.harness?.phase === 'needs-answer' ? 'question' : run.harness?.phase === 'brief' ? 'work' : loopKind(), state: 'waiting' };
     case 'needs-answer': return { kind: 'question', state: 'waiting' };
@@ -169,7 +183,7 @@ function resultOf(run: ReturnType<typeof runView>, unsigned: string | null = nul
     case 'edited': return unsigned ? short(unsigned) : 'You edited the draft. You send your version.';
     case 'rejected': return run.verdict?.reason ? `Draft rejected: ${REASON_WORDS[run.verdict.reason]}.` : 'Draft rejected.';
     case 'ready-for-review': return run.awaitingYou ? undefined : short(run.acceptBlocked ?? 'Practice draft. Not for clients.');
-    case 'stopped': return run.harness?.control?.line ?? STOPPED_BY_YOU;
+    case 'stopped': return run.harness?.control?.line ?? run.interrupted?.line ?? STOPPED_BY_YOU;
     default: return undefined;
   }
 }
@@ -187,7 +201,7 @@ function deliveryRun(
   const run = runView(record, venture, now.getTime(), state);
   const harness = run.harness ?? null;
   // Runs without the agent loop never read files, asked or worked with tools: their loop steps are left out.
-  const steps = stepsFor(state, venture, record).filter(step => harness || !LOOP_KINDS.includes(step.kind));
+  const steps = stepsFor(state, venture, record).filter(step => record.agentJob || harness || !LOOP_KINDS.includes(step.kind));
   const position = positionOf(run, now.getTime());
   const runState = runStateOf(run, position);
   // In the loop the agent moves between reading, asking and working in any order: each of those steps is done once
@@ -207,7 +221,9 @@ function deliveryRun(
 
   const built: RunStep[] = steps.map((step, index) => {
     let stepState: RunStep['state'];
-    if (inLoop) {
+    if (record.agentJob) {
+      stepState=agentStepState(record,step.kind,position);
+    } else if (inLoop) {
       const used = calls.some(call => toolKind(call.tool) === step.kind);
       stepState = step.kind === position.kind ? position.state : LOOP_KINDS.includes(step.kind) && used ? 'done' : 'pending';
     } else {
@@ -259,7 +275,7 @@ function deliveryRun(
   // Only audited steps count as progress: a done step whose work failed its audit is not.
   const done = built.filter(step => step.state === 'done' && step.audited !== false).length;
   const client = clientNameFor(state, venture.id, run.orderId);
-  const result = resultOf(run, run.status === 'edited' ? caSignoffBlock(state, venture, record) : null);
+  const result = resultOf(run, run.status === 'edited' ? regulatedSignoffBlock(state, venture, record) : null);
   const receiptId = runState === 'done' ? harness?.workReceiptIds.at(-1) : undefined;
   const summary: RunSummary = plain({
     runId: run.id, businessId: business.id, agent: agentName(state, venture), purpose: run.practiceNow && run.status !== 'accepted' ? `Practice draft for ${client}` : `Draft a reply for ${client}`,
@@ -277,6 +293,15 @@ function deliveryRun(
   const screened = harness ? screenSummary([...harness.toolCalls, ...harness.handoffs].flatMap(item => item.screen ? [item.screen] : [])) : null;
   const detail: RunDetail = plain({
     ...summary, steps: built,
+    ...(record.agentJob ? { agentProgress: {
+      canResume: canResumeAgentJob(state,record),
+      ...(record.agentJob.cost?{cost:{...record.agentJob.cost}}:{}),
+      messages: record.agentJob.messages.map(({ id, text, label }) => ({ id, text, label })),
+      tools: record.agentJob.tools.map(tool => ({ ...tool })),
+      ...(record.agentJob.model ? { model: record.agentJob.model } : {}),
+      ...(record.agentJob.pendingApproval ? { pendingApproval: structuredClone(record.agentJob.pendingApproval) } : {}),
+    } } : {}),
+    ...(record.agentJob?.pendingFacts ? { question: { id: agentFactsRowId(run.id, record.agentJob.pendingFacts.digest), text: record.agentJob.pendingFacts.question } } : {}),
     // 4J17 (A14): the question card, whole, when the agent asked one (checked when asked, agents/questions.ts).
     ...(open && harness ? { question: { id: questionRowId(run.id, harness), text: agentWords(open.question), ...(open.to === 'owner' && open.card ? { card: structuredClone(open.card) } : {}) } } : {}),
     ...(error ? { error } : {}),
@@ -345,7 +370,7 @@ function posterTile(posters: PosterIndex, record: DeliveryRunRecord): Pick<RunSu
 // ---------------------------------------------------------------------------
 
 const POSTURE_WORDS: Readonly<Record<Posture, string>> = Object.freeze({
-  rehearsal: 'in rehearsal', shadow: 'in shadow', 'approve-each': 'at approve each', 'auto-spot-check': 'at auto with spot checks',
+  rehearsal: 'in rehearsal', shadow: 'in practice on real orders', 'approve-each': 'at approve each', 'auto-spot-check': 'at auto with spot checks',
 });
 const ACTION_WORDS: Readonly<Partial<Record<string, string>>> = Object.freeze({
   'outbox.propose': 'Propose an outside action, which waits for your approval',
@@ -373,6 +398,7 @@ function scopeRupees(state: State, venture: VentureRecord, capMicros: string): P
 
 /** The scope frozen when the run started (O21), the owner's notes (O3), the round gate (O2) and the turn in flight (U7). */
 function controlDetail(state: State, venture: VentureRecord, record: DeliveryRunRecord): Pick<RunDetail, 'scope' | 'steer' | 'gate' | 'live'> {
+  if(record.agentJob)return record.agentJob.ownerNotes?.length?{steer:record.agentJob.ownerNotes.map(note=>({text:note.text,at:note.at,line:'Saved for the next AI session.'}))}:{};
   const harness = record.harness ?? null;
   const scope = record.scope;
   const view: Pick<RunDetail, 'scope' | 'steer' | 'gate' | 'live'> = {};
@@ -501,7 +527,7 @@ function judgeStanding(record: DeliveryRunRecord): JudgeStanding {
 }
 
 function rehearsalRun(state: State, venture: VentureRecord, record: SimulationRunRecord, business: { id: string }): Built {
-  const scenarios = scenariosFor(serviceTypeOf(state, venture));
+  const scenarios = businessScenarios(state, venture.id, serviceTypeOf(state, venture));
   const { scenarios: total, passed } = record.summary;
   const summary: RunSummary = {
     runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Rehearse with practice clients', state: 'done',
@@ -526,8 +552,8 @@ function rehearsalRun(state: State, venture: VentureRecord, record: SimulationRu
 }
 
 const IMPROVEMENT_RESULT: Readonly<Record<Exclude<ImprovementRunRecord['status'], 'incomplete'>, string>> = {
-  'kept-candidate': 'A better playbook is ready for you to adopt.',
-  'kept-parent': 'Kept your current playbook: the change did not do better.',
+  'kept-candidate': 'Better work instructions are ready for you to adopt.',
+  'kept-parent': 'Kept your current work instructions: the change did not do better.',
 };
 /** What a round tried to fix: an owner's reason in words, else the check that failed. */
 function fixWords(reason: string): string {
@@ -538,14 +564,14 @@ function fixWords(reason: string): string {
 function improvementRun(state: State, venture: VentureRecord, record: ImprovementRunRecord, business: { id: string }): Built {
   const startedAt = record.startedAt ?? record.at;
   const summary: RunSummary = {
-    runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Improve the playbook from your feedback', state: 'done',
+    runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Improve how the work is done from your feedback', state: 'done',
     startedAt, elapsed: elapsedText(startedAt, record.at),
     result: record.status === 'incomplete' ? short(`Stopped: ${record.incompleteReason ?? 'no change could be tried.'}`, 300) : IMPROVEMENT_RESULT[record.status],
   };
   const steps: RunStep[] = record.rounds.map(round => plain({
     id: `round-${round.round}`, state: 'done' as const,
     purpose: round.diagnosis.chosen ? `Try a change for ${fixWords(round.diagnosis.chosen.reason)}` : 'Look for another change to try',
-    ...(round.gate ? { tools: [{ name: 'Compared with your current playbook', line: short(round.gate.reason, 240) }] }
+    ...(round.gate ? { tools: [{ name: 'Compared with your current work instructions', line: short(round.gate.reason, 240) }] }
       : round.refused ? { tools: [{ name: round.diagnosis.chosen ? 'Proposed a change' : 'Looked for a change', line: short(round.refused, 240) }] } : {}),
   }));
   return { summary, detail: { ...summary, steps } };
@@ -592,7 +618,17 @@ export async function runsListHandler(deps: VentureDeps, ctx: Context, payload: 
 export async function runsGetHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<RunDetail> {
   const body = exactPayload(payload, ['runId'], ['runId']);
   const runId = identifier(body.runId, 'Run');
-  const build = allRuns(deps, ctx, true).runs.get(runId);
+  const { state, venture, runs } = allRuns(deps, ctx, true);
+  const build = runs.get(runId);
   check(build, 'RUN_NOT_FOUND', 'That run was not found.');
-  return build().detail;
+  const detail = build().detail;
+  // W6 6G5 (D44): a delivery run's model receipt: the tool, tier, tokens and cost from its own records.
+  const record = venture ? listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === runId) : undefined;
+  if (!venture || !record) return detail;
+  const { runModelReceipt } = await import('../money/model-receipt.ts');
+  const { spentByPlan } = await import('../money/spend-meter.ts');
+  const { sumReceipt } = await import('../money/sums.ts');
+  const plan = spentByPlan(state, venture, { type: 'spent-by', scope: 'run', id: runId, month: null });
+  const receiptId = !record.agentJob && plan.addends.length ? (await sumReceipt(deps, ctx, venture.id, plan)).id : undefined;
+  return { ...detail, modelReceipt: runModelReceipt(state, venture, record, receiptId) };
 }

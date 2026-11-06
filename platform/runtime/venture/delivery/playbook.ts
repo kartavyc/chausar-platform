@@ -18,6 +18,9 @@ import { acceptedBlueprint, latestPlaybook, readAs } from './shared.ts';
 import { DRAFT_CHECKS, VERIFY_CHECKS } from './check-lists.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
+import {POST_PLAN_GUIDANCE} from '../playbooks/social/post-plan.ts';
+import {ghostwritingSections} from '../playbooks/social/structures.ts';
+import { REPURPOSE_GUIDANCE } from '../playbooks/social/repurpose-coverage.ts';
 import { validateFlow } from './flow.ts';
 
 const STEP_KINDS: readonly StepKind[] = ['gather', 'question', 'work', 'compute', 'write', 'verify', 'approve', 'operator'];
@@ -102,12 +105,12 @@ export function playbookHash(steps: PlaybookStep[], extras?: { limits: HarnessLi
  * comes before an approval step.
  */
 export function validatePlaybook(steps: PlaybookStep[], extras?: { limits: HarnessLimits; aliases: Record<string, string[]> }): { hash: string; validated: true; tierCeiling: ExecutionTier } {
-  check(Array.isArray(steps) && steps.length >= 1 && steps.length <= 20, 'INVALID_VENTURE_REQUEST', 'A playbook needs between one and twenty steps.');
+  check(Array.isArray(steps) && steps.length >= 1 && steps.length <= 20, 'INVALID_VENTURE_REQUEST', 'A work plan needs between one and twenty steps.');
   const ids = new Set<string>();
   let approvalSeen = false;
   for (const step of steps) {
-    check(step && typeof step === 'object' && typeof step.id === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(step.id), 'INVALID_VENTURE_REQUEST', 'Each playbook step needs a short id.');
-    if (ids.has(step.id)) refuse(`Two playbook steps share the id ${step.id}.`);
+    check(step && typeof step === 'object' && typeof step.id === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(step.id), 'INVALID_VENTURE_REQUEST', 'Each work step needs a short id.');
+    if (ids.has(step.id)) refuse(`Two work steps share the id ${step.id}.`);
     ids.add(step.id);
     check(STEP_KINDS.includes(step.kind), 'INVALID_VENTURE_REQUEST', `The step ${step.id} has an unknown kind.`);
     check(typeof step.title === 'string' && step.title.trim().length > 0 && step.title.length <= 200, 'INVALID_VENTURE_REQUEST', `The step ${step.id} needs a title.`);
@@ -138,7 +141,7 @@ export function validatePlaybook(steps: PlaybookStep[], extras?: { limits: Harne
     check(Number.isInteger(extras.limits.maxTurns) && extras.limits.maxTurns >= 1 && extras.limits.maxTurns <= 8
       && Number.isInteger(extras.limits.maxToolCalls) && extras.limits.maxToolCalls >= 1 && extras.limits.maxToolCalls <= 24
       && Number.isInteger(extras.limits.maxCallsPerTurn) && extras.limits.maxCallsPerTurn >= 1 && extras.limits.maxCallsPerTurn <= 6
-      && /^\d{1,9}$/.test(extras.limits.maxCostMicros), 'INVALID_VENTURE_REQUEST', 'The playbook limits are out of range.');
+      && /^\d{1,9}$/.test(extras.limits.maxCostMicros), 'INVALID_VENTURE_REQUEST', 'The work plan limits are out of range.');
   }
   return { hash: playbookHash(steps, extras), validated: true, tierCeiling: TIER_CEILING };
 }
@@ -308,10 +311,14 @@ export function playbookLimits(playbook: PlaybookRecord): HarnessLimits {
  * calendar's slots, from intake). Null for the eight fixed steps, whose draft keeps the service type's headings (or
  * the report headings once tools proved work) and the writing step's guidance.
  */
-export function flagshipDraft(playbook: Pick<PlaybookRecord, 'flagship' | 'steps'>, offerKey: string | null | undefined, intake: OrderIntake | null = null): { stepId: string; sections: string[]; guidance: string[] } | null {
+export function flagshipDraft(playbook: Pick<PlaybookRecord, 'flagship' | 'steps'>, offerKey: string | null | undefined, intake: OrderIntake | null = null, stage: number | null = null): { stepId: string; sections: string[]; guidance: string[] } | null {
   const own = flagshipDelivery(playbook.flagship);
   if (!own) return null;
-  const id = own.draftStep(offerKey);
+  // Ink v2 wave 5 (5A1): a kit chain order drafts its stage's step (playbooks/kit/chain.ts).
+  const id = own.draftStep(offerKey, stage);
   const step = playbook.steps.find(item => item.id === id && item.kind === 'write') ?? playbook.steps.find(item => item.kind === 'write');
-  return step && step.requiredSections.length ? { stepId: step.id, sections: [...step.requiredSections], guidance: [...(step.guidance ?? []), ...own.orderGuidance(offerKey, intake)] } : null;
+  if (step && playbook.flagship === 'social-agency' && offerKey === 'repurpose-pack' && step.id === 'drafts') {
+    return { stepId: step.id, sections: [...step.requiredSections, 'Newsletter blurb'], guidance: [...(step.guidance ?? []), ...own.orderGuidance(offerKey, intake), POST_PLAN_GUIDANCE, REPURPOSE_GUIDANCE, 'Selected channels: ' + (Array.isArray(intake?.fields?.channels) ? intake.fields.channels.join(', ') : '')] };
+  }
+  return step && step.requiredSections.length ? { stepId: step.id, sections: playbook.flagship==='social-agency'&&offerKey==='linkedin-ghostwriting'&&step.id==='drafts'?[...ghostwritingSections(intake),'Post plan']:playbook.flagship==='ca-firm'&&offerKey==='tax-question-desk'?[...step.requiredSections,'Supports','Conflicts','Unknowns','Coverage']:[...step.requiredSections], guidance: [...(step.guidance ?? []), ...own.orderGuidance(offerKey, intake),...(playbook.flagship==='social-agency'&&['drafts','creative-briefs'].includes(step.id)?[POST_PLAN_GUIDANCE]:[])] } : null;
 }

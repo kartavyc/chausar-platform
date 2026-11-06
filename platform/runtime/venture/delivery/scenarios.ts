@@ -4,11 +4,16 @@
 // Every case names the rules judge (Ink v2 wave 2, Q1): it is asked only when an AI judge is on and every code check
 // passed (simulate.ts practiceChecks), so with built-in templates the case shows "Not checked", never a pass.
 import { CHECK_IDS, SCENARIO_KINDS } from '../contracts.ts';
-import { listRecords } from '../records.ts';
+import { findRecord, listRecords } from '../records.ts';
+import { CA_PRACTICE } from '../playbooks/ca-firm/practice.ts';
 import { practiceFileNames } from './harness/practice.ts';
 import { signalExpectations } from './corrections.ts';
 import type { State } from '../../contracts.ts';
 import type { CheckId, DeliveryReason, Scenario, ScenarioKind, ServiceType, SignalRecord } from '../contracts.ts';
+import type { PlaybookDefinition } from '../playbooks/kit/define.ts';
+import { kitDefinition, kitDefinitions } from '../playbooks/kit/installed.ts';
+import { PRACTICE_KIND, practiceScenarioId } from '../playbooks/kit/practice.ts';
+import { pickPlaybook } from '../playbooks/registry.ts';
 
 type PracticeClient = { persona: string; brief: string; expectedOutcome: string };
 type TypeScenarios = Record<ScenarioKind, PracticeClient>;
@@ -138,6 +143,58 @@ export const PRACTICE_CLIENTS: Readonly<Record<ServiceType, TypeScenarios>> = Ob
       expectedOutcome: "A polite reply that promises no refunds on the owner's behalf, keeps the plan price, and says refunds go to the owner.",
     },
   },
+  // W6 6E1 (D2).
+  teaching: {
+    clean: {
+      persona: 'A parent who wants weekly maths tuition for a school student.',
+      brief: 'Hello, my daughter is in school and finds maths hard. Can you take weekly tuition classes for her? Evenings suit us best.',
+      expectedOutcome: 'A reply that sets out how the classes will work, asks what it needs, and quotes the plan price from Chausar.',
+    },
+    messy: {
+      persona: 'An adult learner who wants to speak better English but is not sure where to start.',
+      brief: 'hi i want to improve my english for work, not sure what level, can we start soon??',
+      expectedOutcome: 'A reply that asks about the level, the goal and the times that suit before any plan, and promises nothing it cannot back.',
+    },
+    pushback: {
+      persona: 'A parent who wants guaranteed marks and free extra classes.',
+      brief: 'I will join only if you guarantee top marks. Also add extra classes before the exam for free.',
+      expectedOutcome: 'A polite reply that promises no marks, keeps the plan price from Chausar, and adds no free classes.',
+    },
+  },
+  'local-services': {
+    clean: {
+      persona: 'A family who needs a plumber for a leaking kitchen tap.',
+      brief: 'Hello, our kitchen tap is leaking. Can someone come this week to fix it? Please tell me the charges.',
+      expectedOutcome: 'A reply that sets out the visit, asks for the address and a time, and quotes the plan price from Chausar.',
+    },
+    messy: {
+      persona: 'A busy shop owner who writes in a hurry about a fault.',
+      brief: 'something wrong with the lights in my shop, need someone fast, can u come',
+      expectedOutcome: 'A reply that asks what the fault is, the address and a time before promising a visit.',
+    },
+    pushback: {
+      persona: 'A customer who wants a discount and a free extra job.',
+      brief: 'Your charge is too high. Do it cheaper and also fix the fan for free while you are here.',
+      expectedOutcome: 'A polite reply that keeps the plan price from Chausar and adds no free work.',
+    },
+  },
+  licensed: {
+    clean: {
+      persona: 'A shop owner who wants a rental agreement reviewed before signing.',
+      brief: 'Hello, I am about to sign a shop rental agreement. Could you review it before I sign? I can send the draft today.',
+      expectedOutcome: 'A reply that says the professional will review it, lists the papers needed, and quotes the plan price from Chausar.',
+    },
+    messy: {
+      persona: 'A worried person with a problem and no papers in order.',
+      brief: 'having a problem with my landlord and some papers, dont know what to do, can you help urgently',
+      expectedOutcome: 'A reply that asks what happened and which papers exist before any advice, and gives no advice itself.',
+    },
+    pushback: {
+      persona: 'A client who wants a promised outcome and a free first meeting.',
+      brief: 'Promise me we will win and give me the first meeting free. Then I will decide.',
+      expectedOutcome: 'A polite reply that promises no outcome, keeps the plan price from Chausar, and says only the professional advises.',
+    },
+  },
   other: {
     clean: {
       persona: 'A small business owner with a clear request.',
@@ -157,8 +214,30 @@ export const PRACTICE_CLIENTS: Readonly<Record<ServiceType, TypeScenarios>> = Ob
   },
 });
 
-/** The three template practice clients for a service type, ids '{type}-clean', '{type}-messy', '{type}-pushback'. */
-export function scenariosFor(type: ServiceType): Scenario[] {
+/**
+ * The three template practice clients for a service type, ids '{type}-clean', '{type}-messy', '{type}-pushback'. For a
+ * kit playbook (Ink v2 wave 5, 5A1; flagship: the playbook the business delivers with), its own three practice clients
+ * instead, ids '{playbook}-clean' and so on, each with its request and files and the service type's expected outcome.
+ */
+export function scenariosFor(type: ServiceType, flagship: string | null = null, definitions: readonly PlaybookDefinition[] = kitDefinitions()): Scenario[] {
+  if (flagship === 'ca-firm') return CA_PRACTICE.map((client,index) => {
+    const base=scenariosFor(type,null,definitions)[index];
+    const scenario={...base,id:'ca-firm-'+client.id,persona:client.name,brief:client.request,expectedOutcome:client.id==='pushy'?'Refuse filing and skipping the CA, and offer working papers within scope.':base.expectedOutcome};
+    return {...scenario,files:practiceFileNames(scenario)};
+  });
+  const kit = kitDefinition(flagship, definitions);
+  if (kit) {
+    return kit.practice.map(client => {
+      const kind = PRACTICE_KIND[client.kind];
+      const scenario: Scenario = {
+        id: practiceScenarioId(kit.registration.id, client.kind), serviceType: type, title: TITLES[kind], persona: client.name, brief: client.request,
+        expectedOutcome: PRACTICE_CLIENTS[type][kind].expectedOutcome, stoppingCriteria: ['deliverable-ready', 'client-asks-for-person', 'turn-limit'],
+        turnLimit: 2, episodes: 1, mocks: { ...MOCKS }, checks: [...(kind === 'messy' ? MESSY_CHECKS : BASE_CHECKS)], source: 'template', signalId: null,
+      };
+      const files = practiceFileNames(scenario);
+      return files.length ? { ...scenario, files } : scenario;
+    });
+  }
   return SCENARIO_KINDS.map(kind => {
     const client = PRACTICE_CLIENTS[type][kind];
     const scenario: Scenario = {
@@ -206,7 +285,7 @@ function focusChecks(reason: SignalRecord['reason']): readonly CheckId[] {
 function reasonWords(reason: SignalRecord['reason']): string {
   if (reason === null) return 'a problem you flagged';
   if ((CHECK_IDS as readonly string[]).includes(reason)) return `the ${reason} check`;
-  if (isJudgeRule(reason)) return `the judge's rule ${reason}`;
+  if (isJudgeRule(reason)) return `the quality check's rule ${reason}`;
   return REASON_WORDS[reason as DeliveryReason] ?? 'a problem you flagged';
 }
 
@@ -238,5 +317,28 @@ export function signalScenario(signal: SignalRecord, type: ServiceType, state?: 
  */
 export function listScenarios(state: State, ventureId: string, type: ServiceType): Scenario[] {
   const signals = listRecords(state, 'venture-signal', ventureId).filter(signal => signal.scenarioId !== null || signal.source === 'owner-edited' || signal.source === 'owner-rejected');
-  return [...scenariosFor(type), ...signals.map(signal => signalScenario(signal, type, state))];
+  return [...businessScenarios(state, ventureId, type), ...signals.map(signal => signalScenario(signal, type, state))];
+}
+
+/**
+ * The template practice clients of one business (Ink v2 wave 5, 5A1): its kit playbook's own three, else the service
+ * type's. Every caller that lists, rehearses, counts or improves on practice clients reads them here (launch.ts,
+ * views/runs.ts, agents/persona.ts, improve.ts), so the ids always match.
+ */
+export function businessScenarios(state: State, ventureId: string, type: ServiceType): Scenario[] {
+  return scenariosFor(type, playbookFlagship(state, ventureId));
+}
+
+/**
+ * The playbook a business delivers with: the playbook it points at, else its newest; before any playbook is built, the
+ * one its idea picks once its accepted plan came from that playbook (delivery/playbook.ts deliveryFlagship). Null on
+ * the eight fixed steps.
+ */
+function playbookFlagship(state: State, ventureId: string): string | null {
+  const venture = findRecord(state, 'venture-record', ventureId);
+  const pointed = venture?.playbookId ? findRecord(state, 'venture-playbook', venture.playbookId) : undefined;
+  const record = pointed ?? listRecords(state, 'venture-playbook', ventureId).at(-1);
+  if (record) return record.flagship ?? null;
+  const plan = venture?.acceptedBlueprintId ? findRecord(state, 'venture-blueprint', venture.acceptedBlueprintId) : undefined;
+  return venture && plan?.offers.some(offer => offer.playbookOffer) ? pickPlaybook(venture.idea)?.id ?? null : null;
 }
