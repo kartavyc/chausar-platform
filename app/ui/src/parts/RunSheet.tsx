@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
-import { decide as decideRow } from '../places/today/session';
+import { decide as decideRow } from './queue-session';
 import { openSheet } from '../shell/navigation';
 import { Avatar, type AvatarState } from './Avatar';
 import { Button } from './Button';

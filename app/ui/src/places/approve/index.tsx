@@ -18,7 +18,7 @@ import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { PageTitle } from '../../parts/PageTitle';
 import type { QueueAction, QueueDecision, QueueRow, UiRunEvent } from '../../engine/types';
-import { decide as decideRow, reread as rereadRow, seenKey, useTodaySession } from '../today/session';
+import { decide as decideRow, reread as rereadRow, seenKey, useTodaySession } from '../../parts/queue-session';
 import { viewSheetId } from '../today/ViewSheet';
 import { useCardPreview } from '../today/CardPreview';
 import s from './Approve.module.css';

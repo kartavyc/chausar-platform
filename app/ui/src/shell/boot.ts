@@ -6,7 +6,7 @@
  *     with this computer and the owner did not close it on purpose, it opens by itself.
  */
 
-import type { EngineClient, ParamsOf } from '../../engine/types';
+import type { EngineClient, ParamsOf } from '../engine/types';
 
 /**
  * A business the welcome list can open. `opens` says how: now (this computer keeps its key), with its passphrase, or

@@ -9,7 +9,7 @@ import { Sheet } from '../../parts/Sheet';
 import { fromSections, ownerLineOf, toSections, type DraftSections } from '../../parts/draft-text';
 import type { SheetComponentProps } from '../../shell/sheets';
 import type { DraftChangeView, DraftChangesView, QueueRow } from '../../engine/types';
-import { useTodaySession } from './session';
+import { useTodaySession } from '../../parts/queue-session';
 import { draftRunOf, undoFor } from './SendBack';
 import s from './TodayActions.module.css';
 
