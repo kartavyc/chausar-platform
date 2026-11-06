@@ -1,0 +1,39 @@
+name: D8 registry qualification
+on:
+  push:
+    branches: ['b2c/os-d8-registry-*']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --max-old-space-size=3072 scripts/gen-contract.mjs
+      - run: npm run typecheck
+      - run: npm run typecheck:ui
+        if: '!cancelled()'
+      - run: node scripts/check.mjs
+        if: '!cancelled()'
+      - run: node scripts/third-party-notices.mjs --check
+        if: '!cancelled()'
+      - run: node --test --test-concurrency=2 platform/tests/desktop*.test.ts platform/tests/method-registry-d8.test.ts platform/tests/gen-contract-d8.test.ts platform/tests/engine-bundle-d7.test.ts platform/tests/venture-engine.test.ts platform/tests/venture-contracts.test.ts platform/tests/venture-method-hints.test.ts platform/tests/hosted-runtime.test.ts
+        if: '!cancelled()'
+      - run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/engine app/ui/tests/parts/composer.test.tsx app/ui/tests/places/money-quiet-b4.test.tsx app/ui/tests/places/chats.test.tsx
+        if: '!cancelled()'
+      - run: node scripts/desktop-smoke.mjs
+        if: '!cancelled()'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d8-contract-qualified
+          path: |
+            app/ui/src/engine/contract.gen.ts
+            platform/tests/contract-type-parity.gen.ts
