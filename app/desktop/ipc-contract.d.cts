@@ -2,6 +2,8 @@ export const METHODS: readonly ["workspace.status","workspace.create","workspace
 export type DesktopMethod = typeof METHODS[number];
 export const REQUEST_CHANNEL: string;
 export const STATUS_CHANNEL: string;
+/** D4 task 4: what the window may hear about the engine. */
+export function validateEngineStatus(input: unknown): { state: string; healthy: boolean; phase?: string };
 export const FIRST_PAINT_CHANNEL: string;
 export const UPDATE_SHOW_CHANNEL: string;
 export const DIAGNOSTICS_PREVIEW_CHANNEL: string;

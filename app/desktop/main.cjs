@@ -1,10 +1,10 @@
 const { app, crashReporter, BrowserWindow, WebContentsView, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor, Notification, safeStorage } = require('electron');
 const { readFile, writeFile } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
-const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError } = require('./ipc-contract.cjs');
+const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateEngineStatus } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
 // C5 task 25: this computer's own diagnostic files; before anything else, so an early problem is noted too.
-const { createDiagnostics, startMainGuard, createTimeline } = require('./diagnostics.cjs');
+const { createDiagnostics, startMainGuard, createTimeline, WINDOW_PHASES } = require('./diagnostics.cjs');
 const diagnostics = createDiagnostics({ folder: join(app.getPath('userData'), 'diagnostics'), fs: require('node:fs/promises') });
 startMainGuard({ process, crashReporter, dialog, app, diagnostics });
 // C5 task 26: each start-up step goes to startup.jsonl, and each request's timing to rpc.jsonl (never its content).
@@ -70,7 +70,7 @@ function lifecycleChanged() {
   });
 }
 // C5 task 29: a worker that died unexpectedly is started again, three times at most (worker-restart.cjs).
-let engineEnvironment = null; let engineStarted = false; let lastToldStatus = null;
+let engineEnvironment = null; let engineStarted = false; let lastStatus = Object.freeze({ state: 'starting', healthy: false }); let lastStatusSent = false;
 // C5 tasks 31, 32: the update check's settings for the worker, the boot marker, and install on quit (update-wiring.cjs).
 let updateWiring = null;
 const workerRestart = require('./worker-restart.cjs').createWorkerRestart({
@@ -134,7 +134,7 @@ async function launchEngine() {
   const harness = createHarness();
   engine = harness;
   const starting = harness.start();
-  timeline.mark('engine-forked');
+  notePhase('engine-forked');
   await starting;
   engineStarted = true;
   timeline.mark('engine-ready');
@@ -143,17 +143,24 @@ async function launchEngine() {
   // D4: the window may have opened and taken focus before the engine could hear it; a restart needs telling too.
   harness.reportWatching?.(windowWatching());
 }
-/** C5 task 29: what the window hears: one word through a whole restart, and each state once. */
+/** C5 task 29, D4 task 4: what the window hears: one word through a whole restart, each state once, and the start's phases in order. */
 function sendEngineStatus(status) {
-  const told = workerRestart.statusForWindow(status);
-  if (told?.state === lastToldStatus) return;
-  lastToldStatus = told?.state;
+  const mapped = workerRestart.statusForWindow(status);
+  const told = validateEngineStatus(mapped?.state === 'starting' && !mapped.phase && lastStatus.phase ? { ...mapped, phase: lastStatus.phase } : mapped);
+  if (told.state === lastStatus.state && told.phase === lastStatus.phase && lastStatusSent) return;
+  lastStatus = told; lastStatusSent = true;
   if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, told);
+}
+/** D4 task 4: one phase of the first start, for the timeline and the window. The line never goes back. */
+function notePhase(phase) {
+  timeline.mark(phase);
+  if (engineStarted || !WINDOW_PHASES.includes(phase) || engine?.state === 'ready') return;
+  if (WINDOW_PHASES.indexOf(phase) > WINDOW_PHASES.indexOf(lastStatus.phase)) sendEngineStatus({ state: 'starting', healthy: false, phase });
 }
 const currentEngine = () => engine;
 function createHarness() {
   const engine = new EngineHarness({ workerPath: engineFiles.worker, environment: engineEnvironment, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
-  engine.on('status', status => { if (engine !== currentEngine()) return; engineGate.changed(); if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (status?.state === 'failed' && engineStarted && !stopping) workerRestart.died(); sendEngineStatus(status); if (status?.state !== 'ready') noteEngineDown(); });
+  engine.on('status', status => { if (engine !== currentEngine()) return; engineGate.changed(); if (status?.phase) notePhase(status.phase); if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (status?.state === 'failed' && engineStarted && !stopping) workerRestart.died(); sendEngineStatus(status); if (status?.state !== 'ready') noteEngineDown(); });
   // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
   engine.on('venture-event', event => { if(event?.type==='privacy.forgotten'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
   // A client report's PDF (5A5): the engine's print port; a hidden window that runs no script prints the report's HTML.
@@ -320,7 +327,9 @@ function createWindow(hash = '') {
   window.webContents.on('render-process-gone', (_event, details) => { if (details?.reason !== 'clean-exit' && engine?.state === 'ready') void engine.request('venture.feedback.crash', { source: 'desktop', name: 'WindowGone', message: `The window stopped: ${String(details?.reason ?? 'unknown').replace(/[^a-z-]/g, '')}` }).catch(() => {}); });
   // W6 6H1: a frame (a mini app's, the website preview's) stays on the sandbox proxy or the app's own blob previews.
   window.webContents.on('will-frame-navigate', event => { if (!event.isMainFrame && !subframeAllowed(event.url)) event.preventDefault(); });
-  window.once('ready-to-show', () => { window.show(); timeline.mark('window-shown'); });
+  window.once('ready-to-show', () => { window.show(); notePhase('window-shown'); });
+  // D4 task 4: a window opened part way through the start learns where it is once its page has loaded.
+  window.webContents.on('did-finish-load', () => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, lastStatus); });
   window.loadURL(TRUSTED_DOCUMENT + hash);
   window.on('closed', () => { captionMicrophone.clear(); stopFormsBrowser(); window = null; lifecycleChanged(); noteStillRunning(); });
   // Notifications (Ink v2 wave 4, 4G1): the owner is watching only while this window is shown, not minimised and

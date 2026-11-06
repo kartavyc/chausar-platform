@@ -5,6 +5,7 @@ const { EventEmitter } = require('node:events');
 const { validateRequest, validateVentureEvent } = require('./ipc-contract.cjs');
 const { createFormsRelay } = require('./owner-browser-relay.cjs');
 const { createCredentialRelay } = require('./credential-relay.cjs');
+const { WINDOW_PHASES } = require('./diagnostics.cjs');
 
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
 /** A2 second review: only the two fields the engine checks go on to it; anything else the window sent stays behind. */
@@ -102,6 +103,8 @@ class EngineHarness extends EventEmitter {
         child.on('message', message => {
           if (!message || typeof message !== 'object' || Array.isArray(message)) return;
           if (message.ready === true && this.state === 'starting') { this.status('ready'); settle(); return; }
+          // D4 task 4: how far the worker has come while it starts; anything else, or later, changes nothing.
+          if (message.phase !== undefined && message.id === undefined) { if (this.state === 'starting' && WINDOW_PHASES.includes(message.phase)) this.emit('status', Object.freeze({ state: 'starting', healthy: false, phase: message.phase })); return; }
           // A run event the engine committed: checked again here, then main forwards it to the window.
           if (message.kind === 'venture-event' && message.id === undefined) { const event = validateVentureEvent(message.event); if (event) this.emit('venture-event', event); return; }
           // Ink v2 wave 5 (5A5): the engine asks main to print a report's HTML to PDF (report-print.cjs); answered once.

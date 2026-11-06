@@ -27,6 +27,19 @@ function setup(options: any = {}) {
 async function ready(context: ReturnType<typeof setup>) { const start = context.harness.start(); context.child.emit('message', { ready: true }); await start; }
 const code = (expected: string) => (error: any) => error.code === expected;
 
+test('D4: a worker that says it has loaded moves the start to that phase; an unknown phase is ignored', async () => {
+  const context = setup(), heard: any[] = [];
+  context.harness.on('status', (status: any) => heard.push({ ...status }));
+  const start = context.harness.start();
+  context.child.emit('message', { phase: 'made-up' });
+  context.child.emit('message', { phase: 'loaded' });
+  context.child.emit('message', { ready: true });
+  await start;
+  assert.deepEqual(heard, [{ state: 'starting', healthy: false }, { state: 'starting', healthy: false, phase: 'loaded' }, { state: 'ready', healthy: true }]);
+  context.child.emit('message', { phase: 'loaded' });
+  assert.equal(heard.length, 3, 'once ready, a phase changes nothing');
+});
+
 test('desktop accepts only explicit engine methods and bounded plain JSON payloads', async () => {
   assert.deepEqual(validateRequest({ method: 'workspace.status' }), { method: 'workspace.status', payload: {} });
   const ownerPhoneMethods = ['phone.invite', 'phone.sessions', 'phone.revoke', 'phone.conversation.offer'];

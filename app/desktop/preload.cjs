@@ -166,7 +166,9 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped', 'reconnecting'];
-    const listener = (_event, value) => callback(Object.freeze({ healthy: value?.healthy === true, state: states.includes(value?.state) ? value.state : 'failed' }));
+    // D4 task 4: the phases of the start, the same as WINDOW_PHASES in diagnostics.cjs, which this sandbox can't import.
+    const phases = ['window-shown', 'engine-forked', 'loaded'];
+    const listener = (_event, value) => callback(Object.freeze({ healthy: value?.healthy === true, state: states.includes(value?.state) ? value.state : 'failed', ...(value?.state === 'starting' && phases.includes(value?.phase) ? { phase: value.phase } : {}) }));
     ipcRenderer.on('chausar:engine-status', listener);
     return () => ipcRenderer.removeListener('chausar:engine-status', listener);
   },

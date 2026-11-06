@@ -292,6 +292,50 @@ test('D4: a request made during a restart waits for the fresh worker and goes th
   assert.deepEqual([d.engines[0].asked, d.engines[1].asked], [[], ['workspace.status']]);
 });
 
+// One-shot D4 task 4: the phases of the start reach the window, and a window opened late hears where things stand.
+const statusPhases = (window: any) => window.webContents.sent.filter(([channel]: [string]) => channel === 'chausar:engine-status').map(([, status]: [string, any]) => status.state === 'starting' ? status.phase ?? 'starting' : status.state);
+test('D4: the window hears the phases in order, then ready; a window opened late hears the current one at load', async () => {
+  const { gate, open } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate });
+  const window = d.windows[0], engine = d.engines[0];
+  engine.emit('status', { state: 'starting', healthy: false, phase: 'loaded' });
+  window.emit('ready-to-show');
+  assert.deepEqual(statusPhases(window), ['starting', 'engine-forked', 'loaded'], 'the line never goes back');
+  window.webContents.sent.length = 0;
+  window.webContents.emit('did-finish-load');
+  assert.deepEqual(statusPhases(window), ['loaded']);
+  open(); await flush();
+  assert.equal(statusPhases(window).at(-1), 'ready');
+  const lines = linesOf(d, 'startup.jsonl').map(line => line.phase);
+  assert.ok(lines.includes('loaded'), 'the timeline has the worker\'s own phase');
+});
+
+test('D4: a status with an unknown phase reaches the window without it', async () => {
+  const { gate } = opened();
+  const d = await desktop(['--production'], Promise.resolve(), true, { startGate: gate });
+  d.engines[0].emit('status', { state: 'starting', healthy: false, phase: 'made-up' });
+  for (const [, status] of d.windows[0].webContents.sent.filter(([channel]: [string]) => channel === 'chausar:engine-status')) assert.notEqual(status.phase, 'made-up');
+  const { validateEngineStatus } = require('./ipc-contract.cjs');
+  assert.deepEqual(plain(validateEngineStatus({ state: 'starting', healthy: false, phase: 'loaded', extra: 1 })), { state: 'starting', healthy: false, phase: 'loaded' });
+  assert.deepEqual(plain(validateEngineStatus({ state: 'starting', healthy: false, phase: 'app-ready' })), { state: 'starting', healthy: false });
+  assert.deepEqual(plain(validateEngineStatus({ state: 'ready', healthy: true, phase: 'loaded' })), { state: 'ready', healthy: true });
+  assert.deepEqual(plain(validateEngineStatus({ state: 'odd', healthy: true })), { state: 'failed', healthy: false });
+});
+
+test('D4: the preload passes on a known phase of the start, and drops anything else', async () => {
+  let bridge: any; let listener: any;
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { on: (_channel: string, handler: any) => { listener = handler; }, removeListener() {}, invoke: async () => ({}) } }), Object, TypeError, Error });
+  const heard: any[] = [];
+  bridge.onEngineStatus((status: any) => heard.push(plain(status)));
+  listener({}, { state: 'starting', healthy: false, phase: 'loaded' });
+  listener({}, { state: 'starting', healthy: false, phase: 'made-up' });
+  listener({}, { state: 'ready', healthy: true, phase: 'loaded' });
+  assert.deepEqual(heard, [{ healthy: false, state: 'starting', phase: 'loaded' }, { healthy: false, state: 'starting' }, { healthy: true, state: 'ready' }]);
+  const { WINDOW_PHASES } = require('./diagnostics.cjs');
+  const preload = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
+  for (const name of WINDOW_PHASES) assert.ok(preload.includes(`'${name}'`), name);
+});
+
 test('desktop reports actual window, background and sleep transitions before shutdown', async () => {
   const d = await desktop(['--background']); const engine = d.engines[0];
   // D4: the window opens first, so the engine's first report already has it open.
@@ -731,6 +775,7 @@ test('C5 task 26: the start line has the phases in order, each once; first paint
   const d = await desktop([]);
   const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
   window.emit('ready-to-show');
+  d.engines[0].emit('status', { state: 'starting', healthy: false, phase: 'loaded' });
   await d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
   await d.handlers.get('chausar:request')(own, { method: 'workspace.status', payload: {} });
   assert.equal((await d.handlers.get(contract.FIRST_PAINT_CHANNEL)({ sender: {}, senderFrame: own.senderFrame })).error.code, 'UNTRUSTED_SENDER');
@@ -739,7 +784,8 @@ test('C5 task 26: the start line has the phases in order, each once; first paint
   await d.handlers.get(contract.FIRST_PAINT_CHANNEL)(own);
   await flush();
   const lines = linesOf(d, 'startup.jsonl');
-  assert.deepEqual(lines.map(line => line.phase), [...STARTUP_PHASES]);
+  // D4: the window opens first, so its place against the fork varies; each phase is there once.
+  assert.deepEqual(lines.map(line => line.phase).sort(), [...STARTUP_PHASES].sort());
   for (const line of lines) assert.ok(Number.isFinite(line.ms) && line.ms >= 0);
 });
 

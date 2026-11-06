@@ -84,4 +84,8 @@ export function runEngineWorker(engine: Engine) {
   reply({ ready: true });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) runEngineWorker(await createWorkerEngine());
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // D4 task 4: every import has loaded; the engine has not opened its data yet. The desktop shows this as the start's progress.
+  if (process.connected) process.send?.({ phase: 'loaded' }, () => {});
+  runEngineWorker(await createWorkerEngine());
+}
