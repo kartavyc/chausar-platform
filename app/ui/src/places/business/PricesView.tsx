@@ -14,6 +14,7 @@ import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { useChanged } from '../../parts/useChanged';
 import { currencySign } from '../../../../../platform/runtime/owner-format';
 
 /**
@@ -74,6 +75,7 @@ function PriceGuideSection({ guide }: { guide: PriceGuideView }) {
 }
 
 function OfferPrice({ offer, receipt, currency, onChanged, leading, offers }: { offer: OfferLite; receipt: ReceiptLite | null; currency: string; onChanged: () => void; leading: boolean; offers: OfferLite[] }) {
+  const changed = useChanged(offer.pricing.unitPriceMinor);
   const t = useT();
   const client = useEngine();
   const titleId = useId();
@@ -132,7 +134,7 @@ function OfferPrice({ offer, receipt, currency, onChanged, leading, offers }: { 
   }
 
   return (
-    <Tile as="li" card labelledBy={titleId} className={s.offer}>
+    <Tile as="li" card labelledBy={titleId} className={s.offer} data-changed={changed}>
       <h3 id={titleId} className={s.offerTitle}><span data-offer-name="">{offer.name.value}</span></h3>
       <p className={s.line}>{offer.description.value}</p>
       {receipt && total ? (
