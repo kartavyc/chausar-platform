@@ -10,7 +10,7 @@ import { openFindDialog } from './find/CommandDialog';
 import { HelpButton } from './HelpButton';
 import { BusinessMenu } from './BusinessMenu';
 import { openSheet } from './navigation';
-import { formatHash, type PlaceId, type Route } from './routes';
+import { formatHash, TAB_PLACES, type PlaceId, type Route } from './routes';
 import s from './TopBar.module.css';
 
 /**
@@ -42,7 +42,7 @@ export function TopBar() {
 
 /** The places that have a tab of their own; every other place is under More. W4 4C2 put Chats second; C1 task 10 gave
  *  Money a tab and moved Team under More (founder, 5 Nov: Work holds what is running, Team is visited less). */
-const TAB_PLACES = ['today', 'chats', 'work', 'money'] as const satisfies readonly PlaceId[];
+
 type TabPlace = (typeof TAB_PLACES)[number];
 const TAB_ICONS: Readonly<Record<TabPlace | 'more', IconName>> = { today: 'sun', chats: 'messages-square', work: 'briefcase', money: 'wallet', more: 'layout-grid' };
 const isTab = (place: PlaceId): place is TabPlace => (TAB_PLACES as readonly PlaceId[]).includes(place);

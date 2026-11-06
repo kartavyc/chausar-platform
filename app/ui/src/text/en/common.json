@@ -731,5 +731,6 @@
   "help.none": "The guide doesn't cover that yet.",
   "help.guide": "Open the guide",
   "help.read": "Read it in the guide",
-  "help.whatsNew": "What's new"
+  "help.whatsNew": "What's new",
+  "shell.chunk.failed": "This page didn't load."
 }

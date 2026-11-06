@@ -148,3 +148,19 @@ test('a hash route keeps the window trusted; a query does not', () => {
   mainFrame.url = 'chausar://app/index.html#<script>';
   assert.throws(() => assertTrustedSender({ sender: contents, senderFrame: mainFrame }, contents), { code: 'UNTRUSTED_SENDER' });
 });
+
+test('D9 chunk names with mixed hashes and hyphens are served as JavaScript and CSS', async t => {
+  const folder = await dist(); t.after(() => rm(folder, { recursive: true, force: true }));
+  await writeFile(join(folder, 'assets/money-Ab_12-x.js'), 'export const ready = true;');
+  await writeFile(join(folder, 'assets/vendor-xY.css'), '.page { display: grid; }');
+  const files = await listInkFiles(folder);
+  assert.ok(files['/assets/money-Ab_12-x.js']);
+  assert.ok(files['/assets/vendor-xY.css']);
+  const app = createLocalServer({ shutdown: async () => {} } as unknown as Engine, { ink: { folder, files } });
+  const { origin } = await app.listen(); t.after(() => app.close(100));
+  for (const [path, type] of [['money-Ab_12-x.js', 'text/javascript; charset=utf-8'], ['vendor-xY.css', 'text/css; charset=utf-8']]) {
+    const response = await fetch(`${origin}/assets/${path}`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), type);
+  }
+});
