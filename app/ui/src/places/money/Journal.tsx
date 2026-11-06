@@ -84,6 +84,7 @@ function JournalRow({ entry, onSettled }: { entry: JournalEntry; onSettled: (ent
   const sending = phase === 'sending';
   return (
     <Row
+      className={s.journalRow}
       id={entry.id}
       eyebrow={moment(entry.at)}
       title={t('money.journal.title', { action: entry.action, target: entry.target })}

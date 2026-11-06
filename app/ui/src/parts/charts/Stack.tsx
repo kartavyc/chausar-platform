@@ -25,7 +25,7 @@ export function Stack({ segments, label, thin }: { segments: StackSegment[]; lab
           <title>{segment.title}</title>
         </rect>
         {i > 0 && <line className={s.gap} x1="0" x2="0" y1="0" y2="14" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
-        <g transform={`translate(${segment.permille} 0)`}>{inner}</g>
+        <g className={s.offset} transform={`translate(${segment.permille} 0)`}>{inner}</g>
       </g>
     ),
     null,

@@ -31,6 +31,7 @@ import { onMoney, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 import { Select } from '../../parts/Select';
+import { useLeavingList } from '../../parts/useLeaving';
 import { Reveal } from '../../parts/RevealBlock';
 
 /** The ways a bill can be paid: the payment sheet's, and a cheque. */
@@ -57,7 +58,7 @@ export function Bills() {
           <>
             {total}
             <ul className={s.list}>
-              {bills.map((bill) => <BillRow key={bill.id} bill={bill} currency={currency} onChanged={list.reload} />)}
+              <BillRows bills={bills} currency={currency} onChanged={list.reload} />
             </ul>
           </>
         )}
@@ -72,7 +73,13 @@ export function Bills() {
   );
 }
 
-function BillRow({ bill, currency, onChanged }: { bill: BillView; currency: string; onChanged: () => void }) {
+function BillRows({ bills, currency, onChanged }: { bills: BillView[]; currency: string; onChanged: () => void }) {
+  const { drawn } = useLeavingList(bills, bill => bill.id);
+  // Paid bills stay in this plain list, with their new state and receipt. It has no disappearing To pay group.
+  return drawn.filter(row => !row.leaving).map(row => <BillRow key={row.key} bill={row.item} arriving={row.arriving} currency={currency} onChanged={onChanged} />);
+}
+
+function BillRow({ bill, currency, onChanged, arriving }: { bill: BillView; currency: string; onChanged: () => void; arriving?: boolean }) {
   const t = useT();
   const day = useDay();
   const engine = useEngine();
@@ -95,6 +102,7 @@ function BillRow({ bill, currency, onChanged }: { bill: BillView; currency: stri
   return (
     <Row
       id={bill.id}
+      arriving={arriving}
       title={bill.vendor}
       line={bill.purpose ? t('money.bills.lineFor', { purpose: bill.purpose, bill: day(bill.billDate), due: day(bill.dueDate) }) : t('money.bills.line', { bill: day(bill.billDate), due: day(bill.dueDate) })}
       aside={(

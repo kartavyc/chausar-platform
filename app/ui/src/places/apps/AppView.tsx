@@ -13,6 +13,9 @@ import { MiniAppFrame } from './MiniAppFrame';
 import s from './Apps.module.css';
 import { PageTitle } from '../../parts/PageTitle';
 import { useMoment } from '../../parts/when';
+import { useChanged } from '../../parts/useChanged';
+import leave from '../../parts/Leave.module.css';
+import { cx } from '../../parts/cx';
 import { LoadingPlace } from '../../parts/Skeleton';
 
 const never = () => false;
@@ -44,6 +47,8 @@ export function AppView({ id }: { id: string }) {
   const client = useEngine();
   const chatId = useId(), sideId = useId(), allowId = useId();
   const loaded = useResource('venture.apps.get', { app: id }, { refreshOn: never });
+  const [madeVersion, setMadeVersion] = useState<number | null>(null);
+  const changedVersion = useChanged(madeVersion);
   const [fresh, setFresh] = useState<MiniAppView | null>(null);
   const [line, setLine] = useState<string | null>(null);
   const [undo, setUndo] = useState<Undo | null>(null);
@@ -61,6 +66,7 @@ export function AppView({ id }: { id: string }) {
     try {
       const done = await work();
       setFresh(done.app);
+      setMadeVersion(null);
       setLine(done.line);
       setUndo(done.next ?? null);
       setMoved(false);
@@ -103,6 +109,7 @@ export function AppView({ id }: { id: string }) {
   async function change(text: string) {
     const done = await client.request('venture.apps.make', { ask: text, app: app!.id });
     setFresh(done.app);
+    setMadeVersion(done.app.version);
     setLine(null);
     setUndo(null);
     setMoved(false);
@@ -198,8 +205,8 @@ export function AppView({ id }: { id: string }) {
             <h3 className={s.sideTitle}>{t('apps.versions.title')}</h3>
             <ul className={s.versions}>
               {[...app.versions].reverse().map((item) => (
-                <li key={item.version} className={s.version}>
-                  <span className={s.grow}><span className={s.versionName}>{t('apps.versions.item', { version: item.version })}</span>{item.current && <span className={s.quiet}>{' '}{t('apps.versions.current')}</span>}{' · '}<span data-content="">{item.summary}</span><time className={s.quiet} dateTime={item.at}>{moment(item.at)}</time></span>
+                <li key={item.version} className={cx(s.version, madeVersion === item.version && leave.arrive)} data-version={item.version} data-arriving={madeVersion === item.version ? '' : undefined}>
+                  <span className={s.grow}><span className={s.versionName}>{t('apps.versions.item', { version: item.version })}</span>{item.current && <span className={s.quiet}>{' '}{t('apps.versions.current')}</span>}{' · '}<span data-content="" data-changed={madeVersion === item.version ? changedVersion : undefined}>{item.summary}</span><time className={s.quiet} dateTime={item.at}>{moment(item.at)}</time></span>
                   {!item.current && <Button size="sm" variant="quiet" onClick={() => use(item.version)} disabled={busy}>{t('apps.versions.use', { version: item.version })}</Button>}
                 </li>
               ))}

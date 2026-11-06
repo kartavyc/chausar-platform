@@ -152,3 +152,8 @@ details[open] > summary [data-fold-chevron] {
   from { opacity: 0; transform: translateX(24px); }
   to { opacity: 1; transform: none; }
 }
+
+/* First content only after its still skeleton was visible. */
+[data-arrived] {
+  animation: ink-fade-in var(--t-press) var(--ease) 1;
+}

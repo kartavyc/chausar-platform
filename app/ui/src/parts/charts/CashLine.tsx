@@ -1,5 +1,7 @@
-import { useId, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { useT } from '../../text';
+import { useSwapped } from '../Swap';
+import { afterExit } from '../motion';
 import { Receipt } from '../Receipt';
 import { ChartData, ChartFoot, ChartValue, chartRoot } from './ChartData';
 import { FLIP, PLOT, PLOT_UP, svgId } from './plot';
@@ -45,7 +47,6 @@ export function CashLine({ data, onReceipt, tips = true, detailsLabel, details }
   const t = useT();
   const assumesId = svgId(useId(), 'assumes');
   const { points } = data;
-  if (points.length === 0) return null;
   const width = points.length * 100;
   const actual = runs(points, (point) => point.actualPermille);
   const forecast = runs(points, (point) => point.forecastPermille);
@@ -66,6 +67,7 @@ export function CashLine({ data, onReceipt, tips = true, detailsLabel, details }
       ].filter(Boolean).join(', ') || t('chart.none'),
     });
 
+  if (points.length === 0) return null;
   return (
     <div className={s.chart} {...chartRoot(proof, { 'data-layout': 'line' })}>
       <ul className={s.legend} data-legend="">
@@ -89,18 +91,10 @@ export function CashLine({ data, onReceipt, tips = true, detailsLabel, details }
               {!ticks.some((tick) => tick.permille === 0) && (
                 <line className={s.baseline} x1="0" x2={width} y1="0" y2="0" strokeWidth="1" vectorEffect="non-scaling-stroke" />
               )}
-              {forecast.map((line) => (
-                <polyline key={line} className={s.forecast} data-line="forecast" points={line} strokeWidth="1.75" strokeDasharray="4 4" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-              ))}
+              <Forecast lines={forecast} end={end && endAt !== todayAt ? { x: at(endAt), y: end.forecastPermille! } : null} />
               {actual.map((line) => (
                 <polyline key={line} className={s.actual} data-line="actual" points={line} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
               ))}
-              {end && endAt !== todayAt && (
-                <>
-                  <line className={s.endRing} x1={at(endAt)} x2={at(endAt)} y1={end.forecastPermille!} y2={end.forecastPermille!} strokeWidth="12" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                  <line className={s.endHole} x1={at(endAt)} x2={at(endAt)} y1={end.forecastPermille!} y2={end.forecastPermille!} strokeWidth="7" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                </>
-              )}
               {today && (
                 <>
                   <line className={s.todayRing} x1={at(todayAt)} x2={at(todayAt)} y1={today.actualPermille!} y2={today.actualPermille!} strokeWidth="15" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
@@ -141,4 +135,30 @@ export function CashLine({ data, onReceipt, tips = true, detailsLabel, details }
       </ChartFoot>
     </div>
   );
+}
+
+
+type ForecastShape = { lines: string[]; end: { x: number; y: number } | null };
+function Forecast(shape: ForecastShape) {
+  const { old, gen, clear } = useSwapped(JSON.stringify(shape), shape);
+  return <>
+    {old !== null && <OldForecast key={gen} shape={old} done={clear} />}
+    <g key={`now-${gen}`} className={s.forecastNow} data-forecast-new={gen > 0 && old !== null ? '' : undefined}>{forecastLines(shape)}</g>
+  </>;
+}
+function OldForecast({ shape, done }: { shape: ForecastShape; done: () => void }) {
+  const ref = useRef<SVGGElement>(null);
+  const latest = useRef(done);
+  latest.current = done;
+  useEffect(() => afterExit(ref.current, () => latest.current()), []);
+  return <g ref={ref} className={s.forecastOld} data-forecast-old="" aria-hidden="true">{forecastLines(shape)}</g>;
+}
+function forecastLines({ lines, end }: ForecastShape) {
+  return <>
+    {lines.map(line => <polyline key={line} className={s.forecast} data-line="forecast" points={line} strokeWidth="1.75" strokeDasharray="4 4" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />)}
+    {end && <>
+      <line className={s.endRing} x1={end.x} x2={end.x} y1={end.y} y2={end.y} strokeWidth="12" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <line className={s.endHole} x1={end.x} x2={end.x} y1={end.y} y2={end.y} strokeWidth="7" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </>}
+  </>;
 }
