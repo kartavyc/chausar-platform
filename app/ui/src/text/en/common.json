@@ -11,7 +11,7 @@
   "place.money": "Money",
   "place.connections": "Connections",
   "place.apps": "Apps",
-  "place.business": "Business",
+  "place.business": "Settings",
   "place.onboarding": "New business",
   "rail.needsYou": {
     "one": "{count} needs you",

@@ -110,7 +110,7 @@ describe('the phone frame', () => {
     expect(current[0]!.hasAttribute('data-current')).toBe(true);
   });
 
-  it('More opens a sheet "More" with Clients, Money, Apps (W6 6H1), Connections, Business and Start a new business; a link closes it', async () => {
+  it('More opens a sheet "More" with Clients, Money, Apps (W6 6H1), Connections, Settings and Start a new business; a link closes it', async () => {
     stubWidth(true);
     start('#/team');
     const more = within(tabs()).getByRole('link', { name: 'More' });
@@ -122,7 +122,7 @@ describe('the phone frame', () => {
     const list = within(sheet).getByRole('navigation', { name: 'More places' });
     const links = within(list).getAllByRole('link');
     expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
-      ['Clients', '#/clients'], ['Money', '#/money'], ['Apps', '#/apps'], ['Connections', '#/connections'], ['Business', '#/business/plan'], ['Start a new business', '#/onboarding'],
+      ['Clients', '#/clients'], ['Money', '#/money'], ['Apps', '#/apps'], ['Connections', '#/connections'], ['Settings', '#/business'], ['Start a new business', '#/onboarding'],
     ]);
     for (const link of links) expect(link.querySelectorAll('svg[aria-hidden="true"]').length).toBeGreaterThan(0);
     await act(async () => { fireEvent.click(links[1]!); window.location.hash = '#/money'; });

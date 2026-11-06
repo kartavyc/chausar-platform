@@ -57,7 +57,7 @@ describe('Business: plan and playbook', () => {
     expect(screen.getByText('Draft the sponsor script')).toBeTruthy();
     expect(screen.getByText('Anything posted in your name')).toBeTruthy();
     expect(screen.getAllByText('assumption').length).toBeGreaterThan(0);
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'How the work is done' }).getAttribute('aria-current')).toBe('page');
   });
 
@@ -344,7 +344,7 @@ describe('Business: the addresses other places link to', () => {
     it(`${hash} opens ${title}`, async () => {
       start(hash);
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeTruthy();
-      const nav = screen.getByRole('navigation', { name: 'Business pages' });
+      const nav = screen.getByRole('navigation', { name: 'Settings' });
       expect(within(nav).getByRole('link', { name: title }).getAttribute('aria-current')).toBe('page');
     });
   }
@@ -512,7 +512,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     start('#/business/ca', await ledgerline());
     expect(await screen.findByRole('heading', { level: 1, name: 'Your CA' })).toBeTruthy();
     expect(await screen.findByText('Meera Joshi')).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     await waitFor(() => expect(within(nav).getByRole('link', { name: 'Your CA' }).getAttribute('aria-current')).toBe('page'));
     expect(screen.getByText('412345')).toBeTruthy();
     expect(screen.getByText(/Agents never file or sign/)).toBeTruthy();
@@ -637,7 +637,7 @@ describe('Business: your CA (CA firm playbook)', () => {
   it('a business that is not a CA firm says so in one line, and its pages have no CA', async () => {
     start('#/business/ca');
     expect(await screen.findByText('Only a CA firm has a CA of record.')).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).queryByRole('link', { name: 'Your CA' })).toBeNull();
   });
 

@@ -119,7 +119,8 @@ const MORE_LINKS: readonly { place: PlaceId; href: string; icon: IconName; key: 
   { place: 'money', href: '#/money', icon: 'wallet', key: 'place.money' },
   { place: 'apps', href: '#/apps', icon: 'layout-grid', key: 'place.apps' },
   { place: 'connections', href: '#/connections', icon: 'plug', key: 'place.connections' },
-  { place: 'business', href: '#/business/plan', icon: 'sliders-horizontal', key: 'place.business' },
+  // C1 task 7: Settings, its list on a phone.
+  { place: 'business', href: '#/business', icon: 'settings', key: 'place.business' },
   { place: 'onboarding', href: '#/onboarding', icon: 'plus', key: 'more.start' },
 ];
 

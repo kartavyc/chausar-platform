@@ -42,7 +42,7 @@ describe('Business: practice clients', () => {
   it('lists the practice clients; Rehearse now runs them and shows how many passed, each failure and the cost as the engine wrote it', async () => {
     const { calls } = start();
     expect(await screen.findByRole('heading', { level: 1, name: 'Practice and improve' })).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'Practice and improve' }).getAttribute('aria-current')).toBe('page');
     const practice = await region('Practice clients');
     expect(await within(practice).findByText('A clear request')).toBeTruthy();

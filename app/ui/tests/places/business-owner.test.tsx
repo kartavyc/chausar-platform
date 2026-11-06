@@ -41,7 +41,7 @@ describe('Business > About you', () => {
   it('is a page in the business nav, with the first name and the services the business does not sell', async () => {
     await start('#/business/owner');
     expect(await screen.findByRole('heading', { level: 1, name: 'About you' })).toBeTruthy();
-    expect(within(screen.getByRole('navigation', { name: 'Business pages' })).getByRole('link', { name: 'About you' }).getAttribute('aria-current')).toBe('page');
+    expect(within(screen.getByRole('navigation', { name: 'Settings' })).getByRole('link', { name: 'About you' }).getAttribute('aria-current')).toBe('page');
     const name = screen.getByRole('textbox', { name: 'Your first name' }) as HTMLInputElement;
     expect(name.value).toBe('');
     expect(screen.getByText('Chausar uses it only to greet you on Today.')).toBeTruthy();

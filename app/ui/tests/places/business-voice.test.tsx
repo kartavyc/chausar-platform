@@ -51,7 +51,7 @@ describe('Business > Your voice (W4 4J22b, from 4J17)', () => {
   it('is a business page with each voice in use: its language and channel, on or off, version, and the six sections', async () => {
     start('#/business/voice');
     expect(await screen.findByRole('heading', { level: 1, name: 'Voice' })).toBeTruthy();
-    expect(within(screen.getByRole('navigation', { name: 'Business pages' })).getByRole('link', { name: 'Voice' }).getAttribute('aria-current')).toBe('page');
+    expect(within(screen.getByRole('navigation', { name: 'Settings' })).getByRole('link', { name: 'Voice' }).getAttribute('aria-current')).toBe('page');
     const voice = await tile('English, every channel');
     expect(voice.textContent).toContain('Version 2');
     expect((within(voice).getByRole('switch', { name: 'English, every channel on' }) as HTMLInputElement).checked).toBe(true);
