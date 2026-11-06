@@ -1,3 +1,4 @@
+import { rateTableFor, rateTableHash } from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
 /**
  * Sample data for the last screens: Money at a glance, the tax working, spend settings, the CA firm page, leads,
  * website edits and preview links. Every figure is written as the engine would format it; the UI never computes one.
@@ -98,7 +99,7 @@ export const CA_RECEIPTS: Record<string, Record<string, CaReceiptView>> = {
       id: 'w-gst-sep', runId: 'd-mehta-sep', engine: 'gst-working',
       figures: [{ key: 'output-igst', label: 'Output IGST', display: '₹900' }, { key: 'net-payable', label: 'Net payable', display: '₹2,825' }],
       steps: [{ key: 'net-payable', label: 'Net payable', display: '₹2,825', section: '49' }],
-      tables: [{ id: 'in-gst-rates', version: 2, title: 'GST rates and the GSTR-1 large invoice threshold', validFrom: '2025-09-22', validTo: null, confirmed: true, confirmedBy: 'Meera Joshi (ICAI 412345)' }],
+      tables: [{ id: 'in-gst-rates', version: 2, hash: rateTableHash(rateTableFor('gst-rates', '2026-10-01')), needsCaConfirmation: true, title: 'GST rates and the GSTR-1 large invoice threshold', validFrom: '2025-09-22', validTo: null, confirmed: true, confirmedBy: 'Meera Joshi (ICAI 412345)' }],
       assumptions: [], openQuestions: [], rederived: 'same', differs: null, explanations: [],
     },
     'w-portal-sep': {
