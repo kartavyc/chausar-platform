@@ -58,6 +58,7 @@
   "crm.edit.field": "Detail",
   "crm.edit.field.name": "Name",
   "crm.edit.field.email": "Email",
+  "crm.edit.field.phone": "Phone or WhatsApp",
   "crm.edit.field.note": "Note",
   "crm.edit.value": "New value",
   "crm.edit.save": "Save",

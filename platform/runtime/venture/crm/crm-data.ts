@@ -90,13 +90,17 @@ export function crmId(value: unknown, field: string): string {
 }
 const fold = (text: string) => text.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** venture.crm.client.edit { clientId, field, value }: one of the client fields the ledger writes back (name, email, note). */
-export function parseClientEdit(payload: unknown): { clientId: string; field: 'name' | 'email' | 'note'; value: string } {
+/**
+ * venture.crm.client.edit { clientId, field, value }: one of the client fields the ledger writes back (name, email, note,
+ * and one-shot C6's phone, whose WhatsApp digits the ledger works out again; clients/phone.ts checks it there).
+ */
+export function parseClientEdit(payload: unknown): { clientId: string; field: 'name' | 'email' | 'note' | 'phone'; value: string } {
   const body = crmPayload(payload, ['clientId', 'field', 'value'], ['clientId', 'field', 'value']);
   const clientId = crmId(body.clientId, 'Client');
-  check(body.field === 'name' || body.field === 'email' || body.field === 'note', BAD, 'Choose the name, the email or the note.');
+  check(body.field === 'name' || body.field === 'email' || body.field === 'note' || body.field === 'phone', BAD, 'Choose the name, the email, the phone or the note.');
   const field = body.field;
-  const value = field === 'name' ? crmText(body.value, 'Client name', 2, 120, true) : field === 'email' ? crmText(body.value, 'Email', 3, 200, true) : crmText(body.value, 'Note', 1, 500);
+  const value = field === 'name' ? crmText(body.value, 'Client name', 2, 120, true) : field === 'email' ? crmText(body.value, 'Email', 3, 200, true)
+    : field === 'phone' ? crmText(body.value, 'Phone or WhatsApp', 3, 40, true) : crmText(body.value, 'Note', 1, 500);
   if (field === 'email') check(EMAIL.test(value), BAD, 'Use an email address like name@example.com.');
   return { clientId, field, value };
 }
@@ -167,7 +171,7 @@ export const sameName = (a: string, b: string) => fold(a) === fold(b);
 // ---------------------------------------------------------------------------
 
 const FIELD_LABEL: Readonly<Record<string, string>> = Object.freeze({
-  name: 'Name', email: 'Email', note: 'Note', domain: 'Website', company: 'Company', member: 'Member', stages: 'Stages',
+  name: 'Name', email: 'Email', phone: 'Phone or WhatsApp', note: 'Note', domain: 'Website', company: 'Company', member: 'Member', stages: 'Stages',
 });
 
 /** Who made a change, in words. */

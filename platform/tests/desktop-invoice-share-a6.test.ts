@@ -527,3 +527,16 @@ test('A7 fix round 1 (low 3): a subject that cleans to nothing, with no address,
   assert.equal(reply.result?.opened, 'link');
   assert.deepEqual(s.opened, [contract.validateExternalUrl(mailto('', subject))]);
 });
+
+test("C6: with the client's number, WhatsApp opens that chat in the app and on the web; without one it does not carry a number", async t => {
+  const withNumber = engineFile({ share: { ...engineFile().share, whatsappUrl: `https://wa.me/919876543210?text=${encodeURIComponent(WA_TEXT)}` } });
+  const app = await shareDeps(t, { app: true, file: withNumber });
+  await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, app.deps);
+  assert.deepEqual(app.opened, [`whatsapp://send?phone=919876543210&text=${encodeURIComponent(WA_TEXT)}`]);
+  const web = await shareDeps(t, { app: false, file: withNumber });
+  await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, web.deps);
+  assert.deepEqual(web.opened, [`https://wa.me/919876543210?text=${encodeURIComponent(WA_TEXT)}`]);
+  const none = await shareDeps(t, { app: true });
+  await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, none.deps);
+  assert.ok(!none.opened[0]!.includes('phone='), 'no number, no chat chosen');
+});

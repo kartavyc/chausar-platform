@@ -1014,6 +1014,13 @@ export type ClientRecord = RecordBase<'venture-client'> & {
   taxId: string | null; // the client's GSTIN or VAT number, when they gave one
   stateCode: string | null; // India only: the client's GST state code, for place of supply
   note: string | null;
+  /**
+   * One-shot C6: the phone or WhatsApp number as the owner typed it, and its WhatsApp digits (country code first, no
+   * plus) worked out by code (clients/phone.ts). Absent means none. Used only to open WhatsApp; never read by a model
+   * (clients/phone.ts CLIENT_AI_FIELDS); erased by Forget.
+   */
+  phone?: string | null;
+  whatsapp?: string | null;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
   sellerShopify?: import('./playbooks/online-seller/shopify-records.ts').SellerShopifyBody;

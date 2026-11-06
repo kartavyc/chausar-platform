@@ -36,6 +36,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const business = useResource('venture.get', {}, { refreshOn: never });
   const [clientId, setClientId] = useState(id === 'new' ? '' : id);
   const [name, setName] = useState('');
+  const [newPhone, setNewPhone] = useState(''); // C6: the new client's phone or WhatsApp number, as typed
   // W4 4B3: an agent's chat may open this sheet with the service and request filled in (prefill.ts).
   const [prefill] = useState(peekPrefill);
   useEffect(clearPrefill, []);
@@ -66,7 +67,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
       const intakeFiles = await kitIntakeFiles(ask, kitAnswers);
       const told = ask?.kit ? { ...intakeParams(ask, intake), ...kitIntakeParams(ask, kitAnswers) } : intakeParams(ask, intake);
       // One-shot A1 (row 10): a new client goes with the order in one request, so a refused order adds no client.
-      const forClient = who === NEW_CLIENT ? { newClient: { name: name.trim() } } : { clientId: who };
+      const forClient = who === NEW_CLIENT ? { newClient: { name: name.trim(), ...(newPhone.trim() ? { phone: newPhone.trim() } : {}) } } : { clientId: who };
       const order = await engine.request('venture.order.create', { ...forClient, offerId: what, request: request.trim(), ...(told ? { intake: told } : {}), ...(Object.keys(intakeFiles).length ? { intakeFiles } : {}) });
       if (who === NEW_CLIENT) { setClientId(order.clientId); clients.reload(); }
       const refused: { name: string; message: string }[] = [];
@@ -117,6 +118,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
           </select>
         </div>
         {who === NEW_CLIENT && <Field label={t('work.form.clientName')} value={name} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} />}
+        {who === NEW_CLIENT && <Field label={t('work.form.clientPhone')} type="tel" inputMode="tel" value={newPhone} autoComplete="off" maxLength={40} onChange={(event) => setNewPhone(event.currentTarget.value)} />}
         <div className={s.field}>
           <label htmlFor={`${ids}-service`} className={s.label}>{t('work.form.service')}</label>
           <select id={`${ids}-service`} className={s.select} value={what} onChange={(event) => setOfferId(event.currentTarget.value)}>

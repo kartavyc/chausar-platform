@@ -211,7 +211,7 @@ function EditForm({ clientId, onChanged, onFailed }: { clientId: string; onChang
   const t = useT();
   const engine = useEngine();
   const ids = useId();
-  const [field, setField] = useState<'name' | 'email' | 'note'>('note');
+  const [field, setField] = useState<'name' | 'phone' | 'email' | 'note'>('note');
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -231,13 +231,13 @@ function EditForm({ clientId, onChanged, onFailed }: { clientId: string; onChang
     <form className={s.form} onSubmit={(event) => void submit(event)}>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-field`}>{t('crm.edit.field')}</label>
-        <select id={`${ids}-field`} className={s.select} value={field} onChange={(event) => setField(event.currentTarget.value as 'name' | 'email' | 'note')}>
-          {(['name', 'email', 'note'] as const).map((one) => <option key={one} value={one}>{t(`crm.edit.field.${one}`)}</option>)}
+        <select id={`${ids}-field`} className={s.select} value={field} onChange={(event) => setField(event.currentTarget.value as 'name' | 'phone' | 'email' | 'note')}>
+          {(['name', 'phone', 'email', 'note'] as const).map((one) => <option key={one} value={one}>{t(`crm.edit.field.${one}`)}</option>)}
         </select>
       </div>
       {field === 'note'
         ? <Field multiline label={t('crm.edit.value')} value={value} maxLength={500} onChange={(event) => setValue(event.currentTarget.value)} />
-        : <Field label={t('crm.edit.value')} value={value} maxLength={field === 'email' ? 200 : 120} autoComplete="off" onChange={(event) => setValue(event.currentTarget.value)} />}
+        : <Field label={t('crm.edit.value')} value={value} maxLength={field === 'email' ? 200 : field === 'phone' ? 40 : 120} autoComplete="off" onChange={(event) => setValue(event.currentTarget.value)} />}
       <div className={s.actions}><Button type="submit" disabled={busy || !value.trim()}>{t('crm.edit.save')}</Button></div>
     </form>
   );

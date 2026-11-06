@@ -402,3 +402,17 @@ describe('a transcript made on this computer', () => {
     await expect(made.engine.request('fake.files.keepMade' as never, { orderId: made.order.id, name: 'x.srt', contentBase64: btoa('1\n00:00:00,000 --> 00:00:01,000\nHi\n') } as never)).rejects.toMatchObject({ code: 'METHOD_NOT_ALLOWED' });
   });
 });
+
+// One-shot C6 task 3: a new client added with an order can carry a phone or WhatsApp number.
+describe('a new client on a new order', () => {
+  it('takes a phone or WhatsApp number and sends it with the new client', async () => {
+    const { calls, sheet, service, add } = await openOrder(await lumen());
+    fireEvent.change(within(sheet).getByLabelText('Client'), { target: { value: '+new' } });
+    fireEvent.change(within(sheet).getByLabelText("Client's name"), { target: { value: 'Kavya Rao' } });
+    fireEvent.change(within(sheet).getByLabelText('Phone or WhatsApp'), { target: { value: '98765 43210' } });
+    fireEvent.change(service, { target: { value: 'offer_shorts' } });
+    fireEvent.change(within(sheet).getByLabelText('Who owns the footage'), { target: { value: 'Kavya Rao' } });
+    await act(async () => { fireEvent.click(add()); });
+    expect(created(calls)?.newClient).toEqual({ name: 'Kavya Rao', phone: '98765 43210' });
+  });
+});

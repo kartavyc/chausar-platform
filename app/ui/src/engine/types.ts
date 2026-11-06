@@ -678,9 +678,11 @@ export interface ClientLite {
   aiConsent?: ClientAiConsent;
   self?: true;
   id: string; at: string; name: string; email: string | null; countryCode: string | null; taxId: string | null; stateCode: string | null; note: string | null;
+  /** One-shot C6: the phone or WhatsApp number as typed, and its WhatsApp digits (only ever used to open WhatsApp). */
+  phone?: string | null; whatsapp?: string | null;
   owed?: { display: Display; receiptId: string };
 }
-export interface ClientAddParams { name: string; email?: string; countryCode?: string; taxId?: string; stateCode?: string; note?: string }
+export interface ClientAddParams { name: string; email?: string; countryCode?: string; taxId?: string; stateCode?: string; note?: string; phone?: string }
 export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { SearchProviderId, WebSearchView, WebReadView } from '../../../../platform/runtime/venture/web/search-types';
 import type { PeopleLookupView, PeopleSearchView } from '../../../../platform/runtime/venture/people/people-types';
@@ -2293,7 +2295,7 @@ export interface EngineMethods {
   'venture.people.lookup': { params: { service: 'happenstance' | 'probe42'; query?: string; clientId?: string; digest?: string; searchId?: string }; result: PeopleLookupView };
   // W6 6G3 the CRM: field history, companies with two-way links, client timelines and lists (pipelines with their own stages).
   'venture.crm.client': { params: { clientId: string }; result: ClientCrmView };
-  'venture.crm.client.edit': { params: { clientId: string; field: 'name' | 'email' | 'note'; value: string }; result: ClientCrmView };
+  'venture.crm.client.edit': { params: { clientId: string; field: 'name' | 'email' | 'note' | 'phone'; value: string }; result: ClientCrmView };
   'venture.crm.companies': { params: Record<string, never>; result: CompanyRow[] };
   'venture.crm.company': { params: { companyId: string }; result: CompanyView };
   'venture.crm.company.save': { params: { companyId?: string; name?: string; domain?: string | null; note?: string | null }; result: CompanyView };

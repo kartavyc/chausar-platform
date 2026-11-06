@@ -6,6 +6,7 @@
 import { formatMinor } from '../../currency.ts';
 import { check, type Context } from '../../contracts.ts';
 import { exactPayload, formatVentureDate, listRecords, readVenture, requireAppChannel } from '../records.ts';
+import { whatsappLink } from '../clients/phone.ts';
 import { pdfOf } from '../playbooks/kit/report/pdf.ts';
 import { invoiceView } from './invoices.ts';
 import { oneLine, recordId } from './shared.ts';
@@ -80,7 +81,8 @@ export async function invoicePdf(deps: VentureDeps, ctx: Context, payload: unkno
   const email = view.client.email ?? '';
   const share = {
     ...words,
-    whatsappUrl: `https://wa.me/?text=${encodeURIComponent(words.text)}`,
+    // One-shot C6: to the client's own chat when the client has a number (clients/phone.ts), else the owner picks.
+    whatsappUrl: whatsappLink(listRecords(state, 'venture-client', venture.id).find(item => item.id === invoice.clientId)?.whatsapp ?? null, words.text),
     mailtoUrl: `mailto:${encodeURIComponent(email).replace(/%40/g, '@')}?subject=${encodeURIComponent(words.subject)}&body=${encodeURIComponent(words.text)}`,
   };
   const base = (invoice.number as string).replace(/[^A-Za-z0-9-]/g, '-');
