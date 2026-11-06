@@ -6,14 +6,20 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
-const venture = join(import.meta.dirname, '../runtime/venture');
+const ventures = ['../runtime/venture', '../shared/venture'].map(root => join(import.meta.dirname, root));
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
     return statSync(path).isDirectory() ? files(path) : path.endsWith('.ts') ? [path] : [];
   });
 }
-const code = files(venture).map(path => ({ f: relative(venture, path).split(sep).join('/'), text: readFileSync(path, 'utf8') }));
+// Forwarders and canonical implementations share a logical path. Count both physical bodies once, never pick one.
+const combined = new Map<string, string[]>();
+for (const root of ventures) for (const path of files(root)) {
+  const file = relative(root, path).split(sep).join('/');
+  combined.set(file, [...(combined.get(file) ?? []), readFileSync(path, 'utf8')]);
+}
+const code = [...combined].map(([f, texts]) => ({ f, text: texts.join('\n') }));
 
 /**
  * B2 fix round 1: the one list of places under venture/ (build/ included) that write the exact form, each with how many

@@ -1,11 +1,14 @@
 // D2 tasks 14 to 16: the prompt-weight budget. What each AI call receives is held to "fixed instructions first, the
 // changing parts after", so a provider's prompt cache can reuse the fixed part, and its size only shrinks.
 import test from 'node:test';
+import ts from 'typescript';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { MODEL_PURPOSES } from '../runtime/venture/contract-values.ts';
-import { instructionSites, VENTURE } from './prompt-weight/static.ts';
+import { instructionSites, VENTURE_ROOTS, shape } from './prompt-weight/static.ts';
 import { FIXTURES, PASS_THROUGH, REGISTRY, WRAPPERS } from './prompt-weight/tasks.ts';
 import { capture } from './prompt-weight/capture.ts';
 
@@ -20,8 +23,8 @@ function sources(folder: string): string[] {
 test('part 1: every purpose literal on a model task belongs to a scanned site, and the registry is not stale', () => {
   const known = new Set<string>(MODEL_PURPOSES);
   const missing: string[] = [];
-  for (const path of sources(VENTURE)) {
-    const file = relative(VENTURE, path).replaceAll('\\', '/');
+  for (const root of VENTURE_ROOTS) for (const path of sources(root)) {
+    const file = relative(root, path).replaceAll('\\', '/');
     readFileSync(path, 'utf8').split('\n').forEach((line, index) => {
       for (const match of line.matchAll(/purpose:\s*'([a-z-]+)'/g)) {
         if (!known.has(match[1])) continue; // record kinds and labels that share the word
@@ -107,4 +110,27 @@ test('part 3: each builder stays within its weight budget (baselines/prompt-weig
   }
   assert.deepEqual(over, [], 'a raise goes to the founder in the pull request, with its reason');
   for (const name of Object.keys(budget)) assert.ok(REGISTRY.some(builder => builder.name === name), `${name} is in the budget but not in the registry`);
+});
+
+test('the prompt guard follows fixed export-star constants but refuses changing, cyclic and ambiguous exports', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'chausar-prompt-forwarders-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const fixtures: Record<string, string> = {
+    'fixed.ts': "export const RULE = 'fixed instructions';",
+    'changing.ts': 'export const RULE = Date.now().toString();',
+    'other.ts': "export const RULE = 'other instructions';",
+    'forward-fixed.ts': "export * from './fixed.ts';",
+    'forward-changing.ts': "export * from './changing.ts';",
+    'forward-cycle.ts': "export * from './cycle.ts';",
+    'cycle.ts': "export * from './forward-cycle.ts';",
+    'forward-ambiguous.ts': "export * from './fixed.ts'; export * from './other.ts';",
+  };
+  for (const [name, body] of Object.entries(fixtures)) await writeFile(join(directory, name), body);
+  for (const kind of ['fixed', 'changing', 'cycle', 'ambiguous']) {
+    const source = ts.createSourceFile(join(directory, kind + '-entry.ts'), `import { RULE } from './forward-${kind}.ts'; const instructions = RULE;`, ts.ScriptTarget.Latest, true);
+    const declaration = source.statements.filter(ts.isVariableStatement)[0].declarationList.declarations[0];
+    const result = shape(source, declaration.initializer!, new Map());
+    assert.equal(result.fixed, kind === 'fixed', kind);
+    if (kind === 'fixed') assert.equal(result.text, 'fixed instructions');
+  }
 });

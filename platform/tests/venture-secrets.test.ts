@@ -191,7 +191,7 @@ test('redactPayload: any value under a secret key is redacted, numbers and flags
 });
 
 test('the module says plainly what it cannot catch', async () => {
-  const source = await readFile(new URL('../runtime/venture/core/secrets.ts', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../shared/venture/core/secrets.ts', import.meta.url), 'utf8');
   assert.match(source, /split into chunks under 16 characters/);
 });
 

@@ -3,7 +3,7 @@
 // India on 22 Oct, UTC still says 21 Oct; the owner's day is 22 Oct.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
@@ -14,6 +14,7 @@ import { applySiteEdit, localFolderTarget, stageSiteEdit } from '../runtime/vent
 import { ventureTimeZone } from '../runtime/venture/local-day.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
+const ventureRoots = ['../runtime/venture', '../shared/venture'].map(root => join(import.meta.dirname, root));
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 /** 00:30 in India on 22 Oct 2026; UTC is still on 21 Oct. */
 const LATE = Date.parse('2026-10-21T19:00:00.000Z');
@@ -54,14 +55,15 @@ test('a website read back at 00:30 in India is dated the owner\'s day, not the U
 
 test('none of the listed spots reads the UTC day or a fixed India offset any more', () => {
   assert.equal('runClock().toISOString().slice(0, 10)'.match(UTC_DAY)?.length, 1, 'A replay-aware clock must not bypass the owner-day guard.');
-  const root = join(import.meta.dirname, '../runtime/venture');
   for (const file of [
     'delivery/runs.ts', 'playbooks/social/run-guard.ts', 'build/site-edits.ts', 'agent-runtime/native-job.ts',
     'playbooks/online-seller/photos-desk.ts', 'playbooks/online-seller/model.ts',
     // Found while building: the journal refused an owner's-day check as dated after today.
     'journal/end-states.ts',
   ]) {
-    const text = readFileSync(join(root, file), 'utf8');
+    const paths = ventureRoots.map(root => join(root, file)).filter(existsSync);
+    assert.ok(paths.length, file + ' must have a source body');
+    const text = paths.map(path => readFileSync(path, 'utf8')).join('\n');
     // Tested with .test so a failure names the file, not the whole file's text.
     assert.ok(!/(?:clock\(\)|new Date\(\)|Date\.now\(\)[^;]*)\.toISOString\(\)\.slice\(0, ?10\)/.test(text), file);
     assert.ok(!/tx\.now\.slice\(0, ?10\)/.test(text), file);
@@ -119,9 +121,13 @@ const UTC_DAY_PLACES: Readonly<Record<string, readonly [count: number, why: stri
 };
 
 test('under venture/, no UTC day of now or of the computer clock outside the listed places (owner-day rule)', () => {
-  const root = join(import.meta.dirname, '../runtime/venture');
   const walk = (dir: string): string[] => readdirSync(dir).flatMap(name => { const path = join(dir, name); return statSync(path).isDirectory() ? walk(path) : path.endsWith('.ts') ? [path] : []; });
-  const found = walk(root).map(path => [relative(root, path).split(sep).join('/'), (readFileSync(path, 'utf8').match(UTC_DAY) ?? []).length] as const)
+  const counts = new Map<string, number>();
+  for (const root of ventureRoots) for (const path of walk(root)) {
+    const file = relative(root, path).split(sep).join('/');
+    counts.set(file, (counts.get(file) ?? 0) + (readFileSync(path, 'utf8').match(UTC_DAY) ?? []).length);
+  }
+  const found = [...counts]
     .filter(([f, count]) => count !== (UTC_DAY_PLACES[f]?.[0] ?? 0)).map(([f, count]) => `${f}: ${count}, listed ${UTC_DAY_PLACES[f]?.[0] ?? 0}`);
   assert.deepEqual(found, []);
 });

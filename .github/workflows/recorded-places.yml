@@ -1,0 +1,60 @@
+name: Recorded places snapshot checks
+on:
+  push:
+    branches: ['b2c/os-recordings-check-*']
+permissions:
+  contents: read
+jobs:
+  recordings:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: --max-old-space-size=3072
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Canonical source and authority guards
+        shell: bash
+        run: |
+          set -o pipefail
+          export CHAUSAR_RUN_ROOT="$RUNNER_TEMP/recording-receipts"
+          mkdir -p "$CHAUSAR_RUN_ROOT"
+          node --test platform/tests/engine-dispatch-d11.test.ts platform/tests/venture-host.test.ts platform/tests/venture-guides.test.ts platform/tests/rpc-recorder-d11.test.ts platform/tests/owner-format-sources-b2.test.ts platform/tests/venture-owner-today-b2.test.ts platform/tests/prompt-weight-d2.test.ts platform/tests/venture-secrets.test.ts platform/tests/test-isolation-d2.test.ts 2>&1 | tee "$CHAUSAR_RUN_ROOT/nearby.log"
+      - name: Compare all eleven recordings twice with fresh engines
+        shell: bash
+        run: |
+          set -o pipefail
+          export CHAUSAR_RUN_ROOT="$RUNNER_TEMP/recording-receipts"
+          node --test platform/tests/recordings-d11.test.ts 2>&1 | tee "$CHAUSAR_RUN_ROOT/compare-one.log"
+          node --test platform/tests/recordings-d11.test.ts 2>&1 | tee "$CHAUSAR_RUN_ROOT/compare-two.log"
+      - name: Focused receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recordings-focused-${{ matrix.os }}
+          path: ${{ runner.temp }}/recording-receipts
+      - name: Both typechecks and source checks
+        if: always() && matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -o pipefail
+          export CHAUSAR_RUN_ROOT="$RUNNER_TEMP/recording-receipts"
+          npm run typecheck 2>&1 | tee "$CHAUSAR_RUN_ROOT/types.log"
+          npm run typecheck:ui 2>&1 | tee "$CHAUSAR_RUN_ROOT/ui-types.log"
+          node scripts/check.mjs 2>&1 | tee "$CHAUSAR_RUN_ROOT/checks.log"
+      - name: Retain all receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recordings-final-${{ matrix.os }}
+          path: ${{ runner.temp }}/recording-receipts

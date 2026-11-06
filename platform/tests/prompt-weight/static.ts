@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 export const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const VENTURE = join(REPOSITORY, 'platform/runtime/venture');
+export const VENTURE_ROOTS = [VENTURE, join(REPOSITORY, 'platform/shared/venture')];
 
 export type Site = {
   file: string; // relative to platform/runtime/venture, with forward slashes
@@ -66,7 +67,16 @@ function resolveName(file: ts.SourceFile, name: string, seen = new Set<string>()
       }
     }
   }
-  return null;
+  // Canonical helpers are forwarded with export-star. Resolve every branch and refuse an ambiguous or cyclic name.
+  const forwarded: { file: ts.SourceFile; init: ts.Expression }[] = [];
+  for (const statement of file.statements) {
+    if (!ts.isExportDeclaration(statement) || statement.isTypeOnly || statement.exportClause || !statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    const specifier = statement.moduleSpecifier.text;
+    if (!specifier.startsWith('.')) continue;
+    const found = resolveName(parse(resolve(dirname(file.fileName), specifier)), name, new Set(seen));
+    if (found && !forwarded.some(value => value.file.fileName === found.file.fileName && value.init.pos === found.init.pos)) forwarded.push(found);
+  }
+  return forwarded.length === 1 ? forwarded[0] : null;
 }
 
 /** A `const NAME = ...` in a block around the node (a local in the builder function), nearest first. */
@@ -177,7 +187,7 @@ const literalText = (node: ts.Expression): string | null => { const inner = unwr
 /** Every place under platform/runtime/venture that sets a model task's instructions. */
 export function instructionSites(wrappers: ReadonlyMap<string, 'text' | 'builder'>): Site[] {
   const sites: Site[] = [];
-  for (const path of walk(VENTURE)) {
+  for (const root of VENTURE_ROOTS) for (const path of walk(root)) {
     const file = parse(path);
     const visit = (node: ts.Node) => {
       if (ts.isObjectLiteralExpression(node)) {
@@ -189,7 +199,7 @@ export function instructionSites(wrappers: ReadonlyMap<string, 'text' | 'builder
         if (instructions && (purpose || spreadsTask)) {
           const result = shape(file, instructions.initializer, wrappers);
           sites.push({
-            file: relative(VENTURE, path).replaceAll('\\', '/'),
+            file: relative(root, path).replaceAll('\\', '/'),
             line: file.getLineAndCharacterOfPosition(instructions.getStart()).line + 1,
             purpose: purpose ? literalText(purpose.initializer) : null,
             verdict: !result.fixed ? 'changing' : result.wrappers.length ? 'wrapper' : 'fixed',

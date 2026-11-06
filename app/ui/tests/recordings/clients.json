@@ -1,0 +1,334 @@
+{
+  "format": "chausar-rpc-recording/1",
+  "scenario": "clients",
+  "epoch": "2026-11-06T12:00:00.000Z",
+  "placeholders": {
+    "<time-1>": {
+      "kind": "time",
+      "offsetMs": 0,
+      "precision": 3
+    },
+    "<id-1>": {
+      "kind": "id",
+      "prefix": "client_"
+    },
+    "<id-2>": {
+      "kind": "id",
+      "prefix": "venture_"
+    },
+    "<digest-1>": {
+      "kind": "digest"
+    },
+    "<digest-2>": {
+      "kind": "digest"
+    },
+    "<id-3>": {
+      "kind": "id",
+      "prefix": "aiconsent_"
+    },
+    "<id-4>": {
+      "kind": "id",
+      "prefix": "crmchange_"
+    },
+    "<digest-3>": {
+      "kind": "digest"
+    }
+  },
+  "frames": [
+    {
+      "kind": "request",
+      "id": 1,
+      "method": "venture.client.list",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 1,
+      "result": []
+    },
+    {
+      "kind": "request",
+      "id": 2,
+      "method": "venture.client.add",
+      "payload": {
+        "name": "Sample Studio",
+        "countryCode": "IN"
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "queue.changed",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 19
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 2,
+      "result": {
+        "id": "<id-1>",
+        "kind": "venture-client",
+        "ventureId": "<id-2>",
+        "memberId": "owner",
+        "epoch": 1,
+        "at": "<time-1>",
+        "name": "Sample Studio",
+        "email": null,
+        "countryCode": "IN",
+        "taxId": null,
+        "stateCode": null,
+        "note": null
+      }
+    },
+    {
+      "kind": "request",
+      "id": 3,
+      "method": "venture.client.list",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 3,
+      "result": [
+        {
+          "id": "<id-1>",
+          "kind": "venture-client",
+          "ventureId": "<id-2>",
+          "memberId": "owner",
+          "epoch": 1,
+          "at": "<time-1>",
+          "name": "Sample Studio",
+          "email": null,
+          "countryCode": "IN",
+          "taxId": null,
+          "stateCode": null,
+          "note": null
+        }
+      ]
+    },
+    {
+      "kind": "request",
+      "id": 4,
+      "method": "venture.client.aiConsent.get",
+      "payload": {
+        "clientId": "<id-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 4,
+      "result": {
+        "clientId": "<id-1>",
+        "clientName": "Sample Studio",
+        "status": "required",
+        "disclosure": "Allow your connected AI to read this client's details, requests and files for their work. Only share data you have permission to share. You can withdraw this permission at any time. Withdrawal stops future sharing but cannot take back data already shared. Sending anything to a client still needs your approval.",
+        "disclosureDigest": "<digest-1>",
+        "consent": null
+      }
+    },
+    {
+      "kind": "request",
+      "id": 5,
+      "method": "venture.client.aiConsent.agree",
+      "payload": {
+        "clientId": "<id-1>",
+        "disclosureDigest": "<digest-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 5,
+      "result": {
+        "clientId": "<id-1>",
+        "clientName": "Sample Studio",
+        "status": "agreed",
+        "disclosure": "Allow your connected AI to read this client's details, requests and files for their work. Only share data you have permission to share. You can withdraw this permission at any time. Withdrawal stops future sharing but cannot take back data already shared. Sending anything to a client still needs your approval.",
+        "disclosureDigest": "<digest-2>",
+        "consent": {
+          "id": "<id-3>",
+          "revision": 1,
+          "disclosureDigest": "<digest-1>",
+          "grantedAt": "<time-1>",
+          "grantedBy": "owner",
+          "withdrawnAt": null
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "id": 6,
+      "method": "venture.crm.client.edit",
+      "payload": {
+        "clientId": "<id-1>",
+        "field": "note",
+        "value": "Send a short monthly report."
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 6,
+      "result": {
+        "clientId": "<id-1>",
+        "company": null,
+        "history": [
+          {
+            "id": "<id-4>",
+            "subject": "client:<id-1>",
+            "field": "note",
+            "label": "Note",
+            "who": "You",
+            "at": "<time-1>",
+            "line": "You set Note",
+            "before": null,
+            "after": "Send a short monthly report."
+          },
+          {
+            "id": "added:client:<id-1>",
+            "subject": "client:<id-1>",
+            "field": "record",
+            "label": "Record",
+            "who": "",
+            "at": "<time-1>",
+            "line": "Added to Clients",
+            "before": null,
+            "after": null
+          }
+        ],
+        "timeline": [],
+        "lists": []
+      }
+    },
+    {
+      "kind": "request",
+      "id": 7,
+      "method": "venture.crm.client",
+      "payload": {
+        "clientId": "<id-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 7,
+      "result": {
+        "clientId": "<id-1>",
+        "company": null,
+        "history": [
+          {
+            "id": "<id-4>",
+            "subject": "client:<id-1>",
+            "field": "note",
+            "label": "Note",
+            "who": "You",
+            "at": "<time-1>",
+            "line": "You set Note",
+            "before": null,
+            "after": "Send a short monthly report."
+          },
+          {
+            "id": "added:client:<id-1>",
+            "subject": "client:<id-1>",
+            "field": "record",
+            "label": "Record",
+            "who": "",
+            "at": "<time-1>",
+            "line": "Added to Clients",
+            "before": null,
+            "after": null
+          }
+        ],
+        "timeline": [],
+        "lists": []
+      }
+    },
+    {
+      "kind": "request",
+      "id": 8,
+      "method": "venture.client.aiConsent.withdraw",
+      "payload": {
+        "clientId": "<id-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 8,
+      "result": {
+        "clientId": "<id-1>",
+        "clientName": "Sample Studio",
+        "status": "withdrawn",
+        "disclosure": "Allow your connected AI to read this client's details, requests and files for their work. Only share data you have permission to share. You can withdraw this permission at any time. Withdrawal stops future sharing but cannot take back data already shared. Sending anything to a client still needs your approval.",
+        "disclosureDigest": "<digest-3>",
+        "consent": {
+          "id": "<id-3>",
+          "revision": 2,
+          "disclosureDigest": "<digest-1>",
+          "grantedAt": "<time-1>",
+          "grantedBy": "owner",
+          "withdrawnAt": "<time-1>"
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "id": 9,
+      "method": "venture.client.aiConsent.get",
+      "payload": {
+        "clientId": "<id-1>"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 9,
+      "result": {
+        "clientId": "<id-1>",
+        "clientName": "Sample Studio",
+        "status": "withdrawn",
+        "disclosure": "Allow your connected AI to read this client's details, requests and files for their work. Only share data you have permission to share. You can withdraw this permission at any time. Withdrawal stops future sharing but cannot take back data already shared. Sending anything to a client still needs your approval.",
+        "disclosureDigest": "<digest-3>",
+        "consent": {
+          "id": "<id-3>",
+          "revision": 2,
+          "disclosureDigest": "<digest-1>",
+          "grantedAt": "<time-1>",
+          "grantedBy": "owner",
+          "withdrawnAt": "<time-1>"
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "id": 10,
+      "method": "venture.client.list",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 10,
+      "result": [
+        {
+          "id": "<id-1>",
+          "kind": "venture-client",
+          "ventureId": "<id-2>",
+          "memberId": "owner",
+          "epoch": 1,
+          "at": "<time-1>",
+          "name": "Sample Studio",
+          "email": null,
+          "countryCode": "IN",
+          "taxId": null,
+          "stateCode": null,
+          "note": "Send a short monthly report.",
+          "aiConsent": {
+            "id": "<id-3>",
+            "revision": 2,
+            "disclosureDigest": "<digest-1>",
+            "grantedAt": "<time-1>",
+            "grantedBy": "owner",
+            "withdrawnAt": "<time-1>"
+          }
+        }
+      ]
+    }
+  ]
+}
