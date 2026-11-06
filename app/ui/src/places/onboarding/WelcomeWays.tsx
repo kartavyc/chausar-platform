@@ -216,6 +216,24 @@ export function MoveHere({ onOpened, onBack }: WayProps) {
   const pair = useNewPassphrase();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const zone = useOwnerZone();
+  // C4 task 38 (223.x1): with the file and a whole code, the engine reads the name and day inside, quietly, before
+  // Move it here; nothing is written and a refusal says nothing here (Move it here says it).
+  const [inside, setInside] = useState<{ name: string; movedOutAt: string | null } | null>(null);
+  useEffect(() => {
+    setInside(null);
+    if (!file || code.replace(/[^A-Za-z0-9]/g, '').length < 24) return;
+    let live = true;
+    void (async () => {
+      try {
+        const fileText = await file.text();
+        if (fileText.length > TRANSFER_MAX_CHARS) return;
+        const seen = await client.request('workspace.transfer.peek', { fileText, transferCode: code.trim() });
+        if (live) setInside(seen);
+      } catch { /* quiet: Move it here gives the engine's words */ }
+    })();
+    return () => { live = false; };
+  }, [file, code, client]);
 
   async function move() {
     if (!file) { setProblem(t('onboarding.move.fileFirst')); return; }
@@ -251,15 +269,18 @@ export function MoveHere({ onOpened, onBack }: WayProps) {
   return (
     <Way title={t('onboarding.move.title')} lead={t('onboarding.move.lead')} onBack={onBack}>
       <div className={s.ask}>
+        <p className={s.note}>{t('onboarding.move.how')}</p>
         <div className={s.file}>
           <Button onClick={() => picker.current?.click()}>{t('onboarding.move.choose')}</Button>
           <span className={s.note}>{file ? file.name : t('onboarding.move.noFile')}</span>
           <input
-            ref={picker} type="file" hidden tabIndex={-1} accept=".backup,application/json" aria-label={t('onboarding.move.file')}
+            ref={picker} type="file" hidden tabIndex={-1} accept=".chausar-move,.backup,application/json" aria-label={t('onboarding.move.file')}
             onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setProblem(null); }}
           />
         </div>
-        <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} onChange={(event) => setCode(event.currentTarget.value)} onKeyDown={onEnter} />
+        {/* C4 task 38 (222, B3's handoff): a stale error goes as soon as the owner types. */}
+        <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} onChange={(event) => { setCode(event.currentTarget.value); setProblem(null); }} onKeyDown={onEnter} />
+        {inside && <p className={s.note} role="status">{t(inside.movedOutAt ? 'onboarding.move.inside' : 'onboarding.move.insideName', { name: inside.name, when: inside.movedOutAt ? momentOf(inside.movedOutAt, zone) : '' })}</p>}
         {pair.node}
         {problem && <p className={s.problem} role="alert">{problem}</p>}
         <div className={s.actions}><Button variant="primary" disabled={busy} onClick={() => void move()}>{t('onboarding.move.go')}</Button></div>

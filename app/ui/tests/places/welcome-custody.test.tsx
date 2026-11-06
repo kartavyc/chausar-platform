@@ -204,7 +204,10 @@ describe('Welcome back: move a business here', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Move a business here' })).toBeTruthy();
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     expect(input.hidden).toBe(true);
-    expect(input.accept).toBe('.backup,application/json');
+    // C4 task 38 (218.d1): the move file's own extension first; an older .backup move file still opens.
+    expect(input.accept).toBe('.chausar-move,.backup,application/json');
+    // C4 task 38 (214.x1): how the file gets here.
+    expect(screen.getByText('Bring the file by USB stick, Google Drive or WhatsApp to yourself.')).toBeTruthy();
     let picked = 0;
     input.addEventListener('click', () => { picked++; });
     await press(screen.getByRole('button', { name: 'Choose the move file' }));
@@ -223,6 +226,11 @@ describe('Welcome back: move a business here', () => {
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(CUSTODY_ERROR_WORDS.TRANSFER_CODE_WRONG));
     expect(code.value).toBe('');
     fireEvent.change(code, { target: { value: SAMPLE_MOVE_CODE } });
+    // C4 task 38: a stale error goes as soon as the owner types (222); the name and day inside show before Move it here.
+    expect(screen.queryByRole('alert')).toBeNull();
+    const peeked = await screen.findByText(/^This file holds Lumen Studio, moved out .+\.$/);
+    expect(peeked.closest('[role="status"]')).not.toBeNull();
+    expect(sent(calls, 'workspace.transfer.peek')).toEqual([{ fileText: move.text, transferCode: SAMPLE_MOVE_CODE }]);
     await press(screen.getByRole('button', { name: 'Move it here' }));
     await appShown();
     expect(sent(calls, 'workspace.transfer.import')).toEqual([
