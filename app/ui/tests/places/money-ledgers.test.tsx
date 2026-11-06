@@ -56,14 +56,13 @@ describe('Money: books', () => {
 
   it('chooses the period from the engine list and keeps it in the address', async () => {
     const { calls } = start('#/money/books');
-    const periods = await screen.findByRole('group', { name: 'Period' });
-    const buttons = within(periods).getAllByRole('button');
-    expect(buttons.map((b) => b.textContent)).toEqual(['All time', 'This month', 'Last month', 'This year']);
-    expect(within(periods).getByRole('button', { name: 'This month' }).getAttribute('aria-pressed')).toBe('true');
-    await click(within(periods).getByRole('button', { name: 'This year' }));
+    const periods = await screen.findByRole('combobox', { name: 'Period' });
+    expect(within(periods).getAllByRole('option').map(option => option.textContent)).toEqual(['All time', 'This month', 'Last month', 'This year']);
+    expect((periods as HTMLSelectElement).value).toBe('this-month');
+    await act(async () => { fireEvent.change(periods, { target: { value: 'this-year' } }); window.dispatchEvent(new HashChangeEvent('hashchange')); });
     expect(window.location.hash).toBe('#/money/books?period=this-year');
     await waitFor(() => expect(calls).toContainEqual(['venture.books.summary', { period: 'this-year' }]));
-    await waitFor(() => expect(within(periods).getByRole('button', { name: 'This year' }).getAttribute('aria-pressed')).toBe('true'));
+    expect((periods as HTMLSelectElement).value).toBe('this-year');
     expect(await screen.findByText('1 Jan 2026 to 31 Dec 2026')).toBeTruthy();
   });
 

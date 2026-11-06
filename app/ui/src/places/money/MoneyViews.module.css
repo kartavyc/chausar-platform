@@ -612,15 +612,13 @@
     grid-column: span 6;
   }
 
-  .page .glanceRow > [data-span]:first-child,
-  .page .pairRow > [data-span] {
-    grid-column: 1 / -1;
-  }
+  .page .pairRow > [data-span] { grid-column: span 6; }
 }
 
 /* Under 560 px (a phone at 390, or a sheet beside a narrow window) two tiles side by side clip their figures: every
    glance tile takes the whole row. */
-@container money (max-width: 559px) {
+@container money (max-width: 699px) {
+  .page .pairRow > [data-span],
   .page .glanceRow > [data-span] {
     grid-column: 1 / -1;
   }

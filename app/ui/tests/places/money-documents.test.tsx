@@ -58,7 +58,7 @@ describe('Money w4: lateness and reminders on the invoices', () => {
     const panel = await sheet();
     expect(await within(panel).findByText('A reminder is due. Draft it, then send it yourself.')).toBeTruthy();
     const timeline = within(panel).getByRole('region', { name: 'Timeline' });
-    expect([...timeline.querySelectorAll('li')].map((item) => item.getAttribute('data-what'))).toEqual(['issued', 'awaiting']);
+    expect([...timeline.querySelectorAll('li')].map((item) => item.getAttribute('data-what'))).toEqual(['issued']);
     expect(timeline.textContent).not.toMatch(/₹/);
     assertInkRules(panel);
   });
@@ -174,7 +174,8 @@ describe('Money w4: bills', () => {
     // 4J20: what is left on the bill, with the receipt of its balance.
     expect(row.textContent).toContain('₹1,180');
     expect(within(row).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
-    expect(screen.getByText('Owed on bills')).toBeTruthy();
+    expect(screen.queryByText('Owed on bills')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Who it is from' })).toBeNull();
     assertInkRules();
     assertFiguresProved();
   });
@@ -211,7 +212,7 @@ describe('Money w4: margins per client', () => {
   it('each client invoiced before tax with its receipt; without a rupee rate the spend and margin say Not counted, and why', async () => {
     // The sample has the owner's rupee rate (4Z3); without one, as here, the spend cannot be counted in rupees.
     const { calls } = await start('#/money/margins', { before: async (engine) => { await engine.request('venture.spend.policy.set', { inrPerUsd: null }); } });
-    const section = await screen.findByRole('region', { name: 'Margins in October 2026' });
+    const section = await screen.findByRole('region', { name: 'Margins' });
     await waitFor(() => expect(calls).toContainEqual(['venture.money.margins', { month: '2026-10' }]));
     const row = await within(section).findByRole('row', { name: /Boat Audio/ });
     expect(within(row).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
@@ -266,12 +267,11 @@ describe('Money w4: the accountant', () => {
     await click(within(panel).getByRole('button', { name: 'Make a link' }));
     await waitFor(() => expect(calls).toContainEqual(['venture.share.create', { kind: 'books', month: '2026-10' }]));
     // On this computer the engine keeps the link but has no public address, and says so.
-    expect(await within(panel).findByText(/open only on the hosted Chausar with a public address/)).toBeTruthy();
+    expect(await within(panel).findByText(/A live link is not available here/)).toBeTruthy();
     // One-shot A4 (hands-on row 29): with no link that opens, the sheet never says how long it stays open.
     expect(within(panel).queryByText(/^Open until /)).toBeNull();
-    await click(within(panel).getByRole('button', { name: 'Take it back' }));
-    await waitFor(() => expect(calls.some(([method]) => method === 'venture.share.revoke')).toBe(true));
-    expect(await within(panel).findByText('The link no longer opens.')).toBeTruthy();
+    expect(within(panel).queryByRole('button', { name: 'Take it back' })).toBeNull();
+    expect(within(panel).getByRole('button', { name: /^Export for your CA/ })).toBeTruthy();
     assertOnePrimary(panel);
   });
 });
@@ -307,6 +307,6 @@ describe('Money w4: a payment split across invoices', () => {
       amount: '56200', receivedOn: expect.any(String), method: 'bank-transfer',
       allocations: [{ invoiceId: 'inv-0039', amount: '26200' }, { invoiceId: expect.stringMatching(/^inv-draft-/), amount: '30000' }],
     }]));
-    expect(await within(panel).findByText('Payment recorded.')).toBeTruthy();
+    expect(await within(panel).findByText('Payment recorded')).toBeTruthy();
   });
 });

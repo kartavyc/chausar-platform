@@ -44,13 +44,14 @@ export function Bills() {
   const bills = list.data?.bills ?? [];
   const owed = list.data?.owed ?? null;
   const [adding, setAdding] = useState(false);
-  const total = owed && <span className={v.owedBills}><span>{t('money.bills.owed')}</span><Figure value={owed.display} receiptId={owed.receiptId} /></span>;
+  const total = bills.length > 1 && owed && <span className={v.owedBills}><span>{t('money.bills.owed')}</span><Figure value={owed.display} receiptId={owed.receiptId} /></span>;
 
   return (
     <>
       {list.error && <Failed error={list.error} />}
-      <Section title={t('money.sub.bills')} end={!adding ? <Button size="sm" onClick={() => setAdding(true)}>{t('money.bills.add')}</Button> : undefined}>
-        {list.data && bills.length === 0 && <EmptyState title={t('money.bills.none')} line={t('money.bills.noneLine')} />}
+      {!adding && list.data && bills.length === 0 && <EmptyState title={t('money.bills.none')} line={t('money.bills.noneLine')} primary={{ label: t('money.bills.add'), onSelect: () => setAdding(true) }} />}
+      {!adding && bills.length > 0 && <div className={s.buttons}><Button size="sm" onClick={() => setAdding(true)}>{t('money.bills.add')}</Button></div>}
+      <div>
         {bills.length > 0 && (
           <>
             {total}
@@ -59,11 +60,11 @@ export function Bills() {
             </ul>
           </>
         )}
-      </Section>
+      </div>
       {/* Simple first: the form opens on request. */}
       <Reveal open={adding}>
         <Section title={t('money.bills.add')}>
-          <AddBill gst={gst} currency={currency} terms={list.data?.terms ?? []} defaultDays={list.data?.defaultDueDays ?? null} onAdded={list.reload} onClose={() => setAdding(false)} />
+          <AddBill gst={gst} currency={currency} terms={list.data?.terms ?? []} defaultDays={list.data?.defaultDueDays ?? null} onAdded={() => { list.reload(); setAdding(false); }} onClose={() => setAdding(false)} />
         </Section>
       </Reveal>
     </>
@@ -221,7 +222,7 @@ function AddBill({ gst, currency, terms, defaultDays, onAdded, onClose }: { gst:
     <form className={s.form} noValidate onSubmit={(event) => { event.preventDefault(); void add(); }}>
       <Field label={t('money.bills.vendor')} value={vendor} autoComplete="off" disabled={busy} onChange={(event) => setVendor(event.currentTarget.value)} />
       <Field label={t('money.bills.what')} value={what} autoComplete="off" disabled={busy} onChange={(event) => setWhat(event.currentTarget.value)} />
-      <Field label={t('money.bills.amount')} hint={t('money.bills.amountHint', { currency })} value={amount} inputMode="decimal" autoComplete="off" disabled={busy} onChange={(event) => setAmount(event.currentTarget.value)} />
+      <Field label={t('money.bills.amount')} adornment={currency} value={amount} inputMode="decimal" autoComplete="off" disabled={busy} onChange={(event) => setAmount(event.currentTarget.value)} />
       {gst && (
         <>
           <Field label={t('money.bills.taxName')} hint={t('money.bills.taxNameHint')} value={taxName} autoComplete="off" disabled={busy} onChange={(event) => setTaxName(event.currentTarget.value)} />
