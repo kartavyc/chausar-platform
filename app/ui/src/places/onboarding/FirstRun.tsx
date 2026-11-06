@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Tile } from '../../parts/Tile';
 import { ComplianceCheck, type ComplianceAnswer } from '../../parts/ComplianceCheck';
 import { Icon } from '../../parts/Icon';
 import { Logo } from '../../parts/Logo';
@@ -126,16 +127,16 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
         {step === 'about' && <AboutYou connected={connected !== null} onMode={setAboutMode} onKeep={(next) => { setPlan(next); setProfession(null); goStep('who'); }} />}
         {step === 'who' && plan && <ProfessionPick family={plan.read.family} picked={plan.read.profession} onDone={(id) => { setProfession(id); goStep('check'); }} />}
         {step === 'check' && plan && (
-          <div className={f.wrap}>
+          <Tile className={f.wrap} card>
             <h1 className={f.title}>{t('compliance.title')}</h1>
             <ComplianceCheck profession={profession ?? plan.read.family.id} record={inVault} headingLevel={2}
               onDone={(answer) => { if (inVault) goStep('needs'); else { setSideWork(answer); goStep('keep'); } }} />
-          </div>
+          </Tile>
         )}
         {step === 'keep' && plan && (
-          <div className={f.wrap}>
+          <Tile className={f.wrap} card>
             <Start variant="first-run" onStarted={onStarted} onBegin={setBegun} plan={{ idea: plan.read.idea, countryCode: plan.countryCode, name: plan.name, offers: plan.read.offers, by: plan.read.source === 'ai' ? 'model' : 'template', ...(plan.read.callId ? { callId: plan.read.callId } : {}) }} onKept={kept} />
-          </div>
+          </Tile>
         )}
         {step === 'needs' && <BusinessNeeds place="first-run" onDone={() => void leave()} ask={<StartAtLogin place="first-run" onChoice={chooseLogin} />} />}
         {away && onBack && <Button variant="quiet" className={f.back} onClick={onBack}>{t('onboarding.welcome.back')}</Button>}
