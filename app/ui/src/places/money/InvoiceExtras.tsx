@@ -32,7 +32,7 @@ export function NextStep({ view }: { view: InvoiceViewLite }) {
   const engine = useEngine();
   const [problem, setProblem] = useState<string | null>(null);
   const next = view.next;
-  if (!next || next.action === 'none' || next.action === 'issue') return null;
+  if (!next || next.action === 'none' || next.action === 'issue' || next.action === 'wait') return null;
   const late = view.late ?? view.invoice.late;
   const words = next.action === 'clear' ? t('money.next.clear')
     : next.action === 'remind' ? (next.draftId ? t('money.next.drafted') : t('money.next.remind'))
@@ -227,7 +227,7 @@ function CreditForm({ view, onDone }: { view: InvoiceViewLite; onDone: () => voi
 export function Timeline({ view }: { view: InvoiceViewLite }) {
   const t = useT();
   const day = useDay();
-  const entries = view.timeline ?? [];
+  const entries = (view.timeline ?? []).filter(entry => entry.what !== 'awaiting' && entry.what !== 'settled');
   if (entries.length === 0) return null;
   return (
     <section className={s.block} aria-label={t('money.timeline.title')}>
