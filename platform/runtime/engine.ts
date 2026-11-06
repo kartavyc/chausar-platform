@@ -1,4 +1,4 @@
-import { DRAFT_DESK_METHODS, VENTURE_METHODS } from './method-registry.ts';
+import { DRAFT_DESK_METHODS, VENTURE_METHODS, isLegacyMethod } from './method-registry.ts';
 import { markNewCaptureSample, isCaptureSample } from './venture/replay/sample.ts';
 import { currentRun } from './venture/replay/scope.ts';
 import { DIGEST_PATTERN } from '../shared/digest.ts';
@@ -15,9 +15,7 @@ import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
 import { MemoryService } from './memory.ts';
 import { canSeeFact } from './memory.ts';
 import { CalculatorService, type CalculatorOptions, type CalculationRequest, type CalculationReceipt } from './calculator.ts';
-import { explainAnswerRecovery, prepareAnswerRecovery, assertPreparedAnswerRecoveryCurrent, completeAnswerRecovery,
-  type AnswerRecoveryEvidence, type AnswerRecoverySource, type AnswerRecoveryTimeScope, type PreparedAnswerRecovery,
-  type CompletedAnswerRecovery } from './answer-recovery.ts';
+import { explainAnswerRecovery, assertPreparedAnswerRecoveryCurrent, completeAnswerRecovery, type AnswerRecoveryEvidence, type PreparedAnswerRecovery, type CompletedAnswerRecovery } from './answer-recovery.ts';
 import { ForecastService } from './forecast-service.ts';
 import { AlertsService } from './alerts.ts';
 import { ReportService, type ReportOptions } from './reports.ts';
@@ -30,16 +28,16 @@ import { TrustService, sourceAllowed, assertSourceAccess } from './trust.ts';
 import { ModelGateway } from './gateway.ts';
 import type { GatewayOptions } from './gateway.ts';
 import type { ReviewedConversationCalculationParameters } from './conversation-calculation-arguments.ts';
-import { conversationPurpose } from './conversation-purpose.ts';
+
 import { ConversationHistoryService, createCalculationAnswerRecord, conversationRecordIntegrity } from './conversation-history.ts';
 import { ConversationSynthesisHost } from './conversation-synthesis-host.ts';
 import { installedConversationSynthesisCodec } from './conversation-synthesis-codec.ts';
 import type { ConversationSynthesisCodec } from './conversation-synthesis-contract.ts';
-import { buildBusinessContext, assertBusinessContextCurrent, renderBusinessAnswer, BusinessProfileService, type BusinessContextHooks, type BusinessContextManifest } from './conversation-context.ts';
+import { assertBusinessContextCurrent, renderBusinessAnswer, BusinessProfileService, type BusinessContextHooks, type BusinessContextManifest } from './conversation-context.ts';
 import { SpeechService, type SpeechOptions } from './speech.ts';
 import { AuthService } from './auth.ts';
 import { PhoneSessionService } from './engine-phone-sessions.ts';
-import { EnginePhoneRuntime, type ReviewedPhoneConversationRequest } from './engine-phone-runtime.ts';
+import { EnginePhoneRuntime } from './engine-phone-runtime.ts';
 import { createPhoneHttpHandler } from './phone/host.ts';
 import { requirePhone } from './phone/contracts.ts';
 import { preferenceChange, readAppPreferences, writeAppPreferences } from './app-preferences.ts';
@@ -47,7 +45,7 @@ import { WorkProgress } from './work-progress.ts';
 import type { WorkKind } from './venture/views/work-steps.ts';
 import type { Brief, ChatAnswer } from './phone/contracts.ts';
 import { SyncService, type SyncOptions } from './sync.ts';
-import { writerStateDigest, type SyncWriterAdmission, type SyncWriterReview } from './sync-writer-admission.ts';
+import { writerStateDigest, type SyncWriterAdmission } from './sync-writer-admission.ts';
 import { ActionService, digest } from './actions.ts';
 import { JobService } from './jobs.ts';
 import { createEngineJobRunner, type EngineJobOptions, type JobLifecycle } from './engine-jobs.ts';
@@ -139,7 +137,7 @@ export type ConversationContinuation = { schemaVersion: 1; turnId: string; origi
   sourceIds: string[]; requestScope: BusinessContextManifest['request'] | Record<string, unknown>; digest: string;
   exchanges?: { question: string; clarification: string }[]; reviewedCalculationParameters?: ReviewedConversationCalculationParameters };
 
-type AnswerRecoveryRecord = { id: string; type: 'answer-recovery-request-v1'; workspaceId: string; memberId: string; epoch: number;
+export type AnswerRecoveryRecord = { id: string; type: 'answer-recovery-request-v1'; workspaceId: string; memberId: string; epoch: number;
   at: string; preparation: PreparedAnswerRecovery; evidencePin: string; dictionary: { hash: string; version: number };
   status: 'prepared' | 'completed'; lineage?: CompletedAnswerRecovery; integrity: string };
 function answerRecoveryRecordIntegrity(record: Omit<AnswerRecoveryRecord, 'integrity'> | AnswerRecoveryRecord) {
@@ -168,6 +166,43 @@ function moveMadeOf(activity: readonly { at: string; event: string }[]): string 
 function copyViewOf(copy: BackupCopySetting | null | undefined): BackupCopyView | null {
   return copy ? { folderName: copy.folder.split(/[\\/]/).filter(Boolean).pop() ?? copy.folder, lastCopiedAt: copy.lastCopiedAt, problem: copy.problem } : null;
 }
+
+
+/** Bound private capabilities for the older dispatch surface, never an RPC payload. */
+export type LegacyInternals = {
+  store: Vault;
+  context: Context;
+  services: Engine['services'];
+  journalPayload: Engine['journalPayload'];
+  privateRestatementContext: Engine['privateRestatementContext'];
+  companionRuntime: Engine['companionRuntime'];
+  writerStatus: Engine['writerStatus'];
+  writerConfiguration: Engine['writerConfiguration'];
+  workspacePath: Engine['workspacePath'];
+  adapter: Engine['adapter'];
+  visibleImports: Engine['visibleImports'];
+  visibleActivity: Engine['visibleActivity'];
+  executeConversationPlan: Engine['executeConversationPlan'];
+  retainConversationAnswer: Engine['retainConversationAnswer'];
+  purgeManagedCopies: Engine['purgeManagedCopies'];
+  answerRecoveryEvidence: Engine['answerRecoveryEvidence'];
+  answerRecoveryView: Engine['answerRecoveryView'];
+  answerRecoveryCalculator: Engine['answerRecoveryCalculator'];
+  answerRecoveryRead: Engine['answerRecoveryRead'];
+  executeAnswerRecovery: Engine['executeAnswerRecovery'];
+  workbookBytes: Engine['workbookBytes'];
+  workbookInput: Engine['workbookInput'];
+  journalWriter: Engine['journalWriter'];
+  journalRevision: Engine['journalRevision'];
+  createBriefJob: Engine['createBriefJob'];
+  jobRunner: Engine['jobRunner'];
+  typedJob: Engine['typedJob'];
+  runJob: Engine['runJob'];
+  openUnlock: UnlockMode | null;
+  stageVault(vault: Vault): void;
+  jobLifecycle: JobLifecycle;
+  recordIntegrity: typeof answerRecoveryRecordIntegrity;
+};
 
 const DRAFT_DESK_DISPATCH: ReadonlySet<string> = new Set(DRAFT_DESK_METHODS);
 const VENTURE_DISPATCH: ReadonlySet<string> = new Set(VENTURE_METHODS);
@@ -1197,6 +1232,38 @@ export class Engine {
     if (!hasBusiness) { try { hasBusiness = (await this.custodyFiles().listBusinesses(this.storageKind())).businesses.length > 0; } catch { hasBusiness = false; } }
     return whatsNewState(custody, this.version, { hasBusiness });
   }
+  private legacyInternals(store: Vault, context: Context, services: Engine['services']): LegacyInternals {
+    return {
+      store, context, services,
+      journalPayload: this.journalPayload.bind(this),
+      privateRestatementContext: this.privateRestatementContext.bind(this),
+      companionRuntime: this.companionRuntime.bind(this),
+      writerStatus: this.writerStatus.bind(this),
+      writerConfiguration: this.writerConfiguration.bind(this),
+      workspacePath: this.workspacePath.bind(this),
+      adapter: this.adapter.bind(this),
+      visibleImports: this.visibleImports.bind(this),
+      visibleActivity: this.visibleActivity.bind(this),
+      executeConversationPlan: this.executeConversationPlan.bind(this),
+      retainConversationAnswer: this.retainConversationAnswer.bind(this),
+      purgeManagedCopies: this.purgeManagedCopies.bind(this),
+      answerRecoveryEvidence: this.answerRecoveryEvidence.bind(this),
+      answerRecoveryView: this.answerRecoveryView.bind(this),
+      answerRecoveryCalculator: this.answerRecoveryCalculator.bind(this),
+      answerRecoveryRead: this.answerRecoveryRead.bind(this),
+      executeAnswerRecovery: this.executeAnswerRecovery.bind(this),
+      workbookBytes: this.workbookBytes.bind(this),
+      workbookInput: this.workbookInput.bind(this),
+      journalWriter: this.journalWriter.bind(this),
+      journalRevision: this.journalRevision.bind(this),
+      createBriefJob: this.createBriefJob.bind(this),
+      jobRunner: this.jobRunner.bind(this),
+      typedJob: this.typedJob.bind(this),
+      runJob: this.runJob.bind(this),
+      openUnlock: this.#openUnlock, stageVault: vault => { this.#stagedVaults.add(vault); },
+      jobLifecycle: this.#jobLifecycle, recordIntegrity: answerRecoveryRecordIntegrity,
+    };
+  }
   private async handleRequest(method: string, payload: any = {}): Promise<any> {
     check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
     if (method === 'workspace.status') return { open: !!this.vault, workspace: this.vault?.read().workspace, storage: this.options.storage, experimental: !!this.options.demo, version: this.version,
@@ -1415,6 +1482,10 @@ export class Engine {
     }
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
     const s = this.services;
+    if (isLegacyMethod(method)) {
+      const internals = this.legacyInternals(store, ctx, s);
+      return (await import('./legacy/dispatch.ts')).legacyRequest(this, internals, method, payload);
+    }
     switch (method) {
       case 'workspace.custody.passphraseOn': this.requireAppOwner(ctx); return this.custodySerial(() => this.passphraseOn(payload));
       case 'workspace.custody.passphraseOff': this.requireAppOwner(ctx); return this.custodySerial(() => this.passphraseOff(payload));
@@ -1486,408 +1557,7 @@ export class Engine {
         this.journalPayload(payload, [], [], 'INVALID_INTERCHANGE_REQUEST'); this.interchangeOwner(ctx, store.read());
         return s.interchangeLocal.diagnostics();
       }
-      case 'trials.create': return s.privateTrials.create(ctx, this.journalPayload(payload, ['version', 'savedAnswerIds', 'change'], ['version', 'savedAnswerIds', 'change'], 'INVALID_PRIVATE_TRIAL'));
-      case 'trials.evaluate': return s.privateTrials.evaluate(ctx, this.journalPayload(payload, ['trialId'], ['trialId'], 'INVALID_PRIVATE_TRIAL').trialId);
-      case 'trials.get': return s.privateTrials.read(ctx, this.journalPayload(payload, ['trialId'], ['trialId'], 'INVALID_PRIVATE_TRIAL').trialId);
-      case 'trials.receiptContext': return this.privateRestatementContext(ctx, this.journalPayload(payload, ['receiptId'], ['receiptId'], 'INVALID_PRIVATE_TRIAL').receiptId);
-      case 'trials.list': this.journalPayload(payload, [], [], 'INVALID_PRIVATE_TRIAL'); return s.privateTrials.list(ctx);
-      case 'trials.savedQuestions': {
-        this.journalPayload(payload, [], [], 'INVALID_PRIVATE_TRIAL');
-        return store.read().answers.flatMap(answer => {
-          try { const receipt = s.calculator.receipt(ctx, answer.receiptId);
-            return answer.request ? [{ id: answer.id, receiptId: receipt.id, request: structuredClone(answer.request), stale: answer.stale === true || receipt.stale === true }] : [];
-          } catch { return []; }
-        });
-      }
-      case 'trials.discard': return s.privateTrials.discard(ctx, this.journalPayload(payload, ['trialId'], ['trialId'], 'INVALID_PRIVATE_TRIAL').trialId);
-      case 'trials.impact': { const input = this.journalPayload(payload, ['trialId', 'strategy'], ['trialId', 'strategy'], 'INVALID_PRIVATE_TRIAL'); return s.privateTrials.promotionImpact(ctx, input.trialId, input.strategy); }
-      case 'trials.promote': {
-        check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Review the exact private trial publication in the desktop app.');
-        return s.privateTrials.promote(ctx, this.journalPayload(payload, ['trialId', 'evaluationDigest', 'strategy', 'acknowledgedImpactDigest'], ['trialId', 'evaluationDigest', 'strategy', 'acknowledgedImpactDigest'], 'INVALID_PRIVATE_TRIAL'));
-      }
-      case 'auth.invite': return s.auth.invite(ctx, payload);
-      case 'auth.accept': return s.auth.accept(payload.token);
-      case 'auth.session': return s.auth.issueSession(ctx, payload.memberId ?? ctx.memberId, payload.ttlMs);
-      case 'auth.revoke': return payload.inviteId ? s.auth.revokeInvite(ctx, payload.inviteId) : s.auth.revokeSession(ctx, payload.sessionId ?? payload.id);
-      case 'auth.sessions': return s.auth.sessions(ctx);
-      case 'phone.invite': return this.companionRuntime().sessions.issueInvite(ctx, this.journalPayload(payload,
-        ['memberId', 'deviceId', 'keyId', 'channel', 'devicePublicKey', 'capabilities', 'inviteTtlMs', 'sessionTtlMs'],
-        ['memberId', 'deviceId', 'keyId', 'channel', 'devicePublicKey', 'capabilities', 'inviteTtlMs', 'sessionTtlMs'], 'INVALID_PHONE_INVITE') as any);
-      case 'phone.sessions': this.journalPayload(payload, [], [], 'INVALID_PHONE_REQUEST'); return this.companionRuntime().sessions.list(ctx);
-      case 'phone.revoke': {
-        const input = this.journalPayload(payload, ['sessionId'], ['sessionId'], 'INVALID_PHONE_REQUEST');
-        await this.companionRuntime().sessions.revokeByOwner(ctx, input.sessionId as string); return { sessionId: input.sessionId, revoked: true };
-      }
-      case 'phone.conversation.offer': {
-        const input = this.journalPayload(payload, ['sessionId', 'request'], ['sessionId', 'request'], 'INVALID_PHONE_REQUEST');
-        return this.companionRuntime().runtime.offer(ctx, input as { sessionId: string; request: ReviewedPhoneConversationRequest });
-      }
-      case 'sync.status': authorize(store, ctx, 'admin'); return { ...s.sync.status(ctx), writerAdmission: await this.writerStatus() };
-      case 'sync.writer.status': authorize(store, ctx, 'admin'); this.journalPayload(payload, [], [], 'INVALID_SYNC_REQUEST'); return this.writerStatus();
-      case 'sync.writer.review': {
-        authorize(store, ctx, 'admin');
-        check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Review the exact device writer grant in the untainted app.');
-        const input = this.journalPayload(payload, ['expectedFence', 'expectedStateDigest', 'deviceId', 'memberId', 'epoch', 'expiresAt', 'reason'], ['expectedFence', 'expectedStateDigest', 'deviceId', 'memberId', 'epoch', 'expiresAt', 'reason'], 'INVALID_SYNC_REQUEST');
-        const admission = this.options.sync?.writerAdmission;
-        check(admission && admission.deviceId === this.options.sync?.deviceId, 'SYNC_WRITER_ADMISSION_REQUIRED', 'Configure exact reviewed device writer admission first.');
-        return admission.review(ctx, store.read(), store.vaultId, input as SyncWriterReview);
-      }
-      case 'sync.identity': return s.sync.identity(ctx);
-      case 'sync.enable':
-        // Another device can't open a vault whose secret only this computer holds.
-        check(!payload.enabled || this.#openUnlock !== 'this-computer', 'SYNC_NEEDS_PASSPHRASE', CUSTODY_WORDS.errors.SYNC_NEEDS_PASSPHRASE);
-        return this.writerConfiguration(() => {
-        if (payload.enabled) check(this.options.sync?.signingKey && this.options.sync?.deviceId && this.options.sync?.signerId, 'SYNC_DEVICE_CONFIGURATION_REQUIRED', 'Configure a persistent broker-supplied signing key and reviewed device identity before publication.');
-        return s.sync.enable(ctx, payload.enabled);
-      });
-      case 'sync.trust': return this.writerConfiguration(() => s.sync.trustDevice(ctx, payload));
-      case 'sync.preview': return s.sync.preview(ctx);
-      case 'sync.approve': return s.sync.approve(ctx, payload.id ?? payload.previewId);
-      case 'sync.push': return s.sync.push(ctx, payload);
-      case 'sync.reconcile': {
-        authorize(store, ctx, 'admin');
-        const input = this.journalPayload(payload, ['previewId'], ['previewId'], 'INVALID_SYNC_REQUEST');
-        check(typeof input.previewId === 'string' && input.previewId.length > 0 && input.previewId.length <= 200, 'INVALID_SYNC_REQUEST', 'Choose one existing publication receipt.');
-        return s.sync.reconcile(ctx, input.previewId);
-      }
-      case 'sync.pull': {
-        authorize(store, ctx, 'admin'); const folder = payload.folder ?? 'sync-staged';
-        const staged = await s.sync.pull(ctx, { directory: this.workspacePath(folder), passphrase: payload.passphrase, recoveryCode: payload.recoveryCode, newPassphrase: payload.newPassphrase, expectedWorkspaceId: payload.expectedWorkspaceId, storage: await this.adapter(folder) });
-        this.#stagedVaults.add(staged.stagedVault); return { directory: staged.directory, receipt: staged.receipt, experimental: true, liveAuthorityChanged: false };
-      }
-      case 'dashboard.get': {
-        const facts = s.memory.query(ctx, {}); const state = store.read();
-        const calculations: any[] = [];
-        for (const operation of ['billed', 'received', 'earned', 'margin']) {
-          try { calculations.push(await s.calculator.calculate(ctx, { operation, ...(payload.period ? { period: payload.period } : {}) })); } catch (error) { calculations.push({ operation, error: (error as Error).message }); }
-        }
-        return { workspace: state.workspace, calculations, factCount: facts.facts?.length ?? facts.length ?? 0, sources: this.visibleImports().length, decisions: s.reports.decisions(ctx).filter((d: any) => d.status === 'open'), waitingActions: s.actions.list(ctx).filter((a: any) => !['verified', 'cancelled', 'rejected'].includes(a.status)), jobs: s.jobs.list(ctx), policy: state.policy, dictionary: s.ontology.current(ctx), lastActivity: ['owner', 'cofounder'].includes(ctx.role) ? this.visibleActivity(ctx).slice(-8).reverse() : [] };
-      }
-      case 'conversation.ask': {
-        check(typeof payload.question === 'string' && payload.question.trim().length > 0 && payload.question.length <= 8000, 'INVALID_QUESTION', 'Ask a short business question.');
-        check(payload.continuationId === undefined || payload.purpose === 'conversation' && typeof payload.routeId === 'string' && payload.routeId.length > 0,
-          'MODEL_ROUTE_REQUIRED', 'Choose and review a model route to continue this question.');
-        if (payload.purpose === 'conversation') {
-          check(typeof payload.routeId === 'string' && payload.routeId.length > 0 && payload.questionDisclosure === 'verbatim', 'MODEL_ROUTE_REQUIRED', 'Choose a model route and review the original question before sending it.');
-          const result = await s.gateway.execute(ctx, payload);
-          check(result.kind === 'conversation', 'PREVIEW_REQUEST_CHANGED', 'Use the unified conversation preview for this request.');
-          return this.executeConversationPlan(ctx, payload, result);
-        }
-        const purpose = conversationPurpose(payload.question, payload.purpose);
-        let result: any;
-        let businessManifest: BusinessContextManifest | undefined;
-        let modelReceiptId: string | undefined;
-        if (payload.routeId) {
-          const gatewayResult = await s.gateway.execute(ctx, { ...payload, purpose });
-          check(gatewayResult.kind !== 'conversation' && gatewayResult.kind !== 'conversation-synthesis', 'PREVIEW_REQUEST_CHANGED', 'Use the exact conversation mode reviewed in the model preview.');
-          if (gatewayResult.kind === 'business-context') { result = gatewayResult.answer; businessManifest = gatewayResult.receipt.businessContext; modelReceiptId = gatewayResult.receipt.id; }
-          else { const plan = gatewayResult.plan; if (plan.clarification || !plan.operation) return plan; result = await s.calculator.calculate(ctx, plan); }
-        } else if (purpose === 'business-context') {
-          check(payload.previewId === undefined && payload.approvalId === undefined && payload.profileSamples === undefined, 'MODEL_ROUTE_REQUIRED', 'A model preview requires its exact selected route. Local context stays on this device.');
-          const request = { ...(payload.sourceIds !== undefined ? { sourceIds: payload.sourceIds } : {}), ...(payload.branch !== undefined ? { branch: payload.branch } : {}),
-            ...(payload.asOf !== undefined ? { asOf: payload.asOf } : {}), ...(payload.onDate !== undefined ? { onDate: payload.onDate } : {}), ...(payload.period !== undefined ? { period: payload.period } : {}) };
-          businessManifest = buildBusinessContext(store, ctx, request, s.businessContextHooks);
-          result = renderBusinessAnswer(store, ctx, businessManifest, { claimIds: businessManifest.claims.map(claim => claim.id), unknownCategories: businessManifest.unknownCategories }, s.businessContextHooks);
-        } else { const { question, purpose: ignoredPurpose, routeId, previewId, approvalId, ...filters } = payload; result = await s.calculator.ask(ctx, payload.question, filters); }
-        return (await this.retainConversationAnswer(ctx, payload.question, result, businessManifest, modelReceiptId)).answer;
-      }
-      case 'conversation.synthesis.preview': {
-        const input = this.journalPayload(payload, ['id', 'routeId'], ['id'], 'INVALID_SYNTHESIS');
-        check(typeof input.id === 'string' && input.id.length > 0 && input.id.length <= 200, 'INVALID_SYNTHESIS', 'Choose one current retained tool turn.');
-        s.synthesisHost.codec();
-        const authority = s.synthesisHost.resolve(ctx, input.id);
-        const planner = s.gateway.assertConversationReceipt(ctx, authority.binding.plannerModelReceiptId);
-        check(input.routeId === undefined || input.routeId === planner.routeId, 'SYNTHESIS_ROUTE_CHANGED', 'Use the exact reviewed planning route for this final answer.');
-        return s.gateway.preview(ctx, { question: authority.summary.question, purpose: 'conversation-synthesis',
-          questionDisclosure: 'verbatim', toolTurnId: authority.binding.toolTurnId, routeId: planner.routeId });
-      }
-      case 'conversation.synthesis.run': {
-        const input = this.journalPayload(payload, ['id', 'previewId', 'approvalId'], ['id', 'previewId', 'approvalId'], 'INVALID_SYNTHESIS');
-        check([input.id, input.previewId, input.approvalId].every(value => typeof value === 'string' && value.length > 0 && value.length <= 200),
-          'INVALID_SYNTHESIS', 'Choose the exact tool turn, reviewed preview and one-use approval.');
-        const result = await s.gateway.execute(ctx, { purpose: 'conversation-synthesis', toolTurnId: input.id,
-          previewId: input.previewId, approvalId: input.approvalId });
-        check(result.kind === 'conversation-synthesis', 'PREVIEW_REQUEST_CHANGED', 'Use a separately reviewed final-answer preview.');
-        return s.synthesisHost.retain(ctx, result.receipt.id);
-      }
-      case 'conversation.history': return s.conversationHistory.list(ctx, payload);
-      case 'conversation.continuation': {
-        const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_HISTORY_REFERENCE');
-        check(typeof input.id === 'string' && input.id.length > 0 && input.id.length <= 200, 'INVALID_HISTORY_REFERENCE', 'Choose one saved clarification.');
-        return this.conversationContinuation(ctx, input.id);
-      }
-      case 'conversation.get': {
-        const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_HISTORY_REFERENCE');
-        return s.conversationHistory.get(ctx, input.id);
-      }
-      case 'business.context.receipt': {
-        check(typeof payload.id === 'string', 'INVALID_REFERENCE', 'Choose a saved business context receipt.');
-        const saved = store.read().conversations.find(item => item.kind === 'business-context-answer' && item.id === payload.id);
-        check(saved && saved.memberId === ctx.memberId && saved.epoch === ctx.epoch, 'RECEIPT_NOT_FOUND', 'This business context receipt is unavailable to the current account.');
-        assertBusinessContextCurrent(store, ctx, saved.manifest, s.businessContextHooks);
-        return s.conversationHistory.get(ctx, payload.id).answer;
-      }
-      case 'business.profile.record': {
-        check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_PROFILE_REQUIRED', 'Record explicit business descriptions inside the app.');
-        return s.businessProfile.record(ctx, payload);
-      }
-      case 'business.profile.history': return s.businessProfile.history(ctx, payload.field);
-      case 'business.profile.remove': {
-        check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_PROFILE_REQUIRED', 'Remove business descriptions inside the app.');
-        const result = await s.businessProfile.remove(ctx, payload.id); const removed = await this.purgeManagedCopies(); return { ...result, copiesRemoved: removed };
-      }
-      case 'calculation.run': return s.calculator.calculate(ctx, payload);
-      case 'answers.recovery.review': {
-        const input = this.journalPayload(payload, ['answerId'], ['answerId'], 'INVALID_ANSWER_RECOVERY');
-        const resolved = this.answerRecoveryEvidence(ctx, input.answerId, store);
-        return { ...explainAnswerRecovery(resolved.evidence), originalRequest: resolved.evidence.answer.request,
-          reviewedEvidencePin: resolved.evidencePin, dictionary: resolved.dictionary,
-          retrospectivePromotion: 'still-blocked-by-preserved-unpinned-original' };
-      }
-      case 'answers.recovery.prepare': {
-        const input = this.journalPayload(payload, ['answerId', 'source', 'reviewedEvidencePin', 'timeScope', 'confirmedNewCalculation'],
-          ['answerId', 'source', 'reviewedEvidencePin', 'timeScope', 'confirmedNewCalculation'], 'INVALID_ANSWER_RECOVERY');
-        check(typeof input.reviewedEvidencePin === 'string' && DIGEST_PATTERN.test(input.reviewedEvidencePin),
-          'INVALID_ANSWER_RECOVERY', 'Review the exact current source evidence before preparing a fresh calculation.');
-        const id = await store.update(state => {
-          const view = this.answerRecoveryView(state), resolved = this.answerRecoveryEvidence(ctx, input.answerId, view);
-          check(input.reviewedEvidencePin === resolved.evidencePin, 'ANSWER_RECOVERY_EVIDENCE_CHANGED', 'Current evidence or access changed after review. Review again.');
-          const newRequestId = newId('answer_recovery');
-          const preparation = prepareAnswerRecovery(resolved.evidence, { version: 1, newRequestId,
-            source: input.source as AnswerRecoverySource, timeScope: input.timeScope as AnswerRecoveryTimeScope,
-            confirmedNewCalculation: input.confirmedNewCalculation as true });
-          this.answerRecoveryCalculator(view).consumerGuard?.(ctx, structuredClone(preparation.request));
-          const record: Omit<AnswerRecoveryRecord, 'integrity'> = { id: newRequestId, type: 'answer-recovery-request-v1',
-            workspaceId: state.workspace.id, memberId: ctx.memberId, epoch: ctx.epoch, at: now(), preparation,
-            evidencePin: resolved.evidencePin, dictionary: resolved.dictionary, status: 'prepared' };
-          state.answers.push({ ...record, integrity: answerRecoveryRecordIntegrity(record) });
-          audit(state, 'answer-recovery.prepared', { newRequestId, originalAnswerId: preparation.source.originalAnswerId,
-            preparationDigest: preparation.digest });
-          return newRequestId;
-        });
-        return this.answerRecoveryRead(ctx, id);
-      }
-      case 'answers.recovery.get': {
-        const input = this.journalPayload(payload, ['newRequestId'], ['newRequestId'], 'INVALID_ANSWER_RECOVERY');
-        return this.answerRecoveryRead(ctx, input.newRequestId);
-      }
-      case 'answers.recovery.list': {
-        const input = this.journalPayload(payload, ['answerId'], ['answerId'], 'INVALID_ANSWER_RECOVERY');
-        this.answerRecoveryEvidence(ctx, input.answerId, store);
-        return { items: store.read().answers.filter(record => record.type === 'answer-recovery-request-v1'
-          && record.preparation?.source.originalAnswerId === input.answerId && record.memberId === ctx.memberId && record.epoch === ctx.epoch)
-          .map(record => {
-            try { return this.answerRecoveryRead(ctx, record.id); }
-            catch (error) {
-              if (!(error instanceof ChausarError)) throw error;
-              return { newRequestId: record.id, status: 'unavailable', code: error.code, message: error.message,
-                historicalReplay: false, grantsAuthority: false };
-            }
-          }) };
-      }
-      case 'answers.recovery.execute': {
-        const input = this.journalPayload(payload, ['newRequestId', 'preparationDigest'], ['newRequestId', 'preparationDigest'], 'INVALID_ANSWER_RECOVERY');
-        return this.executeAnswerRecovery(ctx, input.newRequestId, input.preparationDigest);
-      }
-      case 'forecasts.evaluate': return s.forecasts.evaluate(ctx, payload);
-      case 'forecasts.get': {
-        const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_FORECAST');
-        check(typeof input.id === 'string' && input.id.length > 0 && input.id.length <= 200, 'INVALID_FORECAST', 'Choose one saved forecast evaluation.');
-        return s.forecasts.get(ctx, input.id);
-      }
-      case 'alerts.create': return s.alerts.create(ctx, payload);
-      case 'alerts.list': this.journalPayload(payload, [], [], 'INVALID_ALERT'); return s.alerts.list(ctx);
-      case 'alerts.get': {
-        const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_ALERT'); return s.alerts.get(ctx, input.id);
-      }
-      case 'alerts.publish': {
-        const input = this.journalPayload(payload, ['id', 'expectedRevision'], ['id', 'expectedRevision'], 'INVALID_ALERT');
-        const { id, ...update } = input; return s.alerts.publish(ctx, id, update);
-      }
-      case 'alerts.evaluate': {
-        const input = this.journalPayload(payload, ['id', 'expectedRevision', 'observationId', 'observedAt', 'receiptId', 'missingReason', 'correction'], ['id', 'expectedRevision', 'observationId', 'observedAt'], 'INVALID_ALERT');
-        const { id, ...update } = input; return s.alerts.evaluate(ctx, id, update);
-      }
-      case 'analysis.bridge.publish': return s.bridge.publish(ctx, payload);
-      case 'analysis.bridge.profiles': this.journalPayload(payload, [], [], 'BRIDGE_PROFILE_INVALID'); return s.bridge.profiles(ctx);
-      case 'analysis.bridge.run': return s.bridge.run(ctx, payload);
-      case 'analysis.bridge.get': {
-        const input = this.journalPayload(payload, ['id'], ['id'], 'BRIDGE_REFERENCE_INVALID'); return s.bridge.get(ctx, input);
-      }
-      case 'investigations.create': return s.investigations.create(ctx, payload);
-      case 'investigations.list': this.journalPayload(payload, [], [], 'INVALID_INVESTIGATION'); return s.investigations.list(ctx);
-      case 'investigations.get':
-      case 'investigations.capsule': {
-        const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_INVESTIGATION');
-        return method === 'investigations.get' ? s.investigations.get(ctx, input.id) : s.investigations.capsule(ctx, input.id);
-      }
-      case 'investigations.advance':
-      case 'investigations.resume':
-      case 'investigations.cancel':
-      case 'investigations.pause':
-      case 'investigations.revise': {
-        const keys = method === 'investigations.revise' ? ['id', 'expectedRevision', 'reason', 'objective', 'hypotheses', 'budget']
-          : method === 'investigations.pause' ? ['id', 'expectedRevision', 'reason'] : ['id', 'expectedRevision'];
-        const required = ['id', 'expectedRevision', ...(['investigations.pause', 'investigations.revise'].includes(method) ? ['reason'] : [])];
-        const input = this.journalPayload(payload, keys, required, 'INVALID_INVESTIGATION');
-        const { id, ...update } = input; return s.investigations[method.slice('investigations.'.length)](ctx, id, update);
-      }
-      case 'investigations.drilldown': {
-        const input = this.journalPayload(payload, ['id', 'receiptId', 'offset', 'limit'], ['id', 'receiptId', 'offset', 'limit'], 'INVALID_INVESTIGATION');
-        const { id, ...page } = input; return s.investigations.drilldown(ctx, id, page);
-      }
-      case 'research.search': return s.research.search(ctx, payload);
-      case 'receipts.get': return s.calculator.receipt(ctx, payload.id);
-      case 'sources.list': return this.visibleImports();
-      case 'sources.delete': { const result = await s.trust.deleteSource(ctx, payload.id); const removed = await this.purgeManagedCopies(); return { ...result, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' }; }
-      case 'sources.preview': return s.imports.preview(ctx, payload);
-      case 'sources.import': return s.imports.commit(ctx, payload);
-      case 'sources.catalogue': return s.connectors.catalogue(ctx);
-      case 'sources.groups': return s.connectors.groups(ctx);
-      case 'connectors.profiles':
-      case 'connectors.read':
-      case 'connectors.reviewMapping':
-      case 'connectors.capture':
-      case 'connectors.publish':
-      case 'connectors.ready':
-      case 'connectors.captureStatus':
-      case 'connectors.releaseRead': return s.connectorRuntime.request(ctx, method, payload);
-      case 'sources.fetch': return s.connectors.fetch(ctx, payload);
-      case 'sources.recipe': return s.connectors.proposeRecipe(ctx, payload);
-      case 'sources.accept': return s.connectors.acceptRecipe(ctx, payload);
-      case 'sources.workbook': return readWorkbook(this.workbookBytes(payload), { sheet: payload.sheet });
-      case 'sources.workbookPreview': return s.imports.preview(ctx, this.workbookInput(payload));
-      case 'sources.workbookImport': return s.imports.commit(ctx, this.workbookInput(payload));
-      case 'ontology.packs': return s.ontology.packs();
-      case 'ontology.get': return { current: s.ontology.current(ctx), history: s.ontology.history(ctx) };
-      case 'ontology.publish': return s.ontology.publish(ctx, payload.draft ?? payload.pack ?? payload);
-      case 'memory.list': return s.memory.query(ctx, payload);
-      case 'memory.correct': return s.memory.correct(ctx, payload.id, payload.fields);
-      case 'memory.merge': return s.memory.merge(ctx, payload.entityIds, payload.targetId);
-      case 'memory.undo': return s.memory.undoMerge(ctx, payload.id);
-      case 'memory.precedence': return s.memory.setSourcePrecedence(ctx, payload.kind, payload.sourceIds);
-      case 'decisions.list': return s.reports.decisions(ctx);
-      case 'decisions.create': return s.reports.decision(ctx, payload);
-      case 'decisions.review': { const { id, ...review } = payload; return s.reports.reviewDecision(ctx, id, review); }
-      case 'decisions.journal.draft': {
-        this.journalWriter(ctx);
-        const input = this.journalPayload(payload, ['content'], ['content'], 'INVALID_DECISION');
-        return s.reports.draftDecision(ctx, input.content);
-      }
-      case 'decisions.journal.confirm': {
-        this.journalWriter(ctx);
-        const input = this.journalPayload(payload, ['draft', 'reviewedDigest'], ['draft', 'reviewedDigest'], 'INVALID_CONFIRMATION');
-        check(typeof input.reviewedDigest === 'string' && input.reviewedDigest.trim().length > 0, 'INVALID_CONFIRMATION', 'This draft changed since you looked. Look at it again before confirming.');
-        const draft = this.journalPayload(input.draft, ['kind', 'content', 'receipts', 'digest'], ['kind', 'content', 'receipts', 'digest'], 'INVALID_DRAFT');
-        check(draft.kind === 'journal-draft' && Array.isArray(draft.receipts) && typeof draft.digest === 'string', 'INVALID_DRAFT', 'Confirm a prepared journal draft.');
-        return s.reports.confirmDecision(ctx, input.draft, { reviewedDigest: input.reviewedDigest });
-      }
-      case 'decisions.journal.revise': {
-        this.journalWriter(ctx);
-        const input = this.journalPayload(payload, ['id', 'content', 'expectedRevision', 'reason'], ['id', 'content', 'expectedRevision', 'reason'], 'INVALID_REVISION');
-        check(typeof input.id === 'string' && input.id.trim().length > 0 && typeof input.reason === 'string' && input.reason.trim().length > 0, 'INVALID_REVISION', 'Identify the journal and explain the revision.');
-        this.journalRevision(input.expectedRevision);
-        return s.reports.reviseDecision(ctx, input.id, input.content, { expectedRevision: input.expectedRevision, reason: input.reason });
-      }
-      case 'decisions.journal.review': {
-        this.journalWriter(ctx);
-        const input = this.journalPayload(payload, ['id', 'review', 'expectedRevision'], ['id', 'review', 'expectedRevision'], 'INVALID_REVIEW');
-        check(typeof input.id === 'string' && input.id.trim().length > 0, 'INVALID_REVIEW', 'Identify the journal being reviewed.');
-        this.journalRevision(input.expectedRevision);
-        const review = this.journalPayload(input.review, ['outcome', 'notes', 'observation', 'nextReviewDate'], ['outcome', 'observation'], 'INVALID_REVIEW');
-        this.journalPayload(review.observation, ['state', 'measurements', 'notes', 'uncertainty', 'concurrentInterventions', 'executionReceiptIds'], ['state', 'measurements', 'notes', 'uncertainty', 'concurrentInterventions', 'executionReceiptIds'], 'INVALID_REVIEW');
-        return s.reports.reviewJournalDecision(ctx, input.id, input.review, { expectedRevision: input.expectedRevision });
-      }
-      case 'decisions.journal.due': {
-        const input = this.journalPayload(payload, ['dueOn', 'branch'], [], 'INVALID_FILTER');
-        check(input.branch === undefined || (typeof input.branch === 'string' && input.branch.trim().length > 0), 'INVALID_FILTER', 'A branch filter must be nonblank.');
-        return s.reports.dueDecisions(ctx, input);
-      }
-      case 'reports.get': { const { type, ...filters } = payload; return s.reports.report(ctx, type ?? 'investor', filters); }
-      case 'reports.brief': return s.reports.brief(ctx, payload);
-      case 'reports.forecast': return s.reports.forecast(ctx, { receiptIds: payload.receiptIds });
-      case 'actions.list': return s.actions.list(ctx);
-      case 'actions.catalogue': return s.actions.catalogue(ctx);
-      case 'actions.prepare': return s.actions.prepare(ctx, { ...payload, connector: payload.connector ?? 'local', operation: payload.operation ?? 'reminder-draft', idempotencyKey: payload.idempotencyKey ?? newId('effect') });
-      case 'actions.approve': return s.actions.approve(ctx, payload.id, payload.digest);
-      case 'actions.revise': return s.actions.revise(ctx, payload.id, payload.payload);
-      case 'actions.execute': return s.actions.execute(ctx, payload.id);
-      case 'actions.reconcile': return s.actions.reconcile(ctx, payload.id);
-      case 'jobs.list': return s.jobs.list(ctx);
-      case 'jobs.types': return { types: ['owner-brief', ...(s.jobRunner ? [...s.jobRunner.runners.keys()] : [])], configured: !!s.jobRunner, policy: this.options.durableJobs ? { maxActiveJobs: this.options.durableJobs.maxActiveJobs, leaseMs: this.options.durableJobs.leaseMs } : null, calendar: this.options.jobCalendar ? { configured: true, rulesRevision: this.options.jobCalendar.rules.revision, minYear: this.options.jobCalendar.rules.minYear, maxYear: this.options.jobCalendar.rules.maxYear, bounds: { ...this.options.jobCalendar.bounds } } : { configured: false }, localOnly: true, externalEffects: 'prepare-only', lifecycle: { ...this.#jobLifecycle } };
-      case 'jobs.create': {
-        if (payload.type === 'owner-brief') {
-          check(!Object.hasOwn(payload, 'calendar'), 'CALENDAR_RUNNER_REQUIRED', 'Calendar schedules require an installed typed goal runner.');
-          return this.createBriefJob(ctx, payload);
-        }
-        check(['calculation-set', 'evidence-review', 'action-preparation', 'private-investigation'].includes(payload.type), 'JOB_TYPE_UNSUPPORTED', 'Choose an installed goal type explicitly.');
-        return this.jobRunner().create(ctx, payload);
-      }
-      case 'jobs.amend': return this.jobRunner().amend(ctx, payload.id, payload.config);
-      case 'jobs.calendar.preview': {
-        const job = s.jobs.find(store.read(), payload.id); s.jobs.owner(store.read(), ctx, job);
-        check(job.plan, 'CALENDAR_RUNNER_REQUIRED', 'Calendar schedules require an installed typed goal runner.');
-        this.jobRunner().runner(job.type);
-        return s.jobs.calendarEvaluation(job);
-      }
-      case 'jobs.calendar.configure': {
-        const job = s.jobs.find(store.read(), payload.id); s.jobs.owner(store.read(), ctx, job);
-        check(job.plan, 'CALENDAR_RUNNER_REQUIRED', 'Calendar schedules require an installed typed goal runner.');
-        this.jobRunner().runner(job.type);
-        return s.jobs.configureCalendar(ctx, payload.id, payload.definition,
-          payload.expectedScheduleRevision, payload.expectedObjectiveRevision, payload.replacement);
-      }
-      case 'jobs.calendar.pause': return s.jobs.pauseCalendar(ctx, payload.id);
-      case 'jobs.calendar.resume': return s.jobs.resumeCalendar(ctx, payload.id);
-      case 'jobs.cancel': return this.typedJob(payload.id) ? this.jobRunner().cancel(ctx, payload.id) : s.jobs.cancel(ctx, payload.id);
-      case 'jobs.reconcile': return this.jobRunner().reconcile(ctx, payload.id);
-      case 'jobs.progress': return this.jobRunner().progress(ctx, payload.id);
-      case 'jobs.pause': return s.jobs.pause(ctx, payload.id);
-      case 'jobs.resume': return s.jobs.resume(ctx, payload.id);
-      case 'jobs.accept': {
-        const job = s.jobs.find(store.read(), payload.id); s.jobs.owner(store.read(), ctx, job);
-        if (job.plan) check(this.jobRunner().canRelease(ctx, job), 'JOB_EVIDENCE_REVOKED', 'Review currently accessible evidence before accepting this result.');
-        return s.jobs.accept(ctx, payload.id, payload.repeat === true);
-      }
-      case 'jobs.approve': return s.jobs.approve(ctx, payload.id, payload.digest);
-      case 'jobs.reject': return s.jobs.reject(ctx, payload.id, payload.reason);
-      case 'jobs.run': return this.runJob(payload.id);
-      case 'trust.get': return { ...store.read().policy, policy: store.read().policy, members: ['owner', 'cofounder'].includes(ctx.role) ? store.read().members : [] };
       case 'trust.update': return s.trust.updatePolicy(ctx, payload.policy ?? payload);
-      case 'members.list': authorize(store, ctx, 'admin'); return store.read().members;
-      case 'members.add': return s.trust.addMember(ctx, payload);
-      case 'members.revoke': return s.trust.revokeMember(ctx, payload.id);
-      case 'models.list': return s.gateway.listRoutes(ctx);
-      case 'models.configure': return s.gateway.configureRoute(ctx, payload.config ?? payload, payload.secret);
-      case 'models.preview': return s.gateway.preview(ctx, payload);
-      case 'models.approve': return s.gateway.approveOutbound(ctx, payload.id);
-      case 'models.test': return s.gateway.execute(ctx, { question: 'What was billed?', ...payload });
-      case 'speech.list': return s.speech.providers(ctx);
-      case 'speech.configure': return s.speech.configure(ctx, payload.config ?? payload, payload.secret);
-      case 'speech.preview': return s.speech.preview(ctx, payload);
-      case 'speech.approve': return s.speech.approve(ctx, payload.id);
-      case 'speech.transcribe': return s.speech.transcribe(ctx, payload);
-      case 'activity.list': authorize(store, ctx, 'admin'); return { items: this.visibleActivity(ctx).slice(-200).reverse(), modelReceipts: s.gateway.receipts(ctx) };
-      case 'learning.list': return s.learning.list(ctx);
-      case 'learning.log': return s.learning.recordDecision(ctx, payload);
-      case 'learning.preview': return s.learning.preview(ctx, payload.ids ?? store.read().learning.filter(item => item.type === 'decision').map(item => item.id));
-      case 'learning.consent': return s.learning.consent(ctx, payload.id ?? payload.previewId, payload.digest);
-      case 'learning.sharing': return s.learning.setSharing(ctx, payload.enabled === true);
-      case 'learning.share': return s.learning.share(ctx, payload.id);
-      case 'plugins.list': return s.plugins.list(ctx);
-      case 'plugins.install': return s.plugins.install(ctx, { manifest: payload.manifest, moduleBase64: payload.moduleBase64 ?? payload.code });
-      case 'plugins.enable': return s.plugins.enable(ctx, payload.id, payload.digest);
-      case 'plugins.disable': return s.plugins.disable(ctx, payload.id);
-      case 'plugins.remove': return s.plugins.remove(ctx, payload.id);
-      case 'plugins.run': return s.plugins.run(ctx, payload.id);
-      case 'plugins.miniapp': return s.plugins.miniappDescriptor(ctx, payload);
-      case 'mcp.info': return { name: 'Chausar verified numbers', endpoint: '/mcp', readOnly: true, availableTools: s.ontology.current(ctx)?.operations ?? [] };
-      case 'mcp.handle': return s.mcp.handle(ctx, payload);
-      case 'helpers.run': {
-        authorize(store, ctx, 'admin'); check(!ctx.sourceTainted, 'TAINTED_HELPER', 'Only an explicit app request can run an analytical helper.');
-        const result = await s.helper.run(payload.operation, payload.input); authorize(store, ctx, 'admin');
-        return { ...result, qualification: 'analytical-preview', financialReceipt: false, requiresHumanReview: true };
-      }
       case 'updates.verify': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater, 'UPDATES_UNAVAILABLE', 'Updates aren\'t set up in this copy of Chausar.'); return s.updater.verify(payload.manifest, payload.signature);
       case 'updates.stage': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater && payload.confirmed === true, 'UPDATES_UNAVAILABLE', 'Review and explicitly confirm a publisher-signed update.'); return s.updater.stage(payload.manifest, payload.signature);
       case 'workspace.backup': {
