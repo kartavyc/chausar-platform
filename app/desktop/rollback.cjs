@@ -75,7 +75,8 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
     const indexPath = join(vaults, 'custody', 'data-versions.json');
     const index = await readJson(indexPath);
     if (unknownFormat(index, 'chausar.data-versions.v1', 'data-versions')) return false;
-    if (!index?.live || typeof index.live !== 'object') return true;
+    if (!index?.live || typeof index.live !== 'object') return { restore: async () => {} };
+    const indexBytes = await fs.readFile(indexPath);
     const moved = Object.entries(index.live).filter(([name, entry]) => FOLDER.test(name) && entry?.migratedBy === version);
     const plans = [];
     for (const [name, entry] of moved) {
@@ -83,7 +84,12 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
       if (!back) return false;
       plans.push({ name, entry, back, newer: await fs.readFile(join(vaults, name, LIVE_FILE), 'utf8') });
     }
+    const restore = async () => {
+      for (const { name, newer } of plans) await placeChecked(join(vaults, name, LIVE_FILE), Buffer.from(newer), fs);
+      if (plans.length) await placeChecked(indexPath, indexBytes, fs);
+    };
     let stamp = now();
+    try {
     for (const { name, entry, back, newer } of plans) {
       const kept = `chausar-${entry.workspaceId}-${stamp++}-rollback-kept.backup`;
       await placeChecked(join(vaults, 'backups', kept), Buffer.from(`{"backupFormat":"chausar.backup.v1","envelope":${newer}}`), fs);
@@ -92,34 +98,46 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
       index.live[name] = { version: entry.from ?? 1, workspaceId: entry.workspaceId };
     }
     if (plans.length) await placeChecked(indexPath, Buffer.from(JSON.stringify(index)), fs);
-    return true;
+    } catch (error) { await restore(); throw error; }
+    return { restore };
   }
 
-  async function swapApp(release) {
+  /** Prepare and authenticate the exact app copy before any business data is moved. */
+  async function prepareApp(release) {
     if (platform === 'linux' && typeof appImage === 'string') {
-      const old = await fs.stat(appImage), temporary = tempOf(appImage), bytes = await fs.readFile(release.artifactPath);
-      await placeChecked(temporary, bytes, fs);
-      await fs.chmod(temporary, old.mode & 0o7777);
-      if (!(await updates.verifyStaged({ ...release, artifactPath: temporary }, publicKey, platform))) { await fs.unlink(temporary).catch(() => {}); return 'not-verified'; }
-      // The failed file stays beside the record until the next update; it's only a copy of what the signed feed had.
-      await fs.copyFile(appImage, join(folder, `failed-${version}.AppImage`)).catch(() => {});
-      await fs.rename(temporary, appImage);
-      app.relaunch(); app.exit(0);
-      return 'relaunching';
+      const old = await fs.stat(appImage), path = tempOf(appImage);
+      await placeChecked(path, await fs.readFile(release.artifactPath), fs);
+      await fs.chmod(path, old.mode & 0o7777);
+      if (!(await updates.verifyStaged({ ...release, artifactPath: path }, publicKey, platform))) { await fs.unlink(path).catch(() => {}); return { state: 'not-verified' }; }
+      return { state: 'ready', path };
     }
     if (platform === 'win32') {
-      if (!windowsPublisher) return 'needs-signing';
-      const runPath = join(folder, 'stage', `chausar-update-${randomBytes(8).toString('hex')}.exe`);
-      await fs.mkdir(dirname(runPath), { recursive: true });
-      await fs.copyFile(release.artifactPath, runPath);
-      if (!(await updates.verifyStaged({ ...release, artifactPath: runPath }, publicKey, platform))) { await fs.unlink(runPath).catch(() => {}); return 'not-verified'; }
-      const signed = await signatureOf(runPath);
-      if (signed?.status !== 'Valid' || signed.publisher !== windowsPublisher) { await fs.unlink(runPath).catch(() => {}); return 'needs-signing'; }
-      spawnInstaller(runPath, ['/S', '--updated']);
-      app.exit(0);
-      return 'installer-started';
+      if (!windowsPublisher) return { state: 'needs-signing' };
+      const path = join(folder, 'stage', `chausar-update-${randomBytes(8).toString('hex')}.exe`);
+      await fs.mkdir(dirname(path), { recursive: true });
+      await fs.copyFile(release.artifactPath, path);
+      if (!(await updates.verifyStaged({ ...release, artifactPath: path }, publicKey, platform))) { await fs.unlink(path).catch(() => {}); return { state: 'not-verified' }; }
+      const signed = await signatureOf(path);
+      if (signed?.status !== 'Valid') { await fs.unlink(path).catch(() => {}); return { state: 'needs-signing' }; }
+      if (signed.publisher !== windowsPublisher) { await fs.unlink(path).catch(() => {}); return { state: 'publisher-mismatch' }; }
+      return { state: 'ready', path };
     }
-    return 'manual';
+    return { state: 'manual' };
+  }
+
+  async function swapApp(release, prepared) {
+    if (prepared.state !== 'ready') return prepared.state;
+    // Recheck after the data copies too: a changed candidate never runs, and run() puts the data back.
+    if (!(await updates.verifyStaged({ ...release, artifactPath: prepared.path }, publicKey, platform))) return 'not-verified';
+    if (platform === 'linux') {
+      await fs.copyFile(appImage, join(folder, `failed-${version}.AppImage`));
+      await fs.rename(prepared.path, appImage);
+      return 'relaunching';
+    }
+    const signed = await signatureOf(prepared.path);
+    if (signed?.status !== 'Valid' || signed.publisher !== windowsPublisher) return 'not-verified';
+    spawnInstaller(prepared.path, ['/S', '--updated']);
+    return 'installer-started';
   }
 
   /** The whole way back. Returns { state }; anything short of a swap leaves the app as it is, and C5's dialog says the rest. */
@@ -127,16 +145,37 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
     const done = state => { note({ op: 'rollback', state, reason, from }); return { state }; };
     const record = await readRecord();
     if (!record) return done('record-newer');
-    if (record.swaps.some(swap => swap.from === from || swap.to === from)) return done('already-swapped');
+    if (record.pending?.to === from || record.swaps.some(swap => swap.from === from || swap.to === from)) return done('already-swapped');
     const release = await keptRelease();
     if (!release) return done(await fs.stat(join(folder, 'previous', 'manifest.json')).then(() => 'not-verified', () => 'no-previous'));
-    let moved = false;
+    let prepared;
+    try { prepared = await prepareApp(release); } catch { return done('failed'); }
+    if (!['ready', 'needs-signing', 'manual'].includes(prepared.state)) return done(prepared.state);
+    const to = String(release.manifest.version), at = new Date(now()).toISOString();
+    const priorBytes = await fs.readFile(recordPath).catch(() => null);
+    let moved;
     try { moved = await moveData(); } catch { moved = false; }
-    if (!moved) return done('data-not-moved');
-    const to = String(release.manifest.version);
-    await writeRecord({ ...record, swaps: [...record.swaps, { from, to, at: new Date(now()).toISOString(), reason, told: false }], skip: [...new Set([...record.skip, from])] });
-    try { return done(await swapApp(release)); }
-    catch { return done('failed'); }
+    if (!moved) { if (prepared.path) await fs.unlink(prepared.path).catch(() => {}); return done('data-not-moved'); }
+    const pending = { from, to, at, reason, state: prepared.state === 'ready' ? 'prepared' : prepared.state };
+    const kept = { ...record, skip: [...new Set([...record.skip, from])], pending };
+    let state;
+    try {
+      await writeRecord(kept);
+      state = await swapApp(release, prepared);
+      if (!['relaunching', 'installer-started', 'needs-signing', 'manual'].includes(state)) throw Object.assign(new Error('The prepared app changed.'), { state });
+    } catch (error) {
+      await moved.restore();
+      if (priorBytes) await placeChecked(recordPath, priorBytes, fs); else await fs.unlink(recordPath).catch(() => {});
+      if (prepared.path) await fs.unlink(prepared.path).catch(() => {});
+      return done(error.state ?? 'failed');
+    }
+    if (state === 'relaunching' || state === 'installer-started') {
+      // Only an actual app transition is reported as a completed swap. A manual install remains resumable.
+      await writeRecord({ ...kept, pending: null, swaps: [...record.swaps, { from, to, at, reason, told: false }] });
+      if (state === 'relaunching') app.relaunch();
+      app.exit(0);
+    }
+    return done(state);
   }
 
   return Object.freeze({
@@ -145,7 +184,7 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
     async goBackOffer() {
       const record = await readRecord();
       if (!record) return null;
-      if (record.swaps.some(swap => swap.from === version || swap.to === version)) return null;
+      if (record.pending?.to === version || record.swaps.some(swap => swap.from === version || swap.to === version)) return null;
       const release = await keptRelease();
       return release ? { version: String(release.manifest.version) } : null;
     },

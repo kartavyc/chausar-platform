@@ -220,8 +220,56 @@ test('Linux rechecks the exact copy used after data rollback, before replacing t
     const bytes = await (fsp.readFile as any)(...args);
     return String(args[0]).endsWith(join('previous', 'installer')) ? Buffer.from('changed after the release was first verified') : bytes;
   } } as typeof fsp;
-  const { rollback, appImage, seen } = await setup(t, { fs });
+  const { rollback, appImage, seen, vaults, updates, newer } = await setup(t, { fs });
+  const index = await readFile(join(vaults, 'custody', 'data-versions.json'), 'utf8');
   assert.equal((await rollback.afterFailedStart({ version: '0.2.0', previous: '0.1.0' })).state, 'not-verified');
+  assert.equal(await readFile(appImage, 'utf8'), 'the failed version');
+  assert.equal(seen.relaunches, 0);
+});
+
+
+test('an invalid prepared app leaves the vault, index and rollback history untouched', async t => {
+  const fs = { ...fsp, readFile: async (...args: any[]) => {
+    const bytes = await (fsp.readFile as any)(...args);
+    return String(args[0]).endsWith(join('previous', 'installer')) ? Buffer.from('changed after initial verification') : bytes;
+  } } as typeof fsp;
+  const { rollback, vaults, updates, newer } = await setup(t, { fs });
+  const index = await readFile(join(vaults, 'custody', 'data-versions.json'), 'utf8');
+  assert.equal((await rollback.afterFailedStart({ version: '0.2.0', previous: '0.1.0' })).state, 'not-verified');
+  assert.equal(await liveOf(vaults), newer);
+  assert.equal(await readFile(join(vaults, 'custody', 'data-versions.json'), 'utf8'), index);
+  await assert.rejects(readFile(join(updates, 'rollbacks.json')), { code: 'ENOENT' });
+});
+
+test('the permitted unsigned Windows path keeps a resumable pending state, not a completed swap', async t => {
+  const { rollback, vaults, updates, older } = await setup(t, { platform: 'win32' });
+  assert.equal((await rollback.afterFailedStart({ version: '0.2.0', previous: '0.1.0' })).state, 'needs-signing');
+  assert.equal(await liveOf(vaults), older, 'D12 deliberately restores data for the manual installer');
+  const record = JSON.parse(await readFile(join(updates, 'rollbacks.json'), 'utf8'));
+  assert.deepEqual(record.swaps, []);
+  assert.deepEqual(record.skip, ['0.2.0']);
+  assert.equal(record.pending.state, 'needs-signing');
+  assert.equal(record.pending.from, '0.2.0');
+  assert.equal(record.pending.to, '0.1.0');
+  assert.deepEqual(await rollback.goBackOffer(), { version: '0.1.0' });
+});
+
+
+test('a candidate changed during the data copies restores the original vault and index and leaves no swap record', async t => {
+  let candidate: string | null = null, changed = false;
+  const fs = { ...fsp,
+    chmod: async (path: any, mode: any) => { candidate = String(path); await fsp.chmod(path, mode); },
+    rename: async (from: any, to: any) => {
+      await fsp.rename(from, to);
+      if (!changed && candidate && String(to).endsWith('authority.encrypted.json')) { changed = true; await fsp.writeFile(candidate, 'changed during data copy'); }
+    },
+  } as typeof fsp;
+  const { rollback, vaults, updates, newer, appImage, seen } = await setup(t, { fs });
+  const index = await readFile(join(vaults, 'custody', 'data-versions.json'), 'utf8');
+  assert.equal((await rollback.afterFailedStart({ version: '0.2.0', previous: '0.1.0' })).state, 'not-verified');
+  assert.equal(await liveOf(vaults), newer);
+  assert.equal(await readFile(join(vaults, 'custody', 'data-versions.json'), 'utf8'), index);
+  await assert.rejects(readFile(join(updates, 'rollbacks.json')), { code: 'ENOENT' });
   assert.equal(await readFile(appImage, 'utf8'), 'the failed version');
   assert.equal(seen.relaunches, 0);
 });
