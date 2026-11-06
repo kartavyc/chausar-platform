@@ -45,6 +45,7 @@
     "phone:preview": "node scripts/phone-web-preview.mjs",
     "typecheck:phone": "tsc --noEmit --project app/companion/tsconfig.portable.json",
     "dev:ui": "vite --config app/ui/vite.config.ts --mode fake",
+    "dev:ui:engine": "node scripts/dev-ui-engine.mjs",
     "build:ui": "vite build --config app/ui/vite.config.ts",
     "test:ui": "vitest run --config app/ui/vitest.config.ts",
     "bench:ui": "node scripts/ui-bench.mjs",

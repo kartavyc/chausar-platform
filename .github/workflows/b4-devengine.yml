@@ -1,0 +1,35 @@
+name: D11 real-engine dev loop
+on:
+  push:
+    branches: ['b2c/os-b4-devengine-*']
+permissions:
+  contents: read
+jobs:
+  dev:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test platform/tests/dev-ui-engine-d11.test.ts
+      - if: always()
+        run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/engine/dev-engine-config.test.ts --maxWorkers=1
+      - if: always()
+        run: npm run typecheck
+      - if: always()
+        run: npm run typecheck:ui
+      - if: always()
+        run: node scripts/check.mjs
+      - if: always()
+        run: node scripts/ui-shots/dev-engine.mjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-engine-browser-proof
+          path: ${{ runner.temp }}/chausar-runs/*-ui-engine/browser-proof/*

@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
+import { engineDevServer, engineOriginGuard } from './dev-engine';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
@@ -19,11 +20,11 @@ function strictPolicy(): Plugin {
 
 // `npm run dev:ui` runs with --mode fake: the app talks to the fake engine in src/engine/fake.ts.
 // Every other mode talks to the real engine (desktop preload or /api/rpc) and the fake is left out of the build.
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   root,
   base: './',
   publicDir: 'public',
-  plugins: [react(), strictPolicy()],
+  plugins: [react(), strictPolicy(), ...(mode === 'engine' ? [engineOriginGuard()] : [])],
   css: { modules: { localsConvention: 'camelCaseOnly' } },
   // C4 task 41: this copy's version and when it was built, from the build's own clock (parts/build-info.ts).
   define: { 'import.meta.env.VITE_CHAUSAR_VERSION': JSON.stringify(version), 'import.meta.env.VITE_CHAUSAR_BUILT_AT': JSON.stringify(new Date().toISOString()) },
@@ -39,7 +40,7 @@ export default defineConfig({
       { name: 'react-vendor', test: /[\\/]node_modules[\\/](?:react|react-dom|scheduler)[\\/]/ },
     ] } } },
   },
-  server: { port: 5178 },
+  server: mode === 'engine' ? engineDevServer() : { port: 5178 },
   // Prebundle the icon set up front, so a fresh dev server does not reload the page on its first visit.
   optimizeDeps: { include: ['lucide-react'] },
-});
+}));
