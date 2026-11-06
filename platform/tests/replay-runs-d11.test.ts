@@ -101,7 +101,7 @@ test('replay-run.mjs --check summarises a capture; --records prints each differe
   const changed = run(capture, '--records', join(dir, 'changed.json'));
   assert.equal(changed.status, 1);
   assert.match(changed.stdout, /^1 difference:\n {2}records\[1\]\.text: /);
-  assert.equal(run(capture).status, 2, 'a mode is required');
+  assert.equal(run(capture).status, 1, 'a recorder-only capture has no executable operation');
 });
 
 test('replay-run.mjs refuses a capture file that holds a secret, by kind', async t => {
