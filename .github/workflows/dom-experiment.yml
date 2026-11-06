@@ -1,0 +1,67 @@
+name: D2 paired DOM experiment
+on:
+  push:
+    branches: ['b2c/os-dom-probe-*']
+permissions:
+  contents: read
+jobs:
+  paired:
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Record the machine
+        run: lscpu > "$RUNNER_TEMP/dom-machine.txt"
+      - run: node --max-old-space-size=3072 scripts/gen-contract.mjs
+      - name: Full single-worker jsdom baseline
+        timeout-minutes: 60
+        run: npx vitest run --config app/ui/vitest.config.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile.json="$RUNNER_TEMP/jsdom.json" > "$RUNNER_TEMP/jsdom.log" 2>&1
+      - name: Switch only the DOM environment for the experiment
+        if: '!cancelled()'
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const p='app/ui/vitest.config.ts'; const s=fs.readFileSync(p,'utf8'); const before=\"environment: 'jsdom'\"; if(s.split(before).length!==2)throw Error('Expected one DOM project'); fs.writeFileSync(p,s.replace(before,\"environment: 'happy-dom'\"));"
+          node --input-type=module -e "import fs from 'node:fs'; for(const file of [\"tests/a11y/forms.test.tsx\",\"tests/parts/feed.test.tsx\",\"tests/parts/passphrase-field-c4.test.tsx\",\"tests/parts/surfaces.test.tsx\",\"tests/parts/tabs-c1.test.tsx\",\"tests/places/apps-bridge-w6.test.ts\",\"tests/places/chats.test.tsx\",\"tests/places/clients-network.test.tsx\",\"tests/places/money-pay-w6.test.tsx\",\"tests/places/money-share-a6.test.tsx\",\"tests/places/money-views.test.tsx\",\"tests/places/today-v2.test.tsx\",\"tests/shell/business-menu.test.tsx\",\"tests/shell/command-bar-phone-c2.test.tsx\"]){ const p='app/ui/'+file; fs.writeFileSync(p,'// @vitest-environment jsdom\\n'+fs.readFileSync(p,'utf8')); }"
+      - name: Full single-worker happy-dom candidate
+        if: '!cancelled()'
+        timeout-minutes: 60
+        run: npx vitest run --config app/ui/vitest.config.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile.json="$RUNNER_TEMP/happy-dom.json" > "$RUNNER_TEMP/happy-dom.log" 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paired-dom
+          path: |
+            ${{ runner.temp }}/jsdom.*
+            ${{ runner.temp }}/happy-dom.*
+            ${{ runner.temp }}/dom-machine.txt
+  quick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --max-old-space-size=3072 scripts/gen-contract.mjs
+      - run: npm run typecheck
+      - run: npm run typecheck:ui
+        if: '!cancelled()'
+      - run: node scripts/check.mjs
+        if: '!cancelled()'
+      - run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/parts/states-w4.test.ts app/ui/tests/places/onboarding.test.tsx app/ui/tests/places/review-4z2.test.tsx app/ui/tests/a11y/forms.test.tsx
+        if: '!cancelled()'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integrated-contract
+          path: |
+            app/ui/src/engine/contract.gen.ts
+            platform/tests/contract-type-parity.gen.ts
