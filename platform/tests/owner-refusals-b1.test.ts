@@ -1,6 +1,6 @@
 // B1 fix round 3 (review 3, finding 1): a refusal flagged as the owner's reaches the screen exactly as the engine wrote
 // it, so no such refusal anywhere in the engine may say a developer word (owner-flag.ts DEVELOPER_WORDS, through
-// bannedIn). This walks every source under platform/runtime and reads each refusal (fixtures/refusal-scan.ts). A refusal
+// bannedIn). This walks every source under platform/runtime and platform/shared and reads each refusal (fixtures/refusal-scan.ts). A refusal
 // travels as the owner's unless it is thrown as InternalError (internalCheck, new InternalError, a check imported as
 // internalCheck, or a helper of the same file that throws InternalError), or its code is one the app says in its own
 // words (refusalTravel). Each hit is said in plain words, thrown as InternalError, or named in KEPT_WORDS (file and
@@ -17,7 +17,8 @@ const ROOT = new URL('../runtime/', import.meta.url);
 const ALLOWED = KEPT_WORDS;
 
 test('B1 fix round 3: no refusal the engine flags as the owner\'s says a developer word', async () => {
-  const all = refusalsIn(await sourcesUnder(ROOT));
+  const sources = [...await sourcesUnder(ROOT), ...await sourcesUnder(new URL('../shared/', import.meta.url))];
+  const all = refusalsIn(sources);
   assert.ok(all.length > 2000, `read ${all.length} refusals`);
   const used = new Set<string>();
   const hits: string[] = [];

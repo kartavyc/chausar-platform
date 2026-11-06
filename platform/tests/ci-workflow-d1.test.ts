@@ -39,7 +39,7 @@ test('one lint job on Ubuntu installs from the lock, then checks for tracked dat
     'npm ci --ignore-scripts --no-audit --no-fund',
     'node scripts/check-clean-tree.mjs --tracked',
     'node scripts/check.mjs',
-    'node scripts/check-boundaries.mjs --report',
+    'node scripts/check-boundaries.mjs',
     'node scripts/env-docs.mjs --check',
     'npm run typecheck',
     'npm run typecheck:ui',
@@ -127,7 +127,7 @@ test('D2: CI runs the Ink frontend in three shards on both operating systems, ev
   assert.match(ui, /name: ui-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-3$/m);
   const build = job('build');
   assert.match(build, /os: \[ubuntu-latest, windows-latest\]/);
-  assert.deepEqual(runs(build), ['npm ci --ignore-scripts --no-audit --no-fund', 'npm run build:ui']);
+  assert.deepEqual(runs(build), ['npm ci --ignore-scripts --no-audit --no-fund', 'npm run build:ui', 'node scripts/ui-chunks.mjs --check']);
   assert.doesNotMatch(workflow, /continue-on-error: true/);
   const script = await readFile(new URL('../../scripts/ui-bench.mjs', import.meta.url), 'utf8');
   assert.match(script, /counts\.fail === 0 && counts\.skipped === 0 && counts\.todo === 0/);
