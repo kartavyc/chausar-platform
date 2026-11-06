@@ -10,6 +10,7 @@ Code: `platform/runtime/venture/build/`. Tests: `platform/tests/venture-build.te
 | --- | --- | --- |
 | `venture.build.brief { useTemplate? }` | prepare | Writes a new brief version from the accepted plan and stores it with its lint result. Emits `brief-ready`. |
 | `venture.build.handoff { builder }` | prepare | Plans a Lovable or Replit link, or a copy for Bolt and v0. Stores the URL's digest, never the URL. Emits `handoff-prepared`. |
+| `venture.build.briefFile { builder }` | prepare | C5 task 35: Lovable and Replit only. The same gates as the link. Answers `website-brief.md` (exactly the brief) and `AGENTS.md` or `replit.md` (the two marker lines) as text, for the desktop's save or a web download. Marked opened only once saved. A direct hand-off waits on their APIs. |
 | `venture.build.handoffOpened { handoffId }` | prepare, app only | Marks the handoff opened the first time. The renderer sends it only after the browser opened the link or the copy worked. Emits `handoff-opened` once. |
 | `venture.build.link { repo, token? }` | admin, app only | Follows one GitHub repo. A token must be fine-grained (`github_pat_`) and lives only on the secret shelf. Emits `repo-linked`. |
 | `venture.build.sync {}` | prepare | Reads GitHub (at most nine GET calls), stores a read receipt and the status. Emits `repo-synced`. |

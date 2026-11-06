@@ -1920,6 +1920,7 @@ export class Engine {
       case 'venture.chief.settle.set':
       case 'venture.layout.get':
       case 'venture.layout.change':
+      case 'venture.build.briefFile':
       case 'venture.accountant.pack.done':
       case 'venture.accountant.schedule.set':
       case 'venture.accountant.schedule.get':

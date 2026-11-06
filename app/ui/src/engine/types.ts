@@ -634,7 +634,10 @@ export interface HandoffPlanLite {
   handoffId: string; builder: BuilderId; mode: 'link' | 'copy'; url: string; clipboardText: string | null;
   notes: string[]; label: 'handoff'; status: 'available' | 'planned';
 }
-export interface HandoffLite { id: string; at: string; builder: BuilderId; mode: 'link' | 'copy'; openedAt: string | null }
+export interface HandoffLite { id: string; at: string; builder: BuilderId; mode: 'link' | 'copy' | 'file'; openedAt: string | null }
+/** C5 task 35: only Lovable and Replit take the brief as a file. */
+export type FileBuilderId = 'lovable' | 'replit';
+export interface BriefFilePlanLite { handoffId: string; builder: BuilderId; files: { name: string; text: string }[] }
 export type BuildStatusWord = 'waiting-for-repo' | 'repo-connected' | 'builder-making-changes' | 'quiet' | 'sync-conflict' | 'repo-not-readable';
 export interface BuildStatusLite {
   word: BuildStatusWord; asOf: string;
@@ -647,7 +650,7 @@ export interface BuildStatusLite {
   syncConflictBranch: string | null; cannotSay: string[];
 }
 export interface BuildFollowLite { id: string; repo: { owner: string; name: string }; tokenState: 'none' | 'in-memory'; linkedAt: string; lastStatus: BuildStatusLite | null }
-export interface BuildStatusView { follow: BuildFollowLite | null; brief: BriefLite | null; handoffs: HandoffLite[]; tokenLink: string }
+export interface BuildStatusView { follow: BuildFollowLite | null; brief: BriefLite | null; handoffs: HandoffLite[]; tokenLink: string; linkFits: { lovable: boolean; replit: boolean } | null }
 
 /**
  * `workspace.custody.*` and `workspace.backups.*` (platform/runtime/workspace-custody-contracts.ts), trimmed. A recovery
@@ -2234,6 +2237,7 @@ export interface EngineMethods {
   // W6 6H3 (D40): a place's layout, read and changed by the owner (the AI changes it through Chausar's MCP tools).
   'venture.layout.get': { params: { place: LayoutPlace }; result: LayoutView };
   'venture.layout.change': { params: LayoutRequest; result: LayoutChangeResult };
+  'venture.build.briefFile': { params: { builder: FileBuilderId }; result: BriefFilePlanLite };
   'venture.accountant.pack.done': { params: { month: string }; result: { done: boolean } };
   'venture.accountant.schedule.set': { params: { on: boolean }; result: { on: boolean; at: string | null; next: string | null } };
   'venture.accountant.schedule.get': { params: Record<string, never>; result: { on: boolean; at: string | null; next: string | null } };
@@ -2565,6 +2569,8 @@ export interface EngineClient {
    * hosted app and the fake, where the page downloads the engine's CSV itself.
    */
   saveMoneyExport?(month: string, format?: MoneyExportFormat): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
+  /** C5 task 35: the desktop saves the brief where the owner picks; null when cancelled. */
+  saveBriefFile?(builder: FileBuilderId): Promise<{ saved: true; name: string; companion: string } | null>;
   /** C5 task 21, desktop only: main shows the file dialog; the window gets a token and the file's name. Null when cancelled. */
   pickCopy?(): Promise<{ token: string; name: string } | null>;
   importCopy?(input: CopyImportInput): Promise<CopyImportResult>;

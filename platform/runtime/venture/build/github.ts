@@ -9,6 +9,7 @@ import type {
 } from '../contracts.ts';
 import { digest, exactPayload, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { latestBrief } from './brief.ts';
+import { planHandoff } from './handoff.ts';
 import { checkConnectorFields } from './connector-truth.ts';
 
 export const TOKEN_LINK = 'https://github.com/settings/personal-access-tokens/new?name=Chausar%20read%20only&description=Lets%20Chausar%20read%20one%20app%20repo.%20Read%20only.&expires_in=90&contents=read&metadata=read&deployments=read&actions=read';
@@ -463,5 +464,8 @@ export async function buildStatus(deps: VentureDeps, ctx: Context, payload: unkn
     .map((record, index) => ({ record, index }))
     .sort((a, b) => (a.record.at === b.record.at ? b.index - a.index : a.record.at < b.record.at ? 1 : -1))
     .map(item => item.record);
-  return { follow, brief: latestBrief(state, venture.id), handoffs, tokenLink: TOKEN_LINK };
+  const brief = latestBrief(state, venture.id);
+  // C5 task 35: whether the brief fits each builder's link, so the row can say how it travels before the owner presses.
+  const linkFits = brief ? { lovable: planHandoff('lovable', brief.markdown).mode === 'link', replit: planHandoff('replit', brief.markdown).mode === 'link' } : null;
+  return { follow, brief, handoffs, tokenLink: TOKEN_LINK, linkFits };
 }

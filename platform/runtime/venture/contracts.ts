@@ -1270,9 +1270,15 @@ export type HandoffPlan = {
   label: 'handoff';
   status: 'available' | 'planned';
 };
+/** C5 task 35: the brief by file: website-brief.md, and the note file the builder reads the brief id from. */
+export type BriefFilePlan = {
+  handoffId: string; // send it back with venture.build.handoffOpened once the file is saved
+  builder: BuilderId;
+  files: { name: string; text: string }[];
+};
 export type HandoffRecord = RecordBase<'venture-handoff'> & {
   builder: BuilderId;
-  mode: 'link' | 'copy';
+  mode: 'link' | 'copy' | 'file';
   briefId: string;
   briefDigest: string;
   urlChars: number;
@@ -5918,6 +5924,7 @@ export const VENTURE_METHODS = [
   'venture.accountant.schedule.get',
   'venture.accountant.schedule.set',
   'venture.accountant.pack.done',
+  'venture.build.briefFile',
   // Ink v2 wave 4 (W4_METHODS above)
   ...W4_METHODS,
   // Ink v2 wave 5 (W5_METHODS above)
@@ -6089,6 +6096,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.accountant.schedule.get': 'money',
   'venture.accountant.schedule.set': 'money',
   'venture.accountant.pack.done': 'money',
+  'venture.build.briefFile': 'build',
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
   'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
   'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
@@ -6543,6 +6551,7 @@ export type VenturePayloads = {
   'venture.apps.pin': { app: string; pinned: boolean }; 'venture.apps.export': { app: string };
   'venture.apps.call': { app: string; tool: string; arguments: Record<string, Json> }; 'venture.apps.remove': { app: string };
   'venture.layout.get': { place: LayoutPlace };
+  'venture.build.briefFile': { builder: BuilderId };
   'venture.accountant.pack.done': { month: string };
   'venture.accountant.schedule.set': { on: boolean };
   'venture.accountant.schedule.get': Empty;
@@ -6799,7 +6808,7 @@ export type VentureResults = {
   'venture.build.handoffOpened': HandoffRecord;
   'venture.build.link': BuildFollowRecord;
   'venture.build.sync': BuildStatus;
-  'venture.build.status': { follow: BuildFollowRecord | null; brief: BriefRecord | null; handoffs: HandoffRecord[]; tokenLink: string };
+  'venture.build.status': { follow: BuildFollowRecord | null; brief: BriefRecord | null; handoffs: HandoffRecord[]; tokenLink: string; linkFits: { lovable: boolean; replit: boolean } | null };
   'venture.connectors.list': ConnectorCard[];
   'venture.delivery.playbook': PlaybookRecord;
   'venture.simulation.scenarios': Scenario[];
@@ -6973,6 +6982,7 @@ export type VentureResults = {
   'venture.apps.pin': { app: MiniAppView; undo: { pinned: boolean }; line: Display }; 'venture.apps.export': { fileName: string; document: string; mediaType: 'text/html' };
   'venture.apps.call': MiniAppCallResult; 'venture.apps.remove': { removed: true; line: Display };
   'venture.layout.get': LayoutView;
+  'venture.build.briefFile': BriefFilePlan;
   'venture.accountant.pack.done': { done: boolean };
   'venture.accountant.schedule.set': CaPackScheduleView;
   'venture.accountant.schedule.get': CaPackScheduleView;

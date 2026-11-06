@@ -60,7 +60,7 @@ const DESK_METHODS = new Set([
   'venture.models.presets', 'venture.models.status', 'venture.models.connect', 'venture.models.disconnect',
   'venture.ai.options', 'venture.ai.status', 'venture.ai.connect', 'venture.ai.disconnect',
   'venture.blueprint.get', 'venture.blueprint.update', 'venture.price.quote',
-  'venture.build.brief', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
+  'venture.build.brief', 'venture.build.briefFile', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
   'workspace.custody.get', 'workspace.custody.recoveryCode', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff',
   'workspace.backups.list', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.export',
   'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect',
@@ -213,9 +213,14 @@ export class FakeBusinessDesk {
       case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? withPriceGuide(clone(view), this.host.country?.(biz).code ?? 'IN') : null; }
       case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn), this.host.country?.(biz).code ?? 'IN');
       case 'venture.price.quote': return this.quote(biz, p);
-      case 'venture.build.status': return clone(this.buildOf(biz));
+      case 'venture.build.status': {
+        const build = this.buildOf(biz);
+        // The real Replit limit reads the compressed link (build/handoff.ts); the sample's briefs are short and always fit.
+        return clone({ ...build, linkFits: build.brief ? { lovable: true, replit: true } : null });
+      }
       case 'venture.build.brief': return this.brief(biz);
       case 'venture.build.handoff': return this.handoff(biz, p.builder);
+      case 'venture.build.briefFile': return this.briefFile(biz, p.builder);
       case 'venture.build.handoffOpened': {
         const handoff = this.buildOf(biz).handoffs.find((h) => h.id === p.handoffId);
         if (!handoff) throw new EngineError('HANDOFF_NOT_FOUND', 'This copy is not on this computer.');
@@ -733,6 +738,19 @@ export class FakeBusinessDesk {
       handoffId, builder: id, mode: link ? 'link' : 'copy', url, clipboardText: link ? null : brief.markdown,
       notes: [...(id === 'lovable' ? HANDOFF_NOTES.lovable : id === 'replit' ? HANDOFF_NOTES.replit : HANDOFF_NOTES.copy)], label: 'handoff', status: 'available',
     };
+  }
+
+  /** C5 task 35: the same gates and shapes as the engine (build/handoff.ts). */
+  private briefFile(biz: string, builder: unknown) {
+    if (builder !== 'lovable' && builder !== 'replit') throw invalid('Choose Lovable or Replit.');
+    const build = this.buildOf(biz);
+    const brief = build.brief;
+    if (!brief) throw new EngineError('BRIEF_NOT_FOUND', 'Write the build brief first.');
+    if (!brief.lint.ok) throw new EngineError('BRIEF_LINT_FAILED', brief.lint.findings[0]?.message ?? 'The brief did not pass its checks.');
+    const handoffId = `ho-${biz}-${++this.seq}`;
+    build.handoffs.unshift({ id: handoffId, at: this.host.now(), builder, mode: 'file', openedAt: null });
+    const note = `chausar-brief-id: ${brief.briefId}\nMoney numbers come from Chausar. Do not compute totals or tax.\n`;
+    return { handoffId, builder, files: [{ name: 'website-brief.md', text: brief.markdown }, { name: builder === 'lovable' ? 'AGENTS.md' : 'replit.md', text: note }] };
   }
 
   private link(biz: string, p: Record<string, unknown>) {
