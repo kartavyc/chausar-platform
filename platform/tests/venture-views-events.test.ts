@@ -161,7 +161,7 @@ test('engine and local server: run events reach onVentureEvent and stream over G
   await engine.request('workspace.create', { name: 'Ledgerline', passphrase: 'long-enough-passphrase', pack: 'services' });
   await engine.request('venture.create', { idea: 'Monthly bookkeeping for cafes and small shops in Pune.', countryCode: 'IN' });
   const heard: VentureRunEvent[] = [];
-  const off = engine.onVentureEvent(event => heard.push(event));
+  const off = engine.onVentureEvent(event => { if (event.type !== 'work.step') heard.push(event); });
 
   const refused = await fetch(`${origin}/api/events`);
   assert.equal(refused.status, 401);

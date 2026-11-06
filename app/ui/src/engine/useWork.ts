@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { WORK_STEPS, type WorkKind } from '../../../../platform/runtime/venture/views/work-steps';
 import { useEngine } from './context';
 import type { VentureRunEvent, WorkStepStateLite } from './types';
@@ -29,8 +29,6 @@ export function useWork(kind: WorkKind, options: { active?: boolean | undefined;
   const frames = useRef(0);
   const activeRef = useRef(active);
   activeRef.current = active;
-  const jobRef = useRef(job);
-  jobRef.current = job;
   useEffect(() => {
     live.current = true;
     return () => { live.current = false; };
@@ -41,8 +39,7 @@ export function useWork(kind: WorkKind, options: { active?: boolean | undefined;
     else { setSince(null); setJob(null); }
   }, [active]);
 
-  useEffect(() => {
-    const read = () => {
+  const read = useCallback(() => {
       const heard = frames.current;
       client.request('venture.work.list', {}).then((answer) => {
         if (!live.current) return;
@@ -52,7 +49,9 @@ export function useWork(kind: WorkKind, options: { active?: boolean | undefined;
         // None listed, and the page is not waiting on its own request: nothing runs.
         else if (frames.current === heard && !activeRef.current) setJob(null);
       }, () => { /* An engine that cannot say shows the page's own wait. */ });
-    };
+  }, [client, kind]);
+
+  useEffect(() => {
     read();
     const off = client.subscribe((event: VentureRunEvent) => {
       if (event.type !== 'work.step' || event.kind !== kind || !event.step || !event.state) return;
@@ -67,12 +66,16 @@ export function useWork(kind: WorkKind, options: { active?: boolean | undefined;
         return { ...base, steps };
       });
     });
-    const timer = setInterval(() => {
-      // Only while something runs here: a page at rest asks for nothing.
-      if (activeRef.current || jobRef.current) read();
-    }, WORK_POLL_MS);
-    return () => { off(); clearInterval(timer); };
-  }, [client, kind]);
+    return off;
+  }, [client, kind, read]);
+
+  // Only while something runs here: a page at rest asks for nothing, and holds no timer.
+  const running = active || job !== null;
+  useEffect(() => {
+    if (!running) return undefined;
+    const timer = setInterval(read, WORK_POLL_MS);
+    return () => clearInterval(timer);
+  }, [running, read]);
 
   const stepIds = options.stepIds;
   return useMemo(() => {

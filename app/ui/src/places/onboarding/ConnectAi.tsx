@@ -36,6 +36,8 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   const client = useEngine();
   const headingId = useId();
   const tools = useResource('venture.ai.tools', {});
+  /** One-shot C3 task 11: the owner stops watching the check; the key and Skip are here, and the answer is still taken when it lands. */
+  const [stopLooking, setStopLooking] = useState(false);
   const options = useResource('venture.ai.options', {});
   const [view, setView] = useState<ToolsLite | undefined>(undefined);
   const [busy, setBusy] = useState<string | null>(null);
@@ -171,7 +173,7 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
       <p className={s.sub}>{t('first-run.ai.sub')}</p>
       <Bento className={s.grid} as="section" labelledBy={headingId}>
         {/* One-shot C3 task 11: each tool's step as it is looked at, never a bare wait. */}
-        {view ? view.tools.map(toolTile) : <Progress kind="ai-tools" active stepIds={TOOL_STEPS} labelOf={(cli) => t(cli === 'codex' ? 'first-run.ai.checkingCodex' : 'first-run.ai.checkingClaude')} />}
+        {view ? view.tools.map(toolTile) : !stopLooking && <Progress kind="ai-tools" active stepIds={TOOL_STEPS} onStopWaiting={() => setStopLooking(true)} stopWaitingLabel={t('first-run.ai.stopLooking')} labelOf={(cli) => t(cli === 'codex' ? 'first-run.ai.checkingCodex' : 'first-run.ai.checkingClaude')} />}
         <Tile as="section" span={4} label={t('first-run.ai.key.name')} className={s.option} card>
           <div className={s.optionHead}><Icon name="lock" size={20} /><h2 className={s.optionName}>{t('first-run.ai.key.name')}</h2></div>
           <p className={s.optionLine}>{t('first-run.ai.key.line')}</p>

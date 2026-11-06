@@ -55,7 +55,8 @@ describe('Apps (6H1)', () => {
     assertInkRules();
   });
 
-  // One-shot A4 (hands-on row 75, bug 15): "Your AI is writing it." only while a make is on its way.
+  // One-shot A4 (hands-on row 75, bug 15): the wait only while a make is on its way. C3 task 11: "Writing your app" with
+  // its elapsed time, where it said "Your AI is writing it.".
   it('says the AI is writing only while the app is being made, never at rest or after a refusal', async () => {
     window.location.hash = '#/apps';
     const base = createFakeClient(new FakeEngine());
@@ -73,15 +74,17 @@ describe('Apps (6H1)', () => {
     };
     render(<App client={client} language="en" />);
     await screen.findByRole('article', { name: 'Who owes me' });
+    expect(screen.queryByText('Writing your app')).toBeNull();
     expect(screen.queryByText('Your AI is writing it.')).toBeNull();
     refuse = true;
     const box = screen.getByRole('textbox', { name: 'Describe the app' });
     await act(async () => { fireEvent.change(box, { target: { value: 'A list of who is due' } }); });
     await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
-    expect(await screen.findByText('Your AI is writing it.')).toBeTruthy();
+    expect(await screen.findByText(/^Writing your app/)).toBeTruthy();
+    expect(screen.queryByText('Your AI is writing it.')).toBeNull();
     await act(async () => { release!(); });
     await screen.findByText(/Connect your AI first\./);
-    expect(screen.queryByText('Your AI is writing it.')).toBeNull();
+    expect(screen.queryByText(/^Writing your app/)).toBeNull();
   });
 
   it('making an app opens it beside its permission screen; it runs only after Allow, in a locked frame', async () => {

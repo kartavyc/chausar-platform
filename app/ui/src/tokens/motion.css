@@ -85,6 +85,7 @@ details::details-content {
   block-size: 0;
   opacity: 0;
   overflow: clip;
+  overflow-clip-margin: var(--sp-1);
   transition: block-size var(--t-sheet) var(--ease), opacity var(--t-sheet) var(--ease), content-visibility var(--t-sheet) allow-discrete;
 }
 

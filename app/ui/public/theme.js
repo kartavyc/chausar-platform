@@ -16,6 +16,7 @@
       root.setAttribute('data-swap', 'window');
       var done = function () { if (root.getAttribute('data-swap') === 'window') root.removeAttribute('data-swap'); };
       var transition = document.startViewTransition(apply);
+      if (transition && transition.ready) transition.ready.catch(function () {});
       if (transition && transition.finished) transition.finished.then(done, done); else done();
     };
     apply();

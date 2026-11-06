@@ -53,7 +53,7 @@ export function useMotionOff(): boolean {
   return useSyncExternalStore(subscribe, motionOff, () => true);
 }
 
-type Transition = { finished?: Promise<unknown>; updateCallbackDone?: Promise<unknown> };
+type Transition = { ready?: Promise<unknown>; finished?: Promise<unknown>; updateCallbackDone?: Promise<unknown> };
 type TransitionDocument = Document & { startViewTransition?: (update: () => void) => Transition | undefined };
 
 /**
@@ -79,6 +79,8 @@ export function withViewTransition(update: () => void, swap?: string): Promise<v
   const clear = () => {
     if (swap && root.dataset.swap === swap) delete root.dataset.swap;
   };
+  // A skipped transition (a hidden window, a newer one) rejects `ready`: that is not a failure, the update still ran.
+  transition?.ready?.catch(() => {});
   if (transition?.finished) transition.finished.then(clear, clear);
   else clear();
   if (transition?.updateCallbackDone) return transition.updateCallbackDone.then(() => undefined, () => { if (!ran) run(); });

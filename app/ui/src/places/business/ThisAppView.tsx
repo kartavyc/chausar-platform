@@ -21,7 +21,7 @@ export function ThisAppView() {
   const kept = useResource('app.preferences.get', {});
   const [chosen, setChosen] = useState<MotionPreferenceLite | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const motion = chosen ?? kept.data?.motion ?? null;
+  const motion = chosen ?? kept.data?.motion ?? (kept.error ? 'system' : null);
 
   async function choose(next: MotionPreferenceLite) {
     const before = motion;
