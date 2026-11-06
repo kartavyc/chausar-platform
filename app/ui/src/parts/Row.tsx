@@ -7,6 +7,7 @@ import s from './Row.module.css';
 import leave from './Leave.module.css';
 
 export interface RowProps {
+  as?: 'li' | 'div' | undefined;
   id: string;
   /** "Business · agent", in small grey type above the title. */
   eyebrow?: ReactNode;
@@ -40,10 +41,11 @@ export interface RowProps {
  * circle), the title and its sub line, then the aside, the buttons and the end time. The row itself is focusable (J
  * and K move between rows); its title is the button that opens it. Lists of rows are <ul> elements.
  */
-export function Row({ id, eyebrow, title, line, children, actions, onOpen, secondAsk, mark, aside, end, dense, linkPending, className, arriving }: RowProps) {
+export function Row({ as: Tag = 'li', id, eyebrow, title, line, children, actions, onOpen, secondAsk, mark, aside, end, dense, linkPending, className, arriving }: RowProps) {
   const titleId = useId();
   return (
-    <li
+    <Tag
+      role={Tag === 'div' ? 'group' : undefined}
       className={cx(s.row, className, arriving && leave.arrive)}
       data-arriving={arriving ? '' : undefined}
       data-row=""
@@ -70,7 +72,7 @@ export function Row({ id, eyebrow, title, line, children, actions, onOpen, secon
       {aside && <div className={s.aside}>{aside}</div>}
       {(actions || linkPending) && <div className={s.actions}>{linkPending && <PendingLink />}{actions}</div>}
       {end && <span className={s.end}>{end}</span>}
-    </li>
+    </Tag>
   );
 }
 

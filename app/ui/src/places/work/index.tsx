@@ -32,6 +32,7 @@ import { PlaybookDesk } from './PlaybookDesk';
 import { orderView, type OrderView } from './orders';
 import { Finished, superseded } from './PreviousRuns';
 import { RunTiles } from './RunTiles';
+import { RunGroups } from './RunGroups';
 import { StoppedRuns, isStopped } from './StoppedRun';
 import { useWorkChanged } from './refresh';
 import { DraftSheet } from './DraftSheet';
@@ -202,19 +203,14 @@ function WorkPage() {
     content = (
       <>
         {/* 4F3: the counts are the sub line's already, so Running now does not say them again. */}
-        {waiting.length > 0 && running(waiting)}
-        {going.some(run => run.state === 'active') && running(going.filter(run => run.state === 'active'))}
-        {(failedOpen.length > 0 || stoppedRuns.length > 0 || done.length > 0) && (
-          <div className={s.pair}>
-            {(failedOpen.length > 0 || stoppedRuns.length > 0) && (
+        {runs.data && <RunGroups active={going.filter(run => run.state === 'active')} waiting={waiting} done={done} names={tileNames}
+          queue={queue.data?.rows} onChanged={reload} primaryId={primaryRun} moreHref={formatHash(routeFor(route, 'done', business))}
+          failures={(failedOpen.length > 0 || stoppedRuns.length > 0) ? (
               <div className={s.stack}>
                 {stoppedRuns.length > 0 && stoppedTiles(stoppedRuns)}
                 {failedOpen.length > 0 && failedTiles(failedOpen)}
               </div>
-            )}
-            {done.length > 0 && finished(done, true)}
-          </div>
-        )}
+          ) : null} />}
         {ordersHere && current.length > 0 && <Orders views={current}>{orderList}</Orders>}
         {/* W5 5A1: the business's own desk (its records), where its orders are, once its package marks it ready. */}
         {ordersHere && <PlaybookDesk />}

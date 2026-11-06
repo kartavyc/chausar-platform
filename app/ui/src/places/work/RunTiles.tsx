@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, type ReactNode, type Ref } from 'react';
 import { useT } from '../../text';
 import { openSheet } from '../../shell/navigation';
 import { Avatar } from '../../parts/Avatar';
@@ -25,9 +25,9 @@ function StillArc() {
   );
 }
 
-interface RunTileProps { run: RunSummary; detail: RunDetail | undefined; business: string | undefined; queue: readonly QueueRow[] | undefined; onChanged: (() => void) | undefined; primary: boolean }
+interface RunTileProps { as?: 'li' | 'article'; run: RunSummary; detail: RunDetail | undefined; business: string | undefined; queue: readonly QueueRow[] | undefined; onChanged: (() => void) | undefined; primary: boolean }
 
-function RunTile({ run, detail, business, queue, onChanged, primary }: RunTileProps) {
+export function RunTile({ as = 'li', run, detail, business, queue, onChanged, primary }: RunTileProps) {
   const t = useT();
   const titleId = useId();
   const waiting = run.state === 'waiting';
@@ -44,7 +44,7 @@ function RunTile({ run, detail, business, queue, onChanged, primary }: RunTilePr
   const steps = detail?.steps ?? [];
   const at = steps.findIndex((step) => step.state === (waiting ? 'waiting' : 'current'));
   return (
-    <Tile as="li" labelledBy={titleId} pad="compact" card className={s.runTile}>
+    <Tile as={as} labelledBy={titleId} pad="compact" card className={s.runTile}>
       <div className={s.runTop}>
         <Avatar name={run.agent} state={waiting ? 'waiting' : 'working'} size={40} />
         <div className={s.runWho}>
@@ -104,18 +104,20 @@ function RunTile({ run, detail, business, queue, onChanged, primary }: RunTilePr
  * W4 4F3: each tile has Stop ("Stop run 31"), which opens its small dialog (StopDialog.tsx); a run the round gate holds
  * shows the gate's line and its Continue box (RoundGate.tsx), decided through Today's row for it.
  */
-export function RunTiles({ runs, names, meta, queue, onChanged, primaryId }: {
+export function RunTiles({ runs, names, meta, queue, onChanged, primaryId, listRef, renderRows }: {
   runs: RunSummary[]; names: ReadonlyMap<string, string>; meta?: string | undefined; queue?: readonly QueueRow[] | undefined; onChanged?: (() => void) | undefined;
   primaryId?: string | undefined;
+  listRef?: Ref<HTMLUListElement>;
+  renderRows?: () => ReactNode;
 }) {
   const t = useT();
   const id = useId();
-  const details = useRunDetails(runs);
+  const details = useRunDetails(renderRows ? [] : runs);
   return (
     <section aria-labelledby={id} className={s.block}>
       <SectionHead id={id} title={t(runs.every(run => run.state === 'waiting') ? 'work.filter.waiting' : 'work.running')} meta={meta} />
-      <ul className={s.runs}>
-        {runs.map((run) => <RunTile key={run.runId} run={run} detail={details[run.runId]} business={names.get(run.businessId)} queue={queue} onChanged={onChanged} primary={run.runId === primaryId} />)}
+      <ul ref={listRef} className={s.runs}>
+        {renderRows ? renderRows() : runs.map((run) => <RunTile key={run.runId} run={run} detail={details[run.runId]} business={names.get(run.businessId)} queue={queue} onChanged={onChanged} primary={run.runId === primaryId} />)}
       </ul>
     </section>
   );
