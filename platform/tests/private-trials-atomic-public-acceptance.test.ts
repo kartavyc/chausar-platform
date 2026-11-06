@@ -4,7 +4,7 @@ import { Vault } from '../runtime/vault.ts';
 import { fixture, selectSavedAnswers, assertUnchangedAuthority, historicalReceiptContent } from './fixtures/private-trials-public-acceptance.ts';
 
 // Verify the names and storage API against the frozen public join before running.
-// All trial operations and the competing correction use actual preload/strict IPC.
+// All trial operations and the competing correction use trusted host validation/strict IPC.
 // Hooks retain real encrypted custody and the actual Vault transaction draft.
 test('public trial publication rechecks a real source correction inside its actual Vault commit transaction', async t => {
   const f = await fixture(t), savedAnswerIds = await selectSavedAnswers(f);

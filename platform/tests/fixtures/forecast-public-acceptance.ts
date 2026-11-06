@@ -7,9 +7,9 @@ import { Engine } from '../../runtime/engine.ts';
 import type { Context, Member } from '../../runtime/contracts.ts';
 import type { CalculationReceipt, CalculationRequest } from '../../runtime/calculator.ts';
 import type { ForecastRequest, SavedForecastEvaluation } from '../../runtime/forecast-contracts.ts';
-import { preloadBridge } from './preload-bridge.ts';
+import { trustedHostBridge } from './trusted-host-bridge.ts';
 
-// Synthetic CSV evidence through real preload/strict IPC and Engine. This qualifies
+// Synthetic CSV evidence through trusted host validation/strict IPC and Engine. This qualifies
 // the local experimental flow, not native storage, a connector, or predictive quality.
 export const SOURCE = 'forecast-acceptance-export';
 const PASSWORD = 'Synthetic forecast fixture only';
@@ -31,9 +31,9 @@ export async function fixture(t: TestContext) {
   });
   await engine.request('workspace.create', { name: COMPANY, folder: 'acceptance',
     passphrase: PASSWORD, demo: false, pack: 'retail' });
-  const h = await preloadBridge({ dispatch: (method, payload) => context
+  const h = await trustedHostBridge({ dispatch: (method, payload) => context
     ? engine.requestAs(context, method, payload) : engine.request(method, payload) });
-  const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => h.exposed.request(method, payload);
+  const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => h.request(method, payload);
   await request('trust.update', { retentionDays: 3650 });
   const dictionaryHash = (await request('ontology.get')).current.hash as string;
   function advance(at: string) {

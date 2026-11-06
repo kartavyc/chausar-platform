@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve, isAbsolute } from 'node:path';
 import { Engine } from '../../runtime/engine.ts';
 import { createLocalServer } from '../../runtime/server.ts';
-import { preloadBridge } from './preload-bridge.ts';
+import { trustedHostBridge } from './trusted-host-bridge.ts';
 
 // Actual pre-repair Engine encrypted authority and public originals. No authored
 // State, deleted cutoff, live provider, native SQL, installed GUI or user vault.
@@ -48,8 +48,8 @@ export async function fixture(t: TestContext) {
     await rm(directory, { recursive: true, force: true });
   });
   await http('workspace.open', { passphrase: legacy.passphrase });
-  // Every public request goes through the real desktop preload and strict IPC contract, then this loopback HTTP server.
-  const bridge = await preloadBridge({ dispatch: http });
+  // Every public request goes through the real trusted host validator and strict IPC contract, then this loopback HTTP server.
+  const bridge = await trustedHostBridge({ dispatch: http });
   const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => bridge.request(method, payload);
   const advance = (milliseconds = 1000) => t.mock.timers.setTime(Date.now() + milliseconds);
   let lastExportedTime = 0;

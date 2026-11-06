@@ -60,7 +60,7 @@ test('desktop runtime and TypeScript declaration expose the same unique method t
 
 test('engine jobs and connectors remain dispatched but cannot be called by the renderer', async () => {
   const [engine, connectors] = await Promise.all([
-    readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8'),
+    Promise.all(['engine.ts', 'legacy/dispatch.ts'].map(file => readFile(new URL('../runtime/' + file, import.meta.url), 'utf8'))).then(parts => parts.join('\n')),
     readFile(new URL('../runtime/engine-connectors.ts', import.meta.url), 'utf8'),
   ]);
   for (const [namespace, source] of [['jobs', engine], ['connectors', connectors]]) {
@@ -85,7 +85,7 @@ test('trusted engine requests preserve connector and job JSON values while the r
 });
 
 test('legacy source requests remain engine-only and invented requests are refused', async () => {
-  const engine = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
+  const engine = (await Promise.all(['engine.ts', 'legacy/dispatch.ts'].map(file => readFile(new URL('../runtime/' + file, import.meta.url), 'utf8')))).join('\n');
   const sourceMethods = [...engine.matchAll(/case '(sources\.[^']+)':/g)].map(match => match[1]);
   assert.ok(sourceMethods.length >= 11);
   assert.ok(sourceMethods.includes('sources.groups'), 'The planned family catalogue must be publicly dispatched.');

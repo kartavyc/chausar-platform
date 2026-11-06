@@ -6,7 +6,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { preloadBridge, type PreloadBridge } from './preload-bridge.ts';
+import { trustedHostBridge, type TrustedHostBridge } from './trusted-host-bridge.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const require = createRequire(import.meta.url);
@@ -58,8 +58,8 @@ export async function fixture(t: TestContext, scenarios: Record<string, Scenario
     enabled: true, budgetMinor: '10000', maxCostMinor: '1' };
   const route = await dispatch('models.configure', { config, ...(kind === 'ollama' ? {} : { secret: 'synthetic-fixture-only' }) });
   assert.equal(route.verification, 'not-live-verified'); await dispatch('trust.update', { send });
-  // A fresh desktop preload over the same engine, as a new window would have after a restart.
-  const newBridge = () => preloadBridge({ dispatch });
+  // A fresh trusted desktop host client over the same engine, as a new window would have after a restart.
+  const newBridge = () => trustedHostBridge({ dispatch });
   const bridge = await newBridge();
   const request = (method: string, payload: Record<string, unknown> = {}) => bridge.request(method, payload);
   async function calls(): Promise<any[]> {
@@ -76,7 +76,7 @@ export async function fixture(t: TestContext, scenarios: Record<string, Scenario
 export type Fixture = Awaited<ReturnType<typeof fixture>>;
 
 /** The current answer for a retained turn, read the way the desktop app reads it back (conversation.get, receipts.get). */
-export async function current(bridge: PreloadBridge, data: any) {
+export async function current(bridge: TrustedHostBridge, data: any) {
   if (data?.kind === 'synthesized-conversation') return (await bridge.request('conversation.get', { id: data.id })).answer;
   if (data?.kind === 'grounded-conversation') return data.results?.some((result: any) => result.answer) ? (await bridge.request('conversation.get', { id: data.id })).answer : data;
   if (data?.kind === 'business-context' && data.receipt?.id) return bridge.request('business.context.receipt', { id: data.receipt.id });
@@ -85,29 +85,29 @@ export async function current(bridge: PreloadBridge, data: any) {
   return data;
 }
 /** A pending clarification's continuation, checked the way the desktop app checks it before every use. */
-export async function readContinuation(bridge: PreloadBridge, id: string) {
+export async function readContinuation(bridge: TrustedHostBridge, id: string) {
   const descriptor = await bridge.request('conversation.continuation', { id });
   assert.equal(descriptor?.schemaVersion, 1); assert.equal(descriptor.turnId, id);
   assert.equal(typeof descriptor.originalQuestion, 'string'); assert.equal(typeof descriptor.clarification, 'string');
   return descriptor;
 }
 /** Selects a saved clarification to continue: its saved turn, then its continuation. */
-export async function selectContinuation(bridge: PreloadBridge, id: string) {
+export async function selectContinuation(bridge: TrustedHostBridge, id: string) {
   const item = await bridge.request('conversation.get', { id });
   assert.equal(typeof item.answer?.clarification, 'string', 'The saved answer must still be a pending clarification.');
   return readContinuation(bridge, id);
 }
 
 /**
- * One reviewed planner turn through the desktop preload: models.preview, models.approve, then conversation.ask with the
+ * One reviewed planner turn through the trusted desktop host: models.preview, models.approve, then conversation.ask with the
  * reviewed preview, and the retained answer read back. A continuation is read again before preview, review and approval.
  */
-export async function tools(f: Fixture, question: string, { bridge = f.bridge, continuationId }: { bridge?: PreloadBridge; continuationId?: string } = {}) {
+export async function tools(f: Fixture, question: string, { bridge = f.bridge, continuationId }: { bridge?: TrustedHostBridge; continuationId?: string } = {}) {
   const continuation = continuationId ? { continuationId } : {};
   if (continuationId) await readContinuation(bridge, continuationId);
   const before = (await f.calls()).length;
   const preview = await bridge.request('models.preview', { question, routeId: f.route.id, purpose: 'conversation', questionDisclosure: 'verbatim', ...continuation });
-  assert.ok(preview, 'The desktop preload must return a reviewed planner request.');
+  assert.ok(preview, 'The trusted desktop host must return a reviewed planner request.');
   assert.equal(preview.naturalQuestion, question); assert.equal((await f.calls()).length, before);
   assert.equal(typeof preview.payload, 'string', 'The exact outbound payload is reviewable text.');
   if (continuationId) { await readContinuation(bridge, continuationId); await readContinuation(bridge, continuationId); }
@@ -126,7 +126,7 @@ export async function prepare(f: Fixture, id: string) {
   return { preview, approval, payload: { id, previewId: preview.id, approvalId: approval.id } };
 }
 /** The current tool turn a final answer is built from; the desktop app reads it before preview, review and approval. */
-async function toolTurn(bridge: PreloadBridge, id: string) {
+async function toolTurn(bridge: TrustedHostBridge, id: string) {
   const item = await bridge.request('conversation.get', { id });
   assert.equal(item.answer?.kind, 'grounded-conversation'); assert.equal(item.answer.id, id);
   return item.answer;
