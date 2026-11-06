@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { PreloadBridge } from './fixtures/preload-bridge.ts';
+import type { TrustedHostBridge } from './fixtures/trusted-host-bridge.ts';
 import { fixture, MODEL_PROSE, openSaved, PASSWORD, PERIOD, SECRET, selectContinuation, SOURCE, synthesize, tools, type Fixture } from './fixtures/conversation-synthesis-public-flow.ts';
 
-// Independent two-stage acceptance through the actual desktop preload -> structured
+// Independent two-stage acceptance through the actual trusted host validator -> structured
 // clone -> strict IPC -> EngineHarness -> production worker and installed codec.
 // These authored fixtures prove transport/grounding, not model prose entailment.
 function verifySlots(final: any, original: any, call: any) {
@@ -46,7 +46,7 @@ function verifySlots(final: any, original: any, call: any) {
   assert.deepEqual(final.cautions.map((item: any) => item.ref), summary.evidence.filter((item: any) => item.kind === 'caution').map((item: any) => item.ref));
 }
 /** Lock, then open the vault again the way the desktop app does: workspace.open, then workspace.status. */
-async function lockAndUnlock(bridge: PreloadBridge) {
+async function lockAndUnlock(bridge: TrustedHostBridge) {
   await bridge.request('workspace.lock');
   await bridge.request('workspace.open', { folder: 'acceptance', passphrase: PASSWORD });
   assert.equal((await bridge.request('workspace.status')).open, true);

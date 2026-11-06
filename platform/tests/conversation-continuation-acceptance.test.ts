@@ -4,7 +4,7 @@ import { fixture, turn, openSaved } from './fixtures/conversation-public-flow-ac
 
 // Supplemental acceptance against the exact frozen production tree. Only copied
 // public fixture setup is external; no production helper/continuation is invoked.
-// Requests go through the real desktop preload and strict IPC, in the order the desktop sends them.
+// Requests go through the real trusted host validator and strict IPC, in the order the desktop sends them.
 test('user can answer a retained clarification with a short reply after reopening', async t => {
   const original='How much did we invoice in the period I choose?', reply='September, please.';
   // A credential-free route keeps worker restart independent of the fixture's
@@ -15,9 +15,9 @@ test('user can answer a retained clarification with a short reply after reopenin
   await f.restart(); const fresh=await f.desktop();
   const saved=await openSaved(fresh,original);
   assert.equal(saved.saved.answer.clarification,first.answer.clarification);
-  const history=await fresh.exposed.request('conversation.history');
+  const history=await fresh.request('conversation.history');
   const pending=history.items.find((item:any)=>item.question===original&&item.kind==='clarification');
-  assert.ok(pending); assert.deepEqual((await fresh.exposed.request('conversation.get',{id:pending.id})).answer,first.answer);
+  assert.ok(pending); assert.deepEqual((await fresh.request('conversation.get',{id:pending.id})).answer,first.answer);
   assert.equal(saved.continuationId,pending.id);
   assert.equal((await f.calls()).length,1,'Reopening the clarification must not dispatch.');
   const followup=await turn(f,reply,fresh,saved.continuationId), calls=await f.calls(), call=calls.at(-1);
@@ -43,14 +43,14 @@ test('actual gateway warning and retained clarification and all-error bodies rem
     // The public preview fixture asserts the warning is present on every reviewed preview before approval.
     assert.ok(result.preview.payload.includes('publishedCalculations'));
   }
-  await f.restart();const fresh=await f.desktop(),history=await fresh.exposed.request('conversation.history');
+  await f.restart();const fresh=await f.desktop(),history=await fresh.request('conversation.history');
   for(const [question,kind,answer] of [
     [clarification,'clarification',first.answer],
     [failure,'grounded-conversation',second.answer],
   ] as const) {
     const matches=history.items.filter((item:any)=>item.question===question&&item.kind===kind);
     assert.equal(matches.length,1);
-    assert.deepEqual((await fresh.exposed.request('conversation.get',{id:matches[0].id})).answer,answer);
+    assert.deepEqual((await fresh.request('conversation.get',{id:matches[0].id})).answer,answer);
     const saved=await openSaved(fresh,question);assert.deepEqual(saved.saved.answer,answer);
   }
   assert.equal((await f.calls()).length,2);
@@ -63,7 +63,7 @@ test('saved mixed answer opens its exact composite binding and both tool results
   assert.equal(saved.saved.answer.kind,'grounded-conversation');assert.equal(saved.saved.answer.id,answer.id);
   assert.deepEqual(saved.saved.answer.results.map((result:any)=>result.tool),['business.describe','calculator.calculate']);
   assert.ok(saved.saved.answer.results.every((result:any)=>result.answer));
-  assert.deepEqual((await fresh.exposed.request('conversation.get',{id:answer.id})).answer,answer);
+  assert.deepEqual((await fresh.request('conversation.get',{id:answer.id})).answer,answer);
   assert.equal((await f.calls()).length,1);
 });
 
@@ -71,8 +71,8 @@ test('repeated mixed questions retain distinct previews and exact distinct combi
   const question='Tell me our business and September invoicing.';
   const f=await fixture(t,{[question]:{calls:['business.describe','billed']}}),first=await turn(f,question),second=await turn(f,question);
   assert.notEqual(first.preview.id,second.preview.id);assert.notEqual(first.answer.id,second.answer.id);
-  await f.restart();const fresh=await f.desktop(),history=await fresh.exposed.request('conversation.history');
+  await f.restart();const fresh=await f.desktop(),history=await fresh.request('conversation.history');
   assert.equal(history.items.filter((item:any)=>item.question===question&&item.kind==='grounded-conversation').length,2);
-  for(const expected of [first.answer,second.answer])assert.deepEqual((await fresh.exposed.request('conversation.get',{id:expected.id})).answer,expected);
+  for(const expected of [first.answer,second.answer])assert.deepEqual((await fresh.request('conversation.get',{id:expected.id})).answer,expected);
   assert.equal((await f.calls()).length,2);
 });

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { fixture, turn, openSaved } from './fixtures/conversation-public-flow-acceptance.ts';
 
-// Real desktop preload/strict IPC/production worker/Engine, authored synthetic HTTP only. Opening a saved clarification
+// Real desktop trusted host/strict IPC/production worker/Engine, authored synthetic HTTP only. Opening a saved clarification
 // selects it for the next reviewed reply, as the desktop does.
 const OBJECTIVE = 'What was billed?';
 const REPLY = 'September 2026';

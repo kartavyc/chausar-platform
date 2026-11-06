@@ -8,7 +8,7 @@ import type { CalculationReceipt, CalculationRequest } from '../../runtime/calcu
 import type { Context, State } from '../../runtime/contracts.ts';
 import { Engine } from '../../runtime/engine.ts';
 import type { MappingRecipe } from '../../runtime/ingest.ts';
-import { preloadBridge } from './preload-bridge.ts';
+import { trustedHostBridge } from './trusted-host-bridge.ts';
 
 export const SOURCE = 'synthetic-public-interchange-shop';
 export const PASSWORD = 'Synthetic workspace interchange disposable passphrase';
@@ -55,7 +55,7 @@ export const BENCH = [
   { operation: 'earned', originalMinor: '250000', correctedMinor: '250000' },
 ];
 
-// Existing real preload/strict IPC/Engine; no invented source inventory, target
+// Existing trusted host validation/strict IPC/Engine; no invented source inventory, target
 // witness, historical StateStore or custody host. Only synthetic Date is mocked.
 export async function fixture(t: TestContext, withHistoricalAuthority = true) {
   t.mock.timers.enable({ apis: ['Date'], now: START });
@@ -72,8 +72,8 @@ export async function fixture(t: TestContext, withHistoricalAuthority = true) {
     assert.ok(child && !child.startsWith('..') && !isAbsolute(child) && basename(target).startsWith(prefix));
     await rm(target, { recursive: true, force: true });
   });
-  const h = await preloadBridge({ dispatch: (method, payload) => engine.requestAs(context, method, payload) });
-  const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => h.exposed.request(method, payload);
+  const h = await trustedHostBridge({ dispatch: (method, payload) => engine.requestAs(context, method, payload) });
+  const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => h.request(method, payload);
   async function requestAs(current: Context, method: string, payload: Record<string, unknown> = {}) {
     const prior = context; context = current;
     try { return await request(method, payload); } finally { context = prior; }

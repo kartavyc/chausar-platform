@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { approveFinal, fixture, prepare, release, synthesisReview, tools, waitEntered } from './fixtures/conversation-synthesis-public-flow.ts';
 
-// Actual desktop preload/strict IPC and production worker, with authored HTTP
+// Actual desktop trusted host/strict IPC and production worker, with authored HTTP
 // responses and the default production codec. No live inference or private vault.
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 async function noFinal(f: Fixture) {
@@ -117,7 +117,7 @@ test('missing or cross-preview approval and forged public synthesis fields refus
   assert.deepEqual((await f.request('conversation.get', { id: second.answer.id })).answer, second.answer);
 });
 
-test('a reviewed final-answer preview without its separate approval cannot approve or dispatch through the desktop preload', async t => {
+test('a reviewed final-answer preview without its separate approval cannot approve or dispatch through the trusted desktop host', async t => {
   const question = 'Synthetic explicitly unchecked final consent';
   const f = await fixture(t, { [question]: { calls: ['billed'] } });
   const turn = await tools(f, question), review = await synthesisReview(f, turn.answer.id);
