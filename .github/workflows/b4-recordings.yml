@@ -1,0 +1,40 @@
+name: D11 sample recording qualification
+on:
+  push:
+    branches: ['b2c/os-b4-recordings-*']
+permissions:
+  contents: read
+jobs:
+  recorder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Missing fixture must fail with update instruction
+        shell: bash
+        run: |
+          if node --test platform/tests/recordings-d11.test.ts > /tmp/recording-red.log 2>&1; then
+            cat /tmp/recording-red.log
+            exit 1
+          fi
+          cat /tmp/recording-red.log
+          node -e "if (!require('fs').readFileSync('/tmp/recording-red.log','utf8').includes('Recordings changed: run npm run recordings:update and commit the diff')) process.exit(1)"
+      - run: npm run recordings:update
+      - run: node --test --test-concurrency=1 platform/tests/recordings-d11.test.ts platform/tests/rpc-recorder-d11.test.ts
+      - run: node --test platform/tests/recordings-d11.test.ts
+      - if: always()
+        run: npm run typecheck
+      - if: always()
+        run: npm run typecheck:ui
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-engine-recordings
+          path: app/ui/tests/recordings/*.json
