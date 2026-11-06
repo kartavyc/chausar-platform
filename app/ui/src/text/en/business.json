@@ -619,7 +619,6 @@
   "business.routines.needPrompt": "Say what to ask first",
   "business.routines.needDay": "Pick a day first",
   "business.routines.needTime": "Set the time and zone first",
-  "business.routines.saveAsk": "Each job waits for your approval on Today before anything goes to your AI. Save it?",
   "business.routines.save": "Save",
   "business.routines.saveFailed": "Couldn't save it: {message}",
   "business.routines.checkNow": "Check now",

@@ -62,7 +62,7 @@ describe('Business > Routines (4J22a)', () => {
     expect(fold.textContent).not.toMatch(/\bDone\b/);
   });
 
-  it('adds a routine on weekdays at a time in a time zone, after a second ask', async () => {
+  it('adds a routine on weekdays at a time in a time zone, on one press', async () => {
     const { calls } = start();
     await screen.findByRole('article', { name: 'Weekly review' });
     const form = screen.getByRole('form', { name: 'Add a routine' });
@@ -73,10 +73,7 @@ describe('Business > Routines (4J22a)', () => {
     fireEvent.change(within(form).getByLabelText('Time'), { target: { value: '08:30' } });
     expect((within(form).getByLabelText('Time zone') as HTMLInputElement).value).toBe('Asia/Kolkata');
     await press(form, 'Save routine');
-    expect(calls.some((c) => c.method === 'venture.routines.set')).toBe(false);
-    const ask = form.querySelector('[data-second-ask]') as HTMLElement;
-    expect(ask.textContent).toContain('Each job waits for your approval on Today before anything goes to your AI. Save it?');
-    await press(ask, 'Save');
+    expect(form.querySelector('[data-second-ask]')).toBeNull();
     const set = calls.find((c) => c.method === 'venture.routines.set')!;
     expect(set.params).toEqual({ routine: {
       name: 'Morning check', agent: null, prompt: 'List the invoices that fell due this week and who has not paid.', on: true,
@@ -94,7 +91,6 @@ describe('Business > Routines (4J22a)', () => {
     fireEvent.change(within(form).getByLabelText('What to ask'), { target: { value: 'Do the report like before, please.' } });
     fireEvent.click(within(form).getByRole('checkbox', { name: 'Friday' }));
     await press(form, 'Save routine');
-    await press(form.querySelector('[data-second-ask]') as HTMLElement, 'Save');
     await waitFor(() => expect(within(form).getByRole('alert').textContent).toBe("Couldn't save it: A routine runs without the chat, so \"like before\" would point at nothing. Say in full what you want each time."));
   });
 
@@ -114,7 +110,6 @@ describe('Business > Routines (4J22a)', () => {
     fireEvent.change(within(form).getByLabelText('What to ask'), { target: { value: 'Write the report in full.' } });
     fireEvent.click(within(form).getByRole('checkbox', { name: 'Friday' }));
     await press(form, 'Save routine');
-    await press(form.querySelector('[data-second-ask]') as HTMLElement, 'Save');
     await within(form).findByText(/^Couldn't save it: Run Check connections once/);
     // A known state, not an alarm.
     expect(within(form).queryByRole('alert')).toBeNull();
@@ -140,7 +135,6 @@ describe('Business > Routines (4J22a)', () => {
     fireEvent.change(within(form).getByLabelText('What to ask'), { target: { value: 'Write the report in full.' } });
     fireEvent.click(within(form).getByRole('checkbox', { name: 'Friday' }));
     await press(form, 'Save routine');
-    await press(form.querySelector('[data-second-ask]') as HTMLElement, 'Save');
     await press(form, 'Check now');
     await waitFor(() => expect(within(form).getByRole('alert').textContent).toContain('The check did not run.'));
     expect(calls.filter((c) => c.method === 'venture.routines.set')).toHaveLength(1);
@@ -165,7 +159,7 @@ describe('Business > Routines (4J22a)', () => {
     await waitFor(() => expect(screen.getByRole('article', { name: 'Weekly review' }).querySelector('[data-routine-line]')!.textContent).toMatch(/^Next time /));
   });
 
-  it('changes a routine in its own form, prefilled, after a second ask', async () => {
+  it('changes a routine in its own form, prefilled, on one press', async () => {
     const { calls } = start();
     const item = await screen.findByRole('article', { name: 'Weekly review' });
     await press(item, 'Change');
@@ -174,7 +168,6 @@ describe('Business > Routines (4J22a)', () => {
     expect((within(form).getByRole('checkbox', { name: 'Monday' }) as HTMLInputElement).checked).toBe(true);
     fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Monday review' } });
     await press(form, 'Save routine');
-    await press(form.querySelector('[data-second-ask]') as HTMLElement, 'Save');
     expect(calls.find((c) => c.method === 'venture.routines.set')!.params).toMatchObject({ routine: { id: 'routine-weekly', name: 'Monday review', on: true } });
     expect(await screen.findByRole('article', { name: 'Monday review' })).toBeTruthy();
   });

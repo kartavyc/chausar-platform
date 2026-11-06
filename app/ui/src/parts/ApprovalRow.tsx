@@ -146,8 +146,11 @@ export interface ApprovalRowProps {
   buttonSize?: ButtonSize | undefined;
   /** W4 4J22b: the answer box's send words for what is typed (an agent's question card says the answer back). */
   answerLabel?: ((answer: string) => string) | undefined;
-  /** B3: the row was decided already (Today's session holds its line): it is drawn as that line from the start. */
-  done?: { line: string; receiptId?: string | undefined } | undefined;
+  /** B3: the row was decided already (Today's session holds its line): it is drawn as that line from the start. B4: with
+   *  the Undo the engine offers. When the line is forgotten (taken back), the card is open again. */
+  done?: { line: string; receiptId?: string | undefined; undo?: (() => Promise<string>) | undefined } | undefined;
+  /** B4: what happened to this row just now (a decision taken back), said on the card until it is decided again. */
+  said?: string | undefined;
   /** B4: another button holds the view's one filled primary (Today's next best step): the row's primary is drawn as a
    *  secondary. It stays the row's primary in every other way: its place, its key (A), its lock and its second ask. */
   quietPrimary?: boolean | undefined;
@@ -213,7 +216,7 @@ export function primaryOf(row: QueueRow, viewed: boolean, t: T): ApprovalPrimary
  */
 export function ApprovalRow({
   row, onDecide, onView, viewed, onOpen, onReceipt, onAction, showBusiness = true, onReread,
-  layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize, tools, answerLabel, done, quietPrimary = false,
+  layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize, tools, answerLabel, done, said, quietPrimary = false,
 }: ApprovalRowProps) {
   const t = useT();
   const zone = useOwnerZone();
@@ -237,6 +240,7 @@ export function ApprovalRow({
   // Set before the decision is sent and checked by every way in (click, confirm, handle, keys), so two presses in the
   // same moment send one decision: state alone would let the second one through before the first re-renders.
   const inFlight = useRef(Boolean(done));
+  const heldDone = useRef(Boolean(done));
 
   const staleWords = layout === 'row' ? `${t('approval.stale')} ${t('approval.staleNew')}` : t('approval.staleHere');
 
@@ -253,6 +257,16 @@ export function ApprovalRow({
     setNotice({ kind: 'stale', text: staleWords });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.digest]);
+
+  // B4: the session forgot this row's line (its decision was taken back): the card is open to decide again.
+  useEffect(() => {
+    if (heldDone.current && !done) {
+      inFlight.current = false;
+      setDecided(null);
+      setPhase('idle');
+    }
+    heldDone.current = Boolean(done);
+  }, [done]);
 
   useEffect(() => {
     if (phase === 'confirm') cancelRef.current?.focus();
@@ -386,7 +400,8 @@ export function ApprovalRow({
   const keepDecided = (element: HTMLElement | null) => { decidedRef.current = element; };
 
   if (phase === 'decided' && decided) {
-    const { line, receiptId, undo } = decided;
+    const { line, receiptId } = decided;
+    const undo = decided.undo ?? done?.undo;
     // 4Z3: the receipt is a mark after the line; its code is not printed (the engine's line may end with it).
     const text = receiptId && line.endsWith(receiptId) ? line.slice(0, -receiptId.length).replace(/\s*·\s*$/, '') : line;
     const words = decidedWords(current, text, t);
@@ -399,7 +414,7 @@ export function ApprovalRow({
         {undo && (
           <>
             {' '}
-            <Button variant="quiet" size={buttonSize === 'xl' ? 'xl' : 'sm'} data-undo="" onClick={() => void undo().then((said) => setDecided({ line: said }), (error: unknown) => setDecided({ line: error instanceof Error ? error.message : String(error), undo }))}>
+            <Button variant="quiet" size={buttonSize === 'xl' ? 'xl' : 'sm'} data-undo="" onClick={() => void undo().then((words) => setDecided({ line: words }), (error: unknown) => setDecided({ line: error instanceof Error ? error.message : String(error), undo: decided.undo }))}>
               {t('approval.undo')}
             </Button>
           </>
@@ -428,6 +443,7 @@ export function ApprovalRow({
           {notice.text}
         </p>
       )}
+      {said && !notice && <p className={s.notice} role="status" data-said="">{said}</p>}
     </>
   );
 
@@ -453,8 +469,22 @@ export function ApprovalRow({
     </>
   );
 
+  /**
+   * B4: the second ask takes the place of the first buttons: the same spot and order, Read or Watch kept, Cancel where
+   * the other action was and the action again as the one filled button.
+   */
+  const secondAsk = (buttonSizing: ButtonSize | undefined) => pending && (
+    <>
+      {others.filter((action) => VIEW_ACTIONS.has(action.id)).map((action) => (
+        <Button key={action.id} size={buttonSizing} onClick={() => choose(action)}>{action.label}</Button>
+      ))}
+      <Button ref={cancelRef} size={buttonSizing} onClick={cancel}>{t('approval.cancel')}</Button>
+      <Button variant="primary" size={buttonSizing} data-confirm="" onClick={() => void decide(pending)}>{pending.label}</Button>
+    </>
+  );
+
   if (layout === 'row') {
-    const actions = phase === 'confirm' || phase === 'answer' ? null : (
+    const actions = phase === 'answer' ? null : phase === 'confirm' && pending ? secondAsk(undefined) : (
       <>
         {others.map((action, index) => (
           <Button key={action.id} data-key={otherKey(index)} disabled={busy} onClick={() => choose(action)}>
@@ -497,15 +527,7 @@ export function ApprovalRow({
         )}
         {facts}
         {notices}
-        {phase === 'confirm' && pending && (
-          <div className={s.inline}>
-            <p className={s.ask}>{t('approval.secondAsk', { action: pending.label })}</p>
-            <div className={s.buttons}>
-              <Button ref={cancelRef} onClick={cancel}>{t('approval.cancel')}</Button>
-              <Button variant="primary" data-confirm="" onClick={() => void decide(pending)}>{pending.label}</Button>
-            </div>
-          </div>
-        )}
+        {phase === 'confirm' && pending && <p className={s.askLine}>{t('approval.secondAsk', { action: pending.label })}</p>}
         {phase === 'answer' && (
           <form className={s.inline} onSubmit={(event) => { event.preventDefault(); if (answer.trim()) void decide(asksDay ? pending ?? primary : primary, answer.trim()); }}>
             <AnswerField day={asksDay} line={current.needs?.line} value={answer} onChange={setAnswer} />
@@ -530,7 +552,8 @@ export function ApprovalRow({
   const name = current.agent ?? t('app.name');
   // W4 4E4: a follow-up's time is only its due day's start, so it shows none.
   const time = current.kind === 'followup' ? '' : timeOf(current.createdAt, zone);
-  const note = lockNote ?? (primary.secondAsk ? t('approval.asksAgain') : current.kind === 'plan' ? t('approval.nothingYet') : current.needs?.answer === 'day' ? t('approval.pickDay') : undefined);
+  // B4 (177.f2): a locked primary keeps its reason on the button, so no line repeats it.
+  const note = locked ? undefined : primary.secondAsk ? t('approval.asksAgain') : current.kind === 'plan' ? t('approval.nothingYet') : current.needs?.answer === 'day' ? t('approval.pickDay') : undefined;
   const previewNode = typeof preview === 'function'
     ? preview(view, { answer: (text) => { if (phase !== 'idle' || inFlight.current) return; setAnswer(text); setPhase('answer'); } })
     : preview;
@@ -619,22 +642,15 @@ export function ApprovalRow({
       {facts}
 
       {notices}
-      {note && (
+      {note && phase !== 'confirm' && (
         <p id={noteId} className={s.note} data-note="">
-          <Icon name={locked ? 'lock' : 'shield-check'} size={14} />
+          <Icon name="shield-check" size={14} />
           <span>{note}</span>
         </p>
       )}
+      {locked && <span id={noteId} className="sr-only">{lockNote}</span>}
 
-      {phase === 'confirm' && pending && (
-        <div className={s.confirm}>
-          <p className={s.ask}>{t('approval.secondAsk', { action: pending.label })}</p>
-          <div className={s.acts}>
-            <Button ref={cancelRef} size={size} onClick={cancel}>{t('approval.cancel')}</Button>
-            <Button variant="primary" size={size} data-confirm="" onClick={() => void decide(pending)}>{pending.label}</Button>
-          </div>
-        </div>
-      )}
+      {phase === 'confirm' && pending && <p className={s.askLine}>{t('approval.secondAsk', { action: pending.label })}</p>}
       {phase === 'answer' && (
         <form className={s.confirm} onSubmit={(event) => { event.preventDefault(); if (answer.trim()) void decide(asksDay ? pending ?? primary : primary, answer.trim()); }}>
           <AnswerField day={asksDay} line={current.needs?.line} value={answer} onChange={setAnswer} />
@@ -644,6 +660,7 @@ export function ApprovalRow({
           </div>
         </form>
       )}
+      {phase === 'confirm' && pending && <div className={s.acts}>{secondAsk(size)}</div>}
       {phase !== 'confirm' && phase !== 'answer' && !toolsOpen && (
         <div className={s.acts}>
           {others.map((action, index) => (
@@ -659,7 +676,7 @@ export function ApprovalRow({
             data-key="primary"
             disabled={busy}
             locked={locked}
-            lockedReason={note}
+            lockedReason={lockNote}
             lockedNoteId={noteId}
             // Unlocked, it still points at its note ("Asks once more", "Nothing changes until you approve").
             aria-describedby={!locked && note ? noteId : undefined}

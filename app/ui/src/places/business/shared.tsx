@@ -74,7 +74,8 @@ const onQueue = (event: { type: string }) => event.type === 'queue.changed';
 
 /**
  * The plan and price rows waiting on Today for this business, decided here through the same queue and Today's session
- * (one-shot B3): the owner is reading the plan on this page, so it counts as viewed. A price change still asks twice.
+ * (one-shot B3): the owner is reading the plan on this page, so it counts as viewed. One price and nothing else is one
+ * press with an Undo (B4); anything more still asks twice.
  * The rows are the live plan rows, the ones whose decision is on its way, and the ones the session holds as decided,
  * so a row being decided never leaves the list (its card keeps its key from press to answer and shows its own line),
  * and a row already decided is drawn as its line, never as a fresh card. Lines stay for the session, as on Today.
@@ -108,6 +109,8 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
             key={row.id}
             row={row}
             done={session.line(row.id)}
+            said={session.said(row.id)}
+            showBusiness={false}
             viewed
             onView={() => document.getElementById('business-plan-name')?.focus()}
             onDecide={async (r, action, extra) => after(await decideRow(client, r, action.id, extra, t))}

@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { useOwnerZone } from '../../shell/clock';
 import { formatClock, formatDay, formatTime } from '../../../../../platform/runtime/owner-format';
 import { Button } from '../../parts/Button';
+import { Confirm } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { InlineError } from '../../parts/InlineError';
 import { stateText } from '../../parts/states';
@@ -83,20 +84,9 @@ function useRoutineProblem() {
   return { node, refused, clear: () => setProblem(null) };
 }
 
-/** A second ask under a button: the question, Not now (focused first) and the action again. */
+/** A second ask under a button: the question, Cancel (focused first) and the action again. */
 function Ask({ ask, label, busy, onYes, onNo }: { ask: string; label: string; busy: boolean; onYes: () => void; onNo: () => void }) {
-  const t = useT();
-  const cancel = useRef<HTMLButtonElement>(null);
-  useEffect(() => { cancel.current?.focus(); }, []);
-  return (
-    <div className={s.foldBody} data-second-ask="">
-      <p className={s.line}>{ask}</p>
-      <div className={s.buttons}>
-        <Button ref={cancel} variant="quiet" disabled={busy} onClick={onNo}>{t('approval.cancel')}</Button>
-        <Button variant="primary" disabled={busy} aria-busy={busy || undefined} onClick={onYes}>{label}</Button>
-      </div>
-    </div>
-  );
+  return <div className={s.foldBody}><Confirm action={label} busy={busy} onCancel={onNo} onConfirm={onYes}><p className={s.line}>{ask}</p></Confirm></div>;
 }
 
 /**
@@ -241,7 +231,6 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
   const [days, setDays] = useState<number[]>(calendar ? [...calendar.weekdays] : []);
   const [time, setTime] = useState(calendar?.time ?? '09:00');
   const [timeZone, setTimeZone] = useState(calendar?.timeZone ?? zone);
-  const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const problem = useRoutineProblem();
   useEffect(() => { if (!initial) setTimeZone(zone); }, [zone, initial]);
@@ -256,9 +245,8 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!ready) return;
-    problem.clear();
-    setAsking(true);
+    if (!ready || busy) return;
+    void save();
   }
 
   async function save() {
@@ -273,7 +261,7 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
       onSaved();
     } catch (error) {
       problem.refused('business.routines.saveFailed', error, () => void save());
-    } finally { setBusy(false); setAsking(false); }
+    } finally { setBusy(false); }
   }
 
   const toggleDay = (day: number) => setDays((now) => (now.includes(day) ? now.filter((d) => d !== day) : [...now, day]));
@@ -305,14 +293,11 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
           </div>
         </>
       )}
-      {asking ? (
-        <Ask ask={t('business.routines.saveAsk')} label={t('business.routines.save')} busy={busy} onNo={() => setAsking(false)} onYes={() => void save()} />
-      ) : (
-        <div className={s.buttons}>
-          {onCancel && <Button variant="quiet" onClick={onCancel}>{t('approval.cancel')}</Button>}
-          <Button type="submit" disabledReason={missing}>{t('business.routines.saveRoutine')}</Button>
-        </div>
-      )}
+      {/* B4 (192.d1): saved on one press. The page's lead already says each run waits for approval on Today. */}
+      <div className={s.buttons}>
+        {onCancel && <Button onClick={onCancel}>{t('approval.cancel')}</Button>}
+        <Button type="submit" disabled={busy} disabledReason={missing}>{t('business.routines.saveRoutine')}</Button>
+      </div>
       {problem.node}
     </form>
   );

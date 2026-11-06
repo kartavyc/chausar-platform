@@ -221,7 +221,7 @@ describe('Business: prices', () => {
     expect(within(gst).getByRole('button', { name: receiptMark(/^R-0\d{3}$/) })).toBeTruthy();
   });
 
-  it('sets a price as typed; the engine prices it with a receipt and the change waits on Today, asking twice', async () => {
+  it('sets a price as typed; the engine prices it with a receipt and the change waits on Today, for one press with an Undo (B4)', async () => {
     const { engine } = start('#/business/prices');
     const shorts = await offerRow('Shorts from your long video');
     fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
@@ -229,10 +229,12 @@ describe('Business: prices', () => {
     await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000'));
     const waiting = await region('Waiting on you');
     const row = within(waiting).getByText('New price for Shorts from your long video').closest('li')!;
-    expect(row.textContent).toContain('Not set');
+    // The price the press decides is on the card, whole: no fold and no eyebrow beside it.
+    expect(row.querySelector('[data-change-count]')).toBeNull();
+    expect(row.textContent).toContain('Was not set');
+    expect(row.querySelector('del')).toBeNull();
+    expect(row.textContent).not.toContain('Lumen Studio');
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
-    expect(within(row).getByText(/Check it once more/)).toBeTruthy();
-    await act(async () => { fireEvent.click(within(row).getAllByRole('button', { name: 'Accept' }).at(-1)!); });
     await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('accepted'));
     // B3 (row 33, bug 9): one decided line in the engine's words; the card never comes back with Read and Accept.
     await waitFor(() => expect(waiting.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
@@ -249,6 +251,44 @@ describe('Business: prices', () => {
     expect(within(again).queryByRole('button', { name: 'Accept' })).toBeNull();
   });
 
+  it('Undo on an accepted price restores the old price and the row, and every screen reads again (B4)', async () => {
+    const engine = new FakeEngine();
+    window.location.hash = '#/business/prices';
+    const client = createFakeClient(engine);
+    const asked: string[] = [];
+    const base = client.request.bind(client);
+    client.request = ((method: string, params: unknown) => { asked.push(method); return base(method as never, params as never); }) as typeof client.request;
+    render(<App client={client} language="en" />);
+    const shorts = await offerRow('Shorts from your long video');
+    fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
+    await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
+    const waiting = await region('Waiting on you');
+    const row = (await within(waiting).findByText('New price for Shorts from your long video')).closest('li')!;
+    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
+    const undo = await within(waiting).findByRole('button', { name: 'Undo' });
+    await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('accepted'));
+    asked.length = 0;
+    await act(async () => { fireEvent.click(undo); });
+    // The same reads a decision refreshes: the queue, the plan and its prices.
+    await waitFor(() => { expect(asked).toContain('venture.queue.list'); expect(asked).toContain('venture.blueprint.get'); });
+    expect(asked).toContain('venture.queue.undo');
+    await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('draft'));
+    const again = await region('Waiting on you');
+    await waitFor(() => expect(again.textContent).toContain('You took back the new price for Shorts from your long video.'));
+    expect(again.querySelector('[data-decided]')).toBeNull();
+    const back = (await within(again).findByText('New price for Shorts from your long video')).closest('li')!;
+    // Decided again, it is one press again.
+    await act(async () => { fireEvent.click(within(back).getByRole('button', { name: 'Accept' })); });
+    await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('accepted'));
+    expect(await within(again).findByRole('button', { name: 'Undo' })).toBeTruthy();
+    // Too late once a quote uses it: the line says so and Undo leaves.
+    const shortsOffer = (await plan(engine)).blueprint.offers.find((offer) => offer.name.value === 'Shorts from your long video')!;
+    await engine.request('venture.price.quote', { offerId: shortsOffer.id });
+    await act(async () => { fireEvent.click(within(again).getByRole('button', { name: 'Undo' })); });
+    await waitFor(() => expect(again.querySelector('[data-decided]')?.textContent).toContain('Too late to undo: this price is already in use.'));
+    expect(within(again).queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+
   it('a price decided on Prices shows the same line on Today, not "resolved elsewhere" (B3)', async () => {
     start('#/business/prices');
     const shorts = await offerRow('Shorts from your long video');
@@ -257,7 +297,6 @@ describe('Business: prices', () => {
     const waiting = await region('Waiting on you');
     const row = (await within(waiting).findByText('New price for Shorts from your long video')).closest('li')!;
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
-    await act(async () => { fireEvent.click(within(row).getAllByRole('button', { name: 'Accept' }).at(-1)!); });
     await waitFor(() => expect(waiting.querySelector('[data-decided]')).not.toBeNull());
     await act(async () => { window.location.hash = '#/today'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
     const needs = await screen.findByRole('region', { name: 'Needs you' });

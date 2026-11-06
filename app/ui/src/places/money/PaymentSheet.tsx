@@ -12,11 +12,12 @@
  * exactly and refuses otherwise, so nothing is added up here. A split payment carries no TDS.
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
+import { Confirm } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
@@ -49,9 +50,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const [phase, setPhase] = useState<Phase>('form');
   const [refusal, setRefusal] = useState<string | null>(null);
   const [recorded, setRecorded] = useState<{ view: InvoiceViewLite; receiptId: string | null; note: string | null } | null>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => { if (phase === 'confirm') cancelRef.current?.focus(); }, [phase]);
 
   const current = recorded?.view ?? view.data;
   const balance = current?.figures.find((figure) => figure.key === 'balance');
@@ -165,7 +164,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           )}
         </form>
         {(phase === 'confirm' || phase === 'sending') && (
-          <div className={`${s.ask} ${s.block}`}>
+          <div className={s.block}><Confirm action={t('money.payment.confirm')} busy={phase === 'sending'} onCancel={() => setPhase('form')} onConfirm={() => void record(current)}>
             <p>{split ? t('money.payment.splitAsk', { amount: typedWords(amount, currency), date: day(receivedOn), count: String(allocations.length) }) : t('money.payment.ask', { amount: typedWords(amount, currency), date: day(receivedOn) })}</p>
             {/* A split's second ask names each part as typed, like every other second ask. */}
             {split && (
@@ -174,11 +173,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
               </ul>
             )}
             {!split && india && tdsSection.trim() !== '' && tdsAmount.trim() !== '' && <p>{t('money.payment.tdsAsk', { amount: typedWords(tdsAmount, currency), section: tdsSection.trim() })}</p>}
-            <div className={s.buttons}>
-              <Button ref={cancelRef} disabled={phase === 'sending'} onClick={() => setPhase('form')}>{t('approval.cancel')}</Button>
-              <Button variant="primary" data-confirm="" disabled={phase === 'sending'} onClick={() => void record(current)}>{t('money.payment.confirm')}</Button>
-            </div>
-          </div>
+          </Confirm></div>
         )}
         {refusal && <p className={s.refusal} role="status" data-engine-line="">{refusal}</p>}
       </>

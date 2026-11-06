@@ -10,11 +10,12 @@
  * timeline.
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
+import { Confirm } from '../../parts/Confirm';
 import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import { EngineError, type InvoiceViewLite } from '../../engine/types';
@@ -36,10 +37,8 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const [answered, setAnswered] = useState<InvoiceViewLite | null>(null);
   const [phase, setPhase] = useState<'idle' | 'confirm' | 'sending'>('idle');
   const [notice, setNotice] = useState<Notice | null>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => { setAnswered(null); }, [view.data]);
-  useEffect(() => { if (phase === 'confirm') cancelRef.current?.focus(); }, [phase]);
 
   const current = answered ?? view.data;
   // 4J20: what an action in the sheet answered; a draft made again at today's rate is a new invoice, so it opens.
@@ -80,13 +79,9 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   let footer = null;
   if (invoice.status === 'draft') {
     footer = phase === 'confirm' ? (
-      <div className={s.ask}>
+      <Confirm action={t('money.invoice.issueConfirm')} onCancel={() => setPhase('idle')} onConfirm={() => void issue(current)}>
         <p>{t('money.invoice.issueAsk')}</p>
-        <div className={s.buttons}>
-          <Button ref={cancelRef} onClick={() => setPhase('idle')}>{t('approval.cancel')}</Button>
-          <Button variant="primary" data-confirm="" onClick={() => void issue(current)}>{t('money.invoice.issueConfirm')}</Button>
-        </div>
-      </div>
+      </Confirm>
     ) : (
       <div className={s.buttons}>
         <Button variant="primary" disabled={phase === 'sending'} onClick={() => setPhase('confirm')}>{t('money.invoice.issue')}</Button>

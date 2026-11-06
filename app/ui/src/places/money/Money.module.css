@@ -793,9 +793,6 @@
   display: grid;
   gap: var(--sp-3);
   margin-top: var(--sp-3);
-  padding: var(--pad-card);
-  border-radius: var(--r-card);
-  background: var(--wait-soft);
 }
 
 .ask p {

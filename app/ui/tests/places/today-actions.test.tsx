@@ -201,6 +201,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
   it('Send back opens a box prefilled "Revise this to ", sends the owner\'s words as typed, and Undo restores the draft', async () => {
     const { spy } = start();
     const card = await cardTitled('Episode 14 is cut');
+    await press(within(card).getByRole('button', { name: 'More' }));
     await press(within(card).getByRole('button', { name: 'Send back' }));
     const box = card.querySelector<HTMLElement>('[data-send-back]')!;
     const field = within(box).getByRole('textbox', { name: 'What to change' }) as HTMLTextAreaElement;
@@ -228,6 +229,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
   it('after Send back, Undo leaves the line once the revised draft is listed (B3)', async () => {
     const { client } = start();
     const card = await cardTitled('Episode 14 is cut');
+    await press(within(card).getByRole('button', { name: 'More' }));
     await press(within(card).getByRole('button', { name: 'Send back' }));
     const box = card.querySelector<HTMLElement>('[data-send-back]')!;
     fireEvent.change(within(box).getByRole('textbox', { name: 'What to change' }), { target: { value: 'Revise this to cut the intro to 20 seconds' } });
@@ -249,6 +251,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
   it('empty words are refused in the engine\'s words', async () => {
     start();
     const card = await cardTitled('Episode 14 is cut');
+    await press(within(card).getByRole('button', { name: 'More' }));
     await press(within(card).getByRole('button', { name: 'Send back' }));
     const box = card.querySelector<HTMLElement>('[data-send-back]')!;
     const send = () => within(box).getByRole('button', { name: 'Send back' }) as HTMLButtonElement;
@@ -277,6 +280,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     // The fake's own draft passed its checks, so the list and the fix answer here as the engine would for a failing one.
     const { spy } = start({ queue: [row], stub: (method) => (method === 'venture.delivery.list' ? failing(real) : method === 'venture.delivery.fix' ? { ...failing(real)[0], status: 'waiting-for-you' } : undefined) });
     const card = await cardTitled('Sponsor script for episode 14');
+    await press(within(card).getByRole('button', { name: 'More' }));
     await press(within(card).getByRole('button', { name: 'Send back' }));
     await waitFor(() => expect(card.querySelector('[data-fix]')).not.toBeNull());
     const fix = card.querySelector<HTMLElement>('[data-fix]')!;
@@ -295,6 +299,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     };
     const { spy } = start({ queue: [row] });
     const card = await cardTitled('Sponsor script for episode 14');
+    await press(within(card).getByRole('button', { name: 'More' }));
     await waitFor(() => expect(within(card).getByRole('button', { name: 'Edit' })).toBeTruthy());
     await press(within(card).getByRole('button', { name: 'Edit' }));
     const sheet = await screen.findByRole('dialog', { name: /Sponsor script for episode 14/ }).catch(() => document.querySelector<HTMLElement>('[data-sheet]')!);
@@ -327,6 +332,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
       stub: (method) => (method === 'venture.delivery.list' && revised ? DELIVERIES.lumen!.map((run) => (run.id === 'd-ep14-script' ? { ...run, renderedText: NEWER } : run)) : undefined),
     });
     const card = await cardTitled('Sponsor script for episode 14');
+    await press(within(card).getByRole('button', { name: 'More' }));
     await waitFor(() => expect(within(card).getByRole('button', { name: 'Edit' })).toBeTruthy());
     await press(within(card).getByRole('button', { name: 'Edit' }));
     const sheet = document.querySelector<HTMLElement>('[data-sheet]')!;
@@ -373,6 +379,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
       },
     });
     const card = await cardTitled('Sponsor script for episode 14');
+    await press(within(card).getByRole('button', { name: 'More' }));
     await waitFor(() => expect(within(card).getByRole('button', { name: 'Edit' })).toBeTruthy());
     await press(within(card).getByRole('button', { name: 'Edit' }));
     const sheet = document.querySelector<HTMLElement>('[data-sheet]')!;
@@ -416,6 +423,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
       stub: (method) => (method === 'venture.delivery.list' && revised ? DELIVERIES.lumen!.map((run) => (run.id === 'd-ep14-script' ? { ...run, renderedText: NEWER } : run)) : undefined),
     });
     const card = await cardTitled('Sponsor script for episode 14');
+    await press(within(card).getByRole('button', { name: 'More' }));
     await waitFor(() => expect(within(card).getByRole('button', { name: 'Edit' })).toBeTruthy());
     await press(within(card).getByRole('button', { name: 'Edit' }));
     const sheet = document.querySelector<HTMLElement>('[data-sheet]')!;

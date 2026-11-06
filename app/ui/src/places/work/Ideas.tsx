@@ -220,7 +220,7 @@ function AddForm({ busy, onAdd, onCancel }: { busy: boolean; onAdd: (text: strin
       <Field label={t('kit-rules.add.text')} value={text} maxLength={300} onChange={(event) => setText(event.target.value)} />
       <Field label={t('kit-rules.add.source')} hint={t('kit-rules.add.sourceHint')} value={source} maxLength={120} onChange={(event) => setSource(event.target.value)} />
       <div className={s.actions}>
-        <Button variant="quiet" onClick={onCancel}>{t('kit-rules.add.cancel')}</Button>
+        <Button onClick={onCancel}>{t('kit-rules.add.cancel')}</Button>
         <Button variant="primary" type="submit" disabled={busy}>{t('kit-rules.add.save')}</Button>
       </div>
     </form>

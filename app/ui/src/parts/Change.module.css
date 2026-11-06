@@ -21,6 +21,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+.was {
+  color: var(--mute);
+}
+
 .now {
   color: var(--fg);
   font-variant-numeric: tabular-nums;

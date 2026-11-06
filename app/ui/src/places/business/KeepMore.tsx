@@ -4,6 +4,7 @@ import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import type { BackupLite, Deleted, MoveFile, UnlockMode } from '../../engine/types';
 import { Button } from '../../parts/Button';
+import { Confirm } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { CodeGroups } from '../../parts/Secret';
 import { momentOf, refusalWords, saveTextFile } from '../../parts/custody';
@@ -59,14 +60,11 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
               <span className={s.quiet}>{`${t(`custody.kind.${backup.kind}`)}. ${t(backup.opensNow ? 'custody.opensNow' : 'custody.opensOlder')}`}</span>
               {asking !== backup.file && <Button variant="quiet" onClick={() => { setAsking(backup.file); setProblem(null); }}>{t('business.restore')}</Button>}
             </div>
+            {/* B4 (208.f1): the ask's buttons stay on the right, like every row's action. */}
             {asking === backup.file && (
-              <>
+              <Confirm action={t('business.restoreGo')} cancelLabel={t('business.restoreKeep')} busy={busy} onCancel={() => setAsking(null)} onConfirm={() => void restore(backup)}>
                 <p className={s.line}>{t('business.restoreAsk')}</p>
-                <div className={s.buttons}>
-                  <Button variant="primary" disabled={busy} onClick={() => void restore(backup)}>{t('business.restoreGo')}</Button>
-                  <Button variant="quiet" disabled={busy} onClick={() => setAsking(null)}>{t('business.restoreKeep')}</Button>
-                </div>
-              </>
+              </Confirm>
             )}
             {problem?.file === backup.file && <p className={s.problem} role="alert">{problem.text}</p>}
           </li>

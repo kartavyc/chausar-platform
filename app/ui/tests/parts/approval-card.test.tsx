@@ -125,7 +125,7 @@ describe('ApprovalRow as a card (layout="card")', () => {
   });
 
   describe('the note line says why, in words', () => {
-    it('while locked: the primary unlocks after you watch it, read it or open it, and the button points at that line', () => {
+    it('while locked: the primary says on itself that it unlocks after you watch it, read it or open it (B4: no line repeats it)', () => {
       const onDecide = vi.fn();
       const { unmount } = render(<ApprovalRow layout="card" row={draft} onDecide={onDecide} />);
       const approve = within(card()).getByRole('button', { name: 'Approve' }) as HTMLButtonElement;
@@ -134,17 +134,18 @@ describe('ApprovalRow as a card (layout="card")', () => {
       expect(onDecide).not.toHaveBeenCalled();
       expect(approve.dataset.variant).toBe('primary');
       expect(approve.hasAttribute('data-locked')).toBe(true);
-      const note = card().querySelector<HTMLElement>('[data-note]')!;
-      expect(note.textContent).toBe('Approve unlocks after you watch it');
-      expect(approve.getAttribute('aria-describedby')!.split(' ')).toContain(note.id);
+      expect(card().querySelector('[data-note]')).toBeNull();
+      expect(approve.getAttribute('title')).toBe('Approve unlocks after you watch it');
+      const said = approve.getAttribute('aria-describedby')!.split(' ').map((id) => document.getElementById(id)?.textContent);
+      expect(said).toContain('Approve unlocks after you watch it');
       unmount();
 
       const second = render(<ApprovalRow layout="card" row={plan} onDecide={vi.fn()} />);
-      expect(card().querySelector('[data-note]')!.textContent).toBe('Accept unlocks after you read it');
+      expect(within(card()).getByRole('button', { name: 'Accept' }).getAttribute('title')).toBe('Accept unlocks after you read it');
       second.unmount();
 
       render(<ApprovalRow layout="card" row={post} onDecide={vi.fn()} />);
-      expect(card().querySelector('[data-note]')!.textContent).toBe('Unlocks after you open it');
+      expect(within(card()).getByRole('button', { name: 'Approve and post' }).getAttribute('title')).toBe('Unlocks after you open it');
     });
 
     it('a primary that asks twice says "Asks you to confirm" (4Z2); a plan, once read, says nothing changes until you approve', () => {
@@ -301,7 +302,7 @@ describe('ApprovalRow as a compact card (layout="compact")', () => {
     render(<ApprovalRow layout="compact" buttonSize="xl" row={quote} onDecide={vi.fn()} />);
     expect([...card().querySelectorAll<HTMLButtonElement>('[data-key]')].map((b) => b.dataset.size)).toEqual(['xl', 'xl']);
     fireEvent.click(within(card()).getByRole('button', { name: 'Approve' }));
-    expect([...card().querySelectorAll<HTMLButtonElement>('.confirm button, [class*="confirm"] button')].map((b) => b.dataset.size)).toEqual(['xl', 'xl']);
+    expect([within(card()).getByRole('button', { name: 'Cancel' }), card().querySelector<HTMLElement>('[data-confirm]')!].map((b) => b.dataset.size)).toEqual(['xl', 'xl']);
   });
 
   it('says the kind as a labelled icon, and keeps the second ask and the lock', () => {
@@ -309,9 +310,8 @@ describe('ApprovalRow as a compact card (layout="compact")', () => {
     expect(within(card()).getByRole('img', { name: 'Plan' })).toBeTruthy();
     const accept = within(card()).getByRole('button', { name: 'Accept' }) as HTMLButtonElement;
     expect(isLocked(accept)).toBe(true);
-    const note = card().querySelector<HTMLElement>('[data-note]')!;
-    expect(note.textContent).toBe('Accept unlocks after you read it');
-    expect(accept.getAttribute('aria-describedby')!.split(' ')).toContain(note.id);
+    expect(accept.getAttribute('title')).toBe('Accept unlocks after you read it');
+    expect(card().querySelector('[data-note]')).toBeNull();
     assertInkRules(document.body);
   });
 });
@@ -387,6 +387,19 @@ describe('Change, in its three sizes', () => {
     fireEvent.click(screen.getByRole('button', { name: receiptMark('R-0415') }));
     expect(onReceipt).toHaveBeenCalledWith('R-0415');
     assertInkRules(document.body);
+  });
+
+  it('only the amount takes the figure face, and a price that was not set is said, not struck (B4)', () => {
+    const { container, unmount } = render(<Change size="pill" label="Monthly visits" before="₹2,499 per month" after="₹2,999 per month" />);
+    expect([...container.querySelectorAll('[data-num]')].map((item) => item.textContent)).toEqual(['₹2,499', '₹2,999']);
+    expect(container.querySelector('del')!.textContent).toBe('₹2,499 per month');
+    expect(container.textContent).toContain('₹2,999 per month');
+    unmount();
+    const unset = render(<Change size="pill" label="Monthly visits" before="Not set" after="8.33% of the amount your client confirms" />);
+    expect(unset.container.querySelector('del')).toBeNull();
+    expect(unset.container.textContent).toContain('Was not set');
+    expect(unset.container.textContent).not.toContain('Not set');
+    expect([...unset.container.querySelectorAll('[data-num]')].map((item) => item.textContent)).toEqual(['8.33%']);
   });
 
   it('a change with no receipt and no estimate breaks the rule, so a bare price can never pass as proved', () => {

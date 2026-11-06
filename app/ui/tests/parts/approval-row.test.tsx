@@ -58,6 +58,77 @@ describe('ApprovalRow', () => {
     expect(approve.getAttribute('aria-disabled')).toBe('true');
   });
 
+  describe('the second ask takes the place of the first buttons (B4)', () => {
+    const read: QueueRow = { ...price, viewRef: { kind: 'file', id: 'f1' }, actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'issue', label: 'Issue', primary: true, secondAsk: true }] };
+    const shown = (root: Element) => {
+      const button = root.querySelector('[data-key="primary"], [data-confirm]')!;
+      return { box: button.parentElement!, labels: [...button.parentElement!.querySelectorAll('button')].map((item) => item.textContent) };
+    };
+
+    it.each(['row', 'card', 'compact'] as const)('on a %s: the same container and order, Read kept, and one filled button', (layout) => {
+      const { container } = render(<ClockProvider now={() => new Date('2026-10-21T09:00:00Z')}><ul><ApprovalRow row={read} layout={layout} onDecide={vi.fn()} /></ul></ClockProvider>);
+      const first = shown(container);
+      expect(first.labels).toEqual(['Read', 'Issue']);
+      const held = first.box;
+      fireEvent.click(screen.getByRole('button', { name: 'Issue' }));
+      const second = shown(container);
+      expect(second.labels).toEqual(['Read', 'Cancel', 'Issue']);
+      expect(second.box.className).toBe(held.className);
+      expect(container.textContent).toContain('Issue? Check it once more.');
+      expect([...container.querySelectorAll('[data-variant="primary"]')].map((button) => button.textContent)).toEqual(['Issue']);
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }));
+    });
+
+    it('Read still opens the thing while it asks, and asks on', () => {
+      const onView = vi.fn();
+      const { container } = list(<ApprovalRow row={read} onDecide={vi.fn()} onView={onView} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Issue' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Read' }));
+      expect(onView).toHaveBeenCalledTimes(1);
+      expect(container.querySelector('[data-confirm]')).not.toBeNull();
+    });
+
+    it('an action that is neither Read nor Watch gives way to Cancel', () => {
+      list(<ApprovalRow row={price} onDecide={vi.fn()} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+      expect(screen.queryByRole('button', { name: 'Deny' })).toBeNull();
+    });
+  });
+
+  it('a locked card has no line saying so: its reason is on the button (B4)', () => {
+    render(<ClockProvider now={() => new Date('2026-10-21T09:00:00Z')}><ApprovalRow row={draft} onDecide={vi.fn()} layout="card" /></ClockProvider>);
+    const approve = screen.getByRole('button', { name: 'Approve' });
+    expect(document.querySelector('[data-note]')).toBeNull();
+    expect(approve.getAttribute('title')).toBe('Approve unlocks after you watch it');
+  });
+
+  describe('an answer the engine can take back (B4)', () => {
+    const one: QueueRow = { ...price, viewRef: { kind: 'plan', id: 'p2' }, title: 'New price for Monthly books', actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true }] };
+    it('one press decides, and the decided line carries the Undo it was given', async () => {
+      const undo = vi.fn(async () => 'You took back the new price for Monthly books.');
+      const onDecide = vi.fn(async () => done('New price for Monthly books accepted.'));
+      const { container, rerender } = render(<ul><ApprovalRow row={one} onDecide={onDecide} /></ul>);
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accept' })); });
+      expect(onDecide).toHaveBeenCalledTimes(1);
+      rerender(<ul><ApprovalRow row={one} onDecide={onDecide} done={{ line: 'New price for Monthly books accepted.', undo }} /></ul>);
+      expect(container.querySelector('[data-decided]')!.textContent).toContain('New price for Monthly books accepted.');
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Undo' })); });
+      expect(undo).toHaveBeenCalledTimes(1);
+    });
+
+    it('once its line is forgotten the card is open again, saying what happened', async () => {
+      const onDecide = vi.fn(async () => done('New price for Monthly books accepted.'));
+      const held = { line: 'New price for Monthly books accepted.', undo: vi.fn(async () => 'Back') };
+      const { container, rerender } = render(<ul><ApprovalRow row={one} onDecide={onDecide} done={held} /></ul>);
+      expect(container.querySelector('[data-decided]')).not.toBeNull();
+      rerender(<ul><ApprovalRow row={one} onDecide={onDecide} said="You took back the new price for Monthly books." /></ul>);
+      expect(container.querySelector('[data-decided]')).toBeNull();
+      expect(container.textContent).toContain('You took back the new price for Monthly books.');
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accept' })); });
+      expect(onDecide).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('a second ask confirms inside the row before deciding, and marks the row so A never runs it', async () => {
     const onDecide = vi.fn(async () => done('Approved · R-0421', 'R-0421'));
     const { container } = list(<ApprovalRow row={price} onDecide={onDecide} />);

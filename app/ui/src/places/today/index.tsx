@@ -370,6 +370,7 @@ function PlaceBody() {
       onDefer={handlers.defer}
       onHandle={handlers.handle}
       quietPrimary={item.row.id !== holder}
+      said={session.said(item.row.id)}
     />
   ));
 
@@ -481,6 +482,8 @@ interface TodayCardProps {
   onHandle: (id: string, handle: ApprovalHandle | null) => void;
   /** B4: another button holds the page's one filled primary. */
   quietPrimary: boolean;
+  /** B4: what happened to this row just now (a price taken back). */
+  said: string | undefined;
 }
 
 /**
@@ -493,7 +496,7 @@ interface TodayCardProps {
  * was on screen when the finger came down: a new version that arrives mid-swipe (its digest changed) is never pressed
  * by that swipe; the card shows it as changed, and the owner swipes again if they want to.
  */
-const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, taxRegistered, showBusiness, onDecide, onReread, onAction, onView, onOpen, phone, onDefer, onHandle, quietPrimary }: TodayCardProps) {
+const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, taxRegistered, showBusiness, onDecide, onReread, onAction, onView, onOpen, phone, onDefer, onHandle, quietPrimary, said }: TodayCardProps) {
   const t = useT();
   const handle = useRef<ApprovalHandle | null>(null);
   // The card's buttons, for the swipe here and for Today's next best step (4I2).
@@ -512,6 +515,7 @@ const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, tax
       agentState={agentState}
       preview={outreach ?? preview}
       tools={draftToolsFor(row)}
+      said={said}
       viewed={viewed}
       onDecide={onDecide}
       onReread={onReread}

@@ -17,7 +17,7 @@ import s from './Business.module.css';
  * (venture.price.quote), and a field to set a new price, the card's one filled button. Simple first (founder, 23 Oct):
  * how the price is worked out (every figure of the receipt, tax lines included, as the calculator wrote them) waits
  * one fold away. The typed price goes to the engine as typed; the engine checks it, writes a new plan version, and the
- * change waits on Today (it asks twice). Nothing is added up or formatted here. A price that is a share of an amount
+ * change waits on Today (one press, with an Undo). Nothing is added up or formatted here. A price that is a share of an amount
  * the client confirms later is the price editor's advanced option, one fold away (W5 5A2, SharePrice.tsx).
  */
 export function PricesView() {

@@ -119,7 +119,9 @@ export function RowFacts({ row, onReceipt }: { row: QueueRow; onReceipt?: ((id: 
   // was a number to puzzle over. Over the limit it always shows.
   const counts = row.counts?.filter((count) => count.count * 10 >= count.limit * 9);
   const stale = row.meta?.staleDraft;
-  if (!sendsTo && !attempt && !counts?.length && !changeCount && !stale) return null;
+  // B4: one price and nothing else is all on the card already, so its count adds nothing (no second ask: views/price-only.ts).
+  const counted = changeCount && !(row.kind === 'price' && row.change && changeCount.details.length === 1 && !row.actions.some((action) => action.secondAsk));
+  if (!sendsTo && !attempt && !counts?.length && !counted && !stale) return null;
   return (
     <div className={s.facts} data-facts="">
       {(sendsTo || attempt || counts?.length) ? (
@@ -147,7 +149,7 @@ export function RowFacts({ row, onReceipt }: { row: QueueRow; onReceipt?: ((id: 
           {attempt.lastError ? t('approval.meta.attemptError', { n: String(attempt.n), error: attempt.lastError }) : t('approval.meta.attempt', { n: String(attempt.n) })}
         </p>
       )}
-      {changeCount && (
+      {counted && changeCount && (
         <details className={s.changes} data-change-count="">
           <summary>{changeCount.line}</summary>
           {changeCount.details.length > 0 && (
