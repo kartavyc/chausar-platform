@@ -10,11 +10,12 @@ import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet, setQuery, useRoute } from '../../shell/navigation';
 import { StorageNotice } from '../../shell/StorageNotice';
+import noteStyles from '../../shell/StorageNotice.module.css';
 import { StartAtLogin } from '../onboarding/StartAtLogin';
 import { PausedNote } from '../../shell/PausedNote';
 import { PausedWork } from '../../parts/paused';
 import { useNarrow } from '../../shell/useNarrow';
-import { refusalWords } from '../../parts/custody';
+import { refusalWords, takeOpenedWithPassphrase } from '../../parts/custody';
 import { LeftContext } from '../onboarding/started';
 import { ApprovalRow, decidedWords, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
 import type { AvatarState } from '../../parts/Avatar';
@@ -108,6 +109,13 @@ function sentences(first: string | undefined, second: string | undefined): strin
   if (!first) return second;
   if (!second) return first;
   return /[.!?।]$/.test(first.trim()) ? `${first} ${second}` : `${first}. ${second}`;
+}
+
+/** C4 task 35 (32.x1): after a passphrase opened this business, one quiet line on Today's first view, once. */
+function OpenedNote() {
+  const t = useT();
+  const [opened] = useState(takeOpenedWithPassphrase);
+  return opened ? <p className={noteStyles.notice} role="status">{t('today.openedAgain')}</p> : null;
 }
 
 export function Place() {
@@ -382,7 +390,7 @@ export function Place() {
       />
     ),
     // A5 fix round 1: start at login, asked once here when the first run ended without an answer.
-    notices: () => <><StorageNotice /><PausedNote /><StartAtLogin place="today" /></>,
+    notices: () => <><OpenedNote /><StorageNotice /><PausedNote /><StartAtLogin place="today" /></>,
     goal: () => <TodayGoal next={{ rows: live, isViewed: (row) => session.isViewed(seenKey(row)), isDecided: (id) => Boolean(session.line(id)), goToRow, look: handlers.view, handleOf: (id) => cardHandles.current.get(id) }} spans={showBusiness} />,
     team: () => <TeamAtWork agents={team.data?.agents ?? []} runs={runs} details={details} rowForRun={rowForRun} goToRow={goToRow} phone={narrow} title={nameOf('team')} />,
     needs: () => (

@@ -372,6 +372,25 @@ describe('Keep this business: the recovery code shown once', () => {
     await press(screen.getByRole('button', { name: 'Done' }));
     expect(document.body.textContent).not.toContain(code);
   });
+
+  // C4 task 35 (25.x1): Print is a view of the code and the business name, nothing else, gone after the print.
+  it('Print opens the print view with the code and the business name only; it goes after printing', async () => {
+    const print = vi.fn();
+    vi.stubGlobal('print', print);
+    start('#/business/keep');
+    await press(await screen.findByRole('button', { name: 'Make a new one' }));
+    const code = (await screen.findByRole('group', { name: 'Recovery code' })).textContent!;
+    expect(document.querySelector('[data-print-view]')).toBeNull();
+    await press(screen.getByRole('button', { name: 'Print' }));
+    expect(print).toHaveBeenCalledTimes(1);
+    const view = document.querySelector('[data-print-view]')!;
+    expect(view.textContent).toContain(code);
+    expect(view.textContent).toContain('Lumen Studio');
+    expect(view.querySelectorAll('button, input, a')).toHaveLength(0);
+    await act(async () => { window.dispatchEvent(new Event('afterprint')); });
+    expect(document.querySelector('[data-print-view]')).toBeNull();
+    vi.unstubAllGlobals();
+  });
 });
 
 describe('Keep this business: secrets', () => {

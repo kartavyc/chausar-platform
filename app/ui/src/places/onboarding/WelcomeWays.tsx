@@ -5,6 +5,7 @@ import { useEngine, useResource } from '../../engine/context';
 import type { BackupLite, ParamsOf } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
+import { PassphraseField } from '../../parts/PassphraseField';
 import { NewPassphrase } from '../../parts/Secret';
 import { TRANSFER_MAX_CHARS, codeOf, momentOf, newPassphraseProblem, refusalWords } from '../../parts/custody';
 import type { Openable } from './boot';
@@ -191,10 +192,11 @@ function RestoreRow({ backup, onOpened }: { backup: BackupLite; onOpened: () => 
       {ask && (
         <div className={s.ask}>
           {reason && <p className={s.note}>{reason}</p>}
-          <Field
-            label={t(ask === 'passphrase' ? 'onboarding.restore.passphrase' : 'onboarding.recover.code')} type="password" spellCheck={false}
-            autoComplete={ask === 'passphrase' ? 'current-password' : 'off'} autoFocus value={secret} onChange={(event) => setSecret(event.currentTarget.value)}
-          />
+          {ask === 'passphrase' ? (
+            <PassphraseField label={t('onboarding.restore.passphrase')} autoComplete="current-password" autoFocus value={secret} onChange={setSecret} />
+          ) : (
+            <Field label={t('onboarding.recover.code')} type="password" spellCheck={false} autoComplete="off" autoFocus value={secret} onChange={(event) => setSecret(event.currentTarget.value)} />
+          )}
           {pair.node}
         </div>
       )}
@@ -318,7 +320,7 @@ export function ByFolder({ onOpened, onBack }: WayProps) {
     <Way title={t('onboarding.folder.title')} lead={t('onboarding.folder.lead')} onBack={onBack}>
       <form className={s.ask} onSubmit={(event) => void submit(event)}>
         <Field label={t('onboarding.folder.folder')} value={folder} spellCheck={false} maxLength={64} onChange={(event) => setFolder(event.currentTarget.value)} />
-        <Field label={t('onboarding.folder.passphrase')} type="password" autoComplete="current-password" spellCheck={false} value={passphrase} onChange={(event) => setPassphrase(event.currentTarget.value)} />
+        <PassphraseField label={t('onboarding.folder.passphrase')} autoComplete="current-password" value={passphrase} onChange={setPassphrase} />
         {problem && <p className={s.problem} role="alert">{problem}</p>}
         <div className={s.actions}><Button variant="primary" type="submit" disabled={busy}>{t('onboarding.welcome.open')}</Button></div>
       </form>

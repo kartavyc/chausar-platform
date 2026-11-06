@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { describe, expect, it } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient, type FakeOptions } from '../../src/engine/fake';
 import { CUSTODY_ERROR_WORDS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE } from '../../src/engine/fixtures';
@@ -39,7 +39,7 @@ async function moreOption(name: string) {
 }
 
 describe('Welcome back: a business locked with a passphrase', () => {
-  it('asks under its own row, focused; sends folder and passphrase once, clears the field, and never shows it', async () => {
+  it('asks under its own row, focused; sends folder and passphrase once, keeps a wrong one in the field, and never shows it', async () => {
     const { calls } = start({ closed: true });
     await welcome();
     await press(screen.getByRole('button', { name: /Sitara Events/ }));
@@ -53,7 +53,9 @@ describe('Welcome back: a business locked with a passphrase', () => {
 
     fireEvent.change(field, { target: { value: 'not the passphrase' } });
     await press(screen.getByRole('button', { name: 'Open' }));
-    expect(field.value).toBe('');
+    // C4 task 35 (31.f2): a wrong one stays in the field with the cursor, to fix a typo.
+    expect(field.value).toBe('not the passphrase');
+    expect(document.activeElement).toBe(field);
     expect(screen.getByRole('alert').textContent).toBe("That passphrase didn't open it. Check Caps Lock and try again, or use your recovery code.");
 
     fireEvent.change(field, { target: { value: SAMPLE_PASSPHRASE } });
@@ -61,6 +63,12 @@ describe('Welcome back: a business locked with a passphrase', () => {
     await appShown();
     expect(sent(calls, 'workspace.open')).toEqual([{ folder: 'sitara', passphrase: 'not the passphrase' }, { folder: 'sitara', passphrase: SAMPLE_PASSPHRASE }]);
     expect(document.body.textContent).not.toContain(SAMPLE_PASSPHRASE);
+    // C4 task 35 (32.x1): one quiet line on Today's first view, once.
+    expect(await screen.findByText('Opened. It will ask again next time.')).toBeTruthy();
+    cleanup();
+    start({ only: ['lumen'] });
+    await appShown();
+    expect(screen.queryByText('Opened. It will ask again next time.')).toBeNull();
   });
 
   it('under React StrictMode a wrong passphrase still shows the refusal and Open works again (U16)', async () => {
@@ -73,7 +81,7 @@ describe('Welcome back: a business locked with a passphrase', () => {
     await press(screen.getByRole('button', { name: 'Open' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("That passphrase didn't open it. Check Caps Lock and try again, or use your recovery code."));
     expect((screen.getByRole('button', { name: 'Open' }) as HTMLButtonElement).disabled).toBe(false);
-    expect(field.value).toBe('');
+    expect(field.value).toBe('not the passphrase');
   });
 
   it('a forgotten passphrase leads to the recovery code, with that business chosen', async () => {

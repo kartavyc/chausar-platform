@@ -1,9 +1,9 @@
-import { useId, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { useId, type InputHTMLAttributes, type Ref, type TextareaHTMLAttributes } from 'react';
 import { Icon } from './Icon';
 import s from './Field.module.css';
 
 interface Shared { label: string; hint?: string | undefined; error?: string | undefined }
-type InputField = Shared & { multiline?: false } & Omit<InputHTMLAttributes<HTMLInputElement>, 'id'>;
+type InputField = Shared & { multiline?: false; ref?: Ref<HTMLInputElement> | undefined } & Omit<InputHTMLAttributes<HTMLInputElement>, 'id'>;
 type TextField = Shared & { multiline: true } & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id'>;
 
 /** A labelled input in D's box (button-line border, button radius, the ink border on focus). The hint and the error

@@ -661,3 +661,20 @@
   font-weight: var(--weight-strong);
   color: var(--fg);
 }
+
+/* C4 task 35: the recovery code print view: only this prints; on screen it is not drawn. */
+.printView {
+  display: none;
+}
+
+@media print {
+  :global(body) > *:not(.printView) {
+    display: none !important;
+  }
+
+  .printView {
+    display: grid;
+    gap: var(--sp-3);
+    padding: var(--sp-6);
+  }
+}

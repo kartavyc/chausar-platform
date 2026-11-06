@@ -5,6 +5,7 @@ import { useEngine, useResource } from '../../engine/context';
 import type { BackupLite, Deleted, MoveFile, UnlockMode } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
+import { PassphraseField } from '../../parts/PassphraseField';
 import { CodeGroups } from '../../parts/Secret';
 import { momentOf, refusalWords, saveTextFile } from '../../parts/custody';
 import { formatBytes, formatTime } from '../../../../../platform/runtime/owner-format';
@@ -183,7 +184,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
       ) : (
         <form className={s.form} onSubmit={(event) => void make(event)}>
           <p className={s.line}>{t('business.moveLine')}</p>
-          {locked && <Field label={t('business.yourPassphrase')} type="password" autoComplete="current-password" spellCheck={false} value={passphrase} onChange={(event) => setPassphrase(event.currentTarget.value)} />}
+          {locked && <PassphraseField label={t('business.yourPassphrase')} autoComplete="current-password" value={passphrase} onChange={setPassphrase} />}
           {noCode && (
             <>
               <p className={s.warn}>{t('business.moveCodeFirst')}</p>
