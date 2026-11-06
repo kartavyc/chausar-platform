@@ -2,7 +2,7 @@
 import type { ComponentType } from 'react';
 import { chunkComponent } from './Chunk';
 import { loadText } from '../text';
-import { BASE_SHEETS, type SheetComponent } from './sheets';
+import { BASE_SHEETS, SHEET_OWNERS, type SheetComponent, type SheetComponentProps } from './sheets';
 import type { PlaceId } from './routes';
 
 export interface PlaceModule { Place: ComponentType; sheets?: Readonly<Record<string, SheetComponent>> }
@@ -42,11 +42,19 @@ export function placesFor(mode: 'eager' | 'lazy', loaders: PlaceLoaders = PLACE_
     Place: chunkComponent(async () => (await loadWithText(path, loaders)).Place),
   }])) as Record<PlaceId, PlaceModule>;
 }
+export function sheetsFor(mode: 'eager' | 'lazy', loaders: PlaceLoaders = PLACE_LOADERS): Readonly<Record<string, SheetComponent>> {
+  if (mode === 'eager') return Object.assign({}, ...Object.values(EAGER_PLACES).map(place => place.sheets ?? {}), BASE_SHEETS);
+  return { ...Object.fromEntries(Object.entries(SHEET_OWNERS).map(([kind, owner]) => [kind,
+    chunkComponent<SheetComponentProps>(async () => {
+      const sheet = (await loadWithText(modulePath(owner), loaders)).sheets?.[kind];
+      if (!sheet) throw new Error('Missing sheet in its page');
+      return sheet;
+    }),
+  ])), ...BASE_SHEETS };
+}
 const mode = import.meta.env.MODE === 'test' ? 'eager' : 'lazy';
 export const PLACES = placesFor(mode);
-// Sheet owners remain eager until the separate sheet-boundary task.
-const eagerSheets = import.meta.glob<PlaceModule>('../places/*/index.tsx', { eager: true });
-export const SHEETS: Readonly<Record<string, SheetComponent>> = Object.assign({}, ...Object.values(eagerSheets).map(place => place.sheets ?? {}), BASE_SHEETS);
+export const SHEETS = sheetsFor(mode);
 const onboarding = EAGER_PLACES[modulePath('onboarding')];
 export const FirstRun = import.meta.env.MODE === 'test' ? onboarding!.FirstRun! : chunkComponent(async () => ((await loadPlace('onboarding')) as OnboardingModule).FirstRun);
 export const Welcome = import.meta.env.MODE === 'test' ? onboarding!.Welcome! : chunkComponent(async () => ((await loadPlace('onboarding')) as OnboardingModule).Welcome);
