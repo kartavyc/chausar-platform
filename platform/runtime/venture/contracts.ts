@@ -3255,6 +3255,8 @@ export interface MoneyOverviewLine {
   id: 'owed' | 'received' | 'spent'; label: Display; value: Display; receiptId?: string; estimate?: boolean; rupees?: Display;
   /** 4Z3: the AI spend line as the owner's currency leads it (the 'spent' line only). */
   lead?: SpendLead;
+  /** C4 (T23): a business billing in rupees with no rupee rate set, so the owner can be offered "Set a rupee rate". */
+  needsRate?: boolean;
   kind?: FigureKind; source?: FigureSource; uses?: Display[]; basis?: TotalBasis;
 }
 export interface MoneyOverview { lines: MoneyOverviewLine[] }
@@ -5202,7 +5204,7 @@ export interface CashView {
   line: Display;
 }
 export type MarginRowView = { clientId: string; client: string; invoiced: KindedFigure; spend: KindedFigure | null; margin: KindedFigure | null; note: Display | null };
-export interface MarginsView { month: string; rows: MarginRowView[]; line: Display; basis: TotalBasis }
+export interface MarginsView { month: string; rows: MarginRowView[]; line: Display; basis: TotalBasis; /** C4 (T23): the spend is left out only for want of a rupee rate. */ needsRate?: boolean }
 /** 4J4. The month's CSV for the owner's CA; cells that could run as a formula are prefixed. */
 export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile }
 /**

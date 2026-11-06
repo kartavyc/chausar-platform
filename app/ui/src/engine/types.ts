@@ -328,6 +328,8 @@ export interface MoneyOverviewLine {
   id: 'owed' | 'received' | 'spent'; label: Display; value: Display; receiptId?: string; estimate?: boolean; rupees?: Display;
   /** 4Z3: the AI spend line as the owner's currency leads it (the 'spent' line). */
   lead?: SpendLead;
+  /** C4 (T23): a business billing in rupees with no rupee rate set. */
+  needsRate?: boolean;
   kind?: FigureKind; source?: FigureSource; uses?: Display[]; basis?: TotalBasis;
 }
 export interface MoneyOverview { lines: MoneyOverviewLine[] }
@@ -1551,7 +1553,7 @@ export interface CashView {
 }
 /** 4J20: a draft issued today: due on its terms from today, in that week, its total as priced. */
 export interface CashIssueView { invoiceId: string; client: string; due: string; week: string; amount: KindedFigure }
-export interface MarginsView { month: string; rows: { clientId: string; client: string; invoiced: KindedFigure; spend: KindedFigure | null; margin: KindedFigure | null; note: Display | null }[]; line: Display; basis: TotalBasis }
+export interface MarginsView { month: string; rows: { clientId: string; client: string; invoiced: KindedFigure; spend: KindedFigure | null; margin: KindedFigure | null; note: Display | null }[]; line: Display; basis: TotalBasis; /** C4 (T23): the spend is left out only for want of a rupee rate. */ needsRate?: boolean }
 /** receipts (4J10): the business's signed receipts with the public halves of its keys, for the CA to check offline; saved as its own file. */
 export interface MoneyExportFile { fileName: string; csv: string; rows: number; line: Display; receipts?: SignedReceiptsFile }
 export interface SignedReceiptsFile { format: string; business: string; algorithm: string; publicKey: string | null; keys: { id: string; publicKey: string }[]; receipts: unknown[] }
@@ -1957,7 +1959,7 @@ export interface EngineMethods {
   'venture.runs.get': { params: { runId: string }; result: RunDetail };
   'venture.team.list': { params: Record<string, never>; result: TeamListView };
   'venture.team.gate': { params: { agentId: string; stepId: string; gate: 'auto' | 'hold' }; result: { agent: AgentView } };
-  'venture.spend.list': { params: Record<string, never>; result: { rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead?: SpendLead } };
+  'venture.spend.list': { params: Record<string, never>; result: { rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead?: SpendLead; needsRate?: boolean } };
   'venture.spend.policy.get': { params: Record<string, never>; result: SpendPolicyView };
   'venture.spend.policy.set': {
     params: {

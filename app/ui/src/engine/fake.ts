@@ -689,6 +689,7 @@ export class FakeEngine {
     return {
       total: `$0.72${words}`, ...(rate ? { totalRupees: rupeesAt(719_800, rate) } : {}),
       totalLead: spendLead(719_800, rate?.perUsd ?? null, rupeesLead(choice), words),
+      ...(rate ? {} : { needsRate: true }),
     };
   }
 

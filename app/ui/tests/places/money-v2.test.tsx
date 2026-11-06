@@ -121,15 +121,16 @@ describe('Money v2: the overview tiles', () => {
     assertInkRules();
   });
 
-  it('AI spend in rupees sits beside the dollars, under the same receipt', async () => {
+  // C4 (T23): one currency on the tile, whichever the engine leads with.
+  it('AI spend shows one currency on the tile', async () => {
     const at = 'at ₹83.50 per $1 (your rate, set 23 Oct 2026)';
     start('#/money', {
       override: { 'venture.money.overview': overview({ lines: [{ id: 'spent', label: 'AI and tools this month', value: '$0.25', receiptId: 'R-0412', rupees: `₹20.88 ${at}` }] }) },
     });
     const spend = await tile('AI spend this month');
-    const rupees = await within(spend).findByText(`₹20.88 ${at}`);
-    expect(within(spend).getByText('$0.25')).toBeTruthy();
-    expect(rupees.closest('[data-figure-group]')?.querySelector('[data-receipt="R-0412"]')).toBeTruthy();
+    expect(await within(spend).findByText('$0.25')).toBeTruthy();
+    expect(spend.textContent).not.toContain('₹20.88');
+    expect(spend.querySelector('[data-receipt="R-0412"]')).toBeTruthy();
     assertInkRules();
   });
 
@@ -194,9 +195,9 @@ describe('Money v2: the overview tiles', () => {
     expect(owedFigure?.textContent).toContain('₹26,200');
     await counted(owed, '1 open invoice', '1');
     const spend = await tile('AI spend this month');
-    // 4Z3: a business in India with a rupee rate leads with rupees, the dollars beneath with two decimals and the rate.
+    // 4Z3: a business in India with a rupee rate leads with rupees; C4 (T23): the dollars are in the receipt.
     expect(await within(spend).findByText('₹60.10')).toBeTruthy();
-    expect(spend.textContent).toContain('$0.72 at ₹83.50 per $1');
+    expect(spend.textContent).not.toContain('$0.72');
     // The figure's own receipt (the split by department under it, W4 4A2, carries the same one: money-w4.test.tsx).
     expect(within(spend.querySelector('[data-figure]') as HTMLElement).getByRole('button', { name: receiptMark('R-0431') })).toBeTruthy();
     assertInkRules();

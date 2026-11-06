@@ -2,8 +2,8 @@
  * What paid calls cost: each one reserved before it ran and settled after, by agent or connector, with the engine's
  * word for the figure (estimate, billed) and its receipt when there is one. A call with no price is refused, never
  * treated as free; a refused row says why in the engine's words. With the owner's own rupee rate, the engine also gives
- * each figure in rupees, with that rate, and it sits beside the dollars. Under the calls, the owner's limits and rate
- * card (SpendPolicy.tsx). Spend limits stay in US dollars, what the AI providers bill.
+ * each figure in rupees. The page shows one currency (C4 T23), the one the engine leads with; the other stays in the
+ * receipt, and the rate in the settings below. Under the calls, the owner's limits and rate card (SpendPolicy.tsx). Spend limits stay in US dollars, what the AI providers bill.
  *
  * A call with a receipt shows its figures under that receipt (one `data-figure-group`). The engine sends a call still
  * held at its estimate, and the month's total, with no receipt of their own yet: those stay the engine's words, never
@@ -18,7 +18,7 @@ import { Receipt } from '../../parts/Receipt';
 import { splitFigure } from '../../parts/Figure';
 import { Row } from '../../parts/Row';
 import type { SpendRow } from '../../engine/types';
-import { Amount, EngineWords, Failed, Rupees, Section, spendShown } from './parts';
+import { Amount, EngineWords, Failed, SET_RATE_HREF, Section } from './parts';
 import { Meter } from './Meter';
 import { SpendPolicy } from './SpendPolicy';
 // W6 6G5 (D44): each agent's and each routine's spend this month with its own limit, one step away.
@@ -36,13 +36,12 @@ export function Spend() {
   const [byWho, setByWho] = useState(false);
   const metersId = useId();
   const rows = spend.data?.rows ?? [];
-  // 4Z3: the month's total as the engine says it leads (rupees or dollars first), the other amount beside it (the rate
-  // is said once, in the settings below).
-  const shownTotal = spend.data && spendShown(spend.data.totalLead, spend.data.total, spend.data.totalRupees, true);
-  const total = shownTotal && (
+  // 4Z3: the month's total as the engine says it leads (rupees or dollars first); C4 T23: in that currency alone. Without
+  // a rupee rate, the dollars and the way to set one.
+  const total = spend.data && (
     <p className={s.total}>
-      <EngineWords><Amount text={shownTotal.value} /></EngineWords>
-      <Rupees text={shownTotal.rupees} />
+      <EngineWords><Amount text={spend.data.totalLead?.figure ?? spend.data.total} /></EngineWords>
+      {spend.data.needsRate && <> <a className={s.more} href={SET_RATE_HREF}>{t('money.setRupeeRate')}</a></>}
     </p>
   );
 
@@ -77,17 +76,17 @@ function SpendFigures({ row }: { row: SpendRow }) {
   const kind = <span className={s.kind} data-kind={row.kind}>{t(`money.spend.kind.${row.kind}`)}</span>;
   const dot = <span className={s.dot} aria-hidden="true">·</span>;
   const figure = (value: string) => <Amount text={value} />;
-  // 4Z3: each figure as the engine says it leads (rupees or dollars first), the other amount beside it.
-  const reserved = spendShown(row.reservedLead, row.reserved, row.reservedRupees, true);
-  const settled = row.settled !== undefined ? spendShown(row.settledLead, row.settled, row.settledRupees, true) : undefined;
+  // 4Z3: each figure as the engine says it leads (rupees or dollars first); C4 T23: that currency alone.
+  const reserved = row.reservedLead?.figure ?? row.reserved;
+  const settled = row.settled !== undefined ? row.settledLead?.figure ?? row.settled : undefined;
   const body = row.kind === 'refused' ? (
-    <>{figure(reserved.value)}<Rupees text={reserved.rupees} />{dot}{kind}</>
+    <>{figure(reserved)}{dot}{kind}</>
   ) : (
     <>
-      <span className={s.figureLabel}>{t('money.spend.reserved')}</span>{' '}{figure(reserved.value)}<Rupees text={reserved.rupees} />
+      <span className={s.figureLabel}>{t('money.spend.reserved')}</span>{' '}{figure(reserved)}
       {dot}
       {settled !== undefined
-        ? <><span className={s.figureLabel}>{t('money.spend.settled')}</span>{' '}{figure(settled.value)}<Rupees text={settled.rupees} /></>
+        ? <><span className={s.figureLabel}>{t('money.spend.settled')}</span>{' '}{figure(settled)}</>
         : <span className={s.figureLabel}>{t('money.spend.notSettled')}</span>}
       {dot}
       {kind}
@@ -96,6 +95,6 @@ function SpendFigures({ row }: { row: SpendRow }) {
   // With its receipt, the call's figures sit under it; without one, they are the engine's words as written.
   return row.receiptId
     // 4Z3: the mark named for the figure the call settled at (or reserved, until it settles), as shown.
-    ? <p className={s.figures} data-figure-group="">{body}<Receipt id={row.receiptId} amount={splitFigure((settled ?? reserved).value).amount} /></p>
+    ? <p className={s.figures} data-figure-group="">{body}<Receipt id={row.receiptId} amount={splitFigure(settled ?? reserved).amount} /></p>
     : <p className={s.figures} data-engine-line="">{body}</p>;
 }

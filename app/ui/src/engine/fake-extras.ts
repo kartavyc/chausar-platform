@@ -222,6 +222,7 @@ export class FakeExtrasDesk {
       return {
         ...rest, ...(rate ? { rupees: rupeesBeside(String(month.micros), rate) } : {}),
         lead: spendLead(month.micros, rate?.perUsd ?? null, rupeesLead(this.leadChoice[biz] ?? 'auto'), line.estimate ? ', includes estimates' : ''),
+        ...(rate ? {} : { needsRate: true }),
       };
     });
     if (this.countryMoney.dynamic(!!OVERVIEW[biz])) return this.countryMoney.overview(lines.find(line => line.id === 'spent'));

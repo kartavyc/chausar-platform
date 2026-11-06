@@ -50,6 +50,8 @@
   "money.changed": "changed since",
   "money.invoiceRef": "Invoice {number}",
   "money.spentEach": "Each call",
+  "money.setRupeeRate": "Set a rupee rate",
+  "money.margins.setRate": "Set rate",
   "money.invoices.open": "Open",
   "money.invoices.toInvoice": "To invoice",
   "money.invoices.none": "No invoices yet.",

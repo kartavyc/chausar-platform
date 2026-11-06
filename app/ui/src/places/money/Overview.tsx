@@ -27,7 +27,7 @@ import { DueNext } from './DueNext';
 import { NextWeeks } from './NextWeeks';
 import { OwedTile } from './OwedTile';
 import { splitFigure } from '../../parts/Figure';
-import { Failed, MoneyTile, ProvedFigure, isPhrase, lineProof, spendShown } from './parts';
+import { Failed, MoneyTile, ProvedFigure, SET_RATE_HREF, isPhrase, lineProof } from './parts';
 import { useMoneyViews, type FlowData, type MoneyViews } from './views';
 import { byDue, onMoney, onRuns, useChosenMonth, useMonthWords } from './words';
 import { GOAL_EVENTS, goalFromView } from '../today/goal';
@@ -221,28 +221,30 @@ function ReceivedTile({ line, books, chosen }: { line: MoneyOverviewLine | undef
 }
 
 /**
- * What AI and tools cost this month, in rupees too at the owner's own rate; each call is one step away, on Spend. When
+ * What AI and tools cost this month, in one currency (C4 T23): the one the engine leads with, the other in the receipt.
+ * With no rupee rate on a rupee business, the dollars and "Set a rupee rate". Each call is one step away, on Spend. When
  * the engine writes only words ("No price"), the figure is set smaller, in the body face,
  * and wraps inside the tile (`data-phrase`), so words never run in a typewriter face past the tile's edge.
  */
 function SpendTile({ line, split }: { line: MoneyOverviewLine | undefined; split: MoneyViews['split'] }) {
   const t = useT();
   const proof = lineProof(line);
-  // 4Z3: the figure as the engine says it leads (rupees or dollars first), the other currency beneath it.
-  const shown = line && spendShown(line.lead, line.value, line.rupees);
+  // 4Z3: the figure as the engine says it leads (rupees or dollars first).
+  const shown = line && (line.lead?.figure ?? line.value);
   // Words after an amount are the Figure's own (splitFigure); only words with no amount at all are a phrase.
-  const phrase = shown !== undefined && isPhrase(splitFigure(shown.value).amount);
+  const phrase = shown !== undefined && isPhrase(splitFigure(shown).amount);
   return (
     <MoneyTile label={t('money.tile.spent')} icon="bot" span={4}>
       {line && proof && (
         <div className={s.tileValue} data-phrase={phrase ? '' : undefined}>
-          <ProvedFigure value={shown!.value} proof={proof} size={phrase ? 'tile' : 'stat'} rupees={shown!.rupees} />
+          <ProvedFigure value={shown!} proof={proof} size={phrase ? 'tile' : 'stat'} />
         </div>
       )}
       {/* The split by department (W4 4A2) only under the very figure it splits: the same receipt, whose sum its parts make. */}
       {split && line?.receiptId && split.proof.receiptId === line.receiptId && <div className={s.tileChart}><SplitBar data={split} /></div>}
       <p className={s.tileFoot}>
         <a className={s.more} href="#/money/spend">{t('money.spentEach')}</a>
+        {line?.needsRate && <a className={s.more} href={SET_RATE_HREF}>{t('money.setRupeeRate')}</a>}
       </p>
     </MoneyTile>
   );

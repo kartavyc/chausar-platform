@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -280,5 +280,53 @@ describe('Money w4: the overview at narrow widths', () => {
     expect(narrow![1]).toMatch(/\.page \.glanceRow > \[data-span\][^{]*\{\s*grid-column: 1 \/ -1;/);
     // It comes after the wider rule, so it wins where both match.
     expect(css.indexOf('(max-width: 559px)')).toBeGreaterThan(css.indexOf('(max-width: 899px)'));
+  });
+});
+
+describe('C4 T23: AI spend in one currency, and Set rate', () => {
+  it('with a rate the card shows rupees alone with the receipt; the dollars are in the receipt, not beside the figure', async () => {
+    start('#/money');
+    const spent = await tile('AI spend this month');
+    const figure = await waitFor(() => { const found = spent.querySelector('[data-figure] [data-ui-number]'); expect(found).toBeTruthy(); return found!; });
+    expect(figure.textContent).toBe('₹60.10');
+    expect(spent.textContent).not.toContain('$0.72');
+    expect(within(spent).queryByRole('link', { name: 'Set a rupee rate' })).toBeNull();
+    expect(within(spent).getAllByRole('button', { name: receiptMark(/^R-/) }).length).toBeGreaterThan(0);
+    assertFiguresProved();
+  });
+
+  it('without a rate the card shows dollars and links to the spend settings, which open on the rate', async () => {
+    start('#/money', { before: (engine) => engine.request('venture.spend.policy.set', { inrPerUsd: null }) });
+    const spent = await tile('AI spend this month');
+    const link = await within(spent).findByRole('link', { name: 'Set a rupee rate' });
+    expect(link.getAttribute('href')).toBe('#/money/spend?set=rate');
+    expect(spent.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('$0.72');
+    window.location.hash = link.getAttribute('href')!;
+    await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    expect(await screen.findByLabelText(/Rupees per US dollar/)).toBeTruthy();
+  });
+
+  it('the spend page total is in one currency: rupees with a rate, dollars and the link without', async () => {
+    start('#/money/spend');
+    const paid = await tile('Paid calls');
+    await waitFor(() => expect(paid.textContent).toContain('₹60.10 this month'));
+    expect(paid.querySelector('h2')?.parentElement?.textContent ?? '').not.toContain('$0.72');
+    cleanup();
+    start('#/money/spend', { before: (engine) => engine.request('venture.spend.policy.set', { inrPerUsd: null }) });
+    const dollars = await tile('Paid calls');
+    await waitFor(() => expect(dollars.textContent).toContain('$0.72 this month'));
+    expect(within(dollars).getByRole('link', { name: 'Set a rupee rate' }).getAttribute('href')).toBe('#/money/spend?set=rate');
+  });
+
+  it('the margins footnote offers Set rate without a rate and lands on the spend settings; with a rate it does not', async () => {
+    start('#/money/margins', { before: (engine) => engine.request('venture.spend.policy.set', { inrPerUsd: null }) });
+    const section = await tile(/^Margins in /);
+    const link = await within(section).findByRole('link', { name: 'Set rate' });
+    expect(link.getAttribute('href')).toBe('#/money/spend?set=rate');
+    cleanup();
+    start('#/money/margins');
+    const rated = await tile(/^Margins in /);
+    await within(rated).findByText(/invoiced before tax/);
+    expect(within(rated).queryByRole('link', { name: 'Set rate' })).toBeNull();
   });
 });
