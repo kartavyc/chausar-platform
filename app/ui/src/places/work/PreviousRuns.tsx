@@ -59,6 +59,7 @@ export interface PreviousRunsProps {
 }
 
 interface RunRowProps {
+  as?: 'li' | 'div';
   run: RunSummary;
   detail: RunDetail | undefined;
   row: QueueRow | undefined;
@@ -68,7 +69,7 @@ interface RunRowProps {
   onChanged: () => void;
 }
 
-function RunRow({ run, detail, row, noRetry, onChanged, showAvatar }: RunRowProps) {
+export function RunRow({ as, run, detail, row, noRetry, onChanged, showAvatar }: RunRowProps) {
   const t = useT();
   const again = useRunAgain(row, onChanged);
   const moment = useMoment('short');
@@ -103,6 +104,7 @@ function RunRow({ run, detail, row, noRetry, onChanged, showAvatar }: RunRowProp
   }
   return (
     <Row
+      as={as}
       className={run.state === 'done' ? s.finishedRow : undefined}
       id={`run-${run.runId}`} dense mark={showAvatar ? <Avatar name={run.agent} state={RINGS[run.state]} size={32} /> : undefined}
       title={run.purpose} line={line} aside={aside} end={end} actions={again.controls} secondAsk={Boolean(again.action?.secondAsk)}
@@ -137,10 +139,10 @@ export function PreviousRuns({ runs, deliveries, queue, onChanged, label }: Prev
 }
 
 /** How many finished runs the All view lists before "All finished runs" leads to the Done filter. */
-const FINISHED_AT_REST = 5;
+export const FINISHED_AT_REST = 5;
 
 /** D's Finished tile: done runs as rows. In the All view the newest few, with a link to the rest. */
-export function Finished({ runs, moreHref, onChanged }: { runs: RunSummary[]; moreHref?: string | undefined; onChanged: () => void }) {
+export function Finished({ runs, moreHref, onChanged, renderRows }: { runs: RunSummary[]; moreHref?: string | undefined; onChanged: () => void; renderRows?: (runs: RunSummary[], label?: string) => ReactNode }) {
   const t = useT();
   const id = useId();
   const day = useDayKey();
@@ -155,8 +157,8 @@ export function Finished({ runs, moreHref, onChanged }: { runs: RunSummary[]; mo
     <Tile as="section" labelledBy={id} className={s.finished}>
       <TileHead id={id} title={t('work.finished')} more={more} />
       {doneToday > 0 && <p className={s.quiet}>{t('work.finished.today', { count: doneToday })}</p>}
-      {clientWork.length > 0 && <PreviousRuns runs={clientWork} deliveries={undefined} queue={undefined} onChanged={onChanged} />}
-      {practice.length > 0 && <><p className={s.quiet}>{t('work.finished.practice')}</p><PreviousRuns runs={practice} deliveries={undefined} queue={undefined} onChanged={onChanged} label={t('work.finished.practice')} /></>}
+      {clientWork.length > 0 && (renderRows ? renderRows(clientWork) : <PreviousRuns runs={clientWork} deliveries={undefined} queue={undefined} onChanged={onChanged} />)}
+      {practice.length > 0 && <><p className={s.quiet}>{t('work.finished.practice')}</p>{renderRows ? renderRows(practice, t('work.finished.practice')) : <PreviousRuns runs={practice} deliveries={undefined} queue={undefined} onChanged={onChanged} label={t('work.finished.practice')} />}</>}
     </Tile>
   );
 }
