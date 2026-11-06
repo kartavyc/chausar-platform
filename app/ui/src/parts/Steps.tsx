@@ -78,6 +78,8 @@ export function Steps({ steps, progress, showTools = false, waitingWord, errors 
                     <span className={s.time}>{step.elapsed}</span>
                   ) : null}
                 </div>
+                {/* C5 task 4: the wait for the owner just before this step, apart from its working time. */}
+                {step.waiting && <p className={s.time}>{t('steps.waitedBefore', { waited: step.waiting })}</p>}
                 {errors && step.error && <p className={s.error}>{step.error}</p>}
                 {showTools && step.tools && step.tools.length > 0 && (
                   <details className={s.tools}>

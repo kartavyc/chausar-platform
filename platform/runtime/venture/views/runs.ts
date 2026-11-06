@@ -11,7 +11,7 @@
 // calls, each call's state and measured time, and "Usually 3 to 5 min" once three runs of the same steps finished.
 // 4J14: check words come from one table (delivery/verdicts.ts); the run sheet adds coverage on the read step and on work
 // receipts, the checks that could not run, the outcome of what went outside, and the draft's three-column report.
-import { formatRate, formatUsd } from '../../owner-format.ts';
+import { formatElapsed, formatRate, formatUsd } from '../../owner-format.ts';
 import { playbookForRun } from '../delivery/workflow.ts';
 import { canResumeAgentJob } from '../agent-runtime/native-job.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
@@ -63,7 +63,7 @@ const LOOP_KINDS: readonly StepKind[] = ['gather', 'question', 'work'];
 const REASON_WORDS: Readonly<Record<DeliveryReason, string>> = {
   'wrong-fact': 'a wrong fact', 'missing-fact': 'a missing fact', 'missing-section': 'a missing section', 'off-brief': 'off the brief', tone: 'the tone',
   format: 'the format', 'too-long': 'too long', 'too-short': 'too short', 'wrong-number': 'a wrong number', late: 'late',
-  'claims-work-not-done': 'it claimed work that was not done', other: 'another reason',
+  'claims-work-not-done': 'it claimed work that was not done', other: 'another reason', 'not-needed': 'not needed',
 };
 
 const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
@@ -148,6 +148,31 @@ function stepsFor(state: State, venture: VentureRecord, run: DeliveryRunRecord):
   try { return plan ? playbookSteps(plan, deliveryFlagship(venture, plan)) : []; } catch { return []; }
 }
 
+/** The events that end a wait for the owner: the run moved on, finished, failed or was stopped. */
+const WAIT_ENDS: ReadonlySet<string> = new Set(['run.step', 'run.call', 'run.started', 'run.done', 'run.failed', 'run.stopped']);
+
+/**
+ * C5 task 4: the spans a run waited for the owner, from its own event records: each from a run.waiting to the next
+ * event of the run that moved it on at a later moment (events in the same write share one moment); a wait still open
+ * runs to `openEnd`. Overlapping waits count once.
+ */
+export function waitSpans(state: State, ventureId: string, runId: string, openEnd: string): { from: number; to: number }[] {
+  const events = listRecords(state, 'venture-event', ventureId)
+    .filter(event => (event.data as { runId?: unknown } | null)?.runId === runId)
+    .sort((a, b) => a.seq - b.seq);
+  const spans: { from: number; to: number }[] = [];
+  for (let i = 0; i < events.length; i += 1) {
+    const event = events[i]!;
+    if (event.name !== 'run.waiting') continue;
+    const from = Date.parse(event.at);
+    if (spans.length && spans.at(-1)!.to >= from) continue;
+    const ended = events.slice(i + 1).find(next => WAIT_ENDS.has(next.name) && Date.parse(next.at) > from);
+    const to = ended ? Date.parse(ended.at) : Date.parse(openEnd);
+    if (to > from) spans.push({ from, to });
+  }
+  return spans;
+}
+
 type Position = { kind: StepKind; state: RunStep['state'] };
 
 /** Where a run stands: the step kind it is at and that step's state. Once reviewed, only the owner's send is left. */
@@ -228,6 +253,20 @@ function deliveryRun(
   // 4J14: the run's files and what it read of them, on its own sheet only.
   const quality = whole ? runQuality(state, venture, record) : null;
 
+  // C5 task 4: waits for the owner, only when the run's calls carry stamped times (never a guess for older runs).
+  const timed = calls.some(call => typeof call.startedAt === 'string');
+  const openEnd = runState === 'active' || runState === 'waiting' ? now.toISOString() : times.get(run.id) ?? run.at;
+  const waits = timed ? waitSpans(state, venture.id, run.id, openEnd) : [];
+  const firstStart = (kind: StepKind) => calls.filter(call => toolKind(call.tool) === kind && call.startedAt).map(call => Date.parse(call.startedAt!)).sort((a, b) => a - b)[0];
+  const startsByKind = new Map(steps.map(step => [step.kind, firstStart(step.kind)]));
+  // Each wait goes to the step that started first after it ended.
+  const waitedBefore = new Map<StepKind, number>();
+  for (const span of waits) {
+    let best: { kind: StepKind; at: number } | null = null;
+    for (const [kind, at] of startsByKind) if (at !== undefined && at >= span.to && (!best || at < best.at)) best = { kind, at };
+    if (best) waitedBefore.set(best.kind, (waitedBefore.get(best.kind) ?? 0) + (span.to - span.from));
+  }
+
   const built: RunStep[] = steps.map((step, index) => {
     let stepState: RunStep['state'];
     if (record.agentJob) {
@@ -242,6 +281,8 @@ function deliveryRun(
     const tools = stepCalls.map(call => ({ name: TOOL_PURPOSE[call.tool] ?? 'Used a tool', line: toolLine(call, ledger ? audits.get(call.id) : undefined), ...callMeasure(call) }));
     const audited = stepAudited(stepCalls, audits, ledger);
     const elapsed = stepElapsed(stepCalls, now.toISOString(), stepState === 'current');
+    const waitedMs = timed ? waitedBefore.get(step.kind) : undefined;
+    const working = timed && elapsed !== undefined ? elapsed : undefined;
     const evidence: { kind: string; id: string; label: string }[] = [];
     if (step.kind === 'gather' && harness) {
       for (const id of harness.uploadIds) {
@@ -274,6 +315,7 @@ function deliveryRun(
     const notRun = step.kind === 'verify' && quality ? notRunLines(record) : [];
     return plain({
       id: step.id, purpose: step.title, state: stepState, ...(elapsed !== undefined ? { elapsed } : {}),
+      ...(working !== undefined ? { working } : {}), ...(waitedMs ? { waiting: formatElapsed(waitedMs) } : {}),
       ...(tools.length ? { tools } : {}), ...(evidence.length ? { evidence } : {}), ...(stepState === 'failed' && error ? { error } : {}),
       ...(audited !== undefined ? { audited } : {}),
       ...(coverage ? { coverage } : {}), ...(notRun.length ? { notRun } : {}),
@@ -289,6 +331,11 @@ function deliveryRun(
   const summary: RunSummary = plain({
     runId: run.id, businessId: business.id, agent: agentName(state, venture), purpose: run.practiceNow && run.status !== 'accepted' ? `Practice draft for ${client}` : `Draft a reply for ${client}`,
     state: runState, startedAt: run.at, elapsed: elapsedText(run.at, end),
+    ...(timed ? (() => {
+      const waited = waits.reduce((sum, span) => sum + Math.min(span.to, Date.parse(end)) - span.from, 0);
+      const total = Math.max(0, Date.parse(end) - Date.parse(run.at));
+      return { worked: formatElapsed(Math.max(0, total - waited)), ...(waited > 0 ? { waited: formatElapsed(waited) } : {}) };
+    })() : {}),
     ...(runState === 'active' || runState === 'waiting' ? { progress: built.length ? { done, total: built.length } : 'indeterminate' as const } : {}),
     ...(result ? { result } : {}), ...(receiptId ? { receiptId } : {}),
     ...controlSummary(state, venture, record, runState),

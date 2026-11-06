@@ -111,7 +111,7 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
       {finished ? (
         <div>
           <details className={s.fold} data-fold="worked">
-            <summary>{run.elapsed ? t('run.workedFor', { elapsed: run.elapsed }) : t('steps.list')}</summary>
+            <summary>{run.worked && run.waited ? t('run.workedWaited', { worked: run.worked, waited: run.waited }) : run.worked ? t('run.workedFor', { elapsed: run.worked }) : run.elapsed ? t('run.workedFor', { elapsed: run.elapsed }) : t('steps.list')}</summary>
             <Steps steps={run.steps} showTools />
           </details>
           {result}

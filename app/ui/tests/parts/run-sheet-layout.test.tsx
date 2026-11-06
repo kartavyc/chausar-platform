@@ -71,3 +71,18 @@ it('preserves unknown scope and rate wording while retaining exact native date d
  run.scope!.capRate='Owner custom ₹83.50 / $1, checked manually';view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toContain(run.scope!.capRate);
  run.scope!.line='Custom policy: $0.40, only this exact work.';view.rerender(<TextProvider language="en"><RunScope run={run}/></TextProvider>);expect(view.container.querySelector('p')!.textContent).toBe(`Custom policy: $0.40 (${run.scope!.capRupees} at ${run.scope!.capRate}), only this exact work.`);
 });
+
+// C5 task 4: a finished run says how long it worked and how long it waited for the owner, as the engine counted them;
+// the step after the wait says it too.
+it('shows worked and waited for you on a finished run, and the wait on the step after it', () => {
+  const run = structuredClone(RUNS.find((row) => row.runId === '27')!);
+  run.elapsed = '8 min';
+  run.worked = '2 min';
+  run.waited = '6 min';
+  run.steps = run.steps.map((step, index) => (index === 1 ? { ...step, state: 'done', elapsed: '1 min', working: '1 min', waiting: '6 min' } : step));
+  const { container } = render(<RunSheetView run={run} onClose={() => {}} onSteer={async () => {}} />);
+  const fold = container.querySelector('[data-fold="worked"] summary')!;
+  expect(fold.textContent).toBe('Worked 2 min · waited for you 6 min');
+  const second = within(container.querySelector('ol')!).getAllByRole('listitem')[1]!;
+  expect(second.textContent).toContain('waited for you 6 min');
+});

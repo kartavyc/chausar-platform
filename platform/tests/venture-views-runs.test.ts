@@ -175,3 +175,46 @@ test('runs: each run says who wrote its draft, from its own model call; nothing 
   assert.equal(listed.find(run => run.id === drafted.id)!.writtenBy, byId.get(drafted.id)!.writtenBy, 'the same line as the draft list');
   assert.equal((await get(env, drafted.id)).writtenBy, 'Written by Claude Sonnet 5.5');
 });
+
+// C5 task 4: the run's time apart. A 6-minute wait for the owner between two steps is waited time, carried by the step
+// after it; worked is the rest. A run whose calls carry no times shows elapsed alone (never a guess).
+test('a run with a 6-minute owner wait reports worked 2 min and waited 6 min; the step after the wait carries it', async () => {
+  const env = await setup();
+  const plan = await seedBlueprint(env);
+  const { order } = await seedOrder(env, plan);
+  const at = (minutes: number) => new Date(Date.parse(START) + minutes * 60_000).toISOString();
+  const call = (id: string, tool: string, from: number, to: number) => ({
+    id, turn: 1, tool, input: {}, inputDigest: 'd', envelope: { ok: true as const, result: {} as any }, outcome: 'succeeded' as const,
+    effect: null, tier: null, receiptIds: [], tableIds: [], startedAt: at(from), finishedAt: at(to),
+  });
+  const run = await seedRun(env, order, {
+    status: 'waiting-for-you',
+    harness: harness({ phase: 'act', toolCalls: [call('tc_read', 'files.read', 0, 1), call('tc_ask', 'handoff.owner', 1, 1), call('tc_sum', 'calc.totals', 7, 8)] }),
+  }, ['run.started']);
+  const emit = (name: 'run.waiting' | 'run.step' | 'run.done') => ventureAction(env.deps, owner, 'prepare', 'seed.event', tx => { tx.emit(name, { runId: run.id }); });
+  env.advance(60_000); await emit('run.waiting');
+  env.advance(6 * 60_000); await emit('run.step');
+  env.advance(60_000);
+  await ventureAction(env.deps, owner, 'prepare', 'seed.done', tx => { tx.replace({ ...tx.find('venture-delivery-run', run.id)!, status: 'accepted' }); tx.emit('run.done', { runId: run.id }); });
+  const detail = await get(env, run.id);
+  assert.deepEqual({ elapsed: detail.elapsed, worked: detail.worked, waited: detail.waited }, { elapsed: '8 min', worked: '2 min', waited: '6 min' });
+  const work = detail.steps.find(step => step.id === 'work')!;
+  assert.deepEqual({ working: work.working, waiting: work.waiting }, { working: '1 min', waiting: '6 min' });
+  const gather = detail.steps.find(step => step.id === 'gather')!;
+  assert.deepEqual({ working: gather.working, waiting: gather.waiting }, { working: '1 min', waiting: undefined });
+});
+
+test('an older run whose calls carry no times shows no split', async () => {
+  const env = await setup();
+  const plan = await seedBlueprint(env);
+  const { order } = await seedOrder(env, plan);
+  const run = await seedRun(env, order, { status: 'accepted', harness: harness({ phase: 'act', toolCalls: [
+    { id: 'tc_old', turn: 1, tool: 'files.read', input: {}, inputDigest: 'd', envelope: { ok: true, result: {} as any }, outcome: 'succeeded', effect: null, tier: null, receiptIds: [], tableIds: [] } as any,
+  ] }) }, ['run.waiting']);
+  env.advance(60_000);
+  await ventureAction(env.deps, owner, 'prepare', 'seed.done', tx => { tx.emit('run.done', { runId: run.id }); });
+  const detail = await get(env, run.id);
+  assert.equal(detail.worked, undefined);
+  assert.equal(detail.waited, undefined);
+  assert.ok(detail.steps.every(step => step.working === undefined && step.waiting === undefined));
+});
