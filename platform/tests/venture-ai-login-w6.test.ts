@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { LoginDesk, parseLoginOutput, type LoginLaunch } from '../runtime/venture/models/login.ts';
+import { CODEX_QUIET_ARGS } from '../runtime/providers/codex-cli.ts';
 
 const CODE = ['WXYZ', '12345'].join('-');
 const ESC = '\u001b';
@@ -56,6 +57,22 @@ function rig(script: Script) {
 }
 const tick = () => new Promise(resolve => setTimeout(resolve, 5));
 
+test('A2: a found Codex not yet chosen is shown as a setup to review; one in use says where it came from', async () => {
+  const reviewed: (string | null)[] = [];
+  const review = { state: 'review' as const, origin: null, path: '/usr/local/bin/codex', version: '0.166.0', sha256: 'a'.repeat(64), line: 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?' };
+  const desk = new LoginDesk({
+    spawn: () => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from('Not logged in\n')); child.finish(1); }); return child as any; },
+    platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : null),
+    codex: { async review(found) { reviewed.push(found); return review; } },
+  });
+  const { tools } = await desk.tools();
+  const codex = tools.find(tool => tool.cli === 'codex')!;
+  assert.deepEqual(codex.setup, review);
+  assert.deepEqual(reviewed, ['/usr/local/bin/codex'], 'the review is of the Codex the search path finds');
+  assert.equal(tools.find(tool => tool.cli === 'claude-code')!.setup, undefined, 'Claude Code has no Codex setup');
+});
+
 test('the recorded device-auth output gives the OpenAI link and the one-time code', () => {
   assert.deepEqual(parseLoginOutput('codex', DEVICE_AUTH_OUTPUT), { link: 'https://auth.openai.com/codex/device', code: CODE });
   // A link to any other site is never shown, and no code without its line.
@@ -79,7 +96,9 @@ test('a signed-out Codex starts its own device login, shows the code, and finish
   assert.equal(started.signedIn, 'no');
   assert.equal(started.login.state, 'starting');
   const login = launches.find(launch => launch.args.includes('--device-auth'))!;
-  assert.deepEqual(login.args.slice(-2), ['login', '--device-auth']);
+  // A2 second review: a Codex not chosen yet may be older than the reviewed one, so it gets no quiet flags.
+  assert.deepEqual(login.args, ['login', '--device-auth']);
+  assert.ok(launches.filter(launch => launch.args.includes('status')).every(launch => launch.args.join(' ') === 'login status'));
   assert.equal(login.command, '/usr/local/bin/codex');
   for (const name of Object.keys(login.env)) assert.match(name, /^(PATH|Path|SystemRoot|WINDIR|TEMP|TMP|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|CODEX_HOME|[A-Z_]*TELEMETRY[A-Z_]*|[A-Z_]*ANALYTICS[A-Z_]*|DO_NOT_TRACK|OTEL_[A-Z_]+|CODEX_[A-Z_]+|DISABLE_[A-Z_]+)$/, name);
   children[0]!.stdout.emit('data', Buffer.from(DEVICE_AUTH_OUTPUT));
@@ -118,4 +137,104 @@ test('Claude Code starts its own auth login; a missing tool or the terms gate re
   const gated = new LoginDesk({ spawn: () => { throw new Error('nothing may start'); }, locate: () => '/usr/local/bin/claude', platform: 'linux', claudeTerms: 'pending', statusCacheMs: 0 });
   assert.deepEqual((await gated.tools()).tools.map(tool => tool.cli), ['codex']);
   await assert.rejects(gated.start('claude-code'), { code: 'PRESET_UNAVAILABLE' });
+});
+
+test('A2: "Signed in" is earned: the tool\'s own status is not enough until one tiny test call worked', async () => {
+  const signedIn = { code: 0, text: 'Logged in using ChatGPT\n' };
+  const tests: string[] = [];
+  let answer: { ok: true } | { ok: false; code: string; line: string } = { ok: false, code: 'AI_USAGE_LIMIT', line: 'Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.' };
+  const desk = new LoginDesk({
+    spawn: () => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from(signedIn.text)); child.finish(signedIn.code); }); return child as any; },
+    platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0, testRetryMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : null),
+    testCall: async cli => { tests.push(cli); return answer; },
+  });
+  let codex = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
+  assert.deepEqual([codex.signedIn, codex.tested, codex.problem], ['unknown', 'failed', answer.line]);
+  answer = { ok: true };
+  codex = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
+  assert.deepEqual([codex.signedIn, codex.tested, codex.problem], ['yes', 'passed', undefined]);
+  await desk.tools();
+  assert.equal(tests.length, 2, 'a passed test is not run again');
+});
+
+test('A2: no test call for a Codex the owner has not chosen yet', async () => {
+  const tests: string[] = [];
+  const desk = new LoginDesk({
+    spawn: () => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from('Logged in using ChatGPT\n')); child.finish(0); }); return child as any; },
+    platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : null),
+    codex: { async review() { return { state: 'review' as const, origin: null, path: '/usr/local/bin/codex', version: '0.166.0', sha256: 'a'.repeat(64), line: 'x' }; } },
+    testCall: async cli => { tests.push(cli); return { ok: true }; },
+  });
+  const codex = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
+  assert.equal(codex.signedIn, 'unknown');
+  assert.deepEqual(tests, []);
+});
+
+test('A2: a failed test call shows the provider\'s own status when it says the provider has problems', async () => {
+  const trouble = { line: 'OpenAI is having problems right now, not you.', source: 'status.openai.com', readAt: '2026-11-03T10:00:00.000Z' };
+  const asked: string[] = [];
+  const desk = new LoginDesk({
+    spawn: () => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from('Logged in using ChatGPT\n')); child.finish(0); }); return child as any; },
+    platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : null),
+    testCall: async () => ({ ok: false, code: 'AI_STREAM_CUT', line: 'The connection to Codex dropped before it finished. Check your internet, then try again.' }),
+    providerStatus: async cli => { asked.push(cli); return trouble; },
+  });
+  const codex = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
+  assert.deepEqual(codex.provider, trouble);
+  assert.deepEqual(asked, ['codex']);
+});
+
+// A2 second review (M3): with a setup in use, Codex's own sign-in and its status run on that setup's program, with the
+// quiet flags only it is known to take. An older Codex earlier on the search path is never started.
+test('with a trusted setup in use, login and status run its own program, even with an older Codex first on the path', async () => {
+  const bundled = '/opt/chausar/resources/codex/bin/codex';
+  const launches: LoginLaunch[] = [];
+  const children: FakeChild[] = [];
+  let signedIn = false;
+  const spawn = (launch: LoginLaunch) => {
+    launches.push(launch);
+    const child = new FakeChild();
+    // The older Codex on the path does not know the quiet flags and fails on them.
+    if (launch.command !== bundled) queueMicrotask(() => { child.stderr.emit('data', Buffer.from("error: unexpected argument '--disable' found\n")); child.finish(2); });
+    else if (launch.args.includes('status')) queueMicrotask(() => { child.stdout.emit('data', Buffer.from(signedIn ? 'Logged in using ChatGPT\n' : 'Not logged in\n')); child.finish(signedIn ? 0 : 1); });
+    else children.push(child);
+    return child as any;
+  };
+  const trusted = { state: 'trusted' as const, origin: 'bundled' as const, path: bundled, version: '0.166.0', sha256: 'b'.repeat(64), line: 'Uses the Codex 0.166.0 that comes with Chausar.' };
+  const profile = { mode: 'local-cli', capabilities: { evidence: { kind: 'installed-help', executable: bundled, version: '0.166.0' } } };
+  const desk = new LoginDesk({
+    spawn, platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : null),
+    codex: { async review() { return trusted; }, profile: () => profile },
+  });
+  const started = await desk.start('codex');
+  assert.deepEqual([started.signedIn, started.login.state], ['no', 'starting']);
+  assert.ok(launches.every(launch => launch.command === bundled), 'only the setup in use is started');
+  assert.deepEqual(launches.find(launch => launch.args.includes('--device-auth'))!.args, [...CODEX_QUIET_ARGS, 'login', '--device-auth']);
+  assert.deepEqual(launches.find(launch => launch.args.includes('status'))!.args, [...CODEX_QUIET_ARGS, 'login', 'status']);
+  children[0]!.stdout.emit('data', Buffer.from(DEVICE_AUTH_OUTPUT));
+  assert.equal((await desk.tools()).tools.find(tool => tool.cli === 'codex')!.login.state, 'waiting');
+  signedIn = true;
+  children[0]!.finish(0);
+  await tick();
+  const done = (await desk.tools()).tools.find(tool => tool.cli === 'codex')!;
+  assert.deepEqual([done.login.state, done.signedIn, done.setup?.origin], ['signed-in', 'yes', 'bundled']);
+});
+
+// One-shot A4 (hands-on row 96): "Looking for Codex and Claude Code" took about 30 s, one tool after the other, each
+// with its own test call. Both are looked at together; the answer keeps the same order.
+test('A4: both tools are looked at together, and answer in the same order', async () => {
+  let running = 0, most = 0;
+  const desk = new LoginDesk({
+    spawn: launch => { const child = new FakeChild(); queueMicrotask(() => { child.stdout.emit('data', Buffer.from(launch.cli === 'codex' ? 'Logged in using ChatGPT\n' : '{"loggedIn": true}')); child.finish(0); }); return child as any; },
+    platform: 'linux', claudeTerms: 'accepted', statusCacheMs: 0,
+    locate: command => (command === 'codex' ? '/usr/local/bin/codex' : command === 'claude' ? '/usr/local/bin/claude' : null),
+    testCall: async () => { running += 1; most = Math.max(most, running); await new Promise(done => setTimeout(done, 50)); running -= 1; return { ok: true }; },
+  });
+  const { tools } = await desk.tools();
+  assert.deepEqual(tools.map(tool => tool.cli), ['codex', 'claude-code']);
+  assert.equal(most, 2, 'the two test calls overlap');
 });

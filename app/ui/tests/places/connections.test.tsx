@@ -255,6 +255,21 @@ describe('Connections: Your AI', () => {
     expect((within(recommended).getByRole('button', { name: 'Connect' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  // One-shot A4 (hands-on rows 82, 95): a later business with no AI showed only the key pair at rest, so a signed-in
+  // Claude Code looked unusable there. The AI app that can connect on this computer is the choice at rest.
+  it('with no AI connected, the AI app on this computer that can connect is offered at rest, the key pair one fold away', async () => {
+    start();
+    const section = await ai();
+    await waitFor(() => expect(section.textContent).toContain('Every choice'));
+    const found = await within(section).findAllByText('Claude Code on this computer');
+    const fold = [...section.querySelectorAll('details')].find((item) => item.querySelector(':scope > summary')?.textContent === 'Every choice')!;
+    const atRest = found.map((node) => node.closest('li')!).find((row) => !fold.contains(row))!;
+    expect(atRest).toBeTruthy();
+    expect(within(atRest).getByRole('button', { name: 'Connect' })).toBeTruthy();
+    expect(within(fold).queryAllByText('Claude Code on this computer')).toHaveLength(0);
+    expect(fold.contains(within(section).getByText('Claude Haiku 5.5 and Sonnet 5.5'))).toBe(true);
+  });
+
   it('Claude Code can connect by default without a pending-terms screen', async () => {
     start();
     const section = await ai();

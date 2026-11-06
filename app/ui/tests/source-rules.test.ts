@@ -48,7 +48,8 @@ const everything = files(src).filter((f) => TEXT_FILE.test(f)).map((f) => ({ f: 
 const sheets = everything.filter(({ f }) => f.endsWith('.css') && f !== 'tokens/tokens.css').map((c) => ({ ...c, css: uncomment(c.text) }));
 /** Code that renders, where a colour could hide in an SVG attribute or a string. */
 const scripts = everything.filter(({ f }) => /\.tsx?$/.test(f));
-/** Files outside src that may hold colour literals; their own tests check them against the tokens (w3 plan). */
+/** Files outside src that may hold colour literals, each checked by its own test: icon.svg against the founder's logo
+ * (shell/rail.test.tsx, one-shot A7), the manifest and index.html against the tokens (shell/phone.test.tsx, w3 plan). */
 const LITERAL_FILES = ['public/icon.svg', 'public/manifest.webmanifest', 'index.html'];
 /** Every custom property tokens.css defines. */
 const TOKEN_NAMES = new Set([...uncomment(readFileSync(join(src, 'tokens/tokens.css'), 'utf8')).matchAll(/(?<![\w-])(--[\w-]+)\s*:/g)].map((m) => m[1]!));
@@ -246,13 +247,17 @@ describe('Ink v2 rules the UI keeps (w3 plan)', () => {
     for (const sheet of sheets) expect(broken('customProperties', sheet), sheet.f).toEqual([]);
   });
 
-  it('the accent is a token: 2fb67c appears in src only in tokens.css, and the old neon green nowhere', () => {
+  // One-shot A7: the founder's logo (public/icon.svg, held to the logo file by rail.test.tsx) has its own green, the
+  // old neon. That one file keeps it; the app's accent stays Jade and the neon stays out of everything else.
+  it('the accent is a token: 2fb67c appears in src only in tokens.css, and the old neon green nowhere but the logo', () => {
     const neon = new RegExp(['46', 'f0', '9b'].join(''), 'i');
     for (const { f, text } of everything) {
       if (f !== 'tokens/tokens.css') expect(text, f).not.toMatch(/2fb67c/i);
       expect(text, f).not.toMatch(neon);
     }
-    for (const path of [...files(join(app, 'public')).filter((p) => TEXT_FILE.test(p)), join(app, 'index.html')]) expect(readFileSync(path, 'utf8'), path).not.toMatch(neon);
+    const logo = join(app, 'public', 'icon.svg');
+    for (const path of [...files(join(app, 'public')).filter((p) => TEXT_FILE.test(p) && p !== logo), join(app, 'index.html')]) expect(readFileSync(path, 'utf8'), path).not.toMatch(neon);
+    expect(readFileSync(logo, 'utf8')).toMatch(neon);
   });
 
   it('no emoji in src or the text catalogues', () => {

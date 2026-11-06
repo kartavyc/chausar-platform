@@ -1,5 +1,5 @@
 import { resolve, join, relative, isAbsolute } from 'node:path';
-import { mkdir, readdir, unlink } from 'node:fs/promises';
+import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -70,7 +70,8 @@ import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
 import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
   normalizeTransferCode, parseBackupName, slugFolder, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
-import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
+import { aiSetupFile, forgetAiSetup } from './venture/models/ai-setup-file.ts';
+import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, moveFileName, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
 import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-snapshots.ts';
 
 /** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
@@ -260,6 +261,11 @@ export class Engine {
       add: async (values: readonly string[]) => { await this.snapshotStore()?.neverContactAdd(values); },
     }),
   });
+  /** A4 fix round: the newest AI setup on this computer (models/ai-setup.ts); none on the hosted app. */
+  #aiSetup() {
+    const venture = this.options.venture ?? {};
+    return venture.host === 'hosted-web' ? null : venture.aiSetup ?? aiSetupFile(join(this.options.directory, 'custody', 'ai-setup.json'));
+  }
   #ventureHost() {
     const vault = this.store();
     const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
@@ -267,7 +273,7 @@ export class Engine {
       const venture = this.options.venture ?? {};
       const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper, speech: this.services.speech },
         { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
-          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover }),
+          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover, aiSetup: this.#aiSetup()! }),
           workspace: venture.workspace ?? this.#ventureWorkspace,
           notify: (events: VentureRunEvent[]) => { venture.notify?.(events); this.#publishVentureEvents(events); },
           watching: venture.watching ?? (() => this.#watchingAt()),
@@ -952,6 +958,53 @@ export class Engine {
       if (this.vault === vault && typeof host.notifyTick === 'function') await host.notifyTick({ ...this.#baseContext });
     } catch { /* The next tick looks again. */ } finally { this.#activeRequests--; this.notifyIdle(); }
   }
+  /**
+   * A2: venture.ai.setup.trust { cli: 'codex', sha256 }: keeps the owner's choice of the Codex they were shown, only for
+   * that exact program, in the app and by an owner. The host's Codex trust (codex-trust.ts) checks and records it.
+   * A2 second review: only the owner's click in the desktop main process's own dialog approves a Codex. As a request
+   * (the window, the local server's bootstrap session, a phone, MCP) it is always refused; main reads the held review
+   * (codexChoiceFor), asks the owner, and on "Use this Codex" confirms over the worker's host channel, which no request
+   * can write to (confirmCodexSetup).
+   */
+  #codexChoiceChecked(payload: unknown, confirm = false): { trust: { record(sha256: unknown, path: unknown): Promise<unknown>; held?(sha256: unknown): unknown; current?(): unknown }; sha256: string; path: string | null } {
+    const context = this.context;
+    check(context && context.channel === 'desktop' && !context.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+    // A2 review: only the owner says which program Chausar runs (AGENTS.md: the owner approves; a cofounder does not).
+    check(context.role === 'owner', 'FORBIDDEN', 'Only the owner chooses which Codex Chausar runs.');
+    // One-shot A3: main's confirmation names the path its dialog showed, so the yes records that copy of the program.
+    const keys = confirm ? 'cli,path,sha256' : 'cli,sha256';
+    const path = (payload as { path?: unknown } | null)?.path;
+    check(payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).sort().join(',') === keys && (payload as { cli?: unknown }).cli === 'codex'
+      && typeof (payload as { sha256?: unknown }).sha256 === 'string' && /^[a-f0-9]{64}$/.test((payload as { sha256: string }).sha256)
+      && (!confirm || (typeof path === 'string' && path.length > 0 && path.length <= 4096)),
+      'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
+    const trust = this.options.venture?.codexCli as { record?: (sha256: unknown, path: unknown) => Promise<unknown>; held?(sha256: unknown): unknown; current?(): unknown } | undefined;
+    check(this.options.venture?.host !== 'hosted-web' && trust && typeof trust.record === 'function', 'CODEX_SETUP_UNAVAILABLE', "Chausar can't keep a chosen Codex here.");
+    return { trust: trust as { record(sha256: unknown, path: unknown): Promise<unknown> }, sha256: (payload as { sha256: string }).sha256, path: confirm ? path as string : null };
+  }
+  /**
+   * A2 second review (main only, through the worker's host channel): what main's dialog names, from the engine's held
+   * review of that exact program (its real path and version), or { inUse } when that program is already the Codex in
+   * use (the owner's earlier choice, or the bundled Codex): the dialog is asked for once per program.
+   */
+  async codexChoiceFor(payload: unknown): Promise<{ path: string; version: string } | { inUse: unknown }> {
+    const { trust, sha256 } = this.#codexChoiceChecked(payload);
+    const current = typeof trust.current === 'function' ? trust.current() as { sha256?: unknown } | null : null;
+    if (current && current.sha256 === sha256) return { inUse: current };
+    const held = typeof trust.held === 'function' ? trust.held(sha256) as { path?: unknown; version?: unknown } | null : null;
+    check(held && typeof held.path === 'string' && typeof held.version === 'string', 'CODEX_SETUP_CHANGED', 'That Codex changed since you looked at it. Check it again.');
+    return { path: held.path as string, version: held.version as string };
+  }
+  /** A2 second review (main only, after the owner clicked "Use this Codex" in main's dialog): records the choice. */
+  async confirmCodexSetup(payload: unknown): Promise<{ setup: unknown }> {
+    check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
+    check(!this.#transition, 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
+    this.#activeRequests++;
+    try {
+      const { trust, sha256, path } = this.#codexChoiceChecked(payload, true);
+      return { setup: await trust.record(sha256, path) };
+    } finally { this.#activeRequests--; this.notifyIdle(); }
+  }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
     const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'workspace.transfer.import', 'workspace.backups.restore']);
@@ -1020,6 +1073,9 @@ export class Engine {
       case 'venture.about.families':
         return (await this.#draftDesk()).request(this.context, method, payload);
     }
+    // A2: the owner's yes to the Codex found on this computer, before the vault (onboarding) and after it (Your AI).
+    // A2 second review: never as a request; only main's dialog confirms a Codex (confirmCodexSetup).
+    if (method === 'venture.ai.setup.trust') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
     // Keeping the vault key on this computer (KEYCHAIN-SPEC 2 to 4). Answered before the vault check.
     switch (method) {
       case 'workspace.custody.get': return this.custodyView();
@@ -1666,7 +1722,19 @@ export class Engine {
         const folder = join(this.options.directory, 'exports'); await mkdir(folder, { recursive: true }); const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.${payload.plaintext ? 'json' : 'vault'}`);
         await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
       }
-      case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); const deletedVault = store.vaultId, deletedFolder = this.#openFolder; await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      case 'workspace.delete': {
+        this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+        // One-shot A1 (row 1): its backups go; the copies the owner exported stay, and the answer names them.
+        const removed = await this.purgeManagedCopies(['backups']), exportsKept = await this.managedExports();
+        const deletedVault = store.vaultId, deletedFolder = this.#openFolder, deletedWorkspace = store.read().workspace.id;
+        await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault);
+        // A4 review round 2 (M2): the AI setup it saved goes too, so no later business names it. Never fails the delete.
+        const aiSetup = this.#aiSetup();
+        if (aiSetup) await forgetAiSetup(aiSetup, deletedWorkspace).catch(() => {});
+        // One-shot A4 (hands-on S10): the business's own folder goes too, only when nothing is left in it.
+        await this.removeEmptyFolder(this.workspacePath(deletedFolder ?? undefined));
+        return { deleted: true, copiesRemoved: removed, exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      }
       case 'venture.create':
       case 'venture.country.suggest':
       case 'venture.get':
@@ -2400,7 +2468,17 @@ export class Engine {
       return (member.role === 'owner' && member.branches.includes('*')) || details.memberId === ctx.memberId;
     });
   }
-  private async purgeManagedCopies() {
+  /**
+   * One-shot A1 (row 1): the copies in Chausar's exports folder of this business. Delete keeps them (the owner exported
+   * them to keep); Forget and a source delete still remove them, because they hold what was forgotten.
+   */
+  private async managedExports(): Promise<string[]> {
+    const folder = resolve(this.options.directory, 'exports'), prefix = `chausar-${this.store().read().workspace.id}-`;
+    let files;
+    try { files = await readdir(folder, { withFileTypes: true }); } catch (error) { if ((error as any).code === 'ENOENT') return []; throw error; }
+    return files.filter(file => file.isFile() && file.name.startsWith(prefix) && MANAGED_COPY_TAIL.test(file.name.slice(prefix.length))).map(file => join(folder, file.name)).sort();
+  }
+  private async purgeManagedCopies(folders: readonly ('backups' | 'exports')[] = ['backups', 'exports']) {
     // A whole-workspace fork can hold forgotten bytes from another source. Revoke
     // surviving receipt contexts BEFORE deleting those copies; never retain the
     // forgotten fork solely to satisfy an unrelated receipt's interpretation.
@@ -2414,7 +2492,7 @@ export class Engine {
     }
     const removed: string[] = await this.store().purgeArtifacts();
     const prefix = `chausar-${this.store().read().workspace.id}-`;
-    for (const name of ['backups', 'exports']) {
+    for (const name of folders) {
       const folder = resolve(this.options.directory, name); let files;
       try { files = await readdir(folder, { withFileTypes: true }); } catch (error) { if ((error as any).code === 'ENOENT') continue; throw error; }
       for (const file of files) if (file.isFile() && file.name.startsWith(prefix) && MANAGED_COPY_TAIL.test(file.name.slice(prefix.length))) { const path = resolve(folder, file.name); check(relative(folder, path) === file.name, 'INVALID_PATH', 'A managed file left its export directory.'); await unlink(path); removed.push(`${name}/${file.name}`); }
@@ -2789,7 +2867,7 @@ export class Engine {
     const text = await vault.transferText(transferCode, { recovery: (card ? card.recovery === 'made' : true) ? 'made' : 'not-made', madeAt });
     check(text.length <= TRANSFER.maxTextChars, 'TRANSFER_TOO_LARGE', CUSTODY_WORDS.errors.TRANSFER_TOO_LARGE);
     await vault.update(state => audit(state, 'custody.transfer-exported', {}));
-    return { fileName: `chausar-move-${madeAt.slice(0, 10)}.backup`, text, transferCode, bytes: Buffer.byteLength(text) };
+    return { fileName: moveFileName(new Date(madeAt)), text, transferCode, bytes: Buffer.byteLength(text) };
   }
   private async transferImport(payload: any) {
     check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.');
@@ -2816,27 +2894,50 @@ export class Engine {
     const path = await files.transferFile(text);
     try {
       let vault: Vault;
+      // Review of A1 (row 8): the step a failed move stopped at goes to the custody diagnostic log, with the error's code.
+      const note = (step: string, error: unknown) => files.noteDiagnostic('transfer.import', step, error, new Date(this.custodyNow()).toISOString());
       try { vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile: path, passphrase: code, storage: await this.adapter(folder), writerGuard: this.writerGuard() }); }
-      catch (error) { if ((error as ChausarError).code === 'UNLOCK_FAILED') throw new ChausarError('TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG); throw error; }
+      catch (error) {
+        if ((error as ChausarError).code === 'UNLOCK_FAILED') throw new ChausarError('TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG);
+        await note('restore', error); throw error;
+      }
       let record: DeviceKeyRecord | null = null;
       const secret = computer ? randomBytes(32) : null;
+      let step = 'protect';
       try {
-        if (secret) { record = await custody!.keys.protect(vault.vaultId, secret); await files.writeKey(record); await vault.rewrapPassphrase(secret.toString('base64url')); }
-        else await vault.rewrapPassphrase(payload.passphrase);
+        // One-shot A1 (row 8): a key this computer could not keep offers the passphrase instead (DEVICE_KEYS_UNAVAILABLE,
+        // which the move screen answers with a passphrase), never "this computer's key didn't open your business".
+        if (secret) {
+          try { record = await custody!.keys.protect(vault.vaultId, secret); }
+          catch (error) {
+            const reason = (error as { reason?: unknown }).reason;
+            throw deviceKeysUnavailable(typeof reason === 'string' && Object.hasOwn(CUSTODY_WORDS.unavailable, reason) ? reason as keyof typeof CUSTODY_WORDS.unavailable : 'failed');
+          }
+          step = 'write-key'; await files.writeKey(record);
+          step = 'rewrap'; await vault.rewrapPassphrase(secret.toString('base64url'));
+        }
+        else { step = 'rewrap'; await vault.rewrapPassphrase(payload.passphrase); }
         // The card goes down before attaching, so if attaching fails the list still shows the right way in.
+        step = 'write-card';
         const state = vault.read();
         await files.writeCard(newCard({ folder, vaultId: vault.vaultId, workspaceId: state.workspace.id, name: state.workspace.name, demo: state.workspace.demo,
           unlock: computer ? 'this-computer' : 'passphrase', recovery: transferHint(parsed), wrappersDigest: vault.wrappersDigest }));
       } catch (error) {
+        await note(step, error);
         await files.removeCard(folder).catch(() => {});
         await vault.delete().catch(() => {});
         if (record) { await custody!.keys.forget(record).catch(() => {}); await files.removeKey(record.vaultId).catch(() => {}); }
-        throw error instanceof ChausarError ? error : deviceKeyFailed();
+        // Anything else that stopped the move (a file Chausar could not write) says so in plain words; nothing was kept.
+        throw error instanceof ChausarError ? error : new ChausarError('TRANSFER_FAILED', CUSTODY_WORDS.errors.TRANSFER_FAILED);
       } finally { secret?.fill(0); }
       await this.attachSafely(vault);
     } finally { await files.removeTransfer(path).catch(() => {}); }
     await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: transferHint(parsed) });
     return { workspace: this.store().read().workspace, folder, unlock: computer ? 'this-computer' : 'passphrase' };
+  }
+  /** One-shot A4: removes a deleted business's folder when it holds nothing (never recursive); else leaves it. Never throws. */
+  private async removeEmptyFolder(path: string) {
+    try { await rmdir(path); } catch { /* not empty, or already gone */ }
   }
   private async forgetBusiness(folder: string | null, vaultId: string) {
     const custody = this.custodyHost(); if (!custody || !folder) return;

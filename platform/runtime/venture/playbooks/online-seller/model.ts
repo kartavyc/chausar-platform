@@ -1,5 +1,6 @@
 // Chausar seller calculations, independently written from commerce.md and sealeap-amazon-skills ideas (MIT).
 // Browser-safe domain core shared by the real and fake engines. It reads no files and performs no outside effect.
+import { refusalError } from '../../refusal-brand.ts';
 export type SellerEvidence = { type: 'fact' | 'estimate' | 'assumption'; value: string; source: string; observedAt: string }
   | { type: 'unknown'; source: string; observedAt: string; missingReason: string };
 export type SellerRate = { id: string; rateBps: string; source: string; checkedOn: string; confirmedBy: { name: string; on: string } | null };
@@ -14,7 +15,7 @@ export type EconomicsInput = {
 export type SellerUse = { rehearsal: boolean; today?: string };
 export type EconomicsResult = { status: 'ready'; figures: Record<string, string>; inputs: EconomicsInput; basis: string[]; line: string; rehearsal: boolean };
 /** A domain refusal; engine facades convert it to ChausarError, the fake to EngineError. */
-export function sellerRefuse(code: string, message: string): never { throw Object.assign(new Error(message), { code }); }
+export function sellerRefuse(code: string, message: string): never { throw refusalError(new Error(message), { code }); }
 /** Rejects unknown keys rather than silently accepting a different contract. */
 export function exact(value: unknown, keys: readonly string[], required: readonly string[] = keys): asserts value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !keys.includes(key)) || required.some(key => !Object.hasOwn(value, key))) sellerRefuse('SELLER_INPUT_INVALID', 'Use exactly the fields named in this seller sheet.');
@@ -64,7 +65,7 @@ export function computeUnitEconomics(raw: unknown, use: SellerUse): EconomicsRes
   const input = raw as unknown as EconomicsInput;
   const entries = ECONOMIC_FIELDS.map(key => [key, readEvidence(input[key], key)] as const);
   const missing = entries.filter(([, e]) => e.type === 'unknown').map(([key, e]) => ({ field: key, reason: e.type === 'unknown' ? e.missingReason : '' }));
-  if (missing.length) { const error = Object.assign(new Error('The unit economics sheet is held until the missing inputs are known.'), { code: 'UNIT_ECONOMICS_HOLD', missing }); throw error; }
+  if (missing.length) { const error = refusalError(new Error('The unit economics sheet is held until the missing inputs are known.'), { code: 'UNIT_ECONOMICS_HOLD', missing }); throw error; }
   const tcs = sellerRate(input.tcsRule, use), tds = sellerRate(input.tdsRule, use);
   const values = Object.fromEntries(entries.map(([key, e]) => [key, e.type === 'unknown' ? '' : e.value])) as Record<typeof ECONOMIC_FIELDS[number], string>;
   if (!['yes', 'no'].includes(values.inputCredit)) sellerRefuse('SELLER_INPUT_INVALID', 'Say yes or no to eligible input credit.');
@@ -80,7 +81,7 @@ export function computeUnitEconomics(raw: unknown, use: SellerUse): EconomicsRes
   const returns = sellerRound(n('returnLossMinor') * n('returnBps'), 10000n);
   const credit = values.inputCredit === 'yes', inputTax = credit ? feeGst + n('stockGstMinor') + n('adsGstMinor') : 0n;
   const gstCash = output - inputTax - tcsAmount;
-  if (gstCash < 0n) throw Object.assign(new Error('Unused GST credit needs your CA review; it is not assumed to be a cash refund.'), { code: 'UNIT_ECONOMICS_HOLD', missing: [{ field: 'creditUtilisation', reason: 'Unused GST credit treatment needs review' }] });
+  if (gstCash < 0n) throw refusalError(new Error('Unused GST credit needs your CA review; it is not assumed to be a cash refund.'), { code: 'UNIT_ECONOMICS_HOLD', missing: [{ field: 'creditUtilisation', reason: 'Unused GST credit treatment needs review' }] });
   const contribution = taxable - fees - n('stockMinor') - n('packagingMinor') - n('adsMinor') - returns - (credit ? 0n : feeGst + n('stockGstMinor') + n('adsGstMinor'));
   const tie = payout - n('stockMinor') - n('stockGstMinor') - n('packagingMinor') - n('adsMinor') - n('adsGstMinor') - gstCash - returns + tdsAmount;
   if (tie !== contribution) sellerRefuse('UNIT_ECONOMICS_NO_TIE', 'The contribution, payout and GST cash views do not tie.');

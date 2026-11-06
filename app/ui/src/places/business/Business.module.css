@@ -180,6 +180,16 @@
   color: var(--wait);
 }
 
+/* Review of A1 (row 1): the copies Delete kept, one per row, each with its own Show in folder. */
+.kept {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
 /* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
 .link {
   composes: hit from '../../parts/touch.module.css';

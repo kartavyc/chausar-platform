@@ -11,6 +11,7 @@ import { EngineError, type CliStatusView, type ModelAvailability } from '../../e
 import s from './Connections.module.css';
 import c from './CliStatus.module.css';
 import { connectionWords } from './ConnectionWords';
+import { ProviderTrouble } from '../../parts/ProviderTrouble';
 
 /** The state chip: words always say it; colour only repeats it. Ready only once a real task on the tool worked. */
 const STATE_TONE: Readonly<Record<ModelAvailability, ChipTone>> = { ready: 'done', unverified: 'line', 'needs-setup': 'wait', unavailable: 'idle' };
@@ -88,7 +89,7 @@ export function CliStatus() {
       {data && (
         <>
           <ul className={c.tools}>
-            {data.clis.map((view) => <Tool key={view.cli} view={view} />)}
+            {data.clis.map((view) => <Tool key={view.cli} view={view} onChosen={() => void checkAgain()} />)}
           </ul>
           {/* What this look ran, once for the tile, in the engine's words (it names only the tools it started). */}
           <p className={`${s.note} ${c.how}`} data-cli-ran="">{connectionWords(t, data.line)}</p>
@@ -103,10 +104,27 @@ export function CliStatus() {
  * One tool: its name and its state at rest, and while it is not ready its one fix (or, with no fix, the engine's line)
  * as the next step. One fold away: the engine's line when the fix stood in for it, and the facts behind them.
  */
-function Tool({ view }: { view: CliStatusView }) {
+function Tool({ view, onChosen }: { view: CliStatusView; onChosen: () => void }) {
   const t = useT();
+  const client = useEngine();
   const nameId = useId();
-  const atRest = view.state === 'ready' ? null : view.fix ?? view.line;
+  const [choosing, setChoosing] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  // A2 second review: Cancel in main's own dialog is not a problem; it is said calmly.
+  const [note, setNote] = useState<string | null>(null);
+  // A2: a found Codex the owner has not chosen is asked about first, in the engine's words; one that cannot be used says why.
+  const setup = view.setup && (view.setup.state === 'review' || view.setup.state === 'refused') ? view.setup : null;
+  const atRest = setup ? setup.line : view.state === 'ready' ? null : view.fix ?? view.line;
+  async function choose() {
+    if (!setup?.sha256 || choosing) return;
+    setChoosing(true); setProblem(null); setNote(null);
+    try { await client.request('venture.ai.setup.trust', { cli: 'codex', sha256: setup.sha256 }); onChosen(); }
+    catch (error) {
+      if (error instanceof EngineError && error.code === 'CODEX_NOT_CHOSEN') setNote(error.message);
+      else setProblem(error instanceof Error ? error.message : String(error));
+    }
+    finally { setChoosing(false); }
+  }
   const failed = view.state === 'unverified' && view.lastTask?.outcome === 'failed';
   return (
     <Inner as="li" labelledBy={nameId} className={c.tool}>
@@ -120,9 +138,13 @@ function Tool({ view }: { view: CliStatusView }) {
             : <Chip tone={STATE_TONE[view.state] ?? 'neutral'}>{t(`connections.cli.state.${view.state}`)}</Chip>}
         </span>
       </div>
-      {atRest !== null && (view.fix
+      {atRest !== null && (view.fix || setup
         ? <p className={c.fix} data-fix-line="">{connectionWords(t, atRest)}</p>
         : <p className={s.line} data-cli-line="">{connectionWords(t, atRest)}</p>)}
+      {view.provider && <ProviderTrouble trouble={view.provider} className={s.line} />}
+      {setup?.state === 'review' && <Button size="sm" disabled={choosing} aria-busy={choosing || undefined} onClick={() => void choose()}>{t('first-run.ai.setup.use')}</Button>}
+      {problem && <p className={s.problem} role="alert">{problem}</p>}
+      {note && <p className={s.said} role="status">{note}</p>}
       <details className={`${s.fold} ${c.more}`}>
         <summary>{t('connections.cli.details')}</summary>
         {(atRest === null || view.fix) && <p className={s.line} data-cli-line="">{connectionWords(t, view.line)}</p>}

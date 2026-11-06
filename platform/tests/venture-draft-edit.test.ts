@@ -122,15 +122,155 @@ test('edit is No and reopen: the owner\'s text is kept with the hash of the draf
   assert.equal(clientDraft(accepted).text, mine);
 });
 
-test('edit refuses an old digest, empty text, the phone, a practice draft, and a draft that failed a check', async () => {
+test('edit refuses an old digest, empty text, the phone and a practice draft', async () => {
   const { env, row } = await readyDraft();
   assert.equal((await edit(env, { ...row, digest: 'b'.repeat(64) }, 'Mine')).outcome, 'stale');
   await assert.rejects(edit(env, row, '  '), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(edit(env, row, 'Mine', phone), code('APP_APPROVAL_REQUIRED'));
-  const blocked = await readyDraft([report('We reconciled your bank statement and filed your GST return.')]);
-  const refusal = await edit(blocked.env, blocked.row, 'My own words.');
-  assert.deepEqual([refusal.outcome, refusal.reason], ['refused', 'NOT_OFFERED']);
-  assert.equal(listRecords(blocked.env.store.read(), 'venture-draft-edit').length, 0);
+  // One-shot A3 (S2): a practice draft is never used, so its edit is refused, and it says it can't be edited.
+  const practice = await readyDraft();
+  await ventureAction(practice.env.deps, owner, 'prepare', 'seed.practice', tx => { tx.replace({ ...tx.find('venture-delivery-run', practice.run.id)!, practice: true }); });
+  assert.equal((await runOf(practice.env, practice.run.id)).canEdit, false);
+  const practiceRow = (await queue(practice.env)).rows.find(item => item.viewRef?.id === practice.run.id);
+  if (practiceRow) assert.equal((await edit(practice.env, practiceRow, 'My own words.')).outcome, 'refused');
+  assert.equal(listRecords(practice.env.store.read(), 'venture-draft-edit').length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot A3 (S2): a draft that failed a check gets Edit, then Approve of the owner's own version
+// ---------------------------------------------------------------------------
+
+const FAILING = 'We reconciled your bank statement and filed your GST return.';
+/** A3 review 2: an edit as an owner writes it on Today: the draft's own headings kept, their words changed. */
+const ownText = (summary = 'Here is the plan for your September books.', todo = DO, need = NEED, next = 'The fee for the month is below.') =>
+  ['# Your September books', '## Summary', summary, '## What we will do', todo, '## What we need from you', need, '## Next steps', next].join('\n\n');
+
+test('A3 S2: a draft that failed a check can be edited on Today; the owner\'s version then waits with Approve, and is accepted', async () => {
+  const { env, run, row } = await readyDraft([report(FAILING)]);
+  const before = await runOf(env, run.id);
+  assert.equal(before.canAccept, false, 'the agent\'s draft failed a check');
+  assert.ok(before.acceptBlocked, 'and says why');
+  assert.equal(before.canEdit, true, 'but the owner may edit it');
+  assert.deepEqual(row.actions.map(action => action.id), ['deny', 'read'], 'Today offers no Approve for the agent\'s draft');
+  const mine = ownText();
+  const decision = await edit(env, row, mine);
+  assert.deepEqual([decision.outcome, decision.line], ['done', 'Your version is kept. Approve it when it is ready.']);
+  const after = await runOf(env, run.id);
+  assert.deepEqual([after.canAccept, after.acceptBlocked], [true, null], 'the owner\'s own words are not held to the agent\'s failed checks');
+  const reopened = await draftRow(env);
+  assert.ok(reopened.id !== row.id);
+  assert.deepEqual(reopened.actions.map(action => action.id), ['read', 'approve']);
+  assert.equal((await call<QueueDecision>(env, 'venture.queue.decide', { id: reopened.id, digest: reopened.digest, action: 'approve', viewed: true })).outcome, 'done');
+  const accepted = record(env, run.id);
+  assert.equal(accepted.status, 'accepted');
+  assert.equal(clientDraft(accepted).text, mine, 'the client gets the owner\'s words');
+});
+
+test('A3 S2: Accept of the agent\'s failed draft is still refused, and an undone edit or a later agent revision brings the check back', async () => {
+  const { env, run, row } = await readyDraft([report(FAILING), report(FAILING)]);
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: run.id, verdict: 'accepted' }), code('INVALID_VENTURE_REQUEST'));
+  await edit(env, row, ownText('My own words for the client.'));
+  assert.equal((await runOf(env, run.id)).canAccept, true);
+  // Undo puts the agent's draft back, with its failed check.
+  await undo(env, row.id);
+  const undone = await runOf(env, run.id);
+  assert.deepEqual([undone.canAccept, undone.canEdit], [false, true]);
+  // Edit again, then send it back: the agent's revision is merged with the owner's words, so its checks count again.
+  await edit(env, await draftRow(env), ownText('My own words for the client.'));
+  assert.equal((await sendBack(env, await draftRow(env), 'Make it shorter.')).outcome, 'done');
+  const landed = await revised(env, run.id);
+  assert.equal(landed.status, 'ready-for-review');
+  assert.equal(landed.canAccept, false, 'the agent\'s revision failed its check, and it is in the text now');
+});
+
+test('A3 S2: a draft whose agent is still working, or that the quality check is reading, is not offered for edit', async () => {
+  const working = await readyDraft([report(FAILING)]);
+  await ventureAction(working.env.deps, owner, 'prepare', 'seed.working', tx => {
+    const current = tx.find('venture-delivery-run', working.run.id)!;
+    tx.replace({ ...current, agentJob: { ...current.agentJob!, reviewReady: false } });
+  });
+  assert.equal((await runOf(working.env, working.run.id)).canEdit, false);
+  const judged = await readyDraft([report(FAILING)]);
+  await ventureAction(judged.env.deps, owner, 'prepare', 'seed.judge', tx => {
+    tx.replace({ ...tx.find('venture-delivery-run', judged.run.id)!, judge: undefined, judgePending: { boundMicros: null, bound: 'USD 0.0010', until: '2026-10-16T11:00:00.000Z' } });
+  });
+  assert.equal((await runOf(judged.env, judged.run.id)).canEdit, false);
+});
+
+// A3 review (H1): only a real edit lifts a check, and only the checks that read the agent's own authorship. The checks
+// that read the words themselves run again on the owner's version before Accept.
+test('A3 review H1: re-saving the agent\'s draft with only spaces changed is no edit, and the failed check stays', async () => {
+  const { env, run, row } = await readyDraft([report(FAILING)]);
+  for (const same of [`${run.renderedText!} `, run.renderedText!.replace(/\n\n/g, '\n\n\n'), `  ${run.renderedText!.replace(/ /g, '  ')}\n`]) {
+    const refusal = await edit(env, await draftRow(env), same);
+    assert.deepEqual([refusal.outcome, refusal.reason, refusal.line], ['refused', 'NO_CHANGE', 'Nothing changed. Edit the words first.']);
+  }
+  assert.equal(listRecords(env.store.read(), 'venture-draft-edit').length, 0);
+  assert.equal((await runOf(env, run.id)).canAccept, false);
+  void row;
+});
+
+test('A3 review H1: an edit that still claims work not done stays blocked by that check; money nobody worked out stays blocked', async () => {
+  const claimed = await readyDraft([report(FAILING)]);
+  await edit(claimed.env, claimed.row, ownText('Hello Aroma. We reconciled your bank statement and filed your GST return.'));
+  const still = await runOf(claimed.env, claimed.run.id);
+  assert.equal(still.canAccept, false);
+  assert.match(still.acceptBlocked!, /claims work that was not done/);
+  // It stays on Today as a new version of its card, so the owner can edit it again or reject it.
+  const back = await draftRow(claimed.env);
+  assert.ok(back && back.id !== claimed.row.id, 'the card is back after the edit');
+  await assert.rejects(call(claimed.env, 'venture.delivery.review', { runId: claimed.run.id, verdict: 'accepted' }), code('INVALID_VENTURE_REQUEST'));
+  // The amount the agent's draft showed from its receipt may stay in the owner's words.
+  const kept = await readyDraft([report(FAILING)]);
+  const fee = /(?:INR|₹)\s?[\d,]+(?:\.\d{2})?/.exec(kept.run.renderedText!)?.[0];
+  assert.ok(fee, 'the agent\'s draft shows its receipted fee');
+  await edit(kept.env, kept.row, ownText(undefined, undefined, undefined, `The fee for the month is ${fee}.`));
+  assert.equal((await runOf(kept.env, kept.run.id)).canAccept, true);
+});
+
+test('A3 review H1: a real edit lifts the agent\'s judge, claim and style checks, and no other', async () => {
+  const { env, run, row } = await readyDraft();
+  await ventureAction(env.deps, owner, 'prepare', 'seed.judged', tx => {
+    const current = tx.find('venture-delivery-run', run.id)!;
+    tx.replace({ ...current, checks: [...current.checks,
+      { check: 'rules-judge', passed: false, detail: 'Failed: policy-followed. The reply offers a discount the plan does not have.' },
+      { check: 'claims-grounded', passed: false, detail: 'This claim is not in the client\'s files or the run\'s evidence: "Pune Frames".' },
+      { check: 'house-style', passed: false, detail: 'The draft uses a long dash.' }] });
+  });
+  assert.equal((await runOf(env, run.id)).canAccept, false);
+  await edit(env, await draftRow(env), ownText('Hello Aroma.', undefined, 'Please send the bank statement. Warmly, Pune Frames'));
+  const after = await runOf(env, run.id);
+  assert.deepEqual([after.canAccept, after.acceptBlocked], [true, null]);
+  // A3 review 2 (M-b): a job-level failure is about the run, not its words: no edit is offered, and the words say to reject it.
+  const other = await readyDraft();
+  await ventureAction(other.env.deps, owner, 'prepare', 'seed.turns', tx => {
+    const current = tx.find('venture-delivery-run', other.run.id)!;
+    tx.replace({ ...current, checks: [...current.checks, { check: 'no-outside-writes', passed: false, detail: 'Something tried to act outside Chausar: mail-app.' }] });
+  });
+  const job = await runOf(other.env, other.run.id);
+  assert.deepEqual([job.canAccept, job.canEdit], [false, false]);
+  assert.match(job.acceptBlocked!, /reject it/);
+  assert.doesNotMatch(job.acceptBlocked!, /Edit it/);
+  assert.equal((await edit(other.env, await draftRow(other.env), ownText('Hello Aroma.'))).outcome, 'refused');
+});
+
+test('A3 review L3: a cofounder may edit a failed draft, but only the owner\'s edit lifts the agent\'s checks', async () => {
+  const { env, run, row } = await readyDraft([report(FAILING)]);
+  await env.store.update(state => { state.members.push({ id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder', active: true, epoch: 1, branches: ['*'] }); });
+  const cofounder = { ...owner, memberId: 'cofounder-1', role: 'cofounder' as const };
+  const mine = ownText('Hello Aroma.');
+  assert.equal((await edit(env, row, mine, cofounder)).outcome, 'done');
+  const [kept] = listRecords(env.store.read(), 'venture-draft-edit');
+  assert.deepEqual([kept.by, kept.role], ['cofounder-1', 'cofounder']);
+  assert.equal((await runOf(env, run.id)).canAccept, false, 'the checks stay until the owner\'s own edit');
+  // The owner's own edit of it then lifts them.
+  await edit(env, await draftRow(env), ownText('Hello Aroma. Warm regards.'));
+  assert.equal((await runOf(env, run.id)).canAccept, true);
+  // Each decision records who made it, by role.
+  const reopened = await draftRow(env);
+  await call(env, 'venture.queue.decide', { id: reopened.id, digest: reopened.digest, action: 'approve', viewed: true });
+  const decision = listRecords(env.store.read(), 'venture-decision').find(item => item.subject === `run:${run.id}` && item.action === 'accepted')!;
+  assert.equal(decision.role, 'owner');
 });
 
 // ---------------------------------------------------------------------------
@@ -417,4 +557,161 @@ test('an undone pending launch cannot start a later revision after route selecti
   await revised(env, run.id);
   assert.equal(opens, 1);
   assert.equal((contexts.at(-1)!.revision as { words: string }).words, 'Revise this to: Second revision.');
+});
+
+// ---------------------------------------------------------------------------
+// A3 review 2: invisible no-op edits, job-level and section checks, proofs and amounts, every editor checked again
+// ---------------------------------------------------------------------------
+
+/** As a Today edit leaves a run: its words in force and the edit's record. */
+async function seedEdit(env: Env, runId: string, text: string, extra: Record<string, unknown> = {}) {
+  await ventureAction(env.deps, owner, 'prepare', 'seed.edit', tx => {
+    const current = tx.find('venture-delivery-run', runId)!;
+    tx.put({ ...tx.base('venture-draft-edit'), runId, rowId: `run:${runId}:review`, text, replacedHash: 'x', by: 'owner', undoneAt: null, replaced: current.renderedText!, prior: null, role: 'owner' });
+    tx.replace({ ...current, editedText: text, ...extra });
+  });
+}
+
+test('A3 review 2 M-a: an edit that only adds an invisible character is no edit', async () => {
+  const { env, run } = await readyDraft([report(FAILING)]);
+  for (const mark of ['​', '⁠', '­']) {
+    const text = run.renderedText!.replace('September', `Sept${mark}ember`);
+    assert.notEqual(text, run.renderedText);
+    const refusal = await edit(env, await draftRow(env), text);
+    assert.deepEqual([refusal.outcome, refusal.reason], ['refused', 'NO_CHANGE'], JSON.stringify(mark));
+  }
+  assert.equal(listRecords(env.store.read(), 'venture-draft-edit').length, 0);
+  // An edit in force that says the agent's words with an invisible character lifts nothing either.
+  await seedEdit(env, run.id, run.renderedText!.replace('September', 'Sept⁠ember'));
+  assert.equal((await runOf(env, run.id)).canAccept, false);
+});
+
+test('A3 review 2 M-b: a draft missing a section is freed by an owner edit that writes it; the edit is held to the sections too', async () => {
+  const { env, run } = await readyDraft([report()]);
+  await ventureAction(env.deps, owner, 'prepare', 'seed.sections', tx => {
+    const current = tx.find('venture-delivery-run', run.id)!;
+    tx.replace({ ...current, checks: current.checks.map(result => (result.check === 'required-sections' ? { ...result, passed: false, detail: 'Missing sections: What we need from you.' } : result)) });
+  });
+  const before = await runOf(env, run.id);
+  assert.deepEqual([before.canAccept, before.canEdit], [false, true]);
+  const missing = ['# Your September books', '## Summary', 'Hello Aroma.', '## What we will do', DO, '## Next steps', 'Thanks.'].join('\n\n');
+  await edit(env, await draftRow(env), missing);
+  const still = await runOf(env, run.id);
+  assert.equal(still.canAccept, false);
+  assert.match(still.acceptBlocked!, /Missing sections: What we need from you/);
+  await edit(env, await draftRow(env), ownText('Hello Aroma.'));
+  const freed = await runOf(env, run.id);
+  assert.deepEqual([freed.canAccept, freed.acceptBlocked], [true, null]);
+});
+
+test('A3 review 2 M-c: a done claim a tool backed survives a typo fix, and a restyled receipted amount is the receipt\'s', async () => {
+  const backed = await readyDraft([report('We reconciled your bank statment.')]);
+  await ventureAction(backed.env.deps, owner, 'prepare', 'seed.proof', tx => {
+    const current = tx.find('venture-delivery-run', backed.run.id)!;
+    tx.replace({ ...current, harness: { ...(current.harness ?? {}), proofs: [{ kind: 'reconciled', toolCallId: 'tool_1', receiptId: null, tableId: null }] } as never,
+      checks: current.checks.map(result => (result.check === 'no-done-claims' ? { ...result, passed: true, detail: 'Every claim of finished work matches a tool run that proves it.' } : result)) });
+  });
+  assert.equal((await runOf(backed.env, backed.run.id)).canAccept, true, 'the agent\'s draft passes');
+  await edit(backed.env, await draftRow(backed.env), backed.run.renderedText!.replace('statment', 'statement'));
+  assert.equal((await runOf(backed.env, backed.run.id)).canAccept, true, 'the backed claim survives the typo fix');
+  // The receipted fee, written another way, is still the receipt's.
+  const shown = await readyDraft();
+  const fee = /(?:INR|₹)\s?([\d,]+)(?:\.(\d{2}))?/.exec(shown.run.renderedText!);
+  assert.ok(fee, 'the draft shows its receipted fee');
+  const whole = fee[1]!.replace(/,/g, '');
+  for (const written of [`Rs ${fee[1]}`, `₹${whole}`, `${whole} rupees`, `INR ${fee[1]}.00`]) {
+    const one = await readyDraft();
+    await edit(one.env, one.row, ownText(undefined, undefined, undefined, `The fee for the month is ${written}.`));
+    assert.equal((await runOf(one.env, one.run.id)).canAccept, true, written);
+  }
+});
+
+test('A3 review 2 M-c: a price the owner types is allowed, never receipted, and the decision says it is their own words', async () => {
+  const { env, run, row } = await readyDraft();
+  await edit(env, row, ownText(undefined, undefined, undefined, 'The fee for the month is INR 9,999.'));
+  assert.equal((await runOf(env, run.id)).canAccept, true);
+  const reopened = await draftRow(env);
+  await call(env, 'venture.queue.decide', { id: reopened.id, digest: reopened.digest, action: 'approve', viewed: true });
+  const decision = listRecords(env.store.read(), 'venture-decision').find(item => item.subject === `run:${run.id}` && item.action === 'accepted')!;
+  assert.match(decision.reason, /in your own words, not from a receipt/);
+  assert.doesNotMatch(decision.reason, /calculator/);
+  // An amount the agent wrote with no receipt that survives the edit still fails, and never blames the calculator.
+  const agent = await readyDraft();
+  await ventureAction(agent.env.deps, owner, 'prepare', 'seed.agent-amount', tx => {
+    const current = tx.find('venture-delivery-run', agent.run.id)!;
+    const deliverable = structuredClone(current.deliverable!);
+    deliverable.sections[0]!.parts.push({ kind: 'text', text: 'Your books will cost INR 7,777 this month.' });
+    tx.replace({ ...current, deliverable, checks: [...current.checks, { check: 'no-numeric-prose', passed: false, detail: 'This line states an amount of money the calculator did not make: "Your books will cost INR 7,777 this month."' }] });
+  });
+  await edit(agent.env, await draftRow(agent.env), ownText('Hello Aroma. Your books will cost INR 7,777 this month.'));
+  const kept = await runOf(agent.env, agent.run.id);
+  assert.equal(kept.canAccept, false);
+  assert.match(kept.acceptBlocked!, /an amount the agent wrote with no receipt/);
+  assert.doesNotMatch(kept.acceptBlocked!, /calculator/);
+});
+
+test('A3 review 2 L-c: a cofounder\'s edit of a passing draft is checked again too', async () => {
+  const { env, run, row } = await readyDraft();
+  await env.store.update(state => { state.members.push({ id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder', active: true, epoch: 1, branches: ['*'] }); });
+  const cofounder = { ...owner, memberId: 'cofounder-1', role: 'cofounder' as const };
+  assert.equal((await runOf(env, run.id)).canAccept, true);
+  await edit(env, row, ownText('Hello Aroma. We filed your GST return.'), cofounder);
+  const after = await runOf(env, run.id);
+  assert.equal(after.canAccept, false);
+  assert.match(after.acceptBlocked!, /claims work that was not done/);
+});
+
+test('A3 review 2 L-e: a testing-desk run edited on Today cannot be accepted', async () => {
+  const { env, run } = await readyDraft();
+  await seedEdit(env, run.id, ownText('Hello Aroma. My own words.'), { appTestingBinding: 'synthetic-binding' });
+  assert.equal((await runOf(env, run.id)).canEdit, false);
+  await assert.rejects(call(env, 'venture.delivery.review', { runId: run.id, verdict: 'accepted' }), code('APPROVAL_STALE'));
+});
+
+// ---------------------------------------------------------------------------
+// A3 review 3: a loop report's own sections, a client's amount, the decider's role
+// ---------------------------------------------------------------------------
+
+test('A3 review 3 M1: a passing loop report draft, held to the report sections, is still accepted after a typo fix', async () => {
+  const { env, run } = await readyDraft();
+  const reportText = ['# Your September books', '## Summary', 'Here is what we found in your books.', '## What we did', 'We read the bank statment and the bills.', '## What needs your answer', 'Which months come next?', '## Next steps', 'Reply when you can.'].join('\n\n');
+  await ventureAction(env.deps, owner, 'prepare', 'seed.loop-report', tx => {
+    const current = tx.find('venture-delivery-run', run.id)!;
+    tx.replace({ ...current, renderedText: reportText, harness: { ...(current.harness ?? {}), sections: 'report', proofs: [] } as never });
+  });
+  assert.equal((await runOf(env, run.id)).canAccept, true, 'the agent\'s report passes');
+  await edit(env, await draftRow(env), reportText.replace('statment', 'statement'));
+  const after = await runOf(env, run.id);
+  assert.deepEqual([after.canAccept, after.acceptBlocked], [true, null]);
+});
+
+test('A3 review 3 M2: an amount the agent quoted from the client\'s own message may stay in the owner\'s edit', async () => {
+  // As a draft that quoted the client's budget leaves the run: its words and the client's message both hold the amount.
+  const { env, run } = await readyDraft();
+  const quoted = 'Your budget of INR 20,000 is noted.';
+  await ventureAction(env.deps, owner, 'prepare', 'seed.client-amount', tx => {
+    const current = tx.find('venture-delivery-run', run.id)!;
+    const order = tx.find('venture-order', current.orderId)!;
+    tx.replace({ ...order, request: `${order.request} My budget is INR 20,000.` });
+    const deliverable = structuredClone(current.deliverable!);
+    deliverable.sections[0]!.parts.push({ kind: 'text', text: quoted });
+    tx.replace({ ...current, deliverable, renderedText: current.renderedText!.replace(SUMMARY, `${SUMMARY} ${quoted}`) });
+  });
+  assert.equal((await runOf(env, run.id)).canAccept, true);
+  await edit(env, await draftRow(env), record(env, run.id).renderedText!.replace('September', 'October'));
+  const after = await runOf(env, run.id);
+  assert.deepEqual([after.canAccept, after.acceptBlocked], [true, null]);
+});
+
+test('A3 review 3 L2: a review decision records who decided by role', async () => {
+  const { env, run } = await readyDraft();
+  await env.store.update(state => { state.members.push({ id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder', active: true, epoch: 1, branches: ['*'] }); });
+  const cofounder = { ...owner, memberId: 'cofounder-1', role: 'cofounder' as const };
+  await call(env, 'venture.delivery.review', { runId: run.id, verdict: 'accepted' }, cofounder);
+  const decision = listRecords(env.store.read(), 'venture-decision').find(item => item.subject === `run:${run.id}` && item.action === 'accepted')!;
+  assert.deepEqual([decision.who, decision.role, decision.memberId], ['cofounder', 'cofounder', 'cofounder-1']);
+  const { decisions } = await call(env, 'venture.decisions.list', {}) as { decisions: Array<{ id: string; who: string; line: string; by: string | null }> };
+  const shown = decisions.find(item => item.id === decision.id)!;
+  assert.deepEqual([shown.who, shown.by], ['cofounder', 'cofounder-1']);
+  assert.match(shown.line, /^Your cofounder decided: /);
 });

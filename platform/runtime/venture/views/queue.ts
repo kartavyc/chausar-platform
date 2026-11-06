@@ -143,11 +143,14 @@ function planRows(state: State, venture: VentureRecord, business: Business): Pen
   }
   const [first, ...rest] = changes;
   const name = first.name.value;
+  const title = changes.length === 1 ? `New price for ${name}` : 'New prices in your plan';
+  // One-shot A4 (hands-on rows 33, 46): the decision names the price it accepted, not "Plan accepted".
+  const acceptPrice: Perform = async (deps, ctx) => { await blueprintAccept(deps, ctx, { digest: latest.digest }); return { line: `${title} accepted.` }; };
   // Changing prices always asks twice; the change is on the row itself, so it needs no separate read.
   return [{
-    subject, perform: { approve: accept },
+    subject, perform: { approve: acceptPrice },
     row: {
-      ...base(business, 'price', subject, latest.id, latest.at), title: changes.length === 1 ? `New price for ${name}` : 'New prices in your plan',
+      ...base(business, 'price', subject, latest.id, latest.at), title,
       line: rest.length ? `Also changes ${rest.map(offer => offer.name.value).join(', ')}.` : 'Accept the plan to use it on new orders and invoices.',
       change: { label: name, before: priceText(accepted.offers.find(item => item.id === first.id), currency), after: priceText(first, currency) },
       viewRef, actions: [action('read', 'Read', false), action('approve', 'Accept', true, { secondAsk: true })],
@@ -324,7 +327,7 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
             // Where the judge stands, so a verdict that is not in never reads like a pass (judge-run.ts).
             line: [`Read it, then approve it. You send it yourself.`, judgeStateLine(state, venture, record, nowMs)].filter(Boolean).join(' '),
             actions: [action('read', 'Read', false), action('approve', 'Approve', true, { requiresView: true })] }
-          : { ...base(business, 'draft', subject, toCa ? 'review-to-ca' : 'review-blocked', at), agent, title: `Draft reply for ${client}`, line: short(run.acceptBlocked ?? 'Read it and tell the agent what to change.'), viewRef: viewDraft,
+          : { ...base(business, 'draft', subject, toCa ? 'review-to-ca' : run.reopened ? `review-blocked-${run.reopened.count + 1}` : 'review-blocked', at), agent, title: `Draft reply for ${client}`, line: short(run.acceptBlocked ?? 'Read it and tell the agent what to change.'), viewRef: viewDraft,
             actions: toCa
               ? [action('deny', 'Reject', false), action('read', 'Read', false), action('send-to-ca', 'Send to CA', true, { requiresView: true })]
               : [action('deny', 'Reject', false), action('read', 'Read', true)] },

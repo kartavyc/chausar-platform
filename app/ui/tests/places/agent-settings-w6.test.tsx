@@ -26,7 +26,7 @@ describe('AI settings', () => {
   it('fake settings keep exact defaults, reject unsupported fields and retain an owner model choice', async () => {
     const engine = new FakeEngine({ latencyMs: 0 });
     const initial = await engine.request('venture.agentSettings.get', {}) as AiSettingsView;
-    expect(initial.settings.codex.main.model).toBe('gpt-6.1-sol');
+    expect(initial.settings.codex.main.model).toBe('gpt-6.1-terra');
     expect(initial.boundaries).toEqual({ jobFolderOnly: true, windowsSandbox: 'unelevated', shell: 'unavailable', mcp: 'chausar-proxy', externalMcp: 'approval-required' });
     initial.settings.codex.main.model = 'owner-chosen-model';
     initial.settings.agentAutoReview[initial.agents[0]!.id] = false;

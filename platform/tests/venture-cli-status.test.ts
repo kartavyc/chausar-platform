@@ -6,6 +6,7 @@
 // kept, an empty folder, the prompt on stdin and a time limit. Every process here is a fake: nothing is installed or run.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { CODEX_QUIET_ARGS } from '../runtime/providers/codex-cli.ts';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join } from 'node:path';
@@ -108,7 +109,9 @@ function fakeTools(tools: { claude?: Tool; codex?: Tool }): FakeTools {
         const tool = isClaude(request.command) ? tools.claude : isCodex(request.command) || viaNode ? tools.codex : undefined;
         const notStarted = () => new ChausarError('CLI_UNAVAILABLE', 'The selected official command is not installed or could not start.');
         if (!tool) throw notStarted();
-        const asked = (viaNode ? request.args.slice(1) : request.args).join(' ');
+        // A2 review: Codex's status command leads with its quiet flags (CODEX_QUIET_ARGS); the check is the rest.
+        const given = viaNode ? request.args.slice(1) : request.args;
+        const asked = (given[0] === '--disable' ? given.slice(CODEX_QUIET_ARGS.length) : given).join(' ');
         if (asked === '--version') {
           if (tool.version === null) throw notStarted();
           return { exitCode: 0, stdout: `${tool.version}\n` };
@@ -206,7 +209,7 @@ test('desktop: Claude Code and Codex each with path, version, flags, sign-in, te
   const [claude, codex] = result.clis;
   assert.deepEqual(claude, {
     cli: 'claude-code', label: 'Claude Code', found: true, path: homePath(CLAUDE_EXE), version: '2.3.1', flags: 'match', missingFlags: [], signedIn: 'yes',
-    terms: 'accepted', lastTask: null, state: 'unverified', line: 'Claude Code 2.3.1 is on this computer and signed in. Not yet tried on a real task.', fix: null,
+    terms: 'accepted', lastTask: null, state: 'unverified', line: 'Claude Code 2.3.1 is on this computer. Not yet tried on a real task.', fix: null,
   });
   // Codex without the reviewed host profile: found and checked, but Chausar's Codex route does not run it.
   assert.deepEqual(codex, {
@@ -220,6 +223,7 @@ test('desktop: Claude Code and Codex each with path, version, flags, sign-in, te
   // limit each, nothing on standard input, no key in the environment.
   assert.deepEqual(fake.seen.map(request => [request.command, request.args.join(' '), request.timeoutMs]), [
     [CLAUDE_EXE, '--version', 10000], [CLAUDE_EXE, '--help', 5000], [CLAUDE_EXE, 'auth status', 5000],
+    // A2 second review: this Codex is 0.154.0, older than the reviewed one, so its status runs without the quiet flags.
     [CODEX_EXE, '--version', 10000], [CODEX_EXE, 'exec --help', 5000], [CODEX_EXE, '--help', 5000], [CODEX_EXE, 'login status', 5000],
   ]);
   for (const request of fake.seen) {
@@ -255,7 +259,7 @@ test('Codex with the reviewed host profile: its own executable is checked, and i
   const [claude, codex] = (await status(deps)).clis;
   assert.equal(claude.found, false);
   assert.equal(codex.state, 'unverified');
-  assert.equal(codex.line, 'Codex 0.154.0 is on this computer and signed in. Not yet tried on a real task.');
+  assert.equal(codex.line, 'Codex 0.154.0 is on this computer. Not yet tried on a real task.', 'A2: "signed in" only once a real task worked');
   assert.equal(codex.path, homePath(executable));
   assert.ok(fake.seen.filter(request => /codex$/.test(request.command)).every(request => request.command === executable));
 });
@@ -331,12 +335,35 @@ test('the real Claude Code 2.1.286 help: every flag the route sends matches, and
   await connect(deps, 'claude-code-cli');
 });
 
+// A2: the bundled Codex moved to 0.166.0; its real help pages were captured the same way on 3 Nov 2026 (no em dashes in
+// them, nothing personal, nothing changed).
+test('A2: the real Codex 0.166.0 help: exec lists every flag the route sends, and the top help lists login', async () => {
+  const codexReal: Tool = { ...CODEX_OK, version: 'codex-cli 0.166.0', help: realHelp('codex-cli-0.166.0-help.txt'), execHelp: realHelp('codex-cli-0.166.0-exec-help.txt') };
+  const { deps, fake } = await setup({ tools: { codex: codexReal }, codexCli: codexProfile(CODEX_EXE) });
+  const [, codex] = (await status(deps)).clis;
+  assert.deepEqual([codex.version, codex.flags, codex.missingFlags], ['0.166.0', 'match', []]);
+  assert.ok(fake.seen.some(request => request.args.join(' ') === [...CODEX_QUIET_ARGS, 'login', 'status'].join(' ')));
+});
+
+test('A2: Your AI shows the Codex setup, and a found Codex the owner has not chosen waits for that yes', async () => {
+  const review = { state: 'review' as const, origin: null, path: CODEX_EXE, version: '0.166.0', sha256: 'b'.repeat(64), line: 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?' };
+  const seen: (string | null)[] = [];
+  const trust = { profile: () => null, async review(found: string | null) { seen.push(found); return review; } };
+  const { deps } = await setup({ tools: { codex: CODEX_OK }, codexCli: trust });
+  const codex = (await status(deps)).clis.find(cli => cli.cli === 'codex')!;
+  assert.deepEqual(codex.setup, review);
+  assert.deepEqual(seen, [CODEX_EXE]);
+  assert.equal(codex.state, 'needs-setup', 'not usable until the owner says yes');
+});
+
 test('the real Codex 0.154.0 help: exec lists every flag the route sends, and the top help lists login', async () => {
   const codexReal: Tool = { ...CODEX_OK, help: realHelp('codex-cli-0.154.0-help.txt'), execHelp: realHelp('codex-cli-0.154.0-exec-help.txt') };
   const { deps, fake } = await setup({ tools: { codex: codexReal }, codexCli: codexProfile(CODEX_EXE) });
   const [, codex] = (await status(deps)).clis;
   assert.deepEqual([codex.version, codex.flags, codex.missingFlags, codex.signedIn, codex.state], ['0.154.0', 'match', [], 'yes', 'unverified']);
+  // A2 second review: the quiet flags go only to a reviewed Codex version.
   assert.ok(fake.seen.some(request => request.args.join(' ') === 'login status'));
+  assert.ok(fake.seen.every(request => !request.args.includes('--disable')));
   await connect(deps, 'codex-cli');
 });
 
@@ -504,8 +531,15 @@ test('unverified until one real task works, then ready; the last task is shown, 
   await assert.rejects(deps.models.generate(owner, wordsTask()), code('MODEL_FAILED'));
   [claude] = (await status(deps)).clis;
   assert.deepEqual([claude.state, claude.lastTask?.outcome], ['unverified', 'failed']);
-  assert.equal(claude.line, 'Claude Code 2.3.1 is on this computer and signed in. Its last task failed.');
+  assert.equal(claude.line, 'Claude Code 2.3.1 is on this computer. Its last task failed.');
   assert.equal(claude.fix, "Check that you're signed in to Claude Code, then try again.");
+  // A2 (hands-on row 132): a failure the tool named gives that fix, not "check you're signed in".
+  advance(60_000);
+  fake.model = () => ({ exitCode: 1, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: true, result: 'Claude AI usage limit reached|1793400000' }) });
+  await assert.rejects(deps.models.generate(owner, wordsTask()), code('AI_USAGE_LIMIT'));
+  [claude] = (await status(deps)).clis;
+  assert.equal(claude.lastTask?.outcome, 'failed');
+  assert.equal(claude.fix, 'Claude Code has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.');
 });
 
 // ---------------------------------------------------------------------------
@@ -883,4 +917,23 @@ test('VentureHost: on the desktop the CLI status reaches the port through the ho
     }
     host.close();
   }
+});
+
+test('A2: after a failed last task, Your AI reads the provider\'s status page through the guard and says when the trouble is theirs', async () => {
+  const { deps, fake, advance } = await setup({ tools: { claude: CLAUDE_OK } });
+  await connect(deps, 'claude-code-cli');
+  const pages: string[] = [];
+  Object.assign(deps, { statusPages: true, net: {
+    resolve: async () => [{ address: '93.184.216.34', family: 4 }],
+    send: async (target: any) => { pages.push(target.url.href); return { status: 200, headers: {}, body: Buffer.from(JSON.stringify({ status: { indicator: 'major' } })) }; },
+  } });
+  let [claude] = (await status(deps)).clis;
+  assert.equal(claude.provider, undefined, 'no failure, no status read');
+  assert.deepEqual(pages, []);
+  advance(60_000);
+  fake.model = () => ({ exitCode: 1, stdout: '' });
+  await assert.rejects(deps.models.generate(owner, wordsTask()), code('MODEL_FAILED'));
+  [claude] = (await status(deps)).clis;
+  assert.deepEqual(claude.provider && [claude.provider.line, claude.provider.source], ['Claude is having problems right now, not you.', 'status.claude.com']);
+  assert.deepEqual(pages, ['https://status.claude.com/api/v2/status.json']);
 });

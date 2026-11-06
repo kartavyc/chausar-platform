@@ -21,6 +21,8 @@ const INSTRUCTIONS = [
   'Never write an amount of money into the code and never add up, multiply or round money yourself: show only the display text that invoices_list or calculate returned. Counts of things are fine.',
   'Use only the tools you need; the owner allows each one. Handle a refused call by showing its message.',
   'Plain English, short labels, no em dashes. Accessible markup: real buttons, table headers, labels for inputs. Keep it under 40000 characters.',
+  // One-shot A1 (row 12): the frame sets these from Chausar's own theme, so the app reads in light and dark.
+  'For every colour use only var(--bg), var(--fg), var(--mute), var(--line) and var(--link); never set your own colours or backgrounds, so the app follows the light and dark look of Chausar.',
   'Answer with name (a short plain name, up to 60 characters), summary (one plain sentence) and html.',
 ].join('\n');
 

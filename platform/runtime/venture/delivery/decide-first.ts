@@ -15,13 +15,15 @@ export type Decided<T> = { decision: 'yes' | 'no'; reason: string; content: T | 
 
 /**
  * The answer's schema: the decision and its reason first, then the content, which only a yes may carry. Nothing else.
- * The decision lists no before yes: no is the default.
+ * The decision lists no before yes: no is the default. One-shot A3: it holds to the model schema rule every real call
+ * is checked against (models/schema.ts): every property required and no length keyword. The reason's length is said in
+ * its description and cut by code (readDecideFirst).
  */
-export function decideFirstSchema(content: Json): { type: 'object'; properties: { decision: Json; reason: Json; content: Json }; required: ['decision', 'reason']; additionalProperties: false } {
+export function decideFirstSchema(content: Json): { type: 'object'; properties: { decision: Json; reason: Json; content: Json }; required: ['decision', 'reason', 'content']; additionalProperties: false } {
   return {
     type: 'object',
-    properties: { decision: { type: 'string', enum: ['no', 'yes'] }, reason: { type: 'string', maxLength: MAX_REASON }, content },
-    required: ['decision', 'reason'],
+    properties: { decision: { type: 'string', enum: ['no', 'yes'] }, reason: { type: 'string', description: `One short reason, at most ${MAX_REASON} characters.` }, content },
+    required: ['decision', 'reason', 'content'],
     additionalProperties: false,
   };
 }

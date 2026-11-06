@@ -4,6 +4,7 @@ import { authorize, audit, check, ChausarError, hash, newId, now } from './contr
 import type { Context, StateStore } from './contracts.ts';
 import { ActionService, canonical, current, digest, sourceAccess } from './actions.ts';
 import { assertSourceAccess } from './trust.ts';
+import { acceptModelSlips } from './tool-edge.ts';
 
 export const MCP_PROTOCOL_VERSION = '2025-11-25';
 export type JSONRPCRequest = { jsonrpc: '2.0'; id?: string | number | null; method: string; params?: any };
@@ -87,7 +88,8 @@ export class MCPService {
       if (request.method === 'tools/call') {
         const tool = this.jobTools.get(request.params?.name);
         if(tool) {
-          const args = validateMCPArguments(tool.inputSchema, request.params.arguments ?? {});
+          // A2: null for a field left out and an array sent as text are read as meant (tool-edge.ts); nothing else is coerced.
+          const args = validateMCPArguments(tool.inputSchema, acceptModelSlips(tool.inputSchema, request.params.arguments ?? {}));
           const data = await tool.call(args, {...context, channel:'mcp', sourceTainted:true});
           authorize(this.store, context); this.authorizeJob?.(context);
           const structuredContent = {untrusted:true,source:tool.name,data};
@@ -96,7 +98,7 @@ export class MCPService {
           return respond({content:[{type:'text',text}],structuredContent:JSON.parse(text),isError:false});
         }
         check(typeof request.params?.name === 'string', 'INVALID_ARGUMENTS', 'Provide a registered calculation name.'); const calculation = this.calculations.get(request.params.name); check(calculation, 'UNKNOWN_TOOL', 'This read-only calculation is not registered.');
-        const args = validateMCPArguments(calculation.inputSchema, request.params.arguments ?? {});
+        const args = validateMCPArguments(calculation.inputSchema, acceptModelSlips(calculation.inputSchema, request.params.arguments ?? {}));
         try {
           const output = await calculation.calculate(args, { ...context, channel: 'mcp' }); authorize(this.store, context); const receipt = this.receipt(context, output.receipt);
           check(typeof output.value === 'string' && /^-?\d+$/.test(output.value) && [receipt.totalMinor, receipt.valueMinor, ...(receipt.figures ?? []).map((figure: any) => figure.minor)].includes(output.value), 'UNVERIFIED_NUMBER', 'The exact minor-unit value must appear in its receipt.');

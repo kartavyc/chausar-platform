@@ -16,11 +16,11 @@ import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 import { AGENTS, BOOKS, BUSINESSES, CLIENTS, CONNECTORS, EVIDENCE, JOURNAL, QUEUE, RECEIPTS, RUNS, SPEND, SPEND_MICROS } from './fixtures';
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
 import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE, SERVICE_KEYWORDS, SERVICE_LABELS, type FakeBusiness } from './fixtures';
-import type { BackupLite, BlueprintViewLite, InterviewAnswer, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
+import type { BackupLite, BlueprintViewLite, InterviewAnswer, KeptShownLite, OfferLite, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
 import { createStatusStore } from './client';
 import { fakeRunReceipt } from './fake-model-receipt';
 import { fakeCountrySuggestion } from './fake-country';
-import { FakeFirstRun, FIRST_RUN_METHODS } from './fake-first-run';
+import { FakeFirstRun, FIRST_RUN_METHODS, type AboutCallLite } from './fake-first-run';
 import type { ModelStatusLite } from './types';
 import { QUEUE_VIEWS } from './fixtures';
 import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
@@ -77,6 +77,7 @@ import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-d
 /** The business's own calendar day (as the engine's local-day.ts reads it from the country's time zone). */
 const localDayAt = (instant: string, country: { code: string }) => new Intl.DateTimeFormat('en-CA', { timeZone: COUNTRY_TIME_ZONES[country.code] ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(instant));
 import { withPriceGuide } from './fake-price-ranges';
+import { createFakeBackground, type FakeBackgroundStart } from './fake-background';
 import type { DeliveryLite, InvoiceLite, OrderLite, ReceiptLite } from './types';
 import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
 
@@ -124,6 +125,11 @@ export interface FakeOptions {
    * 'ending' in its last day. It answers as the hosted server does. `?trial` or `?trial-ending` in the dev page's address.
    */
   trial?: 'temporary' | 'ending';
+  /**
+   * One-shot A5: answer as the installed desktop app's start at login and keep running (fake-background.ts), so the
+   * client has getBackground and setBackground. `?installed` in the dev page's address (a computer not asked yet).
+   */
+  background?: FakeBackgroundStart;
 }
 
 /** A business on this computer, as the fake keeps it. `passphrase` only for one locked with a passphrase (sample only). */
@@ -207,12 +213,16 @@ export class FakeEngine {
   // Onboarding: the businesses on this computer, whether a vault is open, and each new business's interview.
   private businesses: HeldBusiness[];
   private ventures = new Map<string, HeldVenture>();
+  /** A1 final check: each business's About you read calls, handed over at venture.create (core/blueprint.ts aboutReadCalled). */
+  private aiReads = new Map<string, AboutCallLite[]>();
   private interviews = new Map<string, InterviewQuestionLite[]>();
   private open = true;
   private closedByOwner = false;
   private readonly deviceKeys: boolean;
   private readonly hosted: boolean;
   private readonly trial: 'temporary' | 'ending' | null;
+  /** A5: the sample computer's start at login, when this fake answers as the installed app. */
+  readonly background: ReturnType<typeof createFakeBackground> | null;
   /** Your AI, plan and prices, website build: fake-business.ts. */
   private readonly desk: FakeBusinessDesk;
   /** Orders, delivery runs, invoices and client files: fake-work.ts. */
@@ -249,6 +259,14 @@ export class FakeEngine {
   private readonly network: FakeNetworkDesk;
   private readonly notify: FakeNotifyDesk;
   private readonly w4: FakeW4Desk;
+  /** Tests (A2): a native AI job went quiet and the watchdog stopped it, as agent-runtime/runner.ts does. */
+  quietStop(runId: string): void { this.w4.quietStop(runId); }
+  /** Tests (A2 second review): a native AI job ran past its time limit and the watchdog stopped it. */
+  timeStop(runId: string): void { this.w4.timeStop(runId); }
+  /** Tests (A3, S3): the owner's AI call in Chats fails from now on (null turns it off), as chief/answer.ts meets it. */
+  chatAiFails(failure: { reason: string | null } | null): void { this.chief.failAi(failure); }
+  /** Tests (A3, S2): one of the open business's drafts as a run left it (a failed check, for one). */
+  reviseDelivery(runId: string, change: (run: DeliveryLite) => DeliveryLite): DeliveryLite { return this.work.reviseRun(this.current, runId, change); }
   /**
    * Ink v2 wave 5 (registered by package 5-0; each package fills its own file): every playbook's desk
    * (fake-playbooks.ts, one fake-<id>.ts each), and the kit's methods: the chain (fake-kit-chain.ts, 5A1), sales
@@ -280,6 +298,7 @@ export class FakeEngine {
     for (const b of BUSINESSES) this.ventures.set(b.id, { workingName: b.name, serviceType: b.serviceType, idea: '', countryCode: 'IN', done: 6 });
     this.deviceKeys = options.deviceKeys ?? !devAsks('no-keys');
     this.trial = options.trial ?? (devAsks('trial-ending') ? 'ending' : devAsks('trial') ? 'temporary' : null);
+    this.background = options.background ? createFakeBackground(options.background) : devAsks('installed') ? createFakeBackground() : null;
     this.hosted = (options.hosted ?? false) || this.trial !== null;
     this.desk = new FakeBusinessDesk({
       quote: quote => this.network.rememberQuote(quote),
@@ -301,6 +320,8 @@ export class FakeEngine {
       hosted: () => this.hosted,
       // W6 6C1: the sample Codex, once its own sign-in finished, can connect (models/cli-status.ts 'unverified').
       codexSignedIn: () => this.firstRun.codexSignedIn(),
+      // A3 (L1): the preset list words Codex from this look, as models/presets.ts availabilityOf does.
+      codexLook: () => this.firstRun.codexLook(),
     }, { fresh });
     this.work = new FakeWorkDesk({
       careerSource:id=>{const desk=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk);if(!desk)throw new EngineError('CAREER_APPROVAL_REQUIRED','Create and approve this order exact rendered pack in the career desk.');return desk.careerSource(id);},
@@ -316,6 +337,7 @@ export class FakeEngine {
       fingerprint: digestOf, recruitDigest: digestOf,
       receipt:id=>this.findReceipt(id),
       current: () => this.current, now: () => this.now(), clients: () => this.clients[this.current] ?? [],
+      checkClient: (p) => this.addClient(p, true),
       country:()=>{const country=this.ventureView()?.venture.country;if(!country)throw new EngineError('VENTURE_NOT_FOUND','Start a business first.');return country;},
       plan: () => this.desk.acceptedPlanFor(this.current),
       runs: () => this.runs, agentName: () => this.agents[this.current]?.[0]?.name ?? 'Agent', emit: (event) => this.emit(event),
@@ -343,6 +365,8 @@ export class FakeEngine {
     }, { fresh });
     // The wave 2 desks share one host: Today's rows, and other desks' answers for the records they read.
     const waveHost = {
+      // A2 review: the Codex setup Your AI shows, from the first run's Codex (fake-first-run.ts).
+      codexSetup: () => this.firstRun.connectionsSetup(),
       nativeCanResume:(run:RunDetail)=>this.work.nativeCanResume(run),
       nativeStop:(run:RunDetail)=>this.work.nativeStop(run),
       nativeRestart:(run:RunDetail,resume:boolean)=>this.work.nativeRestart(run,resume),
@@ -960,7 +984,8 @@ export class FakeEngine {
   }
 
   /** venture.client.add with the engine's checks; each field the owner typed becomes verified, applied evidence. */
-  private addClient(p: Record<string, unknown>): ClientLite {
+  /** dryRun (review of A1, row 10): the checks and the client as it would be, with nothing stored. */
+  private addClient(p: Record<string, unknown>, dryRun = false): ClientLite {
     const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
     const name = text(p.name);
     if (!name || name.length < 2 || name.length > 120 || /[\n\r\t]/.test(name)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Client name must be between 2 and 120 characters.');
@@ -971,9 +996,10 @@ export class FakeEngine {
     const note = text(p.note);
     if (note && note.length > 500) throw new EngineError('INVALID_VENTURE_REQUEST', 'Note must be between 1 and 500 characters.');
     const client: ClientLite = {
-      id: `c-new-${this.clientSeq++}`, at: this.now(), name, email, countryCode: text(p.countryCode), taxId,
+      id: dryRun ? 'c-new-pending' : `c-new-${this.clientSeq++}`, at: this.now(), name, email, countryCode: text(p.countryCode), taxId,
       stateCode: taxId ? taxId.slice(0, 2) : text(p.stateCode), note,
     };
+    if (dryRun) return clone(client);
     this.clients[this.current] = [client, ...(this.clients[this.current] ?? [])];
     const fields = { name: client.name, email: client.email, countryCode: client.countryCode, taxId: client.taxId, stateCode: client.stateCode, note: client.note };
     for (const [field, value] of Object.entries(fields)) {
@@ -1100,6 +1126,7 @@ export class FakeEngine {
         };
       }
       case 'venture.create': {
+        if (p.reuseAi !== undefined && p.reuseAi !== true) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send reuseAi as true, or leave it out.');
         if (this.ventures.has(this.current)) throw new EngineError('VENTURE_EXISTS', 'This workspace already has a business. Chausar keeps one business per workspace.');
         const idea = this.idea(p.idea);
         const country = this.country(p.countryCode);
@@ -1107,7 +1134,12 @@ export class FakeEngine {
         if (p.workingName !== undefined && (named === null || named.length < 2 || named.length > 80)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The working name must be between 2 and 80 characters.');
         const venture: HeldVenture = { workingName: named ?? 'My service business', serviceType: null, idea, countryCode: country.code, done: 1 };
         this.ventures.set(this.current, venture);
+        this.aiReads.set(this.current, this.firstRun.takeAiReads());
         this.interviews.set(this.current, this.templateInterview(country.code));
+        // A4 fix round (core/venture.ts reuseAi): from the Start gallery, with no AI from the first run, the newest
+        // Codex or Claude Code setup of another business comes along, and the decision says where from.
+        const reusedFrom = p.reuseAi === true ? this.desk.reuseAi(this.current) : null;
+        if (reusedFrom) this.w4.chausarNote(`ai-setup:${reusedFrom}`, 'reuse-ai', `This business uses the same AI as ${this.ventures.get(reusedFrom)?.workingName ?? 'your other business'}.`);
         // The AI connected before the vault comes into the business, and the draft desk is wiped (the engine's handover).
         this.desk.adoptDraft(this.current);
         return { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: null }, done: venture.done, total: 12 };
@@ -1125,7 +1157,7 @@ export class FakeEngine {
       case 'venture.blueprint.draft': {
         const questions = this.interviews.get(this.current);
         if (!questions) return NOT_ONBOARDING;
-        return withPriceGuide(this.draftPlan(questions), this.ventures.get(this.current)?.countryCode ?? 'IN');
+        return withPriceGuide(this.draftPlan(questions, p.shown, p.useTemplate === true), this.ventures.get(this.current)?.countryCode ?? 'IN');
       }
       default: return NOT_ONBOARDING;
     }
@@ -1265,7 +1297,7 @@ export class FakeEngine {
     return { ...this.openHere(moved), folder: moved.id, unlock: key.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer' };
   }
 
-  /** workspace.delete: the business name exactly as the vault holds it; the business and its backups go. */
+  /** workspace.delete: the business name exactly as the vault holds it; the business and its backups go, its exports stay. */
   private deleteBusiness(p: Record<string, unknown>) {
     const business = this.businesses.find((b) => b.id === this.current);
     if (!business) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
@@ -1273,11 +1305,13 @@ export class FakeEngine {
     this.endPlaybookSession();
     this.businesses = this.businesses.filter((b) => b.id !== business.id);
     this.ventures.delete(business.id);
+    this.desk.forgetAiSetup(business.id);
+    const exportsKept = this.desk.exportsOf(business.id);
     this.desk.dropBackups(business.id);
     this.rows = this.rows.filter((r) => r.businessId !== business.id);
     this.open = false;
     this.current = '';
-    return { deleted: true, copiesRemoved: [], externalCopies: 'Copies made outside this app must be removed by their owner.' };
+    return { deleted: true, copiesRemoved: [], exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
   }
 
   private templateInterview(countryCode: string): InterviewQuestionLite[] {
@@ -1323,8 +1357,37 @@ export class FakeEngine {
     return { title: words.title, line, actions: [{ id: 'set-prices', label: words.action, primary: true }] };
   }
 
-  private draftPlan(questions: InterviewQuestionLite[]): BlueprintViewLite {
+  /** Review of A1 (row 3), as core/blueprint.ts shownOf: the card About you showed, checked before anything is drafted. */
+  private shownOf(value: unknown): KeptShownLite | null {
+    if (value === undefined) return null;
+    const bad = () => new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    if (!value || typeof value !== 'object' || !['by,name,offers', 'by,callId,name,offers'].includes(Object.keys(value).sort().join(','))) throw bad();
+    const body = value as Record<string, unknown>;
+    if (body.by !== 'model' && body.by !== 'template') throw new EngineError('INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model or template.');
+    // A2, as core/blueprint.ts shownOf: the call id is checked right after who wrote it, before the name and offers.
+    if (body.callId !== undefined && (typeof body.callId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(body.callId))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the id of the reading that wrote the plan.');
+    const name = typeof body.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : '';
+    if (name.length < 2 || name.length > 60) throw new EngineError('INVALID_VENTURE_REQUEST', 'The business name must be between 2 and 60 characters.');
+    if (!Array.isArray(body.offers) || body.offers.length < 1 || body.offers.length > 3) throw new EngineError('INVALID_VENTURE_REQUEST', 'Keep one to 3 offers.');
+    const offers = (body.offers as unknown[]).map((item) => {
+      if (!item || typeof item !== 'object' || Object.keys(item).sort().join(',') !== 'line,name') throw bad();
+      const offer = item as Record<string, unknown>;
+      const offerName = typeof offer.name === 'string' ? offer.name.replace(/\s+/g, ' ').trim() : '';
+      if (offerName.length < 2 || offerName.length > 60) throw new EngineError('INVALID_VENTURE_REQUEST', 'The offer name must be between 2 and 60 characters.');
+      if (typeof offer.line !== 'string' || offer.line.length > 200) throw new EngineError('INVALID_VENTURE_REQUEST', 'An offer line is at most 200 characters.');
+      const line = offer.line.replace(/\s+/g, ' ').trim();
+      if (/[\p{N}\p{Sc}]|:\/\//u.test(offerName) || /[\p{N}\p{Sc}]|:\/\//u.test(line)) throw new EngineError('INVALID_VENTURE_REQUEST', 'An offer is plain words with no amount or link. You set prices after the plan is kept.');
+      return { name: offerName, line };
+    });
+    return { name, by: body.by, ...(typeof body.callId === 'string' ? { callId: body.callId } : {}), offers };
+  }
+
+  private draftPlan(questions: InterviewQuestionLite[], rawShown?: unknown, useTemplate = true): BlueprintViewLite {
+    const shown = this.shownOf(rawShown);
+    // A1 re-review, as core/blueprint.ts: the kept card goes only with the built-in plan.
+    if (shown && !useTemplate) throw new EngineError('INVALID_VENTURE_REQUEST', 'The plan you kept is saved with the built-in plan only.');
     if (!questions.every((q) => q.answer !== null)) throw new EngineError('INTERVIEW_INCOMPLETE', 'Answer the questions about your price and tax first.');
+    if (shown && this.desk.blueprintFor(this.current)) throw new EngineError('PLAN_ALREADY_KEPT', 'Your plan is already saved. Change it on the plan page.');
     const venture = this.ventures.get(this.current)!;
     const business = this.businesses.find((b) => b.id === this.current)!;
     const kit = fakeKitForIdea(venture.idea);
@@ -1383,6 +1446,26 @@ export class FakeEngine {
     };
     const templateView = { blueprint, offerReceipts: { offer_1: null, offer_2: null } };
     const view = kit ? fakeKitPlan(kit, templateView) : fakeSocialForIdea(venture.idea) ? fakeSocialPlan(templateView) : fakeCaForIdea(venture.idea) ? fakeCaPlan(templateView) : fakeYoutubeForIdea(venture.idea)?fakeYoutubePlan(templateView,this.hosted):templateView;
+    // Review of A1 (row 3), as core/blueprint.ts applyShown: exactly the card's name and offers, by who wrote them, with
+    // no price and the neutral per-project unit.
+    if (shown) {
+      // A1 re-review, as core/blueprint.ts: the AI's label only when this business holds the AI's about read.
+      // A2: and only when the card's offers are the ones that read answered (core/blueprint.ts aboutReadCalled).
+      const fold = (offers: readonly { name: string; line: string }[]) => JSON.stringify(offers.map((offer) => [offer.name.replace(/\s+/g, ' ').trim(), offer.line.replace(/\s+/g, ' ').trim()]));
+      const read = shown.callId ? this.aiReads.get(business.id)?.find((call) => call.callId === shown.callId) : undefined;
+      const by = shown.by === 'model' && !(read && fold(read.offers) === fold(shown.offers)) ? 'template' as const : shown.by;
+      const words = <T,>(value: T) => ({ value, label: 'assumption' as const, by });
+      const template = (view.blueprint.offers as OfferLite[]).filter((offer) => !offer.addedByOwner);
+      view.blueprint.name = words(shown.name);
+      (view.blueprint as BlueprintViewLite['blueprint']).offers = shown.offers.map((kept, index) => ({
+        id: `offer_${index + 1}`, ...(template[index]?.playbookOffer ? { playbookOffer: template[index]!.playbookOffer } : {}),
+        name: words(kept.name), description: words(kept.line.length >= 2 ? kept.line : kept.name),
+        pricing: { model: 'project' as const, quantityUnit: 'project' as const, unitPriceMinor: null, unitPriceLabel: 'not-set' as const, defaultQuantity: '1' },
+      }));
+      view.blueprint.source = by;
+      view.blueprint.digest = digestOf({ ...view.blueprint, digest: '' });
+      view.offerReceipts = Object.fromEntries(view.blueprint.offers.map((offer) => [offer.id, null]));
+    }
     this.desk.putBlueprint(business.id, view);
     return view;
   }
@@ -1400,5 +1483,7 @@ export function createFakeClient(engine: FakeEngine = new FakeEngine()): EngineC
     onStatus: (listener) => status.subscribe(listener),
     // W4 4J21: as the hosted page's client reads `me` from the session (client.ts hostedMe).
     ...(engine.hostedMe() ? { hostedMe: async () => structuredClone(engine.hostedMe()) } : {}),
+    // A5: the installed app's start at login, as the desktop answers it.
+    ...(engine.background ? { getBackground: engine.background.getBackground, setBackground: engine.background.setBackground, getAskLater: engine.background.getAskLater, setAskLater: engine.background.setAskLater } : {}),
   };
 }

@@ -7,9 +7,10 @@
 // - The constructor stores references only: it never throws, never loads a package, never calls a
 //   transport factory and never touches the network or the disk.
 // - Secrets live on a memory-only shelf that close() empties; the engine closes the host on lock and attach.
+import { settleError } from './refusals.ts';
 import { readFile } from 'node:fs/promises';
 import { ChausarError, type Context, type State, type StateStore } from '../contracts.ts';
-import { DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contracts.ts';
+import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contracts.ts';
 import type {
   CountryProfile, GitHubFixture, GitHubRequest, GitHubResponse, GitHubTransport, ModelPort, ModelPortOptions, ModelPreset,
   ModelPresetId, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport, PlanPreview, SecretName, SecretShelf,
@@ -20,9 +21,53 @@ import { requireAppChannel } from './records.ts';
 import { endSessionAllowances } from './policy/allow-session.ts';
 import {clearSessionMemory} from './core/session-cleanup.ts';
 import { closeCredentialSession } from './models/credential-state.ts';
+import { pickCodexModels } from './models/codex-models.ts';
 
 const NOT_BUILT_MESSAGE = 'This part of Chausar is not built yet.';
 const notBuilt = (message = NOT_BUILT_MESSAGE) => new ChausarError('NOT_BUILT_YET', message);
+
+/**
+ * One-shot A3: every method of the models port, in one list. The type below fails to compile when the port gains a
+ * method this list leaves out, so the host can never again forget to forward one (it forwarded only seven, and every
+ * Codex agent job on the desktop was refused for want of codexVerifiedProgram).
+ */
+export const MODEL_PORT_METHODS = Object.freeze(['status', 'presets', 'checkCli', 'inspectCli', 'generate', 'preview', 'runPreview', 'codexSetup', 'codexProgram', 'codexVerifiedProgram', 'toolSaid', 'codexModels'] as const satisfies readonly (keyof ModelPort)[]);
+type Unforwarded = Exclude<keyof ModelPort, (typeof MODEL_PORT_METHODS)[number]>;
+const EVERY_METHOD_FORWARDED: [Unforwarded] extends [never] ? true : never = true;
+void EVERY_METHOD_FORWARDED;
+
+/**
+ * deps.models as the packages see it: a frozen object whose every method forwards to the port read at each call. A port
+ * without an optional method answers as its contract says: no Codex setup or program (null), nothing a tool printed
+ * (null), Codex's fixed model ids, and no setup in use for an agent job; a look at a tool is not built yet.
+ */
+export function forwardModels(port: () => ModelPort): ModelPort {
+  return Object.freeze({
+    status(ctx: Context): ModelStatusView { return port().status(ctx); },
+    presets(): ModelPreset[] { return port().presets(); },
+    async checkCli(presetId: ModelPresetId): Promise<void> { return port().checkCli(presetId); },
+    // Ink v2 wave 4 (4H1): a look at the owner's Claude Code or Codex for venture.models.cli.status ({ fresh } on "Check again").
+    async inspectCli(...args: Parameters<NonNullable<ModelPort['inspectCli']>>) {
+      const real = port();
+      if (!real.inspectCli) throw notBuilt();
+      return real.inspectCli(...args);
+    },
+    async generate<T>(ctx: Context, task: ModelTask<T>) { return port().generate(ctx, task); },
+    async preview<T>(ctx: Context, task: ModelTask<T>) { return port().preview(ctx, task); },
+    async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: Parameters<ModelPort['runPreview']>[4]) {
+      return port().runPreview(ctx, callId, approvedDigest, validate, options);
+    },
+    async codexSetup() { const real = port(); return real.codexSetup ? real.codexSetup() : null; },
+    codexProgram() { const real = port(); return real.codexProgram ? real.codexProgram() : null; },
+    async codexVerifiedProgram() {
+      const real = port();
+      if (!real.codexVerifiedProgram) throw new ChausarError('CODEX_SETUP_UNAVAILABLE', 'Choose the Codex Chausar found under Connect your AI first.');
+      return real.codexVerifiedProgram();
+    },
+    toolSaid(callId: string) { const real = port(); return real.toolSaid ? real.toolSaid(callId) : null; },
+    async codexModels() { const real = port(); return real.codexModels ? real.codexModels() : pickCodexModels(null); },
+  });
+}
 
 /** A memory-only secret shelf. Nothing on it is ever written to state, a log or the renderer. */
 export function createSecretShelf(): SecretShelf {
@@ -63,6 +108,8 @@ function ownsHandler(table: VentureHandlerTable | undefined, method: VentureMeth
 /** Country suggestions use the draft desk before a venture exists, and core with an existing business's AI. */
 export function outsideTables(method: string): boolean {
   if (method === 'venture.country.suggest') return false;
+  // A2: the engine answers the owner's Codex choice itself, with or without a vault (engine.ts).
+  if ((ENGINE_METHODS as readonly string[]).includes(method)) return true;
   return (PRE_VAULT_METHODS as readonly string[]).includes(method) || (DRAFT_METHODS as readonly string[]).includes(method);
 }
 
@@ -177,6 +224,7 @@ export class VentureHost {
       secrets: this.#secrets,
       ...(options.credentials && options.host !== 'hosted-web' ? { credentials: options.credentials } : {}),
       ...(options.phoneAccess && options.host !== 'hosted-web' ? { phoneAccess: options.phoneAccess } : {}),
+      ...(options.aiSetup && options.host !== 'hosted-web' ? { aiSetup: options.aiSetup } : {}),
       host: options.host ?? 'test',
       demo: options.demo,
       storage: options.storage,
@@ -204,6 +252,8 @@ export class VentureHost {
       ...(options.endedSessions && options.host === 'hosted-web' ? { endedSessions: options.endedSessions } : {}),
       // The network guard's lookup and sender, when a test injects them (the real ones otherwise).
       ...(options.net ? { net: options.net } : {}),
+      // A2: the AI providers' status pages, read after a failure, on this computer only.
+      ...(options.statusPages && options.host !== 'hosted-web' ? { statusPages: true } : {}),
       // Ink v2 wave 4 (4J23): whether this business is temporary (no real money, nothing sent), only on the hosted web server.
       ...(options.trial && options.host === 'hosted-web' ? { trial: options.trial } : {}),
       // Ink v2 wave 5 (5A5): the desktop's report printer; never on the hosted web server.
@@ -264,9 +314,11 @@ export class VentureHost {
       // 4J2 (O22): a settings form's autosaved draft is cleared once its real method succeeded with the same values.
       if (SETTINGS_SAVE_METHODS.has(name)) await import('./core/settings-drafts.ts').then(drafts => drafts.clearSavedDraft(this.#deps, ctx, name, payload ?? {})).catch(() => false);
       return answer;
-    } catch (error) {
+    } catch (thrown) {
+      // A1 re-review: a playbook's branded coded refusal is Chausar's own (refusals.ts), never a crash.
+      const { error, crash } = settleError(thrown);
       // Wave 6 (6J2): an error that is not one of Chausar's own refusals is noted as a crash, only while crash reports are on.
-      if (!(error instanceof ChausarError)) await import('./core/feedback.ts').then(feedback => feedback.noteEngineCrash(this.#deps, ctx, error, name)).catch(() => {});
+      if (crash) await import('./core/feedback.ts').then(feedback => feedback.noteEngineCrash(this.#deps, ctx, error, name)).catch(() => {});
       throw error;
     } finally {
       // The centre looks at Today before the request answers, so a screen that reads it next sees what changed.
@@ -510,22 +562,7 @@ export class VentureHost {
       if (!this.#port) throw notBuilt(this.#portFailure);
       return this.#port;
     };
-    return Object.freeze({
-      status(ctx: Context): ModelStatusView { return port().status(ctx); },
-      presets(): ModelPreset[] { return port().presets(); },
-      async checkCli(presetId: ModelPresetId): Promise<void> { return port().checkCli(presetId); },
-      // Ink v2 wave 4 (4H1): a look at the owner's Claude Code or Codex for venture.models.cli.status ({ fresh } on "Check again").
-      async inspectCli(...args: Parameters<NonNullable<ModelPort['inspectCli']>>) {
-        const real = port();
-        if (!real.inspectCli) throw notBuilt();
-        return real.inspectCli(...args);
-      },
-      async generate<T>(ctx: Context, task: ModelTask<T>) { return port().generate(ctx, task); },
-      async preview<T>(ctx: Context, task: ModelTask<T>) { return port().preview(ctx, task); },
-      async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: Parameters<ModelPort['runPreview']>[4]) {
-        return port().runPreview(ctx, callId, approvedDigest, validate, options);
-      },
-    });
+    return forwardModels(port);
   }
 
   // ---------------------------------------------------------------------------

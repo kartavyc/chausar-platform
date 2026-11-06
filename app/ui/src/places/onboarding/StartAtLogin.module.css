@@ -1,0 +1,33 @@
+/* Start at login on the first run's services step (StartAtLogin.tsx, one-shot A5). Tokens only. */
+
+.ask {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.choice {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+/* A5 fix round 1: Today's ask has its own Save. */
+.buttons {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}

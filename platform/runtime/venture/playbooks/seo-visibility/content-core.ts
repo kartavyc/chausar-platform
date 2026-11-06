@@ -1,9 +1,10 @@
 // Browser-safe SEO4 validation. loamwright (Apache-2.0) ideas; independent code, no source copied.
+import { refusalError } from '../../refusal-brand.ts';
 import { getDomain } from 'tldts';
-export function seoNeed(ok:unknown,code:string,words:string):asserts ok {if(!ok)throw Object.assign(new Error(words),{code});}
+export function seoNeed(ok:unknown,code:string,words:string):asserts ok {if(!ok)throw refusalError(new Error(words),{code});}
 export function seoText(value:unknown,max=100000):string {seoNeed(typeof value==='string'&&value.length<=max,'SEO_INPUT_INVALID','Give bounded text for this check.');return value;}
 /** Public suffix data avoids treating two subdomains of one organisation as independent. */
-export function sourceDomain(raw:string):string {let url:URL;try{url=new URL(raw);}catch{throw Object.assign(new Error('Give a full public web address.'),{code:'SEO_INPUT_INVALID'});}seoNeed(/^https?:$/.test(url.protocol)&&!url.username&&!url.password,'SEO_INPUT_INVALID','Give a full public web address.');const domain=getDomain(url.hostname,{allowPrivateDomains:true});seoNeed(domain,'SEO_INPUT_INVALID','A source needs a registrable domain.');return domain;}
+export function sourceDomain(raw:string):string {let url:URL;try{url=new URL(raw);}catch{throw refusalError(new Error('Give a full public web address.'),{code:'SEO_INPUT_INVALID'});}seoNeed(/^https?:$/.test(url.protocol)&&!url.username&&!url.password,'SEO_INPUT_INVALID','Give a full public web address.');const domain=getDomain(url.hostname,{allowPrivateDomains:true});seoNeed(domain,'SEO_INPUT_INVALID','A source needs a registrable domain.');return domain;}
 export type LocalElements={programme:string;caseOrPress:string;landmark:string;priceOrLogistics:string};
 export type ClaimInput={id:string;number:string;urls:string[]};
 export type CorroborationInput={text:string;claims:ClaimInput[];competitors:string[]};

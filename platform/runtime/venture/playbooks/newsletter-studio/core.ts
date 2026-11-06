@@ -1,5 +1,6 @@
 // Original Chausar newsletter input guards. No outside implementation copied.
-export class NewsletterError extends Error{code:string;constructor(code:string,line:string){super(line);this.name='NewsletterError';this.code=code;}}
+import { markRefusal } from '../../refusal-brand.ts';
+export class NewsletterError extends Error{code:string;constructor(code:string,line:string){super(line);this.name='NewsletterError';this.code=code;markRefusal(this);}}
 export function requireNewsletter(ok:unknown,code:string,line:string):asserts ok{if(!ok)throw new NewsletterError(code,line);}
 export function newsletterExact(raw:unknown,keys:readonly string[],required:readonly string[]=keys):Record<string,unknown>{requireNewsletter(!!raw&&typeof raw==='object'&&!Array.isArray(raw),'INVALID_VENTURE_REQUEST','Send only the requested newsletter fields.');const p=raw as Record<string,unknown>;requireNewsletter(Object.keys(p).every(k=>keys.includes(k))&&required.every(k=>Object.hasOwn(p,k)),'INVALID_VENTURE_REQUEST','Send only the requested newsletter fields.');return p;}
 export function newsletterText(raw:unknown,max=100000):string{requireNewsletter(typeof raw==='string'&&raw.length<=max&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(raw),'NEWSLETTER_INPUT_INVALID','Use bounded plain text.');return raw.trim();}

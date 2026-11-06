@@ -1,7 +1,8 @@
 // Browser-safe panel validation shared with the demo engine. GEOHub (AGPL, ideas only); no source copied.
+import { refusalError } from '../../refusal-brand.ts';
 import type { PanelSpec, SeoObservationBody, SeoPanelBody } from './records.ts';
 export type PanelFailure = (code: string, words: string) => never;
-const fail: PanelFailure = (code, words) => { throw Object.assign(new Error(words), { code }); };
+const fail: PanelFailure = (code, words) => { throw refusalError(new Error(words), { code }); };
 const need = (ok: unknown, words: string): void => { if (!ok)
     fail('PANEL_INVALID', words); };
 const exact = (raw: unknown, keys: string[]): Record<string, unknown> => {

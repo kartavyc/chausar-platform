@@ -95,6 +95,21 @@ for (const phase of ['preview', 'dispatch', 'response', 'regrant'] as const) tes
   assert.equal(listRecords(env.store.read(), 'venture-chief-message').some(row => row.text.includes('Private client answer')), false);
 });
 
+test('chief: the host frozen models port answers a question, never a Proxy TypeError (one-shot A1 row 0)', async () => {
+  const env = await chiefBusiness();
+  await chatConsent(env);
+  scriptChief(env, [answer([text('You have not invoiced anything yet this month.')])]);
+  // The desktop host hands the engine a frozen port (venture/host.ts #modelsProxy); its methods forward to the real one.
+  const real = env.models;
+  env.deps.models = Object.freeze({
+    status: () => real.status(), presets: () => real.presets(), checkCli: () => real.checkCli(),
+    generate: (ctx: any, task: any) => real.generate(ctx, task), preview: (ctx: any, task: any) => real.preview(ctx, task),
+    runPreview: (ctx: any, id: any, approved: any, validate: any, options: any) => real.runPreview(ctx, id, approved, validate, options),
+  }) as any;
+  const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
+  assert.deepEqual(sent.added[1].parts, [{ kind: 'text', text: 'You have not invoiced anything yet this month.' }]);
+});
+
 test('chief: a question makes a thread titled by it, stores both messages and announces each with ids only', async () => {
   const env = await chiefBusiness();
   await chatConsent(env);
@@ -164,7 +179,8 @@ test('chief: read tools only, at most three turns, the last one must answer', as
   assert.deepEqual((tasks[2].input as any).results.map((item: any) => item.tool), ['queue', 'runs', 'team', 'plan']);
   for (const result of (tasks[2].input as any).results) assert.equal(result.error, undefined, result.tool);
   assert.deepEqual(sent.added[1].parts, [{ kind: 'text', text: 'I could not answer that with figures I can prove. Ask me another way.' }]);
-  const catalogue = (tasks[0].input as any).tools.map((item: any) => item.name);
+  const catalogue = (tasks[0].input as any).readTools.map((item: any) => item.name);
+  assert.deepEqual((tasks[2].input as any).readTools, [], 'the last turn runs no tools');
   assert.deepEqual(catalogue, ['queue', 'runs', 'team', 'money', 'clients', 'plan', 'journal', 'businesses', 'ways']);
   const plan = (tasks[2].input as any).results.find((item: any) => item.tool === 'plan');
   assert.ok(plan.data.offers.length > 0);
@@ -520,4 +536,51 @@ test('chief: the ways tool lists the ways to earn, hours as model estimates, wit
     assert.ok(Number.isInteger(way.minHours) && way.maxHours >= way.minHours);
   }
   assert.equal(JSON.stringify(result.data).includes('₹'), false, 'what clients pay has no receipt here, so it is left out');
+});
+
+// One-shot A4 (A3 leftover, seen live on Codex): the chief has read tools only, so it never acts. A sentence where it says
+// it did is taken out and an offer said instead; offers, reads and conditions stay.
+test('chief: a claim of an action it never took is taken out, and it offers to propose it instead (A4)', async () => {
+  const env = await chiefBusiness();
+  await chatConsent(env);
+  scriptChief(env, [answer([text('Your books show no invoices yet. I passed a brief to Studio agent. I can send a reminder once you approve.')])]);
+  const sent = await env.chief('venture.chief.thread.send', { text: QUESTION });
+  assert.deepEqual(sent.added[1].parts, [
+    { kind: 'text', text: 'Your books show no invoices yet. I can send a reminder once you approve.' },
+    { kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." },
+  ]);
+  // A4 review (M2): "we" is business history, not a claim by the AI, so it is not in this list.
+  for (const claim of ["I've emailed the client.", 'I have already booked the shoot.', 'I went ahead and scheduled it for Monday.', 'I proposed a reminder.']) {
+    scriptChief(env, [answer([text(claim)])]);
+    const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
+    assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." }], claim);
+  }
+  for (const honest of ['I checked your books: nothing is due.', 'If I sent it now, it would go before the weekend.', 'Shall I draft it? You would approve it on Today.']) {
+    scriptChief(env, [answer([text(honest)])]);
+    const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
+    assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: honest }], honest);
+  }
+});
+
+// One-shot A4 (live on Codex; review M2): a brief the chief proposes is passed to the agent at once by code, and code's own
+// line says so. The model's own sentences about it are still checked and taken out; with code's line there, no offer is
+// added for them, so the reply never says it can't do what it just did.
+test("chief: only code says a brief was passed; the model's own claims go, with no offer when code's line covers them (A4)", async () => {
+  const env = await chiefBusiness();
+  await chatConsent(env);
+  scriptChief(env, [answer([text("I’ve prepared a brief for Story editor to draft five hooks. I've emailed Asha the plan.")], [proposal('brief-agent', { agent: 'story-editor', text: 'Please draft five hooks for the budgets episode.' })])]);
+  const sent = await env.chief('venture.chief.thread.send', { text: 'Ask the story editor for five hooks.' });
+  const words = sent.added[1].parts.map((part: { text?: string }) => part.text);
+  assert.deepEqual(words, [
+    "I can't do that myself. I can propose it, and you approve it on Today.",
+    'I passed a brief to Story editor.',
+  ]);
+  // A sentence naming the agent briefed is taken out too; code's line is the one that says what happened.
+  scriptChief(env, [answer([text('I asked Story editor to draft five hooks for you.')], [proposal('brief-agent', { agent: 'story-editor', text: 'Please draft five hooks.' })])]);
+  const named = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'Hooks please.' });
+  assert.deepEqual(named.added[1].parts.map((part: { text?: string }) => part.text), ['I passed a brief to Story editor.']);
+  // With no brief passed, the same claim goes.
+  scriptChief(env, [answer([text("I’ve prepared a brief for Story editor to draft five hooks.")])]);
+  const again = await env.chief('venture.chief.thread.send', { threadId: sent.thread.id, text: 'And?' });
+  assert.deepEqual(again.added[1].parts, [{ kind: 'text', text: "I can't do that myself. I can propose it, and you approve it on Today." }]);
 });

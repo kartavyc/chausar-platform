@@ -255,3 +255,63 @@ test('6F3: research WebFetch follows the fetch policy: no terms-barred or Linked
     finish(f.output); await run;
   } finally { await session.close(); await f.cleanup(); }
 });
+
+test('A2: a failed Claude turn says why in owner words with the fix, never in its own text', async () => {
+  const { aiFailureWords } = await import('../runtime/venture/models/ai-failure.ts');
+  const f = await fixture(), session = await f.driver.open(f.input);
+  try {
+    const pending = session.run('Sample order'); await f.prompts.next();
+    f.output.push(frame({ type: 'result', subtype: 'error_max_turns', is_error: true }));
+    const result = await pending;
+    assert.equal(result.status, 'failed'); assert.equal(result.failure, 'max-turns'); assert.equal(result.error, aiFailureWords('max-turns', 'Claude Code'));
+    const next = session.run('Sample order again'); await f.prompts.next();
+    f.output.push(frame({ type: 'result', subtype: 'success', is_error: true, result: 'Claude AI usage limit reached|1793400000' }));
+    assert.equal((await next).failure, 'usage-limit');
+  } finally { await session.close(); await f.cleanup(); }
+});
+
+// One-shot A4 (A2 leftover): the Claude Code process the SDK starts is started through Chausar's own process tree, so a
+// stop ends it with everything it started (its MCP server and helpers), as Codex is (process-tree.ts).
+test('Claude Code starts through the process tree, so its kill leaves nothing it started', { timeout: 30_000 }, async () => {
+  const f = await fixture(); const session = await f.driver.open(f.input);
+  const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  try {
+    const pending = session.run('Read the sample.'); await f.prompts.next();
+    const spawn = f.options.spawnClaudeCodeProcess;
+    assert.equal(typeof spawn, 'function', 'the driver hands the SDK its own spawn');
+    const script = "const { spawn } = require('node:child_process'); const g = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', detached: " + String(process.platform === 'win32') + " }); console.log(g.pid); setInterval(() => {}, 1000);";
+    const controller = new AbortController();
+    const child = spawn!({ command: process.execPath, args: ['-e', script], cwd: f.root, env: { ...process.env }, signal: controller.signal });
+    const grandchild = await new Promise<number>((done, fail) => {
+      let text = '';
+      child.stdout.on('data', chunk => { text += String(chunk); const pid = Number.parseInt(text, 10); if (Number.isSafeInteger(pid) && text.includes('\n')) done(pid); });
+      setTimeout(() => fail(new Error('no grandchild')), 10_000);
+    });
+    assert.ok(alive(grandchild));
+    // The SDK's forwarded signal aborts after its own graceful close: the whole tree goes.
+    controller.abort();
+    for (let n = 0; n < 50 && alive(grandchild); n++) await new Promise(done => setTimeout(done, 100));
+    assert.equal(alive(grandchild), false, 'nothing Claude Code started is left behind');
+    finish(f.output); await pending;
+  } finally { await session.close(); await f.cleanup(); }
+});
+
+// A4 review (L8): what Claude Code printed on stderr is kept as a bounded tail in memory only, so a run that stops with
+// no result message gets the owner words for the failure it named; the raw text is never in the result or an event.
+test('Claude Code stderr names the failure in owner words, and its raw text goes nowhere', { timeout: 30_000 }, async () => {
+  const { aiFailureWords } = await import('../runtime/venture/models/ai-failure.ts');
+  const f = await fixture(); const session = await f.driver.open(f.input);
+  try {
+    const pending = session.run('Read the sample.'); await f.prompts.next();
+    const said = 'claude: error 4711 sample-only: usage limit reached for this plan';
+    const child = f.options.spawnClaudeCodeProcess!({ command: process.execPath, args: ['-e', `process.stderr.write(${JSON.stringify(said)}); process.exit(1)`], cwd: f.root, env: { ...process.env }, signal: new AbortController().signal });
+    await new Promise(done => child.once('exit', () => done(undefined)));
+    await new Promise(done => setTimeout(done, 50));
+    f.output.end();
+    const result = await pending;
+    assert.equal(result.status, 'failed');
+    assert.equal(result.error, aiFailureWords('usage-limit', 'Claude Code'));
+    assert.equal(result.failure, 'usage-limit');
+    assert.equal(JSON.stringify([result, f.events]).includes('4711'), false, 'the raw stderr is never passed on');
+  } finally { await session.close(); await f.cleanup(); }
+});

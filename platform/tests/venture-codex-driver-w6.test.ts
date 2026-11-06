@@ -17,7 +17,7 @@ function fixture(change?: (method: string, response: any) => unknown) {
       const message = JSON.parse(String(chunk)); sent.push(message); done();
       if (!('id' in message) || !message.method) return;
       let result: any = {};
-      if (message.method === 'initialize') result = { userAgent: 'codex_cli_rs/0.154.0' };
+      if (message.method === 'initialize') result = { userAgent: 'chausar/0.166.0 (Windows 10.0.26200; x86_64) unknown (chausar; 0.1.0)' };
       if (message.method === 'thread/start') result = { thread: { id: 'thread-1', ephemeral: true }, model: message.params.model, cwd: message.params.cwd, runtimeWorkspaceRoots: message.params.runtimeWorkspaceRoots, activePermissionProfile: { id: message.params.permissions }, approvalsReviewer: message.params.approvalsReviewer, approvalPolicy: message.params.approvalPolicy, instructionSources: [] };
       if (message.method === 'mcpServerStatus/list') result = { data: [{ name: 'chausar', runtimeStatus: 'connected', tools: Object.fromEntries(AGENT_MCP_TOOL_NAMES.map(name => [name, {}])) }], nextCursor: null };
       if (message.method === 'experimentalFeature/list') result = { data: Object.entries(codexConfig(input(), 'fixture', 'win32').features).map(([name, enabled]) => ({ name, enabled: typeof enabled === 'boolean' ? enabled : false })), nextCursor: null };
@@ -87,6 +87,20 @@ test('Codex refuses effective native tools or unqualified versions before sharin
   }
   const f = fixture((method, result) => method === 'initialize' ? { userAgent: 'codex_cli_rs/9.9.9' } : result);
   await assert.rejects(f.driver.open(input()), { code: 'CODEX_POLICY_UNSUPPORTED' });
+  // A2: the bundled 0.166.0 is the one qualified protocol; the earlier 0.154.0 and a look-alike version are refused.
+  for (const userAgent of ['chausar/0.154.0 (Windows 10.0.26200; x86_64) unknown (chausar; 0.1.0)', 'chausar/10.166.01 (Windows)', 'chausar/0.166.0-alpha.1 (Windows 10.0.26200; x86_64)', 'chausar/0.166.0+build (Windows)', 'chausar/0.166.00 (Windows)']) {
+    const old = fixture((method, result) => method === 'initialize' ? { userAgent } : result);
+    await assert.rejects(old.driver.open(input()), { code: 'CODEX_POLICY_UNSUPPORTED' }, userAgent);
+  }
+  for (const feature of ['daemon_auto_start', 'browser_annotation_api', 'in_app_voice', 'plugin_discovery_prefetch']) {
+    const on = fixture((method, result) => method === 'experimentalFeature/list' ? { ...result, data: result.data.map((item: any) => item.name === feature ? { ...item, enabled: true } : item) } : result);
+    await assert.rejects(on.driver.open(input()), { code: 'CODEX_POLICY_UNSUPPORTED' }, feature);
+  }
+});
+test('A2 review: a job runs only the reviewed native program, never a search-path find or an npm shim', async () => {
+  for (const executable of [undefined, 'C:/npm/codex.cmd', '/usr/lib/node_modules/codex.ps1']) {
+    await assert.rejects(new CodexDriver({ ...(executable ? { executable } : {}), spawn: () => { throw new Error('never started'); } }).open(input()), { code: 'CODEX_NOT_INSTALLED' }, String(executable));
+  }
 });
 test('Codex retains final message content when the provider emits a completed item without deltas', async () => {
   const f = fixture(), session = await f.driver.open(input()), { run } = await starting(f, session);
@@ -136,4 +150,22 @@ test('Codex normalizes repeated completed items without duplicating their stream
   for (let n = 0; n < 2; n++) f.receive({ method: 'item/completed', params: { threadId: 'thread-1', turnId: 'turn-1', item: { id: 'message', type: 'agentMessage', text: 'First second' } } });
   f.receive({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } } });
   assert.equal((await run).text, 'First second'); await session.close();
+});
+
+test('A2: a failed turn says why, from Codex\'s own error info, in owner words with the fix', async () => {
+  const { aiFailureWords } = await import('../runtime/venture/models/ai-failure.ts');
+  const f = fixture(), session = await f.driver.open(input());
+  const first = await starting(f, session);
+  f.receive({ method: 'error', params: { threadId: 'thread-1', turnId: 'turn-1', willRetry: false, error: { message: 'rate', codexErrorInfo: 'usageLimitExceeded', additionalDetails: null } } });
+  f.receive({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'failed', error: { message: 'You hit the limit', codexErrorInfo: 'usageLimitExceeded', additionalDetails: null } } } });
+  const failed = await first.run;
+  assert.equal(failed.status, 'failed'); assert.equal(failed.failure, 'usage-limit'); assert.equal(failed.error, aiFailureWords('usage-limit', 'Codex'));
+  const next = await starting(f, session);
+  f.receive({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-2', status: 'failed', error: { message: 'stream disconnected before completion', codexErrorInfo: null, additionalDetails: null } } } });
+  assert.equal((await next.run).failure, 'stream-cut');
+  const plain = await starting(f, session);
+  f.receive({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-3', status: 'failed', error: { message: 'odd', codexErrorInfo: 'internalServerError', additionalDetails: null } } } });
+  const odd = await plain.run;
+  assert.equal(odd.failure, undefined); assert.equal(odd.error, 'Codex could not complete this turn. It was not rerouted.');
+  await session.close();
 });

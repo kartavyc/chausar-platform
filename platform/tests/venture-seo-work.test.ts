@@ -22,3 +22,17 @@ test('actual work API stores code results from bound order bytes and rejects sta
  const other=await env.call('venture.order.create',{clientId:env.client.id,offerId:offer.id,request:'Another site.',intake:{fields:{siteUrl:'https://other.example/'}}});
  await assert.rejects(env.call('venture.desk.act',{...desk,id:'new',action:'create',payload:{orderId:other.id,operation:'refresh',uploadId}}),{code:'SEO_SOURCE_REQUIRED'});
 });
+test('A1 re-review: the SEO work refusals reach the owner in their own words, not as an engine fault',async()=>{
+ const {ChausarError}=await import('../runtime/contracts.ts');const {ownerError}=await import('../runtime/owner-error.ts');
+ const env=await kitBusiness({now:new Date('2026-10-27T12:00:00.000Z')},{idea:'SEO agency for clinics'});const offer=env.offers.find(o=>o.playbookOffer==='fix-and-measure')!;
+ const order=await env.call('venture.order.create',{clientId:env.client.id,offerId:offer.id,request:'Refresh the clinic pages.',intake:{fields:{siteUrl:'https://clinic.example/'}}});
+ const seed=async(text:string)=>{let id='';await ventureAction(env.deps,owner,'approve','seed',tx=>{id=tx.put({...tx.base('venture-upload'),name:'search.csv',format:'csv',scope:{kind:'order',orderId:order.id},bytes:text.length,contentBase64:Buffer.from(text).toString('base64')} as any).id;});return id;};
+ const refusal=async(operation:string,uploadId:string)=>{try{await env.call('venture.desk.act',{...desk,id:'new',action:'create',payload:{orderId:order.id,operation,uploadId}});}catch(error){return error;}assert.fail('expected a refusal');};
+ const strategy:any=await refusal('strategy',await seed('{"site":"https://clinic.example"}'));
+ assert.ok(strategy instanceof ChausarError,'a refusal, not an engine fault');
+ assert.deepEqual(ownerError(strategy),{code:'STRATEGY_BINDING_REQUIRED',message:'Build a strategy from its recorded work, panel and publication receipt.'});
+ // A seoNeed refusal on the same path: an evidence file that is not one keeps its own words too.
+ const bad:any=await refusal('meta',await seed('not a manifest'));
+ assert.ok(bad instanceof ChausarError);
+ assert.deepEqual(ownerError(bad),{code:'SEO_INPUT_INVALID',message:'Upload a valid JSON evidence manifest.'});
+});

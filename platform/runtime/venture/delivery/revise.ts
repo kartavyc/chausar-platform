@@ -133,7 +133,7 @@ export async function undoRevision(deps: VentureDeps, ctx: Context, runId: strin
     // Today's decision on the row that sent it back is undone too.
     const live = rowId ? tx.list('venture-queue-decision').find(item => item.rowId === rowId && !item.undoneAt) : undefined;
     if (live) tx.replace({ ...live, undoneAt: tx.now });
-    recordDecision(tx, { subject: `run:${runId}`, action: 'undo', who: 'owner', ruleId: null, reason: 'You took back sending this draft back.', rowId });
+    recordDecision(tx, { subject: `run:${runId}`, action: 'undo', ruleId: null, reason: 'You took back sending this draft back.', rowId });
     tx.emit('run.step', { runId });
     tx.emit('queue.changed', { runId });
     return restored;
@@ -222,7 +222,7 @@ export async function deliveryFixHandler(deps: VentureDeps, ctx: Context, payloa
   }
   const words = revisionWords(`fix what these checks found. ${picked.map(item => `${item.id}: ${item.detail}`).join(' ')}`.slice(0, 2000));
   return startRevision(deps, ctx, { runId, words, by: 'fix', rowId: null, checks: picked.map(item => item.id) }, tx => {
-    recordDecision(tx, { subject: `run:${runId}`, action: 'fix', who: 'owner', ruleId: null, reason: `You asked the agent to fix: ${picked.map(item => item.id).join(', ')}.`, rowId: null });
+    recordDecision(tx, { subject: `run:${runId}`, action: 'fix', ruleId: null, reason: `You asked the agent to fix: ${picked.map(item => item.id).join(', ')}.`, rowId: null });
   });
 }
 

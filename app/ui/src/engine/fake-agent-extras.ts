@@ -133,6 +133,18 @@ const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', 
 const tidy = (text: string) => text.replace(/\s+/g, ' ').trim();
 const sentence = (text: string) => { const words = text.trim(); return /[.!?]$/.test(words) ? words : `${words}.`; };
 const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+/** One-shot A4 (row 54), as agents/skills.ts nameOf: a long clause stops at the last whole word inside 60 characters. */
+const JOINING = /^(?:and|or|but|the|a|an|to|of|for|from|with|in|on|at|by|what|which|that|is|are|be|it|its|their|your)$/i;
+export function shortName(clause: string): string {
+  if (clause.length <= 60) return clause;
+  const words: string[] = [];
+  for (const word of clause.split(/\s+/)) {
+    if ([...words, word].join(' ').length > 60) break;
+    words.push(word);
+  }
+  while (words.length > 1 && JOINING.test(words.at(-1)!)) words.pop();
+  return words.join(' ') || clause.slice(0, 60);
+}
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -396,8 +408,9 @@ export class FakeAgentExtras {
   /** agentSkills: one per step it does with the owner's AI (gather, question, work, write), with a starter that only asks. */
   private skills(agent: AgentView): PersonaView['skills'] {
     return agent.steps.filter((step) => ['gather', 'work', 'write'].includes(STEP_KIND[step.id] ?? 'work') && !step.floor).map((step) => {
-      const name = tidy(step.purpose).split(',')[0]!.trim();
-      const verb = lowerFirst(name).replace(/[.]$/, '');
+      const clause = tidy(step.purpose).split(',')[0]!.trim();
+      const name = shortName(clause);
+      const verb = lowerFirst(clause).replace(/[.]$/, '');
       const starter = STEP_KIND[step.id] === 'gather' ? `What do you need from me before you ${verb}?` : `How would you ${verb} for my next order?`;
       return { name, line: sentence(tidy(step.purpose)), starter };
     });

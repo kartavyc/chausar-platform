@@ -358,7 +358,7 @@ describe('Work v2: orders by client', () => {
     expect(within(ep14).getByRole('link', { name: 'Open on Today' }).getAttribute('href')).toBe('#/today');
     const ep12 = await tileOf('Two mentions in episode 12', orders);
     await waitFor(() => expect(ep12.textContent).toContain('Invoiced as INV-0039. Waiting for payment.'));
-    expect(within(ep12).getByText('Sent')).toBeTruthy();
+    expect(within(ep12).getByText('Issued')).toBeTruthy();
     expect(within(ep12).getByText('INV-0039')).toBeTruthy();
     expect(within(ep12).getByText(/^due 28 Oct/)).toBeTruthy();
     // Its price and its invoice total, each with its receipt (the sample bills the order at its price, R-0416).

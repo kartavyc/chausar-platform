@@ -72,8 +72,11 @@ function stubModels() {
       if (fixture === undefined) {
         return { value: task.template!(), by: 'template' as const, callId: null, presetId: 'built-in-templates' as const, model: null, costMicros: '0', priceConfirmed: true };
       }
-      const value = task.validate(structuredClone(fixture));
-      return { value, by: 'model' as const, callId: 'modelcall_synthetic', presetId: 'anthropic-sonnet-5-5' as const, model: 'claude-sonnet-5-5', costMicros: '0', priceConfirmed: true };
+      const answer = typeof fixture === 'function' ? (fixture as (task: ModelTask<T>) => unknown)(task) : fixture;
+      // A scripted answer of 'template' is the port falling back to the built-in words for that call.
+      if (answer === 'template') return { value: task.template!(), by: 'template' as const, callId: null, presetId: 'built-in-templates' as const, model: null, costMicros: '0', priceConfirmed: true };
+      const value = task.validate(structuredClone(answer));
+      return { value, by: 'model' as const, callId: task.schemaName === 'venture-brief-fill' ? 'modelcall_fill' : 'modelcall_synthetic', presetId: 'anthropic-sonnet-5-5' as const, model: 'claude-sonnet-5-5', costMicros: '0', priceConfirmed: true };
     },
   };
   return { port, tasks, setFixture(value: unknown) { fixture = value; } };
@@ -400,6 +403,45 @@ test('model brief: fixture words land in the brief; numbers, headings and new li
   assert.equal(models.tasks.length, asked);
   await assert.rejects(brief(deps, { useTemplate: 'yes' }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(brief(deps, { useTemplate: true, extra: 1 }), code('INVALID_VENTURE_REQUEST'));
+});
+
+test('one-shot A1 row 13: a long field is trimmed, and only an empty field is asked for again', async () => {
+  const { deps, models, store } = setup();
+  await seedVenture(deps);
+  // Too long: look and feel over its 300 characters is cut at a word, and the brief is written from the AI's words.
+  const long = 'Calm and plain, with lots of white space and one accent colour. '.repeat(8).trim();
+  assert.ok(long.length > 300);
+  models.setFixture({ ...briefFixture.output, lookAndFeel: long, whoItIsFor: `${briefFixture.output.whoItIsFor} `.repeat(12).trim() });
+  const trimmed = await brief(deps, {});
+  assert.equal(trimmed.wordsBy, 'model');
+  const feel = sectionLines(trimmed.markdown, '## 7. Look and feel')[0]!;
+  assert.ok(feel.length > 0 && feel.length <= 300, feel);
+  assert.ok(long.startsWith(feel.replace(/\.$/, '')), 'cut from the AI words at a word boundary');
+  assert.equal(models.tasks.length, 1, 'trimming asks nothing again');
+
+  // Empty: one more call asks for that field only, and its answer lands.
+  const asked = models.tasks.length;
+  models.setFixture((task: ModelTask<unknown>) => task.schemaName === 'venture-brief-fill' ? { lookAndFeel: 'Warm and simple, with large type.' } : { ...briefFixture.output, lookAndFeel: '  ' });
+  const filled = await brief(deps, {});
+  const fill = models.tasks[asked + 1]!;
+  assert.equal(models.tasks.length, asked + 2);
+  assert.equal(fill.schemaName, 'venture-brief-fill');
+  assert.deepEqual((fill.schema as any).required, ['lookAndFeel']);
+  assert.equal(fill.containsClientData, false);
+  assert.ok(sectionLines(filled.markdown, '## 7. Look and feel').includes('Warm and simple, with large type.'));
+  assert.ok(sectionLines(filled.markdown, '## 1. What to build').length > 0, 'the rest of the first answer is kept');
+  // Review of A1 (row 13): the fill call is recorded, and a fill the template answered makes the brief mixed.
+  assert.deepEqual([filled.wordsBy, filled.modelCallId, filled.fillCallId], ['model', 'modelcall_synthetic', 'modelcall_fill']);
+  models.setFixture((task: ModelTask<unknown>) => task.schemaName === 'venture-brief-fill' ? 'template' : { ...briefFixture.output, lookAndFeel: '' });
+  const mixed = await brief(deps, {});
+  assert.deepEqual([mixed.wordsBy, mixed.modelCallId, mixed.fillCallId], ['mixed', 'modelcall_synthetic', null]);
+  assert.equal(sectionLines(mixed.markdown, '## 7. Look and feel')[0], 'Calm and plain, with plenty of white space, one accent colour and large, easy to read text.');
+
+  // Still empty after asking again: refused, naming the field, and nothing is stored.
+  const before = listRecords(store.read(), 'venture-brief').length;
+  models.setFixture((task: ModelTask<unknown>) => task.schemaName === 'venture-brief-fill' ? { lookAndFeel: '' } : { ...briefFixture.output, lookAndFeel: '' });
+  await assert.rejects(brief(deps, {}), (error: any) => error.code === 'MODEL_OUTPUT_REJECTED' && error.message === 'The look and feel was empty.');
+  assert.equal(listRecords(store.read(), 'venture-brief').length, before);
 });
 
 // ---------------------------------------------------------------------------

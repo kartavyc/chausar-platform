@@ -21,11 +21,12 @@ const words = (code: string, message: string, tool?: string, cause?: string) => 
 
 test('failure words: one sentence and a fix for each kind; only offline is transient; an unknown error has no fix', () => {
   const kinds = Object.keys(FAILURE_TABLE) as FailureKind[];
-  assert.deepEqual(kinds.sort(), ['allowance-spent', 'not-signed-in', 'offline', 'out-of-date', 'too-long', 'unknown']);
+  assert.deepEqual(kinds.sort(), ['allowance-spent', 'connection-dropped', 'model-missing', 'not-signed-in', 'offline', 'out-of-date', 'plan-used-up', 'rate-limited', 'step-limit', 'too-long', 'unknown']);
   for (const kind of kinds) {
     const row = FAILURE_TABLE[kind];
     assert.equal(row.line.split(/[.!?](?:\s|$)/).filter(Boolean).length <= 2, true, kind);
-    assert.equal(row.transient, kind === 'offline', kind);
+    // A2 review: a dropped connection and a short rate limit pass too; only those and offline are transient.
+    assert.equal(row.transient, ['offline', 'connection-dropped', 'rate-limited'].includes(kind), kind);
     assert.equal(row.fix === null, kind === 'unknown', kind);
     assert.ok(Object.isFrozen(row));
   }
@@ -161,4 +162,35 @@ test('a missing key before the native session opens refuses directly without cre
   env.deps.agentRoute = async () => { throw new ChausarError('MODEL_KEY_MISSING', 'Your key is missing.'); };
   await assert.rejects(call(env, 'venture.delivery.run', { orderId: order.id }), code('MODEL_KEY_MISSING'));
   assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, 0);
+});
+
+test('A2: the failures a tool names have their kind and fix in the table', () => {
+  const kinds = Object.keys(FAILURE_TABLE) as FailureKind[];
+  for (const kind of ['plan-used-up', 'step-limit', 'connection-dropped', 'model-missing'] as FailureKind[]) assert.ok(kinds.includes(kind), kind);
+  assert.deepEqual([words('AI_USAGE_LIMIT', 'x')!.kind, words('AI_USAGE_LIMIT', 'x')!.fixKind], ['plan-used-up', 'wait-for-plan']);
+  assert.deepEqual([words('AI_CONTEXT_FULL', 'x')!.kind, words('AI_CONTEXT_FULL', 'x')!.fixKind], ['too-long', 'split-work']);
+  assert.deepEqual([words('AI_MAX_TURNS', 'x')!.kind, words('AI_MAX_TURNS', 'x')!.fixKind], ['step-limit', 'run-again']);
+  assert.deepEqual([words('AI_STREAM_CUT', 'x')!.kind, words('AI_STREAM_CUT', 'x')!.fixKind], ['connection-dropped', 'run-again-online']);
+  assert.deepEqual([words('AI_SIGN_IN_REFUSED', 'x')!.kind, words('AI_SIGN_IN_REFUSED', 'x')!.fixKind], ['not-signed-in', 'sign-in']);
+  assert.deepEqual([words('AI_MODEL_UNAVAILABLE', 'x')!.kind, words('AI_MODEL_UNAVAILABLE', 'x')!.fixKind], ['model-missing', 'choose-model']);
+  assert.equal(FAILURE_TABLE['connection-dropped'].transient, true, 'A2 review: a dropped connection passes');
+  assert.deepEqual([words('AI_RATE_LIMITED', 'x')!.kind, words('AI_RATE_LIMITED', 'x')!.fixKind], ['rate-limited', 'wait-a-minute']);
+});
+
+test('A2: a native job whose AI named its failure shows that failure and its fix on the run', async () => {
+  const { SCRIPTED_AGENT_SETTINGS } = await import('./fixtures/venture/scripted-agent.ts');
+  const { waitForAgentWork } = await import('../runtime/venture/agent-runtime/runner.ts');
+  const env = await setup(), order = await orderWithFiles(env);
+  await env.store.update(state => { state.policy.send = 'shape'; });
+  await consentForOrder(env.deps, owner, order.id);
+  env.deps.agentRoute = async () => ({ settings: SCRIPTED_AGENT_SETTINGS, driver: { async open() { return {
+    async run() { return { status: 'failed' as const, text: '', failure: 'usage-limit' as const, error: 'Codex has used up your plan for now.' }; },
+    async interrupt() {}, async close() {},
+  }; } } });
+  const started = await call<{ id: string }>(env, 'venture.delivery.run', { orderId: order.id });
+  await waitForAgentWork(env.store, started.id);
+  const detail = await getRun(env, started.id);
+  assert.equal(record(env, started.id).status, 'failed');
+  assert.deepEqual(detail.failure, { kind: 'plan-used-up', line: FAILURE_TABLE['plan-used-up'].line });
+  assert.equal(detail.fixKind, 'wait-for-plan');
 });

@@ -69,7 +69,9 @@ describe('the run sheet: the Delivered card (A17)', () => {
     const changed = card.querySelector('[data-delivered-changed]')!;
     expect(changed.textContent).toContain("Changed during this run, not proven to be the agent's.");
     expect(changed.textContent).toContain('mehta-sales-register-september.xlsx');
-    expect(card.textContent).toContain('This went out, so it stays as it was.');
+    // One-shot A4 (row 60): Chausar sent nothing, so it never says this went out.
+    expect(card.textContent).toContain('This is delivered, so it stays as it was.');
+    expect(card.textContent).not.toContain('This went out')
     await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Make a copy' })); });
     await settle();
     expect(spy.mock.calls.filter(([method]) => method === 'venture.delivery.copy').map(([, p]) => p)).toEqual([{ runId: '27' }]);

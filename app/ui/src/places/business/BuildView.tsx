@@ -58,6 +58,7 @@ export function BuildView() {
             {brief.estimate && <> <ModelEstimate /></>}
           </p>
           {brief.wordsBy === 'template' && <p className={s.note}>{t('business.fromTemplates')}</p>}
+          {brief.wordsBy === 'mixed' && <p className={s.note}>{t('business.fromTemplatesSome')}</p>}
           <details className={s.fold}>
             <summary>{t('business.readBrief')}</summary>
             <pre className={s.pre}>{brief.markdown}</pre>

@@ -242,10 +242,15 @@ test('no open test skips for the host platform; the real key store checks live i
   const skipping: string[] = [];
   for (const name of (await readdir(directory)).filter(name => name.endsWith('.test.ts'))) {
     const source = await readFile(new URL(name, directory), 'utf8');
-    if (/\bskip:\s*[^,}\n]*process\.platform/.test(source)) skipping.push(name);
+    if (/\bskip:\s*[^,}\n]*(?:process\.platform|\bplatform\(\))/.test(source)) skipping.push(name);
   }
   assert.deepEqual(skipping, []);
-  const qualification = await readFile(new URL('qualification/device-keys-real.test.ts', directory), 'utf8');
-  assert.doesNotMatch(qualification, /\bskip\b|\btodo\b/, 'the qualification run never skips');
-  assert.match(qualification, /node --test platform\/tests\/qualification\/device-keys-real\.test\.ts/, 'its header names the run command');
+  // A fix: so does every other qualification run (the invoice share's real Windows lock among them).
+  const qualifications = (await readdir(new URL('qualification/', directory))).filter(name => name.endsWith('.test.ts'));
+  for (const name of ['device-keys-real.test.ts', 'invoice-share-lock-real.test.ts']) assert.ok(qualifications.includes(name), name);
+  for (const name of qualifications) {
+    const qualification = await readFile(new URL(`qualification/${name}`, directory), 'utf8');
+    assert.doesNotMatch(qualification, /\bskip\b|\btodo\b/, `${name}: the qualification run never skips`);
+    assert.ok(qualification.includes(`node --test platform/tests/qualification/${name}`), `${name}: its header names the run command`);
+  }
 });

@@ -18,7 +18,7 @@ import { BLUEPRINTS, BUILDS, DRAFT_AI_STATUS, GITHUB_TOKEN_LINK, HANDOFF_NOTES, 
 import { CUSTODY_ERROR_WORDS, SAMPLE_MOVE_CODE } from './fixtures';
 import {
   EngineError, type BackupLite, type BlueprintLite, type BlueprintViewLite, type BuilderId, type BuildStatusView, type BusinessOnComputer,
-  type CustodyViewLite, type ModelStatusLite, type ModelTier, type MoveFile, type OfferLite, type PlaybookPick, type PricingModel, type QueueRow, type ReceiptLite, type VentureRunEvent,
+  type CustodyViewLite, type ModelPresetLite, type ModelStatusLite, type ModelTier, type MoveFile, type OfferLite, type PlaybookPick, type PricingModel, type QueueRow, type ReceiptLite, type VentureRunEvent,
 } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -47,6 +47,8 @@ export interface DeskHost {
   hosted?(): boolean;
   /** W6 6C1: whether the sample Codex says it is signed in (fake-first-run.ts). */
   codexSignedIn?(): boolean;
+  /** A3 (L1): the sample Codex as the engine's availability reads it: a setup in use, its own sign-in, its version. */
+  codexLook?(): { trusted: boolean; signedIn: 'yes' | 'no'; version: string | null };
 }
 
 const DESK_METHODS = new Set([
@@ -177,14 +179,26 @@ export class FakeBusinessDesk {
    * unavailable there, in the engine's words (models/presets.ts availabilityOf, AVAILABILITY_REASONS.hostedCli).
    */
   private presets() {
-    const signedIn = this.host.codexSignedIn?.() === true;
-    const presets = clone(MODEL_PRESETS).map((preset) => (preset.id === 'codex-cli' && signedIn
-      ? { ...preset, availability: 'unverified' as const, availabilityReason: 'Codex is on this computer and signed in. Not yet tried on a real task.' }
-      : preset));
+    const presets = clone(MODEL_PRESETS).map((preset) => (preset.id === 'codex-cli' ? { ...preset, ...this.codexAvailability(preset) } : preset));
     if (!this.host.hosted?.()) return presets;
     return presets.map((preset) => (preset.runsOn === 'this-computer'
       ? { ...preset, availability: 'unavailable' as const, availabilityReason: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.' }
       : preset));
+  }
+
+  /**
+   * A3 (L1), as models/presets.ts availabilityOf words Codex: with no setup in use it needs setup (codexMissing, the
+   * fixture's words); a setup in use whose own look says signed out needs setup in the engine's signed-out words
+   * (cliSignedOutWords); a setup in use and signed in is unverified (codexReady) until a real task worked.
+   */
+  private codexAvailability(preset: ModelPresetLite): Pick<ModelPresetLite, 'availability' | 'availabilityReason'> {
+    const look = this.host.codexLook?.();
+    if (!look?.trusted) return { availability: preset.availability, availabilityReason: preset.availabilityReason };
+    if (look.signedIn === 'no') {
+      const named = look.version ? `Codex ${look.version}` : 'Codex';
+      return { availability: 'needs-setup', availabilityReason: `${named} is on this computer but not signed in. Open a terminal, run codex login, then check again.` };
+    }
+    return { availability: 'unverified', availabilityReason: 'Uses the reviewed Codex install.' };
   }
 
   request(method: string, p: Record<string, unknown>): unknown {
@@ -193,11 +207,11 @@ export class FakeBusinessDesk {
       case 'venture.models.presets': return this.presets();
       case 'venture.models.status': return clone(this.modelsOf(biz));
       case 'venture.models.connect': return this.connect(this.modelsOf(biz), p, biz);
-      case 'venture.models.disconnect': return this.disconnect(this.modelsOf(biz), p);
+      case 'venture.models.disconnect': return this.disconnect(this.modelsOf(biz), p, biz);
       case 'venture.ai.options': return { presets: this.presets(), status: clone(this.draftAi), unchecked: true };
       case 'venture.ai.status': return clone(this.draftAi);
       case 'venture.ai.connect': return this.connect(this.draftAi, p, null);
-      case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p);
+      case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p, null);
       // W6 6C3: every plan view carries its profession's price guide, as the engine's blueprintView adds it.
       case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? withPriceGuide(clone(view), this.host.country?.(biz).code ?? 'IN') : null; }
       case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn), this.host.country?.(biz).code ?? 'IN');
@@ -230,7 +244,9 @@ export class FakeBusinessDesk {
       case 'workspace.export': {
         if (p.confirmed !== true) throw new EngineError('CONFIRMATION_REQUIRED', 'Confirm the export in the app.');
         const plaintext = p.plaintext === true;
-        return { path: `/Users/you/Chausar/exports/chausar-${biz}-${++this.seq}.${plaintext ? 'json' : 'vault'}`, encrypted: !plaintext };
+        const path = `/Users/you/Chausar/exports/chausar-${biz}-${++this.seq}.${plaintext ? 'json' : 'vault'}`;
+        (this.exports[biz] ??= []).push(path);
+        return { path, encrypted: !plaintext };
       }
       default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
@@ -249,6 +265,30 @@ export class FakeBusinessDesk {
    * venture.create's handover (core/venture.ts, draft/handover.ts): the AI connected before the vault comes into the
    * new business, connected connections only, and the draft desk is wiped. Nothing connected: nothing changes.
    */
+  /** A4 fix round, as models/ai-setup.ts: the business that last connected Codex or Claude Code, the newest setup. */
+  private lastCli: string | null = null;
+
+  /**
+   * A4 fix round (core/venture.ts reuseAi): with no AI from the first run, the newest Codex or Claude Code connection of
+   * another business comes into this one (its preset, model and jobs; no key, call or consent). Answers where it came
+   * from, or null.
+   */
+  reuseAi(biz: string): string | null {
+    if (this.draftAi.connections.some((c) => c.status === 'connected') || !this.lastCli || this.lastCli === biz) return null;
+    const from = this.lastCli;
+    const carried = this.modelsOf(from).connections.filter((c) => c.status === 'connected' && (c.presetId === 'codex-cli' || c.presetId === 'claude-code-cli'));
+    // A4 review round 2 (H2): every AI passes connect's gates now, with the agreement and its time from there.
+    const presets = this.presets();
+    if (!carried.length || carried.some((c) => { const preset = presets.find((x) => x.id === c.presetId); return !preset || preset.availability === 'unavailable' || preset.availability === 'needs-setup'; })) return null;
+    const state = this.modelsOf(biz);
+    for (const connection of carried) state.connections.push({ ...clone(connection), id: `mc-${biz}-${++this.seq}` });
+    this.retier(state);
+    return from;
+  }
+
+  /** A4 review round 2 (M2): workspace.delete clears the setup the deleted business saved. */
+  forgetAiSetup(biz: string): void { if (this.lastCli === biz) this.lastCli = null; }
+
   adoptDraft(biz: string): void {
     const connected = this.draftAi.connections.filter((c) => c.status === 'connected');
     if (connected.length) {
@@ -296,6 +336,7 @@ export class FakeBusinessDesk {
       keyLoaded: preset.needsKey, usable: true, reason: preset.availabilityReason, verificationNote: preset.verificationNote ?? null,
     });
     this.retier(state);
+    if (biz && (preset.id === 'codex-cli' || preset.id === 'claude-code-cli')) this.lastCli = biz;
     if (biz && preset.kind !== 'template') {
       // Today's "Connect your AI" leaves once an AI serves the business.
       for (const row of this.host.rows()) if (row.businessId === biz && row.kind === 'setup' && row.actions.some((a) => a.id === 'connect')) this.host.settle(row.id);
@@ -304,11 +345,13 @@ export class FakeBusinessDesk {
     return clone(state);
   }
 
-  private disconnect(state: ModelStatusLite, p: Record<string, unknown>): ModelStatusLite {
+  private disconnect(state: ModelStatusLite, p: Record<string, unknown>, biz: string | null): ModelStatusLite {
     const connection = state.connections.find((c) => c.id === p.connectionId && c.status === 'connected');
     if (!connection) throw invalid('No such AI connection.');
     Object.assign(connection, { status: 'disconnected', usable: false, keyLoaded: false, reason: 'Disconnected.' });
     this.retier(state);
+    // A4 review round 2 (M2): the setup this business saved goes with its last Codex or Claude Code connection.
+    if (biz && this.lastCli === biz && !state.connections.some((c) => c.status === 'connected' && (c.presetId === 'codex-cli' || c.presetId === 'claude-code-cli'))) this.lastCli = null;
     return clone(state);
   }
 
@@ -427,6 +470,9 @@ export class FakeBusinessDesk {
         pricing: { model, quantityUnit: UNITS[model], unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' },
       });
     }
+    // One-shot A1 (row 3), as core/blueprint.ts: words the owner wrote make the plan theirs; a price changes no words.
+    const offerWords = Array.isArray(patch.offers) && (patch.offers as Record<string, unknown>[]).some((change) => change && (change.name !== undefined || change.description !== undefined));
+    if (patch.name !== undefined || patch.oneLiner !== undefined || patch.customer !== undefined || offerWords || patch.addOffer !== undefined) next.source = 'owner';
     next.digest = this.host.digest({ ...next, digest: '' });
     if (country.code !== beforeCountry.code) for (const offer of next.offers) delete this.prices[`${biz}:${offer.id}`];
     for (const [offerId, display] of Object.entries(typedPrices)) this.prices[`${biz}:${offerId}`] = display;
@@ -515,6 +561,7 @@ export class FakeBusinessDesk {
   // ---------------------------------------------------------------------------------------------------------------
 
   private backups: Record<string, BackupLite[]> = {};
+  private exports: Record<string, string[]> = {};
   /** A business's backups, newest first. Lumen Studio's sample has one of each kind, the oldest from before a lock change. */
   backupsOf(biz: string): BackupLite[] {
     const name = this.host.businessName(biz);
@@ -528,6 +575,11 @@ export class FakeBusinessDesk {
   /** A business left this computer: its backups go with it. */
   dropBackups(biz: string): void {
     delete this.backups[biz];
+  }
+
+  /** One-shot A1 (row 1): the copies the owner exported for this business, which Delete keeps. */
+  exportsOf(biz: string): string[] {
+    return [...(this.exports[biz] ?? [])].sort();
   }
 
   private addBackup(biz: string, kind: BackupLite['kind']): BackupLite {
@@ -555,7 +607,9 @@ export class FakeBusinessDesk {
     if (held.opens === 'needs-passphrase' && !(typeof p.passphrase === 'string' && p.passphrase === held.passphrase)) throw new EngineError('PASSPHRASE_WRONG', CUSTODY_ERROR_WORDS.PASSPHRASE_WRONG);
     const madeAt = this.host.now();
     const text = JSON.stringify({ backupFormat: SAMPLE_MOVE_FORMAT, business: biz, name: this.host.businessName(biz), madeAt });
-    return { fileName: `chausar-move-${madeAt.slice(0, 10)}.backup`, text, transferCode: SAMPLE_MOVE_CODE, bytes: text.length };
+    // A4 review (L3): named by this computer's own date, as the engine's moveFileName.
+    const at = new Date(madeAt), day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+    return { fileName: `chausar-move-${day}.backup`, text, transferCode: SAMPLE_MOVE_CODE, bytes: text.length };
   }
 
   private custodyView(biz: string): CustodyViewLite {

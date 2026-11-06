@@ -55,6 +55,49 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The saved folder could not be opened.'), { code: reply?.error?.code || 'EXPORT_NOT_SAVED' });
   },
+  // After Delete (review of A1, row 1): show one kept export in the file manager, by its file name only.
+  showExport: async name => {
+    const reply = await ipcRenderer.invoke('chausar:exports:show', { name: String(name) });
+    if (reply?.ok === true) return;
+    throw Object.assign(new Error(reply?.error?.message || 'The copy could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  // One-shot A6: Email it or Share on WhatsApp on an issued invoice; only the invoice and how go to main, which makes the file.
+  shareInvoice: async (invoiceId, how) => {
+    const reply = await ipcRenderer.invoke('chausar:invoice:share', { invoiceId: String(invoiceId), how: String(how) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The invoice could not be shared.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  // A6: show the invoice file Chausar kept for sharing in the file manager, by its file name only.
+  showShared: async name => {
+    const reply = await ipcRenderer.invoke('chausar:share:show', { name: String(name) });
+    if (reply?.ok === true) return;
+    throw Object.assign(new Error(reply?.error?.message || 'The file could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  // One-shot A5: start at login and keep running, read back from this computer; a change sends only the two ticks.
+  getBackground: async () => {
+    const reply = await ipcRenderer.invoke('chausar:background:get');
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'Chausar could not read this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  // A5 fix round 3: the day the owner put Today's start-at-login question aside; only the day goes to main.
+  getAskLater: async () => {
+    const reply = await ipcRenderer.invoke('chausar:background:later:get');
+    if (reply?.ok === true) return typeof reply.result?.day === 'string' ? reply.result.day : null;
+    throw Object.assign(new Error(reply?.error?.message || 'Chausar could not read this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  setAskLater: async day => {
+    const reply = await ipcRenderer.invoke('chausar:background:later:set', { day: String(day) });
+    if (reply?.ok === true) return;
+    throw Object.assign(new Error(reply?.error?.message || 'Chausar could not save this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  setBackground: async update => {
+    const request = {};
+    if (typeof update?.startAtLogin === 'boolean') request.startAtLogin = update.startAtLogin;
+    if (typeof update?.keepRunning === 'boolean') request.keepRunning = update.keepRunning;
+    const reply = await ipcRenderer.invoke('chausar:background:set', request);
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'Chausar could not change this setting.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
   onEngineStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Use a function for engine status updates.');
     const states = ['starting', 'ready', 'failed', 'stopping', 'stopped'];

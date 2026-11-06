@@ -93,9 +93,8 @@ describe('onboarding: first run', () => {
     await toToday();
     await screen.findByRole('navigation', { name: 'Places' });
     expect(window.location.hash).toBe('#/today');
-    // About you names the plan with the engine's preview first; keeping it previews again, then makes the vault.
+    // About you names the plan with the engine's preview; keeping it keeps that name (one-shot A1 row 3), then makes the vault.
     expect(flow()).toEqual([
-      ['venture.preview', { idea: IDEA, countryCode: 'IN' }],
       ['venture.preview', { idea: IDEA, countryCode: 'IN' }],
       ['workspace.status', {}],
       ['workspace.create', { name: 'Bookkeeping studio', pack: 'services', folder: null }],
@@ -105,10 +104,11 @@ describe('onboarding: first run', () => {
       ['venture.interview.answer', { questionId: 'q_pricing_model', answer: { choiceId: 'monthly' } }],
       ['venture.interview.answer', { questionId: 'q_price', answer: { skipped: true } }],
       ['venture.interview.answer', { questionId: 'q_tax', answer: { yes: false, assumed: true } }],
-      ['venture.blueprint.draft', { useTemplate: true }],
-      ...flow().slice(11),
+      // The first plan is the one the card showed (review of A1, row 3), its words the template's here.
+      ['venture.blueprint.draft', { useTemplate: true, shown: expect.objectContaining({ name: 'Bookkeeping studio', by: 'template' }) }],
+      ...flow().slice(10),
     ]);
-    expect(flow().slice(11).some(([m]) => m === 'workspace.create' || m === 'venture.create')).toBe(false);
+    expect(flow().slice(10).some(([m]) => m === 'workspace.create' || m === 'venture.create' || m === 'venture.blueprint.update')).toBe(false);
     await screen.findAllByText('Your plan is ready. Read it.');
     inOrder(titles(['Your plan is ready. Read it.', 'Connect your AI', 'Confirm your prices and tax', 'Keep this business']));
     await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio/ })).toBeTruthy());
@@ -235,6 +235,7 @@ describe('onboarding: what the engine forces before a vault', () => {
     await toToday();
     await screen.findByRole('navigation', { name: 'Places' });
     await screen.findAllByText('Your plan is ready. Read it.');
+    // Review of A1 (finding 5): the kept plan stays ahead of Connect your AI, which shows once, as its own card.
     expect(screen.getByText('Connect your AI')).toBeTruthy();
     expect(screen.queryByText('Keep this business')).toBeNull();
   });

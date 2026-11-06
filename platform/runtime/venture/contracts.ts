@@ -3,6 +3,7 @@
 // Erasable TypeScript only (Node type stripping): no enum, no namespace, no parameter properties.
 // Owned by package P0. Other packages import from here and never redefine these shapes.
 import type { Context, StateStore } from '../contracts.ts';
+import type { PlaybookOrigin } from './playbook-origins.ts';
 import type {
   ApprovalBlockId, ComposeAttachmentNote, ComposedNote, ComposedPage, ComposeModelOutput, CompositionRecord, DecideModelOutput, DraftHandoverPort,
   OfferBlockId, OnboardingPayloads, OnboardingResults, PlanKind, StepBlockId, ToolBlockId, ViewSelection,
@@ -496,7 +497,8 @@ export type BlueprintRecord = RecordBase<'venture-blueprint'> & {
   country?: CountryProfile;
   version: number;
   status: 'draft' | 'accepted';
-  source: 'model' | 'template';
+  /** Who wrote its words: the AI, the built-in templates, or (one-shot A1, row 3) the owner, once they changed any. */
+  source: 'model' | 'template' | 'owner';
   structureHash: string; // hash of the code-made structure the model may only fill with words
   digest: string; // digest of the whole blueprint except id, at, digest and status; approved on accept
   modelCallIds: string[];
@@ -738,6 +740,8 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
    * digest, ids, costs and times stay; nothing checks a finished call's text against its digest.
    */
   erasedAt?: IsoTime;
+  /** A2: what the task chose to keep of its checked answer (ModelTask.keep), such as the offers About you answered. */
+  kept?: Json;
 };
 
 /** One unit of model work. Built by P1, P4 and P5; executed by P2. */
@@ -750,6 +754,8 @@ export type ModelTask<T> = {
   schemaName: string; // [a-z][a-z0-9-]{0,40}
   schema: Json; // JSON Schema: objects closed, every property required, no number or integer types
   validate: (raw: unknown) => T; // local authority; throws MODEL_OUTPUT_REJECTED
+  /** A2: a small plain part of the checked answer kept on the call record (About you keeps its offers), at most 4096 characters as JSON. */
+  keep?(value: T): Json;
   template?: () => T; // used only when no model serves this tier
   containsClientData: boolean; // true forces preview and owner approval
   maxOutputTokens: number; // 256 to 8192
@@ -815,6 +821,16 @@ export interface ModelPort {
    * engine's port always has it.
    */
   inspectCli?(cli: DelegateCli, options?: { fresh?: boolean }): Promise<CliFinding>;
+  /** A2: the Codex setup in use, or a review of the Codex found on this computer; null without a Codex trust. */
+  codexSetup?(): Promise<import('./core/first-run-types.ts').CodexSetupView | null>;
+  /** A2: the native Codex program the setup in use names, for the agent route; null without one. */
+  codexProgram?(): string | null;
+  /** A2 review: the same program after its digest is checked again against the setup; refuses with no setup in use. */
+  codexVerifiedProgram?(): Promise<string>;
+  /** A2 review: what a tool printed on a failed call this session, screened; kept in memory only. */
+  toolSaid?(callId: string): string | null;
+  /** A2: the models Codex offers this account (codex debug models), and the ones Chausar uses; the fixed ids when unread. */
+  codexModels?(): Promise<import('./models/codex-models.ts').CodexModels>;
 }
 
 /**
@@ -1220,8 +1236,11 @@ export type BriefRecord = RecordBase<'venture-brief'> & {
   digest: string;
   blueprintDigest: string;
   priceReceiptIds: string[];
-  wordsBy: 'model' | 'template';
+  /** mixed (review of A1, row 13): the AI wrote the brief, but a field it left empty came from the built-in words. */
+  wordsBy: 'model' | 'template' | 'mixed';
   modelCallId: string | null;
+  /** The call that asked again for a field the first answer left empty (review of A1, row 13); null when the template answered it. */
+  fillCallId?: string | null;
   lint: BriefLint;
   /** True when the model's words hold a number: a model estimate. Prices in the brief come only from receipts. */
   estimate?: true;
@@ -1770,7 +1789,7 @@ export type PlaybookRecord = RecordBase<'venture-playbook'> & {
   patches?: PlaybookPatch[];
   parentId?: string | null; // the version this one was patched from
   /** 'owner': a version the owner's own words made from chat ("from now on", 4B1). */
-  origin?: 'plan' | 'improvement' | 'owner';
+  origin?: PlaybookOrigin;
   /**
    * The flagship playbook whose typed steps these are (venture/playbooks/steps.ts), for a plan that playbook made.
    * Its checks run on every draft (playbookChecks) and its roles are the team. Absent on the eight fixed steps.
@@ -1895,6 +1914,12 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
     draftDigest: string | null;
     /** The native tool and automatic quality review settled before owner acceptance. */
     reviewReady?: boolean;
+    /** A2: the job went quiet and was stopped by the watchdog; its notes so far are kept. */
+    quiet?: boolean;
+    /** A2 second review: with quiet, the watchdog stopped the job because it ran past its time limit. */
+    overtime?: boolean;
+    /** A2: sites that refused three times in a row and were not asked again in this job (build/site-breaker.ts). */
+    unavailableSites?: string[];
     failure?: import('./delivery/failure-words.ts').FailureWords;
     recalled?: string[];
     sourcesRead?: { id: string; version: string }[];
@@ -2038,6 +2063,12 @@ export type DeliveryRunView = DeliveryRunRecord & {
   canApprove: boolean; // waiting for the owner, and the engine would send it if approved now
   canAccept: boolean; // ready for review, and the engine would take Accept now
   acceptBlocked: string | null; // why Accept is refused, in plain words; null when canAccept or the run is not ready
+  /**
+   * One-shot A3 (S2): ready for review and the owner may edit it on Today: not practice, its AI work handed over, not
+   * held for the quality check, the CA's sign-off or its files. A draft whose only block is a failed check may be edited,
+   * and the owner's own version is then not held to the agent's failed checks.
+   */
+  canEdit: boolean;
   /**
    * On a waiting write turn when the judge would then read the draft on its own and no standing consent is recorded:
    * the setting's words and what the judge's check could cost, read before approving (delivery/judge-run.ts). Set by
@@ -2283,9 +2314,9 @@ export type BreakerTrip = { trigger: BreakerTrigger; line: string; error: string
 /** 4F2: which rule of the repeat-failure breaker stopped a run. */
 export type BreakerTrigger = 'same-error' | 'same-action' | 'failures-in-row';
 /** 4F2 (O14): the kind of an AI call's failure, for the screen's own words (English and Hindi). */
-export type RunFailureKind = 'allowance-spent' | 'not-signed-in' | 'offline' | 'too-long' | 'out-of-date' | 'unknown';
+export type RunFailureKind = 'allowance-spent' | 'not-signed-in' | 'offline' | 'too-long' | 'out-of-date' | 'unknown' | 'plan-used-up' | 'rate-limited' | 'step-limit' | 'connection-dropped' | 'model-missing';
 /** 4F2 (O14): what the owner does to fix a failure, as a code the screen words for itself. */
-export type FixKind = 'raise-limit' | 'sign-in' | 'run-again-online' | 'split-work' | 'update-tool' | 'install-ffmpeg' | 'set-up-docker' | 'get-python-image' | 'set-up-cli';
+export type FixKind = 'raise-limit' | 'sign-in' | 'run-again-online' | 'split-work' | 'update-tool' | 'install-ffmpeg' | 'set-up-docker' | 'get-python-image' | 'set-up-cli' | 'wait-for-plan' | 'run-again' | 'choose-model' | 'wait-a-minute';
 /**
  * A stop the owner asked for (4F1). force: the step in progress is thrown away; else the call in progress finishes.
  * cutCallId: the model call a force stop cut while it was out, until its turn comes back and is settled (its cost
@@ -2533,7 +2564,7 @@ export type ImprovementStatus = {
    * made from, with that version's number; null unless it came from an improvement run and the older one still fits.
    */
   inUse?: {
-    playbookId: string; version: number; hash: string; origin: 'plan' | 'improvement' | 'owner';
+    playbookId: string; version: number; hash: string; origin: PlaybookOrigin;
     rollback: { playbookId: string; version: number; digest: string } | null;
   } | null;
 };
@@ -3037,6 +3068,8 @@ export interface RunDetail extends RunSummary {
     messages: { id: string; text: string; label: 'model-estimate' }[];
     tools: { id: string; name: string; status: 'running' | 'done' | 'failed' }[];
     model?: string;
+    /** A2: sites this job stopped asking after three refusals in a row. */
+    unavailableSites?: string[];
     pendingApproval?: { request: import('./agent-runtime/driver-types.ts').AgentApprovalRequest; digest: string };
   };
   steps: RunStep[]; question?: { id: string; text: string; choices?: string[]; card?: QuestionCard }; error?: string; screen?: Display;
@@ -3676,7 +3709,7 @@ export type NoteSnapshot = { text: string; hash: string; scope: AgentNoteScope; 
 export type AgentNoteChangeRecord = RecordBase<'venture-agent-note-change'> & {
   agent: string;
   noteId: string;
-  who: 'owner' | 'proposal' | 'undo';
+  who: 'owner' | 'cofounder' | 'proposal' | 'undo';
   before: NoteSnapshot | null;
   after: NoteSnapshot | null;
   undoOf: string | null;
@@ -4180,7 +4213,8 @@ export type CliCheckRecord = RecordBase<'venture-cli-check'> & {
   flags: 'match' | 'mismatch' | 'unknown';
   missingFlags: string[];
   signedIn: 'yes' | 'no' | 'unknown';
-  lastTask: { at: IsoTime; outcome: 'succeeded' | 'failed' } | null;
+  /** named (A2): a failure the tool named, in its owner words with the fix (models/ai-failure.ts). */
+  lastTask: { at: IsoTime; outcome: 'succeeded' | 'failed'; named?: Display } | null;
 };
 
 /** The owner's goal for one month: money invoiced before tax (4I1). A newer goal for the same month is the one in use. */
@@ -4190,10 +4224,12 @@ export type GoalRecord = RecordBase<'venture-goal'> & { month: string; amountMin
 export type DecisionRecord = RecordBase<'venture-decision'> & {
   subject: string;
   action: string;
-  who: 'owner' | 'saved-rule' | 'timeout';
+  who: 'owner' | 'cofounder' | 'accountant' | 'saved-rule' | 'timeout' | 'chausar';
   ruleId: string | null;
   reason: string;
   rowId: string | null;
+  /** One-shot A3 (after review): the role of the member who decided (an owner, or a cofounder deciding for them). */
+  role?: import('../contracts.ts').Role;
 };
 
 /** The owner's own edit of a draft (4J2), with the hash of the draft it replaced; a later agent revision never overwrites it. */
@@ -4201,6 +4237,8 @@ export type DraftEditRecord = RecordBase<'venture-draft-edit'> & {
   runId: string; rowId: string; text: string; replacedHash: string; by: string; undoneAt: IsoTime | null;
   /** The text the edit replaced (the merge base when an agent revision lands later) and the owner's edit before it, for Undo. */
   replaced?: string; prior?: string | null;
+  /** One-shot A3 (after review): the role of the member who edited; only the owner's own edit lifts the agent's checks. */
+  role?: import('../contracts.ts').Role;
 };
 /**
  * 4J2 (O5): the owner sent a draft back with words, or asked the agent to fix failed checks. words: what the revision
@@ -4661,7 +4699,7 @@ export type StandingOrderView = { stepId: string; step: Display; text: string; s
  * steps in that version, with their guidance and check ids. undo: what Undo would do now: point back at the version the
  * last change was made from, rebuild without it, or null when the agent has no change from the owner in use.
  */
-export type StandingPlaybookView = { id: string; version: number; hash: string; origin: 'plan' | 'improvement' | 'owner'; at: IsoTime };
+export type StandingPlaybookView = { id: string; version: number; hash: string; origin: PlaybookOrigin; at: IsoTime };
 export type StandingStepView = { stepId: string; title: Display; guidance: string[]; checks: CheckId[] };
 export type StandingUndoView = { kind: 'back'; version: number } | { kind: 'rebuild' };
 export interface StandingOrdersView { orders: StandingOrderView[]; playbook: StandingPlaybookView | null; rebuildDue: boolean; steps: StandingStepView[]; undo: StandingUndoView | null }
@@ -4669,7 +4707,7 @@ export interface StandingOrdersView { orders: StandingOrderView[]; playbook: Sta
 /** 4B2. */
 export type AgentNoteView = { id: string; scope: AgentNoteScope; load: AgentNoteLoad; text: string; source: Display; captured: IsoDate; hash: string };
 /** erases (4B3): undoing this change takes the note away, which erases its words like Forget (the UI asks first). */
-export type NoteChangeView = { id: string; noteId: string; at: IsoTime; who: 'owner' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean };
+export type NoteChangeView = { id: string; noteId: string; at: IsoTime; who: 'owner' | 'cofounder' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean };
 /** 4B2. forgetLine: what the owner reads before Forget, which erases the words and cannot be undone. */
 export interface AgentNotesView { notes: AgentNoteView[]; changes: NoteChangeView[]; usedChars: number; limitChars: number; forgetLine?: Display }
 export interface AgentNoteChange { note: AgentNoteView | null; change: NoteChangeView }
@@ -4952,8 +4990,12 @@ export interface PhoneAccessView {
 export type CliStatusView = {
   cli: DelegateCli; label: Display; found: boolean; path: string | null; version: string | null;
   flags: 'match' | 'mismatch' | 'unknown'; missingFlags: string[]; signedIn: 'yes' | 'no' | 'unknown';
-  terms: 'accepted' | 'pending' | 'not-needed'; lastTask: { at: IsoTime; outcome: 'succeeded' | 'failed' } | null;
+  terms: 'accepted' | 'pending' | 'not-needed'; lastTask: { at: IsoTime; outcome: 'succeeded' | 'failed'; named?: Display } | null;
   state: ModelAvailability; line: Display; fix: Display | null;
+  /** A2: Codex only, when the host keeps a Codex trust: the setup in use, or the found Codex waiting for the owner's yes. */
+  setup?: import('./core/first-run-types.ts').CodexSetupView;
+  /** A2: after a failed last task, the provider's status page when it says the provider has problems. */
+  provider?: import('./core/first-run-types.ts').ProviderTrouble;
 };
 export interface CliStatusList { clis: CliStatusView[]; line: Display }
 /** 4H1. The tiers each agent's steps use and the preset that serves each; the team runs as one agent. */
@@ -5012,8 +5054,10 @@ export interface GoalSuggestion { amountMinor: MinorString; display: Display; es
  * record (a team gate, an allow for this session), with rule its words; both null when no rule decided.
  */
 export type DecisionView = {
-  id: string; at: IsoTime; subject: string; action: string; who: 'owner' | 'saved-rule' | 'timeout';
+  id: string; at: IsoTime; subject: string; action: string; who: 'owner' | 'cofounder' | 'accountant' | 'saved-rule' | 'timeout' | 'chausar';
   rule: Display | null; ruleId: string | null; reason: Display; line: Display; by: string | null;
+  /** A4 review (L5): the reader's own decision. */
+  mine: boolean;
   /** 4J19: the agent whose step a saved rule or a gate is about (venture.team.gate takes it), else null. */
   agentId: string | null;
 };
@@ -5818,6 +5862,8 @@ export const VENTURE_METHODS = [
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
   'venture.about.read', 'venture.about.pick', 'venture.about.families',
   'venture.needs.list',
+  // A2: the owner chooses the Codex found on this computer (codex-trust.ts), answered by the engine with or without a vault.
+  'venture.ai.setup.trust',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -5836,6 +5882,12 @@ export const DRAFT_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',
   'venture.about.read', 'venture.about.pick', 'venture.about.families',
 ] as const);
+
+/**
+ * A2: answered by the engine itself (engine.ts), with or without a vault, never by a package: the owner's yes to the
+ * Codex found on this computer. The engine checks the app channel and the owner's role itself.
+ */
+export const ENGINE_METHODS: readonly VentureMethod[] = Object.freeze(['venture.ai.setup.trust'] as const);
 
 /**
  * Ink v2 wave 4 adds agents (4B, 4J13, 4J17, 4J18), chief (4C), network (4D, 4E) and notify (4G). Wave 5 adds playbooks
@@ -5966,6 +6018,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.ai.tools': 'models', 'venture.ai.login.start': 'models', 'venture.ai.login.cancel': 'models',
   'venture.about.read': 'core', 'venture.about.pick': 'core', 'venture.about.families': 'core',
   'venture.needs.list': 'core',
+  'venture.ai.setup.trust': 'models',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -6126,7 +6179,8 @@ export type VenturePayloads = {
   'venture.events': { afterSeq?: number; limit?: number };
   'venture.interview.next': { useTemplate?: boolean };
   'venture.interview.answer': { questionId: string; answer: InterviewAnswer };
-  'venture.blueprint.draft': { useTemplate?: boolean };
+  /** shown (review of A1, row 3): the plan About you showed, kept on the first template draft; by is who wrote its words. */
+  'venture.blueprint.draft': { useTemplate?: boolean; shown?: { name: string; by: 'model' | 'template'; callId?: string; offers: { name: string; line: string }[] } };
   'venture.blueprint.get': Empty;
   /** basedOn (4J8): refused APPROVAL_STALE unless the newest plan is still this one, as a suggestion read it. */
   'venture.blueprint.update': { patch: BlueprintPatch; basedOn?: { blueprintId: string; digest: string } };
@@ -6158,6 +6212,8 @@ export type VenturePayloads = {
   /** intake: only for a flagship playbook's offer; an offer that cuts footage needs intake.rights (delivery/rights.ts). */
   'venture.order.create': {
     clientId?: string; offerId: string; quantity?: string; request: string;
+    /** One-shot A1 (row 10): a client typed with the order, written with it or not at all; never with clientId. */
+    newClient?: VenturePayloads['venture.client.add'];
     /** Wave 6: when the whole order is due (6D1); a client abroad's currency and the owner's price in it (6D4). */
     dueDate?: IsoDate; currency?: string; unitPrice?: string;
     intakeFiles?: Record<string, { name: string; contentBase64: string }>;
@@ -6579,6 +6635,7 @@ export type VenturePayloads = {
   'venture.ai.tools': OnboardingPayloads['venture.ai.tools'];
   'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
+  'venture.ai.setup.trust': { cli: 'codex'; sha256: string };
   'venture.about.read': OnboardingPayloads['venture.about.read'];
   'venture.about.pick': OnboardingPayloads['venture.about.pick'];
   'venture.about.families': OnboardingPayloads['venture.about.families'];
@@ -6972,6 +7029,7 @@ export type VentureResults = {
   'venture.ai.tools': OnboardingResults['venture.ai.tools'];
   'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
+  'venture.ai.setup.trust': { setup: import('./core/first-run-types.ts').CodexSetupView };
   'venture.about.read': OnboardingResults['venture.about.read'];
   'venture.about.pick': OnboardingResults['venture.about.pick'];
   'venture.about.families': OnboardingResults['venture.about.families'];
@@ -6993,6 +7051,11 @@ export const OWNER_MAP_COMPLETE: Same<keyof typeof METHOD_OWNERS, VentureMethod>
 
 /** Every error code the venture code introduces. All match ^[A-Z_]{1,64}$ so the desktop keeps them. */
 export const VENTURE_ERRORS = [
+  // A2: why an AI turn failed, in owner words with the fix (models/ai-failure.ts); the Codex setup the owner records.
+  'AI_USAGE_LIMIT', 'AI_RATE_LIMITED', 'AI_CONTEXT_FULL', 'AI_MAX_TURNS', 'AI_STREAM_CUT', 'AI_SIGN_IN_REFUSED', 'AI_MODEL_UNAVAILABLE',
+  'CODEX_SETUP_CHANGED', 'CODEX_SETUP_UNAVAILABLE', 'SITE_UNAVAILABLE',
+  // One-shot A4: Chausar's own PDF reader (core/pdf-text-core.ts) refuses a locked, unreadable or too complex file.
+  'PDF_ENCRYPTED', 'PDF_UNREADABLE', 'PDF_TOO_COMPLEX',
   // Wave 6 (6J2): reports turned off, a build without report keys, a deletion request that could not be sent.
   'FEEDBACK_OFF', 'FEEDBACK_NOT_SET_UP', 'FEEDBACK_SEND_FAILED',
   // Wave 6 (6H2): recorded flows.
@@ -7062,8 +7125,10 @@ export const VENTURE_ERRORS = [
   'CURRENCY_CONFLICT', 'NOT_BUILT_YET', 'APP_APPROVAL_REQUIRED', 'APPROVAL_STALE', 'INTERVIEW_DONE', 'INTERVIEW_INCOMPLETE', 'QUESTION_NOT_FOUND',
   'BLUEPRINT_NOT_FOUND', 'BLUEPRINT_NOT_ACCEPTED',
   'NO_MODEL_CONNECTED', 'MODEL_CONSENT_REQUIRED', 'MODEL_KEY_MISSING', 'MODEL_OUTPUT_REJECTED', 'MODEL_REFUSAL', 'MODEL_INCOMPLETE', 'CREDENTIAL_INVALID', 'CREDENTIAL_UNAVAILABLE',
+  // A2 second review: the seal's port only (credential-port.ts noStore): this computer has no protected store at all.
+  'CREDENTIAL_NO_STORE',
   'MODEL_FAILED', 'MODEL_TIMEOUT', 'BUDGET_REACHED', 'CLIENT_DATA_NEEDS_APPROVAL', 'SEND_DISABLED', 'FIXTURE_MISSING', 'CLI_UNAVAILABLE', 'PRESET_UNAVAILABLE',
-  'PRICE_REQUIRED', 'OFFER_NOT_FOUND', 'CLIENT_NOT_FOUND', 'ORDER_NOT_FOUND', 'INVOICE_NOT_FOUND', 'INVOICE_NOT_DRAFT', 'PAYMENT_TOO_LARGE',
+  'PLAN_ALREADY_KEPT', 'PRICE_REQUIRED', 'OFFER_NOT_FOUND', 'CLIENT_NOT_FOUND', 'ORDER_NOT_FOUND', 'INVOICE_NOT_FOUND', 'INVOICE_NOT_DRAFT', 'PAYMENT_TOO_LARGE',
   'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED',
   'AI_SETTING_UNSUPPORTED',
   'RECEIPT_NOT_FOUND', 'BRIEF_NOT_FOUND', 'BRIEF_LINT_FAILED', 'HANDOFF_NOT_FOUND', 'REPO_NOT_LINKED', 'INVALID_REPO', 'TOKEN_NOT_FINE_GRAINED',
@@ -7284,6 +7349,8 @@ export type VentureDeps = {
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
   /** W6 6F7: the host's phone listener; absent on the hosted app and in tests that do not inject one. */
   phoneAccess?: PhoneAccessPort;
+  /** A4 fix round: the newest AI setup on this computer (models/ai-setup.ts); absent on the hosted app. */
+  aiSetup?: import('./models/ai-setup.ts').AiSetupPort;
   /** Trusted test or desktop composition. Never accepted from an engine request. */
   agentRoute?: (ctx: Context, agentId: string) => Promise<import('./agent-runtime/route-types.ts').AgentRoute>;
   store: StateStore;
@@ -7322,6 +7389,8 @@ export type VentureDeps = {
   closing?: VentureClosingPort;
   /** The network guard's lookup and sender for requests the engine makes itself (bank alert counts). Absent means the real ones; tests inject stubs. */
   net?: { resolve?: NetResolver; send?: PinnedSender; tls?: TlsConnector };
+  /** A2: the real desktop and local hosts read the AI providers' status pages after a failure (models/provider-status.ts). */
+  statusPages?: boolean;
   /** Wave 6 (6D3): the HTTPS port payment providers are asked through. Tests pass recorded responses; absent: fetch. */
   paymentHttp?: import('./money/billing-types.ts').PaymentHttp;
   /** Called once with the events a venture action committed, after the commit. A listener's failure never undoes it. */
@@ -7408,6 +7477,8 @@ export type VentureHostOptions = {
   credentials?: import('./models/credential-port.ts').HostCredentialPort;
   /** W6 6F7: the host's phone listener, never supplied by an engine request. */
   phoneAccess?: PhoneAccessPort;
+  /** A4 fix round: where the newest AI setup on this computer is kept, never supplied by an engine request. */
+  aiSetup?: import('./models/ai-setup.ts').AiSetupPort;
   modelTransport?: ModelTransport;
   /** A transport, or a factory the host calls once with its store (fixtures use it to fill {{briefId}}). */
   githubTransport?: GitHubTransport | ((store: StateStore) => GitHubTransport);
@@ -7440,6 +7511,8 @@ export type VentureHostOptions = {
   endedSessions?: () => readonly string[];
   /** The network guard's lookup and sender (VentureDeps.net); tests inject stubs, the real ones are used otherwise. */
   net?: VentureDeps['net'];
+  /** A2: read the AI providers' status pages after a failure (VentureDeps.statusPages); never on the hosted web server. */
+  statusPages?: boolean;
   /** The hosted web server's public origin for client share links (CHAUSAR_PUBLIC_URL). Used only when host is 'hosted-web'. */
   publicUrl?: string;
   /** Trusted host composition: the ffmpeg port for a transcript made here (tests inject a stand-in); never on hosted. */

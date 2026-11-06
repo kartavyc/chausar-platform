@@ -12,6 +12,7 @@ import { copiedTokens, formatMicros, modelNumbers, tidyWords } from '../records.
 import { hindiNumberWords, statesMoney } from '../delivery/harness/patches.ts';
 import { isCurrencyName, isMoneyScaleWord, isThousandWord, scaledAmountToken, thousandToken } from '../core/money-words.ts';
 import { chatCall, leftOutLine } from '../agents/answer.ts';
+import { withPreview } from '../models/wrap.ts';
 import type { ChatRoute } from '../agents/consent.ts';
 import { ownerToday } from '../local-day.ts';
 import { runTool, TOOL_CATALOGUE, type ToolFigure, type ToolResult } from './tools.ts';
@@ -19,6 +20,7 @@ import { chiefClientContext } from './client-context.ts';
 // 4J14: counts by code when the AI's answer fails (Q21), and proposals decided first (Q22).
 import { countedByCode, type FallbackView } from '../delivery/fallbacks.ts';
 import { decideFirstSchema, readDecideFirst } from '../delivery/decide-first.ts';
+import { AI_FAILURE_CODES } from '../models/ai-failure.ts';
 
 /** At most this many model turns per answer; the last must answer. */
 export const MAX_TURNS = 3;
@@ -176,7 +178,8 @@ const proposalSchema = { type: 'object', additionalProperties: false, required: 
 const DECIDE_KEYS: readonly string[] = ['decision', 'reason', 'content'];
 /** A proposal decided first (4J14, Q22): the decision and its reason, then the fields; every key present, as the other shapes. */
 const decidedProposal = { ...decideFirstSchema(proposalSchema as unknown as Json), required: [...DECIDE_KEYS] };
-const TURN_SCHEMA: Json = {
+/** One-shot A3: exported so a test holds it to the model schema rule (models/schema.ts) every real call is checked against. */
+export const CHIEF_TURN_SCHEMA: Json = {
   type: 'object', additionalProperties: false, required: ['tools', 'parts', 'proposals'],
   properties: {
     tools: { type: 'array', items: { type: 'string' }, description: 'Read tools to run before you answer; empty when you answer now.' },
@@ -186,7 +189,7 @@ const TURN_SCHEMA: Json = {
 
 const INSTRUCTIONS = [
   "You are Chausar, the chief of staff of a small business the owner runs. Speak plainly, as a capable colleague would: no persona, no greetings, no sign-offs. Answer in the language the owner wrote in, English or Hindi.",
-  'Answer from what the read tools return and from nothing else. On a turn you may name read tools in tools (they run, and you see their results next turn), or answer in parts. The last turn must answer.',
+  'Answer from what the read tools return and from nothing else. readTools lists the read tools Chausar can run for you: on a turn you may name some of them in tools (they run, and you see their results next turn), or answer in parts. They are not tools of your own; you only name them. The last turn must answer.',
   'Client-specific records are included only with that client\'s current AI permission. Missing records may be withheld for permission; do not claim that no clients or orders exist just because none were returned. The owner can review permission in Clients.',
   'Give every amount, count or total a tool returned as a figure part with its receiptId and key. Never write money in words: an amount with no receipt is left out. Any other number you write is shown to the owner as a model estimate.',
   'You never act. To get something done, add a proposal of one of the kinds in proposalKinds, with the fields it uses; the owner raises it to Today and approves it there. Leave every proposal field you do not use empty. You never change keys, money rules, posture or storage.',
@@ -225,6 +228,128 @@ export function checkParts(raw: readonly RawPart[], figures: readonly ToolFigure
 }
 
 // ---------------------------------------------------------------------------
+// One-shot A4 (A3 leftover): claims of action in the answer's words
+// ---------------------------------------------------------------------------
+
+/**
+ * The chief has read tools only: no tool call of its turns can send, book, pay or change anything. Only a brief to an
+ * agent is carried out in its turn, by code, which says so in its own line (threads.ts), after this check. So the
+ * model's own words may not claim an action. A4 review (M2): what counts as a claim, sentence by sentence:
+ * - the AI in the first person ("I", "I've", "I have"), never "we" (business history) and never Chausar;
+ * - a lead with no subject ("Done,", "Sent it", "Booked it");
+ * - a passive claim about an outward action ("has been sent", "is sent", "is on its way").
+ * Words inside quotation marks are someone else's and never count. "I proposed", "I've drafted" and "I've prepared"
+ * are true only when the answer carries a proposal card. Reasoning ("I made a rough estimate"), reads ("I checked your
+ * books"), offers ("I can send it") and conditions ("if I sent it now") stay. A sentence taken out goes whole, figure
+ * parts included, and one offer line is said instead (none when every sentence taken out was about the brief code
+ * passed and named in its own line).
+ */
+export const ACTION_OFFER = "I can't do that myself. I can propose it, and you approve it on Today.";
+/** A4 review (M2): the offer when the answer carries a proposal card. */
+export const PROPOSED_OFFER = "It's proposed below for you to approve.";
+/**
+ * A4 review round 2 (H1): a claim is the chief's own outward action in this turn, never a fact the books hold ("INV-0001
+ * has been paid", "the shoot has been booked since 2 Feb"), reported speech ("Priya said the files are on their way"),
+ * a reference to the conversation ("as I told you", "as I wrote above") or a summary ("Done: 3 orders this week").
+ */
+const ACTED = [
+  'passed', 'sent', 'handed', 'forwarded', 'emailed', 'mailed', 'messaged', 'texted', 'posted', 'published', 'shared', 'scheduled', 'booked',
+  'assigned', 'delegated', 'briefed', 'created', String.raw`wrote(?!\s+(?:above|earlier|before|that))`, 'written', 'started', 'launched', 'ordered',
+  String.raw`paid(?!\s+attention)`, 'invoiced', 'charged', 'refunded', 'cancelled', 'canceled', 'deleted', 'removed', 'updated', 'changed', 'saved',
+  'recorded', 'logged', 'added', 'filed', 'submitted', 'uploaded', 'notified', 'reminded', 'contacted', 'called', 'queued', 'approved', 'accepted',
+  'rejected', 'marked', 'issued', 'replied', String.raw`asked(?!\s+myself)`, 'instructed', 'arranged', 'set up', 'reached out', 'followed up',
+].join('|');
+/** A person as the object: a name, or the client. Never "you", "me" or "myself". */
+const PERSON = String.raw`(?:\p{Lu}[\p{L}'’-]*|the\s+client|your\s+client|them|him|her)`;
+/** Telling and confirming are claims only with a person right there: "I told Priya", "I confirmed with Priya", "I let Priya know". */
+const TOLD = [String.raw`told\s+${PERSON}`, String.raw`confirmed\b[^.!?]{0,40}?\bwith\s+${PERSON}`, String.raw`let\s+${PERSON}\s+know`].join('|');
+/** Claims a proposal card makes true: the card is the draft. */
+const PROPOSED = 'proposed|suggested|raised|drafted|prepared|put together';
+const ADVERBS = String.raw`(?:\s+(?:just|already|also|now|then|quickly|gone\s+ahead\s+and|went\s+ahead\s+and))*`;
+const FIRST_PERSON = (verbs: string) => new RegExp(String.raw`(?<![\p{L}'’])I(?:'ve|’ve|\s+have|\s+had)?${ADVERBS}\s+(?:${verbs})\b`, 'gu');
+/** "I've noted that." alone (Chats keeps no notes); "I noted three late payments" is a reading, and stays. */
+const NOTED_ALONE = /^\W*I(?:'ve|’ve|\s+have)?\s+noted\s+(?:that|it|this)\s*[.!]?\s*$/u;
+/** A lead with no subject: "Done," or "Done." before an action; never "Done:" before a summary. */
+const SUBJECTLESS = /^\W*(?:(?:all\s+)?done\b\s*[,.!](?!\S)|(?:sent|booked|emailed|mailed|paid|posted|filed|submitted|scheduled|forwarded|invoiced|messaged|texted)\s+(?:it|that|them|this|to)\b)/iu;
+const OUTWARD = 'sent|emailed|mailed|posted|filed|submitted|forwarded|messaged|texted|published|shared';
+/** Passive, as an action of this turn: "has just been sent", "has now been filed", or sent to a person and nothing more said. */
+const PASSIVE_NOW = new RegExp(String.raw`\b(?:has|have)\s+(?:just|now)\s+(?:(?:just|now)\s+)?been\s+(?:${OUTWARD})\b`, 'iu');
+const PASSIVE_TO = new RegExp(String.raw`\b(?:has|have)\s+been\s+(?:${OUTWARD})\s+to\s+${PERSON}(?:\s+(?:just\s+now|now|today))?\s*[.!]?\s*$`, 'u');
+const ON_ITS_WAY = new RegExp(String.raw`\b(?:is|are)\s+on\s+(?:its|their)\s+way\s+to\s+${PERSON}`, 'u');
+/** Reported speech: someone else said it. */
+const REPORTED = /\b(?:said|says|wrote|writes|told\s+me|mentioned|replied)\b/iu;
+/** Words before "I" that make it a condition, a question or a reference to the conversation, not a claim. */
+const NOT_A_CLAIM = /\b(?:if|once|when|whenever|after|before|until|unless|should|shall|could|would|have|has|did)\s*$/iu;
+/** A4 review round 3: "as" is a reference to the conversation only before told, wrote, said, mentioned or noted. */
+const AS_BEFORE = /\bas\s*$/iu;
+const AS_REFERENCE = /^I(?:'ve|’ve|\s+have|\s+had)?\s+(?:told|wrote|said|mentioned|noted)\b/iu;
+/** Quoted words are someone else's: "...", “...” and «...». */
+const QUOTED = /"[^"]*"|“[^”]*”|«[^»]*»/gu;
+
+function claimsAction(sentence: string, proposals: number): boolean {
+  const own = sentence.replace(QUOTED, ' ');
+  if (SUBJECTLESS.test(own) || NOTED_ALONE.test(own) || PASSIVE_NOW.test(own) || PASSIVE_TO.test(own)) return true;
+  if (ON_ITS_WAY.test(own) && !REPORTED.test(own)) return true;
+  for (const pattern of [FIRST_PERSON(ACTED), FIRST_PERSON(TOLD), ...(proposals ? [] : [FIRST_PERSON(PROPOSED)])]) {
+    for (const match of own.matchAll(pattern)) {
+      const before = own.slice(0, match.index);
+      if (!NOT_A_CLAIM.test(before) && !(AS_BEFORE.test(before) && AS_REFERENCE.test(own.slice(match.index)))) return true;
+    }
+  }
+  return false;
+}
+/** One piece of a sentence: a slice of a word part, or a figure part, with the index of the part it came from. */
+type Piece = { from: number; part: ChatPart; text: string };
+
+/** The parts split into sentences; a sentence ends at ".", "!" or "?" (and any closing quote) before a space or the end. */
+function sentencesOf(parts: readonly ChatPart[]): Piece[][] {
+  const sentences: Piece[][] = [];
+  let current: Piece[] = [];
+  parts.forEach((part, from) => {
+    if (part.kind !== 'text' && part.kind !== 'estimate') { current.push({ from, part, text: '' }); return; }
+    let at = 0;
+    for (const end of part.text.matchAll(/[.!?]["'”’)]*(?:\s+|$)/gu)) {
+      const until = end.index! + end[0].length;
+      current.push({ from, part, text: part.text.slice(at, until) });
+      sentences.push(current); current = []; at = until;
+    }
+    if (at < part.text.length) current.push({ from, part, text: part.text.slice(at) });
+  });
+  if (current.length) sentences.push(current);
+  return sentences;
+}
+
+/**
+ * The answer's parts with every claim of an action taken out, sentence by sentence, and one offer line at the end when
+ * one was: the proposal line when the answer carries a proposal card, else the plain offer. proposals: the cards drafted.
+ */
+export function withoutActionClaims(parts: readonly ChatPart[], done: { proposals: number; briefed?: readonly string[] }): ChatPart[] {
+  const sentences = sentencesOf(parts);
+  const said = (pieces: Piece[]) => pieces.map(piece => (piece.part.kind === 'figure' ? piece.part.display : piece.text)).join('');
+  const claims = sentences.filter(pieces => claimsAction(said(pieces), done.proposals));
+  if (!claims.length) return [...parts];
+  // The parts that lost a sentence: their words lose the space the cut left at the end.
+  const touched = new Set(claims.flatMap(pieces => pieces.map(piece => piece.from)));
+  const out: { from: number; part: ChatPart }[] = [];
+  for (const piece of sentences.filter(pieces => !claims.includes(pieces)).flat()) {
+    if (piece.part.kind !== 'text' && piece.part.kind !== 'estimate') { out.push({ from: piece.from, part: piece.part }); continue; }
+    const previous = out.at(-1);
+    if (previous && previous.from === piece.from) { previous.part = { ...previous.part, text: (previous.part as { text: string }).text + piece.text } as ChatPart; continue; }
+    out.push({ from: piece.from, part: { ...piece.part, text: piece.text } as ChatPart });
+  }
+  const result: ChatPart[] = out.flatMap(({ from, part }): ChatPart[] => {
+    if (part.kind !== 'text' && part.kind !== 'estimate') return [part];
+    const words = touched.has(from) ? part.text.replace(/\s+$/u, '') : part.text;
+    return words.trim() ? [{ ...part, text: words }] : [];
+  });
+  // Every sentence taken out was about the brief code passed this turn (briefed: its agents), and code's own line says what
+  // happened: no offer then, so the reply never says it can't do what it just did.
+  const briefed = done.briefed ?? [];
+  const aboutBrief = (words: string) => briefed.length > 0 && (/\bbrief/iu.test(words) || briefed.some(name => words.toLowerCase().includes(name.toLowerCase())));
+  if (!claims.every(pieces => aboutBrief(said(pieces)))) result.push({ kind: 'text', text: done.proposals ? PROPOSED_OFFER : ACTION_OFFER });
+  return result;
+}
+// ---------------------------------------------------------------------------
 // The turns
 // ---------------------------------------------------------------------------
 
@@ -249,6 +374,8 @@ export type AnswerInput = {
 const NO_AI_LEAD = "Here is where the money stands, from Chausar's records.";
 const NO_AI_TAIL = 'Connect your AI in Connections to ask in your own words.';
 const NOT_PASSED_LEAD = "Your AI's answer did not pass Chausar's checks, so here is what Chausar can say from its records.";
+/** One-shot A3 (S3): the AI call itself failed, so the answer is the records'. */
+export const AI_FAILED_LEAD = "Your AI couldn't answer this time, so here is what Chausar's records say.";
 const capLead = () => `Chausar stopped asking your AI: this answer reached its spend cap of ${formatMicros(ANSWER_CAP_MICROS)}. Here is what it read, with receipts.`;
 const SHOWN_FROM_RECORDS = 4;
 
@@ -268,14 +395,8 @@ function cappedDeps(deps: VentureDeps, budget: { used: bigint }): VentureDeps {
     }
     return made;
   };
-  const models = new Proxy(port, {
-    get(target, prop) {
-      if (prop === 'preview') return preview;
-      const value = Reflect.get(target, prop, target);
-      return typeof value === 'function' ? value.bind(target) : value;
-    },
-  });
-  return { ...deps, models };
+  // A plain object, never a Proxy: the host's port is frozen, and a Proxy may not swap a frozen property (models/wrap.ts).
+  return { ...deps, models: withPreview(port, preview) };
 }
 
 /** 4J14 (Q21): the counts by code as the screen words them: each kind with its count, then each month with its new records. */
@@ -287,14 +408,14 @@ function countedOf(counts: FallbackView): ChiefCounted {
  * The answer code writes from the records: a lead line, the figures read so far (the money tool's when none), with
  * receipts, and with no AI or when the AI's answer did not pass, the counts by code (4J14, Q21) before the tail.
  */
-async function recordsAnswer(deps: VentureDeps, ctx: Context, figures: ToolFigure[], callIds: string[], lead: string, tail: string | null, counts: FallbackView | null = null): Promise<ChiefAnswer> {
+async function recordsAnswer(deps: VentureDeps, ctx: Context, figures: ToolFigure[], callIds: string[], lead: string | readonly string[], tail: string | null, counts: FallbackView | null = null): Promise<ChiefAnswer> {
   let shown = figures;
   if (!shown.length) {
     const money = await runTool(deps, ctx, 'money');
     shown = 'figures' in money ? money.figures : [];
   }
   const chosen = unique(shown).slice(0, SHOWN_FROM_RECORDS);
-  const parts: ChatPart[] = [{ kind: 'text', text: lead }];
+  const parts: ChatPart[] = (typeof lead === 'string' ? [lead] : [...lead]).map(line => ({ kind: 'text' as const, text: line }));
   for (const figure of chosen) parts.push({ kind: 'text', text: `${figure.label}:` }, { kind: 'figure', receiptId: figure.receiptId, key: figure.key, display: figure.display });
   if (tail) parts.push({ kind: 'text', text: tail });
   return {
@@ -312,6 +433,34 @@ const codeOf = (error: unknown): string | null => {
   const code = (error as { code?: unknown } | null)?.code;
   return typeof code === 'string' ? code : null;
 };
+
+/** The AI failures that carry their own owner words and fix (models/ai-failure.ts), said after the lead. */
+const NAMED_FAILURES: ReadonlySet<string> = new Set(Object.values(AI_FAILURE_CODES));
+/**
+ * One-shot A3 (S3, after review M2): the only failures answered from the records: the AI call itself failed (a named AI
+ * failure, a failed or timed-out call, an answer cut off, refused or too large, a connection that broke part way).
+ * Everything else is thrown: a refusal with its own fix (no key, the spend cap, the Codex setup, an AI not available)
+ * says its own words, what needs the owner (the consent, a changed record) stops the answer, and an engine error (a
+ * plain error, a refused schema) becomes REQUEST_FAILED and is noted as a crash, never hidden behind the records.
+ */
+const AI_CALL_FAILED: ReadonlySet<string> = new Set([
+  ...NAMED_FAILURES, 'MODEL_FAILED', 'MODEL_TIMEOUT', 'MODEL_OUTPUT_REJECTED', 'MODEL_INCOMPLETE', 'MODEL_REFUSAL', 'MODEL_OUTCOME_UNKNOWN', 'RESPONSE_TOO_LARGE',
+]);
+
+/** The lead of a records answer after the AI call failed: the plain line, then the failure's own words when it has them. */
+function failedLead(error: unknown): { lead: string; reason: string | null } {
+  // A3 review 2 (L-b): a call whose outcome is unknown says in its own words that it may have run and charged.
+  const said = error instanceof ChausarError && (NAMED_FAILURES.has(error.code) || error.code === 'MODEL_OUTCOME_UNKNOWN') && error.message.trim();
+  return { lead: AI_FAILED_LEAD, reason: said || null };
+}
+
+/**
+ * A3 review 2 (L-a): a refusal from the models port of the chief's own task (its schema, its shape) is an engine bug,
+ * not something the owner can fix: it is thrown unbranded, so the owner sees REQUEST_FAILED and it is noted as a crash.
+ */
+function engineBug(error: ChausarError): Error {
+  return new Error(`The chief's model task was refused: ${error.message}`, { cause: error });
+}
 
 /**
  * One answer to the owner's question. Each turn is previewed and sent under the chat consent (agents/answer.ts
@@ -335,17 +484,24 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
         question, today: ownerToday(deps.clock, venture.country), business: { name: venture.workingName },
         agents: agents.map(agent => ({ id: agent.id, name: agent.name, job: agent.job })),
         proposalKinds: kinds.map(item => ({ kind: item.kind, uses: item.uses })),
-        tools: last ? [] : TOOL_CATALOGUE.map(tool => ({ ...tool })), results, turn, lastTurn: last,
+        // One-shot A3 (live on Codex): called readTools, so a model with tools of its own never takes them for its own.
+        readTools: last ? [] : TOOL_CATALOGUE.map(tool => ({ ...tool })), results, turn, lastTurn: last,
       } as unknown as Json,
-      schemaName: 'venture-chief-answer', schema: TURN_SCHEMA, validate: validateTurn, containsClientData: true, maxOutputTokens: 2048,
+      schemaName: 'venture-chief-answer', schema: CHIEF_TURN_SCHEMA, validate: validateTurn, containsClientData: true, maxOutputTokens: 2048,
       capLeftMicros: String(BigInt(ANSWER_CAP_MICROS) - budget.used),
     };
     let answered: { value: TurnOutput; callId: string | null } | null;
     try {
       answered = await chatCall(capped, ctx, route, task, clientContext.assert);
     } catch (error) {
-      if (codeOf(error) === 'RUN_CAP_REACHED') return recordsAnswer(deps, ctx, figures, callIds, capLead(), null);
-      throw error;
+      const code = codeOf(error);
+      if (code === 'RUN_CAP_REACHED') return recordsAnswer(deps, ctx, figures, callIds, capLead(), null);
+      if (error instanceof ChausarError && error.code === 'INVALID_VENTURE_REQUEST') throw engineBug(error);
+      if (!(error instanceof ChausarError) || !AI_CALL_FAILED.has(error.code)) throw error;
+      // One-shot A3 (S3): the AI call itself failed. The owner still gets what the records say, with the figures read so
+      // far, and the plain words that the AI couldn't answer.
+      const { lead, reason } = failedLead(error);
+      return recordsAnswer(deps, ctx, figures, callIds, reason ? [lead, reason] : lead, null, countedByCode(input.state, venture, deps.clock(), 3));
     }
     if (!answered) return recordsAnswer(deps, ctx, figures, callIds, route ? NOT_PASSED_LEAD : NO_AI_LEAD, route ? null : NO_AI_TAIL, countedByCode(input.state, venture, deps.clock(), 3));
     if (answered.callId) callIds.push(answered.callId);
@@ -359,6 +515,7 @@ export async function chiefAnswer(deps: VentureDeps, ctx: Context, route: ChatRo
       continue;
     }
     const checked = checkParts(out.parts, unique(figures), question);
+    // One-shot A4: claims of action in the words are checked where the turn's actions are known (threads.ts store).
     const parts = checked.parts.length ? checked.parts : [{ kind: 'text' as const, text: NO_PROOF }];
     const receiptIds = [...new Set(parts.flatMap(item => (item.kind === 'figure' ? [item.receiptId] : [])))];
     return { parts, dropped: checked.dropped, worked: checked.worked, receiptIds, callIds, author: 'model', proposals: out.proposals, counted: null, assertCurrent: clientContext.assert };

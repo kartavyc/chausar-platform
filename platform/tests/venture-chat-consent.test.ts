@@ -67,6 +67,65 @@ test('consent: a change of AI connection makes it stale, and the new text names 
   assert.equal((await env.agents('venture.chats.consent', { digest: view.consent.digest })).state, 'given');
 });
 
+test('consent: a settings save that keeps the same AI (a new model setting or connection id) keeps it given (one-shot A1 row 11)', async () => {
+  const env = await agentBusiness();
+  const first = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
+  await env.agents('venture.chats.consent', { digest: first.consent.digest });
+  const status = env.models.status.bind(env.models);
+  env.models.status = () => {
+    const now = status();
+    return {
+      ...now, tiers: { ...now.tiers, main: { ...now.tiers.main, model: 'a-newer-model-setting' } },
+      connections: now.connections.map(item => ({ ...item, id: `${item.id}_saved_again`, model: 'a-newer-model-setting' })),
+    };
+  };
+  const view = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
+  assert.equal(view.consent.state, 'given', 'what is sent and to whom did not change');
+  assert.equal(view.consent.digest, first.consent.digest);
+});
+
+test('review of A1 row 11: on OpenRouter the model company is who gets the data, so a new company asks again', async () => {
+  const env = await agentBusiness();
+  const status = env.models.status.bind(env.models);
+  let model = 'openai/gpt-6-luna';
+  env.models.status = () => {
+    const now = status();
+    return { ...now, tiers: { ...now.tiers, main: { ...now.tiers.main, presetId: 'openrouter', model } } };
+  };
+  const first = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
+  assert.match(first.consent.text, /OpenRouter/);
+  assert.match(first.consent.text, /openai/);
+  await env.agents('venture.chats.consent', { digest: first.consent.digest });
+  model = 'openai/gpt-6-luna-mini';
+  assert.equal((await env.agents('venture.agents.thread.list', { agent: 'story-editor' })).consent.state, 'given', 'the same company');
+  model = 'deepseek/deepseek-v4';
+  const moved = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
+  assert.equal(moved.consent.state, 'stale');
+  assert.match(moved.consent.text, /deepseek/);
+});
+
+test('A1 re-review: OpenRouter auto picks the company itself, says so, and moving to or from it asks again', async () => {
+  const env = await agentBusiness();
+  const status = env.models.status.bind(env.models);
+  let model = 'openai/gpt-6-luna';
+  env.models.status = () => {
+    const now = status();
+    return { ...now, tiers: { ...now.tiers, main: { ...now.tiers.main, presetId: 'openrouter', model } } };
+  };
+  const first = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
+  await env.agents('venture.chats.consent', { digest: first.consent.digest });
+  model = 'openrouter/auto';
+  const auto = await env.agents('venture.agents.thread.list', { agent: 'story-editor' });
+  assert.equal(auto.consent.state, 'stale');
+  assert.match(auto.consent.text, /OpenRouter picks which company's model gets each chat/);
+  assert.doesNotMatch(auto.consent.text, /the openrouter model/);
+  await env.agents('venture.chats.consent', { digest: auto.consent.digest });
+  model = '~openrouter/auto';
+  assert.equal((await env.agents('venture.agents.thread.list', { agent: 'story-editor' })).consent.state, 'given', 'still the router');
+  model = 'openai/gpt-6-luna';
+  assert.equal((await env.agents('venture.agents.thread.list', { agent: 'story-editor' })).consent.state, 'stale', 'back from auto asks again');
+});
+
 test('consent: with templates only nothing is sent, so none is asked and the agent answers from code', async () => {
   const env = await agentBusiness();
   env.models.main = 'template';

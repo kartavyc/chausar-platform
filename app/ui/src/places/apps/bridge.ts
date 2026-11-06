@@ -22,9 +22,27 @@ export interface BridgeOptions {
   /** One tools/call, to the engine. */
   call(tool: string, args: Record<string, unknown>): Promise<{ content: { type: 'text'; text: string }[]; structuredContent: unknown; isError: false }>;
   theme(): 'light' | 'dark';
+  /** One-shot A1 (row 12): the colours Chausar shows now, as the frame's variables (frameVariables). */
+  styles?(): Record<string, string>;
   onSize?(height: number): void;
   /** The bridge closed itself, with why. */
   onClosed?(reason: 'moved'): void;
+}
+
+/**
+ * One-shot A1 (row 12): the frame's colour variables (platform/runtime/venture/apps/frame.ts FRAME_VARIABLES) from the
+ * Ink tokens Chausar shows now: the frame sits on --surface, so that is the app's --bg. Only plain hex colours go.
+ */
+export const FRAME_TOKENS: Readonly<Record<string, string>> = Object.freeze({ '--bg': '--surface', '--fg': '--fg', '--mute': '--mute', '--line': '--line', '--link': '--link' });
+
+/** The variables for the frame, read through read(token) (getComputedStyle in the app, the token table in tests). */
+export function frameVariables(read: (token: string) => string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, token] of Object.entries(FRAME_TOKENS)) {
+    const value = read(token).trim().toLowerCase();
+    if (/^#[0-9a-f]{3,8}$/.test(value)) out[name] = value;
+  }
+  return out;
 }
 
 /** The largest message the host reads, as JSON text. */
@@ -48,8 +66,14 @@ function readMessage(data: unknown): Message | null {
   return message;
 }
 
-/** Opens the bridge for one frame. Returns close, which stops listening; nothing reaches the engine after it. */
-export function openBridge(options: BridgeOptions): () => void {
+/** What openBridge returns: close, which stops listening (nothing reaches the engine after it), and themeChanged. */
+export type Bridge = (() => void) & { themeChanged(): void };
+
+/**
+ * Opens the bridge for one frame. themeChanged (one-shot A1, row 12) tells a running app the theme and colours Chausar
+ * shows now (MCP Apps ui/notifications/host-context-changed).
+ */
+export function openBridge(options: BridgeOptions): Bridge {
   const host = options.frame.ownerDocument.defaultView ?? window;
   let phase: 'proxy' | 'written' | 'initialized' | 'ready' | 'closed' = 'proxy';
   let inFlight = 0;
@@ -101,12 +125,18 @@ export function openBridge(options: BridgeOptions): () => void {
       case 'ui/initialize':
         if (phase !== 'written') { fail(id, -32600, 'The app is initialized already.'); return; }
         phase = 'initialized';
-        reply(id, {
-          protocolVersion: APP_PROTOCOL_VERSION,
-          hostInfo: { name: 'Chausar', version: '1' },
-          hostCapabilities: { serverTools: {} },
-          hostContext: { theme: options.theme(), displayMode: 'inline', availableDisplayModes: ['inline'], locale: 'en-IN', platform: 'desktop' },
-        });
+        {
+          const variables = options.styles?.() ?? {};
+          reply(id, {
+            protocolVersion: APP_PROTOCOL_VERSION,
+            hostInfo: { name: 'Chausar', version: '1' },
+            hostCapabilities: { serverTools: {} },
+            hostContext: {
+              theme: options.theme(), displayMode: 'inline', availableDisplayModes: ['inline'], locale: 'en-IN', platform: 'desktop',
+              ...(Object.keys(variables).length ? { styles: { variables } } : {}),
+            },
+          });
+        }
         return;
       case 'ping':
         reply(id, {});
@@ -121,8 +151,15 @@ export function openBridge(options: BridgeOptions): () => void {
   }
 
   host.addEventListener('message', onMessage);
-  return () => {
+  const close = () => {
     phase = 'closed';
     host.removeEventListener('message', onMessage);
   };
+  return Object.assign(close, {
+    themeChanged() {
+      if (phase !== 'ready') return;
+      const variables = options.styles?.() ?? {};
+      post({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { theme: options.theme(), ...(Object.keys(variables).length ? { styles: { variables } } : {}) } });
+    },
+  });
 }

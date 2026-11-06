@@ -30,6 +30,11 @@ export const BACKUP_AFTER_METHODS: readonly string[] = Object.freeze([
 ]);
 export const AUTO_BACKUP = Object.freeze({ everyMs: 21_600_000, minGapMs: 120_000, keepRecent: 10, keepDailyDays: 14, keepWeeklyWeeks: 8, keepSafety: 5 });
 export const TRANSFER = Object.freeze({ prefix: 'CHT-', length: 24, alphabet: '0123456789ABCDEFGHJKMNPQRSTVWXYZ', maxTextChars: 1_900_000 });
+/** A4 review (L3, hands-on row 113): a move file's name, by this computer's own date (never the UTC day). */
+export function moveFileName(at: Date): string {
+  const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+  return `chausar-move-${day}.backup`;
+}
 export const BUSINESS_LIST_MAX = 50;
 export const BACKUP_LIST_MAX = 200;
 
@@ -101,7 +106,7 @@ export type CustodyResults = {
 
 export const CUSTODY_ERRORS = Object.freeze([
   'DEVICE_KEYS_UNAVAILABLE', 'DEVICE_KEY_FAILED', 'PASSPHRASE_REQUIRED', 'PASSPHRASE_WRONG', 'CUSTODY_UNCHANGED',
-  'TRANSFER_CODE_WRONG', 'TRANSFER_INVALID', 'TRANSFER_TOO_LARGE', 'TRANSFER_SAME_BUSINESS',
+  'TRANSFER_CODE_WRONG', 'TRANSFER_INVALID', 'TRANSFER_TOO_LARGE', 'TRANSFER_SAME_BUSINESS', 'TRANSFER_FAILED',
   'BACKUP_NOT_FOUND', 'BACKUP_OTHER_BUSINESS', 'SYNC_NEEDS_PASSPHRASE',
   /** Its words are CUSTODY_WORDS.lock.safetyBackupFailed. */
   'SAFETY_BACKUP_FAILED',
@@ -143,6 +148,7 @@ export const CUSTODY_WORDS = Object.freeze({
     TRANSFER_INVALID: "This isn't a Chausar move file.",
     TRANSFER_TOO_LARGE: 'This file is bigger than Chausar can take in one go.',
     TRANSFER_SAME_BUSINESS: 'This business is already on this computer. Open it from the list.',
+    TRANSFER_FAILED: "Chausar couldn't finish moving your business here, so nothing was kept. Try again.",
     BACKUP_NOT_FOUND: 'That backup is not in the backups folder.',
     BACKUP_OTHER_BUSINESS: 'This backup belongs to another business.',
     SYNC_NEEDS_PASSPHRASE: 'Device sync needs a business locked with a passphrase.',

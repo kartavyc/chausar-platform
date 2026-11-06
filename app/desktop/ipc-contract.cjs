@@ -21,6 +21,13 @@ const MONEY_EXPORT_CHANNEL = 'chausar:money:saveExport';
 // Ink v2 wave 5 (5A5, P11): the desktop makes a client report and saves its files where the owner picks (report-save.cjs);
 // the window names only the draft. Chausar never sends the files.
 const REPORT_SAVE_CHANNEL = 'chausar:report:save';
+// One-shot A5 (founder answer 5): onboarding and Settings read start at login and keep running (background.cjs's state,
+// the login item read back from the computer) and change either; the window sends only the two ticks.
+const BACKGROUND_GET_CHANNEL = 'chausar:background:get';
+const BACKGROUND_SET_CHANNEL = 'chausar:background:set';
+// A5 fix round 3: the day the owner put Today's start-at-login question aside; it changes nothing else.
+const BACKGROUND_LATER_GET_CHANNEL = 'chausar:background:later:get';
+const BACKGROUND_LATER_SET_CHANNEL = 'chausar:background:later:set';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
@@ -59,6 +66,8 @@ const METHODS = Object.freeze([
   'venture.country.suggest',
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
   'venture.needs.list',
+  // A2: the owner's yes to the Codex found on this computer (engine.ts answers it, with or without a vault).
+  'venture.ai.setup.trust',
   'venture.create', 'venture.get', 'venture.events', 'venture.interview.next',
   'venture.interview.answer', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update', 'venture.blueprint.accept', 'venture.models.presets',
   'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls', 'venture.price.quote', 'venture.receipt.get',
@@ -246,18 +255,22 @@ function assertTrustedSender(event, contents) {
 // (no second address, no cc or bcc, no attachment, no header slipped in with a line break) and the owner presses send
 // there. The link is read field by field from the text as given (a broken escape refuses it), then rebuilt with each
 // field encoded again, and the rebuilt link is the one opened: the engine's handoff (network/handoff.ts) spells it the same.
+// One-shot A6 (S7): the address may be empty, as the engine leaves it for an invoice to a client with no email on file;
+// the owner types it in their mail app. The .eml draft (mail-draft.cjs) reads the same checked fields (mailtoParts).
 const MAILTO_ADDRESS = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(\.[A-Za-z0-9-]{1,63})+$/;
 // Any control character (NUL, tab, CR and LF among them), next line, line separator or paragraph separator: a header
 // break in some mail app, so never in the address or the subject. The body keeps its CRLF line breaks.
 const MAILTO_BREAKS = /[\p{Cc}\u0085\u2028\u2029]/u;
-function rebuiltMailto(input) {
+/** A mail link's fields as given: the address (maybe empty), and the subject and body when present; null when anything is off. */
+function mailtoFields(input) {
+  if (typeof input !== 'string' || !/^mailto:/i.test(input)) return null;
   const decode = value => { try { return decodeURIComponent(value); } catch { return null; } };
   const rest = input.replace(/^mailto:/i, '');
   const mark = rest.indexOf('?');
   const rawAddress = mark < 0 ? rest : rest.slice(0, mark), rawQuery = mark < 0 ? '' : rest.slice(mark + 1);
   if (rest.includes('#')) return null;
   const address = decode(rawAddress);
-  if (address === null || MAILTO_BREAKS.test(address) || !MAILTO_ADDRESS.test(address)) return null;
+  if (address === null || MAILTO_BREAKS.test(address) || (address !== '' && !MAILTO_ADDRESS.test(address))) return null;
   const fields = {};
   for (const pair of rawQuery ? rawQuery.split('&') : []) {
     const equals = pair.indexOf('=');
@@ -267,6 +280,19 @@ function rebuiltMailto(input) {
     if (key === 'subject' && MAILTO_BREAKS.test(value)) return null;
     fields[key] = value;
   }
+  // A6 round 1: a link with no address carries at least a subject, so a bare "mailto:" never opens an empty email.
+  if (address === '' && !fields.subject) return null;
+  return { address, fields };
+}
+/** A6: the checked address (maybe empty), subject and body of a mail link, or null. */
+function mailtoParts(input) {
+  const read = mailtoFields(input);
+  return read === null ? null : { address: read.address, subject: read.fields.subject ?? '', body: read.fields.body ?? '' };
+}
+function rebuiltMailto(input) {
+  const read = mailtoFields(input);
+  if (read === null) return null;
+  const { address, fields } = read;
   const query = ['subject', 'body'].filter(key => Object.hasOwn(fields, key)).map(key => `${key}=${encodeURIComponent(fields[key])}`).join('&');
   return `mailto:${encodeURIComponent(address).replace(/%40/g, '@')}${query ? `?${query}` : ''}`;
 }
@@ -283,6 +309,17 @@ function validateExternalUrl(input) {
   if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') throw failure('INVALID_EXTERNAL_URL', 'Use one partner link.');
   if (!EXTERNAL_ORIGINS.includes(url.origin)) throw failure('EXTERNAL_URL_NOT_ALLOWED', 'Chausar opens only its listed partner sites.');
   return url.href;
+}
+/** A5 fix round 3: { day: 'YYYY-MM-DD' } and nothing else. */
+function validateLaterDay(input) {
+  if (!isRecord(input) || Object.keys(input).length !== 1 || typeof input.day !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(input.day)) throw failure('INVALID_REQUEST', 'Send the day as YYYY-MM-DD.');
+  return input.day;
+}
+/** A5: one change of start at login or keep running, as true or false; anything else is refused. */
+function validateBackgroundChange(input) {
+  const keys = isRecord(input) ? Object.keys(input) : [];
+  if (keys.length === 0 || keys.some(key => !['startAtLogin', 'keepRunning'].includes(key) || typeof input[key] !== 'boolean')) throw failure('INVALID_REQUEST', 'Change start at login or keep running, as on or off.');
+  return { ...(keys.includes('startAtLogin') ? { startAtLogin: input.startAtLogin } : {}), ...(keys.includes('keepRunning') ? { keepRunning: input.keepRunning } : {}) };
 }
 function publicError(error) {
   return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.' };
@@ -301,4 +338,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });

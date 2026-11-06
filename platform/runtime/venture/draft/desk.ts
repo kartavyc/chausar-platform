@@ -6,7 +6,7 @@
 import { readFile } from 'node:fs/promises';
 import { ChausarError, check, type Context } from '../../contracts.ts';
 import { DRAFT_METHODS } from '../contracts.ts';
-import type { ModelPort, ModelReplayFixture, ModelTransport, SecretShelf, VentureDeps, VentureEngineServices, VentureHostOptions } from '../contracts.ts';
+import type { DelegateCli, ModelPort, ModelReplayFixture, ModelTransport, SecretShelf, VentureDeps, VentureEngineServices, VentureHostOptions } from '../contracts.ts';
 import { DRAFT_IDLE_MS } from '../onboarding-contracts.ts';
 import type { DraftHandoverPort } from '../onboarding-contracts.ts';
 import { isAppChannel } from '../records.ts';
@@ -17,6 +17,8 @@ import { DRAFT_HANDLERS, type ComposeSession, type DeskHandle } from './handlers
 import { createHandover } from './handover.ts';
 import { DraftStore } from './store.ts';
 import { LoginDesk } from '../models/login.ts';
+import { hostTestCall } from '../models/cli-test.ts';
+import { ProviderStatusReader, providerTrouble } from '../models/provider-status.ts';
 
 export type DraftDeskOptions = VentureHostOptions & {
   demo: boolean;
@@ -29,6 +31,11 @@ export type DraftDeskOptions = VentureHostOptions & {
   /** Wave 6 (6C1): trusted test hook for the tools' own logins; the engine never sets it. */
   login?: LoginDesk;
 };
+
+/** A2: the host's Codex trust (codex-trust.ts) when it passed one, for the setup the owner is shown and the test call. */
+function codexTrustOf(value: unknown): Pick<ConstructorParameters<typeof LoginDesk>[0] & object, 'codex'> {
+  return value && typeof value === 'object' && typeof (value as { review?: unknown }).review === 'function' ? { codex: value as never } : {};
+}
 
 export const VENTURE_EXISTS_WORDS = 'Your business already has its AI settings under Trust.';
 const HOSTED_WORDS = 'The hosted web app adds your AI after you keep your business.';
@@ -53,6 +60,7 @@ export class DraftDesk {
   #timer: ReturnType<typeof setTimeout> | null = null;
   #generation = 0;
   #login: LoginDesk | null = null;
+  #statusReader: ProviderStatusReader | null = null;
   readonly handover: DraftHandoverPort;
 
   constructor(options: DraftDeskOptions) {
@@ -83,7 +91,10 @@ export class DraftDesk {
       idleUntil: () => this.#idleUntil(),
       session: () => (this.#generation === generation ? this.#session : null),
       keep: session => { if (this.#generation === generation && this.#parts === parts) this.#session = session; },
-      login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ claudeTerms: this.#options.claudeCodeTerms ?? 'accepted' })),
+      // A2: the setup the owner is shown, and the tiny test call that earns "Signed in" (models/cli-test.ts).
+      login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ claudeTerms: this.#options.claudeCodeTerms ?? 'accepted', ...codexTrustOf(this.#options.codexCli),
+        testCall: (cli, program) => hostTestCall(cli, program, this.#options.codexCli, parts.deps.models),
+        ...(this.#options.statusPages ? { providerStatus: (cli: DelegateCli) => providerTrouble(this.#statusReader ??= new ProviderStatusReader({ ...(this.#options.net ? { net: this.#options.net } : {}) }), cli) } : {}) })),
     };
     const handler = DRAFT_HANDLERS[method];
     check(handler, 'NOT_BUILT_YET', 'This part of Chausar is not built yet.');

@@ -6,6 +6,7 @@ import {digest,listRecords,readVenture,requireAppChannel,ventureAction} from '..
 import type {DeskHandlers} from '../desk-types.ts';
 import {seoExact,seoOperation,requireFreshWork,type SeoWorkItem,type SeoWorkBody} from './work-core.ts';
 import {runSeoWork} from './work-run.ts';
+import {refusals} from '../../refusals.ts';
 export type SeoWorkDeskTypes={work:{filter:null;row:SeoWorkItem;item:SeoWorkItem;actions:Record<string,{payload:any;result:SeoWorkItem}>}};
 function boundSource(state:State,venture:VentureRecord,orderId:string,uploadId:string){const order=listRecords(state,'venture-order',venture.id).find(o=>o.id===orderId);check(order,'ORDER_NOT_FOUND','That order was not found.');const file=listRecords(state,'venture-upload',venture.id).find(f=>f.id===uploadId&&f.scope.kind==='order'&&f.scope.orderId===order.id);check(file,'SEO_SOURCE_REQUIRED','Choose an evidence file uploaded to this order.');return {order,file,sourceDigest:digest({orderId:order.id,clientId:order.clientId,request:order.request,fileId:file.id,bytes:file.contentBase64})};}
 export function seoWorkItem(state:State,venture:VentureRecord,record:SeoFindingRecord):SeoWorkItem{const work=record.work!;let stale=true;try{stale=boundSource(state,venture,work.orderId,work.uploadId).sourceDigest!==work.sourceDigest;}catch{}return {id:record.id,...structuredClone(work),stale};}
@@ -18,7 +19,7 @@ export const SEO_WORK_DESK:DeskHandlers={work:{
   if(p.action==='create'||p.action==='rescan'){
    const input=seoExact(p.payload,['orderId','operation','uploadId']);check(typeof input.orderId==='string'&&typeof input.uploadId==='string','SEO_SOURCE_REQUIRED','Choose an evidence file uploaded to this order.');const operation=seoOperation(input.operation);const {state,venture}=readVenture(deps,ctx);let prior:SeoFindingRecord|null=null;
    if(p.action==='create')check(p.id==='new'&&p.digest===undefined,'INVALID_VENTURE_REQUEST','New search work has no prior digest.');else{prior=find(state,venture,p.id);check(p.digest===digest(item(state,venture,prior)),'APPROVAL_STALE','This search work changed. Read it again.');check(prior.work!.orderId===input.orderId&&prior.work!.operation===operation,'SEO_INPUT_INVALID','Rescan the same order and check.');}
-   const source=boundSource(state,venture,input.orderId,input.uploadId);const result=await runSeoWork(operation,Buffer.from(source.file.contentBase64,'base64').toString('utf8'),deps.net);
+   const source=boundSource(state,venture,input.orderId,input.uploadId);const result=await refusals(()=>runSeoWork(operation,Buffer.from(source.file.contentBase64,'base64').toString('utf8'),deps.net));
    return ventureAction(deps,ctx,'approve','seo.work.check',tx=>{check(tx.venture!.id===venture.id,'APPROVAL_STALE','The business changed. Start the check again.');check(boundSource(tx.state,tx.venture!,input.orderId,input.uploadId).sourceDigest===source.sourceDigest,'SEO_SOURCE_CHANGED','The order or source file changed. Run this check again before approving it.');
     if(prior)check(p.digest===digest(item(tx.state,tx.venture!,find(tx.state,tx.venture!,prior.id))),'APPROVAL_STALE','This search work changed. Read it again.');
     const pass=(result as {pass?:boolean}).pass;const state:SeoWorkBody['state']=prior?(pass===true?'resolved':prior.work!.state==='muted'?'muted':'checked'):'checked';

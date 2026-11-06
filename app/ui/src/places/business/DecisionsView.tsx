@@ -72,7 +72,8 @@ export function DecisionsView() {
                   id={`decision-${decision.id}`}
                   eyebrow={(
                     <span className={s.who} data-who={decision.who}>
-                      {t(`business.decisions.who.${decision.who}`)}
+                      {/* A4 review (L5): the reader's own decision is You's; another member's is named by their role. */}
+                      {decision.mine ? t('business.decisions.who.mine') : t(`business.decisions.who.${decision.who}`)}
                       {' · '}
                       <span className="mono">{momentOf(decision.at, language)}</span>
                     </span>

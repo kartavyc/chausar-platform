@@ -606,3 +606,69 @@ test('a move whose attach fails stays listed with the right way in, and opens la
   await assert.rejects(b.ask('workspace.transfer.import', { fileText: exported.text, transferCode: exported.transferCode }), code('TRANSFER_SAME_BUSINESS'));
   assert.equal((await b.ask('workspace.open', { folder: businesses[0].folder })).workspace.name, 'Half Moved');
 });
+
+test('one-shot A1 row 1: Delete keeps the copies the owner exported to keep, and says which; backups still go', async t => {
+  const directory = await folder(t);
+  const { ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Keep Copies Shop', pack: 'services', folder: null });
+  await ask('workspace.backups.create');
+  const kept = await ask('workspace.export', { confirmed: true, plaintext: false });
+  const exported = (await readdir(join(directory, 'exports'))).sort();
+  assert.equal(exported.length, 1);
+  const before = new Set(await readdir(directory));
+  const removed = await ask('workspace.delete', { confirmation: 'Keep Copies Shop' });
+  // One-shot A4 (hands-on S10): the business's own folder goes too once it is empty; nothing else is touched.
+  const after = new Set(await readdir(directory));
+  assert.deepEqual([...before].filter(name => !after.has(name)).length, 1, `one folder went: ${[...before].filter(name => !after.has(name))}`);
+  assert.ok(after.has('exports') && after.has('backups'));
+  assert.deepEqual(await readdir(join(directory, 'exports')), exported, 'the exported copy is still there');
+  assert.deepEqual(removed.exportsKept, [kept.path]);
+  assert.equal(removed.copiesRemoved.some((path: string) => path.startsWith('exports/')), false);
+  assert.ok(removed.copiesRemoved.some((path: string) => path.startsWith('backups/')));
+  assert.deepEqual(await backupsOf(directory), []);
+});
+
+test('one-shot A1 row 8: moving a business in after deleting the original works, and a key or disk failure is never called a key that would not open it', async t => {
+  const directory = await folder(t);
+  const inner = memoryDeviceKeyStore();
+  let fail: 'protect' | 'write' | null = null;
+  const keys: DeviceKeyStore = {
+    ...inner,
+    async protect(vaultId, secret) {
+      if (fail === 'protect') throw new Error('The protected storage helper timed out.');
+      const record = await inner.protect(vaultId, secret);
+      // A record that cannot be written (the disk said no), after the key itself was kept.
+      return fail === 'write' ? { ...record, toJSON() { throw Object.assign(new Error("EPERM: operation not permitted, rename 'C:/Users/someone/secret.json'"), { code: 'EPERM', syscall: 'rename', path: 'C:/Users/someone/secret.json' }); } } as typeof record : record;
+    },
+  };
+  const { ask } = engineAt(t, directory, { keys });
+  await ask('workspace.create', { name: 'Moving Back Shop', pack: 'services', folder: null });
+  const exported = await ask('workspace.transfer.export');
+  await ask('workspace.lock');
+  await assert.rejects(ask('workspace.transfer.import', { fileText: exported.text, transferCode: exported.transferCode }), code('TRANSFER_SAME_BUSINESS'));
+  await ask('workspace.open', { folder: 'moving-back-shop' });
+  await ask('workspace.delete', { confirmation: 'Moving Back Shop' });
+  const move = (extra: Record<string, unknown> = {}) => ask('workspace.transfer.import', { fileText: exported.text, transferCode: exported.transferCode, ...extra });
+  // The key could not be kept here: the move offers a passphrase instead (the move screen asks for one on this code).
+  fail = 'protect';
+  await assert.rejects(move(), (error: any) => error.code === 'DEVICE_KEYS_UNAVAILABLE' && error.reason === 'failed');
+  // The key was kept but its record could not be written: plain words that nothing moved, never DEVICE_KEY_FAILED.
+  fail = 'write';
+  await assert.rejects(move(), (error: any) => error.code === 'TRANSFER_FAILED' && error.message === CUSTODY_WORDS.errors.TRANSFER_FAILED);
+  assert.deepEqual((await ask('workspace.list')).businesses, [], 'nothing half moved is listed');
+  // Review of A1 (row 8): each failed move leaves the step and the error's code in the engine's diagnostic log, never a path or a secret.
+  const log = (await readFile(join(directory, 'custody', 'diagnostics.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  assert.deepEqual(log.map(entry => [entry.op, entry.step, entry.code, entry.syscall ?? null, entry.reason ?? null]), [
+    ['transfer.import', 'protect', 'DEVICE_KEYS_UNAVAILABLE', null, 'failed'],
+    ['transfer.import', 'write-key', 'EPERM', 'rename', null],
+  ]);
+  assert.ok(log.every(entry => typeof entry.at === 'string'));
+  const raw = await readFile(join(directory, 'custody', 'diagnostics.jsonl'), 'utf8');
+  assert.equal(raw.includes('someone') || raw.includes('secret') || raw.includes(exported.transferCode), false);
+  fail = null;
+  const moved = await move();
+  assert.equal(moved.workspace.name, 'Moving Back Shop');
+  await ask('workspace.lock');
+  await ask('workspace.open', { folder: moved.folder });
+  assert.equal((await ask('workspace.status')).workspace.name, 'Moving Back Shop');
+});

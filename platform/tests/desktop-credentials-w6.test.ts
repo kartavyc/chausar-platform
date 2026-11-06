@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, readdir, rm, copyFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, copyFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -39,10 +39,12 @@ test('credential storage refuses plaintext Linux backends, unavailable protectio
   try {
     for (const safeStorage of [{ ...encryption(), getSelectedStorageBackend: () => 'basic_text' }, { ...encryption(), isEncryptionAvailable: () => false }]) {
       const store = createCredentialStore({ directory, safeStorage, platform: 'linux' });
-      await assert.rejects(store.set('workspace_a', NAME, 'sample'), { code: 'CREDENTIAL_UNAVAILABLE' });
+      // A2 second review: the store names a missing protected store with its own code, kept apart from a failure.
+      await assert.rejects(store.set('workspace_a', NAME, 'sample'), { code: 'CREDENTIAL_NO_STORE', message: 'Protected key storage is unavailable on this computer.' });
     }
     const store = createCredentialStore({ directory, safeStorage: encryption(), platform: 'win32' });
-    for (const [scope, name] of [['../../outside', NAME], ['workspace_a', 'file:/outside'], ['workspace_a', 'model:unknown']]) await assert.rejects(store.set(scope, name, 'sample'), { code: 'CREDENTIAL_INVALID' });
+    // A2 second review: the Codex seal is kept only under the host's own scope.
+    for (const [scope, name] of [['../../outside', NAME], ['workspace_a', 'file:/outside'], ['workspace_a', 'model:unknown'], ['workspace_a', 'trust:codex-seal']]) await assert.rejects(store.set(scope, name, 'sample'), { code: 'CREDENTIAL_INVALID' });
     assert.deepEqual(await readdir(directory), []);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
@@ -71,4 +73,28 @@ test('the real desktop harness routes credential IPC only to its private host li
   const ready = harness.start(); child.emit('message', { ready: true }); await ready;
   child.emit('message', { kind: 'host-credential', callId: '12345678-1234-1234-1234-123456789abc', op: 'get', workspaceId: 'workspace_a', name: NAME });
   assert.equal(replies.at(-1)?.value, 'harmless value'); assert.equal(events, 0); await harness.stop();
+});
+
+// A2 second review: a missing protected store reaches the worker as CREDENTIAL_NO_STORE only on the Codex seal's port;
+// every other port still says CREDENTIAL_UNAVAILABLE, and a failed store is never read as a missing one.
+test('only the seal port keeps the no-store code, and a broken store folder is a failure, not a missing store', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'chausar-credential-test-'));
+  try {
+    const wire = (store: any, noStore: boolean) => {
+      const channel = new EventEmitter() as any, child = new EventEmitter() as any, harness = new EventEmitter();
+      channel.connected = child.connected = true;
+      const relay = createCredentialRelay(harness, child);
+      channel.send = (message: unknown, callback: (error: Error | null) => void) => { relay.receive(message); callback(null); return true; };
+      child.send = (message: unknown, callback: () => void) => { channel.emit('message', message); callback(); };
+      harness.on('credential', (request: any, answer: (result: unknown) => void) => { store[request.op](request.workspaceId, request.name, request.value).then((value: unknown) => answer({ ok: true, value: value ?? null }), (error: any) => answer({ ok: false, code: error?.code })); });
+      return processCredentialPort(channel, { timeoutMs: 500, noStore });
+    };
+    const none = createCredentialStore({ directory, safeStorage: { ...encryption(), isEncryptionAvailable: () => false }, platform: 'win32' });
+    await assert.rejects(wire(none, true).get('chausar-host', 'trust:codex-seal'), { code: 'CREDENTIAL_NO_STORE' });
+    await assert.rejects(wire(none, false).get('workspace_a', NAME), { code: 'CREDENTIAL_UNAVAILABLE' });
+    const blocked = join(directory, 'blocked');
+    await writeFile(blocked, 'not a folder');
+    const broken = createCredentialStore({ directory: blocked, safeStorage: encryption(), platform: 'win32' });
+    await assert.rejects(wire(broken, true).get('chausar-host', 'trust:codex-seal'), { code: 'CREDENTIAL_UNAVAILABLE' });
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

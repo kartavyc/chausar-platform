@@ -33,7 +33,7 @@ function fixture(base: AgentDriverInput, change?: (method: string, params: any, 
       const message = JSON.parse(String(chunk)); sent.push(message); done();
       if (!('id' in message) || !message.method) return;
       let result: any = {};
-      if (message.method === 'initialize') result = { userAgent: 'codex_cli_rs/0.154.0' };
+      if (message.method === 'initialize') result = { userAgent: 'chausar/0.166.0 (Windows 10.0.26200; x86_64) unknown (chausar; 0.1.0)' };
       if (message.method === 'thread/start') result = { thread: { id: 'thread-1', ephemeral: true }, model: message.params.model, cwd: message.params.cwd, runtimeWorkspaceRoots: message.params.runtimeWorkspaceRoots, activePermissionProfile: { id: message.params.permissions }, approvalsReviewer: message.params.approvalsReviewer, approvalPolicy: message.params.approvalPolicy, instructionSources: [] };
       // Codex lists the whole account catalogue on the apps server, even at thread level; app/installed says what is callable.
       if (message.method === 'mcpServerStatus/list') result = { data: message.params.threadId ? [OWN, ...(base.settings.connectors ? [APPS_ALL] : [])] : [OWN, APPS_ALL, { name: 'owner_tool', runtimeStatus: 'connected', tools: { x: {} } }], nextCursor: null };

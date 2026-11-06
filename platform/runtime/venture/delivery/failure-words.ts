@@ -28,11 +28,22 @@ export const FAILURE_TABLE: Readonly<Record<FailureKind, Row>> = Object.freeze({
   offline: Object.freeze({ line: 'Your computer seems offline, so nothing was sent.', fix: 'Run it again once you are back online.', fixKind: 'run-again-online', transient: true }),
   'too-long': Object.freeze({ line: 'This was too long for your AI in one go.', fix: 'Split it into smaller orders, or pick a model that reads more at once, then run it again.', fixKind: 'split-work', transient: false }),
   'out-of-date': Object.freeze({ line: '{tool} is out of date for Chausar.', fix: 'Update it, then check it again under Connections, Your AI.', fixKind: 'update-tool', transient: false }),
+  // A2: what the tool itself said went wrong (models/ai-failure.ts).
+  'plan-used-up': Object.freeze({ line: "Your AI's own plan is used up for now.", fix: 'Wait for it to reset, or choose another AI under Connections, Your AI.', fixKind: 'wait-for-plan', transient: false }),
+  'step-limit': Object.freeze({ line: 'Your AI reached its step limit before it finished.', fix: 'Run it again.', fixKind: 'run-again', transient: false }),
+  'connection-dropped': Object.freeze({ line: 'The connection to your AI dropped before it finished.', fix: 'Run it again once you are back online.', fixKind: 'run-again-online', transient: true }),
+  'rate-limited': Object.freeze({ line: 'Your AI asked Chausar to wait a moment.', fix: 'Wait a minute, then run it again.', fixKind: 'wait-a-minute', transient: true }),
+  'model-missing': Object.freeze({ line: "Your AI account doesn't offer the model Chausar asked for.", fix: "Choose a model from your AI's list under Connections, Your AI.", fixKind: 'choose-model', transient: false }),
   unknown: Object.freeze({ line: "The AI service answered with an error Chausar doesn't know. Nothing was retried.", fix: null, fixKind: null, transient: false }),
 } satisfies Record<FailureKind, Row>);
 
+/** A2: the failures a tool names (models/ai-failure.ts AI_FAILURE_CODES), by their code. */
+const NAMED: Readonly<Record<string, FailureKind>> = Object.freeze({
+  AI_USAGE_LIMIT: 'plan-used-up', AI_RATE_LIMITED: 'rate-limited', AI_CONTEXT_FULL: 'too-long', AI_MAX_TURNS: 'step-limit', AI_STREAM_CUT: 'connection-dropped',
+  AI_SIGN_IN_REFUSED: 'not-signed-in', AI_MODEL_UNAVAILABLE: 'model-missing',
+});
 /** Engine codes that place an AI call's failure in the table. Codes not here keep their own words. */
-const MODEL_CODES = new Set(['MODEL_FAILED', 'MODEL_INCOMPLETE', 'MODEL_KEY_MISSING', 'CLI_UNAVAILABLE', 'CLI_FLAGS_UNSUPPORTED', 'BUDGET_REACHED', 'SPEND_CAP']);
+const MODEL_CODES = new Set(['MODEL_FAILED', 'MODEL_INCOMPLETE', 'MODEL_KEY_MISSING', 'CLI_UNAVAILABLE', 'CLI_FLAGS_UNSUPPORTED', 'BUDGET_REACHED', 'SPEND_CAP', ...Object.keys(NAMED)]);
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** The first day of the month after the given time's month (months in UTC, as spend counts them). */
@@ -57,6 +68,7 @@ export function failureKind(error: KeptError): FailureKind | null {
   const { code } = error;
   if (!MODEL_CODES.has(code)) return null;
   if (code === 'BUDGET_REACHED' || code === 'SPEND_CAP') return 'allowance-spent';
+  if (Object.hasOwn(NAMED, code)) return NAMED[code]!;
   if (error.cause === 'not-connected') return 'offline';
   const words = error.message.toLowerCase();
   if (code === 'MODEL_KEY_MISSING' || (code === 'CLI_UNAVAILABLE' && words.includes('not signed in')) || words.includes('refused your key')) return 'not-signed-in';

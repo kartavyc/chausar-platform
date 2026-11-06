@@ -83,3 +83,44 @@ describe('fake chat states (6G1)', () => {
     expect(answered.thread.waiting).toBe(false);
   });
 });
+
+// One-shot A1 (row 11): as the engine's agents/consent.ts, the chat consent is to what is sent and to whom. Saving the
+// same AI again with another model setting keeps it; another AI asks again.
+describe('fake chat consent', () => {
+  it('stays given when the same AI is saved again with another model, and asks again for another AI', async () => {
+    const { client } = fake(NOW);
+    const key = ['test', 'key', 'value'].join('-');
+    await client.request('venture.models.connect', { presetId: 'openai-gpt-6-luna', consentDigest: 'consent-openai', apiKey: key, tiers: ['fast', 'main'] } as never);
+    let consent = (await client.request('venture.chief.threads', {})).consent;
+    expect(consent.state === 'needed' || consent.state === 'stale').toBe(true);
+    await client.request('venture.chats.consent', { digest: consent.digest! });
+    await client.request('venture.models.connect', { presetId: 'openai-gpt-6-luna', consentDigest: 'consent-openai', apiKey: key, model: 'gpt-6-luna-mini', tiers: ['fast', 'main'] } as never);
+    consent = (await client.request('venture.chief.threads', {})).consent;
+    expect(consent.state).toBe('given');
+    await client.request('venture.models.connect', { presetId: 'openrouter', consentDigest: 'consent-openrouter', apiKey: key, tiers: ['fast', 'main'] } as never);
+    expect((await client.request('venture.chief.threads', {})).consent.state).toBe('stale');
+  });
+
+  it('on OpenRouter, a model from another company asks again (review of A1 row 11)', async () => {
+    const { client } = fake(NOW);
+    const key = ['test', 'key', 'value'].join('-');
+    const connect = (model: string) => client.request('venture.models.connect', { presetId: 'openrouter', consentDigest: 'consent-openrouter', apiKey: key, model, tiers: ['fast', 'main'] } as never);
+    await connect('openai/gpt-6-luna');
+    const consent = (await client.request('venture.chief.threads', {})).consent;
+    expect(consent.text).toContain('openai');
+    await client.request('venture.chats.consent', { digest: consent.digest! });
+    await connect('openai/gpt-6-luna-mini');
+    expect((await client.request('venture.chief.threads', {})).consent.state).toBe('given');
+    await connect('deepseek/deepseek-v4');
+    expect((await client.request('venture.chief.threads', {})).consent.state).toBe('stale');
+    // A1 re-review: OpenRouter's own router picks the company per chat, says so, and asks again either way.
+    await client.request('venture.chats.consent', { digest: (await client.request('venture.chief.threads', {})).consent.digest! });
+    await connect('openrouter/auto');
+    const auto = (await client.request('venture.chief.threads', {})).consent;
+    expect(auto.state).toBe('stale');
+    expect(auto.text).toContain("OpenRouter picks which company's model gets each chat");
+    await client.request('venture.chats.consent', { digest: auto.digest! });
+    await connect('deepseek/deepseek-v4');
+    expect((await client.request('venture.chief.threads', {})).consent.state).toBe('stale');
+  });
+});

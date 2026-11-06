@@ -1,3 +1,4 @@
+import { refusalError } from '../refusal-brand.ts';
 import {HIDDEN,FORMULA,normalEmail} from './normal-email.ts';
 import { fold } from './fold.ts';
 export { fold } from './fold.ts';
@@ -73,7 +74,7 @@ export function checkPeople(size: number, max: number): void {
 
 /** An error the engine and the desktop both pass on: a code and plain words. */
 export function extractError(code: string, message: string): Error & { code: string } {
-  return Object.assign(new Error(message), { code });
+  return refusalError(new Error(message), { code });
 }
 
 /** A whole number with thousands commas. */

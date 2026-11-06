@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { orderView, previousFailure } from '../../src/places/work/orders';
+import { waitsOnYou } from '../../src/places/work/OrderList';
 import { fileProblem } from '../../src/places/work/files';
 import { EngineError, type BlueprintViewLite, type DeliveryLite, type InvoiceLite, type MethodName, type OrderLite, type RunSummary, type UploadLite } from '../../src/engine/types';
 
@@ -37,6 +38,11 @@ describe('an order in one plain state', () => {
 
   it('draft ready, approved, sent back and stopped follow the newest run', () => {
     expect(orderView(order(), [run('ready-for-review')], []).state).toBe('draft-ready');
+    // Review of A1 (row 9): a handed-over draft the AI is still finishing is working, never waiting on you.
+    const finishing = orderView(order(), [run('ready-for-review', { awaitingYou: false })], [], [summary('d-ready-for-review', 'active')]);
+    expect(finishing.state).toBe('working');
+    expect(waitsOnYou(finishing)).toBe(false);
+    expect(orderView(order(), [run('ready-for-review', { awaitingYou: true })], [], [summary('d-ready-for-review', 'waiting')]).state).toBe('draft-ready');
     const approved = orderView(order(), [run('accepted')], []);
     expect(approved.state).toBe('approved');
     expect(approved.action).toBe('deliver');

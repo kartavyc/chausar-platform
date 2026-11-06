@@ -19,6 +19,7 @@ import { handlers, listCountries, previewPlan } from '../runtime/venture/core/in
 import { classifyIdea, offerWords, serviceTemplate, templateStrings } from '../runtime/venture/core/service-types.ts';
 import { BLUEPRINT_INSTRUCTIONS, blueprintDigest, structureFromBlueprint } from '../runtime/venture/core/blueprint.ts';
 import { validateInterviewOutput } from '../runtime/venture/core/interview.ts';
+import { ABOUT_INSTRUCTIONS } from '../runtime/venture/core/about.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 const FIXED_NOW = '2026-10-15T10:00:00.000Z'; // at or before real time (rule 23)
@@ -103,6 +104,14 @@ function setup() {
 
 type Harness = ReturnType<typeof setup>;
 
+/** An about-read model call, as venture.create hands the draft's calls over into the business (A1 re-review). */
+async function seedAboutCall(h: ReturnType<typeof setup>, id = 'modelcall_about_1', offers: { name: string; line: string }[] | null = [{ name: 'Party photos', line: 'Photos of the party.' }]) {
+  await ventureAction(h.deps, owner, 'admin', 'seed.about-call', tx => {
+    tx.put({ ...tx.base('venture-model-call'), id, purpose: 'decide', tier: 'fast', presetId: 'anthropic-sonnet-5-5', connectionId: null, routeKind: 'anthropic-messages', model: 'claude-sonnet-5-5',
+      consent: 'standing', endpoint: 'https://api.anthropic.com/v1/messages', payloadText: JSON.stringify({ system: ABOUT_INSTRUCTIONS }), payloadDigest: 'd', payloadTruncated: false, containsClientData: false,
+      status: 'completed', approvedDigest: null, approvedAt: null, approvedBy: null, estimatedMaxCostMicros: '0', priceConfirmed: true, usage: null, costMicros: '0', outputDigest: 'o', error: null, replay: false, ...(offers ? { kept: { offers } } : {}) } as never);
+  });
+}
 const codeOf = (code: string) => (error: unknown) => { assert.equal((error as ChausarError).code, code); return true; };
 
 async function answer(h: Harness, questionId: string, given: Record<string, unknown>) {
@@ -1035,4 +1044,98 @@ test('5A2: a share on the first offer clears the interview\'s price, and a rewri
   assert.equal(price.answerMinor, null, 'the interview no longer holds the old fixed price');
   const rewritten = (await h.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
   assert.deepEqual(rewritten.offers.map((offer: any) => [offer.pricing.share?.bps ?? null, offer.pricing.unitPriceMinor]), [['833', null], ['1200', null]]);
+});
+
+test('review of A1 row 3: the first keep saves exactly the card: its name and offers, by who wrote them, with a neutral price unit', async () => {
+  const shown = (by: 'model' | 'template', count: number) => ({
+    name: 'Pune Frames Studio', by, ...(by === 'model' ? { callId: 'modelcall_about_1' } : {}),
+    offers: [
+      { name: 'Birthday party photography', line: 'Candid photos of the party, edited and shared.' },
+      { name: 'Shop product photos', line: 'Clean photos of what a shop sells.' },
+      { name: 'Monthly photo support', line: '' },
+    ].slice(0, count),
+  });
+  for (const [by, count] of [['model', 3], ['template', 1]] as const) {
+    const h = setup();
+    await interviewed(h, { model: 'monthly', price: null });
+    if (by === 'model') await seedAboutCall(h, 'modelcall_about_1', shown(by, count).offers);
+    const view = await h.call('venture.blueprint.draft', { useTemplate: true, shown: shown(by, count) });
+    const plan = view.blueprint;
+    assert.equal(plan.source, by, 'who wrote the words, never the owner for a first keep');
+    assert.equal(plan.name.value, 'Pune Frames Studio');
+    assert.deepEqual(plan.offers.map((offer: any) => offer.name.value), shown(by, count).offers.map(offer => offer.name), 'exactly the card offers, extras gone');
+    assert.ok(plan.offers.every((offer: any) => offer.name.by === by && offer.name.label === 'assumption'));
+    assert.ok(plan.offers.every((offer: any) => offer.pricing.model === 'project' && offer.pricing.unitPriceMinor === null), 'no per month on a birthday shoot');
+    if (count === 3) assert.equal(plan.offers[2].description.value, 'Monthly photo support', 'an empty line falls back to the name');
+    // The kept plan works like any plan: accepted, then its last offer priced and accepted again.
+    const accepted = await h.call('venture.blueprint.accept', { digest: plan.digest });
+    const last = accepted.blueprint.offers.at(-1);
+    const priced = await h.call('venture.blueprint.update', { patch: { offers: [{ id: last.id, unitPrice: '5000' }] } });
+    assert.equal(priced.blueprint.source, by, 'a price changes no words');
+    const again = await h.call('venture.blueprint.accept', { digest: priced.blueprint.digest });
+    assert.equal(again.blueprint.offers.at(-1).pricing.unitPriceMinor, '500000');
+    // A retry of the keep after the plan was saved changes nothing.
+    await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true, shown: shown(by, count) }), (error: any) => error.code === 'PLAN_ALREADY_KEPT');
+  }
+  // The card's words are checked like any plan words: an amount is refused, and nothing is written.
+  const h = setup();
+  await interviewed(h);
+  await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true, shown: { name: 'Studio', by: 'model', offers: [{ name: 'Shoots at INR 5000', line: 'x' }] } }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
+  await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: true, shown: { name: 'Studio', by: 'owner', offers: [{ name: 'Shoots', line: '' }] } }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
+  assert.equal(await h.call('venture.blueprint.get'), null);
+});
+
+test('A1 re-review: the plan says the AI wrote it only when this business holds the AI call that read the owner', async () => {
+  const shown = { name: 'Pune Frames Studio', by: 'model', callId: 'modelcall_about_1', offers: [{ name: 'Party photos', line: 'Photos of the party.' }] };
+  // No about-read call in this business: the words are labelled the template's, never the AI's on the window's word.
+  const h = setup();
+  await interviewed(h);
+  const plain = (await h.call('venture.blueprint.draft', { useTemplate: true, shown })).blueprint;
+  assert.equal(plain.source, 'template');
+  assert.ok(plain.offers.every((offer: any) => offer.name.by === 'template'));
+  // With the about-read call handed over into this business, the AI's label stands.
+  const g = setup();
+  await interviewed(g);
+  await seedAboutCall(g);
+  const ai = (await g.call('venture.blueprint.draft', { useTemplate: true, shown })).blueprint;
+  assert.equal(ai.source, 'model');
+});
+
+test('A1 final check: the AI label needs the About you call the card names; a wiped draft gives template, never a refusal', async () => {
+  const card = (callId?: string) => ({ name: 'Pune Frames Studio', by: 'model', ...(callId ? { callId } : {}), offers: [{ name: 'Party photos', line: 'Photos of the party.' }] });
+  // The draft store was wiped between About you and venture.create: the call the card names never reached the business.
+  const wiped = setup();
+  await interviewed(wiped);
+  await seedAboutCall(wiped, 'modelcall_other_read');
+  const plan = (await wiped.call('venture.blueprint.draft', { useTemplate: true, shown: card('modelcall_about_lost') })).blueprint;
+  assert.equal(plan.source, 'template', 'another about read in the business does not stand in for the one the card names');
+  // No call id at all: template too.
+  const none = setup();
+  await interviewed(none);
+  await seedAboutCall(none);
+  assert.equal((await none.call('venture.blueprint.draft', { useTemplate: true, shown: card() })).blueprint.source, 'template');
+  // A call id that is not an id is refused as a bad request, before anything is drafted.
+  const bad = setup();
+  await interviewed(bad);
+  await assert.rejects(bad.call('venture.blueprint.draft', { useTemplate: true, shown: card('../x') }), codeOf('INVALID_VENTURE_REQUEST'));
+});
+
+
+test('A2: the AI label needs the offers that About you call answered; other offers on the card give template', async () => {
+  const card = (offers: { name: string; line: string }[]) => ({ name: 'Pune Frames Studio', by: 'model', callId: 'modelcall_about_1', offers });
+  const other = setup();
+  await interviewed(other);
+  await seedAboutCall(other);
+  const changed = (await other.call('venture.blueprint.draft', { useTemplate: true, shown: card([{ name: 'Wedding films', line: 'Films of the wedding day.' }]) })).blueprint;
+  assert.equal(changed.source, 'template', 'the card names the right call but not its answer');
+  // The same offers with the spacing the card folds still count as the AI's.
+  const same = setup();
+  await interviewed(same);
+  await seedAboutCall(same);
+  assert.equal((await same.call('venture.blueprint.draft', { useTemplate: true, shown: card([{ name: 'Party  photos', line: ' Photos of the party.' }]) })).blueprint.source, 'model');
+  // A call that kept no answer (recorded before A2) is not enough.
+  const old = setup();
+  await interviewed(old);
+  await seedAboutCall(old, 'modelcall_about_1', null);
+  assert.equal((await old.call('venture.blueprint.draft', { useTemplate: true, shown: card([{ name: 'Party photos', line: 'Photos of the party.' }]) })).blueprint.source, 'template');
 });

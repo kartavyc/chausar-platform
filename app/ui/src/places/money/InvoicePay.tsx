@@ -5,6 +5,12 @@
  * labelled fixture-tested, made only after a second ask on the exact digest the engine sent. While a link waits, the
  * sheet asks the engine to check it every half minute (the engine asks Razorpay; no webhooks).
  *
+ * One-shot A6: on the desktop, Email it and Share on WhatsApp go through the desktop (shareInvoice), which makes the file
+ * and opens a mail draft with it attached, or WhatsApp (the desktop app first, else the web page). The sheet says what
+ * opened and, when the file could not go with it, offers it in its folder; it never says anything was sent. On the web
+ * each press asks the engine again (S7: the first file was kept, so an email added later was never used), and a failure
+ * names the button.
+ *
  * BillPart: a draft can bill part of its order instead (an advance, a milestone, a part payment or what is left), sent
  * as typed; the engine cuts it and refuses anything past the order's total.
  */
@@ -16,7 +22,7 @@ import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Receipt } from '../../parts/Receipt';
-import type { InvoicePdfView, InvoiceViewLite } from '../../engine/types';
+import type { InvoicePdfView, InvoiceShareResult, InvoiceViewLite } from '../../engine/types';
 import { copyText, performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
 import { messageOf } from './words';
@@ -61,7 +67,8 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
   const headId = useId();
   const [said, setSaid] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [file, setFile] = useState<InvoicePdfView | null>(null);
+  /** A6: the file the desktop kept for the owner to attach themselves, shown in its folder on request. */
+  const [kept, setKept] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -80,37 +87,54 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
     return () => clearInterval(timer);
   }, [waiting, engine, invoice.id, onChanged]);
 
-  async function act(work: () => Promise<void>) {
+  async function act(work: () => Promise<void>, failed = 'money-pay.failed') {
     setBusy(true);
     setProblem(null);
     setSaid(null);
-    try { await work(); } catch (error) { setProblem(t('money-pay.failed', { message: messageOf(error) })); }
+    setKept(null);
+    try { await work(); } catch (error) { setProblem(t(failed, { message: messageOf(error) })); }
     setBusy(false);
   }
-  const fileNow = async () => file ?? await engine.request('venture.invoice.pdf', { invoiceId: invoice.id });
+  // A6 (S7): every press asks the engine again, so the file and its links follow the invoice and the client as they are now.
+  const fileNow = (): Promise<InvoicePdfView> => engine.request('venture.invoice.pdf', { invoiceId: invoice.id });
   const save = () => act(async () => {
     const made = await fileNow();
-    setFile(made);
     if (!saveFile(made)) { setProblem(t('money-pay.cantSave')); return; }
     setSaid(made.note ?? t('money-pay.saved', { name: made.fileName }));
   });
+  /** A6: what the desktop opened, in words, and the file offered in its folder. */
+  const shared = (result: InvoiceShareResult) => {
+    const file = result.file;
+    const line = result.how === 'whatsapp'
+      ? t(result.opened === 'app' ? 'money-pay.wa.app' : 'money-pay.wa.web', { file })
+      : t(result.opened === 'draft' ? (result.to ? 'money-pay.mail.draft' : 'money-pay.mail.draftNoTo') : result.opened === 'link' ? 'money-pay.mail.link' : 'money-pay.mail.none', { file: result.opened === 'draft' ? result.attached : file });
+    setSaid(result.note ? `${line} ${result.note}` : line);
+    // A6 round 1: on a draft too, since a mail app that opens it read-only leaves the owner to attach the file again.
+    setKept(file);
+  };
   const whatsapp = () => {
+    if (engine.shareInvoice) { void act(async () => shared(await engine.shareInvoice!(invoice.id, 'whatsapp')), 'money-pay.whatsappFailed'); return; }
     // A web tab is reserved inside the click, before the engine answers.
     let tab: Window | null = null;
-    try { tab = reserveTab(); } catch (error) { setProblem(t('money-pay.failed', { message: messageOf(error) })); return; }
+    try { tab = reserveTab(); } catch (error) { setSaid(null); setKept(null); setProblem(t('money-pay.whatsappFailed', { message: messageOf(error) })); return; }
     void act(async () => {
-      const made = await fileNow();
-      setFile(made);
-      await performHandoff({ action: 'whatsapp', url: made.share.whatsappUrl } as Parameters<typeof performHandoff>[0], tab);
+      try {
+        const made = await fileNow();
+        await performHandoff({ action: 'whatsapp', url: made.share.whatsappUrl } as Parameters<typeof performHandoff>[0], tab);
+      } catch (error) { tab?.close(); throw error; }
       setSaid(t('money-pay.shareNote'));
-    });
+    }, 'money-pay.whatsappFailed');
   };
   const email = () => act(async () => {
+    if (engine.shareInvoice) { shared(await engine.shareInvoice(invoice.id, 'email')); return; }
     const made = await fileNow();
-    setFile(made);
     await performHandoff({ action: 'mailto', url: made.share.mailtoUrl } as Parameters<typeof performHandoff>[0], null);
     setSaid(t('money-pay.shareNote'));
-  });
+  }, 'money-pay.emailFailed');
+  const showKept = async (name: string) => {
+    // A6 round 1: a file that cannot be shown takes the line above with it, so no stale "opened" line sits over the problem.
+    try { await engine.showShared?.(name); } catch (error) { setSaid(null); setKept(null); setProblem(t('money-pay.showFailed', { message: messageOf(error) })); }
+  };
   const makeLink = (digest: string) => act(async () => {
     setAsking(false);
     onChanged(await engine.request('venture.invoice.payLink', { invoiceId: invoice.id, action: 'create', digest }));
@@ -182,6 +206,11 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
         </div>
       )}
       {said && <p className={s.notice} role="status" data-engine-line="">{said}</p>}
+      {kept && engine.showShared && (
+        <p className={s.payRow}>
+          <Button size="sm" variant="quiet" onClick={() => void showKept(kept)}>{t(kept.endsWith('.pdf') ? 'money-pay.showPdf' : 'money-pay.showFile')}</Button>
+        </p>
+      )}
       {problem && <p className={s.refusal} role="status" data-engine-line="">{problem}</p>}
     </section>
   );

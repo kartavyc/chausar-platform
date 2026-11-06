@@ -2,7 +2,7 @@
 // Cards say which businesses live here; key records hold the OS's protected blob or a pointer to the OS item.
 // No secret passes through this file except into a DeviceKeyStore.
 import { randomBytes } from 'node:crypto';
-import { lstat, readdir, unlink } from 'node:fs/promises';
+import { appendFile, lstat, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ChausarError, check } from './contracts.ts';
 import { atomicWriteText, readBoundedText, safeDirectory, wrappersDigestOf } from './vault.ts';
@@ -83,6 +83,24 @@ export class CustodyFiles {
     if (!FOLDER_RULE.test(folder)) return null;
     const card = await this.#readJson(this.cards, `${folder}.json`);
     return validCard(card) && card.folder === folder ? card : null;
+  }
+  /**
+   * Review of A1 (row 8): one line in this computer's custody diagnostic log (custody/diagnostics.jsonl), so the next
+   * failure on a real machine can be told apart. Only the operation, the step and the error's own code, system call and
+   * reason go in, each a short plain tag: never a message, a path, a name, a code or a secret. Kept to the last 200 lines.
+   * It never throws: a log that cannot be written changes nothing.
+   */
+  async noteDiagnostic(op: string, step: string, error: unknown, at: string): Promise<void> {
+    try {
+      const tag = (value: unknown) => (typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(value) ? value : undefined);
+      const raw = error as { code?: unknown; syscall?: unknown; reason?: unknown } | null;
+      const entry = { at, op: tag(op), step: tag(step), code: tag(raw?.code) ?? (error instanceof Error ? tag(error.name) : undefined), syscall: tag(raw?.syscall), reason: tag(raw?.reason) };
+      const folder = await this.#folder(join(this.directory, 'custody'), true);
+      const path = join(folder!, 'diagnostics.jsonl');
+      await appendFile(path, `${JSON.stringify(entry)}\n`, 'utf8');
+      const lines = (await readBoundedText(path)).trim().split('\n');
+      if (lines.length > 200) await atomicWriteText(path, `${lines.slice(-200).join('\n')}\n`, true);
+    } catch { /* the log is a help, never a gate */ }
   }
   async writeCard(card: VaultCard) { check(validCard(card), 'INVALID_CARD', 'A business card needs its folder and unlock mode.'); await this.#write(this.cards, `${card.folder}.json`, card); }
   async removeCard(folder: string) { if (FOLDER_RULE.test(folder)) await this.#remove(this.cards, `${folder}.json`); }

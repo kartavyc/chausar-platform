@@ -540,3 +540,16 @@ test('notes (4B3): a change whose undo would take the note away says it erases, 
   const listed = (await notes(env)).changes;
   assert.deepEqual(listed.map((change: any) => [change.line, change.erases]), [['You corrected a note.', false], ['You added a note.', true]]);
 });
+
+// A4 review (L6): a cofounder's note change is the cofounder's, and its line says who as the reader sees it.
+test('notes: a cofounder\'s note change is recorded as the cofounder\'s, and reads so to the owner (A4)', async () => {
+  const env = await agentBusiness();
+  await env.store.update(state => { state.members.push({ id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder', active: true, epoch: 1, branches: ['*'] }); });
+  const cofounder = { ...owner, memberId: 'cofounder-1', role: 'cofounder' as const };
+  const made = await edit(env, { text: 'Hooks stay under ten words.' }, cofounder);
+  assert.deepEqual([made.change.who, made.change.line], ['cofounder', 'You added a note.']);
+  const listed = (await notes(env)).changes.find((change: { id: string }) => change.id === made.change.id);
+  assert.deepEqual([listed.who, listed.line], ['cofounder', 'Your cofounder added a note.']);
+  const mine = await edit(env, { text: 'Thumbnails use the studio blue.' });
+  assert.deepEqual([mine.change.who, mine.change.line], ['owner', 'You added a note.']);
+});

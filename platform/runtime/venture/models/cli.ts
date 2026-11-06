@@ -12,6 +12,7 @@ import type { Json, ModelProcessResponse, ModelTask } from '../contracts.ts';
 import { sanitizeSchema } from './schema.ts';
 import { RESPONSE_LIMIT_BYTES, isPlainRecord, readUsage, type Parsed } from './types.ts';
 import { TELEMETRY_OFF_ENV } from '../core/telemetry.ts';
+import { AI_FAILURE_CODES, aiFailureWords, classifyAiText, classifyClaudeResult, classifyCodexExec, type AiFailureKind, type AiToolName } from './ai-failure.ts';
 
 /** Stands in for the real schema file path until dispatch, so a preview can be built before any file exists. */
 export const SCHEMA_PLACEHOLDER = join(tmpdir(), 'chausar-venture-schema-placeholder', 'schema.json');
@@ -43,10 +44,15 @@ export function cliEnv(kind: 'claude-cli' | 'codex-cli', maxOutputTokens?: numbe
 
 export type CodexHost = { capabilities: CodexCliCapabilityProfile; mode: string };
 
-/** The trusted Codex host profile from ModelPortOptions.codexCli, or null when there is none. */
+/**
+ * The trusted Codex host profile from ModelPortOptions.codexCli, or null when there is none. A2: the host passes its
+ * Codex trust (codex-trust.ts), whose profile() is read at each use, so a Codex the owner chooses is used at once; a
+ * plain profile (tests, older hosts) still works.
+ */
 export function codexHost(value: unknown): CodexHost | null {
-  if (!isPlainRecord(value) || !isPlainRecord(value.capabilities) || !isPlainRecord(value.capabilities.evidence)) return null;
-  return value as unknown as CodexHost;
+  const live = value && typeof value === 'object' && typeof (value as { profile?: unknown }).profile === 'function' ? (value as { profile(): unknown }).profile() : value;
+  if (!isPlainRecord(live) || !isPlainRecord(live.capabilities) || !isPlainRecord(live.capabilities.evidence)) return null;
+  return live as unknown as CodexHost;
 }
 
 /** The executable named by installed-help evidence, else the plain command name. */
@@ -141,15 +147,34 @@ function tooLarge(stdout: string): boolean {
   return Buffer.byteLength(stdout) > RESPONSE_LIMIT_BYTES;
 }
 
+/** A2: a failure the tool named (a used-up plan, a refused sign-in and the like), in owner words with its fix. */
+function namedFailure(kind: AiFailureKind, tool: AiToolName, usage: Parsed['usage'] = null): Parsed {
+  return { ok: false, code: AI_FAILURE_CODES[kind], message: aiFailureWords(kind, tool), usage };
+}
+
+/** What a Claude Code answer that is not a clean success says went wrong, from its result and stderr. */
+function claudeFailure(response: ModelProcessResponse): AiFailureKind | null {
+  let data: unknown;
+  try { data = JSON.parse(response.stdout); } catch { data = null; }
+  const text = [typeof response.stdout === 'string' && !data ? response.stdout.slice(0, 4096) : '', response.stderr ?? ''].join('\n');
+  return classifyClaudeResult(data) ?? classifyAiText(text);
+}
+
 /** Claude Code JSON output: structured_output, else the result text parsed as JSON; usage from usage. */
 export function parseClaudeCli(response: ModelProcessResponse): Parsed {
-  if (response.exitCode !== 0) return { ok: false, code: 'MODEL_FAILED', message: 'Claude Code stopped with an error. Chausar did not retry it.', usage: null };
+  if (response.exitCode !== 0) {
+    const kind = claudeFailure(response);
+    return kind ? namedFailure(kind, 'Claude Code') : { ok: false, code: 'MODEL_FAILED', message: 'Claude Code stopped with an error. Chausar did not retry it.', usage: null };
+  }
   if (typeof response.stdout !== 'string' || tooLarge(response.stdout)) return { ok: false, code: 'MODEL_FAILED', message: 'Claude Code returned too much output.', usage: null };
   let data: unknown;
   try { data = JSON.parse(response.stdout); } catch { return { ok: false, code: 'MODEL_FAILED', message: 'Claude Code sent output Chausar could not read.', usage: null }; }
   if (!isPlainRecord(data)) return { ok: false, code: 'MODEL_FAILED', message: 'Claude Code sent output Chausar could not read.', usage: null };
   const usage = readUsage(data.usage);
-  if (data.is_error === true) return { ok: false, code: 'MODEL_FAILED', message: 'Claude Code reported an error. Chausar did not retry it.', usage };
+  if (data.is_error === true) {
+    const kind = classifyClaudeResult(data) ?? classifyAiText(response.stderr ?? '');
+    return kind ? namedFailure(kind, 'Claude Code', usage) : { ok: false, code: 'MODEL_FAILED', message: 'Claude Code reported an error. Chausar did not retry it.', usage };
+  }
   if (data.structured_output !== undefined && data.structured_output !== null) return { ok: true, value: data.structured_output, usage };
   if (typeof data.result !== 'string') return { ok: false, code: 'MODEL_OUTPUT_REJECTED', message: 'Claude Code returned no answer.', usage };
   try { return { ok: true, value: JSON.parse(data.result), usage }; } catch {
@@ -159,12 +184,19 @@ export function parseClaudeCli(response: ModelProcessResponse): Parsed {
 
 /** Codex JSONL events through parseCodexCliOutput; its codes are mapped to the venture codes. */
 export function parseCodexCli(response: ModelProcessResponse): Parsed {
-  if (response.exitCode !== 0) return { ok: false, code: 'MODEL_FAILED', message: 'Codex stopped with an error. Chausar did not retry it.', usage: null };
+  if (response.exitCode !== 0) {
+    const kind = classifyCodexExec(response.stdout, response.stderr);
+    return kind ? namedFailure(kind, 'Codex') : { ok: false, code: 'MODEL_FAILED', message: 'Codex stopped with an error. Chausar did not retry it.', usage: null };
+  }
   try {
     const parsed = parseCodexCliOutput(response.stdout);
     return { ok: true, value: parsed.value, usage: readUsage(parsed.usage) };
   } catch (error) {
     const code = error instanceof ChausarError ? error.code : '';
+    if (code === 'MODEL_FAILED') {
+      const kind = classifyCodexExec(response.stdout, response.stderr);
+      if (kind) return namedFailure(kind, 'Codex');
+    }
     if (code === 'MODEL_FAILED' || code === 'RESPONSE_TOO_LARGE') return { ok: false, code: 'MODEL_FAILED', message: 'Codex reported a failure or sent too much output. Chausar did not retry it.', usage: null };
     return { ok: false, code: 'MODEL_OUTPUT_REJECTED', message: 'Codex returned something other than one JSON answer.', usage: null };
   }

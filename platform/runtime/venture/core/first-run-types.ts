@@ -12,14 +12,24 @@ export type FamilyOffer = { name: string; line: string };
 export type AboutFile = { name: string; included: boolean; line: string | null };
 export type AboutRead = {
   family: { id: FamilyId; label: string; line: string } | null;
+  /**
+   * One-shot A5 (founder answer 3a): the owner's exact profession as the AI picked it, checked against the catalogue
+   * (core/professions.ts) and the family; null when nothing was picked (keywords, a tile, or no clear pick).
+   */
+  profession: { id: string; label: string } | null;
   offers: FamilyOffer[];
   country: { code: string; name: string; currency: string } | null;
   evidence: string | null;
   /** The sentence venture.preview and venture.create start the plan from, or null until a family is chosen. */
   idea: string | null;
   source: 'ai' | 'keywords' | 'tile';
+  /** A1 final check: the AI read's own call, when the AI read it; the kept card names it so the plan can say who wrote it. */
+  callId?: string;
   file?: AboutFile;
 };
+
+/** A family tile (venture.about.families) with its professions in the catalogue's order (A5). */
+export type FamilyTile = { id: FamilyId; label: string; line: string; professions: { id: string; label: string }[] };
 
 export type NeedLabel = 'write' | 'read' | 'handoff' | 'planned';
 /** How the owner connects it: the service's own sign-in, a key into the keychain, a setup guide, or nothing yet. */
@@ -35,5 +45,20 @@ export type NeedsList = { family: { id: FamilyId; label: string } | null; needs:
 
 export type LoginState = 'idle' | 'starting' | 'waiting' | 'signed-in' | 'failed' | 'cancelled';
 export type ToolLogin = { state: LoginState; code: string | null; link: string | null; line: string | null };
-export type ToolView = { cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown'; login: ToolLogin };
+/**
+ * A2: a Codex setup as the owner reads it (codex-trust.ts): 'trusted' in use, 'review' found and checked and waiting for
+ * the owner's yes, 'refused' found but not usable, 'none' not found. sha256 is the program's digest the yes names.
+ */
+export type CodexSetupView = {
+  state: 'trusted' | 'review' | 'refused' | 'none'; origin: 'operator' | 'bundled' | 'owner' | null;
+  path: string | null; version: string | null; sha256: string | null; line: string;
+};
+/** setup (A2): Codex only, when the host keeps a Codex trust. */
+/**
+ * tested and problem (A2): the tiny test call that earns "Signed in" (models/cli-test.ts); signedIn is 'yes' only once it
+ * passed, and problem holds its failure in owner words.
+ */
+/** A2: the AI provider's own status page when it says the provider has problems, with its source and when it was read. */
+export type ProviderTrouble = { line: string; source: string; readAt: string };
+export type ToolView = { cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown'; login: ToolLogin; setup?: CodexSetupView; tested?: 'passed' | 'failed'; problem?: string; provider?: ProviderTrouble };
 export type ToolsView = { tools: ToolView[]; line: string };

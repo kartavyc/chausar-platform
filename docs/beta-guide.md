@@ -40,9 +40,9 @@ You need:
 3. Windows may show a blue box: "Windows protected your PC". This is because the beta is not signed yet. It does not mean the file is harmful.
 4. Click **More info**, then click **Run anyway**.
 5. The installer installs Chausar for you only, so it does not ask for an admin password. It shows the folder it will use; you can change it. Click **Install**.
-6. It adds Chausar to the Start menu and the desktop, and opens Chausar at the end.
+6. It adds Chausar to the Start menu and the desktop, and opens Chausar at the end. The shortcuts, the window and the tray show the Chausar logo, a dark square with a grey and a green square inside. Earlier beta builds showed the Electron icon on the shortcuts (a blue atom): Chausar is built with Electron, and the unsigned beta left the program file with Electron's own icon. That is fixed now. If a shortcut still shows the atom after you update, Windows is showing its saved copy of the old icon, and it may take a while to change.
 
-Chausar starts when you sign in to Windows and waits in the system tray (the small icons near the clock, bottom right). Closing the window keeps it running there. Right-click the tray icon to see **Open Chausar**, the ticks **Start at login** and **Keep running in the tray** (untick either to switch it off), and **Quit Chausar and stop jobs**.
+Chausar starts when you sign in to Windows and waits in the system tray (the small icons near the clock, bottom right; look for the Chausar logo). Closing the window keeps it running there. Right-click the tray icon to see **Open Chausar**, the ticks **Start at login** and **Keep running in the tray** (untick either to switch it off), and **Quit Chausar and stop jobs**.
 
 To remove Chausar: open Windows **Settings**, then **Apps**, find **Chausar** and click **Uninstall**. Your businesses stay on your laptop, in case you install it again.
 
@@ -260,7 +260,9 @@ Open the issued invoice. Under **How clients pay** you now see:
 Then use:
 
 - **Save file** to save the invoice as a PDF;
-- **Share on WhatsApp** or **Email it**. These open your own WhatsApp or mail app with a message ready. You attach the file and press send yourself. Chausar sends nothing.
+- **Email it**. In the desktop app, your own mail app opens an email with the invoice PDF attached; check it and send it there. Some mail apps open it without a Send button: then use Forward or Edit as new. If the client has no email in Chausar (or one a mail link cannot carry), add the address in your mail app. If this computer has no mail app for email files, Chausar opens a mail link with the words filled in instead, and **Show the PDF in its folder** shows the file to attach. In the browser it opens a mail link, and you attach the file yourself.
+- **Share on WhatsApp**. The WhatsApp desktop app opens if this computer has it, otherwise WhatsApp in your browser, with the message ready. A WhatsApp link cannot carry a file, so attach the PDF yourself: **Show the PDF in its folder** shows where it is.
+- Chausar sends nothing: you press send yourself each time.
 
 ### When the client pays
 

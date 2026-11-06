@@ -31,6 +31,12 @@ export type AgentDriverEvent = { threadId?: string; turnId?: string; itemId?: st
   | { type: 'terminal'; status: AgentTurnStatus; error?: string });
 export type AgentTurnResult = {
   status: AgentTurnStatus; text: string; model?: string; usage?: AgentUsage; error?: string; threadId?: string; turnId?: string;
+  /** A2: why a failed turn failed, when the tool named it (models/ai-failure.ts); error then holds the owner words with the fix. */
+  failure?: import('../models/ai-failure.ts').AiFailureKind;
+  /** A2: the job went quiet and the watchdog stopped it (runner.ts); what it wrote so far is kept. */
+  quiet?: true;
+  /** A2 second review: with quiet, the job ran past the watchdog's time limit rather than going quiet. */
+  overtime?: true;
 };
 /** Exact native request identity and complete inputs, never partial streamed arguments. */
 export type AgentApprovalRequest = {

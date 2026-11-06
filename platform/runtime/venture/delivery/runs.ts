@@ -22,6 +22,7 @@ import { ChausarError,check,type Context,type State } from '../../contracts.ts';
 import { assertAgentDraftCurrent } from '../agent-runtime/native-job.ts';
 import { writeCapDenial } from './harness/write-caps.ts';
 import { failureWords } from './failure-words.ts';
+import { AI_FAILURE_CODES } from '../models/ai-failure.ts';
 import { selectAgentRoute } from '../agent-runtime/route.ts';
 import { launchAgentWork,runNativeAgent } from '../agent-runtime/runner.ts';
 import { voiceRules } from '../agents/voice.ts';
@@ -62,7 +63,7 @@ import { keepSocialPostPlan,socialSlotContext } from '../playbooks/social/slots-
 import { flagshipDelivery } from '../playbooks/steps.ts';
 import { copiedTokens,digest,exactPayload,findRecord,identifier,listRecords,plainText,requireAppChannel,ventureAction,type VentureTx } from '../records.ts';
 import { recordCheckSignal } from './check-signals.ts';
-import { correctDraft,knownNames,runChecks,withDraftChecks,type CheckInput } from './checks.ts';
+import { correctDraft,knownNames,ownerSourcesOf,runChecks,withDraftChecks,type CheckInput } from './checks.ts';
 import { orderRefs,renderDeliverable,TEMPLATE_OUTLINE_LINE,templateOutline,templateTotal,type DraftRefs,type DraftTimes } from './deliverable.ts';
 import { acceptManifest } from './file-manifest.ts';
 import { orderUploads,uploadsById } from './harness/env.ts';
@@ -73,6 +74,8 @@ import { loadQuarantineCheck,refuseQuarantined } from './quarantine-gate.ts';
 import { landRevision } from './revise.ts';
 import { freezeScope,refuseMissingCapability,refuseNewWork } from './run-guards.ts';
 import { acceptedBlueprint,newestFirst,optionalFlag,readAs,todayIso,ventureReceipts } from './shared.ts';
+import { REPORT_SECTIONS } from './harness/loop.ts';
+import { checksWithEdit, editInForce, jobLevelFailure, ownAmounts, OWN_WORDS_AMOUNT, type EditContext } from './owner-edit.ts';
 import { agentMayDraft, isLiveStage, isPracticeStage } from '../core/launch-stage.ts';
 import { guardedPlaybookChecks } from './trace-scan.ts';
 import { playbookForOrder,playbookForRun,type RunPlaybook } from './workflow.ts';
@@ -245,6 +248,7 @@ function draftCheckInput(context: OrderContext, playbook: PlaybookRecord, delive
       codeSources: (extras.toolCalls ?? []).filter(call => call.envelope.ok).map(call => ({ id: call.id, text: JSON.stringify(call.envelope.ok ? call.envelope.result : '') })),
       clientRequest: context.order.request, answers: extras.answers ?? [], harness: extras.harness ?? null, files: extras.files ?? [], outputFiles: extras.outputFiles??[],
       known: context.known, dateOrder: context.venture.country.dateOrder, ownerWords: context.ownerWords,
+      ownerSources: ownerSourcesOf([context.venture.workingName, context.blueprint.name.value], playbook),
     },
   };
 }
@@ -377,6 +381,10 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     });
   }
 
+/** A2: what the run says when the watchdog stopped a quiet job (one place: harness/controls.ts). */
+export { QUIET_LINE, TIME_LINE } from './harness/controls.ts';
+import { watchdogLine } from './harness/controls.ts';
+
 /** The installed AI owns its turns. Chausar keeps the job's sources, checks and exact outside-action proposal. */
 async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: OrderContext, playbook: PlaybookRecord, uploads: FileLike[], continuation: { resumeFrom?: string; existingRunId?: string }): Promise<DeliveryRunView> {
   const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null);
@@ -433,10 +441,15 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
       }, route);
       await ventureAction(deps, ctx, 'prepare', 'agent.job.finished', tx => {
         const latest = tx.find('venture-delivery-run', run.id);
+        // A2: a failure the AI tool named (a used-up plan, its step limit and the like) is the run's failure, with its fix.
+        const named = result.status === 'failed' && result.failure
+          ? failureWords({ code: AI_FAILURE_CODES[result.failure], message: result.error ?? '' }, { at: tx.now, dateOrder: context.venture.country.dateOrder }) : null;
+        // A2: a job that went quiet was stopped by the watchdog; its notes so far stay, and the line says so.
+        const quietLine = watchdogLine(result);
         if (latest && ['waiting-for-you', 'ready-for-review'].includes(latest.status) && result.status !== 'completed') {
           tx.replace({ ...latest, status: result.status === 'interrupted' ? 'stopped' : 'failed',
-            ...(latest.agentJob ? { agentJob: { ...latest.agentJob, reviewReady: false } } : {}) });
-          tx.emit('run.failed', { runId: run.id, line: 'The AI stopped before finishing this draft. Read its work notes before starting again.' });
+            ...(latest.agentJob ? { agentJob: { ...latest.agentJob, reviewReady: false, ...(named ? { failure: named } : {}), ...(result.quiet ? { quiet: true } : {}), ...(result.quiet && result.overtime ? { overtime: true } : {}) } } : {}) });
+          tx.emit('run.failed', { runId: run.id, line: quietLine ?? named?.line ?? 'The AI stopped before finishing this draft. Read its work notes before starting again.' });
           tx.emit('queue.changed', {});
           return;
         }
@@ -446,8 +459,8 @@ async function startToolOwnedDelivery(deps: VentureDeps, ctx: Context, context: 
           return;
         }
         if (!latest || latest.status !== 'waiting-for-you') return;
-        tx.replace({ ...latest, status: result.status === 'interrupted' ? 'stopped' : 'failed' });
-        tx.emit('run.failed', { runId: run.id, line: 'The AI stopped without a checked draft. Read its work notes before starting again.' });
+        tx.replace({ ...latest, status: result.status === 'interrupted' ? 'stopped' : 'failed', ...(named && latest.agentJob ? { agentJob: { ...latest.agentJob, failure: named } } : {}) });
+        tx.emit('run.failed', { runId: run.id, line: named?.line ?? 'The AI stopped without a checked draft. Read its work notes before starting again.' });
       });
       if (result.status === 'completed') {
         const judge = await import('./judge-run.ts');
@@ -535,13 +548,16 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     check(run.status === 'ready-for-review', 'DELIVERY_NOT_READY', 'This draft reply is not ready for review.');
     if (verdict !== 'rejected') check(!run.agentJob || run.agentJob.reviewReady === true, 'DELIVERY_NOT_READY', 'AI work must finish before you can approve this draft.');
     if (verdict !== 'rejected') assertAgentDraftCurrent(tx.state, run);
-    if(verdict!=='rejected'&&run.appTestingBinding){testingRunCurrent(tx.state,tx.venture!.id,run,tx.now);check(verdict!=='edited','APPROVAL_STALE','Revise the evidence in the testing desk and start Work again.');}
-    if(verdict!=='rejected'&&run.watchReportBinding)check(watchStateSource(tx.state,tx.venture!.id,run.orderId,tx.now).digest===run.watchReportBinding&&verdict!=='edited','DERIVED_STALE','Review current measured sources in the monitored desk and prepare a new report.');
-    if(verdict!=='rejected'&&run.triageReportBinding)check(triageStateSource(tx.state,tx.venture!.id,run.orderId,tx.now).digest===run.triageReportBinding&&verdict!=='edited','DERIVED_STALE','Review current source excerpts in the triage desk and prepare a new report.');
-    if(verdict!=='rejected'&&run.phoneReportBinding){const report=phoneRunSource(tx.state,tx.venture!.id,run.orderId).report;check(report.digest===run.phoneReportBinding&&verdict!=='edited','DERIVED_STALE','Revise the approved script or imported evidence in the receptionist desk and prepare a new report.');}
-    if(verdict!=='rejected'&&run.devReportBinding){const report=devStateSource(tx.state,tx.venture!.id,run.orderId,tx.now,true).report;check(report.digest===run.devReportBinding&&verdict!=='edited','DERIVED_STALE','Revise the source evidence in the developer desk and prepare a new report.');}
-    if(verdict!=='rejected'){vaRunCurrent(tx.state,tx.venture!.id,run);formsRunCurrent(tx.state,tx.venture!.id,run);if(run.formsSourceBinding)check(verdict!=='edited','FORM_SOURCE_CHANGED','Revise source evidence in the data-entry desk and start a new draft.');}
-    if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='job-search-desk'){const source=careerRunCurrent(tx.state,tx.venture!.id,run,tx.now,true)!;check(verdict!=='edited'||editedText===source.text,'CAREER_CLAIM_BOUNDARY','Revise the evidence in the career desk and approve a new rendered pack.');}
+    // One-shot A3 review (M1): an owner's edit from Today, then accepted, is the owner's own words as an edited verdict is,
+    // so each desk's no-edit rule holds for it too.
+    const ownWords = verdict === 'edited' || (verdict === 'accepted' && typeof run.editedText === 'string');
+    if(verdict!=='rejected'&&run.appTestingBinding){testingRunCurrent(tx.state,tx.venture!.id,run,tx.now);check(!ownWords,'APPROVAL_STALE','Revise the evidence in the testing desk and start Work again.');}
+    if(verdict!=='rejected'&&run.watchReportBinding)check(watchStateSource(tx.state,tx.venture!.id,run.orderId,tx.now).digest===run.watchReportBinding&&!ownWords,'DERIVED_STALE','Review current measured sources in the monitored desk and prepare a new report.');
+    if(verdict!=='rejected'&&run.triageReportBinding)check(triageStateSource(tx.state,tx.venture!.id,run.orderId,tx.now).digest===run.triageReportBinding&&!ownWords,'DERIVED_STALE','Review current source excerpts in the triage desk and prepare a new report.');
+    if(verdict!=='rejected'&&run.phoneReportBinding){const report=phoneRunSource(tx.state,tx.venture!.id,run.orderId).report;check(report.digest===run.phoneReportBinding&&!ownWords,'DERIVED_STALE','Revise the approved script or imported evidence in the receptionist desk and prepare a new report.');}
+    if(verdict!=='rejected'&&run.devReportBinding){const report=devStateSource(tx.state,tx.venture!.id,run.orderId,tx.now,true).report;check(report.digest===run.devReportBinding&&!ownWords,'DERIVED_STALE','Revise the source evidence in the developer desk and prepare a new report.');}
+    if(verdict!=='rejected'){vaRunCurrent(tx.state,tx.venture!.id,run);formsRunCurrent(tx.state,tx.venture!.id,run);if(run.formsSourceBinding)check(!ownWords,'FORM_SOURCE_CHANGED','Revise source evidence in the data-entry desk and start a new draft.');}
+    if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='job-search-desk'){const source=careerRunCurrent(tx.state,tx.venture!.id,run,tx.now,true)!;check(!ownWords||(verdict==='edited'?editedText:run.editedText)===source.text,'CAREER_CLAIM_BOUNDARY','Revise the evidence in the career desk and approve a new rendered pack.');}
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='tender-desk')await (await import('../playbooks/tender-desk/run-source.ts')).tenderRunSource(deps,tx.venture!.id,run.orderId,true);
     if(verdict!=='rejected'&&playbookForRun(tx.state,run)?.flagship==='narration-studio')await (await import('../playbooks/narration-studio/run-source.ts')).narrationRunSource(deps,tx.venture!.id,run.orderId,true);
     if(verdict!=='rejected'){const order=tx.find('venture-order',run.orderId);if(order)voiceGuard(tx.state,tx.venture!,order);}
@@ -551,7 +567,8 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     const practice = run.practice || (run.servedBy === 'model' && tx.venture!.launchStage !== 'approve-each');
     check(!(practice && verdict === 'accepted'), 'PRACTICE_DRAFT', PRACTICE_REASON);
     if (verdict === 'accepted') {
-      acceptableAsIs(run.checks, run.playbookChecks);
+      // One-shot A3 (S2): the owner's own edit in force is held to the word checks; the agent's draft to all of its own.
+      acceptableAsIs(checksInForce(tx.state, run), run.playbookChecks);
       check(!judgeReading(run, Date.parse(tx.now)), 'INVALID_VENTURE_REQUEST', JUDGE_READING);
       // Regulated papers (the CA firm's, and every sign-off desk output, W6 6E5) are accepted only once the professional of
       // record signed this exact draft (playbooks/kit/signoff-gate.ts).
@@ -573,7 +590,9 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
     tx.replace(next);
     keepSocialPostPlan(tx,next);
     // 4J1 (O17): who decided and when, wherever the owner reviewed it (Today, Work or the run sheet).
-    recordDecision(tx, { subject: `run:${runId}`, action: verdict, who: 'owner', ruleId: null, reason: REVIEW_DECISION_WORDS[verdict], rowId: null });
+    // A3 review 2 (M-c): an amount the editor wrote themself is theirs, and the decision says so.
+    const ownWordsAmount = verdict === 'accepted' && ownAmounts(checksInForce(tx.state, run));
+    recordDecision(tx, { subject: `run:${runId}`, action: verdict, who: ctx.role === 'owner' ? 'owner' : 'cofounder', ruleId: null, reason: ownWordsAmount ? `${REVIEW_DECISION_WORDS[verdict]} ${OWN_WORDS_AMOUNT}` : REVIEW_DECISION_WORDS[verdict], rowId: null });
     if (verdict !== 'accepted') {
       const signal: SignalRecord = { ...tx.base('venture-signal'), source: verdict === 'edited' ? 'owner-edited' : 'owner-rejected', runId, reason, scenarioId: null };
       tx.put(signal);
@@ -603,6 +622,9 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
  */
 export function failedCheckReason(checks: readonly CheckResult[], playbookChecks?: readonly PlaybookCheckResult[]): string | null {
   const failed = checks.filter(result => !result.passed && !result.notChecked);
+  // One-shot A3 review 2 (M-b): a check about the run itself no edit can fix, so the words say to reject it.
+  const job = jobLevelFailure(failed);
+  if (job) return `This draft failed a check: ${job.detail} An edit can't fix this, so reject it.`;
   if (failed.some(result => result.check === 'no-done-claims')) return DONE_CLAIM_REASON;
   if (failed.length) return `This draft failed a check: ${failed[0].detail} Edit it or reject it.`;
   const playbook = failedPlaybookCheck(playbookChecks);
@@ -612,6 +634,30 @@ export function failedCheckReason(checks: readonly CheckResult[], playbookChecks
 function acceptableAsIs(checks: readonly CheckResult[], playbookChecks?: readonly PlaybookCheckResult[]) {
   const reason = failedCheckReason(checks, playbookChecks);
   check(reason === null, 'INVALID_VENTURE_REQUEST', reason ?? '');
+}
+
+/**
+ * One-shot A3 (S2, after two reviews): the checks a draft is held to now. With an edit in force (owner-edit.ts), its own
+ * words are checked again, whoever made it; the owner's own edit also lifts the agent's authorship and figure checks.
+ */
+function checksInForce(state: State | undefined, run: DeliveryRunRecord): readonly CheckResult[] {
+  const edit = state ? editInForce(state, run) : null;
+  return edit && state ? checksWithEdit(state, run, edit, editContext(state, run)) : run.checks;
+}
+
+/** How the run's own checks were set: the sections its draft had to have, and the business's service type. */
+function editContext(state: State, run: DeliveryRunRecord): EditContext {
+  try {
+    const venture = listRecords(state, 'venture-record').find(row => row.id === run.ventureId)!;
+    const context = orderContext(state, venture, run.orderId);
+    const playbook = playbookForRun(state, run);
+    const draft = playbook ? flagshipDraft(playbook as PlaybookRecord, context.offerKey, context.order.intake ?? null, context.order.chainStage ?? null) : null;
+    // A3 review 3 (M1): as the harness loop sets them (harness/loop.ts writeTask): a loop that proved work writes a report.
+    const sections = draft?.sections ?? (run.harness?.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[context.blueprint.serviceType]);
+    return { sections, serviceType: context.blueprint.serviceType };
+  } catch {
+    return { sections: null, serviceType: 'consulting' as EditContext['serviceType'] };
+  }
 }
 
 /**
@@ -633,14 +679,31 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
   // Read with the vault's state, a run whose order was cancelled is not live: nothing more of it is sent or started.
   const cancelled = !!state && findRecord(state, 'venture-order', run.orderId)?.status === 'cancelled';
   const canApprove = false;
-  const blocked = ready
-    ? (practiceNow ? PRACTICE_REASON : run.agentJob && !run.agentJob.reviewReady ? 'AI work must finish before you can approve this draft.' : failedCheckReason(run.checks, run.playbookChecks) ?? (judgeReading(run, nowMs) ? JUDGE_READING : null) ?? (state ? regulatedSignoffBlock(state, venture, run) : null)
-      ?? (state ? mediaAcceptBlock(state, venture, run, new Date(nowMs).toISOString())?.line ?? null : null)) // 5A4: consent and its files' asset records
+  // Practice, or AI work that has not handed over: neither Accept nor an edit.
+  const before = ready ? (practiceNow ? PRACTICE_REASON : run.agentJob && !run.agentJob.reviewReady ? 'AI work must finish before you can approve this draft.' : null) : null;
+  // One-shot A3 (S2): the owner's own edit in force is not held to the agent's failed checks.
+  const failed = ready && !before ? failedCheckReason(checksInForce(state, run), run.playbookChecks) : null;
+  // The quality check still reading it, a CA's sign-off, or its files' consent and asset records (5A4).
+  const held = ready && !before
+    ? (judgeReading(run, nowMs) ? JUDGE_READING : null) ?? (state ? regulatedSignoffBlock(state, venture, run) : null)
+      ?? (state ? mediaAcceptBlock(state, venture, run, new Date(nowMs).toISOString())?.line ?? null : null)
     : null;
+  const blocked = ready ? before ?? failed ?? held : null;
   const canAccept = ready && blocked === null;
-  const awaitingYou = !cancelled && (!!run.agentJob?.pendingApproval || (run.status === 'needs-answer' && !!run.agentJob?.pendingFacts)) || (ready && (!practiceNow || isPracticeStage(stage)));
+  // One-shot A3 (S2): a draft whose only block is a failed check can be edited, as one with none can.
+  // A3 review (M1): a desk whose drafts are exact approved evidence (testing, monitored, triage, receptionist, developer,
+  // data-entry and career reports) takes no owner edit, so Today offers none.
+  const deskBound = !!(run.appTestingBinding || run.watchReportBinding || run.triageReportBinding || run.phoneReportBinding || run.devReportBinding || run.formsSourceBinding)
+    || (!!state && playbookForRun(state, run)?.flagship === 'job-search-desk');
+  // A3 review 2 (M-b): nor a draft whose failed check is about the run itself, which no edit can fix.
+  const canEdit = ready && !cancelled && before === null && held === null && !deskBound && !jobLevelFailure(run.checks);
+  // One-shot A1 (row 9, after review): a draft the AI handed over while its job still runs (reviewReady not set, nothing
+  // pending the owner's approval) is the AI's work in progress: nothing says it waits on the owner, and Today holds no
+  // row for it until the job hands over.
+  const finishing = ready && !!run.agentJob && !run.agentJob.reviewReady && !run.agentJob.pendingApproval;
+  const awaitingYou = !cancelled && (!!run.agentJob?.pendingApproval || (run.status === 'needs-answer' && !!run.agentJob?.pendingFacts)) || (ready && !finishing && (!practiceNow || isPracticeStage(stage)));
   // 4H1 (U17): which engine wrote the draft, read from its own call record; only with the vault's state.
-  return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked, ...(state ? { writtenBy: writtenByLine(state, run) } : {}) };
+  return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked, canEdit, ...(state ? { writtenBy: writtenByLine(state, run) } : {}) };
 }
 
 /** venture.delivery.list: every run, newest first, each with what the engine would allow now (see runView). */

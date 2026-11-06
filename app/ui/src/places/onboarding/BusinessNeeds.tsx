@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import type { NeedLite } from '../../engine/types';
@@ -14,9 +14,10 @@ import f from './FirstRun.module.css';
  * opens its own connector sheet in Connections (the service's own sign-in, or a key into this computer's keychain); a
  * planned one says what it waits on and what to do meanwhile, and offers nothing to press. Every one can be skipped,
  * and skipping all of them still leaves a working business. The same list is Connections' "Services your business
- * needs" page (`place="connections"`).
+ * needs" page (`place="connections"`). ask (one-shot A5): what the first run asks on this step (start at login), above
+ * the services, so it is seen before any Set up (A5 fix round 1).
  */
-export function BusinessNeeds({ place, onDone }: { place: 'first-run' | 'connections'; onDone?: () => void }) {
+export function BusinessNeeds({ place, onDone, ask }: { place: 'first-run' | 'connections'; onDone?: () => void; ask?: ReactNode }) {
   const t = useT();
   const headingId = useId();
   const list = useResource('venture.needs.list', {});
@@ -42,6 +43,7 @@ export function BusinessNeeds({ place, onDone }: { place: 'first-run' | 'connect
       {first && <p className={f.eyebrow}>{t('first-run.stepOf', { n: '3' })}</p>}
       {first ? <h1 id={headingId} className={f.title}>{t('first-run.needs.title')}</h1> : <h2 id={headingId} className={f.title}>{title}</h2>}
       <p className={f.sub}>{t('first-run.needs.sub')}</p>
+      {first && ask}
       {list.error && <p className={f.problem} role="alert">{t('first-run.needs.failed', { message: list.error.message })}</p>}
       {list.data && (
         <ul className={f.needs} aria-label={title}>

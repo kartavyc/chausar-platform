@@ -24,7 +24,7 @@ export const AI_SETTING_BOUNDARIES: AiSettingsView['boundaries'] = Object.freeze
 
 export function defaultAiSettings(): AiSettings {
   return {
-    codex: { quick: { model: 'gpt-6-luna', effort: 'high' }, main: { model: 'gpt-6.1-sol', effort: 'high' }, network: 'research', webSearch: 'research', shell: false },
+    codex: { quick: { model: 'gpt-6-luna', effort: 'high' }, main: { model: 'gpt-6.1-terra', effort: 'high' }, network: 'research', webSearch: 'research', shell: false },
     claude: { quick: { model: 'claude-haiku-5-5', effort: 'high' }, main: { model: 'claude-sonnet-5-5', effort: 'high' }, network: 'research', webSearch: 'research', shell: false, fallbackModel: 'claude-haiku-5-5' },
     autoReview: true, agentAutoReview: {}, mcpServers: [],
   };

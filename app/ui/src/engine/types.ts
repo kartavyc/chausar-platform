@@ -157,7 +157,7 @@ export interface RunSummary {
  */
 export interface RunDetail extends RunSummary {
   /** Actual driver updates. These words have not passed the delivery number guard. */
-  agentProgress?: {messages:{id:string;text:string;label:'model-estimate'}[];tools:{id:string;name:string;status:'running'|'done'|'failed'}[];model?:string;canResume?:boolean;cost?:{display:string;state:'priced'|'unknown';spendId:string;receiptId?:string};pendingApproval?:{request:AgentApprovalRequest;digest:string}};
+  agentProgress?: {messages:{id:string;text:string;label:'model-estimate'}[];tools:{id:string;name:string;status:'running'|'done'|'failed'}[];model?:string;unavailableSites?:string[];canResume?:boolean;cost?:{display:string;state:'priced'|'unknown';spendId:string;receiptId?:string};pendingApproval?:{request:AgentApprovalRequest;digest:string}};
   steps: RunStep[]; question?: { id: string; text: string; choices?: string[]; card?: QuestionCard }; error?: string; screen?: Display;
   scope?: RunScopeView; steer?: { text: Display; at: string; line: Display }[];
   gate?: { on: boolean; every: 1 | 2 | 3 | 5; waiting: { round: number; reason: 'finished' | 'limit' | 'needs-answer' | 'blocked' | 'failures'; line: Display } | null };
@@ -167,8 +167,8 @@ export interface RunDetail extends RunSummary {
   /** 4F2 (O14): "How to fix it", only when the owner must act on a failed or breaker-stopped run. */
   fix?: Display;
   /** 4F2 (O14): the failure in the table's plain words, and codes for the screen's own words (English and Hindi). */
-  failure?: { kind: 'allowance-spent' | 'not-signed-in' | 'offline' | 'too-long' | 'out-of-date' | 'unknown'; line: Display };
-  fixKind?: 'raise-limit' | 'sign-in' | 'run-again-online' | 'split-work' | 'update-tool' | 'install-ffmpeg' | 'set-up-docker' | 'get-python-image' | 'set-up-cli';
+  failure?: { kind: 'allowance-spent' | 'not-signed-in' | 'offline' | 'too-long' | 'out-of-date' | 'unknown' | 'plan-used-up' | 'rate-limited' | 'step-limit' | 'connection-dropped' | 'model-missing'; line: Display };
+  fixKind?: 'raise-limit' | 'sign-in' | 'run-again-online' | 'split-work' | 'update-tool' | 'install-ffmpeg' | 'set-up-docker' | 'get-python-image' | 'set-up-cli' | 'wait-for-plan' | 'run-again' | 'choose-model' | 'wait-a-minute';
   /** 4J3 (A17): the Delivered card, on an accepted or edited delivery run only. */
   delivered?: DeliveredView;
   /** 4J14 (Q8): on a run that acted outside: Success only when a code check of the real result passed. Absent otherwise. */
@@ -571,9 +571,11 @@ export interface BlueprintStepLite { id: string; title: LabelledLite<string>; do
  * the code's name ('Calculator'), or another person ('CA of record'). The plan lists these in place of deliverySteps.
  */
 export interface FlagshipStepLite { id: string; title: LabelledLite<string>; doneBy: 'you' | 'agent' | 'code' | 'person'; who: string }
+/** The plan About you showed: its name, its offers and who wrote them (the AI's reading, or the keywords or a tile). */
+export interface KeptShownLite { name: string; by: 'model' | 'template'; callId?: string; offers: { name: string; line: string }[] }
 export interface BlueprintLite {
   country?: CountryLite;
-  id: string; at: string; version: number; status: 'draft' | 'accepted'; source: 'model' | 'template'; digest: string; serviceType: ServiceType;
+  id: string; at: string; version: number; status: 'draft' | 'accepted'; source: 'model' | 'template' | 'owner'; digest: string; serviceType: ServiceType;
   name: LabelledLite<string>; oneLiner: LabelledLite<string>; customer: LabelledLite<string>;
   offers: OfferLite[]; deliverySteps: BlueprintStepLite[]; approvals: LabelledLite<string>[];
   backOffice: {
@@ -615,7 +617,7 @@ export interface BlueprintPatchLite {
 /** `venture.build.*` (BriefRecord, HandoffPlan, HandoffRecord, BuildFollowRecord, BuildStatus), trimmed. */
 export type BuilderId = 'lovable' | 'replit' | 'bolt' | 'v0';
 export interface BriefLite {
-  id: string; at: string; briefId: string; version: number; markdown: string; chars: number; wordsBy: 'model' | 'template';
+  id: string; at: string; briefId: string; version: number; markdown: string; chars: number; wordsBy: 'model' | 'template' | 'mixed';
   lint: { ok: boolean; findings: { rule: string; line: number | null; message: string }[] }; estimate?: true;
 }
 export interface HandoffPlanLite {
@@ -658,7 +660,8 @@ export interface WorkspaceLite { id?: string; name: string }
  */
 export interface MoveFile { fileName: string; text: string; transferCode: string; bytes: number }
 /** `workspace.delete`: what the engine removed, and its words for the copies it cannot reach. */
-export interface Deleted { deleted: true; copiesRemoved?: unknown; externalCopies: string }
+/** exportsKept (one-shot A1, row 1): the copies the owner exported, which Delete leaves where they are. */
+export interface Deleted { deleted: true; copiesRemoved?: unknown; exportsKept?: string[]; externalCopies: string }
 
 /**
  * `venture.client.list` and `venture.client.add` (ClientRecord), trimmed. Client details are client data. `owed` is
@@ -775,6 +778,8 @@ export interface DeliveryLite {
   playbookChecks?: PlaybookCheckLite[];
   canAccept?: boolean;
   acceptBlocked?: Display | null;
+  /** One-shot A3 (S2): the owner may edit this draft on Today, also when its only block is a failed check. */
+  canEdit?: boolean;
   judge?: DeliveryJudgeLite;
   /** Ink v2 wave 4 (4H1, U17): which engine wrote the draft, in the engine's words ("Written by Claude Sonnet 5.5"); null before an answer. */
   writtenBy?: Display | null;
@@ -886,6 +891,17 @@ export type BillingPatch = Partial<Omit<BillingSettingsLite, 'razorpay' | 'bank'
   razorpayKeys?: { keyId: string; keySecret: string } | null;
 };
 /** Wave 6 (6D2): an issued invoice's file and the links that open the owner's own WhatsApp or mail app. */
+/**
+ * One-shot A6: what the desktop opened for Email it or Share on WhatsApp (app/desktop/invoice-share.cjs). email: 'draft'
+ * is an .eml with the file attached in the mail app, 'link' the mail link without the file, 'none' nothing opened;
+ * to says whether the client's email is filled in; attached is the name the client gets, while file is the copy kept
+ * on disk (maybe INV-0001-2.pdf), for Show the PDF in its folder. whatsapp: the desktop app or the web page, never
+ * with the file.
+ */
+export type InvoiceShareResult =
+  | { how: 'email'; opened: 'draft' | 'link' | 'none'; file: string; attached: string; to: boolean; note: string | null }
+  | { how: 'whatsapp'; opened: 'app' | 'web'; file: string; note: string | null };
+
 export interface InvoicePdfView {
   fileName: string; format: 'pdf' | 'html'; mimeType: 'application/pdf' | 'text/html'; contentBase64: string; note: Display | null;
   share: { text: string; subject: string; whatsappUrl: string; mailtoUrl: string };
@@ -1007,10 +1023,13 @@ export interface ExperimentLite {
 export interface ImprovementStatusLite {
   readiness: ImprovementReadinessLite; activePlaybookId: string | null; latest: ImprovementRunLite | null;
   candidate: { runId: string; playbookId: string; digest: string; changes: Display[] } | null;
-  inUse?: { playbookId: string; version: number; hash: string; origin: 'plan' | 'improvement'; rollback: { playbookId: string; version: number; digest: string } | null } | null;
+  inUse?: { playbookId: string; version: number; hash: string; origin: PlaybookOrigin; rollback: { playbookId: string; version: number; digest: string } | null } | null;
 }
 /** `venture.improve.rollback` (PlaybookRecord), trimmed: the version now in use. */
-export interface PlaybookLite { id: string; version: number; hash: string; origin?: 'plan' | 'improvement'; parentId?: string | null }
+/** Who made a playbook version: the engine's own list (platform/runtime/venture/playbook-origins.ts), not a copy. */
+import type { PlaybookOrigin } from '../../../../platform/runtime/venture/playbook-origins';
+export { PLAYBOOK_ORIGINS, type PlaybookOrigin } from '../../../../platform/runtime/venture/playbook-origins';
+export interface PlaybookLite { id: string; version: number; hash: string; origin?: PlaybookOrigin; parentId?: string | null }
 /** `venture.posting.propose`: the post waits on Today. `warnings` are the risk gate's, in the engine's words. */
 export interface PostingProposal {
   postId: string; connectorId: string; draftId: string; part: number | null;
@@ -1208,7 +1227,7 @@ export interface AgentSendResult { added: AgentThreadItem[]; line: Display | nul
 export interface StandingOrderView { stepId: string; step: Display; text: string; since: number; quote: string; at: string }
 export interface AgentNoteView { id: string; scope: AgentNoteScope; load: AgentNoteLoad; text: string; source: Display; captured: string; hash: string }
 /** erases (4B3): undoing this change takes the note away, which erases its words like Forget. */
-export interface NoteChangeView { id: string; noteId: string; at: string; who: 'owner' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean }
+export interface NoteChangeView { id: string; noteId: string; at: string; who: 'owner' | 'cofounder' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean }
 export interface AgentNotesView { notes: AgentNoteView[]; changes: NoteChangeView[]; usedChars: number; limitChars: number; forgetLine?: Display }
 export interface AgentNoteChange { note: AgentNoteView | null; change: NoteChangeView }
 /** 4B3: the check ids a step's work must pass (contracts.ts CHECK_IDS), worded by the UI. */
@@ -1421,7 +1440,18 @@ export interface PushSubscriptionInput { endpoint: string; keys: { p256dh: strin
 export interface CliStatusView {
   cli: 'claude-code' | 'codex'; label: Display; found: boolean; path: string | null; version: string | null;
   flags: 'match' | 'mismatch' | 'unknown'; missingFlags: string[]; signedIn: 'yes' | 'no' | 'unknown'; terms: 'accepted' | 'pending' | 'not-needed';
-  lastTask: { at: string; outcome: 'succeeded' | 'failed' } | null; state: ModelAvailability; line: Display; fix: Display | null;
+  lastTask: { at: string; outcome: 'succeeded' | 'failed'; named?: Display } | null; state: ModelAvailability; line: Display; fix: Display | null;
+  /** A2: Codex only, when the engine keeps a Codex trust (platform/runtime/codex-trust.ts). */
+  setup?: CodexSetupLite;
+  /** A2: after a failed last task, the provider's own status page when it says the provider has problems. */
+  provider?: ProviderTroubleLite;
+}
+/** A2: the AI provider's status page, in the engine's words, with where and when it was read. */
+export interface ProviderTroubleLite { line: string; source: string; readAt: string }
+/** A2: a Codex setup as the engine shows it: in use, found and waiting for the owner's yes, not usable, or none. */
+export interface CodexSetupLite {
+  state: 'trusted' | 'review' | 'refused' | 'none'; origin: 'operator' | 'bundled' | 'owner' | null;
+  path: string | null; version: string | null; sha256: string | null; line: string;
 }
 export interface RoleModelView { agent: string; name: string; tiers: { tier: ModelTier; presetId: string; model: string | null; price: Display; usable: boolean }[] }
 
@@ -1444,8 +1474,10 @@ export interface GoalSuggestion { amountMinor: string; display: Display; estimat
 /** 4J1 and 4J2 decisions, edits, set approval, the triage rule, settings drafts. */
 /** by: the member who decided, null for a saved rule or a timeout; ruleId and rule: the saved rule that decided, if one did. */
 export interface DecisionView {
-  id: string; at: string; subject: string; action: string; who: 'owner' | 'saved-rule' | 'timeout'; rule: Display | null; ruleId: string | null;
+  id: string; at: string; subject: string; action: string; who: 'owner' | 'cofounder' | 'accountant' | 'saved-rule' | 'timeout' | 'chausar'; rule: Display | null; ruleId: string | null;
   reason: Display; line: Display; by: string | null;
+  /** A4 review (L5): the reader's own decision (the engine words its line with You). */
+  mine: boolean;
   /** 4J19: the agent whose step a saved rule or a gate is about (venture.team.gate takes it), else null. */
   agentId: string | null;
 }
@@ -1606,17 +1638,35 @@ export type ToolLoginState = 'idle' | 'starting' | 'waiting' | 'signed-in' | 'fa
 export interface ToolLite {
   cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown';
   login: { state: ToolLoginState; code: string | null; link: string | null; line: string | null };
+  /** A2: Codex only, when the engine keeps a Codex trust. */
+  setup?: CodexSetupLite;
+  /** A2: the tiny test call that earns "Signed in"; problem holds its failure in the engine's owner words. */
+  tested?: 'passed' | 'failed';
+  problem?: string;
+  provider?: ProviderTroubleLite;
 }
 export interface ToolsLite { tools: ToolLite[]; line: string }
+/**
+ * One-shot A5: start at login and keep running on this computer (app/desktop/background.cjs state()). registered: the
+ * computer starts Chausar at sign-in now; systemOff: its login item is there but the computer's own startup settings
+ * switched it off. startAtLogin is the saved answer (unasked, the suggestion onboarding ticks).
+ */
+export interface BackgroundStateLite { supported: boolean; asked: boolean; startAtLogin: boolean; keepRunning: boolean; registered: boolean; systemOff: boolean }
 /** Wave 6 (6C2): About you, as core/about.ts answers. Offers never carry an amount. */
-export interface FamilyTileLite { id: string; label: string; line: string }
+/** A field tile; venture.about.families lists its professions too (one-shot A5), venture.about.read and .pick do not. */
+export interface FamilyLite { id: string; label: string; line: string }
+export interface FamilyTileLite extends FamilyLite { professions: { id: string; label: string }[] }
 export interface AboutReadLite {
-  family: FamilyTileLite | null;
+  family: FamilyLite | null;
+  /** One-shot A5: the owner's exact profession as the AI picked it (a catalogue profession of that field), else null. */
+  profession: { id: string; label: string } | null;
   offers: { name: string; line: string }[];
   country: CountryLite | null;
   evidence: string | null;
   idea: string | null;
   source: 'ai' | 'keywords' | 'tile';
+  /** A1 final check: the AI read's own call id, carried by the kept card. */
+  callId?: string;
   file?: { name: string; included: boolean; line: string | null };
 }
 /** Wave 6 (6C7): what the business needs from outside, as core/needs.ts answers. */
@@ -2027,6 +2077,8 @@ export interface EngineMethods {
   'venture.order.create': {
     params: {
       clientId?: string; offerId: string; quantity?: string; request: string;
+      /** One-shot A1 (row 10): a client typed with the order, added with it or not at all; never with clientId. */
+      newClient?: ClientAddParams;
       /** Wave 6: when the whole order is due (6D1); a client abroad's currency and the owner's price in it (6D4). */
       dueDate?: string; currency?: string; unitPrice?: string;
       intakeFiles?: Record<string, { name: string; contentBase64: string }>;
@@ -2055,10 +2107,11 @@ export interface EngineMethods {
   'workspace.create': { params: WorkspaceCreateParams; result: WorkspaceCreated };
   'venture.countries': { params: Record<string, never>; result: CountryLite[] };
   'venture.preview': { params: { idea: string; countryCode: string; pricingModel?: PricingModel }; result: PlanPreviewLite };
-  'venture.create': { params: { idea: string; countryCode: string; workingName?: string }; result: VentureViewLite };
+  'venture.create': { params: { idea: string; countryCode: string; workingName?: string; reuseAi?: true }; result: VentureViewLite };
   'venture.interview.next': { params: { useTemplate?: boolean }; result: InterviewViewLite };
   'venture.interview.answer': { params: { questionId: string; answer: InterviewAnswer }; result: InterviewViewLite };
-  'venture.blueprint.draft': { params: { useTemplate?: boolean }; result: BlueprintViewLite };
+  /** shown (review of A1, row 3): the plan About you showed, kept on the first template draft; by is who wrote its words. */
+  'venture.blueprint.draft': { params: { useTemplate?: boolean; shown?: KeptShownLite }; result: BlueprintViewLite };
   // Ink v2 wave 2: the newly wired engine methods.
   'venture.delivery.judge': { params: { runId: string }; result: JudgePreview };
   'venture.delivery.judgeSend': { params: { runId: string; digest: string }; result: DeliveryLite };
@@ -2331,6 +2384,8 @@ export interface EngineMethods {
   'venture.ai.tools': { params: Record<string, never>; result: ToolsLite };
   'venture.ai.login.start': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
   'venture.ai.login.cancel': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
+  // A2: the owner's yes to the Codex found on this computer, with or without a business.
+  'venture.ai.setup.trust': { params: { cli: 'codex'; sha256: string }; result: { setup: CodexSetupLite } };
   'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } }; result: AboutReadLite };
   'venture.about.pick': { params: { familyId: string; text?: string }; result: AboutReadLite };
   'venture.about.families': { params: Record<string, never>; result: { families: FamilyTileLite[] } };
@@ -2456,6 +2511,32 @@ export interface EngineClient {
    * hosted app and the fake, where the page downloads the engine's CSV itself.
    */
   saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
+  /**
+   * Desktop only (review of A1, row 1): shows one export Delete kept in the file manager, by its file name (the desktop
+   * shows only a file of Chausar's exports folder). EXPORT_NOT_FOUND when it is gone. Absent on the web and the fake.
+   */
+  showExport?(name: string): Promise<void>;
+  /**
+   * Desktop only (one-shot A6): Email it or Share on WhatsApp on an issued invoice. The desktop asks the engine for the
+   * file (venture.invoice.pdf), keeps it in Chausar's share folder and opens the owner's own app; it answers what opened.
+   * Nothing is sent. Absent on the web, the hosted app and the fake, where the sheet opens the engine's share links.
+   */
+  shareInvoice?(invoiceId: string, how: 'email' | 'whatsapp'): Promise<InvoiceShareResult>;
+  /** Desktop only (A6): shows the invoice file the desktop kept for sharing in the file manager. SHARE_FILE_GONE when it is gone. */
+  showShared?(name: string): Promise<void>;
+  /**
+   * Desktop only (one-shot A5): start at login and keep running, as the desktop's background.cjs answers: the saved
+   * answer, whether it was asked, and the login item read back from this computer. Absent on the web, the hosted app
+   * and the fake (tests spread fake-background.ts onto it). A preview answers supported false and refuses a change.
+   */
+  getBackground?(): Promise<BackgroundStateLite>;
+  setBackground?(update: { startAtLogin?: boolean; keepRunning?: boolean }): Promise<BackgroundStateLite>;
+  /**
+   * Desktop only (A5 fix round 3): the local day (YYYY-MM-DD) the owner put Today's start-at-login question aside with
+   * Not now, kept by the desktop beside the answer; null when never. Keeping it changes nothing else.
+   */
+  getAskLater?(): Promise<string | null>;
+  setAskLater?(day: string): Promise<void>;
   /**
    * Desktop only (5A5): the desktop makes a draft's client report (venture.report.render, the PDF included) and saves
    * every file and manifest.json in a new folder where the owner picks, atomically. Null when cancelled; EXPORT_EXISTS

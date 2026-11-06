@@ -26,7 +26,11 @@ export const DEFAULT_NAME = 'My service business';
 export type Request = EngineClient['request'];
 
 /** What the owner wrote and where, with the name the vault gets. */
-export interface Sentence { idea: string; countryCode: string; name: string }
+/**
+ * offers and by (one-shot A1, row 3): the offers the owner saw and kept on About you and who wrote them (the AI's
+ * reading, or the keywords or a tile), saved as the plan's offers; without them the plan keeps the template's.
+ */
+export interface Sentence { idea: string; countryCode: string; name: string; offers?: readonly { name: string; line: string }[]; by?: 'model' | 'template'; callId?: string }
 
 const ZONE_COUNTRIES: Readonly<Record<string, string>> = Object.freeze({
   ...Object.fromEntries(Object.entries(COUNTRY_TIME_ZONES).map(([country, zone]) => [zone, country])),
@@ -125,11 +129,14 @@ export async function makeVault(request: Request, transport: Transport, name: st
 }
 
 /**
- * Inside the new vault: the business, the template interview, the plan. Running it again after a failure is safe:
+ * Inside the new vault: the business, the template interview, the plan. reuseAi: the Start gallery's business reuses the
+ * AI set up in another business on this computer. Running it again after a failure is safe:
  * an existing business is kept (VENTURE_EXISTS) and only unanswered questions are answered.
  */
-export async function setUpPlan(request: Request, sentence: Sentence): Promise<void> {
-  const payload: { idea: string; countryCode: string; workingName?: string } = { idea: sentence.idea, countryCode: sentence.countryCode };
+export async function setUpPlan(request: Request, sentence: Sentence, options: { reuseAi?: boolean } = {}): Promise<void> {
+  const payload: { idea: string; countryCode: string; workingName?: string; reuseAi?: true } = { idea: sentence.idea, countryCode: sentence.countryCode };
+  // A4 fix round: from the Start gallery, the AI set up in another business comes along (the engine decides what).
+  if (options.reuseAi) payload.reuseAi = true;
   const name = sentence.name.trim();
   if (name.length >= 2 && name.length <= 80) payload.workingName = name;
   try { await request('venture.create', payload); }
@@ -142,5 +149,14 @@ export async function setUpPlan(request: Request, sentence: Sentence): Promise<v
     asked.add(question.id);
     view = await request('venture.interview.answer', { questionId: question.id, answer: answerFor(question) });
   }
-  await request('venture.blueprint.draft', { useTemplate: true });
+  // Review of A1 (row 3): the first plan is the one About you showed, its words still the AI's or the template's.
+  const offers = (sentence.offers ?? []).filter((offer) => offer.name.trim().length >= 2).slice(0, 3).map((offer) => ({ name: offer.name.trim(), line: offer.line.trim() }));
+  const shownName = sentence.name.trim();
+  try {
+    await request('venture.blueprint.draft', offers.length && shownName.length >= 2 && shownName.length <= 60
+      ? { useTemplate: true, shown: { name: shownName, by: sentence.by ?? 'template', ...(sentence.callId ? { callId: sentence.callId } : {}), offers } } : { useTemplate: true });
+  } catch (error) {
+    // A retry after the kept plan was saved: it is saved already, so running this again stays safe.
+    if (!(error instanceof EngineError && error.code === 'PLAN_ALREADY_KEPT')) throw error;
+  }
 }

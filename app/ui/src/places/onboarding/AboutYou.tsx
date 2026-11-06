@@ -8,12 +8,14 @@ import { Chip } from '../../parts/Chip';
 import { Icon } from '../../parts/Icon';
 import { cleanSentence, computerCountry, pickCountry, sentenceProblem, OPEN_BOX } from './flow';
 import { aboutFile, type AboutFile } from './linkedin';
+import { renameIn } from './rename';
 import f from './FirstRun.module.css';
 import s from './AboutYou.module.css';
 
 type Mode = 'a' | 'b' | 'plan';
 type Bubble = { who: 'me' | 'them'; text: string };
-export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string };
+/** name (one-shot A1, row 3): the name the card shows, which the saved plan keeps with the card's offers. */
+export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string };
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** True when the computer asks for reduced motion: then A becomes B with no motion at all. */
@@ -52,6 +54,8 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
   const [thread, setThread] = useState<Bubble[]>([]);
   const [read, setRead] = useState<AboutReadLite | null>(null);
   const [name, setName] = useState<string | null>(null);
+  /** One-shot A3 (S1): the name the owner asked for in the chat; it wins over the field's name until they change it again. */
+  const [ownName, setOwnName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [boxWrong, setBoxWrong] = useState(false);
@@ -122,11 +126,21 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     event?.preventDefault();
     const more = cleanSentence(reply);
     if (busy || more.length === 0) return;
-    const combined = cleanSentence(`${said}\n${more}`).slice(-OPEN_BOX.max);
+    // One-shot A3 (S1): a rename is read by code and kept on the card; the AI never names a business, so it is not asked.
+    // A3 review (L2): what the message asks after the name ("and add wedding shoots too") still goes to the AI.
+    const renamed = read ? renameIn(more) : null;
+    if (renamed) {
+      setOwnName(renamed.name);
+      setReply('');
+      setThread((was) => [...was, { who: 'me', text: more }, { who: 'them', text: t('first-run.about.renamed', { name: renamed.name }) }]);
+      if (!renamed.rest) return;
+    }
+    const asked = renamed ? cleanSentence(renamed.rest) : more;
+    const combined = cleanSentence(`${said}\n${asked}`).slice(-OPEN_BOX.max);
     if (sentenceProblem(combined)) { setProblem(t(sentenceProblem(combined)!)); return; }
     setSaid(combined);
     setReply('');
-    setThread((was) => [...was, { who: 'me', text: more }]);
+    if (!renamed) setThread((was) => [...was, { who: 'me', text: more }]);
     void ask({ text: combined });
   }
 
@@ -165,7 +179,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); then(); }
   }
 
-  const keepable = read?.family && read.idea && countryCode ? { read: read as KeptPlan['read'], countryCode } : null;
+  const keepable = read?.family && read.idea && countryCode ? { read: read as KeptPlan['read'], countryCode, name: (ownName ?? name ?? read.family.label).trim() } : null;
   const tiles = families.data?.families ?? [];
 
   const where = (
@@ -204,7 +218,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     <>
       <div className={s.nameCard}>
         <p className={s.label}>{t('first-run.about.name')}</p>
-        <p className={s.name} data-content="">{name ?? read.family?.label ?? ''}</p>
+        <p className={s.name} data-content="" data-plan-name="">{ownName ?? name ?? read.family?.label ?? ''}</p>
         {read.family && <p className={s.offerLine}>{read.family.label}</p>}
       </div>
       <label className={s.label} htmlFor={fieldId}>{t('first-run.about.field')}</label>

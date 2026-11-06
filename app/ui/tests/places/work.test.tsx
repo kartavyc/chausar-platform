@@ -33,7 +33,7 @@ const clientOf = (order: Element) => order.closest('article')!;
 const pressed = (group: HTMLElement) => within(group).getAllByRole('button').filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent);
 async function allowOrderAi(engine:FakeEngine,clientId:string) {
   const preset=MODEL_PRESETS.find(item=>item.id==='codex-cli')!,before=structuredClone(preset);
-  try{preset.availability='unverified';await engine.request('venture.models.connect',{presetId:preset.id,consentDigest:preset.consentDigest});}finally{Object.assign(preset,before);}
+  try{engine.firstRun.signIn();await engine.request('venture.models.connect',{presetId:preset.id,consentDigest:preset.consentDigest});}finally{Object.assign(preset,before);}
   const consent=await engine.request('venture.client.aiConsent.get',{clientId}) as {disclosureDigest:string};
   await engine.request('venture.client.aiConsent.agree',{clientId,disclosureDigest:consent.disclosureDigest});
 }
@@ -338,9 +338,9 @@ describe('Work: new order', () => {
     fireEvent.change(service, { target: { value: 'offer_sponsor' } });
     fireEvent.change(within(sheet).getByLabelText('What they asked for'), { target: { value: 'One mention in her podcast' } });
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add order' })); });
-    expect(calls.find((c) => c.method === 'venture.client.add')?.params).toEqual({ name: 'Kavya Rao' });
-    const created = calls.find((c) => c.method === 'venture.order.create')?.params as { clientId: string };
-    expect(created.clientId).not.toBe('+new');
+    // One-shot A1 (row 10): one request, so a refused order never leaves the new client behind.
+    expect(calls.some((c) => c.method === 'venture.client.add')).toBe(false);
+    expect(calls.find((c) => c.method === 'venture.order.create')?.params).toEqual({ newClient: { name: 'Kavya Rao' }, offerId: 'offer_sponsor', request: 'One mention in her podcast' });
     const row = await rowOf('One mention in her podcast');
     await waitFor(() => expect(clientOf(row).textContent).toContain('Kavya Rao'));
   });

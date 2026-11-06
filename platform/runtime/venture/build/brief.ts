@@ -139,19 +139,92 @@ function briefWordList(words: BriefModelOutput): string[] {
   return [words.whatToBuild, words.whoItIsFor, ...words.pages.flatMap(page => [page.title, page.purpose]), words.lookAndFeel, ...words.doneMeans];
 }
 
+/**
+ * One-shot A1 (row 13): the three text fields, with their limits. A field past its limit is cut, never refused; an
+ * empty one is asked for again on its own (writeBrief), so one bad field never throws the whole answer away.
+ */
+const TEXT_FIELDS = Object.freeze({
+  whatToBuild: { field: 'description of what to build', words: 'what to build', max: 600, multiline: true },
+  whoItIsFor: { field: 'description of who it is for', words: 'who it is for', max: 400, multiline: false },
+  lookAndFeel: { field: 'look and feel', words: 'how it should look and feel', max: 300, multiline: false },
+});
+export type BriefTextField = keyof typeof TEXT_FIELDS;
+const TEXT_FIELD_NAMES = Object.keys(TEXT_FIELDS) as BriefTextField[];
+
+/** The model's text cut to max characters: at the last full sentence when that keeps most of it, else at a word. */
+export function fitWords(value: string, max: number, multiline = false): string {
+  const words = tidyWords(value, multiline);
+  if (words.length <= max) return words;
+  const head = words.slice(0, max);
+  const sentence = Math.max(...['. ', '! ', '? ', '.\n', '!\n', '?\n'].map(end => head.lastIndexOf(end)));
+  if (sentence >= max / 2) return head.slice(0, sentence + 1);
+  const space = Math.max(head.lastIndexOf(' '), head.lastIndexOf('\n'));
+  return (space > 0 ? head.slice(0, space) : head).replace(/[\s,;:]+$/u, '');
+}
+
+/** True when a text field came back empty or not at all, so it is asked for again. */
+const emptyText = (value: unknown): boolean => value === undefined || value === null || (typeof value === 'string' && tidyWords(value, true).length === 0);
+
+/** One text field: cut to its limit and checked as model words; '' when it came back empty. */
+function textField(value: unknown, name: BriefTextField, allowed: readonly string[]): string {
+  if (emptyText(value)) return '';
+  const spec = TEXT_FIELDS[name];
+  return modelWords(typeof value === 'string' ? fitWords(value, spec.max, spec.multiline) : value, spec.field, spec.max, { allowed, multiline: spec.multiline });
+}
+
+/** The text fields a brief's words still lack. */
+export function missingTextFields(words: BriefModelOutput): BriefTextField[] {
+  return TEXT_FIELD_NAMES.filter(name => words[name] === '');
+}
+
 export function validateBriefOutput(raw: unknown, allowed: readonly string[]): BriefModelOutput {
-  const body = exactPayload(raw, ['whatToBuild', 'whoItIsFor', 'pages', 'lookAndFeel', 'doneMeans'], ['whatToBuild', 'whoItIsFor', 'pages', 'lookAndFeel', 'doneMeans'], 'MODEL_OUTPUT_REJECTED');
-  const whatToBuild = modelWords(body.whatToBuild, 'description of what to build', 600, { allowed, multiline: true });
-  const whoItIsFor = modelWords(body.whoItIsFor, 'description of who it is for', 400, { allowed });
+  const body = exactPayload(raw, ['whatToBuild', 'whoItIsFor', 'pages', 'lookAndFeel', 'doneMeans'], ['pages', 'doneMeans'], 'MODEL_OUTPUT_REJECTED');
+  const whatToBuild = textField(body.whatToBuild, 'whatToBuild', allowed);
+  const whoItIsFor = textField(body.whoItIsFor, 'whoItIsFor', allowed);
   check(Array.isArray(body.pages) && body.pages.length >= 4 && body.pages.length <= 6, 'MODEL_OUTPUT_REJECTED', 'The brief needs four to six pages.');
   const pages = (body.pages as unknown[]).map(page => {
     const item = exactPayload(page, ['title', 'purpose'], ['title', 'purpose'], 'MODEL_OUTPUT_REJECTED');
-    return { title: modelWords(item.title, 'page title', 60, { allowed }), purpose: modelWords(item.purpose, 'page purpose', 200, { allowed }) };
+    return {
+      title: modelWords(typeof item.title === 'string' ? fitWords(item.title, 60) : item.title, 'page title', 60, { allowed }),
+      purpose: modelWords(typeof item.purpose === 'string' ? fitWords(item.purpose, 200) : item.purpose, 'page purpose', 200, { allowed }),
+    };
   });
-  const lookAndFeel = modelWords(body.lookAndFeel, 'look and feel', 300, { allowed });
-  check(Array.isArray(body.doneMeans) && body.doneMeans.length >= 4 && body.doneMeans.length <= 8, 'MODEL_OUTPUT_REJECTED', 'The brief needs four to eight done lines.');
-  const doneMeans = (body.doneMeans as unknown[]).map(item => modelWords(item, 'done line', 120, { allowed }));
+  const lookAndFeel = textField(body.lookAndFeel, 'lookAndFeel', allowed);
+  // An empty done line is dropped; four to eight must stay.
+  const lines = Array.isArray(body.doneMeans) ? (body.doneMeans as unknown[]).filter(item => !emptyText(item)) : null;
+  check(lines && lines.length >= 4 && lines.length <= 8, 'MODEL_OUTPUT_REJECTED', 'The brief needs four to eight done lines.');
+  const doneMeans = lines.map(item => modelWords(typeof item === 'string' ? fitWords(item, 120) : item, 'done line', 120, { allowed }));
   return { whatToBuild, whoItIsFor, pages, lookAndFeel, doneMeans };
+}
+
+/** The words a brief task lets the model copy (its own validate closes over them; the fill task needs the same). */
+const ALLOWED_OF = new WeakMap<object, readonly string[]>();
+
+/**
+ * The second ask (one-shot A1, row 13): only the text fields the first answer left empty, with the rest of the brief as
+ * it stands, plan words only. Each field must come back this time; still empty is refused, naming it.
+ */
+export function briefFillTask(base: ModelTask<BriefModelOutput>, missing: readonly BriefTextField[], words: BriefModelOutput, template: () => BriefModelOutput): ModelTask<Partial<BriefModelOutput>> {
+  const allowed = ALLOWED_OF.get(base) ?? [];
+  const written = Object.fromEntries(TEXT_FIELD_NAMES.filter(name => !missing.includes(name)).map(name => [name, words[name]]));
+  const properties = (BRIEF_SCHEMA as { properties: Record<string, Json> }).properties;
+  return {
+    purpose: base.purpose,
+    instructions: `${base.instructions} Write only ${missing.map(name => TEXT_FIELDS[name].words).join(' and ')}; the rest of the brief is written.`,
+    input: { ...(base.input as Record<string, Json>), written, writtenPages: words.pages.map(page => ({ ...page })) } as Json,
+    schemaName: 'venture-brief-fill',
+    schema: { type: 'object', additionalProperties: false, required: [...missing], properties: Object.fromEntries(missing.map(name => [name, properties[name]!])) },
+    validate: raw => {
+      const body = exactPayload(raw, [...missing], [...missing], 'MODEL_OUTPUT_REJECTED');
+      return Object.fromEntries(missing.map(name => {
+        check(!emptyText(body[name]), 'MODEL_OUTPUT_REJECTED', `The ${TEXT_FIELDS[name].field} was empty.`);
+        return [name, textField(body[name], name, allowed)];
+      }));
+    },
+    template: () => { const fixed = template(); return Object.fromEntries(missing.map(name => [name, fixed[name]])); },
+    containsClientData: false,
+    maxOutputTokens: 1024,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -287,7 +360,7 @@ export function briefTask(venture: VentureRecord, blueprint: BlueprintRecord, te
   const allowed = copiedTokens(venture.idea);
   const pages = planPages(blueprint);
   const instructions = pages ? `${BRIEF_INSTRUCTIONS} ${OPEN_SITE_WORDS.composedPages}${hasClientArea(blueprint) ? '' : ' There is no signed-in client area: do not add one.'}` : BRIEF_INSTRUCTIONS;
-  return {
+  const task: ModelTask<BriefModelOutput> = {
     purpose: 'brief',
     instructions,
     input: {
@@ -308,6 +381,8 @@ export function briefTask(venture: VentureRecord, blueprint: BlueprintRecord, te
     containsClientData: false,
     maxOutputTokens: 4096,
   };
+  ALLOWED_OF.set(task, allowed);
+  return task;
 }
 
 // ---------------------------------------------------------------------------
@@ -326,15 +401,26 @@ export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unkno
     name: blueprint.name.value, customer: blueprint.customer.value, pages: planPages(blueprint), clientArea: hasClientArea(blueprint),
   });
   let words: BriefModelOutput;
-  let wordsBy: 'model' | 'template' = 'template';
+  let wordsBy: BriefRecord['wordsBy'] = 'template';
   let modelCallId: string | null = null;
+  let fillCallId: string | null = null;
   if (body.useTemplate === true) {
     words = template();
   } else {
-    const outcome = await deps.models.generate(ctx, briefTask(venture, blueprint, template));
+    const task = briefTask(venture, blueprint, template);
+    const outcome = await deps.models.generate(ctx, task);
     words = outcome.value;
     wordsBy = outcome.by;
     modelCallId = outcome.callId;
+    // One-shot A1 (row 13): a field the AI left empty is asked for again on its own; the rest of its answer stays.
+    const missing = missingTextFields(words);
+    if (missing.length) {
+      const fill = await deps.models.generate(ctx, briefFillTask(task, missing, words, template));
+      words = { ...words, ...fill.value };
+      // Review of A1 (row 13): the fill call is recorded; a fill the built-in words answered makes the brief mixed.
+      fillCallId = fill.callId;
+      if (fill.by === 'template' && wordsBy === 'model') wordsBy = 'mixed';
+    }
   }
 
   return ventureAction(deps, ctx, 'prepare', 'build.brief', tx => {
@@ -354,10 +440,10 @@ export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unkno
     const record: BriefRecord = {
       ...tx.base('venture-brief'),
       briefId, version, markdown, chars: markdown.length, digest: digest(markdown), blueprintDigest: plan.digest,
-      priceReceiptIds: receipts.map(receipt => receipt.id), wordsBy, modelCallId,
+      priceReceiptIds: receipts.map(receipt => receipt.id), wordsBy, modelCallId, ...(fillCallId !== null || wordsBy === 'mixed' ? { fillCallId } : {}),
       lint: lintFor(markdown, receipts, briefId, clientArea),
       // A number in the model's words is a model estimate, never a receipt.
-      ...(wordsBy === 'model' && briefWordList(words).some(line => modelNumbers(line, copiedTokens(current.idea))) ? { estimate: true as const } : {}),
+      ...(wordsBy !== 'template' && briefWordList(words).some(line => modelNumbers(line, copiedTokens(current.idea))) ? { estimate: true as const } : {}),
     };
     const stored = tx.put(record);
     tx.emit('brief-ready', { briefId, version, lintOk: record.lint.ok });

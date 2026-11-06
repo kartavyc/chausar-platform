@@ -1,4 +1,5 @@
 // SEO monthly work executes checks over actual order source bytes. Independent Chausar integration.
+import { refusalError } from '../../refusal-brand.ts';
 import type {PoliteNet} from '../../build/fetch-policy.ts';
 import {readSeoManifest,readRefreshSource} from './manifest-core.ts';
 import {seoNeed} from './content-core.ts';
@@ -13,5 +14,5 @@ export async function runSeoWork(operation:SeoWorkOperation,text:string,net:Poli
  if(operation==='impact'){const {measureImpact}=await import('./impact.ts');return measureImpact(input);}
  if(operation==='local'){const {auditLocal,localTemplates}=await import('./local.ts');return {...await auditLocal(input,net),templates:localTemplates(input.industry??'local business')};}
  // Strategy input is assembled from bound vault records by the desk; uploaded digest claims never establish memory.
- throw Object.assign(new Error('Build a strategy from its recorded work, panel and publication receipt.'),{code:'STRATEGY_BINDING_REQUIRED'});
+ throw refusalError(new Error('Build a strategy from its recorded work, panel and publication receipt.'),{code:'STRATEGY_BINDING_REQUIRED'});
 }

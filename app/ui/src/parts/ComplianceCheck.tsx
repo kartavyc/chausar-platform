@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
 import { Button } from './Button';
@@ -30,7 +30,11 @@ const ANSWERS: readonly SideWorkAnswer[] = ['allowed', 'not-allowed', 'not-sure'
  * that size; a picked range is sent to venture.compliance.get as a preview, so the verdict follows the pick. The size is
  * optional, and Continue records (or hands back) the picked ranges with the side-work answer.
  */
-export function ComplianceCheck({ profession, record = true, onDone }: { profession: string; record?: boolean; onDone?: (answer: ComplianceAnswer) => void }) {
+export function ComplianceCheck({ profession, record = true, onDone, headingLevel = 3 }: {
+  profession: string; record?: boolean; onDone?: (answer: ComplianceAnswer) => void;
+  /** A5: the level of its one sub-heading, one below the page's (onboarding's step title is an h1, a Business tile's an h2). */
+  headingLevel?: 2 | 3;
+}) {
   const t = useT();
   const client = useEngine();
   const [picked, setPicked] = useState<SizeAnswersLite | null>(null);
@@ -42,8 +46,11 @@ export function ComplianceCheck({ profession, record = true, onDone }: { profess
   const noteId = useId();
   const data: ComplianceLite | undefined = view.data;
 
+  /** A5 fix round 2: a second press while the first is on its way sends nothing. */
+  const sending = useRef(false);
   async function done() {
-    if (!data || !answer) return;
+    if (!data || !answer || sending.current) return;
+    sending.current = true;
     setBusy(true);
     setProblem(null);
     const size = data.size && picked ? { size: picked } : {};
@@ -53,6 +60,7 @@ export function ComplianceCheck({ profession, record = true, onDone }: { profess
     } catch (error) {
       setProblem(t('compliance.failed', { message: error instanceof Error ? error.message : String(error) }));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   }
@@ -90,7 +98,7 @@ export function ComplianceCheck({ profession, record = true, onDone }: { profess
       )}
       {data.switchedOff.length > 0 && (
         <>
-          <h3 className={s.subheading}>{t('compliance.off')}</h3>
+          {headingLevel === 2 ? <h2 className={s.subheading}>{t('compliance.off')}</h2> : <h3 className={s.subheading}>{t('compliance.off')}</h3>}
           <ul className={s.list}>{data.switchedOff.map((item) => <li key={item.tool} data-switched-off={item.tool}>{item.line}</li>)}</ul>
         </>
       )}

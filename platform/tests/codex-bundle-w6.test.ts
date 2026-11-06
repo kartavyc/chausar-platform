@@ -8,7 +8,7 @@ import { join } from 'node:path';
 // Wave 6, package 6J1 (D3, D12): the installer bundles Codex (Apache-2.0) with its LICENSE and NOTICE, copied from a
 // local Codex install the founder already has; nothing is downloaded and nothing implies an OpenAI endorsement.
 const modulePath = '../../scripts/codex-bundle.mjs';
-const { CODEX_BUNDLE, codexTarget, codexVendorFolder, stageCodexBundle, verifyCodexBundle, bundleFolderName, parseCodexBundleArguments } = await import(modulePath);
+const { CODEX_BUNDLE, QUIET_ARGS, codexTarget, codexVendorFolder, stageCodexBundle, verifyCodexBundle, bundleFolderName, parseCodexBundleArguments } = await import(modulePath);
 const repo = new URL('../../', import.meta.url);
 const sha256 = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 
@@ -25,15 +25,20 @@ async function vendorFixture(t: any, layout: Record<string, unknown> = {}, machi
   await writeFile(join(vendor, 'bin/codex.exe'), peHeader(machine));
   await writeFile(join(vendor, 'codex-path/rg.exe'), peHeader(machine));
   await writeFile(join(vendor, 'codex-resources/codex-command-runner.exe'), peHeader(machine));
-  await writeFile(join(vendor, 'codex-package.json'), JSON.stringify({ layoutVersion: 1, version: '0.154.0', target: 'x86_64-pc-windows-msvc', variant: 'codex', entrypoint: 'bin/codex.exe', resourcesDir: 'codex-resources', pathDir: 'codex-path', ...layout }));
-  await writeFile(join(root, 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.154.0', license: 'Apache-2.0' }));
+  // A2: 0.166.0 carries native voice libraries (GStreamer, GLib, Microsoft's runtime DLL) that Chausar leaves out.
+  await mkdir(join(vendor, 'codex-resources/voice/bin'), { recursive: true });
+  await writeFile(join(vendor, 'codex-resources/voice/bin/codex-voice-host.exe'), peHeader(machine));
+  await writeFile(join(vendor, 'codex-resources/voice/bin/vcruntime140.dll'), 'runtime');
+  await writeFile(join(vendor, 'codex-resources/voice/NOTICE.md'), '# Native voice libraries');
+  await writeFile(join(vendor, 'codex-package.json'), JSON.stringify({ layoutVersion: 1, version: '0.166.0', target: 'x86_64-pc-windows-msvc', variant: 'codex', entrypoint: 'bin/codex.exe', resourcesDir: 'codex-resources', pathDir: 'codex-path', ...layout }));
+  await writeFile(join(root, 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.166.0', license: 'Apache-2.0' }));
   return { root, vendor, destination: join(root, 'staged') };
 }
 
 test('the shipped Codex LICENSE and NOTICE are byte for byte the files in openai/codex at the pinned release tag', async () => {
-  assert.equal(CODEX_BUNDLE.version, '0.154.0');
+  assert.equal(CODEX_BUNDLE.version, '0.166.0');
   assert.equal(CODEX_BUNDLE.licence, 'Apache-2.0');
-  assert.equal(CODEX_BUNDLE.tag, 'rust-v0.154.0');
+  assert.equal(CODEX_BUNDLE.tag, 'rust-v0.166.0');
   const license = await readFile(new URL('app/desktop/notices/codex/LICENSE', repo));
   const notice = await readFile(new URL('app/desktop/notices/codex/NOTICE', repo));
   assert.equal(sha256(license), CODEX_BUNDLE.licenseSha256);
@@ -79,7 +84,7 @@ test('staging copies the platform Codex layout with LICENSE, NOTICE and a manife
   const { root, vendor, destination } = await vendorFixture(t);
   assert.equal(await codexVendorFolder(root, 'win32', 'x64'), vendor);
   const manifest = await stageCodexBundle({ source: root, destination, platform: 'win32', architecture: 'x64' });
-  assert.equal(manifest.version, '0.154.0');
+  assert.equal(manifest.version, '0.166.0');
   assert.equal(manifest.target, 'x86_64-pc-windows-msvc');
   assert.equal(manifest.licence, 'Apache-2.0');
   assert.equal(manifest.entrypoint, 'bin/codex.exe');
@@ -88,9 +93,37 @@ test('staging copies the platform Codex layout with LICENSE, NOTICE and a manife
   assert.deepEqual(await readFile(join(destination, 'NOTICE')), await readFile(new URL('app/desktop/notices/codex/NOTICE', repo)));
   const files = Object.keys(manifest.files).sort();
   assert.deepEqual(files, ['LICENSE', 'NOTICE', 'bin/codex.exe', 'codex-package.json', 'codex-path/rg.exe', 'codex-resources/codex-command-runner.exe']);
+  // A2: the voice folder is left out, and the manifest says so.
+  assert.deepEqual(await readdir(join(destination, 'codex-resources')), ['codex-command-runner.exe']);
+  assert.deepEqual(manifest.leftOut, ['codex-resources/voice']);
   assert.equal(manifest.files['bin/codex.exe'].sha256, sha256(peHeader()));
   assert.deepEqual(JSON.parse(await readFile(join(destination, 'BUNDLE.json'), 'utf8')), manifest);
   assert.deepEqual(await verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), manifest);
+});
+
+test('A2: staging records the bundled Codex setup at build time: its version, exec help and features answers, pinned in BUNDLE.json', async t => {
+  const { root, destination } = await vendorFixture(t);
+  const asked: string[][] = [];
+  const answer = (key: string) => (key === '--version' ? 'codex-cli 0.166.0\n' : key === 'exec --help' ? 'exec help text\n' : 'features text\n');
+  const plain = (args: string[]) => (args[0] === '--disable' ? args.slice(QUIET_ARGS.length) : args);
+  const probe = async (_command: string, args: string[]) => { asked.push(args); return { exitCode: 0, stdout: answer(plain(args).join(' ')) }; };
+  const manifest = await stageCodexBundle({ source: root, destination, platform: 'win32', architecture: 'x64', probe, now: () => new Date('2026-11-03T10:00:00.000Z') });
+  // A2 second review: the version check runs bare; the other two lead with the quiet flags.
+  assert.deepEqual(asked, [['--version'], [...QUIET_ARGS, 'exec', '--help'], [...QUIET_ARGS, 'features', 'list']]);
+  const { CODEX_QUIET_ARGS } = await import('../runtime/providers/codex-cli.ts');
+  assert.deepEqual([...QUIET_ARGS], [...CODEX_QUIET_ARGS], 'the build and the engine quiet the same features');
+  assert.deepEqual(manifest.evidence, { recordedAt: '2026-11-03T10:00:00.000Z', files: { versionOutput: 'evidence/version.stdout.txt', execHelp: 'evidence/exec-help.stdout.txt', features: 'evidence/features.stdout.txt' } });
+  assert.equal(await readFile(join(destination, 'evidence/version.stdout.txt'), 'utf8'), answer('--version'));
+  assert.equal(manifest.files['evidence/version.stdout.txt'].sha256, sha256(answer('--version')));
+  assert.deepEqual(await verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), manifest);
+  // A version answer for another Codex is refused at staging.
+  const other = await vendorFixture(t);
+  const older = async (command: string, args: string[]) => (plain(args)[0] === '--version' ? { exitCode: 0, stdout: 'codex-cli 0.154.0\n' } : probe(command, args));
+  await assert.rejects(stageCodexBundle({ source: other.root, destination: other.destination, platform: 'win32', architecture: 'x64', probe: older }), /answered as another version/);
+  // Without a probe for another platform's program, the bundle is staged with no recorded setup.
+  const elsewhere = await vendorFixture(t);
+  const unrecorded = await stageCodexBundle({ source: elsewhere.root, destination: elsewhere.destination, platform: 'win32', architecture: 'x64', probe: null });
+  assert.equal(unrecorded.evidence, null);
 });
 
 test('a local npm install keeps the platform package beside @openai/codex, and that layout is found too', async t => {
@@ -106,8 +139,8 @@ test('a local npm install keeps the platform package beside @openai/codex, and t
 });
 
 test('staging refuses a different Codex version, a wrong target or architecture, links, and a folder already in use', async t => {
-  const wrongVersion = await vendorFixture(t, { version: '0.155.0' });
-  await assert.rejects(stageCodexBundle({ source: wrongVersion.root, destination: wrongVersion.destination, platform: 'win32', architecture: 'x64' }), /0\.154\.0/);
+  const wrongVersion = await vendorFixture(t, { version: '0.167.0' });
+  await assert.rejects(stageCodexBundle({ source: wrongVersion.root, destination: wrongVersion.destination, platform: 'win32', architecture: 'x64' }), /0\.166\.0/);
   const wrongTarget = await vendorFixture(t, { target: 'aarch64-pc-windows-msvc' });
   await assert.rejects(stageCodexBundle({ source: wrongTarget.root, destination: wrongTarget.destination, platform: 'win32', architecture: 'x64' }), /target/);
   const wrongMachine = await vendorFixture(t, {}, 0xaa64);
@@ -120,6 +153,28 @@ test('staging refuses a different Codex version, a wrong target or architecture,
   try { await symlink(join(linked.vendor, 'bin/codex.exe'), join(linked.vendor, 'codex-path/link.exe')); }
   catch (error: any) { if (['EPERM', 'EACCES'].includes(error.code)) { t.skip('This host cannot create a disposable test symlink.'); return; } throw error; }
   await assert.rejects(stageCodexBundle({ source: linked.root, destination: linked.destination, platform: 'win32', architecture: 'x64' }), /link/);
+});
+
+test('A2 review: verification checks the recorded setup and the left-out folder, and a beta needs the setup unless told otherwise', async t => {
+  const answer = (args: string[]) => ({ exitCode: 0, stdout: args.at(-1) === '--version' ? 'codex-cli 0.166.0\n' : 'text\n' });
+  const { root, destination } = await vendorFixture(t);
+  await stageCodexBundle({ source: root, destination, platform: 'win32', architecture: 'x64', probe: async (_c: string, args: string[]) => answer(args) });
+  await verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64', requireSetup: true });
+  // No recorded setup: fine for a plain check, refused when a beta needs it.
+  const bare = await vendorFixture(t);
+  await stageCodexBundle({ source: bare.root, destination: bare.destination, platform: 'win32', architecture: 'x64' });
+  await verifyCodexBundle({ directory: bare.destination, platform: 'win32', architecture: 'x64' });
+  await assert.rejects(verifyCodexBundle({ directory: bare.destination, platform: 'win32', architecture: 'x64', requireSetup: true }), /no recorded setup; stage it on a win32-x64 computer.*--allow-unrecorded-codex/);
+  // A file from a left-out folder, or a changed leftOut list, is refused.
+  await mkdir(join(destination, 'codex-resources/voice'), { recursive: true });
+  await writeFile(join(destination, 'codex-resources/voice/NOTICE.md'), 'x');
+  await assert.rejects(verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), /left out/);
+  await rm(join(destination, 'codex-resources/voice'), { recursive: true });
+  const manifest = JSON.parse(await readFile(join(destination, 'BUNDLE.json'), 'utf8'));
+  await writeFile(join(destination, 'BUNDLE.json'), JSON.stringify({ ...manifest, leftOut: [] }));
+  await assert.rejects(verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), /must leave out codex-resources\/voice/);
+  await writeFile(join(destination, 'BUNDLE.json'), JSON.stringify({ ...manifest, evidence: { ...manifest.evidence, files: { versionOutput: 'evidence/version.stdout.txt' } } }));
+  await assert.rejects(verifyCodexBundle({ directory: destination, platform: 'win32', architecture: 'x64' }), /malformed recorded setup/);
 });
 
 test('verification refuses a bundle with a missing LICENSE or NOTICE, a changed file or an extra file', async t => {

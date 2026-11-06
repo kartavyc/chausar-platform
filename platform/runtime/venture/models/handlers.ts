@@ -10,7 +10,9 @@ import { currentVenture, exactPayload, identifier, listRecords, readVenture, req
 import { CLI_STATUS_WORDS, cliListLine, cliStatusView, lastCliTask } from './cli-status.ts';
 import { monthlyCapMicros } from './cost.ts';
 import { listCalls, newestFirst, putRecord, replaceRecord, viewCall } from './port.ts';
-import { AVAILABILITY_REASONS, claudeTermsOpen, endpointFor, presetSpec } from './presets.ts';
+import { claudeTermsOpen, endpointFor, presetSpec } from './presets.ts';
+import { liveGates, presetGates, presetTiers } from './gates.ts';
+import { refreshAiSetup, rememberAiSetup } from './ai-setup.ts';
 import { rolesHandler } from './roles.ts';
 import type { ConnectionRecord } from './types.ts';
 import { payerChangeLine } from '../money/spend.ts';
@@ -47,10 +49,7 @@ async function connectModelUnlocked(deps: VentureDeps, ctx: Context, payload: un
   const presetId = input.presetId as ModelPresetId;
   check(!(options.draft && presetId === 'built-in-templates'), 'INVALID_VENTURE_REQUEST', 'Built-in templates need no connection. Continue without AI instead.');
   const spec = presetSpec(presetId);
-  check(!(deps.host === 'hosted-web' && spec.runsOn === 'this-computer'), 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.hostedCli);
-  check(presetId !== 'claude-code-cli' || claudeTermsOpen(deps.claudeCodeTerms), 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.claudeTerms);
-
-  check(typeof input.consentDigest === 'string' && input.consentDigest === spec.consentDigest, 'MODEL_CONSENT_REQUIRED', 'Read and accept what this connection sends before connecting.');
+  presetGates(deps, presetId, input.consentDigest);
   let apiKey: string | null = null;
   if (spec.needsKey) {
     check(typeof input.apiKey === 'string' && input.apiKey.length >= 20 && input.apiKey.length <= 400 && !/\s/.test(input.apiKey), 'INVALID_VENTURE_REQUEST', 'Paste the whole key, with no spaces.');
@@ -64,19 +63,15 @@ async function connectModelUnlocked(deps: VentureDeps, ctx: Context, payload: un
     check(typeof input.model === 'string' && (presetId === 'openrouter' ? GATEWAY_MODEL_ID : MODEL_ID).test(input.model), 'INVALID_VENTURE_REQUEST', 'Type the model id your account shows, in lower case, like gpt-6-luna.');
     model = input.model;
   }
-  let tiers: ModelTier[] = [...spec.tiers];
-  if (input.tiers !== undefined) {
-    check(Array.isArray(input.tiers) && input.tiers.length > 0 && input.tiers.every(tier => spec.tiers.includes(tier as ModelTier)), 'INVALID_VENTURE_REQUEST', 'Choose which jobs this connection does from the ones it suggests.');
-    tiers = spec.tiers.filter(tier => (input.tiers as unknown[]).includes(tier));
-  }
+  const tiers: ModelTier[] = presetTiers(presetId, input.tiers);
   const capMicros = input.monthlyCapUsd === undefined ? '5000000' : monthlyCapMicros(input.monthlyCapUsd);
 
   // Only now is a command-line tool looked at, fresh (4H1): not answering, a flag it does not know
   // (CLI_FLAGS_UNSUPPORTED) or signed out refuses here, in the tool's own words, before anything is written.
   if (spec.runsOn === 'this-computer') await deps.models.checkCli(presetId);
-  const live = deps.models.presets().find(preset => preset.id === presetId);
-  check(live && live.availability !== 'unavailable', 'PRESET_UNAVAILABLE', live?.availabilityReason ?? 'This AI option is not available here.');
-  check(presetId !== 'codex-cli' || live.availability !== 'needs-setup', 'PRESET_UNAVAILABLE', live.availabilityReason);
+  // A2: Codex's route model comes from Codex's own list unless the owner typed one; the fixed id only when it is unread.
+  if (presetId === 'codex-cli' && input.model === undefined && deps.models.codexModels) model = (await deps.models.codexModels()).route;
+  liveGates(deps, presetId);
 
   const secretName = SECRET(presetId);
   const previousKey = apiKey !== null ? deps.secrets.get(secretName) : null;
@@ -125,6 +120,8 @@ async function connectModelUnlocked(deps: VentureDeps, ctx: Context, payload: un
     await deps.services.trust.updatePolicy(ctx, { send: 'shape' });
     await ventureAction(deps, ctx, 'admin', 'models.send-policy', tx => { tx.emit('send-policy-changed', { from: 'nothing', to: 'shape' }); });
   }
+  // A4 fix round: a business that now has Codex or Claude Code keeps it as the newest setup on this computer.
+  if (!options.draft) await rememberAiSetup(deps);
   const status = deps.models.status(ctx);
   return answer.payerLine ? { ...status, payerLine: answer.payerLine } : status;
 }
@@ -160,6 +157,8 @@ export function disconnect(deps: VentureDeps, ctx: Context, payload: unknown): P
       throw error;
     }
     if (removeKey) deps.secrets.delete(name);
+    // A4 review round 2 (M2): the AI setup this business saved no longer holds an AI it has disconnected.
+    await refreshAiSetup(deps);
     return deps.models.status(ctx);
   });
 }
@@ -196,6 +195,14 @@ export async function calls(deps: VentureDeps, ctx: Context, payload: unknown): 
  * presses share it. The hosted app answers TIER_UNAVAILABLE and starts nothing. A finding that changed is kept as a
  * check record; what a status command printed never is.
  */
+/** A2: one status-page reader per store, so its two-minute cache holds across requests. */
+const STATUS_READERS = new WeakMap<object, ProviderStatusReader>();
+function statusReaderOf(deps: VentureDeps): ProviderStatusReader {
+  let reader = STATUS_READERS.get(deps.store);
+  if (!reader) { reader = new ProviderStatusReader({ ...(deps.net ? { net: deps.net } : {}), now: () => deps.clock() }); STATUS_READERS.set(deps.store, reader); }
+  return reader;
+}
+
 async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Promise<CliStatusList> {
   const input = exactPayload(payload, ['fresh']);
   check(input.fresh === undefined || typeof input.fresh === 'boolean', 'INVALID_VENTURE_REQUEST', 'Send fresh as true or false, or leave it out.');
@@ -212,6 +219,15 @@ async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Pro
   const state = deps.store.read();
   const venture = currentVenture(state);
   const clis = findings.map(finding => cliStatusView(finding, { claudeTerms: deps.claudeCodeTerms, lastTask: lastCliTask(state, venture?.id ?? null, finding.cli) }));
+  // A2: Codex's setup, so Your AI can show the found Codex for the owner's yes.
+  const setup = await deps.models.codexSetup?.();
+  if (setup) for (const view of clis) if (view.cli === 'codex') view.setup = setup;
+  // A2: after a failed last task, the provider's own status page, when it says the provider has problems.
+  if (deps.statusPages === true) for (const view of clis) {
+    if (view.lastTask?.outcome !== 'failed') continue;
+    const trouble = await providerTrouble(statusReaderOf(deps), view.cli).catch(() => null);
+    if (trouble) view.provider = trouble;
+  }
   if (venture) await keepChecks(deps, ctx, clis);
   return { clis, line: cliListLine(findings) };
 }
@@ -247,6 +263,7 @@ import { getAgentSettings, setAgentSettings } from '../agent-runtime/settings-me
 import { startMcpOAuth } from '../agent-runtime/mcp-oauth.ts';
 import { curatedMcpRequest } from '../agent-runtime/mcp-registry.ts';
 import { addPack, listPacks, removePack } from '../packs/packs.ts';
+import { ProviderStatusReader, providerTrouble } from './provider-status.ts';
 
 export const handlers: VentureHandlerTable = {
   'venture.agentSettings.get': getAgentSettings,

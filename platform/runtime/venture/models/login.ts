@@ -9,18 +9,20 @@
 // with an argument array, no shell, the tool's minimal environment (cliEnv: no keys), in an empty folder made for it.
 // A login is stopped when the owner cancels, when it fails, after fifteen minutes (Codex's code expiry), or when the
 // draft desk clears.
-import { spawn as nodeSpawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChausarError, check } from '../../contracts.ts';
+import { spawnTree } from '../../process-tree.ts';
 import type { DelegateCli } from '../contracts.ts';
-import { cliEnv } from './cli.ts';
+import { cliEnv, codexCommand, codexHost } from './cli.ts';
+import { codexQuietArgsFor } from '../../providers/codex-cli.ts';
 import { CLI_COMMANDS, locateOnThisComputer, startableProgram } from './cli-look.ts';
 import { CODEX_NPM_ENTRY, NPM_SHIM_FILE, resolveNpmShim } from './npm-shim.ts';
 import { CLI_LABELS } from './presets.ts';
 
-import type { LoginState, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
+import type { CodexSetupView, LoginState, ProviderTrouble, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
+import type { CliTestResult } from './cli-test.ts';
 
 export type { LoginState, ToolLogin, ToolView, ToolsView } from '../core/first-run-types.ts';
 
@@ -41,13 +43,33 @@ export type LoginDeskOptions = {
   statusCacheMs?: number;
   /** How long a login may wait for the owner: Codex's device code expires in fifteen minutes. */
   loginTimeoutMs?: number;
+  /**
+   * A2: the host's Codex trust (codex-trust.ts): the setup in use, else a review of the Codex found here, which the owner
+   * must say yes to (venture.ai.setup.trust) before Codex can be used. Absent: no setup is shown (tests, older hosts).
+   * A2 second review: profile() is the setup in use, whose own program Codex's sign-in and status then run on.
+   */
+  codex?: { review(found: string | null): Promise<CodexSetupView>; profile?(): unknown; verifiedProgram?(): Promise<string> };
+  /**
+   * A2: one tiny test call (cli-test.ts), so "Signed in" shows only once a real call worked. A passed test is kept for the
+   * desk's life; a failed one is tried again after testRetryMs (a minute) so a two-second poll does not call the AI.
+   */
+  testCall?: (cli: DelegateCli, program: { command: string; lead: string[]; located: string }) => Promise<CliTestResult>;
+  testRetryMs?: number;
+  /** A2: the AI provider's status page (provider-status.ts), read when a tool's test failed. */
+  providerStatus?: (cli: DelegateCli) => Promise<ProviderTrouble | null>;
 };
 
 export const LOGIN_TIMEOUT_MS = 15 * 60_000;
+/** One-shot A3 (L2): how the sign-in and the status check are cleaned up (process-tree.ts TreeOptions). */
+export const LOGIN_TREE = Object.freeze({ afterExit: 'never' as const });
+const STATUS_TREE = Object.freeze({ sweepAfterMs: 2_000 });
 const STATUS_TIMEOUT_MS = 8_000;
 const READ_CHARS = 8_192;
 const CLIS: readonly DelegateCli[] = ['codex', 'claude-code'];
-/** The login and status arguments of each tool's own commands. */
+/**
+ * The login and status arguments of each tool's own commands. A2 review: Codex's own sign-in and its status run with its
+ * background and update features off (CODEX_QUIET_ARGS); A2 second review: only on a reviewed Codex (Program.lead).
+ */
 const COMMANDS: Readonly<Record<DelegateCli, { login: string[]; status: string[] }>> = Object.freeze({
   codex: { login: ['login', '--device-auth'], status: ['login', 'status'] },
   'claude-code': { login: ['auth', 'login'], status: ['auth', 'status'] },
@@ -70,6 +92,7 @@ const WORDS = Object.freeze({
   timedOut: (label: string) => `The ${label} sign-in timed out. Start it again.`,
   terms: 'Claude Code is switched off on this computer.',
   noProgram: (label: string) => `${label} is on this computer in a form Chausar does not start. Sign in inside ${label} itself.`,
+  testFailed: (label: string) => `${label} did not finish the test. Try again.`,
 });
 
 /** The sign-in link (on the tool's own site only) and, for Codex, the one-time code, from what the tool printed. */
@@ -91,7 +114,8 @@ function signedInFrom(text: string, ok: boolean): ToolView['signedIn'] {
   return ok && SIGNED_IN.some(pattern => pattern.test(text)) ? 'yes' : 'unknown';
 }
 
-type Program = { command: string; lead: string[] };
+/** verify (one-shot A3): for a Codex setup in use, the digest check its own program must pass before it is started. */
+type Program = { command: string; lead: string[]; located: string; verify?: () => Promise<string> };
 type Running = { child: LoginChild; folder: string; output: string; timer: ReturnType<typeof setTimeout> };
 
 /** One per draft desk: the logins in flight and the last status of each tool. */
@@ -100,6 +124,8 @@ export class LoginDesk {
   #logins = new Map<DelegateCli, ToolLogin>();
   #running = new Map<DelegateCli, Running>();
   #status = new Map<DelegateCli, { at: number; value: ToolView['signedIn'] }>();
+  /** A2: the last test call of each tool, by the program it ran. */
+  #tests = new Map<DelegateCli, { located: string; at: number; result: CliTestResult }>();
 
   constructor(options: LoginDeskOptions = {}) { this.options = options; }
 
@@ -107,21 +133,46 @@ export class LoginDesk {
 
   #program(cli: DelegateCli): Program | null {
     const platform = this.options.platform ?? process.platform;
+    // A2 second review: with a setup in use, Codex's sign-in and status run on that setup's own program (a reviewed
+    // version, so with the quiet flags), never on whatever Codex the search path finds first.
+    if (cli === 'codex') {
+      const host = codexHost(this.options.codex);
+      const command = host ? codexCommand(host) : null;
+      if (host && command && command !== 'codex') {
+        const evidence = host.capabilities.evidence as { version?: unknown };
+        // One-shot A3 (nit from the A2 final review): its digest is checked again before it is started, as every model
+        // call and agent job checks it (codex-trust.ts verifiedProgram); a changed program is never run.
+        const trust = this.options.codex;
+        const verify = typeof trust?.verifiedProgram === 'function' ? () => trust.verifiedProgram!() : undefined;
+        return { command, lead: [...codexQuietArgsFor(typeof evidence.version === 'string' ? evidence.version : null)], located: command, ...(verify ? { verify } : {}) };
+      }
+    }
     const locate = this.options.locate ?? ((command: string) => locateOnThisComputer(command));
     let path: string | null;
     try { path = locate(CLI_COMMANDS[cli]); } catch { path = null; }
     if (!path) return null;
     if (cli === 'codex' && NPM_SHIM_FILE.test(path)) {
       const shim = resolveNpmShim(path, locate, CODEX_NPM_ENTRY, platform);
-      return shim ? { command: shim.program, lead: [shim.script] } : { command: '', lead: [] };
+      return shim ? { command: shim.program, lead: [shim.script], located: path } : { command: '', lead: [], located: path };
     }
-    return startableProgram(path, platform) ? { command: path, lead: [] } : { command: '', lead: [] };
+    return startableProgram(path, platform) ? { command: path, lead: [], located: path } : { command: '', lead: [], located: path };
   }
 
-  #spawn(cli: DelegateCli, program: Program, args: string[], cwd: string): LoginChild {
+  /**
+   * A2 second review: through spawnTree, so a cancel or a time-out ends what the tool started too (npm's node, the native
+   * codex.exe and its helpers). A quick status check that ends on its own is searched after its exit only when it ran
+   * long (sweepAfterMs). One-shot A3 (L2): a sign-in that ends on its own is never searched after (LOGIN_TREE), so the
+   * browser it opened for the owner stays open; a cancel still ends everything it started.
+   */
+  #spawn(cli: DelegateCli, program: Program, args: string[], cwd: string, quick = false): LoginChild {
     const launch: LoginLaunch = { cli, command: program.command, args: [...program.lead, ...args], env: cliEnv(cli === 'codex' ? 'codex-cli' : 'claude-cli'), cwd };
     if (this.options.spawn) return this.options.spawn(launch);
-    return nodeSpawn(launch.command, launch.args, { cwd, env: launch.env, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }) as unknown as LoginChild;
+    return spawnTree(launch.command, launch.args, { cwd, env: launch.env, stdio: ['pipe', 'pipe', 'pipe'] }, quick ? STATUS_TREE : LOGIN_TREE) as unknown as LoginChild;
+  }
+
+  /** One-shot A3: the program to start, after the setup's digest check when it has one. Throws the check's refusal. */
+  async #checked(program: Program): Promise<Program> {
+    return program.verify ? { ...program, command: await program.verify() } : program;
   }
 
   /** The tool's own status command, its answer matched and dropped. Unknown on any failure to answer. */
@@ -129,13 +180,15 @@ export class LoginDesk {
     const cached = this.#status.get(cli);
     const keep = this.options.statusCacheMs ?? 3_000;
     if (!fresh && cached && Date.now() - cached.at < keep) return cached.value;
+    let checked: Program;
+    try { checked = await this.#checked(program); } catch { this.#status.set(cli, { at: Date.now(), value: 'unknown' }); return 'unknown'; }
     const folder = mkdtempSync(join(tmpdir(), 'chausar-login-check-'));
     const value = await new Promise<ToolView['signedIn']>(resolve => {
       let text = '', settled = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
       const done = (answer: ToolView['signedIn']) => { if (!settled) { settled = true; clearTimeout(timer); resolve(answer); } };
       let child: LoginChild;
-      try { child = this.#spawn(cli, program, COMMANDS[cli].status, folder); } catch { done('unknown'); return; }
+      try { child = this.#spawn(cli, checked, COMMANDS[cli].status, folder, true); } catch { done('unknown'); return; }
       timer = setTimeout(() => { child.kill(); done('unknown'); }, STATUS_TIMEOUT_MS);
       const read = (chunk: Buffer | string) => { if (text.length < READ_CHARS) text += String(chunk).slice(0, READ_CHARS - text.length); };
       child.stdout?.on('data', read); child.stderr?.on('data', read);
@@ -152,26 +205,57 @@ export class LoginDesk {
     return { ...(this.#logins.get(cli) ?? { state: 'idle', code: null, link: null, line: null }) };
   }
 
+  /** A2: Codex's setup, when the host keeps a Codex trust: in use, else the found Codex as the owner is asked about it. */
+  async #setup(cli: DelegateCli, program: Program | null): Promise<{ setup?: CodexSetupView }> {
+    if (cli !== 'codex' || !this.options.codex) return {};
+    try { return { setup: await this.options.codex.review(program?.located ?? null) }; } catch { return {}; }
+  }
+
   async #view(cli: DelegateCli, fresh = false): Promise<ToolView> {
     const label = CLI_LABELS[cli];
     const program = this.#program(cli);
-    if (!program) return { cli, label, found: false, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: WORDS.notInstalled(label) } };
-    if (!program.command) return { cli, label, found: true, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: WORDS.noProgram(label) } };
-    const signedIn = await this.#signedIn(cli, program, fresh);
+    const setup = await this.#setup(cli, program);
+    // A2: the bundled Codex counts as found even when no other Codex is on the search path.
+    if (!program && setup.setup?.state === 'trusted') return { cli, label, found: true, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: null }, ...setup };
+    if (!program) return { cli, label, found: false, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: WORDS.notInstalled(label) }, ...setup };
+    if (!program.command) return { cli, label, found: true, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: WORDS.noProgram(label) }, ...setup };
+    const said = await this.#signedIn(cli, program, fresh);
+    // A2: the tool's own "signed in" counts only once a tiny test call worked; a Codex not yet chosen is not tried.
+    const earned = said === 'yes' ? await this.#earned(cli, program, setup.setup) : null;
+    const signedIn: ToolView['signedIn'] = said === 'yes' && earned && !earned.ok ? 'unknown' : earned === undefined ? 'unknown' : said;
+    const trouble = earned && !earned.ok ? await this.options.providerStatus?.(cli).catch(() => null) ?? null : null;
+    const tested = earned ? { tested: earned.ok ? 'passed' as const : 'failed' as const, ...(earned.ok ? {} : { problem: earned.line }), ...(trouble ? { provider: trouble } : {}) } : {};
     const login = this.#login(cli);
     // Claude Code's login waits for its page: once its own status says signed in, its process is done.
     if (signedIn === 'yes' && (login.state === 'starting' || login.state === 'waiting')) {
       this.#stop(cli);
       this.#logins.set(cli, { state: 'signed-in', code: null, link: null, line: null });
-      return { cli, label, found: true, signedIn, login: this.#login(cli) };
+      return { cli, label, found: true, signedIn, login: this.#login(cli), ...setup, ...tested };
     }
-    return { cli, label, found: true, signedIn, login };
+    return { cli, label, found: true, signedIn, login, ...setup, ...tested };
+  }
+
+  /**
+   * A2: the tiny test call's result for a tool its own status calls signed in: null when no test is set up (tests, older
+   * hosts), undefined when it cannot be tried yet (a Codex the owner has not chosen), else the kept or a new result.
+   */
+  async #earned(cli: DelegateCli, program: Program, setup: CodexSetupView | undefined): Promise<CliTestResult | null | undefined> {
+    if (!this.options.testCall) return null;
+    if (cli === 'codex' && setup && setup.state !== 'trusted') return undefined;
+    const kept = this.#tests.get(cli);
+    const retry = this.options.testRetryMs ?? 60_000;
+    if (kept && kept.located === program.located && (kept.result.ok || Date.now() - kept.at < retry)) return kept.result;
+    let result: CliTestResult;
+    try { result = await this.options.testCall(cli, program); }
+    catch { result = { ok: false, code: 'MODEL_FAILED', line: WORDS.testFailed(CLI_LABELS[cli]) }; }
+    this.#tests.set(cli, { located: program.located, at: Date.now(), result });
+    return result;
   }
 
   /** venture.ai.tools {}: each tool, whether it is found, its own sign-in state, and any login in flight. */
   async tools(): Promise<ToolsView> {
-    const tools: ToolView[] = [];
-    for (const cli of this.#clis()) tools.push(await this.#view(cli));
+    // One-shot A4 (hands-on row 96): both tools at once (each look may make a test call), answered in the same order.
+    const tools: ToolView[] = await Promise.all(this.#clis().map(cli => this.#view(cli)));
     return { tools, line: WORDS.line };
   }
 
@@ -185,9 +269,10 @@ export class LoginDesk {
     check(program.command, 'CLI_UNAVAILABLE', WORDS.noProgram(label));
     const view = await this.#view(cli, true);
     if (view.signedIn === 'yes' || this.#running.has(cli)) return view;
+    const checked = await this.#checked(program);
     const folder = mkdtempSync(join(tmpdir(), 'chausar-login-'));
     let child: LoginChild;
-    try { child = this.#spawn(cli, program, COMMANDS[cli].login, folder); }
+    try { child = this.#spawn(cli, checked, COMMANDS[cli].login, folder); }
     catch { rmSync(folder, { recursive: true, force: true }); throw new ChausarError('CLI_UNAVAILABLE', WORDS.failed(label)); }
     const running: Running = { child, folder, output: '', timer: setTimeout(() => this.#end(cli, running, 'failed', WORDS.timedOut(label)), this.options.loginTimeoutMs ?? LOGIN_TIMEOUT_MS) };
     (running.timer as { unref?: () => void }).unref?.();
@@ -239,5 +324,6 @@ export class LoginDesk {
     for (const cli of [...this.#running.keys()]) this.#stop(cli);
     this.#logins.clear();
     this.#status.clear();
+    this.#tests.clear();
   }
 }

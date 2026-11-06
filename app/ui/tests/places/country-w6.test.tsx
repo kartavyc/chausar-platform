@@ -56,6 +56,8 @@ describe('wave 6 country defaults', () => {
       expect(screen.getByText('INR')).toBeTruthy();
       await sendAndKeep('Bookkeeping for small cafes and shops.');
       await waitFor(() => expect(request).toHaveBeenCalledWith('venture.create', expect.objectContaining({ countryCode: 'IN' })));
+      // A4 fix round: the first run never asks to reuse another business's AI; only the Start gallery does.
+      expect(request.mock.calls.find(([method]) => method === 'venture.create')![1]).not.toHaveProperty('reuseAi');
     });
   }
 

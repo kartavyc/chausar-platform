@@ -68,13 +68,16 @@ const CODEX_FIX = "Chausar's reviewed setup for Codex isn't on this computer yet
 
 describe('the fake engine answers the CLI status and the role models as the engine does', () => {
   it('on the desktop: Claude Code is enabled and unverified, and Codex waits on its reviewed setup', async () => {
-    const answer = (await new FakeEngine().request('venture.models.cli.status', {})) as { clis: CliStatusView[]; line: string };
+    // A2 second review: the owner's own Codex is found and no setup is in use yet (the fake's default is the bundled one).
+    const engine = new FakeEngine();
+    engine.firstRun.reviewCodex();
+    const answer = (await engine.request('venture.models.cli.status', {})) as { clis: CliStatusView[]; line: string };
     expect(answer.line).toBe(LIST_LINE);
     expect(answer.clis.map((c) => c.cli)).toEqual(['claude-code', 'codex']);
     const [claude, codex] = answer.clis as [CliStatusView, CliStatusView];
     expect(claude).toMatchObject({
       label: 'Claude Code', terms: 'accepted', version: '2.3.1', flags: 'match', signedIn: 'yes', state: 'unverified', lastTask: null,
-      line: 'Claude Code 2.3.1 is on this computer and signed in. Not yet tried on a real task.', fix: null,
+      line: 'Claude Code 2.3.1 is on this computer. Not yet tried on a real task.', fix: null,
     });
     expect(codex).toMatchObject({ label: 'Codex', terms: 'not-needed', flags: 'match', state: 'needs-setup', fix: CODEX_FIX });
     // The home folder shows as ~ (cli-status.ts homePath).
@@ -114,7 +117,10 @@ describe('the fake engine answers the CLI status and the role models as the engi
 
 describe('Your AI: Your AI apps', () => {
   it('lists Claude Code and Codex with their state and, while not ready, the one fix at rest; the line and facts one fold away', async () => {
-    start();
+    // A2 second review: the owner's own Codex is found and waits for the yes (the fake's default is the bundled one).
+    const engine = new FakeEngine();
+    engine.firstRun.reviewCodex();
+    start({ engine });
     const section = await region('Your AI apps');
     await within(section).findByText('Claude Code', { selector: 'h3' });
     const claude = tool(section, 'Claude Code');
@@ -134,7 +140,9 @@ describe('Your AI: Your AI apps', () => {
     expect(facts(claude)['Anthropic terms']).toBeUndefined();
     const codex = tool(section, 'Codex');
     expect(codex.textContent).toContain('Codex 0.131.0 is on this computer. Chausar runs it only through the reviewed Codex setup.');
-    expect(codex.querySelector('[data-fix-line]')!.textContent).toBe(CODEX_FIX);
+    // A2 review: this fake desktop found the owner's own Codex and asks first, in the engine's words, with the button.
+    expect(codex.querySelector('[data-fix-line]')!.textContent).toBe('Codex 0.166.0 is on this computer and has what Chausar needs. Use it?');
+    expect(within(codex).getByRole('button', { name: 'Use this Codex' })).toBeTruthy();
     expect(codex.querySelector('details')!.textContent).toContain('C:\\Tools\\codex\\codex.exe');
     fireEvent.click(within(codex).getByText('Details'));
     expect(facts(codex)).toMatchObject({ Found: 'Yes', Where: 'C:\\Tools\\codex\\codex.exe', Version: '0.131.0', Flags: 'Knows every flag Chausar uses', 'Signed in': 'Yes' });
@@ -150,7 +158,7 @@ describe('Your AI: Your AI apps', () => {
   it('a tool whose last task failed says so on its chip, with the fix at rest', async () => {
     const failed: CliStatusView = {
       ...SEEN, signedIn: 'yes', lastTask: { at: '2026-10-23T09:00:00.000Z', outcome: 'failed' },
-      line: 'Codex 0.131.0 is on this computer and signed in. Its last task failed.', fix: "Check that you're signed in to Codex, then try again.",
+      line: 'Codex 0.131.0 is on this computer. Its last task failed.', fix: "Check that you're signed in to Codex, then try again.",
     };
     start({ intercept: { 'venture.models.cli.status': async (_params, original) => {
       const answer = (await original()) as { clis: CliStatusView[]; line: string };
@@ -164,6 +172,55 @@ describe('Your AI: Your AI apps', () => {
     expect(codex.querySelector('[data-fix-line]')!.textContent).toBe("Check that you're signed in to Codex, then try again.");
     fireEvent.click(within(codex).getByText('Details'));
     expect(facts(codex)['Last task']).toMatch(/^Failed, /);
+  });
+
+  it('A2: a found Codex the owner has not chosen asks first, and after the yes the engine looks again', async () => {
+    const review = { state: 'review' as const, origin: null, path: 'C:/Tools/codex/codex.exe', version: '0.166.0', sha256: 'd'.repeat(64), line: 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?' };
+    let chosen = false;
+    const { calls } = start({ intercept: {
+      'venture.models.cli.status': async (_params, original) => {
+        const answer = (await original()) as { clis: CliStatusView[]; line: string };
+        return { ...answer, clis: [answer.clis[0]!, { ...SEEN, state: 'needs-setup', ...(chosen ? {} : { setup: review }) }] };
+      },
+      'venture.ai.setup.trust': async () => { chosen = true; return { setup: { ...review, state: 'trusted', origin: 'owner', line: 'Uses your Codex 0.166.0, which you chose.' } }; },
+    } });
+    const section = await region('Your AI apps');
+    await within(section).findByText(review.line);
+    const codex = tool(section, 'Codex');
+    await act(async () => { fireEvent.click(within(codex).getByRole('button', { name: 'Use this Codex' })); });
+    expect(calls.find(call => call.method === 'venture.ai.setup.trust')?.params).toEqual({ cli: 'codex', sha256: review.sha256 });
+    await waitFor(() => expect(within(section).queryByText(review.line)).toBeNull());
+    expect(calls.filter(call => call.method === 'venture.models.cli.status').length).toBeGreaterThan(1);
+  });
+
+  it('A2 second review: Cancel in Chausar\'s own dialog says nothing changed, calmly, and keeps the question', async () => {
+    const engine = new FakeEngine();
+    engine.firstRun.reviewCodex();
+    engine.firstRun.codexDialog('cancel');
+    start({ engine });
+    const section = await region('Your AI apps');
+    const line = 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?';
+    await within(section).findByText(line);
+    const codex = tool(section, 'Codex');
+    await act(async () => { fireEvent.click(within(codex).getByRole('button', { name: 'Use this Codex' })); });
+    const said = await within(codex).findByText("Nothing changed. Codex wasn't chosen.");
+    expect(said.getAttribute('role')).toBe('status');
+    expect(within(codex).queryByRole('alert')).toBeNull();
+    expect(within(codex).getByText(line)).toBeTruthy();
+  });
+
+  it('A2: after a failed task, the provider status page says when the trouble is theirs, with where and when it was read', async () => {
+    const failed: CliStatusView = {
+      ...SEEN, lastTask: { at: '2026-10-23T09:00:00.000Z', outcome: 'failed' }, line: 'Codex 0.131.0 is on this computer. Its last task failed.', fix: 'x',
+      provider: { line: 'OpenAI is having problems right now, not you.', source: 'status.openai.com', readAt: '2026-11-03T10:00:00.000Z' },
+    };
+    start({ intercept: { 'venture.models.cli.status': async (_params, original) => {
+      const answer = (await original()) as { clis: CliStatusView[]; line: string };
+      return { ...answer, clis: [answer.clis[0]!, failed] };
+    } } });
+    const section = await region('Your AI apps');
+    const line = await within(section).findByText(/OpenAI is having problems right now, not you\./);
+    expect(line.textContent).toMatch(/From status\.openai\.com, /);
   });
 
   it('a ready tool shows only its state at rest; what it found is one fold away', async () => {
@@ -277,7 +334,7 @@ describe('Your AI: a command-line AI the engine refuses', () => {
 
   it('Connect refused with CLI_FLAGS_UNSUPPORTED shows the engine words and connects nothing; a CLI asks for no key', async () => {
     const { calls } = start({ intercept: {
-      'venture.models.presets': presetsWith({ availability: 'unverified', availabilityReason: 'Uses the reviewed Codex install. A past gpt-6-luna probe failed.' }),
+      'venture.models.presets': presetsWith({ availability: 'unverified', availabilityReason: 'Uses the reviewed Codex install.' }),
       'venture.models.connect': () => { throw new EngineError('CLI_FLAGS_UNSUPPORTED', flagsWords); },
     } });
     const ai = await region('Your AI');

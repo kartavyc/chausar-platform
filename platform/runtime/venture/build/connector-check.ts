@@ -288,9 +288,20 @@ export async function connectorsCheckHandler(deps: VentureDeps, ctx: Context, pa
   });
 }
 
+/**
+ * The row ids that check this connector. An AI connection is `model:<preset>`, but the check looks at Claude Code and
+ * Codex themselves (cliProbe), so their rows are `cli:<tool>`; either row counts for that preset (one-shot A1, row 6).
+ */
+function checkIdsOf(connectorId: string): string[] {
+  const preset = connectorId.startsWith('model:') ? connectorId.slice('model:'.length) as ModelPresetId : null;
+  const cli = preset ? CLI_OF[preset] : undefined;
+  return cli ? [connectorId, `cli:${cli}`] : [connectorId];
+}
+
 /** Whether any connection check of this business has a row for the connector. */
 export function connectorChecked(state: State, ventureId: string, connectorId: string): boolean {
-  return listRecords(state, 'venture-connector-check', ventureId).some(record => record.rows.some(row => row.connectorId === connectorId));
+  const ids = checkIdsOf(connectorId);
+  return listRecords(state, 'venture-connector-check', ventureId).some(record => record.rows.some(row => ids.includes(row.connectorId)));
 }
 
 /** For 4J13: a routine for a connector never checked is refused, with what to do. */

@@ -291,7 +291,10 @@ describe('the web app manifest and the theme colours', () => {
     expect(String(manifest.theme_color).toLowerCase()).toBe(token('--bg', 'light'));
   });
 
-  it('lists opaque PNG app icons, 192 and 512 and a maskable 512, never the transparent favicon', () => {
+  // One-shot A7: the app icons are the founder's logo, its tile with clear rounded corners (RGBA); the maskable one is
+  // full-bleed, its corners filled with the tile, so opaque RGB. Their pixels and the maskable safe zone are checked in
+  // platform/tests/desktop-icons-a7.test.ts.
+  it('lists the logo as PNG app icons, 192 and 512 and a maskable 512, never the favicon SVG', () => {
     const manifest = read();
     expect(manifest.icons).toEqual([
       { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
@@ -300,8 +303,8 @@ describe('the web app manifest and the theme colours', () => {
     ]);
     for (const icon of manifest.icons) {
       const size = Number(icon.sizes.split('x')[0]);
-      // Colour type 2 is RGB with no alpha channel: opaque by construction.
-      expect(png(join(ui, 'public', icon.src)), icon.src).toEqual({ width: size, height: size, depth: 8, colourType: 2 });
+      // Colour type 6 is RGBA, the logo's rounded corners clear; type 2 is RGB, opaque by construction.
+      expect(png(join(ui, 'public', icon.src)), icon.src).toEqual({ width: size, height: size, depth: 8, colourType: icon.purpose === 'maskable' ? 2 : 6 });
     }
     expect(manifest.icons.some((icon) => icon.src.endsWith('.svg'))).toBe(false);
   });

@@ -91,7 +91,25 @@ export type Grounding = {
   dateOrder?: DateOrder;
   /** The owner's own words that may hold the business's links (the idea, the client's record, the plan): a link there is held. */
   ownerWords?: readonly string[];
+  /**
+   * One-shot A1 (row 4): the owner's own sources (ownerSourcesOf): the business and plan names and the owner's standing
+   * orders, backing names only. The claims check reads them; the receipts check never does.
+   */
+  ownerSources?: readonly SourceText[];
 };
+
+/**
+ * One-shot A1 (row 4, after review): the owner's own sources a draft may name without a client source: the business
+ * and plan names, and the owner's standing orders, the guidance lines the owner added through chat (owner patches still
+ * in use). Plan, template and improvement guidance is never one, so "Never say we are ISO certified" backs nothing. They
+ * back names only (a sign-off such as "Warmly, Pune Frames"), never a figure, a date or a certification.
+ */
+export function ownerSourcesOf(names: readonly (string | null | undefined)[], playbook: { steps: readonly { guidance?: readonly string[] }[]; patches?: readonly { op: string; value: string; proposedBy: string }[] } | null): SourceText[] {
+  const business = names.map(name => (name ?? '').trim()).filter(Boolean).join('\n');
+  const inUse = new Set((playbook?.steps ?? []).flatMap(step => step.guidance ?? []));
+  const orders = [...new Set((playbook?.patches ?? []).filter(patch => patch.proposedBy === 'owner' && patch.op === 'guidance.add' && inUse.has(patch.value)).map(patch => patch.value))].join('\n');
+  return [...(business ? [{ id: 'owner.business', text: business, backs: ['name' as const] }] : []), ...(orders ? [{ id: 'owner.standing-orders', text: orders, backs: ['name' as const] }] : [])];
+}
 
 /** Chausar's own name is never a claim a draft has to back. */
 const ALWAYS_KNOWN = ['Chausar'];
@@ -208,7 +226,7 @@ function noDoneClaims(input: CheckInput): CheckResult {
  */
 function claimsGrounded(input: CheckInput): CheckResult {
   const grounding = input.grounding;
-  const result = checkClaims(deliverableWords(input.deliverable), groundingSources(input.receipts, input.ventureId, grounding), {
+  const result = checkClaims(deliverableWords(input.deliverable), [...groundingSources(input.receipts, input.ventureId, grounding), ...(grounding?.ownerSources ?? []).map(source => ({ ...source, backs: ['name' as const] }))], {
     known: [...ALWAYS_KNOWN, ...(grounding?.known ?? [])],
     dateOrder: grounding?.dateOrder === 'month-day-year' ? 'month-day-year' : 'day-month-year',
   });

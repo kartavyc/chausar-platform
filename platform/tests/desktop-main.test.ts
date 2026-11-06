@@ -9,12 +9,20 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
-  const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [];
+  const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
   let protocolHandler: ((request: { url: string }) => Promise<Response>) | null = null;
   const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
-  app.setLoginItemSettings = (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); };
+  // A5: the computer's login items as Electron reads them back (Windows launch items, this program's only).
+  const run = new Map<string, any>();
+  app.setLoginItemSettings = (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); if (settings.openAtLogin) run.set(settings.name, { path: settings.path, args: settings.args, enabled: true }); else run.delete(settings.name); };
+  app.loginRun = run;
+  app.getLoginItemSettings = (options: any) => ({ openAtLogin: false, launchItems: [...run].filter(([, item]) => item.path === options?.path).map(([name, item]) => ({ name, path: item.path, args: item.args, scope: 'user', enabled: item.enabled })) });
+  // A6: the app this computer has for whatsapp:// links ('' when none), as Electron reads it.
+  app.getApplicationNameForProtocol = (protocol: string) => (protocol === 'whatsapp://' ? options.whatsapp ?? '' : '');
+  const opened: string[] = [], openedPaths: string[] = [], shownItems: string[] = [];
+  const shell = { openExternal: async (url: string) => { if (options.openFails?.(url)) throw new Error('No app for this link.'); opened.push(url); }, openPath: async (path: string) => { openedPaths.push(path); return ''; }, showItemInFolder: (path: string) => { shownItems.push(path); } };
   app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
     webContents: any; options: any;
@@ -22,6 +30,8 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     urls: string[] = [];
     loadURL(url: string) { this.webContents.mainFrame.url = url; this.urls.push(url); }
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
+    menuBar: boolean[] = [];
+    setMenuBarVisibility(visible: boolean) { this.menuBar.push(visible); }
     // Ink v2 wave 4 (4G1): what main.cjs reads to tell the engine whether the owner is watching.
     visible = true; focused = false; minimized = false;
     isVisible() { return this.visible; } isFocused() { return this.focused; }
@@ -49,7 +59,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, shell, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
@@ -61,11 +71,11 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
       // A one-page Ink build in app/ui/dist, which main.cjs lists before it starts anything.
       readdir: async () => (options.files ?? ['index.html']).map(name => ({ name, isDirectory: () => false, isFile: () => true })) };
     return require(name);
-  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: 'win32', resourcesPath: '/owned/resources', execPath: '/owned/app/Chausar.exe' }, console: { error() {} }, URL, Response, Buffer,
+  }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: options.platform ?? 'win32', resourcesPath: '/owned/resources', execPath: '/owned/app/Chausar.exe' }, console: { error() {} }, URL, Response, Buffer,
     // Looked up at each call, so a test's mocked timers reach main.cjs too.
     setTimeout: (...parts: Parameters<typeof setTimeout>) => setTimeout(...parts), clearTimeout: (timer: any) => clearTimeout(timer) });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, protocol: () => protocolHandler };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, trays, notes, written, logins, appMenus, opened, openedPaths, shownItems, protocol: () => protocolHandler };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
@@ -100,6 +110,25 @@ test('the real desktop starts its file worker without starting a bundled databas
   assert.equal(d.engines.length, 1);
   assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '0');
   assert.equal(d.engines[0].options.environment.CHAUSAR_POSTGRES_URL, undefined);
+});
+
+// One-shot A4 (hands-on row 107): the worker runs from app.asar.unpacked; the Ink build stays inside the archive, so
+// main tells the worker where it is, or a pairing link answers "The Ink app is not built".
+test('the worker is told where the Ink build is, for the phone server', async () => {
+  const d = await desktop(['--production'], Promise.resolve(), true);
+  assert.equal(d.engines[0].options.environment.CHAUSAR_INK_ROOT, require('node:path').join(require('node:path').resolve('/owned/app/app/desktop', '../..'), 'app/ui/dist'));
+});
+
+// One-shot A4 (hands-on S10): the window had Electron's default menu bar (File, Edit, View, Window). On Windows and
+// Linux there is none; typing shortcuts still work in the page.
+test('the window has no default menu bar on Windows, and the zoom keys still work', async () => {
+  const d = await desktop(['--production'], Promise.resolve(), true);
+  // A4 review (L7): a hidden menu keeps Ctrl+=, Ctrl+- and Ctrl+0 (and the editing keys); its bar is never shown.
+  assert.equal(d.appMenus.length, 1);
+  const roles = (d.appMenus[0] as any[]).flatMap((menu: any) => menu.submenu).map((item: any) => [item.role, item.accelerator ?? null]);
+  for (const role of ['zoomIn', 'zoomOut', 'resetZoom', 'copy', 'paste', 'selectAll']) assert.ok(roles.some(([name]: any) => name === role), role);
+  assert.ok(roles.some(([name, key]: any) => name === 'zoomIn' && key === 'CommandOrControl+='), 'Ctrl+= zooms in');
+  assert.deepEqual(d.windows[0].menuBar, [false]);
 });
 
 test('quit awaits in-flight startup and never opens a window or starts a late worker', async () => {
@@ -279,42 +308,14 @@ test('the desktop serves the Ink build app icons and manifest as image/png and a
   assert.equal((await handler({ url: 'chausar://app/index.html' })).headers.get('content-type'), 'text/html; charset=utf-8');
 });
 
-/** A PNG as RGB rows: only what make_icons.py writes (8-bit RGB, no alpha, filter 0), so anything else fails. */
-async function readPng(name: string) {
-  const { inflateSync } = await import('node:zlib');
-  const data = await readFile(new URL(`../../app/desktop/${name}`, import.meta.url));
-  assert.deepEqual([...data.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], `${name} is a PNG`);
-  let at = 8, width = 0, height = 0, colour = -1;
-  const chunks: Buffer[] = [];
-  while (at < data.length) {
-    const length = data.readUInt32BE(at), kind = data.subarray(at + 4, at + 8).toString('latin1'), body = data.subarray(at + 8, at + 8 + length);
-    if (kind === 'IHDR') { width = body.readUInt32BE(0); height = body.readUInt32BE(4); colour = body[9]; assert.equal(body[8], 8); }
-    if (kind === 'IDAT') chunks.push(body);
-    at += 12 + length;
-  }
-  assert.equal(colour, 2, `${name} is opaque RGB with no alpha channel`);
-  const raw = inflateSync(Buffer.concat(chunks));
-  const pixel = (x: number, y: number) => {
-    const row = y * (width * 3 + 1);
-    assert.equal(raw[row], 0);
-    return [...raw.subarray(row + 1 + x * 3, row + 4 + x * 3)];
-  };
-  return { width, height, pixel };
-}
-
-test('the tray icon is the two-square mark: opaque, padded, ink and green on the light ground, at 1x, 1.5x and 2x', async () => {
-  const GROUND = [0xfb, 0xfb, 0xfa], INK = [0x16, 0x18, 0x1b], ACCENT = [0x2f, 0xb6, 0x7c];
-  for (const [name, size] of [['icon.png', 16], ['icon@1.5x.png', 24], ['icon@2x.png', 32]] as const) {
-    const png = await readPng(name);
-    assert.deepEqual([png.width, png.height], [size, size], name);
-    for (let i = 0; i < size; i++) {
-      for (const [x, y] of [[i, 0], [0, i], [i, size - 1], [size - 1, i]]) assert.deepEqual(png.pixel(x, y), GROUND, `${name}: the edge (${x}, ${y}) is padding`);
-    }
-    const near = Math.floor(size * 0.28), far = Math.floor(size * 0.72);
-    assert.deepEqual(png.pixel(near, near), INK, `${name}: the top left square is ink`);
-    assert.deepEqual(png.pixel(far, far), ACCENT, `${name}: the bottom right square is green`);
-    assert.deepEqual(png.pixel(far, near), GROUND, `${name}: the other corners are empty`);
-    assert.deepEqual(png.pixel(near, far), GROUND, `${name}: the other corners are empty`);
+// One-shot A7: the tray PNGs themselves (the founder's logo at 16, 24 and 32) are checked in desktop-icons-a7.test.ts.
+test('the window shows the logo: the ico on Windows, the 256 PNG on Linux, the app bundle\'s own icon on macOS (A7)', async () => {
+  const { join } = require('node:path');
+  for (const [platform, icon] of [['win32', 'icons/icon.ico'], ['linux', 'icons/png/256x256.png'], ['darwin', null]] as const) {
+    const d = await desktop([], Promise.resolve(), undefined, { platform });
+    assert.equal(d.errors.length, 0, platform);
+    assert.equal(d.windows[0].options.icon, icon === null ? undefined : join('/owned/app/app/desktop', icon), platform);
+    if (icon !== null) assert.ok((await readFile(new URL(`../../app/desktop/${icon}`, import.meta.url))).length > 0, `${icon} is in the app`);
   }
 });
 
@@ -338,13 +339,13 @@ test('Export for your CA: main answers the save channel for the app\'s own windo
 // tray when its window closes; both are owner settings in the tray menu. Previews never register a login item.
 // ---------------------------------------------------------------------------
 
-test('the installed beta registers start at login once, starts real data, and keeps running in the tray (6J1)', async () => {
+test('the installed beta registers no login item on its first start, starts real data, and keeps running in the tray (6J1, A5 S12)', async () => {
   const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
   assert.equal(d.errors.length, 0);
   assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '0');
-  assert.deepEqual(d.logins, [{ openAtLogin: true, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' }]);
+  assert.deepEqual(d.logins, [], "start at login waits for the owner's answer in onboarding");
   const menu = d.menus.at(-1);
-  assert.deepEqual(JSON.parse(JSON.stringify(menu.filter((item: any) => item.type === 'checkbox').map((item: any) => [item.label, item.checked]))), [['Start at login', true], ['Keep running in the tray', true]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(menu.filter((item: any) => item.type === 'checkbox').map((item: any) => [item.label, item.checked]))), [['Start at login', false], ['Keep running in the tray', true]]);
   d.windows[0].emit('closed'); await flush();
   assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: true });
   d.app.emit('window-all-closed'); assert.equal(d.app.quits, 0, 'closing the window keeps Chausar in the tray');
@@ -360,9 +361,12 @@ test('a login start opens no window: Chausar waits in the tray until the owner o
   assert.equal(d.windows.length, 1);
 });
 
-test('the owner can turn start at login and the tray off; off means the window closing quits Chausar (6J1)', async () => {
+test('the owner can turn start at login on and off and the tray off; the tick shows the computer; off means the window closing quits Chausar (6J1, A5)', async () => {
   const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
   const ticks = () => d.menus.at(-1).filter((item: any) => item.type === 'checkbox');
+  ticks()[0].click({ checked: true }); await flush(); await flush();
+  assert.deepEqual(d.logins, [{ openAtLogin: true, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' }]);
+  assert.equal(ticks()[0].checked, true);
   ticks()[0].click({ checked: false }); await flush(); await flush();
   assert.deepEqual(d.logins.at(-1), { openAtLogin: false, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' });
   ticks()[1].click({ checked: false }); await flush(); await flush();
@@ -378,4 +382,148 @@ test('previews and development runs never register a login item and their tray m
   assert.equal(d.menus.at(-1).some((item: any) => item.type === 'checkbox'), false);
   const hidden = await desktop(['--hidden']);
   assert.equal(hidden.windows.length, 1, 'only the beta starts hidden');
+});
+
+// One-shot A5 (founder answer 5; rows 4, 88, 114): onboarding and Settings read and change start at login and the tray
+// through two channels for the app's own window only. The answer is background.cjs's state, read back from the computer.
+test('A5: the window reads start at login and keep running, and a change registers it, moves the tray tick and answers the state', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+  const contract = require('./ipc-contract.cjs');
+  const get = d.handlers.get(contract.BACKGROUND_GET_CHANNEL), set = d.handlers.get(contract.BACKGROUND_SET_CHANNEL);
+  assert.equal(typeof get, 'function');
+  assert.equal(typeof set, 'function');
+  const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame };
+  const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(await get(own, undefined)), { ok: true, result: { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: false, systemOff: false } });
+  const changed = await set(own, { startAtLogin: true });
+  assert.deepEqual(plain(changed), { ok: true, result: { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: true, systemOff: false } });
+  assert.deepEqual(d.logins, [{ openAtLogin: true, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' }]);
+  assert.equal(d.menus.at(-1).find((item: any) => item.label === 'Start at login').checked, true);
+  const kept = await set(own, { keepRunning: false });
+  assert.equal(kept.result.keepRunning, false);
+  await flush();
+  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: false });
+  // Only the app's own window, and only the two ticks as true or false.
+  assert.deepEqual([(await get({ sender: {}, senderFrame: own.senderFrame }, undefined)).error.code, (await set({ sender: {}, senderFrame: own.senderFrame }, { startAtLogin: false })).error.code], ['UNTRUSTED_SENDER', 'UNTRUSTED_SENDER']);
+  for (const bad of [{}, { startAtLogin: 'yes' }, { startAtLogin: true, path: 'C:/x.exe' }, [true], null, 'on']) {
+    const reply = await set(own, bad);
+    assert.deepEqual([reply.ok, reply.error.code], [false, 'INVALID_REQUEST'], JSON.stringify(bad));
+  }
+  assert.equal(d.logins.length, 1, 'no refused change reached the computer');
+});
+
+test('A5: a preview or development run answers that start at login is not here, and refuses a change', async () => {
+  const d = await desktop([]);
+  const contract = require('./ipc-contract.cjs');
+  const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame };
+  assert.deepEqual(JSON.parse(JSON.stringify(await d.handlers.get(contract.BACKGROUND_GET_CHANNEL)(own, undefined))), { ok: true, result: { supported: false, asked: false, startAtLogin: false, keepRunning: false, registered: false, systemOff: false } });
+  const refused = await d.handlers.get(contract.BACKGROUND_SET_CHANNEL)(own, { startAtLogin: true });
+  assert.deepEqual([refused.ok, refused.error.code], [false, 'BACKGROUND_UNAVAILABLE']);
+  assert.deepEqual(d.logins, []);
+});
+
+test('A5: the real preload forwards only the two ticks', async () => {
+  let bridge: any; const calls: any[] = [];
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (channel: string, input: any) => { calls.push({ channel, input }); return { ok: true, result: { supported: true } }; } } }) });
+  assert.deepEqual(await bridge.getBackground(), { supported: true });
+  await bridge.setBackground({ startAtLogin: true, keepRunning: false, path: 'C:/x.exe' });
+  await bridge.setBackground({ keepRunning: 'yes' });
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    { channel: 'chausar:background:get' },
+    { channel: 'chausar:background:set', input: { startAtLogin: true, keepRunning: false } },
+    { channel: 'chausar:background:set', input: {} },
+  ]);
+});
+
+// A5 fix round 1 (finding 5): the tray tick is read from the computer again just before the menu opens (the pointer
+// reaches the icon) and when the window comes to the front, so a change made in the computer's own settings shows.
+test('A5: the tray reads start at login again as the pointer reaches it and when the window is focused', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+  const contract = require('./ipc-contract.cjs');
+  const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame };
+  await d.handlers.get(contract.BACKGROUND_SET_CHANNEL)(own, { startAtLogin: true });
+  const tick = () => d.menus.at(-1).find((item: any) => item.label === 'Start at login').checked;
+  assert.equal(tick(), true);
+  d.app.loginRun.get('Chausar').enabled = false;
+  d.trays[0].emit('mouse-enter'); await flush(); await flush();
+  assert.equal(tick(), false, 'switched off in Task Manager');
+  d.app.loginRun.get('Chausar').enabled = true;
+  d.windows[0].emit('focus'); await flush(); await flush();
+  assert.equal(tick(), true);
+});
+
+test('A5 fix round 3: the window keeps and reads the day the owner put the question aside, and nothing else changes', async () => {
+  const d = await desktop([], Promise.resolve(), true, { channel: 'beta' });
+  const contract = require('./ipc-contract.cjs');
+  const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame };
+  const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(await d.handlers.get(contract.BACKGROUND_LATER_SET_CHANNEL)(own, { day: '2026-11-04' })), { ok: true, result: { day: '2026-11-04' } });
+  assert.deepEqual(plain(await d.handlers.get(contract.BACKGROUND_LATER_GET_CHANNEL)(own, undefined)), { ok: true, result: { day: '2026-11-04' } });
+  assert.deepEqual(d.logins, []);
+  for (const bad of [{}, { day: 'today' }, { day: '2026-11-04', startAtLogin: true }, null]) {
+    const reply = await d.handlers.get(contract.BACKGROUND_LATER_SET_CHANNEL)(own, bad);
+    assert.deepEqual([reply.ok, reply.error.code], [false, 'INVALID_REQUEST'], JSON.stringify(bad));
+  }
+  assert.equal((await d.handlers.get(contract.BACKGROUND_LATER_SET_CHANNEL)({ sender: {}, senderFrame: own.senderFrame }, { day: '2026-11-04' })).error.code, 'UNTRUSTED_SENDER');
+  const preview = await desktop([]);
+  const previewOwn = { sender: preview.windows[0].webContents, senderFrame: preview.windows[0].webContents.mainFrame };
+  assert.deepEqual(plain(await preview.handlers.get(contract.BACKGROUND_LATER_GET_CHANNEL)(previewOwn, undefined)), { ok: true, result: { day: null } });
+});
+
+test('A5 fix round 3: the real preload forwards only the day to put the question aside', async () => {
+  let bridge: any; const calls: any[] = [];
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8'), { require: () => ({ contextBridge: { exposeInMainWorld: (_name: string, value: any) => { bridge = value; } }, ipcRenderer: { invoke: async (channel: string, input: any) => { calls.push({ channel, input }); return { ok: true, result: { day: '2026-11-04' } }; } } }) });
+  assert.equal(await bridge.getAskLater(), '2026-11-04');
+  await bridge.setAskLater('2026-11-04', { startAtLogin: true });
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{ channel: 'chausar:background:later:get' }, { channel: 'chausar:background:later:set', input: { day: '2026-11-04' } }]);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot A6 (the founder's answer 7): WhatsApp opens the desktop app first, else the web page. Every wa.me handoff
+// goes through the same gate; the app link is built from the checked wa.me link. The invoice share channels answer the
+// app's own window only.
+// ---------------------------------------------------------------------------
+
+test('A6: a wa.me handoff opens the WhatsApp desktop app when this computer has one, else the web page; other links open as before', async () => {
+  const text = ['Hello Asha,', 'The proof is ready.'].join('\n');
+  const wa = `https://wa.me/919876543210?text=${encodeURIComponent(text)}`;
+  const withApp = await desktop([], Promise.resolve(), false, { whatsapp: 'WhatsApp' });
+  const window = withApp.windows[0], trusted = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  const open = withApp.handlers.get('chausar:open-external');
+  assert.deepEqual(JSON.parse(JSON.stringify(await open(trusted, wa))), { ok: true });
+  assert.deepEqual(withApp.opened, [`whatsapp://send?phone=919876543210&text=${encodeURIComponent(text)}`]);
+  assert.deepEqual(JSON.parse(JSON.stringify(await open(trusted, 'https://razorpay.com/'))), { ok: true });
+  assert.equal(withApp.opened[1], 'https://razorpay.com/', 'a partner link is not touched');
+  const refused = await open(trusted, 'whatsapp://send?text=x');
+  assert.deepEqual([refused.ok, refused.error.code], [false, 'INVALID_EXTERNAL_URL'], 'the window never opens a whatsapp:// link itself');
+  assert.equal(withApp.opened.length, 2);
+
+  const noApp = await desktop([], Promise.resolve(), false, { whatsapp: '' });
+  const w2 = noApp.windows[0];
+  assert.deepEqual(JSON.parse(JSON.stringify(await noApp.handlers.get('chausar:open-external')({ sender: w2.webContents, senderFrame: w2.webContents.mainFrame }, wa))), { ok: true });
+  assert.deepEqual(noApp.opened, [wa]);
+
+  const broken = await desktop([], Promise.resolve(), false, { whatsapp: 'WhatsApp', openFails: url => url.startsWith('whatsapp:') });
+  const w3 = broken.windows[0];
+  assert.deepEqual(JSON.parse(JSON.stringify(await broken.handlers.get('chausar:open-external')({ sender: w3.webContents, senderFrame: w3.webContents.mainFrame }, wa))), { ok: true });
+  assert.deepEqual(broken.opened, [wa], 'an app that does not open falls back to the web page');
+});
+
+test('A6: main answers the invoice share and show channels for the window of the app only, and the window names no path', async () => {
+  const d = await desktop([]);
+  const window = d.windows[0], trusted = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  const shareHandler = d.handlers.get('chausar:invoice:share'), show = d.handlers.get('chausar:share:show');
+  assert.equal(typeof shareHandler, 'function');
+  assert.equal(typeof show, 'function');
+  const untrusted = await shareHandler({ sender: {}, senderFrame: window.webContents.mainFrame }, { invoiceId: 'inv-0001', how: 'email' });
+  assert.deepEqual([untrusted.ok, untrusted.error.code], [false, 'UNTRUSTED_SENDER']);
+  const path = await shareHandler(trusted, { invoiceId: 'inv-0001', how: 'email', path: 'C:/x.eml' });
+  assert.deepEqual([path.ok, path.error.code], [false, 'INVALID_REQUEST']);
+  // The test engine answers no file, so the share stops before anything is written or opened.
+  const asked = await shareHandler(trusted, { invoiceId: 'inv-0001', how: 'whatsapp' });
+  assert.deepEqual([asked.ok, asked.error.code], [false, 'REQUEST_FAILED']);
+  assert.deepEqual([d.opened, d.openedPaths], [[], []]);
+  const showRefused = await show(trusted, { name: '../secret.pdf' });
+  assert.deepEqual([showRefused.ok, showRefused.error.code], [false, 'INVALID_REQUEST']);
+  assert.deepEqual(d.shownItems, []);
 });

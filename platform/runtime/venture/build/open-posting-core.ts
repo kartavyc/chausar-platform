@@ -1,4 +1,5 @@
 // Original account shapes for the four owner-authorized open publishing APIs. No credentials live in these records.
+import { refusalError } from '../refusal-brand.ts';
 import {checkUrlValue} from '../core/net-address.ts';
 export type OpenPlatform='bluesky'|'mastodon'|'telegram'|'discord';
 export type OpenPostingAccount={platform:OpenPlatform;server:string;accountId:string;destinationId:string;label:string;maxChars:number};
@@ -6,10 +7,10 @@ export type OpenPostingSetup={platform:string;server:string;account:string;chann
 export type OpenAccountView={id:OpenPlatform;account:OpenPostingAccount|null;digest:string;connected:boolean;revision:number};
 export type OpenPostWords={id:string;text:string;createdAt:string};
 export type OpenPostResult={state:'applied';remoteId:string;url:string|null}|{state:'failed'|'outcome_unknown';code:string;line:string};
-export function openRequire(value:unknown,code:string,line:string):asserts value{if(!value)throw Object.assign(new Error(line),{code});}
+export function openRequire(value:unknown,code:string,line:string):asserts value{if(!value)throw refusalError(new Error(line),{code});}
 export function openText(value:unknown,max:number):string{openRequire(typeof value==='string'&&value.trim().length>0&&value.length<=max&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value),'OPEN_POSTING_INPUT','Use bounded readable text.');return value;}
 /** An instance address is an origin, never a path or a credential-bearing URL. DNS is checked at dispatch too. */
-export function openOrigin(raw:unknown):string{const value=openText(raw,400),url=checkUrlValue(value,(code,line)=>Object.assign(new Error(line),{code}));openRequire(url.protocol==='https:'&&!url.port&&url.pathname==='/'&&!url.search&&!url.hash,'OPEN_POSTING_INPUT','Use the public HTTPS server address only.');return url.origin;}
+export function openOrigin(raw:unknown):string{const value=openText(raw,400),url=checkUrlValue(value,(code,line)=>refusalError(new Error(line),{code}));openRequire(url.protocol==='https:'&&!url.port&&url.pathname==='/'&&!url.search&&!url.hash,'OPEN_POSTING_INPUT','Use the public HTTPS server address only.');return url.origin;}
 export function openSetup(raw:OpenPostingSetup):OpenPostingSetup&{platform:OpenPlatform}{openRequire(raw&&typeof raw==='object'&&Object.keys(raw).sort().join(',')==='account,channel,platform,server','OPEN_POSTING_INPUT','Choose the exact account and channel.');openRequire(['bluesky','mastodon','telegram','discord'].includes(raw.platform)&&typeof raw.account==='string'&&typeof raw.channel==='string','OPEN_POSTING_INPUT','Choose an available open network.');const server=openOrigin(raw.server);openRequire(raw.platform!=='telegram'||server==='https://api.telegram.org','OPEN_POSTING_INPUT','Use the official Telegram Bot API.');openRequire(raw.platform!=='discord'||server==='https://discord.com','OPEN_POSTING_INPUT','Use an incoming Discord connection.');return {...raw,server,platform:raw.platform as OpenPlatform};}
 export function openSecret(value:unknown):string{openRequire(typeof value==='string'&&value.length>0&&value.length<=8000&&!/[\s\u0000-\u001f\u007f]/u.test(value),'OPEN_POSTING_CREDENTIAL','Enter the owner credential for this account.');return value;}
 export function openWebhook(raw:string):URL{let url:URL;try{url=new URL(openSecret(raw));}catch{openRequire(false,'OPEN_POSTING_CREDENTIAL','Use the exact incoming Discord receiving address.');}openRequire(url.protocol==='https:'&&url.origin==='https://discord.com'&&!url.search&&!url.hash&&!url.username&&!url.password&&/^\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+$/.test(url.pathname),'OPEN_POSTING_CREDENTIAL','Use the exact incoming Discord receiving address.');return url;}

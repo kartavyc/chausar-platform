@@ -1,10 +1,11 @@
 // CA12 original typed data-pack validation. MIT itr-prep-skill informed the checklist, never arithmetic or storage.
+import { markRefusal } from '../../refusal-brand.ts';
 import {ReceiptBuilder} from './receipt.ts';
 export function packReceipt(input:{figures:PackFigure[]}){const builder=new ReceiptBuilder('data-pack');for(const row of input.figures)builder.step(row.key,`${row.key}: ${row.source}`,BigInt(row.amountMinor));return builder.build(input,{sources:input.figures.map(row=>({key:row.key,source:row.source}))},'Exact owner-supplied source figures, converted by code to rupees. No income classification or tax eligibility is implied.');}
 export type PackFigure={key:string;amountMinor:string;source:string};
 export type PackFacts={clientId:string;assessmentYear:string;pan:string|null;aadhaar:string|null;figures:PackFigure[]};
 export type PackSelection={packId:string;digest:string;fields:string[];unmask:string[];requestedBy:string;purpose:string};
-export class PackError extends Error {code:string;constructor(code:string,message:string){super(message);this.code=code;}}
+export class PackError extends Error {code:string;constructor(code:string,message:string){super(message);this.code=code;markRefusal(this);}}
 function ok(value:unknown,message:string):asserts value {if(!value)throw new PackError('CA_PACK_INVALID',message);}
 /** Only owner-typed facts are admitted by the app; no reader or model extraction is implied. */
 export function packFacts(raw:unknown):PackFacts{

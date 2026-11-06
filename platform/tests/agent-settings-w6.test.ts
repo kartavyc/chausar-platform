@@ -6,7 +6,7 @@ import { agentSettingsOf, defaultAiSettings, driverSettingsFor, validateAiSettin
 test('AI settings retain exact D11 models and research-only network defaults', () => {
   const settings = defaultAiSettings();
   assert.deepEqual(settings.codex.quick, { model: 'gpt-6-luna', effort: 'high' });
-  assert.deepEqual(settings.codex.main, { model: 'gpt-6.1-sol', effort: 'high' });
+  assert.deepEqual(settings.codex.main, { model: 'gpt-6.1-terra', effort: 'high' });
   assert.deepEqual(settings.claude.quick, { model: 'claude-haiku-5-5', effort: 'high' });
   assert.deepEqual(settings.claude.main, { model: 'claude-sonnet-5-5', effort: 'high' });
   assert.equal(settings.claude.fallbackModel, 'claude-haiku-5-5');
@@ -58,6 +58,6 @@ test('AI settings load only the selected business and return independent values'
   state.conversations.push({ kind: 'venture-record', id: 'one', aiSettings: saved }, { kind: 'venture-record', id: 'two' });
   assert.equal(agentSettingsOf(state, 'one').codex.main.model, 'chosen-model');
   const another = agentSettingsOf(state, 'two'); another.codex.main.model = 'mutation';
-  assert.equal(agentSettingsOf(state, 'two').codex.main.model, 'gpt-6.1-sol');
+  assert.equal(agentSettingsOf(state, 'two').codex.main.model, 'gpt-6.1-terra');
   assert.throws(() => agentSettingsOf(state, 'missing'), (error: any) => error.code === 'VENTURE_NOT_FOUND');
 });

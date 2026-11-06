@@ -12,7 +12,7 @@ type Call = { method: string; params: unknown };
 
 async function connect(engine: FakeEngine) {
   const preset = MODEL_PRESETS.find((item) => item.id === 'codex-cli')!, before = structuredClone(preset);
-  try { preset.availability = 'unverified'; await engine.request('venture.models.connect', { presetId: preset.id, consentDigest: preset.consentDigest }); } finally { Object.assign(preset, before); }
+  try { engine.firstRun.signIn(); await engine.request('venture.models.connect', { presetId: preset.id, consentDigest: preset.consentDigest }); } finally { Object.assign(preset, before); }
 }
 
 function start(engine: FakeEngine) {

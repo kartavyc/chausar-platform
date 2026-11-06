@@ -25,12 +25,26 @@ import { AGENT_ID } from '../views/shared.ts';
 /** The newest decisions venture.decisions.list returns. */
 export const DECISIONS_MAX = 500;
 
-/** What one decision recorded outside Today says. ruleId: the saved rule's record, when a rule decided. */
-export type DecisionInput = Pick<DecisionRecord, 'subject' | 'action' | 'who' | 'ruleId' | 'reason' | 'rowId'>;
+/**
+ * What one decision recorded outside Today says. ruleId: the saved rule's record, when a rule decided. who: only for a
+ * decision no member made (a timeout, a saved rule, or Chausar's own note, such as a gallery business reusing another's
+ * AI); a member's decision is the member's own (recordDecision).
+ */
+export type DecisionInput = Pick<DecisionRecord, 'subject' | 'action' | 'ruleId' | 'reason' | 'rowId'> & { who?: DecisionRecord['who'] };
+
+/** A member's decision by their role: a cofounder's, an accountant's, else the owner's. */
+type MemberWho = 'owner' | 'cofounder' | 'accountant';
+const memberWho = (role: string | undefined): MemberWho => (role === 'cofounder' ? 'cofounder' : role === 'accountant' ? 'accountant' : 'owner');
+/** One-shot A4 (A3 leftover): who a member is, by their record in the vault. */
+const whoIs = (state: State, memberId: string | null | undefined) => memberWho(state.members.find(member => member.id === memberId)?.role);
 
 /** Records one decision inside the caller's transaction, as the member the transaction runs for. Writes only; callers emit. */
 export function recordDecision(tx: VentureTx, input: DecisionInput): DecisionRecord {
-  return tx.put<DecisionRecord>({ ...tx.base('venture-decision'), ...input });
+  // One-shot A3 (after review): with the role of the member it runs for, so a cofounder's decision is never the owner's.
+  // One-shot A4: who, too, comes from that role for every member's decision; only a timeout, a saved rule or Chausar's
+  // own note names itself.
+  const who = input.who === 'timeout' || input.who === 'saved-rule' || input.who === 'chausar' ? input.who : memberWho(tx.ctx.role);
+  return tx.put<DecisionRecord>({ ...tx.base('venture-decision'), role: tx.ctx.role, ...input, who });
 }
 
 /** Each Today action in a few words, for the record's line. */
@@ -40,13 +54,25 @@ const ACTION_WORDS: Readonly<Record<QueueActionId, string>> = Object.freeze({
   continue: 'Continue', stop: 'Stop', resume: 'Resume',
 });
 
+/**
+ * A4 review (L5): the member a line names, as the reader sees it: the reader's own decision is You's; another member's is
+ * named by their role.
+ */
+const WHO_WORDS: Readonly<Record<MemberWho, string>> = Object.freeze({ owner: 'The owner', cofounder: 'Your cofounder', accountant: 'Your accountant' });
+const subjectOf = (state: State, memberId: string | null | undefined, reader: string | null): string => (reader !== null && memberId === reader ? 'You' : WHO_WORDS[whoIs(state, memberId)]);
+
 export const DECISION_WORDS = Object.freeze({
-  today: (action: string, reason: string) => `You chose ${action} on Today: ${reason}`,
+  today: (action: string, reason: string, who = 'You') => `${who} chose ${action} on Today: ${reason}`,
+  /** One-shot A4 (rows 33, 46): the plan's row is decided on Today, in Prices or on the plan page, so it names no place. */
+  plan: (action: string, reason: string, who = 'You') => `${who} chose ${action}: ${reason}`,
   owner: (reason: string) => `You decided: ${reason}`,
+  cofounder: (reason: string) => `Your cofounder decided: ${reason}`,
+  decided: (who: string, reason: string) => `${who} decided: ${reason}`,
   timeout: (reason: string) => `No answer in time: ${reason}`,
-  approved: (what: string) => `You approved it: ${what}`,
-  refused: (what: string) => `You said no: ${what}`,
-  gate: (step: string, gate: 'auto' | 'hold') => (gate === 'auto' ? `You set '${step}' to run on its own.` : `You set '${step}' to wait for you.`),
+  approved: (what: string, who = 'You') => `${who} approved it: ${what}`,
+  refused: (what: string, who = 'You') => `${who} said no: ${what}`,
+  // A4 review round 2: "wait for you" only to the one who set it; anyone else reads that it waits for an approval.
+  gate: (step: string, gate: 'auto' | 'hold', who = 'You') => (gate === 'auto' ? `${who} set '${step}' to run on its own.` : `${who} set '${step}' to wait for ${who === 'You' ? 'you' : 'an approval'}.`),
   autoRule: (step: string) => `Your Auto setting on '${step}'`,
   sessionRule: (step: string) => `Your allow for this session on '${step}'`,
   someRule: 'A saved rule',
@@ -207,7 +233,7 @@ function todaySubjectOfEntry(entry: JournalRecord): string | null {
 }
 
 /** The owner's and the sweep's decisions on outside effects: each approved or refused journal step, posts included. */
-function journalDecisions(state: State, venture: VentureRecord): DecisionView[] {
+function journalDecisions(state: State, venture: VentureRecord, reader: string | null): DecisionView[] {
   const members = new Set(state.members.map(member => member.id));
   const records: { record: JournalRecord | ConnectorPostRecord; today: string | null }[] = [
     ...listRecords(state, 'venture-journal-entry', venture.id).filter(record => !record.shadow).map(record => ({ record, today: todaySubjectOfEntry(record) })),
@@ -217,14 +243,15 @@ function journalDecisions(state: State, venture: VentureRecord): DecisionView[] 
   for (const { record, today } of records) {
     record.journal.forEach((step, index) => {
       if (step.state !== 'approved' && step.state !== 'rejected') return;
-      const base = { id: `${record.id}/${index}`, at: step.at, subject: today ?? `journal:${record.id}`, rule: null, ruleId: null, reason: step.line, agentId: null };
+      const base = { id: `${record.id}/${index}`, at: step.at, subject: today ?? `journal:${record.id}`, rule: null, ruleId: null, reason: step.line, agentId: null, mine: reader !== null && step.by === reader };
       if (members.has(step.by)) {
         const approved = step.state === 'approved';
+        const who = whoIs(state, step.by), subject = subjectOf(state, step.by, reader);
         listed.push({
-          ...base, action: approved ? 'approve' : 'reject', who: 'owner', line: approved ? DECISION_WORDS.approved(record.describe) : DECISION_WORDS.refused(record.describe), by: step.by,
+          ...base, action: approved ? 'approve' : 'reject', who, line: approved ? DECISION_WORDS.approved(record.describe, subject) : DECISION_WORDS.refused(record.describe, subject), by: step.by,
         });
       } else if (step.state === 'rejected' && NOBODY_DECIDED.test(step.line)) {
-        listed.push({ ...base, action: 'reject', who: 'timeout', line: DECISION_WORDS.timeout(record.describe), by: null });
+        listed.push({ ...base, action: 'reject', who: 'timeout', line: DECISION_WORDS.timeout(record.describe), by: null, mine: false });
       }
     });
   }
@@ -232,31 +259,38 @@ function journalDecisions(state: State, venture: VentureRecord): DecisionView[] 
 }
 
 /** Every decision of the open business, newest first, a Today click listed once. */
-export function decisionViews(state: State, venture: VentureRecord): DecisionView[] {
-  const today = listRecords(state, 'venture-queue-decision', venture.id).map((record): DecisionView => ({
-    id: record.id, at: record.at, subject: record.subject, action: record.action, who: 'owner', rule: null, ruleId: null, reason: record.line,
-    line: DECISION_WORDS.today(ACTION_WORDS[record.action] ?? record.action, record.line), by: record.decidedBy, agentId: null,
-  }));
+export function decisionViews(state: State, venture: VentureRecord, reader: string | null = null): DecisionView[] {
+  const today = listRecords(state, 'venture-queue-decision', venture.id).map((record): DecisionView => {
+    const who = whoIs(state, record.decidedBy);
+    const words = record.subject.startsWith('plan:') ? DECISION_WORDS.plan : DECISION_WORDS.today;
+    return {
+      id: record.id, at: record.at, subject: record.subject, action: record.action, who, rule: null, ruleId: null, reason: record.line,
+      line: words(ACTION_WORDS[record.action] ?? record.action, record.line, subjectOf(state, record.decidedBy, reader)), by: record.decidedBy, agentId: null,
+      mine: reader !== null && record.decidedBy === reader,
+    };
+  });
   const others: DecisionView[] = [];
   for (const record of listRecords(state, 'venture-decision', venture.id)) {
-    const line = record.who === 'owner' ? DECISION_WORDS.owner(record.reason) : record.who === 'timeout' ? DECISION_WORDS.timeout(record.reason) : record.reason;
+    const member = record.who !== 'timeout' && record.who !== 'saved-rule' && record.who !== 'chausar';
+    const line = member ? DECISION_WORDS.decided(subjectOf(state, record.memberId, reader), record.reason) : record.who === 'timeout' ? DECISION_WORDS.timeout(record.reason) : record.reason;
     others.push({
       id: record.id, at: record.at, subject: record.subject, action: record.action, who: record.who, rule: ruleWords(state, venture, record.ruleId), ruleId: record.ruleId,
-      reason: record.reason, line, by: record.who === 'owner' ? record.memberId : null, agentId: agentOfRule(state, venture, record.ruleId),
+      reason: record.reason, line, by: member ? record.memberId : null, agentId: agentOfRule(state, venture, record.ruleId), mine: member && reader !== null && record.memberId === reader,
     });
   }
   for (const gate of listRecords(state, 'venture-team-gate', venture.id)) {
-    const words = DECISION_WORDS.gate(stepTitle(state, venture, gate.stepId), gate.gate);
-    others.push({ id: gate.id, at: gate.at, subject: `step:${gate.stepId}`, action: `gate-${gate.gate}`, who: 'owner', rule: null, ruleId: null, reason: words, line: words, by: gate.memberId, agentId: gate.agentId });
+    const who = whoIs(state, gate.memberId);
+    const words = DECISION_WORDS.gate(stepTitle(state, venture, gate.stepId), gate.gate, subjectOf(state, gate.memberId, reader));
+    others.push({ id: gate.id, at: gate.at, subject: `step:${gate.stepId}`, action: `gate-${gate.gate}`, who, rule: null, ruleId: null, reason: words, line: words, by: gate.memberId, agentId: gate.agentId, mine: reader !== null && gate.memberId === reader });
   }
-  others.push(...journalDecisions(state, venture));
+  others.push(...journalDecisions(state, venture, reader));
   for (const group of allowedGroups(state, venture)) {
     const tools = [...new Set(group.calls.map(call => call.tool))].join(', ');
     others.push({
       id: groupId(group), at: group.at, subject: `step:${group.stepId}`, action: tools, who: 'saved-rule',
       rule: group.rule === 'auto' ? DECISION_WORDS.autoRule(group.title) : DECISION_WORDS.sessionRule(group.title), ruleId: group.ruleId,
       reason: group.calls.length === 1 ? DECISION_WORDS.ran(tools) : DECISION_WORDS.ranMany(group.calls.length, tools), line: ruleLine(group), by: null,
-      agentId: group.agentId,
+      agentId: group.agentId, mine: false,
     });
   }
   // The record of what a Today click ran is that click, matched to its exact row (ranByClicks).
@@ -274,5 +308,6 @@ export async function decisionsListHandler(deps: VentureDeps, ctx: Context, payl
   authorize(deps.store, ctx);
   const state = deps.store.read();
   const venture = currentVenture(state);
-  return { decisions: venture ? decisionViews(state, venture) : [] };
+  // A4 review (L5): the lines as this reader sees them.
+  return { decisions: venture ? decisionViews(state, venture, ctx.memberId) : [] };
 }

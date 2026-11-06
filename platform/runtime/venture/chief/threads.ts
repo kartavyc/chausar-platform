@@ -21,7 +21,7 @@ import { appendAgentMessage } from '../agents/store.ts';
 import { holdsIdNumber, ID_REFUSED, KEY_REFUSED, threadSendHandler as agentThreadSend } from '../agents/threads.ts';
 import { chatConsentState, requireChatConsent } from '../agents/consent.ts';
 import { appendChiefMessage, draftProposal, type ChiefMessageInput } from './store.ts';
-import { chiefAnswer, type ChiefAnswer } from './answer.ts';
+import { chiefAnswer, withoutActionClaims, type ChiefAnswer } from './answer.ts';
 import { agentNameOf, routeOf, teamAgents } from './routing.ts';
 import { availableKinds, draftFromModel } from './proposals.ts';
 import { proposalView } from './gate.ts';
@@ -227,7 +227,8 @@ async function store(deps: VentureDeps, ctx: Context, threadId: string | null, w
       threadId: thread.id, from: 'chief', text: plainOf(reply.parts), parts: reply.parts, author: reply.author,
       callIds: reply.callIds ?? [], receiptIds: reply.receiptIds ?? [], routedTo: reply.routedTo ?? null,
     });
-    const parts = [...reply.parts];
+    const done: ChatPart[] = [];
+    const briefed: string[] = [];
     const dropped = [...(reply.dropped ?? [])];
     const proposalIds: string[] = [];
     for (const raw of reply.proposals ?? []) {
@@ -236,12 +237,16 @@ async function store(deps: VentureDeps, ctx: Context, threadId: string | null, w
       if (drafted.kind === 'brief') {
         const posted = appendAgentMessage(tx, { agent: drafted.agent.id, from: 'chausar', text: drafted.text, parts: drafted.parts, author: 'model' });
         tx.emit('agent.message', { agent: posted.agent, messageId: posted.id });
-        parts.push({ kind: 'text', text: `I passed a brief to ${drafted.agent.name}.` });
+        done.push({ kind: 'text', text: `I passed a brief to ${drafted.agent.name}.` });
+        briefed.push(drafted.agent.name);
         continue;
       }
       const proposal: ProposalRecord = draftProposal(tx, { ...drafted.input, threadId: thread.id, messageId: answer.id });
       proposalIds.push(proposal.id);
     }
+    // One-shot A4 (A3 leftover, review M2): the model's words may claim no action; only code's own brief line says one
+    // happened. A proposal card makes 'I've drafted' true (chief/answer.ts withoutActionClaims).
+    const parts = [...(reply.author === 'model' ? withoutActionClaims(reply.parts, { proposals: proposalIds.length, briefed }) : reply.parts), ...done];
     answer = tx.replace<ChiefMessageRecord>({
       ...answer, text: plainOf(parts), parts, proposalIds, worked: reply.worked ?? [], dropped, counted: reply.counted ?? null,
       // 6G1: the chief's question back waits for the owner, so the chat is never hidden until they write again.

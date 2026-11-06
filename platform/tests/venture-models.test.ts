@@ -7,12 +7,13 @@ import { spendPolicySet } from '../runtime/venture/money/spend.ts';
 import { createServer } from 'node:http';
 import { readdir, readFile } from 'node:fs/promises';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
+import { viewCall } from '../runtime/venture/models/port.ts';
 import { isAbsolute, join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
-import { DRAFT_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
 import type {
   ModelHttpRequest, ModelHttpResponse, ModelPort, ModelProcessRequest, ModelProcessResponse, ModelPurpose, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport,
   SecretName, SecretShelf, VentureDeps,
@@ -667,6 +668,69 @@ test('Codex CLI: the profile executable, the host process port and the schema fi
   assert.deepEqual(record.usage, { inputTokens: 20, outputTokens: 6 });
 });
 
+test('A2: a failed Codex call says why in owner words; what Codex said is kept for this session only, screened and short', async () => {
+  const executable = join(tmpdir(), 'codex.exe');
+  const secret = ['sk', 'proj', 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6'].join('-');
+  const hostProcess = async (request: any) => {
+    if (request.args[0] === '--version') return { exitCode: 0, stdout: 'codex-cli 0.166.0' };
+    if (request.args.join(' ') === 'exec --help' || request.args.join(' ') === '--help') return checkAnswer({ ...request, purpose: 'version-check' });
+    return { exitCode: 1, stdout: JSON.stringify({ type: 'turn.failed', error: { message: "You've hit your usage limit." } }), stderr: `ERROR: You've hit your usage limit. key ${secret} for owner@example.com at ${join(homedir(), 'AppData', 'Local', 'codex.log')} ${'x'.repeat(5000)}` };
+  };
+  const { deps, store } = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
+  await connect(deps, 'codex-cli');
+  await assert.rejects(deps.models.generate(owner, wordsTask({ purpose: 'judge' })), (error: any) => error.code === 'AI_USAGE_LIMIT' && error.message === 'Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.');
+  const record = calls(store).at(-1);
+  assert.equal(record.error.code, 'AI_USAGE_LIMIT');
+  // A2 review: never in the vault (so never in an export or a backup) and never in what the app reads.
+  assert.equal(record.error.said, undefined);
+  assert.equal(JSON.stringify(store.read()).includes('usage limit. key'), false);
+  // A record kept by an earlier build with the field is shown without it.
+  assert.equal((viewCall({ ...record, error: { ...record.error, said: 'ERROR: x' } }, Date.now()).error as any).said, undefined);
+  const said = deps.models.toolSaid!(record.id)!;
+  assert.match(said, /usage limit/);
+  assert.equal(said.includes(secret), false, 'a key in what Codex said is never kept');
+  assert.equal(said.includes('owner@example.com'), false, 'nor an email address');
+  assert.equal(said.includes(homedir()), false, 'nor the home folder');
+  assert.ok(said.length <= 600);
+});
+
+test('A2: connecting Codex takes the route model from Codex’s own list; the fixed id stands only when the list cannot be read', async () => {
+  const executable = join(tmpdir(), 'codex.exe');
+  let list: string | null = JSON.stringify({ models: [{ slug: 'gpt-6-astra', visibility: 'list', priority: 2 }, { slug: 'gpt-6-luna', visibility: 'hide', priority: 1 }] });
+  const asked: string[] = [];
+  const hostProcess = async (request: any) => {
+    asked.push(request.args.join(' '));
+    if (request.args[0] === '--version') return { exitCode: 0, stdout: 'codex-cli 0.166.0' };
+    if (request.args.join(' ') === 'exec --help' || request.args.join(' ') === '--help') return checkAnswer({ ...request, purpose: 'version-check' });
+    if (request.args.slice(-2).join(' ') === 'debug models' && request.args[0] === '--disable') return list === null ? { exitCode: 1, stdout: '' } : { exitCode: 0, stdout: list };
+    return { exitCode: 1, stdout: '' };
+  };
+  const first = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
+  await connect(first.deps, 'codex-cli');
+  assert.ok(asked.some(line => line.endsWith('debug models') && line.includes('--disable daemon_auto_start')), 'Codex is asked for its own list, its background features off');
+  assert.equal((listRecords(first.store.read(), 'venture-model-connection') as any[]).at(-1)!.model, 'gpt-6-astra', 'gpt-6-luna is hidden for this account');
+  assert.equal((await first.deps.models.codexModels!()).main, 'gpt-6-astra');
+  list = null;
+  const second = await setup({ codexCli: codexProfile(executable), transport: defaultModelTransport({ hostProcess }) });
+  await connect(second.deps, 'codex-cli');
+  assert.equal((listRecords(second.store.read(), 'venture-model-connection') as any[]).at(-1)!.model, 'gpt-6-luna');
+});
+
+test('A2: the agent route runs the Codex program the trust names, read at each use', async () => {
+  const executable = join(tmpdir(), 'codex.exe');
+  let live: unknown = null;
+  const { deps } = await setup({ codexCli: { profile: () => live } });
+  assert.equal(deps.models.codexProgram?.(), null, 'no setup in use: no program named');
+  live = codexProfile(executable);
+  assert.equal(deps.models.codexProgram?.(), executable);
+  // A2 review: the agent route asks for the checked program; a trust's own check is used, and none in use refuses.
+  assert.equal(await deps.models.codexVerifiedProgram!(), executable);
+  live = null;
+  await assert.rejects(deps.models.codexVerifiedProgram!(), { code: 'CODEX_SETUP_UNAVAILABLE' });
+  const checked = await setup({ codexCli: { profile: () => codexProfile(executable), verifiedProgram: async () => { throw Object.assign(new Error('changed'), { code: 'CODEX_SETUP_CHANGED' }); } } });
+  await assert.rejects(checked.deps.models.codexVerifiedProgram!(), { code: 'CODEX_SETUP_CHANGED' });
+});
+
 test('default transport: posts to a loopback server without the purpose, refuses redirects and oversized answers', async t => {
   const seen: { headers: Record<string, unknown>; body: string }[] = [];
   const server = createServer((request, response) => {
@@ -1034,7 +1098,8 @@ test('replay through the port: calls are marked replay and status says synthetic
 test('handlers: exactly the fifteen model, agent settings and protected MCP credential methods; presets and status need no venture', async () => {
   // The venture.ai.* draft methods are owned by models too, but the engine's draft desk answers them, outside the table.
   // Five, and the two Ink v2 wave 4 added (the CLI status and per-role models, 4H1).
-  const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models' && !DRAFT_METHODS.includes(method));
+  // A2: the owner's Codex choice is owned by models too, but the engine answers it itself (ENGINE_METHODS).
+  const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models' && !DRAFT_METHODS.includes(method) && !ENGINE_METHODS.includes(method));
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   // W6 6F1 adds the curated MCP list and OAuth sign-in, 6F2 lists, adds and removes packs.
   assert.equal(owned.length, 15);

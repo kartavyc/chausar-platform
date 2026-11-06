@@ -1,12 +1,12 @@
 {
   "appId": "in.chausar.desktop", "productName": "Chausar Preview",
   "directories": { "output": "release" }, "asar": true, "forceCodeSigning": true,
-  "files": ["app/**/*", "app/ui/dist/**/*", "!app/ui/src/**/*", "!app/ui/tests/**/*", "!app/ui/public/**/*", "!app/ui/assets/**/*", "!app/ui/node_modules/**/*", "!app/ui/index.html", "!app/ui/README.md", "!app/ui/tsconfig.json", "!app/ui/vite.config.ts", "!app/ui/vitest.config.ts", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs", "fixtures/**/*", "package.json", "node_modules/**/*"],
+  "files": ["app/**/*", "app/ui/dist/**/*", "!app/ui/src/**/*", "!app/ui/tests/**/*", "!app/ui/public/**/*", "!app/ui/assets/**/*", "!app/ui/node_modules/**/*", "!app/ui/index.html", "!app/ui/README.md", "!app/ui/tsconfig.json", "!app/ui/vite.config.ts", "!app/ui/vitest.config.ts", "!app/desktop/icons/icon.icns", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs", "fixtures/**/*", "package.json", "node_modules/**/*"],
   "asarUnpack": ["package.json", "node_modules/**/*", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs"],
   "extraResources": [{ "from": "runtime-binaries", "to": "runtime-binaries", "filter": ["**/*"] }, { "from": "vendor/feedback/feedback.json", "to": "feedback.json" }],
-  "win": { "target": ["nsis"], "signAndEditExecutable": true },
-  "mac": { "target": ["dmg"], "hardenedRuntime": true },
-  "linux": { "target": ["AppImage"], "category": "Office" },
-  "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+  "win": { "target": ["nsis"], "signAndEditExecutable": true, "icon": "app/desktop/icons/icon.ico" },
+  "mac": { "target": ["dmg"], "hardenedRuntime": true, "icon": "app/desktop/icons/icon.icns" },
+  "linux": { "target": ["AppImage"], "category": "Office", "icon": "app/desktop/icons/png" },
+  "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "installerIcon": "app/desktop/icons/icon.ico", "uninstallerIcon": "app/desktop/icons/icon.ico" },
   "publish": null
 }

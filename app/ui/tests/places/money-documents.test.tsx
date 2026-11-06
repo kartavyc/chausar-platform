@@ -267,6 +267,8 @@ describe('Money w4: the accountant', () => {
     await waitFor(() => expect(calls).toContainEqual(['venture.share.create', { kind: 'books', month: '2026-10' }]));
     // On this computer the engine keeps the link but has no public address, and says so.
     expect(await within(panel).findByText(/open only on the hosted Chausar with a public address/)).toBeTruthy();
+    // One-shot A4 (hands-on row 29): with no link that opens, the sheet never says how long it stays open.
+    expect(within(panel).queryByText(/^Open until /)).toBeNull();
     await click(within(panel).getByRole('button', { name: 'Take it back' }));
     await waitFor(() => expect(calls.some(([method]) => method === 'venture.share.revoke')).toBe(true));
     expect(await within(panel).findByText('The link no longer opens.')).toBeTruthy();

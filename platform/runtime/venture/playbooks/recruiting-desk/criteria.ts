@@ -1,5 +1,6 @@
 // Original Chausar screening code; three-state evidence and experience-union ideas from jev-recruiter (MIT).
-export class RecruitError extends Error { code:string;constructor(code:string,message:string){super(message);this.code=code;this.name='RecruitError';} }
+import { markRefusal } from '../../refusal-brand.ts';
+export class RecruitError extends Error { code:string;constructor(code:string,message:string){super(message);this.code=code;markRefusal(this);this.name='RecruitError';} }
 export function need(ok:unknown,code:string,message:string):asserts ok {if(!ok)throw new RecruitError(code,message);}
 export type Criterion={id:string;text:string;required:boolean;verify:string};
 export type Excerpt={id:string;text:string};

@@ -90,6 +90,8 @@ const PLACES: Case[] = [
   // W4 4G4: the bell's settings, on this computer and on the hosted app; the approval page.
   { name: 'Business, notifications', hash: '#/business/notifications' },
   { name: 'Business, notifications on the hosted app', hash: '#/business/notifications', options: { hosted: true } },
+  { name: 'Today, start at login asked once in the installed app', hash: '#/today', options: { background: {} } },
+  { name: 'Business, notifications in the installed app, a login item the computer switched off', hash: '#/business/notifications', options: { background: { asked: true, startAtLogin: true, systemOff: true } } },
   { name: 'Approval page, the oldest waiting', hash: '#/approve/next' },
   { name: 'Approval page, a row already decided', hash: '#/approve/q-gone' },
   { name: 'Work, an order the judge read on its own', hash: '#/work?order=o-mehta-sep', before: ledgerline },
@@ -302,21 +304,26 @@ const OPENED: Case[] = [
     press: ['Skip for now: use templates', { fill: 'Tell Chausar about your work', with: 'Monthly bookkeeping for cafes and small shops in Pune.' }, 'Send'],
   },
   { name: 'First run, a field tile straight to the plan', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Teaching and coaching/] },
-  { name: 'First run, the side-work question', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Licensed work/, 'Keep this plan'] },
+  { name: 'First run, which of these are you', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Licensed work/, 'Keep this plan'] },
+  { name: 'First run, the side-work question', hash: '#/today', options: { fresh: true }, press: ['Skip for now: use templates', /^Licensed work/, 'Keep this plan', { choose: 'Advocate' }, 'Continue'] },
   {
     name: 'First run, the passphrase step', hash: '#/today', options: { fresh: true, deviceKeys: false },
-    press: ['Skip for now: use templates', /^Money and tax/, 'Keep this plan', { choose: 'I am not sure' }, 'Continue'],
+    press: ['Skip for now: use templates', /^Money and tax/, 'Keep this plan', { choose: 'Chartered accountant' }, 'Continue', { choose: 'I am not sure' }, 'Continue'],
   },
   {
     name: 'First run, the recovery code step', hash: '#/today', options: { fresh: true, deviceKeys: false },
     press: [
-      'Skip for now: use templates', /^Money and tax/, 'Keep this plan', { choose: 'I am not sure' }, 'Continue',
+      'Skip for now: use templates', /^Money and tax/, 'Keep this plan', { choose: 'Chartered accountant' }, 'Continue', { choose: 'I am not sure' }, 'Continue',
       { fill: 'Passphrase', with: 'correct horse battery' }, { fill: 'Type it again', with: 'correct horse battery' }, 'Lock and start',
     ],
   },
   {
+    name: 'First run, what the business needs, start at login asked', hash: '#/today', options: { fresh: true, background: {} },
+    press: ['Skip for now: use templates', /^Teaching and coaching/, 'Keep this plan', { choose: 'None of these' }, 'Continue', { choose: 'I am not sure' }, 'Continue'],
+  },
+  {
     name: 'First run, what the business needs', hash: '#/today', options: { fresh: true },
-    press: ['Skip for now: use templates', /^Teaching and coaching/, 'Keep this plan', { choose: 'I am not sure' }, 'Continue'],
+    press: ['Skip for now: use templates', /^Teaching and coaching/, 'Keep this plan', { choose: 'None of these' }, 'Continue', { choose: 'I am not sure' }, 'Continue'],
   },
 ];
 

@@ -85,18 +85,29 @@ describe('the rail', () => {
 });
 
 describe('the app icon', () => {
-  it('is the two-square mark: ink square and the accent square, the same values as the tokens', () => {
+  // One-shot A7: the favicon is the founder's logo file as given: a dark tile with a grey square and a green one. It
+  // carries its own tile, so it reads on a light tab and a dark one alike and does not follow the theme. Its green is
+  // the logo's own, not the app's Jade, and neither changes the other.
+  const LOGO_SQUARES = [[112, 112, 144, 144, 36], [264, 264, 144, 144, 36]];
+  it('is the founder\'s logo: the dark tile, the grey square top left and the green square bottom right', () => {
     const app = join(import.meta.dirname, '../..');
     const icon = readFileSync(join(app, 'public/icon.svg'), 'utf8');
+    const rects = [...icon.matchAll(/<rect\b([^>]*)\/>/g)].map((m) => Object.fromEntries([...m[1]!.matchAll(/([a-z]+)="([^"]*)"/g)].map((a) => [a[1], a[2]])));
+    expect(icon).toMatch(/viewBox="0 0 520 520"/);
+    expect(rects).toEqual([
+      { width: '520', height: '520', rx: '48', fill: '#070809' },
+      ...LOGO_SQUARES.map(([x, y, w, h, r], i) => ({ x: String(x), y: String(y), width: String(w), height: String(h), rx: String(r), fill: ['#e8ebee', '#46f09b'][i] })),
+    ]);
+    expect(icon).not.toMatch(/<style|prefers-color-scheme|#2fb67c/i);
     const tokens = readFileSync(join(app, 'src/tokens/tokens.css'), 'utf8');
-    const light = tokens.slice(0, tokens.indexOf('@media (prefers-color-scheme: dark)'));
-    const dark = tokens.slice(tokens.indexOf('@media (prefers-color-scheme: dark)'));
-    const token = (css: string, name: string) => new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`).exec(css)?.[1]?.toLowerCase();
-    const fills = [...icon.matchAll(/fill(?:="|:\s*)(#[0-9a-fA-F]{6})/g)].map((m) => m[1]!.toLowerCase());
-    expect(icon).toContain('#2FB67C');
-    expect(token(light, '--accent')).toBe('#2fb67c');
-    expect(icon.match(/<rect\b/g)).toHaveLength(2);
-    // The ink square is --fg: dark on a light tab, light on a dark one (the theme follows the computer).
-    expect(fills).toEqual([token(light, '--fg'), token(light, '--accent'), token(dark, '--fg')]);
+    expect(tokens).toMatch(/--accent:\s*#2fb67c/i);
+  });
+
+  it('the mark in the app is the logo\'s two squares, less the tile\'s margin, at an eighth of the size, in the theme\'s colours', () => {
+    const app = join(import.meta.dirname, '../..');
+    const logo = readFileSync(join(app, 'src/parts/Logo.tsx'), 'utf8');
+    expect(logo).toMatch(/viewBox="0 0 37 37"/);
+    const squares = [...logo.matchAll(/<rect className=\{[^}]+\} x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)" rx="([\d.]+)" \/>/g)].map((m) => m.slice(1).map(Number));
+    expect(squares).toEqual(LOGO_SQUARES.map(([x, y, w, h, r]) => [(x! - 112) / 8, (y! - 112) / 8, w! / 8, h! / 8, r! / 8]));
   });
 });

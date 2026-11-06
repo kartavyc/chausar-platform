@@ -118,6 +118,11 @@ export function YourAi({ focus }: { focus: boolean }) {
   const data: ModelStatusLite | undefined = status.data;
   const connected = data?.connections.filter((c) => c.status === 'connected') ?? [];
   const bothTemplates = data && data.tiers.fast.presetId === TEMPLATES && data.tiers.main.presetId === TEMPLATES;
+  // One-shot A4 (hands-on rows 82, 95): with no AI connected, an AI app on this computer that can connect (a signed-in
+  // Claude Code, a chosen Codex) is the choice at rest; the key pair moves to the top of the fold.
+  const appHere = bothTemplates ? listed.find((preset) => preset.runsOn === 'this-computer' && CONNECTABLE.has(preset.availability)) : undefined;
+  const atRest: Choice | null = appHere ? singles.find((choice) => choice.id === appHere.id)! : recommended;
+  const inFold = (choice: Choice) => choice.id !== atRest?.id;
   // The privacy rule is this computer's, so only the desktop app inside a business shows it.
   const side = Boolean(data) && !draft && client.transport !== 'hosted';
 
@@ -171,11 +176,12 @@ export function YourAi({ focus }: { focus: boolean }) {
           <>
             <h3 className={s.subheading}>{t('connections.ai.add')}</h3>
             {/* The recommended pair at rest; every single choice, grouped by how it is paid for, one fold away. */}
-            {recommended && <ul className={s.rows}>{choiceRow(recommended)}</ul>}
+            {atRest && <ul className={s.rows}>{choiceRow(atRest)}</ul>}
             <details className={s.fold}>
               <summary>{t('connections.ai.every')}</summary>
+              {recommended && atRest !== recommended && <ul className={s.rows}>{choiceRow(recommended)}</ul>}
               {RUNS_ON.map((runsOn) => {
-                const here = singles.filter((choice) => choice.presets[0]!.preset.runsOn === runsOn);
+                const here = singles.filter((choice) => choice.presets[0]!.preset.runsOn === runsOn && inFold(choice));
                 return here.length === 0 ? null : (
                   <div key={runsOn} className={s.choiceGroup} data-runs-on={runsOn}>
                     {/* Under "Add an AI" (a level 3 heading), each group is a level 4 heading. */}

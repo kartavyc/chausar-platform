@@ -346,3 +346,16 @@ describe('Start: the business picker', () => {
     expect(screen.queryByRole('group', { name: 'Where should this go?' })).toBeNull();
   });
 });
+
+// A4 fix round (founder, 4 Nov): a business made from the Start gallery asks the engine to reuse the AI already set up
+// in another business (venture.create reuseAi); the first run never does.
+describe('Start: a gallery business reuses the AI already set up', () => {
+  it('Make my plan sends reuseAi with the new business', async () => {
+    const { calls } = await start();
+    await gallery();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Or describe it in one sentence' }), { target: { value: 'Monthly bookkeeping for cafes and small shops in Pune.' } });
+    fireEvent.click(screen.getByRole('button', { name: /Make my plan/ }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'venture.create')).toBe(true), { timeout: 8000 });
+    expect(calls.find((call) => call.method === 'venture.create')?.params).toMatchObject({ reuseAi: true });
+  });
+});

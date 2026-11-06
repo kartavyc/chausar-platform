@@ -30,6 +30,8 @@ import { recordDecision } from '../journal/decisions.ts';
 import { applyShareChange } from '../money/share-price.ts';
 import { countryProfile } from './countries.ts';
 import { blueprintCountry } from './country-history.ts';
+import { ABOUT_INSTRUCTIONS } from './about.ts';
+import type { ModelCallRecord } from '../contracts.ts';
 
 // ---------------------------------------------------------------------------
 // Flagship playbooks (playbooks/plan.ts): their words are fixed engine words on the plan
@@ -838,9 +840,79 @@ function mirrorIntoInterview(tx: VentureTx, venture: VentureRecord, blueprint: B
 // ---------------------------------------------------------------------------
 
 /** venture.blueprint.draft { useTemplate? } (prepare). "Rewrite with AI" is this call without useTemplate. */
+/** A card offer: words only, never an amount, a currency or a link (core/about.ts keeps the same rule for the AI's). */
+const NOT_IN_SHOWN = /[\p{N}\p{Sc}]|:\/\/|[\u0000-\u001F\u007F]/u;
+type Shown = { name: string; by: 'model' | 'template'; callId: string | null; offers: { name: string; line: string }[] };
+/** The ids a kept card's offers take, in order (Offer.id: 'offer_1' .. 'offer_3'); About you shows at most three. */
+const SHOWN_OFFER_IDS = ['offer_1', 'offer_2', 'offer_3'] as const;
+
+/**
+ * Review of A1 (row 3): the plan About you showed, kept on the first keep. by: who wrote its words, the AI's reading
+ * ('model') or the keywords or a tile ('template'); never the owner, whose own edits go through venture.blueprint.update.
+ */
+function shownOf(value: unknown): Shown {
+  const body = exactPayload(value, ['name', 'by', 'offers', 'callId'], ['name', 'by', 'offers']);
+  check(body.by === 'model' || body.by === 'template', 'INVALID_VENTURE_REQUEST', 'Say who wrote the plan you kept: model or template.');
+  // A1 final check: the About you read's own call, which the AI label is checked against.
+  check(body.callId === undefined || (typeof body.callId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(body.callId)), 'INVALID_VENTURE_REQUEST', 'Send the id of the reading that wrote the plan.');
+  const name = singleLine(body.name, 'The business name', { min: 2, max: 60 });
+  check(Array.isArray(body.offers) && body.offers.length >= 1 && body.offers.length <= SHOWN_OFFER_IDS.length, 'INVALID_VENTURE_REQUEST', `Keep one to ${SHOWN_OFFER_IDS.length} offers.`);
+  const offers = (body.offers as unknown[]).map(item => {
+    const offer = exactPayload(item, ['name', 'line'], ['name', 'line']);
+    const offerName = singleLine(offer.name, 'The offer name', { min: 2, max: 60 });
+    check(typeof offer.line === 'string' && offer.line.length <= 200, 'INVALID_VENTURE_REQUEST', 'An offer line is at most 200 characters.');
+    const line = (offer.line as string).replace(/\s+/g, ' ').trim();
+    check(!NOT_IN_SHOWN.test(offerName) && !NOT_IN_SHOWN.test(line), 'INVALID_VENTURE_REQUEST', 'An offer is plain words with no amount or link. You set prices after the plan is kept.');
+    return { name: offerName, line };
+  });
+  return { name, by: body.by, callId: (body.callId as string | undefined) ?? null, offers };
+}
+
+/** Offers as the card folds them: each name and line with its spacing folded, in order. */
+const foldedOffers = (offers: readonly { name: string; line: string }[]) => JSON.stringify(offers.map(offer => [offer.name.replace(/\s+/g, ' ').trim(), offer.line.replace(/\s+/g, ' ').trim()]));
+
+/** The offers a call kept of its checked answer (ModelTask.keep), or null when it kept none in that shape. */
+function keptOffers(call: ModelCallRecord): { name: string; line: string }[] | null {
+  const kept = call.kept as { offers?: unknown } | undefined;
+  if (!kept || typeof kept !== 'object' || !Array.isArray(kept.offers)) return null;
+  return kept.offers.every(offer => offer && typeof offer === 'object' && typeof (offer as { name?: unknown }).name === 'string' && typeof (offer as { line?: unknown }).line === 'string')
+    ? kept.offers as { name: string; line: string }[] : null;
+}
+
+/**
+ * A1 final check: true when the About you read the card names is among this business's calls (copied from the draft at
+ * venture.create) or the draft still held: that exact call, completed, with the About you instructions in what was sent.
+ * A2 (A1 carry-over): and the card's offers are the ones that call answered, so owner-changed offers are never the AI's.
+ */
+function aboutReadCalled(calls: readonly ModelCallRecord[], shown: Shown): boolean {
+  const call = shown.callId ? calls.find(row => row.id === shown.callId && row.purpose === 'decide' && row.status === 'completed' && row.payloadText.includes(ABOUT_INSTRUCTIONS.slice(0, 80))) : undefined;
+  const answered = call ? keptOffers(call) : null;
+  return !!answered && foldedOffers(answered) === foldedOffers(shown.offers);
+}
+
+/** The kept card on the drafted record: its name and exactly its offers, with no price and the neutral per-project unit. */
+function applyShown(record: BlueprintRecord, shown: Shown): void {
+  const words = (value: string) => labelled(value, 'assumption', shown.by);
+  const template = record.offers.filter(offer => !offer.addedByOwner);
+  const owned = record.offers.filter(offer => offer.addedByOwner);
+  record.name = words(shown.name);
+  record.offers = [...shown.offers.map((kept, index) => {
+    const was = template[index];
+    return {
+      id: SHOWN_OFFER_IDS[index]!, ...(was?.playbookOffer ? { playbookOffer: was.playbookOffer } : {}),
+      name: words(kept.name), description: words(kept.line.length >= 2 ? kept.line : kept.name), pricing: offerPricing('project', null),
+    };
+  }), ...owned];
+  record.source = shown.by;
+  seal(record);
+}
+
 export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BlueprintView> {
-  const body = exactPayload(payload, ['useTemplate']);
+  const body = exactPayload(payload, ['useTemplate', 'shown']);
   const useTemplate = optionalFlag(body, 'useTemplate');
+  // Review of A1 (row 3): the plan About you showed is kept as it was shown, only on the first keep of a template plan.
+  const shown = body.shown === undefined ? null : shownOf(body.shown);
+  check(!shown || useTemplate, 'INVALID_VENTURE_REQUEST', 'The plan you kept is saved with the built-in plan only.');
   authorize(deps.store, ctx, 'prepare');
   const state = deps.store.read();
   const savedVenture = requireVenture(state);
@@ -890,9 +962,17 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
     check(digest(structure) === plannedHash, 'APPROVAL_STALE', stale);
     const words = labelWords(output, by, current, currentInterview, structure, ownedNow);
     const record = assemble(tx, structure, words, by, callIds, nextBlueprintVersion(tx.state, current.id), previous);
+    if (shown) {
+      // Kept once, on the first plan: a second keep (a retry after the plan was saved) changes nothing.
+      check(!previous, 'PLAN_ALREADY_KEPT', 'Your plan is already saved. Change it on the plan page.');
+      // A1 re-review: the AI's label only when this business holds the AI call that read the owner (handed over from the
+      // draft at venture.create); on the window's word alone the words are labelled the template's, and the keep goes on.
+      const calls = [...tx.list('venture-model-call'), ...(deps.draft?.ai()?.calls ?? [])];
+      applyShown(record, shown.by === 'model' && !aboutReadCalled(calls, shown) ? { ...shown, by: 'template' } : shown);
+    }
     tx.put(record);
     tx.touch({ blueprintId: record.id, status: statusAtLeast(current.status, 'blueprint') });
-    tx.emit('blueprint-drafted', { blueprintId: record.id, version: record.version, source: by });
+    tx.emit('blueprint-drafted', { blueprintId: record.id, version: record.version, source: record.source });
     return blueprintView(tx.state, record, deps.host);
   });
 }
@@ -940,6 +1020,9 @@ export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: 
     if (has(patch, 'removeOffer')) removeOwnerOffer(tx, next, patch.removeOffer);
     if (has(patch, 'offers')) applyOfferPatches(next, patch.offers, country, mirror);
     if (adding) addOwnerOffer(tx, next, adding);
+    // One-shot A1 (row 3): words the owner wrote make the plan theirs; a price or a tax setting changes no words.
+    const offerWords = has(patch, 'offers') && Array.isArray(patch.offers) && (patch.offers as Record<string, unknown>[]).some(change => change && (Object.hasOwn(change, 'name') || Object.hasOwn(change, 'description')));
+    if (has(patch, 'name') || has(patch, 'oneLiner') || has(patch, 'customer') || offerWords || adding) next.source = 'owner';
     syncOwnerOffers(tx, next);
     applyTaxPatch(next.backOffice, patch, country, mirror);
     withTaxInvoiceFields(next.backOffice, country);
@@ -971,7 +1054,7 @@ export async function blueprintAccept(deps: VentureDeps, ctx: Context, payload: 
     activateTerm(tx, 'offer', { recordId: accepted.id, kind: 'venture-blueprint' });
     // 4J1 (O17): who accepted the plan and when, wherever they did (journal/decisions.ts).
     // rowId: the Today row this version is shown as (views/queue.ts planRows), so a click there is listed once.
-    recordDecision(tx, { subject: `plan:${venture.id}`, action: 'accept', who: 'owner', ruleId: null, reason: `Plan version ${accepted.version} accepted.`, rowId: `plan:${venture.id}:${accepted.id}` });
+    recordDecision(tx, { subject: `plan:${venture.id}`, action: 'accept', ruleId: null, reason: `Plan version ${accepted.version} accepted.`, rowId: `plan:${venture.id}:${accepted.id}` });
     tx.emit('blueprint-accepted', { blueprintId: accepted.id, version: accepted.version, digest: accepted.digest });
     return blueprintView(tx.state, accepted, deps.host);
   });

@@ -12,12 +12,13 @@ import { EngineError, type BackupLite, type EngineClient, type MoveFile, type Tr
  * The behaviour rules come from platform/tests/custody-renderer.test.ts and the old app.js workspace menu.
  */
 type Calls = [string, Record<string, unknown>][];
-function start(hash: string, engine = new FakeEngine(), transport?: Transport) {
+function start(hash: string, engine = new FakeEngine(), transport?: Transport, extra: Partial<EngineClient> = {}) {
   window.location.hash = hash;
   const fake = createFakeClient(engine);
   const calls: Calls = [];
   const client: EngineClient = {
     ...fake,
+    ...extra,
     transport: transport ?? fake.transport,
     request: ((method: string, params?: Record<string, unknown>) => {
       calls.push([method, structuredClone(params ?? {})]);
@@ -210,8 +211,8 @@ describe('Keep this business: delete this business', () => {
     const engine = new FakeEngine({ only: ['lumen', 'ledgerline'] });
     const { calls } = start('#/business/keep', engine);
     const box = await fold('Delete this business');
-    expect(await within(box).findByText("This deletes Lumen Studio from this computer, with its backups and exports in Chausar's folders.")).toBeTruthy();
-    expect(within(box).getByText("It can't delete copies kept anywhere else, like a move file or an export you saved somewhere else.")).toBeTruthy();
+    expect(await within(box).findByText('This deletes Lumen Studio and its backups from this computer. Copies you exported stay.')).toBeTruthy();
+    expect(within(box).getByText("It can't delete a move file or a copy kept somewhere else.")).toBeTruthy();
     const name = within(box).getByLabelText('Type Lumen Studio to delete it') as HTMLInputElement;
     fireEvent.change(name, { target: { value: 'lumen studio' } });
     await press(within(box).getByRole('button', { name: 'Delete this business' }));
@@ -228,6 +229,24 @@ describe('Keep this business: delete this business', () => {
     expect(((await engine.request('workspace.status', {})) as WorkspaceStatusLite).open).toBe(false);
     const { backups } = (await engine.request('workspace.backups.list', {})) as { backups: BackupLite[] };
     expect(backups.some((b) => b.name === 'Lumen Studio')).toBe(false);
+  });
+
+  it('review of A1 row 1: after Delete it lists the exported copies it kept, says which is readable, and shows one in its folder', async () => {
+    const engine = new FakeEngine({ only: ['lumen', 'ledgerline'] });
+    const shown: string[] = [];
+    start('#/business/keep', engine, undefined, { showExport: async (name: string) => { shown.push(name); } });
+    const client = createFakeClient(engine);
+    const sealed = (await client.request('workspace.export', { confirmed: true, plaintext: false })) as { path: string };
+    const readable = (await client.request('workspace.export', { confirmed: true, plaintext: true })) as { path: string };
+    const box = await fold('Delete this business');
+    fireEvent.change(await within(box).findByLabelText('Type Lumen Studio to delete it'), { target: { value: 'Lumen Studio' } });
+    await press(within(box).getByRole('button', { name: 'Delete this business' }));
+    expect(await screen.findByText('These copies you exported are still on this computer:')).toBeTruthy();
+    const names = [sealed.path, readable.path].map((path) => path.split('/').pop()!);
+    for (const name of names) expect(screen.getByText(name)).toBeTruthy();
+    expect(screen.getAllByText("Readable, not encrypted. Delete it once you're done with it.")).toHaveLength(1);
+    await press(screen.getAllByRole('button', { name: 'Show in folder' })[0]!);
+    expect(shown).toEqual([names[0]]);
   });
 
   it('the name typed is the name the vault holds, not the working name', async () => {

@@ -4,7 +4,7 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { FAKE_DEVICE_CODE } from '../../src/engine/fake-first-run';
 import type { EngineClient, ModelStatusLite } from '../../src/engine/types';
-import { answerSideWork } from './first-run-steps';
+import { answerSideWork, confirmProfession } from './first-run-steps';
 
 /**
  * W6 first run: Connect your AI (6C1), About you as A that becomes B (6C2, DECISIONS D16a) and Connect what your
@@ -73,6 +73,45 @@ describe('first run, step 1: Connect your AI', () => {
     expect(screen.queryByRole('button', { name: 'Sign in with Codex' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Use Codex' })).toBeTruthy();
     expect(calls.some(([method]) => method === 'venture.ai.login.start')).toBe(false);
+  });
+});
+
+describe('first run, step 1: the Codex Chausar runs (A2)', () => {
+  it('shows the owner’s own Codex as found and asks first; it can be signed in only after the owner chooses it', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.reviewCodex();
+    const { calls } = start(engine);
+    expect(await screen.findByText('Codex 0.166.0 is on this computer and has what Chausar needs. Use it?')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Sign in with Codex' })).toBeNull();
+    await press('Use this Codex');
+    expect(calls.find(([method]) => method === 'venture.ai.setup.trust')?.[1]).toEqual({ cli: 'codex', sha256: 'c'.repeat(64) });
+    expect(await screen.findByRole('button', { name: 'Sign in with Codex' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Use this Codex' })).toBeNull();
+  });
+  // A2 second review: Cancel in main's own dialog changes nothing, and the step says so calmly, not as an error.
+  it('Cancel in Chausar\'s own dialog keeps the question and says nothing changed, calmly', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.reviewCodex();
+    engine.firstRun.codexDialog('cancel');
+    start(engine);
+    await screen.findByText('Codex 0.166.0 is on this computer and has what Chausar needs. Use it?');
+    await press('Use this Codex');
+    const said = await screen.findByText("Nothing changed. Codex wasn't chosen.");
+    expect(said.getAttribute('role')).toBe('status');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Use this Codex' })).toBeTruthy();
+  });
+});
+
+describe('first run, step 1: "Signed in" is earned (A2)', () => {
+  it('a Codex that says it is signed in but fails the tiny test shows why, and no Signed in or Use', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.signIn();
+    engine.firstRun.failTest('Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.');
+    start(engine);
+    expect(await screen.findByText('Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.')).toBeTruthy();
+    expect(screen.queryByText('Signed in')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Use Codex' })).toBeNull();
   });
 });
 
@@ -147,6 +186,8 @@ describe('first run: the side-work question (6C6, DECISIONS D5)', () => {
     await skipAi();
     await press(/^Teaching and coaching/);
     await press('Keep this plan');
+    // A5: the field's professions come first; "None of these" keeps the field, which this test is about.
+    await confirmProfession();
     const check = await screen.findByRole('region', { name: 'Day job and rules' }, { timeout: 4000 });
     expect(screen.getByRole('heading', { level: 1, name: 'Day job and rules' })).toBeTruthy();
     expect(within(check).getByRole('group', { name: 'Does your employment contract allow side work? This is your responsibility.' })).toBeTruthy();
@@ -237,5 +278,43 @@ describe('Connections: the services this business needs', () => {
     expect(within(list).getAllByRole('listitem').length).toBeGreaterThan(0);
     // Nothing to skip here: the list stays for later.
     expect(within(list).queryByRole('button', { name: 'Skip' })).toBeNull();
+  });
+});
+
+describe('one-shot A1 row 3: the plan saved is the plan shown', () => {
+  it('Keep this plan saves exactly the name and offers the card showed, with a neutral price unit', async () => {
+    timeZone('Asia/Kolkata');
+    const fake = createFakeClient(new FakeEngine({ fresh: true }));
+    const read = {
+      family: { id: 'creative', label: 'Creative work', line: 'Design, photos, video and writing.' },
+      offers: [
+        { name: 'Birthday party photography', line: 'Candid photos of the party, edited and shared.' },
+        { name: 'Shop product photos', line: 'Clean photos of what a shop sells.' },
+        { name: 'Monthly photo support', line: 'A set of photos each month for a shop.' },
+      ],
+      country: null, evidence: null, idea: 'Photography for parties and shops in Pune', source: 'ai' as const,
+    };
+    const client: EngineClient = { ...fake, request: ((method: string, params?: Record<string, unknown>) => (method === 'venture.about.read' ? Promise.resolve(structuredClone(read)) : fake.request(method as never, params as never))) as EngineClient['request'] };
+    window.location.hash = '#/today';
+    render(<App client={client} language="en" />);
+    await skipAi();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: 'I run a small weekend photography studio in Pune.' } });
+    await press('Send');
+    expect(await screen.findByText('Birthday party photography')).toBeTruthy();
+    const shownName = (await screen.findByText((_, node) => node?.className?.toString().includes('name') === true && node.tagName === 'P' && node.getAttribute('data-content') === '' && (node.textContent ?? '').length > 0)).textContent;
+    const keep = await screen.findByRole('button', { name: 'Keep this plan' });
+    await waitFor(() => expect(keep.hasAttribute('disabled')).toBe(false));
+    await act(async () => { fireEvent.click(keep); });
+    await answerSideWork();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Connect what your business needs' }, { timeout: 4000 })).toBeTruthy();
+    const plan = (await fake.request('venture.blueprint.get', {}))!;
+    expect(plan.blueprint.offers.map((offer) => offer.name.value)).toEqual(['Birthday party photography', 'Shop product photos', 'Monthly photo support']);
+    expect(plan.blueprint.offers[0]!.description.value).toBe('Candid photos of the party, edited and shared.');
+    expect(plan.blueprint.name.value).toBe(shownName);
+    // Review of A1 (row 3): no template offer is left and no per month. The reading here was scripted, so this business
+    // holds no AI call that read the owner, and (A1 re-review) the words are labelled the template's, not the AI's.
+    expect(plan.blueprint.source).toBe('template');
+    expect(plan.blueprint.offers.every((offer) => offer.name.by === 'template' && offer.pricing.model === 'project')).toBe(true);
+    expect(plan.blueprint.version).toBe(1);
   });
 });

@@ -8,7 +8,7 @@ import type {
   Offer, PlanFlagshipStep, PricingModel, RecordBase, SecretShelf, ServiceType,
 } from './contracts.ts';
 
-import type { AboutRead, FamilyId, ToolView, ToolsView } from './core/first-run-types.ts';
+import type { AboutRead, FamilyId, FamilyTile, ToolView, ToolsView } from './core/first-run-types.ts';
 
 export const ONBOARDING_CONTRACT_VERSION = 'chausar.dev/venture-onboarding/v1alpha2' as const;
 
@@ -378,5 +378,5 @@ export type OnboardingResults = {
   'venture.ai.login.cancel': ToolView;
   'venture.about.read': AboutRead;
   'venture.about.pick': AboutRead;
-  'venture.about.families': { families: { id: FamilyId; label: string; line: string }[] };
+  'venture.about.families': { families: FamilyTile[] };
 };

@@ -111,3 +111,21 @@ test('rollback after a grant top-up: the topped-up version goes back too, and th
   assert.equal((await env.call('venture.improve.status')).candidate, null, 'its old candidate is not offered again');
   await assert.rejects(env.call('venture.improve.adopt', { runId: run.id, digest: run.digest }), code('CANDIDATE_STALE'));
 });
+
+// One-shot A4 (hands-on rows 38, 128): Work said "ready for you to adopt" while Practice had nothing to adopt, because
+// Practice hides a kept version that no longer fits. Work now says why, in the same words.
+test('Work says a kept version is ready to adopt only while Practice offers it', async () => {
+  const env = await business(PLAIN_IDEA);
+  await ventureAction(env.deps, owner, 'prepare', 'seed.signals', tx => {
+    for (let index = 0; index < 2; index += 1) tx.put({ ...tx.base('venture-signal'), source: 'owner-rejected', runId: 'delivery_x', reason: 'missing-section', scenarioId: null });
+  });
+  improvable(env);
+  const run = await env.call('venture.improve.run', { maxRounds: 1 });
+  assert.equal(run.status, 'kept-candidate');
+  const line = async () => ((await env.call('venture.runs.list', {})).runs as { runId: string; result: string }[]).find(item => item.runId === run.id)!.result;
+  assert.equal(await line(), 'Better work instructions are ready for you to adopt.');
+  assert.ok((await env.call('venture.improve.status')).candidate);
+  await env.call('venture.improve.adopt', { runId: run.id, digest: run.digest });
+  assert.equal((await env.call('venture.improve.status')).candidate, null);
+  assert.equal(await line(), 'This version is already in use.');
+});

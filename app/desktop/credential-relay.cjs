@@ -5,7 +5,7 @@ function createCredentialRelay(harness, child, { timeoutMs = 10000 } = {}) {
   function answer(callId, result) {
     const timer = waiting.get(callId); if (!timer) return; clearTimeout(timer); waiting.delete(callId);
     const reply = result?.ok === true && (result.value === null || typeof result.value === 'string' && Buffer.byteLength(result.value) <= 16384)
-      ? { ok: true, value: result.value } : { ok: false, code: result?.code === 'CREDENTIAL_INVALID' ? 'CREDENTIAL_INVALID' : 'CREDENTIAL_UNAVAILABLE' };
+      ? { ok: true, value: result.value } : { ok: false, code: result?.code === 'CREDENTIAL_INVALID' || result?.code === 'CREDENTIAL_NO_STORE' ? result.code : 'CREDENTIAL_UNAVAILABLE' };
     if (!closed && child.connected) try { child.send({ kind: 'host-credential-result', callId, ...reply }, () => {}); } catch { /* worker channel owns failure */ }
   }
   return {

@@ -6,6 +6,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { Engine } from './engine.ts';
 import { engineJobOptions } from './engine-jobs.ts';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
+import { CodexTrust } from './codex-trust.ts';
 import { check } from './contracts.ts';
 import { ventureHostEnv } from './venture/host-env.ts';
 import { SSE_HEADERS, SSE_HEARTBEAT, SSE_PREAMBLE, sseFrame } from './venture/views/events.ts';
@@ -13,12 +14,13 @@ import { CUSTODY_METHODS } from './workspace-custody-contracts.ts';
 import { workspaceCustodyEnv } from './workspace-custody.ts';
 import { INK_ROOT, INK_TYPES, listInkFiles } from './ui-ink.ts';
 import { createPhoneAccess, privatePeer } from './phone-access.ts';
+import { ownerError } from './owner-error.ts';
 
 /** Only the trusted local owner bootstrap session may send these (never a member session). */
 export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover',
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
   'venture.country.suggest',
-  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
+  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.ai.setup.trust', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
   ...CUSTODY_METHODS]);
 
 /** The built Ink app (app/ui/dist) and its allowlist (listInkFiles in ui-ink.ts, shared with the hosted web server). */
@@ -158,7 +160,8 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
     } catch (error) {
       const e = error as Error & { code?: string; reason?: unknown }; const status = e.code === 'NOT_FOUND' ? 404 : e.code === 'UNAUTHENTICATED' ? 401 : e.code?.includes('FORBIDDEN') || e.code === 'INVALID_HOST' || e.code === 'INVALID_ORIGIN' ? 403 : e.code === 'METHOD_NOT_ALLOWED' ? 405 : 400;
       // DEVICE_KEYS_UNAVAILABLE carries why, so the page can show the engine's words without guessing.
-      send(status, { error: { code: e.code ?? 'REQUEST_FAILED', message: e.message, ...(typeof e.reason === 'string' && /^[a-z-]{1,32}$/.test(e.reason) ? { reason: e.reason } : {}) } });
+      // Only Chausar's own refusals keep their words; an engine bug never shows its source text (owner-error.ts).
+      send(status, { error: ownerError(error) });
     }
   });
   return {
@@ -198,10 +201,13 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
 export async function createServerEngine(environment: NodeJS.ProcessEnv = process.env, args: readonly string[] = process.argv, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
   const demo = args.includes('--demo');
   const gateway = await loadCodexCliHostGateway(environment, dependencies);
+  // A2: the Codex in use: the operator's values first, else the owner's choice, else the bundled Codex (codex-trust.ts).
+  const codexTrust = new CodexTrust({ environment, ...(gateway ? { operator: gateway } : {}) });
+  await codexTrust.load();
   // W6 6F7: the phone listener starts only when the owner makes a pairing link in the app.
   let engine: Engine | null = null;
   const phoneAccess = createPhoneAccess(() => engine!, { ink: async () => ({ folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }) });
-  return engine = new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), ...(gateway?.codexCli ? { codexCli: gateway.codexCli, hostProcess: gateway.process } : {}), phoneAccess } });
+  return engine = new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo, host: 'local-web', args }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true, phoneAccess } });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

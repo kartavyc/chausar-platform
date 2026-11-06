@@ -9,12 +9,12 @@
 // time per tool; the status screen's look is reused for a minute, a connection always looks again; and a real call the
 // tool refuses for a route flag it does not know marks that tool's flags a mismatch for the rest of the session.
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS } from '../contracts.ts';
 import type {
-  CliFinding, DelegateCli, ModelOutcome, ModelPort, ModelPortOptions, ModelPreset, ModelPresetId, ModelPreview, ModelPriceTable, ModelPurpose, ModelRouteKind,
+  CliFinding, DelegateCli, ModelOutcome, ModelPort, ModelPortOptions, ModelProcessResponse, ModelPreset, ModelPresetId, ModelPreview, ModelPriceTable, ModelPurpose, ModelRouteKind,
   ModelStatusView, ModelTask, ModelTier, SpendRate, VentureDeps,
 } from '../contracts.ts';
 import { MAX_STORED_PAYLOAD, currentVenture, digest, formatMicros, isAppChannel, listRecords, ventureAction, type VentureTx } from '../records.ts';
@@ -37,7 +37,9 @@ import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts'
 import {
   AVAILABILITY_REASONS, PRESETS, availabilityOf, endpointFor, claudeTermsOpen, cliFlagsWords, cliProblemWords, cliSentence, cliSignedOutWords, presetSpec, type PresetSpec,
 } from './presets.ts';
-import { CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, locateOnThisComputer } from './cli-status.ts';
+import { CLI_LOOK_PREFIX as CLI_LOOK_FOLDER, CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, locateOnThisComputer } from './cli-status.ts';
+import { codexModelsFrom, pickCodexModels, type CodexModels } from './codex-models.ts';
+import { CODEX_QUIET_ARGS } from '../../providers/codex-cli.ts';
 import { assertSchemaSafe } from './schema.ts';
 import { redactPayload, redactSecrets } from '../core/secrets.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
@@ -122,6 +124,8 @@ export function viewCall(call: CallRecord, nowMs: number): CallRecord {
   if (call.status === 'dispatching' && nowMs - Date.parse(call.approvedAt ?? call.at) > STALE_DISPATCH_MS) {
     return { ...call, status: 'failed', error: { code: 'MODEL_TIMEOUT', message: STALE_DISPATCH_MESSAGE } };
   }
+  // A2 review: what a tool printed is never shown; a record an earlier build kept with it is shown without it.
+  if (call.error && 'said' in call.error) { const { said: _said, ...error } = call.error; void _said; return { ...call, error }; }
   return call;
 }
 
@@ -130,7 +134,7 @@ function sweep(tx: VentureTx) {
   const nowMs = Date.parse(tx.now);
   for (const call of txCalls(tx)) {
     const view = viewCall(call, nowMs);
-    if (view === call) continue;
+    if (view.status === call.status) continue;
     replaceRecord(tx, view);
     // A send that never reported back may still have been billed: its spend stays held, marked unknown.
     if (view.status === 'failed') settleSpend(tx, spendKey(call.id), { kind: 'unknown' });
@@ -203,6 +207,7 @@ function checkTask(task: ModelTask<unknown>) {
   if (!Number.isInteger(task.maxOutputTokens) || task.maxOutputTokens < 256 || task.maxOutputTokens > 8192) throw malformed('maxOutputTokens must be from 256 to 8192');
   if (typeof task.validate !== 'function') throw malformed('validate must be a function');
   if (task.template !== undefined && typeof task.template !== 'function') throw malformed('template must be a function when given');
+  if (task.keep !== undefined && typeof task.keep !== 'function') throw malformed('keep must be a function when given');
   if (typeof task.containsClientData !== 'boolean') throw malformed('containsClientData must be true or false');
   if (task.capLeftMicros !== undefined && (typeof task.capLeftMicros !== 'string' || !/^\d{1,30}$/.test(task.capLeftMicros))) throw malformed('capLeftMicros must be whole micro units');
   let input: string | undefined;
@@ -244,6 +249,51 @@ export function reportedModel(kind: ModelRouteKind, text: string): string | null
   }
 }
 
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** One folder name of the home path as Windows may also spell it: its 8.3 short name (NAME~1, or AB12CD~1 after many). */
+function shortNames(name: string): string[] {
+  const dot = name.lastIndexOf('.');
+  const stem = (dot > 0 ? name.slice(0, dot) : name).replace(/[^A-Za-z0-9]/g, '');
+  const whole = name.replace(/[^A-Za-z0-9]/g, '');
+  if (name.length <= 8 && !/[ .+,;=[\]]/.test(name)) return [];
+  const forms = new Set<string>();
+  for (const base of [stem, whole]) {
+    if (!base) continue;
+    forms.add(`${escapeRegExp(base.slice(0, 6))}~\\d{1,6}`);
+    forms.add(`${escapeRegExp(base.slice(0, 2))}[0-9A-Fa-f]{4}~\\d{1,6}`);
+  }
+  return [...forms].map(form => `${form}(?:\\.[A-Za-z0-9]{1,3})?`);
+}
+/**
+ * A2 second review: the home folder screened out of a tool's words, as '~'. On Windows in any case, with either
+ * separator (or a doubled one, as JSON writes it), and each folder name also in its 8.3 short form; elsewhere exactly.
+ */
+export function screenHome(text: string, home: string = homedir(), platform: NodeJS.Platform = process.platform): string {
+  if (!home || !text) return text;
+  const windows = platform === 'win32';
+  const parts = home.split(windows ? /[\\/]+/ : /\/+/).filter(Boolean);
+  if (!parts.length) return text;
+  const separator = windows ? '[\\\\/]+' : '/';
+  const names = parts.map((part, index) => {
+    const forms = [escapeRegExp(part), ...(windows && !(index === 0 && /^[A-Za-z]:$/.test(part)) ? shortNames(part) : [])];
+    return forms.length > 1 ? `(?:${forms.join('|')})` : forms[0];
+  });
+  const lead = !windows && home.startsWith('/') ? '/' : '';
+  const pattern = new RegExp(`${lead}${names.join(separator)}(?![A-Za-z0-9_~-])`, windows ? 'gi' : 'g');
+  return text.replace(pattern, '~');
+}
+
+/** A2: what a tool printed to stderr, secrets screened out, spacing folded: its start and end, at most 600 characters. */
+export function toolSaid(stderr: unknown): string | undefined {
+  if (typeof stderr !== 'string' || !stderr.trim()) return undefined;
+  const text = stderr.length > 8192 ? `${stderr.slice(0, 4096)}\n${stderr.slice(-4096)}` : stderr;
+  // A2 review: also the home folder and email addresses. A2 second review: the home folder in every spelling (screenHome).
+  const homeless = screenHome(text);
+  const screened = redactSecrets(homeless).replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]').replace(/\s+/g, ' ').trim();
+  if (!screened) return undefined;
+  return screened.length <= 600 ? screened : `${screened.slice(0, 297)}...${screened.slice(-300)}`;
+}
+
 function failureOf(error: unknown, fallback: { code: string; message: string }): { code: string; message: string; cause?: string } {
   if (error instanceof ChausarError && (VENTURE_ERRORS as readonly string[]).includes(error.code)) {
     // Ink v2 wave 4 (4F2): the transport's own class of the failure (such as 'not-connected'), kept so the owner's
@@ -266,7 +316,10 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   const hosted = options.host === 'hosted-web';
   const claudeTerms = options.claudeCodeTerms;
   // The hosted web server never runs a command-line tool: no Codex profile is honoured there, whatever was passed.
-  const codex: CodexHost | null = hosted ? null : codexHost(options.codexCli);
+  // A2: the Codex trust can change while the engine runs (the owner chooses their own Codex), so it is read at each use.
+  const codexNow = (): CodexHost | null => (hosted ? null : codexHost(options.codexCli));
+  /** A2: the models list Codex gave this session, by program. */
+  let codexModelsKept: { program: string; models: CodexModels } | null = null;
   const locate = options.locateCli ?? locateOnThisComputer;
   // The newest look at each command-line tool this session (4H1). In memory only: a restart looks again.
   const looks = new Map<DelegateCli, CliFinding>();
@@ -278,12 +331,14 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
   const refusedFlags = new Map<DelegateCli, Set<string>>();
   const answered = (cli: DelegateCli) => looks.get(cli)?.answered === true;
   const pending = new Map<string, Pending>();
+  /** A2 review: what a tool printed on its last failed calls, screened, this session only: never in the vault. */
+  const said = new Map<string, string>();
 
   /** What availabilityOf needs now: the looks, the terms gate, the Codex profile, and whether a real task on each worked. */
   const liveOf = (state: State) => {
     const ventureId = currentVenture(state)?.id ?? null;
     return {
-      claudeFound: answered('claude-code'), codexProfile: !!codex, hosted, claudeTerms,
+      claudeFound: answered('claude-code'), codexProfile: !!codexNow(), hosted, claudeTerms,
       claude: looks.get('claude-code') ?? null, codex: looks.get('codex') ?? null,
       worked: {
         'claude-code': lastCliTask(state, ventureId, 'claude-code')?.outcome === 'succeeded',
@@ -321,7 +376,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       const startedMs = clock().getTime();
       const kept = looks.get(cli), at = lookedAt.get(cli);
       if (!fresh && kept && at !== undefined && startedMs >= at && startedMs - at < CLI_LOOK_REUSE_MS) return structuredClone(kept);
-      flight = inspectInstalledCli(cli, { transport, locate, codex, claudeTerms, now: () => clock().toISOString() })
+      flight = inspectInstalledCli(cli, { transport, locate, codex: codexNow(), claudeTerms, now: () => clock().toISOString() })
         .then(finding => {
           const seen = withRefused(finding);
           looks.set(cli, seen);
@@ -339,7 +394,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     // The Claude Code terms gate holds at run time too: a connection made while it was open never runs once it is closed.
     if (spec.kind === 'claude-cli' && !claudeTermsOpen(claudeTerms)) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.claudeTerms };
     if (spec.needsKey && !secrets.has(SECRET(spec.id))) return { code: 'MODEL_KEY_MISSING', message: MESSAGES.keyMissing };
-    if (spec.kind === 'codex-cli' && !codex) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.codexMissing };
+    if (spec.kind === 'codex-cli' && !codexNow()) return { code: 'PRESET_UNAVAILABLE', message: AVAILABILITY_REASONS.codexMissing };
     // The newest look at the tool (4H1): a flag it does not know, or signed out, stops the call before anything is sent.
     if (spec.kind === 'claude-cli' || spec.kind === 'codex-cli') {
       const finding = looks.get(spec.kind === 'claude-cli' ? 'claude-code' : 'codex');
@@ -384,6 +439,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       const plan = claudePlan(model, task);
       return { transport: 'process', plan, payloadText: plan.payloadText };
     }
+    const codex = codexNow();
     check(codex, 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.codexMissing);
     let plan: CliPlan;
     try { plan = codexPlan(model, task, codex); } catch {
@@ -431,7 +487,9 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         return { ok: false, code: 'CLI_FLAGS_UNSUPPORTED', message: cliSentence(cliFlagsWords(cli, looks.get(cli)?.version ?? null, refused)), usage: null };
       }
       const parsed = plan.kind === 'claude-cli' ? parseClaudeCli(response) : parseCodexCli(response);
-      return { ...parsed, answeredBy: typeof response.stdout === 'string' ? reportedModel(plan.kind, response.stdout) : null };
+      // A2: what the tool printed on failure stays on the record (screened, cut short), so a fault can be traced later.
+      const said = !parsed.ok ? toolSaid(response.stderr) : undefined;
+      return { ...parsed, ...(said ? { said } : {}), answeredBy: typeof response.stdout === 'string' ? reportedModel(plan.kind, response.stdout) : null };
     } catch (error) {
       return { ok: false, ...failureOf(error, transportFailure), usage: null };
     } finally {
@@ -443,7 +501,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
    * Steps 8 to 11: dispatch once, parse, validate, then record the result in its own action. The table is the price
    * the call was reserved at (the owner's rate card or the list price); a metered call settles its spend there too.
    */
-  const send = async <T>(ctx: Context, level: 'prepare' | 'approve', call: CallRecord, prepared: Prepared, spec: PresetSpec, validate: (raw: unknown) => T, table: ModelPriceTable | null, metered: boolean, beforeDispatch?: () => void): Promise<ModelOutcome<T>> => {
+  const send = async <T>(ctx: Context, level: 'prepare' | 'approve', call: CallRecord, prepared: Prepared, spec: PresetSpec, validate: (raw: unknown) => T, table: ModelPriceTable | null, metered: boolean, beforeDispatch?: () => void, keep?: (value: T) => unknown): Promise<ModelOutcome<T>> => {
     const apiKey = spec.needsKey ? secrets.get(SECRET(spec.id)) : null;
     let sent = false;
     const onDispatch = () => { const result: unknown = beforeDispatch?.(); if (result && typeof (result as { then?: unknown }).then === 'function') void Promise.resolve(result).catch(() => undefined); check(result === undefined, 'INVALID_VENTURE_REQUEST', 'A dispatch guard must finish synchronously.'); sent = true; };
@@ -452,6 +510,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       : await dispatch(prepared, apiKey, call.purpose, onDispatch);
     // 4F2: the transport's class of a failure (parsed.cause) stays on the call record beside Chausar's words.
     let failure: { code: string; message: string; cause?: string } | null = parsed.ok ? null : { code: parsed.code, message: parsed.message, ...(parsed.cause ? { cause: parsed.cause } : {}) };
+    if (!parsed.ok && parsed.said) { said.set(call.id, parsed.said); while (said.size > 50) said.delete(said.keys().next().value!); }
     let value: T | undefined;
     if (parsed.ok) {
       try { value = validate(parsed.value); } catch (error) {
@@ -462,13 +521,18 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     if(unpricedNativeModel)failure={code:'SPEND_UNPRICED',message:'The quality check did not report the exact model priced for this job. Its cost remains held.'};
     const costMicros = unpricedNativeModel ? null : parsed.usage ? callCostMicros(parsed.usage, table) : failure ? null : table ? call.estimatedMaxCostMicros : '0';
     const outputDigest = parsed.ok ? digest(parsed.value) : null;
+    // A2: a task may keep a small plain part of its checked answer on the record (About you keeps its offers).
+    let kept: unknown;
+    if (!failure && keep) {
+      try { const value_ = keep(value as T); const text = JSON.stringify(value_); kept = typeof text === 'string' && text.length <= 4096 ? JSON.parse(text) : undefined; } catch { kept = undefined; }
+    }
     // H36: the model the answer named, else 'not reported'. Kept on the call, so its spend row and run lines can say it.
     const answeredBy = parsed.answeredBy ?? NOT_REPORTED;
     await ventureAction(actionDeps, ctx, level, 'models.result', tx => {
       const current = tx.find('venture-model-call', call.id);
       check(current, 'INVALID_VENTURE_REQUEST', 'This model call record no longer exists.');
       if(current.erasedAt && failure) failure={code:failure.code,message:'This call text was forgotten.'};
-      replaceRecord(tx, { ...current, status: failure ? 'failed' : 'completed', usage: parsed.usage, costMicros, outputDigest, error: failure, answeredBy });
+      replaceRecord(tx, { ...current, status: failure ? 'failed' : 'completed', usage: parsed.usage, costMicros, outputDigest, error: failure, answeredBy, ...(kept !== undefined ? { kept } : {}) });
       if (metered) settleSpend(tx, spendKey(call.id), spendOutcome(sent, parsed.usage !== null, failure !== null, costMicros));
     });
     if (failure) throw new ChausarError(failure.code, failure.message);
@@ -588,7 +652,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       const missing = claude
         ? 'Claude Code was not found on this computer. Install it and sign in, then try again.'
         : 'Codex was not found on this computer. Check the reviewed Codex install, then try again.';
-      if (!claude) check(codex, 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.codexMissing);
+      if (!claude) check(codexNow(), 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.codexMissing);
       const finding = await look(claude ? 'claude-code' : 'codex', true);
       check(finding.answered, 'CLI_UNAVAILABLE', missing);
       if (finding.flags === 'mismatch') throw new ChausarError('CLI_FLAGS_UNSUPPORTED', cliSentence(cliFlagsWords(finding.cli, finding.version, finding.missingFlags)));
@@ -599,6 +663,55 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
      * The status screen's look: joins one under way, else reuses one started within the last minute, unless fresh
      * ("Check again"), which always starts one when none is under way.
      */
+    /**
+     * A2: the models Codex itself offers this account, read once per program this session with `codex debug models` in
+     * an empty folder (ids only are kept), and the ones Chausar uses. The fixed ids when it cannot be read.
+     */
+    async codexModels() {
+      const evidence = codexNow()?.capabilities.evidence;
+      const program = evidence?.kind === 'installed-help' ? evidence.executable : null;
+      if (!program || hosted || transport.replay === true) return pickCodexModels(null);
+      if (codexModelsKept?.program === program) return structuredClone(codexModelsKept.models);
+      let folder: string | undefined, response: ModelProcessResponse | null = null;
+      try {
+        folder = await mkdtemp(join(tmpdir(), CLI_LOOK_FOLDER));
+        response = await transport.process({ command: program, args: [...CODEX_QUIET_ARGS, 'debug', 'models'], env: cliEnv('codex-cli'), stdin: '', timeoutMs: 30_000, purpose: 'version-check', cwd: folder });
+      } catch { response = null; }
+      finally { if (folder) await rm(folder, { recursive: true, force: true }).catch(() => undefined); }
+      const models = codexModelsFrom(response);
+      if (models.source === 'codex') codexModelsKept = { program, models };
+      return structuredClone(models);
+    },
+
+    /** A2: the native program of the Codex setup in use, so agent jobs run the program the owner chose; null without one. */
+    codexProgram() {
+      const codex = codexNow();
+      const evidence = codex?.capabilities.evidence;
+      return evidence?.kind === 'installed-help' ? evidence.executable : null;
+    },
+
+    /** A2 review: the setup's program for an agent job, its digest checked again by the trust; refused without one. */
+    async codexVerifiedProgram() {
+      const trust = options.codexCli as { verifiedProgram?: () => Promise<string> } | undefined;
+      check(!hosted, 'PRESET_UNAVAILABLE', AVAILABILITY_REASONS.hostedCli);
+      if (trust && typeof trust.verifiedProgram === 'function') return trust.verifiedProgram();
+      const evidence = codexNow()?.capabilities.evidence;
+      check(evidence?.kind === 'installed-help', 'CODEX_SETUP_UNAVAILABLE', 'Choose the Codex Chausar found under Connect your AI first.');
+      return evidence.executable;
+    },
+
+    /** A2: the Codex setup in use, else a review of the Codex the search path finds; null without a Codex trust. */
+    async codexSetup() {
+      const trust = options.codexCli as { review?: (found: string | null) => Promise<import('../core/first-run-types.ts').CodexSetupView> } | undefined;
+      if (hosted || !trust || typeof trust.review !== 'function') return null;
+      let found: string | null;
+      try { found = locate('codex'); } catch { found = null; }
+      try { return await trust.review(found); } catch { return null; }
+    },
+
+    /** A2 review: what the tool printed on a failed call this session, screened and short; never stored or shown. */
+    toolSaid(callId: string) { return said.get(callId) ?? null; },
+
     async inspectCli(cli: DelegateCli, options?: { fresh?: boolean }): Promise<CliFinding> {
       check(cli === 'claude-code' || cli === 'codex', 'INVALID_VENTURE_REQUEST', 'Only Claude Code and Codex can be looked for on this computer.');
       return look(cli, options?.fresh === true);
@@ -630,7 +743,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         if (rate) reserveSpend(tx, { ...callSpend(record, route.spec), rate, estimateMicros: estimate });
         return putRecord(tx, record);
       }).catch(error => spendRefused(actionDeps, ctx, error));
-      return send(ctx, 'prepare', call, prepared, route.spec, task.validate, table, rate !== null);
+      return send(ctx, 'prepare', call, prepared, route.spec, task.validate, table, rate !== null, undefined, task.keep);
     },
 
     async preview<T>(ctx: Context, task: ModelTask<T>): Promise<ModelPreview | null> {

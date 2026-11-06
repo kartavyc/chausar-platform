@@ -34,6 +34,60 @@ describe('desktop transport', () => {
     push!({ healthy: true, state: 'ready' });
     expect(seen).toEqual([{ state: 'starting' }, { state: 'offline' }, { state: 'ok' }]);
   });
+
+  // One-shot A5: start at login and keep running, from the desktop's own channels; only true counts as true.
+  it('reads and changes start at login through the bridge, with refusals as engine errors', async () => {
+    const bridge: ChausarBridge = {
+      request: vi.fn(),
+      getBackground: vi.fn(async () => ({ supported: true, asked: false, startAtLogin: true, keepRunning: 'yes', registered: 1, systemOff: false, extra: 'x' })),
+      setBackground: vi.fn(async () => { throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' }); }),
+    };
+    const client = createEngineClient({ bridge });
+    expect(await client.getBackground!()).toEqual({ supported: true, asked: false, startAtLogin: true, keepRunning: false, registered: false, systemOff: false });
+    const refusal = await client.setBackground!({ startAtLogin: true }).catch((e: unknown) => e);
+    expect(refusal).toBeInstanceOf(EngineError);
+    expect((refusal as EngineError).code).toBe('BACKGROUND_UNAVAILABLE');
+    expect(bridge.setBackground).toHaveBeenCalledWith({ startAtLogin: true });
+    expect(createEngineClient({ bridge: { request: vi.fn() } }).getBackground).toBeUndefined();
+  });
+
+  // One-shot A6: an invoice shared through the desktop; only a known answer reads as opened, anything else is a refusal.
+  it('shares an invoice and shows its file through the bridge, reading the answer field by field', async () => {
+    const bridge: ChausarBridge = {
+      request: vi.fn(),
+      shareInvoice: vi.fn(async (_id: string, how: string) => (how === 'email' ? { how: 'email', opened: 'draft', file: 'INV-0001.pdf', to: 'yes', note: null, extra: 'x' } : { how: 'whatsapp', opened: 'sent', file: 'INV-0001.pdf' })),
+      showShared: vi.fn(async () => { throw Object.assign(new Error('That file is not there any more. Press the button again to make it.'), { code: 'SHARE_FILE_GONE' }); }),
+    };
+    const client = createEngineClient({ bridge });
+    expect(await client.shareInvoice!('inv-0001', 'email')).toEqual({ how: 'email', opened: 'draft', file: 'INV-0001.pdf', attached: 'INV-0001.pdf', to: false, note: null });
+    const odd = await client.shareInvoice!('inv-0001', 'whatsapp').catch((e: unknown) => e);
+    expect(odd).toBeInstanceOf(EngineError);
+    expect((odd as EngineError).code).toBe('REQUEST_FAILED');
+    const gone = await client.showShared!('INV-0001.pdf').catch((e: unknown) => e);
+    expect((gone as EngineError).code).toBe('SHARE_FILE_GONE');
+    // A6 round 1 (low 6): the name is a file name with a dot before its kind, nothing else.
+    (bridge.shareInvoice as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ how: 'email', opened: 'draft', file: 'INV-0001xpdf', to: true, note: null });
+    expect(((await client.shareInvoice!('inv-0001', 'email').catch((e: unknown) => e)) as EngineError).code).toBe('REQUEST_FAILED');
+    // A7 (A6 leftover): an attached name that is not a file name (a path, a link, no kind, not text) is never shown;
+    // the sheet names the file kept instead.
+    for (const attached of ['../INV-0001.pdf', 'C:\\x\\INV-0001.pdf', 'https://example.com/INV-0001.pdf', 'INV-0001xpdf', 'INV-0001.exe', '', 42, null, { name: 'INV-0001.pdf' }]) {
+      (bridge.shareInvoice as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', attached, to: true, note: null });
+      expect(await client.shareInvoice!('inv-0001', 'email'), JSON.stringify(attached)).toEqual({ how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', attached: 'INV-0001-2.pdf', to: true, note: null });
+    }
+    (bridge.shareInvoice as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ how: 'email', opened: 'draft', file: 'INV-0001-2.pdf', attached: 'INV-0001.pdf', to: true, note: null });
+    expect(await client.shareInvoice!('inv-0001', 'email')).toMatchObject({ file: 'INV-0001-2.pdf', attached: 'INV-0001.pdf' });
+    expect(createEngineClient({ bridge: { request: vi.fn() } }).shareInvoice).toBeUndefined();
+  });
+
+  // A5 fix round 3: the day the owner put the start-at-login question aside; anything but a day reads as never.
+  it('reads and keeps the day the start-at-login question was put aside', async () => {
+    const days: unknown[] = ['2026-11-04', 'tomorrow', null];
+    const bridge: ChausarBridge = { request: vi.fn(), getAskLater: vi.fn(async () => days.shift()), setAskLater: vi.fn(async () => {}) };
+    const client = createEngineClient({ bridge });
+    expect([await client.getAskLater!(), await client.getAskLater!(), await client.getAskLater!()]).toEqual(['2026-11-04', null, null]);
+    await client.setAskLater!('2026-11-04');
+    expect(bridge.setAskLater).toHaveBeenCalledWith('2026-11-04');
+  });
 });
 
 describe('web transport', () => {

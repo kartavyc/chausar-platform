@@ -367,7 +367,7 @@ export function keepProposedNote(tx: VentureTx, agent: ChatAgent, record: AgentP
 export function eraseNotesNaming(tx: VentureTx, mentionsName: (text: unknown) => boolean): void {
   for (const note of tx.list('venture-agent-note')) {
     if (note.forgotten || !(mentionsName(note.text) || mentionsName(note.source.quote))) continue;
-    tx.put<AgentNoteChangeRecord>({ ...tx.base('venture-agent-note-change'), agent: note.agent, noteId: note.id, who: 'owner', before: blank(snapshotOf(note)), after: null, undoOf: null });
+    tx.put<AgentNoteChangeRecord>({ ...tx.base('venture-agent-note-change'), agent: note.agent, noteId: note.id, who: memberWho(tx.ctx.role), before: blank(snapshotOf(note)), after: null, undoOf: null });
     eraseNote(tx, note);
   }
   for (const row of tx.list('venture-agent-note-change')) {
@@ -408,15 +408,21 @@ function undoneIds(changes: readonly AgentNoteChangeRecord[]): Set<string> {
   return undone;
 }
 
-function changeLine(change: AgentNoteChangeRecord): string {
+/** A4 review (L6): a member's change is theirs: a cofounder's is the cofounder's, anyone else's in the app the owner's. */
+const memberWho = (role: string): 'owner' | 'cofounder' => (role === 'cofounder' ? 'cofounder' : 'owner');
+
+/** reader: who reads the line; their own change says You, another member's names them by role. */
+function changeLine(change: AgentNoteChangeRecord, reader: string | null): string {
   if (change.who === 'proposal') return 'Saved from your words.';
   if (change.who === 'undo') return change.after === null ? 'Undo took the note away. Its words are erased.' : change.before === null ? 'Undo put the note back.' : 'Undo put the earlier words back.';
-  return change.before === null ? 'You added a note.' : change.after === null ? FORGOT_LINE : 'You corrected a note.';
+  if (reader === null || change.memberId === reader) return change.before === null ? 'You added a note.' : change.after === null ? FORGOT_LINE : 'You corrected a note.';
+  const who = change.who === 'cofounder' ? 'Your cofounder' : 'The owner';
+  return change.before === null ? `${who} added a note.` : change.after === null ? `${who} forgot a note. Its words are erased.` : `${who} corrected a note.`;
 }
 
-function changeView(change: AgentNoteChangeRecord, undone: ReadonlySet<string>): NoteChangeView {
+function changeView(change: AgentNoteChangeRecord, undone: ReadonlySet<string>, reader: string | null = null): NoteChangeView {
   // erases (4B3): undoing a change that had no note before it takes the note away, which erases its words like Forget.
-  return { id: change.id, noteId: change.noteId, at: change.at, who: change.who, line: changeLine(change), undone: undone.has(change.id), erases: change.before === null };
+  return { id: change.id, noteId: change.noteId, at: change.at, who: change.who, line: changeLine(change, reader), undone: undone.has(change.id), erases: change.before === null };
 }
 
 function agentChanges(state: State, venture: VentureRecord, agentId: string): AgentNoteChangeRecord[] {
@@ -447,7 +453,7 @@ export async function notesListHandler(deps: VentureDeps, ctx: Context, payload:
   const changes = agentChanges(state, venture, agent.id);
   const undone = undoneIds(changes);
   return {
-    notes: notes.map(noteView), changes: [...changes].reverse().map(change => changeView(change, undone)),
+    notes: notes.map(noteView), changes: [...changes].reverse().map(change => changeView(change, undone, ctx.memberId)),
     usedChars: notes.filter(note => note.load === 'always').reduce((sum, note) => sum + note.text.length, 0), limitChars: ALWAYS_LIMIT, forgetLine: FORGET_LINE,
   };
 }
@@ -484,7 +490,7 @@ export async function notesEditHandler(deps: VentureDeps, ctx: Context, payload:
     if (isProblem(draft)) throw new ChausarError(draft.code, draft.reason);
     check(!current || draft.text !== current.text || draft.scope !== current.scope, 'INVALID_VENTURE_REQUEST', 'That is the note as it is now.');
     checkRoom(tx.state, venture, agent, draft, current?.id ?? null);
-    const written = writeChange(tx, { agent: agent.id, note: current, after: snapshotFrom(draft), who: 'owner', undoOf: null });
+    const written = writeChange(tx, { agent: agent.id, note: current, after: snapshotFrom(draft), who: memberWho(tx.ctx.role), undoOf: null });
     return changed(tx.state, venture, written);
   });
 }
@@ -504,7 +510,7 @@ export async function notesForgetHandler(deps: VentureDeps, ctx: Context, payloa
     const agent = chatAgent(tx.state, venture, agentId);
     const note = tx.find('venture-agent-note', noteId);
     check(note && note.agent === agent.id && !note.forgotten, 'INVALID_VENTURE_REQUEST', NOT_FOUND);
-    return changed(tx.state, venture, writeChange(tx, { agent: agent.id, note, after: null, who: 'owner', undoOf: null }));
+    return changed(tx.state, venture, writeChange(tx, { agent: agent.id, note, after: null, who: memberWho(tx.ctx.role), undoOf: null }));
   });
 }
 

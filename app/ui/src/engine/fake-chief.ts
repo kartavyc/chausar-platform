@@ -91,7 +91,9 @@ interface HeldMessage {
 /** W6 6G1: snoozedUntil, settledAt and stateAt are the owner's snooze, Settle and last state change, as the engine keeps them. */
 interface HeldThread { id: string; title: string; pinned: boolean; lastAt: string; messages: HeldMessage[]; snoozedUntil?: string | null; settledAt?: string | null; stateAt?: string | null }
 interface Held { threads: HeldThread[]; proposals: HeldProposal[] }
-type Reply = { parts: ChatPart[]; ask?: string; routedTo?: string; worked?: ChiefMessageView['worked']; proposals?: (Drafted & { target?: HeldProposal['target'] })[] };
+type Reply = { parts: ChatPart[]; ask?: string; routedTo?: string; worked?: ChiefMessageView['worked']; proposals?: (Drafted & { target?: HeldProposal['target'] })[]; counted?: ChiefCounted };
+/** One-shot A3 (S3), chief/answer.ts AI_FAILED_LEAD, word for word. */
+export const AI_FAILED_LEAD = "Your AI couldn't answer this time, so here is what Chausar's records say.";
 
 /** The owner's calendar day of an instant, in Kolkata (UTC+05:30), as the sample businesses are in India. */
 const dayOf = (iso: string): string => new Date(Date.parse(iso) + 330 * 60_000).toISOString().slice(0, 10);
@@ -184,6 +186,14 @@ export class FakeChiefDesk {
   /** Private deterministic source report, stored only after the exact routine occurrence approval. */
   keepVaReport(routineId:string,title:string,text:string):void{const held=this.mine(),id='va-routine-'+routineId,now=this.host.now();let thread=held.threads.find(t=>t.id===id);if(!thread){thread={id,title,pinned:true,lastAt:now,messages:[]};held.threads.push(thread);}thread.lastAt=now;thread.messages.push({id:'va-report-'+(++this.seq),at:now,from:'chief',text,parts:said(text),proposalIds:[],routedTo:null,worked:[],dropped:[],read:false,recordReport:true});this.host.emit({type:'chief.message',businessId:this.host.current(),at:now});}
   eraseVaReports():void{for(const thread of this.mine().threads)thread.messages=thread.messages.filter(m=>!m.recordReport);}
+
+  /**
+   * Tests (one-shot A3, S3): the owner's AI call fails from now on, as chief/answer.ts meets it. reason: the failure's own
+   * owner words (a named failure such as a used-up plan), or null for one with none (a time-out). Null turns it off.
+   */
+  failAi(failure: { reason: string | null } | null): void { this.aiFails = failure; }
+  private aiFails: { reason: string | null } | null = null;
+
   handles(method: string): boolean {
     return CHIEF_METHODS.has(method);
   }
@@ -452,7 +462,7 @@ export class FakeChiefDesk {
     const existing = p.threadId === undefined ? null : this.threadOf(p.threadId);
     this.requireConsent();
 
-    const reply = this.otherBusiness(words) ?? this.routed(words) ?? this.answer(words);
+    const reply = this.otherBusiness(words) ?? this.routed(words) ?? (this.aiFails ? this.recordsAnswer(this.aiFails.reason) : this.answer(words));
     const held = this.mine();
     const now = this.host.now();
     const thread: HeldThread = existing ?? { id: `chiefthread-${this.seq++}`, title: short(words, 80), pinned: false, lastAt: now, messages: [] };
@@ -469,6 +479,7 @@ export class FakeChiefDesk {
     const chief: HeldMessage = {
       id: `chiefmsg-${this.seq++}`, at: now, from: 'chief', text: plainOf(reply.parts), parts: reply.parts, proposalIds,
       routedTo: reply.routedTo ?? null, worked: reply.worked ?? [], dropped: [], read: false, ...(reply.ask ? { ask: reply.ask } : {}),
+      ...(reply.counted ? { counted: reply.counted } : {}),
     };
     thread.messages.push(owner, chief);
     thread.lastAt = now;
@@ -541,6 +552,41 @@ export class FakeChiefDesk {
     }
     if (/\bviews?\b/i.test(words)) parts.push({ kind: 'estimate', text: 'Your last 30 videos got about 18,000 views each in their first 30 days.' });
     return { parts, worked, proposals };
+  }
+
+  /**
+   * One-shot A3 (S3), as chief/answer.ts recordsAnswer after a failed AI call: the plain lead, the failure's own words
+   * when it has them, then what the records say (each figure after its label, with its receipt) and the counts by code
+   * for the last three months. Never a figure the books do not hold.
+   */
+  private recordsAnswer(reason: string | null): Reply {
+    const books = BOOKS[this.host.current()] ?? BOOKS.lumen!;
+    const month = MONTHS[Number(books.period.from.slice(5, 7)) - 1]!;
+    const shown = books.figures.filter((figure) => figure.operation === 'billed' || figure.operation === 'received').slice(0, 4);
+    const parts: ChatPart[] = [{ kind: 'text', text: AI_FAILED_LEAD }, ...(reason ? [{ kind: 'text' as const, text: reason }] : [])];
+    const worked: ChiefMessageView['worked'] = [];
+    for (const figure of shown) {
+      const label = `${figure.operation === 'billed' ? 'Billed' : 'Received'} in ${month}`;
+      parts.push({ kind: 'text', text: `${label}:` }, { kind: 'figure', receiptId: figure.receiptId, key: 'total', display: figure.display });
+      worked.push({ label, value: figure.display, receiptId: figure.receiptId });
+    }
+    return { parts, worked, counted: this.countedByCode() };
+  }
+
+  /** delivery/fallbacks.ts countedByCode, as far as the fake holds those records: each kind's count and the last three months. */
+  private countedByCode(): ChiefCounted {
+    const list = (method: string) => { try { return this.host.ask(method, {}) as { at?: string; createdAt?: string }[]; } catch { return []; } };
+    const kinds: [string, { at?: string; createdAt?: string }[]][] = [
+      ['clients', list('venture.client.list')], ['orders', list('venture.order.list')], ['invoices', list('venture.invoice.list')],
+      ['runs', list('venture.delivery.list')], ['people', []], ['leads', []],
+    ];
+    const months: string[] = [];
+    for (let day = dayOf(this.host.now()); months.length < 3; day = addDays(`${day.slice(0, 7)}-01`, -1)) months.unshift(day.slice(0, 7));
+    const all = kinds.flatMap(([, records]) => records);
+    return {
+      entities: kinds.map(([kind, records]) => ({ kind, count: records.length })),
+      months: months.map((month) => ({ month, count: all.filter((record) => { const at = record.at ?? record.createdAt; return typeof at === 'string' && dayOf(at).startsWith(month); }).length })),
+    };
   }
 
   // ---------------------------------------------------------------------------------------------------------------

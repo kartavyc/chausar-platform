@@ -10,7 +10,7 @@ import type {
   ModelTask, PlaybookCheckResult, PlaybookRecord, PriceReceiptRecord, Scenario, ServiceType, SimulationRunRecord, ToolCallRecord, VentureDeps, VentureRecord,
   WorkReceiptRecord, WorkTableRecord,
 } from '../contracts.ts';
-import { correctDraft, firstFailedCheck, judgeDraftRules, knownNames, runChecks, withDraftChecks, type CheckInput, type DraftRulesInput } from './checks.ts';
+import { correctDraft, firstFailedCheck, judgeDraftRules, knownNames, ownerSourcesOf, runChecks, withDraftChecks, type CheckInput, type DraftRulesInput } from './checks.ts';
 import { deliveryTask, draftAllowedTokens, rehearsalRefs, renderDeliverable, renderForJudge, type DraftRefs } from './deliverable.ts';
 import { buildToolEnv, fileList, namer } from './harness/env.ts';
 import { manifest } from './harness/dictionary.ts';
@@ -30,6 +30,7 @@ import { withExpectations } from './corrections.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import { acceptedBlueprint, errorCode, optionalFlag, quote, readAs, serviceTypeOf, todayIso, ventureReceipts } from './shared.ts';
 import { refuseNewWork } from './run-guards.ts';
+import { PRESETS } from '../models/presets.ts';
 import { scanTrace } from './trace-scan.ts';
 
 export const CLIENT_SIM_INSTRUCTIONS = 'You play a made-up client of a small service business, for a practice run. '
@@ -78,7 +79,8 @@ export function clientSimTask(scenario: Scenario, serviceType: ServiceType, hist
   };
 }
 
-type Spend = { by: 'model' | 'template'; costMicros: string; priceConfirmed: boolean };
+/** presetId (one-shot A4): which AI the call ran on, so a call on the owner's own plan says so. */
+type Spend = { by: 'model' | 'template'; costMicros: string; priceConfirmed: boolean; presetId?: string };
 
 type RehearsalEnv = {
   deps: VentureDeps;
@@ -117,7 +119,7 @@ async function ask<T>(env: RehearsalEnv, task: ModelTask<T>, spend: Spend[], met
   } else {
     outcome = await env.deps.models.generate(env.ctx, meter ? { ...task, capLeftMicros: meter.left() } : task);
   }
-  spend.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed });
+  spend.push({ by: outcome.by, costMicros: outcome.costMicros, priceConfirmed: outcome.priceConfirmed, presetId: outcome.presetId });
   meter?.charge(outcome.costMicros);
   return outcome;
 }
@@ -211,7 +213,7 @@ async function runEpisode(env: RehearsalEnv, scenario: Scenario, index: number):
     }
 
     // The calculator's figure in place of each number it refutes (correctDraft), before the record-only send and the checks.
-    const grounding = { clientRequest: request, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea] };
+    const grounding = { clientRequest: request, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea], ownerSources: ownerSourcesOf([env.venture.workingName, env.blueprint.name.value], env.playbook) };
     // A case stored before the receipts and prompt-leak checks never lists them; every practice draft runs them anyway.
     const caseChecks = withDraftChecks(scenario.checks);
     const allowed = draftAllowedTokens(request, env.venture.idea);
@@ -333,7 +335,7 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     state = finishWrite(state, { by: draft.by, callId: draft.callId, costMicros: draft.costMicros });
     const receipts = [...env.receipts, ...toolEnv.receipts];
     // The calculator's figure in place of each number it refutes (correctDraft), before the draft is rendered and checked.
-    const grounding = { clientRequest: request, answers, harness: state, files, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea] };
+    const grounding = { clientRequest: request, answers, harness: state, files, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea], ownerSources: ownerSourcesOf([env.venture.workingName, env.blueprint.name.value], env.playbook) };
     const caseChecks = withDraftChecks(scenario.checks);
     // 4J16 (Q4): round 1 of the quote check first, a quote's time moved to where the practice transcript says it.
     const corrected = correctDraft({ checks: caseChecks, deliverable: withQuoteFixes(draft.value, files, env.playbook.flagship), receipts, ventureId: env.venture.id, allowed, grounding });
@@ -430,12 +432,26 @@ export async function rehearse(deps: VentureDeps, ctx: Context, playbook: Playbo
   return outcome;
 }
 
+/** The presets that run on the owner's own AI plan (their Claude Code or Codex sign-in), never billed per call. */
+const ON_OWN_PLAN: ReadonlySet<string> = new Set(PRESETS.filter(preset => preset.kind === 'claude-cli' || preset.kind === 'codex-cli').map(preset => preset.id));
+/** Some calls ran on a key, some on the owner's own plan. */
+export const OWN_PLAN_PART = ' (plus calls on your own plan)';
+/** A4 review (L4): what a rehearsal or loop costs when it all ran on the owner's own plan. */
+export const RAN_ON_OWN_PLAN = 'Ran on your own plan.';
+
 /** Cost words and the model mode for a list of spends. */
 export function spendSummary(spend: readonly Spend[]): { costMicros: string; costDisplay: string; modelMode: SimulationRunRecord['modelMode'] } {
   const costMicros = sumMicros(spend.map(item => item.costMicros));
   const estimate = spend.some(item => !item.priceConfirmed);
   const byModel = spend.some(item => item.by === 'model'), byTemplate = spend.some(item => item.by === 'template');
-  return { costMicros, costDisplay: `${formatMicros(costMicros)}${estimate ? ESTIMATE_WORDS : ''}`, modelMode: byModel && byTemplate ? 'mixed' : byModel ? 'model' : 'template' };
+  // One-shot A4 (hands-on row 103): Claude Code and Codex run on the owner's own plan; their calls cost Chausar nothing to
+  // count, so the words say where they ran instead of a bare USD 0.0000.
+  const ownPlan = spend.filter(item => item.by === 'model' && ON_OWN_PLAN.has(item.presetId ?? ''));
+  const modelMode = byModel && byTemplate ? 'mixed' : byModel ? 'model' : 'template';
+  // A4 review (L4): every AI call ran on the owner's own plan and nothing was charged to a key: no amount at all.
+  if (ownPlan.length && ownPlan.length === spend.filter(item => item.by === 'model').length && BigInt(costMicros) === 0n) return { costMicros, costDisplay: RAN_ON_OWN_PLAN, modelMode };
+  const plan = ownPlan.length ? OWN_PLAN_PART : '';
+  return { costMicros, costDisplay: `${formatMicros(costMicros)}${estimate ? ESTIMATE_WORDS : ''}${plan}`, modelMode };
 }
 
 /** venture.simulation.run: practise on made-up clients with the current playbook. */

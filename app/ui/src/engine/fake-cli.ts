@@ -32,7 +32,7 @@ const LOOK: readonly CliStatusView[] = [
   {
     cli: 'claude-code', label: 'Claude Code', found: true, path: '~\\.local\\bin\\claude.exe', version: '2.3.1', flags: 'match', missingFlags: [],
     signedIn: 'yes', terms: 'accepted', lastTask: null, state: 'unverified',
-    line: 'Claude Code 2.3.1 is on this computer and signed in. Not yet tried on a real task.', fix: null,
+    line: 'Claude Code 2.3.1 is on this computer. Not yet tried on a real task.', fix: null,
   },
   {
     cli: 'codex', label: 'Codex', found: true, path: 'C:\\Tools\\codex\\codex.exe', version: '0.131.0', flags: 'match', missingFlags: [],
@@ -61,12 +61,19 @@ function exact(p: Record<string, unknown>, allowed: readonly string[]) {
   if (Object.keys(p).some((key) => !allowed.includes(key))) throw invalid('Send the required fields and nothing else.');
 }
 
+/** A2 review, as cli-status.ts with a Codex setup in use (bundled or chosen): found, reviewed, not yet tried on a real task. */
+const CHOSEN: Partial<CliStatusView> = { version: '0.166.0', state: 'unverified', line: 'Codex 0.166.0 is on this computer. Not yet tried on a real task.', fix: null };
+
 /** venture.models.cli.status {fresh?}: the look above, or TIER_UNAVAILABLE on the hosted app. */
 export function fakeCliStatus(host: W4DeskHost, p: Record<string, unknown>): { clis: CliStatusView[]; line: string } {
   exact(p, ['fresh']);
   if (p.fresh !== undefined && typeof p.fresh !== 'boolean') throw invalid('Send fresh as true or false, or leave it out.');
   if (host.hosted()) throw new EngineError('TIER_UNAVAILABLE', HOSTED);
-  return { clis: LOOK.map((view) => ({ ...view, missingFlags: [...view.missingFlags] })), line: LIST };
+  // A2 review: Codex's setup, as the engine adds it from its Codex trust (models/handlers.ts cliStatus).
+  const setup = host.codexSetup?.();
+  return { clis: LOOK.map((view) => ({ ...view, missingFlags: [...view.missingFlags],
+    // A2 second review: a setup in use is looked at through its own program, so its path is the one shown.
+    ...(view.cli === 'codex' && setup ? { ...(setup.state === 'trusted' ? { ...CHOSEN, ...(setup.path ? { path: setup.path } : {}) } : {}), setup } : {}) })), line: LIST };
 }
 
 /** venture.models.roles {}: each agent's tiers, the preset serving each and its price line. */

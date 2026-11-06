@@ -5,6 +5,8 @@ import { join, win32 } from 'node:path';
 
 // Wave 6, package 6J1 (D3, D36): start at login and keep running in the tray, owner settings with defaults. Only the
 // installed beta (release channel "beta") ever registers a login item; previews and development runs never do.
+// One-shot A5 (founder answer 5; hands-on rows 4, 88, 114, S12, bug 8): start at login is asked in onboarding, ticked
+// by default, and nothing is registered until the owner answers. Its state is read back from the computer itself.
 const require = createRequire(import.meta.url);
 const { createBackground, bundledCodexEnvironment, LOGIN_ARGS, BACKGROUND_FILE } = require('../../app/desktop/background.cjs');
 
@@ -18,50 +20,132 @@ function memoryFs(initial: Record<string, string> = {}) {
     rm: async (path: string) => { removed.push(path); files.delete(path); },
   };
 }
-function fakeApp() {
+/**
+ * Electron's login items as this computer keeps them. Windows: the current user's Run values by name, each with the
+ * Task Manager switch (StartupApproved); getLoginItemSettings lists the values that start this program as launchItems.
+ * macOS: one login item for the app, which System Settings may hold for approval.
+ */
+function fakeApp(platform = 'win32') {
   const logins: any[] = [];
-  return { logins, setLoginItemSettings: (settings: any) => { logins.push(JSON.parse(JSON.stringify(settings))); } };
+  const run = new Map<string, { path: string; args: string[]; enabled: boolean }>();
+  let mac: { openAtLogin: boolean; status: string } = { openAtLogin: false, status: 'not-registered' };
+  return {
+    logins, run,
+    macStatus: (status: string) => { mac = { openAtLogin: status === 'enabled', status }; },
+    setLoginItemSettings: (settings: any) => {
+      logins.push(JSON.parse(JSON.stringify(settings)));
+      if (platform === 'darwin') { mac = settings.openAtLogin ? { openAtLogin: true, status: 'enabled' } : { openAtLogin: false, status: 'not-registered' }; return; }
+      if (settings.openAtLogin) run.set(settings.name, { path: settings.path, args: [...settings.args], enabled: settings.enabled !== false });
+      else run.delete(settings.name);
+    },
+    getLoginItemSettings: (options: any = {}) => {
+      if (platform === 'darwin') return { ...mac, wasOpenedAtLogin: false, executableWillLaunchAtLogin: false, launchItems: [] };
+      const launchItems = [...run].filter(([, item]) => item.path === options.path).map(([name, item]) => ({ name, path: item.path, args: [...item.args], scope: 'user', enabled: item.enabled }));
+      return { openAtLogin: false, wasOpenedAtLogin: false, status: 'not-registered', executableWillLaunchAtLogin: launchItems.some(item => item.enabled), launchItems };
+    },
+  };
 }
 const base = (over: any = {}) => ({ platform: 'win32', directory: 'C:/Users/owner/AppData/Roaming/Chausar', home: 'C:/Users/owner', env: {}, execPath: 'C:/Users/owner/AppData/Local/Programs/Chausar/Chausar.exe', beta: true, ...over });
+const SAVED = join('C:/Users/owner/AppData/Roaming/Chausar', BACKGROUND_FILE);
+const ITEM = { openAtLogin: true, path: base().execPath, args: ['--background', '--hidden'], name: 'Chausar' };
+const OFF = { openAtLogin: false, path: base().execPath, args: ['--background', '--hidden'], name: 'Chausar' };
 
-test('the installed beta starts at login and keeps running in the tray by default; previews keep neither (6J1)', async () => {
+test('the installed beta suggests start at login and keeps running in the tray, unasked; previews keep neither (6J1, A5)', async () => {
   const fs = memoryFs(), app = fakeApp();
   const beta = createBackground({ ...base(), app, fs });
-  assert.deepEqual(await beta.settings(), { startAtLogin: true, keepRunning: true });
+  assert.deepEqual(await beta.settings(), { startAtLogin: true, keepRunning: true, asked: false });
   const preview = createBackground({ ...base({ beta: false }), app, fs });
-  assert.deepEqual(await preview.settings(), { startAtLogin: false, keepRunning: false });
+  assert.deepEqual(await preview.settings(), { startAtLogin: false, keepRunning: false, asked: false });
 });
 
-test('a damaged or foreign settings file falls back to the defaults instead of failing the start (6J1)', async () => {
-  const path = join('C:/Users/owner/AppData/Roaming/Chausar', BACKGROUND_FILE);
+test('a damaged or foreign settings file counts as not asked, with the defaults, instead of failing the start (6J1, A5)', async () => {
   for (const text of ['not json', '[]', '{"startAtLogin":"yes","keepRunning":true}', '{"startAtLogin":true}']) {
-    const background = createBackground({ ...base(), app: fakeApp(), fs: memoryFs({ [path]: text }) });
-    assert.deepEqual(await background.settings(), { startAtLogin: true, keepRunning: true }, text);
+    const app = fakeApp();
+    const background = createBackground({ ...base(), app, fs: memoryFs({ [SAVED]: text }) });
+    assert.deepEqual(await background.settings(), { startAtLogin: true, keepRunning: true, asked: false }, text);
+    await background.apply();
+    assert.deepEqual(app.logins, [], `${text}: nothing registered`);
   }
-  const saved = createBackground({ ...base(), app: fakeApp(), fs: memoryFs({ [path]: '{"startAtLogin":false,"keepRunning":true}' }) });
-  assert.deepEqual(await saved.settings(), { startAtLogin: false, keepRunning: true });
+  const saved = createBackground({ ...base(), app: fakeApp(), fs: memoryFs({ [SAVED]: '{"startAtLogin":false,"keepRunning":true}' }) });
+  assert.deepEqual(await saved.settings(), { startAtLogin: false, keepRunning: true, asked: true });
 });
 
-test('on Windows the beta registers one login item that starts hidden in the tray, and removes the same one (6J1)', async () => {
+test('A5 (S12, bug 8): the first start registers nothing; the owner\'s yes registers one login item that starts hidden', async () => {
   const fs = memoryFs(), app = fakeApp();
   const background = createBackground({ ...base(), app, fs });
   await background.apply();
+  assert.deepEqual(app.logins, [], 'no login item before the owner answers');
+  assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: false, systemOff: false });
   assert.deepEqual(LOGIN_ARGS, ['--background', '--hidden']);
-  assert.deepEqual(app.logins, [{ openAtLogin: true, path: base().execPath, args: ['--background', '--hidden'], name: 'Chausar' }]);
-  const saved = await background.change({ startAtLogin: false });
-  assert.deepEqual(saved, { startAtLogin: false, keepRunning: true });
-  assert.deepEqual(app.logins.at(-1), { openAtLogin: false, path: base().execPath, args: ['--background', '--hidden'], name: 'Chausar' });
-  const path = join('C:/Users/owner/AppData/Roaming/Chausar', BACKGROUND_FILE);
-  assert.deepEqual(JSON.parse(fs.files.get(path)!), { startAtLogin: false, keepRunning: true });
-  assert.equal(fs.modes.get(path), 0o600);
+  const yes = await background.change({ startAtLogin: true });
+  assert.deepEqual(app.logins, [ITEM]);
+  assert.deepEqual(yes, { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: true, systemOff: false });
+  assert.deepEqual(JSON.parse(fs.files.get(SAVED)!), { startAtLogin: true, keepRunning: true });
+  assert.equal(fs.modes.get(SAVED), 0o600);
+  const no = await background.change({ startAtLogin: false });
+  assert.deepEqual(app.logins.at(-1), OFF);
+  assert.deepEqual(no, { supported: true, asked: true, startAtLogin: false, keepRunning: true, registered: false, systemOff: false });
 });
 
-test('on Linux the beta writes an XDG autostart file for the AppImage (or the unpacked app) and deletes it when turned off (6J1)', async () => {
+test('A5: the state is the computer\'s own: a login item switched off in Task Manager reads off, and a start leaves it so', async () => {
+  const fs = memoryFs({ [SAVED]: '{"startAtLogin":true,"keepRunning":true}' }), app = fakeApp();
+  const background = createBackground({ ...base(), app, fs });
+  // A saved yes with no login item at all (the program moved, say): the start registers it again.
+  await background.apply();
+  assert.deepEqual(app.logins, [ITEM]);
+  // The owner turns it off in Task Manager: the value stays, its switch is off.
+  app.run.get('Chausar')!.enabled = false;
+  assert.deepEqual(await background.state(), { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: false, systemOff: true });
+  await background.apply();
+  assert.equal(app.logins.length, 1, 'the start never turns back on what the computer\'s own settings turned off');
+  // Turning it on in Chausar is the owner's own act, and Electron turns the Task Manager switch back on with it.
+  assert.equal((await background.change({ startAtLogin: true })).registered, true);
+  // A login item another program wrote for this one, or one for another program, is not Chausar's.
+  app.run.delete('Chausar');
+  app.run.set('Other', { path: base().execPath, args: [], enabled: true });
+  app.run.set('Chausar', { path: 'C:/elsewhere/Chausar.exe', args: [], enabled: true });
+  assert.equal((await background.state()).registered, false);
+});
+
+test('A5: a saved no removes a login item left by an older start, at the next start', async () => {
+  const app = fakeApp();
+  app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: true });
+  const background = createBackground({ ...base(), app, fs: memoryFs({ [SAVED]: '{"startAtLogin":false,"keepRunning":false}' }) });
+  await background.apply();
+  assert.deepEqual(app.logins, [OFF]);
+  assert.equal((await background.state()).registered, false);
+  // Unasked, an older beta's login item is left as it is and shown as it is: the owner decides in Settings.
+  const older = fakeApp();
+  older.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: true });
+  const unasked = createBackground({ ...base(), app: older, fs: memoryFs() });
+  await unasked.apply();
+  assert.deepEqual(older.logins, []);
+  assert.equal((await unasked.state()).registered, true);
+});
+
+test('A5 fix round 4: Keep running changed before start at login was answered is saved on its own: still unasked, nothing registered', async () => {
   const fs = memoryFs(), app = fakeApp();
+  const background = createBackground({ ...base(), app, fs });
+  const state = await background.change({ keepRunning: false });
+  assert.deepEqual(app.logins, []);
+  assert.deepEqual(state, { supported: true, asked: false, startAtLogin: true, keepRunning: false, registered: false, systemOff: false });
+  assert.deepEqual(JSON.parse(fs.files.get(SAVED)!), { keepRunning: false });
+  const next = createBackground({ ...base(), app, fs });
+  assert.deepEqual(await next.settings(), { startAtLogin: true, keepRunning: false, asked: false });
+  await next.apply();
+  assert.deepEqual(app.logins, [], 'the start registers nothing before the answer');
+  // The answer, when it comes, keeps the Keep running choice.
+  assert.deepEqual(JSON.parse((await next.change({ startAtLogin: true }), fs.files.get(SAVED))!), { startAtLogin: true, keepRunning: false });
+});
+
+test('on Linux the owner\'s yes writes an XDG autostart file for the AppImage (or the unpacked app), and no deletes it (6J1, A5)', async () => {
+  const fs = memoryFs(), app = fakeApp('linux');
   const env = { APPIMAGE: '/home/owner/Apps/Chausar Beta.AppImage' };
   const background = createBackground({ ...base({ platform: 'linux', home: '/home/owner', directory: '/home/owner/.config/Chausar', execPath: '/tmp/.mount_x/chausar', env }), app, fs });
-  await background.apply();
   const file = '/home/owner/.config/autostart/chausar.desktop';
+  await background.apply();
+  assert.equal(fs.files.has(file), false, 'nothing before the owner answers');
+  assert.equal((await background.change({ startAtLogin: true })).registered, true);
   const text = fs.files.get(file)!;
   assert.match(text, /^\[Desktop Entry\]\n/);
   assert.match(text, /\nType=Application\n/);
@@ -73,37 +157,59 @@ test('on Linux the beta writes an XDG autostart file for the AppImage (or the un
   assert.match(text, /\nX-GNOME-Autostart-enabled=true\n/);
   assert.equal(text.includes('\u2014'), false);
   assert.deepEqual(app.logins, [], 'Electron has no Linux login items; the file is the login item');
-  await background.change({ startAtLogin: false });
+  // The desktop's own startup settings switch it off in the file: that reads off, and a start leaves it.
+  fs.files.set(file, text.replace('X-GNOME-Autostart-enabled=true', 'X-GNOME-Autostart-enabled=false'));
+  assert.deepEqual(await background.state(), { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: false, systemOff: true });
+  await background.apply();
+  assert.match(fs.files.get(file)!, /X-GNOME-Autostart-enabled=false/);
+  assert.equal((await background.change({ startAtLogin: false })).registered, false);
   assert.equal(fs.files.has(file), false);
   assert.ok(fs.removed.includes(file));
   const unpacked = memoryFs();
-  await createBackground({ ...base({ platform: 'linux', home: '/home/owner', directory: '/home/owner/.config/Chausar', execPath: '/opt/chausar/chausar', env: { XDG_CONFIG_HOME: '/home/owner/cfg' } }), app, fs: unpacked }).apply();
+  await createBackground({ ...base({ platform: 'linux', home: '/home/owner', directory: '/home/owner/.config/Chausar', execPath: '/opt/chausar/chausar', env: { XDG_CONFIG_HOME: '/home/owner/cfg' } }), app, fs: unpacked }).change({ startAtLogin: true });
   assert.match(unpacked.files.get('/home/owner/cfg/autostart/chausar.desktop')!, /\nExec="\/opt\/chausar\/chausar" --background --hidden\n/);
   assert.match(unpacked.files.get('/home/owner/cfg/autostart/chausar.desktop')!, /\nTryExec=\/opt\/chausar\/chausar\n/);
   const odd = memoryFs();
-  await createBackground({ ...base({ platform: 'linux', home: '/home/owner', directory: '/home/owner/.config/Chausar', execPath: '/opt/a\\b\nName=x/chausar', env: {} }), app, fs: odd }).apply();
+  await createBackground({ ...base({ platform: 'linux', home: '/home/owner', directory: '/home/owner/.config/Chausar', execPath: '/opt/a\\b\nName=x/chausar', env: {} }), app, fs: odd }).change({ startAtLogin: true });
   assert.ok(odd.files.get('/home/owner/.config/autostart/chausar.desktop')!.includes('\nTryExec=/opt/a\\\\bName=x/chausar\n'), 'a backslash or line break in the path cannot add a key');
 });
 
-test('previews, development runs and Mac never register a login item, whatever the settings file says (6J1)', async () => {
-  const path = join('C:/Users/owner/AppData/Roaming/Chausar', BACKGROUND_FILE);
-  for (const options of [base({ beta: false }), base({ platform: 'darwin' })]) {
-    const fs = memoryFs({ [path]: '{"startAtLogin":true,"keepRunning":true}' }), app = fakeApp();
-    const background = createBackground({ ...options, app, fs });
-    await background.apply();
-    assert.deepEqual(app.logins, []);
-    assert.equal([...fs.files.keys()].some(name => name.includes('autostart')), false);
-  }
-  assert.equal(createBackground({ ...base({ beta: false }), app: fakeApp(), fs: memoryFs() }).menuItems({ startAtLogin: false, keepRunning: false }, () => {}).length, 0);
+test('A5: on macOS the owner\'s yes is Electron\'s login item, read back, and one waiting for approval reads off', async () => {
+  const app = fakeApp('darwin');
+  const background = createBackground({ ...base({ platform: 'darwin', home: '/Users/owner', directory: '/Users/owner/Library/Application Support/Chausar', execPath: '/Applications/Chausar.app/Contents/MacOS/Chausar' }), app, fs: memoryFs() });
+  await background.apply();
+  assert.deepEqual(app.logins, []);
+  assert.equal((await background.change({ startAtLogin: true })).registered, true);
+  assert.deepEqual(app.logins, [{ openAtLogin: true }]);
+  app.macStatus('requires-approval');
+  assert.deepEqual(await background.state(), { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: false, systemOff: true });
+  assert.equal((await background.change({ startAtLogin: false })).registered, false);
+  assert.deepEqual(app.logins.at(-1), { openAtLogin: false });
 });
 
-test('the tray menu shows both owner settings as ticks with plain labels, and a tick saves the change (6J1)', async () => {
+test('previews and development runs never register a login item, whatever the settings file says (6J1)', async () => {
+  for (const platform of ['win32', 'linux', 'darwin']) {
+    const fs = memoryFs({ [SAVED]: '{"startAtLogin":true,"keepRunning":true}' }), app = fakeApp(platform);
+    const background = createBackground({ ...base({ beta: false, platform }), app, fs });
+    await background.apply();
+    await background.change({ startAtLogin: true });
+    assert.deepEqual(app.logins, [], platform);
+    assert.equal([...fs.files.keys()].some(name => name.includes('autostart')), false);
+    assert.equal((await background.state()).supported, false);
+    assert.equal((await background.state()).registered, false);
+  }
+  assert.equal(createBackground({ ...base({ beta: false }), app: fakeApp(), fs: memoryFs() }).menuItems({ startAtLogin: false, keepRunning: false, registered: false }, () => {}).length, 0);
+});
+
+test('the tray menu shows both owner settings as ticks with plain labels; Start at login shows the computer\'s state (6J1, A5)', async () => {
   const fs = memoryFs(), app = fakeApp(), changes: any[] = [];
   const background = createBackground({ ...base(), app, fs });
-  const items = background.menuItems({ startAtLogin: true, keepRunning: false }, (change: any) => changes.push(change));
-  assert.deepEqual(items.map((item: any) => [item.label, item.type, item.checked]), [['Start at login', 'checkbox', true], ['Keep running in the tray', 'checkbox', false]]);
-  items[0].click({ checked: false }); items[1].click({ checked: true });
-  assert.deepEqual(changes, [{ startAtLogin: false }, { keepRunning: true }]);
+  const items = background.menuItems(await background.state(), (change: any) => changes.push(change));
+  assert.deepEqual(items.map((item: any) => [item.label, item.type, item.checked]), [['Start at login', 'checkbox', false], ['Keep running in the tray', 'checkbox', true]]);
+  items[0].click({ checked: true }); items[1].click({ checked: false });
+  assert.deepEqual(changes, [{ startAtLogin: true }, { keepRunning: false }]);
+  const on = background.menuItems(await background.change({ startAtLogin: true }), () => {});
+  assert.equal(on[0].checked, true);
 });
 
 test('the bundled Codex goes last on the engine PATH, so an owner\'s own Codex still wins, and only when it is there (6J1, D12)', () => {
@@ -118,4 +224,214 @@ test('the bundled Codex goes last on the engine PATH, so an owner\'s own Codex s
   const linux = bundledCodexEnvironment({ PATH: '/usr/bin' }, { resourcesPath: '/opt/chausar/resources', platform: 'linux', exists: present });
   assert.equal(linux.PATH, '/usr/bin:/opt/chausar/resources/codex/bin');
   assert.equal(bundledCodexEnvironment({}, { resourcesPath: '/r', platform: 'linux', exists: present }).PATH, '/r/codex/bin');
+  // A2: the engine is told where the bundle is, so it can load the setup recorded for it at build time.
+  assert.equal(env.CHAUSAR_CODEX_BUNDLE_DIR, win32.join(resources, 'codex'));
+  assert.equal(linux.CHAUSAR_CODEX_BUNDLE_DIR, '/opt/chausar/resources/codex');
+  assert.equal('CHAUSAR_CODEX_BUNDLE_DIR' in bundledCodexEnvironment({ Path: 'C:/Windows' }, { resourcesPath: resources, platform: 'win32', exists: absent }), false);
+});
+
+// ---------------------------------------------------------------------------
+// One-shot A5, fix round 1.
+// ---------------------------------------------------------------------------
+const LINUX = (over: any = {}) => base({ platform: 'linux', home: '/home/owner', directory: '/home/owner/.config/Chausar', execPath: '/tmp/.mount_x/chausar', ...over });
+const LINUX_SAVED = join('/home/owner/.config/Chausar', BACKGROUND_FILE);
+const AUTOSTART = '/home/owner/.config/autostart/chausar.desktop';
+const entryFor = (program: string, enabled = 'true') => `[Desktop Entry]\nType=Application\nName=Chausar\nExec="${program}" --background --hidden\nTryExec=${program}\nX-GNOME-Autostart-enabled=${enabled}\n`;
+
+test('A5 fix 1: a saved yes whose autostart file starts an older AppImage is rewritten for this one at the next start', async () => {
+  const fs = memoryFs({ [LINUX_SAVED]: '{"startAtLogin":true,"keepRunning":true}', [AUTOSTART]: entryFor('/home/owner/Apps/Chausar-1.0.AppImage') });
+  const background = createBackground({ ...LINUX({ env: { APPIMAGE: '/home/owner/Apps/Chausar-1.1.AppImage' } }), app: fakeApp('linux'), fs });
+  await background.apply();
+  const text = fs.files.get(AUTOSTART)!;
+  assert.match(text, /\nExec="\/home\/owner\/Apps\/Chausar-1\.1\.AppImage" --background --hidden\n/);
+  assert.match(text, /\nTryExec=\/home\/owner\/Apps\/Chausar-1\.1\.AppImage\n/);
+  assert.equal((await background.state()).registered, true);
+});
+
+test('A5 fix 1: a stale autostart file the desktop switched off is rewritten for this program and stays off', async () => {
+  const fs = memoryFs({ [LINUX_SAVED]: '{"startAtLogin":true,"keepRunning":true}', [AUTOSTART]: `${entryFor('/home/owner/Apps/Chausar-1.0.AppImage', 'false')}Hidden=true\n` });
+  const background = createBackground({ ...LINUX({ env: { APPIMAGE: '/home/owner/Apps/Chausar-1.1.AppImage' } }), app: fakeApp('linux'), fs });
+  await background.apply();
+  const text = fs.files.get(AUTOSTART)!;
+  assert.match(text, /\nTryExec=\/home\/owner\/Apps\/Chausar-1\.1\.AppImage\n/);
+  assert.match(text, /\nX-GNOME-Autostart-enabled=false\n/);
+  assert.match(text, /\nHidden=true\n/);
+  assert.deepEqual(await background.state(), { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: false, systemOff: true });
+  // An up to date file is left exactly as it is.
+  const current = memoryFs({ [LINUX_SAVED]: '{"startAtLogin":true,"keepRunning":true}' });
+  const same = createBackground({ ...LINUX({ env: { APPIMAGE: '/home/owner/Apps/Chausar-1.1.AppImage' } }), app: fakeApp('linux'), fs: current });
+  await same.change({ startAtLogin: true });
+  const written = current.files.get(AUTOSTART)!;
+  let writes = 0;
+  const counted = { ...current, writeFile: async (path: string, data: string, options: any) => { writes++; await current.writeFile(path, data, options); } };
+  await createBackground({ ...LINUX({ env: { APPIMAGE: '/home/owner/Apps/Chausar-1.1.AppImage' } }), app: fakeApp('linux'), fs: counted }).apply();
+  assert.equal(writes, 0);
+  assert.equal(current.files.get(AUTOSTART), written);
+});
+
+test('A5 fix 3: two changes at once both land, in order: the saved file and the computer agree', async () => {
+  const slow = memoryFs(), app = fakeApp();
+  const later = (ms: number) => new Promise(accept => setTimeout(accept, ms));
+  const fs = { ...slow, writeFile: async (path: string, data: string, options: any) => { await later(5); await slow.writeFile(path, data, options); }, mkdir: async (path: string) => { await later(5); await slow.mkdir(path); } };
+  const background = createBackground({ ...base(), app, fs });
+  const [first, second] = await Promise.all([background.change({ startAtLogin: true }), background.change({ keepRunning: false })]);
+  assert.deepEqual(JSON.parse(slow.files.get(SAVED)!), { startAtLogin: true, keepRunning: false });
+  assert.equal(app.run.has('Chausar'), true);
+  assert.deepEqual([first.registered, second.registered, second.keepRunning], [true, true, false]);
+  const next = createBackground({ ...base(), app, fs: slow });
+  assert.deepEqual(await next.settings(), { startAtLogin: true, keepRunning: false, asked: true });
+  // A change that fails does not stop the next one (A5 fix round 2: the next one is a change, through the same queue).
+  const disk = memoryFs();
+  let full = true;
+  const broken = { ...disk, writeFile: async (path: string, data: string, options: any) => { if (full) { full = false; throw Object.assign(new Error('disk full'), { code: 'ENOSPC' }); } await disk.writeFile(path, data, options); } };
+  const failing = createBackground({ ...base(), app: fakeApp(), fs: broken });
+  const [refused, next2] = await Promise.allSettled([failing.change({ startAtLogin: true }), failing.change({ keepRunning: false })]);
+  assert.equal(refused.status, 'rejected');
+  assert.equal((refused as PromiseRejectedResult).reason.code, 'ENOSPC');
+  assert.equal(next2.status, 'fulfilled');
+  // A5 fix round 4: the first change failed, so start at login is still unanswered and Keep running is saved alone.
+  assert.deepEqual(JSON.parse(disk.files.get(SAVED)!), { keepRunning: false });
+});
+
+test('A5 fix 9: Exec quotes the program as the desktop entry spec asks: %% for %, backslash escapes inside the quotes, then doubled', async () => {
+  const fs = memoryFs();
+  const bs = String.fromCharCode(92), tick = String.fromCharCode(96);
+  const program = `/home/owner/My Apps/100% "ok"${bs}x$${tick}y/Chausar.AppImage`;
+  await createBackground({ ...LINUX({ env: { APPIMAGE: program } }), app: fakeApp('linux'), fs }).change({ startAtLogin: true });
+  const text = fs.files.get(AUTOSTART)!;
+  const exec = /\nExec=(.*)\n/.exec(text)![1];
+  // Inside the quotes: a backslash before each of " ` $ and backslash; then each backslash doubled for the string
+  // value; and % (a field code) written %%.
+  const two = bs + bs;
+  assert.equal(exec, `"/home/owner/My Apps/100%% ${two}"ok${two}"${two}${two}x${two}$${two}${tick}y/Chausar.AppImage" --background --hidden`);
+  assert.equal(/\nTryExec=(.*)\n/.exec(text)![1], `/home/owner/My Apps/100% "ok"${two}x$${tick}y/Chausar.AppImage`);
+});
+
+test('A5 fix round 1 (the founder): an older silent login item stays until the owner answers; yes keeps it, no removes it', async () => {
+  for (const answer of [true, false]) {
+    const app = fakeApp();
+    app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: true });
+    const fs = memoryFs();
+    const background = createBackground({ ...base(), app, fs });
+    await background.apply();
+    assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: true, systemOff: false });
+    const after = await background.change({ startAtLogin: answer });
+    assert.deepEqual([after.asked, after.registered, app.run.has('Chausar')], [true, answer, answer]);
+    const next = createBackground({ ...base(), app, fs });
+    await next.apply();
+    assert.deepEqual([(await next.state()).asked, app.run.has('Chausar')], [true, answer], 'the answer sticks');
+  }
+});
+
+// A5 fix round 2 (finding 4): "Not now" on Today is an answer that keeps what the computer has (the window sends Keep
+// running as it is). A login item the computer switched off stays there and off, at once and at the next start.
+test('A5 fix round 4: on an older silent install, Keep running changed before the answer leaves the login item exactly as it is', async () => {
+  for (const enabled of [true, false]) {
+    const app = fakeApp(), fs = memoryFs();
+    app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled });
+    const background = createBackground({ ...base(), app, fs });
+    const state = await background.change({ keepRunning: false });
+    assert.deepEqual([state.asked, state.registered, state.systemOff], [false, enabled, !enabled]);
+    await createBackground({ ...base(), app, fs }).apply();
+    assert.deepEqual(app.logins, []);
+    assert.equal(app.run.get('Chausar')!.enabled, enabled);
+  }
+});
+
+// A5 fix round 3 (finding 2): a login item the computer switched off is never switched back on by Chausar moving to a
+// new path (a reinstall elsewhere, an update): the start registers this program's item switched off, as it was.
+test('A5 fix round 3: a saved yes the computer had switched off is registered again off when the program moves', async () => {
+  const app = fakeApp(), fs = memoryFs();
+  const first = createBackground({ ...base(), app, fs });
+  await first.change({ startAtLogin: true });
+  app.run.get('Chausar')!.enabled = false;
+  await createBackground({ ...base(), app, fs }).apply();
+  const moved = base({ execPath: 'D:/new/Chausar.exe' });
+  const background = createBackground({ ...moved, app, fs });
+  await background.apply();
+  assert.deepEqual(app.logins.at(-1), { openAtLogin: true, path: 'D:/new/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar', enabled: false });
+  assert.equal(app.run.get('Chausar')!.enabled, false);
+  assert.deepEqual([(await background.state()).registered, (await background.state()).systemOff], [false, true]);
+});
+
+test('A5 fix round 3: a switch-off seen after the answer is remembered for a move; the owner ticking it on clears it', async () => {
+  const app = fakeApp(), fs = memoryFs();
+  const first = createBackground({ ...base(), app, fs });
+  await first.change({ startAtLogin: true });
+  app.run.get('Chausar')!.enabled = false;
+  assert.equal((await first.state()).systemOff, true);
+  const moved = createBackground({ ...base({ execPath: 'D:/new/Chausar.exe' }), app, fs });
+  await moved.apply();
+  assert.equal(app.run.get('Chausar')!.enabled, false, 'still off after the move');
+  assert.equal((await moved.change({ startAtLogin: true })).registered, true);
+  const again = createBackground({ ...base({ execPath: 'E:/third/Chausar.exe' }), app, fs });
+  await again.apply();
+  assert.equal(app.run.get('Chausar')!.enabled, true, 'on, as the owner last set it');
+});
+
+test('A5 fix round 3: on Linux a saved yes the desktop had switched off is written again off for a moved program', async () => {
+  const fs = memoryFs(), app = fakeApp('linux');
+  const at = (program: string) => createBackground({ ...LINUX({ env: { APPIMAGE: program } }), app, fs });
+  await at('/home/owner/Apps/Chausar-1.0.AppImage').change({ startAtLogin: true });
+  fs.files.set(AUTOSTART, fs.files.get(AUTOSTART)!.replace('X-GNOME-Autostart-enabled=true', 'X-GNOME-Autostart-enabled=false'));
+  assert.equal((await at('/home/owner/Apps/Chausar-1.0.AppImage').state()).systemOff, true);
+  fs.files.delete(AUTOSTART);
+  await at('/home/owner/Apps/Chausar-1.1.AppImage').apply();
+  assert.match(fs.files.get(AUTOSTART)!, /\nX-GNOME-Autostart-enabled=false\n/);
+});
+
+// A5 fix round 3 (finding 1): "Not now" on Today is no answer. It keeps the day the owner put the question aside, in
+// the app's own folder beside the answer (never a business's vault, never the login item), so Today asks again on a
+// later day. It changes nothing else.
+test('A5 fix round 3: putting the question aside keeps only the day: no answer, no login item touched', async () => {
+  const app = fakeApp(), fs = memoryFs();
+  app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: true });
+  const background = createBackground({ ...base(), app, fs });
+  assert.equal(await background.laterDay(), null);
+  assert.equal(await background.askLater('2026-11-04'), '2026-11-04');
+  assert.equal(await createBackground({ ...base(), app, fs }).laterDay(), '2026-11-04');
+  assert.deepEqual(app.logins, []);
+  assert.equal(fs.files.has(SAVED), false, 'no answer saved');
+  assert.deepEqual(await background.state(), { supported: true, asked: false, startAtLogin: true, keepRunning: true, registered: true, systemOff: false });
+  for (const bad of ['4 Nov', '2026-13-40', '', 20261104, null]) await assert.rejects(background.askLater(bad), { code: 'INVALID_REQUEST' }, String(bad));
+  const preview = createBackground({ ...base({ beta: false }), app, fs: memoryFs() });
+  assert.equal(await preview.laterDay(), null);
+  await assert.rejects(preview.askLater('2026-11-04'), { code: 'BACKGROUND_UNAVAILABLE' });
+});
+
+// A5 fix round 4 (finding 2): what the computer shows is read inside the queue, so a look taken before the owner's own
+// yes never saves a switch-off over it; and a switch-off is kept only beside a saved yes.
+test('A5 fix round 4: a look queued behind the owner\'s fresh yes never saves the old switch-off over it', async () => {
+  const later = (ms: number) => new Promise(accept => setTimeout(accept, ms));
+  const disk = memoryFs(), app = fakeApp();
+  const fs = { ...disk, writeFile: async (path: string, data: string, options: any) => { await later(5); await disk.writeFile(path, data, options); } };
+  const background = createBackground({ ...base(), app, fs });
+  await background.change({ startAtLogin: true });
+  app.run.get('Chausar')!.enabled = false;
+  const yes = background.change({ startAtLogin: true });
+  const look = background.state();
+  await Promise.all([yes, look]);
+  await later(30);
+  assert.deepEqual(JSON.parse(disk.files.get(SAVED)!), { startAtLogin: true, keepRunning: true });
+  assert.equal(app.run.get('Chausar')!.enabled, true);
+  await createBackground({ ...base({ execPath: 'D:/new/Chausar.exe' }), app, fs: disk }).apply();
+  assert.equal(app.run.get('Chausar')!.enabled, true, 'the move keeps the owner\'s yes on');
+});
+
+test('A5 fix round 4: a switch-off is never remembered beside a saved no', async () => {
+  const app = fakeApp(), fs = memoryFs();
+  const background = createBackground({ ...base(), app, fs });
+  await background.change({ startAtLogin: false });
+  app.run.set('Chausar', { path: base().execPath, args: [...LOGIN_ARGS], enabled: false });
+  await background.state();
+  assert.deepEqual(JSON.parse(fs.files.get(SAVED)!), { startAtLogin: false, keepRunning: true });
+  await createBackground({ ...base(), app, fs }).apply();
+  assert.deepEqual(JSON.parse(fs.files.get(SAVED)!), { startAtLogin: false, keepRunning: true });
+  assert.equal(app.run.has('Chausar'), false, 'the saved no removed it');
+});
+
+test('A5 fix round 4: an impossible calendar day is refused', async () => {
+  const background = createBackground({ ...base(), app: fakeApp(), fs: memoryFs() });
+  for (const bad of ['2026-02-31', '2026-04-31', '2025-02-29', '0000-01-01', '1999-12-31']) await assert.rejects(background.askLater(bad), { code: 'INVALID_REQUEST' }, bad);
+  for (const good of ['2028-02-29', '2026-12-31', '2026-11-04']) assert.equal(await background.askLater(good), good);
 });

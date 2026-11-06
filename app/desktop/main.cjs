@@ -16,12 +16,14 @@ function stopFormsBrowser() { void formsBrowser.close(); engine?.closeForms?.();
 const flowBrowser = require('./flow-browser.cjs').createFlowBrowser({ BrowserWindow, session });
 // Wave 6 (6H1, D39): the mini app sandbox proxy's own policy, and where frames inside the window may go.
 const { policyFor, subframeAllowed } = require('./mini-frame.cjs');
-const backgroundRequested = process.argv.includes('--background');
+let backgroundRequested = process.argv.includes('--background');
 // Wave 6 (6J1, D3, D36): the installed beta (release channel "beta") starts at login hidden in the tray (--hidden) and
 // keeps running in the tray when the window closes; both are owner settings in the tray menu (background.cjs). The
 // bundled Codex goes last on the engine's PATH. Previews and development runs keep the behaviour they had.
-let releaseBeta = false; let ownerKeepsRunning = false; let background = null; let backgroundValue = { startAtLogin: false, keepRunning: false };
-const hiddenStart = process.argv.includes('--hidden');
+// One-shot A5: start at login is the owner's answer in onboarding, changeable in Settings and the tray; backgroundValue
+// is background.cjs's state, with the computer's own login item read back, so the tray tick is never a guess.
+let releaseBeta = false; let ownerKeepsRunning = false; let background = null; let backgroundValue = { supported: false, asked: false, startAtLogin: false, keepRunning: false, registered: false, systemOff: false };
+let hiddenStart = process.argv.includes('--hidden');
 const runsInBackground = () => backgroundRequested || ownerKeepsRunning;
 const root = resolve(__dirname, '../..');
 // The window is the Ink app (app/ui), built to app/ui/dist by npm run build:ui; a package carries the build inside it.
@@ -64,7 +66,11 @@ async function startEngine() {
   releaseBeta = app.isPackaged && metadata.chausarReleaseChannel === 'beta' && metadata.chausarPreview !== true;
   if (releaseBeta) await startBackground();
   if (stopping) return;
-  const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0' };
+  const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0',
+    // A2: where the owner's choice of their own Codex is kept (platform/runtime/codex-trust.ts).
+    CHAUSAR_CODEX_TRUST_DIR: join(app.getPath('userData'), 'codex-trust'),
+    // One-shot A4 (row 107): the worker runs from app.asar.unpacked; the Ink build its phone server serves stays here.
+    CHAUSAR_INK_ROOT: inkRoot };
   // Wave 6 (6J2): the opt-in report keys, from this shell's environment or the build's feedback.json; never hard-coded.
   Object.assign(environment, require('./feedback-keys.cjs').feedbackKeys({ env: process.env, packaged: app.isPackaged, resources: process.resourcesPath, read: path => require('node:fs').readFileSync(path, 'utf8') }));
   if (releaseBeta) {
@@ -104,6 +110,11 @@ async function startEngine() {
 // looked, and a number left standing could be wrong. The first time the window closes while Chausar keeps running in
 // the background on Windows, one balloon says so, never again (a file in the app's own folder remembers). A click on
 // any of them opens the window and nothing more: a notification never acts on its own.
+/** A4 review (L7): the keys a hidden menu keeps on Windows and Linux. */
+const HIDDEN_MENU = [
+  { label: 'Edit', submenu: [{ role: 'undo' }, { role: 'redo' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
+  { label: 'View', submenu: [{ role: 'zoomIn' }, { role: 'zoomIn', accelerator: 'CommandOrControl+=', visible: false }, { role: 'zoomOut' }, { role: 'resetZoom' }] },
+];
 const APPROVE_HASH = '#/approve/next';
 const BUSY_LINGER_MS = 1500;
 const BUSY_EVENTS = ['run.started', 'run.step', 'run.call'];
@@ -126,17 +137,38 @@ function trayMenu() {
     { label: 'Quit Chausar and stop jobs', click: () => app.quit() },
   ]);
 }
-/** 6J1: the beta's owner settings; the first run registers the default login item. A failure never stops the start. */
+/**
+ * 6J1, A5: the beta's owner settings. Unasked, nothing is registered (onboarding asks); a saved answer is brought in
+ * line at each start. A failure never stops the start.
+ */
 async function startBackground() {
   background = require('./background.cjs').createBackground({ app, fs: require('node:fs/promises'), platform: process.platform, directory: app.getPath('userData'), home: app.getPath('home'), env: process.env, execPath: process.execPath, beta: true });
-  backgroundValue = await background.settings(); ownerKeepsRunning = backgroundValue.keepRunning;
-  try { await background.apply(); } catch (error) { console.error(publicError(error).message); }
+  // A5: on macOS a login start comes from Electron's own login item, which passes no arguments.
+  if (process.platform === 'darwin' && app.getLoginItemSettings?.()?.wasOpenedAtLogin === true) { backgroundRequested = true; hiddenStart = true; }
+  ownerKeepsRunning = (await background.settings()).keepRunning;
+  try { await background.apply(); backgroundValue = await background.state(); }
+  catch (error) { console.error(publicError(error).message); backgroundValue = { ...backgroundValue, supported: true, keepRunning: ownerKeepsRunning }; }
 }
-function changeBackground(update) {
+/** A5: one change from the tray or the window; the tray and the engine follow, and the new state is the answer. */
+async function setBackground(update) {
+  if (!background) throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' });
+  const value = await background.change(update);
+  backgroundValue = value; ownerKeepsRunning = value.keepRunning;
+  tray?.setContextMenu(trayMenu()); lifecycleChanged();
+  return value;
+}
+function changeBackground(update) { void setBackground(update).catch(error => console.error(publicError(error).message)); }
+/**
+ * A5 fix round 1: read start at login from the computer again (its own startup settings may have changed it) and
+ * rebuild the tray menu when the tick moved. Called as the pointer reaches the tray icon, before its menu opens, and
+ * when the window comes to the front.
+ */
+function refreshBackground() {
   if (!background) return;
-  void background.change(update).then(value => {
-    backgroundValue = value; ownerKeepsRunning = value.keepRunning;
-    tray?.setContextMenu(trayMenu()); lifecycleChanged();
+  void background.state().then(value => {
+    const moved = value.registered !== backgroundValue.registered || value.systemOff !== backgroundValue.systemOff || value.keepRunning !== backgroundValue.keepRunning;
+    backgroundValue = value;
+    if (moved) tray?.setContextMenu(trayMenu());
   }, error => console.error(publicError(error).message));
 }
 function setTrayCount(count) {
@@ -199,11 +231,18 @@ function createTray() {
   tray.setToolTip(trayTooltip());
   tray.setContextMenu(trayMenu());
   tray.on('double-click', () => openWindow());
+  tray.on('mouse-enter', refreshBackground);
 }
+// One-shot A7: the window shows the founder's logo on Windows (the ico, every size) and Linux (a tar.gz has no desktop
+// entry to take it from); macOS takes the bundle's icns. Chausar.exe carries the logo too (scripts/desktop-after-pack.cjs).
+const WINDOW_ICON = { win32: 'icons/icon.ico', linux: 'icons/png/256x256.png' }[process.platform];
 function createWindow(hash = '') {
   window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: require('electron').nativeTheme?.shouldUseDarkColors ? '#111214' : '#fbfbfa', title: appName(), show: false,
+    ...(WINDOW_ICON ? { icon: join(__dirname, WINDOW_ICON) } : {}),
     webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, spellcheck: false },
   });
+  // A4 review (L7): the hidden menu's keys work; its bar never shows, not even with Alt.
+  if (process.platform !== 'darwin') window.setMenuBarVisibility?.(false);
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
   // Wave 6 (6J2): a window that stopped is noted for the next report, only while the owner has crash reports on.
@@ -222,10 +261,15 @@ function createWindow(hash = '') {
     if (watching) { setTrayCount(0); clearCountNotice(); }
   };
   for (const change of ['focus', 'blur', 'show', 'hide', 'minimize', 'restore', 'closed']) window.on(change, tellWatching);
+  window.on('focus', refreshBackground);
   lifecycleChanged();
 }
 if (singleInstance) app.whenReady().then(async () => {
   if (stopping) return;
+  // One-shot A4 (hands-on S10, review L7): no File, Edit, View, Window bar on Windows and Linux, but a hidden menu keeps
+  // the keys owners use: zoom (Ctrl+=, Ctrl+-, Ctrl+0) and editing. Its bar is never shown (each window hides it). A
+  // Mac keeps its own menu, where copy and paste live.
+  if (process.platform !== 'darwin') Menu.setApplicationMenu?.(Menu.buildFromTemplate(HIDDEN_MENU));
   // Listed before the engine starts, so an unbuilt Ink app stops the start with its own plain reason.
   try { inkFiles = await listInkFiles(); }
   catch (error) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); return; }
@@ -244,20 +288,39 @@ if (singleInstance) app.whenReady().then(async () => {
     const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(inkRoot, file));
     return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': policyFor(url.pathname, "default-src 'self'; script-src 'self'; style-src 'self' data:; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"), 'X-Content-Type-Options': 'nosniff' } });
   });
+  // A2 second review: the owner's choice of Codex is asked in main's own dialog, never forwarded from the window.
+  // A fix: the engine is set later, by startEngine() below, so the choice reads it at each use.
+  const codexChoice = require('./codex-choice.cjs').createCodexChoice({ engine: () => engine, dialog, window: () => window });
   ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {
     try {
       assertTrustedSender(event, window?.webContents);
       const request = validateRequest(input);
+      if (request.method === 'venture.ai.setup.trust') return { ok: true, result: await codexChoice(request.payload) };
       if(['workspace.lock','workspace.open','workspace.create'].includes(request.method))stopFormsBrowser();
       if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();if(request.method==='venture.talk.hear')captionMicrophone.clear();
       const result=await engine.request(request.method, request.payload);captionMicrophone.observe(request,result);
       return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
+  // One-shot A6 (answer 7): a wa.me handoff opens the WhatsApp desktop app first when this computer has one for
+  // whatsapp:// links, else the web page; the app link is built from the checked wa.me link (invoice-share.cjs).
+  const invoiceShare = require('./invoice-share.cjs');
+  const whatsappApp = () => { try { return typeof app.getApplicationNameForProtocol === 'function' && app.getApplicationNameForProtocol('whatsapp://') !== ''; } catch { return false; } };
   ipcMain.handle(OPEN_EXTERNAL_CHANNEL, async (event, input) => {
-    try { assertTrustedSender(event, window?.webContents); await shell.openExternal(validateExternalUrl(input)); return { ok: true }; }
+    try {
+      assertTrustedSender(event, window?.webContents);
+      const href = validateExternalUrl(input);
+      const appLink = href.startsWith('https://wa.me/') && whatsappApp() ? invoiceShare.whatsappAppUrl(href) : null;
+      if (appLink) { try { await shell.openExternal(appLink); return { ok: true }; } catch { /* the app did not open; the web page instead */ } }
+      await shell.openExternal(href); return { ok: true };
+    }
     catch (error) { return { ok: false, error: publicError(error) }; }
   });
+  // A6 (answer 6, and the file for answer 7): Email it and Share on WhatsApp on an invoice. Main makes the file and keeps
+  // it in Chausar's own share folder, beside the vaults, never in them; the window names only the invoice and how.
+  const shareDeps = () => ({ window, shell, assertTrustedSender, publicError, engine, folder: join(app.getPath('userData'), 'share'), whatsappApp, emlApp: () => invoiceShare.emlHandler() });
+  ipcMain.handle('chausar:invoice:share', (event, input) => invoiceShare.shareInvoice(event, input, shareDeps()));
+  ipcMain.handle('chausar:share:show', (event, input) => invoiceShare.showShared(event, input, shareDeps()));
   // The network import (4D1): the owner picks one of their own files; a worker process reads it and only what Chausar keeps comes back.
   ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: join(engineRoot, 'platform/runtime/venture/network/extract-worker.ts') }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
@@ -272,6 +335,32 @@ if (singleInstance) app.whenReady().then(async () => {
   const socialProjects = require('./social-project.cjs').createSocialProject();
   ipcMain.handle('chausar:social:saveProject', (event, input) => socialProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
+  // After Delete (review of A1, row 1): a kept export, shown in the file manager; only a file of the engine's exports folder.
+  ipcMain.handle('chausar:exports:show', (event, input) => require('./export-folder.cjs').showExport(event, input, { window, shell, assertTrustedSender, publicError, exportsFolder: join(app.getPath('userData'), 'vaults', 'exports') }));
+  // One-shot A5: start at login and keep running, asked in onboarding and changed in Settings. Previews and development
+  // runs answer that they are not here (no login item ever), and refuse a change.
+  const contract = require('./ipc-contract.cjs');
+  ipcMain.handle(contract.BACKGROUND_GET_CHANNEL, async event => {
+    try { assertTrustedSender(event, window?.webContents); return { ok: true, result: background ? await background.state() : { ...backgroundValue, supported: false } }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  ipcMain.handle(contract.BACKGROUND_SET_CHANNEL, async (event, input) => {
+    try { assertTrustedSender(event, window?.webContents); return { ok: true, result: await setBackground(contract.validateBackgroundChange(input)) }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  // A5 fix round 3: "Not now" on Today keeps only the day; it is no answer and never touches the login item.
+  ipcMain.handle(contract.BACKGROUND_LATER_GET_CHANNEL, async event => {
+    try { assertTrustedSender(event, window?.webContents); return { ok: true, result: { day: background ? await background.laterDay() : null } }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  ipcMain.handle(contract.BACKGROUND_LATER_SET_CHANNEL, async (event, input) => {
+    try {
+      assertTrustedSender(event, window?.webContents);
+      const day = contract.validateLaterDay(input);
+      if (!background) throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' });
+      return { ok: true, result: { day: await background.askLater(day) } };
+    } catch (error) { return { ok: false, error: publicError(error) }; }
+  });
   try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); if (!(releaseBeta && hiddenStart)) createWindow(); }
   catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });

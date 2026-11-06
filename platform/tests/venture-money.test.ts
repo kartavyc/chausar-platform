@@ -490,6 +490,28 @@ test('clients are checked: one-line names, GSTIN checksums, states only in India
   await assert.rejects(call(env, 'venture.client.add', { name: 'Cafe Aroma' }, viewer), code('FORBIDDEN'));
 });
 
+test('one-shot A1 row 10: an order with a new client is all or nothing', async () => {
+  const env = await setup('IN');
+  await seedTerms(env);
+  const draft = await seedBlueprint(env, { registered: true, rateBps: '1800', taxState: '27' });
+  await acceptBlueprint(env, draft.id);
+  const request = 'Please close my September books. The bank statement and bills are in the shared folder.';
+  const clients = () => listRecords(env.store.read(), 'venture-client').length;
+  const before = clients();
+  // offer_2 has no price: the order is refused and the new client is not kept either.
+  await assert.rejects(call(env, 'venture.order.create', { newClient: { name: 'Test Client One' }, offerId: 'offer_2', request }), code('PRICE_REQUIRED'));
+  await assert.rejects(call(env, 'venture.order.create', { newClient: { name: 'Test Client One' }, offerId: 'offer_1', request: 'ok' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(call(env, 'venture.order.create', { newClient: { name: 'X' }, offerId: 'offer_1', request }), code('INVALID_VENTURE_REQUEST'));
+  assert.equal(clients(), before, 'a refused order leaves no client behind');
+  // One of clientId or newClient, never both.
+  const existing = await call(env, 'venture.client.add', { name: 'Cafe Aroma Demo' });
+  await assert.rejects(call(env, 'venture.order.create', { clientId: existing.id, newClient: { name: 'Test Client One' }, offerId: 'offer_1', request }), code('INVALID_VENTURE_REQUEST'));
+  const order = await call(env, 'venture.order.create', { newClient: { name: 'Test Client One', email: 'one@client.example' }, offerId: 'offer_1', request });
+  const added = listRecords(env.store.read(), 'venture-client').find(item => item.id === order.clientId)!;
+  assert.deepEqual([added.name, added.email], ['Test Client One', 'one@client.example']);
+  assert.equal(clients(), before + 2);
+});
+
 test('orders need the accepted plan and make their own receipt with the client treatment', async () => {
   const env = await setup('IN');
   await seedTerms(env);
@@ -1045,4 +1067,18 @@ test('handlers cover exactly the money methods: eighteen, the twenty-one Ink v2 
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
   assert.equal(typeof computePrice, 'function');
   assert.equal(typeof taxTreatmentFor, 'function');
+});
+
+test('one-shot A1 row 3: owner words make the plan the owner\'s; a price only change keeps who wrote it', async () => {
+  const env = await setup('IN');
+  const draft = await seedBlueprint(env, INDIA_READY);
+  assert.equal(draft.source, 'template');
+  const priced = await blueprintUpdate(env.deps, owner, { patch: { offers: [{ id: 'offer_1', unitPrice: '125' }] } });
+  assert.equal(priced.blueprint.source, 'template', 'a price is not words');
+  for (const patch of [{ name: 'Money and tax' }, { offers: [{ id: 'offer_1', name: 'GST returns' }] }, { addOffer: { name: 'Income tax returns', description: 'Yearly returns, filed on time.', pricingModel: 'project' } }]) {
+    const base = await seedBlueprint(env, INDIA_READY);
+    assert.equal(base.source, 'template');
+    const edited = await blueprintUpdate(env.deps, owner, { patch });
+    assert.equal(edited.blueprint.source, 'owner', JSON.stringify(patch));
+  }
 });

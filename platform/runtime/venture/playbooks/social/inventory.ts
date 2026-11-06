@@ -1,4 +1,5 @@
 // Original Chausar source inventory. Inspired by catalogue S2 repurposing; no outside code.
+import { refusalError } from '../../refusal-brand.ts';
 export type InventoryKind = 'claims' | 'numbers' | 'stories' | 'mistakes' | 'quotes';
 export type InventoryItem = {
     kind: InventoryKind;
@@ -24,7 +25,7 @@ const PREFIXES: readonly [
 /** Keep exact source spans and count repeated lines only once; nothing is added to the source. */
 export function sourceInventory(source: string): SourceInventory {
     if (typeof source !== 'string' || source.length > 100000)
-        throw Object.assign(new Error('Use a source of at most 100,000 characters.'), { code: 'SOCIAL_SOURCE_INVALID' });
+        throw refusalError(new Error('Use a source of at most 100,000 characters.'), { code: 'SOCIAL_SOURCE_INVALID' });
     const counts: SourceInventory['counts'] = { claims: 0, numbers: 0, stories: 0, mistakes: 0, quotes: 0, total: 0 };
     const items: InventoryItem[] = [], seen = new Set<string>();
     for (const match of source.matchAll(/[^\r\n]+/gu)) {

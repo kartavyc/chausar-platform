@@ -23,8 +23,11 @@ const CLI_OF: Partial<Record<ModelRouteKind, keyof typeof CLI_LABELS>> = { 'clau
  * "Written by Claude Sonnet 5.5" (through Claude Code, when it ran there), "Written by Codex on this computer. It did not
  * report the model.", or the template's words. Null while the draft's call has not answered, or when it has no call.
  */
-export function writtenByLine(state: State, run: Pick<DeliveryRunRecord, 'servedBy' | 'callId'>): Display | null {
+export function writtenByLine(state: State, run: Pick<DeliveryRunRecord, 'servedBy' | 'callId'> & Partial<Pick<DeliveryRunRecord, 'agentJob'>>): Display | null {
   if (run.servedBy === 'template') return TEMPLATE_WROTE;
+  // One-shot A4 (A3 leftover): a native agent job writes no model call record; its route names the AI it ran on, and the
+  // model is the one the tool reported, else the one asked for. Said only once the job handed its draft over.
+  if (!run.callId && run.agentJob) return agentJobLine(run.agentJob);
   if (!run.callId) return null;
   const call = findRecord(state, 'venture-model-call', run.callId);
   if (!call || call.status !== 'completed') return null;
@@ -34,4 +37,15 @@ export function writtenByLine(state: State, run: Pick<DeliveryRunRecord, 'served
   if (call.answeredBy === NOT_REPORTED) return `Written by ${preset}. It did not report the model.`;
   const cli = CLI_OF[call.routeKind];
   return cli ? `Written by ${modelLabel(call.answeredBy)} through ${CLI_LABELS[cli]}` : `Written by ${modelLabel(call.answeredBy)}`;
+}
+
+/** The line for a native agent job's draft, from its route; null before it handed over or without a known preset. */
+function agentJobLine(job: NonNullable<DeliveryRunRecord['agentJob']>): Display | null {
+  if (job.reviewReady !== true || !job.route?.presetId) return null;
+  const preset = PRESETS.find(item => item.id === job.route!.presetId);
+  if (!preset) return null;
+  const model = (job.model ?? '').trim() || job.route.model.trim();
+  if (!model) return `Written by ${preset.label}. It did not report the model.`;
+  const cli = CLI_OF[preset.kind as ModelRouteKind];
+  return cli ? `Written by ${modelLabel(model)} through ${CLI_LABELS[cli]}` : `Written by ${modelLabel(model)}`;
 }

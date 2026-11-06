@@ -8,7 +8,7 @@
  */
 
 import { createEventFeed, pageVisibility, type PageVisibility } from './events';
-import { EngineError, type EngineClient, type EngineStatus, type HostedMeLite, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
+import { EngineError, type BackgroundStateLite, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
 
 export interface ChausarBridge {
   request(method: string, payload?: unknown): Promise<unknown>;
@@ -28,6 +28,17 @@ export interface ChausarBridge {
    * page downloads the engine's csv itself.
    */
   saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
+  /** Desktop only (review of A1, row 1): shows a kept export in the file manager, by its file name. */
+  showExport?(name: string): Promise<void>;
+  /** Desktop only (one-shot A6): Email it or Share on WhatsApp on an invoice, and the kept file shown in its folder. */
+  shareInvoice?(invoiceId: string, how: string): Promise<unknown>;
+  showShared?(name: string): Promise<void>;
+  /** Desktop only (one-shot A5): start at login and keep running, read back from this computer (background.cjs). */
+  getBackground?(): Promise<unknown>;
+  setBackground?(update: { startAtLogin?: boolean; keepRunning?: boolean }): Promise<unknown>;
+  /** Desktop only (A5 fix round 3): the day the owner put the start-at-login question aside. */
+  getAskLater?(): Promise<unknown>;
+  setAskLater?(day: string): Promise<void>;
   /** Desktop only (5A5): makes a draft's client report and saves its files in a new folder where the owner picks. Null when cancelled. */
   saveReport?(runId: string): Promise<{ saved: true; folder: string; line: string } | null>;
   saveYoutubeProject?(editId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
@@ -95,6 +106,23 @@ export function hostedMeOf(value: unknown): HostedMeLite | null {
   const ok = typeof trial === 'object' && trial.temporary === true && typeof trial.line === 'string' && typeof trial.expiresAt === 'string'
     && typeof trial.endsSoon === 'boolean' && (trial.warning === null || typeof trial.warning === 'string');
   return ok ? { trials: me.trials, trial: { temporary: true, line: trial.line as string, expiresAt: trial.expiresAt as string, endsSoon: trial.endsSoon as boolean, warning: trial.warning as string | null } } : { trials: me.trials, trial: null };
+}
+
+/** One-shot A5: the desktop's start-at-login state, checked field by field; anything else reads as not here. */
+function backgroundState(value: unknown): BackgroundStateLite {
+  const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const flag = (key: string) => v[key] === true;
+  return { supported: flag('supported'), asked: flag('asked'), startAtLogin: flag('startAtLogin'), keepRunning: flag('keepRunning'), registered: flag('registered'), systemOff: flag('systemOff') };
+}
+
+/** A6: the desktop's answer to a share, read field by field; anything else is a failed share, never a claim it opened. */
+function shareResult(value: unknown): InvoiceShareResult {
+  const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const file = typeof v.file === 'string' && /^[A-Za-z0-9-]{1,80}\.(?:pdf|html)$/.test(v.file) ? v.file : null;
+  const note = typeof v.note === 'string' ? v.note : null;
+  if (file && v.how === 'email' && (v.opened === 'draft' || v.opened === 'link' || v.opened === 'none')) return { how: 'email', opened: v.opened, file, attached: typeof v.attached === 'string' && /^[A-Za-z0-9-]{1,80}\.(?:pdf|html)$/.test(v.attached) ? v.attached : file, to: v.to === true, note };
+  if (file && v.how === 'whatsapp' && (v.opened === 'app' || v.opened === 'web')) return { how: 'whatsapp', opened: v.opened, file, note };
+  throw new EngineError('REQUEST_FAILED', 'The desktop could not share the invoice.');
 }
 
 function asEngineError(error: unknown): EngineError {
@@ -232,6 +260,17 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     ...(transport === 'hosted' ? { hostedMe: hostedSessionMe } : {}),
     // 4J20: Export for your CA saved by the desktop, with its refusals as engine errors.
     ...(bridge?.saveMoneyExport ? { saveMoneyExport: (month: string) => bridge.saveMoneyExport!(month).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    // Review of A1 (row 1): a kept export shown in the file manager, with its refusals as engine errors.
+    ...(bridge?.showExport ? { showExport: (name: string) => bridge.showExport!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    // One-shot A6: an invoice shared through the owner's own apps, and its file shown, with the desktop's refusals as engine errors.
+    ...(bridge?.shareInvoice ? { shareInvoice: (invoiceId: string, how: 'email' | 'whatsapp') => bridge.shareInvoice!(invoiceId, how).then(shareResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.showShared ? { showShared: (name: string) => bridge.showShared!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    // One-shot A5: start at login and keep running, with the desktop's refusals as engine errors.
+    ...(bridge?.getBackground ? { getBackground: () => bridge.getBackground!().then(backgroundState, (error: unknown) => { throw asEngineError(error); }) } : {}),
+    // A5 fix round 3: the day the owner put the question aside; anything but a day reads as never.
+    ...(bridge?.getAskLater ? { getAskLater: () => bridge.getAskLater!().then((day) => (typeof day === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(day) ? day : null), (error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.setAskLater ? { setAskLater: (day: string) => bridge.setAskLater!(day).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.setBackground ? { setBackground: (update: { startAtLogin?: boolean; keepRunning?: boolean }) => bridge.setBackground!(update).then(backgroundState, (error: unknown) => { throw asEngineError(error); }) } : {}),
     // 5A5: a client report saved by the desktop through the atomic export, with its refusals as engine errors.
     ...(bridge?.saveReport ? { saveReport: (runId: string) => bridge.saveReport!(runId).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.saveYoutubeProject ? { saveYoutubeProject: (editId: string, digest: string) => bridge.saveYoutubeProject!(editId, digest).catch((error: unknown) => { throw asEngineError(error); }) } : {}),

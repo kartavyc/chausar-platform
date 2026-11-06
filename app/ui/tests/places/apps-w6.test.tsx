@@ -55,6 +55,35 @@ describe('Apps (6H1)', () => {
     assertInkRules();
   });
 
+  // One-shot A4 (hands-on row 75, bug 15): "Your AI is writing it." only while a make is on its way.
+  it('says the AI is writing only while the app is being made, never at rest or after a refusal', async () => {
+    window.location.hash = '#/apps';
+    const base = createFakeClient(new FakeEngine());
+    let release: (() => void) | null = null;
+    let refuse = false;
+    const client: EngineClient = {
+      ...base,
+      request: (async (method: string, params?: Record<string, unknown>) => {
+        if (method === 'venture.apps.make') {
+          await new Promise<void>((done) => { release = done; });
+          if (refuse) throw Object.assign(new Error('Connect your AI first.'), { code: 'NO_MODEL_CONNECTED' });
+        }
+        return base.request(method as never, params as never);
+      }) as EngineClient['request'],
+    };
+    render(<App client={client} language="en" />);
+    await screen.findByRole('article', { name: 'Who owes me' });
+    expect(screen.queryByText('Your AI is writing it.')).toBeNull();
+    refuse = true;
+    const box = screen.getByRole('textbox', { name: 'Describe the app' });
+    await act(async () => { fireEvent.change(box, { target: { value: 'A list of who is due' } }); });
+    await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
+    expect(await screen.findByText('Your AI is writing it.')).toBeTruthy();
+    await act(async () => { release!(); });
+    await screen.findByText(/Connect your AI first\./);
+    expect(screen.queryByText('Your AI is writing it.')).toBeNull();
+  });
+
   it('making an app opens it beside its permission screen; it runs only after Allow, in a locked frame', async () => {
     const { spy } = await start();
     await screen.findByRole('article', { name: 'Who owes me' });

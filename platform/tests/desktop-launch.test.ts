@@ -4,7 +4,18 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const modulePath = '../../scripts/desktop-launch.mjs';
-const { desktopLaunchArguments, desktopLaunchPrerequisites, desktopLaunchEnvironment } = await import(modulePath);
+const { desktopLaunchArguments, desktopLaunchPrerequisites, desktopLaunchEnvironment, desktopLaunchSpawnOptions } = await import(modulePath);
+
+// One-shot A4 (hands-on row 2): windowsHide on the launch made Windows hide the app's first window, so npm run desktop
+// showed nothing. The launch starts Electron like any window app: no shell, the cleaned environment, its own output.
+test('the desktop launch never hides the window it starts', () => {
+  const options = desktopLaunchSpawnOptions('/project', { PATH: 'tools', ELECTRON_RUN_AS_NODE: '1' });
+  assert.notEqual(options.windowsHide, true);
+  assert.equal(options.shell, false);
+  assert.equal(options.stdio, 'inherit');
+  assert.equal(options.cwd, '/project');
+  assert.deepEqual(options.env, { PATH: 'tools' });
+});
 
 test('desktop launcher requires an explicit mode and accepts no arbitrary Electron flags', () => {
   assert.deepEqual(desktopLaunchArguments(['--demo', '--background', '--check']), { demo: true, background: true, checkOnly: true });

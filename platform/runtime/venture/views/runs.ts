@@ -23,13 +23,14 @@ import type {
 } from '../contracts.ts';
 // 4F3: the scope's cap in rupees at the owner's rate.
 import { rupeeFigure, rupeeRateWords, rupeesOf } from '../money/spend.ts';
-import { STOPPED_BY_YOU, stopAsked } from '../delivery/harness/controls.ts';
+import { STOPPED_BY_YOU, stopAsked, watchdogLine } from '../delivery/harness/controls.ts';
 import { usualDuration } from '../delivery/estimates.ts';
 import { auditedSteps, type StepAudit } from '../delivery/judge/auditor.ts';
 import { runView } from '../delivery/runs.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
+import { staleReason } from '../delivery/improve.ts';
 import { businessScenarios } from '../delivery/scenarios.ts';
 import { agentWordsLabeller } from './agent-words.ts';
 import { acceptedBlueprintOrNull, serviceTypeOf } from '../delivery/shared.ts';
@@ -70,6 +71,10 @@ function agentStepState(record:DeliveryRunRecord,kind:StepKind,position:Position
   const calls=record.agentJob!.tools.filter(tool=>AGENT_TOOL_KIND[tool.name.split('__').at(-1)!]===kind);
   if(calls.some(tool=>tool.status==='running'))return record.agentJob!.pendingApproval?'waiting':'current';
   if(calls.some(tool=>tool.status==='failed'))return 'failed';
+  // One-shot A1 (row 9): a draft handed over while the job still runs: the agent is still writing, the owner's step waits.
+  const finishing=record.status==='ready-for-review'&&!record.agentJob!.reviewReady&&!record.agentJob!.pendingApproval;
+  if(finishing&&kind==='write')return 'current';
+  if(finishing&&kind==='approve')return 'pending';
   if(kind==='write')return record.deliverable?'done':position.kind==='write'?position.state:'pending';
   if(kind==='verify')return record.checks.length?record.checks.every(check=>check.passed)?'done':'failed':'pending';
   if(kind==='approve')return record.status==='ready-for-review'?'waiting':record.verdict?'done':'pending';
@@ -163,7 +168,9 @@ function positionOf(run: ReturnType<typeof runView>, nowMs: number): Position {
       const running = open?.status === 'running' && open.startedAt !== null && Date.parse(open.startedAt) + open.limits.minutes * 60_000 + 120_000 >= nowMs;
       return { kind: 'work', state: running ? 'current' : 'waiting' };
     }
-    case 'ready-for-review': return { kind: 'approve', state: run.awaitingYou ? 'waiting' : 'pending' };
+    // One-shot A1 (row 9): handed over while the AI's job still runs: it is still at work, writing, not waiting on you.
+    case 'ready-for-review': return run.agentJob && !run.agentJob.reviewReady && !run.agentJob.pendingApproval ? { kind: 'write', state: 'current' }
+      : { kind: 'approve', state: run.awaitingYou ? 'waiting' : 'pending' };
     case 'failed': return { kind: loopKind(), state: 'failed' };
     // Accepted, edited or rejected: Chausar sends nothing, so the send step stays the owner's.
     default: return { kind: 'operator', state: 'pending' };
@@ -177,13 +184,14 @@ function runStateOf(run: ReturnType<typeof runView>, position: Position): RunSta
 }
 
 /** unsigned: why a CA firm's regulated papers wait for the CA's sign-off (signoff-gate.ts), which an edit needs too. */
-function resultOf(run: ReturnType<typeof runView>, unsigned: string | null = null): string | undefined {
+function resultOf(run: ReturnType<typeof runView>, unsigned: string | null = null, watchdog: string | null = null): string | undefined {
   switch (run.status) {
     case 'accepted': return 'Draft accepted. You send it to the client.';
     case 'edited': return unsigned ? short(unsigned) : 'You edited the draft. You send your version.';
     case 'rejected': return run.verdict?.reason ? `Draft rejected: ${REASON_WORDS[run.verdict.reason]}.` : 'Draft rejected.';
     case 'ready-for-review': return run.awaitingYou ? undefined : short(run.acceptBlocked ?? 'Practice draft. Not for clients.');
-    case 'stopped': return run.harness?.control?.line ?? run.interrupted?.line ?? STOPPED_BY_YOU;
+    // A2 review: the watchdog's stop of a quiet (or, A2 second review, overlong) AI job says so, never "Stopped by you".
+    case 'stopped': return watchdog ?? run.harness?.control?.line ?? run.interrupted?.line ?? STOPPED_BY_YOU;
     default: return undefined;
   }
 }
@@ -275,7 +283,7 @@ function deliveryRun(
   // Only audited steps count as progress: a done step whose work failed its audit is not.
   const done = built.filter(step => step.state === 'done' && step.audited !== false).length;
   const client = clientNameFor(state, venture.id, run.orderId);
-  const result = resultOf(run, run.status === 'edited' ? regulatedSignoffBlock(state, venture, record) : null);
+  const result = resultOf(run, run.status === 'edited' ? regulatedSignoffBlock(state, venture, record) : null, watchdogLine(record.agentJob));
   const receiptId = runState === 'done' ? harness?.workReceiptIds.at(-1) : undefined;
   const summary: RunSummary = plain({
     runId: run.id, businessId: business.id, agent: agentName(state, venture), purpose: run.practiceNow && run.status !== 'accepted' ? `Practice draft for ${client}` : `Draft a reply for ${client}`,
@@ -298,6 +306,8 @@ function deliveryRun(
       ...(record.agentJob.cost?{cost:{...record.agentJob.cost}}:{}),
       messages: record.agentJob.messages.map(({ id, text, label }) => ({ id, text, label })),
       tools: record.agentJob.tools.map(tool => ({ ...tool })),
+      // A2: the sites this job stopped asking after three refusals in a row.
+      ...(record.agentJob.unavailableSites?.length ? { unavailableSites: [...record.agentJob.unavailableSites] } : {}),
       ...(record.agentJob.model ? { model: record.agentJob.model } : {}),
       ...(record.agentJob.pendingApproval ? { pendingApproval: structuredClone(record.agentJob.pendingApproval) } : {}),
     } } : {}),
@@ -384,7 +394,7 @@ function controlSummary(state: State, venture: VentureRecord, record: DeliveryRu
   // 4F2: a breaker stop names its rule as a code too, for the screen's own words.
   const trigger = record.status === 'stopped' && breakerStopped(record.harness) ? record.harness!.breaker!.trigger : null;
   // 4J13: a run a crash cut reads Interrupted (delivery/leases.ts), never "Stopped by you".
-  const stop = record.status === 'stopped' ? { state: 'stopped' as const, line: record.harness?.control?.line ?? record.interrupted?.line ?? STOPPED_BY_YOU, ...(trigger ? { trigger } : {}) }
+  const stop = record.status === 'stopped' ? { state: 'stopped' as const, line: watchdogLine(record.agentJob) ?? record.harness?.control?.line ?? record.interrupted?.line ?? STOPPED_BY_YOU, ...(trigger ? { trigger } : {}) }
     : record.status === 'waiting-for-you' && stopAsked(record.harness) ? { state: 'stopping' as const, line: 'Stopping: the step in progress finishes first.' }
       : null;
   return { ...(usually ? { usually } : {}), ...(stop ? { stop } : {}) };
@@ -566,7 +576,10 @@ function improvementRun(state: State, venture: VentureRecord, record: Improvemen
   const summary: RunSummary = {
     runId: record.id, businessId: business.id, agent: agentName(state, venture), purpose: 'Improve how the work is done from your feedback', state: 'done',
     startedAt, elapsed: elapsedText(startedAt, record.at),
-    result: record.status === 'incomplete' ? short(`Stopped: ${record.incompleteReason ?? 'no change could be tried.'}`, 300) : IMPROVEMENT_RESULT[record.status],
+    // One-shot A4 (rows 38, 128): a kept version Practice no longer offers (adopted, rolled back, or the plan changed)
+    // says why, in Practice's own words, never that it is ready to adopt.
+    result: record.status === 'incomplete' ? short(`Stopped: ${record.incompleteReason ?? 'no change could be tried.'}`, 300)
+      : record.status === 'kept-candidate' ? staleReason(state, venture, record) ?? IMPROVEMENT_RESULT[record.status] : IMPROVEMENT_RESULT[record.status],
   };
   const steps: RunStep[] = record.rounds.map(round => plain({
     id: `round-${round.round}`, state: 'done' as const,

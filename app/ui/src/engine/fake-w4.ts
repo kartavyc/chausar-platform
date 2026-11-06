@@ -36,6 +36,8 @@ import { FAKE_4J19_METHODS, FakeApprovalsDesk, withFakeMeta } from './fake-4j19'
 
 export type SupportImportedMail={messageId:string;references:string[];from:string;to?:string[];subject:string;date:string;text:string|null;held:boolean};
 export interface W4DeskHost {
+  /** A2 review: the Codex setup Your AI shows (fake-first-run.ts connectionsSetup). */
+  codexSetup?(): import('./types').CodexSetupLite;
   nativeCanResume?(run:RunDetail):boolean;
   nativeStop?(run:RunDetail):void;
   nativeRestart?(run:RunDetail,resume:boolean):Promise<RunDetail>;
@@ -125,6 +127,9 @@ export class FakeW4Desk {
   private readonly runControls: FakeRunControls;
   private readonly sets: FakeSets;
   private readonly approvals: FakeApprovalsDesk;
+  /** A4 fix round: a decision engine code records itself (journal/decisions.ts recordDecision). */
+  noteDecision(subject: string, action: string, reason: string): void { this.approvals.noteDecision(subject, action, reason); }
+  chausarNote(subject: string, action: string, reason: string): void { this.approvals.chausarNote(subject, action, reason); }
   private readonly setup: FakeSetupDesk;
   private readonly extras: FakeAgentExtras;
   /** 4J22a's desk; public so tests can break the chain or put a contract on an order. */
@@ -149,6 +154,11 @@ export class FakeW4Desk {
   }
 
   /** A receipt a wave 4 desk made (4J6's figures across businesses), for venture.receipt.get. */
+  /** Tests (A2): the engine's watchdog stopped this native AI job because it went quiet. */
+  quietStop(runId: string): void { this.runControls.quietStop(runId); }
+  /** Tests (A2 second review): the engine's watchdog stopped this native AI job because it ran past its time limit. */
+  timeStop(runId: string): void { this.runControls.timeStop(runId); }
+
   receipt(id: string): ReceiptLite | undefined {
     return this.across.receipt(id) ?? this.team.receipt(id) ?? this.goals.receipt(id) ?? this.runControls.receipt(id);
   }

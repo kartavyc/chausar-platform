@@ -48,7 +48,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
    * W6 6C2: the plan About you kept (its idea and the confirmed country). Start then shows no box: it keeps that plan at
    * once, asking only what the engine forces (a passphrase, the recovery code), and calls onKept instead of opening Today.
    */
-  plan?: { idea: string; countryCode: string } | undefined;
+  plan?: { idea: string; countryCode: string; name?: string; offers?: readonly { name: string; line: string }[]; by?: 'model' | 'template'; callId?: string } | undefined;
   onKept?: (() => void | Promise<void>) | undefined;
 }) {
   const t = useT();
@@ -104,7 +104,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
   useEffect(() => {
     if (!plan || auto.current) return;
     auto.current = true;
-    void act(() => begin(plan.idea, plan.countryCode));
+    void act(() => begin(plan.idea, plan.countryCode, plan));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the kept plan starts once
   }, []);
 
@@ -137,7 +137,8 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
 
   async function finish(sentence: Sentence) {
     setStage({ kind: 'working', step: 'plan' });
-    await setUpPlan(client.request, sentence);
+    // A4 fix round (founder, 4 Nov): a business made from the Start gallery reuses the AI already set up.
+    await setUpPlan(client.request, sentence, { reuseAi: variant === 'place' });
     if (onKept) { await onKept(); return; }
     goTo('today');
     onStarted();
@@ -174,11 +175,12 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     }
   }
 
-  async function begin(idea: string, code: string) {
+  async function begin(idea: string, code: string, shown?: { name?: string; offers?: readonly { name: string; line: string }[]; by?: 'model' | 'template'; callId?: string }) {
     setCountryCheck(null);
     setStage({ kind: 'working', step: 'read' });
-    const preview = await client.request('venture.preview', { idea, countryCode: code });
-    await keep({ idea, countryCode: code, name: preview.serviceLabel.trim() || DEFAULT_NAME });
+    // One-shot A1 (row 3): a plan kept on About you keeps the name and offers its card showed.
+    const name = shown?.name?.trim() || (await client.request('venture.preview', { idea, countryCode: code })).serviceLabel.trim() || DEFAULT_NAME;
+    await keep({ idea, countryCode: code, name, ...(shown?.offers?.length ? { offers: shown.offers, by: shown.by ?? 'template', ...(shown.callId ? { callId: shown.callId } : {}) } : {}) });
   }
 
   function confirmCountry(code: string) {
@@ -192,7 +194,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
     event?.preventDefault();
     if (busy || stage.kind === 'code') return;
     if (kept) { void act(() => finish(kept)); return; }
-    if (plan && !asking) { void act(() => begin(plan.idea, plan.countryCode)); return; }
+    if (plan && !asking) { void act(() => begin(plan.idea, plan.countryCode, plan)); return; }
     if (asking) {
       const first = passphrase.current?.value ?? '';
       if (first.length < PASSPHRASE_MIN) { setProblem({ text: t('onboarding.passphrase.short'), on: 'passphrase' }); passphrase.current?.focus(); return; }

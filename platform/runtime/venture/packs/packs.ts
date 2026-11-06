@@ -47,7 +47,7 @@ export async function addPack(deps: VentureDeps, ctx: Context, raw: unknown): Pr
     const taken = new Set(current.flatMap(row => row.doc.calculators.map(calc => packOperation(row.packId, calc.id))));
     check(valid.doc.calculators.every(calc => !taken.has(packOperation(valid.doc.id, calc.id))), 'PACK_EXISTS', 'A calculator name in this pack clashes with one already added.');
     tx.put({ ...tx.base('venture-pack'), packId: valid.doc.id, doc: valid.doc, digest: valid.digest, addedBy: tx.ctx.memberId });
-    recordDecision(tx, { subject: `pack:${valid.doc.id}:${valid.digest}`, action: 'approve', who: 'owner', ruleId: null, reason: 'Added this exact pack. Its server references are not added.', rowId: null });
+    recordDecision(tx, { subject: `pack:${valid.doc.id}:${valid.digest}`, action: 'approve', ruleId: null, reason: 'Added this exact pack. Its server references are not added.', rowId: null });
     tx.emit('queue.changed', {});
     return { added: true, digest: valid.digest, pack: valid.view };
   });
@@ -62,7 +62,7 @@ export async function removePack(deps: VentureDeps, ctx: Context, raw: unknown):
     const found = tx.list('venture-pack').find(row => row.packId === body.packId);
     check(found, 'PACK_NOT_FOUND', 'This pack is not added.');
     removeRecords(tx, row => row.id === found.id);
-    recordDecision(tx, { subject: `pack:${found.packId}:${found.digest}`, action: 'approve', who: 'owner', ruleId: null, reason: 'Removed this pack.', rowId: null });
+    recordDecision(tx, { subject: `pack:${found.packId}:${found.digest}`, action: 'approve', ruleId: null, reason: 'Removed this pack.', rowId: null });
     tx.emit('queue.changed', {});
     return { removed: true };
   });

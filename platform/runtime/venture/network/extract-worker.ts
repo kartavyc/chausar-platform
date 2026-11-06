@@ -5,6 +5,7 @@
 // process. It reads one path the owner picked in the system dialog, sends nothing anywhere else, refuses a projection
 // too big to send before sending it, stops the moment the app goes away, and exits. The desktop starts it with a minimal
 // environment and, where Node has it, the permission model (read the engine's code and the picked file only).
+import { refusalError } from '../refusal-brand.ts';
 import { createReadStream } from 'node:fs';
 import { open, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -33,7 +34,7 @@ export function sizeWords(bytes: number): string {
   return `${Math.floor(tenths / 10)}.${tenths % 10} ${unit[0]}`;
 }
 
-const failure = (code: string, message: string) => Object.assign(new Error(message), { code });
+const failure = (code: string, message: string) => refusalError(new Error(message), { code });
 
 /**
  * Any error as the reply's code and plain words. Chausar's own codes pass. A file too big to hold (a string or memory

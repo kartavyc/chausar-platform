@@ -39,12 +39,22 @@ export const APP_TOOLS: Readonly<Record<string, AppPermission>> = Object.freeze(
  */
 export const MINI_FRAME_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'";
 
-/** A quiet base look, so an app reads like the rest of Chausar in both themes. */
-const BASE_STYLE = ':root{color-scheme:light dark;--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8}'
-  + '@media (prefers-color-scheme:dark){:root{--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33}}'
-  + ':root[data-theme=light]{--bg:#fbfbfa;--fg:#16181b;--mute:#5c6168;--line:#e3e5e8}'
-  + ':root[data-theme=dark]{--bg:#121417;--fg:#eceef0;--mute:#a3a8ae;--line:#2a2e33}'
-  + 'html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}'
+/**
+ * A quiet base look, so an app reads like the rest of Chausar in both themes, until Chausar sends its own colours
+ * (one-shot A1, row 12: hostContext.styles.variables, applied by the bridge below). tests check both themes at 4.5:1.
+ */
+export const FRAME_BASE_COLOURS = Object.freeze({
+  light: Object.freeze({ bg: '#fbfbfa', fg: '#16181b', mute: '#5c6168', line: '#e3e5e8', link: '#2f5bd3' }),
+  dark: Object.freeze({ bg: '#121417', fg: '#eceef0', mute: '#a3a8ae', line: '#2a2e33', link: '#8fb4ff' }),
+});
+/** The colour variables an app may be given and may use: var(--bg), var(--fg), var(--mute), var(--line), var(--link). */
+export const FRAME_VARIABLES = Object.freeze(['--bg', '--fg', '--mute', '--line', '--link'] as const);
+const colours = (theme: keyof typeof FRAME_BASE_COLOURS) => Object.entries(FRAME_BASE_COLOURS[theme]).map(([name, value]) => `--${name}:${value}`).join(';');
+const BASE_STYLE = `:root{color-scheme:light dark;${colours('light')}}`
+  + `@media (prefers-color-scheme:dark){:root{${colours('dark')}}}`
+  + `:root[data-theme=light]{color-scheme:light;${colours('light')}}`
+  + `:root[data-theme=dark]{color-scheme:dark;${colours('dark')}}`
+  + 'html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--link)}'
   + 'body{padding:12px 14px}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}'
   + 'th{color:var(--mute);font-weight:500}button,input,select,textarea{font:inherit;color:inherit}'
   + 'button{background:transparent;border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer}';
@@ -53,7 +63,9 @@ const BASE_STYLE = ':root{color-scheme:light dark;--bg:#fbfbfa;--fg:#16181b;--mu
 const BRIDGE = '(function(){"use strict";var pending={},seq=0,done;var ready=new Promise(function(r){done=r;});'
   + 'function send(m){parent.postMessage(m,"*");}'
   + 'function ask(method,params){var id=++seq;send({jsonrpc:"2.0",id:id,method:method,params:params||{}});return new Promise(function(res,rej){pending[id]={res:res,rej:rej};});}'
-  + 'function theme(c){if(c&&(c.theme==="light"||c.theme==="dark"))document.documentElement.setAttribute("data-theme",c.theme);}'
+  + 'function theme(c){if(!c)return;var root=document.documentElement;if(c.theme==="light"||c.theme==="dark")root.setAttribute("data-theme",c.theme);'
+  + 'var v=c.styles&&c.styles.variables;if(!v||typeof v!=="object")return;'
+  + 'for(var k in v){if(Object.prototype.hasOwnProperty.call(v,k)&&/^--(?:bg|fg|mute|line|link)$/.test(k)&&typeof v[k]==="string"&&/^#[0-9a-fA-F]{3,8}$/.test(v[k]))root.style.setProperty(k,v[k]);}}'
   + 'window.addEventListener("message",function(e){if(e.source!==parent)return;var m=e.data;if(!m||m.jsonrpc!=="2.0")return;'
   + 'if(m.id!=null&&!m.method&&pending[m.id]){var p=pending[m.id];delete pending[m.id];if(m.error)p.rej(new Error(String(m.error.message||"Chausar refused this.")));else p.res(m.result);return;}'
   + 'if(m.method==="ui/resource-teardown"&&m.id!=null){send({jsonrpc:"2.0",id:m.id,result:{}});return;}'

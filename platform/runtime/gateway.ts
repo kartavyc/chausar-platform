@@ -1,4 +1,5 @@
-import { spawn } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawnTree } from './process-tree.ts';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, isAbsolute } from 'node:path';
@@ -331,7 +332,9 @@ async function defaultHttp(request: HttpRequest): Promise<HttpResult> {
 
 export async function defaultProcess(request: ProcessRequest): Promise<ProcessResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(request.command, request.args, { cwd: request.cwd, env: request.env, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    // A2 second review: through spawnTree, so a time-out or too much output ends what the command started too. One-shot
+    // A3 (L3): the search for helpers left behind runs only after such a kill, so an ordinary call starts no PowerShell.
+    const child = spawnTree(request.command, request.args, { cwd: request.cwd, env: request.env, stdio: ['pipe', 'pipe', 'pipe'] }, { afterExit: 'killed' }) as ChildProcessWithoutNullStreams;
     let stdout = ''; let stderr = ''; let settled = false;
     const timer = setTimeout(() => { child.kill(); if (!settled) { settled = true; reject(new ChausarError('MODEL_TIMEOUT', 'The installed model command timed out.')); } }, request.timeoutMs);
     child.stdout.on('data', bytes => { stdout += bytes.toString(); if (Buffer.byteLength(stdout) > 1048576) { child.kill(); if (!settled) { settled = true; clearTimeout(timer); reject(new ChausarError('RESPONSE_TOO_LARGE', 'The command returned too much output.')); } } });
