@@ -289,7 +289,7 @@ export class FakeWorkDesk {
       if (this.templateRuns.has(biz+':'+p.runId)) {
         const run = this.reviseRun(biz, String(p.runId), current => reviewTemplate(current, p, this.host.now()));
         const view = this.host.runs().find(view => view.businessId === biz && view.runId === run.id);
-        if (view) { view.state = 'done'; view.steps = view.steps.map(step => ({ ...step, state: 'done' })); view.progress = { done: view.steps.length, total: view.steps.length }; }
+        if (view) { view.state = 'done'; view.finishedAt = run.verdict?.at ?? this.host.now(); view.steps = view.steps.map(step => ({ ...step, state: 'done' })); view.progress = { done: view.steps.length, total: view.steps.length }; }
         this.host.emit({ type: 'run.done', businessId: biz, runId: run.id, at: this.host.now() });
         return clone(run);
       }
@@ -478,10 +478,10 @@ export class FakeWorkDesk {
       if(!client.aiConsent || client.aiConsent.withdrawnAt)throw new EngineError('CLIENT_AI_CONSENT_REQUIRED','Allow this client’s data to reach your AI before starting their work.');
       if(resume && (!this.nativeCanResume(resume)||this.nativeSources.get(biz+':'+resume.runId)?.digest!==this.nativeSource(biz,order)))throw new EngineError('RUN_RESTART_REQUIRED','The saved work no longer matches this order. Start a new job.');
       const at=this.host.now();
-      this.nativeSources.set(biz+':'+runId,{digest:this.nativeSource(biz,order),fileIds:this.orderFiles(biz,order.id).map(file=>file.id)});
-      runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:`Draft a reply for ${client.name}`,state:'active',startedAt:at,elapsed:'',progress:'indeterminate',steps:[{id:'read',purpose:"Read the order and the client's files",state:'pending'},{id:'write',purpose:'Write the draft',state:'pending'},{id:'review',purpose:'Review the draft',state:'pending'}],agentProgress:{messages:[],tools:[]}});
-      // No installed AI runs in this fake. It starts honestly with no fabricated tool results or answer.
       const stage=(this.host.ask?.('venture.get',{}) as {venture?:{launchStage?:string}}|null|undefined)?.venture?.launchStage;
+      this.nativeSources.set(biz+':'+runId,{digest:this.nativeSource(biz,order),fileIds:this.orderFiles(biz,order.id).map(file=>file.id)});
+      runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:`Draft a reply for ${client.name}`,state:'active',startedAt:at,elapsed:'',progress:'indeterminate',...(!isLiveStage(stage)?{practice:true as const}:{}),steps:[{id:'read',purpose:"Read the order and the client's files",state:'pending'},{id:'write',purpose:'Write the draft',state:'pending'},{id:'review',purpose:'Review the draft',state:'pending'}],agentProgress:{messages:[],tools:[]}});
+      // No installed AI runs in this fake. It starts honestly with no fabricated tool results or answer.
       // W6 6C4: in Practice an AI draft for a real order is a practice draft, as the engine marks it.
       const run:DeliveryLite&{preview:null}={id:runId,at,orderId:order.id,status:'waiting-for-you',practice:!isLiveStage(stage),servedBy:'model',preview:null,deliverable:null,verdict:null,awaitingYou:false};
       (this.deliveries[biz]??=[]).unshift(run);this.host.emit({type:'run.started',businessId:biz,runId,at});return clone(run);
