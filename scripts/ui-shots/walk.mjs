@@ -13,11 +13,14 @@
 // With --publish it also copies the shots that match a direction D board (1280 light and 390 light) into
 // docs/superpowers/designs/ink-v2-direction-d/walk/ and writes side-by-side.html and WALK.md there from boards.mjs;
 // --publish-only does that from the last walk's shots and report, without walking again.
+// One-shot C3: --motion=reduce sets the computer's reduce-motion setting and --motion=off the owner's Animations off
+// (the fake answers off, `?motion-off`); after each shot nothing may be running or mid-transition. --long-tasks lists any
+// task over 50 ms the page kept during the case (shell/long-tasks.ts, development only).
 //
 // Usage (from the repo root):
 //   node scripts/ui-shots/walk.mjs [--base=http://localhost:5178] [--port=5179] [--cdp=9481] [--workers=4]
 //                                  [--out=app/ui/.shots] [--profiles=<dir>] [--chrome=<path>] [--only=today,team]
-//                                  [--publish | --publish-only]
+//                                  [--publish | --publish-only] [--motion=reduce|off] [--long-tasks]
 // Without --base it starts its own dev server (vite --mode fake) on --port and stops it at the end. Each worker is
 // one Chrome on its own debugging port (--cdp, --cdp+1, ...) with its own profile under --profiles (default: inside
 // --out, so on the repo's drive), removed when the walk ends.
@@ -43,6 +46,10 @@ const PROFILES = resolve(String(option('profiles', join(OUT, '.profiles'))));
 const CDP = Number(option('cdp', 9481));
 const WORKERS = Math.max(1, Math.min(8, Number(option('workers', 4))));
 const ONLY = option('only', '') ? String(option('only')).split(',') : null;
+const MOTION = String(option('motion', ''));
+if (MOTION && !['reduce', 'off'].includes(MOTION)) throw new Error('--motion takes reduce or off.');
+const LONG_TASKS = Boolean(option('long-tasks', false));
+const LONG_TASK_MS = 50;
 const PHONE_HEIGHT = 844;
 const DESK_HEIGHT = 860;
 const MAX_HEIGHT = 9000;
@@ -133,6 +140,17 @@ const OVERFLOW = `(() => {
   return Math.max(0, ...boxes.map((e) => e.scrollHeight - e.clientHeight));
 })()`;
 
+/** With motion off, nothing runs and nothing is on its way: no animation at all, and no leaving copy left behind. */
+const STILL = `(() => {
+  const problems = [];
+  const running = document.getAnimations();
+  if (running.length) problems.push('motion is off, but ' + running.length + ' animation(s) exist: ' + running.slice(0, 3).map((a) => a.animationName || a.transitionProperty || 'unnamed').join(', '));
+  for (const selector of ['[data-leaving]', '[data-state="closing"]', '[data-open="false"]', '[data-swap-old]', '[data-roll-old]']) {
+    if (document.querySelector(selector)) problems.push('motion is off, but ' + selector + ' is on the page');
+  }
+  return problems;
+})()`;
+
 /** The checks jsdom cannot make. */
 const PAGE_CHECKS = (width) => `(() => {
   const problems = [];
@@ -212,13 +230,15 @@ async function runJob(b, base, job) {
   });
   try {
     await b.viewport(width, height);
-    await b.theme(theme === 'dark');
+    await b.theme(theme === 'dark', MOTION === 'reduce');
     // Screens use English; a case may start on a later day (`clock`).
     await b.languages('en-US,en');
     await b.clock(c.clock ?? null);
     const page = c.page ?? '';
     const hashAt = c.path.indexOf('#');
-    const query = new URLSearchParams((hashAt >= 0 ? c.path.slice(0, hashAt) : c.path).replace(/^\?/, '')).toString();
+    const search = new URLSearchParams((hashAt >= 0 ? c.path.slice(0, hashAt) : c.path).replace(/^\?/, ''));
+    if (MOTION === 'off') search.set('motion-off', '');
+    const query = search.toString();
     await b.go(`${base}/${page}${query ? `?${query}` : ''}${hashAt >= 0 ? c.path.slice(hashAt) : ''}`);
     // From here on the page must not load again: a dev server reloads every open page when a source file changes
     // (other work in the same checkout), and a case caught by one is walked again (see main).
@@ -233,6 +253,8 @@ async function runJob(b, base, job) {
     }
     await stepsOf(b, c.steps);
     await sleep(450); // motion settles in 400 ms or less
+    if (MOTION) result.problems.push(...await b.evaluate(STILL));
+    if (LONG_TASKS) result.longTasks = await b.evaluate(`(window.__chausarLongTasks ?? []).filter((task) => task.duration > ${LONG_TASK_MS})`);
     result.problems.push(...await b.evaluate(PAGE_CHECKS(width)));
     const found = await axe(b);
     result.covered = await b.evaluate(`Boolean(document.querySelector('[data-cover] aside'))`);
@@ -320,6 +342,10 @@ async function main() {
   writeFileSync(join(OUT, 'report.md'), reportMd(report));
   writeIndex(OUT, all, results);
   if (option('publish', false)) publish(OUT, all, report);
+  if (LONG_TASKS) {
+    const long = results.flatMap((r) => (r.longTasks ?? []).map((task) => `${r.id} ${r.width}: ${Math.round(task.duration)} ms at ${task.route}`));
+    console.log(long.length ? `\nTasks over ${LONG_TASK_MS} ms:\n${long.join('\n')}` : `\nNo task over ${LONG_TASK_MS} ms.`);
+  }
   console.log(`\n${report.jobs} checks, ${report.failed} failed. Shots and report in ${OUT}`);
   process.exit(report.failed ? 1 : 0);
 }

@@ -95,8 +95,9 @@ export class Browser {
     await this.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   }
 
-  async theme(dark) {
-    await this.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }] });
+  /** reduce: the computer asks for reduced motion too (one-shot C3, the walk's --motion=reduce). */
+  async theme(dark, reduce = false) {
+    await this.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }, ...(reduce ? [{ name: 'prefers-reduced-motion', value: 'reduce' }] : [])] });
   }
 
   /** The computer's languages as the page reads them (navigator.languages, Accept-Language), for pages loaded after
