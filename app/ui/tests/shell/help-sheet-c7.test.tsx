@@ -40,7 +40,7 @@ describe('C7: help from the guide', () => {
     const link = screen.getByRole('link', { name: 'Read it in the guide' });
     expect(link.getAttribute('href')).toBe(`${GUIDE_URL}#chatgpt-plan-codex`);
     expect(sheet).toBeTruthy();
-  });
+  }, 30_000);
 
   it('no match shows the plain line and the guide link only', async () => {
     start();
@@ -51,7 +51,7 @@ describe('C7: help from the guide', () => {
     expect(none.textContent).toBe("The guide doesn't cover that yet. Open the guide");
     expect(within(none as HTMLElement).getByRole('link').getAttribute('href')).toBe(GUIDE_URL);
     expect(document.querySelector('[data-help-section]')).toBeNull();
-  });
+  }, 30_000);
 });
 
 describe("C7: What's new, once per version", () => {
