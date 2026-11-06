@@ -6,7 +6,7 @@
 // depends on are part of its row id, so a card whose order, invoice or plan changed after the owner saw it is stale.
 // Reads only.
 import { ChausarError, check, type State } from '../../contracts.ts';
-import { OUTREACH_KINDS, PROPOSAL_KINDS } from '../contracts.ts';
+import { OUTREACH_KINDS, PROPOSAL_KINDS } from '../contract-values.ts';
 import type { Json, OutreachKind, ProposalKind, ProposalRecord, ProposalView, VentureRecord } from '../contracts.ts';
 import { digest, listRecords } from '../records.ts';
 import { latestBlueprint } from '../money/shared.ts';

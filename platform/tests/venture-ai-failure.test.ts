@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AI_FAILURE_CODES, aiFailureWords, classifyAiText, classifyClaudeResult, classifyCodexInfo, classifyCodexExec } from '../runtime/venture/models/ai-failure.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import { parseClaudeCli, parseCodexCli } from '../runtime/venture/models/cli.ts';
 import { ownerError } from '../runtime/owner-error.ts';
 import { ChausarError } from '../runtime/contracts.ts';

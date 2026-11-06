@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
 import type { LeadRecord, LeadView, OutreachDraftView, VentureDeps } from '../runtime/venture/contracts.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import {
   createLead, draftOutreach, moveLead, optOut, parseBlocklist, recordSend, verifyLeadEmail, type Lead,
 } from '../runtime/venture/customers/leads.ts';

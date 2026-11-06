@@ -12,7 +12,7 @@ import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
 import { OntologyService, starterPacks } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
-import { APP_ONLY_METHODS, VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import type {
   ClientRecord, DeliveryRunRecord, DeliveryRunView, ModelOutcome, ModelPort, ModelPreview, ModelStatusView, ModelTask, OrderIntake, OrderRecord,
   PlaybookRecord, SecretShelf, SocialCalendarFile, VentureDeps,

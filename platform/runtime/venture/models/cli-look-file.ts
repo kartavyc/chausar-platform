@@ -7,7 +7,8 @@
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { DELEGATE_CLIS, type CliFinding, type DelegateCli } from '../contracts.ts';
+import { DELEGATE_CLIS } from '../contract-values.ts';
+import type { CliFinding, DelegateCli } from '../contracts.ts';
 import { newerVersion, noteNewerOnce, readLocalJson } from '../../local-files.ts';
 
 const MAX_BYTES = 16 * 1024;

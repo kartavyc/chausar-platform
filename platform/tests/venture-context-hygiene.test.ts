@@ -20,7 +20,7 @@ import {
 import { loadedTools, TOOL_GROUPS, toolGroup } from '../runtime/venture/delivery/harness/tool-groups.ts';
 import { defaultPolicyContext } from '../runtime/venture/policy/ladder.ts';
 import { HELD_WORDS } from '../runtime/venture/policy/untrusted.ts';
-import { TOOL_NAMES } from '../runtime/venture/contracts.ts';
+import { TOOL_NAMES } from '../runtime/venture/contract-values.ts';
 import { proposePost } from '../runtime/venture/build/posting.ts';
 import { proposeAction } from '../runtime/venture/journal/index.ts';
 import { handlers as money } from '../runtime/venture/money/index.ts';

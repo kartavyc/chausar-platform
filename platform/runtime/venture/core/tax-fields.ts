@@ -2,7 +2,7 @@
 // Registration numbers are owner-typed and checked here; Chausar never guesses one.
 import { check } from '../../contracts.ts';
 import { gstinValid } from '../../memory.ts';
-import { INDIA_STATES } from '../contracts.ts';
+import { INDIA_STATES } from '../contract-values.ts';
 import type { BackOffice, CountryProfile } from '../contracts.ts';
 
 /**

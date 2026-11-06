@@ -1,4 +1,5 @@
 {
+  "platform/tests/contracts-types-only-d6.test.ts": 0.9,
   "platform/tests/acceptance.test.ts": 5.8,
   "platform/tests/accounting-common.test.ts": 0.4,
   "platform/tests/accounting-engine-registration.test.ts": 0.8,

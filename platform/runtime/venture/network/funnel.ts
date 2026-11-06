@@ -8,7 +8,7 @@
 // the record ids say which card, and Forget removes any receipt that counted one of theirs.
 import { formatMoney } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
-import { PIPELINE_STAGES } from '../contracts.ts';
+import { PIPELINE_STAGES } from '../contract-values.ts';
 import type { IsoDate, PipelineStage, SumReceiptSubject, VentureRecord } from '../contracts.ts';
 import { formatVentureDate, listRecords } from '../records.ts';
 import { localDayAt } from '../local-day.ts';

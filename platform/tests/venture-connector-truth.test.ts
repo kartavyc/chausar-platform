@@ -4,7 +4,7 @@
 // run's capabilities on and off; no posting tool is ever in a run's grant.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TOOL_NAMES } from '../runtime/venture/contracts.ts';
+import { TOOL_NAMES } from '../runtime/venture/contract-values.ts';
 import type { ConnectorCard, ToolName, VentureDeps } from '../runtime/venture/contracts.ts';
 import { CONNECTOR_CATALOGUE } from '../runtime/venture/build/catalogue.ts';
 import { connectorCard } from '../runtime/venture/build/connectors.ts';
