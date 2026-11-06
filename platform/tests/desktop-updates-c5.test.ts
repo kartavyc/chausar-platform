@@ -253,3 +253,15 @@ test('cleanup: signature checks call the system PowerShell by absolute path and 
   assert.match(calls[0].args.at(-1), /SignerCertificate.Thumbprint/);
   assert.deepEqual({ ...answer }, { status: 'Valid', thumbprint: 'C'.repeat(40) });
 });
+
+
+test('cleanup: a failed kept-release rename leaves no private building folder', async t => {
+  const root = await folder(t), release = await staged(root, 'win32');
+  const rename = fsp.rename;
+  t.mock.method(fsp, 'rename', async (from: string, to: string) => {
+    if (String(from).includes('.installed-')) throw Object.assign(new Error('held by another process'), { code: 'EACCES' });
+    return rename(from, to);
+  });
+  await assert.rejects(updates.keepRelease(root, release), { code: 'EACCES' });
+  assert.deepEqual((await readdir(root)).filter(name => name.startsWith('.installed-')), []);
+});

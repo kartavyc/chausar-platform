@@ -111,19 +111,21 @@ async function prepareKeep(updatesFolder, staged) {
  * previous/ and the prepared folder becomes installed/. A copy that no longer matches is thrown away.
  */
 async function commitKeep(updatesFolder, building, manifest) {
-  const installer = join(building, 'installer'), stat = await regularFile(installer);
-  if (!stat || stat.size !== manifest.size || await sha256Of(installer) !== manifest.sha256) {
-    await fsp.rm(building, { recursive: true, force: true });
-    throw Object.assign(new Error('The kept copy changed.'), { code: 'UPDATE_COPY_CHANGED' });
-  }
-  const installed = join(updatesFolder, 'installed'), previous = join(updatesFolder, 'previous');
-  if (await fsp.stat(installed).then(() => true, () => false)) {
-    const old = join(updatesFolder, `.previous-${randomBytes(6).toString('hex')}`);
-    if (await fsp.stat(previous).then(() => true, () => false)) await fsp.rename(previous, old);
-    await fsp.rename(installed, previous);
-    await fsp.rm(old, { recursive: true, force: true });
-  }
-  await fsp.rename(building, installed);
+  try {
+    const installer = join(building, 'installer'), stat = await regularFile(installer);
+    if (!stat || stat.size !== manifest.size || await sha256Of(installer) !== manifest.sha256) {
+      await fsp.rm(building, { recursive: true, force: true });
+      throw Object.assign(new Error('The kept copy changed.'), { code: 'UPDATE_COPY_CHANGED' });
+    }
+    const installed = join(updatesFolder, 'installed'), previous = join(updatesFolder, 'previous');
+    if (await fsp.stat(installed).then(() => true, () => false)) {
+      const old = join(updatesFolder, `.previous-${randomBytes(6).toString('hex')}`);
+      if (await fsp.stat(previous).then(() => true, () => false)) await fsp.rename(previous, old);
+      await fsp.rename(installed, previous);
+      await fsp.rm(old, { recursive: true, force: true });
+    }
+    await fsp.rename(building, installed);
+  } finally { await fsp.rm(building, { recursive: true, force: true }).catch(() => {}); }
 }
 /** Moves <updates>/installed to previous/, then keeps this release as installed/ (manifest.json, signature, installer). */
 async function keepRelease(updatesFolder, staged) {
@@ -193,6 +195,8 @@ async function installOnQuit(input) {
       };
       if (updatesFolder) building = await prepareKeep(updatesFolder, { ...staged, artifactPath: runPath }).catch(() => null);
       if (!(await verifyStaged({ ...staged, artifactPath: runPath }, publicKey, platform))) return refuseCopy('not-verified');
+      // Hash and Authenticode are separate reads. A local replacement between them must still be signed
+      // by this exact certificate, but could be an older valid installer; no await follows the signature gate.
       const last = await signatureOf(runPath);
       if (last?.status !== 'Valid') return refuseCopy('needs-signing');
       if (!publisherMatches(last, windowsCertificateThumbprint)) return refuseCopy('publisher-mismatch');
