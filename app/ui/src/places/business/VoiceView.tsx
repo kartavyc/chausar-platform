@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import type { VoiceInput, VoiceSections, VoiceView as VoiceData } from '../../engine/types';
@@ -63,6 +63,8 @@ export function VoiceView() {
     <div className={b.page}>
       <p className={b.line}>{data.line}</p>
       <div className={s.grid}>
+        <LearnTile draft={data.draft ?? null} line={said?.key === 'learn' ? said.line : null} onLearned={(line) => { setSaid({ key: 'learn', line }); view.reload(); }} onSet={(input) => set(input, keyOf(input as { language: string; channel: string | null }))}
+          choices={<AddVoice taken={new Set([...inUse, ...fresh.map(keyOf)])} onAdd={(voice) => setAdded((was) => [...was, voice])} />} />
         {data.voices.map((voice) => (
           <VoiceTile key={keyOf(voice)} voice={voice} said={said?.key === keyOf(voice) ? said.line : null} onSet={(input) => set(input, keyOf(voice))} />
         ))}
@@ -74,8 +76,6 @@ export function VoiceView() {
             onSet={(input) => set(input, keyOf(voice))}
           />
         ))}
-        <AddVoice taken={new Set([...inUse, ...fresh.map(keyOf)])} onAdd={(voice) => setAdded((was) => [...was, voice])} />
-        <LearnTile draft={data.draft ?? null} line={said?.key === 'learn' ? said.line : null} onLearned={(line) => { setSaid({ key: 'learn', line }); view.reload(); }} onSet={(input) => set(input, keyOf(input as { language: string; channel: string | null }))} />
       </div>
     </div>
   );
@@ -211,7 +211,8 @@ function AddVoice({ taken, onAdd }: { taken: ReadonlySet<string>; onAdd: (voice:
     setChannel(free.channel);
   }, [exists, free?.language, free?.channel]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <TileSection title={t('business.voice.add')}>
+    <div>
+      <h3 className={b.groupTitle}>{t('business.voice.add')}</h3>
       <div className={s.pickers}>
         <div className={s.picker}>
           <label className={s.label} htmlFor={`${id}-language`}>{t('business.voice.language')}</label>
@@ -231,13 +232,14 @@ function AddVoice({ taken, onAdd }: { taken: ReadonlySet<string>; onAdd: (voice:
       <div className={s.buttons}>
         <Button size="sm" disabled={exists} onClick={() => onAdd({ language, channel: channel || null })}>{t('business.voice.addButton')}</Button>
       </div>
-    </TileSection>
+    </div>
   );
 }
 
 /** Learn from your writing: three to ten of the owner's texts, the engine's draft, and Use this voice (a second yes). */
-function LearnTile({ draft, line, onLearned, onSet }: {
+function LearnTile({ draft, line, onLearned, onSet, choices }: {
   draft: VoiceData['draft'] | null; line: string | null; onLearned: (line: string) => void; onSet: (input: VoiceInput) => Promise<VoiceData>;
+  choices: ReactNode;
 }) {
   const t = useT();
   const engine = useEngine();
@@ -280,6 +282,7 @@ function LearnTile({ draft, line, onLearned, onSet }: {
   return (
     <TileSection title={t('business.voice.learn')} className={s.learn}>
       <p className={b.note}>{t('business.voice.learnLead')}</p>
+      {choices}
       <div className={s.texts}>
         {texts.map((text, at) => (
           <Field
