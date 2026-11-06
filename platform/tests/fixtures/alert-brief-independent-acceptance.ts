@@ -1,3 +1,4 @@
+import { testKdfMemo } from '../helpers/kdf-memo.ts';
 import assert from 'node:assert/strict';
 import type {TestContext} from 'node:test';
 import {mkdtemp, readFile, realpath, rm} from 'node:fs/promises';
@@ -22,7 +23,7 @@ export async function fixture(t: TestContext) {
   const directory = await realpath(await mkdtemp(join(base, 'chausar-independent-alert-brief-')));
   assert.equal(dirname(directory), base);
   let providerCalls = 0, ordinal = 0;
-  const options = {directory, demo: true, storage: 'experimental-file' as const,
+  const options = {directory, kdfMemo: testKdfMemo(t), demo: true, storage: 'experimental-file' as const,
     gateway: {http: async () => {providerCalls++; throw Error('This source fixture forbids live inference.');}}};
   let engine = new Engine(options), app = createLocalServer(engine), host = await app.listen();
   const raw = async (method: string, payload: unknown = {}, token = host.token) => {

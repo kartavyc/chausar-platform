@@ -331,6 +331,7 @@
   "platform/tests/vault-commit-budget-d11.test.ts": 30,
   "platform/tests/vault-encrypted-custody.test.ts": 0.6,
   "platform/tests/vault-fresh-bootstrap.test.ts": 3.6,
+  "platform/tests/vault-key-memo-d11.test.ts": 2,
   "platform/tests/vault-ladder-engine-d12.test.ts": 3,
   "platform/tests/vault-ladder-open-d12.test.ts": 3.1,
   "platform/tests/vault-private-artifacts.test.ts": 0.7,

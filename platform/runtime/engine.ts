@@ -7,7 +7,7 @@ import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { STORE_LIMIT_BYTES, Vault, atomicWriteText, readBoundedText, safeDirectory, type EncryptedSnapshotAdapter, type VaultWriterGuard } from './vault.ts';
+import { STORE_LIMIT_BYTES, Vault, atomicWriteText, readBoundedText, safeDirectory, type EncryptedSnapshotAdapter, type VaultWriterGuard, type KdfMemo } from './vault.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
 import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
@@ -101,7 +101,7 @@ export type EngineBackupCustodyOptions = {
   /** Trusted installed host capability, never supplied by an RPC payload. */
   withCompleteOwner?<T>(context: Context, historical: State, work: (assertCurrent: () => void) => Promise<T>): Promise<T>;
 };
-export type EngineOptions = { capture?: { dir: string }; directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
+export type EngineOptions = { kdfMemo?: KdfMemo; capture?: { dir: string }; directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
   /** Trusted local composition: how the speech service starts the local whisper.cpp (tests inject a stand-in). */
   speech?: SpeechOptions;
   /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
@@ -1291,7 +1291,7 @@ export class Engine {
             await files.writeCard(newCard({ folder, name, demo: !!payload.demo, unlock: computer ? 'this-computer' : 'passphrase', recovery: computer ? 'not-made' : 'made', state: 'creating' }));
             wroteCard = true;
           }
-          try { result = await Vault.create({ directory: this.workspacePath(folder), passphrase: secret ? secret.toString('base64url') : payload.passphrase, name, demo: !!payload.demo, storage: await this.adapter(folder) }); break; }
+          try { result = await Vault.create({ directory: this.workspacePath(folder), passphrase: secret ? secret.toString('base64url') : payload.passphrase, name, demo: !!payload.demo, storage: await this.adapter(folder), kdfMemo: this.options.kdfMemo }); break; }
           catch (error) {
             // The engine picked the folder, and an old vault with no card holds that slot (PostgreSQL storage
             // keeps no folder to find): take the next name instead. slugFolder stops after -99.
@@ -1332,7 +1332,7 @@ export class Engine {
       const folder = payload.folder ?? payload.path ?? 'main'; this.workspacePath(folder);
       const custody = this.custodyHost(), typed = payload.passphrase !== undefined && payload.passphrase !== null;
       const files = this.custodyFiles(), card = custody ? await files.readCard(folder) : null;
-      const unlockWith = async (passphrase: string) => Vault.open({ directory: this.workspacePath(folder), passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
+      const unlockWith = async (passphrase: string) => Vault.open({ directory: this.workspacePath(folder), passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard(), kdfMemo: this.options.kdfMemo });
       const unlockFailed = (error: unknown) => (error as ChausarError)?.code === 'UNLOCK_FAILED';
       const passphraseRequired = () => new ChausarError('PASSPHRASE_REQUIRED', CUSTODY_WORDS.errors.PASSPHRASE_REQUIRED);
       // A lock change cut short (KEYCHAIN-SPEC 3.1, 3.2) leaves its marker on the card: the vault may already open the new way.
@@ -1381,7 +1381,7 @@ export class Engine {
       }
       try {
         let moved: { from: number; backup: string } | null = null;
-        const vault = await Vault.recover({ migrationBackup: async (json, workspaceId, from) => { moved = { from, backup: await this.migrationBackup(json, workspaceId, from) }; }, directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
+        const vault = await Vault.recover({ migrationBackup: async (json, workspaceId, from) => { moved = { from, backup: await this.migrationBackup(json, workspaceId, from) }; }, directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard(), kdfMemo: this.options.kdfMemo });
         if (fresh) await this.storeComputerSecret(vault, fresh);
         if (moved) await this.noteMigrated(vault, (moved as { from: number }).from, vault.read().schemaVersion, (moved as { backup: string }).backup);
         await this.attachSafely(vault);
@@ -1415,7 +1415,7 @@ export class Engine {
       } else { credentials = { passphrase: payload.passphrase }; how = 'typed'; }
       try {
         let vault: Vault;
-        try { vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile, ...credentials, storage: await this.adapter(folder), writerGuard: this.writerGuard() }); }
+        try { vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile, ...credentials, storage: await this.adapter(folder), writerGuard: this.writerGuard(), kdfMemo: this.options.kdfMemo }); }
         catch (error) { if (custody && how === 'this-computer' && !('recoveryCode' in credentials) && (error as ChausarError).code === 'UNLOCK_FAILED') throw deviceKeyFailed(); throw error; }
         if (fresh) await this.storeComputerSecret(vault, fresh);
         await this.attachSafely(vault);
@@ -3296,7 +3296,7 @@ export class Engine {
       let vault: Vault;
       // Review of A1 (row 8): the step a failed move stopped at goes to the custody diagnostic log, with the error's code.
       const note = (step: string, error: unknown) => files.noteDiagnostic('transfer.import', step, error, new Date(this.custodyNow()).toISOString());
-      try { vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile: path, passphrase: code, storage: await this.adapter(folder), writerGuard: this.writerGuard() }); }
+      try { vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile: path, passphrase: code, storage: await this.adapter(folder), writerGuard: this.writerGuard(), kdfMemo: this.options.kdfMemo }); }
       catch (error) {
         if ((error as ChausarError).code === 'UNLOCK_FAILED') throw new ChausarError('TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG);
         await note('restore', error); throw error;
@@ -3381,7 +3381,7 @@ export class Engine {
       credentials = { recoveryCode, newPassphrase: fresh.toString('base64url') };
     } else credentials = { passphrase: typed! };
     try {
-      const vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile: payload.file, ...credentials, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
+      const vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile: payload.file, ...credentials, storage: await this.adapter(folder), writerGuard: this.writerGuard(), kdfMemo: this.options.kdfMemo });
       if (fresh) await this.storeComputerSecret(vault, fresh);
       await this.attachSafely(vault);
     } catch (error) {
