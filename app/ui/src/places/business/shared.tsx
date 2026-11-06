@@ -80,14 +80,14 @@ const onQueue = (event: { type: string }) => event.type === 'queue.changed';
  * so a row being decided never leaves the list (its card keeps its key from press to answer and shows its own line),
  * and a row already decided is drawn as its line, never as a fresh card. Lines stay for the session, as on Today.
  */
-export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
+export function PendingPlanRows({ onDecided, accepts = () => true, quietPrimary = false }: { onDecided: () => void; accepts?: (row: QueueRow) => boolean; quietPrimary?: boolean }) {
   const t = useT();
   const client = useEngine();
   const session = useTodaySession();
   const queue = useResource('venture.queue.list', { scope: 'current' }, { refreshOn: onQueue });
   // Every business's rows, for the locked ones: a line of a business that is no longer open is not this page's.
   const all = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: onQueue });
-  const plan = (row: QueueRow) => row.viewRef?.kind === 'plan';
+  const plan = (row: QueueRow) => row.viewRef?.kind === 'plan' && accepts(row);
   const live = (queue.data?.rows ?? []).filter(plan);
   const liveIds = new Set(live.map((row) => row.id));
   const locked = new Set((all.data?.rows ?? []).filter((row) => row.kind === 'locked').map((row) => row.businessId));
@@ -102,7 +102,6 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
   }
   if (rows.length === 0) return null;
   return (
-    <TileSection title={t('business.waiting')}>
       <ul className={s.list}>
         {rows.map((row) => (
           <ApprovalRow
@@ -111,6 +110,7 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
             done={session.line(row.id)}
             said={session.said(row.id)}
             showBusiness={false}
+            quietPrimary={quietPrimary}
             viewed
             onView={() => document.getElementById('business-plan-name')?.focus()}
             onDecide={async (r, action, extra) => after(await decideRow(client, r, action.id, extra, t))}
@@ -118,6 +118,5 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
           />
         ))}
       </ul>
-    </TileSection>
   );
 }

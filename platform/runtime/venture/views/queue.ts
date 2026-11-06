@@ -154,7 +154,7 @@ function planRows(state: State, venture: VentureRecord, business: Business): Pen
     row: {
       ...base(business, 'price', subject, latest.id, latest.at), title,
       line: rest.length ? `Also changes ${rest.map(offer => offer.name.value).join(', ')}.` : 'Accept the plan to use it on new orders and invoices.',
-      change: { label: name, before: priceText(accepted.offers.find(item => item.id === first.id), currency), after: priceText(first, currency) },
+      change: { label: name, before: priceText(accepted.offers.find(item => item.id === first.id), currency), after: priceText(first, currency), ownerEntered: true },
       viewRef, actions: [action('read', 'Read', false), action('approve', 'Accept', true, { secondAsk: !onePress })],
     },
   }];

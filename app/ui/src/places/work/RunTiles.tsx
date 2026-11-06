@@ -13,6 +13,7 @@ import { useRunDetails } from './PreviousRuns';
 import { RoundGate, gateRow } from './RoundGate';
 import { useStopRun } from './StopDialog';
 import s from './Work.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** The current step's mark: a quarter arc on a ring, drawn once and never turning (nothing loops). */
 function StillArc() {
@@ -24,9 +25,9 @@ function StillArc() {
   );
 }
 
-interface RunTileProps { run: RunSummary; detail: RunDetail | undefined; business: string | undefined; queue: readonly QueueRow[] | undefined; onChanged: (() => void) | undefined }
+interface RunTileProps { run: RunSummary; detail: RunDetail | undefined; business: string | undefined; queue: readonly QueueRow[] | undefined; onChanged: (() => void) | undefined; primary: boolean }
 
-function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
+function RunTile({ run, detail, business, queue, onChanged, primary }: RunTileProps) {
   const t = useT();
   const titleId = useId();
   const waiting = run.state === 'waiting';
@@ -59,9 +60,7 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
         <>
           <p className={cx(s.runStep, s.wait)}>
             <Icon name="clock" size={14} />
-            {/* 4Z2: counted as the ring counts it (the engine's steps done), so the line and the ring never disagree. */}
-            {typeof run.progress === 'object' ? t('work.run.waitsAfter', { done: run.progress.done, total: run.progress.total })
-              : at >= 0 ? t('work.run.waitsAt', { step: at + 1, total: steps.length }) : t('run.waiting')}
+            {waited ?? t('run.waiting')}
           </p>
           {detail?.question && (
             <p className={s.question}>
@@ -75,23 +74,23 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
       ) : null}
       <div className={s.runFoot}>
         {/* C4 task 12: a run waiting on the owner says how long it has waited; the time it worked leaves that out. */}
-        {waited ? <span className={s.wait}>{waited}</span> : run.elapsed ? <span>{workedWords(run, t, 'work.run.foot')}</span> : <span />}
-        {stopping ? <span className={s.runActs}><span className={s.stopping}>{t('work.stop.stopping')}</span>{stop.button}</span> : (
-          <span className={s.runActs}>
+        {!waiting && run.elapsed ? <span>{workedWords(run, t, 'work.run.foot')}</span> : <span />}
+        {stopping ? <div className={s.runActs}><span className={s.stopping}>{t('work.stop.stopping')}</span><Fold summary={t('work.run.more')}>{stop.button}</Fold></div> : (
+          <div className={s.runActs}>
             {/* While the round gate waits, its own Stop decides the run: the tile's Stop steps aside. */}
-            {!detail?.gate?.waiting && stop.button}
+            {!detail?.gate?.waiting && <Fold summary={t('work.run.more')}>{stop.button}</Fold>}
             {/* Answer only when the engine sent a question to answer; otherwise the run is opened to see what it waits on.
                 While the Stop dialog is open its own primary is the tile's one; a gate decides in its own box. */}
             {waiting && !stop.open && !detail?.gate?.waiting && (detail?.question
-              ? <Button variant="primary" size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.answer')}</Button>
+              ? <Button variant={primary ? 'primary' : 'secondary'} size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.answer')}</Button>
               : draftWaits
-                ? <Button size="sm" onClick={(event) => openSheet('draft', run.runId, event.currentTarget)}>{t('work.readDraft')}</Button>
-                : <Button size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.open')}</Button>)}
-          </span>
+                ? <Button variant={primary ? 'primary' : 'secondary'} size="sm" onClick={(event) => openSheet('draft', run.runId, event.currentTarget)}>{t('work.readDraft')}</Button>
+                : <Button variant={primary ? 'primary' : 'secondary'} size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.open')}</Button>)}
+          </div>
         )}
       </div>
       {stop.panel}
-      {!stop.open && <RoundGate detail={detail} row={gate} onChanged={onChanged} />}
+      {!stop.open && <RoundGate detail={detail} row={gate} onChanged={onChanged} primary={primary} />}
     </Tile>
   );
 }
@@ -105,17 +104,18 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
  * W4 4F3: each tile has Stop ("Stop run 31"), which opens its small dialog (StopDialog.tsx); a run the round gate holds
  * shows the gate's line and its Continue box (RoundGate.tsx), decided through Today's row for it.
  */
-export function RunTiles({ runs, names, meta, queue, onChanged }: {
+export function RunTiles({ runs, names, meta, queue, onChanged, primaryId }: {
   runs: RunSummary[]; names: ReadonlyMap<string, string>; meta?: string | undefined; queue?: readonly QueueRow[] | undefined; onChanged?: (() => void) | undefined;
+  primaryId?: string | undefined;
 }) {
   const t = useT();
   const id = useId();
   const details = useRunDetails(runs);
   return (
     <section aria-labelledby={id} className={s.block}>
-      <SectionHead id={id} title={t('work.running')} meta={meta} />
+      <SectionHead id={id} title={t(runs.every(run => run.state === 'waiting') ? 'work.filter.waiting' : 'work.running')} meta={meta} />
       <ul className={s.runs}>
-        {runs.map((run) => <RunTile key={run.runId} run={run} detail={details[run.runId]} business={names.get(run.businessId)} queue={queue} onChanged={onChanged} />)}
+        {runs.map((run) => <RunTile key={run.runId} run={run} detail={details[run.runId]} business={names.get(run.businessId)} queue={queue} onChanged={onChanged} primary={run.runId === primaryId} />)}
       </ul>
     </section>
   );

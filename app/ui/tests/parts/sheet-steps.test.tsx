@@ -103,7 +103,7 @@ describe('RunSheet', () => {
 
   it('a rules judge that settled nothing reads "Not checked", never "Failed", and a check is text, not a link', () => {
     const { container } = render(<RunSheetView run={run('27')} onClose={() => {}} />);
-    const evidence = container.querySelector('p[class*="evidence"]')!;
+    const evidence = container.querySelector('[data-check-evidence]')!;
     expect(evidence.textContent).toContain('Not checked: Not settled: cites-source.');
     expect(evidence.textContent).not.toContain('Failed');
     expect(screen.queryByRole('button', { name: /Not settled/ })).toBeNull();

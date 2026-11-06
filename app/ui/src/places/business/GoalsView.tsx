@@ -1,12 +1,12 @@
 import { messageOf } from '../../../../../platform/shared/errors.ts';
-import { useId, useState, type FormEvent } from 'react';
-import { useLanguage, useT, type T } from '../../text';
+import { useState, type FormEvent } from 'react';
+import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
 import { useMonth } from '../../parts/when';
-import { GoalBar } from '../../parts/charts/GoalBar';
+import { GoalBar, GoalBarKey } from '../../parts/charts/GoalBar';
 import { EngineError, type GoalView } from '../../engine/types';
 import { GOAL_EVENTS, goalAmount, goalFromView, monthBefore, monthOf, useGoalSuggestion } from '../today/goal';
 import { TileSection, usePlan } from './shared';
@@ -14,7 +14,6 @@ import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './GoalsView.module.css';
-import { Select } from '../../parts/Select';
 import { Progress } from '../../parts/Progress';
 
 /**
@@ -26,14 +25,11 @@ import { Progress } from '../../parts/Progress';
  */
 export function GoalsView() {
   const t = useT();
-  const language = useLanguage();
   const current = useResource('venture.goals.get', {}, { refreshOn: GOAL_EVENTS });
-  const [picked, setPicked] = useState<string | null>(null);
   const thisMonth = current.data?.month;
-  const month = picked ?? thisMonth;
-  const other = useResource('venture.goals.get', { month: month ?? '' }, { refreshOn: GOAL_EVENTS, skip: !month || month === thisMonth });
-  const view = month === thisMonth ? current.data : other.data;
-  const failed = month === thisMonth ? current.error : other.error;
+  const month = thisMonth;
+  const view = current.data;
+  const failed = current.error;
   const words = useMonth();
 
   return (
@@ -43,11 +39,9 @@ export function GoalsView() {
           <MonthGoal
             key={month}
             month={month}
-            months={ahead(thisMonth)}
             words={words}
             view={view && view.month === month ? view : undefined}
             failed={failed ? messageOf(failed) : undefined}
-            onMonth={setPicked}
           />
         ) : (
           current.error && <p className={b.problem} role="alert">{messageOf(current.error)}</p>
@@ -56,18 +50,6 @@ export function GoalsView() {
       </div>
     </div>
   );
-}
-
-/** This month and the eleven after it, as 'YYYY-MM': calendar parts only. */
-function ahead(month: string): string[] {
-  const months: string[] = [];
-  let year = Number(month.slice(0, 4)), index = Number(month.slice(5, 7));
-  for (let i = 0; i < 12; i++) {
-    months.push(`${year}-${String(index).padStart(2, '0')}`);
-    index += 1;
-    if (index > 12) { index = 1; year += 1; }
-  }
-  return months;
 }
 
 /** An engine refusal in the reader's words where the UI words its code; otherwise the engine's own sentence. */
@@ -80,26 +62,22 @@ function refusal(error: unknown, t: T): string {
 
 interface MonthGoalProps {
   month: string;
-  months: string[];
   words: (month: string) => string;
   view: GoalView | undefined;
   failed: string | undefined;
-  onMonth: (month: string) => void;
 }
 
 /** One month's goal: the one in use (or the ask), and the form that sets it. One filled button. */
-function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalProps) {
+function MonthGoal({ month, words, view, failed }: MonthGoalProps) {
   const t = useT();
-  const language = useLanguage();
   const client = useEngine();
   const plan = usePlan();
   const taxRegistered = plan.data?.blueprint.backOffice.taxRegistered.value === true;
   // The goal's currency in words, from the business's plan: the field never assumes rupees.
   const currency = plan.data?.blueprint.backOffice.currency ?? '';
-  const monthId = useId();
   const [typed, setTyped] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState<GoalView | null>(null);
   const shown = answer ?? view;
@@ -113,7 +91,6 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    setSaved(null);
     if (!typed.trim()) { setProblem(t('business.goals.typeAmount')); return; }
     setProblem(null);
     setBusy(true);
@@ -121,7 +98,7 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
       // The goal goes as typed; the engine reads it in the business's currency.
       setAnswer(await client.request('venture.goals.set', { month, amount: typed }));
       setTyped('');
-      setSaved(t('business.goals.saved', { month: words(month) }));
+      setEditing(false);
     } catch (error) {
       setProblem(refusal(error, t));
     } finally {
@@ -147,7 +124,7 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
             )}
             <div className={s.pair}>
               <dt>{t('business.goals.share')}</dt>
-              <dd data-num="">{data.percent}</dd>
+              <dd data-num="">{t('business.goals.percentOfGoal', { percent: data.percent })}</dd>
             </div>
             {pastBy && (
               <div className={s.pair}>
@@ -157,6 +134,7 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
             )}
           </dl>
           <GoalBar data={data.bar} tone="light" />
+          <GoalBarKey tone="light" />
           {/* C4 task 34 (140.x1): the pace sentence Today's goal shows, from the same engine field (pacePercent). */}
           {shown?.pace && <p className={b.line} data-goal-pace="">{t('today.goal.bar.pace', { pace: `${shown.pacePercent}%` })}</p>}
         </>
@@ -177,39 +155,29 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
           {suggestion.state === 'none' && <p className={b.quiet}>{t('today.goal.noSuggestion')}</p>}
           <Progress kind="goal-suggest" active={suggestion.state === 'asking'} />
           {suggestion.state === 'failed' && <p className={b.problem} role="alert">{t('today.goal.suggestFailed', { message: suggestion.message })}</p>}
-          {suggestion.state !== 'sent' && (
-            <div>
-              <Button size="sm" disabled={suggestion.state === 'asking'} onClick={ask}>{t('today.goal.suggest')}</Button>
-            </div>
-          )}
         </>
       )}
-      {offer && <DraftRecover offer={offer} onRecover={(values) => { setTyped(values.amount); setProblem(null); draft.taken(); }} onDecline={draft.decline} />}
-      <form className={b.priceForm} onSubmit={(event) => void save(event)} noValidate>
-        <div className={s.field}>
-          <label htmlFor={monthId} className={s.label}>{t('business.goals.monthField')}</label>
-          <Select id={monthId} className={s.select} value={month} disabled={busy} onChange={(event) => onMonth(event.currentTarget.value)}>
-            {months.map((option) => <option key={option} value={option}>{words(option)}</option>)}
-          </Select>
-        </div>
+      {offer && <DraftRecover offer={offer} onRecover={(values) => { setTyped(values.amount); setEditing(true); setProblem(null); draft.taken(); }} onDecline={draft.decline} />}
+      {shown?.state === 'set' && !editing ? <Button variant="quiet" onClick={() => setEditing(true)}>{t('business.goals.edit')}</Button> : <form className={b.priceForm} onSubmit={(event) => void save(event)} noValidate>
         <Field
           label={t('business.goals.amountField')}
           hint={t(taxRegistered ? 'business.goals.amountHintTax' : 'business.goals.amountHint', { currency })}
-          inputMode="decimal" autoComplete="off" value={typed} disabled={busy}
+          inputMode="decimal" autoComplete="off" value={typed} disabled={busy} placeholder={t('business.goals.placeholder')}
           onChange={(event) => { setTyped(event.currentTarget.value); setProblem(null); }}
         />
+        {shown?.state === 'unset' && suggestion.state !== 'sent' && <Button variant="quiet" size="sm" disabled={suggestion.state === 'asking'} onClick={ask}>{t('business.goals.suggest')}</Button>}
         {/* C4 task 34 (13.x1): last month's invoiced figure beside the field, set or not, with its receipt. */}
         {shown && (
           shown.lastMonth?.receiptId
             ? <p className={s.inline} data-last-month=""><span>{t('today.goal.lastMonth', { month: monthOf(monthBefore(month)) })}</span><Figure value={shown.lastMonth.display} receiptId={shown.lastMonth.receiptId} /></p>
             : <p className={b.quiet} data-last-month="">{t('business.goals.noLastMonth')}</p>
         )}
-        <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? saved}</ResultLine>
+        <ResultLine tone="problem">{problem}</ResultLine>
         <div className={b.formEnd}>
           <DraftWord saved={draft.saved} refused={draft.refused} shown={typed.trim() !== ''} />
           <Button variant="primary" type="submit" disabled={busy}>{t(shown?.state === 'set' ? 'business.goals.change' : 'business.goals.set')}</Button>
         </div>
-      </form>
+      </form>}
     </TileSection>
   );
 }
@@ -225,11 +193,10 @@ function EarlierGoals({ thisMonth, words }: { thisMonth: string; words: (month: 
     useResource('venture.goals.get', { month: two }, { refreshOn: GOAL_EVENTS }),
     useResource('venture.goals.get', { month: three }, { refreshOn: GOAL_EVENTS }),
   ];
-  const loaded = reads.every((read) => read.data || read.error);
   const set = reads.flatMap((read) => (read.data && read.data.state === 'set' && read.data.goal ? [read.data] : []));
+  if (set.length === 0) return null;
   return (
     <TileSection title={t('business.goals.earlier')}>
-      {set.length > 0 ? (
         <ul className={s.list}>
           {set.map((view) => {
             const invoiced = goalAmount(view.invoiced);
@@ -251,9 +218,6 @@ function EarlierGoals({ thisMonth, words }: { thisMonth: string; words: (month: 
             );
           })}
         </ul>
-      ) : (
-        loaded && <p className={b.quiet}>{t('business.goals.noEarlier')}</p>
-      )}
     </TileSection>
   );
 }

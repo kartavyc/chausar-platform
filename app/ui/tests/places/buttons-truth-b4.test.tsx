@@ -147,7 +147,7 @@ describe('Buttons that say why', () => {
     await within(client).findByRole('option', { name: 'Boat Audio' });
     // Lumen has one priced service, so it is chosen already.
     dim('Add order', 'Pick a client first', sheet);
-    type(client, '+new');
+    await press(within(sheet).getByRole('button', { name: '+ New client' }));
     dim('Add order', "Add the client's name first", sheet);
     type(client, 'c-boat');
     dim('Add order', 'Say what they asked for first', sheet);
@@ -167,7 +167,7 @@ describe('Buttons that say why', () => {
     const client = await within(sheet).findByLabelText('Client');
     await within(client).findByRole('option', { name: 'Boat Audio' });
     dim('Add order', 'Pick a client and a service', sheet);
-    type(client, '+new');
+    await press(within(sheet).getByRole('button', { name: '+ New client' }));
     dim('Add order', "Add the client's name and a service", sheet);
   });
 

@@ -339,6 +339,8 @@ export type VentureRecord = RecordBase<'venture-record'> & {
   serviceType: ServiceType | null;
   status: VentureStatus;
   launchStage: LaunchStage;
+  /** When this business last entered Live; absent for a stage recorded before dates were kept. */
+  liveSince?: IsoTime | null;
   blueprintId: string | null; // latest blueprint version
   acceptedBlueprintId: string | null;
   /** Opaque Electron partition IDs awaiting an already owner-approved Forget. No credentials or client text. */
@@ -2177,6 +2179,7 @@ export type ImprovementReadiness = {
  */
 export type LaunchStatus = {
   stage: 'practice' | 'live';
+  liveSince: IsoTime | null;
   stages: { stage: 'practice' | 'live'; allowed: boolean; reason: string; current: boolean }[];
   acceptedDeliveries: number;
   improvement: ImprovementReadiness;
@@ -2965,7 +2968,7 @@ export type VentureEventRecord = RecordBase<'venture-event'> & { seq: number; na
 export type QueueActionId = 'approve' | 'deny' | 'later' | 'watch' | 'read' | 'answer' | 'send-to-ca' | 'open' | 'connect' | 'set-prices' | 'keep' | 'issue' | 'run-again'
   | 'sent' | 'continue' | 'stop' | 'resume' | 'show-file';
 export interface QueueAction { id: QueueActionId; label: string; primary: boolean; secondAsk?: boolean; requiresView?: boolean }
-export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean }
+export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean; ownerEntered?: true }
 /**
  * 'bank': a bank statement row to record as a payment, or a bank alert (Ink v2 wave 2). Ink v2 wave 4: 'proposal', a
  * proposal from Chats raised to Today (4C1); 'followup', a follow-up due by date (4E1); 'reply', inbound mail that needs
@@ -3138,6 +3141,9 @@ export type RunToolLine = { name: string; line: string; state?: 'done' | 'error'
  */
 export interface RunSummary {
   runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
+  /** Completion and practice are recorded facts, so Work never infers them from a title or start date. */
+  finishedAt?: IsoTime;
+  practice?: true;
   /**
    * C5 task 4: the run's time apart: worked (elapsed less every wait for the owner) and waited (each span from the run
    * waiting to the next thing it did). Only on runs whose calls carry stamped times; an older run shows elapsed alone.

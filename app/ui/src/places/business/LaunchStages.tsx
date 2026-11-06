@@ -7,6 +7,8 @@ import type { LaunchStatusView, VentureRunEvent } from '../../engine/types';
 import { TileSection } from './shared';
 import s from './Business.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { FilterChips } from '../../parts/FilterChips';
+import { useDay } from '../../parts/when';
 
 /**
  * Business > Practice: the launch stage (wave 6, 6C4 / D19). Two stages only, Practice and Live (you approve each), as
@@ -19,8 +21,10 @@ const onChange = (event: VentureRunEvent) => event.type === 'queue.changed';
 
 export function LaunchStages() {
   const t = useT();
+  const day = useDay('short');
   const client = useEngine();
   const status = useResource('venture.launch.status', {}, { refreshOn: onChange });
+  const models = useResource('venture.models.status', {}, { refreshOn: onChange });
   const [phase, setPhase] = useState<'idle' | 'ask' | 'busy'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
   const [view, setView] = useState<LaunchStatusView | null>(null);
@@ -48,19 +52,22 @@ export function LaunchStages() {
   const data = view ?? status.data ?? null;
   const live = data?.stages.find((item) => item.stage === 'live');
   const current = data?.stages.find((item) => item.current);
+  const main = models.data?.tiers.main;
+  const needsAi = main && (main.usable === false || main.presetId === 'built-in-templates');
+  function choose(stage: string) {
+    if (phase !== 'idle' || stage === data?.stage) return;
+    if (stage === 'practice') { void move('practice'); return; }
+    if (live?.allowed) { setProblem(null); setPhase('ask'); }
+    else window.location.hash = needsAi ? '#/connections/ai' : '#/business/plan';
+  }
   return (
     <TileSection title={t('business.launch')}>
       {status.error && !data && <p className={s.problem} role="alert">{t('business.failed', { message: status.error.message })}</p>}
       {!data && !status.error && <LoadingPlace shape="settings" />}
       {data && (
         <>
-          <ul className={s.steps}>
-            {data.stages.map((item) => (
-              <li key={item.stage} className={s.step} data-launch-stage={item.stage} data-current={item.current ? '' : undefined} aria-current={item.current ? 'step' : undefined}>
-                <span className={item.current ? s.strong : undefined}>{t(`business.launch.${item.stage}`)}</span>
-              </li>
-            ))}
-          </ul>
+          <FilterChips label={t('business.launch')} value={data.stage} options={data.stages.map(item => ({ id: item.stage, label: t(`business.launch.${item.stage}`) }))} onChange={choose} />
+          {data.stage === 'live' && data.liveSince && <p className={s.note}>{t('business.launch.since', { day: day(data.liveSince) })}</p>}
           {/* In Practice with Live blocked, the reason is the one line: it says what to do next. */}
           {data.stage === 'practice' && live && !live.allowed
             ? <p className={s.note} id={reasonId}>{live.reason}</p>
@@ -76,18 +83,16 @@ export function LaunchStages() {
               <p className={s.line}>{t('business.launch.ask')}</p>
               <div className={s.buttons}>
                 <Button ref={cancelRef} variant="quiet" onClick={() => setPhase('idle')}>{t('approval.cancel')}</Button>
-                <Button variant="primary" onClick={() => void move('live')}>{t('business.launch.goLiveNow')}</Button>
+                <Button onClick={() => void move('live')}>{t('business.launch.goLiveNow')}</Button>
               </div>
             </div>
           ) : (
             <div className={s.buttons}>
               {data.stage === 'practice'
                 ? (
-                  <Button
-                    variant="primary" disabled={phase !== 'idle'} locked={!live?.allowed}
-                    lockedReason={live?.allowed ? undefined : live?.reason} lockedNoteId={live?.allowed ? undefined : reasonId}
-                    onClick={() => { if (live?.allowed) { setProblem(null); setPhase('ask'); } }}
-                  >{t('business.launch.goLive')}</Button>
+                  <Button disabled={phase !== 'idle'} onClick={() => choose('live')}>
+                    {t(live?.allowed ? 'business.launch.goLive' : needsAi ? 'business.launch.connect' : 'business.launch.readPlan')}
+                  </Button>
                 )
                 : <Button disabled={phase !== 'idle'} onClick={() => void move('practice')}>{t('business.launch.back')}</Button>}
             </div>

@@ -14,7 +14,7 @@ export type Display = string; // engine-formatted text; the UI never computes it
 export type QueueActionId = 'approve' | 'deny' | 'later' | 'watch' | 'read' | 'answer' | 'send-to-ca' | 'open' | 'connect' | 'set-prices' | 'keep' | 'issue' | 'run-again'
   | 'sent' | 'continue' | 'stop' | 'resume' | 'show-file'; // Ink v2 wave 4: "I sent it" (4E), the round gate and run controls (4F)
 export interface QueueAction { id: QueueActionId; label: string; primary: boolean; secondAsk?: boolean; requiresView?: boolean }
-export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean }
+export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean; ownerEntered?: true }
 export type QueueKind = 'draft' | 'price' | 'quote' | 'plan' | 'invoice' | 'signoff' | 'question' | 'setup' | 'locked' | 'connector' | 'bank'
   // W4 4C2: a step Chausar proposed in Chats, raised to Today by the owner (chief/rows.ts).
   | 'proposal'
@@ -146,6 +146,8 @@ export interface RunToolLine { name: string; line: string; state?: 'done' | 'err
 /** 4F1: usually, "Usually 3 to 5 min" once three runs finished (U6); stop, a stop on its way or done, in engine words (O1). */
 export interface RunSummary {
   runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
+  finishedAt?: string;
+  practice?: true;
   progress?: { done: number; total: number } | 'indeterminate'; result?: Display; receiptId?: string; estimate?: boolean;
   usually?: Display; stop?: { state: 'stopping' | 'stopped'; line: Display; trigger?: 'same-error' | 'same-action' | 'failures-in-row' };
   /** C4 task 12: elapsed is the time it worked; waited is its waits on the owner, when its events show any; waitingSince is when the current wait began. */
@@ -1080,6 +1082,7 @@ export interface ImprovementReadinessLite { judged: number; rejectedOrEdited: nu
 /** `venture.launch.status` (wave 6, 6C4): the two stages the owner sees; reason is the engine's words for each. */
 export interface LaunchStatusView {
   stage: 'practice' | 'live';
+  liveSince: string | null;
   stages: { stage: 'practice' | 'live'; allowed: boolean; reason: Display; current: boolean }[];
   acceptedDeliveries: number;
   improvement: ImprovementReadinessLite;

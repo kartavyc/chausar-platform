@@ -110,9 +110,9 @@ describe('5. Team and Work agree on a waiting run', () => {
 
   it('Work counts the waiting run as its ring does: 2 of 3 done, then it waits on you', async () => {
     start('#/work');
-    const working = await screen.findByRole('region', { name: 'Running now' });
+    const working = await screen.findByRole('region', { name: 'Needs you' });
     const producer = (await within(working).findByText('Pricing the sponsor slot')).closest('li')!;
-    expect(await within(producer).findByText('2 of 3 done, waits on you')).toBeTruthy();
+    expect(await within(producer).findByText(/^Waiting/)).toBeTruthy();
     expect(within(producer).getByRole('img', { name: /2 of 3/ })).toBeTruthy();
   });
 

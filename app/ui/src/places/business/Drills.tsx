@@ -6,7 +6,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import type { DrillRunView, ImprovementRunLite } from '../../engine/types';
-import { TileSection, dayOf } from './shared';
+import { dayOf } from './shared';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import { Progress } from '../../parts/Progress';
@@ -50,7 +50,8 @@ export function Drills() {
   const newest = list.data?.runs[0];
   const failed = newest?.results.filter((item) => !item.stopped || !item.twinPassed) ?? [];
   return (
-    <TileSection title={t('business.practice.drills')}>
+    <div>
+      <h3 className={s.groupTitle}>{t('business.practice.drills')}</h3>
       <p className={s.line}>{t('business.practice.drills.lead')}</p>
       {list.error && !list.data && <p className={s.problem} role="alert">{t('business.failed', { message: list.error.message })}</p>}
       {list.data && !newest && <p className={s.note}>{t('business.practice.drills.none')}</p>}
@@ -71,7 +72,7 @@ export function Drills() {
         <Progress kind="drills" active={busy} />
       </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
-    </TileSection>
+    </div>
   );
 }
 
