@@ -1,0 +1,40 @@
+name: B4 Work qualification
+on:
+  push:
+    branches: ['b2c/os-b4-work-*']
+permissions:
+  contents: read
+jobs:
+  work:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CHAUSAR_RUN_ROOT: ${{ runner.temp }}/chausar
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Work UI
+        run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/places/work app/ui/tests/parts/sheet-steps.test.tsx app/ui/tests/places/buttons-truth-b4.test.tsx app/ui/tests/one-primary-view-b4.test.tsx --maxWorkers=1 --reporter=default --reporter=json --outputFile=$RUNNER_TEMP/work-ui.json
+      - name: Waiting run regression
+        if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/places/review-4z2.test.tsx --maxWorkers=1 -t 'Work counts the waiting run'
+      - name: Work word budget
+        if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/budgets.test.tsx --maxWorkers=1 -t 'work stays within its words'
+      - name: Fast engine shard with receipt
+        if: '!cancelled()'
+        run: node scripts/bench.mjs --tier=fast --shard=1/3 --workers=3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: work-reports
+          path: |
+            ${{ runner.temp }}/work-ui.json
+            ${{ runner.temp }}/chausar/engine-tests/factory-bench.json
+          retention-days: 7

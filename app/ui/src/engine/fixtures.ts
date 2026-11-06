@@ -205,8 +205,8 @@ export const QUEUE_VIEWS: import('./types').QueueItemView[] = [
 
 const editorSteps =(): RunDetail['steps'] => [
   { id: 's1', purpose: 'Read the transcript', state: 'done', elapsed: '12 s', audited: true, tools: [{ name: 'files.read', line: 'episode-13.transcript.txt, 9,412 words' }], evidence: [{ kind: 'file', id: 'f-transcript-13', label: 'transcript' }] },
-  { id: 's2', purpose: 'Picked 6 moments, each with a timestamp', state: 'done', elapsed: '48 s', audited: true, tools: [{ name: 'model.main', line: 'Asked for moments under 60 s with a clear hook' }, { name: 'check.timestamps', line: '6 of 6 timestamps found in the transcript' }], evidence: [{ kind: 'check', id: 'c-moments-13', label: '6 moments' }] },
-  { id: 's3', purpose: 'Checked: no black, silent or frozen frames', state: 'done', elapsed: '20 s', audited: true, tools: [{ name: 'ffmpeg.blackdetect', line: 'No black frames' }, { name: 'ffmpeg.silencedetect', line: 'No silence over 2 s' }], evidence: [{ kind: 'check', id: 'c-frames-13', label: 'frame check' }] },
+  { id: 's2', purpose: 'Picked 6 moments, each with a timestamp', state: 'done', elapsed: '48 s', audited: true, tools: [{ name: 'model.main', line: 'Asked for moments under 60 s with a clear hook' }, { name: 'check.timestamps', line: '6 of 6 timestamps found in the transcript' }], evidence: [{ kind: 'check', id: 'c-moments-13', label: 'Passed: 6 moments' }] },
+  { id: 's3', purpose: 'Checked: no black, silent or frozen frames', state: 'done', elapsed: '20 s', audited: true, tools: [{ name: 'ffmpeg.blackdetect', line: 'No black frames' }, { name: 'ffmpeg.silencedetect', line: 'No silence over 2 s' }], evidence: [{ kind: 'check', id: 'c-frames-13', label: 'Passed: frame check' }] },
   { id: 's4', purpose: 'Rendering 3 of 6', state: 'current', elapsed: 'now', tools: [{ name: 'ffmpeg.render', line: 'short-3.mp4, 1080 x 1920' }] },
   { id: 's5', purpose: 'Send drafts to you', state: 'pending' },
 ];
@@ -248,7 +248,7 @@ export const RUNS: RunDetail[] = [
     ],
   },
   {
-    runId: '27', businessId: 'ledgerline', agent: 'Bookkeeper', purpose: 'Matched September bank lines to invoices', state: 'done', startedAt: '2026-10-21T07:30:00.000Z', elapsed: '4 min',
+    runId: '27', businessId: 'ledgerline', agent: 'Bookkeeper', purpose: 'Matched September bank lines to invoices', state: 'done', startedAt: '2026-10-21T07:30:00.000Z', finishedAt: '2026-10-21T07:34:00.000Z', elapsed: '4 min',
     progress: { done: 3, total: 3 }, result: 'Matched 212 of 214 lines. 2 need your data.', receiptId: 'R-0412',
     // C4 task 12: the client the run worked for, as the engine's summary carries it.
     client: { id: 'c-mehta', name: 'Mehta Traders' },
@@ -275,7 +275,7 @@ export const RUNS: RunDetail[] = [
     },
   },
   {
-    runId: '26', businessId: 'lumen', agent: 'Researcher', purpose: 'Estimated reach for episode 14', state: 'done', startedAt: '2026-10-21T07:10:00.000Z', elapsed: '2 min', poster: null,
+    runId: '26', businessId: 'lumen', agent: 'Researcher', purpose: 'Estimated reach for episode 14', state: 'done', startedAt: '2026-10-21T07:10:00.000Z', finishedAt: '2026-10-21T07:12:00.000Z', elapsed: '2 min', poster: null,
     progress: { done: 2, total: 2 }, result: 'About 18,000 views in 30 days', estimate: true,
     steps: [
       { id: 's1', purpose: 'Read views for the last 30 videos', state: 'done', elapsed: '40 s' },
