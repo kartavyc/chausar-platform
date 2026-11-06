@@ -256,6 +256,7 @@ describe('first run: the side-work question (6C6, DECISIONS D5)', () => {
     // A5: the field's professions come first; "None of these" keeps the field, which this test is about.
     await confirmProfession();
     const check = await screen.findByRole('region', { name: 'Day job and rules' }, { timeout: 4000 });
+    expect(check.closest('[data-card]')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Day job and rules' })).toBeTruthy();
     expect(within(check).getByRole('radiogroup', { name: 'Does your employment contract allow side work? This is your responsibility.' })).toBeTruthy();
     expect(within(check).getByText('Chausar does not read your contract. You decide, and you are responsible for it.')).toBeTruthy();
@@ -277,6 +278,22 @@ describe('first run: the side-work question (6C6, DECISIONS D5)', () => {
 });
 
 describe('first run, step 3: Connect what your business needs', () => {
+  it('keeps the plan inside its card frame while saving the business', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    const original = engine.request.bind(engine);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    engine.request = (async (method, params) => { if (method === 'workspace.create') await gate; return original(method, params as never); }) as typeof engine.request;
+    start(engine);
+    await skipAi();
+    await press(/^Teaching and coaching/);
+    await press('Keep this plan');
+    await answerSideWork();
+    try {
+      const keeping = await screen.findByRole('heading', { name: 'Keeping your plan' });
+      expect(keeping.closest('[data-card]')).not.toBeNull();
+    } finally { await act(async () => { release(); }); }
+  });
   it('keeps the plan, saves the field, lists the services with honest labels, and skipping everything opens Today', async () => {
     timeZone('Asia/Kolkata');
     const { calls } = start();

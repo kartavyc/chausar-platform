@@ -49,6 +49,12 @@ const cardTitled = async (title: string | RegExp) => {
 afterEach(() => { window.location.hash = ''; });
 
 describe('Today: the engine\'s previews on the cards (4J3)', () => {
+  it('does not mark all checks done when a check did not run', async () => {
+    const draft = QUEUE.find(row => row.id === 'run:d-ep14:review-1')!;
+    start({ queue: [{ ...draft, preview: { kind: 'video', title: { text: 'Episode 14' }, format: 'long', checks: { passed: 3, run: 3, notRun: 1 } } }] });
+    const card = await cardTitled('Episode 14 is cut');
+    expect(card.querySelector('[data-checks]')?.getAttribute('data-tone')).toBe('wait');
+  });
   it('the video ground shows duration, chapters and "3 checks passed", and no still the engine did not take', async () => {
     start();
     const card = await cardTitled('Episode 14 is cut');

@@ -337,6 +337,7 @@ describe('The Instructions tab', () => {
     const orders = await within(panel).findByRole('region', { name: 'Standing orders' });
     const item = within(orders).getByText("Put the episode's name in the first line of every short's description.").closest('li')!;
     expect(item.textContent).toContain('Since version 5');
+    expect(within(item).getByText('Since version 5').closest('[data-code], .mono')).toBeNull();
     expect(item.textContent).toContain("You said: From now on, put the episode's name in the first line of every short's description.");
 
     await click(within(orders).getByRole('button', { name: 'Go back to version 4' }));
