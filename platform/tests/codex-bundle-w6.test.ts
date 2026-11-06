@@ -188,3 +188,16 @@ test('verification refuses a bundle with a missing LICENSE or NOTICE, a changed 
   }
   await assert.rejects(verifyCodexBundle({ directory: join(tmpdir(), 'chausar-no-such-codex-bundle'), platform: 'win32', architecture: 'x64' }), /package:codex/);
 });
+
+// D9 packaging exposed a top-level-await cycle only when this module is the CLI.
+test('the real staging CLI reaches native validation without an unsettled module import', async t => {
+  const { spawnSync } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const fixture = await vendorFixture(t);
+  // Rejected before copying or starting any program, so no output can enter the checkout.
+  await writeFile(join(fixture.vendor, 'bin/codex.exe'), 'invalid');
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/codex-bundle.mjs', import.meta.url)), '--from', fixture.root, '--platform', 'win32', '--arch', 'x64'], { encoding: 'utf8', windowsHide: true, timeout: 20_000 });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /native executable distribution/);
+  assert.doesNotMatch(result.stderr, /unsettled top-level await/);
+});
