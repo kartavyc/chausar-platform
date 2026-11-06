@@ -46,7 +46,7 @@ export function runKey(intent: KeyIntent, main: HTMLElement | null, close: () =>
   if (!region) return false;
   const current = active?.closest<HTMLElement>('[data-row]') ?? null;
   if (intent === 'next' || intent === 'previous') {
-    const rows = [...region.querySelectorAll<HTMLElement>('[data-row]')];
+    const rows = [...region.querySelectorAll<HTMLElement>('[data-row]')].filter((row) => !row.closest('[hidden]'));
     if (rows.length === 0) return false;
     const at = current ? rows.indexOf(current) : -1;
     const next = intent === 'next' ? (at < 0 ? 0 : Math.min(at + 1, rows.length - 1)) : (at < 0 ? 0 : Math.max(at - 1, 0));

@@ -39,10 +39,6 @@
   "today.action.seen": "देख लिया",
   "today.action.runIt": "चलाएँ",
   "today.action.gotIt": "ठीक है",
-  "today.sub.across": {
-    "one": "{count} आपका इंतज़ार कर रहा है, {businesses} बिज़नेस में",
-    "other": "{count} आपका इंतज़ार कर रहे हैं, {businesses} बिज़नेस में"
-  },
   "today.sub.working": {
     "one": "{count} एजेंट काम कर रहा है।",
     "other": "{count} एजेंट काम कर रहे हैं।"
@@ -81,13 +77,6 @@
   "today.next.asksAgain": "भेजने से पहले आपसे एक बार और पूछेगा",
   "today.next.open": "खोलें",
   "today.team.title": "काम पर टीम",
-  "today.team.working": "{count} काम पर",
-  "today.team.waiting": {
-    "one": "{count} आपका इंतज़ार कर रहा है",
-    "other": "{count} आपका इंतज़ार कर रहे हैं"
-  },
-  "today.team.failed": "{count} फ़ेल",
-  "today.team.idle": "{count} खाली",
   "today.team.see": "टीम देखें",
   "today.live.working": "{agent}, काम पर",
   "today.live.waiting": "{agent}, आपका इंतज़ार",
@@ -244,7 +233,6 @@
   "today.triage.close": "बंद करें",
   "today.triage.save": "सेव करें",
   "today.triage.pickFirst": "पहले एक क्रम चुनें",
-  "today.ideas.waiting": "आपका इंतज़ार",
   "today.ideas.title": "सुझाव",
   "today.ideas.lead": "आपके अपने रिकॉर्ड से सुझाव। शुरू करें से एक ड्राफ़्ट बनता है; जब तक आप उसे आज पर न रखें, कुछ नहीं पहुँचता।",
   "today.ideas.basis": "इन पर आधारित",

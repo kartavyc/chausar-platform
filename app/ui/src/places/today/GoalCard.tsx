@@ -6,7 +6,7 @@ import { useNarrow } from '../../shell/useNarrow';
 import { Button } from '../../parts/Button';
 import { Figure, proofOf, type FigureSize } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
-import { GoalBar, GoalBarKey } from '../../parts/charts/GoalBar';
+import { GoalBar } from '../../parts/charts/GoalBar';
 import { cx } from '../../parts/cx';
 import { usePlainTiles } from '../../parts/Tile';
 import {
@@ -42,8 +42,9 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
   const tone = plain ? undefined : 'dark';
   const none = data.state === 'none';
   const received = data.state === 'none' || data.state === 'unset' ? data.received : null;
+  // B4 task 13: with a goal, one pace line; the other figures are on Money.
   const foot: GoalFootItem[] = data.state === 'set'
-    ? data.foot
+    ? data.foot.filter((item) => item.id === (data.foot.some((other) => other.id === 'past') ? 'past' : 'pace'))
     : received ? [{ id: 'received', label: t('today.goal.received'), amount: received }] : [];
   const sub = none ? t('today.goal.beforeTax') : t('today.goal.invoiced');
 
@@ -53,10 +54,11 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
         <span className={s.icon}><Icon name="target" size={16} /></span>
         <h2 id={headingId} className={s.label}>{none ? t('today.goal.invoiced') : t('today.goal.month', { month: data.month })}</h2>
         <span className={s.sub}>{data.business ? `${data.business} · ${sub}` : sub}</span>
-        {(data.state === 'set' ? data.daysLeft : data.month) && (
-          <span className={s.pill}>
+        {/* B4 task 13: the month is in the title; a set goal's days left is the only pill. */}
+        {data.state === 'set' && data.daysLeft && (
+          <span className={s.pill} data-goal-pill="">
             <Icon name="calendar" size={14} />
-            {data.state === 'set' ? data.daysLeft : data.month}
+            {data.daysLeft}
           </span>
         )}
         {data.state === 'set' && onEdit && (
@@ -67,7 +69,8 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
       </div>
 
       <div className={s.figures}>
-        {data.invoiced && <GoalFigure amount={data.invoiced} size="goal" className={s.amount} />}
+        {/* "Invoiced so far" is smaller until there is a goal to measure it against. */}
+        {data.invoiced && <GoalFigure amount={data.invoiced} size={data.state === 'set' ? 'goal' : 'tile'} className={data.state === 'set' ? s.amount : undefined} />}
         {data.state === 'set' && (
           <span className={s.of}>
             {t('today.goal.of')}
@@ -82,10 +85,8 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
 
       {data.state === 'set' && (
         <>
-          <div className={s.bar}><GoalBar data={data.bar} tone={plain ? 'light' : 'dark'} /></div>
-          <div className={s.key}>
-            <GoalBarKey tone={plain ? 'light' : 'dark'} ready={data.ready ? <GoalFigure amount={data.ready} /> : undefined} />
-          </div>
+          {/* B4 task 13: the bar's legend is its tip. */}
+          <div className={s.bar} title={t('today.goal.legend')}><GoalBar data={data.bar} tone={plain ? 'light' : 'dark'} /></div>
         </>
       )}
 
@@ -108,7 +109,7 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
           {(onSet || suggestion) && (
             <div className={s.askActs}>
               {suggestion && (
-                <Button size="sm" disabled={suggestion.state.state === 'asking'} onClick={suggestion.ask}>{t('today.goal.suggest')}</Button>
+                <Button size="sm" variant="quiet" disabled={suggestion.state.state === 'asking'} onClick={suggestion.ask}>{t('today.goal.suggest')}</Button>
               )}
               {/* B4: Today's one filled button is the next best step or a card, never this. */}
               {onSet && <Button size="sm" onClick={onSet}>{t('today.goal.set')}</Button>}

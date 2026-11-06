@@ -1,7 +1,5 @@
 {
-  "layout.arrange": "यह पेज सजाएँ",
   "layout.sheet.title": "{place} सजाएँ",
-  "layout.sheet.label": "लेआउट",
   "layout.sheet.line": "इस पेज के हिस्से दिखाएँ, छिपाएँ, खिसकाएँ या उनके नाम बदलें। आपका AI भी यही कर सकता है, और आप उसे वापस ले सकते हैं।",
   "layout.change.label": "लेआउट में बदलाव",
   "layout.undo": "वापस लें",
@@ -10,7 +8,6 @@
     "one": "और {count} बदलाव",
     "other": "और {count} बदलाव"
   },
-  "layout.hidden": "छिपा हुआ",
   "layout.hide": "{name} छिपाएँ",
   "layout.hide.short": "छिपाएँ",
   "layout.show.short": "दिखाएँ",

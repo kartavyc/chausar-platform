@@ -119,11 +119,11 @@ describe('Today and Money draw their blocks from the layout', () => {
 describe('the Arrange sheet', () => {
   it('lists the blocks; locked ones say why; Hide answers with the engine\'s line and Undo', async () => {
     const { spy, view } = await start('#/today');
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Arrange this page' })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Arrange Today' })); });
     const sheet = await screen.findByRole('complementary', { name: 'Arrange Today' });
-    const needs = within(sheet).getByRole('listitem', { name: 'Needs you' });
-    expect(needs.textContent).toContain('Approvals always show.');
-    expect(within(needs).queryByRole('button', { name: /Hide/ })).toBeNull();
+    // B4 task 13: what always shows is one line, not a row of its own.
+    expect(within(sheet).queryByRole('listitem', { name: 'Needs you' })).toBeNull();
+    expect(within(sheet).getByText(/^Always shows: .*Needs you/)).toBeTruthy();
     const ideas = within(sheet).getByRole('listitem', { name: 'Ideas' });
     await act(async () => { fireEvent.click(within(ideas).getByRole('button', { name: 'Hide Ideas' })); });
     await settle();
@@ -152,7 +152,7 @@ describe('the Arrange sheet', () => {
 
   it('C4 task 6: names are text with a pencil; Enter renames, Escape puts the name back', async () => {
     const { spy } = await start('#/today');
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Arrange this page' })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Arrange Today' })); });
     const sheet = await screen.findByRole('complementary', { name: 'Arrange Today' });
     // At rest the only box is the saved view's name.
     expect(within(sheet).getAllByRole('textbox').map((box) => box.getAttribute('aria-label') ?? (box as HTMLInputElement).labels?.[0]?.textContent)).toEqual(['View name']);
@@ -174,7 +174,7 @@ describe('the Arrange sheet', () => {
 
   it('saves a view and switches to it', async () => {
     const { spy } = await start('#/today');
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Arrange this page' })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Arrange Today' })); });
     const sheet = await screen.findByRole('complementary', { name: 'Arrange Today' });
     await act(async () => { fireEvent.click(within(within(sheet).getByRole('listitem', { name: 'Team at work' })).getByRole('button', { name: 'Hide Team at work' })); });
     await settle();

@@ -118,33 +118,10 @@ describe('Today: ideas, folded at the end (W4 4J22b, from 4J18)', () => {
 
   it('with no idea, there is no Ideas fold at all', async () => {
     start({ now: EARLY });
-    await screen.findByText(/^Waiting on you$/, { selector: 'summary *' });
+    await screen.findByRole('region', { name: 'Needs you' }, { timeout: 4000 });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(screen.queryByText(/^Ideas$/, { selector: 'summary *' })).toBeNull();
+    // B4 task 13: Waiting on you left the page; the same things are cards and orders on Work.
+    expect(document.querySelector('[data-today-fold="waiting"]')).toBeNull();
   });
-});
-
-describe('Today: who is waiting on you (W4 4J22b, from 4J18)', () => {
-  it('lists only real records, each opening where it is', async () => {
-    start({ now: EARLY });
-    const fold = await openFold(/^Waiting on you$/);
-    const line = within(fold).getByRole('link', { name: 'For Boat Audio: the new price and the episode draft wait on you.' });
-    expect(line.getAttribute('href')).toBe('#/work?order=o-boat-14');
-    assertInkRules(document.body);
-  });
-
-  it('lists mail the owner answers themselves, newest first, each opening its reply card on Today', async () => {
-    const { request } = start({ now: EARLY, pipelineDue: true });
-    const fold = await openFold(/^Waiting on you$/);
-    const links = within(fold).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual([
-      'Tara Iyer wrote on 21 Oct 2026 and waits for your reply.',
-      'For Boat Audio: the new price and the episode draft wait on you.',
-    ]);
-    expect(links[0]!.getAttribute('href')).toMatch(/^#\/today\?row=reply%3Ainbound_\w+$/);
-    const rowId = decodeURIComponent(links[0]!.getAttribute('href')!.split('row=')[1]!);
-    expect((await request('venture.queue.list', { scope: 'all' })).rows.some((row) => row.id.startsWith(`${rowId}:`))).toBe(true);
-    assertInkRules(document.body);
-  });
-
-
 });

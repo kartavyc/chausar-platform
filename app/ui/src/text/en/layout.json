@@ -1,13 +1,10 @@
 {
-  "layout.arrange": "Arrange this page",
   "layout.sheet.title": "Arrange {place}",
-  "layout.sheet.label": "Layout",
   "layout.sheet.line": "Show, hide, move or rename parts of this page. Your AI can do the same, and you can undo it.",
   "layout.change.label": "Layout change",
   "layout.undo": "Undo",
   "layout.keep": "Keep",
   "layout.ai.more": { "one": "and {count} more change", "other": "and {count} more changes" },
-  "layout.hidden": "Hidden",
   "layout.hide": "Hide {name}",
   "layout.hide.short": "Hide",
   "layout.show.short": "Show",
@@ -30,5 +27,8 @@
   "layout.go.label": "Your AI suggests a page",
   "layout.go.line": "Your AI suggests {title}.",
   "layout.go.open": "Open {title}",
-  "layout.go.dismiss": "Not now"
+  "layout.go.dismiss": "Not now",
+  "layout.always": "Always shows: {names}",
+  "layout.place.today": "Today",
+  "layout.place.money": "Money"
 }

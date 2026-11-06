@@ -116,12 +116,12 @@ describe('Today v2: the greeting', () => {
     expect(await screen.findByRole('heading', { level: 1, name: words })).toBeTruthy();
   });
 
-  it("the line under it is the engine's summary, then how many agents are working, with the count in bold", async () => {
+  it('the line under it says how many agents are working; the waiting count is on Needs you (B4 task 13)', async () => {
     start();
     await loaded();
     const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
-    await waitFor(() => expect(header.textContent).toContain('12 need you, across 2 businesses. 2 agents are working.'));
-    expect(header.querySelector('b')?.textContent).toBe('12');
+    await waitFor(() => expect(header.textContent).toContain('2 agents are working.'));
+    expect(header.textContent).not.toContain('need you');
   });
 
   it('with nothing waiting, the line only says who is working', async () => {
@@ -172,10 +172,9 @@ describe('Today v2: the goal card', () => {
     expect(goal.textContent).toContain('79%');
     expect(goal.textContent).toContain('8 days left');
     expect(within(goal).getByRole('img', { name: SET.bar.label })).toBeTruthy();
-    expect(goal.textContent).toContain('Ready to issue');
-    expect(goal.textContent).toContain("Today's pace");
+    expect(goal.querySelector('[title*="ready to issue"]')).not.toBeNull();
     const foot = goal.querySelector('[data-goal-foot]')!;
-    expect(foot.querySelectorAll('[data-receipt][data-tone="dark"]')).toHaveLength(3);
+    expect(foot.querySelectorAll('[data-receipt][data-tone="dark"]')).toHaveLength(1);
     expect(foot.textContent).toContain('Ahead of pace');
     fireEvent.click(within(goal).getByRole('button', { name: 'Change the goal' }));
     expect(edit).toHaveBeenCalledTimes(1);
@@ -299,14 +298,14 @@ describe('Today v2: the team at work', () => {
     start();
     await screen.findByRole('region', { name: 'Team at work' });
     // Keeper, the engine's own jobs as code, is on the team too (W4 4A1); departments are today-w4.test.tsx's.
-    await waitFor(() => expect(team().textContent).toContain('2 working · 1 needs you · 2 idle'));
+    // B4 task 13: no tally line.
+    await waitFor(() => expect(within(team()).getByRole('button', { name: 'Producer, needs you' })).toBeTruthy());
+    expect(team().textContent).not.toContain('idle');
     const stories = within(team()).getByRole('list', { name: 'Your agents' });
     await waitFor(() => expect(within(stories).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
-      .toEqual(['Chausar, ask anything', 'Producer, needs you', 'Editor, 3 of 5', 'Researcher, working', 'Publisher, idle', 'Keeper, idle', null]));
+      .toEqual(['Producer, needs you', 'Editor, 3 of 5', 'Researcher, working', 'Publisher, idle', 'Keeper, idle', null]));
     const producer = within(stories).getByRole('button', { name: 'Producer, needs you' });
     expect(producer.querySelector('[data-state]')?.getAttribute('data-state')).toBe('waiting');
-    // W4 4C2: Chausar leads the stories and opens Chats (chats.test.tsx).
-    expect(within(stories).getAllByRole('button')[0]!.getAttribute('aria-label')).toBe('Chausar, ask anything');
     expect(within(stories).getByRole('button', { name: 'Add agent' })).toBeTruthy();
     expect(within(team()).getByRole('link', { name: 'See team' }).getAttribute('href')).toBe('#/team');
   });
@@ -322,24 +321,14 @@ describe('Today v2: the team at work', () => {
     start();
     await screen.findByRole('region', { name: 'Team at work' });
     await waitFor(() => expect(within(team()).getAllByRole('article').map((a) => a.getAttribute('aria-label')))
-      .toEqual(['Editor, working', 'Researcher, working', 'Producer, waiting on you']));
-    const [editor, researcher, producer] = within(team()).getAllByRole('article');
+      .toEqual(['Editor, working', 'Researcher, working']));
+    const [editor, researcher] = within(team()).getAllByRole('article');
     expect(within(editor!).getByRole('img', { name: '3 of 5 steps done' })).toBeTruthy();
     expect(within(researcher!).getByRole('img', { name: 'Working, no step count yet' })).toBeTruthy();
-    expect(within(producer!).getByRole('img', { name: '2 of 3 steps done, waiting on you' })).toBeTruthy();
     await waitFor(() => expect(editor!.textContent).toContain('Rendering 3 of 6'));
     expect(editor!.textContent).toContain('Cutting shorts from episode 13');
     expect(editor!.textContent).toContain('4 min');
-    expect(producer!.textContent).toContain('Waiting on you.');
-    expect(producer!.querySelector('[data-state]')?.getAttribute('data-state')).toBe('waiting');
     assertOnePrimary(team());
-  });
-
-  it('"Answer below" on a waiting tile moves focus to the card that answers it', async () => {
-    start();
-    await loaded();
-    await click(await within(team()).findByRole('button', { name: /^Answer below/ }));
-    expect(document.activeElement?.getAttribute('data-row-id')).toBe('q-question-preview');
   });
 });
 
@@ -350,11 +339,11 @@ describe('Today v2: needs you', () => {
     const head = within(needsYou()).getByRole('heading', { level: 2, name: 'Needs you' });
     expect(head.parentElement!.textContent).toContain('12');
     const show = within(needsYou()).getByRole('group', { name: 'Show' });
-    for (const name of ['All 12', 'To approve 7', 'From your agents 4', 'Setup 2', 'Lumen Studio 7', 'Ledgerline 5', 'Sitara Events, locked']) {
+    for (const name of ['All', 'To approve 7', 'From your agents 4', 'Setup 2', 'Lumen Studio 7', 'Ledgerline 5', 'Sitara Events, locked']) {
       expect(within(show).getByRole('button', { name }), name).toBeTruthy();
     }
     expect(within(show).getAllByRole('button')).toHaveLength(7);
-    expect(within(show).getByRole('button', { name: 'All 12' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(show).getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('Questions shows only the questions and puts show=questions in the address', async () => {
@@ -364,7 +353,7 @@ describe('Today v2: needs you', () => {
     expect(window.location.hash).toBe('#/today?show=questions');
     await waitFor(() => expect(rowIds()).toEqual(['q-question-title', 'q-question-preview', 'q-run-again-thumbs', 'contract:o-iyer-oct:contract-iyer-1']));
     expect(within(needsYou()).getByRole('button', { name: 'From your agents 4' }).getAttribute('aria-pressed')).toBe('true');
-    await click(within(needsYou()).getByRole('button', { name: 'All 12' }));
+    await click(within(needsYou()).getByRole('button', { name: 'All' }));
     expect(window.location.hash).toBe('#/today');
   });
 
@@ -393,16 +382,17 @@ describe('Today v2: needs you', () => {
   it('five full cards in the engine order, then the rest behind "Show 8 more", which reveals them and moves focus', async () => {
     start();
     await loaded();
-    const cards = [...needsYou().querySelectorAll('[data-row]')];
+    // B4 task 13: another business's row waits in its one line, not among the cards.
+    const cards = [...needsYou().querySelectorAll('[data-row]')].filter((c) => !c.closest('details'));
     expect(cards.map((c) => c.getAttribute('data-row-id'))).toEqual(ORDER.slice(0, 5));
     expect(cards.map((c) => c.getAttribute('data-layout'))).toEqual(Array(5).fill('card'));
-    const more = within(needsYou()).getByRole('button', { name: 'Show 8 more' });
-    expect(more.closest('[data-more]')!.textContent).toContain('8 more need you');
-    expect(more.closest('[data-more]')!.querySelector('[data-more-line]')!.textContent).toBe(`${titlesOf(ORDER.slice(5, 8))} and 5 more`);
+    const more = within(needsYou()).getByRole('button', { name: 'Show 7 more' });
+    expect(more.closest('[data-more]')!.textContent).toContain('7 more need you');
+    expect(more.closest('[data-more]')!.querySelector('[data-more-line]')!.textContent).toBe(`${titlesOf(ORDER.slice(5, 8))} and 4 more`);
     await click(more);
     expect(rowIds()).toEqual(ORDER);
     expect(document.activeElement?.getAttribute('data-row-id')).toBe(ORDER[5]);
-    expect(within(needsYou()).queryByRole('button', { name: 'Show 8 more' })).toBeNull();
+    expect(within(needsYou()).queryByRole('button', { name: 'Show 7 more' })).toBeNull();
     assertOnePrimary(needsYou());
     assertFiguresProved(needsYou());
     assertInkRules(document.body);
@@ -413,15 +403,15 @@ describe('Today v2: needs you', () => {
     const client = createFakeClient(engine);
     start({ client });
     await loaded();
-    expect(within(needsYou()).getByRole('button', { name: 'Show 8 more' })).toBeTruthy();
+    expect(within(needsYou()).getByRole('button', { name: 'Show 7 more' })).toBeTruthy();
     expect(ORDER.slice(5)).toContain('q-run-again-thumbs');
     await resolveElsewhere(client, 'q-run-again-thumbs', 'later');
-    const more = await within(needsYou()).findByRole('button', { name: 'Show 7 more' });
+    const more = await within(needsYou()).findByRole('button', { name: 'Show 6 more' });
     const fold = more.closest<HTMLElement>('[data-more]')!;
-    expect(fold.textContent).toContain('7 more need you');
+    expect(fold.textContent).toContain('6 more need you');
     expect(fold.textContent).not.toContain('Thumbnail set failed');
     const left = ORDER.slice(5).filter((id) => id !== 'q-run-again-thumbs');
-    expect(fold.querySelector('[data-more-line]')!.textContent).toBe(`${titlesOf(left.slice(0, 3))} and 4 more`);
+    expect(fold.querySelector('[data-more-line]')!.textContent).toBe(`${titlesOf(left.slice(0, 3))} and 3 more`);
   });
 
   it('draws no fold once nothing behind it waits', async () => {
@@ -439,10 +429,10 @@ describe('Today v2: needs you', () => {
     start({ engine: new FakeEngine({ now: ENGINE_NOW, queue: [...QUEUE, ...SETUP_ROWS] }) });
     await loaded();
     const order = [...QUEUE, ...SETUP_ROWS].map((r) => ({ ...r, digest: '' }) as QueueRow).sort(queueOrder);
-    const folded = order.slice(5);
-    expect(folded).toHaveLength(10);
-    const fold = within(needsYou()).getByRole('button', { name: 'Show 10 more' }).closest<HTMLElement>('[data-more]')!;
-    expect(fold.querySelector('[data-more-line]')!.textContent).toBe(`${folded.slice(0, 3).map((r) => r.title).join(' · ')} and 7 more`);
+    const folded = order.slice(5).filter((r) => r.kind !== 'locked');
+    expect(folded).toHaveLength(9);
+    const fold = within(needsYou()).getByRole('button', { name: 'Show 9 more' }).closest<HTMLElement>('[data-more]')!;
+    expect(fold.querySelector('[data-more-line]')!.textContent).toBe(`${folded.slice(0, 3).map((r) => r.title).join(' · ')} and 6 more`);
   });
 
   it('a card stays the same card across a filter change: a typed answer and a decision on its way survive', async () => {
@@ -451,7 +441,7 @@ describe('Today v2: needs you', () => {
     await loaded();
     // Past the first five, the question waits behind the fold; shown, it is a compact card.
     expect(needsYou().querySelector('[data-row-id="q-question-title"]')).toBeNull();
-    await click(within(needsYou()).getByRole('button', { name: 'Show 8 more' }));
+    await click(within(needsYou()).getByRole('button', { name: 'Show 7 more' }));
     const card = cardOf('q-question-title');
     expect(card.getAttribute('data-layout')).toBe('compact');
     await click(within(card).getByRole('button', { name: 'Answer' }));
@@ -465,7 +455,7 @@ describe('Today v2: needs you', () => {
     await click(within(card).getByRole('button', { name: 'Send answer' }));
     const decides = () => calls.filter(([method]) => method === 'venture.queue.decide');
     expect(decides()).toHaveLength(1);
-    await click(within(needsYou()).getByRole('button', { name: 'All 12' }));
+    await click(within(needsYou()).getByRole('button', { name: 'All' }));
     await waitFor(() => expect(rowIds()).toEqual(ORDER));
     expect(cardOf('q-question-title')).toBe(card);
     const answer = within(card).getByRole('button', { name: 'Answer' }) as HTMLButtonElement;
@@ -671,7 +661,7 @@ describe('Today v2: working now and earlier', () => {
     expect(editor.querySelector('[data-state]')?.getAttribute('data-state')).toBe('working');
     await waitFor(() => expect(rowOf('run-30').textContent).toContain('Step 2'));
     const waiting = rowOf('run-29');
-    expect(waiting.textContent).toContain('Waiting on you');
+    expect(waiting.textContent).toContain('Review');
     expect(waiting.textContent).not.toContain('6 min');
     // 4Z2: a known failure in plain words; the tool's own line is on the run's sheet.
     await waitFor(() => expect(rowOf('run-28').textContent).toContain("The video tool isn't installed on this computer yet."));

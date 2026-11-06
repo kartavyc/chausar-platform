@@ -1,4 +1,4 @@
-import { Fragment, useId, useState, type ReactNode, useEffect } from 'react';
+import { useId, useState, type ReactNode, useEffect } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import type { QueueKind, QueueRow } from '../../engine/types';
@@ -16,6 +16,7 @@ import { needsYouOf } from '../../shell/needsYou';
 import s from './NeedsYou.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { useEngine } from '../../engine/context';
+import { Fold } from '../../parts/Fold';
 
 /** A row of the list: waiting on the owner, or decided here and shrunk to its receipt line. */
 export interface NeedsItem { row: QueueRow; done?: DecidedLine | undefined }
@@ -80,6 +81,8 @@ export interface NeedsYouProps {
   phone?: boolean | undefined;
   /** Under the chips, before the cards: the phone's swipe tip, while there is something to swipe. */
   tip?: ReactNode;
+  /** B4 task 13: the row the next best step says: its card stays mounted and out of view. */
+  hiddenId?: string | undefined;
 }
 
 /**
@@ -93,7 +96,7 @@ export interface NeedsYouProps {
 /** The sessions (one per engine client) whose first cards have already come in. */
 const STAGGERED = new WeakSet<object>();
 
-export function NeedsYou({ items, loaded, failed, filter, onFilter, expanded, onExpand, card, phone = false, tip }: NeedsYouProps) {
+export function NeedsYou({ items, loaded, failed, filter, onFilter, expanded, onExpand, card, phone = false, tip, hiddenId }: NeedsYouProps) {
   const t = useT();
   const headingId = useId();
   const waiting = items.filter((item) => !item.done).map((item) => item.row);
@@ -116,11 +119,16 @@ export function NeedsYou({ items, loaded, failed, filter, onFilter, expanded, on
   const visible = items.filter((item) => matchesFilter(item.row, filter, sinceIds));
   const [tool, setTool] = useState<'set' | 'sort' | null>(null);
   // W4 4J19: a set takes the open business's rows only, as the engine lists them for it (never venture.get's id).
-  const open = useOpenBusiness();
-  const candidates = setCandidates(waiting, open.rowIds);
-  const shown = expanded ? visible : visible.slice(0, BIG_CARDS + COMPACT_CARDS);
-  // Behind the fold, only what still waits counts: a row decided here or resolved elsewhere is not something more.
-  const folded = expanded ? [] : visible.slice(BIG_CARDS + COMPACT_CARDS).filter((item) => !item.done);
+  const openBusiness = useOpenBusiness();
+  const candidates = setCandidates(waiting, openBusiness.rowIds);
+  // B4 task 13: decided lines first, full width; other businesses are one line unless the owner filtered to one of them.
+  const others = filter.startsWith(BUSINESS) ? [] : visible.filter((item) => !item.done && item.row.kind === 'locked');
+  const mine = visible.filter((item) => !others.includes(item));
+  const decidedItems = mine.filter((item) => item.done);
+  const open = mine.filter((item) => !item.done);
+  const shownOpen = expanded ? open : open.slice(0, BIG_CARDS + COMPACT_CARDS);
+  const shown = [...decidedItems, ...shownOpen];
+  const folded = expanded ? [] : open.slice(BIG_CARDS + COMPACT_CARDS);
 
   return (
     <section className={s.needs} aria-labelledby={headingId}>
@@ -134,23 +142,33 @@ export function NeedsYou({ items, loaded, failed, filter, onFilter, expanded, on
       {/* One-shot C3 task 12: nothing for the first 150 ms, then the cards' shapes; no "Loading" word and no jump. */}
       <LoadingPlace shape="cards" loading={!loaded && !failed} />
       {waiting.length > 0 && (
-        <FilterChips label={t('today.filter.label')} options={options(t, waiting, filter, sinceIds)} value={filter} onChange={onFilter} scroll={phone} className={s.chips} />
-      )}
-      {waiting.length > 0 && tip}
-      {waiting.length > 0 && tool === null && (
-        <div className={s.tools}>
-          {candidates.length > 1 && <Button variant="quiet" size="sm" onClick={() => setTool('set')}>{t('today.set.open')}</Button>}
-          {waiting.length > 1 && <Button variant="quiet" size="sm" onClick={() => setTool('sort')}>{t('today.triage.open')}</Button>}
+        // B4 task 13: the chips and the tools are one row, the tools at its right end.
+        <div className={s.chipRow} data-chip-row="">
+          <FilterChips label={t('today.filter.label')} options={options(t, waiting, filter, sinceIds)} value={filter} onChange={onFilter} scroll={phone} className={s.chips} />
+          {tool === null && (
+            <div className={s.tools}>
+              {candidates.length > 1 && <Button variant="quiet" size="sm" onClick={() => setTool('set')}>{t('today.set.open')}</Button>}
+              {waiting.length > 1 && <Button variant="quiet" size="sm" onClick={() => setTool('sort')}>{t('today.triage.open')}</Button>}
+            </div>
+          )}
         </div>
       )}
+      {waiting.length > 0 && tip}
       {tool === 'set' && <SetPicker rows={candidates} onClose={() => setTool(null)} />}
       {tool === 'sort' && <TriageBox onClose={() => setTool(null)} />}
 
       {shown.length > 0 && (
         <div className={s.cards} data-stagger={stagger ? '' : undefined} data-arrivals={arrivals ? '' : undefined}>
           {/* W4 4J19: a needs-you probe's notice (4G2) is always a compact card. */}
-          {shown.map((item, index) => <Fragment key={item.row.id}>{card(item, index < BIG_CARDS && !item.row.notice ? 'card' : 'compact')}</Fragment>)}
+          {shown.map((item) => <div key={item.row.id} className={s.slot} hidden={item.row.id === hiddenId || undefined}>{card(item, open.indexOf(item) < BIG_CARDS && !item.row.notice ? 'card' : 'compact')}</div>)}
         </div>
+      )}
+      {others.length > 0 && (
+        <Fold summary={t('today.others', { count: others.length })} className={s.others}>
+          <div className={s.cards}>
+            {others.map((item) => <div key={item.row.id} className={s.slot}>{card(item, 'compact')}</div>)}
+          </div>
+        </Fold>
       )}
       {folded.length > 0 && <More rest={folded} onShow={() => onExpand(folded[0]?.row.id)} />}
 
@@ -179,7 +197,8 @@ function options(t: ReturnType<typeof useT>, waiting: readonly QueueRow[], filte
   ));
   const sinceCount = since ? waiting.filter((row) => since.has(row.id)).length : 0;
   const sinceOption: FilterOption[] = since && (sinceCount > 0 || filter === SINCE) ? [{ id: SINCE, label: t('today.filter.since'), count: sinceCount }] : [];
-  return [{ id: 'all', label: t('today.filter.all'), count: needsYouOf(waiting) }, ...sinceOption, ...kinds, ...byBusiness];
+  // B4 task 13: the heading already says how many; All does not say it again.
+  return [{ id: 'all', label: t('today.filter.all') }, ...sinceOption, ...kinds, ...byBusiness];
 }
 
 /**

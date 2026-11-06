@@ -51,6 +51,14 @@
 
 /* Under 900 px a line that would wrap pushes the page down: it goes, and an empty slot gives its height back. */
 @media (max-width: 899px) {
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .tools {
+    flex-basis: 100%;
+  }
+
   .line:empty,
   .line[data-long] {
     display: none;
