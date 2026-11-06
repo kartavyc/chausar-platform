@@ -1,7 +1,7 @@
 import { useResource } from '../engine/context';
-import type { VentureRunEvent } from '../engine/types';
+import type { UiRunEvent } from '../engine/types';
 
-const QUEUE_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
+const QUEUE_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
 
 /**
  * W4 4J19 review: the open business as the engine lists its own work. A row's and a run's businessId is the workspace

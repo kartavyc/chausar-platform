@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FakeEngine } from '../../src/engine/fake';
-import type { InvoiceViewLite, VentureRunEvent } from '../../src/engine/types';
+import type { InvoiceViewLite, UiRunEvent } from '../../src/engine/types';
 
 /**
  * B3 task 1: the engine adds one queue.changed after an owner's record event (records.ts QUEUE_EVENTS), so every
@@ -10,7 +10,7 @@ const NOW = '2026-10-23T10:00:00.000Z';
 const ask = <T>(engine: FakeEngine, method: string, params: Record<string, unknown> = {}) => engine.request(method, params) as Promise<T>;
 
 function listening(engine: FakeEngine) {
-  const heard: VentureRunEvent['type'][] = [];
+  const heard: UiRunEvent['type'][] = [];
   engine.subscribe((event) => { heard.push(event.type); });
   return { heard, clear: () => { heard.length = 0; } };
 }

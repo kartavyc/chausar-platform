@@ -12,7 +12,7 @@ import type { StrengthLevel } from '../../parts/StrengthDots';
 import { cx } from '../../parts/cx';
 import { Icon } from '../../parts/Icon';
 import b from '../../parts/Button.module.css';
-import { EngineError, type EngineClient, type PersonSummary, type TieBand, type VentureRunEvent, type WarmPathView } from '../../engine/types';
+import { EngineError, type EngineClient, type PersonSummary, type TieBand, type UiRunEvent, type WarmPathView } from '../../engine/types';
 import { onDesktop, openExternal, openProblem, safeUrl } from '../connections/external';
 import s from './Network.module.css';
 
@@ -60,7 +60,7 @@ export function LinkedInButton({ href }: { href: string }) {
 }
 
 /** The network's lists reload on a queue change and on a pipeline change (a card added or gone). */
-export const networkRefresh = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'pipeline.changed';
+export const networkRefresh = (event: UiRunEvent) => event.type === 'queue.changed' || event.type === 'pipeline.changed';
 
 /** "Founder at Kettle Audio", or whichever of the two the files gave; null when neither. */
 export function roleLine(t: T, person: Pick<PersonSummary, 'title' | 'company'>): string | null {

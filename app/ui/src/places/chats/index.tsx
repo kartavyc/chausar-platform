@@ -12,7 +12,7 @@
 import { useState } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
-import type { VentureRunEvent } from '../../engine/types';
+import type { UiRunEvent } from '../../engine/types';
 import { askChausar, useAskWords } from '../../shell/ask';
 import { goTo, useRoute } from '../../shell/navigation';
 import { useNarrow } from '../../shell/useNarrow';
@@ -22,7 +22,7 @@ import { ChiefThread } from './ChiefThread';
 import s from './Chats.module.css';
 
 /** The list reads again when Chausar answers in any chat. */
-const LIST_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message';
+const LIST_EVENTS = (event: UiRunEvent) => event.type === 'chief.message';
 
 export function Place() {
   const t = useT();

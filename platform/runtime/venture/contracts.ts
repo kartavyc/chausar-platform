@@ -5047,7 +5047,7 @@ export type OrderContractItem = { id: string; kind: 'deliverable' | 'check'; sta
 
 /** 4J13. when: the schedule in words with its time zone. prompt (4J22a): sent back to turn it off, on or change it; only
  * for a role that may change routines (owner, cofounder). */
-export type RoutineView = { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
+export type RoutineView = { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; id: string; name: string; agent: string | null; prompt?: string; recordReport?: 'va-morning' | 'va-weekly'; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
 export interface RoutinesView { routines: RoutineView[] }
 /**
  * One-shot C4 task 32: a ready routine the plan already names, for the owner to add through the form (nothing stored).

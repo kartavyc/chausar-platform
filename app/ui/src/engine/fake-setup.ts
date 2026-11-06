@@ -59,8 +59,8 @@ function singleLine(value: unknown, what: string, max: number): string {
   return value.trim();
 }
 
-interface Profile { firstName: string | null; excludedServices: string[]; familyId?: string }
-interface HeldDraft { business: string; form: string; values: unknown; at: string; clearedAt: string | null }
+interface Profile { firstName: string | null; excludedServices: string[]; familyId?: Exclude<OwnerView['familyId'], null> }
+interface HeldDraft { business: string; form: string; values: SettingsDraftView['values']; at: string; clearedAt: string | null }
 
 export class FakeSetupDesk {
   private readonly host: W4DeskHost;
@@ -140,7 +140,7 @@ export class FakeSetupDesk {
       }
     }
     const before = this.profile();
-    const familyId = 'familyId' in p ? (p.familyId as string | null) : before.familyId ?? null;
+    const familyId = 'familyId' in p ? (p.familyId as OwnerView['familyId']) : before.familyId ?? null;
     const next: Profile = { firstName: firstName === undefined ? before.firstName : firstName, excludedServices: services ?? before.excludedServices, ...(familyId ? { familyId } : {}) };
     this.profiles.set(this.host.current(), next);
     this.clearDraft('owner', p);
@@ -208,8 +208,8 @@ export class FakeSetupDesk {
     const business = this.host.current();
     const at = this.host.now();
     const kept = this.drafts.find((draft) => draft.business === business && draft.form === p.form);
-    if (kept) Object.assign(kept, { values: JSON.parse(text) as unknown, at, clearedAt: null });
-    else this.drafts.push({ business, form: p.form, values: JSON.parse(text) as unknown, at, clearedAt: null });
+    if (kept) Object.assign(kept, { values: JSON.parse(text) as SettingsDraftView['values'], at, clearedAt: null });
+    else this.drafts.push({ business, form: p.form, values: JSON.parse(text) as SettingsDraftView['values'], at, clearedAt: null });
     return { form: p.form, at, line: 'Saved' };
   }
 

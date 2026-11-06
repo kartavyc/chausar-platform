@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { WORK_STEPS, type WorkKind } from '../../../../platform/runtime/venture/views/work-steps';
 import { useEngine } from './context';
-import type { VentureRunEvent, WorkStepStateLite } from './types';
+import type { UiRunEvent, WorkStepStateLite } from './types';
 
 /** One step of a job for the screens: its words (empty when the job's own list names it), its state and when it began. */
 export type WorkStepView = { id: string; label: string; state: WorkStepStateLite; passed?: boolean; since?: string };
@@ -53,7 +53,7 @@ export function useWork(kind: WorkKind, options: { active?: boolean | undefined;
 
   useEffect(() => {
     read();
-    const off = client.subscribe((event: VentureRunEvent) => {
+    const off = client.subscribe((event: UiRunEvent) => {
       if (event.type !== 'work.step' || event.kind !== kind || !event.step || !event.state) return;
       frames.current += 1;
       const { step, state, at, workId } = event;
