@@ -4,7 +4,7 @@
 // count appears on the usage only when it is above zero, so a call without caching keeps exactly its old shape.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { callCostMicros, estimateMaxCostMicros } from '../runtime/venture/models/cost.ts';
+import { callCostMicros, estimateMaxCostMicros, recordedCallMicros } from '../runtime/venture/models/cost.ts';
 import { parseAnthropic } from '../runtime/venture/models/anthropic.ts';
 import { parseOpenAI } from '../runtime/venture/models/openai.ts';
 import { parseClaudeCli, parseCodexCli } from '../runtime/venture/models/cli.ts';
@@ -76,4 +76,12 @@ test('the rate card carries the cache prices both ways: a table to its card line
   const plain = modelTableOf(listRateOfTable('model:anthropic-sonnet', table({}))! as SpendRate);
   assert.equal('cacheReadMicrosPerMillion' in plain, false);
   assert.equal('cacheWriteMicrosPerMillion' in listRateOfTable('model:x', table({}))!, false);
+});
+
+
+test('cleanup: recorded costs retain the full supported 30 digit amount', () => {
+  const amount = '9'.repeat(30);
+  assert.equal(recordedCallMicros({ costMicros: amount }), amount);
+  assert.equal(recordedCallMicros({ costMicros: null, usage: {}, estimatedMaxCostMicros: amount }), amount);
+  assert.equal(recordedCallMicros({ costMicros: '9'.repeat(31) }), null);
 });
