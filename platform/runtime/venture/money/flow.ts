@@ -64,7 +64,7 @@ export function callAddend(item: { record: SpendRecord; micros: bigint; estimate
 
 /** The basis line for AI spend in rupees: the owner's rate today, since no spend record keeps the rate of its day. */
 export function rateBasis(rate: string | null): string[] {
-  return rate ? [`AI spend in rupees at your rate today, ${rate}: Chausar keeps no rate for the day of each call`] : [];
+  return rate ? [`AI spend in rupees at ${/reference rate/.test(rate) ? 'the rate' : 'your rate today'}, ${rate}: Chausar keeps no rate for the day of each call`] : [];
 }
 
 /**

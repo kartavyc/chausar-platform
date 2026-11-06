@@ -72,3 +72,11 @@ test('margins without a rupee rate keep one currency: the spend and margin are n
   await assert.rejects(env.money('venture.money.margins', {}), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(env.money('venture.money.margins', { month: '2026-13' }), code('INVALID_VENTURE_REQUEST'));
 });
+
+// C5 task 15: with the reference rate, margins count from day one and their words name the source and day.
+test('margins at the reference rate name its source and date', async () => {
+  const { env } = await margins();
+  await env.money('venture.spend.policy.set', { useReference: true });
+  const view = await env.money<MarginsView>('venture.money.margins', { month: '2026-10' });
+  assert.match(view.line, /\u20b994\.3996 per \$1 \(FBIL reference rate of 5 Nov 2026\)/);
+});

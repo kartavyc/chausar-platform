@@ -16,7 +16,7 @@ const run = async () => ({ value: 'done', billedMicros: null });
 /** The settings this file covers, without the Ink v2 wave 4 (4F2) meters and limits, which venture-spend-meter.test.ts covers,
  *  nor which currency leads (4Z3), which venture-spend-lead.test.ts covers. */
 const base = (view: SpendPolicyView) => {
-  const { dailyCapMicros, dailyCapUsd, dailyCap, dailyCapRupees, alertPermille, alert, meter, limitReached, keyLimits, agentCaps, writeCaps, card, currencyLead, leads, capLead, askFirstLead, meters, ...rest } = view;
+  const { reference, dailyCapMicros, dailyCapUsd, dailyCap, dailyCapRupees, alertPermille, alert, meter, limitReached, keyLimits, agentCaps, writeCaps, card, currencyLead, leads, capLead, askFirstLead, meters, ...rest } = view;
   return rest;
 };
 const call = (key: string, item: string, list: SpendRate | null = null) => ({ key, item, label: `Call ${key}`, payer: 'connector:fal', draftDigest: 'c'.repeat(64), list });
@@ -88,4 +88,22 @@ test('spend rows: heavy work and the delivery agent\'s model calls name the team
   assert.equal(agentOf.get('Call delegate:run_1:t1.1:d'), 'delivery');
   assert.equal(agentOf.get('Call model:call_1'), 'delivery');
   assert.equal(agentOf.get('Call model:call_2'), null);
+});
+
+// C5 task 15: Use the reference rate. The owner's choice, once: it stores the exact figure, its date and its source, and
+// the view offers it with those words. Margins then count, and their basis names the date.
+test('spend policy: using the reference rate stores its figure, day and source; a typed rate replaces it', async () => {
+  const env = await setup();
+  const { REFERENCE_RATE } = await import('../runtime/venture/money/reference-rate.ts');
+  const before = await get(env);
+  assert.equal(before.reference?.line, 'Use the reference rate of 5 Nov 2026: ₹94.3996 per US dollar');
+  const view = await set(env, { useReference: true });
+  assert.equal(view.inrPerUsd, REFERENCE_RATE.perUsd);
+  assert.equal(view.rupeeRate, '₹94.3996 per $1 (FBIL reference rate of 5 Nov 2026)');
+  const { listRecords } = await import('../runtime/venture/records.ts');
+  assert.deepEqual(listRecords(env.store.read(), 'venture-spend-policy').at(-1)!.rupeeRate, { perUsd: '943996', setOn: '2026-11-05', source: 'FBIL reference rate' });
+  await assert.rejects(set(env, { useReference: true, inrPerUsd: '90' }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
+  await assert.rejects(set(env, { useReference: false }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST');
+  const typed = await set(env, { inrPerUsd: '90.00' });
+  assert.match(typed.rupeeRate!, /your rate, set/);
 });
