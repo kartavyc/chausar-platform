@@ -15,8 +15,8 @@ export function McpServers({ servers, onChange, busy, saved, onCredentialSaved }
   const replace = (id: string, next: ExternalMcpServer) => onChange(servers.map(server => server.id === id ? next : server));
   function add() { let n = 1; while (servers.some(server => server.id === `server${n}`)) n++; onChange([...servers, { id: `server${n}`, name: '', transport: 'http', url: '' }]); }
   return <fieldset className={s.group} disabled={busy}>
-    <legend className={connections.subheading}>{t('connections.mcp.title')}</legend>
-    <p className={connections.note}>{t('connections.mcp.warning')}</p>
+    {servers.length > 0 && <legend className={connections.subheading}>{t('connections.mcp.title')}</legend>}
+    {servers.length > 0 && <p className={connections.note}>{t('connections.mcp.warning')}</p>}
     {servers.map(server => <div className={s.group} key={server.id}>
       <Field label={t('connections.mcp.name')} value={server.name} onChange={event => replace(server.id, { ...server, name: event.currentTarget.value })} />
       <label className={s.label}>{t('connections.mcp.connection')}<Select className={s.select} value={server.transport} onChange={event => replace(server.id, event.currentTarget.value === 'stdio'
@@ -41,7 +41,7 @@ export function McpServers({ servers, onChange, busy, saved, onCredentialSaved }
       <Button type="button" onClick={() => onChange(servers.filter(row => row.id !== server.id))}>{t('connections.mcp.remove')}</Button>
       {saved && (server.transport === 'http' && server.oauth ? <ServerSignIn server={server} /> : <ServerToken server={server} onSaved={onCredentialSaved} />)}
     </div>)}
-    <Button type="button" onClick={add}>{t('connections.mcp.add')}</Button>
+    <Button type="button" size="sm" variant="quiet" onClick={add}>{t('connections.mcp.add')}</Button>
     <SuggestedServers servers={servers} onAdd={server => onChange([...servers, server])} />
   </fieldset>;
 }
