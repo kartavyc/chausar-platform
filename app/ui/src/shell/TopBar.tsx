@@ -4,7 +4,9 @@ import { useNeedsYou } from './needsYou';
 import { BottomTabs, type BottomTab } from '../parts/BottomTabs';
 import { Logo } from '../parts/Logo';
 import type { IconName } from '../parts/icons';
+import { Icon } from '../parts/Icon';
 import { Bell } from './Bell';
+import { openFindDialog } from './find/CommandDialog';
 import { BusinessMenu } from './BusinessMenu';
 import { openSheet } from './navigation';
 import { formatHash, type PlaceId, type Route } from './routes';
@@ -12,9 +14,9 @@ import s from './TopBar.module.css';
 
 /**
  * The phone's top bar (D-Phone-Today `header.top`): the mark, which goes home to Today, then the business button and
- * its menu, and at the right the bell (D's `.tib`, W4 4G4), which opens the notification centre. It replaces the rail
- * under 760 px; the places move to the bottom tabs. The board's account button is not drawn: there is no account
- * feature. Every target is 44 px.
+ * its menu, and at the right the search button (C2), which opens the command bar as a dialog, and the bell (D's `.tib`,
+ * W4 4G4), which opens the notification centre. It replaces the rail under 760 px; the places move to the bottom tabs.
+ * The board's account button is not drawn: there is no account feature. Every target is 44 px.
  */
 export function TopBar() {
   const t = useT();
@@ -27,6 +29,9 @@ export function TopBar() {
         <BusinessMenu variant="bar" />
       </div>
       <div className={s.tools}>
+        <button type="button" className={s.find} aria-label={t('find.label')} onClick={(event) => openFindDialog(event.currentTarget)}>
+          <Icon name="search" size={20} />
+        </button>
         <Bell look="bare" />
       </div>
     </header>
