@@ -68,12 +68,12 @@ describe('sheets leave instead of vanishing (one-shot C3 task 5)', () => {
 
   it('a sheet opening while one leaves replaces it at once, its own title focused', async () => {
     start('#/money?sheet=receipt:R-0415');
-    await screen.findByRole('complementary', { name: 'R-0415' });
+    await screen.findByRole('complementary', { name: '₹15,000' });
     await act(async () => { window.location.hash = '#/money'; hashChange(); });
     expect(leavingCopy()).not.toBeNull();
     await act(async () => { window.location.hash = '#/money?sheet=receipt:R-0415'; hashChange(); });
     expect(leavingCopy()).toBeNull();
-    const sheet = await screen.findByRole('complementary', { name: 'R-0415' });
+    const sheet = await screen.findByRole('complementary', { name: '₹15,000' });
     await waitFor(() => expect(document.activeElement).toBe(sheet.querySelector('h2')));
   });
 

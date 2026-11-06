@@ -68,18 +68,19 @@ describe('the rail', () => {
     expect(within(rail).getByRole('link', { name: /^Chats/ }).getAttribute('href')).toBe('#/chats');
   });
 
-  it("carries Today's count in tabular digits, hidden from screen readers but said in words, amber when Today is not open", async () => {
+  it("carries Today's count in the same badge before and after opening Today", async () => {
     const rail = start('#/team');
     const today = within(rail).getByRole('link', { name: /^Today/ });
     await waitFor(() => expect(today.textContent).toBe('Today12, 12 need you'));
-    const count = today.querySelector('[aria-hidden="true"][data-num]')!;
+    const count = today.querySelector('[data-count]')!;
     expect(count.textContent).toBe('12');
-    expect(count.getAttribute('data-tone')).toBe('wait');
-    expect(count.nextElementSibling!.className).toBe('sr-only');
-    expect(count.nextElementSibling!.textContent).toBe(', 12 need you');
+    expect(count.closest('[data-tone]')?.getAttribute('data-tone')).toBe('wait');
+    expect(count.parentElement?.getAttribute('aria-hidden')).toBe('true');
+    expect(count.parentElement!.nextElementSibling!.className).toBe('sr-only');
+    expect(count.parentElement!.nextElementSibling!.textContent).toBe(', 12 need you');
     await go('#/today');
     await waitFor(() => expect(within(rail).getByRole('link', { name: /^Today/ }).getAttribute('aria-current')).toBe('page'));
-    expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')!.hasAttribute('data-tone')).toBe(false);
+    expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-tone]')!.getAttribute('data-tone')).toBe('wait');
   });
 
 });
