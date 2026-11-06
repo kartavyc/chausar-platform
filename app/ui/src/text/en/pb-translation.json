@@ -86,6 +86,7 @@
   "pb-translation.check.TRANSLATION_SOURCE_INVALID": "The source needs correction. Ask the client before translating.",
   "pb-translation.probes": "Keep source names and codes",
   "pb-translation.probeWords": "Exact words to keep",
+  "pb-translation.probeError": "Copy each name or code exactly from the original.",
   "pb-translation.probeHelp": "One name or code per line, copied exactly from this source. Numbers are already checked.",
   "pb-translation.saveProbes": "Save protected words",
   "pb-translation.deliveryPlanned": "Client delivery is planned until a lawyer confirms the translation-rights rule. Prepare and review the local draft meanwhile.",
