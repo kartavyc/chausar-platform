@@ -12,7 +12,7 @@
 //        node scripts/release-smoke.mjs --app <program> [...]   (an already installed program, or a test's stand-in;
 //                                                               a .mjs or .js program runs with this Node)
 // --keep leaves the temp user data folder for a look. The phase names follow C5's start phases; FIRST_PAINT is the one
-// waited for (rebase: take it from C5's exported constant).
+// waited for, imported from the desktop's shared definition.
 import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -20,7 +20,8 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const FIRST_PAINT = 'first-paint';
+import diagnostics from '../app/desktop/diagnostics.cjs';
+export const FIRST_PAINT = diagnostics.FIRST_PAINT;
 const PRODUCT = 'Chausar';
 const usage = 'Usage: node scripts/release-smoke.mjs --installer <file> | --app <program> [--allow-install] [--keep] [--timeout-ms N] [--quit-ms N]';
 

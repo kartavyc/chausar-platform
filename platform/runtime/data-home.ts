@@ -4,7 +4,8 @@
 // scripts; this module re-exports it with the engine's own error class. No import.meta.url path: it works the same from
 // a bundle (D7).
 import { homedir } from 'node:os';
-import { posix, win32 } from 'node:path';
+import { statSync } from 'node:fs';
+import { posix, win32, resolve } from 'node:path';
 import { ChausarError, InternalError } from './portable.ts';
 import { checkoutOf, defaultRunRoot, localDay, outputFile, refuseInsideRepo as refuseCore, runRoot as runRootCore, type RunEnv } from './run-root.mjs';
 
@@ -72,4 +73,11 @@ export function workerDataDirectory(environment: NodeJS.ProcessEnv = process.env
   const folder = environment.CHAUSAR_VAULT_DIRECTORY;
   if (!folder) throw new InternalError('WORKER_NEEDS_DATA_FOLDER', 'The engine worker needs CHAUSAR_VAULT_DIRECTORY. The desktop app sets it; when you start the worker by hand, set it to a folder outside the code folder.');
   return refuseInsideRepo(folder, { env: environment, variable: 'CHAUSAR_VAULT_DIRECTORY' });
+}
+
+/** Developer entrypoints report older data once at start; they never move or open it. */
+export function previousDataNotice(previous: string, current: string): string | null {
+  if (resolve(previous) === resolve(current)) return null;
+  try { if (!statSync(previous).isDirectory()) return null; } catch { return null; }
+  return `Older data at ${resolve(previous)} was left untouched. This start uses ${current}. To use the older data, move it outside the code folder and set the data folder explicitly.`;
 }

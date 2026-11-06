@@ -21,7 +21,7 @@ export function ownerWords(code: unknown): boolean {
  * app (a wrong folder, a file already there, a business open in another window, a backup that is not one); the app says
  * each in its own words (text/en/errors.json). Any other internal refusal goes out as the general sentence.
  */
-export const INTERNAL_LINE_CODES: readonly string[] = Object.freeze([
+export const INTERNAL_LINE_CODES: readonly string[] = Object.freeze(['DATA_MIGRATION_FAILED', 'MIGRATION_PENDING', 
   'WEAK_PASSPHRASE', 'INVALID_NAME', 'UNSAFE_PATH', 'OUTPUT_EXISTS', 'REVISION_CONFLICT', 'VAULT_TOO_LARGE', 'VAULT_BUSY',
   'ARTIFACT_AUTHENTICATION_FAILED', 'ARTIFACT_NOT_FOUND', 'BACKUP_OTHER_BUSINESS', 'TRANSFER_CODE_WRONG', 'INVALID_BACKUP', 'SYNC_CORRUPT', 'SYNC_FAILED',
 ]);

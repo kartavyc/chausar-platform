@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { GoBackOffer } from './GoBackOffer';
 import { useLanguageChoice, useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -171,6 +172,8 @@ function PassphraseOpen({ business, onOpened, onForgot }: { business: Openable; 
     return () => { live.current = false; };
   }, []);
   const name = business.name ?? t('onboarding.welcome.noName');
+  // D12 task 10: this version couldn't bring the business up to date: the desktop may be able to go back.
+  const [broughtUpFailed, setBroughtUpFailed] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -184,6 +187,7 @@ function PassphraseOpen({ business, onOpened, onForgot }: { business: Openable; 
     } catch (error) {
       if (live.current) {
         setProblem(refusalWords(error, t));
+        setBroughtUpFailed((error as { code?: unknown })?.code === 'DATA_MIGRATION_FAILED');
         field.current?.focus();
       }
     } finally {
@@ -198,6 +202,7 @@ function PassphraseOpen({ business, onOpened, onForgot }: { business: Openable; 
         autoFocus inputRef={field} value={passphrase} onChange={setPassphrase}
       />
       {problem && <p className={s.problem} role="alert">{problem}</p>}
+      {broughtUpFailed && <GoBackOffer />}
       <div className={s.actions}>
         <Button variant="primary" type="submit" disabled={busy}>{t('onboarding.welcome.open')}</Button>
         <Button variant="quiet" onClick={onForgot}>{t('onboarding.welcome.forgot')}</Button>

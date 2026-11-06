@@ -27,7 +27,7 @@ export function checkoutOf(path) {
 /** The real location of the deepest part of the path that exists, so a link into the checkout is caught too. */
 function realAncestor(path) {
   for (let current = resolve(path); ;) {
-    try { return realpathSync(current); } catch { /* not there yet */ }
+    try { return realpathSync.native(current); } catch { /* not there yet */ }
     const parent = dirname(current);
     if (parent === current) return null;
     current = parent;

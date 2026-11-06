@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { lockfileProblems, PINNED_BUILD_GIT_SOURCES } from './lockfile.mjs';
+import { refuseInsideRepo, runRoot } from '../platform/runtime/run-root.mjs';
 import { TRIM } from './package-trim.mjs';
 import { readPackageContents } from './package-contents.mjs';
 
@@ -13,10 +14,10 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const platforms = new Set(['win32', 'darwin', 'linux']);
 const architectures = new Set(['x64', 'arm64']);
 const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const previewOutput = 'release/preview';
+const previewOutput = 'preview';
 // Wave 6 (6J1, D3): the unsigned beta, Windows and Linux only, with real data and the bundled Codex.
-const betaOutput = 'release/beta';
-const modes = Object.freeze({ preview: { config: 'app/desktop/builder.preview.json', output: previewOutput }, beta: { config: 'app/desktop/builder.beta.json', output: betaOutput }, final: { config: 'app/desktop/builder.json', output: 'release' } });
+const betaOutput = 'beta';
+const modes = Object.freeze({ preview: { config: 'app/desktop/builder.preview.json', output: previewOutput }, beta: { config: 'app/desktop/builder.beta.json', output: betaOutput }, final: { config: 'app/desktop/builder.json', output: 'final' } });
 // 2 Nov: the deb comes first on Linux. Its install script (electron-builder's own) adds an AppArmor profile on Ubuntu
 // 24.04 and later, or makes chrome-sandbox SUID root where user namespaces are off; without one, Electron will not start.
 const betaArtifactExtensions = { win32: ['exe'], linux: ['deb', 'AppImage', 'tar.gz'] };
@@ -100,19 +101,21 @@ function nodeVersionSupported(version) {
 }
 
 /** Native builds deliberately require the host OS and architecture; this is not a cross-compilation claim. */
-export function createDesktopPackagePlan({ mode = 'preview', platform = process.platform, architecture = process.arch, unpacked = false, hostPlatform = process.platform, hostArchitecture = process.arch, allowUnrecordedCodex = false } = {}) {
+export function createDesktopPackagePlan({ mode = 'preview', platform = process.platform, architecture = process.arch, unpacked = false, hostPlatform = process.platform, hostArchitecture = process.arch, allowUnrecordedCodex = false, output: requestedOutput } = {}) {
   if (!Object.hasOwn(modes, mode)) throw new Error('mode must be preview, beta or final');
   if (!platforms.has(platform) || !architectures.has(architecture)) throw new Error('supported targets are win32, darwin or linux with x64 or arm64 architecture');
   if (platform !== hostPlatform || architecture !== hostArchitecture) throw new Error(`build ${platform}-${architecture} on a matching native host; this host is ${hostPlatform}-${hostArchitecture}`);
   if (mode === 'beta' && !Object.hasOwn(betaArtifactExtensions, platform)) throw new Error('the beta is built for Windows and Linux only; Mac is out of scope');
   if (typeof unpacked !== 'boolean') throw new Error('unpacked must be a boolean');
-  const { config, output } = modes[mode];
+  const { config, output: modeFolder } = modes[mode];
+  if (requestedOutput !== undefined && (typeof requestedOutput !== 'string' || !isAbsolute(requestedOutput))) throw new Error('packaging output must be an absolute folder outside the checkout');
+  const output = refuseInsideRepo(requestedOutput ?? join(runRoot('desktop-package'), modeFolder), { variable: '--output' });
   if (typeof allowUnrecordedCodex !== 'boolean') throw new Error('allowUnrecordedCodex must be a boolean');
   return {
     mode, platform, architecture, unpacked, target: `${platform}-${architecture}`, ...(allowUnrecordedCodex ? { allowUnrecordedCodex: true } : {}),
     config,
     output,
-    builderArguments: ['--config', config, flags[platform], `--${architecture}`, '--publish', 'never', ...(unpacked ? ['--dir'] : [])],
+    builderArguments: ['--config', config, `-c.directories.output=${output}`, flags[platform], `--${architecture}`, '--publish', 'never', ...(unpacked ? ['--dir'] : [])],
     qualification: mode === 'preview' ? 'unsigned demo preview; no production runtimes, signing, publishing or update channel'
       : mode === 'beta' ? 'unsigned beta with real data and the bundled Codex; Windows warns about an unknown publisher; no publishing or update channel'
         : 'signed prerequisites required; packaging does not prove native launch or rollback',
@@ -130,11 +133,11 @@ export function parseDesktopPackageArguments(args) {
     // A2 review: ship a beta whose bundled Codex has no recorded setup (the owner then chooses it on first use).
     else if (flag === '--allow-unrecorded-codex') result.allowUnrecordedCodex = true;
     else if (flag === '--dir') result.unpacked = true;
-    else if (['--mode', '--platform', '--arch'].includes(flag)) {
+    else if (['--mode', '--platform', '--arch', '--output'].includes(flag)) {
       const value = args[++index];
       if (!value || value.startsWith('--')) throw new Error(`missing value for ${flag}`);
       result[flag === '--arch' ? 'architecture' : flag.slice(2)] = value;
-    } else throw new Error(`unknown option: ${flag}; use --mode preview|beta|final --platform win32|darwin|linux --arch x64|arm64 [--dir] [--check] [--allow-unrecorded-codex]`);
+    } else throw new Error(`unknown option: ${flag}; use --mode preview|beta|final --platform win32|darwin|linux --arch x64|arm64 [--dir] [--check] [--allow-unrecorded-codex] [--output <absolute folder>]`);
   }
   return result;
 }
@@ -231,14 +234,16 @@ const onlyPinnedHook = config => {
 
 // D5: the installer trim (package-trim.mjs): three Chromium languages and no Claude Code program file.
 export { TRIM };
-// D7 task 6 (additive half): every build carries the engine bundle (scripts/bundle-engine.mjs) as its own file set,
-// unpacked, so the packaged worker can run as plain files. Its maps never ship. The engine source still ships beside it
-// until desktop main runs the bundle (D7 task 5, main lane).
+// D7 task 6: every build carries the engine bundle (scripts/bundle-engine.mjs) as its own file set, unpacked, so the
+// packaged worker runs as plain files. Its maps never ship, and neither does the engine source: desktop main runs the bundle
+// (engine-paths.cjs). The one engine file main still reads is the credential contract, kept inside the archive.
 export const ENGINE_BUNDLE = Object.freeze({
   fileSet: Object.freeze({ from: 'app/engine/dist', to: 'app/engine/dist', filter: Object.freeze(['**/*']) }),
   unpack: 'app/engine/dist/**/*',
   worker: 'app/engine/dist/runtime/worker.js',
   manifest: 'app/engine/dist/engine-manifest.json',
+  contract: 'platform/runtime/venture/models/credential-contract.cjs',
+  source: Object.freeze(['platform/runtime', 'platform/semantic-qualification', 'platform/helpers', 'fixtures']),
 });
 /** Every mode: the bundle as its own file set (never a glob in the main set), unpacked, and no maps. */
 export function validateEngineBundleConfig(config) {
@@ -246,6 +251,10 @@ export function validateEngineBundleConfig(config) {
   const own = files.some(entry => JSON.stringify(entry) === JSON.stringify(ENGINE_BUNDLE.fileSet));
   const glob = files.some(entry => typeof entry === 'string' && entry.replace(/^!/, '').startsWith('app/engine/'));
   if (!own || glob || !(config.asarUnpack ?? []).includes(ENGINE_BUNDLE.unpack)) throw new Error(`the package carries the engine bundle as its own file set (${ENGINE_BUNDLE.fileSet.from}) and unpacks it (${ENGINE_BUNDLE.unpack}); its maps never ship`);
+  const named = entry => (typeof entry === 'string' ? entry : entry?.from ?? '').replace(/^!/, '');
+  const shipped = [...files, ...(config.asarUnpack ?? [])].map(named).find(name => name !== ENGINE_BUNDLE.contract && (name === 'platform/**/*' || ENGINE_BUNDLE.source.some(source => name.startsWith(source))));
+  if (shipped) throw new Error(`the package carries the engine bundle, never the engine source (${shipped})`);
+  if (!files.includes(ENGINE_BUNDLE.contract) || (config.asarUnpack ?? []).includes(ENGINE_BUNDLE.contract)) throw new Error(`the package keeps the credential contract inside its archive (${ENGINE_BUNDLE.contract}): desktop main reads it`);
 }
 /** The receipt's line for the engine bundle, from its engine-manifest.json. */
 export function engineReceipt(manifest) {
@@ -259,26 +268,27 @@ export function validateTrim(config) {
   if (JSON.stringify(config.electronLanguages) !== JSON.stringify(TRIM.electronLanguages)) throw new Error(`the package carries exactly the Chromium languages ${TRIM.electronLanguages.join(', ')} (electronLanguages)`);
   const files = Array.isArray(config.files) ? config.files : [];
   const all = files.indexOf('node_modules/**/*'), cut = files.indexOf(TRIM.claudeBinaryExclusion);
-  const putBack = files.slice(cut + 1).some(entry => JSON.stringify(entry).includes('@anthropic-ai/claude-agent-sdk-'));
+  const putBack = files.slice(cut + 1).some(entry => {
+    const source = typeof entry === 'string' ? entry : entry?.from ?? '';
+    return !source.startsWith('!') && (source === 'node_modules' || source.startsWith('node_modules/*') || source.includes('@anthropic-ai/claude-agent-sdk-'));
+  });
   if (all < 0 || cut <= all || putBack) throw new Error(`the package carries no Claude Code program file: ${TRIM.claudeBinaryExclusion} after node_modules/**/*, and nothing puts one back`);
 }
 
 function validatePreviewConfig(config) {
   if (config.appId !== 'in.chausar.desktop.preview' || config.productName !== 'Chausar Unsigned Preview' || config.extraMetadata?.name !== 'chausar-preview' || config.extraMetadata?.chausarPreview !== true || config.extraMetadata?.chausarReleaseChannel !== 'unsigned-preview') throw new Error('preview requires a separate identity and explicit unsigned demo metadata');
   if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false || config.mac?.identity !== null || config.mac?.notarize !== false || config.mac?.hardenedRuntime !== false) throw new Error('preview config must disable native signing, identity discovery and notarization');
-  if (config.publish !== null || config.npmRebuild !== false || config.extraResources?.length !== 0 || config.directories?.output !== previewOutput) throw new Error('preview must disable publishing, dependency rebuilds and native runtime resources and use release/preview');
+  if (config.publish !== null || config.npmRebuild !== false || config.extraResources?.length !== 0 || config.directories?.output !== undefined) throw new Error('preview must disable publishing, dependency rebuilds and native runtime resources and leave output selection to the checked run-root plan');
   if (config.extends !== undefined || !onlyPinnedHook(config)) throw new Error(`preview cannot inherit final configuration or execute custom build hooks; the one hook is afterPack ${AFTER_PACK_HOOK}`);
   if (config.electronDist !== 'node_modules/electron/dist') throw new Error('preview must use the verified local Electron distribution instead of another download');
   const expected = { win: ['zip'], mac: ['dmg', 'zip'], linux: ['AppImage', 'tar.gz'] };
   for (const [key, targets] of Object.entries(expected)) {
     if (JSON.stringify(config[key]?.target) !== JSON.stringify(targets)) throw new Error(`preview ${key} targets must match the documented formats; Windows preview is ZIP only`);
   }
-  for (const glob of ['app/desktop/**/*', inkBuildGlob, 'platform/runtime/**/*', 'fixtures/**/*', 'node_modules/**/*']) {
+  for (const glob of ['app/desktop/**/*', inkBuildGlob, 'node_modules/**/*']) {
     if (!config.files?.includes(glob)) throw new Error(`preview package is missing ${glob}`);
   }
-  for (const glob of ['platform/runtime/**/*', 'node_modules/**/*']) {
-    if (!config.asarUnpack?.includes(glob)) throw new Error(`preview worker execution requires unpacked ${glob}`);
-  }
+  if (!config.asarUnpack?.includes('node_modules/**/*')) throw new Error('preview worker execution requires unpacked node_modules/**/*');
 }
 
 /** The files a preview or beta build leaves. electron-builder names an AppImage and a deb by their own architecture
@@ -296,7 +306,7 @@ export function expectedArtifactNames({ mode, platform, architecture, version })
 export function validateBetaConfig(config) {
   if (config.appId !== 'in.chausar.desktop' || config.productName !== 'Chausar' || config.extraMetadata?.name !== 'chausar' || config.extraMetadata?.productName !== 'Chausar' || config.extraMetadata?.chausarReleaseChannel !== 'beta' || Object.hasOwn(config.extraMetadata ?? {}, 'chausarPreview')) throw new Error('the beta needs the Chausar identity, the beta release channel and no preview flag');
   if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false) throw new Error('the beta is unsigned: signing and electron-builder\'s own exe editing (its winCodeSign download) stay off; the pinned afterPack hook sets the exe\'s icon and names');
-  if (config.publish !== null || config.npmRebuild !== false || config.directories?.output !== betaOutput) throw new Error('the beta disables publishing and dependency rebuilds and uses release/beta');
+  if (config.publish !== null || config.npmRebuild !== false || config.directories?.output !== undefined) throw new Error('the beta disables publishing and dependency rebuilds and leaves output selection to the checked run-root plan');
   if (config.extends !== undefined || !onlyPinnedHook(config)) throw new Error(`the beta cannot inherit another configuration or run custom build hooks; the one hook is afterPack ${AFTER_PACK_HOOK}`);
   if (config.electronDist !== 'node_modules/electron/dist') throw new Error('the beta must use the verified local Electron distribution instead of another download');
   if (config.mac !== undefined) throw new Error('Mac is out of scope for the beta');
@@ -312,14 +322,9 @@ export function validateBetaConfig(config) {
     if (!config.files?.includes(glob)) throw new Error(`beta package is missing ${glob}`);
   }
   // electron-builder 26 writes every unpacked file of a mixed file set into one pattern that @electron/asar refuses
-  // over 64 KB, so each folder unpacked whole is its own file set and adds one short entry.
-  for (const folder of ['platform/runtime', 'platform/semantic-qualification/src', 'platform/helpers']) {
-    if (!config.files?.some(entry => JSON.stringify(entry) === JSON.stringify({ from: folder, to: folder, filter: ['**/*'] }))) throw new Error(`beta package carries ${folder} as its own file set`);
-    if (config.files.includes(`${folder}/**/*`)) throw new Error(`beta package lists ${folder} once, as its own file set`);
-  }
-  for (const glob of ['platform/runtime/**/*', 'node_modules/**/*']) {
-    if (!config.asarUnpack?.includes(glob)) throw new Error(`beta worker execution requires unpacked ${glob}`);
-  }
+  // over 64 KB, so a folder unpacked whole (the engine bundle) is its own file set and adds one short entry; every mode
+  // checks that (validateEngineBundleConfig).
+  if (!config.asarUnpack?.includes('node_modules/**/*')) throw new Error('beta worker execution requires unpacked node_modules/**/*');
 }
 
 async function dependencyPrerequisites(root, platform) {
@@ -376,7 +381,7 @@ async function dependencyPrerequisites(root, platform) {
  */
 export async function desktopPackagePrerequisites({ root = projectRoot, plan, environment = process.env, hostPlatform = process.platform, hostArchitecture = process.arch } = {}) {
   plan ??= createDesktopPackagePlan({ platform: hostPlatform, architecture: hostArchitecture, hostPlatform, hostArchitecture });
-  const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked, hostPlatform, hostArchitecture });
+  const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked, hostPlatform, hostArchitecture, output: plan.output, allowUnrecordedCodex: plan.allowUnrecordedCodex === true });
   if (JSON.stringify(plan) !== JSON.stringify(expectedPlan)) throw new Error('packaging requires an unchanged native plan; arbitrary builder options are refused');
   const failures = [], checks = [];
   let cliPath, viteCli, version;
@@ -384,6 +389,7 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan, en
     try { await work(); checks.push(name); }
     catch (error) { failures.push({ check: name, reason: error.code === 'ENOENT' ? 'required local file is missing; no download or substitute was attempted' : error.message }); }
   };
+  await check('packaged contents validation support', () => { if (!Object.hasOwn(UNPACKED_FOLDER, plan.platform)) throw new Error('macOS packaged contents validation is not implemented; this build cannot receive a packaging receipt.'); });
   await check('Node runtime', () => { if (!nodeVersionSupported(process.versions.node)) throw new Error('Node 24.13.1 or later is required'); });
   await check('desktop source entrypoints', async () => {
     for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'app/desktop/icon@1.5x.png', 'app/desktop/icon@2x.png', ...ICON_FILES, AFTER_PACK_HOOK, 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', inkConfig]) await regular(join(root, path));
@@ -465,17 +471,18 @@ async function sha256(path) {
 /** Check freshness before building; never remove or overwrite previous output. */
 export async function validateDesktopPackagingOutput({ root = projectRoot, plan = createDesktopPackagePlan(), version } = {}) {
   if (!exactVersion.test(version ?? '')) throw new Error('output checks require an exact package version');
-  const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked });
+  const expectedPlan = createDesktopPackagePlan({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, unpacked: plan.unpacked, allowUnrecordedCodex: plan.allowUnrecordedCodex === true, output: plan.output });
   if (JSON.stringify(plan) !== JSON.stringify(expectedPlan)) throw new Error('packaging requires an unchanged native plan; arbitrary builder options are refused');
-  for (const path of ['release', ...(plan.mode === 'final' ? [] : [plan.output])]) {
+  if (resolve(root) === resolve(plan.output) || inside(resolve(root), resolve(plan.output))) throw new Error('packaging output must stay outside the checkout');
+  for (const path of [plan.output]) {
     try {
-      const info = await lstat(join(root, path));
-      if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('packaging output paths must be real directories inside the checkout');
+      const info = await lstat(path);
+      if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('packaging output paths must be real directories outside the checkout');
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
-  const receiptPath = join(root, plan.output, `packaging-receipt-${plan.target}.json`);
+  const receiptPath = join(plan.output, `packaging-receipt-${plan.target}.json`);
   try {
-    const priorOutput = await readdir(join(root, plan.output));
+    const priorOutput = await readdir(plan.output);
     if (priorOutput.length) throw new Error('packaging output directory is not empty; review and move or archive the previous output before another build');
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const expectedArtifacts = expectedArtifactNames({ mode: plan.mode, platform: plan.platform, architecture: plan.architecture, version });
@@ -530,7 +537,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
   // D5 task 4: no receipt for a build that lacks its notices (or carries report keys nobody staged).
   let contents;
   if (Object.hasOwn(UNPACKED_FOLDER, plan.platform)) {
-    const unpackedDir = join(root, plan.output, UNPACKED_FOLDER[plan.platform]);
+    const unpackedDir = join(plan.output, UNPACKED_FOLDER[plan.platform]);
     const problems = await packagedResourceProblems(unpackedDir, { mode: plan.mode, reports: feedback, fonts: await packagedFontLicences(join(root, 'app/desktop/notices/fonts')) });
     if (problems.length) throw new Error(`the packaged build is incomplete, so no receipt was written: ${problems.join('; ')}`);
     // D5 task 5: what the build carries goes on the receipt; any problem (a fourth language, a Claude Code program file,
@@ -541,7 +548,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
   }
   const artifacts = [];
   if (plan.mode !== 'final' && !plan.unpacked) {
-    const output = join(root, plan.output);
+    const output = plan.output;
     for (const name of expectedArtifacts) {
       const path = join(output, name), info = await regular(path);
       artifacts.push({ path: name, size: info.size, sha256: await sha256(path) });
@@ -550,7 +557,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
   // 6J1: the beta's own third-party notices sit beside its artifacts too (they are also inside, in resources/notices).
   let bundled;
   if (plan.mode === 'beta') {
-    await cp(join(root, 'app/desktop/notices'), join(root, plan.output, 'notices'), { recursive: true, errorOnExist: true, force: false });
+    await cp(join(root, 'app/desktop/notices'), join(plan.output, 'notices'), { recursive: true, errorOnExist: true, force: false });
     const { verifyCodexBundle, bundleFolderName } = await import('./codex-bundle.mjs');
     const codex = await verifyCodexBundle({ directory: join(root, ...bundleFolderName(plan.platform, plan.architecture).split('/')), platform: plan.platform, architecture: plan.architecture, requireSetup: plan.allowUnrecordedCodex !== true });
     bundled = bundledReceipt(codex, plan);

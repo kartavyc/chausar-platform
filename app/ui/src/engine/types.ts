@@ -711,7 +711,7 @@ export interface DriveStatusLite { state: 'not-connected' | 'connecting' | 'conn
 export interface CopyImportInput { token: string; passphrase?: string; recoveryCode?: string; restore?: true }
 export interface CopyImportResult { workspace: WorkspaceLite; folder: string; unlock: UnlockMode; restored?: boolean }
 /** after (C5 task 20): what came just before it, while the business is open. */
-export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean; after?: string }
+export interface BackupLite { /** D12: saved by a newer Chausar than this one. */ needsNewer?: true; file: string; kind: 'auto' | 'manual' | 'safety' | 'migration' | 'rollback-kept'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean; after?: string }
 /** One-shot C6: what a backup of the open business holds and what changed since (restoring takes these back). */
 export interface BackupInspectLite {
   file: string; at: string;
@@ -1546,6 +1546,8 @@ export interface CliStatusView {
   setup?: CodexSetupLite;
   /** A2: after a failed last task, the provider's own status page when it says the provider has problems. */
   provider?: ProviderTroubleLite;
+  /** D4 task 6: a look kept between starts, and when it was really taken; the fresh look follows within seconds. */
+  kept?: true; checkedAt?: string;
 }
 /** C7: event triggers (venture.events.*): the relay's host, the recent events and each event's blanks. */
 export interface RelayEventLite { id: string; source: 'razorpay' | 'cal-com'; kind: 'payment' | 'booking' | 'booking-cancelled'; receivedAt: string; state: 'new' | 'confirmed' | 'refused' | 'drafted' | 'missed'; line: Display }
@@ -1774,6 +1776,8 @@ export interface OwnerView { firstName: string | null; excludedServices: string[
  * flight: the device code and link the tool printed (platform/runtime/venture/models/login.ts).
  */
 export type ToolLoginState = 'idle' | 'starting' | 'waiting' | 'signed-in' | 'failed' | 'cancelled';
+/** D5: how far Install Claude Code has come (venture.ai.claude.progress). */
+export interface ClaudeInstallViewLite { step: 'idle' | 'downloading' | 'installing' | 'checking' | 'done' | 'failed'; receivedBytes: number; totalBytes: number | null; line: string | null }
 export interface ToolLite {
   cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown';
   login: { state: ToolLoginState; code: string | null; link: string | null; line: string | null };
@@ -2577,6 +2581,8 @@ export interface EngineMethods {
   'venture.ai.login.cancel': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
   // A2: the owner's yes to the Codex found on this computer, with or without a business.
   'venture.ai.setup.trust': { params: { cli: 'codex'; sha256: string }; result: { setup: CodexSetupLite } };
+  'venture.ai.claude.install': { params: Record<string, never>; result: { outcome: 'already-installed' | 'installed' | 'not-found-after'; path: string | null; installerUrl: string | null; installerSha256: string | null; words: string } };
+  'venture.ai.claude.progress': { params: Record<string, never>; result: ClaudeInstallViewLite };
   // One-shot C4 (T20): a share the owner made, or their "Mark as sent", recorded on the invoice.
   'venture.invoice.shared': { params: { invoiceId: string; how: 'whatsapp' | 'email' | 'file' | 'marked' }; result: InvoiceViewLite };
   'venture.models.plan': { params: { fresh?: boolean }; result: PlanViewLite };
@@ -2705,7 +2711,8 @@ export type DiagnosticsPreview = { id: string; files: { name: string; bytes: num
 
 export type EngineStatus =
   | { state: 'ok' }
-  | { state: 'starting' }
+  /** D4 task 5: how far the desktop's start has come; the line changes only when a real phase arrives. */
+  | { state: 'starting'; phase?: 'window-shown' | 'engine-forked' | 'loaded' }
   | { state: 'reconnecting' }
   | { state: 'offline' }
   | { state: 'unpaired' }
@@ -2744,6 +2751,9 @@ export interface EngineClient {
   saveBriefFile?(builder: FileBuilderId): Promise<{ saved: true; name: string; companion: string } | null>;
   /** C5 task 32, desktop only: shows the downloaded installer, checked again first. UPDATE_NOT_VERIFIED when it changed. */
   showUpdateInstaller?(kind: 'staged'): Promise<void>;
+  /** D12 task 10: the kept release the desktop can go back to, checked now, and going back, which main asks about itself. */
+  goBackOffer?(): Promise<{ version: string } | null>;
+  goBack?(): Promise<{ state: string }>;
   /** C5 task 27, desktop only: what Export diagnostics would save, read first; then that preview saved, by its id. Null when cancelled. */
   previewDiagnostics?(dumps: boolean): Promise<DiagnosticsPreview>;
   saveDiagnostics?(id: string): Promise<{ saved: true; name: string; line: string } | null>;

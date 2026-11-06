@@ -3,6 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
+import {relative} from 'node:path';
+import {fileURLToPath} from 'node:url';
 const walk=readFileSync(new URL('../../scripts/ui-shots/walk.mjs',import.meta.url),'utf8');
 const expression=walk.match(/const SETTLED = `([\s\S]*?)`;/)?.[1];
 assert.ok(expression);
@@ -39,8 +41,9 @@ test('the walk writes to the run root by default, and no script points at app/ui
  const naming:string[]=[];
  for(const entry of await readdir(folder,{withFileTypes:true,recursive:true})){
   // The clean-tree guard names .shots/ as a pattern it refuses; it writes nothing.
-  if(!entry.isFile()||!/\.(?:mjs|cjs|js|ps1|sh)$/.test(entry.name)||entry.name==='check-clean-tree.mjs')continue;
+  if(!entry.isFile()||!/\.(?:mjs|cjs|js|ps1|sh)$/.test(entry.name))continue;
   const path=`${entry.parentPath??(entry as any).path}/${entry.name}`;
+  if(relative(fileURLToPath(folder),path).replaceAll('\\','/')==='check-clean-tree.mjs')continue;
   if(/\.shots\b/.test(readFileSync(path,'utf8')))naming.push(entry.name);
  }
  assert.deepEqual(naming,[]);

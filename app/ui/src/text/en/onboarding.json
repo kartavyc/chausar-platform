@@ -1,4 +1,5 @@
 {
+  "onboarding.welcome.goBack": "Go back to version {version}",
   "onboarding.countrySuggestion": "Your words suggest {country}, with prices in {currency}.",
   "onboarding.countryUse": "Use {country}",
   "onboarding.countryKeep": "Keep {country}",

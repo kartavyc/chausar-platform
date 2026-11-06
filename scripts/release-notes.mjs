@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // D11: the notes of a release, from the conventional commits since the last tag and C7's What's new entry for the
-// version (app/ui/src/text/en/whats-new.json, owner words keyed by version). The tag workflow (release.yml) writes
+// version (app/ui/src/text/en/whats-new.json, owner words keyed by version and line number). The tag workflow (release.yml) writes
 // them into the draft release; a version with no What's new entry fails, so every release says what changed for owners.
 // Usage: node scripts/release-notes.mjs --version <x.y.z> [--since <tag>] [--commits <file>] [--whats-new <file>]
 //                                       [--unsigned] [--output <file.md>]
@@ -24,9 +24,12 @@ function readSubject(subject) {
 }
 
 export function releaseNotes({ version, commits, whatsNew, unsigned = false }) {
-  if (!whatsNew || !Object.hasOwn(whatsNew, version)) throw new Error(`No What's new entry for ${version}: add it to whats-new.json before tagging.`);
-  const entry = whatsNew[version];
-  if (!Array.isArray(entry) || entry.some(line => typeof line !== 'string')) throw new Error(`The What's new entry for ${version} must be a list of lines.`);
+  const prefix = `whats-new.${version}.`;
+  const entries = Object.entries(whatsNew ?? {}).filter(([key]) => key.startsWith(prefix) && /^[1-9]\d*$/.test(key.slice(prefix.length)));
+  if (!entries.length) throw new Error(`No What's new entry for ${version}: add it to whats-new.json before tagging.`);
+  entries.sort(([a], [b]) => Number(a.slice(prefix.length)) - Number(b.slice(prefix.length)));
+  const entry = entries.map(([, line]) => line);
+  if (entry.some(line => typeof line !== 'string' || !line.trim())) throw new Error(`The What's new entries for ${version} must be non-empty lines.`);
   const lines = [`# Chausar ${version}`, ''];
   if (unsigned) lines.push('The Windows installer is not signed yet: Windows will warn about an unknown publisher.', '');
   if (entry.length) lines.push('## What\'s new', '', ...entry.map(line => `- ${line}`), '');

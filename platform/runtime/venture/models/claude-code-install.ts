@@ -1,6 +1,7 @@
 // D5 (founder, 5 Nov): no Chausar installer carries Claude Code. When the owner has none, "Install Claude Code" (the
-// first run's Your AI step, wired after the main lane) downloads Anthropic's official installer only after the owner's
-// yes, shows its progress, runs it unmodified, then looks for Claude Code again. Nothing is downloaded without that yes,
+// first run's Your AI step) downloads Anthropic's official installer only after the owner's yes, shows its progress, runs
+// it unmodified, then looks for Claude Code again. The yes is made inside the engine from the click in main's own dialog
+// (engine.ts installClaudeCodeFor, mintClaudeInstallYes), fresh and for one use; no request can carry one. Nothing is downloaded without that yes,
 // the downloaded bytes are the bytes run (their sha256 is reported), the installer gets no Chausar or secret variable,
 // and Chausar never signs in for the owner: the owner opens Claude Code and signs in themselves. Never on the hosted
 // web server. The ports are injected so tests never download or start anything. D5 fix: it fails closed. The caller
@@ -38,11 +39,14 @@ export const CLAUDE_INSTALL_WORDS = Object.freeze({
   failed: "Anthropic's Claude Code installer stopped with an error. Try again, or install it from claude.ai.",
   already: 'Claude Code is already on this computer.',
   installed: 'Claude Code is installed. Open it once in a terminal and sign in yourself; Chausar never signs in for you.',
+  notChosen: 'Nothing was downloaded.',
   notFoundAfter: 'The installer finished, but Chausar cannot find Claude Code yet. Restart Chausar, or open a new terminal and run claude.',
 });
 
 export type ClaudeInstallStep = 'downloading' | 'installing' | 'checking' | 'done' | 'failed';
 export type ClaudeInstallProgress = { step: ClaudeInstallStep; receivedBytes?: number; totalBytes?: number | null };
+/** venture.ai.claude.progress: how far the install has come, for the Your AI step; idle before any. */
+export type ClaudeInstallView = { step: ClaudeInstallStep | 'idle'; receivedBytes: number; totalBytes: number | null; line: string | null };
 export type ClaudeInstallResult = {
   outcome: 'already-installed' | 'installed' | 'not-found-after';
   path: string | null; installerUrl: string | null; installerSha256: string | null; words: string;
@@ -60,11 +64,25 @@ export type ClaudeInstallPorts = {
   tempFolder(): Promise<string>;
 };
 
-/** The owner's yes, exactly: `{ yes: true, at }` with the time they said it. */
-function ownerSaidYes(approval: unknown): boolean {
-  if (!approval || typeof approval !== 'object' || Array.isArray(approval)) return false;
-  const { yes, at } = approval as { yes?: unknown; at?: unknown };
-  return yes === true && typeof at === 'string' && Number.isFinite(Date.parse(at));
+/** A yes this long after the click is too old to act on. */
+export const CLAUDE_INSTALL_YES_FRESH_MS = 5 * 60_000;
+/** Every yes the engine has made and whether it is spent. A copy, or anything from a payload, is not in here. */
+const MINTED = new WeakMap<object, { at: number; spent: boolean }>();
+/** Only engine.ts calls this, when the click in main's own dialog arrives over the worker's host channel. */
+export function mintClaudeInstallYes(now: () => number = Date.now): Readonly<{ yes: true; at: string }> {
+  const at = now(), yes = Object.freeze({ yes: true as const, at: new Date(at).toISOString() });
+  MINTED.set(yes, { at, spent: false });
+  return yes;
+}
+/** Spends the yes: one the engine made, not used before, and fresh. */
+function ownerSaidYes(approval: unknown, now: () => number): boolean {
+  if (!approval || typeof approval !== 'object') return false;
+  const minted = MINTED.get(approval);
+  if (!minted || minted.spent) return false;
+  const age = now() - minted.at;
+  if (!(age >= 0 && age <= CLAUDE_INSTALL_YES_FRESH_MS)) return false;
+  minted.spent = true;
+  return true;
 }
 
 function installerEnvironment(environment: NodeJS.ProcessEnv): Record<string, string> {
@@ -97,7 +115,7 @@ async function download(url: string, ports: ClaudeInstallPorts, progress: (step:
         progress({ step: 'downloading', receivedBytes, totalBytes });
       }
     } catch (error) { throw error instanceof ChausarError ? error : failed(); }
-    if (receivedBytes === 0) throw failed();
+    if (receivedBytes === 0 || totalBytes !== null && receivedBytes !== totalBytes) throw failed();
     return Buffer.concat(chunks);
   } finally { clearTimeout(timer); }
 }
@@ -107,7 +125,7 @@ async function download(url: string, ports: ClaudeInstallPorts, progress: (step:
  * downloaded. The installer runs hidden, with no shell around it, in a temporary folder removed afterwards.
  */
 export async function installClaudeCode(
-  request: { approval: unknown; platform: NodeJS.Platform; host: 'desktop' | 'hosted-web' | string; environment?: NodeJS.ProcessEnv },
+  request: { approval: unknown; platform: NodeJS.Platform; host: 'desktop' | 'hosted-web' | string; environment?: NodeJS.ProcessEnv; now?: () => number },
   ports: ClaudeInstallPorts,
   onProgress: (progress: ClaudeInstallProgress) => void = () => undefined,
 ): Promise<ClaudeInstallResult> {
@@ -118,7 +136,7 @@ export async function installClaudeCode(
   const installer = CLAUDE_CODE_INSTALLERS[request.platform as InstallerPlatform];
   const before = ports.locate('claude');
   if (before) return { outcome: 'already-installed', path: before, installerUrl: null, installerSha256: null, words: CLAUDE_INSTALL_WORDS.already };
-  check(ownerSaidYes(request.approval), 'CLAUDE_INSTALL_NEEDS_YES', CLAUDE_INSTALL_WORDS.needsYes);
+  check(ownerSaidYes(request.approval, request.now ?? Date.now), 'CLAUDE_INSTALL_NEEDS_YES', CLAUDE_INSTALL_WORDS.needsYes);
   const progress = (step: ClaudeInstallProgress) => { try { onProgress(step); } catch { /* a progress reader never stops the install */ } };
 
   const folder = await ports.tempFolder();
@@ -155,22 +173,34 @@ export async function installClaudeCode(
 export type ClaudeInstallSystem = {
   spawn?: (command: string, args: readonly string[], options: { cwd: string; env: Record<string, string>; shell: false; windowsHide: true; stdio: 'ignore' })
     => { once(event: 'error' | 'exit', listener: (value?: any) => void): unknown; kill(): unknown };
-  fetch?: (url: string, init: { signal: AbortSignal; redirect: 'follow' }) => Promise<{ ok: boolean; status: number; url: string; headers: { get(name: string): string | null }; body: unknown }>;
+  fetch?: (url: string, init: { signal: AbortSignal; redirect: 'manual' }) => Promise<{ ok: boolean; status: number; url: string; headers: { get(name: string): string | null }; body: unknown }>;
 };
 
 /** The real ports: Node's fetch, a hidden process with no shell, the search path and the installer's own folder. */
-export function defaultClaudeInstallPorts(system: ClaudeInstallSystem = {}): ClaudeInstallPorts {
-  const run = system.spawn ?? spawn;
-  const get = system.fetch ?? fetch;
+export function defaultClaudeInstallPorts(system?: ClaudeInstallSystem): ClaudeInstallPorts {
+  const missing = () => { throw new Error('test port not set'); };
+  const run = system === undefined ? spawn : system.spawn ?? missing;
+  const get = system === undefined ? fetch : system.fetch ?? missing;
   return {
     async fetch(url, { signal }) {
-      const response = await get(url, { signal, redirect: 'follow' });
-      return { ok: response.ok, status: response.status, url: response.url, headers: response.headers, body: response.body as unknown as AsyncIterable<Uint8Array> | null };
+      for (let hop = 0; hop <= 5; hop++) {
+        const address = new URL(url);
+        if (address.protocol !== 'https:' || !ALLOWED_HOST.test(address.hostname) || address.username || address.password) throw new Error('Installer address refused');
+        const response = await get(url, { signal, redirect: 'manual' });
+        if (![301, 302, 303, 307, 308].includes(response.status)) {
+          return { ok: response.ok, status: response.status, url: response.url, headers: response.headers, body: response.body as unknown as AsyncIterable<Uint8Array> | null };
+        }
+        await (response.body as { cancel?: () => Promise<void> } | null)?.cancel?.();
+        const location = response.headers.get('location');
+        if (!location || hop === 5) throw new Error('Installer redirect refused');
+        url = new URL(location, url).href;
+      }
+      throw new Error('Installer redirect refused');
     },
     run(command, args, options) {
       return new Promise(resolve => {
         const child = run(command, args, { cwd: options.cwd, env: options.env, shell: false, windowsHide: true, stdio: 'ignore' });
-        const timer = setTimeout(() => { try { child.kill(); } catch { /* already gone */ } }, options.timeoutMs);
+        const timer = setTimeout(() => { try { child.kill(); } catch { /* already gone */ } resolve({ exitCode: -1 }); }, options.timeoutMs);
         child.once('error', () => { clearTimeout(timer); resolve({ exitCode: -1 }); });
         child.once('exit', code => { clearTimeout(timer); resolve({ exitCode: code ?? -1 }); });
       });

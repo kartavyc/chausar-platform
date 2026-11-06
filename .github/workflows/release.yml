@@ -131,25 +131,25 @@ jobs:
       - name: Smoke the installed build on this runner (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        run: node scripts/release-smoke.mjs --installer "$(ls release/beta/*.exe release/*.exe 2>/dev/null | head -n 1)"
+        run: node scripts/release-smoke.mjs --installer "$(ls "$CHAUSAR_RUN_ROOT"/desktop-package/beta/*.exe "$CHAUSAR_RUN_ROOT"/desktop-package/final/*.exe 2>/dev/null | head -n 1)"
       - name: Smoke the AppImage on this runner (Linux, virtual display)
         if: runner.os == 'Linux'
         shell: bash
         run: |
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xvfb xauth libfuse2t64 >/dev/null
-          xvfb-run -a node scripts/release-smoke.mjs --installer "$(ls release/beta/*.AppImage | head -n 1)"
+          xvfb-run -a node scripts/release-smoke.mjs --installer "$(ls "$CHAUSAR_RUN_ROOT"/desktop-package/beta/*.AppImage | head -n 1)"
       - name: Keep the installers for the release job
         uses: actions/upload-artifact@v4
         with:
           name: chausar-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
-            release/beta/*.exe
-            release/beta/*.AppImage
-            release/beta/*.deb
-            release/beta/*.tar.gz
-            release/beta/packaging-receipt-*.json
-            release/*.exe
+            ${{ runner.temp }}/chausar/desktop-package/beta/*.exe
+            ${{ runner.temp }}/chausar/desktop-package/beta/*.AppImage
+            ${{ runner.temp }}/chausar/desktop-package/beta/*.deb
+            ${{ runner.temp }}/chausar/desktop-package/beta/*.tar.gz
+            ${{ runner.temp }}/chausar/desktop-package/beta/packaging-receipt-*.json
+            ${{ runner.temp }}/chausar/desktop-package/final/*.exe
           if-no-files-found: error
           retention-days: 7
       - name: Check that the run left nothing in the checkout

@@ -76,4 +76,4 @@ Read by: desktop (the Electron app), worker (its engine process), server (the lo
 | `CHAUSAR_VENTURE_MODEL_REPLAY` | A recorded AI answers file for the demo, used only with replay on. | Unset: no AI replay. | hosted, engine |
 | `CHAUSAR_VENTURE_REPLAY` | Set to 1 (or pass --replay) in demo or --dev mode to answer from the recorded files. | Unset: off. | hosted, engine |
 | `CHAUSAR_VENTURE_RUNTIME` | Which venture runtime the hosted server uses; only local exists. | Unset: local. | hosted |
-| `CHAUSAR_WINDOWS_PUBLISHER` | The certificate name a Windows installer must be signed with before it may run by itself. | Unset: a Windows owner gets Show installer; nothing runs by itself. | desktop, worker |
+| `CHAUSAR_WINDOWS_CERTIFICATE_THUMBPRINT` | The exact 40-character certificate thumbprint a Windows installer must be signed with before it may run by itself. | Unset: a Windows owner gets Show installer; nothing runs by itself. | desktop, worker |

@@ -133,7 +133,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
               <span className={s.strong}>{momentOf(backup.at, zone)}</span>
               {/* C5 task 20: what came just before it, in the engine's words. */}
               {backup.after && <span className={s.quiet} data-content="">{t('custody.after', { what: backup.after })}</span>}
-              <span className={s.quiet}>{`${t(`custody.kind.${backup.kind}`)}. ${t(backup.opensNow ? 'custody.opensNow' : 'custody.opensOlder')}`}</span>
+              <span className={s.quiet}>{`${t(`custody.kind.${backup.kind}`)}. ${t(backup.needsNewer ? 'custody.needsNewer' : backup.opensNow ? 'custody.opensNow' : 'custody.opensOlder')}`}</span>
               {/* C4 task 36 (203.x1): each copy's size. Seam: C5 task 20 labels the copies, C6 tasks 1 and 2 their contents. */}
               <span className={s.quiet} data-bytes="">{formatBytes(backup.bytes)}</span>
               {asking !== backup.file && <Button variant="quiet" onClick={() => { setAsking(backup.file); setProblem(null); }}>{t('business.restore')}</Button>}

@@ -1,7 +1,8 @@
 'use strict';
 // Chausar 5B2 project handoff. Original desktop boundary over the P12 atomic writer; open-edit (MIT) folder idea only.
 const { randomUUID, createHash } = require('node:crypto');
-const { resolve, relative, isAbsolute } = require('node:path');
+const { join, resolve, relative, isAbsolute } = require('node:path');
+const { pathToFileURL } = require('node:url');
 const failure = (code, message) => Object.assign(new Error(message), { code });
 const record = value => value && typeof value === 'object' && !Array.isArray(value);
 const invalid = () => failure('INVALID_REQUEST', 'Choose the reviewed output board.');
@@ -26,7 +27,7 @@ function checked(value, request) {
 }
 
 /** Saved folder handles are held only in this desktop session and cannot be supplied as paths by the page. */
-function createYoutubeProject() {
+function createYoutubeProject({ projectFolder = join(__dirname, '../../platform/runtime/venture/playbooks/youtube/project-folder.ts') } = {}) {
   const saved = new Map();
   return {
     async save(event, input, deps) {
@@ -39,7 +40,7 @@ function createYoutubeProject() {
         const after = checked((await deps.engine.request('venture.desk.act', request)).result, request);
         if (JSON.stringify(before) !== JSON.stringify(after)) throw failure('APPROVAL_STALE', 'The outputs changed while you chose a folder. Review them again.');
         const parent = resolve(selected.filePaths[0]);
-        const { writeProjectFolder } = await import('../../platform/runtime/venture/playbooks/youtube/project-folder.ts');
+        const { writeProjectFolder } = await import(pathToFileURL(projectFolder).href);
         const folder = await writeProjectFolder(parent, after.orderId, after.files);
         const inside = relative(parent, folder);
         if (!inside || inside.startsWith('..') || isAbsolute(inside)) throw unsaved();

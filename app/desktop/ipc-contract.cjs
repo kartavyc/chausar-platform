@@ -2,6 +2,7 @@
 
 const REQUEST_CHANNEL = 'chausar:request';
 const STATUS_CHANNEL = 'chausar:engine-status';
+const { WINDOW_PHASES } = require('./diagnostics.cjs');
 // Run events pushed to the window (VentureRunEvent in platform/runtime/venture/contracts.ts). The preload checks them again.
 const VENTURE_EVENT_CHANNEL = 'chausar:venture-event';
 const VENTURE_EVENT_TYPES = Object.freeze([
@@ -37,6 +38,8 @@ const DIAGNOSTICS_PREVIEW_CHANNEL = 'chausar:diagnostics:preview';
 const DIAGNOSTICS_SAVE_CHANNEL = 'chausar:diagnostics:save';
 // C5 task 32: Show installer: the window names only which release; main checks it again and shows it in the file manager.
 const UPDATE_SHOW_CHANNEL = 'chausar:updates:showInstaller';
+const UPDATE_GO_BACK_CHANNEL = 'chausar:updates:goBack';
+const UPDATE_GO_BACK_OFFER_CHANNEL = 'chausar:updates:goBackOffer';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
@@ -81,6 +84,7 @@ const METHODS = Object.freeze([
   'venture.needs.list',
   // A2: the owner's yes to the Codex found on this computer (engine.ts answers it, with or without a vault).
   'venture.ai.setup.trust',
+  'venture.ai.claude.install', 'venture.ai.claude.progress',
   'venture.agents.hire.duties',
   'venture.events.calKey.set',
   'venture.events.relay.set',
@@ -376,6 +380,14 @@ function validateBackgroundChange(input) {
   return { ...(keys.includes('startAtLogin') ? { startAtLogin: input.startAtLogin } : {}), ...(keys.includes('keepRunning') ? { keepRunning: input.keepRunning } : {}) };
 }
 // B1 fix round 1: `owner: true` (only ever true) says the engine wrote these words for the owner, so the page shows them as sent.
+/** D4 task 4: what the window may hear about the engine: a known state, and a known phase while it starts. */
+const ENGINE_STATES = Object.freeze(['starting', 'ready', 'failed', 'stopping', 'stopped', 'reconnecting']);
+function validateEngineStatus(input) {
+  const state = ENGINE_STATES.includes(input?.state) ? input.state : 'failed';
+  const status = { state, healthy: state === 'ready' && input?.healthy === true };
+  if (state === 'starting' && WINDOW_PHASES.includes(input?.phase)) status.phase = input.phase;
+  return Object.freeze(status);
+}
 function publicError(error) {
   return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.', ...(error?.owner === true ? { owner: true } : {}) };
 }
@@ -399,4 +411,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ UPDATE_SHOW_CHANNEL, DIAGNOSTICS_PREVIEW_CHANNEL, DIAGNOSTICS_SAVE_CHANNEL, FIRST_PAINT_CHANNEL, MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ UPDATE_GO_BACK_CHANNEL, UPDATE_GO_BACK_OFFER_CHANNEL, UPDATE_SHOW_CHANNEL, DIAGNOSTICS_PREVIEW_CHANNEL, DIAGNOSTICS_SAVE_CHANNEL, FIRST_PAINT_CHANNEL, MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateEngineStatus, validateVentureEvent });

@@ -79,3 +79,18 @@ describe('the other names', () => {
     expect(words['business.practice.lead']).toBe('Practice, then go live.');
   });
 });
+
+
+describe('cleanup: ordinary owner words agree in engine and sample replies', () => {
+  it('no credential jargon or sample-engine explanation appears in owner-facing lines', () => {
+    const files = ['platform/runtime/venture/playbooks/data-entry-desk/browser-actions.ts', 'app/ui/src/engine/fake-business.ts'];
+    const found = files.flatMap(file => sentences(file).filter(line => /owner-entered credentials|sample engine/i.test(line)).map(line => `${file}: ${line}`));
+    expect(found).toEqual([]);
+  });
+  it('fixed-rule roles use the same words', () => {
+    const files = ['platform/runtime/venture/agents/roles.ts', 'platform/runtime/venture/agents/capabilities.ts',
+      'platform/runtime/venture/delivery/shadow-summary.ts', 'app/ui/src/engine/fake-agents.ts',
+      'app/ui/src/engine/fake-agent-extras.ts', 'app/ui/src/engine/fake-retire.ts'];
+    expect(files.flatMap(file => sentences(file).filter(line => /is code, not AI/.test(line)))).toEqual([]);
+  });
+});

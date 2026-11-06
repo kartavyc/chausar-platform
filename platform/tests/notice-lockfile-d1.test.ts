@@ -19,6 +19,10 @@ test('the NOTICE check passes with no node_modules at all: nothing installed on 
   // C5: the fonts' lines come from their manifest and licence files, which are tracked, not installed.
   await mkdir(join(directory, 'app/ui/assets/fonts'), { recursive: true });
   for (const name of await readdir(join(ROOT, 'app/ui/assets/fonts'))) if (!name.endsWith('.woff2')) await copyFile(join(ROOT, 'app/ui/assets/fonts', name), join(directory, 'app/ui/assets/fonts', name));
+  // D5 task 3: the check reads the fonts' licences beside the notices too; both are tracked.
+  await mkdir(join(directory, 'app/desktop/notices/fonts'), { recursive: true });
+  for (const name of await readdir(join(ROOT, 'app/desktop/notices/fonts'))) await copyFile(join(ROOT, 'app/desktop/notices/fonts', name), join(directory, 'app/desktop/notices/fonts', name));
+  await copyFile(join(ROOT, 'app/desktop/notices/THIRD-PARTY-NOTICES.md'), join(directory, 'app/desktop/notices/THIRD-PARTY-NOTICES.md'));
   for (const file of ['package.json', 'package-lock.json', 'NOTICE', 'scripts/third-party-notices.mjs']) await copyFile(join(ROOT, file), join(directory, file));
   const result = spawnSync(process.execPath, [join(directory, 'scripts', 'third-party-notices.mjs'), '--check'], { cwd: directory, encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr + result.stdout);

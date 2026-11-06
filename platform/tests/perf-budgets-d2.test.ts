@@ -82,6 +82,8 @@ test('a test file over 30 s that is not in the heavy tier fails by name; a known
 test('with no engine receipts the slow-file check is not measured, and an unknown budget name is refused', async t => {
   const none = await fixture(t, { 'slow-test-files': { budget: 0, unit: 'files', tolerancePercent: 0, measuredOn: '2026-11-05' } }, {});
   assert.equal(none.entry('slow-test-files').status, 'not-measured');
+  assert.equal(none.result.status, 1, 'missing receipts cannot make the nightly check green');
+  assert.equal(none.receipt.passed, false);
   const unknown = await fixture(t, { 'made-up-ms': budget(10) }, {});
   assert.notEqual(unknown.result.status, 0);
   assert.match(unknown.result.stderr, /made-up-ms is not a measure perf-budgets\.mjs knows/);

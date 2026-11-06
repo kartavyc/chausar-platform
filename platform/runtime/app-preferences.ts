@@ -7,6 +7,7 @@
 // The file holds only these fields, written atomically; a missing or broken file reads as the defaults, a missing field as its default, and an
 // unknown field or value is refused in plain words. No business word ever goes in it.
 import { join } from 'node:path';
+import { newerFormat, newerVersion, noteNewerOnce, readLocalJson } from './local-files.ts';
 import { check } from './contracts.ts';
 import { atomicWriteText, readBoundedText, safeDirectory } from './vault.ts';
 
@@ -26,13 +27,22 @@ const FIELDS: { readonly [K in keyof AppPreferences]: { values: readonly AppPref
 export const DEFAULT_APP_PREFERENCES: Readonly<AppPreferences> = Object.freeze({ motion: 'system', language: 'en' });
 
 export const APP_PREFERENCES_FILE = 'preferences.json';
+const FORMAT = 'chausar.preferences.v1';
+async function protectedPreferences(directory: string): Promise<boolean> {
+  const raw = await readLocalJson(join(directory, APP_PREFERENCES_FILE));
+  if (!newerFormat(raw, FORMAT) && !newerVersion(raw, 1)) return false;
+  await noteNewerOnce(join(directory, 'custody'), APP_PREFERENCES_FILE, 'preferences');
+  return true;
+}
 
 /** A kept file holds only known fields, each one of its values, or it is not read at all; a field it lacks reads as its default. */
 function kept(value: unknown): AppPreferences {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { ...DEFAULT_APP_PREFERENCES };
-  const entries = Object.entries(value);
+  const { format, ...fields } = value as Record<string, unknown>;
+  if (format !== undefined && format !== FORMAT) return { ...DEFAULT_APP_PREFERENCES };
+  const entries = Object.entries(fields);
   const fine = entries.every(([key, field]) => Object.hasOwn(FIELDS, key) && (FIELDS[key as keyof AppPreferences].values as readonly unknown[]).includes(field));
-  return fine ? { ...DEFAULT_APP_PREFERENCES, ...value as Partial<AppPreferences> } : { ...DEFAULT_APP_PREFERENCES };
+  return fine ? { ...DEFAULT_APP_PREFERENCES, ...fields as Partial<AppPreferences> } : { ...DEFAULT_APP_PREFERENCES };
 }
 
 /**
@@ -55,6 +65,7 @@ export function preferenceChange(payload: unknown): Partial<AppPreferences> {
 /** The preferences kept in `directory` (the vaults folder); the defaults when the file is missing or broken. */
 export async function readAppPreferences(directory: string): Promise<AppPreferences> {
   try {
+    if (await protectedPreferences(directory)) return { ...DEFAULT_APP_PREFERENCES };
     return kept(JSON.parse(await readBoundedText(join(await safeDirectory(directory), APP_PREFERENCES_FILE))));
   } catch {
     return { ...DEFAULT_APP_PREFERENCES };
@@ -63,7 +74,8 @@ export async function readAppPreferences(directory: string): Promise<AppPreferen
 
 /** Apply `change` over what is kept, write the whole file atomically, and answer the new preferences. */
 export async function writeAppPreferences(directory: string, change: Partial<AppPreferences>): Promise<AppPreferences> {
+  if (await protectedPreferences(directory)) return { ...DEFAULT_APP_PREFERENCES };
   const next: AppPreferences = { ...(await readAppPreferences(directory)), ...change };
-  await atomicWriteText(join(await safeDirectory(directory, true), APP_PREFERENCES_FILE), `${JSON.stringify(next)}\n`, true);
+  await atomicWriteText(join(await safeDirectory(directory, true), APP_PREFERENCES_FILE), `${JSON.stringify({ format: FORMAT, ...next })}\n`, true);
   return next;
 }

@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { houseStyleFindings } from '../runtime/venture/records.ts';
-import { collectShippedPackages, licenceVerdict, renderNotice } from '../../scripts/third-party-notices.mjs';
+import { collectShippedPackages, fontLicenceProblems, licenceVerdict, renderNotice, writeFontLicences } from '../../scripts/third-party-notices.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const lf = (text: string) => text.replace(/\r\n/g, '\n');
@@ -120,4 +120,36 @@ test('CONTRIBUTING and CLA: contributions come under the founder contributor lic
   assert.match(cla, /copyright licen[cs]e/i);
   assert.match(cla, /patent licen[cs]e/i);
   assert.match(cla, /I have read the CLA and I agree to it\./);
+});
+
+// D5 task 3: the fonts' OFL texts travel with the fonts, through resources/notices, since a build leaves app/ui/assets behind.
+test('the font licences: the check fails until the write ran, and a font with no licence is named', async t => {
+  const { mkdtemp, mkdir, writeFile, readFile, rm } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const root = await mkdtemp(join(tmpdir(), 'chausar-font-notices-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const fonts = join(root, 'app/ui/assets/fonts'), notices = join(root, 'app/desktop/notices');
+  await mkdir(fonts, { recursive: true }); await mkdir(notices, { recursive: true });
+  await writeFile(join(notices, 'THIRD-PARTY-NOTICES.md'), '# Third-party software\n\n## Something else\n\nKept.\n');
+  await writeFile(join(fonts, 'Sample-400.woff2'), 'font');
+  await writeFile(join(fonts, 'Sample-OFL.txt'), 'Copyright 2026 Sample Authors\r\nLicensed under the OFL.\r\n');
+  assert.match(fontLicenceProblems(root).join('; '), /notices\/fonts\/Sample-OFL\.txt is missing/);
+  writeFontLicences(root);
+  assert.deepEqual(fontLicenceProblems(root), []);
+  const index = await readFile(join(notices, 'THIRD-PARTY-NOTICES.md'), 'utf8');
+  assert.match(index, /## Fonts/); assert.match(index, /Sample: SIL Open Font License 1\.1\. File: `fonts\/Sample-OFL\.txt`/); assert.match(index, /## Something else/);
+  writeFontLicences(root);
+  assert.equal(await readFile(join(notices, 'THIRD-PARTY-NOTICES.md'), 'utf8'), index, 'writing twice changes nothing');
+  // A copy that differs fails; a line-ending difference alone does not (Git writes these files differently per system).
+  await writeFile(join(notices, 'fonts', 'Sample-OFL.txt'), 'Copyright 2026 Other Authors\n');
+  assert.match(fontLicenceProblems(root).join('; '), /notices\/fonts\/Sample-OFL\.txt differs/);
+  writeFontLicences(root);
+  await writeFile(join(fonts, 'Other-400.woff2'), 'font');
+  assert.match(fontLicenceProblems(root).join('; '), /Other-400\.woff2 has no Other-OFL\.txt/);
+  assert.throws(() => writeFontLicences(root), /Other-400\.woff2 has no Other-OFL\.txt/);
+});
+
+test('the real font licences are in place', () => {
+  assert.deepEqual(fontLicenceProblems(fileURLToPath(new URL('../../', import.meta.url))), []);
 });

@@ -56,7 +56,7 @@ export function roleOfStep(flagship: FlagshipDelivery | null, stepId: string): s
  * that is not on this team (AGENT_NOT_FOUND).
  */
 export function chatAgent(state: State, venture: VentureRecord, agentId: string): ChatAgent {
-  check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', 'Keeper is code, not AI. It has no chat; its jobs are on Team.');
+  check(agentId !== KEEPER_ID, 'AGENT_IS_CODE', 'Keeper uses fixed rules, not AI. It has no chat; its jobs are on Team.');
   const team = teamSteps(state, venture);
   // C7: an agent the owner hired answers by its hire: no steps, its own name and job.
   const hired = hiredRecord(state, venture.id, agentId);
@@ -74,7 +74,7 @@ export function chatAgent(state: State, venture: VentureRecord, agentId: string)
   const own = known.has(agentId) ? steps.filter(step => flagship.roleOf[step.id] === agentId)
     : steps.filter(step => flagship.roleOf[step.id] !== undefined && holderOf(state, venture.id, flagship.roleOf[step.id], known) === agentId);
   check(role && own.length, 'AGENT_NOT_FOUND', 'That agent was not found.');
-  check(role.kind === 'agent', 'AGENT_IS_CODE', `${role.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
+  check(role.kind === 'agent', 'AGENT_IS_CODE', `${role.name} uses fixed rules, not AI. It has no chat; its work shows in each job's steps.`);
   return { id: role.id, name: role.name, job: role.job, steps: own, stepIds: own.map(step => step.id), team: steps, playbook, flagship };
 }
 

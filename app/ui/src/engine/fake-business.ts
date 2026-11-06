@@ -720,7 +720,7 @@ export class FakeBusinessDesk {
     const receipt: ReceiptLite = {
       id: this.host.receiptId(), at: this.host.now(), stale: false, totalMinor: String(total), figures,
       explanation: sample ? (quantity === 1n ? sample.explanation : `${quantityText} units of ${offer.name.value} at ${display}, with the sample GST: ${showMinor(total)}.`) : taxed
-        ? `${offer.name.value} at ${display}. The sample engine does not work out GST; the real one does, with each step on this receipt.`
+        ? `${offer.name.value} at ${display}. GST is not included in this sample.`
         : `${offer.name.value} at ${display}, no discount, no tax added, because tax is not turned on for this price.`,
     };
     this.receipts.push(receipt);

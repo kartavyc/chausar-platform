@@ -5,6 +5,7 @@ const { EventEmitter } = require('node:events');
 const { validateRequest, validateVentureEvent } = require('./ipc-contract.cjs');
 const { createFormsRelay } = require('./owner-browser-relay.cjs');
 const { createCredentialRelay } = require('./credential-relay.cjs');
+const { WINDOW_PHASES } = require('./diagnostics.cjs');
 
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
 /** A2 second review: only the two fields the engine checks go on to it; anything else the window sent stays behind. */
@@ -102,6 +103,8 @@ class EngineHarness extends EventEmitter {
         child.on('message', message => {
           if (!message || typeof message !== 'object' || Array.isArray(message)) return;
           if (message.ready === true && this.state === 'starting') { this.status('ready'); settle(); return; }
+          // D4 task 4: how far the worker has come while it starts; anything else, or later, changes nothing.
+          if (message.phase !== undefined && message.id === undefined) { if (this.state === 'starting' && WINDOW_PHASES.includes(message.phase)) this.emit('status', Object.freeze({ state: 'starting', healthy: false, phase: message.phase })); return; }
           // A run event the engine committed: checked again here, then main forwards it to the window.
           if (message.kind === 'venture-event' && message.id === undefined) { const event = validateVentureEvent(message.event); if (event) this.emit('venture-event', event); return; }
           // Ink v2 wave 5 (5A5): the engine asks main to print a report's HTML to PDF (report-print.cjs); answered once.
@@ -149,6 +152,8 @@ class EngineHarness extends EventEmitter {
   confirmCodex(payload) { return this.#send({ kind: 'host-codex-confirm', payload: confirmPayload(payload) }, this.options.requestTimeoutMs); }
   // C5 task 32: at quit, before the engine stops: is a run busy, and the safety copy. Main's own route, like the two above.
   prepareUpdateInstall(payload) { return this.#send({ kind: 'host-update-prepare', payload: { backup: payload?.backup === true } }, this.options.requestTimeoutMs); }
+  // D5: main's own route for Install Claude Code, after the owner's yes in its dialog. It carries nothing to say yes with.
+  installClaude() { return this.#send({ kind: 'host-claude-install' }, this.options.requestTimeoutMs); }
   // Trusted main-process lifecycle only. No renderer method can manufacture this cancellation.
   closeForms() { try { if (this.worker?.connected) this.worker.send({ kind: 'host-forms-closed' }, () => {}); } catch {} }
   // Whether the owner is looking at the window (shown, not minimised, focused), for the notification centre's alert

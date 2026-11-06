@@ -4,7 +4,8 @@
 // key and feed address come from the build's metadata, through what main hands the worker; with either missing the state
 // is a plain not-set-up and nothing is asked. Installing happens at quit, in the desktop's own process (app/desktop/updates.cjs).
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { newerFormat, newerVersion, noteNewerOnce, readLocalJson } from './local-files.ts';
 import { randomBytes } from 'node:crypto';
 import { ChausarError, check } from './contracts.ts';
 import type { UpdateState, UpdatesView } from './update-service-core.ts';
@@ -13,7 +14,7 @@ import { ReleaseUpdater, RELEASE_CHANNELS, fetchDownload, followRelease, compare
 export type { UpdateState, UpdatesView } from './update-service-core.ts';
 export type FeedReader = (url: string) => Promise<{ text: string; signature: string }>;
 export type UpdateServiceOptions = {
-  publicKey: string | null; feedUrl: string | null; directory: string; version: string; channel: ReleaseChannel; windowsPublisher: string | null;
+  publicKey: string | null; feedUrl: string | null; directory: string; version: string; channel: ReleaseChannel; windowsCertificateThumbprint: string | null;
   isBusy: () => boolean; platform?: NodeJS.Platform; appImage?: string | null; clock?: () => number; readFeed?: FeedReader; download?: ReleaseDownload;
 };
 type LastResult = 'up-to-date' | 'staged' | 'failed' | 'cut';
@@ -32,10 +33,10 @@ export function updateCheckDue(input: { now: number; startedAt: number; lastChec
 }
 
 /** What main hands the worker, as the engine's options. No folder: this host has no update service. */
-export function updatesOptionsFrom(environment: NodeJS.ProcessEnv): Pick<UpdateServiceOptions, 'directory' | 'publicKey' | 'feedUrl' | 'channel' | 'windowsPublisher' | 'appImage'> | undefined {
+export function updatesOptionsFrom(environment: NodeJS.ProcessEnv): Pick<UpdateServiceOptions, 'directory' | 'publicKey' | 'feedUrl' | 'channel' | 'windowsCertificateThumbprint' | 'appImage'> | undefined {
   const directory = environment.CHAUSAR_UPDATES_DIRECTORY;
   if (!directory) return undefined;
-  return { directory, publicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY || null, feedUrl: environment.CHAUSAR_UPDATE_FEED || null, channel: environment.CHAUSAR_UPDATE_CHANNEL === 'beta' ? 'beta' : 'stable', windowsPublisher: environment.CHAUSAR_WINDOWS_PUBLISHER || null, appImage: environment.APPIMAGE || null };
+  return { directory, publicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY || null, feedUrl: environment.CHAUSAR_UPDATE_FEED || null, channel: environment.CHAUSAR_UPDATE_CHANNEL === 'beta' ? 'beta' : 'stable', windowsCertificateThumbprint: environment.CHAUSAR_WINDOWS_CERTIFICATE_THUMBPRINT || null, appImage: environment.APPIMAGE || null };
 }
 
 type Fetcher = typeof fetch;
@@ -71,9 +72,16 @@ export class UpdateService {
   get #stage(): string { return join(this.#o.directory, 'stage'); }
   get #settingsPath(): string { return join(this.#o.directory, 'settings.json'); }
 
+  async #newerSettings(): Promise<boolean> {
+    const raw = await readLocalJson(this.#settingsPath);
+    if (!newerFormat(raw, 'chausar.update-settings.v1') && !newerVersion(raw, 1)) return false;
+    await noteNewerOnce(join(dirname(this.#o.directory), 'custody'), 'settings.json', 'update-settings');
+    return true;
+  }
   async #load(): Promise<Kept> {
-    if (this.#kept) return this.#kept;
     const blank: Kept = { daily: true, channel: null, lastCheckAt: null, lastResult: null, reason: null };
+    if (await this.#newerSettings()) return blank;
+    if (this.#kept) return this.#kept;
     try {
       const raw = JSON.parse(await readFile(this.#settingsPath, 'utf8'));
       this.#kept = { ...blank, daily: raw.daily !== false, channel: RELEASE_CHANNELS.includes(raw.channel) ? raw.channel : null, lastCheckAt: Number.isSafeInteger(raw.lastCheckAt) ? raw.lastCheckAt : null, lastResult: typeof raw.lastResult === 'string' ? raw.lastResult : null, reason: typeof raw.reason === 'string' ? raw.reason.slice(0, 300) : null };
@@ -81,11 +89,12 @@ export class UpdateService {
     return this.#kept;
   }
   async #save(change: Partial<Kept>): Promise<void> {
+    if (await this.#newerSettings()) return;
     const next = { ...(await this.#load()), ...change };
     this.#kept = next;
     await mkdir(this.#o.directory, { recursive: true });
     const temporary = `${this.#settingsPath}.${randomBytes(6).toString('hex')}.tmp`;
-    await writeFile(temporary, JSON.stringify(next), { mode: 0o600 });
+    await writeFile(temporary, JSON.stringify({ format: 'chausar.update-settings.v1', ...next }), { mode: 0o600 });
     await rename(temporary, this.#settingsPath);
   }
   /** The release waiting to install, or null. One the running version has reached has done its work, and goes. */
@@ -93,6 +102,10 @@ export class UpdateService {
     const path = join(this.#stage, 'pending-release.json');
     let record: { manifest?: ReleaseManifest; artifactPath?: string };
     try { record = JSON.parse(await readFile(path, 'utf8')); } catch { return null; }
+    if (newerFormat(record, 'chausar.pending-release.v1') || newerVersion(record, 1)) {
+      await noteNewerOnce(join(dirname(this.#o.directory), 'custody'), 'pending-release.json', 'pending-release');
+      return null;
+    }
     const manifest = record.manifest;
     if (!manifest || typeof manifest.version !== 'string') return null;
     if (compareVersions(manifest.version, this.#o.version) > 0) return manifest;
@@ -116,11 +129,35 @@ export class UpdateService {
     const found = await this.#lastInstall(manifest.version);
     if (found === 'needs-signing' || found === 'publisher-mismatch' || found === 'data-newer' || found === 'manual') return found;
     const platform = this.#o.platform ?? process.platform;
-    if (platform === 'win32') return this.#o.windowsPublisher ? 'ready' : 'needs-signing';
+    if (platform === 'win32') return /^[a-f0-9]{40}$/i.test(this.#o.windowsCertificateThumbprint ?? '') ? 'ready' : 'needs-signing';
     if (platform === 'linux' && this.#o.appImage) return 'ready';
     return 'manual';
   }
+  /** D12 task 9: what desktop main kept in <updates>/rollbacks.json. A file a newer Chausar wrote is left alone. */
+  async #rollbacks(): Promise<{ raw: any; skip: string[] } | null> {
+    try {
+      const raw = JSON.parse(await readFile(join(this.#o.directory, 'rollbacks.json'), 'utf8'));
+      if (newerFormat(raw, 'chausar.rollbacks.v1')) await noteNewerOnce(join(dirname(this.#o.directory), 'custody'), 'rollbacks.json', 'rollbacks');
+      if (raw?.format !== 'chausar.rollbacks.v1' || !Array.isArray(raw.swaps) || !Array.isArray(raw.skip)) return null;
+      return { raw, skip: raw.skip.filter((version: unknown) => typeof version === 'string') };
+    } catch { return null; }
+  }
+  /** The swap the owner has not heard about; told once, and the file says so. */
+  async #rolledBackLine(): Promise<UpdatesView['rolledBack'] | undefined> {
+    const kept = await this.#rollbacks();
+    const swap = kept?.raw.swaps.find((item: any) => item?.told === false && item.to === this.#o.version);
+    if (!kept || !swap) return undefined;
+    swap.told = true;
+    const temporary = join(this.#o.directory, `rollbacks.${randomBytes(6).toString('hex')}.tmp`);
+    await writeFile(temporary, JSON.stringify(kept.raw), { mode: 0o600 }).then(() => rename(temporary, join(this.#o.directory, 'rollbacks.json'))).catch(() => unlink(temporary).catch(() => {}));
+    return { from: String(swap.from), to: String(swap.to), at: String(swap.at), reason: swap.reason === 'failed-migration' ? 'failed-migration' : 'failed-start' };
+  }
   async view(): Promise<UpdatesView> {
+    const rolledBack = await this.#rolledBackLine();
+    const view = await this.#plainView();
+    return rolledBack ? { ...view, rolledBack } : view;
+  }
+  async #plainView(): Promise<UpdatesView> {
     const kept = await this.#load();
     const base = { configured: this.configured, version: this.#o.version, installMode: 'manual-native-installer-required' as const, channel: kept.channel ?? this.#o.channel, daily: kept.daily, lastCheckedAt: kept.lastCheckAt === null ? null : new Date(kept.lastCheckAt).toISOString() };
     if (!this.configured) return { ...base, state: 'not-set-up', target: null, downloadedBytes: null, reason: null };
@@ -165,7 +202,7 @@ export class UpdateService {
       const feed = await (this.#o.readFeed ?? readFeedFrom)(url);
       await mkdir(this.#o.directory, { recursive: true });
       const updater = new ReleaseUpdater({ publicKey: this.#o.publicKey!, version: this.#o.version, stageDirectory: this.#stage, download: this.#o.download ?? followingDownload });
-      const choice = updater.verifyFeed(feed.text, feed.signature, { channel, installId: await installIdIn(this.#o.directory), now: new Date(this.#clock()) });
+      const choice = updater.verifyFeed(feed.text, feed.signature, { channel, installId: await installIdIn(this.#o.directory), now: new Date(this.#clock()), skip: (await this.#rollbacks())?.skip ?? [] });
       if (!choice.offer) { await finish('up-to-date', null); return; }
       this.#target = choice.offer.manifest;
       this.#phase = 'downloading';

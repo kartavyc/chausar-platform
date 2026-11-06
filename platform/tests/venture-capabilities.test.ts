@@ -121,7 +121,7 @@ test('a code role reads the files by code (never "can\'t open" them); a floor th
   assert.equal(assemble.line, "Build the edit list from the chosen segments, with any paid voice quoted first. Code does this, with no AI. Paid generation spends money, so it asks you first with every approval setting. Paying for it is planned: Chausar can't buy it yet, so nothing is spent.");
   assert.ok(!keys(view, 'off').includes('effect:money'), 'a step that spends counts money as reached');
   assert.equal(item(view, 'step:verify').line, 'Check the package and the finished cut. Code runs the checks, then an AI quality check reads the draft on your own AI.');
-  assert.equal(view.line, `Chausar is code, not AI: it does the same steps the same way every time. ${APPROVAL}`);
+  assert.equal(view.line, `Chausar uses fixed rules, not AI: it does the same steps the same way every time. ${APPROVAL}`);
 });
 
 test('the social checker: code checks, then the AI judge, or only code when the judge is off; creative briefs are planned spend', () => {

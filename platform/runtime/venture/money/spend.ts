@@ -16,7 +16,8 @@
 import { REFERENCE_RATE, REFERENCE_SOURCE } from './reference-rate.ts';
 import { formatCount, formatMoney, formatUsd, formatRate } from '../../owner-format.ts';
 import { ChausarError, check, money, type Context, type State } from '../../contracts.ts';
-import { ESTIMATE_WORDS, microsAsUsd, recordedCallMicros, usdToMicros } from '../models/cost.ts';
+import { ESTIMATE_WORDS, microsAsUsd, usdToMicros } from '../models/cost.ts';
+import { modelBudgetUsed } from '../models/budget.ts';
 import { NOT_REPORTED } from '../models/types.ts';
 import { modelLabel } from '../models/written-by.ts';
 import { localDayAt } from '../local-day.ts';
@@ -1048,20 +1049,14 @@ function agentCapViews(state: State, venture: VentureRecord, policy: SpendPolicy
  */
 function keyLimits(state: State, venture: VentureRecord, nowIso: string): LimitReachedView[] {
   const month = monthOf(nowIso);
-  const calls = listRecords(state, 'venture-model-call', venture.id) as { presetId: ModelPresetId; status: string; costMicros: string | null; usage: unknown; estimatedMaxCostMicros: string; at: string }[];
+  const calls = listRecords(state, 'venture-model-call', venture.id);
+  const spends = listRecords(state, 'venture-spend', venture.id);
   const reset = shortDay(resetDay(nowIso), venture.country.dateOrder);
   return listRecords(state, 'venture-model-connection', venture.id).filter(item => item.status === 'connected').flatMap(connection => {
     let spec: ReturnType<typeof presetSpec>;
     try { spec = presetSpec(connection.presetId); } catch { return []; }
     if (!spec.needsKey) return [];
-    let used = 0n;
-    for (const call of calls) {
-      if (call.presetId !== connection.presetId) continue;
-      if (call.status === 'dispatching') { used += BigInt(call.estimatedMaxCostMicros); continue; }
-      // D3 fix: a held cost counts at its reservation, as the port's budget does (models/budget.ts).
-      const micros = monthOf(call.at) === month ? recordedCallMicros(call) : null;
-      if (micros !== null) used += BigInt(micros);
-    }
+    const used = modelBudgetUsed(calls, spends, connection.presetId, month);
     if (used < BigInt(connection.monthlyCapMicros)) return [];
     return [{
       scope: 'key' as const, presetId: connection.presetId,

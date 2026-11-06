@@ -23,7 +23,7 @@ import {
 export const FAKE_RETIRE_METHODS: ReadonlySet<string> = new Set(['venture.agents.retire.check', 'venture.agents.retire', 'venture.agents.restore']);
 
 const KEEPER_ID = 'keeper';
-const KEEPER_IS_CODE = 'Keeper is code, not AI. It has no chat; its jobs are on Team.';
+const KEEPER_IS_CODE = 'Keeper uses fixed rules, not AI. It has no chat; its jobs are on Team.';
 const NOT_FOUND = 'That agent was not found.';
 const APP_ONLY = 'Approve this inside the Chausar app.';
 const ID = /^[A-Za-z0-9_.:-]{1,200}$/;
@@ -162,7 +162,7 @@ export class FakeRetireDesk {
     if (this.book().has(agentId)) throw new EngineError('AGENT_RETIRED', RETIRED_LINE);
     const found = (this.host.ask('venture.team.list', {}) as TeamListView).agents.find((agent) => agent.id === agentId);
     if (!found) throw new EngineError('AGENT_NOT_FOUND', NOT_FOUND);
-    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
+    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} uses fixed rules, not AI. It has no chat; its work shows in each job's steps.`);
     return found;
   }
 

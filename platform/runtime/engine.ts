@@ -1,4 +1,5 @@
 import { resolve, join, relative, isAbsolute, basename } from 'node:path';
+import { CLAUDE_INSTALL_WORDS, installClaudeCode, mintClaudeInstallYes, type ClaudeInstallPorts, type ClaudeInstallProgress, type ClaudeInstallResult, type ClaudeInstallView } from './venture/models/claude-code-install.ts';
 import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -109,6 +110,8 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   /** Trusted host composition (server.ts, worker.ts): keep each business's vault key with this computer's login and
    * write automatic encrypted backups. Absent: today's behaviour, a passphrase for every vault and no automatic backups. */
   workspaceCustody?: { deviceKeys: 'os' | 'none' | DeviceKeyStore; autoBackups: boolean; clock?: () => number };
+  /** D5: Install Claude Code. Only the desktop worker passes this, with the real ports; a test passes fakes. Absent: refused. */
+  claudeInstall?: { host: 'desktop' | 'hosted-web'; ports: ClaudeInstallPorts; platform?: NodeJS.Platform; environment?: NodeJS.ProcessEnv; onFound?: (path: string) => void };
   /** C5 task 31: the daily update check: main hands the worker the build's key, feed and folder (update-service.ts). Tests add seams. */
   updates?: Omit<UpdateServiceOptions, 'version' | 'isBusy'>;
   /** C5 task 24: the Google client, for tests; a build's comes from package.json. tokens: where tests keep the refresh token. */
@@ -168,6 +171,9 @@ export class Engine {
   /** C5 task 24: the open business's Drive client. */
   #drive: { workspaceId: string; client: DriveBackup } | null = null;
   #baseContext: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
+  /** D5: how far Install Claude Code has come, and the one under way. */
+  #claudeProgress: ClaudeInstallView = { step: 'idle', receivedBytes: 0, totalBytes: null, line: null };
+  #claudeInstalling: Promise<ClaudeInstallResult> | null = null;
   #requestContext = new AsyncLocalStorage<Context>();
   #stagedVaults = new Set<Vault>();
   #transition = false;
@@ -970,7 +976,32 @@ export class Engine {
     this.#snapshots?.forgetKey(); // the summary key leaves memory with the engine (4J6)
   }
   private notifyIdle() { if (!this.#activeRequests && !this.#transition) for (const finished of this.#idleWaiters) finished(); }
+  /**
+   * D12 task 4: a business from an older Chausar. The file as it was goes to a migration backup first, then the one commit of
+   * the brought-up State, a diagnostics line and the data-version index. A failure leaves the file as it was.
+   */
+  private async migrationBackup(json: string, workspaceId: string, from: number): Promise<string> {
+    const files = this.custodyFiles(), folder = await safeDirectory(files.backups, true);
+    let at = this.custodyNow(), name = backupName(workspaceId, at, 'migration');
+    for (const taken = new Set((await readdir(folder)).map(item => item.toLowerCase())); taken.has(name.toLowerCase()); name = backupName(workspaceId, ++at, 'migration'));
+    await atomicWriteText(join(folder, name), `{"backupFormat":"chausar.backup.v1","envelope":${json}}`, true);
+    await files.noteDataVersion({ file: { name, version: from } });
+    return name;
+  }
+  private async settleMigration(vault: Vault) {
+    const from = vault.migratedFrom; if (from === null) return;
+    let backup = '';
+    const { to } = await vault.commitMigration(async (json, workspaceId) => { backup = await this.migrationBackup(json, workspaceId, from); });
+    await this.noteMigrated(vault, from, to, backup);
+  }
+  private async noteMigrated(vault: Vault, from: number, to: number, backup: string) {
+    const files = this.custodyFiles(), state = vault.read();
+    await files.noteDiagnostic('migration', `${from}-to-${to}`, { code: 'DATA_BROUGHT_UP' }, new Date(this.custodyNow()).toISOString());
+    await files.noteDataVersion({ live: { folder: basename(vault.directory), entry: { version: to, workspaceId: state.workspace.id, migratedBy: String(this.options.version ?? ''), from, backup } } });
+  }
   private async attachSafely(vault: Vault) { try {
+    // D12: before anything else can write. A read-only device leaves it to the writer: every write there waits anyway.
+    if (this.options.sync === undefined) await this.settleMigration(vault);
     await this.attach(vault);
     // Read-only devices may inspect/review enrollment without mutating recovery
     // state. A reviewed writer later performs ordinary recovery on reopen.
@@ -1050,6 +1081,31 @@ export class Engine {
    * review of that exact program (its real path and version), or { inUse } when that program is already the Codex in
    * use (the owner's earlier choice, or the bundled Codex): the dialog is asked for once per program.
    */
+  /**
+   * D5 (main only, through the worker's host channel): the owner pressed yes in main's own dialog, so the yes is made here,
+   * fresh, and spent once by the install. A second press joins the one under way. Nothing here reads a payload.
+   */
+  installClaudeCodeFor(): Promise<ClaudeInstallResult> {
+    const context = this.context, wired = this.options.claudeInstall;
+    try {
+      check(context && context.channel === 'desktop' && !context.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+      check(context.role === 'owner', 'FORBIDDEN', 'Only the owner installs Claude Code on this computer.');
+      check(wired?.host === 'desktop', 'TIER_UNAVAILABLE', CLAUDE_INSTALL_WORDS.hosted);
+    } catch (error) { return Promise.reject(error); }
+    return this.#claudeInstalling ??= (async () => {
+      this.#claudeProgress = { step: 'idle', receivedBytes: 0, totalBytes: null, line: null };
+      const note = (progress: ClaudeInstallProgress) => { this.#claudeProgress = { step: progress.step, receivedBytes: progress.receivedBytes ?? this.#claudeProgress.receivedBytes, totalBytes: progress.totalBytes === undefined ? this.#claudeProgress.totalBytes : progress.totalBytes, line: null }; };
+      try {
+        const result = await installClaudeCode({ approval: mintClaudeInstallYes(), platform: wired!.platform ?? process.platform, host: wired!.host, ...(wired!.environment ? { environment: wired!.environment } : {}) }, wired!.ports, note);
+        this.#claudeProgress = { ...this.#claudeProgress, step: 'done', line: result.words };
+        if (result.path) wired!.onFound?.(result.path);
+        return result;
+      } catch (error) {
+        this.#claudeProgress = { ...this.#claudeProgress, step: 'failed', line: null };
+        throw error;
+      } finally { this.#claudeInstalling = null; }
+    })();
+  }
   async codexChoiceFor(payload: unknown): Promise<{ path: string; version: string } | { inUse: unknown }> {
     const { trust, sha256 } = this.#codexChoiceChecked(payload);
     const current = typeof trust.current === 'function' ? trust.current() as { sha256?: unknown } | null : null;
@@ -1155,6 +1211,12 @@ export class Engine {
     // A2: the owner's yes to the Codex found on this computer, before the vault (onboarding) and after it (Your AI).
     // A2 second review: never as a request; only main's dialog confirms a Codex (confirmCodexSetup).
     if (method === 'venture.ai.setup.trust') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+    // D5: never as a request either: a payload can't say yes. Only main's dialog starts it (installClaudeCodeFor).
+    if (method === 'venture.ai.claude.install') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+    if (method === 'venture.ai.claude.progress') {
+      check(Object.keys(payload).length === 0, 'INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+      return this.#claudeProgress;
+    }
     // One-shot C3 task 9: the open business's live jobs and any before a business was opened, never another business's.
     if (method === 'venture.work.list') {
       check(Object.keys(payload).length === 0, 'INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
@@ -1294,8 +1356,10 @@ export class Engine {
         if (!newPassphrase) { fresh = randomBytes(32); newPassphrase = fresh.toString('base64url'); }
       }
       try {
-        const vault = await Vault.recover({ directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
+        let moved: { from: number; backup: string } | null = null;
+        const vault = await Vault.recover({ migrationBackup: async (json, workspaceId, from) => { moved = { from, backup: await this.migrationBackup(json, workspaceId, from) }; }, directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
         if (fresh) await this.storeComputerSecret(vault, fresh);
+        if (moved) await this.noteMigrated(vault, (moved as { from: number }).from, vault.read().schemaVersion, (moved as { backup: string }).backup);
         await this.attachSafely(vault);
       } finally { fresh?.fill(0); }
       await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: 'made', reseal: true });
@@ -2813,6 +2877,7 @@ export class Engine {
   private async afterOpen(folder: string, how: 'this-computer' | 'typed', options: { recovery?: RecoveryState; reseal?: boolean; created?: boolean } = {}) {
     this.#openFolder = folder; this.#openUnlock = how === 'this-computer' ? 'this-computer' : 'passphrase'; this.#closedByOwner = false;
     const custody = this.custodyHost(); if (!custody) return;
+    await this.noteLiveVersion(folder);
     await this.loadSchedule();
     const vault = this.store(), state = vault.read(), unlock = this.#openUnlock, prior = await custody.files.readCard(folder);
     const recovery: RecoveryState = options.recovery ?? (prior?.state === 'ready' ? prior.recovery : how === 'typed' ? 'made' : 'unknown');
@@ -2825,6 +2890,11 @@ export class Engine {
     if (how === 'typed') await this.forgetKeyIfUnused(vault.vaultId, folder);
     if (how === 'typed') await this.snapshotStore()?.remove(folder); // a passphrase business keeps no summary (4J6)
     if (reseal) await custody.files.writeCard({ ...card, pending: null });
+  }
+  /** D12: what the open business's live file holds, for a closed business's count at the next update. Keeps who moved it. */
+  private async noteLiveVersion(folder: string) {
+    const files = this.custodyFiles(), state = this.store().read(), prior = (await files.readDataVersions()).live[folder];
+    await files.noteDataVersion({ live: { folder, entry: { ...(prior?.version === state.schemaVersion ? prior : {}), version: state.schemaVersion, workspaceId: state.workspace.id } } });
   }
   private async loadSchedule() {
     this.#schedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
@@ -2857,6 +2927,7 @@ export class Engine {
     let at = this.custodyNow(), name = backupName(workspaceId, at, kind);
     for (const taken = new Set((await readdir(folder)).map(item => item.toLowerCase())); taken.has(name.toLowerCase()); name = backupName(workspaceId, ++at, kind));
     await vault.backup(join(folder, name));
+    await files.noteDataVersion({ file: { name, version: vault.read().schemaVersion } });
     this.#schedule = { lastAt: at, lastRevision: revision, due: false, lastError: null };
     if (kind !== 'manual') {
       const { remove } = keepBackups(await files.backupFiles(workspaceId), this.custodyNow());
@@ -3350,14 +3421,16 @@ export class Engine {
   /** C5 task 31: one for the engine's life, so its ten quiet minutes count from the start. */
   #updates: UpdateService | null = null;
   private updateService(): UpdateService {
-    return this.#updates ??= new UpdateService({ publicKey: this.options.updatePublicKey ?? null, feedUrl: null, directory: resolve(this.options.directory, 'updates'), channel: 'stable', windowsPublisher: null, ...this.options.updates, version: this.version, isBusy: () => this.updatesBusy() });
+    return this.#updates ??= new UpdateService({ publicKey: this.options.updatePublicKey ?? null, feedUrl: null, directory: resolve(this.options.directory, 'updates'), channel: 'stable', windowsCertificateThumbprint: null, ...this.options.updates, version: this.version, isBusy: () => this.updatesBusy() });
   }
   /**
    * C5 task 32, trusted main-process route only, at quit: is a run busy, the open data's version, and the safety copy of the
    * open business while its vault is still open (D12 attach points 1 and 2). A failed copy is said; main then installs nothing.
    */
   async prepareUpdateInstall(payload: { backup?: unknown }): Promise<{ busy: boolean; openDataSchema: number | null; backup: 'made' | 'failed' | 'none-open' | 'skipped' }> {
-    const busy = this.updatesBusy(), open = this.vault ? this.vault.read().schemaVersion : null;
+    // D12 task 8: the newest data on this computer, a closed business's too, not only the open one's.
+    const busy = this.updatesBusy(), liveNow = this.vault ? this.vault.read().schemaVersion : null, noted = this.custodyHost() ? await this.custodyFiles().newestDataVersion() : null;
+    const open = liveNow === null && noted === null ? null : Math.max(liveNow ?? 0, noted ?? 0);
     if (busy || payload?.backup !== true) return { busy, openDataSchema: open, backup: 'skipped' };
     if (!this.vault) return { busy, openDataSchema: open, backup: 'none-open' };
     return { busy, openDataSchema: open, backup: await this.custodySerial(() => this.safetyBackup()) ? 'made' : 'failed' };

@@ -398,10 +398,10 @@ export class FakeAgentExtras {
 
   /** chatAgent: Keeper and code roles are AGENT_IS_CODE; an id not on the team is AGENT_NOT_FOUND. */
   private agent(agentId: string): AgentView {
-    if (agentId === 'keeper') throw new EngineError('AGENT_IS_CODE', 'Keeper is code, not AI. It holds no tools; its jobs are on Team.');
+    if (agentId === 'keeper') throw new EngineError('AGENT_IS_CODE', 'Keeper uses fixed rules, not AI. It holds no tools; its jobs are on Team.');
     const found = this.agents().find((agent) => agent.id === agentId);
     if (!found) throw new EngineError('AGENT_NOT_FOUND', 'That agent was not found.');
-    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
+    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} uses fixed rules, not AI. It has no chat; its work shows in each job's steps.`);
     return found;
   }
 

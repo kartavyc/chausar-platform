@@ -42,7 +42,7 @@ export function callCostOrHeld(usage: Usage, table: ModelPriceTable | null): Mic
  * got a price (no usage: refused before it went, or no answer came). A held call is never counted as free.
  */
 export function recordedCallMicros(call: { costMicros?: unknown; usage?: unknown; estimatedMaxCostMicros?: unknown } | null | undefined): MicroString | null {
-  const micros = /^\d{1,18}$/;
+  const micros = /^\d{1,30}$/;
   if (typeof call?.costMicros === 'string') return micros.test(call.costMicros) ? call.costMicros : null;
   if (!call || call.costMicros !== null || !call.usage || typeof call.usage !== 'object') return null;
   return typeof call.estimatedMaxCostMicros === 'string' && micros.test(call.estimatedMaxCostMicros) ? call.estimatedMaxCostMicros : null;

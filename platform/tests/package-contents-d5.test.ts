@@ -39,8 +39,9 @@ function asar(files: Record<string, string>): Buffer {
   return Buffer.concat([size, header, ...bodies]);
 }
 
-type Build = { locales?: string[]; archive?: Record<string, string>; anthropic?: string[]; codex?: string | null; bundle?: string[] };
+type Build = { locales?: string[]; archive?: Record<string, string>; anthropic?: string[]; codex?: string | null; bundle?: string[]; unpackedExtra?: string[] };
 const CLEAN: Required<Build> = {
+  unpackedExtra: [],
   locales: ['en-GB.pak', 'en-US.pak', 'hi.pak'],
   archive: { 'app/ui/dist/index.html': '<!doctype html>', 'app/ui/dist/assets/index.js': 'x', 'app/desktop/main.cjs': 'x', 'package.json': '{}' },
   anthropic: ['claude-agent-sdk'],
@@ -63,8 +64,11 @@ async function build(t: any, overrides: Build = {}) {
     await mkdir(join(root, 'resources', 'app.asar.unpacked', 'node_modules', '@anthropic-ai', name), { recursive: true });
     await writeFile(join(root, 'resources', 'app.asar.unpacked', 'node_modules', '@anthropic-ai', name, 'package.json'), '{}');
   }
-  await mkdir(join(root, 'resources', 'app.asar.unpacked', 'platform', 'runtime'), { recursive: true });
-  await writeFile(join(root, 'resources', 'app.asar.unpacked', 'platform', 'runtime', 'worker.ts'), 'worker');
+  for (const file of spec.unpackedExtra ?? []) {
+    const path = join(root, 'resources', 'app.asar.unpacked', ...file.split('/'));
+    await mkdir(join(path, '..'), { recursive: true });
+    await writeFile(path, 'x');
+  }
   await writeFile(join(root, 'resources', 'app.asar'), asar(spec.archive));
   for (const file of spec.bundle) {
     const path = join(root, 'resources', 'app.asar.unpacked', 'app', 'engine', 'dist', ...file.split('/'));
@@ -95,12 +99,15 @@ test('a clean build has no problems and reports the size of each piece', async t
   for (const piece of ['codex', 'electron', '@anthropic-ai', '@duckdb', 'locales', 'app.asar.unpacked/platform', 'app.asar', 'app/engine/dist']) assert.equal(typeof contents.sizes[piece], 'number', piece);
   assert.equal(contents.sizes.locales, 9);
   assert.ok(contents.totalBytes > 2048);
-  assert.equal(contents.fileCount, 12);
+  assert.equal(contents.fileCount, 11);
   assert.equal(contents.sizes['app/engine/dist'], 18);
 });
 
 test('each problem is named', async t => {
   const cases: [Build, RegExp][] = [
+    [{ unpackedExtra: ['platform/runtime/worker.ts'] }, /engine source ships: platform\/runtime\/worker\.ts/],
+    [{ archive: { ...CLEAN.archive, 'platform/runtime/engine.ts': 'x' } }, /engine source ships: platform\/runtime\/engine\.ts/],
+    [{ archive: { ...CLEAN.archive, 'platform/runtime/venture/models/credential-contract.cjs': 'x', 'platform/helpers/analytics.py': 'x' } }, /engine source ships: platform\/helpers\/analytics\.py/],
     [{ locales: [...CLEAN.locales, 'ta.pak'] }, /locale ta is not one of en-US, en-GB, hi/],
     [{ locales: ['en-US.pak', 'hi.pak'] }, /locale en-GB is missing/],
     [{ anthropic: ['claude-agent-sdk', 'claude-agent-sdk-win32-x64'] }, /Claude Code program file: claude-agent-sdk-win32-x64/],
@@ -143,4 +150,19 @@ test('package-contents.mjs never imports desktop-package.mjs, so packaging canno
   assert.doesNotMatch(text, /from '\.\/desktop-package\.mjs'|import\('\.\/desktop-package\.mjs'\)/);
   const trim = await readFile(new URL('../../scripts/package-trim.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(trim, /^import /m, 'the shared rule imports nothing');
+});
+
+
+test('cleanup: an engine source map inside the archive refuses the package', async t => {
+  const root = await build(t, { archive: { ...CLEAN.archive, 'app/engine/maps/worker.js.map': '{}' } });
+  const result = await readPackageContents(root, { mode: 'beta' });
+  assert.ok(result.problems.some((line: string) => /source map ships/.test(line)));
+});
+
+
+test('cleanup: contents checks share the staging Codex version pin', async () => {
+  const staging = '../../scripts/codex-bundle.mjs';
+  const { CODEX_BUNDLE } = await import(staging);
+  const contents = await import(modulePath);
+  assert.equal(contents.CODEX_VERSION, CODEX_BUNDLE.version);
 });

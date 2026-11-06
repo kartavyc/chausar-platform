@@ -1,6 +1,8 @@
 {
   "updates.page": "Updates",
   "updates.title": "Updates",
+  "updates.rolledBack.failed-start": "Chausar went back to version {to} because {from} didn't start. Your business is as it was before the update.",
+  "updates.rolledBack.failed-migration": "Chausar went back to version {to} because {from} couldn't bring your business up to date. Your business is as it was before the update.",
   "updates.loading": "Reading the update state.",
   "updates.state.not-set-up": "Updates aren't set up in this copy of Chausar yet.",
   "updates.state.idle": "Not checked yet",

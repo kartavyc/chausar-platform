@@ -178,8 +178,9 @@ export async function packagePreflight({ root = projectRoot, platform = process.
     await regular(join(root, 'platform', 'helpers', 'analytics.py'));
     await regular(join(root, 'scripts', 'postgres-runtime.mjs'));
     const builder = JSON.parse(await readFile(join(root, 'app', 'desktop', 'builder.json'), 'utf8'));
-    if (!builder.files?.some(value => ['platform/helpers/**/*', 'platform/**/*', '**/*'].includes(value))) throw new Error('electron-builder files must include platform/helpers/**/*');
-    if (!builder.asarUnpack?.some(value => ['platform/helpers/**/*', 'platform/**/*', '**/*'].includes(value))) throw new Error('the Python helper must be unpacked for native execution');
+    // D7: the Python helper travels in the engine bundle (helpers/analytics.py).
+    if (!builder.files?.some(value => value?.from === 'app/engine/dist')) throw new Error('electron-builder files must carry the engine bundle (app/engine/dist), which holds the Python helper');
+    if (!builder.asarUnpack?.includes('app/engine/dist/**/*')) throw new Error('the Python helper must be unpacked for native execution');
     if (!builder.files?.some(value => ['scripts/postgres-runtime.mjs', 'scripts/**/*', '**/*'].includes(value))) throw new Error('electron-builder files must include scripts/postgres-runtime.mjs');
     if (!builder.asarUnpack?.some(value => ['scripts/postgres-runtime.mjs', 'scripts/**/*', '**/*'].includes(value))) throw new Error('the PostgreSQL launcher must be unpacked for native execution');
     if (!builder.extraResources?.some(value => value.from === 'runtime-binaries' && value.to === 'runtime-binaries')) throw new Error('electron-builder must ship runtime-binaries as external resources');

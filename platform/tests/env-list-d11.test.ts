@@ -87,3 +87,16 @@ test('the CI lint job runs the check', async () => {
   const workflow = (await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
   assert.match(workflow, /^ {8}run: node scripts\/env-docs\.mjs --check$/m);
 });
+
+
+test('cleanup: companion, non-runtime platform and container code join the env scan', async t => {
+  const run = await tree(t, {
+    'app/companion/host.ts': 'const a = process.env.CHAUSAR_COMPANION_NEW;',
+    'platform/tools/host.ts': 'const a = process.env.CHAUSAR_TOOL_NEW;',
+    'containers/worker.yaml': 'environment: CHAUSAR_CONTAINER_NEW',
+  });
+  run('--write');
+  const result = run('--check');
+  assert.equal(result.status, 1);
+  for (const name of ['CHAUSAR_COMPANION_NEW', 'CHAUSAR_TOOL_NEW', 'CHAUSAR_CONTAINER_NEW']) assert.ok(result.stderr.includes(name), name);
+});

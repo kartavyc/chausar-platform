@@ -121,6 +121,8 @@ jobs:
         run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
       - name: Run the whole Ink frontend suite
         run: node scripts/ui-bench.mjs
+      - name: Shuffle shared logic tests to detect state leaks
+        run: node node_modules/vitest/vitest.mjs run --config app/ui/vitest.config.ts --project=logic --sequence.shuffle
       - name: Upload the UI receipt
         if: always()
         uses: actions/upload-artifact@v4

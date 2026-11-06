@@ -97,5 +97,5 @@ export const ENV: readonly EnvEntry[] = [
   { name: 'CHAUSAR_VENTURE_MODEL_REPLAY', meaning: 'A recorded AI answers file for the demo, used only with replay on.', default: 'Unset: no AI replay.', readers: ['hosted', 'engine'] },
   { name: 'CHAUSAR_VENTURE_REPLAY', meaning: 'Set to 1 (or pass --replay) in demo or --dev mode to answer from the recorded files.', default: 'Unset: off.', readers: ['hosted', 'engine'] },
   { name: 'CHAUSAR_VENTURE_RUNTIME', meaning: 'Which venture runtime the hosted server uses; only local exists.', default: 'Unset: local.', readers: ['hosted'] },
-  { name: 'CHAUSAR_WINDOWS_PUBLISHER', meaning: 'The certificate name a Windows installer must be signed with before it may run by itself.', default: 'Unset: a Windows owner gets Show installer; nothing runs by itself.', readers: ['desktop', 'worker'] },
+  { name: 'CHAUSAR_WINDOWS_CERTIFICATE_THUMBPRINT', meaning: 'The exact 40-character certificate thumbprint a Windows installer must be signed with before it may run by itself.', default: 'Unset: a Windows owner gets Show installer; nothing runs by itself.', readers: ['desktop', 'worker'] },
 ];

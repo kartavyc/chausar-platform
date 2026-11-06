@@ -48,7 +48,7 @@ if (weightSources) {
     if (!source.endsWith('.json')) throw new Error('Weights come from benchmark receipts: JSON files.');
     const receipt = JSON.parse(await readFile(resolve(source), 'utf8'));
     if (receipt.schema !== 'chausar.factory-bench.v1' || !receipt.fileTimings || typeof receipt.fileTimings !== 'object') throw new Error(`${source} is not a benchmark receipt with fileTimings.`);
-    for (const [file, seconds] of Object.entries(receipt.fileTimings)) if (typeof seconds === 'number' && seconds >= 0) weights[file] = Math.max(0.1, Math.round(seconds * 10) / 10);
+    for (const [file, seconds] of Object.entries(receipt.fileTimings)) if (typeof seconds === 'number' && seconds >= 0) weights[file] = Math.max(weights[file] ?? 0, 0.1, Math.round(seconds * 10) / 10);
   }
   const sorted = Object.fromEntries(Object.keys(weights).sort().map(file => [file, weights[file]]));
   await writeFile(weightsPath, `${JSON.stringify(sorted, null, 2)}\n`, 'utf8');

@@ -16,7 +16,7 @@ export const KEPT_LOOK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const CLI_LOOKS_FILE = 'cli-looks.json';
 
 /** A finding answered from the file: as last seen, sign-in unknown until the background look lands (A2's rule). */
-export type KeptCliFinding = CliFinding & { kept?: true };
+export type KeptCliFinding = CliFinding;
 /** One tool's kept look: the finding and the program it was taken of. */
 export type KeptLook = { command: string; size: number; mtimeMs: number; finding: CliFinding };
 export type KeptLooks = Partial<Record<DelegateCli, KeptLook>>;
@@ -32,6 +32,7 @@ export function cliLookFile(path: string): CliLookPort {
   return {
     async read() {
       try {
+        if ((await stat(path)).size > MAX_BYTES) return null;
         const text = await readFile(path, 'utf8');
         if (text.length > MAX_BYTES) return null;
         const raw = JSON.parse(text) as unknown;
@@ -44,7 +45,7 @@ export function cliLookFile(path: string): CliLookPort {
       if (newerVersion(await readLocalJson(path), 1)) { await noteNewerOnce(dirname(path), CLI_LOOKS_FILE, 'cli-looks'); return; }
       await mkdir(dirname(path), { recursive: true });
       const temporary = `${path}.${randomBytes(6).toString('hex')}.tmp`;
-      await writeFile(temporary, JSON.stringify({ version: 1, looks }), { encoding: 'utf8', mode: 0o600 });
+      await writeFile(temporary, JSON.stringify({ version: 1, looks: Object.fromEntries(Object.entries(looks).map(([cli, look]) => [cli, { ...look, finding: { ...look.finding, signedIn: 'unknown' } }])) }), { encoding: 'utf8', mode: 0o600 });
       await rename(temporary, path);
     },
   };
@@ -60,7 +61,7 @@ export async function programStamp(path: string): Promise<{ size: number; mtimeM
 
 /** Only a real look at a tool that answered is kept: never a located-only, replayed or unstarted one. */
 export function keepable(finding: CliFinding): boolean {
-  return finding.found && finding.answered && !finding.replay && typeof finding.path === 'string';
+  return finding.found && finding.answered && !finding.replay && finding.via !== 'npm-shim' && typeof finding.path === 'string';
 }
 
 const plain = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);

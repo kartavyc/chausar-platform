@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  CLAUDE_CODE_INSTALLERS, CLAUDE_INSTALL_WORDS, installClaudeCode, type ClaudeInstallPorts, type ClaudeInstallProgress,
+  CLAUDE_CODE_INSTALLERS, CLAUDE_INSTALL_WORDS, installClaudeCode, mintClaudeInstallYes, type ClaudeInstallPorts, type ClaudeInstallProgress,
 } from '../runtime/venture/models/claude-code-install.ts';
 
 const SCRIPT = Buffer.from('# synthetic installer script\nWrite-Output "installed"\n');
@@ -54,13 +54,13 @@ test('without the owner yes nothing is downloaded or run', async () => {
 
 test('the hosted web server never installs anything', async () => {
   const fake = computer();
-  await assert.rejects(installClaudeCode({ approval: YES, platform: 'linux', host: 'hosted-web' }, fake.ports), code('TIER_UNAVAILABLE'));
+  await assert.rejects(installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'linux', host: 'hosted-web' }, fake.ports), code('TIER_UNAVAILABLE'));
   assert.deepEqual([fake.fetched, fake.ran], [[], []]);
 });
 
 test('Claude Code already on this computer: nothing is downloaded', async () => {
   const fake = computer({ foundBefore: true });
-  const result = await installClaudeCode({ approval: YES, platform: 'win32', host: 'desktop' }, fake.ports);
+  const result = await installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'win32', host: 'desktop' }, fake.ports);
   assert.equal(result.outcome, 'already-installed');
   assert.deepEqual([fake.fetched, fake.ran], [[], []]);
 });
@@ -69,7 +69,7 @@ test('with a yes: the official installer is downloaded with progress, run unmodi
   for (const platform of ['win32', 'linux', 'darwin'] as const) {
     const fake = computer();
     const steps: ClaudeInstallProgress[] = [];
-    const result = await installClaudeCode({ approval: YES, platform, host: 'desktop' }, fake.ports, progress => steps.push(progress));
+    const result = await installClaudeCode({ approval: mintClaudeInstallYes(), platform, host: 'desktop' }, fake.ports, progress => steps.push(progress));
     assert.deepEqual(fake.fetched, [CLAUDE_CODE_INSTALLERS[platform].url]);
     assert.match(CLAUDE_CODE_INSTALLERS[platform].url, /^https:\/\/claude\.ai\/install\.(ps1|sh)$/);
     assert.equal(fake.ran.length, 1);
@@ -94,12 +94,12 @@ test('with a yes: the official installer is downloaded with progress, run unmodi
 
 test('an installer that ran but left no Claude Code, or failed, says so plainly', async () => {
   const notFound = computer({ installs: false });
-  const missing = await installClaudeCode({ approval: YES, platform: 'win32', host: 'desktop' }, notFound.ports);
+  const missing = await installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'win32', host: 'desktop' }, notFound.ports);
   assert.equal(missing.outcome, 'not-found-after');
   assert.equal(missing.words, CLAUDE_INSTALL_WORDS.notFoundAfter);
   const failed = computer({ exitCode: 3, installs: false });
   const steps: ClaudeInstallProgress[] = [];
-  await assert.rejects(installClaudeCode({ approval: YES, platform: 'win32', host: 'desktop' }, failed.ports, step => steps.push(step)), code('CLAUDE_INSTALL_FAILED'));
+  await assert.rejects(installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'win32', host: 'desktop' }, failed.ports, step => steps.push(step)), code('CLAUDE_INSTALL_FAILED'));
   assert.equal(steps.at(-1)!.step, 'failed');
   for (const folder of [...notFound.folders, ...failed.folders]) assert.equal(existsSync(folder), false);
 });
@@ -114,7 +114,7 @@ test('a download from anywhere else, refused, empty or too large is never run', 
   ];
   for (const [options, expected] of cases) {
     const fake = computer(options);
-    await assert.rejects(installClaudeCode({ approval: YES, platform: 'win32', host: 'desktop' }, fake.ports), code(expected), JSON.stringify(options).slice(0, 80));
+    await assert.rejects(installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'win32', host: 'desktop' }, fake.ports), code(expected), JSON.stringify(options).slice(0, 80));
     assert.equal(fake.ran.length, 0);
     for (const folder of fake.folders) assert.equal(existsSync(folder), false);
   }
@@ -122,7 +122,7 @@ test('a download from anywhere else, refused, empty or too large is never run', 
 
 test('a system with no official installer is refused before anything', async () => {
   const fake = computer();
-  await assert.rejects(installClaudeCode({ approval: YES, platform: 'aix' as any, host: 'desktop' }, fake.ports), code('CLAUDE_INSTALL_UNSUPPORTED'));
+  await assert.rejects(installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'aix' as any, host: 'desktop' }, fake.ports), code('CLAUDE_INSTALL_UNSUPPORTED'));
   assert.deepEqual([fake.fetched, fake.ran], [[], []]);
 });
 
@@ -131,7 +131,7 @@ test('a system with no official installer is refused before anything', async () 
 test('D5 fix: only an explicit desktop host installs; a missing or unknown host is refused before anything', async () => {
   for (const host of [undefined, null, '', 'Desktop', 'desktop-app', 'hosted', 'phone']) {
     const fake = computer();
-    await assert.rejects(installClaudeCode({ approval: YES, platform: 'win32', host } as any, fake.ports), code('TIER_UNAVAILABLE'), String(host));
+    await assert.rejects(installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'win32', host } as any, fake.ports), code('TIER_UNAVAILABLE'), String(host));
     assert.deepEqual([fake.fetched, fake.ran], [[], []]);
   }
 });
@@ -188,7 +188,7 @@ test('D5 fix: through the real run port, each system runs its installer as one a
     let installed = false;
     const ports: ClaudeInstallPorts = { ...fake.ports, run: defaultClaudeInstallPorts({ spawn: (...args: any[]) => { installed = true; return (rec.spawn as any)(...args); } }).run,
       locate: command => (command === 'claude' && installed ? '/home/owner/.local/bin/claude' : null), tempFolder: async () => spaced };
-    const result = await installClaudeCode({ approval: YES, platform, host: 'desktop', environment }, ports);
+    const result = await installClaudeCode({ approval: mintClaudeInstallYes(), platform, host: 'desktop', environment }, ports);
     assert.equal(result.outcome, 'installed');
     const installer = CLAUDE_CODE_INSTALLERS[platform];
     assert.equal(rec.spawned.length, 1);
@@ -211,7 +211,52 @@ test('D5 fix: the real fetch port follows redirects and reports the final addres
   };
   const real = defaultClaudeInstallPorts({ fetch: fetch as any });
   const fake = computer();
-  await assert.rejects(installClaudeCode({ approval: YES, platform: 'win32', host: 'desktop' }, { ...fake.ports, fetch: real.fetch }), code('CLAUDE_INSTALL_DOWNLOAD_FAILED'));
+  await assert.rejects(installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'win32', host: 'desktop' }, { ...fake.ports, fetch: real.fetch }), code('CLAUDE_INSTALL_DOWNLOAD_FAILED'));
   assert.equal(fake.ran.length, 0, 'nothing run');
-  assert.deepEqual(asked.map(item => [item.url, item.init.redirect, item.init.signal instanceof AbortSignal]), [[CLAUDE_CODE_INSTALLERS.win32.url, 'follow', true]]);
+  assert.deepEqual(asked.map(item => [item.url, item.init.redirect, item.init.signal instanceof AbortSignal]), [[CLAUDE_CODE_INSTALLERS.win32.url, 'manual', true]]);
+});
+
+
+test('cleanup: omitted test ports fail closed without starting a process or fetching', async t => {
+  const { createRequire, syncBuiltinESMExports } = await import('node:module');
+  const child = createRequire(import.meta.url)('node:child_process');
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('real fetch reached'); });
+  t.mock.method(child, 'spawn', () => { throw new Error('real spawn reached'); });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const { defaultClaudeInstallPorts } = await import('../runtime/venture/models/claude-code-install.ts');
+  const ports = defaultClaudeInstallPorts({});
+  await assert.rejects(ports.fetch('https://claude.ai/install.sh', { signal: new AbortController().signal }), /test port not set/);
+  await assert.rejects(ports.run('never-run', [], { cwd: '.', env: {}, timeoutMs: 1, windowsHide: true, shell: false }), /test port not set/);
+});
+
+test('cleanup: installer redirects are checked before the next request and unused bodies are cancelled', async () => {
+  const { defaultClaudeInstallPorts } = await import('../runtime/venture/models/claude-code-install.ts');
+  for (const target of ['https://outside.example/install.sh', 'http://claude.ai/install.sh', 'https://claude.ai/install.sh']) {
+    let sent = 0, cancelled = 0;
+    const ports = defaultClaudeInstallPorts({ fetch: async (url, init) => {
+      sent++;
+      assert.equal(init.redirect, 'manual');
+      return { ok: false, status: 302, url, headers: new Headers({ location: target }), body: { cancel: async () => { cancelled++; } } };
+    } });
+    await assert.rejects(ports.fetch('https://claude.ai/install.ps1', { signal: new AbortController().signal }));
+    assert.equal(cancelled, sent);
+    assert.equal(sent, target.startsWith('https://claude.ai/') ? 6 : 1);
+  }
+});
+
+test('cleanup: the installer refuses a body shorter than its declared length', async () => {
+  const fake = computer();
+  const fetch = fake.ports.fetch;
+  fake.ports.fetch = async (...args) => { const response = await fetch(...args); return { ...response, headers: new Headers({ 'content-length': String(SCRIPT.length + 1) }) }; };
+  await assert.rejects(installClaudeCode({ approval: mintClaudeInstallYes(), platform: 'linux', host: 'desktop' }, fake.ports), code('CLAUDE_INSTALL_DOWNLOAD_FAILED'));
+  assert.equal(fake.ran.length, 0);
+});
+
+test('cleanup: a timed-out installer is killed and reports failure even if it never emits exit', { timeout: 2000 }, async () => {
+  const { defaultClaudeInstallPorts } = await import('../runtime/venture/models/claude-code-install.ts');
+  let killed = 0;
+  const ports = defaultClaudeInstallPorts({ spawn: () => ({ once() {}, kill() { killed++; } }) });
+  assert.deepEqual(await ports.run('synthetic', [], { cwd: '.', env: {}, timeoutMs: 1, windowsHide: true, shell: false }), { exitCode: -1 });
+  assert.equal(killed, 1);
 });

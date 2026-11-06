@@ -33,7 +33,7 @@ export function parseSmokeArguments(args, { platform = process.platform } = {}) 
   if (args[0] !== '--packaged' || args.length > 2) throw new Error('Use only the optional --packaged <unpacked build folder> argument.');
   const { folder } = packagedFolder(args[1], platform);
   const unpacked = join(folder, 'resources', 'app.asar.unpacked');
-  return { packaged: folder, worker: join(unpacked, 'platform', 'runtime', 'worker.ts'), packageJson: join(unpacked, 'package.json') };
+  return { packaged: folder, worker: join(unpacked, 'app', 'engine', 'dist', 'runtime', 'worker.js'), packageJson: join(unpacked, 'package.json') };
 }
 
 async function smoke({ packaged, worker, packageJson }) {

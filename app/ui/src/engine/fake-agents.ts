@@ -31,7 +31,7 @@ const AGENT_METHODS = new Set<string>([
 
 // The engine's words (agents/*.ts, delivery/harness/patches.ts).
 const KEEPER_ID = 'keeper';
-const KEEPER_IS_CODE = 'Keeper is code, not AI. It has no chat; its jobs are on Team.';
+const KEEPER_IS_CODE = 'Keeper uses fixed rules, not AI. It has no chat; its jobs are on Team.';
 const NOT_FOUND = 'That agent was not found.';
 const KEY_REFUSED = 'That looks like a key. Keys go in Connections, never in chat.';
 const FLOOR_REPLY = 'That needs your approval on Today.';
@@ -244,7 +244,7 @@ export class FakeAgentsDesk {
     // W6 6G2: a retired agent keeps its own steps for its read-only thread on the Retired shelf.
     const found = this.agents().find((a) => a.id === agentId) ?? this.retired(agentId)?.agent;
     if (!found) throw new EngineError('AGENT_NOT_FOUND', NOT_FOUND);
-    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
+    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} uses fixed rules, not AI. It has no chat; its work shows in each job's steps.`);
     return found;
   }
 
