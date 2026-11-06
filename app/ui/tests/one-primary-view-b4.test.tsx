@@ -65,6 +65,9 @@ const nextIs = (rowId: string, title: string) => ({
 });
 
 describe('one filled primary per view: the walk', () => {
+  it('covers every at-rest place in the catalogue', () => {
+    expect([...WALK].sort()).toEqual(PLACES.map(place => place.id).sort());
+  });
   it('walks only places that exist', () => {
     const known = PLACES.map((place) => place.id);
     for (const id of WALK) expect(known).toContain(id);
