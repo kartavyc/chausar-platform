@@ -152,3 +152,16 @@ test('task 9: .gitignore ignores the local leftovers the audit found (green sinc
   const ignored = out.split(/\r?\n/).filter(Boolean);
   assert.deepEqual(samples.filter(sample => !ignored.includes(sample)), []);
 });
+
+
+test('task 6: the dead-code review starts from every shipped surface and the tests', () => {
+  const config = JSON.parse(read('knip.json'));
+  const entry = config.workspaces['.'].entry;
+  for (const file of ['platform/runtime/worker.ts', 'platform/runtime/server.ts', 'platform/runtime/hosted/server.ts', 'app/desktop/main.cjs', 'app/ui/src/main.tsx', 'app/ui/parts.html', 'platform/tests/**/*.test.ts', 'app/ui/tests/**/*.test.{ts,tsx}']) assert.ok(entry.includes(file), file);
+  assert.ok(config.workspaces['app/companion']);
+  assert.deepEqual(config.ignoreDependencies, ['@duckdb/node-api', 'pg']);
+  const pkg = JSON.parse(read('package.json'));
+  assert.equal(pkg.scripts.knip, 'knip --no-progress');
+  assert.match(read('.github/workflows/nightly.yml'), /npm run knip -- --no-exit-code/);
+});
+
