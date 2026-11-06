@@ -40,6 +40,26 @@ async function send(label: string, text: string) {
 }
 
 describe('Apps (6H1)', () => {
+  it('B4: keeps rules folded and makes the app name the page title', async () => {
+    const view = await start();
+    await screen.findByRole('article', { name: 'Who owes me' });
+    const rules = screen.getByText("What apps can and can't do", { selector: 'summary' });
+    expect(rules.closest('details')?.open).toBe(false);
+    expect(screen.queryByText('No apps yet. Describe one and your AI writes it.')).toBeNull();
+    view.unmount();
+    await start('#/apps?app=miniapp_sample');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Who owes me' })).toBeTruthy();
+  });
+
+  it('B4: picking an app idea selects it and moves focus to Send', async () => {
+    await start();
+    const ideas = await screen.findByRole('group', { name: 'Ideas to start from' });
+    const idea = within(ideas).getAllByRole('button')[0]!;
+    await click(idea);
+    expect(idea.getAttribute('aria-pressed')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Send' }));
+  });
+
   // C4 task 29 (founder decision 3): the button only when the app has no data; the banner while on sample rows; every call says sample.
   it('an app with no data offers Preview with sample data; the banner stays while it runs on it; Back to your data returns', async () => {
     window.location.hash = '#/apps?app=miniapp_sample';
@@ -83,7 +103,7 @@ describe('Apps (6H1)', () => {
     const card = await screen.findByRole('article', { name: 'Who owes me' });
     expect(within(card).getByText('Reads: Clients')).toBeTruthy();
     expect(within(card).getByRole('link', { name: 'Open Who owes me' }).getAttribute('href')).toBe('#/apps?app=miniapp_sample');
-    const rules = screen.getByRole('region', { name: "What every app can and can't do" });
+    const rules = screen.getByText("What apps can and can't do", { selector: 'summary' }).closest('details')!;
     expect(within(rules).getByText('Never')).toBeTruthy();
     assertInkRules();
   });
@@ -159,7 +179,7 @@ describe('Apps (6H1)', () => {
     expect(screen.getByText(/^Here's a first version\./)).toBeTruthy();
     const side = screen.getByRole('region', { name: /^Allow "/ });
     expect(within(side).getByText('First time only')).toBeTruthy();
-    expect(within(side).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+    expect(within(side.querySelector('ul')!).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
       'Read Clients: their names', 'Read Invoices: number, status and what is owed, each with a receipt', 'Keep its own notes in Chausar', 'Propose cards on Today. You approve each one.',
     ]);
     expect(document.querySelector('iframe[data-mini-app]')).toBeNull();
@@ -220,6 +240,7 @@ describe('Apps (6H1)', () => {
     await click(screen.getByRole('button', { name: 'Delete' }));
     expect(calls(spy, 'venture.apps.remove')).toEqual([{ app: 'miniapp_sample' }]);
     await waitFor(() => expect(window.location.hash).toBe('#/apps'));
-    expect(await screen.findByText('No apps yet. Describe one and your AI writes it.')).toBeTruthy();
+    expect(await screen.findByRole('textbox', { name: 'Describe the app' })).toBeTruthy();
+    expect(screen.queryByRole('article')).toBeNull();
   });
 });

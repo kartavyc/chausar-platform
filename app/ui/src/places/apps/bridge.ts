@@ -49,7 +49,7 @@ export function frameVariables(read: (token: string) => string): Record<string, 
 export const BRIDGE_MESSAGE_MAX = 65_536;
 /** At most this many tool calls wait at once. */
 export const BRIDGE_IN_FLIGHT = 8;
-export const FRAME_MIN = 160;
+export const FRAME_MIN = 1;
 export const FRAME_MAX = 1600;
 const NOT_ALLOWED = 'This app is not allowed to do that. You can change what it may do in Apps.';
 

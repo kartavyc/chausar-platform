@@ -1,6 +1,6 @@
 {
   "apps.title": "Apps",
-  "apps.line": "Small tools your AI built for this business. They run inside Chausar and ask you before doing anything outside it.",
+  "apps.line": "Small tools for your business.",
   "apps.make.title": "Make an app",
   "apps.make.label": "Describe the app",
   "apps.make.ideas": "Ideas to start from",
@@ -12,7 +12,7 @@
   "apps.card.pinned": "Pinned to Today",
   "apps.card.version": "Version {version}",
   "apps.card.waiting": "Waits for you to allow it",
-  "apps.rules.title": "What every app can and can't do",
+  "apps.rules.title": "What apps can and can't do",
   "apps.rules.can": "Can",
   "apps.rules.canLine": "Read only what you allow, keep its own notes, ask the calculator for amounts",
   "apps.rules.asks": "Asks you first",
