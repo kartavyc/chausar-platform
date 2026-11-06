@@ -68,7 +68,7 @@ describe('the rail', () => {
     expect(within(rail).getByRole('link', { name: /^Chats/ }).getAttribute('href')).toBe('#/chats');
   });
 
-  it("carries Today's count in tabular digits, hidden from screen readers but said in words, amber when Today is not open", async () => {
+  it("carries Today's count in the same badge before and after opening Today", async () => {
     const rail = start('#/team');
     const today = within(rail).getByRole('link', { name: /^Today/ });
     await waitFor(() => expect(today.textContent).toBe('Today12, 12 need you'));
@@ -79,7 +79,7 @@ describe('the rail', () => {
     expect(count.nextElementSibling!.textContent).toBe(', 12 need you');
     await go('#/today');
     await waitFor(() => expect(within(rail).getByRole('link', { name: /^Today/ }).getAttribute('aria-current')).toBe('page'));
-    expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')!.hasAttribute('data-tone')).toBe(false);
+    expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')!.getAttribute('data-tone')).toBe('wait');
   });
 
 });
