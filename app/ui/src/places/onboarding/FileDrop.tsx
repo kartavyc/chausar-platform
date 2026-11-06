@@ -3,6 +3,7 @@ import { useT } from '../../text';
 import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import s from './FileDrop.module.css';
+import { FilePick } from '../../parts/FilePick';
 
 /** The most text the engine reads from a dropped file (core/attachment.ts ATTACHMENT_MAX_BYTES, 4J8). */
 export const FILE_MAX_BYTES = 200 * 1024;
@@ -19,7 +20,6 @@ export interface DroppedFile { name: string; text: string }
  */
 export function FileDrop({ file, onFile, disabled = false }: { file: DroppedFile | null; onFile: (file: DroppedFile | null) => void; disabled?: boolean }) {
   const t = useT();
-  const inputId = useId();
   const noteId = useId();
   const [over, setOver] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -60,11 +60,7 @@ export function FileDrop({ file, onFile, disabled = false }: { file: DroppedFile
           </Button>
         </p>
       ) : (
-        <p className={s.file}>
-          <Icon name="upload" size={16} />
-          <label htmlFor={inputId} className={s.pick}>{t('onboarding.ways.file.add')}</label>
-          <input id={inputId} className="sr-only" type="file" accept={ACCEPT} disabled={disabled} aria-describedby={noteId} onChange={(event) => { void take(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} />
-        </p>
+        <FilePick choose={t('onboarding.ways.file.add')} files={[]} accept={ACCEPT} disabled={disabled} aria-describedby={noteId} onChange={(event) => { void take(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} />
       )}
       <p id={noteId} className={s.note}>{t('onboarding.ways.file.note')}</p>
       {problem && <p className={s.problem} role="alert">{problem}</p>}

@@ -49,6 +49,7 @@ describe('Today: a draft that failed a check gets Edit, then Approve (A3, S2)', 
     const { spy } = start({ canEdit: true });
     const card = await cardTitled('Draft reply for Boat Audio');
     expect(within(card).queryByRole('button', { name: 'Approve' })).toBeNull();
+    await press(await within(card).findByRole('button', { name: 'More' }));
     await waitFor(() => expect(within(card).getByRole('button', { name: 'Edit' })).toBeTruthy());
     expect(within(card).getByRole('button', { name: 'Send back' })).toBeTruthy();
     assertInkRules(document.body);

@@ -174,7 +174,9 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
           <div className={s.boxButtons}>
             <Button onClick={onClose}>{t('approval.cancel')}</Button>
             <Button
-              variant="primary" type="submit" disabled={busy || !text.trim() || text === original}
+              variant="primary" type="submit" disabled={busy}
+              // B4: says why it can't be pressed; a newer version to read locks it instead, which says so itself.
+              disabledReason={newer !== null && !newer.seen ? undefined : !text.trim() ? t('today.edit.writeFirst') : text === original ? t('today.edit.changeFirst') : undefined}
               locked={newer !== null && !newer.seen} lockedReason={t('today.edit.readNewer')}
             >
               {t('today.edit.save')}

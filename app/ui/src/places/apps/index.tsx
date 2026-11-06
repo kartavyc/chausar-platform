@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
+import { EngineError } from '../../engine/types';
 import { goTo, useRoute } from '../../shell/navigation';
 import { Bento, Tile, TileHead } from '../../parts/Tile';
 import { Chip } from '../../parts/Chip';
@@ -39,6 +40,10 @@ function AppsHome() {
       setMaking(false);
     }
   }
+  // B4 task 4: no AI yet is a known state, not an alarm: muted words, the fix in the line, the owner's words kept.
+  const noAi = (failure: unknown) => (failure instanceof EngineError && failure.code === 'APP_NEEDS_AI'
+    ? { words: failure.message, tone: 'expected' as const, fix: { label: t('apps.make.connect'), onSelect: () => goTo('connections') } }
+    : null);
 
   return (
     <>
@@ -46,7 +51,7 @@ function AppsHome() {
       <Bento>
         <Tile as="section" span={12} labelledBy="apps-make" className={s.make}>
           <TileHead id="apps-make" title={t('apps.make.title')} />
-          <Composer label={t('apps.make.label')} placeholder={t('apps.make.placeholder')} onSend={make} suggestions={data?.ideas ?? []} hint={making ? t('apps.make.busy') : undefined} />
+          <Composer label={t('apps.make.label')} placeholder={t('apps.make.placeholder')} onSend={make} describeFailure={noAi} suggestions={data?.ideas ?? []} hint={making ? t('apps.make.busy') : undefined} />
         </Tile>
         {list.error && <p className={s.problem} role="alert">{t('apps.failed', { message: list.error.message })}</p>}
         {data && data.apps.length === 0 && <p className={s.quiet}>{t('apps.empty')}</p>}

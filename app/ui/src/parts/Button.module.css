@@ -48,11 +48,6 @@
   background: var(--wash);
 }
 
-.button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* The one filled button of a card or row. */
 .primary {
   background: var(--accent);
@@ -67,16 +62,16 @@
 }
 
 /* Locked until the owner opens the thing first (aria-disabled, so it stays reachable): at full strength with the
-   lock icon, never changing on hover; the note line beside it says why. The primary keeps its place on the soft
-   accent; any other button goes grey. */
+   lock icon, never changing on hover; the note line beside it says why. The primary keeps its place as an outline,
+   never a solid block (B4); any other button goes grey. */
 .button[data-locked] {
   opacity: 1;
   cursor: not-allowed;
 }
 
 .primary[data-locked] {
-  background: var(--accent-soft);
-  border-color: transparent;
+  background: var(--surface);
+  border-color: var(--btn-line);
   color: var(--mute);
 }
 
@@ -95,6 +90,18 @@
 .ink:hover:not(:disabled):not([data-locked]) {
   background: var(--fg2);
   border-color: var(--fg2);
+}
+
+/* It destroys or stops something (B4): red words on an outline, never the accent fill. */
+.button[data-tone='danger'] {
+  background: var(--surface);
+  border-color: var(--fail);
+  color: var(--fail);
+}
+
+.button[data-tone='danger']:hover:not(:disabled):not([data-locked]) {
+  background: var(--fail-soft);
+  filter: none;
 }
 
 /* The quiet Chat button beside an agent: D's 32 px, as tall as the 32 px avatar it sits beside. */
@@ -128,6 +135,36 @@
   background: none;
   color: var(--link-hover);
   text-decoration: underline;
+}
+
+/* Can't be pressed (B4): plainly apart from an enabled button, whatever it would be: no fill, no dimmed accent. A
+   quiet one stays a link, in the muted colour. */
+.button:disabled {
+  background: var(--wash);
+  border-color: var(--line);
+  color: var(--mute);
+  cursor: not-allowed;
+}
+
+.button[data-tone='danger']:disabled {
+  background: var(--wash);
+  border-color: var(--line);
+  color: var(--mute);
+}
+
+.quiet:disabled {
+  background: none;
+  color: var(--mute);
+}
+
+/* Why it can't be pressed yet (B4): a line of its own under the button, or under the row of buttons it sits in. */
+.reason {
+  display: block;
+  flex-basis: 100%;
+  font-size: var(--text-label);
+  line-height: 16px;
+  font-weight: var(--weight-regular);
+  color: var(--mute);
 }
 
 /* A phone (3H1): every button is at least the 44 px touch target (founder: big touch targets); sm and md grow to

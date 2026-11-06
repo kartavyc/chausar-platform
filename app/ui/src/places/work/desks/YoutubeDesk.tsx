@@ -12,6 +12,9 @@ import { Tile, TileHead } from '../../../parts/Tile';
 import { Count } from '../../../parts/Figure';
 import s from './YoutubeDesk.module.css';
 import { YoutubeBoard } from './YoutubeBoard';
+import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
+import { FilePick } from '../../../parts/FilePick';
 
 type EditView = {
   id: string; digest: string; orderId: string; source: { label: string }; document: { words: { id: string; text: string }[] };
@@ -60,24 +63,23 @@ export function YoutubeDesk() {
     finally { setBusy(false); }
   }
   return <div className={s.body}>
-    <details><summary>{t('pb-youtube-research.servicesTitle')}</summary><YoutubeServices/></details>
+    <Fold summary={t('pb-youtube-research.servicesTitle')}><YoutubeServices/></Fold>
     <Tile as="section" label={t('pb-youtube.title')}>
       <TileHead title={t('pb-youtube.title')} />
       <p className={s.line}>{t('pb-youtube.honesty')}</p>
       <div className={s.import}>
         <label htmlFor={`${id}-order`}>{t('pb-youtube.order')}</label>
-        <select id={`${id}-order`} value={chosen} onChange={event => { setOrder(event.target.value); setSourceChoice(''); }} className={s.select}>
+        <Select id={`${id}-order`} value={chosen} onChange={event => { setOrder(event.target.value); setSourceChoice(''); }} className={s.select}>
           <option value="">{t('pb-youtube.chooseOrder')}</option>
           {orders.data?.filter(order => order.status === 'open').map(order => <option key={order.id} value={order.id}>{order.request}</option>)}
-        </select>
+        </Select>
         <label htmlFor={`${id}-source`}>{t('pb-youtube.source')}</label>
-        <select id={`${id}-source`} value={sourceChoice} className={s.select} onChange={event => setSourceChoice(event.target.value)}>
+        <Select id={`${id}-source`} value={sourceChoice} className={s.select} onChange={event => setSourceChoice(event.target.value)}>
           <option value="">{t('pb-youtube.chooseSource')}</option>
           {choices.map(choice => <option key={choice.key} value={choice.key} data-content="">{choice.name}</option>)}
-        </select>
+        </Select>
         {!choices.length && <p className={s.line}>{t('pb-youtube.sourceHelp')}</p>}
-        <label htmlFor={`${id}-file`}>{t('pb-youtube.file')}</label>
-        <input id={`${id}-file`} type="file" accept=".json,application/json" onChange={event => {
+        <FilePick label={t('pb-youtube.file')} accept=".json,application/json" onChange={event => {
           const file = event.target.files?.[0]; setSource(null); setError(null); if (!file) return;
           if (file.size > 1000000) { setError(t('pb-youtube.error.UPLOAD_LIMIT')); return; }
           void file.text().then(text => { const parsed: unknown = JSON.parse(text); if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(); setSource({ ...parsed, label: file.name }); }).catch(() => setError(t('pb-youtube.error.WORD_TIMES_REQUIRED')));
@@ -89,8 +91,8 @@ export function YoutubeDesk() {
       <ul className={s.list}>{rows.map(row => <li key={row.id} className={s.row}><span data-content="">{row.source.label}</span><Button onClick={() => setSelected(row.id)}>{t('pb-youtube.open')}</Button></li>)}</ul>
       {!rows.length && !edits.loading && <p className={s.line}>{t('pb-youtube.empty')}</p>}
     </Tile>
-    {chosen&&<><details open={researchOpen} onToggle={event=>setResearchOpen(event.currentTarget.open)}><summary>{t('pb-youtube-research.researchTitle')}</summary>{researchOpen&&<YoutubeResearch key={chosen} orderId={chosen}/>}</details><details open={publicOpen} onToggle={event=>setPublicOpen(event.currentTarget.open)}><summary>{t('pb-youtube-research.publicTitle')}</summary>{publicOpen&&<YoutubePublic key={chosen} orderId={chosen}/>}</details></>}
-    {selected && <><EditPanel key={selected} id={selected} onChanged={edits.reload} /><details><summary>{t('pb-youtube-board.title')}</summary><YoutubeBoard key={`board-${selected}`} editId={selected} /></details></>}
+    {chosen&&<><Fold summary={t('pb-youtube-research.researchTitle')} open={researchOpen} onToggle={event=>setResearchOpen(event.currentTarget.open)}>{researchOpen&&<YoutubeResearch key={chosen} orderId={chosen}/>}</Fold><Fold summary={t('pb-youtube-research.publicTitle')} open={publicOpen} onToggle={event=>setPublicOpen(event.currentTarget.open)}>{publicOpen&&<YoutubePublic key={chosen} orderId={chosen}/>}</Fold></>}
+    {selected && <><EditPanel key={selected} id={selected} onChanged={edits.reload} /><Fold summary={t('pb-youtube-board.title')}><YoutubeBoard key={`board-${selected}`} editId={selected} /></Fold></>}
   </div>;
 }
 YoutubeDesk.ready = true;
@@ -125,9 +127,9 @@ function EditPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
   return <Tile as="section" label={t('pb-youtube.review')}>
     <TileHead title={t('pb-youtube.review')} />
     <p className={s.line} data-content="">{item.source.label}</p>
-    <details><summary>{t('pb-youtube.words')}</summary><p className={s.transcript} data-content="">{item.document.words.map(word => <span key={word.id}><Count value={word.id} /> {word.text} </span>)}</p></details>
+    <Fold summary={t('pb-youtube.words')}><p className={s.transcript} data-content="">{item.document.words.map(word => <span key={word.id}><Count value={word.id} /> {word.text} </span>)}</p></Fold>
     <Field multiline label={t('pb-youtube.request')} value={request} onChange={event => setRequest(event.target.value)} maxLength={1000} />
-    <details><summary>{t('pb-youtube.typed')}</summary><Field multiline label={t('pb-youtube.ops')} value={ops} onChange={event => setOps(event.target.value)} maxLength={12000} /></details>
+    <Fold summary={t('pb-youtube.typed')}><Field multiline label={t('pb-youtube.ops')} value={ops} onChange={event => setOps(event.target.value)} maxLength={12000} /></Fold>
     <div className={s.actions}>
       <Button onClick={() => void act('suggest')} disabled={busy}>{t('pb-youtube.suggest')}</Button>
       <Button onClick={() => void act('undo')} locked={!item.history.length} disabled={busy}>{t('pb-youtube.undo')}</Button>
@@ -146,8 +148,8 @@ function EditPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
       <p>{t('pb-youtube.measuredOnly')}</p><Button onClick={() => void act('cleanup', { confirmed: largeCleanup })} disabled={busy}>{t(largeCleanup ? 'pb-youtube.confirmCleanup' : 'pb-youtube.useCleanup')}</Button>
       <ul className={s.list}>{item.cleanup.suggestions.map((suggestion, index) => <li key={index}>{t('pb-youtube.filler')} <Count value={suggestion.wordIds.join(', ')} /></li>)}</ul>
     </div>}
-    <details><summary>{t('pb-youtube.captionTitle')}</summary>
-      <label className={s.label}>{t('pb-youtube.profile')}<select value={profile} onChange={event => setProfile(event.target.value)} className={s.select}>{['web', 'broadcast', 'vertical'].map(profile => <option key={profile} value={profile}>{t(`pb-youtube.profile.${profile}`)}</option>)}</select></label>
+    <Fold summary={t('pb-youtube.captionTitle')}>
+      <label className={s.label}>{t('pb-youtube.profile')}<Select value={profile} onChange={event => setProfile(event.target.value)} className={s.select}>{['web', 'broadcast', 'vertical'].map(profile => <option key={profile} value={profile}>{t(`pb-youtube.profile.${profile}`)}</option>)}</Select></label>
       <Button onClick={() => void act('captions', { profile })} disabled={busy}>{t('pb-youtube.makeCaptions')}</Button>
       {item.captionFiles && <><div className={s.actions}><Button disabled={busy} onClick={() => void exportCaptions('srt')}>{t('pb-youtube.saveSrt')}</Button><Button disabled={busy} onClick={() => void exportCaptions('vtt')}>{t('pb-youtube.saveVtt')}</Button></div>
         <ul className={s.list}>{item.captionFiles.findings.map((finding, index) => <li key={index}><Count value={finding.cueId} /> {t(`pb-youtube.caption.${finding.code}`)}</li>)}</ul>
@@ -155,16 +157,16 @@ function EditPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
         <Field label={t('pb-youtube.cue')} value={cueId} onChange={event => setCue(event.target.value)} /><Field label={t('pb-youtube.wordIndex')} value={wordIndex} onChange={event => setWordIndex(event.target.value)} inputMode="numeric" /><Field label={t('pb-youtube.wordText')} value={wordText} onChange={event => setWordText(event.target.value)} />
         <Button onClick={() => void act('caption-word', { cueId, index: /^\d+$/.test(wordIndex) ? Number(wordIndex) : -1, text: wordText })} disabled={busy}>{t('pb-youtube.saveWord')}</Button>
       </>}
-    </details>
-    <details><summary>{t('pb-youtube.coverageTitle')}</summary><Field multiline label={t('pb-youtube.script')} value={script} onChange={event => setScript(event.target.value)} maxLength={100000} /><Button onClick={() => void act('coverage', { script })} disabled={busy}>{t('pb-youtube.checkCoverage')}</Button>
+    </Fold>
+    <Fold summary={t('pb-youtube.coverageTitle')}><Field multiline label={t('pb-youtube.script')} value={script} onChange={event => setScript(event.target.value)} maxLength={100000} /><Button onClick={() => void act('coverage', { script })} disabled={busy}>{t('pb-youtube.checkCoverage')}</Button>
       {item.coverage && <><p><Count value={item.coverage.coveredPercent} /> {t('pb-youtube.covered')}</p><ul>{item.coverage.missing.map((passage, index) => <li key={index}><span data-content="">{passage.words.join(' ')}</span> <Count value={passage.nearestWordIds.join(', ')} /></li>)}</ul></>}
-    </details>
+    </Fold>
     <ModelsPanel editId={id} run={(tier) => void act('transcribe-tier', { tier })} busy={busy} />
-    <details><summary>{t('pb-youtube.dictionaryTitle')}</summary><Field multiline label={t('pb-youtube.names')} value={names} onChange={event => setNames(event.target.value)} maxLength={100000} />
+    <Fold summary={t('pb-youtube.dictionaryTitle')}><Field multiline label={t('pb-youtube.names')} value={names} onChange={event => setNames(event.target.value)} maxLength={100000} />
       <Button disabled={busy} onClick={() => { setBusy(true); void client.request('venture.desk.act', { playbook: 'youtube', kind: 'dictionary', id: 'new', action: 'set', payload: { terms: names.split(/\r?\n/).map(name => name.trim()).filter(Boolean) } }).catch(error => setError(errorWords(error, t))).finally(() => setBusy(false)); }}>{t('pb-youtube.saveNames')}</Button>
       <Field multiline label={t('pb-youtube.fixes')} value={fixes} onChange={event => setFixes(event.target.value)} maxLength={12000} /><Button disabled={busy} onClick={() => { try { void act('dictionary', { fixes: JSON.parse(fixes) as unknown }); } catch { setError(t('pb-youtube.error.EDIT_INVALID')); } }}>{t('pb-youtube.checkFixes')}</Button>
       {item.corrections && <ul className={s.list}>{item.corrections.applied.map((fix, index) => <li key={index} data-content="">{fix.before} → {fix.after}</li>)}{item.corrections.refused.map((fix, index) => <li key={`r${index}`}><Count value={fix.index} /> {t(`pb-youtube.code.${fix.code}`)}</li>)}</ul>}
-    </details>
+    </Fold>
   </Tile>;
 }
 
@@ -173,10 +175,10 @@ function ModelsPanel({ editId, run, busy }: { editId: string; run: (tier: string
   const models = useResource('venture.desk.list', { playbook: 'youtube', kind: 'model' });
   const [links, setLinks] = useState<Record<string, string>>({}), [error, setError] = useState<string | null>(null);
   const rows = (models.data?.rows ?? []) as { tier: string; id: string; revision: string; sha256: string; bytes: number; licence: string }[];
-  return <details><summary>{t('pb-youtube.models')}</summary><p className={s.line}>{t('pb-youtube.modelsHelp')}</p>
+  return <Fold summary={t('pb-youtube.models')}><p className={s.line}>{t('pb-youtube.modelsHelp')}</p>
     {rows.map(model => <div key={model.tier} className={s.notice}>
       <h3>{t(`pb-youtube.tier.${model.tier}`)}</h3><p><span data-content="">{model.id}</span> <Count value={model.bytes} /> {t('pb-youtube.bytes')} <span data-content="">{model.licence}</span></p>
-      <details><summary>{t('pb-youtube.modelProof')}</summary><p className={s.summary} data-content="">{model.revision}<br />{model.sha256}</p></details>
+      <Fold summary={t('pb-youtube.modelProof')}><p className={s.summary} data-content="">{model.revision}<br />{model.sha256}</p></Fold>
       <div className={s.actions}><Button disabled={busy} onClick={() => {
         setError(null); void client.request('venture.desk.act', { playbook: 'youtube', kind: 'edit', id: editId, action: 'model-download', payload: { tier: model.tier, confirmed: true } }).then(result => {
           const value = result.result as { url: string }; setLinks(previous => ({ ...previous, [model.tier]: value.url }));
@@ -185,5 +187,5 @@ function ModelsPanel({ editId, run, busy }: { editId: string; run: (tier: string
       {links[model.tier] && <a href={links[model.tier]} target="_blank" rel="noreferrer">{t('pb-youtube.openDownload')}</a>}
     </div>)}
     {error && <p role="alert">{error}</p>}
-  </details>;
+  </Fold>;
 }

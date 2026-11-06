@@ -7,6 +7,7 @@ import { stateText } from '../../parts/states';
 import type { OrderContractView } from '../../engine/types';
 import s from './Work.module.css';
 import c from './ContractSheet.module.css';
+import { Fold } from '../../parts/Fold';
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -84,10 +85,9 @@ export function ContractSheet({ orderId }: { orderId: string }) {
       <p className={c.goal} data-content=""><span data-goal="">{view.contract.goal}</span></p>
       <p className={s.note} data-contract-line="">{view.line}</p>
       {signed ? (
-        <details className={c.fold} data-fold="contract">
-          <summary>{t('work.contract.more')}</summary>
+        <Fold summary={t('work.contract.more')} className={c.fold} data-fold="contract">
           <Covers view={view} t={t} />
-        </details>
+        </Fold>
       ) : <Covers view={view} t={t} />}
       {!signed && (asking ? (
         <div className={c.ask} data-second-ask="">

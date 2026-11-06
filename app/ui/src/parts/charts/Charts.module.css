@@ -143,6 +143,10 @@
 .goalBar[data-tone='light'] .paceMark { stroke: var(--fg); }
 .goalKey[data-tone='light'] .paceSwatch { fill: var(--fg); }
 
+.goalKey[data-tone='light'] {
+  color: var(--mute);
+}
+
 .goalKey {
   display: flex;
   flex-wrap: wrap;
@@ -649,30 +653,8 @@
 }
 
 .dataSummary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
   min-height: 24px;
-  color: var(--link);
   font-size: var(--text-label);
-  cursor: pointer;
-  list-style: none;
-}
-
-.dataSummary::-webkit-details-marker {
-  display: none;
-}
-
-.dataSummary:hover {
-  color: var(--link-hover);
-}
-
-.dataChevron {
-  transition: transform var(--t-press) var(--ease);
-}
-
-.data[open] .dataChevron {
-  transform: rotate(90deg);
 }
 
 .table {

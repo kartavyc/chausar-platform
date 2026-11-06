@@ -36,6 +36,7 @@ import { ChatThread, type ThreadEntry } from '../../parts/ChatThread';
 import { Composer } from '../../parts/Composer';
 import { cx } from '../../parts/cx';
 import { Figure } from '../../parts/Figure';
+import { InlineError } from '../../parts/InlineError';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import { DEPT_OF } from '../team/departments';
 import { PlanCard, type AgentLookup } from './PlanCard';
@@ -267,7 +268,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
       ) : (
         <p className={cx(s.quiet, s.paneNote)}>{threadId ? '' : t('chats.thread.start')}</p>
       )}
-      {refusal && <p className={cx(s.problem, s.paneNote)} role="alert">{refusal}</p>}
+      {refusal && <InlineError className={s.paneNote}>{refusal}</InlineError>}
       {consent && <Consent stale={consent.stale} text={consent.text} words={consent.words} problem={consent.problem} busy={consent.busy} onAgree={() => void agree()} onNotNow={notNow} />}
       <div className={s.compose}>
         <Composer

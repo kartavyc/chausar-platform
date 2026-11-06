@@ -80,10 +80,6 @@
   gap: var(--sp-2);
 }
 
-.more > summary {
-  justify-self: start;
-}
-
 .how {
   margin-top: var(--sp-4);
 }

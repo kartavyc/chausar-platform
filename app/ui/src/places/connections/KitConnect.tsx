@@ -25,6 +25,7 @@ import { WebSearch } from './WebSearch';
 import { PeopleSearch } from './PeopleSearch';
 import s from './Mailbox.module.css';
 import k from './KitConnect.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** Engine codes these tiles word themselves; any other refusal shows the engine's own words. */
 const WORDED = new Set(['FETCH_POLICY_REFUSED', 'ROBOTS_REFUSED', 'NET_ADDRESS_REFUSED', 'MONITOR_LIMIT', 'MAIL_FILE_TOO_LARGE', 'MAIL_FILE_UNREADABLE', 'WEBHOOK_REFUSED', 'TIER_UNAVAILABLE', 'INVALID_AMOUNT']);
@@ -61,8 +62,7 @@ export function KitConnect() {
   ];
   return (
     <Tile as="section" labelledBy={titleId} className={s.card} data-kit-connect="">
-      <details className={k.fold}>
-        <summary id={titleId} className={k.summary}><Icon name="chevron-right" size={16} />{t('kit-connect.title')}</summary>
+      <Fold summary={t('kit-connect.title')} className={k.fold} summaryId={titleId} summaryClassName={k.summary}>
         <ul className={k.list}>
           {parts.map((part) => {
             const expanded = open === part.id;
@@ -81,7 +81,7 @@ export function KitConnect() {
             );
           })}
         </ul>
-      </details>
+      </Fold>
     </Tile>
   );
 }

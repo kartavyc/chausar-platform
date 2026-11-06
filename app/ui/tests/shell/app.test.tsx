@@ -4,6 +4,9 @@ import { App } from '../../src/shell/App';
 import { ClockProvider, useClock } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type CustodyViewLite, type EngineClient } from '../../src/engine/types';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { rule } from '../helpers/css';
 
 /**
  * Today's title is the greeting for the hour (Ink v2, 3C) on the business's clock (B2), so the shell reads the app at
@@ -206,6 +209,26 @@ describe('the experimental storage notice', () => {
     expect(await screen.findByText(EXPERIMENTAL)).toBeTruthy();
     expect(screen.getAllByText(EXPERIMENTAL)).toHaveLength(1);
     expect(screen.queryByRole('note')).toBeNull();
+  });
+});
+
+describe('no layout jumps (B4 task 5)', () => {
+  it('the page and the sheet keep room for their scrollbar, so a short page does not shift 7 px', () => {
+    expect(rule('../shell/App.module.css', '.main')).toContain('scrollbar-gutter: stable');
+    expect(rule('../shell/App.module.css', '.sheet')).toContain('scrollbar-gutter: stable');
+  });
+
+  it('while a sheet is open the page draws no bar, so two bars never stand side by side, and keeps its width', () => {
+    const open = rule('../shell/App.module.css', '.app[data-sheet-open] > .main');
+    expect(open).toContain('scrollbar-color: transparent transparent');
+    expect(open).not.toContain('scrollbar-width');
+  });
+
+  it('the first run and Welcome scroll in their own box with the same room, so a tall step does not shift', () => {
+    const onboarding = readFileSync(join(import.meta.dirname, '../../src/places/onboarding/Onboarding.module.css'), 'utf8');
+    const first = /\.first \{([^}]*)\}/.exec(onboarding)![1]!;
+    expect(first).toContain('scrollbar-gutter: stable');
+    expect(first).toContain('overflow-y: auto');
   });
 });
 

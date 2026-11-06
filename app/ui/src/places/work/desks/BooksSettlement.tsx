@@ -10,6 +10,8 @@ import type {BooksPostingBody} from '../../../../../../platform/runtime/venture/
 import {SETTLEMENT_PAYMENT_COLUMNS} from '../../../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/settlement-payments';
 import s from './CollectionsDesk.module.css';
 import p from './BooksPosting.module.css';
+import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 const base={playbook:'bookkeeping-cfo' as const,kind:'settlement'};
 type Props={id:string;system:'zoho'|'tally';files:readonly {id:string;name:string}[]};
 export function BooksSettlement(props:Props){return <SettlementScope key={props.id} {...props}/>;}
@@ -19,12 +21,12 @@ function SettlementScope({id,system,files}:Props){
  const clients=useResource('venture.client.list',{}, {skip:!item?.clientId}),client=clients.data?.find(value=>value.id===item?.clientId);
  const proof=useResource('venture.work.get',{id:posting?.receiptId??''},{skip:!posting?.receiptId}),locked=busy||detail.loading||!!detail.error||!proof.data||proof.loading||!!proof.error||!proof.data?.figures.some(value=>value.key==='total')||!posting?.prepared.length||posting.prepared.some(value=>!proof.data?.figures.some(figure=>figure.key===value.payment.externalId&&figure.minor===value.payment.amountMinor&&figure.unit==='money'&&figure.currency==='INR'))||!!file&&file!==posting?.uploadId;
  async function act(action:'stage'|'apply'|'reconcile'){if(busy||detail.loading||detail.error||!detail.data||action==='apply'&&locked)return;setBusy(true);setError('');try{await engine.request('venture.desk.act',{...base,id,action,payload:action==='stage'?{uploadId:file}:{},...(action==='apply'?{digest:detail.data.digest}:{})});detail.reload();}catch(cause){const code=cause instanceof EngineError?cause.code:'REQUEST_FAILED',text=word('error.'+code);setError(text.startsWith('pb-books-settlement.')?word('error.REQUEST_FAILED'):text);detail.reload();}finally{setBusy(false);}}
- return <details className={p.root}><summary>{word('heading')}</summary><p>{word('boundary')}</p>{system==='tally'?<p>{word('tally')}</p>:<>
+ return <Fold summary={word('heading')} className={p.root}><p>{word('boundary')}</p>{system==='tally'?<p>{word('tally')}</p>:<>
   <p>{word('mapping')}</p><p>{word('differences')}</p>{engine.transport==='fake'&&<p role="note">{word('demo')}</p>}
   {(error||detail.error||proof.error)&&<p role="alert" className={s.error}>{error||word('error.REQUEST_FAILED')}</p>}
   {(!posting||posting.state==='staged')&&<Tile><form className={s.form} aria-label={word('prepare')} onSubmit={event=>{event.preventDefault();if(file)void act('stage');}}>
    <a download="books-settlement-blank.csv" href={'data:text/csv;charset=utf-8,'+encodeURIComponent(SETTLEMENT_PAYMENT_COLUMNS.join(',')+'\r\n')}>{word('template')}</a><p>{word('sourceHelp')}</p>
-   <label>{word('source')}<select className={s.select} disabled={busy} value={file} onChange={event=>setFile(event.target.value)}><option value="">{word('choose')}</option>{files.map(value=><option key={value.id} value={value.id}>{value.name}</option>)}</select></label>
+   <label>{word('source')}<Select className={s.select} disabled={busy} value={file} onChange={event=>setFile(event.target.value)}><option value="">{word('choose')}</option>{files.map(value=><option key={value.id} value={value.id}>{value.name}</option>)}</Select></label>
    <Button type="submit" variant="primary" locked={busy||detail.loading||!!detail.error||!file}>{word('prepare')}</Button>
   </form></Tile>}
   {posting&&<Tile><h3>{word('review')}</h3><p role="status">{word('state.'+posting.state)}</p>{item&&<p>{word('client')} <span data-content="">{client?.name??item.clientId}</span>{client&&<> · <span data-content="">{item.clientId}</span></>}</p>}
@@ -40,12 +42,12 @@ function SettlementScope({id,system,files}:Props){
      <dt>{word('evidence')}</dt><dd data-content="">{payment.source}</dd>
      <dt>{word('appliedAmount')}</dt><dd>{figure?<Figure value={figure.display} receiptId={posting.receiptId} onReceipt={receipt=>openSheet('work-receipt',receipt)}/>:word('missingAmount')}</dd>
     </dl>
-    <details><summary>{word('request')}</summary><pre className={p.code} data-content="">{JSON.stringify({method:value.method,path:value.path,query:value.query},null,2)}</pre><pre className={p.code} data-content="">{value.body}</pre></details>
+    <Fold summary={word('request')}><pre className={p.code} data-content="">{JSON.stringify({method:value.method,path:value.path,query:value.query},null,2)}</pre><pre className={p.code} data-content="">{value.body}</pre></Fold>
    </section>;})}
    {posting.state==='staged'&&<Button variant="primary" locked={locked} onClick={()=>void act('apply')}>{word('approve')}</Button>}
    {posting.state==='applying'&&<Button locked={busy||detail.loading||!!detail.error} onClick={()=>void act('reconcile')}>{word('recover')}</Button>}
    {posting.state==='outcome_unknown'&&<p>{word('unknown')}</p>}{posting.state==='stopped'&&<p>{word('stopped')}</p>}
    <ul className={s.list}>{posting.outcomes.map(value=><li className={s.row} key={value.externalId}><span data-content="">{value.externalId}</span> <span>{word('outcome.'+value.state)}</span>{value.remoteId&&<span data-content=""> {value.remoteId}</span>}</li>)}</ul>
   </Tile>}
- </>}</details>;
+ </>}</Fold>;
 }

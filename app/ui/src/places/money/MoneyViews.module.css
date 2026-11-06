@@ -22,38 +22,6 @@
   margin-left: auto;
 }
 
-.month {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: var(--control-sm);
-  padding-inline: var(--sp-3);
-  border: var(--hair) solid var(--btn-line);
-  border-radius: var(--r-button-sm);
-  background: var(--surface);
-  color: var(--fg);
-}
-
-.month:focus-within {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-.monthSelect {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--fg);
-  font: inherit;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-}
-
-.monthSelect:focus {
-  outline: none;
-}
-
 .export {
   display: inline-flex;
   flex-wrap: wrap;
@@ -597,16 +565,7 @@
 }
 
 .moreSummary {
-  width: fit-content;
   font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  color: var(--link);
-  cursor: pointer;
-}
-
-.moreSummary:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 /* What issuing a draft today brings in, under the cash line. */

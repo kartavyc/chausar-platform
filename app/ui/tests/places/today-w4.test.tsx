@@ -28,7 +28,7 @@ describe('Today w4: the team at work by department', () => {
     expect(dept(/^Producer/)).toBe('sales');
     expect(dept(/^Researcher/)).toBe('mkt');
     expect(dept(/^Keeper/)).toBe('ops');
-    expect(within(stories).getByRole('button', { name: /^Editor/ }).querySelector('[data-badge][data-dept="prod"]')).not.toBeNull();
+    expect(within(stories).getByRole('button', { name: /^Editor/ }).querySelector('[data-badge]')).toBeNull();
 
     await waitFor(() => expect(within(team).getAllByRole('article')).toHaveLength(3));
     const [editor, researcher, producer] = within(team).getAllByRole('article');
@@ -93,7 +93,8 @@ describe('Today w4: follow-ups, replies and notes after a call (4E4)', () => {
     expect(card.textContent).toContain('Tara Iyer, Kettle Audio: follow-up is 2 days late. Nudge drafted for Mail.');
     expect(card.querySelector('[data-kind]')?.textContent).toBe('Follow-up');
     const primary = within(card).getByRole('button', { name: 'Open in Mail' });
-    expect(primary.dataset.variant).toBe('primary');
+    // B4: the next best step may hold the page's one filled button; this is still the card's primary.
+    expect(primary.dataset.key).toBe('primary');
     assertOnePrimary(document.body);
     await press(primary);
     // The handoff is not a decision: it opens the owner's mail app and the card stays.

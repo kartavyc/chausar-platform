@@ -14,8 +14,9 @@ import { StartAtLogin } from '../onboarding/StartAtLogin';
 import { PausedNote } from '../../shell/PausedNote';
 import { useNarrow } from '../../shell/useNarrow';
 import { refusalWords } from '../../parts/custody';
+import { PlaceTiles } from '../../parts/Tile';
 import { LeftContext } from '../onboarding/started';
-import { ApprovalRow, decidedWords, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
+import { ApprovalRow, decidedWords, primaryOf, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
 import type { AvatarState } from '../../parts/Avatar';
 import { Receipt } from '../../parts/Receipt';
 import { SwipeCard } from '../../parts/SwipeCard';
@@ -26,6 +27,7 @@ import { decide as decideRow, reread as rereadRow, seenKey, undoOf, useTodaySess
 import { ViewSheet, viewSheetId } from './ViewSheet';
 import { Greeting } from './Greeting';
 import { TodayGoal } from './GoalCard';
+import { GOAL_EVENTS } from './goal';
 import { TeamAtWork } from './TeamAtWork';
 import { BIG_CARDS, COMPACT_CARDS, NeedsYou, SwipeTip, knownFilter, matchesFilter, type CardLayout, type NeedsItem } from './NeedsYou';
 import { useCardPreview } from './CardPreview';
@@ -110,6 +112,11 @@ function sentences(first: string | undefined, second: string | undefined): strin
 }
 
 export function Place() {
+  // The place's tiles follow PLACE_TILES: plain, or D's tiles (one-shot B4, the founder's comparison).
+  return <PlaceTiles><PlaceBody /></PlaceTiles>;
+}
+
+function PlaceBody() {
   const t = useT();
   const client = useEngine();
   const left = useContext(LeftContext);
@@ -120,6 +127,8 @@ export function Place() {
   const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: QUEUE_EVENTS });
   const runList = useResource('venture.runs.list', { state: 'all' }, { refreshOn: RUN_EVENTS });
   const team = useResource('venture.team.list', {}, { refreshOn: TEAM_EVENTS });
+  // The same read as the goal card's (one answer for both): whether the next best step holds the page's filled button.
+  const goals = useResource('venture.goals.get', {}, { refreshOn: GOAL_EVENTS });
   const layout = useLayout('today');
   // A stale decision hands back the new version; it shows until the list itself catches up.
   const [newer, setNewer] = useState<ReadonlyMap<string, { from: string; latest: QueueRow }>>(new Map());
@@ -331,6 +340,17 @@ export function Place() {
     if (first) setReveal(first);
   }
 
+  // B4: one filled button on the page. The next best step holds it while it is drawn; with none, the first card that
+  // can be pressed holds it. Every other card's primary is drawn as a secondary. While the goals view is still on its
+  // way nobody holds it, so no card flashes filled.
+  const goalShown = drawnBlocks('today', layout.data).some((block) => block.id === 'goal' && block.shown);
+  const stepId = goals.data?.next?.rowId;
+  const stepDrawn = goalShown && stepId !== undefined && live.some((row) => row.id === stepId) && !session.line(stepId);
+  const goalsPending = goalShown && goals.data === undefined && !goals.error;
+  const holder = stepDrawn || goalsPending
+    ? undefined
+    : items.find((item) => !item.done && matchesFilter(item.row, filter) && !primaryOf(item.row, session.isViewed(seenKey(item.row)), t).locked)?.row.id;
+
   const card = (item: NeedsItem, layout: CardLayout) => (item.done ? (
     <Decided line={{ ...item.done, undo: undoOf(item.done, live) }} settle={settled.has(item.row.id)} layout={layout} phone={narrow} />
   ) : (
@@ -349,6 +369,8 @@ export function Place() {
       phone={narrow}
       onDefer={handlers.defer}
       onHandle={handlers.handle}
+      quietPrimary={item.row.id !== holder}
+      said={session.said(item.row.id)}
     />
   ));
 
@@ -458,6 +480,10 @@ interface TodayCardProps {
   onDefer: (row: QueueRow) => void;
   /** Lend the card's own buttons to Today (the next best step presses its primary through them). */
   onHandle: (id: string, handle: ApprovalHandle | null) => void;
+  /** B4: another button holds the page's one filled primary. */
+  quietPrimary: boolean;
+  /** B4: what happened to this row just now (a price taken back). */
+  said: string | undefined;
 }
 
 /**
@@ -470,7 +496,7 @@ interface TodayCardProps {
  * was on screen when the finger came down: a new version that arrives mid-swipe (its digest changed) is never pressed
  * by that swipe; the card shows it as changed, and the owner swipes again if they want to.
  */
-const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, taxRegistered, showBusiness, onDecide, onReread, onAction, onView, onOpen, phone, onDefer, onHandle }: TodayCardProps) {
+const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, taxRegistered, showBusiness, onDecide, onReread, onAction, onView, onOpen, phone, onDefer, onHandle, quietPrimary, said }: TodayCardProps) {
   const t = useT();
   const handle = useRef<ApprovalHandle | null>(null);
   // The card's buttons, for the swipe here and for Today's next best step (4I2).
@@ -489,6 +515,7 @@ const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, tax
       agentState={agentState}
       preview={outreach ?? preview}
       tools={draftToolsFor(row)}
+      said={said}
       viewed={viewed}
       onDecide={onDecide}
       onReread={onReread}
@@ -499,6 +526,7 @@ const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, tax
       handle={register}
       buttonSize={phone ? 'xl' : undefined}
       answerLabel={answerLabel}
+      quietPrimary={quietPrimary}
     />
   );
   if (!phone) return card;

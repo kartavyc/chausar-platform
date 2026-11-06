@@ -180,6 +180,8 @@
   "today.edit.text": "Your version",
   "today.edit.hint": "Saving keeps your version as the draft. Nothing is sent until you approve it.",
   "today.edit.save": "Save my version",
+  "today.edit.writeFirst": "Write your version first",
+  "today.edit.changeFirst": "Change the words first",
   "today.edit.reviewReplacement": "Review replacement",
   "today.edit.confirm": "Confirm replacement",
   "today.edit.confirmLine": "This does not merge the entries.",

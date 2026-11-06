@@ -6,6 +6,7 @@ import { Button } from '../../parts/Button';
 import { Figure } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
 import { cx } from '../../parts/cx';
+import { usePlainTiles } from '../../parts/Tile';
 import type { NextBestStep, QueueRow } from '../../engine/types';
 import { goalAmount, type GoalAmount } from './goal';
 import { wordedRow } from './OutreachRows';
@@ -32,8 +33,8 @@ export interface NextStepProps {
    * thing is opened and the note that says so, and whether it asks once more before anything goes out.
    */
   primary: ApprovalPrimary;
-  /** Open the row's card (or the thing it is about). */
-  onOpen: () => void;
+  /** Open the thing the row is about. Left out, there is no Open: the primary already goes where it would (B4). */
+  onOpen?: (() => void) | undefined;
   /**
    * Press the row's primary. TodayNextStep wires this to the card's own ApprovalHandle (`pressPrimary`), so the second ask,
    * view before approve and the digest hold exactly as on the card; this tile never decides anything itself.
@@ -43,55 +44,60 @@ export interface NextStepProps {
 
 /**
  * The next best step (D-Today `.next`): what to do first for the month's goal, its figure and what the goal becomes,
- * then Open and the one primary. Today draws it from the engine's ranking through TodayNextStep, below (W4 4I2).
+ * then Open (when there is something to open) and the one primary. Today draws it from the engine's ranking through
+ * TodayNextStep, below (W4 4I2). On plain tiles (B4) it is a plain row: the words on the left, the buttons on the right.
  */
 export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
   const t = useT();
   const titleId = useId();
   const noteId = useId();
+  const plain = usePlainTiles();
+  const size = plain ? 'lg' : 'xl';
   const who = [data.agent, data.business].filter(Boolean).join(' · ');
   // The card's own note: why it is locked, else that it asks once more.
   const note = primary.locked ? primary.note : primary.asksAgain ? t('today.next.asksAgain') : undefined;
   return (
-    <section className={s.next} aria-labelledby={titleId} data-card="">
-      <div className={s.top}>
-        <span className={s.eyebrow}><Icon name="sparkles" size={14} />{t('today.next.eyebrow')}</span>
-        {who && (
-          <span className={s.who}>
-            {data.agent && <Avatar name={data.agent} size={24} />}
-            {who}
-          </span>
-        )}
-      </div>
-      <h2 id={titleId} className={s.title}>{data.title}</h2>
-      {data.line && <p className={s.line}>{data.line}</p>}
-      {(data.total || data.goalAfter) && (
-        <div className={s.figures}>
-          {data.total && (
-            <div className={s.figure}>
-              <span className={s.figureLabel}>{t('today.next.total')}</span>
-              <Figure {...data.total} size="tile" />
-            </div>
-          )}
-          {data.total && data.goalAfter && <Icon name="arrow-right" size={16} className={s.arrow} />}
-          {data.goalAfter && (
-            <div className={s.figure}>
-              <span className={s.figureLabel}>{t('today.next.goalAfter')}</span>
-              <span className={s.after} data-num="">{data.goalAfter}</span>
-            </div>
+    <section className={s.next} aria-labelledby={titleId} data-card="" data-next-step="" data-plain={plain ? '' : undefined}>
+      <div className={s.body}>
+        <div className={s.top}>
+          <span className={s.eyebrow}><Icon name="sparkles" size={14} />{t('today.next.eyebrow')}</span>
+          {who && (
+            <span className={s.who}>
+              {data.agent && <Avatar name={data.agent} size={24} />}
+              {who}
+            </span>
           )}
         </div>
-      )}
-      {note && (
-        <p id={noteId} className={s.note}>
-          <Icon name={primary.locked ? 'lock' : 'shield-check'} size={14} />
-          {note}
-        </p>
-      )}
+        <h2 id={titleId} className={s.title}>{data.title}</h2>
+        {data.line && <p className={s.line}>{data.line}</p>}
+        {(data.total || data.goalAfter) && (
+          <div className={s.figures}>
+            {data.total && (
+              <div className={s.figure}>
+                <span className={s.figureLabel}>{t('today.next.total')}</span>
+                <Figure {...data.total} size="tile" />
+              </div>
+            )}
+            {data.total && data.goalAfter && <Icon name="arrow-right" size={16} className={s.arrow} />}
+            {data.goalAfter && (
+              <div className={s.figure}>
+                <span className={s.figureLabel}>{t('today.next.goalAfter')}</span>
+                <span className={s.after} data-num="">{data.goalAfter}</span>
+              </div>
+            )}
+          </div>
+        )}
+        {note && (
+          <p id={noteId} className={s.note}>
+            <Icon name={primary.locked ? 'lock' : 'shield-check'} size={14} />
+            {note}
+          </p>
+        )}
+      </div>
       <div className={s.acts}>
-        <Button size="xl" onClick={onOpen}>{t('today.next.open')}</Button>
+        {onOpen && <Button size={size} onClick={onOpen}>{t('today.next.open')}</Button>}
         <Button
-          size="xl"
+          size={size}
           variant="primary"
           locked={primary.locked}
           lockedReason={note}
@@ -123,12 +129,17 @@ export interface NextStepHost {
   handleOf: (id: string) => ApprovalHandle | undefined;
 }
 
+/** Primaries that take the owner where the thing is: an Open beside one of them would say the same. */
+const GOES_THERE: ReadonlySet<string> = new Set(['open', 'connect', 'set-prices', 'keep']);
+
 /**
  * The engine's next best step (venture.goals.get `next`) on Today, beside the goal card. Its primary is the row's card
  * primary, worded and locked as that card is (primaryOf). Pressing it brings the card into view and presses the card's
  * own button through its handle, so view before approve, the second ask and the digest hold exactly as on the card:
- * a second ask opens inside the card, and this tile decides nothing itself. Open opens what the row is about, or its card.
- * The engine ranks only the open business's rows, so the tile names the agent and not the business.
+ * a second ask opens inside the card, and this tile decides nothing itself. Open opens what the row is about; it is left
+ * out when the row has nothing to look at, or its primary already goes where the thing is done (B4: "Open" beside
+ * "Connect" says the same twice). The engine ranks only the open business's rows, so the tile names the agent and not the
+ * business.
  */
 export function TodayNextStep({ step, row, host, folded = false }: { step: NextBestStep; row: QueueRow; host: NextStepHost; folded?: boolean }) {
   const t = useT();
@@ -146,6 +157,7 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
   // 4Z2: the card's own words for its buttons (Hindi included), as the card itself shows them.
   const primary = primaryOf(wordedRow(row, t), host.isViewed(row), t);
   const press = () => { setPending(row.id); host.goToRow(row.id); };
+  const primaryId = (row.actions.find((action) => action.primary) ?? row.actions[0])?.id;
   if (folded) return <FoldedStep title={row.title} total={total ?? undefined} primary={primary} onPrimary={press} />;
   // The row's own line and "asks you once more" are on its card already: the tile says neither again (words).
   const data: NextStepData = {
@@ -157,7 +169,7 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
     <NextStep
       data={data}
       primary={{ ...primary, asksAgain: false }}
-      onOpen={() => (row.viewRef ? host.look(row) : host.goToRow(row.id))}
+      onOpen={row.viewRef && !GOES_THERE.has(primaryId ?? '') ? () => host.look(row) : undefined}
       onPrimary={press}
     />
   );
@@ -170,12 +182,13 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
 function FoldedStep({ title, total, primary, onPrimary }: { title: string; total?: GoalAmount | undefined; primary: ApprovalPrimary; onPrimary: () => void }) {
   const t = useT();
   const noteId = useId();
+  const plain = usePlainTiles();
   return (
     <div className={s.folded} data-next-folded="">
       <p className={s.foldedEyebrow}>{t('today.next.eyebrow')}</p>
       <p className={s.foldedLine}>
         <span>{title}</span>
-        {total && <Figure {...total} tone="dark" />}
+        {total && <Figure {...total} tone={plain ? undefined : 'dark'} />}
       </p>
       {primary.locked && primary.note && <p id={noteId} className={s.foldedNote}><Icon name="lock" size={14} />{primary.note}</p>}
       <Button

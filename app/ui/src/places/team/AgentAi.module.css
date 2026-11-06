@@ -14,16 +14,7 @@
 }
 
 .how > summary {
-  display: inline-flex;
-  align-items: center;
   min-height: var(--target);
-  font-size: var(--text-read);
-  color: var(--link);
-  cursor: pointer;
-}
-
-.how > summary:hover {
-  color: var(--link-hover);
 }
 
 .name {

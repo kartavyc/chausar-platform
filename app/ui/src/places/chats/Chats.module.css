@@ -88,8 +88,8 @@
   color: var(--mute);
 }
 
-.search:focus-within {
-  border-color: var(--fg);
+.search:has(input:focus-visible) {
+  outline: var(--focus) solid var(--link);
 }
 
 .searchInput {
@@ -332,8 +332,11 @@
   flex: 1;
 }
 
+/* B4 task 4: a long failure line can make this taller than the pane holds. It scrolls; the pane never cuts it. */
 .compose {
-  flex: none;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   padding: var(--sp-3) var(--pad-tile) var(--sp-4);
   border-top: var(--hair) solid var(--line-soft);
 }

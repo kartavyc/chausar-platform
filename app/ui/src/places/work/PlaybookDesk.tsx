@@ -13,6 +13,7 @@ import type { DeskPlaybook } from '../../engine/types';
 import { SectionHead } from '../../parts/Tile';
 import { DESKS } from './desks';
 import s from './Work.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** A desk component its package marked ready to show. */
 type ReadyDesk = ComponentType & { ready?: boolean };
@@ -35,7 +36,7 @@ export function PlaybookDesk() {
   return (
     <section aria-labelledby={id} className={s.block} data-desk={pick!.id}>
       <SectionHead id={id} title={t('kit-chain.desk')} meta={playbookLabel(t,pick)} />
-<details className={s.whyMore} open={linked || undefined} onToggle={event => { if (event.currentTarget.open) setOpened(true); }}><summary>{t('kit-chain.openTools')}</summary>{opened && <Desk />}</details>
+<Fold summary={t('kit-chain.openTools')} className={s.whyMore} open={linked || undefined} onToggle={event => { if (event.currentTarget.open) setOpened(true); }}>{opened && <Desk />}</Fold>
     </section>
   );
 }

@@ -8,7 +8,7 @@ import { FilterChips } from '../../parts/FilterChips';
 import { PageTitle } from '../../parts/PageTitle';
 import { Segmented, departmentChoices } from '../../parts/Segmented';
 import { Icon } from '../../parts/Icon';
-import { Bento, Tile, TileHead, type TileSpan } from '../../parts/Tile';
+import { Bento, Tile, TileHead, type TileSpan, PlaceTiles } from '../../parts/Tile';
 import { AgentList } from './AgentCard';
 import { AgentSheet } from './AgentSheet';
 import { RetiredShelf } from './AgentRetire';
@@ -31,6 +31,11 @@ import s from './Team.module.css';
  * Everything refreshes as runs move.
  */
 export function Place() {
+  // The place's tiles follow PLACE_TILES: plain, or D's tiles (one-shot B4, the founder's comparison).
+  return <PlaceTiles><PlaceBody /></PlaceTiles>;
+}
+
+function PlaceBody() {
   const t = useT();
   const route = useRoute();
   const narrow = useNarrow();

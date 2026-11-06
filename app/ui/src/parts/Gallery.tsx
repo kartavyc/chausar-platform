@@ -10,6 +10,7 @@ import { PriceGuideList, PriceSources } from './PriceSources';
 import type { PriceGuideView } from '../engine/types';
 import type { IconName } from './icons';
 import s from './Gallery.module.css';
+import { Fold } from './Fold';
 
 /**
  * One way to earn, as the gallery shows it. Every string is the engine's (W4 4J, `venture.playbooks.list`; one per
@@ -136,8 +137,7 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
           </li>
         )}
       </ul>
-      <details className={s.needs} data-way-needs="">
-        <summary className={s.needsHead}>{t('gallery.needs')}</summary>
+      <Fold summary={t('gallery.needs')} className={s.needs} data-way-needs="" summaryClassName={s.needsHead}>
         <p className={s.factHead}><Icon name="clock" size={14} /><span className={s.factName}>{t('gallery.youDo')}</span></p>
         <p className={s.factLine}>{way.youDo}</p>
         <p className={s.factHead}>
@@ -156,7 +156,7 @@ export function GalleryTile({ way, featured = false, onStart, buttonSize, classN
         {way.saves && <p className={s.source}>{way.saves.source}</p>}
         {pay?.source && <p className={s.source}>{pay.source}</p>}
         {pay?.guide && !sourcedRange && <PriceGuideList guide={pay.guide} className={s.source} />}
-      </details>
+      </Fold>
       <div className={s.foot}>
         <Button
           variant={featured ? 'primary' : 'secondary'}

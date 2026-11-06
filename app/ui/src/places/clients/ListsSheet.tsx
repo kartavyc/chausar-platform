@@ -15,8 +15,9 @@ import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
 import type { CrmListView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { Fold, HistoryList, messageOf } from './CrmParts';
+import { CrmFold, HistoryList, messageOf } from './CrmParts';
 import s from './Crm.module.css';
+import { Select } from '../../parts/Select';
 
 const stagesOf = (text: string) => text.split('\n').map((line) => line.trim()).filter(Boolean);
 
@@ -55,14 +56,14 @@ export function ListsSheet({ onClose, returnFocus }: SheetComponentProps) {
           ))}
         </ul>
       ))}
-      <Fold summary={t('crm.lists.new')}>
+      <CrmFold summary={t('crm.lists.new')}>
         <form className={s.form} onSubmit={(event) => void make(event)}>
           <Field label={t('crm.lists.name')} value={name} maxLength={60} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} />
           <Field multiline label={t('crm.lists.stages')} value={stages} rows={4} onChange={(event) => setStages(event.currentTarget.value)} />
           {problem && <p className={s.failed} role="alert">{problem}</p>}
           <div className={s.actions}><Button type="submit" disabled={busy || !name.trim()}>{t('crm.lists.make')}</Button></div>
         </form>
-      </Fold>
+      </CrmFold>
     </Sheet>
   );
 }
@@ -82,9 +83,9 @@ export function ListSheet({ id, onClose, returnFocus }: SheetComponentProps) {
           <p className={s.quiet}>{shown.line}</p>
           {problem && <p className={s.failed} role="alert">{problem}</p>}
           {shown.groups.map((group) => <StageGroup key={group.stage} view={shown} stage={group.stage} onChanged={changed} onFailed={(error) => setProblem(messageOf(error))} />)}
-          <Fold summary={t('crm.lists.addMember')}><AddMember view={shown} onChanged={changed} onFailed={(error) => setProblem(messageOf(error))} /></Fold>
-          <Fold summary={t('crm.history')}><HistoryList rows={shown.history} /></Fold>
-          <Fold summary={t('crm.lists.rename')}><RenameList view={shown} onChanged={changed} onFailed={(error) => setProblem(messageOf(error))} /></Fold>
+          <CrmFold summary={t('crm.lists.addMember')}><AddMember view={shown} onChanged={changed} onFailed={(error) => setProblem(messageOf(error))} /></CrmFold>
+          <CrmFold summary={t('crm.history')}><HistoryList rows={shown.history} /></CrmFold>
+          <CrmFold summary={t('crm.lists.rename')}><RenameList view={shown} onChanged={changed} onFailed={(error) => setProblem(messageOf(error))} /></CrmFold>
         </>
       )}
     </Sheet>
@@ -107,10 +108,10 @@ function StageGroup({ view, stage, onChanged, onFailed }: { view: CrmListView; s
           {group.entries.map((entry) => (
             <li key={entry.member} className={s.item}>
               <button type="button" className={s.link} onClick={(event) => openSheet(entry.kind, entry.member.slice(entry.member.indexOf(':') + 1), event.currentTarget)}>{entry.name}</button>
-              <select aria-label={t('crm.lists.move', { name: entry.name })} className={s.select} value={stage} onChange={(event) => void move(entry.member, event.currentTarget.value)}>
+              <Select aria-label={t('crm.lists.move', { name: entry.name })} className={s.select} value={stage} onChange={(event) => void move(entry.member, event.currentTarget.value)}>
                 {view.list.stages.map((one) => <option key={one} value={one}>{one}</option>)}
                 <option value="">{t('crm.lists.out')}</option>
-              </select>
+              </Select>
             </li>
           ))}
         </ul>
@@ -143,16 +144,16 @@ function AddMember({ view, onChanged, onFailed }: { view: CrmListView; onChanged
     <form className={s.form} onSubmit={(event) => void submit(event)}>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-member`}>{t('crm.lists.member')}</label>
-        <select id={`${ids}-member`} className={s.select} value={member} onChange={(event) => setMember(event.currentTarget.value)}>
+        <Select id={`${ids}-member`} className={s.select} value={member} onChange={(event) => setMember(event.currentTarget.value)}>
           <option value="" disabled>{t('crm.lists.member')}</option>
           {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
+        </Select>
       </div>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-stage`}>{t('crm.lists.stage')}</label>
-        <select id={`${ids}-stage`} className={s.select} value={stage} onChange={(event) => setStage(event.currentTarget.value)}>
+        <Select id={`${ids}-stage`} className={s.select} value={stage} onChange={(event) => setStage(event.currentTarget.value)}>
           {view.list.stages.map((one) => <option key={one} value={one}>{one}</option>)}
-        </select>
+        </Select>
       </div>
       <div className={s.actions}><Button type="submit" disabled={!member || !stage}>{t('crm.lists.place')}</Button></div>
     </form>

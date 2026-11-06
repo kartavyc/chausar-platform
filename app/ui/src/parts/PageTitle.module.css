@@ -31,6 +31,7 @@
 }
 
 .line {
+  min-height: 1lh;
   margin-top: var(--sp-1);
   font-size: var(--text-body);
   color: var(--fg2);
@@ -46,6 +47,14 @@
   flex: none;
   align-items: center;
   gap: var(--sp-2);
+}
+
+/* Under 900 px a line that would wrap pushes the page down: it goes, and an empty slot gives its height back. */
+@media (max-width: 899px) {
+  .line:empty,
+  .line[data-long] {
+    display: none;
+  }
 }
 
 @media (max-width: 759px) {

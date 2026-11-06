@@ -14,7 +14,7 @@ import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
 import type { CompanyView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { Fold, HistoryList, TimelineList, messageOf } from './CrmParts';
+import { CrmFold, HistoryList, TimelineList, messageOf } from './CrmParts';
 import s from './Crm.module.css';
 
 export function CompanySheet({ id, onClose, returnFocus }: SheetComponentProps) {
@@ -37,8 +37,8 @@ export function CompanySheet({ id, onClose, returnFocus }: SheetComponentProps) 
             <h3 id={timelineId} className={s.heading}>{t('crm.timeline')}</h3>
             <TimelineList entries={view.data.timeline} names={new Map(view.data.clients.map((client) => [client.id, client.name]))} />
           </section>
-          <Fold summary={t('crm.history')}><HistoryList rows={view.data.history} /></Fold>
-          <Fold summary={t('crm.edit.open')}><CompanyForm view={view.data} onSaved={() => view.reload()} /></Fold>
+          <CrmFold summary={t('crm.history')}><HistoryList rows={view.data.history} /></CrmFold>
+          <CrmFold summary={t('crm.edit.open')}><CompanyForm view={view.data} onSaved={() => view.reload()} /></CrmFold>
         </>
       )}
     </Sheet>

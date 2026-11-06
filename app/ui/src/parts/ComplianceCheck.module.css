@@ -26,23 +26,6 @@
   color: var(--mute);
 }
 
-.choices {
-  display: grid;
-  gap: var(--sp-1);
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.choices legend {
-  padding: 0;
-}
-
-.choice {
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
 .list {
   display: grid;
   gap: var(--sp-1);

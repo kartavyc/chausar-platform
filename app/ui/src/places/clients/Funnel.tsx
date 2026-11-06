@@ -10,11 +10,11 @@ import { useId } from 'react';
 import { useT } from '../../text';
 import { BarChart } from '../../parts/charts/BarChart';
 import { Figure } from '../../parts/Figure';
-import { Icon } from '../../parts/Icon';
 import { Tile } from '../../parts/Tile';
 import type { PipelineView } from '../../engine/types';
 import { CLOSED_STAGES } from './pipeline';
 import s from './Pipeline.module.css';
+import { Fold } from '../../parts/Fold';
 
 export function Funnel({ view }: { view: PipelineView }) {
   const t = useT();
@@ -23,12 +23,8 @@ export function Funnel({ view }: { view: PipelineView }) {
   const forecast = view.forecast;
   return (
     <Tile as="section" labelledBy={titleId} className={s.funnel}>
-      <details className={s.fold}>
-        <summary className={s.foldSummary}>
-          <Icon name="chevron-right" size={14} />
-          <h2 id={titleId} className={s.foldTitle}>{t('clients.pipeline.funnel')}</h2>
-          <span className={s.quiet}>{t('clients.pipeline.funnel.days')}</span>
-        </summary>
+      <Fold summary={<><h2 id={titleId} className={s.foldTitle}>{t('clients.pipeline.funnel')}</h2>
+          <span className={s.quiet}>{t('clients.pipeline.funnel.days')}</span></>} className={s.fold} summaryClassName={s.foldSummary}>
         {shown.some((item) => item.reached > 0) ? (
           <BarChart
             kind="count"
@@ -46,7 +42,7 @@ export function Funnel({ view }: { view: PipelineView }) {
         {forecast && ('line' in forecast
           ? <p className={s.quiet} data-forecast="">{forecast.line}</p>
           : <p className={s.forecast} data-forecast=""><Figure value={forecast.value} receiptId={forecast.receiptId} /> <span>{forecast.label}</span></p>)}
-      </details>
+      </Fold>
     </Tile>
   );
 }

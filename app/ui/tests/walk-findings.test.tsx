@@ -125,21 +125,21 @@ describe('listed by the walk, fixed before wave 3 ships (the integrator, 26 Oct)
     expect(button.getAttribute('aria-controls')).toBe(menu.id);
   });
 
-  it('3. a lock note names a one-word action as D does, and leaves a longer one to its button, so a card stays within 12 words', () => {
+  it('3. a locked button names a one-word action as D does, and says less of a longer one, so a card stays within 12 words (B4: no line repeats it)', () => {
     const row = (label: string, view: 'watch' | 'read' | undefined): QueueRow => ({
       id: `q-${label}`, businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Bookkeeper', kind: 'signoff', createdAt: '2026-10-21T08:40:00.000Z',
       digest: 'd', title: 'GST working for September', viewRef: { kind: 'file', id: 'f' },
       actions: [...(view ? [{ id: view, label: view === 'watch' ? 'Watch' : 'Read', primary: false }] : []), { id: 'approve', label, primary: true, requiresView: true }],
     });
     const { unmount } = render(<ApprovalRow layout="card" row={row('Approve', 'watch')} onDecide={vi.fn()} />);
-    expect(document.querySelector('[data-note]')!.textContent).toBe('Approve unlocks after you watch it');
+    expect(screen.getByRole('button', { name: 'Approve' }).getAttribute('title')).toBe('Approve unlocks after you watch it');
     unmount();
     const ca = render(<ApprovalRow layout="card" row={row('Send to CA', 'read')} onDecide={vi.fn()} />);
-    expect(document.querySelector('[data-note]')!.textContent).toBe('Unlocks after you read it');
+    expect(document.querySelector('[data-note]')).toBeNull();
     expect(screen.getByRole('button', { name: 'Send to CA' }).getAttribute('title')).toBe('Unlocks after you read it');
     ca.unmount();
     render(<ApprovalRow layout="compact" row={row('Approve and post', undefined)} onDecide={vi.fn()} />);
-    expect(document.querySelector('[data-note]')!.textContent).toBe('Unlocks after you open it');
+    expect(screen.getByRole('button', { name: 'Approve and post' }).getAttribute('title')).toBe('Unlocks after you open it');
   });
 
   it('4. the invoices table turns into stacked rows when its tile is narrow (a sheet beside it at 1280), so Action stays in view', () => {

@@ -18,6 +18,7 @@ import { Icon } from '../Icon';
 import { Sheet } from '../Sheet';
 import { useLayout } from './useLayout';
 import s from './Layout.module.css';
+import { Select } from '../Select';
 
 const PLACES: readonly LayoutPlace[] = ['today', 'money'];
 const isPlace = (id: string): id is LayoutPlace => (PLACES as readonly string[]).includes(id);
@@ -154,9 +155,9 @@ function BlockRow({ block, first, last, slot, busy, send }: BlockRowProps) {
         <div className={s.rename}>
           <label className={s.selectLabel}>
             {t('layout.name', { name: block.defaultName })}
-            <select className={s.select} value={name} onChange={(event) => setName(event.currentTarget.value)}>
+            <Select className={s.select} value={name} onChange={(event) => setName(event.currentTarget.value)}>
               {[block.defaultName, ...block.aliases].map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
+            </Select>
           </label>
           <Button variant="quiet" disabled={busy} onClick={() => void send({ op: 'rename', block: block.id, name: name === block.defaultName ? null : name })}>{t('layout.rename')}</Button>
         </div>

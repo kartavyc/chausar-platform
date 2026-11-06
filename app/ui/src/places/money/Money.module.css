@@ -580,12 +580,6 @@
   color: var(--mute);
 }
 
-.fold summary {
-  width: fit-content;
-  color: var(--link);
-  cursor: pointer;
-}
-
 .fold p {
   margin-top: var(--sp-2);
 }
@@ -781,6 +775,10 @@
   color: var(--fg);
 }
 
+.result {
+  margin-top: var(--sp-2);
+}
+
 .noticeStale {
   color: var(--wait);
 }
@@ -789,9 +787,6 @@
   display: grid;
   gap: var(--sp-3);
   margin-top: var(--sp-3);
-  padding: var(--pad-card);
-  border-radius: var(--r-card);
-  background: var(--wait-soft);
 }
 
 .ask p {
@@ -804,6 +799,7 @@
   flex-wrap: wrap;
   gap: var(--sp-2);
   justify-content: flex-end;
+  text-align: end;
 }
 
 .form {

@@ -102,7 +102,7 @@ const PLACES: Case[] = [
   // W4 4J19: who decided what; Today with Approve several open, and with a draft's Send back box open.
   { name: 'Business, decisions', hash: '#/business/decisions' },
   { name: 'Today, approve several', hash: '#/today', press: ['Approve several'] },
-  { name: 'Today, send back a draft', hash: '#/today', press: ['Send back'] },
+  { name: 'Today, send back a draft', hash: '#/today', press: ['More', 'Send back'] },
   // W4 4J22b: the business's voice, what the AI knows, and Today's folds opened (an overdue invoice makes an idea).
   { name: 'Business, your voice', hash: '#/business/voice' },
   { name: 'Business, what the AI knows', hash: '#/business/knowledge' },

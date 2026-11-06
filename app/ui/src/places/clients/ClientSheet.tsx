@@ -146,7 +146,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
                 {theirFiles.map((file) => (
                   <li key={file.id} className={s.item}>
                     <span data-code="" className={`${s.itemText} mono`}>{file.name}</span>{' '}
-                    <span className={s.format}>{file.format}</span>
+                    <span className={s.format}>{file.format.toUpperCase()}</span>
                   </li>
                 ))}
               </ul>

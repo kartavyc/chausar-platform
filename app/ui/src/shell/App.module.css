@@ -69,7 +69,13 @@
   grid-area: main;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: var(--sp-7) var(--gutter) var(--sp-12);
+}
+
+/* Two bars never stand side by side. The page's bar is only painted out, not removed, so its width does not change. */
+.app[data-sheet-open] > .main {
+  scrollbar-color: transparent transparent;
 }
 
 .main:focus {
@@ -87,6 +93,7 @@
   grid-area: sheet;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   border-left: var(--hair) solid var(--line);
   background: var(--surface);
 }

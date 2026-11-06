@@ -16,13 +16,8 @@
 }
 
 .summary {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: var(--sp-2);
-  min-height: var(--control-sm);
-  color: var(--fg);
-  cursor: pointer;
 }
 
 .title {
@@ -34,17 +29,6 @@
 .count {
   font-size: var(--text-read);
   color: var(--mute);
-}
-
-/* 4Z2: the fold's chevron at the end of its summary, turned up while it is open. */
-.mark {
-  display: inline-flex;
-  margin-left: auto;
-  color: var(--mute);
-}
-
-.fold[open] .mark {
-  transform: rotate(180deg);
 }
 
 .body {

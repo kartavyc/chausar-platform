@@ -308,7 +308,7 @@ describe('Work v2: finished', () => {
     const estimate = within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]') as HTMLElement | null;
     expect(estimate).toBeTruthy();
     expect(within(estimate!).getByText('model estimate')).toBeTruthy();
-    expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
+    expect(within(reach).queryByRole('button', { name: /receipt/i })).toBeNull();
     expect(within(finished).queryByText('Rendering the thumbnail set')).toBeNull();
     expect(within(finished).queryByRole('link', { name: 'All finished jobs' })).toBeNull();
     assertInkRules();

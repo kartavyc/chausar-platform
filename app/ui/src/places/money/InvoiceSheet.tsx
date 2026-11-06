@@ -10,11 +10,12 @@
  * timeline.
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
+import { Confirm } from '../../parts/Confirm';
 import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import { EngineError, type InvoiceViewLite } from '../../engine/types';
@@ -23,6 +24,7 @@ import { Credits, NextStep, PaymentLine, RateChange, Timeline } from './InvoiceE
 import { BillPart, HowToPay } from './InvoicePay';
 import { messageOf, onMoney, statusOf, useDay } from './words';
 import s from './Money.module.css';
+import { Fold } from '../../parts/Fold';
 
 type Notice = { kind: 'done' | 'stale' | 'refused'; text: string; receiptId?: string | undefined };
 
@@ -36,10 +38,8 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const [answered, setAnswered] = useState<InvoiceViewLite | null>(null);
   const [phase, setPhase] = useState<'idle' | 'confirm' | 'sending'>('idle');
   const [notice, setNotice] = useState<Notice | null>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => { setAnswered(null); }, [view.data]);
-  useEffect(() => { if (phase === 'confirm') cancelRef.current?.focus(); }, [phase]);
 
   const current = answered ?? view.data;
   // 4J20: what an action in the sheet answered; a draft made again at today's rate is a new invoice, so it opens.
@@ -80,13 +80,9 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   let footer = null;
   if (invoice.status === 'draft') {
     footer = phase === 'confirm' ? (
-      <div className={s.ask}>
+      <Confirm action={t('money.invoice.issueConfirm')} onCancel={() => setPhase('idle')} onConfirm={() => void issue(current)}>
         <p>{t('money.invoice.issueAsk')}</p>
-        <div className={s.buttons}>
-          <Button ref={cancelRef} onClick={() => setPhase('idle')}>{t('approval.cancel')}</Button>
-          <Button variant="primary" data-confirm="" onClick={() => void issue(current)}>{t('money.invoice.issueConfirm')}</Button>
-        </div>
-      </div>
+      </Confirm>
     ) : (
       <div className={s.buttons}>
         <Button variant="primary" disabled={phase === 'sending'} onClick={() => setPhase('confirm')}>{t('money.invoice.issue')}</Button>
@@ -150,11 +146,10 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       {current.notes.map((note) => <p key={note} className={s.quietLine} data-engine-line="">{note}</p>)}
       <Credits view={current} />
       <Timeline view={current} />
-      <details className={`${s.fold} ${s.block}`}>
-        <summary>{t('money.invoice.document')}</summary>
+      <Fold summary={t('money.invoice.document')} className={`${s.fold} ${s.block}`}>
         {/* The invoice as the client gets it, quoted as written; its figures are the ones above, with their receipts. */}
         <pre className={s.pre} data-content="">{current.documentText}</pre>
-      </details>
+      </Fold>
       {/* Issued and changed-since are this screen's own words; only a refusal carries the engine's, which may name an
           amount. */}
       {notice && (

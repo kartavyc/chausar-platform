@@ -9,6 +9,8 @@ import { boardError, type BoardAct } from './YoutubeBoard';
 import type { YoutubeBoardBody } from '../../../../../../platform/runtime/venture/playbooks/youtube/board-core';
 import type { TextBox } from '../../../../../../platform/runtime/venture/playbooks/youtube/finishing-extra';
 import s from './YoutubeDesk.module.css';
+import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 
 /** Owner positions describe the text layout; only ffmpeg supplies footage and sound measurements. */
 export function YoutubeFinishing({ board, act, busy, onFinishingDirty }: { board: YoutubeBoardBody; act: BoardAct; busy: boolean; onFinishingDirty(value: boolean): void }) {
@@ -21,20 +23,20 @@ export function YoutubeFinishing({ board, act, busy, onFinishingDirty }: { board
     const result = await act('finishing', { file, platform, boxes, ...(commentary.trim() ? { commentaryMs: Number(commentary) * 1000 } : {}) });
     if (measuredVersion === version.current && result && typeof result === 'object' && 'board' in result) { setDirty(false); onFinishingDirty(false); }
   }
-  return <details onChangeCapture={changed}><summary>{t('pb-youtube-board.finishing')}</summary>
+  return <Fold summary={t('pb-youtube-board.finishing')} onChangeCapture={changed}>
     <p>{t('pb-youtube-board.finishingHelp')}</p>
     <Field label={t('pb-youtube-board.deliveryFile')} value={file} onChange={e => setFile(e.target.value)} />
-    <label className={s.label}>{t('pb-youtube-board.platform')}<select className={s.select} value={platform} onChange={e => setPlatform(e.target.value)}>{['youtube', 'reels', 'stories', 'tiktok'].map(platform => <option value={platform} key={platform}>{t(`pb-youtube-board.platform.${platform}`)}</option>)}</select></label>
+    <label className={s.label}>{t('pb-youtube-board.platform')}<Select className={s.select} value={platform} onChange={e => setPlatform(e.target.value)}>{['youtube', 'reels', 'stories', 'tiktok'].map(platform => <option value={platform} key={platform}>{t(`pb-youtube-board.platform.${platform}`)}</option>)}</Select></label>
     <Field label={t('pb-youtube-board.commentary')} inputMode="decimal" value={commentary} onChange={e => setCommentary(e.target.value)} />
-    <details><summary>{t('pb-youtube-board.textBoxes')}</summary>
+    <Fold summary={t('pb-youtube-board.textBoxes')}>
       {(['x', 'y', 'width', 'height', 'start', 'end', 'text'] as const).map(key => <Field key={key} label={t(`pb-youtube-board.box.${key}`)} value={box[key]} onChange={e => setBox(previous => ({ ...previous, [key]: e.target.value }))} maxLength={key === 'text' ? 5000 : 10} />)}
       <Button locked={Object.values(box).some(value => !value.trim())} onClick={() => { changed(); setBoxes(rows => [...rows, { x: Number(box.x), y: Number(box.y), width: Number(box.width), height: Number(box.height), text: box.text, startMs: Number(box.start) * 1000, endMs: Number(box.end) * 1000 }]); setBox({ x: '', y: '', width: '', height: '', text: '', start: '', end: '' }); }}>{t('pb-youtube-board.addBox')}</Button>
       <ul>{boxes.map((box, index) => <li key={index}><span data-content="">{box.text}</span> <Button onClick={() => { changed(); setBoxes(rows => rows.filter((_, i) => i !== index)); }}>{t('pb-youtube-board.remove')}</Button></li>)}</ul>
-    </details>
+    </Fold>
     <Button disabled={busy} locked={!file.trim()} onClick={() => void measure()}>{t('pb-youtube-board.measureFinishing')}</Button>
     {dirty && <p role="status">{t('pb-youtube-board.finishingChanged')}</p>}
     {!dirty && board.finishing && <ul>{board.finishing.map(finding => <li key={finding.id}>{t(`pb-youtube-board.check.${finding.id}`)}: {t(`pb-youtube-board.outcome.${finding.outcome}`)}</li>)}</ul>}
-  </details>;
+  </Fold>;
 }
 type StyleView = { id: string; digest: string; card: { count: number; metrics: Record<string, number | null> } };
 /** The owner selects distinct measured edit records. A failed or absent local tool produces no style card. */
@@ -58,13 +60,13 @@ export function YoutubeStyle({ editId }: { editId: string }) {
     catch (error) { setError(boardError(error, t)); }
     finally { setBusy(false); }
   }
-  return <details><summary>{t('pb-youtube-board.style')}</summary><p>{t('pb-youtube-board.styleHelp')}</p>
+  return <Fold summary={t('pb-youtube-board.style')}><p>{t('pb-youtube-board.styleHelp')}</p>
     {rows.map(row => <label className={s.row} key={row.id}><input type="checkbox" checked={selected.includes(row.id)} onChange={e => setSelected(values => e.target.checked ? [...values, row.id] : values.filter(id => id !== row.id))} /><span data-content="">{row.source.label}</span></label>)}
     <Button disabled={busy} locked={selected.length < 2 || selected.length > 3} onClick={() => void measure()}>{t('pb-youtube-board.measureStyle')}</Button>
     {error && <p role="alert">{error}</p>}
     {cards.map(card => <div className={s.notice} key={card.id}><p>{t('pb-youtube-board.measuredFrom', { count: card.card.count })}</p><Metrics metrics={card.card.metrics} /><Button disabled={busy} onClick={() => void compare(card)}>{t('pb-youtube-board.compareStyle')}</Button></div>)}
     {compared && <><Metrics metrics={compared.metrics} /><ul>{compared.findings.map(finding => <li key={finding.metric}>{t(`pb-youtube-board.metric.${finding.metric}`)}: {t('pb-youtube-board.styleDifference')}</li>)}</ul></>}
-  </details>;
+  </Fold>;
 }
 function Metrics({ metrics }: { metrics: Record<string, number | null> }) {
   const t = useT();

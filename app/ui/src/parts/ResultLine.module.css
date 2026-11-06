@@ -1,0 +1,26 @@
+/* ResultLine: a slot one line tall, there at rest. No box and no fill; the words and a small check. */
+
+.slot {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  min-height: 1lh;
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--fg2);
+}
+
+.slot > svg {
+  flex: none;
+  margin-top: calc(var(--sp-1) / 2);
+}
+
+.slot[data-tone='problem'] {
+  color: var(--fail);
+}
+
+.words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

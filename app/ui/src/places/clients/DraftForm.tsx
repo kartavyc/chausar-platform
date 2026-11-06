@@ -21,6 +21,7 @@ import { clientsChanged } from './signals';
 import { askOf, draftSheetId, keepAsk, type DraftAsk } from './handoff';
 import { CHANNELS_OF } from './pipeline';
 import s from './Pipeline.module.css';
+import { Select } from '../../parts/Select';
 
 const BASES: readonly LawfulBasis[] = ['they-wrote-first', 'existing-contact', 'public-business-contact'];
 
@@ -95,9 +96,9 @@ export function DraftForm({ card, picked = null }: { card: PipelineCardView; pic
     <div className={s.form}>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-kind`}>{t('clients.outreach.kind')}</label>
-        <select id={`${ids}-kind`} className={s.select} value={kind} onChange={(event) => setKind(event.currentTarget.value as OutreachKind)}>
+        <Select id={`${ids}-kind`} className={s.select} value={kind} onChange={(event) => setKind(event.currentTarget.value as OutreachKind)}>
           {kinds.map((one) => <option key={one} value={one}>{t(`clients.outreach.kind.${one}`)}</option>)}
-        </select>
+        </Select>
       </div>
       <Segmented
         mode="buttons"
@@ -118,19 +119,19 @@ export function DraftForm({ card, picked = null }: { card: PipelineCardView; pic
       {kind === 'double-opt-in' && (
         <div className={s.choice}>
           <label className={s.label} htmlFor={`${ids}-introduce`}>{t('clients.outreach.introduce')}</label>
-          <select id={`${ids}-introduce`} className={s.select} value={introduce} onChange={(event) => setIntroduce(event.currentTarget.value)}>
+          <Select id={`${ids}-introduce`} className={s.select} value={introduce} onChange={(event) => setIntroduce(event.currentTarget.value)}>
             <option value="">{t('clients.outreach.introduce.choose')}</option>
             {others.map((person) => <option key={person.id} value={person.id}>{person.company ? `${person.name}, ${person.company}` : person.name}</option>)}
-          </select>
+          </Select>
         </div>
       )}
       {needsBasis && (
         <div className={s.choice}>
           <label className={s.label} htmlFor={`${ids}-basis`}>{t('clients.outreach.basis')}</label>
-          <select id={`${ids}-basis`} className={s.select} value={basis} onChange={(event) => setBasis(event.currentTarget.value as LawfulBasis | '')}>
+          <Select id={`${ids}-basis`} className={s.select} value={basis} onChange={(event) => setBasis(event.currentTarget.value as LawfulBasis | '')}>
             <option value="">{t('clients.outreach.basis.choose')}</option>
             {BASES.map((one) => <option key={one} value={one}>{t(`clients.outreach.basis.${one}`)}</option>)}
-          </select>
+          </Select>
           <p className={s.quiet}>{t('clients.outreach.basis.line')}</p>
         </div>
       )}

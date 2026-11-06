@@ -9,7 +9,9 @@ import { ExternalLink, openProblem } from '../connections/external';
 import { BUILDER_NAMES, handOff } from './handoff';
 import { TileSection, messageOf } from './shared';
 import { SiteEdits } from './SiteEdits';
+import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
 
 const SYNTHETIC = /synthetic recording/i;
 
@@ -59,10 +61,9 @@ export function BuildView() {
           </p>
           {brief.wordsBy === 'template' && <p className={s.note}>{t('business.fromTemplates')}</p>}
           {brief.wordsBy === 'mixed' && <p className={s.note}>{t('business.fromTemplatesSome')}</p>}
-          <details className={s.fold}>
-            <summary>{t('business.readBrief')}</summary>
+          <Fold summary={t('business.readBrief')} className={s.fold}>
             <pre className={s.pre}>{brief.markdown}</pre>
-          </details>
+          </Fold>
           <div className={s.buttons}><Button size="sm" variant="quiet" disabled={busy} onClick={() => void writeBrief()}>{t('business.writeAgain')}</Button></div>
         </>
       )}
@@ -115,17 +116,15 @@ function Builders({ status, ready, onOpened }: { status: BuildStatusView; ready:
         <Button variant="primary" disabled={busy || !ready} onClick={() => void open('lovable')}>{t('business.openLovable')}</Button>
       </div>
       <p className={s.note}>{t('business.replitNote')}</p>
-      {said?.lines.map((line) => <p key={line} className={s.said} role="status">{line}</p>)}
-      {said?.problem && <p className={s.problem} role="alert">{said.problem}</p>}
+      <ResultLine tone={said?.problem ? 'problem' : 'done'}>{said?.problem ?? (said?.lines.length ? said.lines.map((line) => <span key={line}>{line} </span>) : null)}</ResultLine>
       {status.handoffs.length > 0 && (
-        <details className={s.fold}>
-          <summary>{t('business.handoffs')}</summary>
+        <Fold summary={t('business.handoffs')} className={s.fold}>
           <ul className={s.plain}>
             {status.handoffs.slice(0, 4).map((handoff) => (
               <li key={handoff.id}>{t(handoff.openedAt ? 'business.handoffOpened' : 'business.handoffNotOpened', { name: BUILDER_NAMES[handoff.builder] })}</li>
             ))}
           </ul>
-        </details>
+        </Fold>
       )}
     </TileSection>
   );
@@ -183,10 +182,9 @@ function GitHub({ status, onChanged }: { status: BuildStatusView; onChanged: () 
           {/* A recording is said at rest; the other limits wait one fold away. */}
           {current.cannotSay.filter((line) => SYNTHETIC.test(line)).map((line) => <p key={line} className={s.note}>{line}</p>)}
           {current.cannotSay.some((line) => !SYNTHETIC.test(line)) && (
-            <details className={s.fold}>
-              <summary>{t('business.cannotSay')}</summary>
+            <Fold summary={t('business.cannotSay')} className={s.fold}>
               {current.cannotSay.filter((line) => !SYNTHETIC.test(line)).map((line) => <p key={line} className={s.line}>{line}</p>)}
-            </details>
+            </Fold>
           )}
         </>
       )}

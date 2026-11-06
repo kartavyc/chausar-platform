@@ -11,11 +11,11 @@ import { useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
-import { Icon } from '../../parts/Icon';
 import { Provenance } from '../../parts/Provenance';
 import { EngineError, type ClientLite, type EvidenceItem } from '../../engine/types';
 import { clientsChanged } from './signals';
 import s from './Clients.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** Always shown, in this order. Other fields appear only while they ask for something. */
 const SHOWN = ['email', 'taxId', 'note'] as const;
@@ -97,13 +97,9 @@ export function Fields({ client, items, hidden, problems, onDismiss, foldTax = f
 export function MoreDetails({ open, onOpenChange, children }: { open?: boolean | undefined; onOpenChange?: ((open: boolean) => void) | undefined; children: ReactNode }) {
   const t = useT();
   return (
-    <details className={s.more} open={open} onToggle={(event) => onOpenChange?.(event.currentTarget.open)}>
-      <summary className={s.moreSummary}>
-        <Icon name="chevron-right" size={16} />
-        {t('clients.more')}
-      </summary>
+    <Fold summary={t('clients.more')} className={s.more} open={open} onToggle={(event) => onOpenChange?.(event.currentTarget.open)} summaryClassName={s.moreSummary}>
       <div className={s.moreBody}>{children}</div>
-    </details>
+    </Fold>
   );
 }
 

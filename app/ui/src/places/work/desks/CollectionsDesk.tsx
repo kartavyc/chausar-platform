@@ -8,6 +8,8 @@ import { Button } from '../../../parts/Button';
 import { Field } from '../../../parts/Field';
 import { EmptyState } from '../../../parts/EmptyState';
 import s from './CollectionsDesk.module.css';
+import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 
 type PromiseRow = { id: string; clientName: string; statedBy: string; promisedOn: string; status: 'kept' | 'pending' | 'broken'; stage: string; stageName: string; digest: string };
 type ClientInvoiceRow = { id: string; clientId: string; clientName: string; serviceOrderId: string; sourceName: string; invoiceId: string; number: string; debtor: string };
@@ -82,10 +84,10 @@ export function CollectionsDesk() {
       {!adding && <Button variant="primary" onClick={() => setAdding(true)}>{t('pb-bookkeeping-cfo.add')}</Button>}
       {adding && <form className={s.form} onSubmit={event => { event.preventDefault(); void record(); }}>
         <label htmlFor={invoiceLabel}>{t('pb-bookkeeping-cfo.invoice')}</label>
-        <select id={invoiceLabel} className={s.select} value={invoiceId} onChange={event => setInvoiceId(event.target.value)} required>
+        <Select id={invoiceLabel} className={s.select} value={invoiceId} onChange={event => setInvoiceId(event.target.value)} required>
           <option value="">{t('pb-bookkeeping-cfo.chooseInvoice')}</option>
           {invoiceRows.map(row => <option key={row.id} value={row.id}>{row.number}: {row.debtor} / {row.clientName}</option>)}
-        </select>
+        </Select>
         <Field label={t('pb-bookkeeping-cfo.amount')} inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} required />
         <Field label={t('pb-bookkeeping-cfo.date')} type="date" value={on} onChange={event => setOn(event.target.value)} required />
         <Field label={t('pb-bookkeeping-cfo.who')} value={who} maxLength={120} onChange={event => setWho(event.target.value)} required />
@@ -100,7 +102,7 @@ export function CollectionsDesk() {
     </Tile>}
     {prepared && <Tile as="section" label={t('pb-bookkeeping-cfo.prepared')}><p>{t('pb-bookkeeping-cfo.noteBoundary')}</p><blockquote data-content="">{prepared}</blockquote></Tile>}
     <Tile as="section" label={t('pb-bookkeeping-cfo.stages')} card>
-      <details><summary>{t('pb-bookkeeping-cfo.stages')}</summary>
+      <Fold summary={t('pb-bookkeeping-cfo.stages')}>
         <p className={s.boundary}>{t('pb-bookkeeping-cfo.stageBoundary')}</p>
         {(editedLadder?.ladder ?? config?.ladder ?? []).map((row, index) => <div key={row.id} className={s.stage}>
           <span>{stageName(row)}</span>
@@ -108,7 +110,7 @@ export function CollectionsDesk() {
         </div>)}
         {config && !editedLadder && <Button variant="quiet" onClick={() => setEditedLadder(structuredClone(config))}>{t('pb-bookkeeping-cfo.editStages')}</Button>}
         {editedLadder && <div className={s.actions}><Button onClick={() => setEditedLadder(null)}>{t('pb-bookkeeping-cfo.cancel')}</Button><Button variant="primary" disabled={busy} onClick={() => void saveStages()}>{t('pb-bookkeeping-cfo.saveStages')}</Button></div>}
-      </details>
+      </Fold>
     </Tile>
   </div>;
 }

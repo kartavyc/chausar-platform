@@ -11,6 +11,7 @@ import { openExternal } from '../connections/external';
 import s from './FirstRun.module.css';
 import { ProviderTrouble } from '../../parts/ProviderTrouble';
 import { ConsentWords } from '../../parts/ConsentWords';
+import { InlineError } from '../../parts/InlineError';
 
 /** How often the screen looks again while a tool's own sign-in waits for the owner. */
 export const LOGIN_POLL_MS = 1500;
@@ -36,9 +37,12 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   const options = useResource('venture.ai.options', {});
   const [view, setView] = useState<ToolsLite | undefined>(undefined);
   const [busy, setBusy] = useState<string | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  /** B4 task 4: what failed, in the card of the tool that failed, in place of its button; again() is the same press. */
+  const [trouble, setTrouble] = useState<{ cli: ToolLite['cli']; line: string; again: () => void } | null>(null);
+  /** The AI key's own trouble, in the key card. */
+  const [keyProblem, setKeyProblem] = useState<string | null>(null);
   // A2 second review: Cancel in main's own dialog is not a problem; it is said calmly.
-  const [note, setNote] = useState<string | null>(null);
+  const [note, setNote] = useState<{ cli: ToolLite['cli']; line: string } | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const opened = useRef(new Set<string>());
@@ -50,10 +54,14 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   useEffect(() => {
     if (!waiting) return;
     const timer = setTimeout(() => {
-      client.request('venture.ai.tools', {}).then(setView, (error: unknown) => setProblem(messageOf(error)));
+      client.request('venture.ai.tools', {}).then(setView, (error: unknown) => setTrouble({
+        cli: waiting.cli,
+        line: messageOf(error),
+        again: () => { setTrouble(null); tools.reload(); },
+      }));
     }, LOGIN_POLL_MS);
     return () => clearTimeout(timer);
-  }, [client, view, waiting]);
+  }, [client, view, waiting, tools.reload]);
 
   // The owner pressed Sign in: the tool's page opens once, as soon as the tool prints its link.
   useEffect(() => {
@@ -67,11 +75,11 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   const nameOf = (cli: ToolLite['cli']) => t(cli === 'codex' ? 'first-run.ai.codex.name' : 'first-run.ai.claude.name');
 
   const signIn = useCallback(async (cli: ToolLite['cli']) => {
-    setProblem(null); setBusy(cli);
+    setTrouble(null); setBusy(cli);
     try {
       const tool = await client.request('venture.ai.login.start', { cli });
       setView((was) => (was ? { ...was, tools: was.tools.map((item) => (item.cli === cli ? tool : item)) } : was));
-    } catch (error) { setProblem(messageOf(error)); }
+    } catch (error) { setTrouble({ cli, line: messageOf(error), again: () => void signIn(cli) }); }
     finally { setBusy(null); }
   }, [client]);
 
@@ -79,44 +87,44 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   async function choose(tool: ToolLite) {
     const sha256 = tool.setup?.sha256;
     if (!sha256) return;
-    setProblem(null); setNote(null); setBusy(tool.cli);
+    setTrouble(null); setNote(null); setBusy(tool.cli);
     try {
       await client.request('venture.ai.setup.trust', { cli: 'codex', sha256 });
       setView(await client.request('venture.ai.tools', {}));
     } catch (error) {
-      if (error instanceof EngineError && error.code === 'CODEX_NOT_CHOSEN') setNote(error.message);
-      else setProblem(messageOf(error));
+      if (error instanceof EngineError && error.code === 'CODEX_NOT_CHOSEN') setNote({ cli: tool.cli, line: error.message });
+      else setTrouble({ cli: tool.cli, line: messageOf(error), again: () => void choose(tool) });
     }
     finally { setBusy(null); }
   }
 
   async function cancel(cli: ToolLite['cli']) {
-    setProblem(null);
+    setTrouble(null);
     try {
       const tool = await client.request('venture.ai.login.cancel', { cli });
       opened.current.delete(cli);
       setView((was) => (was ? { ...was, tools: was.tools.map((item) => (item.cli === cli ? tool : item)) } : was));
-    } catch (error) { setProblem(messageOf(error)); }
+    } catch (error) { setTrouble({ cli, line: messageOf(error), again: () => void cancel(cli) }); }
   }
 
   async function use(cli: ToolLite['cli']) {
     const preset = presetOf(cli);
     if (!preset) return;
-    setProblem(null); setBusy(cli);
+    setTrouble(null); setBusy(cli);
     try {
       await client.request('venture.ai.connect', { presetId: preset.id, consentDigest: preset.consentDigest });
       onDone(nameOf(cli));
-    } catch (error) { setProblem(messageOf(error)); }
+    } catch (error) { setTrouble({ cli, line: messageOf(error), again: () => void use(cli) }); }
     finally { setBusy(null); }
   }
 
   async function keyDone() {
-    setProblem(null);
+    setKeyProblem(null);
     try {
       const status = await client.request('venture.ai.status', {});
       if (connectedTo(status)) onDone(t('first-run.ai.key.name'));
-      else setProblem(t('first-run.ai.keyFirst'));
-    } catch (error) { setProblem(messageOf(error)); }
+      else setKeyProblem(t('first-run.ai.keyFirst'));
+    } catch (error) { setKeyProblem(messageOf(error)); }
   }
 
   async function copy(code: string) {
@@ -134,13 +142,16 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
     const signedIn = tool.signedIn === 'yes' && !choosing && !refused;
     const primary = tool.cli === recommended;
     const hint = t(tool.cli === 'codex' ? 'first-run.ai.hint.codex' : 'first-run.ai.hint.claude');
+    const failed = trouble?.cli === tool.cli ? trouble : null;
     return (
       <Tile key={tool.cli} as="section" span={4} label={nameOf(tool.cli)} className={s.option} card>
         <div className={s.optionHead}><Icon name={tool.cli === 'codex' ? 'clock' : 'sparkles'} size={20} /><h2 className={s.optionName}>{nameOf(tool.cli)}</h2></div>
         <p className={s.optionLine}>{t(tool.cli === 'codex' ? 'first-run.ai.codex.line' : 'first-run.ai.claude.line')}</p>
         <span>{signedIn ? <Chip tone="done">{t('first-run.ai.signedIn')}</Chip> : tool.found ? <Chip tone="line">{t('first-run.ai.installed', { name: tool.label })}</Chip> : <Chip tone="idle">{t('first-run.ai.notInstalled')}</Chip>}</span>
         <div className={s.optionAction}>
-          {choosing ? (
+          {failed ? (
+            <InlineError fix={{ label: t('first-run.ai.tryAgain'), onSelect: failed.again, busy: busy !== null }}>{failed.line}</InlineError>
+          ) : choosing ? (
             <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={busy !== null} aria-busy={busy === tool.cli || undefined} onClick={() => void choose(tool)}>{t('first-run.ai.setup.use')}</Button>
           ) : refused ? null : signedIn ? (
             <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={busy !== null || !preset} aria-busy={busy === tool.cli || undefined} onClick={() => void use(tool.cli)}>{t('first-run.ai.use', { name: tool.label })}</Button>
@@ -153,8 +164,9 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
               {setup.path && <p className={s.hint} data-content="">{setup.path}</p>}
             </>
           ) : signedIn && preset ? <ConsentWords className={s.hint} text={preset.consentText} /> : <p className={s.hint}>{tool.found ? hint : tool.login.line}</p>}
-          {tool.login.state === 'failed' && tool.login.line && <p className={s.problem} role="alert">{tool.login.line}</p>}
-          {tool.tested === 'failed' && tool.problem && <p className={s.problem} role="alert">{tool.problem}</p>}
+          {note?.cli === tool.cli && <p className={s.status} role="status">{note.line}</p>}
+          {tool.login.state === 'failed' && tool.login.line && <InlineError>{tool.login.line}</InlineError>}
+          {tool.tested === 'failed' && tool.problem && <InlineError>{tool.problem}</InlineError>}
           {tool.provider && <ProviderTrouble trouble={tool.provider} className={s.hint} />}
         </div>
       </Tile>
@@ -167,7 +179,9 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
       <h1 id={headingId} className={s.title}>{t('first-run.ai.title')}</h1>
       <p className={s.sub}>{t('first-run.ai.sub')}</p>
       <Bento className={s.grid} as="section" labelledBy={headingId}>
-        {view ? view.tools.map(toolTile) : <p className={s.status} role="status">{t('first-run.ai.checking')}</p>}
+        {view ? view.tools.map(toolTile) : tools.error
+          ? <InlineError className={s.wide} fix={{ label: t('first-run.ai.tryAgain'), onSelect: tools.reload }}>{tools.error.message}</InlineError>
+          : <p className={s.status} role="status">{t('first-run.ai.checking')}</p>}
         <Tile as="section" span={4} label={t('first-run.ai.key.name')} className={s.option} card>
           <div className={s.optionHead}><Icon name="lock" size={20} /><h2 className={s.optionName}>{t('first-run.ai.key.name')}</h2></div>
           <p className={s.optionLine}>{t('first-run.ai.key.line')}</p>
@@ -175,6 +189,7 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
           <div className={s.optionAction}>
             <Button size="lg" aria-expanded={keyOpen} onClick={() => setKeyOpen((open) => !open)}>{t('first-run.ai.key.add')}</Button>
             <p className={s.hint}>{t('first-run.ai.key.hint')}</p>
+            {keyProblem && <InlineError>{keyProblem}</InlineError>}
           </div>
         </Tile>
 
@@ -210,9 +225,6 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
           <Button variant="quiet" onClick={onSkip}>{t('first-run.ai.skip')}</Button>
         </Tile>
       </Bento>
-      {problem && <p className={s.problem} role="alert">{problem}</p>}
-      {note && <p className={s.status} role="status">{note}</p>}
-      {tools.error && <p className={s.problem} role="alert">{tools.error.message}</p>}
     </div>
   );
 }

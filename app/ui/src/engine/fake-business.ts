@@ -29,7 +29,9 @@ export interface DeskHost {
   country?(id: string): { code: string; currency: string };
   acceptCountry?(id: string, code: string): void;
   current(): string;
-  orders?(): {offerId:string;status:string}[];
+  orders?(): {id:string;offerId:string;status:string}[];
+  /** B4 task 7: the invoices of the open business, so an accepted price knows it was billed. */
+  invoices?(): {id:string;orderId:string}[];
   businessName(id: string): string;
   now(): string;
   /** The next receipt number, shared with the queue's receipts. */
@@ -77,8 +79,32 @@ const SYNTHETIC = 'These answers come from a synthetic recording of GitHub, not 
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
 const told = (value: string) => ({ value, label: 'told-by-you' as const, by: 'owner' as const });
 
+/** views/queue-actions.ts ACTION_WORDS, word for word. */
+const FAKE_PRICE_WORDS = {
+  back: (offer: string) => `You took back the new price for ${offer}.`,
+  inUse: 'Too late to undo: this price is already in use.',
+  planUndo: 'Your plan change is still a draft in the business menu. Accept it there.',
+} as const;
+
+/** The offers whose price or share differs between two versions (views/price-only.ts changedPrices). */
+function changedPrices(from: BlueprintLite, to: BlueprintLite): OfferLite[] {
+  return to.offers.filter((offer) => {
+    const before = from.offers.find((item) => item.id === offer.id);
+    return (before?.pricing.unitPriceMinor ?? null) !== offer.pricing.unitPriceMinor || (before?.pricing.share?.bps ?? null) !== (offer.pricing.share?.bps ?? null);
+  });
+}
+
+/** B4 task 7: one price accepted on one press, and what its Undo needs. */
+interface PricePress {
+  businessId: string; blueprintId: string; offer: string; offerName: string; before: BlueprintViewLite;
+  shown: readonly (readonly [string, string | undefined])[]; quoted: boolean; orders: readonly string[]; invoices: readonly string[];
+}
+
 export class FakeBusinessDesk {
   private readonly host: DeskHost;
+  private readonly presses = new Map<string, PricePress>();
+  /** Rows accepted that asked more than one price: their Undo is refused (views/queue-actions.ts planUndo). */
+  private readonly planPresses = new Set<string>();
   private models: Record<string, ModelStatusLite>;
   private draftAi: ModelStatusLite;
   private blueprints: Record<string, BlueprintViewLite>;
@@ -156,6 +182,69 @@ export class FakeBusinessDesk {
     view.blueprint.status = 'accepted';
     if (view.blueprint.country) this.host.acceptCountry?.(businessId, view.blueprint.country.code);
     this.keepAccepted(businessId, view);
+  }
+
+  /**
+   * B4 task 7, as views/price-only.ts priceOnlyOffer: the one offer whose price is all that changed between two versions,
+   * or null when anything else did. Two prices, or a price with any other change, keep the second ask.
+   */
+  private priceOnly(from: BlueprintLite, to: BlueprintLite): OfferLite | null {
+    const changed = changedPrices(from, to);
+    if (changed.length !== 1) return null;
+    const saying = (plan: BlueprintLite, offerId: string) => {
+      const { id: _id, at: _at, digest: _digest, status: _status, version: _version, source: _source, country: _country, ...rest } = plan;
+      return { ...rest, offers: rest.offers.map((offer) => {
+        if (offer.id !== offerId) return offer;
+        const { unitPriceMinor: _minor, unitPriceLabel: _label, share: _share, ...pricing } = offer.pricing;
+        return { ...offer, pricing };
+      }) };
+    };
+    const [offer] = changed as [OfferLite];
+    return this.host.digest(saying(from, offer.id)) === this.host.digest(saying(to, offer.id)) ? offer : null;
+  }
+
+  /** What the press on this row put aside, so its Undo restores it: taken before the plan row is accepted. */
+  pressed(rowId: string, businessId: string, blueprintId: string): boolean {
+    const view = this.blueprints[businessId];
+    const before = this.accepted[businessId];
+    const offer = view && before && view.blueprint.id === blueprintId ? this.priceOnly(before.blueprint, view.blueprint) : null;
+    if (!offer) { this.planPresses.add(rowId); return false; }
+    this.presses.set(rowId, {
+      businessId, blueprintId, offer: offer.id, offerName: offer.name.value, before: clone(before!),
+      shown: before!.blueprint.offers.map((item) => [item.id, this.prices[`accepted:${businessId}:${item.id}`]] as const),
+      quoted: false, ...this.usesNow(offer.id),
+    });
+    return true;
+  }
+
+  /** The orders and invoices of an offer so far (the engine reads their places in its record list). */
+  private usesNow(offerId: string): { orders: readonly string[]; invoices: readonly string[] } {
+    const orders = (this.host.orders?.() ?? []).filter((order) => order.offerId === offerId).map((order) => order.id);
+    return { orders, invoices: (this.host.invoices?.() ?? []).filter((invoice) => orders.includes(invoice.orderId)).map((invoice) => invoice.id) };
+  }
+
+  /**
+   * B4 task 7, as views/queue-actions.ts undoPriceAccept: the plan goes back to the previous version; this one is a draft
+   * again, so the same row comes back to decide anew. Null for a row with no such press, which the approvals desk answers.
+   */
+  undoPress(rowId: string): { restored: true; line: string; subject: string } | null {
+    if (this.planPresses.has(rowId)) throw new EngineError('UNDO_NOTHING', FAKE_PRICE_WORDS.planUndo);
+    const press = this.presses.get(rowId);
+    if (!press) return null;
+    const view = this.blueprints[press.businessId];
+    const uses = this.usesNow(press.offer);
+    const later = (now: readonly string[], then: readonly string[]) => now.some((id) => !then.includes(id));
+    if (!view || view.blueprint.id !== press.blueprintId || press.quoted || later(uses.orders, press.orders) || later(uses.invoices, press.invoices)) {
+      throw new EngineError('UNDO_TOO_LATE', FAKE_PRICE_WORDS.inUse);
+    }
+    this.presses.delete(rowId);
+    view.blueprint.status = 'draft';
+    this.accepted[press.businessId] = clone(press.before);
+    for (const [offerId, shown] of press.shown) {
+      if (shown === undefined) delete this.prices[`accepted:${press.businessId}:${offerId}`];
+      else this.prices[`accepted:${press.businessId}:${offerId}`] = shown;
+    }
+    return { restored: true, line: FAKE_PRICE_WORDS.back(press.offerName), subject: `plan:${press.businessId}` };
   }
 
   private keepAccepted(businessId: string, view: BlueprintViewLite): void {
@@ -495,11 +584,8 @@ export class FakeBusinessDesk {
     const accepted = this.accepted[biz]?.blueprint;
     const base = { id: `q-plan-${biz}-v${latest.version}`, businessId: biz, businessName: this.host.businessName(biz), createdAt: latest.at, line: latest.oneLiner.value, viewRef: { kind: 'plan' as const, id: latest.id } };
     let seed: Omit<QueueRow, 'digest'>;
-    const changes = accepted ? latest.offers.filter((o) => {
-      const before = accepted.offers.find((a) => a.id === o.id);
-      // 5A2: setting or changing a share is a price change too.
-      return (before?.pricing.unitPriceMinor ?? null) !== o.pricing.unitPriceMinor || (before?.pricing.share?.bps ?? null) !== (o.pricing.share?.bps ?? null);
-    }) : [];
+    // 5A2: setting or changing a share is a price change too.
+    const changes = accepted ? changedPrices(accepted, latest) : [];
     if (!accepted) {
       seed = { ...base, kind: 'plan', title: 'Your plan is ready. Read it.', actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, requiresView: true }] };
     } else if (changes.length === 0) {
@@ -510,7 +596,8 @@ export class FakeBusinessDesk {
         ...base, kind: 'price', title: changes.length === 1 ? `New price for ${first.name.value}` : 'New prices in your plan',
         line: rest.length ? `Also changes ${rest.map((o) => o.name.value).join(', ')}.` : 'Accept the plan to use it on new orders and invoices.',
         change: { label: first.name.value, before: this.priceText(accepted.offers.find((a) => a.id === first.id), `accepted:${biz}:${first.id}`), after: this.priceText(first, `${biz}:${first.id}`) },
-        actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, secondAsk: true }],
+        // B4 task 7: one price and nothing else is one press on the price the row shows.
+        actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, ...(this.priceOnly(accepted!, latest) ? {} : { secondAsk: true }) }],
       };
     }
     this.host.setRows([...rows, { ...seed, digest: this.host.digest(seed) }]);
@@ -548,6 +635,8 @@ export class FakeBusinessDesk {
         : `${offer.name.value} at ${display}, no discount, no tax added, because tax is not turned on for this price.`,
     };
     this.receipts.push(receipt);
+    // B4 task 7: a quote after the press uses the price, so its Undo is too late (views/price-only.ts priceInUse).
+    for (const press of this.presses.values()) if (press.businessId === biz && press.offer === offer.id) press.quoted = true;
     this.host.quote?.({ receiptId: receipt.id, at: receipt.at, offer: offer.name.value, quantity: quantityText, value: showMinor(unit * quantity), currency: view.blueprint.backOffice.currency, beforeTaxMinor: String(unit * quantity), explanation: receipt.explanation });
     view.offerReceipts[offer.id] = receipt;
     // B3: as the engine's price-quoted, one queue.changed tells every screen.

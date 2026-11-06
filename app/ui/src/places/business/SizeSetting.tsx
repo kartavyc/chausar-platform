@@ -5,6 +5,7 @@ import { Button } from '../../parts/Button';
 import { SizePicker, savedSize } from '../../parts/SizePicker';
 import type { SizeAnswersLite } from '../../engine/types';
 import { TileSection, messageOf } from './shared';
+import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './SizeSetting.module.css';
 
@@ -60,8 +61,7 @@ export function SizeSetting() {
             ))}
           </ul>
         )}
-        {problem && <p className={b.problem} role="alert">{problem}</p>}
-        {said && <p className={b.said} role="status">{t('business.size.saved')}</p>}
+        <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? (said ? t('business.size.saved') : null)}</ResultLine>
         <span className={b.buttons}>
           <Button variant="primary" type="submit" disabled={busy} aria-busy={busy || undefined}>{t('business.size.save')}</Button>
         </span>

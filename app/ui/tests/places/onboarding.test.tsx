@@ -153,7 +153,9 @@ describe('onboarding: errors in plain words under the box', () => {
   it('checks the sentence before asking the engine', async () => {
     const { calls } = start();
     const about = await skipAi();
-    await press('Send');
+    // B4: Send waits for words; Enter on the empty box still says what to do.
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(about, { key: 'Enter' });
     expect(screen.getByRole('alert').textContent).toBe('Write one sentence about what you want to start.');
     fireEvent.change(about, { target: { value: 'Dogs' } });
     await press('Send');

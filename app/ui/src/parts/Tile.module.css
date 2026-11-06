@@ -32,6 +32,16 @@
   padding: 0;
 }
 
+/* A plain tile (B4 task 1): the head and the words, no border, no shadow, no fill. Sections part by space. */
+.tile[data-plain] {
+  --ring-ground: var(--bg);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
 /* A stopped run keeps a red line only (no wash). */
 .tile[data-tone='fail'] {
   border-color: var(--fail-line);
@@ -53,6 +63,21 @@
 .panel[data-dept='prod'] { --ring-ground: var(--prod-tint); background: var(--prod-tint); border-color: var(--prod-line); }
 .panel[data-dept='money'] { --ring-ground: var(--money-tint); background: var(--money-tint); border-color: var(--money-line); }
 .panel[data-dept='ops'] { --ring-ground: var(--ops-tint); background: var(--ops-tint); border-color: var(--ops-line); }
+
+/* A stopped run's plain tile keeps its red line, at the start. */
+.tile[data-plain][data-tone='fail'] {
+  padding-left: var(--sp-3);
+  border-left: 2px solid var(--fail-line);
+}
+
+/* A plain department panel (B4): no tint, no line, no shadow; the department dot by its name says which. */
+.panel[data-plain] {
+  --ring-ground: var(--bg);
+  padding: 0;
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+}
 
 /* Columns in the bento. */
 .tile[data-span='3'], .panel[data-span='3'] { grid-column: span 3; }

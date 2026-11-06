@@ -129,6 +129,9 @@ describe('Money: invoices', () => {
     const sheet = await screen.findByRole('complementary', { name: 'Draft invoice' });
     await click(await within(sheet).findByRole('button', { name: 'Issue invoice' }));
     expect(sheet.textContent).toContain("Issue this invoice? It gets its number and can't be changed after.");
+    // B4: through the one Confirm: Cancel before the action, and no colour block.
+    const box = sheet.querySelector<HTMLElement>('[data-confirm-box]')!;
+    expect([...box.querySelectorAll('button')].map((button) => button.textContent)).toEqual(['Cancel', 'Issue']);
     await click(within(sheet).getByRole('button', { name: 'Cancel' }));
     expect(called(calls, 'venture.invoice.issue')).toEqual([]);
     await click(within(sheet).getByRole('button', { name: 'Issue invoice' }));

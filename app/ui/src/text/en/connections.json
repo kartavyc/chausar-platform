@@ -98,6 +98,8 @@
   "connections.bank.accountHint": "Your own name for it, like HDFC current.",
   "connections.bank.file": "Statement file (CSV)",
   "connections.bank.fileFirst": "Choose the statement file first.",
+  "connections.bank.accountFirst": "Name the account first.",
+  "connections.bank.needBoth": "Name the account and choose the statement file.",
   "connections.bank.import": "Import",
   "connections.bank.rejected": "Line {line}: {reason}",
   "connections.bankSheet.title": "Bank account",

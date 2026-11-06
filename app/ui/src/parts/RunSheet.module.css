@@ -13,9 +13,6 @@
 }
 
 .fold > summary {
-  cursor: pointer;
-  font-size: var(--text-read);
-  color: var(--fg2);
   padding: var(--sp-1) 0;
 }
 

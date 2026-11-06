@@ -24,6 +24,7 @@ import { OpenList } from './OwedTile';
 import { Amount, EngineWords, Failed, MoneyTile, Section } from './parts';
 import { byDue, onMoney, useDay } from './words';
 import s from './Money.module.css';
+import { Fold } from '../../parts/Fold';
 
 const PERIODS: readonly BooksPeriodKey[] = ['all', 'this-month', 'last-month', 'this-year'];
 const isPeriod = (value: string | undefined): value is BooksPeriodKey => PERIODS.includes(value as BooksPeriodKey);
@@ -65,10 +66,9 @@ export function Books() {
           </Bento>
           {first && <p className={s.notes}>{first}</p>}
           {more.length > 0 && (
-            <details className={s.fold}>
-              <summary>{t('money.books.about')}</summary>
+            <Fold summary={t('money.books.about')} className={s.fold}>
               {more.map((note) => <p key={note}>{note}</p>)}
-            </details>
+            </Fold>
           )}
           <Section title={t('money.books.open')}>
             {data.openInvoices.length === 0 ? <p className={s.quietLine}>{t('money.books.openNone')}</p> : <OpenList items={byDue(data.openInvoices)} balances={false} />}

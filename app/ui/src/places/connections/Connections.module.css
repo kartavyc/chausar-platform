@@ -128,15 +128,7 @@
 }
 
 .fold > summary {
-  display: inline-flex;
-  align-items: center;
   min-height: var(--target);
-  color: var(--link);
-  cursor: pointer;
-}
-
-.fold > summary:hover {
-  color: var(--link-hover);
 }
 
 .choiceGroup + .choiceGroup {
@@ -691,25 +683,6 @@
 
 .networkFold > .note {
   margin-bottom: var(--sp-3);
-}
-
-.networkSummary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  min-height: var(--control-sm);
-  font-size: var(--text-read);
-  color: var(--fg2);
-  cursor: pointer;
-  list-style: none;
-}
-
-.networkSummary::-webkit-details-marker {
-  display: none;
-}
-
-.networkFold[open] > .networkSummary > svg {
-  transform: rotate(90deg);
 }
 
 /* W6 6C7: the quiet way to the services this business needs (#/connections/needs). */

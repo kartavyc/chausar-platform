@@ -143,6 +143,17 @@ describe('the facts under the line', () => {
     expect(within(article).getByText('Sends to the client')).toBeTruthy();
   });
 
+  describe('the count of one price (B4)', () => {
+    const count = { line: '1 price changed', details: ['Monthly books: ₹10,000 to ₹12,000'], coverage: "This comparison doesn't cover wording changes." };
+    const one: QueueRow = { ...plan, kind: 'price', changeCount: count, amounts: [], actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true }] };
+    it('one press has no fold: the card shows all of it', () => {
+      expect(card(one).article.querySelector('[data-change-count]')).toBeNull();
+    });
+    it('a price that asks twice changes more, so it keeps its fold', () => {
+      expect(card({ ...one, actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, secondAsk: true }] }).article.querySelector('[data-change-count]')).not.toBeNull();
+    });
+  });
+
   it('a plan shows its change count with the details folded, each amount with its receipt, and the coverage line', () => {
     const { article } = card(plan);
     const fold = article.querySelector<HTMLDetailsElement>('details[data-change-count]')!;

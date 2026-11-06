@@ -13,6 +13,8 @@ import type { SellerSkuBody } from '../../../../../../platform/runtime/venture/p
 import s from './OnlineSellerDesk.module.css';
 import {SellerOperations} from './SellerOperations';
 import {SellerConnections} from './SellerConnections';
+import { Select } from '../../../parts/Select';
+import { FilePick } from '../../../parts/FilePick';
 type Report = SellerSkuBody & { id: string };
 type Row = { id: string; orderId: string; mode: SellerMode; sourceName: string; figures: SellerSkuBody['figures'] };
 type Result = { coverage?: { present: number; of: number }; score?: number | null; questions?: { field: string }[]; findings?: { code: string }[]; india?: { findings: { code: string }[] } | null; reconciles?: boolean | null; breakEven?: { bps: string; basis: string } | null; triage?: { phrase: string; action: string }[]; rows?: { orderId: string; holdReasons: string[]; differences: { kind: string; source: string }[] }[] };
@@ -87,15 +89,15 @@ export function OnlineSellerDesk() {
         {ownOffer && <Button variant="quiet" disabled={busy} locked={ownOffer.pricing.unitPriceMinor === null} lockedReason={t('pb-online-seller.ownPrice')} onClick={() => void startOwnShop()}>{t('pb-online-seller.ownStart')}</Button>}
         <form className={s.form} onSubmit={event => void submit(event)} aria-label={t('pb-online-seller.title')}>
           <label htmlFor={orderId}>{t('pb-online-seller.order')}</label>
-          <select id={orderId} className={s.select} value={selectedOrder} onChange={event => setOrder(event.currentTarget.value)}>
+          <Select id={orderId} className={s.select} value={selectedOrder} onChange={event => setOrder(event.currentTarget.value)}>
             {!openOrders.length && <option value="">{t('pb-online-seller.pickOrder')}</option>}
             {openOrders.map(item => <option key={item.id} value={item.id}>{item.request}</option>)}
-          </select>
+          </Select>
           <label htmlFor={modeId}>{t('pb-online-seller.mode')}</label>
-          <select id={modeId} className={s.select} value={mode} onChange={event => setMode(event.currentTarget.value as SellerMode)}>{modes.map(value => <option key={value} value={value}>{t(`pb-online-seller.mode.${value}`)}</option>)}</select>
-          <Field type="file" accept=".csv,text/csv" label={t('pb-online-seller.file')} hint={t('pb-online-seller.fileHelp')} onChange={event => setFile(event.currentTarget.files?.[0] ?? null)} />
-          {mode === 'ads' && <Field type="file" accept=".csv,text/csv" label={t('pb-online-seller.economicsFile')} onChange={event => setEconomics(event.currentTarget.files?.[0] ?? null)} />}
-          {mode === 'listing' && <Field type="file" accept="image/png,image/jpeg,image/webp" multiple label={t('pb-online-seller.photos')} hint={t('pb-online-seller.photosHelp')} onChange={event => setPhotos(Array.from(event.currentTarget.files ?? []))} />}
+          <Select id={modeId} className={s.select} value={mode} onChange={event => setMode(event.currentTarget.value as SellerMode)}>{modes.map(value => <option key={value} value={value}>{t(`pb-online-seller.mode.${value}`)}</option>)}</Select>
+          <FilePick accept=".csv,text/csv" label={t('pb-online-seller.file')} hint={t('pb-online-seller.fileHelp')} onChange={event => setFile(event.currentTarget.files?.[0] ?? null)} />
+          {mode === 'ads' && <FilePick accept=".csv,text/csv" label={t('pb-online-seller.economicsFile')} onChange={event => setEconomics(event.currentTarget.files?.[0] ?? null)} />}
+          {mode === 'listing' && <FilePick accept="image/png,image/jpeg,image/webp" multiple label={t('pb-online-seller.photos')} hint={t('pb-online-seller.photosHelp')} files={photos} onChange={event => setPhotos(Array.from(event.currentTarget.files ?? []))} onRemove={index => setPhotos(photos.filter((_, at) => at !== index))} />}
           <div className={s.actions}>
             <Button variant="quiet" onClick={downloadTemplate}>{t('pb-online-seller.template')}</Button>
             <Button type="submit" variant="primary" disabled={busy} locked={!file || !selectedOrder} lockedReason={t('pb-online-seller.locked')}>{t(busy ? 'pb-online-seller.wait' : 'pb-online-seller.check')}</Button>

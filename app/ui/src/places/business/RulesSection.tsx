@@ -7,6 +7,7 @@ import { onDesktop, safeUrl } from '../connections/external';
 import { TileSection, dayOf } from './shared';
 import s from './Business.module.css';
 import r from './RulesSection.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** The risk levels a playbook registration may carry (playbooks/registry.ts). */
 const RISKS = ['low', 'medium', 'high'];
@@ -65,8 +66,7 @@ export function RulesSection() {
             </div>
           )}
           {current.length > 0 && (
-            <details className={s.fold}>
-              <summary id={currentId}>{t('business.rules.current')}</summary>
+            <Fold summary={t('business.rules.current')} className={s.fold} summaryId={currentId}>
               <ul className={s.steps} aria-labelledby={currentId}>
                 {current.map((rule) => (
                   <li key={rule.id} className={s.step} data-rule={rule.id}>
@@ -81,7 +81,7 @@ export function RulesSection() {
                   </li>
                 ))}
               </ul>
-            </details>
+            </Fold>
           )}
         </>
       )}

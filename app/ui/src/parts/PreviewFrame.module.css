@@ -253,8 +253,6 @@
   font-size: var(--text-label);
   font-weight: var(--weight-strong);
   line-height: 16px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--mute);
 }
 

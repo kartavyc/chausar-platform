@@ -16,6 +16,8 @@ import { RulesSection } from './RulesSection';
 import { Recipes } from './Recipes';
 import s from './Business.module.css';
 import fields from '../../parts/Field.module.css';
+import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 /**
  * Plan and playbook (venture.blueprint.get) in the D look: the plan's name and one line with who it is for, how far
@@ -86,12 +88,11 @@ export function PlanView() {
                   </li>
                 ))}
               </ol>
-              <details className={s.fold}>
-                <summary>{t('business.stepsMore')}</summary>
+              <Fold summary={t('business.stepsMore')} className={s.fold}>
                 <div className={s.foldBody}>
                   {bp.deliverySteps.map((step) => <p key={step.id} className={s.line}>{step.title.value}: {step.note}</p>)}
                 </div>
-              </details>
+              </Fold>
             </>
           )}
         </TileSection>
@@ -150,8 +151,7 @@ function Checklist({ items }: { items: ChecklistItemLite[] }) {
           </ul>
         </>
       )}
-      <details className={s.fold}>
-        <summary>{t('business.owner.allSteps', { count: String(items.length) })}</summary>
+      <Fold summary={t('business.owner.allSteps', { count: String(items.length) })} className={s.fold}>
         <ul className={cx(s.foldBody, s.list)}>
           {items.map((item) => (
             <li key={item.id} className={cx(s.line, s.checkItem)}>
@@ -160,7 +160,7 @@ function Checklist({ items }: { items: ChecklistItemLite[] }) {
             </li>
           ))}
         </ul>
-      </details>
+      </Fold>
     </>
   );
 }
@@ -176,15 +176,14 @@ function BackOffice({ plan }: { plan: BlueprintLite }) {
     <TileSection title={t('business.backOffice')}>
       <p className={s.line}>{t('business.invoicesIn', { currency: office.currency })}</p>
       {office.taxRegistered.value && (
-        <details className={s.fold}>
-          <summary>{t('business.taxDetails')}</summary>
+        <Fold summary={t('business.taxDetails')} className={s.fold}>
           <div className={s.foldBody}>
             <p className={s.line} data-tax-line="">{t('business.taxRegisteredLine', { tax: office.taxLabel })}<LabelTag line={office.taxRegistered} /></p>
             {office.taxInvoiceMissing.length > 0 && (
               <p className={s.note} data-tax-line="">{t('business.taxMissing', { list: office.taxInvoiceMissing.join(', ') })}</p>
             )}
           </div>
-        </details>
+        </Fold>
       )}
     </TileSection>
   );
@@ -272,13 +271,9 @@ function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: (
 
   return (
     <form className={s.form} onSubmit={(event) => void save(event)}>
-      <div className={fields.field}>
-        <label className={fields.label} htmlFor={countryId}>{t('business.country')}</label>
-        <select className={fields.input} id={countryId} value={countryCode} onChange={event => setCountryChoice(event.currentTarget.value)} aria-describedby={countryCode !== initialCountry ? countryId + '-warning' : undefined}>
+      <Select label={t('business.country')} id={countryId} value={countryCode} onChange={event => setCountryChoice(event.currentTarget.value)} hint={countryCode !== initialCountry ? t('business.countryChange') : undefined}>
           {(countries.data ?? []).map(country => <option key={country.code} value={country.code}>{country.name}</option>)}
-        </select>
-        {countryCode !== initialCountry && <p id={countryId + '-warning'} className={fields.hint}>{t('business.countryChange')}</p>}
-      </div>
+      </Select>
       <Field label={t('business.fieldName')} value={name} maxLength={60} onChange={(event) => setName(event.currentTarget.value)} />
       <Field label={t('business.fieldOneLiner')} value={oneLiner} maxLength={160} onChange={(event) => setOneLiner(event.currentTarget.value)} />
       <Field multiline label={t('business.fieldCustomer')} value={customer} maxLength={200} rows={2} onChange={(event) => setCustomer(event.currentTarget.value)} />

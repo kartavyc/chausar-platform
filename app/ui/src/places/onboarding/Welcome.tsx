@@ -11,6 +11,7 @@ import { DeletedNote } from '../business/KeepMore';
 import { Brand } from './Start';
 import { ByFolder, MoveHere, Recover, RestoreBackup } from './WelcomeWays';
 import s from './Onboarding.module.css';
+import { Fold } from '../../parts/Fold';
 
 type Way = { kind: 'list' } | { kind: 'recover'; folder?: string | undefined } | { kind: 'restore' } | { kind: 'move' } | { kind: 'folder' };
 
@@ -50,7 +51,7 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
       <Shell status={status}>
         {way.kind === 'recover' && <Recover businesses={businesses} chosen={way.folder} {...shared} />}
         {way.kind === 'restore' && <RestoreBackup {...shared} />}
-        {way.kind === 'move' && <MoveHere {...shared} />}
+        {way.kind === 'move' && <MoveHere {...shared} businesses={businesses} onOpen={(business) => { back(); void choose(business); }} />}
         {way.kind === 'folder' && <ByFolder {...shared} />}
       </Shell>
     );
@@ -88,14 +89,13 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
         {!hosted && <Button variant="quiet" onClick={() => setWay({ kind: 'move' })}>{t('onboarding.welcome.moveHere')}</Button>}
       </div>
       {!hosted && (
-        <details className={s.more}>
-          <summary>{t('onboarding.welcome.more')}</summary>
+        <Fold summary={t('onboarding.welcome.more')} className={s.more}>
           <div className={s.actions}>
             <Button variant="quiet" onClick={() => setWay({ kind: 'restore' })}>{t('onboarding.welcome.restore')}</Button>
             <Button variant="quiet" onClick={() => setWay({ kind: 'recover' })}>{t('onboarding.welcome.useCode')}</Button>
             {(!complete || empty) && <Button variant="quiet" onClick={() => setWay({ kind: 'folder' })}>{t('onboarding.welcome.byFolder')}</Button>}
           </div>
-        </details>
+        </Fold>
       )}
     </Shell>
   );
@@ -106,7 +106,7 @@ function Shell({ status, children }: { status: ReactNode; children: ReactNode })
   return (
     <div className={s.first}>
       <div>{status}</div>
-      <main id="main" tabIndex={-1} className={s.firstMain}>
+      <main id="main" tabIndex={-1} className={s.firstMain} data-anchored="">
         <div className={s.alone}>
           <Brand />
           {children}

@@ -1,17 +1,22 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { useOwnerZone } from '../../shell/clock';
 import { formatClock, formatDay, formatTime } from '../../../../../platform/runtime/owner-format';
 import { Button } from '../../parts/Button';
+import { Confirm } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
+import { InlineError } from '../../parts/InlineError';
 import { stateText } from '../../parts/states';
-import type { AgentView, RoutineSchedule, RoutineView } from '../../engine/types';
+import { EngineError, type AgentView, type RoutineSchedule, type RoutineView } from '../../engine/types';
 import { Tile, TileHead } from '../../parts/Tile';
 import { dayOf, messageOf } from './shared';
 import { ModelReceipt } from '../../parts/ModelReceipt';
+import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
 import r from './RoutinesView.module.css';
+import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 /** Days as the engine numbers them: 1 Monday to 7 Sunday. */
 const DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
@@ -49,20 +54,41 @@ function listOf(items: string[], t: T): string {
   return items.length <= 1 ? items.join('') : t('business.routines.and', { first: items.slice(0, -1).join(', '), last: items.at(-1)! });
 }
 
-/** A second ask under a button: the question, Not now (focused first) and the action again. */
-function Ask({ ask, label, busy, onYes, onNo }: { ask: string; label: string; busy: boolean; onYes: () => void; onNo: () => void }) {
+/**
+ * A routine's refusal, in the slot of what failed (B4 task 4). "Check your AI first" carries Check now, which runs the
+ * Connections check: the line clears on the press, says Checking..., and the same routine goes again.
+ */
+function useRoutineProblem() {
   const t = useT();
-  const cancel = useRef<HTMLButtonElement>(null);
-  useEffect(() => { cancel.current?.focus(); }, []);
-  return (
-    <div className={s.foldBody} data-second-ask="">
-      <p className={s.line}>{ask}</p>
-      <div className={s.buttons}>
-        <Button ref={cancel} variant="quiet" disabled={busy} onClick={onNo}>{t('approval.cancel')}</Button>
-        <Button variant="primary" disabled={busy} aria-busy={busy || undefined} onClick={onYes}>{label}</Button>
-      </div>
-    </div>
-  );
+  const client = useEngine();
+  const [problem, setProblem] = useState<{ line: string; again?: () => void } | null>(null);
+  const [checking, setChecking] = useState(false);
+  function refused(key: 'business.routines.failed' | 'business.routines.saveFailed', error: unknown, again: () => void) {
+    const line = t(key, { message: messageOf(error) });
+    setProblem(error instanceof EngineError && error.code === 'ROUTINE_NEEDS_CHECK' ? { line, again } : { line });
+  }
+  async function checkNow(again: () => void) {
+    setProblem(null);
+    setChecking(true);
+    try {
+      await client.request('venture.connectors.check', {});
+      setChecking(false);
+      again();
+    } catch (error) {
+      setChecking(false);
+      setProblem({ line: t('business.routines.saveFailed', { message: messageOf(error) }) });
+    }
+  }
+  const again = problem?.again;
+  const node = checking ? <p className={s.note} role="status">{t('business.routines.checking')}</p>
+    : problem ? <InlineError tone={again ? 'expected' : 'failure'} fix={again ? { label: t('business.routines.checkNow'), onSelect: () => void checkNow(again) } : undefined}>{problem.line}</InlineError>
+      : null;
+  return { node, refused, clear: () => setProblem(null) };
+}
+
+/** A second ask under a button: the question, Cancel (focused first) and the action again. */
+function Ask({ ask, label, busy, onYes, onNo }: { ask: string; label: string; busy: boolean; onYes: () => void; onNo: () => void }) {
+  return <div className={s.foldBody}><Confirm action={label} busy={busy} onCancel={onNo} onConfirm={onYes}><p className={s.line}>{ask}</p></Confirm></div>;
 }
 
 /**
@@ -89,7 +115,7 @@ export function RoutinesView() {
       {list.error && !list.data && <p className={s.problem} role="alert">{t('business.failed', { message: list.error.message })}</p>}
       {!list.data && !list.error && <p className={s.note}>{t('business.loading')}</p>}
       {list.data && routines.length === 0 && <p className={s.line}>{t('business.routines.none')}</p>}
-      {said && <p className={s.note} role="status">{said}</p>}
+      <ResultLine>{said}</ResultLine>
       {routines.length > 0 && (
         <div className={r.list}>
           {routines.map((routine) => <RoutineCard key={routine.id} routine={routine} agents={agents} zone={firstZone} onChanged={changed} />)}
@@ -107,14 +133,14 @@ function RoutineCard({ routine, agents, zone, onChanged }: { routine: RoutineVie
   const [asking, setAsking] = useState<'toggle' | 'remove' | null>(null);
   const [changing, setChanging] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const problem = useRoutineProblem();
   const who = routine.agent === null ? t('business.routines.chausar') : agents.find((agent) => agent.id === routine.agent)?.name ?? routine.agent;
 
   async function act(work: () => Promise<string | undefined>) {
     setBusy(true);
-    setProblem(null);
+    problem.clear();
     try { onChanged(await work()); } catch (error) {
-      setProblem(t('business.routines.failed', { message: messageOf(error) }));
+      problem.refused('business.routines.failed', error, () => void act(work));
     } finally { setBusy(false); setAsking(null); }
   }
 
@@ -146,11 +172,11 @@ function RoutineCard({ routine, agents, zone, onChanged }: { routine: RoutineVie
       ) : (
         mayChange && <div className={s.buttons}>
           <Button variant="quiet" onClick={() => setAsking('remove')}>{t('business.routines.remove')}</Button>
-          <Button variant="quiet" onClick={() => { setProblem(null); setChanging(true); }}>{t('business.routines.change')}</Button>
-          <Button onClick={() => { setProblem(null); setAsking('toggle'); }}>{t(offOrOn)}</Button>
+          <Button variant="quiet" onClick={() => { problem.clear(); setChanging(true); }}>{t('business.routines.change')}</Button>
+          <Button onClick={() => { problem.clear(); setAsking('toggle'); }}>{t(offOrOn)}</Button>
         </div>
       )}
-      {problem && <p className={s.problem} role="alert">{problem}</p>}
+      {problem.node}
     </Tile>
   );
 }
@@ -162,8 +188,7 @@ function History({ id }: { id: string }) {
   const [open, setOpen] = useState(false);
   const runs = useResource('venture.routines.runs', { id }, { skip: !open });
   return (
-    <details className={s.fold} data-fold="history" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{t('business.routines.history')}</summary>
+    <Fold summary={t('business.routines.history')} className={s.fold} data-fold="history" onToggle={(event) => setOpen(event.currentTarget.open)}>
       {runs.data && runs.data.runs.length === 0 && <p className={s.note}>{t('business.routines.noRuns')}</p>}
       {runs.data && runs.data.runs.length > 0 && (
         <ul className={s.log}>
@@ -177,7 +202,7 @@ function History({ id }: { id: string }) {
           ))}
         </ul>
       )}
-    </details>
+    </Fold>
   );
 }
 
@@ -185,10 +210,9 @@ function History({ id }: { id: string }) {
 function AddRoutine({ agents, zone, onAdded }: { agents: AgentView[]; zone: string; onAdded: () => void }) {
   const t = useT();
   return (
-    <details className={s.fold} data-fold="add-routine">
-      <summary>{t('business.routines.add')}</summary>
+    <Fold summary={t('business.routines.add')} className={s.fold} data-fold="add-routine">
       <RoutineForm agents={agents} zone={zone} onSaved={onAdded} />
-    </details>
+    </Fold>
   );
 }
 
@@ -207,23 +231,27 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
   const [days, setDays] = useState<number[]>(calendar ? [...calendar.weekdays] : []);
   const [time, setTime] = useState(calendar?.time ?? '09:00');
   const [timeZone, setTimeZone] = useState(calendar?.timeZone ?? zone);
-  const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const problem = useRoutineProblem();
   useEffect(() => { if (!initial) setTimeZone(zone); }, [zone, initial]);
   const keeps = initial !== undefined && calendar === null;
   const ready = name.trim() !== '' && prompt.trim() !== '' && (keeps || (days.length > 0 && time !== '' && timeZone.trim() !== ''));
+  /** The first thing still missing, said under Save routine (B4). */
+  const missing = ready ? undefined
+    : name.trim() === '' ? t('business.routines.needName')
+      : prompt.trim() === '' ? t('business.routines.needPrompt')
+        : days.length === 0 ? t('business.routines.needDay')
+          : t('business.routines.needTime');
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!ready) return;
-    setProblem(null);
-    setAsking(true);
+    if (!ready || busy) return;
+    void save();
   }
 
   async function save() {
     setBusy(true);
-    setProblem(null);
+    problem.clear();
     try {
       const schedule: RoutineSchedule = keeps ? initial!.schedule : { kind: 'calendar', weekdays: [...days].sort((a, b) => a - b), time, timeZone: timeZone.trim() };
       await client.request('venture.routines.set', { routine: {
@@ -232,21 +260,18 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
       if (!initial) { setName(''); setPrompt(''); setDays([]); }
       onSaved();
     } catch (error) {
-      setProblem(t('business.routines.saveFailed', { message: messageOf(error) }));
-    } finally { setBusy(false); setAsking(false); }
+      problem.refused('business.routines.saveFailed', error, () => void save());
+    } finally { setBusy(false); }
   }
 
   const toggleDay = (day: number) => setDays((now) => (now.includes(day) ? now.filter((d) => d !== day) : [...now, day]));
   return (
     <form aria-label={initial ? t('business.routines.changeOf', { name: initial.name }) : t('business.routines.add')} className={r.form} onSubmit={submit}>
       <Field label={t('business.routines.name')} value={name} maxLength={80} onChange={(event) => setName(event.currentTarget.value)} />
-      <label className={r.select}>
-        <span className={r.legend}>{t('business.routines.who')}</span>
-        <select value={agent} onChange={(event) => setAgent(event.currentTarget.value)}>
+      <Select label={t('business.routines.who')} value={agent} onChange={(event) => setAgent(event.currentTarget.value)}>
           <option value="">{t('business.routines.chausar')}</option>
           {agents.map((one) => <option key={one.id} value={one.id}>{one.name}</option>)}
-        </select>
-      </label>
+        </Select>
       <Field multiline rows={3} label={t('business.routines.prompt')} hint={t('business.routines.promptHint')} value={prompt} maxLength={2000} onChange={(event) => setPrompt(event.currentTarget.value)} />
       {keeps ? <p className={s.note}>{initial!.when}</p> : (
         <>
@@ -265,15 +290,12 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
           </div>
         </>
       )}
-      {asking ? (
-        <Ask ask={t('business.routines.saveAsk')} label={t('business.routines.save')} busy={busy} onNo={() => setAsking(false)} onYes={() => void save()} />
-      ) : (
-        <div className={s.buttons}>
-          {onCancel && <Button variant="quiet" onClick={onCancel}>{t('approval.cancel')}</Button>}
-          <Button type="submit" disabled={!ready}>{t('business.routines.saveRoutine')}</Button>
-        </div>
-      )}
-      {problem && <p className={s.problem} role="alert">{problem}</p>}
+      {/* B4 (192.d1): saved on one press. The page's lead already says each run waits for approval on Today. */}
+      <div className={s.buttons}>
+        {onCancel && <Button onClick={onCancel}>{t('approval.cancel')}</Button>}
+        <Button type="submit" disabled={busy} disabledReason={missing}>{t('business.routines.saveRoutine')}</Button>
+      </div>
+      {problem.node}
     </form>
   );
 }

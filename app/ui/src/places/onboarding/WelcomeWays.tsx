@@ -5,10 +5,14 @@ import { useEngine, useResource } from '../../engine/context';
 import type { BackupLite, ParamsOf } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
+import { InlineError } from '../../parts/InlineError';
 import { NewPassphrase } from '../../parts/Secret';
 import { TRANSFER_MAX_CHARS, codeOf, momentOf, newPassphraseProblem, refusalWords } from '../../parts/custody';
 import type { Openable } from './boot';
 import s from './Onboarding.module.css';
+import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
+import { FilePick } from '../../parts/FilePick';
 
 /**
  * The ways into a business that is not open, beside Welcome back's list (app/renderer/launch.js showRecover,
@@ -93,9 +97,9 @@ export function Recover({ businesses, chosen, onOpened, onBack }: WayProps & { b
         {businesses.length > 0 ? (
           <div className={s.field}>
             <label htmlFor={selectId} className={s.fieldLabel}>{t('onboarding.recover.business')}</label>
-            <select id={selectId} className={s.select} value={folder} onChange={(event) => setFolder(event.currentTarget.value)}>
+            <Select id={selectId} className={s.select} value={folder} onChange={(event) => setFolder(event.currentTarget.value)}>
               {businesses.map((b) => <option key={b.key} value={b.key}>{b.name ?? b.key}</option>)}
-            </select>
+            </Select>
           </div>
         ) : (
           <Field label={t('onboarding.recover.folder')} value={folder} spellCheck={false} maxLength={64} onChange={(event) => setFolder(event.currentTarget.value)} />
@@ -124,12 +128,11 @@ export function RestoreBackup({ onOpened, onBack }: WayProps) {
       {!found.data && !found.error && <p className={s.progress} role="status">{t('onboarding.restore.reading')}</p>}
       {found.data && groups.size === 0 && <p className={s.note}>{t('onboarding.restore.none')}</p>}
       {[...groups.entries()].map(([name, backups], index) => (
-        <details key={name} className={s.more} open={index === 0}>
-          <summary>{name}</summary>
+        <Fold summary={name} key={name} className={s.more} open={index === 0}>
           <ul className={s.backups} aria-label={name}>
             {backups.map((backup) => <RestoreRow key={backup.file} backup={backup} onOpened={onOpened} />)}
           </ul>
-        </details>
+        </Fold>
       ))}
     </Way>
   );
@@ -203,22 +206,37 @@ function RestoreRow({ backup, onOpened }: { backup: BackupLite; onOpened: () => 
   );
 }
 
+/** Which business a move file holds: the engine's envelope id (the fake's `business`). Not a secret; never sent. */
+function idOfMoveFile(text: string): string | null {
+  try {
+    const file = JSON.parse(text) as { envelope?: { id?: unknown }; business?: unknown };
+    const id = file.envelope?.id ?? file.business;
+    return typeof id === 'string' ? id : null;
+  } catch { return null; }
+}
+
 /**
  * Move a business here: the file from the other computer and its one-time code. The browser's own file control stays
  * hidden; Chausar's button opens it. The code field sits outside any form, so no browser offers to keep it.
  */
-export function MoveHere({ onOpened, onBack }: WayProps) {
+export function MoveHere({ businesses, onOpen, onOpened, onBack }: WayProps & { businesses: readonly Openable[]; onOpen: (business: Openable) => void }) {
   const t = useT();
   const client = useEngine();
-  const picker = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [code, setCode] = useState('');
   const pair = useNewPassphrase();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // B4: the file this computer already holds: typing a code can't fix that, so Move it here waits for another file.
+  const [alreadyHere, setAlreadyHere] = useState<File | null>(null);
+  /** B4 task 4: the business of a file already on this computer, opened from the line; null when the list can't name it. */
+  const [here, setHere] = useState<Openable | null>(null);
+  const [codeWrong, setCodeWrong] = useState<string | null>(null);
+  const missing = !file ? t('onboarding.move.fileFirst') : file === alreadyHere ? t('onboarding.move.anotherFile') : !code.trim() ? t('onboarding.move.codeFirst') : undefined;
 
   async function move() {
     if (!file) { setProblem(t('onboarding.move.fileFirst')); return; }
+    if (file === alreadyHere) return;
     let fileText = await file.text();
     if (fileText.length > TRANSFER_MAX_CHARS) { setProblem(t('custody.tooLarge')); return; }
     const transferCode = code.trim();
@@ -231,12 +249,19 @@ export function MoveHere({ onOpened, onBack }: WayProps) {
     pair.clear();
     setBusy(true);
     setProblem(null);
+    setCodeWrong(null);
     try {
       await client.request('workspace.transfer.import', payload);
       onOpened();
     } catch (error) {
       if (codeOf(error) === 'DEVICE_KEYS_UNAVAILABLE' && !pair.wanted) pair.show(messageOf(error));
+      else if (codeOf(error) === 'TRANSFER_CODE_WRONG') setCodeWrong(refusalWords(error, t));
       else setProblem(refusalWords(error, t));
+      if (codeOf(error) === 'TRANSFER_SAME_BUSINESS') {
+        setAlreadyHere(file);
+        const id = idOfMoveFile(fileText);
+        setHere(businesses.find((business) => business.key === id) ?? null);
+      }
       setBusy(false);
     } finally {
       // The file's text and the code leave memory with the request.
@@ -251,18 +276,14 @@ export function MoveHere({ onOpened, onBack }: WayProps) {
   return (
     <Way title={t('onboarding.move.title')} lead={t('onboarding.move.lead')} onBack={onBack}>
       <div className={s.ask}>
-        <div className={s.file}>
-          <Button onClick={() => picker.current?.click()}>{t('onboarding.move.choose')}</Button>
-          <span className={s.note}>{file ? file.name : t('onboarding.move.noFile')}</span>
-          <input
-            ref={picker} type="file" hidden tabIndex={-1} accept=".backup,application/json" aria-label={t('onboarding.move.file')}
-            onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setProblem(null); }}
-          />
-        </div>
-        <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} onChange={(event) => setCode(event.currentTarget.value)} onKeyDown={onEnter} />
+        <FilePick
+          choose={t('onboarding.move.choose')} accept=".backup,application/json" aria-label={t('onboarding.move.file')}
+            onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setProblem(null); setCodeWrong(null); setHere(null); }}
+        />
+        <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} error={codeWrong ?? undefined} onChange={(event) => { setCode(event.currentTarget.value); setCodeWrong(null); }} onKeyDown={onEnter} />
         {pair.node}
-        {problem && <p className={s.problem} role="alert">{problem}</p>}
-        <div className={s.actions}><Button variant="primary" disabled={busy} onClick={() => void move()}>{t('onboarding.move.go')}</Button></div>
+        {problem && <InlineError fix={here ? { label: t('onboarding.move.open', { name: here.name ?? t('onboarding.welcome.noName') }), onSelect: () => onOpen(here) } : undefined}>{problem}</InlineError>}
+        <div className={s.actions}><Button variant="primary" disabled={busy} disabledReason={busy ? undefined : missing} onClick={() => void move()}>{t('onboarding.move.go')}</Button></div>
       </div>
     </Way>
   );

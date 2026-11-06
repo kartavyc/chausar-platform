@@ -4,11 +4,13 @@ import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import type { BackupLite, Deleted, MoveFile, UnlockMode } from '../../engine/types';
 import { Button } from '../../parts/Button';
+import { Confirm } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { CodeGroups } from '../../parts/Secret';
 import { momentOf, refusalWords, saveTextFile } from '../../parts/custody';
 import { LeftContext, StartedContext } from '../onboarding/started';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * The rest of Keep this business: what the old app's "Your workspace" menu and its Trust & access panel offered for
@@ -49,8 +51,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
   }
 
   return (
-    <details className={s.fold}>
-      <summary>{t('business.allBackups', { count: String(backups.length) })}</summary>
+    <Fold summary={t('business.allBackups', { count: String(backups.length) })} className={s.fold}>
       <ul className={s.list}>
         {backups.map((backup) => (
           <li key={backup.file} className={s.backupRow}>
@@ -59,20 +60,17 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
               <span className={s.quiet}>{`${t(`custody.kind.${backup.kind}`)}. ${t(backup.opensNow ? 'custody.opensNow' : 'custody.opensOlder')}`}</span>
               {asking !== backup.file && <Button variant="quiet" onClick={() => { setAsking(backup.file); setProblem(null); }}>{t('business.restore')}</Button>}
             </div>
+            {/* B4 (208.f1): the ask's buttons stay on the right, like every row's action. */}
             {asking === backup.file && (
-              <>
+              <Confirm action={t('business.restoreGo')} cancelLabel={t('business.restoreKeep')} busy={busy} onCancel={() => setAsking(null)} onConfirm={() => void restore(backup)}>
                 <p className={s.line}>{t('business.restoreAsk')}</p>
-                <div className={s.buttons}>
-                  <Button variant="primary" disabled={busy} onClick={() => void restore(backup)}>{t('business.restoreGo')}</Button>
-                  <Button variant="quiet" disabled={busy} onClick={() => setAsking(null)}>{t('business.restoreKeep')}</Button>
-                </div>
-              </>
+              </Confirm>
             )}
             {problem?.file === backup.file && <p className={s.problem} role="alert">{problem.text}</p>}
           </li>
         ))}
       </ul>
-    </details>
+    </Fold>
   );
 }
 
@@ -119,8 +117,7 @@ export function MoveAway({ locked }: { locked: boolean }) {
   }
 
   return (
-    <details className={s.fold}>
-      <summary>{t('business.move')}</summary>
+    <Fold summary={t('business.move')} className={s.fold}>
       {made ? (
         <div>
           <p className={s.line}>{t('business.moveCodeOnce')}</p>
@@ -143,7 +140,7 @@ export function MoveAway({ locked }: { locked: boolean }) {
           <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.moveMake')}</Button></div>
         </form>
       )}
-    </details>
+    </Fold>
   );
 }
 
@@ -173,7 +170,7 @@ export function CloseBusiness({ unlock }: { unlock: UnlockMode | null }) {
 
   return (
     <section className={s.moreRow} aria-label={t(locked ? 'business.lock' : 'business.close')}>
-      <div className={s.buttons}><Button disabled={busy} onClick={() => void close()}>{t(locked ? 'business.lock' : 'business.close')}</Button></div>
+      <div className={s.buttons}><Button variant="quiet" disabled={busy} onClick={() => void close()}>{t(locked ? 'business.lock' : 'business.close')}</Button></div>
       {unlock && <p className={s.note}>{t(locked ? 'business.lockLine' : 'business.closeLine')}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </section>
@@ -193,7 +190,7 @@ export function ExportCopy() {
 
   async function go(event: FormEvent) {
     event.preventDefault();
-    if (readable && !sure) { setProblem(t('business.exportTick')); return; }
+    if (readable && !sure) return;
     setBusy(true);
     setProblem(null);
     setSaved(null);
@@ -209,17 +206,16 @@ export function ExportCopy() {
   }
 
   return (
-    <details className={s.fold}>
-      <summary>{t('business.export')}</summary>
+    <Fold summary={t('business.export')} className={s.fold}>
       <form className={s.form} onSubmit={(event) => void go(event)}>
         <fieldset className={s.choices}>
           <legend className="sr-only">{t('business.exportKind')}</legend>
           <label className={s.agree}>
-            <input type="radio" name={name} checked={!readable} onChange={() => { setReadable(false); setSure(false); setProblem(null); }} />
+            <input type="radio" name={name} checked={!readable} onChange={() => { setReadable(false); setSure(false); setProblem(null); setSaved(null); }} />
             {t('business.exportEncrypted')}
           </label>
           <label className={s.agree}>
-            <input type="radio" name={name} checked={readable} onChange={() => { setReadable(true); setProblem(null); }} />
+            <input type="radio" name={name} checked={readable} onChange={() => { setReadable(true); setProblem(null); setSaved(null); }} />
             {t('business.exportReadable')}
           </label>
         </fieldset>
@@ -233,7 +229,7 @@ export function ExportCopy() {
           </>
         ) : <p className={s.note}>{t('business.exportEncryptedLine')}</p>}
         {problem && <p className={s.problem} role="alert">{problem}</p>}
-        <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.export')}</Button></div>
+        <div className={s.buttons}><Button type="submit" disabled={busy} disabledReason={readable && !sure ? t('business.exportTick') : undefined}>{t('business.export')}</Button></div>
         {saved && (
           <div role="status">
             <p className={s.said}>{t('business.exportSaved', { path: saved.path })}</p>
@@ -241,7 +237,7 @@ export function ExportCopy() {
           </div>
         )}
       </form>
-    </details>
+    </Fold>
   );
 }
 
@@ -273,8 +269,7 @@ export function DeleteBusiness({ onDeleted }: { onDeleted: (result: Deleted) => 
   }
 
   return (
-    <details className={s.fold}>
-      <summary>{t('business.delete')}</summary>
+    <Fold summary={t('business.delete')} className={s.fold} tone="danger">
       {name === null ? (
         status.error ? <p className={s.problem} role="alert">{failed(t, status.error)}</p> : <p className={s.note}>{t('business.loading')}</p>
       ) : (
@@ -283,10 +278,10 @@ export function DeleteBusiness({ onDeleted }: { onDeleted: (result: Deleted) => 
           <p className={s.warn}>{t('business.deleteCant')}</p>
           <Field label={t('business.deleteType', { name })} value={typed} autoComplete="off" spellCheck={false} onChange={(event) => setTyped(event.currentTarget.value)} />
           {problem && <p className={s.problem} role="alert">{problem}</p>}
-          <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.delete')}</Button></div>
+          <div className={s.buttons}><Button type="submit" tone="danger" disabled={busy} disabledReason={typed !== name ? t('business.deleteTypeFirst') : undefined}>{t('business.delete')}</Button></div>
         </form>
       )}
-    </details>
+    </Fold>
   );
 }
 

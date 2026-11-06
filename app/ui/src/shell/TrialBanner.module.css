@@ -1,14 +1,10 @@
-/* The hosted trial banner: a quiet line at the top of every place, its caution in the icon's amber, not a block of
+/* The hosted trial banner: one quiet line at the top of every place with its icon (no border, no fill), its caution in the icon's amber, not a block of
    colour; the last day's warning in ink. Add email opens one field and its button under it. */
 
 .banner {
   display: grid;
   gap: var(--sp-2);
   margin: 0 0 var(--sp-4);
-  padding: var(--sp-2) var(--sp-3);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
 }
 
 .head {

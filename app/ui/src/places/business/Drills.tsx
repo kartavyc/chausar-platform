@@ -7,6 +7,7 @@ import { ModelEstimate } from '../../parts/ModelEstimate';
 import type { DrillRunView, ImprovementRunLite } from '../../engine/types';
 import { TileSection, dayOf, messageOf } from './shared';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** The newest drill run in one line: passed or failed, how many were stopped, and the playbook version it ran on. */
 function summaryOf(run: DrillRunView, t: T): string {
@@ -56,12 +57,11 @@ export function Drills() {
           <p className={s.strong} data-drill-summary="">{summaryOf(newest, t)}</p>
           <p className={s.note}>{t('business.practice.drills.when', { day: dayOf(newest.at, zone) })}</p>
           {failed.map((item, i) => <p key={i} className={s.problem} data-drill-failed="">{t('business.practice.drills.item', { drill: item.drill, line: item.line })}</p>)}
-          <details className={s.fold} data-fold="drills">
-            <summary>{t('business.practice.drills.each')}</summary>
+          <Fold summary={t('business.practice.drills.each')} className={s.fold} data-fold="drills">
             <ul className={s.log}>
               {newest.results.map((item, i) => <li key={i}>{t('business.practice.drills.item', { drill: item.drill, line: item.line })}</li>)}
             </ul>
-          </details>
+          </Fold>
         </div>
       )}
       <div className={s.buttons}>
@@ -82,8 +82,7 @@ export function Experiments({ run }: { run: ImprovementRunLite | null }) {
   const tried = (run?.rounds ?? []).flatMap((round) => (round.experiment ? [{ round: round.round, experiment: round.experiment }] : []));
   if (tried.length === 0) return null;
   return (
-    <details className={s.fold} data-fold="experiments">
-      <summary>{t('business.practice.tried')}</summary>
+    <Fold summary={t('business.practice.tried')} className={s.fold} data-fold="experiments">
       <ul className={s.log}>
         {tried.map(({ round, experiment }) => (
           <li key={round} data-experiment="">
@@ -101,6 +100,6 @@ export function Experiments({ run }: { run: ImprovementRunLite | null }) {
           </li>
         ))}
       </ul>
-    </details>
+    </Fold>
   );
 }

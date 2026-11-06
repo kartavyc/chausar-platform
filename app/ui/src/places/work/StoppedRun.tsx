@@ -14,6 +14,7 @@ import { previousFailure } from './orders';
 import { superseded, useRunDetails } from './PreviousRuns';
 import { againRow, useRunAgain } from './RunAgain';
 import s from './Work.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** A run the engine stopped (the owner, a breaker, a crash) and that waits for Resume; never a failed one. */
 export const isStopped = (run: RunSummary) => run.stop?.state === 'stopped';
@@ -155,10 +156,9 @@ function StoppedRun({ run, detail, business, row, noRetry, onChanged }: StoppedR
         <p className={cx(s.whyLabel, !red && s.whyLabelWait)}>{whyLabel}</p>
         <p className={s.whyText}>{why}</p>
         {technical && (
-          <details className={s.whyMore}>
-            <summary>{t('work.failedRun.details')}</summary>
+          <Fold summary={t('work.failedRun.details')} className={s.whyMore}>
             <p className={s.whyTech}>{technical}</p>
-          </details>
+          </Fold>
         )}
       </div>
       {fix && fixOpen && (

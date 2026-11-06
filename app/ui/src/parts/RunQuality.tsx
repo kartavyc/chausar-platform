@@ -7,6 +7,7 @@ import { stateText } from './states';
 import type { CoverageView, DeliverableReport, ReportItem, RunDetail } from '../engine/types';
 import s from './RunQuality.module.css';
 import { formatCount } from '../../../../platform/runtime/owner-format';
+import { Fold } from './Fold';
 
 /**
  * The run sheet's quality lines (W4 4J22a, from 4J13 and 4J14; catalogue Q6, Q7, Q8, A13, H34), each drawn only from
@@ -100,8 +101,7 @@ export function RunReport({ report }: { report: DeliverableReport }) {
     { id: 'needs-you', title: t('runsheet.report.needsYou'), items: report.needsHuman.map((item) => item.line) },
   ];
   return (
-    <details className={s.fold} data-fold="report">
-      <summary>{t('runsheet.report', { verdict })}</summary>
+    <Fold summary={t('runsheet.report', { verdict })} className={s.fold} data-fold="report">
       {!report.review.complete && <p className={s.note} data-review="">{t('runsheet.report.reviewIncomplete')}</p>}
       {report.stale && <p className={s.note} data-stale="">{t('runsheet.report.stale')}</p>}
       <div className={s.columns} data-report="">
@@ -122,7 +122,7 @@ export function RunReport({ report }: { report: DeliverableReport }) {
         </ul>
       )}
       <p className={s.quiet}>{t(report.generatedBy.includes('judge') ? 'runsheet.report.byBoth' : 'runsheet.report.byCode')}</p>
-    </details>
+    </Fold>
   );
 }
 

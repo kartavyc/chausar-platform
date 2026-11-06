@@ -15,17 +15,18 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { ParamsOf, PhoneAccessView, TelegramView } from '../../engine/types';
 import { messageOf } from './shared';
+import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
 import n from './Notifications.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** A fold that renders its body only once opened, so a closed fold asks the engine nothing. */
-function Fold({ title, children }: { title: string; children: () => ReactNode }) {
+function LazyFold({ title, children }: { title: string; children: () => ReactNode }) {
   const [opened, setOpened] = useState(false);
   return (
-    <details className={s.fold} onToggle={(event) => { if (event.currentTarget.open) setOpened(true); }}>
-      <summary>{title}</summary>
+    <Fold summary={title} className={s.fold} onToggle={(event) => { if (event.currentTarget.open) setOpened(true); }}>
       {opened && <div className={s.foldBody}>{children()}</div>}
-    </details>
+    </Fold>
   );
 }
 
@@ -33,8 +34,8 @@ export function PhoneReach() {
   const t = useT();
   return (
     <>
-      <Fold title={t('business.notify.telegram')}>{() => <Telegram />}</Fold>
-      <Fold title={t('business.notify.phone')}>{() => <PhoneAccess />}</Fold>
+      <LazyFold title={t('business.notify.telegram')}>{() => <Telegram />}</LazyFold>
+      <LazyFold title={t('business.notify.phone')}>{() => <PhoneAccess />}</LazyFold>
     </>
   );
 }
@@ -72,7 +73,7 @@ function Telegram() {
       <Field label={t('business.notify.botToken')} hint={t('business.notify.botTokenHint')} type="password" autoComplete="off" spellCheck={false} value={token} disabled={busy} onChange={(event) => setToken(event.currentTarget.value)} />
       <Field label={t('business.notify.chatId')} inputMode="numeric" autoComplete="off" spellCheck={false} value={chatId} disabled={busy} onChange={(event) => setChatId(event.currentTarget.value)} />
       <div className={s.buttons}>
-        <Button type="submit" variant="secondary" disabled={busy || !token.trim() || !chatId.trim()}>{t('business.notify.botSave')}</Button>
+        <Button type="submit" variant="secondary" disabled={busy} disabledReason={!token.trim() || !chatId.trim() ? t('business.notify.botFirst') : undefined}>{t('business.notify.botSave')}</Button>
         {shown.connected && <Button variant="quiet" disabled={busy} onClick={() => void send({ test: true })}>{t('business.notify.botTest')}</Button>}
         {shown.connected && <Button variant="quiet" disabled={busy} onClick={() => void send({ bot: null })}>{t('business.notify.botRemove')}</Button>}
       </div>
@@ -82,8 +83,7 @@ function Telegram() {
           {t('business.notify.botDetails')}
         </label>
       )}
-      {shown.said && <p className={s.note} role="status">{shown.said}</p>}
-      {problem && <p className={s.problem} role="alert">{problem}</p>}
+      <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? shown.said}</ResultLine>
     </form>
   );
 }

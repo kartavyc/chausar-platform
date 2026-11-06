@@ -171,6 +171,8 @@ function ApproveCard({ row, onDecide, onReread }: {
         key={row.id}
         row={row}
         layout="card"
+        done={session.line(row.id)}
+        said={session.said(row.id)}
         preview={preview}
         viewed={viewed}
         onDecide={onDecide}

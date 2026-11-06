@@ -6,14 +6,18 @@ import { Bento, Tile } from '../../parts/Tile';
 import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
 import { Icon } from '../../parts/Icon';
+import { InlineError } from '../../parts/InlineError';
 import { cleanSentence, computerCountry, pickCountry, sentenceProblem, OPEN_BOX } from './flow';
 import { aboutFile, type AboutFile } from './linkedin';
 import { renameIn } from './rename';
 import f from './FirstRun.module.css';
 import s from './AboutYou.module.css';
+import { Select } from '../../parts/Select';
+import { FilePick } from '../../parts/FilePick';
 
 type Mode = 'a' | 'b' | 'plan';
-type Bubble = { who: 'me' | 'them'; text: string };
+/** failed: a read that failed or an AI that stopped, said as Chausar's turn in the chat (B4 task 4). */
+type Bubble = { who: 'me' | 'them'; text: string; failed?: boolean };
 /** name (one-shot A1, row 3): the name the card shows, which the saved plan keeps with the card's offers. */
 export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string };
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -58,6 +62,9 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
   const [ownName, setOwnName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  /** The last read failed; lastAsk is what Try again sends once more. */
+  const [failed, setFailed] = useState(false);
+  const lastAsk = useRef<{ text?: string; attachment?: AboutFile } | null>(null);
   const [boxWrong, setBoxWrong] = useState(false);
   const [countries, setCountries] = useState<CountryLite[]>([]);
   const [countryCode, setCountryCode] = useState<string | null>(null);
@@ -100,9 +107,13 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
   }
 
   async function ask(params: { text?: string; attachment?: AboutFile }) {
-    setBusy(true); setProblem(null);
+    setBusy(true); setProblem(null); setFailed(false);
+    lastAsk.current = params;
     try { took(await client.request('venture.about.read', params)); }
-    catch (error) { setProblem(messageOf(error)); }
+    catch (error) {
+      setThread((was) => [...was, { who: 'them', text: messageOf(error), failed: true }]);
+      setFailed(true);
+    }
     finally { setBusy(false); }
   }
 
@@ -187,9 +198,9 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
       {choosing && countries.length > 0 ? (
         <>
           <label htmlFor={countryId}>{t('onboarding.country')}</label>
-          <select id={countryId} className={s.select} value={countryCode ?? 'XX'} onChange={(event) => chooseCountry(event.target.value)}>
+          <Select id={countryId} className={s.select} value={countryCode ?? 'XX'} onChange={(event) => chooseCountry(event.target.value)}>
             {countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-          </select>
+          </Select>
         </>
       ) : country ? (
         <>
@@ -201,8 +212,8 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     </div>
   );
 
-  // B3: the read failed and nothing was read: the preview says the problem, not that it is still reading.
-  const failedRead = !busy && !read && problem !== null;
+  // B3: the read failed: the preview never says it is still reading or updating. B4: the words are in the chat.
+  const stopped = !busy && failed;
   // On Send the preview comes in with the chat, in the same motion, and fills in when the answer arrives.
   const preview = mode !== 'a' && (
     <Tile as="section" span={mode === 'plan' ? 12 : 5} label={t('first-run.about.preview')} className={mode === 'b' ? `${s.preview} ${s.slide}` : s.preview} card>
@@ -210,9 +221,11 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
         <h2 className={s.chatTitle}>{t('first-run.about.business')}</h2>
         {/* B3: only while a read is on its way. */}
         {mode === 'b' && busy && <Chip tone="working">{t('first-run.about.updating')}</Chip>}
+        {mode === 'b' && stopped && <Chip tone="idle">{t('first-run.about.stopped')}</Chip>}
         {mode === 'plan' && <Button variant="quiet" onClick={() => setMode('a')}>{t('first-run.about.back')}</Button>}
       </div>
-      {read ? planOf(read) : failedRead ? <p className={f.problem} role="alert">{problem}</p> : <p className={s.hint}>{t('first-run.about.reading')}</p>}
+      {read ? planOf(read) : stopped ? null : <p className={s.hint}>{t('first-run.about.reading')}</p>}
+      {mode === 'plan' && problem && <InlineError>{problem}</InlineError>}
     </Tile>
   );
 
@@ -224,11 +237,10 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
         <p className={s.name} data-content="" data-plan-name="">{ownName ?? name ?? read.family?.label ?? ''}</p>
         {read.family && <p className={s.offerLine}>{read.family.label}</p>}
       </div>
-      <label className={s.label} htmlFor={fieldId}>{t('first-run.about.field')}</label>
-      <select id={fieldId} className={s.select} value={read.family?.id ?? ''} disabled={busy} onChange={(event) => void pick(event.target.value, mode)}>
+      <Select label={t('first-run.about.field')} id={fieldId} value={read.family?.id ?? ''} disabled={busy} onChange={(event) => void pick(event.target.value, mode)}>
         {!read.family && <option value="">{t('first-run.about.pick')}</option>}
         {tiles.map((tile) => <option key={tile.id} value={tile.id}>{tile.label}</option>)}
-      </select>
+      </Select>
       {read.offers.length > 0 && (
         <>
           <p className={s.label}>{t('first-run.about.sell')}</p>
@@ -245,7 +257,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
       )}
       {where}
       <div className={s.keep}>
-        <Button variant="primary" size="lg" disabled={!keepable || busy} onClick={() => { if (keepable) onKeep(keepable); }}>{t('first-run.about.keep')}</Button>
+        <Button variant="primary" size="lg" disabled={!keepable || busy} disabledReason={!busy && read && !read.family ? t('first-run.about.pickField') : undefined} onClick={() => { if (keepable) onKeep(keepable); }}>{t('first-run.about.keep')}</Button>
       </div>
     </>
     );
@@ -265,18 +277,15 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
                 <textarea ref={box} id={boxId} className={s.input} rows={2} value={text} placeholder={t('first-run.about.placeholder')}
                   aria-invalid={boxWrong ? true : undefined}
                   onChange={(event) => { setText(event.target.value); setProblem(null); setBoxWrong(false); }} onKeyDown={(event) => onKey(event, send)} />
-                <label className={s.attach} title={t('first-run.about.attach')}>
-                  <Icon name="paperclip" size={18} />
-                  <span className="sr-only">{t('first-run.about.attach')}</span>
-                  <input className="sr-only" type="file" accept=".pdf,.zip,application/pdf,application/zip" onChange={(event) => void onFile(event)} />
-                </label>
-                <Button variant="primary" size="lg" type="submit" disabled={busy}>{t('first-run.about.send')}</Button>
+                <FilePick compact icon="paperclip" choose={t('first-run.about.attach')} files={[]} accept=".pdf,.zip,application/pdf,application/zip" onChange={(event) => void onFile(event)} />
+                <Button variant="primary" size="lg" type="submit" disabled={busy || (!text.trim() && !file)}>{t('first-run.about.send')}</Button>
               </div>
               {file && (
                 <p className={s.file}><Icon name="file-text" size={14} /><span data-content="">{file.name}</span>
                   <Button variant="quiet" size="sm" onClick={() => setFile(null)}>{t('first-run.about.removeFile', { name: file.name })}</Button></p>
               )}
               <p className={s.hint}>{t('first-run.about.hint')}</p>
+              {problem && <InlineError>{problem}</InlineError>}
             </form>
           </Tile>
           <Tile span={12} pad="compact">{where}</Tile>
@@ -298,7 +307,6 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
             </li>
           </ul>
         </Bento>
-        {problem && <p className={f.problem} role="alert">{problem}</p>}
         {!connected && <span className="sr-only">{t('first-run.step.templates')}</span>}
       </div>
     );
@@ -315,9 +323,13 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
               <span className={s.hint}>{t('first-run.about.chatMeta')}</span>
               <Button variant="quiet" onClick={() => setMode('a')}>{t('first-run.about.back')}</Button>
             </div>
-            {thread.map((bubble, index) => (
+            {thread.map((bubble, index) => (bubble.failed ? (
+              <div key={index} className={`${s.bubble} ${s.them}`} data-failed-turn="">
+                <InlineError fix={stopped && index === thread.length - 1 && lastAsk.current ? { label: t('first-run.ai.tryAgain'), onSelect: () => { void ask(lastAsk.current!); } } : undefined}>{bubble.text}</InlineError>
+              </div>
+            ) : (
               <p key={index} className={`${s.bubble} ${bubble.who === 'me' ? s.me : s.them}`} data-content={bubble.who === 'me' ? '' : undefined}>{bubble.text}</p>
-            ))}
+            )))}
             {busy && <p className={`${s.bubble} ${s.them}`} role="status">{t('first-run.about.reading')}</p>}
             {countryAsk && (
               <div className={`${s.bubble} ${s.them}`}>
@@ -334,14 +346,14 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
               <div className={s.boxRow}>
                 <textarea id={sayId} className={s.input} rows={2} value={reply} placeholder={t('first-run.about.sayPlaceholder')}
                   onChange={(event) => setReply(event.target.value)} onKeyDown={(event) => onKey(event, sendReply)} />
-                <Button type="submit" disabled={busy}>{t('first-run.about.send')}</Button>
+                <Button type="submit" disabled={busy || !reply.trim()}>{t('first-run.about.send')}</Button>
               </div>
+              {problem && <InlineError>{problem}</InlineError>}
             </form>
           </Tile>
         )}
         {preview}
       </Bento>
-      {problem && !failedRead && <p className={f.problem} role="alert">{problem}</p>}
     </div>
   );
 }

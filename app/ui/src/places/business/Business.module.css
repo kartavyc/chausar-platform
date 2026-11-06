@@ -22,7 +22,7 @@
 
 .split[data-ratio='8-4'] {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  align-items: stretch;
+  align-items: start;
 }
 
 .split[data-ratio='5-7'] {
@@ -31,7 +31,7 @@
 
 .split[data-ratio='even'] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: stretch;
+  align-items: start;
 }
 
 .column {
@@ -39,6 +39,12 @@
   align-content: start;
   gap: var(--gap-grid);
   min-width: 0;
+}
+
+/* A plain section after another in the same column is parted by one hairline rule (B4 task 1). */
+.section + .section[data-plain] {
+  padding-top: var(--gap-grid);
+  border-top: var(--hair) solid var(--line-soft);
 }
 
 /* A tile's words under its head, spaced by the grid. */
@@ -415,23 +421,6 @@
   color: var(--fg2);
 }
 
-.fold > summary {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--control-sm);
-  font-weight: var(--weight-medium);
-  color: var(--link);
-  cursor: pointer;
-}
-
-.fold > summary:hover {
-  color: var(--link-hover);
-}
-
-.fold[open] > summary {
-  margin-bottom: var(--sp-2);
-}
-
 .foldBody {
   display: grid;
   gap: var(--sp-2);
@@ -659,5 +648,4 @@
   margin: 0;
   font-size: var(--text-tile);
   font-weight: var(--weight-strong);
-  color: var(--fg);
 }

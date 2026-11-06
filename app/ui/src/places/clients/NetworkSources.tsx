@@ -21,6 +21,7 @@ import { BarChart } from '../../parts/charts/BarChart';
 import { Tile, TileHead } from '../../parts/Tile';
 import type { NetworkImportKind, NetworkSourcesView } from '../../engine/types';
 import s from './Network.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** Each kind of file with its mark. */
 export const KIND_ICONS: Readonly<Record<NetworkImportKind, IconName>> = {
@@ -102,14 +103,13 @@ export function NetworkSources({ view }: { view: NetworkSourcesView }) {
           <h2 id={privateId} className={s.privateTitle}>{t('clients.network.private.title')}</h2>
         </div>
         {/* What stays private, and what is kept, one step away: the page at rest stays short. */}
-        <details className={s.keeps}>
-          <summary className={s.checksSummary}><Icon name="chevron-right" size={14} />{t('clients.network.private.keeps')}</summary>
+        <Fold summary={t('clients.network.private.keeps')} className={s.keeps}>
           <Inner card={false} className={s.keepsBody}>
             <p>{t('clients.network.private.line')}</p>
             <p>{t('clients.network.private.kept')}</p>
             <p>{t('clients.network.private.dropped')}</p>
           </Inner>
-        </details>
+        </Fold>
       </Tile>
     </>
   );

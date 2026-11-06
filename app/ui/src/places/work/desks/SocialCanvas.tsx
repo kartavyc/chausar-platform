@@ -10,6 +10,7 @@ import { Field } from '../../../parts/Field';
 import type { SocialCanvasView, CanvasPost } from '../../../../../../platform/runtime/venture/playbooks/social/canvas';
 import type { RevisionQuote } from '../../../../../../platform/runtime/venture/playbooks/social/revision-types';
 import s from './SocialCanvas.module.css';
+import { Select } from '../../../parts/Select';
 const base = { playbook: 'social-agency' as const, kind: 'canvas' };
 export function SocialCanvas() {
     const t = useT(), engine = useEngine(), id = useId();
@@ -66,7 +67,7 @@ export function SocialCanvas() {
     }
     return <section className={s.stack} aria-label={t('pb-social.title')}>
   <div className={s.intro}><h2>{t('pb-social.title')}</h2><p>{t('pb-social.boundary')}</p>
-   <label htmlFor={`${id}-order`}>{t('pb-social.order')}</label><select id={`${id}-order`} className={s.select} value={chosen} onChange={event => { setOrder(event.target.value); setEdit(null); setQuote(null); }}><option value="">{t('pb-social.choose')}</option>{rows.map(row => <option key={row.orderId} value={row.orderId}>{orders.data?.find(order => order.id === row.orderId)?.request ?? row.request}</option>)}</select>
+   <label htmlFor={`${id}-order`}>{t('pb-social.order')}</label><Select id={`${id}-order`} className={s.select} value={chosen} onChange={event => { setOrder(event.target.value); setEdit(null); setQuote(null); }}><option value="">{t('pb-social.choose')}</option>{rows.map(row => <option key={row.orderId} value={row.orderId}>{orders.data?.find(order => order.id === row.orderId)?.request ?? row.request}</option>)}</Select>
   </div>
   {(error || view.error) && <p role="alert">{error || t('pb-social.failed')}</p>}{said && <p role="status">{said}</p>}
   {!item && <p>{t('pb-social.empty')}</p>}

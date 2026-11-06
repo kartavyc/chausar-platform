@@ -10,6 +10,8 @@ import { Tile, TileHead } from '../../../parts/Tile';
 import type { BoardOutput, YoutubeBoardBody } from '../../../../../../platform/runtime/venture/playbooks/youtube/board-core';
 import s from './YoutubeDesk.module.css';
 import { YoutubeBoardChecks } from './YoutubeBoardChecks';
+import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 
 type BoardView = { id: string; orderId: string; digest: string; board: YoutubeBoardBody | null };
 export type BoardAct = (action: string, payload: Record<string, unknown>) => Promise<unknown>;
@@ -58,13 +60,13 @@ export function YoutubeBoard({ editId }: { editId: string }) {
     <Tile as="section" label={t('pb-youtube-board.title')}>
       <TileHead title={t('pb-youtube-board.title')} />
       <p className={s.line}>{t('pb-youtube-board.handoff')}</p>
-      <details open={!board}><summary>{t('pb-youtube-board.prepare')}</summary>
+      <Fold summary={t('pb-youtube-board.prepare')} open={!board}>
         <label className={s.label} htmlFor={`${id}-rate`}>{t('pb-youtube-board.rate')}</label>
-        <select id={`${id}-rate`} className={s.select} value={rate} onChange={event => setRate(event.target.value)}><option value="25">25</option><option value="30">30</option><option value="29.97df">29.97 DF</option></select>
+        <Select id={`${id}-rate`} className={s.select} value={rate} onChange={event => setRate(event.target.value)}><option value="25">25</option><option value="30">30</option><option value="29.97df">29.97 DF</option></Select>
         {platforms.map(platform => <Field key={platform} multiline label={t(`pb-youtube-board.publish.${platform}`)} value={publishing[platform]} onChange={event => setPublishing(words => ({ ...words, [platform]: event.target.value }))} maxLength={50000} />)}
         <p className={s.line}>{t('pb-youtube-board.optionalPlatforms')}</p>
         <Button variant="primary" disabled={busy} locked={!Object.values(publishing).some(text => text.trim())} onClick={() => { setDirty({}); void act('prepare', { rate: rate === '29.97df' ? rate : Number(rate), publishing: platforms.filter(platform => publishing[platform].trim()).map(platform => ({ platform, text: publishing[platform] })) }); }}>{t('pb-youtube-board.prepare')}</Button>
-      </details>
+      </Fold>
       {!client.saveYoutubeProject && <p>{t('pb-youtube-board.desktop')}</p>}
       {error && <p role="alert">{error}</p>}
     </Tile>
@@ -90,9 +92,9 @@ function OutputCard({ output, busy, act, onDirty }: { output: BoardOutput; busy:
       <p><Count value={output.publishing.count} /> / <Count value={output.publishing.limit} /> {t(`pb-youtube-board.unit.${output.publishing.unit}`)}</p>
       <p className={s.line}>{t('pb-youtube-board.countHelp')}</p>
       <Button disabled={busy} locked={!changed} onClick={() => void act('publishing', { outputId: output.id, text })}>{t('pb-youtube-board.saveText')}</Button>
-    </> : <details><summary>{t('pb-youtube-board.preview')}</summary><pre className={s.preview} data-content="">{output.text}</pre></details>}
+    </> : <Fold summary={t('pb-youtube-board.preview')}><pre className={s.preview} data-content="">{output.text}</pre></Fold>}
     <div className={s.actions}><Button variant="primary" disabled={busy} locked={changed || output.decision === 'approved' || output.publishing?.passed === false} onClick={() => void act('decide', { outputId: output.id, decision: 'approved' })}>{t('pb-youtube-board.approve')}</Button><Button disabled={busy} locked={changed || output.decision === 'discarded'} onClick={() => void act('decide', { outputId: output.id, decision: 'discarded' })}>{t('pb-youtube-board.discard')}</Button></div>
-    <details><summary>{t('pb-youtube-board.change')}</summary><Field multiline label={t('pb-youtube-board.describe')} value={request} onChange={event => setRequest(event.target.value)} maxLength={1000} /><p className={s.line}>{t('pb-youtube-board.requestHelp')}</p><Button disabled={busy} locked={!request.trim() || changed} onClick={() => void act('request', { outputId: output.id, words: request })}>{t('pb-youtube-board.keepRequest')}</Button></details>
+    <Fold summary={t('pb-youtube-board.change')}><Field multiline label={t('pb-youtube-board.describe')} value={request} onChange={event => setRequest(event.target.value)} maxLength={1000} /><p className={s.line}>{t('pb-youtube-board.requestHelp')}</p><Button disabled={busy} locked={!request.trim() || changed} onClick={() => void act('request', { outputId: output.id, words: request })}>{t('pb-youtube-board.keepRequest')}</Button></Fold>
     {output.request && <p data-content="">{output.request}</p>}
   </Tile>;
 }

@@ -23,13 +23,35 @@
 }
 
 .goal {
-  --ring-ground: var(--goal-bg);
+  --gc-bg: var(--goal-bg);
+  --gc-fg: var(--goal-fg);
+  --gc-fg2: var(--goal-fg2);
+  --gc-mute: var(--goal-mute);
+  --gc-chip: var(--goal-chip);
+  --gc-line: var(--goal-line);
+  --gc-link: var(--goal-link);
+  --ring-ground: var(--gc-bg);
   min-width: 0;
   padding: var(--sp-6);
   border-radius: var(--r-tile);
-  background: var(--goal-bg);
+  background: var(--gc-bg);
   box-shadow: var(--shadow-goal);
-  color: var(--goal-fg2);
+  color: var(--gc-fg2);
+}
+
+/* Plain tiles (B4, PLACE_TILES): no dark card; the card's colours are the page's own. */
+.goal[data-plain] {
+  --gc-bg: var(--bg);
+  --gc-fg: var(--fg);
+  --gc-fg2: var(--fg2);
+  --gc-mute: var(--mute);
+  --gc-chip: var(--wash);
+  --gc-line: var(--line);
+  --gc-link: var(--link);
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
 .top {
@@ -47,7 +69,7 @@
   width: 28px;
   height: 28px;
   border-radius: var(--r-button-sm);
-  background: var(--goal-chip);
+  background: var(--gc-chip);
   color: var(--accent);
 }
 
@@ -55,13 +77,13 @@
   font-size: var(--text-body);
   line-height: 20px;
   font-weight: var(--weight-strong);
-  color: var(--goal-fg);
+  color: var(--gc-fg);
 }
 
 .sub {
   font-size: var(--text-read);
   line-height: 18px;
-  color: var(--goal-mute);
+  color: var(--gc-mute);
 }
 
 .pill {
@@ -72,8 +94,8 @@
   margin-left: auto;
   padding: 0 var(--sp-3);
   border-radius: var(--r-chip);
-  background: var(--goal-chip);
-  color: var(--goal-fg2);
+  background: var(--gc-chip);
+  color: var(--gc-fg2);
   font-size: var(--text-read);
   font-weight: var(--weight-medium);
   white-space: nowrap;
@@ -89,18 +111,18 @@
   border: 0;
   border-radius: var(--r-chip);
   background: none;
-  color: var(--goal-mute);
+  color: var(--gc-mute);
   cursor: pointer;
   transition: background-color var(--t-press) var(--ease), color var(--t-press) var(--ease);
 }
 
 .edit:hover {
-  background: var(--goal-chip);
-  color: var(--goal-fg);
+  background: var(--gc-chip);
+  color: var(--gc-fg);
 }
 
 .edit:focus-visible {
-  outline-color: var(--goal-link);
+  outline-color: var(--gc-link);
 }
 
 /* The invoiced figure, "of" the goal and the percent, on one baseline; they wrap rather than shrink. */
@@ -135,7 +157,7 @@
   align-items: baseline;
   gap: var(--sp-2);
   font-size: var(--text-tile);
-  color: var(--goal-mute);
+  color: var(--gc-mute);
 }
 
 /* The accent may be words on the dark card (D-STYLE section 2). */
@@ -163,13 +185,13 @@
   gap: var(--sp-3);
   margin-top: var(--sp-4);
   padding-top: var(--sp-4);
-  border-top: var(--hair) solid var(--goal-line);
+  border-top: var(--hair) solid var(--gc-line);
 }
 
 .askLine {
   font-size: var(--text-body);
   line-height: 20px;
-  color: var(--goal-fg);
+  color: var(--gc-fg);
 }
 
 .askActs {
@@ -182,7 +204,7 @@
 .suggestLine {
   font-size: var(--text-label);
   line-height: 16px;
-  color: var(--goal-mute);
+  color: var(--gc-mute);
 }
 
 .suggest {
@@ -191,7 +213,7 @@
   align-items: center;
   gap: var(--sp-2);
   font-size: var(--text-read);
-  color: var(--goal-mute);
+  color: var(--gc-mute);
 }
 
 /* The foot: the small figures under a divider, three across. */
@@ -201,7 +223,7 @@
   gap: var(--sp-4);
   margin: var(--sp-5) 0 0;
   padding-top: var(--sp-4);
-  border-top: var(--hair) solid var(--goal-line);
+  border-top: var(--hair) solid var(--gc-line);
 }
 
 .footItem {
@@ -215,7 +237,7 @@
   white-space: nowrap;
   font-size: var(--text-label);
   line-height: 16px;
-  color: var(--goal-mute);
+  color: var(--gc-mute);
 }
 
 .footValue {
@@ -227,7 +249,7 @@
   font-size: var(--text-row);
   line-height: 22px;
   font-weight: var(--weight-medium);
-  color: var(--goal-fg);
+  color: var(--gc-fg);
 }
 
 .trend {
@@ -243,7 +265,7 @@
 .nextFold {
   margin-top: var(--sp-4);
   padding-top: var(--sp-4);
-  border-top: var(--hair) solid var(--goal-line);
+  border-top: var(--hair) solid var(--gc-line);
 }
 
 /* A phone (D-Phone-Today `.phone .goal`): 18 px padding, the figure at its phone size, the foot one figure per line

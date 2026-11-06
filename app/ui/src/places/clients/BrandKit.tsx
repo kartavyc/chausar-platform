@@ -13,6 +13,7 @@ import { EngineError, type BrandKitFields, type BrandKitInput, type BrandKitView
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import k from './BrandKit.module.css';
+import { Select } from '../../parts/Select';
 
 /** The list fields the form edits as text, in the order shown. */
 const LISTS = ['colours', 'fonts', 'voice', 'bannedWords', 'bannedTopics', 'competitors'] as const;
@@ -168,10 +169,10 @@ function KitForm({ kit, photos, busy, onSave, onCancel }: { kit: BrandKitFields 
       {photos.length > 0 && (
         <div className={k.pick}>
           <label htmlFor={logoId} className={k.label}>{t('kit-media.field.logoFileId')}</label>
-          <select id={logoId} className={k.select} value={draft.logoFileId} onChange={(event) => setDraft((d) => ({ ...d, logoFileId: event.currentTarget.value }))}>
+          <Select id={logoId} className={k.select} value={draft.logoFileId} onChange={(event) => setDraft((d) => ({ ...d, logoFileId: event.currentTarget.value }))}>
             <option value="">{t('kit-media.kit.noLogo')}</option>
             {photos.map((file) => <option key={file.id} value={file.id}>{file.name}</option>)}
-          </select>
+          </Select>
         </div>
       )}
       <span className={k.actions}>

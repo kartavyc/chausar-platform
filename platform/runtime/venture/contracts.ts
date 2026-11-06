@@ -2996,7 +2996,11 @@ export type PreviewWords = { text: Display; estimate?: true };
 /** A length worked out by code: whole seconds, "11 min 42 s", "11:42", and what it was measured from. */
 export type PreviewLength = { seconds: number; display: Display; clock: Display; from: 'edit-list' | 'transcript' };
 export interface QueueList { rows: QueueRow[]; summary: Display; needsYou: number; businesses: number }
-export interface QueueDecision { outcome: 'done' | 'stale' | 'refused'; line: Display; receiptId?: string; latest?: QueueRow; reason?: string }
+export interface QueueDecision {
+  outcome: 'done' | 'stale' | 'refused'; line: Display; receiptId?: string; latest?: QueueRow; reason?: string;
+  /** B4 task 7: a done decision venture.queue.undo can take back (one price accepted on one press). */
+  undoable?: true;
+}
 export type RunState = 'active' | 'waiting' | 'done' | 'failed';
 export interface RunStep {
   id: string; purpose: string; state: 'done' | 'current' | 'pending' | 'waiting' | 'failed'; elapsed?: Display;

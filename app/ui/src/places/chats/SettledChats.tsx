@@ -14,6 +14,7 @@ import { Button } from '../../parts/Button';
 import { TileSection, messageOf } from '../business/shared';
 import { ChangeNotice } from './ChangeNotice';
 import s from './Chats.module.css';
+import { Select } from '../../parts/Select';
 
 /** The quiet-day choices; the owner's own number, when it is another, is offered too. */
 const DAY_CHOICES = [3, 7, 14, 30] as const;
@@ -70,11 +71,11 @@ export function SettledChats() {
         {days !== null && (
           <div className={s.choice}>
             <label className={s.choiceLabel} htmlFor={daysId}>{t('chats.archive.after')}</label>
-            <select id={daysId} className={s.choiceSelect} value={String(days)} disabled={busy}
+            <Select id={daysId} className={s.choiceSelect} value={String(days)} disabled={busy}
               onChange={(event) => { const next = Number(event.currentTarget.value); void run(() => daysChange(next)); }}>
               {choices.map((count) => <option key={count} value={String(count)}>{t('chats.archive.days', { count })}</option>)}
               <option value="0">{t('chats.archive.never')}</option>
-            </select>
+            </Select>
           </div>
         )}
         <p className={s.quiet}>{t('chats.archive.note')}</p>

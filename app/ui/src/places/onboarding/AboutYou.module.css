@@ -34,7 +34,7 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: var(--focus) solid var(--link);
   outline-offset: 1px;
 }
 
@@ -50,8 +50,8 @@
   cursor: pointer;
 }
 
-.attach:focus-within {
-  outline: 2px solid var(--focus);
+.attach:has(:focus-visible) {
+  outline: var(--focus) solid var(--link);
   outline-offset: 1px;
 }
 
@@ -127,7 +127,7 @@
 }
 
 .family:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: var(--focus) solid var(--link);
   outline-offset: 1px;
 }
 

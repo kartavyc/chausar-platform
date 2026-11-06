@@ -11,13 +11,14 @@ import type { OfferLite, PriceGuideView, ReceiptLite } from '../../engine/types'
 import { PendingPlanRows, messageOf, quoteAgain, totalOf, usePlan } from './shared';
 import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * Prices in the D look: each offer a card with its price at rest as the calculator's total with its receipt
  * (venture.price.quote), and a field to set a new price, the card's one filled button. Simple first (founder, 23 Oct):
  * how the price is worked out (every figure of the receipt, tax lines included, as the calculator wrote them) waits
  * one fold away. The typed price goes to the engine as typed; the engine checks it, writes a new plan version, and the
- * change waits on Today (it asks twice). Nothing is added up or formatted here. A price that is a share of an amount
+ * change waits on Today (one press, with an Undo). Nothing is added up or formatted here. A price that is a share of an amount
  * the client confirms later is the price editor's advanced option, one fold away (W5 5A2, SharePrice.tsx).
  */
 export function PricesView() {
@@ -60,10 +61,9 @@ export function PricesView() {
 function PriceGuideSection({ guide }: { guide: PriceGuideView }) {
   const t = useT();
   return (
-    <details className={s.priceGuide} data-price-guide-fold="">
-      <summary className={s.priceGuideTitle}>{t('price-sources.title')}</summary>
+    <Fold summary={t('price-sources.title')} className={s.priceGuide} data-price-guide-fold="" summaryClassName={s.priceGuideTitle}>
       <PriceGuideList guide={guide} />
-    </details>
+    </Fold>
   );
 }
 
@@ -118,8 +118,7 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
             <Figure value={total} receiptId={receipt.id} size="tile" />
             <span className={s.unit}>{t(`business.unit.${offer.pricing.quantityUnit}`)}</span>
           </div>
-          <details className={s.fold}>
-            <summary>{t('business.howWorkedOut')}</summary>
+          <Fold summary={t('business.howWorkedOut')} className={s.fold}>
             <div className={s.foldBody}>
               <dl className={s.figures}>
                 {receipt.figures.map((figure) => (
@@ -131,7 +130,7 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
               </dl>
               <p className={s.note}>{receipt.explanation}</p>
             </div>
-          </details>
+          </Fold>
         </div>
       ) : (
         <div className={s.price}>

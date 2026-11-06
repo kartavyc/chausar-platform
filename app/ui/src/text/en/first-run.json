@@ -72,11 +72,13 @@
   "first-run.about.preview": "Your business, live",
   "first-run.about.business": "Your business",
   "first-run.about.updating": "Updating as you talk",
+  "first-run.about.stopped": "Stopped",
   "first-run.about.name": "Name",
   "first-run.about.sell": "What you sell",
   "first-run.about.prices": "You set every price yourself once the plan is kept.",
   "first-run.about.field": "Field",
   "first-run.about.keep": "Keep this plan",
+  "first-run.about.pickField": "Pick a field first",
 
   "first-run.keep.title": "Keeping your plan",
 

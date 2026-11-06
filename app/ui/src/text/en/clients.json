@@ -241,6 +241,7 @@
   "clients.import.samples": "First people in the file",
   "clients.import.dropped": "Left out",
   "clients.import.go": "Import",
+  "clients.import.nobody": "0 people to import. Choose another file",
   "clients.import.again": "Choose another file",
   "clients.import.undo": "Undo this import",
   "clients.import.undo.confirm": "Yes, undo it",
@@ -468,5 +469,6 @@
   "clients.ai.allow": "Allow AI access",
   "clients.ai.withdraw": "Withdraw permission",
   "clients.ai.retry": "Try again",
+  "clients.ai.allowStart": "Allow and start",
   "clients.ai.review": "Review AI permission"
 }

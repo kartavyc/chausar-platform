@@ -27,6 +27,7 @@ import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import { PhoneReach } from './PhoneReach';
 import s from './Business.module.css';
 import n from './Notifications.module.css';
+import { Select } from '../../parts/Select';
 
 type Change = ParamsOf<'venture.notify.settings'>;
 
@@ -241,7 +242,7 @@ function Relay({ view }: { view: { relay: string | null; line: string } }) {
       {shown && <p className={s.note}>{shown.line}</p>}
       <Field label={t('business.notify.relay')} hint={t('business.notify.relayHint')} type="url" inputMode="url" autoComplete="off" spellCheck={false} value={url} disabled={busy} onChange={(event) => setUrl(event.currentTarget.value)} />
       <div className={s.buttons}>
-        <Button type="submit" variant="secondary" disabled={busy || !url.trim()}>{t('business.notify.relaySave')}</Button>
+        <Button type="submit" variant="secondary" disabled={busy} disabledReason={url.trim() ? undefined : t('business.notify.relayFirst')}>{t('business.notify.relaySave')}</Button>
         {shown?.relay && <Button variant="quiet" disabled={busy} onClick={() => void send(null)}>{t('business.notify.relayRemove')}</Button>}
       </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
@@ -324,10 +325,10 @@ function QuietTimes({ settings, change }: { settings: NotifySettingsView; change
         )}
         <div className={n.field}>
           <label htmlFor={`${ids}-digest`} className={n.label}>{t('business.notify.digest')}</label>
-          <select id={`${ids}-digest`} className={n.select} value={digest} disabled={busy} aria-describedby={`${ids}-digest-hint`} onChange={(event) => { setDigest(event.currentTarget.value); touch(); }}>
+          <Select id={`${ids}-digest`} className={n.select} value={digest} disabled={busy} aria-describedby={`${ids}-digest-hint`} onChange={(event) => { setDigest(event.currentTarget.value); touch(); }}>
             <option value="off">{t('business.notify.digestOff')}</option>
             {HOURS.map((hour) => <option key={hour} value={String(hour)}>{clockWords(hour)}</option>)}
-          </select>
+          </Select>
           <p id={`${ids}-digest-hint`} className={s.note}>{t('business.notify.digestHint')}</p>
         </div>
         <div className={s.buttons}>
@@ -344,7 +345,7 @@ function QuietTimes({ settings, change }: { settings: NotifySettingsView; change
               label={t('business.notify.pause')} hint={t('business.notify.pauseHint')} type="date" value={until} disabled={busy}
               min={dayKeyPlus(today, 1)} max={dayKeyPlus(today, 30)} onChange={(event) => setUntil(event.currentTarget.value)}
             />
-            <div className={s.buttons}><Button variant="secondary" disabled={busy || !until} onClick={() => void pause()}>{t('business.notify.pauseButton')}</Button></div>
+            <div className={s.buttons}><Button variant="secondary" disabled={busy} disabledReason={until ? undefined : t('business.notify.pauseFirst')} onClick={() => void pause()}>{t('business.notify.pauseButton')}</Button></div>
           </>
         )}
       </div>

@@ -18,7 +18,7 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
-import { AgingBar } from '../../parts/charts/AgingBar';
+import { AgingBar, agingHasBars } from '../../parts/charts/AgingBar';
 import type { AgingData } from '../../parts/charts/types';
 import { Figure } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
@@ -68,7 +68,7 @@ export function OwedTile({ line, open, aging, agingView, span }: OwedTileProps) 
       </div>
       {/* The five ages at rest as the bar, a visual cue with almost no words; each age in words, with its count and
           amount, is one step away in the chart's own table. Nothing owed draws no bar at all. */}
-      {aging && count !== 0 && <div className={s.tileChart}><AgingBar data={aging} legend="held" /></div>}
+      {aging && count !== 0 && agingHasBars(aging) && <div className={s.tileChart}><AgingBar data={aging} legend="held" /></div>}
       {count === 0 && <p className={s.quietLine}>{t('money.owed.none')}</p>}
       {aged && aged.invoices.length > 0 && <Reminders aging={aged} />}
     </Tile>

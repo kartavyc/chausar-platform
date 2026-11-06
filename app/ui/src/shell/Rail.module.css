@@ -65,25 +65,25 @@
 
 .on,
 .on:hover {
-  background: var(--selected);
-  color: var(--on-selected);
+  background: var(--nav-on);
+  color: var(--nav-on-fg);
 }
 
 .on .icon {
-  color: var(--on-selected);
+  color: var(--nav-on-fg);
 }
 
-/* Today's count. On the selected item it sits on a lighter step of the selected ground; elsewhere it is amber. */
+/* Today's count. On the selected item it sits on the surface of the grey fill; elsewhere it is amber. */
 .count {
   min-width: var(--sp-6);
   margin-left: auto;
   padding: 0 var(--sp-2);
   border-radius: var(--r-chip);
-  background: var(--count-on-selected);
+  background: var(--nav-count);
   font-size: var(--text-label);
   line-height: var(--sp-5);
   text-align: center;
-  color: var(--on-selected);
+  color: var(--nav-count-fg);
 }
 
 .count[data-tone='wait'] {

@@ -17,6 +17,7 @@ import { copyText } from '../clients/handoff';
 import { messageOf, monthBefore, useMoment, useMonthWords, useThisMonth } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import { Select } from '../../parts/Select';
 
 export function AccountantSheet({ onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
@@ -65,9 +66,9 @@ export function AccountantSheet({ onClose, returnFocus }: SheetComponentProps) {
         <form className={s.form} noValidate onSubmit={(event) => { event.preventDefault(); void make(); }}>
           <div className={s.field}>
             <label htmlFor={monthId} className={s.fieldLabel}>{t('money.month')}</label>
-            <select id={monthId} className={s.select} value={month} disabled={busy} onChange={(event) => setMonth(event.currentTarget.value)}>
+            <Select id={monthId} className={s.select} value={month} disabled={busy} onChange={(event) => setMonth(event.currentTarget.value)}>
               {months.map((item) => <option key={item} value={item}>{monthWords(item)}</option>)}
-            </select>
+            </Select>
           </div>
           <p className={s.quietLine}>{t('money.accountant.shows')}</p>
           <div className={s.buttons}>

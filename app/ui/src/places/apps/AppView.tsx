@@ -36,7 +36,7 @@ function saveFile(fileName: string, document: string): void {
 export function AppView({ id }: { id: string }) {
   const t = useT();
   const client = useEngine();
-  const chatId = useId(), sideId = useId();
+  const chatId = useId(), sideId = useId(), allowId = useId();
   const loaded = useResource('venture.apps.get', { app: id }, { refreshOn: never });
   const [fresh, setFresh] = useState<MiniAppView | null>(null);
   const [line, setLine] = useState<string | null>(null);
@@ -131,9 +131,11 @@ export function AppView({ id }: { id: string }) {
               : <MiniAppFrame key={`${app.id}:${app.version}`} app={app} title={t('apps.view.frame', { name: app.name })} onMoved={() => setMoved(true)} />}
         </section>
         <div className={s.actions}>
-          <Button onClick={pin} disabled={busy}>{app.pinned ? t('apps.view.unpin') : t('apps.view.pin')}</Button>
-          <Button onClick={() => void exportApp()} disabled={busy}>{t('apps.view.export')}</Button>
+          {/* B4: an app waiting on Allow can't run, so it can't be pinned or exported yet. One line says why, for both. */}
+          <Button onClick={pin} disabled={busy || (Boolean(app.ask) && !app.pinned)} aria-describedby={app.ask && !app.pinned ? allowId : undefined}>{app.pinned ? t('apps.view.unpin') : t('apps.view.pin')}</Button>
+          <Button onClick={() => void exportApp()} disabled={busy || Boolean(app.ask)} aria-describedby={app.ask ? allowId : undefined}>{t('apps.view.export')}</Button>
         </div>
+        {app.ask && <p id={allowId} className={s.quiet}>{t('apps.view.allowFirst')}</p>}
         {line && (
           <p className={s.said} role="status">
             <span>{line}</span>
@@ -188,11 +190,11 @@ export function AppView({ id }: { id: string }) {
               <div className={s.removeAsk} role="group" aria-label={t('apps.remove')}>
                 <p>{t('apps.remove.ask', { name: app.name })}</p>
                 <div className={s.allowRow}>
-                  <Button size="sm" onClick={() => void remove()} disabled={busy}>{t('apps.remove.yes')}</Button>
+                  <Button size="sm" tone="danger" onClick={() => void remove()} disabled={busy}>{t('apps.remove.yes')}</Button>
                   <Button size="sm" variant="quiet" onClick={() => setRemoving(false)}>{t('apps.remove.no')}</Button>
                 </div>
               </div>
-            ) : <Button size="sm" variant="quiet" onClick={() => setRemoving(true)}>{t('apps.remove')}</Button>}
+            ) : <Button size="sm" tone="danger" onClick={() => setRemoving(true)}>{t('apps.remove')}</Button>}
           </>
         )}
       </Tile>

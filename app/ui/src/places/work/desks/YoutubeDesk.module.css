@@ -15,4 +15,3 @@
 .gridImage { display: block; width: 100%; height: auto; }
 .body input[type='file'] { max-width: 100%; min-width: 0; font: inherit; }
 .body details { margin-block: var(--sp-3); }
-.body summary { cursor: pointer; color: var(--fg2); font-size: var(--text-read); }

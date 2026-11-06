@@ -306,11 +306,6 @@
   color: var(--fg);
 }
 
-.whyMore summary {
-  width: fit-content;
-  cursor: pointer;
-}
-
 .whyTech {
   margin-top: var(--sp-1);
   line-height: 18px;
@@ -714,27 +709,6 @@
   outline-offset: 0;
 }
 
-.file {
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
-.file::file-selector-button {
-  min-height: var(--control);
-  margin-right: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
-  border: var(--hair) solid var(--edge);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--fg);
-  font: inherit;
-  cursor: pointer;
-}
-
-.file::file-selector-button:hover {
-  background: var(--hover);
-}
-
 .hint {
   font-size: var(--text-label);
   color: var(--mute);
@@ -806,7 +780,10 @@
 
 .submit {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: var(--sp-1);
+  text-align: end;
 }
 
 /* Preview links under a draft: the address as text to select or copy, when it stops working, Copy and Revoke. */

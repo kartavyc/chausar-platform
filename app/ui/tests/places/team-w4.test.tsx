@@ -129,13 +129,13 @@ describe('Team w4: the department toggle and panels from the engine', () => {
     expect(window.location.hash).toBe('#/team');
   });
 
-  it('on a phone the toggle is filter chips, each with how many agents it holds', async () => {
+  it('on a phone the toggle is filter chips, each with how many agents it holds; a department with none has no chip', async () => {
     phone();
     start();
     const chips = await screen.findByRole('group', { name: 'Show departments' });
     await waitFor(() => expect(within(chips).getByRole('button', { name: /^Marketing/ }).querySelector('[data-count]')?.textContent).toBe('2'));
     expect(within(chips).getByRole('button', { name: /^All departments/ }).querySelector('[data-count]')?.textContent).toBe('5');
-    expect(within(chips).getByRole('button', { name: /^Money/ }).querySelector('[data-count]')?.textContent).toBe('0');
+    expect(within(chips).queryByRole('button', { name: /^Money/ })).toBeNull();
   });
 
   it('"Add an agent" leads to the ways to earn, where a way brings its team', async () => {

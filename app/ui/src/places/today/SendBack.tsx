@@ -64,6 +64,7 @@ export function DraftTools({ api }: { api: ApprovalToolsApi }) {
   const [text, setText] = useState(prefill);
   const [problem, setProblem] = useState<string>();
   const [picked, setPicked] = useState<readonly string[]>([]);
+  const [more, setMore] = useState(false);
   if (!runId) return null;
   // A3 (S2): a draft with no Approve shows its tools only once its run says the owner may edit it.
   if (!draftEditable(row, run)) return null;
@@ -76,6 +77,7 @@ export function DraftTools({ api }: { api: ApprovalToolsApi }) {
     setProblem(undefined);
     setText(prefill);
     setPicked([]);
+    setMore(false);
   }
 
   /** A decision taken here: kept on Today as the card's line, with Undo while its revision has not started. */
@@ -122,9 +124,11 @@ export function DraftTools({ api }: { api: ApprovalToolsApi }) {
             <Button variant="quiet" size={api.size} onClick={(event) => openSheet('edit-draft', row.id, event.currentTarget)}>{t('today.edit.review')}</Button>
           </p>
         )}
+        {/* B4 (178.d1): a card shows at most Read, Approve and More. */}
         <div className={s.toolButtons}>
-          <Button variant="quiet" size={api.size} disabled={api.busy} onClick={() => api.setOpen(true)}>{t('today.sendBack.open')}</Button>
-          {editable && <Button variant="quiet" size={api.size} disabled={api.busy} onClick={(event) => openSheet('edit-draft', row.id, event.currentTarget)}>{t('today.edit.open')}</Button>}
+          <Button variant="quiet" size={api.size} disabled={api.busy} aria-expanded={more} onClick={() => setMore(!more)}>{t('approval.more')}</Button>
+          {more && <Button variant="quiet" size={api.size} disabled={api.busy} onClick={() => api.setOpen(true)}>{t('today.sendBack.open')}</Button>}
+          {more && editable && <Button variant="quiet" size={api.size} disabled={api.busy} onClick={(event) => openSheet('edit-draft', row.id, event.currentTarget)}>{t('today.edit.open')}</Button>}
         </div>
       </div>
     );
@@ -187,7 +191,9 @@ export function UndoButton({ row, undo, phone = false }: { row: QueueRow; undo: 
   async function press() {
     setBusy(true);
     try {
-      session.keep(row, await undo());
+      const said = await undo();
+      // B4: taken back for good, the row is open again and has no line to change.
+      if (session.line(row.id)) session.keep(row, said);
     } catch (error) {
       session.keep(row, refusalWords(error, t));
     } finally {

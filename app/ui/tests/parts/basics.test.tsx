@@ -73,13 +73,67 @@ describe('Button', () => {
     expect(approve.hasAttribute('title')).toBe(false);
   });
 
-  it('fills only the primary with the accent, and the locked primary with the soft accent', () => {
+  it('fills only the primary with the accent, and draws the locked primary as an outline (B4)', () => {
     const css = readFileSync(join(import.meta.dirname, '../../src/parts/Button.module.css'), 'utf8');
     expect(css).toMatch(/\.primary\s*\{[^}]*background:\s*var\(--accent\)[^}]*color:\s*var\(--accent-ink\)/);
-    expect(css).toMatch(/\.primary\[data-locked\]\s*\{[^}]*background:\s*var\(--accent-soft\)[^}]*color:\s*var\(--mute\)/);
+    expect(css).toMatch(/\.primary\[data-locked\]\s*\{[^}]*background:\s*var\(--surface\)[^}]*border-color:\s*var\(--btn-line\)[^}]*color:\s*var\(--mute\)/);
     for (const [, selector, body] of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)) {
       if (/var\(--accent\)/.test(body!)) expect(selector!.trim()).toMatch(/^\.primary\b/);
     }
+  });
+});
+
+describe('Button: it tells the truth (B4)', () => {
+  const css = () => readFileSync(join(import.meta.dirname, '../../src/parts/Button.module.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('disabledReason disables it and prints the reason, in its accessible description', () => {
+    const onClick = vi.fn();
+    render(<Button variant="primary" disabledReason="Pick both days first" onClick={onClick}>Set the days</Button>);
+    const button = screen.getByRole('button', { name: 'Set the days', description: 'Pick both days first' });
+    expect(button).toHaveProperty('disabled', true);
+    expect(screen.getByText('Pick both days first').hasAttribute('hidden')).toBe(false);
+    fireEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('no reason: nothing printed, nothing described, and it can be pressed', () => {
+    const onClick = vi.fn();
+    const { container } = render(<Button disabledReason={undefined} onClick={onClick}>Save</Button>);
+    const button = screen.getByRole('button', { name: 'Save' });
+    expect(button).toHaveProperty('disabled', false);
+    expect(button.hasAttribute('aria-describedby')).toBe(false);
+    expect(container.querySelector('[data-disabled-reason]')).toBeNull();
+    fireEvent.click(button);
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a description it is given, before the reason', () => {
+    render(<><Button aria-describedby="hint" disabledReason="Add the amount first">Add bill</Button><p id="hint">Saved as a draft.</p></>);
+    expect(screen.getByRole('button', { name: 'Add bill', description: 'Saved as a draft. Add the amount first' })).toBeTruthy();
+  });
+
+  it('a busy button stays disabled and says nothing', () => {
+    const { container } = render(<Button disabled>Save</Button>);
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
+    expect(container.querySelector('[data-disabled-reason]')).toBeNull();
+  });
+
+  it('tone="danger" is marked, and never takes the accent fill', () => {
+    render(<Button tone="danger">Delete this business</Button>);
+    expect(screen.getByRole('button', { name: 'Delete this business' }).dataset.tone).toBe('danger');
+    const text = css();
+    expect(text).toMatch(/\.button\[data-tone='danger'\]\s*\{[^}]*background:\s*var\(--surface\)[^}]*border-color:\s*var\(--fail\)[^}]*color:\s*var\(--fail\)/);
+    for (const [, selector, body] of text.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      if (selector!.includes('data-tone')) expect(body).not.toMatch(/var\(--accent/);
+    }
+  });
+
+  it('a disabled button is plainly apart from an enabled one: no fill and no dimmed accent, a danger one too', () => {
+    const text = css();
+    expect(text).toMatch(/\.button:disabled\s*\{[^}]*background:\s*var\(--wash\)[^}]*border-color:\s*var\(--line\)[^}]*color:\s*var\(--mute\)/);
+    expect(text).toMatch(/\.button\[data-tone='danger'\]:disabled\s*\{[^}]*background:\s*var\(--wash\)[^}]*color:\s*var\(--mute\)/);
+    expect(text).toMatch(/\.quiet:disabled\s*\{[^}]*color:\s*var\(--mute\)/);
+    expect(text).not.toMatch(/opacity:\s*0\./);
   });
 });
 
@@ -92,7 +146,7 @@ describe('Change', () => {
     expect(old.className).not.toContain('mono');
     expect(screen.getByText('₹30,000').className).not.toContain('mono');
     expect(container.textContent).toContain('was');
-    fireEvent.click(screen.getByRole('button', { name: 'Receipt for ₹30,000' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open receipt for ₹30,000' }));
     expect(onReceipt).toHaveBeenCalledWith('R-0415');
   });
 
@@ -106,7 +160,7 @@ describe('Change', () => {
 describe('Receipt', () => {
   it('is a small receipt mark (4Z3) that opens the receipt sheet; it never prints its code, which the sheet shows', () => {
     render(<Receipt id="R-0419" amount="₹1,12,400" />);
-    const button = screen.getByRole('button', { name: 'Receipt for ₹1,12,400' });
+    const button = screen.getByRole('button', { name: 'Open receipt for ₹1,12,400' });
     expect(button.textContent).toBe('');
     expect(button).toBe(screen.getByRole('button', { name: receiptMark('R-0419') }));
     fireEvent.click(button);
@@ -132,7 +186,7 @@ describe('Receipt', () => {
 
   it('on the dark goal card it is the same mark in the goal card\'s light link colour, with no code', () => {
     render(<Receipt id="R-0421" tone="dark" amount="₹18,880" onOpen={() => {}} />);
-    const button = screen.getByRole('button', { name: 'Receipt for ₹18,880' });
+    const button = screen.getByRole('button', { name: 'Open receipt for ₹18,880' });
     expect(button.dataset.tone).toBe('dark');
     expect(button.textContent).toBe('');
     expect(button.querySelector('svg.lucide-receipt-text')).not.toBeNull();
@@ -220,12 +274,12 @@ describe('EmptyState (Ink v2): one sentence, then actions, never a control that 
 });
 
 describe('Field (Ink v2): the D input box', () => {
-  it('has the button-line border and the button radius, the ink border on focus, and the fail border when invalid', () => {
+  it('has the button-line border and the button radius, one ring on focus, and the fail border when invalid', () => {
     render(<Field label="Your answer" value="" onChange={() => {}} />);
     const name = v2Class(screen.getByLabelText('Your answer'))!;
     const css = v2Css('Field.module.css');
     expect(css).toMatch(new RegExp(`\\.${name}\\s*\\{[^}]*border:\\s*var\\(--hair\\) solid var\\(--btn-line\\)[^}]*border-radius:\\s*var\\(--r-button\\)`));
-    expect(css).toMatch(new RegExp(`\\.${name}:focus-visible\\s*\\{[^}]*border-color:\\s*var\\(--fg\\)`));
+    expect(css).toMatch(new RegExp(`\\.${name}:focus-visible\\s*\\{[^}]*outline:\\s*var\\(--focus\\) solid var\\(--link\\)`));
     expect(css).toMatch(new RegExp(`\\.${name}\\[aria-invalid='true'\\]\\s*\\{[^}]*border-color:\\s*var\\(--fail\\)`));
   });
 

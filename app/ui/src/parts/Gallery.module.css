@@ -209,11 +209,6 @@
 
 .needsHead {
   min-height: 24px;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  line-height: 24px;
-  color: var(--fg2);
-  cursor: pointer;
 }
 
 .source {

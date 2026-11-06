@@ -105,8 +105,8 @@
   color: var(--mute);
 }
 
-.box:focus-within {
-  border-color: var(--fg);
+.box:has(input:focus-visible) {
+  outline: var(--focus) solid var(--link);
 }
 
 .input {
@@ -360,29 +360,6 @@
 
 .why b {
   color: var(--fg);
-}
-
-.checks summary,
-.keeps summary {
-  list-style: none;
-}
-
-.checksSummary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-size: var(--text-read);
-  color: var(--fg2);
-  cursor: pointer;
-}
-
-.checksSummary::-webkit-details-marker {
-  display: none;
-}
-
-.checks[open] .checksSummary > svg,
-.keeps[open] .checksSummary > svg {
-  transform: rotate(90deg);
 }
 
 .checkList {
@@ -687,8 +664,8 @@
   cursor: pointer;
 }
 
-.fileLabel:focus-within {
-  outline: var(--hair) solid var(--focus);
+.fileLabel:has(:focus-visible) {
+  outline: var(--focus) solid var(--link);
 }
 
 @media (max-width: 759px) {

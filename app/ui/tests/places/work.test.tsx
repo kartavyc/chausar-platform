@@ -70,7 +70,7 @@ describe('Work: runs', () => {
     expect(within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]')).toBeTruthy();
     expect(within(reach).getByText('model estimate')).toBeTruthy();
     expect(within(reach).getByText('Worked for 2 min')).toBeTruthy();
-    expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
+    expect(within(reach).queryByRole('button', { name: /receipt/i })).toBeNull();
   });
 
   it('shows a failed run with its real error, and runs it again through the engine', async () => {
@@ -145,6 +145,24 @@ describe('Work: filter in the address', () => {
     await go('#/work?state=nonsense');
     expect(await screen.findByText('Two mentions in episode 14')).toBeTruthy();
     expect(pressed(screen.getByRole('group', { name: 'Show' }))).toEqual(['All']);
+  });
+
+  it('a new business has no chips at all: nothing to filter (B4 task 6)', async () => {
+    await start('#/work', { intercept: { 'venture.runs.list': () => ({ runs: [] }), 'venture.order.list': () => [] } });
+    expect(await screen.findByText('No work yet.')).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Show' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'New order' })).toBeTruthy();
+  });
+
+  it('a filter with nothing in it hides its chip; Failed shows only when something failed (B4 task 6)', async () => {
+    await start('#/work', { intercept: { 'venture.runs.list': () => ({ runs: [] }) } });
+    await screen.findByText('Two mentions in episode 14');
+    const nav = await screen.findByRole('group', { name: 'Show' });
+    await waitFor(() => expect(within(nav).queryByRole('button', { name: 'Failed' })).toBeNull());
+    expect(within(nav).queryByRole('button', { name: 'Running' })).toBeNull();
+    expect(within(nav).queryByRole('button', { name: 'Done' })).toBeNull();
+    expect(within(nav).getByRole('button', { name: 'All' })).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Ideas' })).toBeTruthy();
   });
 
   it('says plainly when a filter has nothing, and when there is no work at all', async () => {

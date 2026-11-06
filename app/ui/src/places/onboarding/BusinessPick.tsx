@@ -5,6 +5,7 @@ import { EngineError, type PlanSuggestionView } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import s from './BusinessPick.module.css';
+import { OptionRows } from '../../parts/OptionRows';
 
 export type Target = 'new' | 'add';
 
@@ -17,17 +18,16 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
  */
 export function BusinessPick({ business, target, onTarget, disabled }: { business: string; target: Target; onTarget: (target: Target) => void; disabled: boolean }) {
   const t = useT();
-  const name = useId();
   return (
-    <fieldset className={s.pick} disabled={disabled} data-business-pick="">
-      <legend className="sr-only">{t('onboarding.ways.where')}</legend>
-      {(['new', 'add'] as const).map((id) => (
-        <label key={id} className={s.choice} data-on={target === id ? '' : undefined}>
-          <input type="radio" className={s.radio} name={name} value={id} checked={target === id} onChange={() => onTarget(id)} />
-          <span>{id === 'new' ? t('onboarding.ways.new') : t('onboarding.ways.add', { business })}</span>
-        </label>
-      ))}
-    </fieldset>
+    <OptionRows
+      legend={t('onboarding.ways.where')}
+      legendHidden
+      disabled={disabled}
+      data-business-pick=""
+      value={target}
+      options={[{ id: 'new', label: t('onboarding.ways.new') }, { id: 'add', label: t('onboarding.ways.add', { business }) }]}
+      onChange={onTarget}
+    />
   );
 }
 

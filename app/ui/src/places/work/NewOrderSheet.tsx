@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -15,6 +15,8 @@ import { messageOf } from './PreviousRuns';
 import { clearPrefill, peekPrefill } from './prefill';
 import { workChanged } from './refresh';
 import s from './Work.module.css';
+import { Select } from '../../parts/Select';
+import { FilePick } from '../../parts/FilePick';
 
 /** The client choice that opens a name field and adds the client with the order. Not a valid client id. */
 export const NEW_CLIENT = '+new';
@@ -30,7 +32,6 @@ const never = () => false;
 export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const engine = useEngine();
-  const ids = useId();
   const clients = useResource('venture.client.list', {}, { refreshOn: never });
   const plan = useResource('venture.blueprint.get', {}, { refreshOn: never });
   const business = useResource('venture.get', {}, { refreshOn: never });
@@ -56,6 +57,18 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const ask = (what && plan.data?.intake?.[what]) || null;
   const filesOk = files.every((f) => fileProblem(f) === null);
   const ready = !sending && !!business.data?.venture.country && (who === NEW_CLIENT ? name.trim() !== '' : who !== '') && what !== '' && request.trim() !== '' && intakeReady(ask, intake) && kitIntakeReady(ask, kitAnswers) && filesOk;
+
+  /** The first thing still missing, said under Add order (B4). */
+  const typesName = who === NEW_CLIENT || (clients.data ?? []).length === 0;
+  const noClient = who === NEW_CLIENT ? name.trim() === '' : who === '';
+  const missing = ready || sending ? undefined
+    : !business.data?.venture.country ? t('work.form.needCountry')
+      : noClient && what === '' ? t(typesName ? 'work.form.needNameAndService' : 'work.form.needClientAndService')
+        : noClient ? t(typesName ? 'work.form.needName' : 'work.form.needClient')
+          : what === '' ? t('work.form.needService')
+            : request.trim() === '' ? t('work.form.needRequest')
+              : !filesOk ? t('work.form.needFiles')
+                : t('work.form.needIntake');
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -108,51 +121,36 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   } else {
     body = (
       <form className={s.form} onSubmit={(event) => void submit(event)} noValidate>
-        <div className={s.field}>
-          <label htmlFor={`${ids}-client`} className={s.label}>{t('work.form.client')}</label>
-          <select id={`${ids}-client`} className={s.select} value={who} onChange={(event) => setClientId(event.currentTarget.value)}>
+        <Select label={t('work.form.client')} value={who} onChange={(event) => setClientId(event.currentTarget.value)}>
             <option value="" disabled>{t('work.form.choose')}</option>
             {clients.data.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             <option value={NEW_CLIENT}>{t('work.form.newClient')}</option>
-          </select>
-        </div>
+          </Select>
         {who === NEW_CLIENT && <Field label={t('work.form.clientName')} value={name} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} />}
-        <div className={s.field}>
-          <label htmlFor={`${ids}-service`} className={s.label}>{t('work.form.service')}</label>
-          <select id={`${ids}-service`} className={s.select} value={what} onChange={(event) => setOfferId(event.currentTarget.value)}>
+        <Select label={t('work.form.service')} value={what} onChange={(event) => setOfferId(event.currentTarget.value)}>
             <option value="" disabled>{t('work.form.choose')}</option>
             {offers.map((offer) => {
               const unpriced = offer.pricing.unitPriceMinor === null;
               return <option key={offer.id} value={offer.id} disabled={unpriced}>{unpriced ? t('work.form.noPrice', { name: offer.name.value }) : offer.name.value}</option>;
             })}
-          </select>
-        </div>
+          </Select>
         <IntakeFields ask={ask} draft={intake} onChange={setIntake} />
         <KitIntakeFields currency={business.data?.venture.country?.currency} ask={ask} answers={kitAnswers} onChange={setKitAnswers} />
         <Field multiline label={t('work.form.request')} value={request} onChange={(event) => setRequest(event.currentTarget.value)} />
         <div className={s.field}>
-          <label htmlFor={`${ids}-files`} className={s.label}>{t('work.form.files')}</label>
-          <input
-            id={`${ids}-files`} type="file" multiple accept={FILE_ACCEPT} className={s.file} aria-describedby={`${ids}-files-hint`}
-            onChange={(event) => setFiles(Array.from(event.currentTarget.files ?? []))}
-          />
-          <p id={`${ids}-files-hint`} className={s.hint}>{t('work.form.filesHint')}</p>
-          {files.length > 0 && (
+          <FilePick label={t('work.form.files')} hint={t('work.form.filesHint')} multiple accept={FILE_ACCEPT} files={files} onChange={(event) => setFiles(Array.from(event.currentTarget.files ?? []))} onRemove={(index) => setFiles(files.filter((_, at) => at !== index))} />
+          {!filesOk && (
             <ul className={s.files}>
               {files.map((file, i) => {
                 const problem = fileProblem(file);
-                return (
-                  <li key={`${file.name}-${i}`} className={problem ? s.problem : undefined}>
-                    {problem ? t(problem === 'type' ? 'work.form.fileType' : 'work.form.fileSize', { name: file.name }) : file.name}
-                  </li>
-                );
+                return problem && <li key={`${file.name}-${i}`} className={s.problem}>{t(problem === 'type' ? 'work.form.fileType' : 'work.form.fileSize', { name: file.name })}</li>;
               })}
             </ul>
           )}
         </div>
         {error && <p className={s.problem} role="status">{error}</p>}
         <div className={s.submit}>
-          <Button variant="primary" type="submit" disabled={!ready}>{sending ? t('work.form.sending') : t('work.form.submit')}</Button>
+          <Button variant="primary" type="submit" disabled={!ready} disabledReason={missing}>{sending ? t('work.form.sending') : t('work.form.submit')}</Button>
         </div>
       </form>
     );

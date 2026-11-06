@@ -38,7 +38,7 @@ it('shows the exact extra price and waits for a separate approval of that quote'
  fireEvent.change(await screen.findByLabelText('What should change?'),{target:{value:'A clearer opening.'}});
  fireEvent.click(screen.getByRole('button',{name:'Preview this revision'}));
  expect(await screen.findByText('₹250.00')).not.toBeNull();
- expect(screen.getByRole('button',{name:/Receipt for/}).getAttribute('data-receipt')).toBe('fig:revision:order1:post-1:3:25000:INR');
+ expect(screen.getByRole('button',{name:/Open receipt for/}).getAttribute('data-receipt')).toBe('fig:revision:order1:post-1:3:25000:INR');
  expect(request.mock.calls.some(([method,p])=>method==='venture.desk.act'&&p.action==='revise')).toBe(false);
  fireEvent.click(screen.getByRole('button',{name:'Approve this extra round'}));
  await screen.findByText('The revision waits for your approval in Today.');

@@ -2,10 +2,10 @@ import type { ReactNode } from 'react';
 import { useT } from '../../text';
 import { cx } from '../cx';
 import type { FigureProof } from '../Figure';
-import { Icon } from '../Icon';
 import { ModelEstimate } from '../ModelEstimate';
 import { Receipt } from '../Receipt';
 import s from './Charts.module.css';
+import { Fold } from '../Fold';
 
 export interface ChartDataRow {
   key: string;
@@ -29,11 +29,7 @@ export interface ChartDataProps {
 export function ChartData({ caption, columns, rows }: ChartDataProps) {
   const t = useT();
   return (
-    <details className={s.data}>
-      <summary className={s.dataSummary}>
-        <Icon name="chevron-right" size={14} className={s.dataChevron} />
-        {t('chart.data.view')}
-      </summary>
+    <Fold summary={t('chart.data.view')} className={s.data} summaryClassName={s.dataSummary}>
       <table className={s.table}>
         <caption className="sr-only">{caption}</caption>
         <thead>
@@ -51,7 +47,7 @@ export function ChartData({ caption, columns, rows }: ChartDataProps) {
           ))}
         </tbody>
       </table>
-    </details>
+    </Fold>
   );
 }
 

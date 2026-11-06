@@ -15,12 +15,14 @@ import s from './OnlineSellerDesk.module.css';
 import {SellerReports} from './SellerReports';
 import {SellerRecords} from './SellerRecords';
 import {SellerPhotos} from './SellerPhotos';
+import { Select } from '../../../parts/Select';
+import { FilePick } from '../../../parts/FilePick';
 
 export type SellerStage=SellerStageBody&{id:string;digest:string;marketplaceApplied:false};
 export type SellerAct=(action:string,payload:SellerJson,id?:string,digest?:string)=>Promise<unknown>;
 export function sellerUpload(file:File):Promise<{name:string;contentBase64:string}> {return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,contentBase64:String(reader.result).split(',')[1]??''});reader.onerror=()=>reject(new Error('FILE_UNREADABLE'));reader.readAsDataURL(file);});}
 export function sellerDownload(name:string,text:string,base64=false){const bytes=base64?Uint8Array.from(atob(text),c=>c.charCodeAt(0)):text;const url=URL.createObjectURL(new Blob([bytes]));const a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
-export function SellerSelect({label,value,onChange,children}:{label:string;value:string;onChange:(value:string)=>void;children:ReactNode}) {const id=useId();return <><label htmlFor={id}>{label}</label><select id={id} className={s.select} value={value} onChange={event=>onChange(event.currentTarget.value)}>{children}</select></>;}
+export function SellerSelect({label,value,onChange,children}:{label:string;value:string;onChange:(value:string)=>void;children:ReactNode}) {const id=useId();return <><label htmlFor={id}>{label}</label><Select id={id} className={s.select} value={value} onChange={event=>onChange(event.currentTarget.value)}>{children}</Select></>;}
 export function SellerFigures({result}:{result:{figures:{key:string;display:string;receiptId:string}[];receipt:{inputs:unknown;steps:unknown;explanation:string}}}) {
  const t=useT(),[receipt,setReceipt]=useState(false);
  const label=(key:string)=>t('pb-seller-ops.figure.'+key.split('.').at(-1));
@@ -33,7 +35,7 @@ function SellerChange({act,busy}:{act:SellerAct;busy:boolean}) {
  async function preview(){if(!read)return;const change:SellerJson=field==='price'?{field,rupees:value,clearance}:field==='promotion'?{field,value,scope,depthPercent:depth,endsOn:ends,clearance}:{field,value:field==='archive'?'yes':value};const result=await act('stage',{readId:read.readId,channel:JSON.parse(sku)[0],sku:JSON.parse(sku)[1],change}) as SellerStage|null;if(result){setStage(result);setName('');}}
  async function approve(action:string){if(!stage)return;const result=await act(action,action==='confirm'?{name:stage.stageKind==='change'&&stage.proposal.confirmName?name:null}:{},stage.id,stage.digest) as SellerStage|null;if(result)setStage(result);}
  return <div className={s.body}>
-  <Field type="file" accept=".csv,text/csv" label={t('pb-seller-ops.products')} onChange={e=>{setFile(e.currentTarget.files?.[0]??null);setRead(null);setStage(null);}}/>
+  <FilePick accept=".csv,text/csv" label={t('pb-seller-ops.products')} onChange={e=>{setFile(e.currentTarget.files?.[0]??null);setRead(null);setStage(null);}}/>
   <Field label={t('pb-seller-ops.priceCap')} inputMode="decimal" value={priceCap} onChange={e=>{setPriceCap(e.currentTarget.value);setRead(null);setStage(null);}}/><Field label={t('pb-seller-ops.promotionCap')} inputMode="decimal" value={promotionCap} onChange={e=>{setPromotionCap(e.currentTarget.value);setRead(null);setStage(null);}}/>
   <Button variant="quiet" disabled={busy} locked={!file||!priceCap||!promotionCap} lockedReason={t('pb-seller-ops.sourceFirst')} onClick={()=>void readSource()}>{t('pb-seller-ops.read')}</Button>
   {read&&<><SellerSelect label={t('pb-seller-ops.product')} value={sku} onChange={v=>{setSku(v);setStage(null);}}>{read.products.map(product=><option key={product.channel+product.sku} value={JSON.stringify([product.channel,product.sku])}>{product.channel+' / '+product.sku+': '+product.title}</option>)}</SellerSelect>

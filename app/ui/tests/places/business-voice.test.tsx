@@ -143,7 +143,7 @@ describe('Business > Your voice (W4 4J22b, from 4J17)', () => {
   it('Learn waits for three texts and takes ten at most', async () => {
     start('#/business/voice');
     const learn = await tile('Learn from your writing');
-    expect(within(learn).getByRole('button', { name: 'Learn' }).getAttribute('aria-disabled')).toBe('true');
+    expect((within(learn).getByRole('button', { name: 'Learn', description: 'Learn needs three texts of a line or more.' }) as HTMLButtonElement).disabled).toBe(true);
     for (let i = 0; i < 7; i++) await press(within(learn).getByRole('button', { name: 'Add a text' }));
     expect(within(learn).getAllByRole('textbox')).toHaveLength(10);
     expect(within(learn).queryByRole('button', { name: 'Add a text' })).toBeNull();

@@ -5,6 +5,7 @@ import { ApprovalRow } from '../../parts/ApprovalRow';
 import { decide as decideRow, reread as rereadRow, useTodaySession } from '../today/session';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import { Tile, TileHead } from '../../parts/Tile';
+import { cx } from '../../parts/cx';
 import type { BlueprintViewLite, EngineClient, LabelledLite, QueueDecision, QueueRow } from '../../engine/types';
 import { formatDay } from '../../../../../platform/runtime/owner-format';
 import s from './Business.module.css';
@@ -21,8 +22,8 @@ export function dayOf(at: string, zone: string): string {
 }
 
 /**
- * One tile of a business page (D's `.tile` with its `.th` head): a region named by its heading, and its words under it
- * spaced by the grid. Every business page is built from these.
+ * One section of a business page: a region named by its heading, and its words under it spaced by the grid. Plain
+ * (B4 task 1): no box; a section after another is parted by one hairline rule. Every business page is built from these.
  */
 export function TileSection({ title, meta, end, more, className, children }: {
   title: string; meta?: ReactNode; end?: ReactNode; more?: { href: string; label: string } | undefined;
@@ -30,7 +31,7 @@ export function TileSection({ title, meta, end, more, className, children }: {
 }) {
   const headingId = useId();
   return (
-    <Tile as="section" labelledBy={headingId} className={className}>
+    <Tile as="section" plain labelledBy={headingId} className={cx(s.section, className)}>
       <TileHead id={headingId} title={title} meta={meta} end={end} more={more} />
       <div className={s.body}>{children}</div>
     </Tile>
@@ -73,7 +74,8 @@ const onQueue = (event: { type: string }) => event.type === 'queue.changed';
 
 /**
  * The plan and price rows waiting on Today for this business, decided here through the same queue and Today's session
- * (one-shot B3): the owner is reading the plan on this page, so it counts as viewed. A price change still asks twice.
+ * (one-shot B3): the owner is reading the plan on this page, so it counts as viewed. One price and nothing else is one
+ * press with an Undo (B4); anything more still asks twice.
  * The rows are the live plan rows, the ones whose decision is on its way, and the ones the session holds as decided,
  * so a row being decided never leaves the list (its card keeps its key from press to answer and shows its own line),
  * and a row already decided is drawn as its line, never as a fresh card. Lines stay for the session, as on Today.
@@ -107,6 +109,8 @@ export function PendingPlanRows({ onDecided }: { onDecided: () => void }) {
             key={row.id}
             row={row}
             done={session.line(row.id)}
+            said={session.said(row.id)}
+            showBusiness={false}
             viewed
             onView={() => document.getElementById('business-plan-name')?.focus()}
             onDecide={async (r, action, extra) => after(await decideRow(client, r, action.id, extra, t))}

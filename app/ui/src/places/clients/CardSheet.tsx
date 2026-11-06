@@ -30,6 +30,7 @@ import { CLOSED_STAGES, pipelineRefresh, STAGE_ORDER, useCardWords } from './pip
 import { DraftForm } from './DraftForm';
 import { draftSheetId, parseWriteTab } from './handoff';
 import s from './Pipeline.module.css';
+import { Select } from '../../parts/Select';
 
 /** The move refusals worded here, by the engine's code (its words stay the English source). */
 const MOVE_REFUSALS: Readonly<Record<string, string>> = { PIPELINE_NOT_A_QUOTE: 'clients.pipeline.card.refused.PIPELINE_NOT_A_QUOTE' };
@@ -231,9 +232,9 @@ function MoveForm({ card, quotes, reload, picked, onSaid }: {
     <form className={s.form} onSubmit={(event) => void move(event)}>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-stage`}>{t('clients.pipeline.card.moveTo')}</label>
-        <select id={`${ids}-stage`} className={s.select} value={stage} onChange={(event) => setStage(event.currentTarget.value as PipelineStage)}>
+        <Select id={`${ids}-stage`} className={s.select} value={stage} onChange={(event) => setStage(event.currentTarget.value as PipelineStage)}>
           {later.map((one) => <option key={one} value={one}>{t(`clients.pipeline.stage.${one}`)}</option>)}
-        </select>
+        </Select>
       </div>
       {(stage === 'asked' || stage === 'talking') && (
         <Field label={t(stage === 'asked' ? 'clients.pipeline.card.sentOn' : 'clients.pipeline.card.repliedOn')} type="date" value={on} max={today} onChange={(event) => setOn(event.currentTarget.value)} />
@@ -241,7 +242,7 @@ function MoveForm({ card, quotes, reload, picked, onSaid }: {
       {stage === 'proposal' && quotes.length > 0 && (
         <div className={s.choice}>
           <label className={s.label} htmlFor={`${ids}-rests`}>{t('clients.pipeline.card.evidence')}</label>
-          <select id={`${ids}-rests`} className={s.select} value={rests} onChange={(event) => setRests(event.currentTarget.value)}>
+          <Select id={`${ids}-rests`} className={s.select} value={rests} onChange={(event) => setRests(event.currentTarget.value)}>
             <option value="" disabled>{t('clients.pipeline.card.quotePick')}</option>
             {quotes.map((quote) => (
               <option key={quote.receiptId} value={quote.receiptId}>
@@ -249,7 +250,7 @@ function MoveForm({ card, quotes, reload, picked, onSaid }: {
               </option>
             ))}
             <option value="note">{t('clients.pipeline.card.noteOption')}</option>
-          </select>
+          </Select>
           {chosen && <p className={s.quote} data-picked-quote="" data-figure-group=""><Figure value={chosen.value} receiptId={chosen.receiptId} /></p>}
         </div>
       )}
@@ -258,10 +259,10 @@ function MoveForm({ card, quotes, reload, picked, onSaid }: {
       {stage === 'lost' && (
         <div className={s.choice}>
           <label className={s.label} htmlFor={`${ids}-reason`}>{t('clients.pipeline.card.reason')}</label>
-          <select id={`${ids}-reason`} className={s.select} value={reason} onChange={(event) => setReason(event.currentTarget.value as LostReason | '')}>
+          <Select id={`${ids}-reason`} className={s.select} value={reason} onChange={(event) => setReason(event.currentTarget.value as LostReason | '')}>
             <option value="" disabled>{t('clients.pipeline.card.reasonPick')}</option>
             {LOST_REASONS.map((one) => <option key={one} value={one}>{t(`clients.pipeline.card.reason.${one}`)}</option>)}
-          </select>
+          </Select>
         </div>
       )}
       <div className={s.actions}><Button type="submit" size="sm" locked={waiting !== null} lockedReason={waiting ?? undefined}>{t('clients.pipeline.card.moveGo')}</Button></div>

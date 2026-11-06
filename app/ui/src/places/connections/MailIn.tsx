@@ -14,6 +14,7 @@ import { readBase64 } from '../work/files';
 import { codeWords } from './KitConnect';
 import s from './Mailbox.module.css';
 import k from './KitConnect.module.css';
+import { FilePick } from '../../parts/FilePick';
 
 /** The most of a file the desktop app's request carries once it is base64 (its 2 MB request limit, with room to spare). */
 const DESKTOP_FILE_BYTES = 1_400_000;
@@ -47,14 +48,10 @@ export function MailIn() {
       <p className={s.quiet}>{t('kit-connect.mail.line')}</p>
       {threads.data && !threads.data.mailbox.connected && <p className={k.small} data-manual-path="">{threads.data.mailbox.manualPath}</p>}
       <div className={s.actions}>
-        <label className={k.file}>
-          <Icon name="upload" size={16} />
-          <span>{t('kit-connect.mail.import')}</span>
-          <input
-            type="file" className="sr-only" accept=".eml,.mbox,message/rfc822,application/mbox" disabled={busy} aria-label={t('kit-connect.mail.import')}
+        <FilePick
+          choose={t('kit-connect.mail.import')} accept=".eml,.mbox,message/rfc822,application/mbox" disabled={busy}
             onChange={(event) => { void importFile(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }}
-          />
-        </label>
+        />
       </div>
       {said && <p className={said.problem ? s.problem : s.said} role="status">{said.text}</p>}
       {recent.length > 0 && (

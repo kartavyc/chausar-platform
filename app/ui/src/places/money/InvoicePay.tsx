@@ -17,6 +17,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
+import { ResultLine } from '../../parts/ResultLine';
 import { useEngine } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
@@ -27,6 +28,8 @@ import { copyText, performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
 import { messageOf } from './words';
 import s from './Money.module.css';
+import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 type Changed = (next?: InvoiceViewLite) => void;
 /** How often a waiting payment link is checked while the sheet is open. */
@@ -205,13 +208,13 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
           <Button size="sm" disabled={busy} onClick={() => void email()}>{t('money-pay.email')}</Button>
         </div>
       )}
-      {said && <p className={s.notice} role="status" data-engine-line="">{said}</p>}
+      {/* B4 task 5: Saved, Shared and a refusal share one slot that is there before the press. */}
+      <ResultLine tone={problem ? 'problem' : 'done'} className={s.result} data-engine-line="">{problem ?? said}</ResultLine>
       {kept && engine.showShared && (
         <p className={s.payRow}>
           <Button size="sm" variant="quiet" onClick={() => void showKept(kept)}>{t(kept.endsWith('.pdf') ? 'money-pay.showPdf' : 'money-pay.showFile')}</Button>
         </p>
       )}
-      {problem && <p className={s.refusal} role="status" data-engine-line="">{problem}</p>}
     </section>
   );
 }
@@ -252,13 +255,12 @@ export function BillPart({ view, onChanged }: { view: InvoiceViewLite; onChanged
       {partLine}
       {restOpen && <p className={s.payRow}><Button size="sm" disabled={busy} onClick={() => void draft()}>{t('money-pay.part.rest')}</Button></p>}
       {invoice.status === 'draft' && (
-        <details className={`${s.fold} ${s.block}`}>
-          <summary>{t('money-pay.part.fold')}</summary>
+        <Fold summary={t('money-pay.part.fold')} className={`${s.fold} ${s.block}`}>
           <div className={s.field}>
             <label htmlFor={kindId} className={s.fieldLabel}>{t('money-pay.part.kind')}</label>
-            <select id={kindId} className={s.select} value={kind} disabled={busy} onChange={(event) => setKind(event.currentTarget.value as Kind)}>
+            <Select id={kindId} className={s.select} value={kind} disabled={busy} onChange={(event) => setKind(event.currentTarget.value as Kind)}>
               {KINDS.map((item) => <option key={item} value={item}>{t(`money-pay.part.${item}`)}</option>)}
-            </select>
+            </Select>
           </div>
           {(kind === 'advance' || kind === 'milestone') && <Field label={t('money-pay.part.percent')} value={percent} inputMode="decimal" autoComplete="off" disabled={busy} onChange={(event) => setPercent(event.currentTarget.value)} />}
           {kind === 'partial' && <Field label={t('money-pay.part.amount')} value={amount} inputMode="decimal" autoComplete="off" disabled={busy} onChange={(event) => setAmount(event.currentTarget.value)} />}
@@ -270,7 +272,7 @@ export function BillPart({ view, onChanged }: { view: InvoiceViewLite; onChanged
             })}>{t('money-pay.part.draft')}</Button>
           </div>
           {problem && <p className={s.refusal} role="status" data-engine-line="">{problem}</p>}
-        </details>
+        </Fold>
       )}
       {problem && invoice.status !== 'draft' && <p className={s.refusal} role="status" data-engine-line="">{problem}</p>}
     </>

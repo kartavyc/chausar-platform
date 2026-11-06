@@ -10,6 +10,8 @@ import { Field } from '../../../parts/Field';
 import { ExternalLink } from '../../connections/external';
 import s from './LeadGenerationDesk.module.css';
 import { CommunityLeadPanel } from './CommunityLeadPanel';
+import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 const base = { playbook: 'lead-generation' as const, kind: 'source' };
 type SearchQuote = { query: string; credits: string; checkedOn: string; digest: string };
 /** A quiet desk: today's prospects first, optional manual entries and paid network search one step away. */
@@ -42,11 +44,11 @@ export function LeadGenerationDesk() {
       <form className={s.form} aria-label={t('pb-lead-generation.researchForm')} onSubmit={research}>
         <div className={s.pair}>
           <Field label={t('pb-lead-generation.city')} value={city} onChange={event => setCity(event.target.value)} required />
-          <label className={s.label}>{t('pb-lead-generation.vertical')}<select value={vertical} onChange={event => setVertical(event.target.value)}><option value="shop=bakery">{t('pb-lead-generation.bakery')}</option><option value="amenity=cafe">{t('pb-lead-generation.cafe')}</option><option value="amenity=clinic">{t('pb-lead-generation.clinic')}</option><option value="shop=hairdresser">{t('pb-lead-generation.salon')}</option></select></label>
+          <label className={s.label}>{t('pb-lead-generation.vertical')}<Select value={vertical} onChange={event => setVertical(event.target.value)}><option value="shop=bakery">{t('pb-lead-generation.bakery')}</option><option value="amenity=cafe">{t('pb-lead-generation.cafe')}</option><option value="amenity=clinic">{t('pb-lead-generation.clinic')}</option><option value="shop=hairdresser">{t('pb-lead-generation.salon')}</option></Select></label>
         </div>
         <Field label={t('pb-lead-generation.offer')} value={ownOffer} onChange={event => setOwnOffer(event.target.value)} required />
         <Field label={t('pb-lead-generation.address')} hint={t('pb-lead-generation.addressHint')} value={postalAddress} onChange={event => setPostalAddress(event.target.value)} required />
-        <details><summary>{t('pb-lead-generation.limit')}</summary><Field label={t('pb-lead-generation.count')} inputMode="numeric" value={count} onChange={event => setCount(event.target.value)} /></details>
+        <Fold summary={t('pb-lead-generation.limit')}><Field label={t('pb-lead-generation.count')} inputMode="numeric" value={count} onChange={event => setCount(event.target.value)} /></Fold>
         <Button type="submit" variant="primary" disabled={busy}>{t('pb-lead-generation.research')}</Button>
       </form>
       <p className={s.line}>{t('pb-lead-generation.osmNotice')}</p>
@@ -56,7 +58,7 @@ export function LeadGenerationDesk() {
         <div className={s.row}><strong data-content>{row.name}</strong><span>{t(`pb-lead-generation.status.${row.status}`)}</span></div>
         {row.email && <p className={s.line} data-content>{row.email}</p>}
         <p className={s.line}>{row.sourceUrl ? <><ExternalLink href={row.sourceUrl}>{t('pb-lead-generation.source')}</ExternalLink><span> {row.licence}</span></> : t('pb-lead-generation.ownerSource')}</p>
-        {row.draft && <details><summary>{t('pb-lead-generation.readDraft')}</summary><p className={s.draft} data-content>{row.draft}</p><p className={s.line}>{t('pb-lead-generation.sendYourself')}</p></details>}
+        {row.draft && <Fold summary={t('pb-lead-generation.readDraft')}><p className={s.draft} data-content>{row.draft}</p><p className={s.line}>{t('pb-lead-generation.sendYourself')}</p></Fold>}
       </li>)}</ul>}
       <p><a href="#/clients/pipeline">{t('pb-lead-generation.pipeline')}</a></p>
     </Tile>
@@ -65,21 +67,21 @@ export function LeadGenerationDesk() {
       {followups.length ? <ul className={s.list}>{followups.map(row => <li key={row.id}><span data-content>{row.name}</span><p className={s.line}>{t('pb-lead-generation.due', { day: row.due ?? '' })}</p><a href="#/clients/pipeline">{t('pb-lead-generation.reviewFollowup')}</a></li>)}</ul> : <p className={s.line}>{t('pb-lead-generation.noFollowups')}</p>}
     </Tile>
     <Tile as="section" label={t('pb-lead-generation.manual')}>
-      <details><summary>{t('pb-lead-generation.manual')}</summary><form className={s.form} aria-label={t('pb-lead-generation.manual')} onSubmit={manual}>
+      <Fold summary={t('pb-lead-generation.manual')}><form className={s.form} aria-label={t('pb-lead-generation.manual')} onSubmit={manual}>
         <Field label={t('pb-lead-generation.name')} value={name} onChange={event => setName(event.target.value)} required />
         <Field label={t('pb-lead-generation.email')} type="email" value={email} onChange={event => setEmail(event.target.value)} required />
         <Field label={t('pb-lead-generation.company')} value={company} onChange={event => setCompany(event.target.value)} />
-        <label className={s.label}>{t('pb-lead-generation.cameFrom')}<select value={source} onChange={event => setSource(event.target.value)}><option value="referral">{t('pb-lead-generation.referral')}</option><option value="walk-in">{t('pb-lead-generation.walkin')}</option></select></label>
+        <label className={s.label}>{t('pb-lead-generation.cameFrom')}<Select value={source} onChange={event => setSource(event.target.value)}><option value="referral">{t('pb-lead-generation.referral')}</option><option value="walk-in">{t('pb-lead-generation.walkin')}</option></Select></label>
         <Button type="submit" disabled={busy}>{t('pb-lead-generation.addManual')}</Button>
-      </form></details>
+      </form></Fold>
     </Tile>
     <Tile as="section" label={t('pb-lead-generation.happenstance')}>
-      <details><summary>{t('pb-lead-generation.happenstance')}</summary>
+      <Fold summary={t('pb-lead-generation.happenstance')}>
         <p className={s.line}>{t('pb-lead-generation.happenstanceBoundary')}</p>
         <form className={s.form} onSubmit={preview} aria-label={t('pb-lead-generation.happenstance')}><Field label={t('pb-lead-generation.query')} value={query} onChange={event => { setQuery(event.target.value); setQuote(null); }} required /><Button type="submit" disabled={busy}>{t('pb-lead-generation.showCost')}</Button></form>
         {quote && <form className={s.form} onSubmit={paidSearch} aria-label={t('pb-lead-generation.paidApproval')}><p className={s.line}>{t('pb-lead-generation.credits', { credits: quote.credits, on: quote.checkedOn })}</p><p data-content>{quote.query}</p><Field label={t('pb-lead-generation.key')} hint={t('pb-lead-generation.keyHint')} type="password" autoComplete="off" value={key} onChange={event => setKey(event.target.value)} /><Button type="submit" disabled={busy} locked={!key.trim()} lockedReason={t('pb-lead-generation.keyRequired')}>{t('pb-lead-generation.approveSearch')}</Button></form>}
         {searchUrl && <p><ExternalLink href={searchUrl}>{t('pb-lead-generation.openSearch')}</ExternalLink></p>}
-      </details>
+      </Fold>
     </Tile>
     <CommunityLeadPanel />
   </div>;

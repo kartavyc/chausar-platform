@@ -35,7 +35,7 @@ it('lets the run contract wrap its complete multi-amount rate while keeping figu
     expect(getComputedStyle(rate.closest('[data-figure]')!).display).toBe('inline');
     expect(getComputedStyle(numbers.at(-1)!).whiteSpace).toBe('nowrap');
     expect(getComputedStyle(numbers.at(-1)!.closest('[data-figure]')!).display).toBe('inline-flex');
-    expect(within(container).getByRole('button', {name:`Receipt for ${run.scope!.capRupees} at ${run.scope!.capRate}`})).toBeTruthy();
+    expect(within(container).getByRole('button', {name:`Open receipt for ${run.scope!.capRupees} at ${run.scope!.capRate}`})).toBeTruthy();
     expect(container.querySelector('textarea')).toBeTruthy();
     expect(() => assertFiguresProved(container)).not.toThrow();
   } finally { style.remove(); }

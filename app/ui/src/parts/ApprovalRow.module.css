@@ -41,6 +41,13 @@
   justify-content: flex-end;
 }
 
+/* The second ask's words, over the buttons that took the first ones' place. */
+.askLine {
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
 .sending {
   opacity: 0.6;
 }
@@ -224,7 +231,7 @@
   margin-top: var(--sp-3);
 }
 
-/* The second ask and the answer box open inside the card, on the inner grey. */
+/* The answer box opens inside the card, on the inner grey. */
 .confirm {
   display: grid;
   gap: var(--sp-3);

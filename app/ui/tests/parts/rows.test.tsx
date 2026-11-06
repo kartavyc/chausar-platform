@@ -175,7 +175,7 @@ describe('JobList in the D look', () => {
     const reach = rowOf('Estimated reach for episode 14');
     expect(reach.textContent).toContain('About 18,000 views in 30 days');
     expect(reach.querySelector('[data-estimate]')!.textContent).toBe('model estimate');
-    expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
+    expect(within(reach).queryByRole('button', { name: /receipt/i })).toBeNull();
     const failed = rowOf('Rendering the thumbnail set');
     // 4Z2: a failed run carries no result line from the engine; the row says it failed.
     expect(within(failed).getByText('This job failed.').className).toMatch(/fail/);

@@ -9,6 +9,7 @@ import {Tile,TileHead} from '../../../parts/Tile';
 import {Button} from '../../../parts/Button';
 import {Field} from '../../../parts/Field';
 import s from './R5.module.css';
+import { Fold } from '../../../parts/Fold';
 
 const P='signoff-desk';
 type Professional={profession:string;label:string;registryLabel:string;hint:string;professional:{name:string;registrationNumber:string}|null;switchedOff:{tool:string;line:string}[];rules:{id:string;title:string;line:string;url:string;checked:boolean}[]};
@@ -56,7 +57,7 @@ function ProfessionalRow({row,busy,save}:{row:Professional;busy:boolean;save:(pa
   <Field label={row.registryLabel} hint={row.hint} value={number} onChange={e=>setNumber(e.target.value)}/>
   <Button locked={busy||!name.trim()||!number.trim()} onClick={()=>void save({name,registrationNumber:number})}>{w('save')}</Button>
   {row.switchedOff.length>0&&<><p className={s.line}>{w('switchedOff')}</p><ul className={s.list}>{row.switchedOff.map(item=><li key={item.tool}>{item.line}</li>)}</ul></>}
-  <details><summary>{w('rules')}</summary><ul className={s.list}>{row.rules.map(rule=><li key={rule.id}><a href={rule.url} target="_blank" rel="noreferrer">{rule.title}</a>: {rule.line} <em>{rule.checked?w('checked'):w('unchecked')}</em></li>)}</ul></details>
+  <Fold summary={w('rules')}><ul className={s.list}>{row.rules.map(rule=><li key={rule.id}><a href={rule.url} target="_blank" rel="noreferrer">{rule.title}</a>: {rule.line} <em>{rule.checked?w('checked'):w('unchecked')}</em></li>)}</ul></Fold>
  </li>;
 }
 
