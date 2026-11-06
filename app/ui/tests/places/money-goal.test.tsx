@@ -6,7 +6,7 @@ import { EngineError, type EngineClient, type GoalView } from '../../src/engine/
 import { assertFiguresProved, assertInkRules, receiptMark } from '../helpers/ink-rules';
 
 /*
- * Money's "Invoiced this month" tile with the month's goal (W4 4I2, D-Money's `.mt` invoiced tile): the goals view's
+ * Money's "Invoiced" tile with the month's goal (W4 4I2, D-Money's `.mt` invoiced tile): the goals view's
  * invoiced figure, and with a goal "of" the goal, the percent, the bar, days left in the header pill and the foot
  * (ready to issue, ahead or behind pace, past the goal) where the engine sends those figures, each with its receipt.
  * Without the goals view, the books' billed figure under its own label, never passed off as the goal's.
@@ -30,7 +30,7 @@ async function start({ folder, override = {} }: { folder?: string; override?: Pa
   await settle();
 }
 
-const invoicedTile = () => screen.findByRole('region', { name: 'Invoiced this month' });
+const invoicedTile = () => screen.findByRole('region', { name: 'Invoiced' });
 
 describe('Money: the invoiced tile with the goal (W4 4I2)', () => {
   it('with a goal: the invoiced figure of the goal, the percent, the bar, days left in the pill and ahead of pace, each amount with its receipt', async () => {

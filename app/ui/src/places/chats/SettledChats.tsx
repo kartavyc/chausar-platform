@@ -67,7 +67,7 @@ export function SettledChats() {
 
   return (
     <>
-      <TileSection title={t('chats.archive.after')}>
+      <TileSection title={t('chats.archive.list')}>
         {days !== null && (
           <div className={s.choice}>
             <label className={s.choiceLabel} htmlFor={daysId}>{t('chats.archive.after')}</label>
@@ -79,8 +79,6 @@ export function SettledChats() {
           </div>
         )}
         <p className={s.quiet}>{t('chats.archive.note')}</p>
-      </TileSection>
-      <TileSection title={t('chats.archive.list')}>
         {change && <ChangeNotice line={change.line} busy={busy} onUndo={() => void change.undo()} />}
         {problem && <p className={s.problem} role="alert">{problem}</p>}
         {threads.error && !threads.data && <p className={s.problem} role="alert">{t('chats.failed', { message: threads.error.message })}</p>}

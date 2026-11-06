@@ -165,7 +165,7 @@ describe('Money w4: cash ahead and the next three weeks', () => {
     // The assumptions, one step away in a closed fold.
     const assumes = within(cash).getByText('Clients pay open invoices on their due dates.').closest('details') as HTMLDetailsElement;
     expect(assumes.open).toBe(false);
-    expect(within(assumes).getByText('Assumptions')).toBeTruthy();
+    expect(within(assumes).getByText('How this is worked out')).toBeTruthy();
     // Level lines on round amounts from the engine, and every third week named under the line.
     expect(line.parentElement!.querySelectorAll('[data-axis] span').length).toBe(14);
     expect([...line.parentElement!.querySelectorAll('[data-axis] span')].filter((span) => span.textContent).length).toBe(5);
@@ -199,8 +199,7 @@ describe('Money w4: cash ahead and the next three weeks', () => {
     expect(cash.querySelector('[data-figure]')).toBeNull();
     await click(within(cash).getByRole('button', { name: 'Import a statement' }));
     expect(window.location.hash).toContain('sheet=bank-import');
-    const next = await tile('Next three weeks');
-    expect(within(next).getByText('Nothing is due in or out in the next three weeks.')).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Next three weeks' })).toBeNull();
   });
 
   it('the next three weeks by date, one step away in a closed fold, each amount a projection proved by its week', async () => {
@@ -231,20 +230,20 @@ describe('Money w4: the month, last month and Export for your CA', () => {
     expect((picker as HTMLSelectElement).value).toBe('2026-10');
     await act(async () => { fireEvent.change(picker, { target: { value: '2026-09' } }); window.dispatchEvent(new HashChangeEvent('hashchange')); });
     expect(window.location.hash).toBe('#/money?month=2026-09');
-    expect(await tile('Invoiced in September 2026')).toBeTruthy();
+    expect(await tile('Invoiced')).toBeTruthy();
     await waitFor(() => expect(calls).toContainEqual(['venture.books.summary', { period: '2026-09' }]));
     await waitFor(() => expect(calls).toContainEqual(['venture.goals.get', { month: '2026-09' }]));
     assertInkRules();
     assertFiguresProved();
   });
 
-  it('on the web, Save the files downloads the engine file for the month as it came, and says Chausar sent nothing', async () => {
+  it('on the web, Export for your CA downloads the engine file for the month as it came, and says Chausar sent nothing', async () => {
     const made: Blob[] = [];
     URL.createObjectURL = vi.fn((blob: Blob) => { made.push(blob); return 'blob:export'; }) as typeof URL.createObjectURL;
     URL.revokeObjectURL = vi.fn();
     const clicked = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     const { calls } = start('#/money/books?sheet=accountant:books');
-    await click(await screen.findByRole('button', { name: /^Save the files/ }));
+    await click(await screen.findByRole('button', { name: /^Export for your CA/ }));
     await waitFor(() => expect(calls).toContainEqual(['venture.money.export', { month: '2026-10' }]));
     expect(clicked).toHaveBeenCalled();
     const text = await made[0]!.text();
@@ -256,21 +255,21 @@ describe('Money w4: the month, last month and Export for your CA', () => {
     await click(screen.getByRole('button', { name: 'Download the signed receipts' }));
     expect(JSON.parse(await made[1]!.text())).toMatchObject({ format: 'chausar-signed-receipts/1', business: 'Lumen Studio' });
     // The button's name says the month it exports.
-    expect(screen.getByRole('button', { name: 'Save the files, October 2026' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Export for your CA, October 2026' })).toBeTruthy();
   });
 
   it('on the desktop, the desktop saves the month where the owner picks; a refusal is said in its words', async () => {
     const save = vi.fn(async (month: string): Promise<{ saved: true; name: string; receipts?: string; line: string }> => ({ saved: true as const, name: `ledger-${month}.csv`, line: 'Saved.' }));
     const { calls } = start('#/money/books?sheet=accountant:books', { extra: { saveMoneyExport: save } });
-    await click(await screen.findByRole('button', { name: /^Save the files/ }));
+    await click(await screen.findByRole('button', { name: /^Export for your CA/ }));
     await waitFor(() => expect(save).toHaveBeenCalledWith('2026-10'));
     expect(await screen.findByText('Saved ledger-2026-10.csv. Chausar did not send it anywhere.')).toBeTruthy();
     expect(calls.map(([method]) => method)).not.toContain('venture.money.export');
     save.mockResolvedValueOnce({ saved: true, name: 'october.csv', receipts: 'october-receipts.json', line: 'Saved.' });
-    await click(screen.getByRole('button', { name: /^Save the files/ }));
+    await click(screen.getByRole('button', { name: /^Export for your CA/ }));
     expect(await screen.findByText('Saved october.csv and october-receipts.json. Chausar did not send them anywhere.')).toBeTruthy();
     save.mockRejectedValueOnce(Object.assign(new Error('A file with this name appeared while you were choosing, so Chausar left it alone. Save again to pick a name.'), { code: 'EXPORT_EXISTS' }));
-    await click(screen.getByRole('button', { name: /^Save the files/ }));
+    await click(screen.getByRole('button', { name: /^Export for your CA/ }));
     expect(await screen.findByText(/^Couldn't export it: A file with this name appeared/)).toBeTruthy();
   });
 });
@@ -289,14 +288,14 @@ describe('Money w4: the whole overview', () => {
 });
 
 describe('Money w4: the overview at narrow widths', () => {
-  it('under 560 px of its own width (a phone at 390) every glance tile takes the whole row, so none clips', () => {
+  it('under 700 px of its own width (a phone at 390) every glance tile takes the whole row, so none clips', () => {
     // cssOf reads from src/parts (comments taken out), so the path climbs back to the place's own module.
     const css = cssOf('../places/money/MoneyViews.module.css').replace(/\r/g, '');
-    const narrow = css.match(/@container money \(max-width: 559px\) \{([\s\S]*?)\n\}/);
+    const narrow = css.match(/@container money \(max-width: 699px\) \{([\s\S]*?)\n\}/);
     expect(narrow, 'a container rule for the narrowest widths').not.toBeNull();
     expect(narrow![1]).toMatch(/\.page \.glanceRow > \[data-span\][^{]*\{\s*grid-column: 1 \/ -1;/);
     // It comes after the wider rule, so it wins where both match.
-    expect(css.indexOf('(max-width: 559px)')).toBeGreaterThan(css.indexOf('(max-width: 899px)'));
+    expect(css.indexOf('(max-width: 699px)')).toBeGreaterThan(css.indexOf('(max-width: 899px)'));
   });
 });
 
@@ -351,12 +350,12 @@ describe('C4 T23: AI spend in one currency, and Set rate', () => {
 
   it('the margins footnote offers Set rate without a rate and lands on the spend settings; with a rate it does not', async () => {
     start('#/money/margins', { before: (engine) => engine.request('venture.spend.policy.set', { inrPerUsd: null }) });
-    const section = await tile(/^Margins in /);
+    const section = await tile('Margins');
     const link = await within(section).findByRole('link', { name: 'Set rate' });
     expect(link.getAttribute('href')).toBe('#/money/spend?set=rate');
     cleanup();
     start('#/money/margins');
-    const rated = await tile(/^Margins in /);
+    const rated = await tile('Margins');
     await within(rated).findByText(/invoiced before tax/);
     expect(within(rated).queryByRole('link', { name: 'Set rate' })).toBeNull();
   });
