@@ -93,8 +93,11 @@ describe('the command bar (C2)', () => {
     await waitFor(() => expect(within(list()).queryByRole('group', { name: 'Chats' })).not.toBeNull());
     expect(within(group('Pages')).getAllByRole('option').map((row) => row.textContent)).toContain('Invoices');
     const chat = within(group('Chats')).getAllByRole('option').find((row) => row.textContent!.includes('How much have we billed this month?'))!;
-    expect(chat.textContent).toMatch(/invoice INV-0039/);
-    expect(chat.querySelector('mark')?.textContent).toBe('invoice');
+    const row = chat.closest('[data-row-id]')!;
+    expect(row.textContent).toMatch(/invoice INV-0039/);
+    expect(row.querySelector('mark')?.textContent).toBe('invoice');
+    expect(chat.getAttribute('aria-description')).toMatch(/invoice INV-0039/);
+    assertFiguresProved(row);
     expect(options().at(-1)!.textContent).toBe('Ask Chausar: invoice');
   });
 
@@ -179,6 +182,12 @@ describe('the command bar (C2)', () => {
       expect(document.activeElement).not.toBe(box);
       document.body.innerHTML = '';
     }
+  });
+
+  it('F3: long words that are exactly a name go to that thing, not to Ask', async () => {
+    const { box } = await start('#/money');
+    await type(box, 'Export for your CA');
+    await waitFor(() => expect(options()[0]!.textContent).toBe('Export for your CA'));
   });
 
   it('F3: a question puts the Ask row first; a name puts the client first', async () => {

@@ -28,6 +28,8 @@ export type FindField = { name: string; text: string; number?: boolean };
 export const FIND_LIMITS = Object.freeze({ text: 200, limit: 20, defaultLimit: 5, minQuery: 2, snippet: 120 });
 /** Scores: a whole field equal to the words, else per word a word start or a match inside a word; the title counts double. */
 const WHOLE = 100, START = 2, INSIDE = 1, TITLE_WEIGHT = 2;
+/** A score at or above this means a whole field equals the words. */
+export const FIND_WHOLE_SCORE = WHOLE;
 
 const refuse = (message: string) => new ChausarError('INVALID_VENTURE_REQUEST', message);
 const plain = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);

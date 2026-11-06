@@ -43,11 +43,11 @@ function RecordRow({ item }: { item: FindItem }) {
   const t = useT();
   switch (item.kind) {
     case 'client':
-      return <span className={s.main} data-content="">{marked(item.name, item.hit)}</span>;
+      return <span className={s.rowTitle} data-content="">{marked(item.name, item.hit)}</span>;
     case 'invoice':
       return (
         <>
-          <span className={s.main}>{marked(item.number || t('state.invoice.draft'), item.hit)}</span>
+          <span className={s.rowTitle}>{marked(item.number || t('state.invoice.draft'), item.hit)}</span>
           {item.clientName && <span className={s.side} data-content="">{item.clientName}</span>}
           <span className={s.side}>{t(`state.invoice.${item.status}`)}</span>
         </>
@@ -55,23 +55,20 @@ function RecordRow({ item }: { item: FindItem }) {
     case 'order':
       return (
         <>
-          <span className={s.main} data-content="">{marked(item.request, item.hit)}</span>
+          <span className={s.rowTitle} data-content="">{marked(item.request, item.hit)}</span>
           {item.clientName && <span className={s.side} data-content="">{item.clientName}</span>}
         </>
       );
     case 'run':
       return (
         <>
-          <span className={s.main}>{marked(item.purpose, item.hit)}</span>
+          <span className={s.rowTitle}>{marked(item.purpose, item.hit)}</span>
           {item.agentName && <span className={s.side}>{item.agentName}</span>}
         </>
       );
     case 'chat':
       return (
-        <span className={s.stack}>
-          <span className={s.main} data-content="">{marked(item.title, item.hit)}</span>
-          {item.snippet && <span className={s.snippet} data-content=""><LineWithAmounts line={item.snippet.line} amounts={item.snippet.amounts} mark={item.snippet.hit ?? null} /></span>}
-        </span>
+        <span className={s.rowTitle} data-content="">{marked(item.title, item.hit)}</span>
       );
   }
 }
@@ -174,24 +171,37 @@ export function CommandBox({ variant = 'header', onDone, opener }: CommandBoxPro
     const index = flat.indexOf(row);
     const on = index === at;
     let body: ReactNode;
+    // An amount and its receipt mark sit beside the option, never inside it, and inert: a row is one target (a list of
+    // options may hold nothing else that takes focus), so a press anywhere on it opens the record, whose sheet has the
+    // live receipt. The option describes the amount for a screen reader.
     let proof: ReactNode = null;
+    let below: ReactNode = null;
+    let description: string | undefined;
     if (row.kind === 'record') {
       body = <RecordRow item={row.item} />;
-      if (row.item.kind === 'invoice' && row.item.total && row.item.receiptId) proof = <Figure value={row.item.total} receiptId={row.item.receiptId} />;
+      if (row.item.kind === 'invoice' && row.item.total && row.item.receiptId) {
+        proof = <Figure value={row.item.total} receiptId={row.item.receiptId} />;
+        description = row.item.total;
+      }
+      if (row.item.kind === 'chat' && row.item.snippet) {
+        below = <span className={s.snippet} data-content="" inert><LineWithAmounts line={row.item.snippet.line} amounts={row.item.snippet.amounts} mark={row.item.snippet.hit ?? null} /></span>;
+        description = row.item.snippet.line;
+      }
     } else if (row.kind === 'entry') {
-      body = <span className={s.main}>{marked(row.label, row.hit)}</span>;
+      body = <span className={s.rowTitle}>{marked(row.label, row.hit)}</span>;
     } else if (row.kind === 'more') {
       body = <span className={s.quiet}>{t('find.more', { count: formatCount(row.count, answer.country) })}</span>;
     } else {
-      body = <span className={s.main}>{t('find.ask.lead')} <q data-content="">{row.words}</q></span>;
+      body = <span className={s.rowTitle}>{t('find.ask.lead')} <q data-content="">{row.words}</q></span>;
     }
     return (
-      <div key={row.id} className={cx(s.row, on && s.on)} data-row-id={row.id} onMouseDown={keep}>
-        <div role="option" id={optionId(row)} aria-selected={on} className={s.option} onClick={pressRow(row)} onMouseEnter={() => setActive(index)}>
+      <div key={row.id} className={cx(s.row, on && s.on)} data-row-id={row.id} onMouseDown={keep} onClick={pressRow(row)} onMouseEnter={() => setActive(index)}>
+        <div role="option" id={optionId(row)} aria-selected={on} aria-description={description} className={s.option}>
           {body}
         </div>
-        {proof && <span className={s.proof}>{proof}</span>}
-        {on && <kbd className={cx(s.enter, 'mono')} aria-hidden="true">{t('find.enter')}</kbd>}
+        {proof && <span className={s.proof} inert>{proof}</span>}
+        {on && <kbd data-code="" className={cx(s.enter, 'mono')} aria-hidden="true">{t('find.enter')}</kbd>}
+        {below}
       </div>
     );
   }

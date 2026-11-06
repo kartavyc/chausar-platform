@@ -4,14 +4,14 @@
  * has stopped typing for 120 ms. The last answer stays on screen until the next one lands, so rows change in place and
  * never flash. Groups come in score order across records and pages, at most five rows each, with a "{count} more" line
  * that opens the place; actions follow what was found; the Ask row comes last, or first when the words read as a
- * question (F3: they end with "?" or hold four or more words).
+ * question (F3: they end with "?" or hold four or more words), unless they are exactly the name of something found.
  */
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useResource } from '../../engine/context';
 import type { FindHit, FindItem, FindKind, VentureRunEvent } from '../../engine/types';
 import { useT } from '../../text';
-import { wordsOf } from '../../../../../platform/runtime/venture/views/find-core';
+import { FIND_WHOLE_SCORE, wordsOf } from '../../../../../platform/runtime/venture/views/find-core';
 import { useNeedsYou } from '../needsYou';
 import { catalogue, findInCatalogue, type CatalogueEntry } from './catalogue';
 
@@ -110,8 +110,10 @@ export function useFind(text: string): FindAnswer {
     const actions = entries.filter((hit) => hit.entry.kind === 'action').slice(0, ROWS);
     const asRow = (hit: (typeof entries)[number]): FindRow => ({ id: hit.entry.id, kind: 'entry', href: hit.entry.href, entry: hit.entry, label: hit.label, hit: hit.hit });
     if (pages.length) scored.push({ group: { id: 'page', rows: pages.map(asRow) }, best: pages[0]!.score });
+    // Words that are exactly the name of a thing ("Export for your CA") are that thing, however long they are.
+    const named = scored.some((item) => item.best >= FIND_WHOLE_SCORE) || (actions[0]?.score ?? 0) >= FIND_WHOLE_SCORE;
     const groups = scored.sort((a, b) => b.best - a.best).map((item) => item.group);
     if (actions.length) groups.push({ id: 'action', rows: actions.map(asRow) });
-    return { groups, ask: { id: 'ask', kind: 'ask', words: trimmed }, askFirst: readsAsQuestion(trimmed), failed: Boolean(found.error) && typed, country };
+    return { groups, ask: { id: 'ask', kind: 'ask', words: trimmed }, askFirst: readsAsQuestion(trimmed) && !named, failed: Boolean(found.error) && typed, country };
   }, [words, found.data, found.error, businessOpen, needsYou, caFirm, country, t]);
 }

@@ -113,6 +113,7 @@
 
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2);
   padding-inline-end: var(--sp-2);
@@ -135,7 +136,7 @@
   cursor: pointer;
 }
 
-.main {
+.rowTitle {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -148,16 +149,11 @@
   color: var(--fg2);
 }
 
-.stack {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
+/* A chat line may hold an amount, so it wraps under the title; it is never cut (figures stay whole). */
 .snippet {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1 0 100%;
+  padding: 0 var(--pad-card) var(--sp-1);
+  cursor: pointer;
   font-size: var(--text-label);
   color: var(--fg2);
 }
