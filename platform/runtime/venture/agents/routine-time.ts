@@ -1,5 +1,5 @@
 // Existing Intl schedule arithmetic, shared exactly with browser rehearsal.
-export type RoutineSchedule={kind:'once';at:string}|{kind:'interval';everyMinutes:number;from:string}|{kind:'calendar';weekdays:number[];time:string;timeZone:string};
+export type RoutineSchedule={kind:'once';at:string}|{kind:'interval';everyMinutes:number;from:string}|{kind:'calendar';weekdays:number[];time:string;timeZone:string}|{kind:'event';source:'razorpay'|'cal-com';event:'payment'|'booking'|'booking-cancelled'};
 type IsoTime=string;
 const MINUTE_MS=60_000,DAY_MS=24*60*MINUTE_MS;
 const formats = new Map<string, Intl.DateTimeFormat>();

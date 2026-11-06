@@ -16,7 +16,7 @@ export function eraseTrackerNaming(tx: VentureTx, personIds: ReadonlySet<string>
     const named = columns.filter(column => (column.kind === 'text' || column.kind === 'estimate') && mentionsName(row.cells[column.id]));
     if (named.length) tx.replace<TrackerRowRecord>({ ...row, cells: { ...row.cells, ...Object.fromEntries(named.map(column => [column.id, ERASED_CELL])) } });
   }
-  if (gone.size) removeRecords(tx, record => record.kind === 'venture-tracker-row' && gone.has(record.id));
+  if (gone.size) removeRecords(tx, record => record.kind === 'venture-tracker-row' && gone.has(record.id as string));
   // A tracker's own name or a column named for them is the owner's words about them too.
   for (const tracker of trackers.values()) if (mentionsName(tracker.name)) tx.replace({ ...tracker, name: 'Tracker' });
 }
