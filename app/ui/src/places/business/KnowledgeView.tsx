@@ -17,6 +17,9 @@ import { Select } from '../../parts/Select';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { Fold } from '../../parts/Fold';
 import { useChanged } from '../../parts/useChanged';
+import { useArrivals } from '../../parts/useArrivals';
+import { useFlip } from '../../parts/flip';
+import motion from '../../parts/Leave.module.css';
 
 type Kind = KnowledgeSourceInput['kind'] | 'fact';
 const KINDS: readonly Kind[] = ['text', 'link', 'file', 'past-work', 'fact'];
@@ -43,6 +46,9 @@ export function KnowledgeView() {
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const data = view.data;
+  const arrivals = useArrivals(data?.sources.map(source => source.id));
+  const factArrivals = useArrivals(memory.data?.facts.map(fact => fact.id));
+  const sources = useFlip<HTMLUListElement>([...(data?.sources ?? []).map(source => source.id), ...(memory.data?.facts ?? []).map(fact => fact.id)].join(' '));
 
   async function remove(source: KnowledgeSourceView) {
     setBusy(true);
@@ -68,11 +74,12 @@ export function KnowledgeView() {
           <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? said}</ResultLine>
           {memory.error && <p className={b.problem} role="alert">{messageOf(memory.error)}</p>}
           {data.sources.length === 0 && memory.data?.facts.length === 0 ? <p className={b.note}>{t('business.knowledge.none')}</p> : (
-            <ul className={s.sources}>
+            <ul ref={sources} className={s.sources}>
               {data.sources.map((source) => (
                 <Source
                   key={source.id}
                   source={source}
+                  arriving={arrivals.has(source.id)}
                   asking={asking === source.id}
                   busy={busy}
                   onAsk={() => { setAsking(source.id); setSaid(null); }}
@@ -80,7 +87,7 @@ export function KnowledgeView() {
                   onYes={() => void remove(source)}
                 />
               ))}
-              {memory.data?.facts.map(fact => <FactRow key={fact.id} fact={fact} onDone={line => { setSaid(line); memory.reload(); }} onFailed={error => setProblem(messageOf(error))} />)}
+              {memory.data?.facts.map(fact => <FactRow key={fact.id} fact={fact} arriving={factArrivals.has(fact.id)} onDone={line => { setSaid(line); memory.reload(); }} onFailed={error => setProblem(messageOf(error))} />)}
             </ul>
           )}
           {!!memory.data?.earlier.length && <Fold summary={t('crm.facts.earlier')}>
@@ -106,13 +113,13 @@ export function KnowledgeView() {
 }
 
 /** One source: its kind, its title, the engine's line about it, and Remove with its second ask. */
-function Source({ source, asking, busy, onAsk, onNo, onYes }: {
-  source: KnowledgeSourceView; asking: boolean; busy: boolean; onAsk: () => void; onNo: () => void; onYes: () => void;
+function Source({ source, arriving, asking, busy, onAsk, onNo, onYes }: {
+  source: KnowledgeSourceView; arriving: boolean; asking: boolean; busy: boolean; onAsk: () => void; onNo: () => void; onYes: () => void;
 }) {
   const t = useT();
   const titleId = useId();
   return (
-    <li className={s.source} aria-labelledby={titleId}>
+    <li className={`${s.source} ${motion.arrive}`} aria-labelledby={titleId} data-flip-id={source.id} data-arriving={arriving ? '' : undefined}>
       <div className={s.sourceHead}>
         <Chip tone="line">{t(`business.knowledge.kind.${source.kind}`)}</Chip>
         <span id={titleId} className={s.title} data-source-title="" data-content="">{source.title}</span>
