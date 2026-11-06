@@ -185,7 +185,7 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
   }
 
   /** A tile: straight to the plan in A, or a correction of the field in B. No AI either way. */
-  async function pick(familyId: string, keep: Mode) {
+  async function pick(familyId: import('../../engine/types').FamilyLite['id'], keep: Mode) {
     setBusy(true); setProblem(null);
     try {
       const words = cleanSentence(said || text);
@@ -289,7 +289,7 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
         <input id={`${fieldId}-name`} className={s.name} data-content="" data-plan-name="" maxLength={60}
           value={ownName ?? name ?? read.family?.label ?? ''} onChange={(event) => setOwnName(event.target.value)} onFocus={(event) => event.currentTarget.select()} />
       </div>
-      <Select label={t('first-run.about.field')} id={fieldId} value={read.family?.id ?? ''} disabled={busy} onChange={(event) => void pick(event.target.value, mode)}>
+      <Select label={t('first-run.about.field')} id={fieldId} value={read.family?.id ?? ''} disabled={busy} onChange={(event) => { const tile = tiles.find(row => row.id === event.target.value); if (tile) void pick(tile.id, mode); }}>
         {!read.family && <option value="">{t('first-run.about.pick')}</option>}
         {tiles.map((tile) => <option key={tile.id} value={tile.id}>{tile.label}</option>)}
       </Select>

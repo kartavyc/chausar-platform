@@ -396,7 +396,7 @@ function BackupAi() {
   const client = useEngine();
   const [open, setOpen] = useState(false);
   const view = useResource('venture.routines.backup.get', {}, { skip: !open });
-  const [order, setOrder] = useState<string[] | null>(null);
+  const [order, setOrder] = useState<import('../../engine/types').ParamsOf<'venture.routines.backup.set'>['order'] | null>(null);
   const [on, setOn] = useState<boolean | null>(null);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -407,7 +407,7 @@ function BackupAi() {
   const isOn = on ?? data?.on ?? false;
   const changed = data !== undefined && (isOn !== data.on || chosen.join() !== data.order.join());
   const choice = (id: string) => data?.choices.find((item) => item.presetId === id);
-  const toggle = (id: string) => setOrder(chosen.includes(id) ? chosen.filter((one) => one !== id) : [...chosen, id].slice(0, 2));
+  const toggle = (id: import('../../engine/types').ParamsOf<'venture.routines.backup.set'>['order'][number]) => setOrder(chosen.includes(id) ? chosen.filter((one) => one !== id) : [...chosen, id].slice(0, 2));
   const move = (index: number, by: number) => {
     const next = [...chosen];
     const [one] = next.splice(index, 1);

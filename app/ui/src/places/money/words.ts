@@ -7,7 +7,7 @@ import type { T } from '../../text';
 import { typedMoney } from '../../../../../platform/runtime/owner-format';
 import { useDay as useWhenDay, useLocalToday, useMoment as useWhenMoment, useMonth } from '../../parts/when';
 import { useResource } from '../../engine/context';
-import type { BooksSummaryLite, InvoiceLite, VentureRunEvent } from '../../engine/types';
+import type { BooksSummaryLite, InvoiceLite, UiRunEvent } from '../../engine/types';
 
 export type OpenInvoice = BooksSummaryLite['openInvoices'][number];
 
@@ -17,8 +17,8 @@ export function byDue(open: readonly OpenInvoice[]): OpenInvoice[] {
 }
 
 /** Money moves when the queue does (an invoice issued, a payment recorded); spend moves when a run does. */
-export const onMoney = (event: VentureRunEvent) => event.type === 'queue.changed';
-export const onRuns = (event: VentureRunEvent) => event.type.startsWith('run.');
+export const onMoney = (event: UiRunEvent) => event.type === 'queue.changed';
+export const onRuns = (event: UiRunEvent) => event.type.startsWith('run.');
 
 export type Day = (iso: string | null | undefined) => string;
 

@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { useEngine } from '../../engine/context';
-import type { BooksSummaryLite, GoalFigure, GoalSuggestion, GoalView, MoneyFigure, VentureRunEvent } from '../../engine/types';
+import type { BooksSummaryLite, GoalFigure, GoalSuggestion, GoalView, MoneyFigure, UiRunEvent } from '../../engine/types';
 import type { T } from '../../text';
 import type { FigureProof } from '../../parts/Figure';
 import type { GoalBarData } from '../../parts/charts/types';
@@ -157,7 +157,7 @@ export function monthBefore(month: string): string {
 }
 
 /** The goal moves when an invoice is issued, a draft made or a goal set: the engine says each with a queue change. */
-export const GOAL_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed';
+export const GOAL_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed';
 
 /**
  * The engine's suggested goal for a month (venture.goals.suggest, a model estimate on the owner's own AI), asked only

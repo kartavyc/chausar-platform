@@ -2,7 +2,7 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import type { AgentView, PersonaFields, VentureRunEvent } from '../../engine/types';
+import type { AgentView, PersonaFields, UiRunEvent } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { AgentFile } from './AgentFile';
@@ -13,7 +13,7 @@ import { LoadingPlace } from '../../parts/Skeleton';
 
 
 /** The agent says each new persona version in its chat, so a message is when the persona may have changed. */
-const PERSONA_EVENTS = (event: VentureRunEvent) => event.type === 'agent.message';
+const PERSONA_EVENTS = (event: UiRunEvent) => event.type === 'agent.message';
 const LENGTHS = ['short', 'medium', 'long'] as const;
 
 /** The form as typed: every field words, the topics one a line. */

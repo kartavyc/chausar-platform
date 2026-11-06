@@ -22,7 +22,7 @@ import { CashLine } from '../../parts/charts/CashLine';
 import { GoalBar } from '../../parts/charts/GoalBar';
 import { SplitBar } from '../../parts/charts/SplitBar';
 import { Bento, Tile, TileHead, type TileSpan } from '../../parts/Tile';
-import type { BooksFigureLite, BooksSummaryLite, FlowView, MoneyOverviewLine, VentureRunEvent } from '../../engine/types';
+import type { BooksFigureLite, BooksSummaryLite, FlowView, MoneyOverviewLine, UiRunEvent } from '../../engine/types';
 import { CashAhead } from './CashAhead';
 import { DueNext } from './DueNext';
 import { NextWeeks } from './NextWeeks';
@@ -43,7 +43,7 @@ import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The overview moves when money does (an invoice issued, a payment recorded) and when a paid call settles. */
-const onOverview = (event: VentureRunEvent) => onMoney(event) || onRuns(event);
+const onOverview = (event: UiRunEvent) => onMoney(event) || onRuns(event);
 
 /** A closed fold under the headline tiles: its title is all it shows until the owner opens it. */
 function MoneyFold({ title, children }: { title: string; children: ReactNode }) {

@@ -53,7 +53,7 @@ function ReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
             </dl>
           ) : <p className={s.quiet}>{t('receipt.none')}</p>}
           {/* C4 T27: what the sum counted and over which dates, in the engine's words, under the figure. */}
-          {receipt.data.basis && <p className={s.explanation} data-basis="">{receipt.data.basis}</p>}
+          {'basis' in receipt.data && receipt.data.basis && <p className={s.explanation} data-basis="">{receipt.data.basis}</p>}
           <p className={s.explanation}>{receipt.data.explanation}</p>
         </>
       )}

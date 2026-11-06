@@ -18,7 +18,7 @@
 
 import { useT, type T } from '../../text';
 import { useResource } from '../../engine/context';
-import type { AgingView, CashView, EngineError, FlowView, VentureRunEvent } from '../../engine/types';
+import type { AgingView, CashView, EngineError, FlowView, UiRunEvent } from '../../engine/types';
 import type { AgingData, BarSeries, CashData, ChartTick, GoalBarData, SplitData } from '../../parts/charts/types';
 import type { ChartProof } from '../../parts/charts/ChartData';
 import { useSpendSplit } from './split';
@@ -50,7 +50,7 @@ export interface MoneyViews {
 }
 
 /** Money moves when the queue does (an invoice issued, a payment recorded); spend when a run does. */
-const onViews = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type.startsWith('run.');
+const onViews = (event: UiRunEvent) => event.type === 'queue.changed' || event.type.startsWith('run.');
 
 /** An engine that does not have a view yet answers one of these; the screen then leaves that view out, quietly. */
 const NOT_YET = new Set(['NOT_BUILT_YET', 'METHOD_NOT_ALLOWED', 'UNKNOWN_METHOD']);

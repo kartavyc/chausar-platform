@@ -10,7 +10,7 @@ import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useDay } from '../../parts/when';
 import { useEngine, useResource } from '../../engine/context';
-import type { ChiefThreadStateInput, ChiefThreadSummary, VentureRunEvent } from '../../engine/types';
+import type { ChiefThreadStateInput, ChiefThreadSummary, UiRunEvent } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { TileSection } from '../business/shared';
 import { ChangeNotice } from './ChangeNotice';
@@ -19,7 +19,7 @@ import { Select } from '../../parts/Select';
 
 /** The quiet-day choices; the owner's own number, when it is another, is offered too. */
 const DAY_CHOICES = [3, 7, 14, 30] as const;
-const LIST_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message';
+const LIST_EVENTS = (event: UiRunEvent) => event.type === 'chief.message';
 
 /** A change in the engine's words, and what Undo does. */
 type Change = { line: string; undo: () => Promise<void> };
