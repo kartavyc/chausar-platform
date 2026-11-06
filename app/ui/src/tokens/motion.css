@@ -1,11 +1,45 @@
-/* Motion: each thing moves once, under 400 ms, and nothing loops. Under reduced motion every time token is 0. */
+/* Motion: each thing moves once, under 400 ms, and nothing loops. Every time token is 0 under the computer's
+   reduce-motion setting and when the owner turns animations off in Settings, This app (<html data-motion="off">,
+   shell/App.tsx). parts/motion.ts answers the same question for code. */
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --t-press: 0ms;
     --t-sheet: 0ms;
     --t-settle: 0ms;
+    --t-exit: 0ms;
+    --t-stagger: 0ms;
   }
+}
+
+:root[data-motion='off'] {
+  --t-press: 0ms;
+  --t-sheet: 0ms;
+  --t-settle: 0ms;
+  --t-exit: 0ms;
+  --t-stagger: 0ms;
+}
+
+/* A sheet leaves the way it came, a little faster (parts/Sheet.module.css, [data-leaving]). */
+@keyframes ink-sheet-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(8px); }
+}
+
+/* A place hands over to the next: the old fades, the new fades in with a 4 px rise (the view transition below). */
+@keyframes ink-page-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes ink-page-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ink-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes ink-sheet-in {

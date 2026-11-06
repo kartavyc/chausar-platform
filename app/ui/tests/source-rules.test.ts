@@ -160,7 +160,8 @@ const EMBEDDED_HEX = /(?<=[\s(,:])(?<!url\()#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-
 const SVG_PAINT = /\b(?:fill|stroke|stopColor|floodColor|lightingColor)=\{?(['"`])([^'"`]*)\1/g;
 
 // W6 6C2 (DECISIONS D16a): About you turns A into B on Send, one motion of --t-settle.
-const ANIMATED = ['Sheet.module.css', 'ApprovalRow.module.css', 'Today.module.css', 'SwipeCard.module.css', 'AboutYou.module.css'];
+// One-shot C3: motion.css animates the view-transition pseudo elements of a place change; Swap fades a word in place.
+const ANIMATED = ['Sheet.module.css', 'ApprovalRow.module.css', 'Today.module.css', 'SwipeCard.module.css', 'AboutYou.module.css', 'motion.css', 'Swap.module.css'];
 const SPACING = /^(?:(?:padding|margin)(?:-[a-z]+)*|(?:row-|column-|grid-|grid-row-|grid-column-)?gap)$/;
 
 /** Each check takes one stylesheet (comments removed), or code for codeColours, and returns what breaks the rule. */
@@ -185,10 +186,11 @@ const check = {
       const at = `${property}: ${value}`;
       const parts = value.split(/,(?![^(]*\))/).map((p) => p.trim());
       if (RAW_TIME.test(value)) found.push(`${at} has a raw time`);
-      if ([...value.matchAll(/var\((--[\w-]+)/g)].some(([, name]) => !name!.startsWith('--t-') && name !== '--ease')) found.push(`${at} uses a variable other than --t-* or --ease`);
+      if ([...value.matchAll(/var\((--[\w-]+)/g)].some(([, name]) => !name!.startsWith('--t-') && name !== '--ease' && name !== '--ease-exit')) found.push(`${at} uses a variable other than --t-*, --ease or --ease-exit`);
       if (property.startsWith('animation') && !ANIMATED.includes(file.split('/').pop()!)) found.push(`${at} outside ${ANIMATED.join(', ')}`);
       if ((property === 'animation' || property === 'transition') && value !== 'none' && parts.some((p) => !/var\(--t-[\w-]+\)/.test(p))) found.push(`${at} needs a var(--t-...) duration`);
-      if (/-(?:duration|delay)$/.test(property) && parts.some((p) => !/^var\(--t-[\w-]+\)$/.test(p))) found.push(`${at}: durations and delays are var(--t-...)`);
+      // One-shot C3: a stagger's delay may be calc(var(--t-stagger) * n), for the first five places alone.
+      if (/-(?:duration|delay)$/.test(property) && parts.some((p) => !/^var\(--t-[\w-]+\)$/.test(p) && !(property.endsWith('delay') && /^calc\(var\(--t-stagger\) \* [1-4]\)$/.test(p)))) found.push(`${at}: durations and delays are var(--t-...)`);
       if (property === 'animation-iteration-count' && value !== '1') found.push(`${at} repeats`);
       if (property === 'animation' && parts.some((p) => p.replace(/\([^()]*\)/g, '()').split(/\s+/).some((t) => /^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(t) && Number(t) !== 1))) found.push(`${at} repeats`);
     }
@@ -218,7 +220,8 @@ const check = {
  */
 const LITERALS: Record<string, Partial<Record<keyof typeof check, string[]>>> = {
   'tokens/base.css': { rawSpacing: ['-1px'], customProperties: ['--line'] },
-  'tokens/motion.css': { customProperties: ['--t-press', '--t-sheet', '--t-settle'] },
+  // The five time tokens twice: once under reduced motion, once under [data-motion='off'] (one-shot C3).
+  'tokens/motion.css': { customProperties: ['--t-press', '--t-sheet', '--t-settle', '--t-exit', '--t-stagger', '--t-press', '--t-sheet', '--t-settle', '--t-exit', '--t-stagger'] },
 };
 type Sheet = (typeof sheets)[number];
 /** What breaks a rule in one stylesheet, less the literals listed above for it. */
@@ -327,6 +330,22 @@ describe('Ink v2 rules the UI keeps (w3 plan)', () => {
 
   it(`motion runs once on the time tokens, and only ${ANIMATED.join(', ')} animate`, () => {
     for (const sheet of sheets) expect(broken('motion', sheet), sheet.f).toEqual([]);
+  });
+
+  it('every time token is 0 ms under reduced motion and when the owner turns animations off (one-shot C3)', () => {
+    const motion = uncomment(readFileSync(join(src, 'tokens/motion.css'), 'utf8'));
+    const times = [...TOKEN_NAMES].filter((name) => name.startsWith('--t-'));
+    expect(times).toEqual(expect.arrayContaining(['--t-press', '--t-sheet', '--t-settle', '--t-exit', '--t-stagger']));
+    const reduced = motion.match(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*:root\s*\{([^}]*)\}/)?.[1];
+    const off = motion.match(/:root\[data-motion='off'\]\s*\{([^}]*)\}/)?.[1];
+    expect(reduced, 'the reduced-motion block').toBeDefined();
+    expect(off, "the [data-motion='off'] block").toBeDefined();
+    for (const name of times) {
+      expect(reduced, name).toMatch(new RegExp(`${name}:\\s*0ms`));
+      expect(off, name).toMatch(new RegExp(`${name}:\\s*0ms`));
+    }
+    // The exit ease is a motion token beside --ease (C3 task 1).
+    expect(check.motion('.a { transition: opacity var(--t-exit) var(--ease-exit) }', 'parts/Row.module.css')).toEqual([]);
   });
 
   it('type sizes in stylesheets are tokens: font-size is a --text-* or --fig-* variable', () => {
