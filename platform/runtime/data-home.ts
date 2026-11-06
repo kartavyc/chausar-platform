@@ -5,7 +5,7 @@
 // a bundle (D7).
 import { homedir } from 'node:os';
 import { posix, win32 } from 'node:path';
-import { ChausarError } from './portable.ts';
+import { ChausarError, InternalError } from './portable.ts';
 import { checkoutOf, defaultRunRoot, localDay, outputFile, refuseInsideRepo as refuseCore, runRoot as runRootCore, type RunEnv } from './run-root.mjs';
 
 export { checkoutOf, defaultRunRoot, localDay, outputFile };
@@ -70,6 +70,6 @@ export function serverDataDirectory(environment: NodeJS.ProcessEnv = process.env
  */
 export function workerDataDirectory(environment: NodeJS.ProcessEnv = process.env): string {
   const folder = environment.CHAUSAR_VAULT_DIRECTORY;
-  if (!folder) throw new ChausarError('WORKER_NEEDS_DATA_FOLDER', 'The engine worker needs CHAUSAR_VAULT_DIRECTORY. The desktop app sets it; when you start the worker by hand, set it to a folder outside the code folder.');
+  if (!folder) throw new InternalError('WORKER_NEEDS_DATA_FOLDER', 'The engine worker needs CHAUSAR_VAULT_DIRECTORY. The desktop app sets it; when you start the worker by hand, set it to a folder outside the code folder.');
   return refuseInsideRepo(folder, { env: environment, variable: 'CHAUSAR_VAULT_DIRECTORY' });
 }
