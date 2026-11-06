@@ -30,7 +30,7 @@
 /* Welcome's card starts at a fixed height, so an error line under a field grows down and never moves the card. */
 .firstMain[data-anchored] {
   align-content: start;
-  padding-top: 10vh;
+  padding-top: calc(var(--sp-12) * 2);
 }
 
 .alone {
