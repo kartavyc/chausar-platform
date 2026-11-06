@@ -35,6 +35,13 @@ const press = async (element: HTMLElement) => { await act(async () => { fireEven
 const type = async (element: HTMLElement, value: string) => { await act(async () => { fireEvent.change(element, { target: { value } }); }); };
 const calls = (spy: { mock: { calls: unknown[][] } }, method: string) => spy.mock.calls.filter(([m]) => m === method).map(([, p]) => p as Record<string, unknown>);
 const tile = async (name: string | RegExp) => (await screen.findByRole('region', { name })) as HTMLElement;
+async function addSource() {
+  const sources = await tile('What Chausar knows');
+  const summary = within(sources).getByText('Add', { selector: 'summary' });
+  const fold = summary.closest('details')!;
+  if (!fold.open) await press(summary);
+  return fold;
+}
 
 afterEach(() => { window.location.hash = ''; });
 
@@ -132,7 +139,7 @@ describe('Business > Your voice (W4 4J22b, from 4J17)', () => {
 
   it('Add starts on the first language and channel with no voice yet', async () => {
     start('#/business/voice');
-    const add = await tile('Add a voice');
+    const add = (await screen.findByRole('heading', { name: 'Add a voice' })).parentElement!;
     expect((within(add).getByRole('combobox', { name: 'Language' }) as HTMLSelectElement).value).toBe('en');
     expect((within(add).getByRole('combobox', { name: 'Channel' }) as HTMLSelectElement).value).toBe('email');
     await press(within(add).getByRole('button', { name: 'Add' }));
@@ -156,7 +163,7 @@ describe('Business > What the AI knows (W4 4J22b, from 4J18)', () => {
   it('lists the sources with where each came from, says who reads them, and why a held one is held', async () => {
     start('#/business/knowledge');
     expect(await screen.findByRole('heading', { level: 1, name: 'What AI knows' })).toBeTruthy();
-    const sources = await tile('Sources');
+    const sources = await tile('What Chausar knows');
     expect(sources.textContent).toContain("Agents read the sources that share words with an order's request, as background they can't take as instructions.");
     const held = within(sources).getByRole('listitem', { name: 'Sponsor brief notes' });
     expect(held.textContent).toContain('Held: it has words aimed at an agent, so agents never read the parts that hold them.');
@@ -165,7 +172,7 @@ describe('Business > What the AI knows (W4 4J22b, from 4J18)', () => {
 
   it('accepted work keeps no client name, and words Forget erased say so', async () => {
     start('#/business/knowledge');
-    const sources = await tile('Sources');
+    const sources = await tile('What Chausar knows');
     const work = within(sources).getByRole('listitem', { name: 'Accepted work: Episode edit' });
     expect(work.querySelector('[data-source-title]')!.textContent).not.toContain('Boat Audio');
     expect(work.textContent).toContain('Some words were erased: you asked Chausar to forget them.');
@@ -173,7 +180,7 @@ describe('Business > What the AI knows (W4 4J22b, from 4J18)', () => {
 
   it('Remove asks once more, then the source goes and its words with it', async () => {
     const { spy, engine } = start('#/business/knowledge');
-    const sources = await tile('Sources');
+    const sources = await tile('What Chausar knows');
     const own = within(sources).getByRole('listitem', { name: 'How we work with sponsors' });
     await press(within(own).getByRole('button', { name: 'Remove' }));
     expect(calls(spy, 'venture.knowledge.remove')).toEqual([]);
@@ -187,12 +194,12 @@ describe('Business > What the AI knows (W4 4J22b, from 4J18)', () => {
 
   it('adds the owner\'s own words; words aimed at an agent are refused and nothing is kept', async () => {
     const { spy } = start('#/business/knowledge');
-    const add = await tile('Add a source');
+    const add = await addSource();
     await type(within(add).getByRole('textbox', { name: 'Title' }), 'Delivery times');
     await type(within(add).getByRole('textbox', { name: 'What the AI should know' }), 'Episodes are cut within a week of the recording.');
     await press(within(add).getByRole('button', { name: 'Add' }));
     expect(calls(spy, 'venture.knowledge.add')).toEqual([{ source: { kind: 'text', title: 'Delivery times', text: 'Episodes are cut within a week of the recording.' } }]);
-    const sources = await tile('Sources');
+    const sources = await tile('What Chausar knows');
     await waitFor(() => expect(within(sources).getByRole('listitem', { name: 'Delivery times' })).toBeTruthy());
 
     await type(within(add).getByRole('textbox', { name: 'Title' }), 'Rules');
@@ -206,7 +213,7 @@ describe('Business > What the AI knows (W4 4J22b, from 4J18)', () => {
     start('#/business/knowledge', { stub: (method, real) => (method === 'venture.delivery.list'
       ? [...(real as { id: string }[]), { id: 'd-untitled', at: '2026-10-09T10:00:00.000Z', orderId: 'o-boat-12', status: 'accepted', practice: false, deliverable: null, verdict: { choice: 'accepted', at: '2026-10-09T11:00:00.000Z' } }]
       : undefined) });
-    const add = await tile('Add a source');
+    const add = await addSource();
     await press(within(add).getByRole('radio', { name: 'Work you accepted' }));
     const pick = await within(add).findByRole('combobox', { name: 'Accepted work' });
     const options = within(pick).getAllByRole('option').map((option) => option.textContent);
@@ -216,7 +223,7 @@ describe('Business > What the AI knows (W4 4J22b, from 4J18)', () => {
 
   it('a web page with no words, or one that does not answer, is refused and nothing is added', async () => {
     start('#/business/knowledge');
-    const add = await tile('Add a source');
+    const add = await addSource();
     await press(within(add).getByRole('radio', { name: 'Web page' }));
     await type(within(add).getByRole('textbox', { name: 'Page address' }), 'https://example.com/blank');
     await press(within(add).getByRole('button', { name: 'Add' }));
@@ -236,7 +243,7 @@ describe('Business > What the AI knows (W4 4J22b, from 4J18)', () => {
 
   it('adds work the owner accepted, picked from the list', async () => {
     const { spy } = start('#/business/knowledge');
-    const add = await tile('Add a source');
+    const add = await addSource();
     await press(within(add).getByRole('radio', { name: 'Work you accepted' }));
     const pick = await within(add).findByRole('combobox', { name: 'Accepted work' });
     expect(within(pick).getAllByRole('option').map((option) => option.textContent)).toContain('Sponsor script for episode 12');

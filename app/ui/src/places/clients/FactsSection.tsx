@@ -72,7 +72,7 @@ export function FactsBody({ subject }: { subject: string }) {
   );
 }
 
-function FactRow({ fact, onDone, onFailed }: { fact: FactView; onDone: (line: string) => void; onFailed: (error: unknown) => void }) {
+export function FactRow({ fact, onDone, onFailed }: { fact: FactView; onDone: (line: string) => void; onFailed: (error: unknown) => void }) {
   const t = useT();
   const day = useDay();
   const engine = useEngine();
@@ -133,7 +133,7 @@ function FactRow({ fact, onDone, onFailed }: { fact: FactView; onDone: (line: st
   );
 }
 
-function AddFact({ subject, onDone, onFailed }: { subject: string; onDone: (line: string) => void; onFailed: (error: unknown) => void }) {
+export function AddFact({ subject, onDone, onFailed }: { subject: string; onDone: (line: string) => void; onFailed: (error: unknown) => void }) {
   const t = useT();
   const engine = useEngine();
   const ids = useId();
