@@ -270,6 +270,27 @@ describe('Today: the next best step (W4 4I2)', () => {
     expect(screen.queryByText('Next best step')).toBeNull();
   });
 
+  it('C4 task 9: on a phone a locked step has Open beside it; after reading, the primary unlocks', async () => {
+    await start({
+      narrow: true,
+      override: {
+        'venture.goals.get': changed((view) => ({
+          ...view, next: { rowId: 'post:linkedin-ep13:v1', title: 'Post to X', agent: 'Publisher', line: '', figure: null, goalAfter: null, goalAfterPercent: null },
+        })),
+      },
+    });
+    const goal = await goalCard('October goal');
+    await waitFor(() => expect(goal.querySelector('[data-next-folded]')).not.toBeNull());
+    const folded = goal.querySelector<HTMLElement>('[data-next-folded]')!;
+    const primary = () => within(folded).getByRole('button', { name: /^Approve and post/ });
+    expect(primary().getAttribute('aria-disabled')).toBe('true');
+    await act(async () => { fireEvent.click(within(folded).getByRole('button', { name: 'Open' })); });
+    await settle();
+    await waitFor(() => expect(primary().getAttribute('aria-disabled')).toBeNull());
+    expect(within(folded).queryByRole('button', { name: 'Open' })).toBeNull();
+    assertOnePrimary(goal);
+  });
+
   it('on a phone the step folds into the goal card as one line with one primary, and there is no separate tile', async () => {
     const { calls } = await start({ narrow: true });
     const goal = await goalCard('October goal');
