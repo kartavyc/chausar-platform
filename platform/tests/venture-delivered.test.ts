@@ -1,6 +1,6 @@
 // Ink v2 wave 4, package 4J3 (A17): the Delivered card on an accepted run's details. It lists the files the run handed
 // over, made by its own tools with their digests, and apart from them the files that changed on the order while the run
-// went on, made by someone else and labelled "Changed during this run, not proven to be the agent's."
+// went on, made by someone else and labelled "Changed during this job, not proven to be the agent's."
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DelegateRunRecord, RunDetail, UploadRecord, WorkTableRecord } from '../runtime/venture/contracts.ts';
@@ -64,7 +64,7 @@ test('delivered: an accepted run lists the files its tools made, with digests, a
       { id: `${delegated.id}:1`, name: 'notes.md', digest: 'notes-digest', at: delegated.at, source: 'delegate', line: 'What Claude Code left' },
     ],
     changed: [{ id: added.id, name: 'new-bills.csv', digest: added.digest, at: added.at, source: 'order-file', line: 'A file added to the order' }],
-    changedLine: "Changed during this run, not proven to be the agent's.",
+    changedLine: "Changed during this job, not proven to be the agent's.",
   });
 });
 

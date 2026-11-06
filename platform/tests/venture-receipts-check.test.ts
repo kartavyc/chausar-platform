@@ -216,7 +216,7 @@ test('receipts: a file the draft names must be in the run\'s evidence, with a ma
   const missing = receipts(runChecks(input(draftOf('We read march-bills.csv for September.'), { grounding })));
   assert.equal(missing.passed, false);
   assert.match(missing.detail, /"march-bills\.csv"/);
-  assert.match(missing.detail, /not in this run's evidence/);
+  assert.match(missing.detail, /not in this job's evidence/);
 
   const changed = receipts(runChecks(input(draftOf('We read bank-statement.csv (sha256 cdcdcdcd) for September.'), { grounding })));
   assert.equal(changed.passed, false);

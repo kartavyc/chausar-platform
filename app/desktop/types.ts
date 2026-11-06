@@ -132,9 +132,9 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'updates.stage': JsonObject & { manifest: JsonObject | string; signature: string; confirmed: true };
 };
 type OptionalPayloads = { 'conversation.history': { limit?: number; cursor?: string }; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
-export type DesktopPayload<M extends DesktopMethod> = M extends VentureMethod ? VenturePayloads[M] : M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
+export type DesktopPayload<M extends string> = M extends VentureMethod ? VenturePayloads[M] : M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
-export type DesktopResult<M extends DesktopMethod> =
+export type DesktopResult<M extends string> =
   M extends VentureMethod ? VentureResults[M] :
   M extends 'forecasts.evaluate' | 'forecasts.get' ? SavedForecastEvaluation :
   M extends 'alerts.create' | 'alerts.publish' | 'alerts.get' ? BusinessAlert : M extends 'alerts.evaluate' ? AlertEvaluation : M extends 'alerts.list' ? BusinessAlert[] :

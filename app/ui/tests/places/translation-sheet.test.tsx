@@ -4,6 +4,25 @@ import {TextProvider} from '../../src/text';
 import {TranslationSheet} from '../../src/places/work/desks/TranslationSheet';
 import {newTranslation,translationAction,translationView} from '../../../../platform/runtime/venture/playbooks/translation-studio/state';
 import {digest} from '../../../../platform/runtime/portable';
+
+it('points to a mistyped source name in its field before saving', () => {
+  let job = newTranslation({ orderId: 'o', clientId: 'c', sourceLocale: 'en', targetLocale: 'hi', private: true, format: 'document', rights: 'own-footage', source: [{ id: 'p1', page: 1, type: 'paragraph', source: 'Invoice 42.', probes: [] }] });
+  job = translationAction(job, 'approve-glossary', {}, digest(job));
+  job = translationAction(job, 'draft', { targets: ['बिल 42।'] }, digest(job));
+  const act = vi.fn();
+  render(<TextProvider language="en"><TranslationSheet job={{ ...translationView(job), id: 'j' }} busy={false} act={act} /></TextProvider>);
+  fireEvent.click(screen.getByText('Keep source names and codes', { selector: 'summary' }));
+  const field = screen.getByLabelText('Exact words to keep');
+  fireEvent.change(field, { target: { value: 'Invocie' } });
+  expect(field.getAttribute('aria-invalid')).toBe('true');
+  expect(screen.getByRole('alert').textContent).toBe('Copy each name or code exactly from the original.');
+  fireEvent.click(screen.getByRole('button', { name: 'Save protected words' }));
+  expect(act).not.toHaveBeenCalled();
+  fireEvent.change(field, { target: { value: 'Invoice' } });
+  expect(field.getAttribute('aria-invalid')).not.toBe('true');
+  fireEvent.click(screen.getByRole('button', { name: 'Save protected words' }));
+  expect(act).toHaveBeenCalledWith('probes', { segmentId: 'p1', probes: ['Invoice'] });
+});
 it('shows original and target separately, keeps notes in the margin and locks review while text is dirty',()=>{let job=newTranslation({orderId:'o',clientId:'c',sourceLocale:'en',targetLocale:'hi',private:true,format:'document',rights:'own-footage',source:[{id:'p1',page:1,type:'paragraph',source:'Invoice 42.',probes:[]}]});job=translationAction(job,'approve-glossary',{},digest(job));job=translationAction(job,'draft',{targets:['बिल 42।']},digest(job));const act=vi.fn();render(<TextProvider language="en"><TranslationSheet job={{...translationView(job),id:'j'}} busy={false} act={act}/></TextProvider>);expect(screen.getByText('Invoice 42.')).toBeTruthy();expect((screen.getByLabelText('Translation') as HTMLTextAreaElement).value).toBe('बिल 42।');expect(screen.queryByRole('button',{name:'Ask AI'})).toBeNull();fireEvent.click(screen.getByLabelText('I reviewed every source and translated block.'));fireEvent.change(screen.getByLabelText('Translation'),{target:{value:'नया बिल 42।'}});expect(screen.getByRole('button',{name:'Approve meaning'}).getAttribute('aria-disabled')).toBe('true');fireEvent.click(screen.getByRole('button',{name:'Approve meaning'}));expect(act).not.toHaveBeenCalled();expect(screen.getByLabelText('My note')).toBeTruthy();});
 
 it('configured AI has an exact request preview and owner confirmation before it sends',()=>{let job=newTranslation({orderId:'o',clientId:'c',sourceLocale:'en',targetLocale:'hi',private:false,format:'document',rights:'own-footage',source:[{id:'p1',page:1,type:'paragraph',source:'Invoice 42.',probes:[]}]});job=translationAction(job,'approve-glossary',{},digest(job));const act=vi.fn();const {rerender}=render(<TextProvider language="en"><TranslationSheet job={{...translationView(job),id:'j'}} modelReady busy={false} act={act}/></TextProvider>);fireEvent.click(screen.getByRole('button',{name:'Ask AI'}));expect(act).toHaveBeenCalledWith('ai-preview',{});job.aiRequest={binding:'b',preview:{callId:'c',payloadText:'Invoice 42.',digest:'d',presetId:'p',model:'m',endpoint:'https://example.test',estimatedMaxCostMicros:'1000',estimatedMaxCostDisplay:'USD 0.0010'}};rerender(<TextProvider language="en"><TranslationSheet job={{...translationView(job),id:'j'}} modelReady busy={false} act={act}/></TextProvider>);expect(screen.getByText('Invoice 42.',{selector:'pre'})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Approve and ask AI'}));expect(act).toHaveBeenLastCalledWith('ai-confirm',{callId:'c',approvedDigest:'d'});});

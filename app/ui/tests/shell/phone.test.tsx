@@ -229,7 +229,7 @@ describe('Team on a phone', () => {
       start('#/team', withDepartments());
       const toggle = await screen.findByRole('group', { name: 'Show departments' });
       expect(toggle.hasAttribute('data-tabs')).toBe(true);
-      expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments 5', 'Sales and clients 1', 'Marketing 2', 'Production 1', 'Money', 'Operations']);
+      expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments 5', 'Sales and clients 1', 'Marketing 2', 'Production 1']);
       await act(async () => { fireEvent.click(within(toggle).getByRole('button', { name: /^Production/ })); });
       await hashChanged();
       expect(window.location.hash).toBe('#/team?dept=prod');

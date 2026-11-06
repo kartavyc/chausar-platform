@@ -34,6 +34,7 @@ export function GoNoGoCard() {
   const cards = useResource('venture.goNoGo.list', {});
   const [typed, setTyped] = useState<Typed>(EMPTY);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(true);
   const [problem, setProblem] = useState<string | null>(null);
   const set = (key: keyof Typed) => (event: { currentTarget: { value: string } }) => { const value = event.currentTarget.value; setTyped((now) => ({ ...now, [key]: value })); };
 
@@ -47,6 +48,7 @@ export function GoNoGoCard() {
     try {
       await engine.request('venture.goNoGo.card', { playbook: venture.data?.playbook?.id ?? 'general', subject: typed.subject.trim(), inputs });
       setTyped(EMPTY);
+      setEditing(false);
       cards.reload();
     } catch (error) {
       setProblem(salesWords(error, t));
@@ -58,7 +60,7 @@ export function GoNoGoCard() {
   const list = cards.data?.cards ?? [];
   return (
     <div className={s.cards}>
-      <TileSection title={t('kit-sales.goNoGo.heading')}>
+      {editing ? <TileSection title={t('kit-sales.goNoGo.heading')}>
         <form className={s.form} onSubmit={(event) => void decide(event)} noValidate>
           <p className={s.note}>{t('kit-sales.goNoGo.line')}</p>
           <Field label={t('kit-sales.goNoGo.subject')} hint={t('kit-sales.goNoGo.subjectHint')} value={typed.subject} onChange={set('subject')} maxLength={120} autoComplete="off" />
@@ -72,7 +74,7 @@ export function GoNoGoCard() {
           <div className={s.end}><Button variant="primary" type="submit" disabled={busy}>{busy ? t('kit-sales.goNoGo.deciding') : t('kit-sales.goNoGo.decide')}</Button></div>
           <p className={s.note}>{t('kit-sales.goNoGo.rule')}</p>
         </form>
-      </TileSection>
+      </TileSection> : <div className={s.end}><Button variant="quiet" onClick={() => setEditing(true)}>{t('kit-sales.goNoGo.another')}</Button></div>}
       {cards.error && <p className={s.problem} role="alert">{t('kit-sales.goNoGo.failed', { message: salesWords(cards.error, t) })}</p>}
       {cards.data && list.length === 0 && <p className={s.note}>{t('kit-sales.goNoGo.none')}</p>}
       {list.map((card) => <CardTile key={card.id} card={card} onRemoved={cards.reload} />)}
@@ -117,7 +119,7 @@ function CardTile({ card, onRemoved }: { card: GoNoGoCardView; onRemoved: () => 
           {card.limit && (
             <div className={s.pair}>
               <dt>{t('kit-sales.goNoGo.limitLabel')}</dt>
-              <dd data-num="">{card.limit.display}</dd>
+              <dd><span data-content="">{card.limit.display}</span>{' '}<span className={s.note}>{t('business.label.told-by-you')}</span></dd>
             </div>
           )}
           {/* C4 T25: how the figure was reached, under the same receipt. */}

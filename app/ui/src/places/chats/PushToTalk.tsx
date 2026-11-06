@@ -19,7 +19,7 @@ import s from './Talk.module.css';
 
 
 
-export function PushToTalk({ onHeard }: { onHeard: (text: string) => void }) {
+export function PushToTalk({ onHeard, onAsking }: { onHeard: (text: string) => void; onAsking?: (asking: boolean) => void }) {
   const t = useT();
   const engine = useEngine();
   const noticeId = useId();
@@ -54,7 +54,7 @@ export function PushToTalk({ onHeard }: { onHeard: (text: string) => void }) {
     if (!data || mic.current) return;
     setProblem(null);
     if (hosted) { setLine(data.line); return; }
-    if (!data.consent.given) { setNotice(true); return; }
+    if (!data.consent.given) { setNotice(true); onAsking?.(true); return; }
     const held = { sessionId: null as string | null, recorder: null as TalkMicrophone | null, letGo: false };
     mic.current = held;
     setLine(null);
@@ -98,7 +98,7 @@ export function PushToTalk({ onHeard }: { onHeard: (text: string) => void }) {
     setProblem(null);
     try {
       await engine.request('venture.talk.consent', { digest: data.consent.digest, keepAudio: keep });
-      setNotice(false);
+      setNotice(false); onAsking?.(false);
       view.reload();
     } catch (error) {
       setProblem(t('chats.talk.failed', { message: messageOf(error) }));
@@ -133,7 +133,7 @@ export function PushToTalk({ onHeard }: { onHeard: (text: string) => void }) {
             {t('chats.talk.keep')}
           </label>
           <div className={s.actions}>
-            <Button disabled={busy} onClick={() => setNotice(false)}>{t('chats.talk.notNow')}</Button>
+            <Button disabled={busy} onClick={() => { setNotice(false); onAsking?.(false); }}>{t('chats.talk.notNow')}</Button>
             <Button variant="primary" disabled={busy} onClick={() => void agree()}>{t('chats.talk.agree')}</Button>
           </div>
         </section>

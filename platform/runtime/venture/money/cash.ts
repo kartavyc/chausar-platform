@@ -215,36 +215,40 @@ export function cashPlan(state: State, venture: VentureRecord, subject: Extract<
   };
 }
 
-/** Per mille of the chart's scale, from its lowest point (zero at most) to its highest. */
+const floorLevel = (value: bigint, step: bigint) => value >= 0n ? value / step : -((-value + step - 1n) / step);
+const ceilLevel = (value: bigint, step: bigint) => value >= 0n ? (value + step - 1n) / step : -(-value / step);
+
+/** Round bounds shared by points and labels, with one labelled level above every data point. */
+function cashAxis(values: readonly bigint[]): { lo: bigint; hi: bigint; step: bigint } {
+  const low = values.reduce((min, value) => value < min ? value : min, 0n);
+  const high = values.reduce((max, value) => value > max ? value : max, 0n);
+  const range = high - low;
+  if (range === 0n) return { lo: 0n, hi: 0n, step: 0n };
+  const steps: bigint[] = [];
+  for (let power = 1n; power <= range; power *= 10n) steps.push(power, power * 2n, power * 5n);
+  const step = steps.reverse().find(candidate => {
+    const first = ceilLevel(low, candidate), last = floorLevel(high, candidate);
+    return last - first + 1n - (first <= 0n && last >= 0n ? 1n : 0n) >= 2n;
+  }) ?? 1n;
+  return { lo: floorLevel(low, step) * step, hi: (floorLevel(high, step) + 1n) * step, step };
+}
+
+/** Per mille of the same rounded bounds used by the axis labels. */
 function scale(values: readonly bigint[]): { at: (value: bigint) => number; zero: number | null } {
-  const lo = values.reduce((min, value) => (value < min ? value : min), 0n);
-  const hi = values.reduce((max, value) => (value > max ? value : max), lo);
+  const { lo, hi } = cashAxis(values);
   const range = hi - lo;
-  const at = (value: bigint) => (range === 0n ? (value > 0n ? 1000 : 0) : countOf(((value - lo) * 1000n) / range));
+  const at = (value: bigint) => range === 0n ? 0 : countOf(((value - lo) * 1000n) / range);
   return { at, zero: lo < 0n ? at(0n) : null };
 }
 
-/**
- * 4J20: the level lines of the cash line, on round amounts (1, 2 or 5 times a power of ten in minor units): the largest
- * step that gives at least two levels other than zero from the scale's floor (zero at most) to its top, each at its per
- * mille of the scale, zero among them when the scale goes below it. Worked out in BigInt; nothing for a flat scale.
- */
 function levelTicks(values: readonly bigint[], currency: string): { permille: number; label: string }[] {
-  const lo = values.reduce((min, value) => (value < min ? value : min), 0n);
-  const hi = values.reduce((max, value) => (value > max ? value : max), lo);
-  const range = hi - lo;
-  if (range <= 0n) return [];
-  const steps: bigint[] = [];
-  for (let power = 1n; power <= range; power *= 10n) steps.push(power, power * 2n, power * 5n);
-  const ceil = (a: bigint, b: bigint) => (a >= 0n ? (a + b - 1n) / b : -(-a / b));
-  const floor = (a: bigint, b: bigint) => (a >= 0n ? a / b : -((-a + b - 1n) / b));
-  for (const step of steps.reverse()) {
-    const levels: bigint[] = [];
-    for (let k = ceil(lo, step); k <= floor(hi, step); k += 1n) levels.push(k * step);
-    if (levels.filter(level => level !== 0n).length < 2) continue;
-    return levels.filter(level => level !== 0n || lo < 0n).map(level => ({ permille: countOf(((level - lo) * 1000n) / range), label: formatMoney(level, currency) }));
+  const { lo, hi, step } = cashAxis(values);
+  if (step === 0n) return [];
+  const ticks: { permille: number; label: string }[] = [];
+  for (let level = lo; level <= hi; level += step) {
+    if (level !== 0n || lo < 0n) ticks.push({ permille: countOf(((level - lo) * 1000n) / (hi - lo)), label: formatMoney(level, currency) });
   }
-  return [];
+  return ticks;
 }
 
 /**

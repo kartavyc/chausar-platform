@@ -1,6 +1,9 @@
 {
-  "flows-replay-d11.test.ts": 5,
-  "onboarding-replay-d11.test.ts": 5,
+  "platform/tests/contracts-types-only-d6.test.ts": 0.9,
+  "platform/tests/gen-contract-d8.test.ts": 0.2,
+  "platform/tests/method-registry-d8.test.ts": 0.2,
+  "platform/tests/flows-replay-d11.test.ts": 5,
+  "platform/tests/onboarding-replay-d11.test.ts": 5,
   "platform/tests/acceptance.test.ts": 5.8,
   "platform/tests/accounting-common.test.ts": 0.4,
   "platform/tests/accounting-engine-registration.test.ts": 0.8,

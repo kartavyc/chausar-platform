@@ -241,7 +241,7 @@ describe('Business in the Ink v2 look', () => {
     assertInkRules(document.body);
     const chip = within(portal).getAllByRole('button', { name: receiptMark('w-portal-sep') })[0]!;
     await act(async () => { fireEvent.click(chip); window.dispatchEvent(new HashChangeEvent('hashchange')); });
-    const sheet = (await screen.findByText('w-portal-sep', { selector: 'aside h2, aside h2 *' })).closest('aside') as HTMLElement;
+    const sheet = (await screen.findByText('w-portal-sep', { selector: 'aside [data-code]' })).closest('aside') as HTMLElement;
     await within(sheet).findByText('Net payable: the portal less ours', { selector: 'dt' });
     expect(within(sheet).getAllByText('₹80').length).toBeGreaterThan(0);
     const steps = sheet.querySelector('ol[data-receipt-steps]') as HTMLElement;
@@ -256,7 +256,7 @@ describe('Business in the Ink v2 look', () => {
     const sponsor = await offer('Sponsor slot');
     const chip = await within(sponsor).findByRole('button', { name: receiptMark('R-0408') });
     await act(async () => { fireEvent.click(chip); window.dispatchEvent(new HashChangeEvent('hashchange')); });
-    const sheet = (await screen.findByText('R-0408', { selector: 'aside h2, aside h2 *' })).closest('aside') as HTMLElement;
+    const sheet = (await screen.findByText('R-0408', { selector: 'aside [data-code]' })).closest('aside') as HTMLElement;
     await waitFor(() => expect(sheet.querySelector('dl')).not.toBeNull());
     expect(calls.filter(([method]) => method === 'venture.receipt.get').map(([, params]) => params)).toEqual([{ id: 'R-0408' }]);
     expect(calls.filter(([method]) => method === 'venture.ca.receipt')).toEqual([]);

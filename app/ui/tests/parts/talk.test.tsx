@@ -507,6 +507,7 @@ describe('DiffCard', () => {
     const same = within(change).getByText('Cut shorts under 60 s with a clear hook').closest('[data-line]')!;
     expect(same.textContent).not.toMatch(/Added|Removed/);
     expect(within(card).getByText((_, el) => el?.getAttribute('data-version') !== null && el?.textContent === 'Version 4 to 5, you can undo')).toBeTruthy();
+    expect(card.querySelectorAll('[data-version] [data-code], [data-line] [data-code]')).toHaveLength(0);
     const reject = within(card).getByRole('button', { name: 'Reject' });
     const accept = within(card).getByRole('button', { name: 'Accept' });
     expect(reject.getAttribute('data-variant')).toBe('secondary');

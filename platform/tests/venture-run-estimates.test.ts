@@ -64,7 +64,7 @@ test('a step that needs a connector that is only planned refuses the run to star
   await consentForOrder(env.deps, controls.owner, order.id);
   await assert.rejects(controls.call(env, 'venture.delivery.run', { orderId: order.id }), (error: any) => {
     assert.equal(error.code, 'RUN_CAPABILITY_MISSING');
-    assert.equal(error.message, 'This run needs posting to LinkedIn, which is planned. Nothing was put in its place.');
+    assert.equal(error.message, 'This job needs posting to LinkedIn, which is planned. Nothing was put in its place.');
     return true;
   });
   assert.deepEqual(listRecords(env.store.read(), 'venture-delivery-run'), []);

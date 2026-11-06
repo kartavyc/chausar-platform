@@ -499,7 +499,7 @@ export interface RowFigureReceipt {
 }
 
 /** `venture.books.summary` (BooksSummary), trimmed. */
-export interface BooksFigureLite { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; display: Display; stale: boolean }
+export interface BooksFigureLite { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; display: Display; stale: boolean; zero?: true }
 export interface BooksSummaryLite {
   currency: string; period: { from: string; to: string };
   figures: BooksFigureLite[];

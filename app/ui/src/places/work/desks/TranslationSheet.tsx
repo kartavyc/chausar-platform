@@ -24,4 +24,27 @@ export function TranslationSheet({job,busy,act,modelReady=false}:{job:Translatio
  {job.canExport&&<Tile as="section" label={t('pb-translation.export')}><TileHead title={t('pb-translation.export')}/><p className={s.line}>{t('pb-translation.exportHelp')}</p><div className={s.actions}>{(job.format==='subtitles'?['srt','vtt','html']:['docx','pdf','html']).map(format=><Button key={format} locked={locked} onClick={()=>{if(!locked)void act('export',{format});}}>{t('pb-translation.saveFormat',{format:format.toUpperCase()})}</Button>)}</div></Tile>}
  </div>;
 }
-function TranslationRow({job,segmentId,busy,act,onDirty}:{job:TranslationView;segmentId:string;busy:boolean;act:TranslationAct;onDirty:(dirty:boolean)=>void}){const t=useT(),segment=job.segments.find(s=>s.id===segmentId)!,[target,setTarget]=useState(segment.target),[note,setNote]=useState(job.notes[segmentId]?.owner??''),[probes,setProbes]=useState(segment.probes.join('\n'));const changed=target!==segment.target||note!==(job.notes[segmentId]?.owner??'');const findings=job.checks.findings.filter(f=>f.segmentId===segmentId);return <Tile as="section" label={t('pb-translation.block')}><div className={s.pair}><section data-content><h3>{t('pb-translation.original')}</h3><p className={s.quote} lang={job.sourceLocale}>{segment.source}</p></section><section data-content lang={job.targetLocale}><Field disabled={busy} label={t('pb-translation.target')} multiline value={target} onChange={e=>{setTarget(e.target.value);onDirty(true);}}/></section></div><aside className={s.notes}><Fold summary={t('pb-translation.probes')}><Field disabled={busy} label={t('pb-translation.probeWords')} hint={t('pb-translation.probeHelp')} multiline value={probes} onChange={e=>{setProbes(e.target.value);onDirty(true);}}/><Button locked={busy||changed} onClick={()=>{if(!busy&&!changed)void act('probes',{segmentId,probes:probes.split('\n').filter(p=>p.trim())});}}>{t('pb-translation.saveProbes')}</Button></Fold><Field disabled={busy} label={t('pb-translation.myNote')} multiline value={note} onChange={e=>{setNote(e.target.value);onDirty(true);}}/>{job.notes[segmentId]?.ai&&<div data-content><h3>{t('pb-translation.aiExplanation')}</h3><p>{job.notes[segmentId]?.ai}</p></div>}{findings.length>0&&<ul>{findings.map((f,i)=><li key={i}>{t('pb-translation.check.'+f.code)} <span data-content>{f.detail}</span></li>)}</ul>}</aside><Button variant="primary" locked={busy||!changed||!target.trim()} onClick={()=>{if(!busy&&changed&&target.trim())void act('edit',{segmentId,target,note,probes:probes.split('\n').filter(p=>p.trim())});}}>{t('pb-translation.saveBlock')}</Button></Tile>;}
+function TranslationRow({job,segmentId,busy,act,onDirty}:{job:TranslationView;segmentId:string;busy:boolean;act:TranslationAct;onDirty:(dirty:boolean)=>void}) {
+ const t=useT(), segment=job.segments.find(s=>s.id===segmentId)!;
+ const [target,setTarget]=useState(segment.target), [note,setNote]=useState(job.notes[segmentId]?.owner??''), [probes,setProbes]=useState(segment.probes.join('\n'));
+ const changed=target!==segment.target||note!==(job.notes[segmentId]?.owner??'');
+ const keptWords=probes.split('\n').filter(word=>word.trim());
+ const probeError=keptWords.some(word=>!segment.source.includes(word)) ? t('pb-translation.probeError') : undefined;
+ const findings=job.checks.findings.filter(f=>f.segmentId===segmentId);
+ return <Tile as="section" label={t('pb-translation.block')}>
+  <div className={s.pair}>
+   <section data-content><h3>{t('pb-translation.original')}</h3><p className={s.quote} lang={job.sourceLocale}>{segment.source}</p></section>
+   <section data-content lang={job.targetLocale}><Field disabled={busy} label={t('pb-translation.target')} multiline value={target} onChange={e=>{setTarget(e.target.value);onDirty(true);}}/></section>
+  </div>
+  <aside className={s.notes}>
+   <Fold summary={t('pb-translation.probes')}>
+    <Field disabled={busy} label={t('pb-translation.probeWords')} hint={t('pb-translation.probeHelp')} error={probeError} multiline value={probes} onChange={e=>{setProbes(e.target.value);onDirty(true);}}/>
+    <Button locked={busy||changed||Boolean(probeError)} onClick={()=>{if(!busy&&!changed&&!probeError)void act('probes',{segmentId,probes:keptWords});}}>{t('pb-translation.saveProbes')}</Button>
+   </Fold>
+   <Field disabled={busy} label={t('pb-translation.myNote')} multiline value={note} onChange={e=>{setNote(e.target.value);onDirty(true);}}/>
+   {job.notes[segmentId]?.ai&&<div data-content><h3>{t('pb-translation.aiExplanation')}</h3><p>{job.notes[segmentId]?.ai}</p></div>}
+   {findings.length>0&&<ul>{findings.map((f,i)=><li key={i}>{t('pb-translation.check.'+f.code)} <span data-content>{f.detail}</span></li>)}</ul>}
+  </aside>
+  <Button variant="primary" locked={busy||!changed||!target.trim()||Boolean(probeError)} onClick={()=>{if(!busy&&changed&&target.trim()&&!probeError)void act('edit',{segmentId,target,note,probes:keptWords});}}>{t('pb-translation.saveBlock')}</Button>
+ </Tile>;
+}

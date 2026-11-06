@@ -81,7 +81,7 @@ export function FactsBody({ subject, quiet = false }: { subject: string; quiet?:
   );
 }
 
-function FactRow({ fact, onDone, onFailed }: { fact: FactView; onDone: (line: string) => void; onFailed: (error: unknown) => void }) {
+export function FactRow({ fact, onDone, onFailed }: { fact: FactView; onDone: (line: string) => void; onFailed: (error: unknown) => void }) {
   const t = useT();
   const day = useDay();
   const engine = useEngine();

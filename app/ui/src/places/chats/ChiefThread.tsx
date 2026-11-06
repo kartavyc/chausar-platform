@@ -47,7 +47,6 @@ import { PushToTalk } from './PushToTalk';
 import { ReadAloud } from './ReadAloud';
 import { PickTime } from './PickTime';
 import s from './Chats.module.css';
-import { Reveal } from '../../parts/RevealBlock';
 
 /** The thread reads again when Chausar answers anywhere, and when a proposal's card moves on Today. */
 const THREAD_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed' || event.type === 'proposal.created';
@@ -83,11 +82,14 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
   const clock = useClock();
   const engine = useEngine();
   const titleId = useId();
+  const snoozeButton = useRef<HTMLButtonElement>(null);
+  const snoozePanel = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLDivElement>(null);
   const view = useResource('venture.chief.thread.list', { threadId: threadId ?? '' }, { skip: !threadId, refreshOn: THREAD_EVENTS });
   const team = useResource('venture.team.list', {}, { refreshOn: () => false });
   /** What this pane sent before the engine's thread read lands (a new chat's first exchange). */
   const [sent, setSent] = useState<{ thread: ChiefThreadSummary; messages: ChiefMessageView[] } | null>(null);
+  const [micAsking, setMicAsking] = useState(false);
   const [box, setBox] = useState<{ words: string; n: number }>({ words: '', n: 0 });
   /** The consent as it was read at the refusal: its words and the digest Agree sends, and the message that waits. */
   const [consent, setConsent] = useState<{ stale: boolean; text: string; digest: string | null; words: string; problem: string | null; busy: boolean } | null>(null);
@@ -250,6 +252,20 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
     }
   }
 
+  useEffect(() => {
+    if (!snoozing) return;
+    snoozePanel.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    const outside = (event: MouseEvent) => {
+      if (!snoozePanel.current?.contains(event.target as Node) && !snoozeButton.current?.contains(event.target as Node)) setSnoozing(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setSnoozing(false); snoozeButton.current?.focus(); }
+    };
+    document.addEventListener('mousedown', outside);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('mousedown', outside); document.removeEventListener('keydown', escape); };
+  }, [snoozing]);
+
   const snoozeOptions: readonly ChiefSnoozeOption[] = shown?.snooze ?? [];
   const waiting = thread?.waiting ?? false;
   const shownChange = change && change.threadId === threadId ? change : null;
@@ -259,7 +275,7 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
     : { kind: 'card', id: message.id, at: message.at, node: <ChiefAnswer message={message} threadId={thread?.id ?? null} agentOf={agentOf} onChanged={view.reload} /> })), ...unsent.entries];
 
   return (
-    <section ref={area} className={s.pane} aria-labelledby={titleId}>
+    <section ref={area} className={s.pane} data-empty={entries.length === 0 ? "" : undefined} aria-labelledby={titleId}>
       <header className={s.paneHead}>
         {phone && <a className={s.back} href="#/chats">{t('chats.thread.back')}</a>}
         <ChausarAvatar size={40} />
@@ -276,13 +292,13 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
             {thread.state === 'snoozed' ? (
               <Button variant="quiet" size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'active' })}>{t('chats.thread.wake')}</Button>
             ) : (
-              <Button variant="quiet" size="sm" disabled={pinning} aria-disabled={waiting || undefined} aria-expanded={waiting ? undefined : snoozing}
+              <Button ref={snoozeButton} variant="quiet" size="sm" disabled={pinning} aria-disabled={waiting || undefined} aria-expanded={waiting ? undefined : snoozing}
                 onClick={() => { if (waiting) setLockedNote(true); else setSnoozing((was) => !was); }}>
                 {t('chats.thread.snooze')}
               </Button>
             )}
             {thread.state === 'settled' ? (
-              <Button variant="quiet" size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'active' })}>{t('chats.thread.reopen')}</Button>
+              !shownChange && <Button variant="quiet" size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'active' })}>{t('chats.thread.reopen')}</Button>
             ) : (
               <Button variant="quiet" size="sm" disabled={pinning} aria-disabled={waiting || undefined}
                 onClick={() => { if (waiting) setLockedNote(true); else void setState({ threadId: thread.id, state: 'settled' }); }}>
@@ -291,19 +307,22 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
             )}
           </div>
         )}
+        {thread && snoozing && !waiting && (
+          <div ref={snoozePanel} className={s.snoozePopup} onBlur={(event) => {
+            if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node) && event.relatedTarget !== snoozeButton.current) setSnoozing(false);
+          }}>
+            <div className={s.snooze} role="group" aria-label={t('chats.snooze.title')}>
+              {snoozeOptions.map((option) => (
+                <Button key={option.id} size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'snoozed', preset: option.id })}>
+                  <span data-preset="">{t(`chats.snooze.${option.id}`)}</span>
+                  <time data-num="" dateTime={option.until}>{wakeOf(option.until, clock(), zone)}</time>
+                </Button>
+              ))}
+            </div>
+            <PickTime busy={pinning} onPick={(until) => snoozeUntil(thread.id, until)} />
+          </div>
+        )}
       </header>
-      {/* One-shot C3 task 7: the snooze choices open in place and close the same way. */}
-      <Reveal open={Boolean(thread && snoozing && !waiting && snoozeOptions.length > 0)}>
-        {thread && <div className={cx(s.snooze, s.paneNote)} role="group" aria-label={t('chats.snooze.title')}>
-          {snoozeOptions.map((option) => (
-            <Button key={option.id} size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'snoozed', preset: option.id })}>
-              <span data-preset="">{t(`chats.snooze.${option.id}`)}</span>
-              <time data-num="" dateTime={option.until}>{wakeOf(option.until, clock(), zone)}</time>
-            </Button>
-          ))}
-        </div>}
-      </Reveal>
-      {thread && snoozing && !waiting && <div className={s.paneNote}><PickTime busy={pinning} onPick={(until) => snoozeUntil(thread.id, until)} /></div>}
       {thread && waiting && lockedNote && <p className={cx(s.quiet, s.paneNote)}>{t('chats.thread.waiting')}</p>}
       {shownChange && <ChangeNotice className={s.paneNote} line={shownChange.line} busy={pinning} onUndo={() => void setState(shownChange.undo)} />}
       {threadId && view.error && !shown && !fallback ? (
@@ -323,10 +342,11 @@ export function ChiefThread({ threadId, ask, onAskTaken, onListChanged, phone }:
           label={t('chats.composer.label')}
           placeholder={t('chats.composer.placeholder')}
           onSend={unsent.sendKeeping}
-          suggestions={SUGGESTIONS.map((key) => t(key))}
+          suggestions={SUGGESTIONS.map((key) => t(key)).filter(words => !messages.some(message => message.from === 'owner' && plainOf(message.parts) === words))}
+          sendDisabled={micAsking}
+          accessory={<PushToTalk onAsking={setMicAsking} onHeard={(words) => setBox((was) => ({ words, n: was.n + 1 }))} />}
           hint={t('chats.composer.hint')}
         />
-        <PushToTalk onHeard={(words) => setBox((was) => ({ words, n: was.n + 1 }))} />
       </div>
     </section>
   );
@@ -364,7 +384,7 @@ function ChiefAnswer({ message, threadId, agentOf, onChanged }: { message: Chief
         <span className={s.whoName}>{t('chats.chief.name')}</span>
         {time && <time data-num="" dateTime={message.at}>{time}</time>}
       </p>
-      {message.parts.length > 0 && <p className={s.words} dir="auto">{partsOf(message.parts, t)}</p>}
+      {message.parts.length > 0 && <p className={s.words} dir="auto">{partsOf(message.parts, t, message.worked)}</p>}
       {message.worked.length > 0 && (
         <table className={s.worked}>
           <caption className={s.workedTitle}>{t('chats.worked.title')}</caption>
@@ -418,9 +438,10 @@ function Counted({ counted }: { counted: ChiefCounted }) {
 }
 
 /** The parts in order, a space between them: words, receipted figures, and model-written numbers with their label. */
-function partsOf(parts: readonly ChatPart[], t: T): ReactNode[] {
+function partsOf(parts: readonly ChatPart[], t: T, worked: ChiefMessageView['worked']): ReactNode[] {
   return parts.flatMap((part, index) => {
     const gap = index > 0 ? [' '] : [];
+    if (part.kind === 'figure' && worked.some(line => line.receiptId === part.receiptId && line.value === part.display)) return [...gap, t('chats.worked.below')];
     if (part.kind === 'figure') return [...gap, <Figure key={index} value={part.display} receiptId={part.receiptId} />];
     if (part.kind === 'estimate') {
       return [...gap, <span key={index} className={s.estimate}><span data-estimate="">{part.text}</span> <ModelEstimate /></span>];

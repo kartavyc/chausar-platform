@@ -8,10 +8,11 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { EngineHarness } from '../../app/desktop/engine-harness.cjs';
+import { ALL_METHODS } from '../runtime/method-registry.ts';
 import ipcContract from '../../app/desktop/ipc-contract.cjs';
 import type { PhoneSessionInvite, PhoneSessionMetadata } from '../runtime/engine-phone-sessions.ts';
 import type { SessionGrant } from '../runtime/phone/contracts.ts';
-const { METHODS, validateRequest, assertTrustedSender, publicError } = ipcContract;
+const { METHODS, validateRequest, validateHostRequest, assertTrustedSender, publicError } = ipcContract;
 
 class Child extends EventEmitter {
   connected = true; sent: any[] = []; disconnects = 0; kills = 0; failSend = false; ignoreDisconnect = false;
@@ -43,8 +44,9 @@ test('D4: a worker that says it has loaded moves the start to that phase; an unk
 test('desktop accepts only explicit engine methods and bounded plain JSON payloads', async () => {
   assert.deepEqual(validateRequest({ method: 'workspace.status' }), { method: 'workspace.status', payload: {} });
   const ownerPhoneMethods = ['phone.invite', 'phone.sessions', 'phone.revoke', 'phone.conversation.offer'];
-  assert.deepEqual(METHODS.filter((method: string) => method.startsWith('phone.')), ownerPhoneMethods);
-  for (const method of ownerPhoneMethods) assert.deepEqual(validateRequest({ method, payload: {} }), { method, payload: {} });
+  assert.deepEqual(METHODS.filter((method: string) => method.startsWith('phone.')), []);
+  assert.deepEqual(ALL_METHODS.filter(method => method.startsWith('phone.')), ownerPhoneMethods);
+  for (const method of ownerPhoneMethods) { assert.throws(() => validateRequest({ method, payload: {} }), code('INVALID_REQUEST')); assert.deepEqual(validateHostRequest({ method, payload: {} }), { method, payload: {} }); }
   for (const method of ['phone.*', 'phone.chat.start', 'phone.pairing.accept', 'pairing.accept', 'session.validate', 'chat.start']) {
     assert.throws(() => validateRequest({ method, payload: {} }), code('INVALID_REQUEST'));
   }
@@ -53,9 +55,9 @@ test('desktop accepts only explicit engine methods and bounded plain JSON payloa
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: cyclic }), code('INVALID_REQUEST'));
   let invoked = false; const getter = { get secret() { invoked = true; return 'secret'; } };
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: getter }), code('INVALID_REQUEST')); assert.equal(invoked, false);
-  assert.throws(() => validateRequest({ method: 'sources.preview', payload: { content: 'x'.repeat(2_000_000) } }), code('REQUEST_TOO_LARGE'));
-  assert.throws(() => validateRequest({ method: 'sources.preview', payload: { repeated: Array(50).fill('x'.repeat(100_000)) } }), code('REQUEST_TOO_LARGE'));
-  assert.throws(() => validateRequest({ method: 'sources.preview', payload: { sparse: Array(1_000_000_000) } }), code('INVALID_REQUEST'));
+  assert.throws(() => validateRequest({ method: 'workspace.status', payload: { content: 'x'.repeat(2_000_000) } }), code('REQUEST_TOO_LARGE'));
+  assert.throws(() => validateRequest({ method: 'workspace.status', payload: { repeated: Array(50).fill('x'.repeat(100_000)) } }), code('REQUEST_TOO_LARGE'));
+  assert.throws(() => validateRequest({ method: 'workspace.status', payload: { sparse: Array(1_000_000_000) } }), code('INVALID_REQUEST'));
   let deep: any = {}; for (let i = 0; i < 34; i++) deep = { child: deep };
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: deep }), code('INVALID_REQUEST'));
   const source = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
@@ -64,7 +66,8 @@ test('desktop accepts only explicit engine methods and bounded plain JSON payloa
   assert.ok(implemented.includes('workspace.backup.v2.restoreInert'), 'Versioned archive methods must be included in the contract comparison.');
   // C5 tasks 21, 23: these two name a path, so only main asks them, after its own pick (keep-files.cjs): the decision is no.
   const mainOnly = ['workspace.import', 'workspace.backups.copyTo'];
-  assert.deepEqual([...METHODS].sort(), [...new Set(implemented)].filter(method => !mainOnly.includes(method)).sort(), 'Engine additions need an explicit desktop contract decision.');
+  assert.deepEqual([...ALL_METHODS].sort(), [...new Set(implemented)].sort(), 'Engine additions need an explicit registry entry.');
+  for (const name of mainOnly) assert.ok(!METHODS.includes(name as typeof METHODS[number]));
 });
 
 test('headless desktop worker joins exact owner phone methods to its actual synthetic Vault', async t => {

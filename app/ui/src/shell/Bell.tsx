@@ -20,13 +20,24 @@ export const CENTRE_SHEET = { kind: 'notifications', id: 'all' } as const;
 /** Events after which the centre may hold something new: the centre's own, Today's, and a run that waits. */
 export const NOTIFY_EVENTS = (event: VentureRunEvent) => event.type === 'notify.new' || event.type === 'queue.changed' || event.type === 'run.waiting';
 
-type NotifyList = Resource<ResultOf<'venture.notify.list'>>;
+type NotifyList = Resource<ResultOf<'venture.notify.list'>> & { seenIds?: ReadonlySet<string> };
 const NotifyContext = createContext<NotifyList | null>(null);
 
 /** Holds the one list for the bell and the centre, and the live region that says a new count aloud. */
 export function NotifyProvider({ children }: { children: ReactNode }) {
   const t = useT();
   const list = useResource('venture.notify.list', {}, { refreshOn: NOTIFY_EVENTS });
+  const route = useRoute();
+  const [seenIds, setSeenIds] = useState<ReadonlySet<string>>(() => new Set());
+  const centreOpen = route.sheet?.kind === CENTRE_SHEET.kind;
+  useEffect(() => {
+    if (!centreOpen || !list.data) return;
+    setSeenIds(before => {
+      const next = new Set(before);
+      for (const item of list.data!.items) next.add(item.id);
+      return next.size === before.size ? before : next;
+    });
+  }, [centreOpen, list.data]);
   const [said, setSaid] = useState('');
   const before = useRef<number | null>(null);
   const unread = list.data?.unread;
@@ -36,7 +47,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
     before.current = unread;
   }, [unread, t]);
   return (
-    <NotifyContext.Provider value={list}>
+    <NotifyContext.Provider value={{ ...list, seenIds }}>
       {children}
       <span className="sr-only" aria-live="polite" data-bell-live="">{said}</span>
     </NotifyContext.Provider>
@@ -59,6 +70,7 @@ export function Bell({ look = 'outlined' }: { look?: 'outlined' | 'bare' }) {
   return (
     <NotificationBell
       unread={list.data?.unread ?? 0}
+      showDot={!open && list.data?.items.some(item => !item.read && !list.seenIds?.has(item.id))}
       look={look}
       expanded={open}
       onOpen={() => (open ? closeSheet() : openSheet(CENTRE_SHEET.kind, CENTRE_SHEET.id))}
