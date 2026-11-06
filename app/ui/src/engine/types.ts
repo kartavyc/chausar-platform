@@ -908,6 +908,8 @@ export type BillingPatch = Partial<Omit<BillingSettingsLite, 'razorpay' | 'bank'
  * on disk (maybe INV-0001-2.pdf), for Show the PDF in its folder. whatsapp: the desktop app or the web page, never
  * with the file.
  */
+/** One-shot C6: what the desktop did with a payment's receipt: kept it, and opened WhatsApp when asked. */
+export type ReceiptShareResult = { how: 'whatsapp'; opened: 'app' | 'web'; file: string; note: string | null } | { how: 'save'; opened: 'none'; file: string; note: string | null };
 export type InvoiceShareResult =
   | { how: 'email'; opened: 'draft' | 'link' | 'none'; file: string; attached: string; to: boolean; note: string | null }
   | { how: 'whatsapp'; opened: 'app' | 'web'; file: string; note: string | null };
@@ -1477,10 +1479,10 @@ export interface GoalView {
   invoicedPercent: number | null; pacePercent: number; past: boolean; pastBy: MoneyFigure | null; paceBy: MoneyFigure | null;
   elapsedDays: number; monthDays: number; daysLeft: number; lastDay: boolean;
   lastMonth: GoalFigure | null; line: Display; next: NextBestStep | null; briefing: { rowIds: string[]; more: number } | null;
-}
-/** typed: the amount as the owner would type it in the goal field ("150000.00"). */
   /** One-shot C6: every invoice issued in the month is paid ("All November invoices paid"), with its receipt; else null. */
   paidInFull?: { line: Display; receiptId: string } | null;
+}
+/** typed: the amount as the owner would type it in the goal field ("150000.00"). */
 export interface GoalSuggestion { amountMinor: string; display: Display; estimate: true; line: Display; typed: string }
 
 /** 4J1 and 4J2 decisions, edits, set approval, the triage rule, settings drafts. */
@@ -2038,6 +2040,8 @@ export interface EngineMethods {
   'workspace.backups.create': { params: Record<string, never>; result: BackupLite };
   /** The open business goes back to the backup. The engine writes a safety copy of how it is now first. */
   'workspace.backups.restore': { params: { file: string; confirmed: true }; result: { workspace: WorkspaceLite; restoredFrom: BackupLite; safety: BackupLite } };
+  /** One-shot C6: reads the backup in memory (never restores or writes); the open business's own backups only. */
+  'workspace.backups.inspect': { params: { file: string }; result: BackupInspectLite };
   /** Needs the passphrase when the business is locked with one (PASSPHRASE_WRONG otherwise). */
   'workspace.transfer.export': { params: { passphrase?: string }; result: MoveFile };
   /** With no business open: the move file's text and its code. A new passphrase only after DEVICE_KEYS_UNAVAILABLE. */
@@ -2046,8 +2050,6 @@ export interface EngineMethods {
   'workspace.recover': { params: { folder: string; recoveryCode: string; passphrase?: string }; result: { workspace: WorkspaceLite } };
   /**
    * With no business open: a backup by its name in the backups folder (never a path), opened as a new business beside
-  /** One-shot C6: reads the backup in memory (never restores or writes); the open business's own backups only. */
-  'workspace.backups.inspect': { params: { file: string }; result: BackupInspectLite };
    * the original (folder null lets the engine choose). PASSPHRASE_REQUIRED asks for the passphrase; DEVICE_KEY_FAILED
    * asks for the recovery code.
    */
@@ -2070,6 +2072,8 @@ export interface EngineMethods {
   'venture.billing.get': { params: Record<string, never>; result: BillingView };
   'venture.billing.set': { params: BillingPatch; result: BillingView };
   'venture.invoice.pdf': { params: { invoiceId: string }; result: InvoicePdfView };
+  /** One-shot C6: a payment's thank-you receipt: its words, its WhatsApp link and its file, made by code. Nothing is sent. */
+  'venture.payment.receipt': { params: { paymentId: string }; result: InvoicePdfView };
   'venture.invoice.payLink': { params: { invoiceId: string; action: 'create'; digest: string } | { invoiceId: string; action: 'check' }; result: InvoiceViewLite };
   'venture.agentSettings.get': { params: Record<string,never>; result: AiSettingsView };
   'venture.agentSettings.set': { params: {settings:AiSettings; approveMcpConfiguration?:true}; result: AiSettingsView };
@@ -2539,6 +2543,11 @@ export interface EngineClient {
    * Nothing is sent. Absent on the web, the hosted app and the fake, where the sheet opens the engine's share links.
    */
   shareInvoice?(invoiceId: string, how: 'email' | 'whatsapp'): Promise<InvoiceShareResult>;
+  /**
+   * Desktop only (one-shot C6): a payment's thank-you receipt. The desktop asks the engine for it (venture.payment.receipt),
+   * keeps the file in Chausar's share folder and, for whatsapp, opens the owner's WhatsApp with the words. Nothing is sent.
+   */
+  shareReceipt?(paymentId: string, how: 'whatsapp' | 'save'): Promise<ReceiptShareResult>;
   /** Desktop only (A6): shows the invoice file the desktop kept for sharing in the file manager. SHARE_FILE_GONE when it is gone. */
   showShared?(name: string): Promise<void>;
   /**

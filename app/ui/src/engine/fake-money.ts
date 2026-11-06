@@ -26,6 +26,7 @@ import { BUSINESSES, RECEIPTS } from './fixtures';
 import { FakeBills, FAKE_4J5_BILL_METHODS } from './fake-bills';
 import { FakeMoneyViews, FAKE_4J20_METHODS } from './fake-money-views';
 import { FakeBilling, FAKE_6D_METHODS, asEngine, base64Utf8, fakeInvoiceHtml, howToPay, howToPayLines, payLinkDigest, payLinkOpen, shareWords, type FakePayLink } from './fake-money-pay';
+import { whatsappLink } from '../../../../platform/runtime/venture/clients/phone';
 import { cutPart, partAskOf, PART_WORDS, type PartAsk } from '../../../../platform/runtime/venture/money/invoice-parts';
 import { dueDaysOf, reminderDaysOf } from '../../../../platform/runtime/venture/money/billing-rules';
 import type { TaxTreatment } from '../../../../platform/runtime/venture/money/price-types';
@@ -224,6 +225,7 @@ export class FakeMoney {
         return this.billing.view(this.host.business());
       case 'venture.billing.set': { const view = this.billing.set(this.host.business(), p, this.host.now()); this.host.changed(); return view; }
       case 'venture.invoice.pdf': return this.pdf(p);
+      case 'venture.payment.receipt': return this.paymentReceipt(p);
       case 'venture.invoice.payLink': return this.payLink(p);
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
@@ -481,10 +483,10 @@ export class FakeMoney {
       timeline: this.timeline(invoice),
       credits: this.credits.filter((c) => c.invoiceId === invoice.id).map((c) => this.creditView(c)),
       ...this.late(invoice),
-    };
-  }
       // One-shot C6: an issued invoice with nothing left to pay, as the engine's invoicePaidInFull.
       paidInFull: invoice.number !== null && invoice.status === 'paid',
+    };
+  }
 
   private sellerName(): string { return BUSINESSES.find((b) => b.id === this.host.business())?.name ?? 'Your business'; }
 
@@ -508,6 +510,29 @@ export class FakeMoney {
     const share = shareWords({ client: view.client.name, number: invoice.number, balance: formatMinor(String(this.balance(invoice)), invoice.currency), // the client's words leave the app in the exact form (B2)
       due: invoice.dueDate, seller: this.sellerName(), email: client?.email ?? null, howToPay: view.howToPay ?? null });
     return { fileName: `${invoice.number.replace(/[^A-Za-z0-9-]/g, '-')}.html`, format: 'html' as const, mimeType: 'text/html' as const, contentBase64: base64Utf8(html), note: 'A PDF needs the desktop app.', share };
+  }
+
+  /** One-shot C6, venture.payment.receipt: the engine's words and refusals (money/payment-receipt.ts); the file is HTML here. */
+  private paymentReceipt(p: Record<string, unknown>) {
+    if (Object.keys(p).some((key) => key !== 'paymentId') || p.paymentId === undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    const payment = this.payments.find((item) => item.id === p.paymentId && item.businessId === this.host.business());
+    if (!payment) throw new EngineError('PAYMENT_NOT_FOUND', 'This payment was not found.');
+    const invoice = this.find(payment.invoiceId);
+    if (invoice.number === null) throw new EngineError('PAYMENT_NOT_FOUND', 'This payment was not found.');
+    if (invoice.status === 'void') throw new EngineError('INVALID_VENTURE_REQUEST', 'This invoice was cancelled.');
+    if (payment.state === 'pending') throw new EngineError('PAYMENT_NOT_CLEARED', "This cheque hasn't cleared yet. Mark it cleared first.");
+    const cleared = this.payments.filter((item) => item.invoiceId === invoice.id && item.state !== 'pending');
+    const position = cleared.findIndex((item) => item.id === payment.id);
+    const left = totalOf(invoice.price) - cleared.slice(0, position + 1).reduce((sum, item) => sum + item.amount + (item.tdsAmount ?? 0), 0);
+    const amount = formatMinor(String(payment.amount), invoice.currency);
+    const text = `Thank you for your payment of ${amount} for invoice ${invoice.number}. Received on ${payment.receivedOn}. ${left > 0 ? `${formatMinor(String(left), invoice.currency)} is left to pay.` : 'Nothing is left to pay.'}`;
+    const client = this.host.clients().find((c) => c.id === invoice.clientId);
+    const subject = `Payment receipt for invoice ${invoice.number} from ${this.sellerName()}`;
+    return {
+      fileName: `Receipt-${invoice.number.replace(/[^A-Za-z0-9-]/g, '-')}-${position + 1}.html`, format: 'html' as const, mimeType: 'text/html' as const,
+      contentBase64: base64Utf8(fakeInvoiceHtml(`Payment receipt ${invoice.number}`, text)), note: 'A PDF needs the desktop app.',
+      share: { text, subject, whatsappUrl: whatsappLink(client?.whatsapp ?? null, text), mailtoUrl: `mailto:${encodeURIComponent(client?.email ?? '').replace(/%40/g, '@')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}` },
+    };
   }
 
   /** venture.invoice.payLink: Razorpay is fixture-tested in the engine; the fake makes a sample link on the exact approval. */

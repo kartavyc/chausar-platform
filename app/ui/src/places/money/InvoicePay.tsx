@@ -45,7 +45,7 @@ function QrCode({ rows, label }: { rows: string[]; label: string }) {
 }
 
 /** Saves bytes the engine sent as a file, from the owner's own click. */
-function saveFile(file: Pick<InvoicePdfView, 'fileName' | 'contentBase64' | 'mimeType'>): boolean {
+export function saveFile(file: Pick<InvoicePdfView, 'fileName' | 'contentBase64' | 'mimeType'>): boolean {
   if (typeof URL.createObjectURL !== 'function') return false;
   const bytes = Uint8Array.from(atob(file.contentBase64), (character) => character.charCodeAt(0));
   const url = URL.createObjectURL(new Blob([bytes], { type: file.mimeType }));

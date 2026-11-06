@@ -33,7 +33,7 @@ export const READS = [
   'venture.money.overview', 'venture.monitors.list', 'venture.needs.list', 'venture.network.people',
   'venture.network.person', 'venture.network.sources', 'venture.notify.list', 'venture.notify.push.key',
   'venture.notify.relay', 'venture.notify.settings', 'venture.notify.telegram', 'venture.order.chain',
-  'venture.order.contract', 'venture.order.list', 'venture.owner.get', 'venture.packs.list',
+  'venture.order.contract', 'venture.order.list', 'venture.owner.get', 'venture.packs.list', 'venture.payment.receipt',
   'venture.people.services', 'venture.persona.get', 'venture.phone.access', 'venture.pipeline.followups',
   'venture.pipeline.list', 'venture.pipeline.settings', 'venture.playbook.guidance', 'venture.playbooks.list',
   'venture.posting.limits.get', 'venture.queue.list', 'venture.queue.view', 'venture.receipt.get',

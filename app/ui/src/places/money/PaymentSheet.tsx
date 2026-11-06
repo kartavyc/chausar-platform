@@ -22,6 +22,7 @@ import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import { PAYMENT_METHODS, type InvoiceViewLite, type PaymentMethod } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
+import { ThankYou } from './ThankYou';
 import { invoiceTitle, messageOf, statusOf, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 
@@ -106,6 +107,8 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           {recorded.receiptId && <Receipt id={recorded.receiptId} />}
         </p>
         {recorded.note && <p className={s.quietLine} data-engine-line="">{recorded.note}</p>}
+        {/* One-shot C6: when this payment cleared the invoice, its thank-you receipt. */}
+        <ThankYou view={recorded.view} />
         <p className={s.sheetLine}>
           <Button variant="quiet" onClick={(event) => openSheet('invoice', id, event.currentTarget)}>{t('money.payment.back')}</Button>
         </p>

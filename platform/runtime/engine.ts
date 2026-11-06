@@ -1771,6 +1771,7 @@ export class Engine {
       case 'venture.billing.get':
       case 'venture.billing.set':
       case 'venture.invoice.pdf':
+      case 'venture.payment.receipt':
       case 'venture.invoice.payLink':
       case 'venture.order.create':
       case 'venture.order.list':
@@ -2844,7 +2845,6 @@ export class Engine {
     await vault.update(state => audit(state, 'custody.recovery-made', {}));
     return { custody: await this.custodyView(), recoveryCode };
   }
-  private async restoreManagedBackup(payload: any) {
   /**
    * One-shot C6 (section 9 idea 25): what a backup of the open business holds and what restoring it would take back.
    * The same checks as a restore; the backup's state is decoded in memory only and never written. The open business
@@ -2863,6 +2863,7 @@ export class Engine {
     const { backupCounts, backupDiff } = await import('./venture/views/backup-diff.ts');
     return { file: view.file, at: view.at, counts: backupCounts(then), since: backupDiff(vault.read(), then) };
   }
+  private async restoreManagedBackup(payload: any) {
     check(payload.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the restore in the app.');
     const vault = this.store(), files = this.custodyFiles(), workspaceId = vault.read().workspace.id;
     const parsed = typeof payload.file === 'string' ? parseBackupName(payload.file) : null;

@@ -36,16 +36,21 @@ export function qrSvg(qr: QrMatrix, sizePx = 176): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${sizePx}" height="${sizePx}" viewBox="0 0 ${side} ${side}" shape-rendering="crispEdges"><rect width="${side}" height="${side}" fill="#ffffff"/><path fill="#000000" d="${cells.join('')}"/></svg>`;
 }
 
+/** A plain page of written lines, what a document's PDF is printed from (the invoice; one-shot C6's payment receipt). */
+export function textPageHtml(title: string, text: string, extra = ''): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>`
+    + 'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px}pre{font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.5;white-space:pre-wrap}'
+    + 'figure{margin:24px 0 0}figcaption{font-size:12px;margin-top:8px}</style></head><body>'
+    + `<pre>${escapeHtml(text)}</pre>${extra}</body></html>`;
+}
+
 /** The invoice page the PDF is printed from: the client's copy as written, and the UPI QR code when there is one. */
 export function invoiceHtml(view: InvoiceView): string {
   const title = `${view.invoice.documentTitle} ${view.invoice.number ?? 'DRAFT'}`;
   const qr = view.howToPay?.upi
     ? `<figure><div>${qrSvg(view.howToPay.upi.qr)}</div><figcaption>Scan with any UPI app to pay ${escapeHtml(formatMinor(view.howToPay.upi.amountMinor, 'INR'))} to ${escapeHtml(view.howToPay.upi.id)}</figcaption></figure>`
     : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>`
-    + 'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px}pre{font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.5;white-space:pre-wrap}'
-    + 'figure{margin:24px 0 0}figcaption{font-size:12px;margin-top:8px}</style></head><body>'
-    + `<pre>${escapeHtml(view.documentText)}</pre>${qr}</body></html>`;
+  return textPageHtml(title, view.documentText, qr);
 }
 
 /** The words the owner sends with the PDF, by template: every figure and date from the invoice, never a receipt id. */

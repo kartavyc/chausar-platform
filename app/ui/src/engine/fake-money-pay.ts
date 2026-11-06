@@ -14,7 +14,7 @@ import { EngineError, type BillingView, type HowToPayLite } from './types';
 const KEY_ID = /^rzp_(test|live)_[A-Za-z0-9]{8,32}$/;
 const KEY_SECRET = /^[A-Za-z0-9]{12,64}$/;
 
-export const FAKE_6D_METHODS: readonly string[] = ['venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink'];
+export const FAKE_6D_METHODS: readonly string[] = ['venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink', 'venture.payment.receipt'];
 
 /** A Payment Link the fake made: the engine's fields, minus amounts the UI could add up. */
 export interface FakePayLink { id: string; shortUrl: string; status: 'created' | 'partially_paid' | 'expired' | 'cancelled' | 'paid'; checkedAt: string | null; amount: number; currency: string }

@@ -5797,6 +5797,8 @@ export const VENTURE_METHODS = [
   'venture.order.create', 'venture.order.list', 'venture.order.deliver',
   'venture.invoice.prepare', 'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list',
   'venture.payment.record', 'venture.books.summary',
+  // One-shot C6: a thank-you receipt for one payment, its words and its file (the owner sends it).
+  'venture.payment.receipt',
   // P2-spend: what each paid call reserved and settled; the owner's monthly limit, ask-first figure and rate card
   'venture.spend.list', 'venture.spend.policy.get', 'venture.spend.policy.set',
   // P4 build and connectors
@@ -5919,7 +5921,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.mcpRegistry.list': 'models', 'venture.mcpOAuth.start': 'models', 'venture.packs.list': 'models', 'venture.packs.add': 'models', 'venture.packs.remove': 'models',
   'venture.price.quote': 'money', 'venture.receipt.get': 'money', 'venture.client.add': 'money', 'venture.client.list': 'money',
   'venture.client.aiConsent.get': 'money', 'venture.client.aiConsent.agree': 'money', 'venture.client.aiConsent.withdraw': 'money',
-  'venture.billing.get': 'money', 'venture.billing.set': 'money', 'venture.invoice.pdf': 'money', 'venture.invoice.payLink': 'money',
+  'venture.billing.get': 'money', 'venture.billing.set': 'money', 'venture.invoice.pdf': 'money', 'venture.invoice.payLink': 'money', 'venture.payment.receipt': 'money',
   'venture.order.create': 'money', 'venture.order.list': 'money', 'venture.order.deliver': 'money',
   'venture.invoice.prepare': 'money', 'venture.invoice.issue': 'money', 'venture.invoice.get': 'money', 'venture.invoice.list': 'money',
   'venture.payment.record': 'money', 'venture.books.summary': 'money',
@@ -6043,7 +6045,7 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.mcpOAuth.start', 'venture.packs.add', 'venture.packs.remove',
   'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
   'venture.rules.attest', 'venture.compliance.set',
-  'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
+  'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink', 'venture.payment.receipt',
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.review',
   'venture.files.add', 'venture.improve.adopt',
@@ -6223,6 +6225,7 @@ export type VenturePayloads = {
   'venture.billing.get': Empty;
   'venture.billing.set': Partial<Omit<import('./money/billing-types.ts').BillingSettings, 'razorpay'>> & { razorpayKeys?: { keyId: string; keySecret: string } | null };
   'venture.invoice.pdf': { invoiceId: string };
+  'venture.payment.receipt': { paymentId: string };
   'venture.invoice.payLink': { invoiceId: string; action: 'create'; digest: string } | { invoiceId: string; action: 'check' };
   'venture.client.list': Empty;
   /** intake: only for a flagship playbook's offer; an offer that cuts footage needs intake.rights (delivery/rights.ts). */
@@ -6700,6 +6703,7 @@ export type VentureResults = {
   'venture.billing.get': import('./money/billing-types.ts').BillingView;
   'venture.billing.set': import('./money/billing-types.ts').BillingView;
   'venture.invoice.pdf': import('./money/invoice-pdf.ts').InvoicePdfView;
+  'venture.payment.receipt': import('./money/payment-receipt.ts').PaymentReceiptView;
   'venture.invoice.payLink': InvoiceView;
   'venture.client.list': ClientListRow[];
   'venture.order.create': OrderRecord;

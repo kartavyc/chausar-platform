@@ -28,6 +28,7 @@ import { orderContractGet, orderContractPropose, orderContractSign } from './ord
 import { moneyAcross } from './across.ts';
 import { billingGet, billingSet } from './billing.ts';
 import { invoicePdf } from './invoice-pdf.ts';
+import { paymentReceipt } from './payment-receipt.ts';
 import { invoicePayLink } from './razorpay.ts';
 
 export { computePrice, type PriceInput } from './price.ts';
@@ -90,5 +91,6 @@ export const handlers: VentureHandlerTable = {
   'venture.billing.get': billingGet,
   'venture.billing.set': billingSet,
   'venture.invoice.pdf': invoicePdf,
+  'venture.payment.receipt': paymentReceipt, // one-shot C6
   'venture.invoice.payLink': invoicePayLink,
 };

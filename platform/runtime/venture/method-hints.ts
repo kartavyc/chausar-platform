@@ -60,7 +60,7 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   // W6 6J2: feedback. Turning reports on or off comes back with its opposite; Send report and Delete my reports reach PostHog and Sentry.
   'venture.feedback.get': ['read', 'rui'], 'venture.feedback.consent': ['approve', 'ui'], 'venture.feedback.send': ['approve', 'o'],
   'venture.feedback.answer': ['prepare', ''], 'venture.feedback.crash': ['prepare', ''], 'venture.feedback.delete': ['approve', 'o'],
-  'venture.billing.get': ['read', 'rui'], 'venture.billing.set': ['approve', 'ui'], 'venture.invoice.pdf': ['prepare', 'ui'], 'venture.invoice.payLink': ['approve', 'o'],
+  'venture.billing.get': ['read', 'rui'], 'venture.billing.set': ['approve', 'ui'], 'venture.invoice.pdf': ['prepare', 'ui'], 'venture.payment.receipt': ['read', 'rui'], 'venture.invoice.payLink': ['approve', 'o'],
   'venture.order.create': ['prepare', ''], 'venture.order.list': ['read', 'rui'], 'venture.order.deliver': ['prepare', 'i'],
   'venture.invoice.prepare': ['prepare', 'u'], 'venture.invoice.issue': ['approve', 'i'], 'venture.invoice.get': ['read', 'rui'], 'venture.invoice.list': ['read', 'rui'],
   'venture.payment.record': ['prepare', ''], 'venture.books.summary': ['read', 'rui'],

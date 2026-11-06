@@ -140,3 +140,58 @@ describe('A6: sharing on the web', () => {
     expect(await within(pay).findByText("Share on WhatsApp didn't work: Your browser blocked the new tab.")).toBeTruthy();
   });
 });
+
+// One-shot C6 task 5 (SCREENS 95): the thank-you receipt on a paid invoice. WhatsApp opens with the words; the owner
+// attaches the saved file and presses send. Nothing is sent by Chausar.
+describe('C6: a thank-you receipt on a paid invoice', () => {
+  async function paid(extra: Partial<EngineClient> = {}, sheet = 'inv-0038') {
+    const engine = new FakeEngine({ now: () => NOW });
+    window.location.hash = `#/money/invoices?sheet=invoice:${sheet}`;
+    const base = createFakeClient(engine);
+    const calls: Call[] = [];
+    const request = base.request.bind(base);
+    const client: EngineClient = { ...base, ...extra, request: (async (method: string, params?: unknown) => { calls.push([method, params]); return request(method as never, params as never); }) as EngineClient['request'] };
+    render(<ClockProvider now={() => new Date(NOW)}><App client={client} language="en" /></ClockProvider>);
+    const panel = await screen.findByRole('complementary', { name: sheet.replace('inv', 'INV') });
+    return { calls, panel };
+  }
+
+  it('offers both buttons on a paid invoice; on the desktop the first opens WhatsApp and says what to do, and offers the file', async () => {
+    const shareReceipt = vi.fn(async () => ({ how: 'whatsapp' as const, opened: 'app' as const, file: 'Receipt-INV-0038-1.pdf', note: null }));
+    const showShared = vi.fn(async () => undefined);
+    const { panel, calls } = await paid({ shareReceipt, showShared });
+    await click(await within(panel).findByRole('button', { name: 'Send a thank-you receipt on WhatsApp' }));
+    expect(shareReceipt).toHaveBeenCalledWith('pay-0038-1', 'whatsapp');
+    expect(calls.some(([method]) => method === 'venture.payment.receipt')).toBe(false);
+    const said = await within(panel).findByText(/WhatsApp is open with the words/);
+    expect(said.textContent).toContain('Receipt-INV-0038-1.pdf');
+    expect(said.textContent).not.toMatch(/\bsent\b/i);
+    await click(within(panel).getByRole('button', { name: 'Show the PDF in its folder' }));
+    expect(showShared).toHaveBeenCalledWith('Receipt-INV-0038-1.pdf');
+    assertInkRules();
+    assertOnePrimary();
+  });
+
+  it('Save the receipt on the desktop keeps the file and opens nothing', async () => {
+    const shareReceipt = vi.fn(async () => ({ how: 'save' as const, opened: 'none' as const, file: 'Receipt-INV-0038-1.pdf', note: null }));
+    const { panel } = await paid({ shareReceipt, showShared: vi.fn(async () => undefined) });
+    await click(await within(panel).findByRole('button', { name: 'Save the receipt' }));
+    expect(shareReceipt).toHaveBeenCalledWith('pay-0038-1', 'save');
+    expect(await within(panel).findByText(/Saved Receipt-INV-0038-1\.pdf/)).toBeTruthy();
+  });
+
+  it('on the web, WhatsApp opens the engine\'s link for that payment', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => ({ location: { href: '' }, close: () => undefined, opener: null }) as unknown as Window);
+    const { panel, calls } = await paid();
+    await click(await within(panel).findByRole('button', { name: 'Send a thank-you receipt on WhatsApp' }));
+    await waitFor(() => expect(calls).toContainEqual(['venture.payment.receipt', { paymentId: 'pay-0038-1' }]));
+    expect(open).toHaveBeenCalled();
+  });
+
+  it('is not offered on an invoice with money still to pay', async () => {
+    const { panel } = await paid({}, 'inv-0039');
+    await within(panel).findByRole('region', { name: 'How clients pay' });
+    expect(within(panel).queryByRole('button', { name: 'Send a thank-you receipt on WhatsApp' })).toBeNull();
+    expect(within(panel).queryByRole('button', { name: 'Save the receipt' })).toBeNull();
+  });
+});
