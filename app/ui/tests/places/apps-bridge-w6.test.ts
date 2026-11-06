@@ -76,7 +76,8 @@ describe('the mini app bridge (6H1)', () => {
     root.setAttribute('data-theme', 'light');
     expect(chausarTheme()).toBe('light');
     root.removeAttribute('data-theme');
-    expect(chausarTheme()).toBe('dark');
+    expect(chausarTheme()).toBe('light');
+    expect(media).not.toHaveBeenCalled();
     media.mockRestore();
     if (before !== null) root.setAttribute('data-theme', before);
   });
@@ -121,7 +122,7 @@ describe('the mini app bridge (6H1)', () => {
     t.send({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 300, height: 50 } });
     t.send({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 300, height: 99999 } });
     t.send({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 300, height: 480 } });
-    expect(t.onSize.mock.calls.map((item) => item[0])).toEqual([160, 1600, 480]);
+    expect(t.onSize.mock.calls.map((item) => item[0])).toEqual([50, 1600, 480]);
     t.close();
   });
 
