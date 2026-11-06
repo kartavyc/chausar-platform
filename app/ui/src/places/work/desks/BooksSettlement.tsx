@@ -7,7 +7,7 @@ import {Button} from '../../../parts/Button';
 import {Figure} from '../../../parts/Figure';
 import {openSheet} from '../../../shell/navigation';
 import type {BooksPostingBody} from '../../../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/records';
-import {SETTLEMENT_PAYMENT_COLUMNS} from '../../../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/settlement-payments';
+import { SETTLEMENT_PAYMENT_COLUMNS } from '../../../../../../platform/shared/venture/playbooks/bookkeeping-cfo/settlement-payments.ts';
 import s from './CollectionsDesk.module.css';
 import p from './BooksPosting.module.css';
 import { Fold } from '../../../parts/Fold';

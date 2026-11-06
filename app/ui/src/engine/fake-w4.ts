@@ -42,7 +42,7 @@ export interface W4DeskHost {
   /** C4 (T25): a decision engine code records itself (journal/decisions.ts recordDecision), as the owner's. */
   noteDecision?(subject: string, action: string, reason: string): void;
   /** A2 review: the Codex setup Your AI shows (fake-first-run.ts connectionsSetup). */
-  codexSetup?(): import('./types').CodexSetupLite;
+  codexSetup?(): import('./types.ts').CodexSetupLite;
   nativeCanResume?(run:RunDetail):boolean;
   nativeStop?(run:RunDetail):void;
   nativeRestart?(run:RunDetail,resume:boolean):Promise<RunDetail>;
@@ -54,15 +54,15 @@ export interface W4DeskHost {
   keepVaReport?(routineId:string,title:string,text:string):void;
   eraseVaReports?():void;
   eraseVaCopies?(orderIds:readonly string[]):void;
-  roomPrice?(orderId:string):import('../../../../platform/runtime/venture/playbooks/kit/client-room-core').RoomPrice|undefined;
+  roomPrice?(orderId:string):import('../../../../platform/shared/venture/playbooks/kit/client-room-core.ts').RoomPrice|undefined;
   keepTranslationFile?(orderId:string,file:{id:string;name:string;contentBase64:string;digest:string}):void;
   keepNarrationFetched?(orderId:string,file:{id:string;name:string;contentBase64:string;digest:string},source:{fileId:string;url:string;finalUrl:string;digest:string}):void;
   narrationPrice?(orderId:string):{id:string;currency:string;hourlyMinor:string;ownerSet:boolean;stale:boolean}|undefined;
-  workReceipt?(id:string):import('./types').WorkReceiptLite|undefined;
-  socialClientAnswer?(runId:string):{answer:import('./types').ShareAnswer;packDigest:string}|null;
-  socialChain?(orderId:string):import('./types').OrderChainView|null;
-  scheduledPost?(id:string):import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostSnapshot|null;
-  moveScheduledPost?(id:string,binding:import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostBinding):import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostSnapshot;
+  workReceipt?(id:string):import('./types.ts').WorkReceiptLite|undefined;
+  socialClientAnswer?(runId:string):{answer:import('./types.ts').ShareAnswer;packDigest:string}|null;
+  socialChain?(orderId:string):import('./types.ts').OrderChainView|null;
+  scheduledPost?(id:string):import('../../../../platform/shared/venture/playbooks/social/scheduled-core.ts').ScheduledPostSnapshot|null;
+  moveScheduledPost?(id:string,binding:import('../../../../platform/shared/venture/playbooks/social/scheduled-core.ts').ScheduledPostBinding):import('../../../../platform/shared/venture/playbooks/social/scheduled-core.ts').ScheduledPostSnapshot;
   decideScheduledPost?(id:string,state:'approved'|'rejected'|'applied'):void;
   scheduledSession?():number;
   scheduledBusy?(exceptId:string):boolean;
@@ -84,7 +84,7 @@ export interface W4DeskHost {
   ask(method: string, params: Record<string, unknown>): unknown;
   /** 5K1 internal payment facts in whole paise, never passed to a screen. */
   uploadFingerprint?(id: string): string | null;
-  keepSellerAsset?(asset:Omit<import('./types').AssetView,'stale'|'blocked'|'sourceLine'|'costLine'>):void;
+  keepSellerAsset?(asset:Omit<import('./types.ts').AssetView,'stale'|'blocked'|'sourceLine'|'costLine'>):void;
   eraseSellerAssets?(ids:readonly string[]):void;
   eraseSellerFiles?(ids:readonly string[]):void;
   /** Recruiting expiry and Forget erase copied drafts and report/share authority together. */

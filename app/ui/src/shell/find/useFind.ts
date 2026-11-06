@@ -11,7 +11,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useResource } from '../../engine/context';
 import type { FindHit, FindItem, FindKind, UiRunEvent } from '../../engine/types';
 import { useT } from '../../text';
-import { FIND_WHOLE_SCORE, wordsOf } from '../../../../../platform/runtime/venture/views/find-core';
+import { FIND_WHOLE_SCORE, wordsOf } from '../../../../../platform/shared/venture/views/find-core.ts';
 import { useNeedsYou } from '../needsYou';
 import { catalogue, findInCatalogue, type CatalogueEntry } from './catalogue';
 

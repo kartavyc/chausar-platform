@@ -3,7 +3,7 @@
  * (platform/runtime/venture/trackers/trackers.ts and cells.ts). The sample business has one tracker its agent keeps, with
  * one row the agent added, so a screen shows "Added by" and Undo. GST due dates is offered only to a business with tax fields.
  */
-import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
+import { HOLDS_MONEY } from '../../../../platform/shared/owner-format.ts';
 import { EngineError, type TrackerCellLite, type TrackerColumnLite, type TrackerDetailLite, type TrackerLite, type TrackerRowLite, type TrackersLite, type TrackerStarterLite } from './types';
 import type { W4DeskHost } from './fake-w4';
 

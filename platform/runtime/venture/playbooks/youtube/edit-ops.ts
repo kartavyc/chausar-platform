@@ -1,22 +1,19 @@
+import type { EditWord, EditDocument, WordRange } from '../../../../contract/venture/playbooks/youtube/edit-ops.ts';
+export type { EditWord, EditDocument, WordRange } from '../../../../contract/venture/playbooks/youtube/edit-ops.ts';
 import { sha256Hex } from '../../../hash.ts';
 // Chausar 5B1: typed transcript edits. Tomada (AGPL), ideas only; no source copied.
 
 import { check, ChausarError } from '../../../contracts.ts';
 
-export type EditWord = { id: string; text: string; startMs: number; endMs: number };
-export type WordRange = { from: string; to: string };
+
+
 export type EditOp =
   | ({ kind: 'cut' | 'restore' | 'clip' | 'hook' } & WordRange)
   | ({ kind: 'zoom'; scale: number } & WordRange)
   | { kind: 'layout'; value: 'wide' | 'vertical' | 'square' }
   | { kind: 'captions'; profile: 'web' | 'broadcast' | 'vertical' }
   | { kind: 'title'; text: string };
-export type EditDocument = {
-  durationMs: number;
-  words: EditWord[];
-  cuts: (WordRange & { startMs: number; endMs: number; manual?: boolean })[];
-  settings: { title?: string; layout?: string; captions?: string; hook?: WordRange; clips?: WordRange[]; zooms?: (WordRange & { scale: number })[] };
-};
+
 export type EditResult = {
   document: EditDocument; undo: EditDocument; digest: string;
   applied: { index: number; op: EditOp }[];

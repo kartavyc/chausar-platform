@@ -1,0 +1,223 @@
+{
+  "format": "chausar.guide.v1",
+  "source": "docs/beta-guide.md",
+  "sections": [
+    {
+      "anchor": "contents",
+      "title": "Contents",
+      "level": 2,
+      "part": "contents",
+      "text": "1. [Install Chausar](#1-install-chausar)\n2. [Connect your AI](#2-connect-your-ai)\n3. [Your first business](#3-your-first-business)\n4. [Your first client and order](#4-your-first-client-and-order)\n5. [Getting paid](#5-getting-paid)\n6. [Phone access](#6-phone-access)\n7. [Telegram alerts](#7-telegram-alerts)\n8. [Sending a report](#8-sending-a-report)\n9. [What Chausar never does](#9-what-chausar-never-does)\n10. [Where to get help](#10-where-to-get-help)\n\nHow to move around: the list on the left has **Today**, **Chats**, **Team**, **Work**, **Clients**, **Money**, **Apps** and **Connections**. Your business's own pages (prices, notifications and more) open from your business name at the top left."
+    },
+    {
+      "anchor": "1-install-chausar",
+      "title": "1. Install Chausar",
+      "level": 2,
+      "part": "1-install-chausar",
+      "text": "Chausar is free. It runs on Windows and Linux laptops. There is no Mac version yet.\n\nYou need:\n\n- a laptop with Windows 10 or 11, or a Linux laptop;\n- an internet connection;\n- a ChatGPT plan, a Claude plan, or an AI key (see part 2)."
+    },
+    {
+      "anchor": "windows",
+      "title": "Windows",
+      "level": 3,
+      "part": "1-install-chausar",
+      "text": "1. Download the Windows file, `Chausar-Beta-0.1.0-preview.1-win-x64.exe` (about 300 MB). The number in the name changes with each beta.\n2. Open it.\n3. Windows may show a blue box: \"Windows protected your PC\". This is because the beta is not signed yet. It does not mean the file is harmful.\n4. Click **More info**, then click **Run anyway**.\n5. The installer installs Chausar for you only, so it does not ask for an admin password. It shows the folder it will use; you can change it. Click **Install**.\n6. It adds Chausar to the Start menu and the desktop, and opens Chausar at the end. The shortcuts, the window and the tray show the Chausar logo, a dark square with a grey and a green square inside. Earlier beta builds showed the Electron icon on the shortcuts (a blue atom): Chausar is built with Electron, and the unsigned beta left the program file with Electron's own icon. That is fixed now. If a shortcut still shows the atom after you update, Windows is showing its saved copy of the old icon, and it may take a while to change.\n\nChausar starts when you sign in to Windows and waits in the system tray (the small icons near the clock, bottom right; look for the Chausar logo). Closing the window keeps it running there. Right-click the tray icon to see **Open Chausar**, the ticks **Start at login** and **Keep running in the tray** (untick either to switch it off), and **Quit Chausar and stop jobs**.\n\nTo remove Chausar: open Windows **Settings**, then **Apps**, find **Chausar** and click **Uninstall**. Your businesses stay on your laptop, in case you install it again."
+    },
+    {
+      "anchor": "linux",
+      "title": "Linux",
+      "level": 3,
+      "part": "1-install-chausar",
+      "text": "There are three Linux files. On Ubuntu, Debian or Linux Mint, use the `.deb`.\n\n**The .deb (recommended)**\n\n1. Download `Chausar-Beta-<version>-linux-amd64.deb`.\n2. Open a terminal in the download folder and type `sudo apt install ./Chausar-Beta-*-linux-amd64.deb`. It asks for your password, because it installs Chausar for everyone on the computer.\n3. Open Chausar from your apps menu, or type `chausar` in a terminal.\n\nThe .deb also sets up the sandbox that Chausar's window runs in. Ubuntu 24.04 and later block that sandbox unless the app installs a rule for it, and only the .deb can do that for you.\n\nTo remove it, type `sudo apt remove chausar`. Your businesses stay in `~/.config/Chausar`.\n\n**The AppImage or the .tar.gz (other Linux)**\n\nThese suit Fedora, Arch and other systems without `apt`. They do not start on Ubuntu 24.04 or later, because they cannot install the sandbox rule; use the .deb there.\n\n1. Download `Chausar-Beta-<version>-linux-x86_64.AppImage`.\n2. Make it executable. Either:\n - right-click the file, open **Properties**, then **Permissions**, and tick \"Allow executing file as program\"; or\n - open a terminal in the download folder and type `chmod +x Chausar*.AppImage`.\n3. Double-click the file to start Chausar.\n\nIf the AppImage says it needs FUSE, install the FUSE 2 library (often called `fuse2` or `fuse-libs`).\n\nIf you prefer the `.tar.gz` file: unpack it (`tar -xzf Chausar-Beta-*.tar.gz` in a terminal), open the folder and run `./chausar`. To remove it, delete the AppImage file or the folder.\n\nOn Linux, Chausar also starts when you sign in. To stop that, untick **Start at login** in the tray menu. Once Chausar is removed, your desktop skips that entry by itself."
+    },
+    {
+      "anchor": "2-connect-your-ai",
+      "title": "2. Connect your AI",
+      "level": 2,
+      "part": "2-connect-your-ai",
+      "text": "The first screen is **Connect your AI** (step 1 of 3). Your Chausar team runs on your own AI plan. Pick one of three tiles."
+    },
+    {
+      "anchor": "chatgpt-plan-codex",
+      "title": "ChatGPT plan (Codex)",
+      "level": 3,
+      "part": "2-connect-your-ai",
+      "text": "1. The Windows installer includes Codex, so the tile says **Codex installed** even if you never installed it yourself. If you already have your own Codex, Chausar uses yours.\n2. Click **Sign in with Codex**. OpenAI's own sign-in page opens.\n3. Chausar shows a code under **Finish signing in on OpenAI's page**. Type that code on OpenAI's page. **Copy code** helps.\n4. If the page did not open, click **Open the sign-in page again**.\n5. Come back to Chausar. The tile now says **Signed in**.\n6. Click **Use Codex**.\n\nAlready signed in to Codex? The tile says **Signed in** straight away. Just click **Use Codex**."
+    },
+    {
+      "anchor": "claude-plan-claude-code",
+      "title": "Claude plan (Claude Code)",
+      "level": 3,
+      "part": "2-connect-your-ai",
+      "text": "1. Install Claude Code with its own installer first. Until then the tile says **Not installed yet**.\n2. Click **Sign in with Claude Code**. Anthropic's own sign-in page opens.\n3. Finish there and come back. Then click **Use Claude Code**."
+    },
+    {
+      "anchor": "ai-key",
+      "title": "AI key",
+      "level": 3,
+      "part": "2-connect-your-ai",
+      "text": "Use this if you pay an AI company directly (OpenAI, Anthropic, or a gateway such as OpenRouter).\n\n1. Click **Add a key**.\n2. Pick the AI, paste your key, and read **What is sent**. Click **I agree**, then **Connect**.\n3. You can set an optional monthly limit in US dollars. Calls stop when you reach it.\n4. Click **Continue with this AI**.\n\nThe key is saved in your computer's keychain, not in Chausar's files."
+    },
+    {
+      "anchor": "good-to-know",
+      "title": "Good to know",
+      "level": 3,
+      "part": "2-connect-your-ai",
+      "text": "- Chausar never sees your password or your login files. Sign-in always happens on OpenAI's or Anthropic's own page.\n- Before you connect, the tile shows **What Chausar sends**. Read it once.\n- No AI yet? Click **Skip for now: use templates**. You can connect later.\n- To change your AI later: **Connections**, then **Your AI**, then **AI settings**.\n- If work stops with a message about the model, open **AI settings** and pick a model your plan includes. Chausar never switches models on its own."
+    },
+    {
+      "anchor": "3-your-first-business",
+      "title": "3. Your first business",
+      "level": 2,
+      "part": "3-your-first-business",
+      "text": ""
+    },
+    {
+      "anchor": "about-you-step-2-of-3",
+      "title": "About you (step 2 of 3)",
+      "level": 3,
+      "part": "3-your-first-business",
+      "text": "The screen asks **What do you do today?** You have two ways in.\n\n**Write a message.** Type a few lines about your work in **Tell Chausar about your work**, then click **Send**. For example: \"I'm a CA in Pune with six years in audit. I want to do monthly books and GST for small shops.\"\n\n- You can attach your resume as a PDF, or your LinkedIn data export as a ZIP. Use the paper clip button. Chausar never takes a LinkedIn profile link. From the export it reads only your headline, summary, industry and location.\n- After you send, the page turns into a chat on the left and **Your business** on the right.\n- Reply in **Message Chausar** to change the plan. Or change the **Field** on the right.\n- **Back to fields** takes you back to the tiles.\n\n**Or pick your field.** Click one of the eleven tiles, such as **Money and tax** or **Teaching and coaching**. This goes straight to a plan.\n\nYour country comes from your computer's time zone, for example **India, from your time zone**. Click **Change** if that is wrong. Prices are in rupees for India.\n\nWhen the plan looks right, click **Keep this plan**.\n\nChausar then asks **Day job and rules**: whether you also have a job, and any rules your field sets for side work. Answer it before you go on; nothing is kept until you do.\n\nChausar may ask you for a passphrase (at least 12 characters; nobody can reset it). It may also show a **Recovery code**. Save the recovery code somewhere safe. You see it once, and it is the only way back in if you are locked out."
+    },
+    {
+      "anchor": "connect-what-your-business-needs-step-3-of-3",
+      "title": "Connect what your business needs (step 3 of 3)",
+      "level": 3,
+      "part": "3-your-first-business",
+      "text": "Chausar lists the outside services your business may use, such as Gmail or TallyPrime. Each one says why.\n\n- **Set up** opens that service's own sign-in or key steps.\n- Items marked **Planned** are not ready yet. They say what to do meanwhile.\n- Every item is optional. **Skip** any of them. They stay in **Connections** under **Services you need**.\n\nClick **Go to Today** when you are done."
+    },
+    {
+      "anchor": "read-and-accept-your-plan",
+      "title": "Read and accept your plan",
+      "level": 3,
+      "part": "3-your-first-business",
+      "text": "On **Today** you will see a few setup cards.\n\n1. **Your plan is ready. Read it.** Click **Read**. **Accept** unlocks after you read it. Then click **Accept**.\n2. **Keep this business**, if it shows. Click **Keep it** and save the recovery code."
+    },
+    {
+      "anchor": "set-your-prices",
+      "title": "Set your prices",
+      "level": 3,
+      "part": "3-your-first-business",
+      "text": "You set every price yourself. Chausar never picks a price for you.\n\n1. On **Today**, find **Confirm your prices and tax** and click **Confirm**. (Or open your business name at the top left, then **Prices**.)\n2. Each offer shows **Price not set**. Type your price in **New price for ..., in INR**.\n3. Click **Save price**. A new price waits for you to accept it on **Today**.\n\nFor many professions in India there is a **Price ranges** fold under your offers. The small (i) button shows **Where this range comes from**, with the source and the date it was checked. Where no good source exists, it says **No reliable data**. A range is only a guide."
+    },
+    {
+      "anchor": "practice-first-then-go-live",
+      "title": "Practice first, then go live",
+      "level": 3,
+      "part": "3-your-first-business",
+      "text": "A new business starts in **Practice**. In Practice, drafts are marked as practice and never reach a client.\n\nWhen you are ready for real clients:\n\n1. Open your business name at the top left, then **Practice and improve**.\n2. Under **Stage**, click **Go live**, then **Go live now**.\n\nLive means **Live (you approve each)**: drafts can reach clients, each only after you approve it. You need an accepted plan and a connected AI to go live. **Back to practice** works any time."
+    },
+    {
+      "anchor": "4-your-first-client-and-order",
+      "title": "4. Your first client and order",
+      "level": 2,
+      "part": "4-your-first-client-and-order",
+      "text": ""
+    },
+    {
+      "anchor": "add-the-client",
+      "title": "Add the client",
+      "level": 3,
+      "part": "4-your-first-client-and-order",
+      "text": "1. Open **Clients** and click **Add client**.\n2. Type the **Name**. Only the name is needed. **Email** and **Note** are optional. **More details** holds a GSTIN or tax number.\n3. Click **Add client**."
+    },
+    {
+      "anchor": "let-your-ai-work-with-this-client",
+      "title": "Let your AI work with this client",
+      "level": 3,
+      "part": "4-your-first-client-and-order",
+      "text": "Your AI cannot read a client's details until you allow it, once per client.\n\n1. Open the client. Find **AI permission**. It says **Needed**.\n2. Read the line under it. Click **Allow AI access**.\n\nOnly share what you have permission to share. You can withdraw this at any time. Withdrawing stops future sharing; it cannot take back what was already shared."
+    },
+    {
+      "anchor": "add-the-order",
+      "title": "Add the order",
+      "level": 3,
+      "part": "4-your-first-client-and-order",
+      "text": "1. Open **Work** and click **New order**.\n2. Choose the **Client** (or **New client**), the **Service**, and write **What they asked for**.\n3. Add **Files from the client** if you have them (CSV, Excel, PDF, or a transcript; each under 1.5 MB).\n4. Click **Add order**.\n\nThe order says **Received. Not started yet.** Click **Start** when you want the work to begin."
+    },
+    {
+      "anchor": "read-the-draft-then-send-it-yourself",
+      "title": "Read the draft, then send it yourself",
+      "level": 3,
+      "part": "4-your-first-client-and-order",
+      "text": "1. When the draft is ready, a card appears on **Today**. The order says **Draft ready. Read it before it goes to the client.**\n2. Read it. You can **Edit** it, **Send back** with what to change, or **Approve** it.\n3. After you approve: **Approved. Send it, then mark it delivered.** You send it to the client from your own email or WhatsApp.\n4. Then click **Mark delivered** on the order."
+    },
+    {
+      "anchor": "5-getting-paid",
+      "title": "5. Getting paid",
+      "level": 2,
+      "part": "5-getting-paid",
+      "text": ""
+    },
+    {
+      "anchor": "make-the-invoice",
+      "title": "Make the invoice",
+      "level": 3,
+      "part": "5-getting-paid",
+      "text": "After you mark an order delivered, its invoice waits on **Today**. You can also open **Money**, then **Invoices**, and click **Prepare invoice** under **To invoice**.\n\nCheck the draft and click **Issue** on **Today**. Every amount comes from Chausar's calculator. The small receipt mark next to an amount shows how it was worked out.\n\nNeed an advance or a part payment? On a draft invoice, open **Bill part of the order**, pick **Advance**, **Milestone** or **Part payment**, and click **Draft this part**. Later, **Bill the rest** makes the final invoice. The parts always add up to the order."
+    },
+    {
+      "anchor": "set-up-how-to-pay-once",
+      "title": "Set up How to pay (once)",
+      "level": 3,
+      "part": "5-getting-paid",
+      "text": "1. Open an invoice in **Money**, then **Invoices**.\n2. Under **How clients pay**, click **Set up**.\n3. Fill in what you use:\n - **UPI ID** (like yourname@okbank) and **Name clients see**;\n - bank details: **Account name**, **Account number**, **IFSC**, **Bank name**, and **SWIFT code, for clients abroad**;\n - **Days until an invoice is due** (7 days unless you change it);\n - **Payment terms on each invoice**;\n - **Reminder days late, with commas** (3, 10 and 30 unless you change them).\n4. Click **Save**.\n\nThese settings work only on the computer, not from a phone."
+    },
+    {
+      "anchor": "send-the-invoice",
+      "title": "Send the invoice",
+      "level": 3,
+      "part": "5-getting-paid",
+      "text": "Open the issued invoice. Under **How clients pay** you now see:\n\n- a UPI QR code for the exact amount still owed;\n- your **UPI ID** and the **Amount to pay**;\n- **Copy UPI link**, a link you can send; it opens a UPI app with the amount filled in;\n- your bank details.\n\nThen use:\n\n- **Save file** to save the invoice as a PDF;\n- **Email it**. In the desktop app, your own mail app opens an email with the invoice PDF attached; check it and send it there. Some mail apps open it without a Send button: then use Forward or Edit as new. If the client has no email in Chausar (or one a mail link cannot carry), add the address in your mail app. If this computer has no mail app for email files, Chausar opens a mail link with the words filled in instead, and **Show the PDF in its folder** shows the file to attach. In the browser it opens a mail link, and you attach the file yourself.\n- **Share on WhatsApp**. The WhatsApp desktop app opens if this computer has it, otherwise WhatsApp in your browser, with the message ready. A WhatsApp link cannot carry a file, so attach the PDF yourself: **Show the PDF in its folder** shows where it is.\n- Chausar sends nothing: you press send yourself each time."
+    },
+    {
+      "anchor": "when-the-client-pays",
+      "title": "When the client pays",
+      "level": 3,
+      "part": "5-getting-paid",
+      "text": "1. Open the invoice and click **Record payment**.\n2. Type the **Amount received** and the date in **Received on**.\n3. Under **How it was paid**, choose **UPI**, **Bank transfer**, **Cash** or another way.\n4. Click **Record payment**.\n\nA UPI payment shows as **marked paid by you**. Chausar does not check your bank; it records what you tell it.\n\nLate payer? The invoice shows how late it is and a **Remind** button. Chausar drafts the reminder, and you send it yourself."
+    },
+    {
+      "anchor": "coming-later",
+      "title": "Coming later",
+      "level": 3,
+      "part": "5-getting-paid",
+      "text": "- **Razorpay payment links.** The setting is in **How clients pay**, but it is labelled **fixture-tested**: it has not run with a real Razorpay account yet. Use UPI and bank details for now.\n- **Billing a client abroad in their own currency from the New order form.** For now the form has no currency fields. A foreign invoice shows no UPI (UPI takes rupees only); it shows your bank details with the SWIFT code instead."
+    },
+    {
+      "anchor": "6-phone-access",
+      "title": "6. Phone access",
+      "level": 2,
+      "part": "6-phone-access",
+      "text": "Chausar runs on your laptop. Your phone can open it in the phone's browser:\n\n- **at home**, on the same Wi-Fi, with a pairing link;\n- **away from home**, through Tailscale, a free app that links your own devices.\n\nIn short: open your business name at the top left, then **Notifications**. Under **How alerts reach you**, open **Phone access** and click **Make a pairing link**. Scan the QR code with your phone. The link works once, within 10 minutes.\n\nSome things work only on the laptop itself: connecting or changing your AI, writing a new plan, billing and payment settings, and the phone and Telegram settings. The phone shows **Approve this inside the Chausar app.** for those.\n\nYour laptop must be on, and Chausar running, for the phone to reach it.\n\nThe full steps, including Tailscale, are in [Phone access and phone alerts](venture/phone-access.md).\n\nThis has been tested on one computer only. It has not yet been tried with a real phone on home Wi-Fi or Tailscale."
+    },
+    {
+      "anchor": "7-telegram-alerts",
+      "title": "7. Telegram alerts",
+      "level": 2,
+      "part": "7-telegram-alerts",
+      "text": "Your own Telegram bot can tell your phone when something waits for you. It is free.\n\n1. In Telegram, open **@BotFather**, send `/newbot`, and follow its steps. It gives you a bot token. Keep it private.\n2. Open your new bot and press **Start**.\n3. Find your chat id. The steps are in [Phone access and phone alerts](venture/phone-access.md#telegram-alerts).\n4. In Chausar, open your business name, then **Notifications**. Open **Telegram alerts**.\n5. Paste the **Bot token** and **Your chat id**, then click **Save bot**.\n6. Click **Send a test alert**.\n\nAn alert says only how many things wait, like \"Chausar: 3 things wait for you. Open the app to decide.\" **Add titles to alerts** adds the titles too. Titles can name clients, so leave it off if that matters.\n\nAn alert has no buttons and no links. You never approve anything in Telegram."
+    },
+    {
+      "anchor": "8-sending-a-report",
+      "title": "8. Sending a report",
+      "level": 2,
+      "part": "8-sending-a-report",
+      "text": "You can help us improve Chausar by sending a report. It is your choice, and it is off until you turn it on.\n\n1. Open the business menu and choose **Reports**.\n2. Tick **Usage reports**, **Crash reports**, or both, then click **Turn on reports**.\n3. Under **What Send report sends** you see exactly what the report holds before anything leaves your computer.\n4. Click **Send report**.\n\nA report never holds client names, client data, message text, files or prompts, and earnings only ever go as a range. To stop, untick the boxes. To ask for your reports to be deleted, click **Delete my reports**, then **Yes, delete my reports**. That turns reports off and asks the Chausar team to delete what was sent; the team deletes it by hand."
+    },
+    {
+      "anchor": "9-what-chausar-never-does",
+      "title": "9. What Chausar never does",
+      "level": 2,
+      "part": "9-what-chausar-never-does",
+      "text": "- **No trades.** Chausar never places a trade of any kind, never gives stock tips or target prices, and never promises returns.\n- **No sends without your approval.** Nothing that sends, posts, pays, issues an invoice, changes a price or deletes happens until you tap that exact item. A spoken \"yes\" never counts; you tap the card.\n- **No LinkedIn scraping or automation.** Chausar never reads LinkedIn profiles or messages anyone on LinkedIn. For LinkedIn it only drafts text that you copy and send yourself.\n- **Approvals stay in the app.** Telegram alerts and other phone alerts only tell you something waits. You approve inside Chausar.\n- **No made-up numbers.** Every amount comes from the calculator with a receipt, or is labelled \"model estimate\".\n- **No price picking.** You set every price.\n- **No reading your sign-ins.** Chausar never shows its own ChatGPT or Claude sign-in and never reads your login files.\n- **No client data to the AI without permission**, given once per client and withdrawable.\n- **No tricks.** No fake reviews, no getting around CAPTCHAs or site rules, and no hidden AI voices."
+    },
+    {
+      "anchor": "10-where-to-get-help",
+      "title": "10. Where to get help",
+      "level": 2,
+      "part": "10-where-to-get-help",
+      "text": "- **Find or ask**, at the top of every page (Ctrl K from anywhere, or the search button on a phone), finds your clients, invoices, orders, jobs, chats and pages, opens a form, or asks Chausar, who answers questions about your own business.\n- **Sending a report** (part 8) tells us what went wrong without sharing client data.\n- **Write to us** at info@chausar.co.in. Say what you were doing and what you saw; never send passwords, keys or client details.\n\nIf something in this guide does not match what you see, please tell us. The app changes often during the beta."
+    }
+  ]
+}

@@ -7,7 +7,7 @@ import { fakeSeoPublishingKinds } from './fake-seo-publishing';
 import { fakeSeoStrategyKind } from './fake-seo-strategy';
 import { fakeSeoWebsiteKind } from './fake-seo-website';
 import { fakeSeoMonitorKind } from './fake-seo-monitor';
-import { newPanel, changedPanel, frozenPanel, checkedObservation, measuredPanel } from '../../../../platform/runtime/venture/playbooks/seo-visibility/panel-core';
+import { newPanel, changedPanel, frozenPanel, checkedObservation, measuredPanel } from '../../../../platform/shared/venture/playbooks/seo-visibility/panel-core.ts';
 import type { SeoObservationBody, SeoPanelBody } from '../../../../platform/runtime/venture/playbooks/seo-visibility/records';
 export const SEO_FAKE_META = {
     registration: { id: 'seo-visibility', label: 'Get found on Google and AI search', serviceType: 'content', picks: ['seo agency', 'seo service', 'seo for', 'local seo', 'search engine optimisation', 'search engine optimization', 'google business profile', 'ai search visibility', 'generative engine optimisation', 'aeo service'], summary: 'Agents check client sites and captured AI answers; you approve each report and every change.' },

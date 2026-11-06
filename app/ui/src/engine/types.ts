@@ -561,25 +561,25 @@ export interface ClientLite {
   owed?: { display: Display; receiptId: string };
 }
 export interface ClientAddParams { name: string; email?: string; countryCode?: string; taxId?: string; stateCode?: string; note?: string; phone?: string }
-export type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+export type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core.ts';
 import type { SearchProviderId, WebSearchView, WebReadView } from '../../../../platform/runtime/venture/web/search-types';
 import type { PeopleLookupView, PeopleSearchView } from '../../../../platform/runtime/venture/people/people-types';
 import type { FlowsActPayload, FlowsActView, FlowsListView } from '../../../../platform/runtime/venture/flows/flow-types';
-import type { FindRequest, FindView } from '../../../../platform/runtime/venture/views/find-core';
-export type { FindGroup, FindHit, FindItem, FindKind, FindRequest, FindSnippet, FindView } from '../../../../platform/runtime/venture/views/find-core';
+import type { FindRequest, FindView } from '../../../../platform/runtime/venture/views/find-core.ts';
+export type { FindGroup, FindHit, FindItem, FindKind, FindRequest, FindSnippet, FindView } from '../../../../platform/runtime/venture/views/find-core.ts';
 export type { FlowsActPayload, FlowsActView, FlowsListView, FlowVersionView, FlowRunView } from '../../../../platform/runtime/venture/flows/flow-types';
 export type { SearchProviderId, WebSearchView, WebReadView, PeopleLookupView, PeopleSearchView };
 // W6 6G3 (D44) the CRM, and 6G4 dated memory: the engine's own view types (crm/crm-data.ts, memory/facts-data.ts).
-import type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView } from '../../../../platform/runtime/venture/crm/crm-data';
-import type { FactView, FactVisibility, MemoryChange, MemoryView } from '../../../../platform/runtime/venture/memory/facts-data';
+import type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView } from '../../../../platform/runtime/venture/crm/crm-data.ts';
+import type { FactView, FactVisibility, MemoryChange, MemoryView } from '../../../../platform/runtime/venture/memory/facts-data.ts';
 // W6 6I1 push-to-talk: the engine's own shapes (agents/talk-core.ts is browser-safe).
-export type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from '../../../../platform/runtime/venture/agents/talk-core';
-import type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from '../../../../platform/runtime/venture/agents/talk-core';
+export type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from '../../../../platform/runtime/venture/agents/talk-core.ts';
+import type { TalkConsentInput, TalkHeard, TalkSaid, TalkSetupInput, TalkStarted, TalkView } from '../../../../platform/runtime/venture/agents/talk-core.ts';
 // W6 6J2 feedback: the engine's own shapes (core/feedback-core.ts is browser-safe).
-export type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, FeedbackCrashKept, FeedbackPreview, FeedbackView } from '../../../../platform/runtime/venture/core/feedback-core';
-import type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, FeedbackCrashKept, FeedbackView } from '../../../../platform/runtime/venture/core/feedback-core';
+export type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, FeedbackCrashKept, FeedbackPreview, FeedbackView } from '../../../../platform/runtime/venture/core/feedback-core.ts';
+import type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, FeedbackCrashKept, FeedbackView } from '../../../../platform/runtime/venture/core/feedback-core.ts';
 // W6 6H1 (D39): mini apps. The permission names and bridge tools live in the browser-safe apps/frame.ts.
-import type { AppPermission } from '../../../../platform/runtime/venture/apps/frame';
+import type { AppPermission } from '../../../../platform/runtime/venture/apps/frame.ts';
 export type { AppPermission };
 
 /** An app on the Apps place: reads are the chips that say what it reads or uses; allowed: it may run now. */
@@ -589,8 +589,8 @@ export type { AppPermission };
 /** What the bridge answers for one tools/call, in the MCP CallToolResult shape. */
 
 export type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView, FactView, FactVisibility, MemoryChange, MemoryView };
-import type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
-import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
+import type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core.ts';
+import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings.ts';
 import type { AgentApprovalRequest } from '../../../../platform/runtime/venture/agent-runtime/driver-types';
 /** `venture.order.list` (OrderRecord), trimmed. `request` is what the client asked for, typed by the owner. */
 export type OrderStatus = 'open' | 'invoiced' | 'delivered' | 'cancelled';
@@ -909,8 +909,9 @@ export interface ImprovementStatusLite {
 }
 /** `venture.improve.rollback` (PlaybookRecord), trimmed: the version now in use. */
 /** Who made a playbook version: the engine's own list (platform/runtime/venture/playbook-origins.ts), not a copy. */
-import type { PlaybookOrigin } from '../../../../platform/runtime/venture/playbook-origins';
-export { PLAYBOOK_ORIGINS, type PlaybookOrigin } from '../../../../platform/runtime/venture/playbook-origins';
+import type { PlaybookOrigin } from '../../../../platform/runtime/venture/playbook-origins.ts';
+export { PLAYBOOK_ORIGINS } from '../../../../platform/shared/venture/playbook-origins.ts';
+export type { PlaybookOrigin } from '../../../../platform/runtime/venture/playbook-origins.ts';
 export interface PlaybookLite { id: string; version: number; hash: string; origin?: PlaybookOrigin; parentId?: string | null }
 /** `venture.posting.propose`: the post waits on Today. `warnings` are the risk gate's, in the engine's words. */
 
@@ -1675,7 +1676,7 @@ export class EngineError extends Error {
 
 /** What the status line shows. `ok` shows nothing. */
 export type { UpdatesView } from '../../../../platform/runtime/update-service-core';
-export type { DiagnosticsTodayView } from '../../../../platform/runtime/venture/views/diagnostics-core';
+export type { DiagnosticsTodayView } from '../../../../platform/runtime/venture/views/diagnostics-core.ts';
 /** C5 task 27: the files and crash files going in, how many crash files are here, how many didn't fit, and the exact text. */
 export type DiagnosticsPreview = { id: string; files: { name: string; bytes: number }[]; dumps: { name: string; bytes: number }[]; dumpsThere: number; leftOut: number; text: string; bytes: number };
 
@@ -1689,7 +1690,7 @@ export type EngineStatus =
   | { state: 'session-ended' }
   | { state: 'error'; message: string };
 
-import type { DiagnosticsTodayView } from '../../../../platform/runtime/venture/views/diagnostics-core';
+import type { DiagnosticsTodayView } from '../../../../platform/runtime/venture/views/diagnostics-core.ts';
 import type { UpdatesView } from '../../../../platform/runtime/update-service-core';
 
 export type Transport = 'desktop' | 'web' | 'hosted' | 'fake';

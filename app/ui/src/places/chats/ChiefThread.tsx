@@ -29,7 +29,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { EngineError, type ChatPart, type ChiefCounted, type ChiefMessageView, type ChiefSnoozeOption, type ChiefThreadStateInput, type ChiefThreadSummary, type UiRunEvent } from '../../engine/types';
 import { goTo, navigate } from '../../shell/navigation';
 import { useClock, useOwnerZone } from '../../shell/clock';
-import { dayKeyIn, formatMonth, formatTime, weekdayIn } from '../../../../../platform/runtime/owner-format';
+import { dayKeyIn, formatMonth, formatTime, weekdayIn } from '../../../../../platform/shared/owner-format.ts';
 import { ChausarAvatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { ConsentWords } from '../../parts/ConsentWords';

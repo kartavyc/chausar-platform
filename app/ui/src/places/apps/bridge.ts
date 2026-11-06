@@ -11,7 +11,7 @@
  * (the frame went somewhere else) closes the bridge.
  */
 
-import { APP_PROTOCOL_VERSION } from '../../../../../platform/runtime/venture/apps/frame';
+import { APP_PROTOCOL_VERSION } from '../../../../../platform/shared/venture/apps/frame.ts';
 
 export interface BridgeOptions {
   frame: HTMLIFrameElement;

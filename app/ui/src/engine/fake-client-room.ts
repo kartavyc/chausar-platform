@@ -1,8 +1,9 @@
 // Original generic client rooms. Pure validation is shared; browser links never pretend to be served.
-import {roomApproved} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/brief-check';
-import {check,digest} from '../../../../platform/runtime/portable';
-import {roomBrief,approveRoomBrief,clientRoomView,type RoomFields} from '../../../../platform/runtime/venture/playbooks/kit/client-room-core';
-import {screenUntrusted} from '../../../../platform/runtime/venture/policy/untrusted';
+import { roomApproved } from '../../../../platform/shared/venture/playbooks/virtual-assistant/brief-check.ts';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { roomBrief, approveRoomBrief, clientRoomView } from '../../../../platform/shared/venture/playbooks/kit/client-room-core.ts';
+import type { RoomFields } from '../../../../platform/runtime/venture/playbooks/kit/client-room-core.ts';
+import { screenUntrusted } from '../../../../platform/shared/venture/policy/untrusted.ts';
 import type {RoomBriefBody} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/records';
 import type {W4DeskHost} from './fake-w4';import type {FakeDeskKind,FakeForgottenPerson} from './fake-playbooks';
 import {EngineError,type BlueprintViewLite,type OrderLite,type ClientLite,type ShareLink} from './types';

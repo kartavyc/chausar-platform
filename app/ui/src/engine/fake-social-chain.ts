@@ -1,14 +1,16 @@
-import {INFLUENCER_PACKET_CHECK} from '../../../../platform/runtime/venture/playbooks/social/influencer-completion';
-import {actualSocialPostLocations} from '../../../../platform/runtime/venture/playbooks/social/post-label';
-import {ghostwritingTextChecks} from '../../../../platform/runtime/venture/playbooks/social/ghostwriting-core';
-import {socialLegalBlock} from '../../../../platform/runtime/venture/playbooks/social/legal-confirmation';
-import {repurposeCoverage} from '../../../../platform/runtime/venture/playbooks/social/repurpose-coverage';
+import { INFLUENCER_PACKET_CHECK } from '../../../../platform/shared/venture/playbooks/social/influencer-completion.ts';
+import { actualSocialPostLocations } from '../../../../platform/shared/venture/playbooks/social/post-label.ts';
+import { ghostwritingTextChecks } from '../../../../platform/shared/venture/playbooks/social/ghostwriting-core.ts';
+import { socialLegalBlock } from '../../../../platform/shared/venture/playbooks/social/legal-confirmation.ts';
+import { repurposeCoverage } from '../../../../platform/shared/venture/playbooks/social/repurpose-coverage.ts';
 // Demo writing stages share the engine stage order and report arithmetic. No model or publishing calls.
-import {analyseSocialPostPlan,type SocialHookHistory,type SocialPlanIntake} from '../../../../platform/runtime/venture/playbooks/social/slot-plan-core';
-import {socialStages} from '../../../../platform/runtime/venture/playbooks/social/stages';
+import { analyseSocialPostPlan } from '../../../../platform/shared/venture/playbooks/social/slot-plan-core.ts';
+import type { SocialHookHistory, SocialPlanIntake } from '../../../../platform/runtime/venture/playbooks/social/slot-plan-core.ts';
+import { socialStages } from '../../../../platform/shared/venture/playbooks/social/stages.ts';
 import {fakeSocialSteps as SOCIAL_STEPS} from './fake-social-plan';
-import {createReportComputer,type ExportPlatform} from '../../../../platform/runtime/venture/playbooks/social/report-core';
-import {csvRows} from '../../../../platform/runtime/csv';
+import { createReportComputer } from '../../../../platform/shared/venture/playbooks/social/report-core.ts';
+import type { ExportPlatform } from '../../../../platform/runtime/venture/playbooks/social/report-core.ts';
+import { csvRows } from '../../../../platform/shared/csv.ts';
 import {EngineError,type DeliveryLite,type OrderLite,type OrderChainView,type QueueRow,type QueueItemView} from './types';
 import type {FakeForgottenPerson} from './fake-playbooks';
 import type {WorkHost} from './fake-work';

@@ -1,9 +1,9 @@
 // Rehearsal delivery reads current measured desk evidence. No external model or delivery effect is claimed.
-import {check,digest} from '../../../../platform/runtime/portable';
+import { check, digest } from '../../../../platform/shared/portable.ts';
 import {EngineError,type DeliveryLite,type OrderLite,type QueueRow,type QueueItemView,type OrderChainView} from './types';
 import type {WorkHost} from './fake-work';import type {FakeNarrationRow} from './fake-narration-studio';
-import {NARRATION_RIGHTS_RULE} from '../../../../platform/runtime/venture/playbooks/narration-studio/rules';
-import {narrationReportRows,narrationReportReady,narrationDelivery} from '../../../../platform/runtime/venture/playbooks/narration-studio/checks';
+import { NARRATION_RIGHTS_RULE } from '../../../../platform/shared/venture/playbooks/narration-studio/rules.ts';
+import { narrationReportRows, narrationReportReady, narrationDelivery } from '../../../../platform/shared/venture/playbooks/narration-studio/checks.ts';
 import {exactNarration} from './fake-narration-studio';
 type Job={item:{rows:FakeNarrationRow[];stale:boolean};digest:string};
 type Run=DeliveryLite&{preview:{digest:string;input:unknown}|null;sourceDigest:string;renderedText?:string|null};

@@ -15,7 +15,7 @@ import type { EngineClient } from './engine/types';
 async function engine(): Promise<EngineClient> {
   // Only `npm run dev:ui` (vite --mode fake) uses the fake engine; any other build leaves it out entirely.
   if (import.meta.env.MODE === 'fake') {
-    const { FakeEngine, createFakeClient } = await import('./engine/fake');
+    const { FakeEngine, createFakeClient } = await import('./engine/fake.ts');
     return createFakeClient(new FakeEngine({ latencyMs: 120 }));
   }
   return createEngineClient();
@@ -23,7 +23,7 @@ async function engine(): Promise<EngineClient> {
 
 async function start() {
   // One-shot C3 task 17: long tasks kept on the window for the walk; never in a production build.
-  if (import.meta.env.DEV) void import('./shell/long-tasks').then(({ watchLongTasks }) => watchLongTasks());
+  if (import.meta.env.DEV) void import('./shell/long-tasks.ts').then(({ watchLongTasks }) => watchLongTasks());
   const lang = pickLanguage();
   document.documentElement.lang = lang;
   const client = await engine();

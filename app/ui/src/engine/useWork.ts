@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { WORK_STEPS, type WorkKind } from '../../../../platform/runtime/venture/views/work-steps';
+import { WORK_STEPS } from '../../../../platform/shared/venture/views/work-steps.ts';
+import type { WorkKind } from '../../../../platform/runtime/venture/views/work-steps.ts';
 import { useEngine } from './context';
 import type { UiRunEvent, WorkStepStateLite } from './types';
 

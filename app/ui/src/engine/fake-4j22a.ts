@@ -1,7 +1,7 @@
-import {formatClock} from '../../../../platform/runtime/owner-format';
-import {occurrencesBetween,nextOccurrence} from '../../../../platform/runtime/venture/agents/routine-time';
-import {VA_REPORT_PROMPTS} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/routines-core';
-import {RETIRED_LINE} from '../../../../platform/runtime/venture/agents/retired-words';
+import { formatClock } from '../../../../platform/shared/owner-format.ts';
+import { occurrencesBetween, nextOccurrence } from '../../../../platform/shared/venture/agents/routine-time.ts';
+import { VA_REPORT_PROMPTS } from '../../../../platform/shared/venture/playbooks/virtual-assistant/routines-core.ts';
+import { RETIRED_LINE } from '../../../../platform/shared/venture/agents/retired-words.ts';
 import {vaFakeReport} from './fake-va-report';
 /**
  * The fake engine's answers for W4 4J22a's screens, with the engine's codes, shapes, words and order:
@@ -559,7 +559,7 @@ export class FakeQualityDesk {
     const leans = LEANS.exec(prompt);
     if (leans) throw new EngineError('ROUTINE_NOT_STANDALONE', NOT_STANDALONE(leans[0]));
     const report=raw.recordReport;
-    if(report!==undefined&&(!['va-morning','va-weekly'].includes(report)||(this.host.ask('venture.blueprint.get',{}) as import('./types').BlueprintViewLite|null)?.playbook?.id!=='virtual-assistant'||agent!==null||prompt!==VA_REPORT_PROMPTS[report==='va-morning'?'morning':'weekly']))throw invalid('Choose a built-in private assistant report with its exact source-only prompt.');
+    if(report!==undefined&&(!['va-morning','va-weekly'].includes(report)||(this.host.ask('venture.blueprint.get',{}) as import('./types.ts').BlueprintViewLite|null)?.playbook?.id!=='virtual-assistant'||agent!==null||prompt!==VA_REPORT_PROMPTS[report==='va-morning'?'morning':'weekly']))throw invalid('Choose a built-in private assistant report with its exact source-only prompt.');
     if (typeof raw.on !== 'boolean') throw invalid('on must be true or false.');
     const list = this.routines.get(this.host.current()) ?? [];
     const existing = raw.id ? list.find((r) => r.id === raw.id && !r.removed) : undefined;

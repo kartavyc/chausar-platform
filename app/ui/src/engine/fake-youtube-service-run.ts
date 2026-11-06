@@ -1,11 +1,11 @@
 // Demo writing uses the real deterministic service checks and current owner sources. No provider or media success is invented.
 import {EngineError,type DeliveryLite,type OrderLite,type QueueRow,type QueueItemView,type WorkReceiptLite} from './types';
 import type {WorkHost} from './fake-work';
-import {digest} from '../../../../platform/runtime/portable';
-import {isYoutubeService} from '../../../../platform/runtime/venture/playbooks/youtube/service-fields';
-import {YOUTUBE_SERVICE_SECTIONS} from '../../../../platform/runtime/venture/playbooks/youtube/service-data';
+import { digest } from '../../../../platform/shared/portable.ts';
+import { isYoutubeService } from '../../../../platform/shared/venture/playbooks/youtube/service-fields.ts';
+import { YOUTUBE_SERVICE_SECTIONS } from '../../../../platform/shared/venture/playbooks/youtube/service-data.ts';
 import type {ServiceDraft} from '../../../../platform/runtime/venture/playbooks/youtube/service-check-core';
-import type {YoutubeResearchBody} from '../../../../platform/runtime/venture/playbooks/youtube/research-state';
+import type { YoutubeResearchBody } from '../../../../platform/runtime/venture/playbooks/youtube/research-state.ts';
 import {fakeYoutubeRights} from './fake-youtube-rights';
 type Source={body:YoutubeResearchBody;receipt:WorkReceiptLite&{inputs:{tables:{id:string;digest:string}[]}}};
 type Pin={order:OrderLite;service:keyof typeof YOUTUBE_SERVICE_SECTIONS;source:Source|null};

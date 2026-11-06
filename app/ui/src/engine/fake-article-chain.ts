@@ -1,10 +1,10 @@
 // Demonstration article stages use real source checks. No model, media process, sending or publication is simulated as completed.
 import {EngineError,type DeliveryLite,type OrderLite,type OrderChainView,type QueueRow,type QueueItemView} from './types';
 import type {WorkHost} from './fake-work';import type {ArticleLedgerBody} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/records';
-import type {ArticleRun} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/run-core';
-import {articleAngles} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/angles';
-import {articleLegalReady} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/legal-core';
-import {articleExact} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/core';
+import type { ArticleRun } from '../../../../platform/runtime/venture/playbooks/podcast-to-article/run-core.ts';
+import { articleAngles } from '../../../../platform/shared/venture/playbooks/podcast-to-article/angles.ts';
+import { articleLegalReady } from '../../../../platform/shared/venture/playbooks/podcast-to-article/legal-core.ts';
+import { articleExact } from '../../../../platform/shared/venture/playbooks/podcast-to-article/core.ts';
 type Row=ArticleLedgerBody&{id:string;stale:boolean};
 type Run=Omit<DeliveryLite,'deliverable'>&ArticleRun&{chainStage:number;preview:{digest:string;input:unknown}|null};
 type Hooks={orders():OrderLite[];deliveries():DeliveryLite[];keep(run:DeliveryLite):void;next(orderId:string):void};

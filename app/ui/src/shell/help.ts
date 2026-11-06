@@ -1,7 +1,7 @@
 // C7 task 24: in-app help, from Chausar's own guide (docs/beta-guide.md, indexed at build into guide-data.json by
 // scripts/guide-index.mjs). Code only: the owner's words are matched against each section's title first, then its
 // text, and the top three come back. Nothing here asks an AI; the guide's own words are what the sheet quotes.
-import guide from '../../../../platform/runtime/venture/core/guide-data.json';
+import guide from '../../../../platform/shared/venture/core/guide-data.json';
 
 export type GuideSection = { anchor: string; title: string; level: number; part: string; text: string };
 /** The guide's page in the public repository; a section's link is this plus its anchor. */

@@ -1,5 +1,5 @@
 import {fakeSellerOperations} from './fake-online-seller-operations';
-import { dayKeyIn, formatMoney, ownerZone } from '../../../../platform/runtime/owner-format';
+import { dayKeyIn, formatMoney, ownerZone } from '../../../../platform/shared/owner-format.ts';
 import {fakeSellerConnectors} from './fake-seller-connectors';
 /**
  * Fake seller engine. Uses the exact browser-safe core and source contracts of the real engine.
@@ -8,9 +8,10 @@ import {fakeSellerConnectors} from './fake-seller-connectors';
 import { EngineError } from './types';
 import type { FakePlaybookDesk } from './fake-playbooks';
 import type { W4DeskHost } from './fake-w4';
-import { SELLER_METADATA, SELLER_TAX_DATA, SELLER_INDIA_DATA } from '../../../../platform/runtime/venture/playbooks/online-seller/metadata';
-import { SELLER_MODES, sellerCsv, sellerFile, sellerImageFiles, analyseSellerRows, type SellerMode } from '../../../../platform/runtime/venture/playbooks/online-seller/source';
-import { sellerNumbers, sellerPercent } from '../../../../platform/runtime/venture/playbooks/online-seller/model';
+import { SELLER_METADATA, SELLER_TAX_DATA, SELLER_INDIA_DATA } from '../../../../platform/shared/venture/playbooks/online-seller/metadata.ts';
+import { SELLER_MODES, sellerCsv, sellerFile, sellerImageFiles, analyseSellerRows } from '../../../../platform/shared/venture/playbooks/online-seller/source.ts';
+import type { SellerMode } from '../../../../platform/runtime/venture/playbooks/online-seller/source.ts';
+import { sellerNumbers, sellerPercent } from '../../../../platform/shared/venture/playbooks/online-seller/model.ts';
 
 import type { SellerSkuBody } from '../../../../platform/runtime/venture/playbooks/online-seller/records';
 export const SELLER_FAKE_METADATA = SELLER_METADATA;

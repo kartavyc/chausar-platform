@@ -19,16 +19,17 @@
  * view carries its next step, its timeline and its credit notes, as the engine's does.
  */
 
-import { formatMoney } from '../../../../platform/runtime/owner-format';
-import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
-import { currencyMinorDigits, decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
+import { formatMoney } from '../../../../platform/shared/owner-format.ts';
+import { countryProfile } from '../../../../platform/shared/venture/core/countries.ts';
+import { currencyMinorDigits, decimalMinor, formatMinor } from '../../../../platform/shared/currency.ts';
 import { BUSINESSES, RECEIPTS } from './fixtures';
 import { FakeBills, FAKE_4J5_BILL_METHODS } from './fake-bills';
 import { FakeMoneyViews, FAKE_4J20_METHODS } from './fake-money-views';
 import { FakeBilling, FAKE_6D_METHODS, asEngine, base64Utf8, fakeInvoiceHtml, howToPay, howToPayLines, payLinkDigest, payLinkOpen, shareWords, type FakePayLink } from './fake-money-pay';
-import { whatsappLink } from '../../../../platform/runtime/venture/clients/phone';
-import { cutPart, partAskOf, PART_WORDS, type PartAsk } from '../../../../platform/runtime/venture/money/invoice-parts';
-import { dueDaysOf, reminderDaysOf } from '../../../../platform/runtime/venture/money/billing-rules';
+import { whatsappLink } from '../../../../platform/shared/venture/clients/phone.ts';
+import { cutPart, partAskOf, PART_WORDS } from '../../../../platform/shared/venture/money/invoice-parts.ts';
+import type { PartAsk } from '../../../../platform/runtime/venture/money/invoice-parts.ts';
+import { dueDaysOf, reminderDaysOf } from '../../../../platform/shared/venture/money/billing-rules.ts';
 import type { TaxTreatment } from '../../../../platform/runtime/venture/money/price-types';
 import {
   EngineError, PAYMENT_METHODS, type BooksPeriodKey, type BooksSummaryLite, type ClientLite, type CreditNoteView, type InvoiceLite, type InvoiceNext,

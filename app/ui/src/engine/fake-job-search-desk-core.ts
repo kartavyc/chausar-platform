@@ -1,11 +1,11 @@
 // Career browser state uses the same portable fact, source and file contracts. No provider call is simulated.
-import {check,digest} from '../../../../platform/runtime/portable';
-import {fakeAttested} from './fake-rules-attest';import {ruleCleared} from '../../../../platform/runtime/venture/playbooks/kit/attestation';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import {fakeAttested} from './fake-rules-attest';import { ruleCleared } from '../../../../platform/shared/venture/playbooks/kit/attestation.ts';
 import {EngineError,type OrderLite,type BlueprintViewLite} from './types';
 import type {W4DeskHost} from './fake-w4';
 import type {CareerFactBody,CareerListingBody,CareerThreadBody} from '../../../../platform/runtime/venture/playbooks/job-search-desk/records';
-import {currentCareerFacts} from '../../../../platform/runtime/venture/playbooks/job-search-desk/state';
-import {CAREER_PRIVACY_RULE} from '../../../../platform/runtime/venture/playbooks/job-search-desk/metadata-core';
+import { currentCareerFacts } from '../../../../platform/shared/venture/playbooks/job-search-desk/state.ts';
+import { CAREER_PRIVACY_RULE } from '../../../../platform/shared/venture/playbooks/job-search-desk/metadata-core.ts';
 export type CareerRow<T> = T&{id:string;kind:string;ventureId:string;memberId:string;epoch:number;at:string};
 export type FactRow=CareerRow<CareerFactBody>;export type ListingRow=CareerRow<CareerListingBody>;export type ThreadRow=CareerRow<CareerThreadBody>;
 export const exact=(raw:unknown,keys:string[],required=keys)=>{check(raw&&typeof raw==='object'&&!Array.isArray(raw)&&(Object.getPrototypeOf(raw)===Object.prototype||Object.getPrototypeOf(raw)===null),'INVALID_VENTURE_REQUEST','Send one request object.');const p=raw as Record<string,unknown>;check(Object.keys(p).every(k=>keys.includes(k))&&required.every(k=>Object.hasOwn(p,k)),'INVALID_VENTURE_REQUEST','Send the required fields and nothing else.');return p;};

@@ -1,4 +1,4 @@
-import { rateTableFor, rateTableHash } from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
+import { rateTableFor, rateTableHash } from '../../../../platform/shared/venture/playbooks/ca-firm/rates.ts';
 /**
  * Sample data for the last screens: Money at a glance, the tax working, spend settings, the CA firm page, leads,
  * website edits and preview links. Every figure is written as the engine would format it; the UI never computes one.

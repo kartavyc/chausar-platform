@@ -8,7 +8,8 @@
 import { useMemo } from 'react';
 import { useLanguage, type Language } from '../text';
 import { useClock, useOwnerZone } from '../shell/clock';
-import { dayKeyIn, formatDay, formatMoment, formatMonth, formatTime, formatWeekday, hourIn, setDateLocale, timeKeyIn, type When } from '../../../../platform/runtime/owner-format';
+import { dayKeyIn, formatDay, formatMoment, formatMonth, formatTime, formatWeekday, hourIn, setDateLocale, timeKeyIn } from '../../../../platform/shared/owner-format.ts';
+import type { When } from '../../../../platform/runtime/owner-format.ts';
 
 /** The one language-to-locale map. Hindi keeps Latin digits by default; English writes owner-format's own forms. */
 export const LOCALE: Record<Language, string> = { en: 'en-IN', hi: 'hi-IN-u-nu-latn' };

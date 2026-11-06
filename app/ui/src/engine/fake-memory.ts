@@ -8,10 +8,9 @@
 import { EngineError } from './types';
 import type { ClientLite, MemoryChange, MemoryView } from './types';
 import type { W4DeskHost } from './fake-w4';
-import {
-  MAX_FACTS, chainOf, factView, memoryView, parseAdd, parseForget, parseList, parseReplace, parseVisibility, sameTopic, type MemoryFactBody,
-} from '../../../../platform/runtime/venture/memory/facts-data';
-import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
+import { MAX_FACTS, chainOf, factView, memoryView, parseAdd, parseForget, parseList, parseReplace, parseVisibility, sameTopic } from '../../../../platform/shared/venture/memory/facts-data.ts';
+import type { MemoryFactBody } from '../../../../platform/runtime/venture/memory/facts-data.ts';
+import { COUNTRY_TIME_ZONES } from '../../../../platform/shared/venture/local-day-data.ts';
 import { namesTest } from './fake-crm';
 
 const METHODS = new Set(['venture.memory.list', 'venture.memory.add', 'venture.memory.replace', 'venture.memory.visibility', 'venture.memory.forget']);

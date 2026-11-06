@@ -1,6 +1,6 @@
 // Original source-bound developer delivery, sharing the approved-brief queue pattern. No model, Git or scanner run is invented.
-import {digest} from '../../../../platform/runtime/portable';
-import {devDelivery,devChecks} from '../../../../platform/runtime/venture/playbooks/dev-agency/report';
+import { digest } from '../../../../platform/shared/portable.ts';
+import { devDelivery, devChecks } from '../../../../platform/shared/venture/playbooks/dev-agency/report.ts';
 import {roomExact} from './fake-client-room';
 import {EngineError,type DeliveryLite,type OrderLite,type QueueRow,type QueueItemView,type ModelStatusLite} from './types';
 import type {WorkHost} from './fake-work';
