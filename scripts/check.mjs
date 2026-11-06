@@ -19,4 +19,7 @@ for (const file of files) {
   const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
   if (result.status !== 0) { process.stderr.write(result.stderr || result.error?.message || 'Syntax check failed'); process.exit(1); }
 }
+// C7: the in-app help quotes the guide as indexed at build; a guide that changed needs `node scripts/guide-index.mjs`.
+const guide = spawnSync(process.execPath, [join(root, 'scripts', 'guide-index.mjs'), '--check'], { encoding: 'utf8' });
+if (guide.status !== 0) { process.stderr.write(guide.stderr || guide.stdout || 'The guide index is out of date.'); process.exit(1); }
 console.log(`Syntax and JSON validation passed for ${files.length} source files.`);
