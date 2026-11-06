@@ -65,6 +65,7 @@ export class TodaySession {
   keep(row: QueueRow, line: string, receiptId?: string, replace = true, undo?: () => Promise<string>, untilRevision = false) {
     if (!replace && this.decided.has(row.id)) return;
     this.saidLines.delete(row.id);
+    this.decided.delete(row.id);
     this.decided.set(row.id, { row, line, receiptId, ...(undo ? { undo } : {}), ...(undo && untilRevision ? { untilRevision: true as const } : {}) });
     this.changed();
   }
@@ -79,7 +80,11 @@ export class TodaySession {
   /** Note the engine's order for rows not seen before; known rows keep their place. */
   placeRows(rows: readonly QueueRow[]) { for (const row of rows) if (!this.places.has(row.id)) this.places.set(row.id, this.places.size); }
   place(id: string): number { return this.places.get(id) ?? Number.MAX_SAFE_INTEGER; }
-  lines(): DecidedLine[] { return [...this.decided.values()]; }
+  lines(): DecidedLine[] {
+    const latest = new Map<string, DecidedLine>();
+    for (const line of this.decided.values()) latest.set(subjectOf(line.row.id), line);
+    return [...latest.values()];
+  }
 
   /**
    * A decision is on its way for this row: a refresh that drops it meanwhile is not "resolved elsewhere". Given the row

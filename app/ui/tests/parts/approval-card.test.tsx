@@ -189,7 +189,7 @@ describe('ApprovalRow as a card (layout="card")', () => {
       render(<ApprovalRow layout="card" row={draft} onDecide={vi.fn()} preview={<p>A still of the episode</p>} />);
       expect(card().querySelector('[data-preview]')!.textContent).toBe('A still of the episode');
       expect(isLocked(approveIn())).toBe(true);
-      fireEvent.click(within(card()).getByRole('button', { name: 'Watch' }));
+      fireEvent.click(within(card()).getByRole('button', { name: 'Open draft' }));
       expect(isLocked(approveIn())).toBe(false);
     });
 
@@ -235,7 +235,7 @@ describe('ApprovalRow as a card (layout="card")', () => {
       const latest: QueueRow = { ...draft, digest: 'd1b', line: 'Recut to 11 min 30 s.' };
       const onDecide = vi.fn(async (): Promise<QueueDecision> => ({ outcome: 'stale', line: 'This changed since you opened it.', latest }));
       render(<ApprovalRow layout="card" row={draft} onDecide={onDecide} />);
-      fireEvent.click(within(card()).getByRole('button', { name: 'Watch' }));
+      fireEvent.click(within(card()).getByRole('button', { name: 'Open draft' }));
       await act(async () => { fireEvent.click(within(card()).getByRole('button', { name: 'Approve' })); });
       // W4 4J19: a stale click says it ran nothing, in 4J1's words.
       expect(card().textContent).toContain('This click did not run anything. Here is the new version.');
@@ -503,7 +503,7 @@ describe('Review of 3B5a', () => {
 
     it('a refresh after Watch locks Approve again until the new version is watched', () => {
       const { rerender } = render(<ApprovalRow layout="card" row={draft} onDecide={vi.fn()} />);
-      fireEvent.click(within(card()).getByRole('button', { name: 'Watch' }));
+      fireEvent.click(within(card()).getByRole('button', { name: 'Open draft' }));
       expect(isLocked(approveIn())).toBe(false);
       rerender(<ApprovalRow layout="card" row={{ ...draft, digest: 'd1b', line: 'Recut.' }} onDecide={vi.fn()} />);
       expect(isLocked(approveIn())).toBe(true);
@@ -589,9 +589,9 @@ describe('Review of 3B5a', () => {
       actions: [{ id: 'deny', label: 'Reject', primary: false }, { id: 'read', label: 'Read', primary: false }, { id: 'send-to-ca', label: 'Send to CA', primary: true, requiresView: true }],
     };
     render(<ApprovalRow layout="card" row={toCa} onDecide={vi.fn()} />);
-    expect([...card().querySelectorAll('[data-key]')].map((b) => b.textContent)).toEqual(['Reject', 'Read', 'Send to CA']);
+    expect([...card().querySelectorAll('[data-key]')].map((b) => b.textContent)).toEqual(['Reject', 'Open draft', 'Send to CA']);
     expect(isLocked(approveIn('Send to CA'))).toBe(true);
-    fireEvent.click(within(card()).getByRole('button', { name: 'Read' }));
+    fireEvent.click(within(card()).getByRole('button', { name: 'Open draft' }));
     expect(isLocked(approveIn('Send to CA'))).toBe(false);
     assertInkRules(document.body);
   });

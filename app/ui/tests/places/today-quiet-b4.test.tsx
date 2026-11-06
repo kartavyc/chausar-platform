@@ -4,10 +4,36 @@ import { App } from '../../src/shell/App';
 import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
-import type { EngineClient, GoalView } from '../../src/engine/types';
+import type { EngineClient, GoalView, QueueRow } from '../../src/engine/types';
+import { sessionFor } from '../../src/places/today/session';
 
 /** One-shot B4 task 13: Today says each fact once. */
 const NOW = '2026-10-23T13:35:00.000Z';
+
+it('keeps one decided line per draft with its latest state', () => {
+  const session = sessionFor(createFakeClient(new FakeEngine()));
+  const first: QueueRow = { ...QUEUE[0]!, id: 'run:d-one:review-1', digest: 'one' };
+  const next: QueueRow = { ...first, id: 'run:d-one:review-2', digest: 'two' };
+  session.keep(first, 'Sent back.');
+  session.keep(next, 'Accepted.');
+  expect(session.lines().map(item => item.line)).toEqual(['Accepted.']);
+  // The old row remains decided if an older queue read arrives; only its visible line is superseded.
+  expect(session.line(first.id)?.line).toBe('Sent back.');
+});
+
+it('setup cards omit a clock time', async () => {
+  await open(clientFor(new FakeEngine({ now: () => NOW, queue: [SETUP_ROWS[0]!] })));
+  const card = screen.getByRole('heading', { name: 'Set your prices' }).closest('[data-card]')!;
+  expect(card.querySelector('time')).toBeNull();
+  expect(card.textContent).not.toMatch(/\d{1,2}:\d{2}\s*[ap]m/i);
+});
+
+it('opens a draft through one quiet action before approval', async () => {
+  const draft = QUEUE.find(row => row.id === 'run:d-ep14:review-1')!;
+  await open(clientFor(new FakeEngine({ now: () => NOW, queue: [draft] })));
+  const button = screen.getByRole('button', { name: 'Open draft' });
+  expect(button.getAttribute('data-variant')).toBe('quiet');
+});
 const settle = async () => { for (let i = 0; i < 6; i++) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); };
 afterEach(() => { vi.restoreAllMocks(); });
 

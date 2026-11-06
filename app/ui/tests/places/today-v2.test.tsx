@@ -618,7 +618,7 @@ describe('Today v2: previews on the cards', () => {
   it('the draft card: Watch opens it, and once the sheet is closed Approve is unlocked', async () => {
     start();
     await loaded();
-    await click(within(cardOf('run:d-ep14:review-1')).getByRole('button', { name: 'Watch' }));
+    await click(within(cardOf('run:d-ep14:review-1')).getByRole('button', { name: 'Open draft' }));
     const sheet = await screen.findByRole('complementary', { name: 'Episode 14' });
     await click(within(sheet).getByRole('button', { name: /^Close/ }));
     await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
