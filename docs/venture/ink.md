@@ -81,7 +81,7 @@ Where a board shows data the engine does not send yet, the place draws what is r
 
 | Place | Waits for | W4 package |
 |---|---|---|
-| Rail and header | Chats in the rail, the Ask Chausar box and Ctrl K, the bell with its count; there is no account button | 4C, 4G |
+| Rail and header | Chats in the rail, the Find or ask bar and Ctrl K (one-shot C2: finds records and pages, opens forms, asks Chausar), the bell with its count; there is no account button | 4C, 4G, C2 |
 | Today | goal progress, pace, days left, ready to issue and the next best step (the goal card shows what was invoiced until then); departments on agents (tints, badges, chips); the Chausar story and Add agent; card previews (frames, durations, chapters, invoice lines, post text, title choices, check counts); row meta (client, expiry, "Sends to the client"); Stop on running rows; the owner's first name in the greeting | 4I; 4A; 4C; 4J queue previews; 4J approvals; 4F; 4J owner profile |
 | Team | departments and their summaries, the toggle and `?dept=`, the one-department view, the six-week chart, Done this week, Add an agent, Keeper, held spend; the Chat button and tab, the instructions version, standing orders, "set by" lines | 4A; 4B |
 | Work | Stop, Force stop, Resume, the breaker's words, "Run again keeps step 1", How to fix it; order stage steps and the price on an order; frames on run tiles; runs across a locked business | 4F; 4J order steps; 4J queue previews; 4J |

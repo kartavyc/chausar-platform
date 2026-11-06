@@ -349,7 +349,7 @@ A report never holds client names, client data, message text, files or prompts, 
 
 ## 10. Where to get help
 
-- **Ask Chausar anything**, at the top of every page, answers questions about your own business.
+- **Find or ask**, at the top of every page (Ctrl K from anywhere, or the search button on a phone), finds your clients, invoices, orders, jobs, chats and pages, opens a form, or asks Chausar, who answers questions about your own business.
 - **Sending a report** (part 8) tells us what went wrong without sharing client data.
 - **Write to us** at info@chausar.co.in. Say what you were doing and what you saw; never send passwords, keys or client details.
 
