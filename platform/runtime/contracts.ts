@@ -1,3 +1,4 @@
+import { runClock } from './venture/replay/scope.ts';
 import { randomUUID } from 'node:crypto';
 import {ChausarError,check,hash} from './portable.ts';
 import { formatMoney } from './owner-format.ts';
@@ -5,7 +6,7 @@ import { CURRENT_SCHEMA } from './migrations/ladder.ts';
 export {ChausarError,InternalError,asInternal,check,hash,internalCheck} from './portable.ts';
 
 export const newId = (prefix = 'item') => `${prefix}_${randomUUID()}`;
-export const now = () => new Date().toISOString();
+export const now = () => runClock().toISOString();
 export function minor(value: string | number): string {
   const text = String(value).trim().replaceAll(',', '');
   check(/^-?\d+(\.\d{1,2})?$/.test(text), 'INVALID_AMOUNT', 'Use an amount with at most two decimal places.');

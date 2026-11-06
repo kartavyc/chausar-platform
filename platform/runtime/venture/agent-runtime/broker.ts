@@ -1,3 +1,4 @@
+import { bindCaptureBroker } from '../replay/broker-hooks.ts';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type Socket } from 'node:net';
 import { chmod, rm } from 'node:fs/promises';
@@ -13,6 +14,10 @@ import { runtimeEntry } from '../../engine-paths.ts';
 export type JobBroker = {connection:AgentMcpConnection;close:()=>Promise<void>};
 export async function startJobBroker(options:{service:MCPService;capability:JobCapability;executable?:string}):Promise<JobBroker> {
   const {service,capability}=options;capability.assert();
+  const captured = bindCaptureBroker(service, capability);
+  if (captured?.replay) return { connection: { name: 'chausar', command: options.executable ?? process.execPath,
+    args: [runtimeEntry('venture/agent-runtime/stdio-bridge')], env: { ELECTRON_RUN_AS_NODE: '1', CHAUSAR_AGENT_MCP_SOCKET: 'replay-socket', CHAUSAR_AGENT_MCP_TOKEN: 'replay-capability' } },
+    close: async () => { captured.close(); capability.close(); } };
   const id=randomUUID(),token=randomBytes(32).toString('base64url');
   const path=process.platform==='win32'?`\\\\.\\pipe\\chausar-agent-${id}`:join(tmpdir(),`chausar-agent-${id}.sock`);
   const sockets=new Set<Socket>();let closed=false;
@@ -31,7 +36,7 @@ export async function startJobBroker(options:{service:MCPService;capability:JobC
             authenticated=true;clearTimeout(timeout);await writeLine(socket,{ready:true});continue;
           }
           let request;try{request=JSON.parse(line);}catch{await writeLine(socket,{jsonrpc:'2.0',id:null,error:{code:-32700,message:'Invalid JSON.'}});continue;}
-          const response=await service.handle(context,request,sessionId);
+          const response=await (captured ? captured.handle(request,sessionId) : service.handle(context,request,sessionId));
           capability.assert();if(response)await writeLine(socket,response);
         }
       } catch { /* A closed or revoked capability must not return private diagnostics. */ }
@@ -42,7 +47,7 @@ export async function startJobBroker(options:{service:MCPService;capability:JobC
   if(process.platform!=='win32')await chmod(path,0o600);
   const connection:AgentMcpConnection={name:'chausar',command:options.executable??process.execPath,args:[runtimeEntry('venture/agent-runtime/stdio-bridge')],env:{ELECTRON_RUN_AS_NODE:'1',CHAUSAR_AGENT_MCP_SOCKET:path,CHAUSAR_AGENT_MCP_TOKEN:token}};
   return {connection,close:async()=>{
-    if(closed)return;closed=true;capability.close();for(const socket of sockets)socket.destroy();
+    if(closed)return;closed=true;captured?.close();capability.close();for(const socket of sockets)socket.destroy();
     await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
     if(process.platform!=='win32')await rm(path,{force:true});
   }};

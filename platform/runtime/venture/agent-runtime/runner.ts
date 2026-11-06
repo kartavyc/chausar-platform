@@ -1,3 +1,4 @@
+import { trackRunWork } from '../replay/scope.ts';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +23,7 @@ export function launchAgentWork(store: StateStore, runId: string, work: () => Pr
   check(!jobs.has(runId), 'JOB_BUSY', 'This job is already running.');
   const task = Promise.resolve().then(work).finally(() => jobs.delete(runId));
   jobs.set(runId, task);
+  trackRunWork(task);
   // The delivery callback persists a safe failure state. Waiting tests and live checks can still observe completion.
   void task.catch(() => undefined);
 }
