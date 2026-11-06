@@ -500,8 +500,8 @@ describe('Business menu', () => {
     const hrefs = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
     // W4 4J20: last, after Away, "Invite your accountant" opens Money's accountant sheet (a read-only month of books).
     // W5 5A2: Go or no go, after Goals.
-    expect(hrefs).toEqual([['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Old chats', '#/business/chats'], ['Reports', '#/business/reports'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
-    expect(hrefs).toHaveLength(13);
+    expect(hrefs).toEqual([['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Old chats', '#/business/chats'], ['Reports', '#/business/reports'], ['Updates', '#/business/updates'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
+    expect(hrefs).toHaveLength(14);
     expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
 
@@ -647,8 +647,8 @@ describe('Business: your CA (CA firm playbook)', () => {
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Ledgerline' });
     await waitFor(() => expect(within(menu).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
     const hrefs = within(menu).getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/goals', '#/business/go-no-go', '#/business/build', '#/business/practice', '#/business/ca', '#/business/notifications', '#/business/chats', '#/business/reports', '#/business/keep', '#/onboarding', '#/business/away', '#/money?sheet=accountant:books']);
-    expect(hrefs).toHaveLength(14);
+    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/goals', '#/business/go-no-go', '#/business/build', '#/business/practice', '#/business/ca', '#/business/notifications', '#/business/chats', '#/business/reports', '#/business/updates', '#/business/keep', '#/onboarding', '#/business/away', '#/money?sheet=accountant:books']);
+    expect(hrefs).toHaveLength(15);
     expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
 });

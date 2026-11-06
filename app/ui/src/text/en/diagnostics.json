@@ -1,0 +1,13 @@
+{
+  "diagnostics.title": "Diagnostics",
+  "diagnostics.line": "What Chausar noted on this computer: start-up steps, request times and error names. You read it before it's saved.",
+  "diagnostics.export": "Export diagnostics",
+  "diagnostics.counted": "How this was counted",
+  "diagnostics.row": "{label}: {time}, from {count} records",
+  "diagnostics.file": "{name}, {size}",
+  "diagnostics.dumps": "Add crash files.",
+  "diagnostics.dumpsHint": "A crash file can hold parts of what was on screen.",
+  "diagnostics.leftOut": "Older crash files that didn't fit: {count}.",
+  "diagnostics.save": "Save",
+  "diagnostics.notNow": "Not now"
+}
