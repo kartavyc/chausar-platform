@@ -17,6 +17,7 @@ import { Recipes } from './Recipes';
 import s from './Business.module.css';
 import fields from '../../parts/Field.module.css';
 import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 /**
  * Plan and playbook (venture.blueprint.get) in the D look: the plan's name and one line with who it is for, how far
@@ -270,13 +271,9 @@ function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: (
 
   return (
     <form className={s.form} onSubmit={(event) => void save(event)}>
-      <div className={fields.field}>
-        <label className={fields.label} htmlFor={countryId}>{t('business.country')}</label>
-        <select className={fields.input} id={countryId} value={countryCode} onChange={event => setCountryChoice(event.currentTarget.value)} aria-describedby={countryCode !== initialCountry ? countryId + '-warning' : undefined}>
+      <Select label={t('business.country')} id={countryId} value={countryCode} onChange={event => setCountryChoice(event.currentTarget.value)} hint={countryCode !== initialCountry ? t('business.countryChange') : undefined}>
           {(countries.data ?? []).map(country => <option key={country.code} value={country.code}>{country.name}</option>)}
-        </select>
-        {countryCode !== initialCountry && <p id={countryId + '-warning'} className={fields.hint}>{t('business.countryChange')}</p>}
-      </div>
+      </Select>
       <Field label={t('business.fieldName')} value={name} maxLength={60} onChange={(event) => setName(event.currentTarget.value)} />
       <Field label={t('business.fieldOneLiner')} value={oneLiner} maxLength={160} onChange={(event) => setOneLiner(event.currentTarget.value)} />
       <Field multiline label={t('business.fieldCustomer')} value={customer} maxLength={200} rows={2} onChange={(event) => setCustomer(event.currentTarget.value)} />

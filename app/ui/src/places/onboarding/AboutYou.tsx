@@ -12,6 +12,8 @@ import { aboutFile, type AboutFile } from './linkedin';
 import { renameIn } from './rename';
 import f from './FirstRun.module.css';
 import s from './AboutYou.module.css';
+import { Select } from '../../parts/Select';
+import { FilePick } from '../../parts/FilePick';
 
 type Mode = 'a' | 'b' | 'plan';
 /** failed: a read that failed or an AI that stopped, said as Chausar's turn in the chat (B4 task 4). */
@@ -196,9 +198,9 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
       {choosing && countries.length > 0 ? (
         <>
           <label htmlFor={countryId}>{t('onboarding.country')}</label>
-          <select id={countryId} className={s.select} value={countryCode ?? 'XX'} onChange={(event) => chooseCountry(event.target.value)}>
+          <Select id={countryId} className={s.select} value={countryCode ?? 'XX'} onChange={(event) => chooseCountry(event.target.value)}>
             {countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-          </select>
+          </Select>
         </>
       ) : country ? (
         <>
@@ -235,11 +237,10 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
         <p className={s.name} data-content="" data-plan-name="">{ownName ?? name ?? read.family?.label ?? ''}</p>
         {read.family && <p className={s.offerLine}>{read.family.label}</p>}
       </div>
-      <label className={s.label} htmlFor={fieldId}>{t('first-run.about.field')}</label>
-      <select id={fieldId} className={s.select} value={read.family?.id ?? ''} disabled={busy} onChange={(event) => void pick(event.target.value, mode)}>
+      <Select label={t('first-run.about.field')} id={fieldId} value={read.family?.id ?? ''} disabled={busy} onChange={(event) => void pick(event.target.value, mode)}>
         {!read.family && <option value="">{t('first-run.about.pick')}</option>}
         {tiles.map((tile) => <option key={tile.id} value={tile.id}>{tile.label}</option>)}
-      </select>
+      </Select>
       {read.offers.length > 0 && (
         <>
           <p className={s.label}>{t('first-run.about.sell')}</p>
@@ -276,11 +277,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
                 <textarea ref={box} id={boxId} className={s.input} rows={2} value={text} placeholder={t('first-run.about.placeholder')}
                   aria-invalid={boxWrong ? true : undefined}
                   onChange={(event) => { setText(event.target.value); setProblem(null); setBoxWrong(false); }} onKeyDown={(event) => onKey(event, send)} />
-                <label className={s.attach} title={t('first-run.about.attach')}>
-                  <Icon name="paperclip" size={18} />
-                  <span className="sr-only">{t('first-run.about.attach')}</span>
-                  <input className="sr-only" type="file" accept=".pdf,.zip,application/pdf,application/zip" onChange={(event) => void onFile(event)} />
-                </label>
+                <FilePick compact icon="paperclip" choose={t('first-run.about.attach')} files={[]} accept=".pdf,.zip,application/pdf,application/zip" onChange={(event) => void onFile(event)} />
                 <Button variant="primary" size="lg" type="submit" disabled={busy || (!text.trim() && !file)}>{t('first-run.about.send')}</Button>
               </div>
               {file && (

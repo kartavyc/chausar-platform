@@ -13,6 +13,8 @@ import { TAX_YEARS } from '../../../../../../platform/runtime/venture/playbooks/
 import type { JournalItem } from '../../../../../../platform/runtime/venture/playbooks/trading-journal/desk-core';
 import s from './TradingJournal.module.css';
 import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
+import { FilePick } from '../../../parts/FilePick';
 
 const desk = { playbook: 'trading-journal' as const, kind: 'journal' };
 const BROKERS = ['zerodha', 'groww', 'upstox', 'dhan'] as const;
@@ -98,12 +100,12 @@ function ImportForm({ busy, act }: { busy: boolean; act: Act }) {
   return (
     <form className={s.form} onSubmit={e => { e.preventDefault(); if (busy || !file) return; void file.text().then(csv => act('import', { broker: broker || null, name: file.name, csv })); }}>
       <label className={s.field}>{w('broker')}
-        <select value={broker} onChange={e => setBroker(e.target.value)}>
+        <Select value={broker} onChange={e => setBroker(e.target.value)}>
           <option value="">{w('broker.auto')}</option>
           {BROKERS.map(id => <option key={id} value={id}>{w('broker.' + id)}</option>)}
-        </select>
+        </Select>
       </label>
-      <Field label={w('file')} type="file" accept=".csv,text/csv" onChange={e => setFile(e.currentTarget.files?.[0] ?? null)} />
+      <FilePick label={w('file')} accept=".csv,text/csv" onChange={e => setFile(e.currentTarget.files?.[0] ?? null)} />
       <Button type="submit" variant="primary" aria-disabled={busy || !file}>{w('import')}</Button>
     </form>
   );
@@ -133,7 +135,7 @@ function PackForm({ busy, act }: { busy: boolean; act: Act }) {
   return (
     <form className={s.form} onSubmit={e => { e.preventDefault(); if (!busy) void act('tax-pack', { yearId: year }); }}>
       <label className={s.field}>{w('year')}
-        <select value={year} onChange={e => setYear(e.target.value)}>{TAX_YEARS.map(y => <option key={y.id} value={y.id}>{y.label}</option>)}</select>
+        <Select value={year} onChange={e => setYear(e.target.value)}>{TAX_YEARS.map(y => <option key={y.id} value={y.id}>{y.label}</option>)}</Select>
       </label>
       <Button type="submit" variant="primary" aria-disabled={busy}>{w('preparePack')}</Button>
     </form>

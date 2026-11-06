@@ -88,8 +88,8 @@
   color: var(--mute);
 }
 
-.search:focus-within {
-  border-color: var(--fg);
+.search:has(input:focus-visible) {
+  outline: var(--focus) solid var(--link);
 }
 
 .searchInput {

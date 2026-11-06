@@ -11,6 +11,7 @@ import { ExternalLink } from '../../connections/external';
 import s from './LeadGenerationDesk.module.css';
 import { CommunityLeadPanel } from './CommunityLeadPanel';
 import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 const base = { playbook: 'lead-generation' as const, kind: 'source' };
 type SearchQuote = { query: string; credits: string; checkedOn: string; digest: string };
 /** A quiet desk: today's prospects first, optional manual entries and paid network search one step away. */
@@ -43,7 +44,7 @@ export function LeadGenerationDesk() {
       <form className={s.form} aria-label={t('pb-lead-generation.researchForm')} onSubmit={research}>
         <div className={s.pair}>
           <Field label={t('pb-lead-generation.city')} value={city} onChange={event => setCity(event.target.value)} required />
-          <label className={s.label}>{t('pb-lead-generation.vertical')}<select value={vertical} onChange={event => setVertical(event.target.value)}><option value="shop=bakery">{t('pb-lead-generation.bakery')}</option><option value="amenity=cafe">{t('pb-lead-generation.cafe')}</option><option value="amenity=clinic">{t('pb-lead-generation.clinic')}</option><option value="shop=hairdresser">{t('pb-lead-generation.salon')}</option></select></label>
+          <label className={s.label}>{t('pb-lead-generation.vertical')}<Select value={vertical} onChange={event => setVertical(event.target.value)}><option value="shop=bakery">{t('pb-lead-generation.bakery')}</option><option value="amenity=cafe">{t('pb-lead-generation.cafe')}</option><option value="amenity=clinic">{t('pb-lead-generation.clinic')}</option><option value="shop=hairdresser">{t('pb-lead-generation.salon')}</option></Select></label>
         </div>
         <Field label={t('pb-lead-generation.offer')} value={ownOffer} onChange={event => setOwnOffer(event.target.value)} required />
         <Field label={t('pb-lead-generation.address')} hint={t('pb-lead-generation.addressHint')} value={postalAddress} onChange={event => setPostalAddress(event.target.value)} required />
@@ -70,7 +71,7 @@ export function LeadGenerationDesk() {
         <Field label={t('pb-lead-generation.name')} value={name} onChange={event => setName(event.target.value)} required />
         <Field label={t('pb-lead-generation.email')} type="email" value={email} onChange={event => setEmail(event.target.value)} required />
         <Field label={t('pb-lead-generation.company')} value={company} onChange={event => setCompany(event.target.value)} />
-        <label className={s.label}>{t('pb-lead-generation.cameFrom')}<select value={source} onChange={event => setSource(event.target.value)}><option value="referral">{t('pb-lead-generation.referral')}</option><option value="walk-in">{t('pb-lead-generation.walkin')}</option></select></label>
+        <label className={s.label}>{t('pb-lead-generation.cameFrom')}<Select value={source} onChange={event => setSource(event.target.value)}><option value="referral">{t('pb-lead-generation.referral')}</option><option value="walk-in">{t('pb-lead-generation.walkin')}</option></Select></label>
         <Button type="submit" disabled={busy}>{t('pb-lead-generation.addManual')}</Button>
       </form></Fold>
     </Tile>

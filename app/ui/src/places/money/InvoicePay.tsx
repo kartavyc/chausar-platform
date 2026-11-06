@@ -29,6 +29,7 @@ import { reserveTab } from '../connections/external';
 import { messageOf } from './words';
 import s from './Money.module.css';
 import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 type Changed = (next?: InvoiceViewLite) => void;
 /** How often a waiting payment link is checked while the sheet is open. */
@@ -257,9 +258,9 @@ export function BillPart({ view, onChanged }: { view: InvoiceViewLite; onChanged
         <Fold summary={t('money-pay.part.fold')} className={`${s.fold} ${s.block}`}>
           <div className={s.field}>
             <label htmlFor={kindId} className={s.fieldLabel}>{t('money-pay.part.kind')}</label>
-            <select id={kindId} className={s.select} value={kind} disabled={busy} onChange={(event) => setKind(event.currentTarget.value as Kind)}>
+            <Select id={kindId} className={s.select} value={kind} disabled={busy} onChange={(event) => setKind(event.currentTarget.value as Kind)}>
               {KINDS.map((item) => <option key={item} value={item}>{t(`money-pay.part.${item}`)}</option>)}
-            </select>
+            </Select>
           </div>
           {(kind === 'advance' || kind === 'milestone') && <Field label={t('money-pay.part.percent')} value={percent} inputMode="decimal" autoComplete="off" disabled={busy} onChange={(event) => setPercent(event.currentTarget.value)} />}
           {kind === 'partial' && <Field label={t('money-pay.part.amount')} value={amount} inputMode="decimal" autoComplete="off" disabled={busy} onChange={(event) => setAmount(event.currentTarget.value)} />}

@@ -7,6 +7,7 @@ import { Figure } from './Figure';
 import { Field } from './Field';
 import s from './AgentProgress.module.css';
 import { Fold } from './Fold';
+import { Select } from './Select';
 
 const TOOLS:Record<string,string>={read_business:'business',read_client:'client',read_order:'order',list_files:'files',read_file:'file',calculate:'calculate',draft_document:'draft',propose_action:'propose',search_records:'search',Read:'file',Write:'write',Edit:'write',Glob:'files',Grep:'search',WebSearch:'web',WebFetch:'page'};
 
@@ -84,7 +85,7 @@ function PendingQuestion({pending,onDecide}:{pending:Pending;onDecide:Decision|u
     {Object.entries(form).map(([key,field])=>field.type==='boolean'
       ? <label key={key} className={s.field}><input type="checkbox" checked={values[key]===true} onChange={event=>setValues({...values,[key]:event.currentTarget.checked})}/><span data-content>{field.title??key}</span></label>
       : field.enum
-        ? <label key={key} className={s.field}><span data-content>{field.title??key}</span><select value={String(values[key]??'')} onChange={event=>setValues({...values,[key]:event.currentTarget.value})}><option value=""></option>{field.enum.map(option=><option key={option} value={option}>{option}</option>)}</select></label>
+        ? <label key={key} className={s.field}><span data-content>{field.title??key}</span><Select value={String(values[key]??'')} onChange={event=>setValues({...values,[key]:event.currentTarget.value})}><option value=""></option>{field.enum.map(option=><option key={option} value={option}>{option}</option>)}</Select></label>
         : <Field key={key} label={field.title??key} type={field.type==='string'?'text':'number'} value={String(values[key]??'')} onChange={event=>setValues({...values,[key]:event.currentTarget.value})}/>)}
     <ModelEstimate/>
     {error && <p role="alert">{error}</p>}

@@ -10,6 +10,7 @@ import connections from './Connections.module.css';
 import { McpServers } from './McpServers';
 import { Packs } from './Packs';
 import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 export function AgentSettings() {
   const t = useT(), engine = useEngine(), id = useId();
@@ -41,16 +42,16 @@ export function AgentSettings() {
           <div className={s.fields}>{(['quick', 'main'] as const).map(kind => <div key={kind} className={s.task}>
             <Field label={t('connections.settings.model', { provider: t(`connections.settings.${name}`), task: t(`connections.settings.${kind}`) })} value={draft[name][kind].model} onChange={event => task(name, kind, { model: event.currentTarget.value })} />
             <label className={s.label}>{t('connections.settings.effort', { provider: t(`connections.settings.${name}`), task: t(`connections.settings.${kind}`) })}
-              <select className={s.select} value={draft[name][kind].effort} onChange={event => task(name, kind, { effort: event.currentTarget.value as AiTaskSettings['effort'] })}>
+              <Select className={s.select} value={draft[name][kind].effort} onChange={event => task(name, kind, { effort: event.currentTarget.value as AiTaskSettings['effort'] })}>
                 {(['low', 'medium', 'high', 'max'] as const).map(effort => <option key={effort} value={effort}>{t(`connections.settings.effort.${effort}`)}</option>)}
-              </select>
+              </Select>
             </label>
           </div>)}</div>
           <div className={s.fields}>{(['network', 'webSearch'] as const).map(field => <label key={field} className={s.label}>
             {t('connections.settings.access', { provider: t(`connections.settings.${name}`), access: t(`connections.settings.${field}`) })}
-            <select className={s.select} value={draft[name][field]} onChange={event => provider(name, { [field]: event.currentTarget.value as AiNetwork })}>
+            <Select className={s.select} value={draft[name][field]} onChange={event => provider(name, { [field]: event.currentTarget.value as AiNetwork })}>
               {(['off', 'research', 'on'] as const).map(mode => <option key={mode} value={mode}>{t(`connections.settings.${mode}`)}</option>)}
-            </select>
+            </Select>
           </label>)}</div>
           {/* W6 6F5 (D34): the tool's own Gmail connection, off unless the owner turns it on; every send still asks. */}
           <label className={s.check}><input type="checkbox" checked={draft[name].connectors === true} onChange={event => provider(name, { connectors: event.currentTarget.checked })} />{t(`connections.settings.gmail.${name}`)}</label>

@@ -1,10 +1,11 @@
-import { useId, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
 import { Button } from './Button';
 import { SizePicker, savedSize } from './SizePicker';
 import type { ComplianceLite, SizeAnswersLite } from '../engine/types';
 import s from './ComplianceCheck.module.css';
+import { OptionRows } from './OptionRows';
 
 export type SideWorkAnswer = 'allowed' | 'not-allowed' | 'not-sure';
 /**
@@ -42,7 +43,6 @@ export function ComplianceCheck({ profession, record = true, onDone, headingLeve
   const [answer, setAnswer] = useState<SideWorkAnswer | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const name = useId();
   const data: ComplianceLite | undefined = view.data;
 
   /** A5 fix round 2: a second press while the first is on its way sends nothing. */
@@ -69,14 +69,7 @@ export function ComplianceCheck({ profession, record = true, onDone, headingLeve
   const own = data.hardStops;
   return (
     <section className={s.check} aria-label={t('compliance.title')} data-compliance={data.profession.id}>
-      <fieldset className={s.choices}>
-        <legend className={s.question}>{data.question}</legend>
-        {ANSWERS.map((value) => (
-          <label key={value} className={s.choice}>
-            <input type="radio" name={name} value={value} checked={answer === value} onChange={() => setAnswer(value)} /> {t(`compliance.answer.${value}`)}
-          </label>
-        ))}
-      </fieldset>
+      <OptionRows legend={data.question} legendClassName={s.question} value={answer} options={ANSWERS.map((value) => ({ id: value, label: t(`compliance.answer.${value}`) }))} onChange={setAnswer} />
       <p className={s.note}>{data.responsibility}</p>
       {data.size && <SizePicker ask={data.size} value={picked ?? savedSize(data.size)} disabled={busy} onChange={setPicked} />}
       {data.rules.length > 0 && (

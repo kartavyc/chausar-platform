@@ -11,6 +11,7 @@ import type { BoardOutput, YoutubeBoardBody } from '../../../../../../platform/r
 import s from './YoutubeDesk.module.css';
 import { YoutubeBoardChecks } from './YoutubeBoardChecks';
 import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 
 type BoardView = { id: string; orderId: string; digest: string; board: YoutubeBoardBody | null };
 export type BoardAct = (action: string, payload: Record<string, unknown>) => Promise<unknown>;
@@ -61,7 +62,7 @@ export function YoutubeBoard({ editId }: { editId: string }) {
       <p className={s.line}>{t('pb-youtube-board.handoff')}</p>
       <Fold summary={t('pb-youtube-board.prepare')} open={!board}>
         <label className={s.label} htmlFor={`${id}-rate`}>{t('pb-youtube-board.rate')}</label>
-        <select id={`${id}-rate`} className={s.select} value={rate} onChange={event => setRate(event.target.value)}><option value="25">25</option><option value="30">30</option><option value="29.97df">29.97 DF</option></select>
+        <Select id={`${id}-rate`} className={s.select} value={rate} onChange={event => setRate(event.target.value)}><option value="25">25</option><option value="30">30</option><option value="29.97df">29.97 DF</option></Select>
         {platforms.map(platform => <Field key={platform} multiline label={t(`pb-youtube-board.publish.${platform}`)} value={publishing[platform]} onChange={event => setPublishing(words => ({ ...words, [platform]: event.target.value }))} maxLength={50000} />)}
         <p className={s.line}>{t('pb-youtube-board.optionalPlatforms')}</p>
         <Button variant="primary" disabled={busy} locked={!Object.values(publishing).some(text => text.trim())} onClick={() => { setDirty({}); void act('prepare', { rate: rate === '29.97df' ? rate : Number(rate), publishing: platforms.filter(platform => publishing[platform].trim()).map(platform => ({ platform, text: publishing[platform] })) }); }}>{t('pb-youtube-board.prepare')}</Button>

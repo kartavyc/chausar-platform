@@ -9,6 +9,7 @@ import { TileSection, messageOf } from './shared';
 import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './VoiceView.module.css';
+import { Select } from '../../parts/Select';
 
 /** The six sections, in the engine's order (agents/voice.ts VOICE_SECTIONS). */
 const SECTIONS: readonly (keyof VoiceSections)[] = ['audience', 'howITalk', 'neverUse', 'wordsIUse', 'willNotClaim', 'format'];
@@ -213,16 +214,16 @@ function AddVoice({ taken, onAdd }: { taken: ReadonlySet<string>; onAdd: (voice:
       <div className={s.pickers}>
         <div className={s.picker}>
           <label className={s.label} htmlFor={`${id}-language`}>{t('business.voice.language')}</label>
-          <select id={`${id}-language`} className={s.select} value={language} onChange={(event) => setLanguage(event.currentTarget.value as 'en' | 'hi')}>
+          <Select id={`${id}-language`} className={s.select} value={language} onChange={(event) => setLanguage(event.currentTarget.value as 'en' | 'hi')}>
             {LANGUAGES.map((one) => <option key={one} value={one}>{t(`business.voice.language.${one}`)}</option>)}
-          </select>
+          </Select>
         </div>
         <div className={s.picker}>
           <label className={s.label} htmlFor={`${id}-channel`}>{t('business.voice.channel')}</label>
-          <select id={`${id}-channel`} className={s.select} value={channel} onChange={(event) => setChannel(event.currentTarget.value)}>
+          <Select id={`${id}-channel`} className={s.select} value={channel} onChange={(event) => setChannel(event.currentTarget.value)}>
             <option value="">{t('business.voice.channel.any')}</option>
             {CHANNELS.map((one) => <option key={one} value={one}>{t(`business.voice.channel.${one}`)}</option>)}
-          </select>
+          </Select>
         </div>
       </div>
       {exists && <p className={b.note}>{t('business.voice.exists')}</p>}

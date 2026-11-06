@@ -45,7 +45,7 @@
   "business.notify.save": "Save",
   "business.notify.saved": "Saved.",
   "business.notify.pause": "Pause alerts until",
-  "business.notify.pauseHint": "30 days at most. Nothing is replayed after it ends.",
+  "business.notify.pauseHint": "At most 30 days. Nothing replays later.",
   "business.notify.pauseButton": "Pause",
   "business.notify.pauseFirst": "Pick a date",
   "business.notify.resume": "Resume alerts now",

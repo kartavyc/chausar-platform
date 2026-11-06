@@ -246,7 +246,7 @@ describe('first run: the side-work question (6C6, DECISIONS D5)', () => {
     await confirmProfession();
     const check = await screen.findByRole('region', { name: 'Day job and rules' }, { timeout: 4000 });
     expect(screen.getByRole('heading', { level: 1, name: 'Day job and rules' })).toBeTruthy();
-    expect(within(check).getByRole('group', { name: 'Does your employment contract allow side work? This is your responsibility.' })).toBeTruthy();
+    expect(within(check).getByRole('radiogroup', { name: 'Does your employment contract allow side work? This is your responsibility.' })).toBeTruthy();
     expect(within(check).getByText('Chausar does not read your contract. You decide, and you are responsible for it.')).toBeTruthy();
     expect(calls.find(([method]) => method === 'venture.compliance.get')?.[1]).toEqual({ profession: 'teaching' });
     // Nothing is kept yet: the vault waits for the answer.

@@ -13,6 +13,8 @@ import { Count } from '../../../parts/Figure';
 import s from './YoutubeDesk.module.css';
 import { YoutubeBoard } from './YoutubeBoard';
 import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
+import { FilePick } from '../../../parts/FilePick';
 
 type EditView = {
   id: string; digest: string; orderId: string; source: { label: string }; document: { words: { id: string; text: string }[] };
@@ -67,18 +69,17 @@ export function YoutubeDesk() {
       <p className={s.line}>{t('pb-youtube.honesty')}</p>
       <div className={s.import}>
         <label htmlFor={`${id}-order`}>{t('pb-youtube.order')}</label>
-        <select id={`${id}-order`} value={chosen} onChange={event => { setOrder(event.target.value); setSourceChoice(''); }} className={s.select}>
+        <Select id={`${id}-order`} value={chosen} onChange={event => { setOrder(event.target.value); setSourceChoice(''); }} className={s.select}>
           <option value="">{t('pb-youtube.chooseOrder')}</option>
           {orders.data?.filter(order => order.status === 'open').map(order => <option key={order.id} value={order.id}>{order.request}</option>)}
-        </select>
+        </Select>
         <label htmlFor={`${id}-source`}>{t('pb-youtube.source')}</label>
-        <select id={`${id}-source`} value={sourceChoice} className={s.select} onChange={event => setSourceChoice(event.target.value)}>
+        <Select id={`${id}-source`} value={sourceChoice} className={s.select} onChange={event => setSourceChoice(event.target.value)}>
           <option value="">{t('pb-youtube.chooseSource')}</option>
           {choices.map(choice => <option key={choice.key} value={choice.key} data-content="">{choice.name}</option>)}
-        </select>
+        </Select>
         {!choices.length && <p className={s.line}>{t('pb-youtube.sourceHelp')}</p>}
-        <label htmlFor={`${id}-file`}>{t('pb-youtube.file')}</label>
-        <input id={`${id}-file`} type="file" accept=".json,application/json" onChange={event => {
+        <FilePick label={t('pb-youtube.file')} accept=".json,application/json" onChange={event => {
           const file = event.target.files?.[0]; setSource(null); setError(null); if (!file) return;
           if (file.size > 1000000) { setError(t('pb-youtube.error.UPLOAD_LIMIT')); return; }
           void file.text().then(text => { const parsed: unknown = JSON.parse(text); if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(); setSource({ ...parsed, label: file.name }); }).catch(() => setError(t('pb-youtube.error.WORD_TIMES_REQUIRED')));
@@ -148,7 +149,7 @@ function EditPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
       <ul className={s.list}>{item.cleanup.suggestions.map((suggestion, index) => <li key={index}>{t('pb-youtube.filler')} <Count value={suggestion.wordIds.join(', ')} /></li>)}</ul>
     </div>}
     <Fold summary={t('pb-youtube.captionTitle')}>
-      <label className={s.label}>{t('pb-youtube.profile')}<select value={profile} onChange={event => setProfile(event.target.value)} className={s.select}>{['web', 'broadcast', 'vertical'].map(profile => <option key={profile} value={profile}>{t(`pb-youtube.profile.${profile}`)}</option>)}</select></label>
+      <label className={s.label}>{t('pb-youtube.profile')}<Select value={profile} onChange={event => setProfile(event.target.value)} className={s.select}>{['web', 'broadcast', 'vertical'].map(profile => <option key={profile} value={profile}>{t(`pb-youtube.profile.${profile}`)}</option>)}</Select></label>
       <Button onClick={() => void act('captions', { profile })} disabled={busy}>{t('pb-youtube.makeCaptions')}</Button>
       {item.captionFiles && <><div className={s.actions}><Button disabled={busy} onClick={() => void exportCaptions('srt')}>{t('pb-youtube.saveSrt')}</Button><Button disabled={busy} onClick={() => void exportCaptions('vtt')}>{t('pb-youtube.saveVtt')}</Button></div>
         <ul className={s.list}>{item.captionFiles.findings.map((finding, index) => <li key={index}><Count value={finding.cueId} /> {t(`pb-youtube.caption.${finding.code}`)}</li>)}</ul>

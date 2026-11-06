@@ -154,7 +154,7 @@ describe('Business > Notifications: what each setting means, and what the engine
     const quiet = await region('Quiet times');
     await within(quiet).findByText("During quiet hours, alerts outside the app wait, then one count comes when they end. Items that expire soon still come. Times are in the business's time zone.");
     expect(within(quiet).getByText('The summary stays in the bell: its words never go to your phone or the tray.')).toBeTruthy();
-    expect(within(quiet).getByText('30 days at most. Nothing is replayed after it ends.')).toBeTruthy();
+    expect(within(quiet).getByText('At most 30 days. Nothing replays later.')).toBeTruthy();
   });
 
   it('shows the tray and the relay only when the engine answers for the relay', async () => {

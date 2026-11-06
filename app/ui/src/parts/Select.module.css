@@ -1,0 +1,61 @@
+/* Select: Field's box over a native select, with the app's arrow in place of the system's. These rules hold through
+   `.wrap > select`, so a place's own class can size it but never gives it another look. */
+
+.wrap {
+  position: relative;
+  display: grid;
+  align-items: center;
+  min-width: 0;
+  max-width: var(--field-max);
+}
+
+.wrap > select {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control);
+  padding-inline: var(--sp-3) var(--sp-8);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-body);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color var(--t-press) var(--ease);
+}
+
+.wrap > select:hover {
+  border-color: var(--edge);
+}
+
+.wrap > select:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 0;
+}
+
+.wrap > select[aria-invalid='true'] {
+  border-color: var(--fail);
+}
+
+.wrap > select:disabled {
+  background: var(--inner);
+  color: var(--mute);
+  cursor: default;
+}
+
+.arrow {
+  position: absolute;
+  inset-inline-end: var(--sp-3);
+  display: inline-flex;
+  color: var(--mute);
+  pointer-events: none;
+}
+
+/* A phone: a full 44 px touch target, as a Field is. */
+@media (max-width: 759px) {
+  .wrap > select {
+    min-height: var(--target);
+  }
+}

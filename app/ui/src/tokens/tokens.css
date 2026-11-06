@@ -197,6 +197,7 @@
   --sheet-min: 360px;
   --sheet-max: 480px;
   --control: 36px;
+  --field-max: 480px;
   --target: 44px;
   --focus: 2px;
 

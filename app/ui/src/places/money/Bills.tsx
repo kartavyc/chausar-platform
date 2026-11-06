@@ -10,7 +10,7 @@
  * and the books count it as a cost. A repeating bill can stop repeating, after a second ask.
  */
 
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -23,6 +23,7 @@ import { Failed, Section } from './parts';
 import { messageOf, onMoney, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import { Select } from '../../parts/Select';
 
 /** The ways a bill can be paid: the payment sheet's, and a cheque. */
 const METHODS: readonly PaymentMethod[] = [...PAYMENT_METHODS, 'cheque'];
@@ -123,7 +124,6 @@ function PayBill({ bill, currency, onDone, onCancel }: { bill: BillView; currenc
   const day = useDay();
   const engine = useEngine();
   const today = useLocalToday();
-  const methodId = useId();
   const [amount, setAmount] = useState('');
   const [paidOn, setPaidOn] = useState(today);
   const [method, setMethod] = useState<PaymentMethod>('bank-transfer');
@@ -146,12 +146,9 @@ function PayBill({ bill, currency, onDone, onCancel }: { bill: BillView; currenc
     <form className={s.form} noValidate onSubmit={(event) => { event.preventDefault(); if (amount.trim() !== '' && paidOn) setPhase('confirm'); else setProblem(t('money.typed.amount', { currency })); }}>
       <Field label={t('money.bills.paid')} hint={t('money.bills.amountHint', { currency })} value={amount} inputMode="decimal" autoComplete="off" disabled={phase !== 'form'} onChange={(event) => setAmount(event.currentTarget.value)} />
       <Field label={t('money.bills.paidOn')} type="date" value={paidOn} disabled={phase !== 'form'} onChange={(event) => setPaidOn(event.currentTarget.value)} />
-      <div className={s.field}>
-        <label htmlFor={methodId} className={s.fieldLabel}>{t('money.payment.method')}</label>
-        <select id={methodId} className={s.select} value={method} disabled={phase !== 'form'} onChange={(event) => setMethod(event.currentTarget.value as PaymentMethod)}>
+      <Select label={t('money.payment.method')} value={method} disabled={phase !== 'form'} onChange={(event) => setMethod(event.currentTarget.value as PaymentMethod)}>
           {METHODS.map((option) => <option key={option} value={option}>{t(`money.method.${option}`)}</option>)}
-        </select>
-      </div>
+        </Select>
       {phase === 'form' ? (
         <div className={s.buttons}>
           <Button onClick={onCancel}>{t('approval.cancel')}</Button>
@@ -176,7 +173,6 @@ function AddBill({ gst, currency, onAdded, onClose }: { gst: boolean; currency: 
   const t = useT();
   const engine = useEngine();
   const today = useLocalToday();
-  const repeatId = useId();
   const [vendor, setVendor] = useState('');
   const [what, setWhat] = useState('');
   const [amount, setAmount] = useState('');
@@ -220,14 +216,11 @@ function AddBill({ gst, currency, onAdded, onClose }: { gst: boolean; currency: 
       )}
       <Field label={t('money.bills.billDate')} type="date" value={billDate} disabled={busy} onChange={(event) => setBillDate(event.currentTarget.value)} />
       <Field label={t('money.bills.dueDate')} type="date" value={dueDate} disabled={busy} onChange={(event) => setDueDate(event.currentTarget.value)} />
-      <div className={s.field}>
-        <label htmlFor={repeatId} className={s.fieldLabel}>{t('money.bills.repeat')}</label>
-        <select id={repeatId} className={s.select} value={repeats} disabled={busy} onChange={(event) => setRepeats(event.currentTarget.value as typeof repeats)}>
+      <Select label={t('money.bills.repeat')} value={repeats} disabled={busy} onChange={(event) => setRepeats(event.currentTarget.value as typeof repeats)}>
           <option value="none">{t('money.bills.repeat.none')}</option>
           <option value="monthly">{t('money.bills.repeat.monthly')}</option>
           <option value="quarterly">{t('money.bills.repeat.quarterly')}</option>
-        </select>
-      </div>
+        </Select>
       <div className={s.buttons}>
         <Button disabled={busy} onClick={onClose}>{t('approval.cancel')}</Button>
         <Button variant="primary" type="submit" disabled={busy} disabledReason={vendor.trim() === '' || amount.trim() === '' ? t('money.bills.needBoth') : undefined}>{t('money.bills.addButton')}</Button>

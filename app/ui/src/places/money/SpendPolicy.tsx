@@ -25,6 +25,7 @@ import { DraftRecover, DraftWord, useSettingsDraft } from '../business/settingsD
 // 4Z3: the rate said once per page (4A2's rule), on its own line; the limits show only their rupee amounts.
 import { withoutRate } from '../team/departments';
 import s from './Money.module.css';
+import { Select } from '../../parts/Select';
 
 const UNITS: readonly SpendRateUnit[] = ['per-million-tokens', 'per-call', 'per-run-cap'];
 /** 4Z3: which currency leads AI spend: Auto (by where the business is), rupees first or dollars first. */
@@ -215,12 +216,12 @@ export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } 
           {/* 4Z3: which currency leads AI spend everywhere it shows; the engine sends each figure led that way. */}
           <div className={s.field}>
             <label htmlFor={leadId} className={s.fieldLabel}>{t('money.policy.lead')}</label>
-            <select
+            <Select
               id={leadId} className={s.select} value={lead} disabled={sending} aria-describedby={`${leadId}-hint`}
               onChange={(event) => { setLead(event.currentTarget.value as CurrencyLead); setAsking(false); setTouched(true); }}
             >
               {LEADS.map((choice) => <option key={choice} value={choice}>{t(`money.policy.lead.${choice}`)}</option>)}
-            </select>
+            </Select>
             <p id={`${leadId}-hint`} className={s.fieldHint}>{t('money.policy.leadHint')}</p>
           </div>
           <div className={s.rateCard} role="group" aria-label={t('money.policy.rates')}>
@@ -273,9 +274,9 @@ function RateEditor({ rate, disabled, onChange, onRemove }: { rate: RateDraft; d
       <Field label={t('money.policy.item')} hint={t('money.policy.itemHint')} value={rate.item} autoComplete="off" disabled={disabled} onChange={(event) => onChange({ item: event.currentTarget.value })} />
       <div className={s.field}>
         <label htmlFor={unitId} className={s.fieldLabel}>{t('money.policy.unit')}</label>
-        <select id={unitId} className={s.select} value={rate.unit} disabled={disabled} onChange={(event) => onChange({ unit: event.currentTarget.value as SpendRateUnit })}>
+        <Select id={unitId} className={s.select} value={rate.unit} disabled={disabled} onChange={(event) => onChange({ unit: event.currentTarget.value as SpendRateUnit })}>
           {UNITS.map((unit) => <option key={unit} value={unit}>{t(`money.policy.unit.${unit}`)}</option>)}
-        </select>
+        </Select>
       </div>
       {rate.unit === 'per-million-tokens' ? (
         <>

@@ -99,8 +99,8 @@
   cursor: pointer;
 }
 
-.file:focus-within {
-  outline: var(--hair) solid var(--focus);
+.file:has(:focus-visible) {
+  outline: var(--focus) solid var(--link);
 }
 
 .open {
@@ -120,7 +120,7 @@
 }
 
 .open:focus-visible {
-  outline: var(--hair) solid var(--focus);
+  outline: var(--focus) solid var(--link);
 }
 
 .fold {

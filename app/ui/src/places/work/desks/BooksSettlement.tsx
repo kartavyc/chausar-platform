@@ -11,6 +11,7 @@ import {SETTLEMENT_PAYMENT_COLUMNS} from '../../../../../../platform/runtime/ven
 import s from './CollectionsDesk.module.css';
 import p from './BooksPosting.module.css';
 import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 const base={playbook:'bookkeeping-cfo' as const,kind:'settlement'};
 type Props={id:string;system:'zoho'|'tally';files:readonly {id:string;name:string}[]};
 export function BooksSettlement(props:Props){return <SettlementScope key={props.id} {...props}/>;}
@@ -25,7 +26,7 @@ function SettlementScope({id,system,files}:Props){
   {(error||detail.error||proof.error)&&<p role="alert" className={s.error}>{error||word('error.REQUEST_FAILED')}</p>}
   {(!posting||posting.state==='staged')&&<Tile><form className={s.form} aria-label={word('prepare')} onSubmit={event=>{event.preventDefault();if(file)void act('stage');}}>
    <a download="books-settlement-blank.csv" href={'data:text/csv;charset=utf-8,'+encodeURIComponent(SETTLEMENT_PAYMENT_COLUMNS.join(',')+'\r\n')}>{word('template')}</a><p>{word('sourceHelp')}</p>
-   <label>{word('source')}<select className={s.select} disabled={busy} value={file} onChange={event=>setFile(event.target.value)}><option value="">{word('choose')}</option>{files.map(value=><option key={value.id} value={value.id}>{value.name}</option>)}</select></label>
+   <label>{word('source')}<Select className={s.select} disabled={busy} value={file} onChange={event=>setFile(event.target.value)}><option value="">{word('choose')}</option>{files.map(value=><option key={value.id} value={value.id}>{value.name}</option>)}</Select></label>
    <Button type="submit" variant="primary" locked={busy||detail.loading||!!detail.error||!file}>{word('prepare')}</Button>
   </form></Tile>}
   {posting&&<Tile><h3>{word('review')}</h3><p role="status">{word('state.'+posting.state)}</p>{item&&<p>{word('client')} <span data-content="">{client?.name??item.clientId}</span>{client&&<> · <span data-content="">{item.clientId}</span></>}</p>}

@@ -208,7 +208,7 @@ describe('Welcome back: move a business here', () => {
     fireEvent.change(input, { target: { files: [new File([text], name, { type: 'application/json' })] } });
   };
 
-  it("Chausar's button opens the hidden file chooser; the code sits outside any form; the file and code go once, the code is cleared", async () => {
+  it("Chausar's button opens the file chooser; the code sits outside any form; the file and code go once, the code is cleared", async () => {
     const move = await moveFile();
     const { calls } = start({ fresh: true });
     await press(await screen.findByRole('button', { name: 'Open a business you already have' }));
@@ -216,13 +216,11 @@ describe('Welcome back: move a business here', () => {
     await press(screen.getByRole('button', { name: 'Move from another computer' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Move a business here' })).toBeTruthy();
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(input.hidden).toBe(true);
     expect(input.accept).toBe('.backup,application/json');
     let picked = 0;
     input.addEventListener('click', () => { picked++; });
-    await press(screen.getByRole('button', { name: 'Choose the move file' }));
+    await press(screen.getByText('Choose the move file'));
     expect(picked).toBe(1);
-    expect(screen.getByText('No file chosen yet.')).toBeTruthy();
     const code = screen.getByLabelText('The move code') as HTMLInputElement;
     expect(code.type).toBe('password');
     expect(code.autocomplete).toBe('off');

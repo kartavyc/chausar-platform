@@ -7,6 +7,7 @@ import { Field } from '../../parts/Field';
 import { AgentFile } from './AgentFile';
 import s from './AgentExtras.module.css';
 import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 /** The agent says each new persona version in its chat, so a message is when the persona may have changed. */
@@ -112,10 +113,10 @@ export function AgentPersona({ agent }: { agent: AgentView }) {
         {field('tone', t('team.persona.tone'))}
         <div className={s.selectField}>
           <label className={s.label} htmlFor={`${resultsId}-length`}>{t('team.persona.length')}</label>
-          <select id={`${resultsId}-length`} className={s.select} value={form.replyLength} onChange={(event) => edit({ replyLength: event.currentTarget.value as Form['replyLength'] })}>
+          <Select id={`${resultsId}-length`} className={s.select} value={form.replyLength} onChange={(event) => edit({ replyLength: event.currentTarget.value as Form['replyLength'] })}>
             <option value="">{t('team.persona.lengthNone')}</option>
             {LENGTHS.map((length) => <option key={length} value={length}>{t(`team.persona.length.${length}`)}</option>)}
-          </select>
+          </Select>
         </div>
         {field('greeting', t('team.persona.greeting'))}
         {field('handOffLine', t('team.persona.handOff'))}

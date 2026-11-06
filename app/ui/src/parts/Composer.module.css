@@ -54,8 +54,8 @@
   transition: border-color var(--t-press) var(--ease);
 }
 
-.box:focus-within {
-  border-color: var(--fg);
+.box:has(.text:focus-visible) {
+  outline: var(--focus) solid var(--link);
 }
 
 .text {

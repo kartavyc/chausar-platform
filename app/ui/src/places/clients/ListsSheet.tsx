@@ -17,6 +17,7 @@ import type { CrmListView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { CrmFold, HistoryList, messageOf } from './CrmParts';
 import s from './Crm.module.css';
+import { Select } from '../../parts/Select';
 
 const stagesOf = (text: string) => text.split('\n').map((line) => line.trim()).filter(Boolean);
 
@@ -107,10 +108,10 @@ function StageGroup({ view, stage, onChanged, onFailed }: { view: CrmListView; s
           {group.entries.map((entry) => (
             <li key={entry.member} className={s.item}>
               <button type="button" className={s.link} onClick={(event) => openSheet(entry.kind, entry.member.slice(entry.member.indexOf(':') + 1), event.currentTarget)}>{entry.name}</button>
-              <select aria-label={t('crm.lists.move', { name: entry.name })} className={s.select} value={stage} onChange={(event) => void move(entry.member, event.currentTarget.value)}>
+              <Select aria-label={t('crm.lists.move', { name: entry.name })} className={s.select} value={stage} onChange={(event) => void move(entry.member, event.currentTarget.value)}>
                 {view.list.stages.map((one) => <option key={one} value={one}>{one}</option>)}
                 <option value="">{t('crm.lists.out')}</option>
-              </select>
+              </Select>
             </li>
           ))}
         </ul>
@@ -143,16 +144,16 @@ function AddMember({ view, onChanged, onFailed }: { view: CrmListView; onChanged
     <form className={s.form} onSubmit={(event) => void submit(event)}>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-member`}>{t('crm.lists.member')}</label>
-        <select id={`${ids}-member`} className={s.select} value={member} onChange={(event) => setMember(event.currentTarget.value)}>
+        <Select id={`${ids}-member`} className={s.select} value={member} onChange={(event) => setMember(event.currentTarget.value)}>
           <option value="" disabled>{t('crm.lists.member')}</option>
           {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
+        </Select>
       </div>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-stage`}>{t('crm.lists.stage')}</label>
-        <select id={`${ids}-stage`} className={s.select} value={stage} onChange={(event) => setStage(event.currentTarget.value)}>
+        <Select id={`${ids}-stage`} className={s.select} value={stage} onChange={(event) => setStage(event.currentTarget.value)}>
           {view.list.stages.map((one) => <option key={one} value={one}>{one}</option>)}
-        </select>
+        </Select>
       </div>
       <div className={s.actions}><Button type="submit" disabled={!member || !stage}>{t('crm.lists.place')}</Button></div>
     </form>

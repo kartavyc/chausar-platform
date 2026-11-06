@@ -16,6 +16,7 @@ import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
 import r from './RoutinesView.module.css';
 import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 /** Days as the engine numbers them: 1 Monday to 7 Sunday. */
 const DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
@@ -267,13 +268,10 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
   return (
     <form aria-label={initial ? t('business.routines.changeOf', { name: initial.name }) : t('business.routines.add')} className={r.form} onSubmit={submit}>
       <Field label={t('business.routines.name')} value={name} maxLength={80} onChange={(event) => setName(event.currentTarget.value)} />
-      <label className={r.select}>
-        <span className={r.legend}>{t('business.routines.who')}</span>
-        <select value={agent} onChange={(event) => setAgent(event.currentTarget.value)}>
+      <Select label={t('business.routines.who')} value={agent} onChange={(event) => setAgent(event.currentTarget.value)}>
           <option value="">{t('business.routines.chausar')}</option>
           {agents.map((one) => <option key={one.id} value={one.id}>{one.name}</option>)}
-        </select>
-      </label>
+        </Select>
       <Field multiline rows={3} label={t('business.routines.prompt')} hint={t('business.routines.promptHint')} value={prompt} maxLength={2000} onChange={(event) => setPrompt(event.currentTarget.value)} />
       {keeps ? <p className={s.note}>{initial!.when}</p> : (
         <>

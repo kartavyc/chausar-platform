@@ -7,6 +7,7 @@ import { FeedbackQuestionCard } from '../../parts/FeedbackQuestion';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
 import r from './Reports.module.css';
+import { CheckRow } from '../../parts/OptionRows';
 
 /**
  * Business > Reports (#/business/reports), wave 6 package 6J2 (D47). Off by default. The engine's privacy notice comes
@@ -62,14 +63,8 @@ export function ReportsView() {
         <p className={s.note}>{data.setUp.line}</p>
       </TileSection>
       <TileSection title={t('feedback.choose')}>
-        <label className={r.choice}>
-          <input type="checkbox" checked={usage} disabled={busy} onChange={(event) => setUsage(event.target.checked)} />
-          <span>{t('feedback.usage')} <span className={r.hint}>{t('feedback.usageHint')}</span></span>
-        </label>
-        <label className={r.choice}>
-          <input type="checkbox" checked={crashes} disabled={busy} onChange={(event) => setCrashes(event.target.checked)} />
-          <span>{t('feedback.crashes')} <span className={r.hint}>{t('feedback.crashesHint')}</span></span>
-        </label>
+        <CheckRow label={t('feedback.usage')} detail={t('feedback.usageHint')} checked={usage} disabled={busy} onChange={setUsage} />
+        <CheckRow label={t('feedback.crashes')} detail={t('feedback.crashesHint')} checked={crashes} disabled={busy} onChange={setCrashes} />
         <div className={s.buttons}>
           <Button
             variant={given ? 'secondary' : 'primary'}

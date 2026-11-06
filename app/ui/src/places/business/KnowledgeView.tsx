@@ -12,6 +12,7 @@ import b from './Business.module.css';
 import s from './KnowledgeView.module.css';
 // W6 6G4: the business's dated facts (since when, what they replaced, source, who may see them).
 import { FactsBody } from '../clients/FactsSection';
+import { Select } from '../../parts/Select';
 
 type Kind = KnowledgeSourceInput['kind'];
 const KINDS: readonly Kind[] = ['text', 'link', 'file', 'past-work'];
@@ -215,10 +216,10 @@ function Choice({ label, none, value, onChange, options, loaded }: {
   return (
     <div className={s.choice}>
       <label className={s.label} htmlFor={id}>{label}</label>
-      <select id={id} className={s.select} value={value} onChange={(event) => onChange(event.currentTarget.value)}>
+      <Select id={id} className={s.select} value={value} onChange={(event) => onChange(event.currentTarget.value)}>
         <option value="">{t('business.knowledge.choose')}</option>
         {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-      </select>
+      </Select>
     </div>
   );
 }

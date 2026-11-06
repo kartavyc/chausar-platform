@@ -8,6 +8,7 @@ import { Button } from '../../../parts/Button';
 import { Field } from '../../../parts/Field';
 import { SCHEDULED_WORDS, type SocialScheduledItem } from '../../../../../../platform/runtime/venture/playbooks/social/scheduled-core';
 import s from './SocialSchedule.module.css';
+import { Select } from '../../../parts/Select';
 const base = { playbook: 'social-agency' as const, kind: 'scheduled' };
 const stamp = (iso: string) => iso.replace('T', ' ').replace('.000Z', ' UTC');
 export function SocialSchedule() {
@@ -47,8 +48,8 @@ export function SocialSchedule() {
     return <section className={s.stack} aria-label={words('heading')}>
  <Tile><TileHead title={words('heading')} end={<Button variant="quiet" onClick={() => setAdding(value => !value)}>{words('new')}</Button>}/><p className={s.line}>{words('boundary')}</p>{error && <p role="alert" className={s.error}>{error}</p>}
  {adding && <form className={s.form} onSubmit={event => { event.preventDefault(); void act('create'); }}>
- <label className={s.label}>{words('post')}<select value={postId} onChange={event => setPostId(event.target.value)}><option value="">{words('empty')}</option>{waiting.map(row => <option key={row.id} value={row.id}>{row.title}</option>)}</select></label>
- <label className={s.label}>{words('channel')}<select value={channel} onChange={event => setChannel(event.target.value)}><option value="x">X</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option>{['bluesky','mastodon','telegram','discord'].map(id=><option key={id} value={id}>{t('pb-open-posting.'+id)}</option>)}</select></label>
+ <label className={s.label}>{words('post')}<Select value={postId} onChange={event => setPostId(event.target.value)}><option value="">{words('empty')}</option>{waiting.map(row => <option key={row.id} value={row.id}>{row.title}</option>)}</Select></label>
+ <label className={s.label}>{words('channel')}<Select value={channel} onChange={event => setChannel(event.target.value)}><option value="x">X</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option>{['bluesky','mastodon','telegram','discord'].map(id=><option key={id} value={id}>{t('pb-open-posting.'+id)}</option>)}</Select></label>
  <Field label={words('time')} type="datetime-local" value={time} onChange={event => setTime(event.target.value)} required/>
  <Button variant="primary" type="submit" disabled={busy}>{words('review')}</Button>
  </form>}</Tile>

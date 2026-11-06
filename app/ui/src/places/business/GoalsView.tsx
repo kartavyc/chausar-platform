@@ -13,6 +13,7 @@ import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './GoalsView.module.css';
+import { Select } from '../../parts/Select';
 
 /**
  * Business > Goals (W4 4I2): the owner's monthly goal, money invoiced in the month before tax (founder, 23 Oct). The
@@ -188,9 +189,9 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
       <form className={b.priceForm} onSubmit={(event) => void save(event)} noValidate>
         <div className={s.field}>
           <label htmlFor={monthId} className={s.label}>{t('business.goals.monthField')}</label>
-          <select id={monthId} className={s.select} value={month} disabled={busy} onChange={(event) => onMonth(event.currentTarget.value)}>
+          <Select id={monthId} className={s.select} value={month} disabled={busy} onChange={(event) => onMonth(event.currentTarget.value)}>
             {months.map((option) => <option key={option} value={option}>{words(option)}</option>)}
-          </select>
+          </Select>
         </div>
         <Field
           label={t('business.goals.amountField')}

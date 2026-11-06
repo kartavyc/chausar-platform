@@ -3,6 +3,7 @@ import { useT } from '../../text';
 import { FilterChips, type FilterOption } from '../../parts/FilterChips';
 import { WAY_SORTS, type WayFilter, type WaySort } from './ways';
 import s from './GalleryFilters.module.css';
+import { Select } from '../../parts/Select';
 
 /**
  * The gallery's toolbar (D-Start's `.toolbar`, W4 4J21): one row of chips, All with every way, each category with the
@@ -41,17 +42,17 @@ export function GalleryFilters({ total, categories, upTo, chip, onChip, sort, on
       {byFamily && (
         <span className={s.sort}>
           <label htmlFor={familyId}>{t('onboarding.ways.family')}</label>
-          <select id={familyId} className={s.select} value={family} onChange={(event) => onFamily(event.target.value)}>
+          <Select id={familyId} className={s.select} value={family} onChange={(event) => onFamily(event.target.value)}>
             <option value="all">{t('onboarding.ways.allFamilies')}</option>
             {shownFamilies.map((item) => <option key={item.id} value={item.id}>{t('onboarding.ways.familyCount', { family: item.label, count: String(item.count) })}</option>)}
-          </select>
+          </Select>
         </span>
       )}
       <span className={s.sort}>
         <label htmlFor={sortId}>{t('onboarding.ways.sort')}</label>
-        <select id={sortId} className={s.select} value={sort} onChange={(event) => onSort(event.target.value as WaySort)}>
+        <Select id={sortId} className={s.select} value={sort} onChange={(event) => onSort(event.target.value as WaySort)}>
           {WAY_SORTS.map((id) => <option key={id} value={id}>{t(`onboarding.ways.sort.${id}`)}</option>)}
-        </select>
+        </Select>
       </span>
     </div>
   );

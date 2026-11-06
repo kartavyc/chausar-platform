@@ -9,6 +9,7 @@ import type { SeoWorkItem, SeoWorkOperation } from '../../../../../../platform/r
 import type { RefreshRow } from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/refresh';
 import s from './SeoVisibilityDesk.module.css';
 import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 const base = { playbook: 'seo-visibility' as const, kind: 'work' };
 const operations: SeoWorkOperation[] = ['refresh', 'content', 'meta', 'impact', 'local'];
 /** Review the stored result and its current digest before any owner decision. */
@@ -37,9 +38,9 @@ export function SeoMonthlyWork() {
    <p className={s.line}>{t('pb-seo-work.boundary')}</p>
    {(error || list.error || detail.error) && <p role="alert">{error || t('pb-seo-work.error.REQUEST_FAILED')}</p>}{said && <p role="status">{said}</p>}
    {open && <form className={s.form} aria-label={t('pb-seo-work.new')} onSubmit={submit}>
-    <label className={s.label}>{t('pb-seo-work.order')}<select value={orderId} onChange={e => { setOrder(e.target.value); setUpload(''); }}><option value="">{t('pb-seo-work.chooseOrder')}</option>{orders.data?.map(o => <option key={o.id} value={o.id}>{o.request}</option>)}</select></label>
-    <label className={s.label}>{t('pb-seo-work.operation')}<select value={operation} onChange={e => setOperation(e.target.value as SeoWorkOperation)}>{operations.map(op => <option key={op} value={op}>{t('pb-seo-work.operation.' + op)}</option>)}</select></label>
-    <label className={s.label}>{t('pb-seo-work.file')}<select value={uploadId} onChange={e => setUpload(e.target.value)}><option value="">{t('pb-seo-work.chooseFile')}</option>{files.data?.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
+    <label className={s.label}>{t('pb-seo-work.order')}<Select value={orderId} onChange={e => { setOrder(e.target.value); setUpload(''); }}><option value="">{t('pb-seo-work.chooseOrder')}</option>{orders.data?.map(o => <option key={o.id} value={o.id}>{o.request}</option>)}</Select></label>
+    <label className={s.label}>{t('pb-seo-work.operation')}<Select value={operation} onChange={e => setOperation(e.target.value as SeoWorkOperation)}>{operations.map(op => <option key={op} value={op}>{t('pb-seo-work.operation.' + op)}</option>)}</Select></label>
+    <label className={s.label}>{t('pb-seo-work.file')}<Select value={uploadId} onChange={e => setUpload(e.target.value)}><option value="">{t('pb-seo-work.chooseFile')}</option>{files.data?.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</Select></label>
     <p className={s.line}>{t('pb-seo-work.sourceHint.' + operation)}</p><Button variant="primary" type="submit" locked={!orderId || !uploadId} disabled={busy}>{t('pb-seo-work.check')}</Button>
    </form>}
    {!!rows.length && <ul className={s.list}>{rows.map(row => <li key={row.id}><Button variant="quiet" onClick={() => { setSelected(row.id); setOpen(false); setSaid(''); }}>{t('pb-seo-work.operation.' + row.operation)}</Button><span>{t('pb-seo-work.state.' + row.state)}</span></li>)}</ul>}

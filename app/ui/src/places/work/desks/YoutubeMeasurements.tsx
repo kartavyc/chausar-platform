@@ -10,6 +10,7 @@ import type { YoutubeBoardBody } from '../../../../../../platform/runtime/ventur
 import type { TextBox } from '../../../../../../platform/runtime/venture/playbooks/youtube/finishing-extra';
 import s from './YoutubeDesk.module.css';
 import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 
 /** Owner positions describe the text layout; only ffmpeg supplies footage and sound measurements. */
 export function YoutubeFinishing({ board, act, busy, onFinishingDirty }: { board: YoutubeBoardBody; act: BoardAct; busy: boolean; onFinishingDirty(value: boolean): void }) {
@@ -25,7 +26,7 @@ export function YoutubeFinishing({ board, act, busy, onFinishingDirty }: { board
   return <Fold summary={t('pb-youtube-board.finishing')} onChangeCapture={changed}>
     <p>{t('pb-youtube-board.finishingHelp')}</p>
     <Field label={t('pb-youtube-board.deliveryFile')} value={file} onChange={e => setFile(e.target.value)} />
-    <label className={s.label}>{t('pb-youtube-board.platform')}<select className={s.select} value={platform} onChange={e => setPlatform(e.target.value)}>{['youtube', 'reels', 'stories', 'tiktok'].map(platform => <option value={platform} key={platform}>{t(`pb-youtube-board.platform.${platform}`)}</option>)}</select></label>
+    <label className={s.label}>{t('pb-youtube-board.platform')}<Select className={s.select} value={platform} onChange={e => setPlatform(e.target.value)}>{['youtube', 'reels', 'stories', 'tiktok'].map(platform => <option value={platform} key={platform}>{t(`pb-youtube-board.platform.${platform}`)}</option>)}</Select></label>
     <Field label={t('pb-youtube-board.commentary')} inputMode="decimal" value={commentary} onChange={e => setCommentary(e.target.value)} />
     <Fold summary={t('pb-youtube-board.textBoxes')}>
       {(['x', 'y', 'width', 'height', 'start', 'end', 'text'] as const).map(key => <Field key={key} label={t(`pb-youtube-board.box.${key}`)} value={box[key]} onChange={e => setBox(previous => ({ ...previous, [key]: e.target.value }))} maxLength={key === 'text' ? 5000 : 10} />)}

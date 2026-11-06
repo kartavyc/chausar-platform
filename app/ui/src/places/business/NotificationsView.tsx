@@ -27,6 +27,7 @@ import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import { PhoneReach } from './PhoneReach';
 import s from './Business.module.css';
 import n from './Notifications.module.css';
+import { Select } from '../../parts/Select';
 
 type Change = ParamsOf<'venture.notify.settings'>;
 
@@ -324,10 +325,10 @@ function QuietTimes({ settings, change }: { settings: NotifySettingsView; change
         )}
         <div className={n.field}>
           <label htmlFor={`${ids}-digest`} className={n.label}>{t('business.notify.digest')}</label>
-          <select id={`${ids}-digest`} className={n.select} value={digest} disabled={busy} aria-describedby={`${ids}-digest-hint`} onChange={(event) => { setDigest(event.currentTarget.value); touch(); }}>
+          <Select id={`${ids}-digest`} className={n.select} value={digest} disabled={busy} aria-describedby={`${ids}-digest-hint`} onChange={(event) => { setDigest(event.currentTarget.value); touch(); }}>
             <option value="off">{t('business.notify.digestOff')}</option>
             {HOURS.map((hour) => <option key={hour} value={String(hour)}>{clockWords(hour)}</option>)}
-          </select>
+          </Select>
           <p id={`${ids}-digest-hint`} className={s.note}>{t('business.notify.digestHint')}</p>
         </div>
         <div className={s.buttons}>

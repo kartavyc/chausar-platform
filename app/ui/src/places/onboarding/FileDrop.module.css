@@ -38,7 +38,7 @@
   cursor: pointer;
 }
 
-.file:focus-within .pick {
+.file:has(:focus-visible) .pick {
   outline: var(--focus) solid var(--link);
   outline-offset: 2px;
 }

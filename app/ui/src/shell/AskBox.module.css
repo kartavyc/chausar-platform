@@ -15,8 +15,8 @@
   color: var(--fg2);
 }
 
-.ask:focus-within {
-  border-color: var(--fg);
+.ask:has(input:focus-visible) {
+  outline: var(--focus) solid var(--link);
 }
 
 .icon {

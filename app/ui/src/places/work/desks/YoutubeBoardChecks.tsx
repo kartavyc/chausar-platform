@@ -13,6 +13,7 @@ import type { BoardAct } from './YoutubeBoard';
 import { YoutubeFinishing, YoutubeStyle } from './YoutubeMeasurements';
 import s from './YoutubeDesk.module.css';
 import { Fold } from '../../../parts/Fold';
+import { Select } from '../../../parts/Select';
 
 type Props = { editId: string; board: YoutubeBoardBody; act: BoardAct; busy: boolean; onFinishingDirty(value: boolean): void };
 type Word = { id: string; text: string };
@@ -35,7 +36,7 @@ function Beats({ board, act, busy }: Props) {
   return <Fold summary={t('pb-youtube-board.beats')}>
     <Field multiline label={t('pb-youtube-board.beatLines')} value={lines} onChange={e => setLines(e.target.value)} maxLength={100000} />
     <Field label={t('pb-youtube-board.speakingRate')} value={rate} onChange={e => setRate(e.target.value)} inputMode="numeric" />
-    <label className={s.label}>{t('pb-youtube-board.bucket')}<select className={s.select} value={bucket} onChange={e => setBucket(e.target.value)}>{['4', '6', '8'].map(value => <option key={value}>{value}</option>)}</select></label>
+    <label className={s.label}>{t('pb-youtube-board.bucket')}<Select className={s.select} value={bucket} onChange={e => setBucket(e.target.value)}>{['4', '6', '8'].map(value => <option key={value}>{value}</option>)}</Select></label>
     <Field label={t('pb-youtube-board.loop')} value={loop} onChange={e => setLoop(e.target.value)} maxLength={1000} />
     <Button disabled={busy} locked={!lines.trim() || !loop.trim()} onClick={() => void act('beats', { lines: lines.split(/\r?\n/).filter(line => line.trim()), wordsPerMinute: Number(rate), bucket: Number(bucket), loopBack: loop })}>{t('pb-youtube-board.checkBeats')}</Button>
     {board.beats && <><p>{t(board.beats.passed ? 'pb-youtube-board.beatsPass' : 'pb-youtube-board.fixFindings')}</p><ul>{board.beats.findings.map((finding, index) => <li key={index}>{t(`pb-youtube-board.finding.${finding.code}`)}</li>)}</ul><ol>{board.beats.beats.map((beat, index) => <li key={index}><span data-content="">{beat.line}</span> <Count value={beat.startMs} /> / <Count value={beat.endMs} /> {t('pb-youtube-board.milliseconds')}</li>)}</ol></>}
@@ -43,12 +44,12 @@ function Beats({ board, act, busy }: Props) {
 }
 function WordSelect({ words, value, onChange, label }: { words: Word[]; value: string; onChange(value: string): void; label: string }) {
   const t = useT();
-  return <label className={s.label}>{label}<select className={s.select} value={value} onChange={e => onChange(e.target.value)}><option value="">{t('pb-youtube-board.chooseWord')}</option>{words.map(word => <option key={word.id} value={word.id} data-content="">{word.id}: {word.text}</option>)}</select></label>;
+  return <label className={s.label}>{label}<Select className={s.select} value={value} onChange={e => onChange(e.target.value)}><option value="">{t('pb-youtube-board.chooseWord')}</option>{words.map(word => <option key={word.id} value={word.id} data-content="">{word.id}: {word.text}</option>)}</Select></label>;
 }
 function Clips({ words, board, act, busy }: Props & { words: Word[] }) {
   const t = useT(), [from, setFrom] = useState(''), [to, setTo] = useState(''), [hook, setHook] = useState(''), [first, setFirst] = useState(''), [format, setFormat] = useState('shorts'), [picks, setPicks] = useState<ClipPick[]>([]);
   return <Fold summary={t('pb-youtube-board.clips')}>
-    <label className={s.label}>{t('pb-youtube-board.clipFormat')}<select className={s.select} value={format} onChange={e => setFormat(e.target.value)}><option value="shorts">{t('pb-youtube-board.shorts')}</option><option value="clip">{t('pb-youtube-board.regularClip')}</option></select></label>
+    <label className={s.label}>{t('pb-youtube-board.clipFormat')}<Select className={s.select} value={format} onChange={e => setFormat(e.target.value)}><option value="shorts">{t('pb-youtube-board.shorts')}</option><option value="clip">{t('pb-youtube-board.regularClip')}</option></Select></label>
     <WordSelect words={words} value={from} onChange={setFrom} label={t('pb-youtube-board.firstWord')} /><WordSelect words={words} value={to} onChange={setTo} label={t('pb-youtube-board.lastWord')} />
     <Field label={t('pb-youtube-board.hook')} value={hook} onChange={e => setHook(e.target.value)} maxLength={200} /><Field label={t('pb-youtube-board.firstLine')} value={first} onChange={e => setFirst(e.target.value)} maxLength={500} />
     <p className={s.line}>{t('pb-youtube-board.clipHelp')}</p>
@@ -64,8 +65,8 @@ function Broll({ board, act, busy, words, orderId }: Props & { words: Word[]; or
   const [delay, setDelay] = useState('0.2'), [duration, setDuration] = useState('1.2'), [beats, setBeats] = useState<BrollBeat[]>(board.broll?.beats ?? []);
   return <Fold summary={t('pb-youtube-board.broll')}>
     <WordSelect words={words} value={word} onChange={setWord} label={t('pb-youtube-board.anchorWord')} />
-    <label className={s.label}>{t('pb-youtube-board.beatKind')}<select className={s.select} value={kind} onChange={e => setKind(e.target.value as BrollBeat['kind'])}>{(['concept', 'receipt', 'entity', 'meme'] as const).map(kind => <option key={kind} value={kind}>{t(`pb-youtube-board.kind.${kind}`)}</option>)}</select></label>
-    {kind !== 'concept' && <label className={s.label}>{t('pb-youtube-board.asset')}<select className={s.select} value={asset} onChange={e => setAsset(e.target.value)}><option value="">{t('pb-youtube-board.chooseAsset')}</option>{assets.data?.assets.filter(asset => asset.orderId === orderId).map(asset => <option key={asset.id} value={asset.id} data-content="">{asset.name}</option>)}</select></label>}
+    <label className={s.label}>{t('pb-youtube-board.beatKind')}<Select className={s.select} value={kind} onChange={e => setKind(e.target.value as BrollBeat['kind'])}>{(['concept', 'receipt', 'entity', 'meme'] as const).map(kind => <option key={kind} value={kind}>{t(`pb-youtube-board.kind.${kind}`)}</option>)}</Select></label>
+    {kind !== 'concept' && <label className={s.label}>{t('pb-youtube-board.asset')}<Select className={s.select} value={asset} onChange={e => setAsset(e.target.value)}><option value="">{t('pb-youtube-board.chooseAsset')}</option>{assets.data?.assets.filter(asset => asset.orderId === orderId).map(asset => <option key={asset.id} value={asset.id} data-content="">{asset.name}</option>)}</Select></label>}
     <Field label={t('pb-youtube-board.delay')} value={delay} inputMode="decimal" onChange={e => setDelay(e.target.value)} /><Field label={t('pb-youtube-board.duration')} value={duration} inputMode="decimal" onChange={e => setDuration(e.target.value)} />
     <Button disabled={busy} locked={!word || kind !== 'concept' && !asset} onClick={() => setBeats(rows => [...rows, { id: `beat_${crypto.randomUUID()}`, wordId: word, kind, assetId: kind === 'concept' ? null : asset, delayMs: Number(delay) * 1000, durationMs: Number(duration) * 1000 }])}>{t('pb-youtube-board.addBeat')}</Button>
     <ol>{beats.map(beat => <li key={beat.id}><span data-content="">{beat.wordId}</span> {t(`pb-youtube-board.kind.${beat.kind}`)} <Button onClick={() => setBeats(rows => rows.filter(row => row.id !== beat.id))}>{t('pb-youtube-board.remove')}</Button></li>)}</ol>
@@ -86,7 +87,7 @@ function FrameGrid({ assetId, board, act, busy }: { assetId: string; board: Yout
     <p data-content="">{assetId}</p><Field label={t('pb-youtube-board.gridFile')} value={file} onChange={e => setFile(e.target.value)} />
     <Button disabled={busy} locked={!file.trim() || board.broll?.approvedDigest !== board.broll?.digest} onClick={() => void act('grid', { assetId, file })}>{t('pb-youtube-board.makeGrid')}</Button>
     {grid && <><img className={s.gridImage} src={`data:image/png;base64,${grid.contentBase64}`} alt={t('pb-youtube-board.gridAlt')} /><p>{t('pb-youtube-board.noDetector')}</p>
-      {['burnedCaptions', 'lowerThirds', 'watermarks'].map(key => <label key={key} className={s.label}>{t(`pb-youtube-board.question.${key}`)}<select className={s.select} value={answers[key] ?? ''} onChange={e => setAnswers(previous => ({ ...previous, [key]: e.target.value }))}><option value="">{t('pb-youtube-board.chooseAnswer')}</option><option value="yes">{t('pb-youtube-board.yes')}</option><option value="no">{t('pb-youtube-board.no')}</option></select></label>)}
+      {['burnedCaptions', 'lowerThirds', 'watermarks'].map(key => <label key={key} className={s.label}>{t(`pb-youtube-board.question.${key}`)}<Select className={s.select} value={answers[key] ?? ''} onChange={e => setAnswers(previous => ({ ...previous, [key]: e.target.value }))}><option value="">{t('pb-youtube-board.chooseAnswer')}</option><option value="yes">{t('pb-youtube-board.yes')}</option><option value="no">{t('pb-youtube-board.no')}</option></Select></label>)}
       <Button disabled={busy} locked={['burnedCaptions', 'lowerThirds', 'watermarks'].some(key => !answers[key])} onClick={() => void act('grid-review', { assetId, gridDigest: grid.digest, answers: Object.fromEntries(Object.entries(answers).map(([key, value]) => [key, value === 'yes'])) })}>{t('pb-youtube-board.confirmGrid')}</Button>
       {board.reviews?.[assetId] && <p>{t(board.reviews[assetId]!.passed ? 'pb-youtube-board.gridPass' : 'pb-youtube-board.fixFindings')}</p>}
     </>}
@@ -95,7 +96,7 @@ function FrameGrid({ assetId, board, act, busy }: { assetId: string; board: Yout
 function Editor({ board, act, busy }: Props) {
   const t = useT(), [app, setApp] = useState('filmcraft'), [args, setArgs] = useState(''), [xml, setXml] = useState(''), [comparison, setComparison] = useState<{ index: number; before: unknown; after: unknown }[] | null>(null);
   return <><Fold summary={t('pb-youtube-board.editor')}><p className={s.line}>{t('pb-youtube-board.editorHelp')}</p>
-    <label className={s.label}>{t('pb-youtube-board.editorName')}<select className={s.select} value={app} onChange={e => setApp(e.target.value)}><option value="filmcraft">FilmCraft</option><option value="baocut">BaoCut</option><option value="kimo">Kimo</option></select></label>
+    <label className={s.label}>{t('pb-youtube-board.editorName')}<Select className={s.select} value={app} onChange={e => setApp(e.target.value)}><option value="filmcraft">FilmCraft</option><option value="baocut">BaoCut</option><option value="kimo">Kimo</option></Select></label>
     <Field multiline label={t('pb-youtube-board.args')} value={args} onChange={e => setArgs(e.target.value)} maxLength={4000} />
     <Button disabled={busy} onClick={() => void act('editor-command', { app, args: args.split(/\r?\n/).filter(Boolean) })}>{t('pb-youtube-board.reviewCommand')}</Button>
     {board.editorCommand && <><pre className={s.preview} data-content="">{board.editorCommand.line}</pre><Button disabled={busy} onClick={() => void act('editor-run', {})}>{t('pb-youtube-board.runCommand')}</Button></>}
@@ -112,7 +113,7 @@ function Helpers({act,busy}:Props){
   const [file,setFile]=useState(''),[url,setUrl]=useState(''),[audio,setAudio]=useState<{contentBase64:string;name:string}|null>(null);
   const [font,setFont]=useState('30'),[width,setWidth]=useState('1080'),[helpers,setHelpers]=useState<{counters:{wordId:string;text:string;atMs:number}[];legibility:{outcome:string;targetPx:number}}|null>(null);
   return <><Fold summary={t('pb-youtube-board.clipPage')}><p>{t('pb-youtube-board.clipPageHelp')}</p>
-    <label className={s.label}>{t('pb-youtube-board.clipNumber')}<select className={s.select} value={clipIndex} onChange={e=>setClipIndex(e.target.value)}>{['1','2','3'].map(value=><option key={value}>{value}</option>)}</select></label>
+    <label className={s.label}>{t('pb-youtube-board.clipNumber')}<Select className={s.select} value={clipIndex} onChange={e=>setClipIndex(e.target.value)}>{['1','2','3'].map(value=><option key={value}>{value}</option>)}</Select></label>
     {(['name','description','contentUrl','thumbnailUrl','uploadDate'] as const).map(key=><Field key={key} label={t(`pb-youtube-board.page.${key}`)} value={page[key]} onChange={e=>setPage(previous=>({...previous,[key]:e.target.value}))} maxLength={5000}/>)}
     <Button disabled={busy} locked={!page.name.trim()} onClick={()=>void act('clip-page',{clipIndex:Number(clipIndex),fields:page})}>{t('pb-youtube-board.preparePage')}</Button>
   </Fold><Fold summary={t('pb-youtube-board.audio')}><p>{t('pb-youtube-board.audioHelp')}</p>

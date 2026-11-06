@@ -9,11 +9,12 @@ import { Field } from '../../../parts/Field';
 import type { SeoWebsiteItem } from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/records';
 import s from './SeoVisibilityDesk.module.css';
 import { Fold } from '../../../parts/Fold';
+import { FilePick } from '../../../parts/FilePick';
 const base = { playbook: 'seo-visibility' as const, kind: 'website' };
 const readFile = (file: File): Promise<string> => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('FILE_UNREADABLE')); reader.readAsText(file); });
 /** Store summaries and hashes, never the checker's large raw JSON bundle. */
 export function SeoWebsiteChecks() {
-    const t = useT(), engine = useEngine(), heading = useId(), fileId = useId();
+    const t = useT(), engine = useEngine(), heading = useId();
     const list = useResource('venture.desk.list', base, { refreshOn: event => event.type === 'desk.changed' });
     const [adding, setAdding] = useState(false), [url, setUrl] = useState(''), [file, setFile] = useState<File | null>(null), [selected, setSelected] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('');
     const detail = useResource('venture.desk.get', { ...base, id: selected }, { skip: !selected, refreshOn: event => event.type === 'desk.changed' });
@@ -61,7 +62,7 @@ export function SeoWebsiteChecks() {
   {error && <p className={s.error} role="alert">{error}</p>}
   {adding && <form className={s.form} aria-label={t('pb-seo-visibility.website.import')} onSubmit={importReport}>
    <Field label={t('pb-seo-visibility.website.url')} type="url" value={url} onChange={event => setUrl(event.target.value)} required/>
-   <label className={s.label} htmlFor={fileId}>{t('pb-seo-visibility.website.file')}</label><input id={fileId} type="file" accept=".json,.txt,application/json" onChange={event => setFile(event.target.files?.[0] ?? null)} required/>
+   <FilePick label={t('pb-seo-visibility.website.file')} accept=".json,.txt,application/json" onChange={event => setFile(event.target.files?.[0] ?? null)} required/>
    <Button type="submit" variant="primary" disabled={busy}>{t('pb-seo-visibility.website.keep')}</Button>
   </form>}
   {rows.length > 0 && <ul className={s.list}>{rows.map(row => <li key={row.id}><Button variant="quiet" onClick={() => { setSelected(row.id); setAdding(false); }}>{row.report.url}</Button></li>)}</ul>}

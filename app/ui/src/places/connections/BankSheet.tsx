@@ -26,6 +26,7 @@ import { Sheet } from '../../parts/Sheet';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { BankImportForm } from './BankImport';
 import s from './BankSheet.module.css';
+import { Select } from '../../parts/Select';
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 type Consent = BankConsentView['status'];
@@ -206,10 +207,10 @@ function AlertRules({ account, alerts, onAlerts }: { account: string; alerts: Al
       <form className={s.form} onSubmit={submit}>
         <div className={s.field}>
           <label htmlFor={kindId} className={s.label}>{t('connections.bankSheet.kind')}</label>
-          <select id={kindId} className={s.select} value={kind} onChange={(event) => setKind(event.currentTarget.value as typeof kind)}>
+          <Select id={kindId} className={s.select} value={kind} onChange={(event) => setKind(event.currentTarget.value as typeof kind)}>
             <option value="large-debit">{t('connections.bankSheet.kind.large-debit')}</option>
             <option value="balance-below">{t('connections.bankSheet.kind.balance-below')}</option>
-          </select>
+          </Select>
         </div>
         <Field label={t('connections.bankSheet.amount')} inputMode="decimal" autoComplete="off" value={amount} maxLength={40} onChange={(event) => setAmount(event.currentTarget.value)} />
         <Field label={t('connections.bankSheet.address')} hint={t('connections.bankSheet.addressHint')} type="url" autoComplete="off" value={address} maxLength={2000} onChange={(event) => setAddress(event.currentTarget.value)} />
@@ -290,14 +291,14 @@ function LedgerRow({ row, said, openInvoices, onApplied }: {
       {picking && openInvoices && openInvoices.length > 0 && (
         <div className={`${s.field} ${s.pick}`}>
           <label htmlFor={pickId} className={s.label}>{t('connections.bankSheet.pickInvoice')}</label>
-          <select id={pickId} className={s.select} value={picked} onChange={(event) => setPicked(event.currentTarget.value)}>
+          <Select id={pickId} className={s.select} value={picked} onChange={(event) => setPicked(event.currentTarget.value)}>
             <option value="">{t('connections.bankSheet.pickNone')}</option>
             {openInvoices.map((invoice) => (
               <option key={invoice.invoiceId} value={invoice.invoiceId}>
                 {t('connections.bankSheet.invoiceOption', { number: invoice.number, client: invoice.clientName, balance: invoice.balanceDisplay })}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
       {problem && <p className={s.problem} role="alert">{problem}</p>}

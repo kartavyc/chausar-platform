@@ -12,6 +12,7 @@ import {DOCUMENT_TYPE_LABELS} from '../../../../../../platform/runtime/venture/p
 import {DOCUMENT_TYPES} from '../../../../../../platform/runtime/venture/playbooks/document-desk/records';
 import type {DocumentBody} from '../../../../../../platform/runtime/venture/playbooks/document-desk/records';
 import s from './R5.module.css';
+import { Select } from '../../../parts/Select';
 
 type Item=DocumentBody&{id:string;stale:boolean;briefApproved:boolean;approved:boolean;figureWords:string[];missing:string[]};
 type OutFile={name:string;contentBase64:string};
@@ -37,7 +38,7 @@ export function DocumentDeskDesk(){
   <Tile as="section" label={w('title')}>
    <TileHead title={w('title')}/>
    <p className={s.line}>{w('intro')}</p>
-   <label className={s.label}>{w('order')}<select value={selected} onChange={e=>{setSelected(e.target.value);setExported([]);setError('');}}><option value="">{w('choose')}</option>{mine.map(o=><option key={o.id} value={o.id}>{o.request}</option>)}</select></label>
+   <label className={s.label}>{w('order')}<Select value={selected} onChange={e=>{setSelected(e.target.value);setExported([]);setError('');}}><option value="">{w('choose')}</option>{mine.map(o=><option key={o.id} value={o.id}>{o.request}</option>)}</Select></label>
    {error&&<p role="alert" className={s.error}>{error}</p>}
    {selected&&missing&&<CreateForm key={selected} files={(files.data??[]).map(f=>({id:f.id,name:f.name}))} busy={busy} create={(payload)=>act('create',payload,false)}/>}
   </Tile>
@@ -49,7 +50,7 @@ function CreateForm({files,busy,create}:{files:{id:string;name:string}[];busy:bo
  const t=useT(),w=(k:string)=>t('pb-document.'+k),[type,setType]=useState<string>(DOCUMENT_TYPES[0]),[title,setTitle]=useState(''),[chosen,setChosen]=useState<string[]>([]);
  const locked=busy||!title.trim()||!chosen.length;
  return <form className={s.form} onSubmit={e=>{e.preventDefault();if(!locked)void create({docType:type,title,sourceFileIds:chosen});}}>
-  <label className={s.label}>{w('type')}<select value={type} onChange={e=>setType(e.target.value)}>{DOCUMENT_TYPES.map(id=><option key={id} value={id}>{DOCUMENT_TYPE_LABELS[id]}</option>)}</select></label>
+  <label className={s.label}>{w('type')}<Select value={type} onChange={e=>setType(e.target.value)}>{DOCUMENT_TYPES.map(id=><option key={id} value={id}>{DOCUMENT_TYPE_LABELS[id]}</option>)}</Select></label>
   <Field label={w('name')} value={title} onChange={e=>setTitle(e.target.value)}/>
   <fieldset className={s.form}><legend>{w('files')}</legend>{files.length?files.map(f=><label key={f.id} className={s.row}><input type="checkbox" checked={chosen.includes(f.id)} onChange={e=>setChosen(v=>e.target.checked?[...v,f.id]:v.filter(id=>id!==f.id))}/><span data-content>{f.name}</span></label>):<p className={s.line}>{w('noFiles')}</p>}</fieldset>
   <Button type="submit" variant="primary" locked={locked}>{w('create')}</Button>
@@ -74,14 +75,14 @@ function DocumentView({item,busy,act,exported,setExported,runs,files}:{item:Item
    <Button locked={busy||!parsedOutline.length} onClick={()=>void act('outline',{sections:parsedOutline})}>{w('saveOutline')}</Button>
    <h4>{w('figures')}</h4>
    {item.figureWords.length>0&&<><ul className={s.list}>{item.figureWords.filter(line=>!line.startsWith('Receipt ')).map(line=><li key={line} data-content>{line}</li>)}</ul><p className={s.line}>{w('figuresByCode')}</p></>}
-   <label className={s.label}>{w('currency')}<select value={currency} onChange={e=>setCurrency(e.target.value)}>{['INR','USD','EUR','GBP'].map(c=><option key={c} value={c}>{c}</option>)}</select></label>
+   <label className={s.label}>{w('currency')}<Select value={currency} onChange={e=>setCurrency(e.target.value)}>{['INR','USD','EUR','GBP'].map(c=><option key={c} value={c}>{c}</option>)}</Select></label>
    <Field multiline rows={4} label={w('figures')} hint={w('figuresHelp')} value={lines} onChange={e=>setLines(e.target.value)}/>
    <Button locked={busy} onClick={()=>void act('figures',{currency,lines:parsedLines})}>{w('saveFigures')}</Button>
    <Button variant="primary" locked={busy||item.briefApproved||item.stale} onClick={()=>void act('approve-brief',{})}>{w('approveBrief')}</Button>
   </Tile>
   <Tile as="section" label={w('sections')}>
    <TileHead title={w('sections')}/>
-   {runs.length>0&&<div className={s.row}><label className={s.label}>{w('draft')}<select value={run} onChange={e=>setRun(e.target.value)}>{runs.map(r=><option key={r.id} value={r.id}>{r.title}</option>)}</select></label><Button locked={busy||!run||!item.briefApproved} onClick={()=>void act('take-draft',{runId:run})}>{w('takeDraft')}</Button></div>}
+   {runs.length>0&&<div className={s.row}><label className={s.label}>{w('draft')}<Select value={run} onChange={e=>setRun(e.target.value)}>{runs.map(r=><option key={r.id} value={r.id}>{r.title}</option>)}</Select></label><Button locked={busy||!run||!item.briefApproved} onClick={()=>void act('take-draft',{runId:run})}>{w('takeDraft')}</Button></div>}
    {item.sections.map(row=><SectionEdit key={row.id+row.text} id={row.id} heading={row.heading} brief={row.brief} text={row.text} busy={busy} act={act}/>)}
    <Button variant="primary" locked={busy||item.approved||!item.briefApproved||item.missing.length>0} onClick={()=>void act('approve',{})}>{w('approve')}</Button>
    <Button locked={busy||!item.approved} onClick={()=>void act('export',{}).then(out=>{const files=(out as {result?:{files?:OutFile[]}}|null)?.result?.files;if(files)setExported(files);})}>{w('export')}</Button>

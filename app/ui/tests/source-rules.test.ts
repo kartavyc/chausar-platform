@@ -249,6 +249,27 @@ describe('one fold (B4 task 8)', () => {
   });
 });
 
+describe('one set of controls (B4 task 9)', () => {
+  it('no raw <select or file input outside the parts that draw them', () => {
+    const OWNERS = ['parts/Select.tsx', 'parts/FilePick.tsx'];
+    const found = scripts.filter(({ f, text }) => !OWNERS.includes(f) && /<select\b|type="file"/.test(text)).map(({ f }) => f);
+    expect(found).toEqual([]);
+  });
+  it('one focus ring: an outline on focus is the --focus width in the link colour, under :focus-visible only', () => {
+    const found = sheets.flatMap(({ f, css }) =>
+      rules(css)
+        .filter(({ selector }) => selector.includes(':focus'))
+        .flatMap(({ selector, decls }) =>
+          decls
+            .filter(([p, v]) => p === 'outline' && !/^(?:none|0)$/.test(v))
+            .filter(([, v]) => v !== 'var(--focus) solid var(--link)' || selector.split(',').some((item) => !item.includes(':focus-visible')))
+            .map(([, v]) => `${f} ${selector}: ${v}`),
+        ),
+    );
+    expect(found).toEqual([]);
+  });
+});
+
 describe('Ink v2 rules the UI keeps (w3 plan)', () => {
   it('the CSS checks catch what they should, on samples', () => {
     expect(check.colours('.a { box-shadow: 0 1px rgba(0, 0, 0, 0.1); color: hsl(0 0% 0%) }')).toHaveLength(2);

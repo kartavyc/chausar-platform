@@ -11,6 +11,8 @@ import { TRANSFER_MAX_CHARS, codeOf, momentOf, newPassphraseProblem, refusalWord
 import type { Openable } from './boot';
 import s from './Onboarding.module.css';
 import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
+import { FilePick } from '../../parts/FilePick';
 
 /**
  * The ways into a business that is not open, beside Welcome back's list (app/renderer/launch.js showRecover,
@@ -95,9 +97,9 @@ export function Recover({ businesses, chosen, onOpened, onBack }: WayProps & { b
         {businesses.length > 0 ? (
           <div className={s.field}>
             <label htmlFor={selectId} className={s.fieldLabel}>{t('onboarding.recover.business')}</label>
-            <select id={selectId} className={s.select} value={folder} onChange={(event) => setFolder(event.currentTarget.value)}>
+            <Select id={selectId} className={s.select} value={folder} onChange={(event) => setFolder(event.currentTarget.value)}>
               {businesses.map((b) => <option key={b.key} value={b.key}>{b.name ?? b.key}</option>)}
-            </select>
+            </Select>
           </div>
         ) : (
           <Field label={t('onboarding.recover.folder')} value={folder} spellCheck={false} maxLength={64} onChange={(event) => setFolder(event.currentTarget.value)} />
@@ -220,7 +222,6 @@ function idOfMoveFile(text: string): string | null {
 export function MoveHere({ businesses, onOpen, onOpened, onBack }: WayProps & { businesses: readonly Openable[]; onOpen: (business: Openable) => void }) {
   const t = useT();
   const client = useEngine();
-  const picker = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [code, setCode] = useState('');
   const pair = useNewPassphrase();
@@ -275,14 +276,10 @@ export function MoveHere({ businesses, onOpen, onOpened, onBack }: WayProps & { 
   return (
     <Way title={t('onboarding.move.title')} lead={t('onboarding.move.lead')} onBack={onBack}>
       <div className={s.ask}>
-        <div className={s.file}>
-          <Button onClick={() => picker.current?.click()}>{t('onboarding.move.choose')}</Button>
-          <span className={s.note}>{file ? file.name : t('onboarding.move.noFile')}</span>
-          <input
-            ref={picker} type="file" hidden tabIndex={-1} accept=".backup,application/json" aria-label={t('onboarding.move.file')}
+        <FilePick
+          choose={t('onboarding.move.choose')} accept=".backup,application/json" aria-label={t('onboarding.move.file')}
             onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setProblem(null); setCodeWrong(null); setHere(null); }}
-          />
-        </div>
+        />
         <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} error={codeWrong ?? undefined} onChange={(event) => { setCode(event.currentTarget.value); setCodeWrong(null); }} onKeyDown={onEnter} />
         {pair.node}
         {problem && <InlineError fix={here ? { label: t('onboarding.move.open', { name: here.name ?? t('onboarding.welcome.noName') }), onSelect: () => onOpen(here) } : undefined}>{problem}</InlineError>}

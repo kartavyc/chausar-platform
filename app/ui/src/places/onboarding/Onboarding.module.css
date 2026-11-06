@@ -387,9 +387,8 @@
 
 .input:focus-visible,
 .select:focus-visible {
-  border-color: var(--fg);
   outline: var(--focus) solid var(--link);
-  outline-offset: 1px;
+  outline-offset: 0;
 }
 
 .input[aria-invalid='true'] {

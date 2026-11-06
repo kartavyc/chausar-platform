@@ -20,6 +20,7 @@ import { CrmFold, HistoryList, TimelineList, messageOf } from './CrmParts';
 import { FactsSection } from './FactsSection';
 import { clientsChanged } from './signals';
 import s from './Crm.module.css';
+import { Select } from '../../parts/Select';
 
 const KINDS: readonly CrmEntryKind[] = ['call', 'whatsapp', 'meeting', 'note'];
 
@@ -116,11 +117,11 @@ function CompanyLine({ view, onChanged, onFailed }: { view: ClientCrmView; onCha
         <form className={s.form} onSubmit={(event) => void join(event)}>
           <div className={s.choice}>
             <label className={s.label} htmlFor={`${ids}-company`}>{t('crm.company.choose')}</label>
-            <select id={`${ids}-company`} className={s.select} value={pick} onChange={(event) => setPick(event.currentTarget.value)}>
+            <Select id={`${ids}-company`} className={s.select} value={pick} onChange={(event) => setPick(event.currentTarget.value)}>
               <option value="" disabled>{t('crm.company.choose')}</option>
               {(companies.data ?? []).map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
               <option value="new">{t('crm.company.new')}</option>
-            </select>
+            </Select>
           </div>
           {pick === 'new' && <Field label={t('crm.company.newName')} value={name} maxLength={120} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} />}
           <div className={s.actions}><Button type="submit" disabled={busy || !pick || (pick === 'new' && !name.trim())}>{t('crm.company.join')}</Button></div>
@@ -152,9 +153,9 @@ function LogForm({ clientId, onChanged, onFailed }: { clientId: string; onChange
       <p className={s.quiet}>{t('crm.log.line')}</p>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-kind`}>{t('crm.log.kind')}</label>
-        <select id={`${ids}-kind`} className={s.select} value={kind} onChange={(event) => setKind(event.currentTarget.value as CrmEntryKind)}>
+        <Select id={`${ids}-kind`} className={s.select} value={kind} onChange={(event) => setKind(event.currentTarget.value as CrmEntryKind)}>
           {KINDS.map((one) => <option key={one} value={one}>{t(`crm.log.kind.${one}`)}</option>)}
-        </select>
+        </Select>
       </div>
       <Field label={t('crm.log.on')} type="date" value={on} max={localToday()} onChange={(event) => setOn(event.currentTarget.value)} />
       <Field multiline label={t('crm.log.text')} value={text} maxLength={1000} onChange={(event) => setText(event.currentTarget.value)} />
@@ -188,18 +189,18 @@ export function PlaceInList({ member, onChanged, onFailed }: { member: string; o
     <form className={s.form} onSubmit={(event) => void submit(event)}>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-list`}>{t('crm.lists.list')}</label>
-        <select id={`${ids}-list`} className={s.select} value={listId} onChange={(event) => { setListId(event.currentTarget.value); setStage(''); }}>
+        <Select id={`${ids}-list`} className={s.select} value={listId} onChange={(event) => { setListId(event.currentTarget.value); setStage(''); }}>
           <option value="" disabled>{t('crm.lists.list')}</option>
           {(lists.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
+        </Select>
       </div>
       {list && (
         <div className={s.choice}>
           <label className={s.label} htmlFor={`${ids}-stage`}>{t('crm.lists.stage')}</label>
-          <select id={`${ids}-stage`} className={s.select} value={stage} onChange={(event) => setStage(event.currentTarget.value)}>
+          <Select id={`${ids}-stage`} className={s.select} value={stage} onChange={(event) => setStage(event.currentTarget.value)}>
             <option value="" disabled>{t('crm.lists.stage')}</option>
             {list.stages.map((one) => <option key={one} value={one}>{one}</option>)}
-          </select>
+          </Select>
         </div>
       )}
       <div className={s.actions}><Button type="submit" disabled={busy || !listId || !stage}>{t('crm.lists.place')}</Button></div>
@@ -231,9 +232,9 @@ function EditForm({ clientId, onChanged, onFailed }: { clientId: string; onChang
     <form className={s.form} onSubmit={(event) => void submit(event)}>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-field`}>{t('crm.edit.field')}</label>
-        <select id={`${ids}-field`} className={s.select} value={field} onChange={(event) => setField(event.currentTarget.value as 'name' | 'email' | 'note')}>
+        <Select id={`${ids}-field`} className={s.select} value={field} onChange={(event) => setField(event.currentTarget.value as 'name' | 'email' | 'note')}>
           {(['name', 'email', 'note'] as const).map((one) => <option key={one} value={one}>{t(`crm.edit.field.${one}`)}</option>)}
-        </select>
+        </Select>
       </div>
       {field === 'note'
         ? <Field multiline label={t('crm.edit.value')} value={value} maxLength={500} onChange={(event) => setValue(event.currentTarget.value)} />

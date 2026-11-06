@@ -18,6 +18,7 @@ import { messageOf, onMoney, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 export function Recurring() {
   const t = useT();
@@ -93,22 +94,22 @@ function AddRecurring({ clients, offers, onDone, onCancel }: { clients: readonly
     <form className={s.form} noValidate onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <div className={s.field}>
         <label htmlFor={ids.client} className={s.fieldLabel}>{t('money.table.client')}</label>
-        <select id={ids.client} className={s.select} value={clientId} disabled={busy} onChange={(event) => setClientId(event.currentTarget.value)}>
+        <Select id={ids.client} className={s.select} value={clientId} disabled={busy} onChange={(event) => setClientId(event.currentTarget.value)}>
           {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-        </select>
+        </Select>
       </div>
       <div className={s.field}>
         <label htmlFor={ids.offer} className={s.fieldLabel}>{t('money.recurring.offer')}</label>
-        <select id={ids.offer} className={s.select} value={offerId} disabled={busy} onChange={(event) => setOfferId(event.currentTarget.value)}>
+        <Select id={ids.offer} className={s.select} value={offerId} disabled={busy} onChange={(event) => setOfferId(event.currentTarget.value)}>
           {offers.map((offer) => <option key={offer.id} value={offer.id}>{offer.name}</option>)}
-        </select>
+        </Select>
       </div>
       <div className={s.field}>
         <label htmlFor={ids.often} className={s.fieldLabel}>{t('money.recurring.often')}</label>
-        <select id={ids.often} className={s.select} value={frequency} disabled={busy} onChange={(event) => setFrequency(event.currentTarget.value as 'monthly' | 'quarterly')}>
+        <Select id={ids.often} className={s.select} value={frequency} disabled={busy} onChange={(event) => setFrequency(event.currentTarget.value as 'monthly' | 'quarterly')}>
           <option value="monthly">{t('money.recurring.every.monthly')}</option>
           <option value="quarterly">{t('money.recurring.every.quarterly')}</option>
-        </select>
+        </Select>
       </div>
       <Field label={t('money.recurring.start')} type="date" value={startOn} disabled={busy} onChange={(event) => setStartOn(event.currentTarget.value)} />
       <Field label={t('money.recurring.end')} hint={t('money.recurring.endHint')} type="date" value={end} disabled={busy} onChange={(event) => setEnd(event.currentTarget.value)} />

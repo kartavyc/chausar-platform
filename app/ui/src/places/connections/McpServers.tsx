@@ -8,6 +8,7 @@ import { openExternal, openProblem, reserveTab } from './external';
 import s from './AgentSettings.module.css';
 import connections from './Connections.module.css';
 import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 export function McpServers({ servers, onChange, busy, saved, onCredentialSaved }: { servers: ExternalMcpServer[]; onChange(value: ExternalMcpServer[]): void; busy: boolean; saved: boolean; onCredentialSaved(): void }) {
   const t = useT();
@@ -18,11 +19,11 @@ export function McpServers({ servers, onChange, busy, saved, onCredentialSaved }
     <p className={connections.note}>{t('connections.mcp.warning')}</p>
     {servers.map(server => <div className={s.group} key={server.id}>
       <Field label={t('connections.mcp.name')} value={server.name} onChange={event => replace(server.id, { ...server, name: event.currentTarget.value })} />
-      <label className={s.label}>{t('connections.mcp.connection')}<select className={s.select} value={server.transport} onChange={event => replace(server.id, event.currentTarget.value === 'stdio'
+      <label className={s.label}>{t('connections.mcp.connection')}<Select className={s.select} value={server.transport} onChange={event => replace(server.id, event.currentTarget.value === 'stdio'
         ? { id: server.id, name: server.name, transport: 'stdio', command: '', args: [] }
         : { id: server.id, name: server.name, transport: 'http', url: '' })}>
         <option value="http">{t('connections.mcp.http')}</option><option value="stdio">{t('connections.mcp.stdio')}</option>
-      </select></label>
+      </Select></label>
       {server.transport === 'http' ? <>
         <Field label={t('connections.mcp.url')} value={server.url} onChange={event => replace(server.id, { ...server, url: event.currentTarget.value })} />
         {/* W6 6F1: the service's own sign-in (OAuth with PKCE) instead of a pasted token. */}

@@ -12,7 +12,7 @@
  * exactly and refuses otherwise, so nothing is added up here. A split payment carries no TDS.
  */
 
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
@@ -26,6 +26,7 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import { invoiceTitle, messageOf, statusOf, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 
 type Phase = 'form' | 'confirm' | 'sending' | 'done';
 /** The ways money comes in: the engine's list, and a cheque, which waits to clear (4J5). */
@@ -35,7 +36,6 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const t = useT();
   const day = useDay();
   const engine = useEngine();
-  const methodId = useId();
   const today = useLocalToday();
   const view = useResource('venture.invoice.get', { invoiceId: id });
   const [amount, setAmount] = useState('');
@@ -125,12 +125,9 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
             disabled={locked} onChange={(event) => setAmount(event.currentTarget.value)}
           />
           <Field label={t('money.payment.on')} type="date" value={receivedOn} disabled={locked} onChange={(event) => setReceivedOn(event.currentTarget.value)} />
-          <div className={s.field}>
-            <label htmlFor={methodId} className={s.fieldLabel}>{t('money.payment.method')}</label>
-            <select id={methodId} className={s.select} value={method} disabled={locked} onChange={(event) => setMethod(event.currentTarget.value as PaymentMethod)}>
+          <Select label={t('money.payment.method')} value={method} disabled={locked} onChange={(event) => setMethod(event.currentTarget.value as PaymentMethod)}>
               {METHODS.map((option) => <option key={option} value={option}>{t(`money.method.${option}`)}</option>)}
-            </select>
-          </div>
+            </Select>
           {method === 'cheque' && <p className={s.quietLine}>{t('money.payment.chequeNote')}</p>}
           {/* One step away, for a business in India: the TDS the client deducted, as they wrote it (4J5, M15). Kept while
               the payment is split, though a split payment carries none: closing Split brings it back as typed. */}

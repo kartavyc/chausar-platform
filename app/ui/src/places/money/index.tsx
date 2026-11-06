@@ -22,7 +22,6 @@ import { PlaceTiles } from '../../parts/Tile';
 // W6 6H3 (D40): the overview's layout is the owner's; the Arrange sheet opens from the page tools.
 import { ArrangeButton } from '../../parts/layout/ArrangeButton';
 import { Segmented, type SegmentLink } from '../../parts/Segmented';
-import { Icon } from '../../parts/Icon';
 import type { IconName } from '../../parts/icons';
 import type { SheetComponent } from '../../shell/sheets';
 import { AccountantSheet } from './AccountantSheet';
@@ -43,6 +42,7 @@ import { notYet } from './views';
 import { monthsOffered, useChosenMonth, useMonthWords } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import { Select } from '../../parts/Select';
 
 const SUBS = ['invoices', 'bills', 'books', 'margins', 'spend', 'journal', 'businesses'] as const;
 type Sub = (typeof SUBS)[number];
@@ -120,11 +120,8 @@ function MonthPicker({ month }: { month: string }) {
   const { thisMonth } = useChosenMonth({});
   const months = monthsOffered(thisMonth);
   return (
-    <label className={v.month}>
-      <Icon name="calendar" size={16} />
-      <span className="sr-only">{t('money.month')}</span>
-      <select
-        className={v.monthSelect}
+    <Select
+      aria-label={t('money.month')}
         value={month}
         onChange={(event) => {
           const { month: _old, ...query } = route.query;
@@ -133,8 +130,7 @@ function MonthPicker({ month }: { month: string }) {
         }}
       >
         {months.map((item) => <option key={item} value={item}>{monthWords(item)}</option>)}
-      </select>
-    </label>
+      </Select>
   );
 }
 

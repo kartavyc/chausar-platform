@@ -24,6 +24,7 @@ import { clientsChanged } from './signals';
 import { KIND_ICONS } from './NetworkSources';
 import { messageOf } from './network';
 import s from './Network.module.css';
+import { FilePick } from '../../parts/FilePick';
 
 const KINDS: readonly NetworkImportKind[] = ['linkedin-connections', 'contacts-csv', 'vcard', 'calendar-ics', 'linkedin-messages', 'mail-headers'];
 const ACCEPT: Readonly<Record<NetworkImportKind, string>> = {
@@ -130,18 +131,12 @@ export function ImportSheet({ id, onClose, returnFocus }: SheetComponentProps) {
                 <Button disabled={step.kind === 'busy'} onClick={() => void pickOnDesktop(kind)}><Icon name="upload" size={16} />{t('clients.import.choose')}</Button>
               )}
               {!desktop && kind !== 'mail-headers' && (
-                <label className={s.fileLabel}>
-                  <Icon name="upload" size={16} />
-                  <span>{t('clients.import.choose')}</span>
-                  <input
-                    type="file"
-                    className="sr-only"
-                    aria-label={t('clients.import.choose')}
+                <FilePick
+                  choose={t('clients.import.choose')}
                     accept={ACCEPT[kind] || undefined}
                     disabled={step.kind === 'busy'}
                     onChange={(event) => { void readInPage(kind, event.target.files?.[0]); event.target.value = ''; }}
-                  />
-                </label>
+                />
               )}
               {step.kind === 'busy' && <p className={s.quiet} role="status">{t('clients.import.checking')}</p>}
             </div>
