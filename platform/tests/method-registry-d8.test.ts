@@ -4,6 +4,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import ts from 'typescript';
 import { createRequire } from 'node:module';
 import { ALL_METHODS, CORE_METHODS, DRAFT_DESK_METHODS, RENDERER_METHODS, VENTURE_METHODS, PRE_VAULT_METHODS, DRAFT_METHODS } from '../runtime/method-registry.ts';
+import { ENGINE_HANDLERS } from '../runtime/engine/dispatch.ts';
 import { CUSTODY_METHODS } from '../runtime/workspace-custody-contracts.ts';
 
 const { METHODS } = createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs');
@@ -14,9 +15,7 @@ test('method registry contains unique names and preserves every current engine e
   for (const name of CUSTODY_METHODS) assert.ok(CORE_METHODS.some(row => row.name === name), name);
 });
 test('registry agrees with engine dispatch, including the main-only custody operations', async () => {
-  const source = (await Promise.all(['engine.ts', 'legacy/dispatch.ts'].map(file => readFile(new URL('../runtime/' + file, import.meta.url), 'utf8')))).join('\n');
-  const dispatch = new Set([...source.matchAll(/(?:case\s+|method\s*===\s*)'([^']+)'/g)].map(row => row[1]!));
-  for (const name of VENTURE_METHODS) dispatch.add(name);
+  const dispatch = new Set(Object.keys(ENGINE_HANDLERS));
   for (const name of ALL_METHODS) assert.ok(dispatch.has(name), `No engine dispatcher for ${name}`);
   for (const name of dispatch) if (name.includes('.')) assert.ok(ALL_METHODS.includes(name), `Unregistered dispatcher: ${name}`);
   assert.ok(ALL_METHODS.includes('workspace.import'));
@@ -66,8 +65,10 @@ test('main-only file operations pass host validation and remain unavailable to t
 test('venture routing uses the registry without repeated switch arms', async () => {
   const source = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /case ['"]venture\./);
-  assert.match(source, /DRAFT_DESK_DISPATCH\.has\(method\)/);
-  assert.match(source, /VENTURE_DISPATCH\.has\(method\)/);
+  const draft = await import('../runtime/engine/draft-desk-methods.ts');
+  const venture = await import('../runtime/engine/venture-methods.ts');
+  for (const method of DRAFT_DESK_METHODS) assert.equal(typeof draft.METHODS[method], 'function', method);
+  for (const method of VENTURE_METHODS) assert.equal(typeof (draft.METHODS[method] ?? venture.METHODS[method] ?? ENGINE_HANDLERS[method]), 'function', method);
 });
 
 test('the agent checklist names the contract generator', async () => {
