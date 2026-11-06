@@ -489,7 +489,8 @@ export class FakeAgentsDesk {
       return { added: [this.asItem(said), this.asItem(reply)], line: null };
     }
     const said = this.put(book, agent.id, 'owner', words);
-    const reply = this.put(book, agent.id, 'agent', '', { parts: this.templateAnswer(agent, waiting) });
+    // C5 task 5: the template answer's tail carries Connect your AI as a button, as agents/answer.ts sets it.
+    const reply = this.put(book, agent.id, 'agent', '', { parts: this.templateAnswer(agent, waiting), suggestion: { kind: 'connect-ai' } });
     return { added: [this.asItem(said), this.asItem(reply)], line: null };
   }
 

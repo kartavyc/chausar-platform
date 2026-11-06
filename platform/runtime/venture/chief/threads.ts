@@ -94,6 +94,7 @@ function messageView(state: State, venture: VentureRecord, record: ChiefMessageR
     id: record.id, at: record.at, from: record.from, parts: record.parts, proposals,
     routedTo: record.routedTo ? { agent: record.routedTo, name: agentNameOf(state, venture, record.routedTo) } : null,
     worked: record.worked ?? [], dropped: record.dropped ?? [], counted: record.counted ?? null,
+    ...(record.suggestion ? { suggestion: record.suggestion } : {}),
   };
 }
 
@@ -249,6 +250,7 @@ async function store(deps: VentureDeps, ctx: Context, threadId: string | null, w
     const parts = [...(reply.author === 'model' ? withoutActionClaims(reply.parts, { proposals: proposalIds.length, briefed }) : reply.parts), ...done];
     answer = tx.replace<ChiefMessageRecord>({
       ...answer, text: plainOf(parts), parts, proposalIds, worked: reply.worked ?? [], dropped, counted: reply.counted ?? null,
+      ...(reply.suggestion ? { suggestion: reply.suggestion } : {}),
       // 6G1: the chief's question back waits for the owner, so the chat is never hidden until they write again.
       ...(reply.ask ? { ask: reply.ask } : {}),
     });

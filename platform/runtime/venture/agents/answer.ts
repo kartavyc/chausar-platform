@@ -331,7 +331,7 @@ export function templateAnswer(deps: VentureDeps, state: State, venture: Venture
   return lines.map(text => ({ kind: 'text', text }));
 }
 
-export type Answer = { parts: ChatPart[]; author: 'model' | 'template'; callId: string | null; line: string | null };
+export type Answer = { parts: ChatPart[]; author: 'model' | 'template'; callId: string | null; line: string | null; suggestion?: { kind: 'connect-ai' } };
 
 /**
  * One answer to the owner's question: the AI's typed parts from the agent's facts, checked by code (chatCall), or the
@@ -371,7 +371,8 @@ export async function answerQuestion(deps: VentureDeps, ctx: Context, route: Cha
   const answered = await chatCall(deps, ctx, route, task, guard);
   if (!answered) {
     const line = route ? "Your AI's answer did not pass Chausar's checks, so this is what Chausar can say from its records." : null;
-    return { parts: templateAnswer(deps, state, venture, agent, waiting), author: 'template', callId: null, line };
+    // C5 task 5: with no AI the reply's tail says to connect one, and code puts the button under it.
+    return { parts: templateAnswer(deps, state, venture, agent, waiting), author: 'template', callId: null, line, ...(route ? {} : { suggestion: { kind: 'connect-ai' as const } }) };
   }
   const { parts, leftOut } = checkedParts(answered.value, facts.figures, question);
   const kept = parts.length ? parts : [{ kind: 'text' as const, text: 'I could not answer that with figures I can prove. Ask me another way.' }];

@@ -89,6 +89,7 @@ test('A3 S3: Chats answers live, and a number the model writes is a model estima
     { kind: 'estimate', text: 'About 3 clients could reorder.' },
   ]);
   assert.equal(listRecords(env.store.read(), 'venture-chief-message').at(-1)!.author, 'model');
+  assert.equal(sent.added[1].suggestion, undefined, 'C5 task 5: with an AI, no Connect your AI button');
 });
 
 // Found by the A3 live check on Codex: every Chats call was refused before it reached the AI, because the chief's answer

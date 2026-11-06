@@ -79,6 +79,7 @@ test('thread: a question gets one answer; figures only by receipt, other numbers
   assert.match(reply.parts[1].display, /1,000/);
   assert.equal(reply.parts[2].text, 'It should reach about 18000 views.');
   assert.equal(sent.line, 'Four figures were left out: they had no receipt.');
+  assert.equal(reply.suggestion, undefined, 'C5 task 5: with an AI, no Connect your AI button');
   assert.equal(listRecords(env.store.read(), 'venture-agent-message').at(-1)!.author, 'model');
   assert.ok(run.id);
 });
