@@ -13,8 +13,8 @@ describe('the build line', () => {
     expect(Number.isNaN(new Date(BUILT_AT).getTime())).toBe(false);
   });
 
-  it('Business > About you says the version and the day it was built', async () => {
-    window.location.hash = '#/business/owner';
+  it('Settings, This app says the version and the day it was built', async () => {
+    window.location.hash = '#/business/app';
     render(<App client={createFakeClient(new FakeEngine())} language="en" />);
     const line = await screen.findByText(/^Chausar .+, built /);
     expect(line.textContent).toMatch(new RegExp(`^Chausar ${pack.version.replace(/\./g, '\\.')}, built \\d{1,2} [A-Z][a-z]{2} \\d{4}$`));

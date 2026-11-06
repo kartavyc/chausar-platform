@@ -44,18 +44,19 @@ describe('This app: Animations (one-shot C3 task 3)', () => {
   it('an engine that answers off at start sets data-motion after its answer, and not before', async () => {
     window.location.hash = '#/today';
     const client = createFakeClient(new FakeEngine({ motion: 'off' }));
-    let answer: (() => void) | null = null;
+    // C5's language root asks too: both wait for the same answer.
+    const answers: (() => void)[] = [];
     const slow: EngineClient = {
       ...client,
       request: (async (method: string, params: unknown) => {
-        if (method === 'app.preferences.get') await new Promise<void>((resolve) => { answer = resolve; });
+        if (method === 'app.preferences.get') await new Promise<void>((resolve) => { answers.push(resolve); });
         return client.request(method as never, params as never);
       }) as EngineClient['request'],
     };
     render(<ClockProvider now={MORNING}><App client={slow} language="en" /></ClockProvider>);
-    await waitFor(() => expect(answer).not.toBeNull());
+    await waitFor(() => expect(answers.length).toBeGreaterThan(0));
     expect(document.documentElement.dataset.motion).toBeUndefined();
-    await act(async () => { answer!(); });
+    await act(async () => { for (const answer of answers) answer(); });
     await waitFor(() => expect(document.documentElement.dataset.motion).toBe('off'));
   });
 

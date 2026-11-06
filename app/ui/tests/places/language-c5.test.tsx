@@ -24,7 +24,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); document.documentElement.lang
 
 describe('the language preference', () => {
   it('the row reads the preference, sets it on a press, and says the Hindi is machine-translated', async () => {
-    const { calls, engine } = start('#/business/owner');
+    const { calls, engine } = start('#/business/app');
     const row = await screen.findByRole('region', { name: 'Language' });
     expect(row.textContent).toContain('Hindi is machine-translated');
     expect(row.textContent).toContain('stay in English');
@@ -33,7 +33,7 @@ describe('the language preference', () => {
     expect(select.value).toBe('en');
     await act(async () => { fireEvent.change(select, { target: { value: 'hi' } }); });
     await waitFor(() => expect(calls.filter((call) => call.method === 'app.preferences.set').map((call) => call.params)).toEqual([{ language: 'hi' }]));
-    expect(await engine.request('app.preferences.get', {})).toEqual({ language: 'hi' });
+    expect(await engine.request('app.preferences.get', {})).toMatchObject({ language: 'hi' });
   });
 
   it('Welcome back has a small link to the other language, with no business open', async () => {
@@ -47,7 +47,7 @@ describe('the language preference', () => {
   });
 
   it('a failed save says so and leaves the choice as it was', async () => {
-    start('#/business/owner', new FakeEngine(), (client) => {
+    start('#/business/app', new FakeEngine(), (client) => {
       const request = client.request.bind(client);
       client.request = ((method: MethodName, params?: unknown) => (method === 'app.preferences.set' ? Promise.reject(new Error('The disk is full.')) : request(method, params as never))) as typeof client.request;
     });
@@ -59,15 +59,15 @@ describe('the language preference', () => {
   });
 
   it('an engine that has no preference (hosted, an older one) stays in English with no row or link', async () => {
-    start('#/business/owner', new FakeEngine(), (client) => { (client as { transport: string }).transport = 'hosted'; });
-    await screen.findByRole('heading', { name: 'About you' });
+    start('#/business/app', new FakeEngine(), (client) => { (client as { transport: string }).transport = 'hosted'; });
+    await screen.findByRole('heading', { name: 'This app' });
     expect(screen.queryByRole('region', { name: 'Language' })).toBeNull();
   });
 
   it('a phone or paired browser reads the preference, with no row: only the computer changes it', async () => {
     const engine = new FakeEngine();
     await engine.request('app.preferences.set', { language: 'hi' });
-    const { calls } = start('#/business/owner', engine, (client) => { (client as { transport: string }).transport = 'web'; });
+    const { calls } = start('#/business/app', engine, (client) => { (client as { transport: string }).transport = 'web'; });
     await waitFor(() => expect(document.documentElement.lang).toBe('hi'));
     expect(calls.some((call) => call.method === 'app.preferences.get')).toBe(true);
     await screen.findByRole('heading', { name: '\u0906\u092a\u0915\u0947 \u092c\u093e\u0930\u0947 \u092e\u0947\u0902' });

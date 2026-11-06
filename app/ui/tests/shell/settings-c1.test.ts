@@ -19,7 +19,7 @@ describe('the settings list', () => {
       ['plan', 'owner', 'voice', 'knowledge', 'build', 'app'],
       ['practice', 'routines', 'notifications', 'away', 'chats'],
       ['prices', 'goals', 'go-no-go', 'ca'],
-      ['keep', 'decisions', 'rules', 'reports'],
+      ['keep', 'decisions', 'rules', 'reports', 'updates'],
     ]);
   });
 

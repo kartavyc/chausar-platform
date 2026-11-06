@@ -85,7 +85,7 @@ describe('Business in the Ink v2 look', () => {
       ['Practice and improve', '#/business/practice'], ['Routines', '#/business/routines'], ['Notifications', '#/business/notifications'], ['Away', '#/business/away'],
       ['Old chats', '#/business/chats'],
       ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'],
-      ['Keep this business', '#/business/keep'], ['Decisions', '#/business/decisions'], ['Your rules', '#/business/rules'], ['Reports', '#/business/reports'],
+      ['Keep this business', '#/business/keep'], ['Decisions', '#/business/decisions'], ['Your rules', '#/business/rules'], ['Reports', '#/business/reports'], ['Updates', '#/business/updates'],
     ]);
     expect(within(nav).getByRole('link', { name: 'Prices' }).getAttribute('aria-current')).toBe('page');
   });
@@ -121,9 +121,10 @@ describe('Business in the Ink v2 look', () => {
       const main = document.querySelector('main')!;
       await within(main).findByText('Sponsor slot', { selector: '[data-offer-name]' });
       await waitFor(() => expect(main.querySelector('[data-figure]')).not.toBeNull());
-      expect(visibleText(main), hash).not.toMatch(/GST/);
+      // C5 task 13: the one way in is the switch on Prices, "I charge GST", with no field behind it until it is on.
+      expect(visibleText(main).replace('I charge GST', ''), hash).not.toMatch(/GST/);
       for (const fold of main.querySelectorAll('details')) fold.open = true;
-      expect(taxFields(main), hash).toEqual([]);
+      expect(taxFields(main).filter((field) => field !== 'I charge GST'), hash).toEqual([]);
       if (hash.endsWith('plan')) expect(main.textContent).toContain('Invoices in INR.');
       view.unmount();
     }
@@ -139,7 +140,7 @@ describe('Business in the Ink v2 look', () => {
       await waitFor(() => expect(main.querySelectorAll('h2, h3').length, hash).toBeGreaterThan(1));
       for (let i = 0; i < 3; i++) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
       for (const fold of main.querySelectorAll('details')) fold.open = true;
-      expect(main.textContent, hash).not.toMatch(/GST/);
+      expect((main.textContent ?? '').replace('I charge GST', ''), hash).not.toMatch(/GST/);
       view.unmount();
     }
   });

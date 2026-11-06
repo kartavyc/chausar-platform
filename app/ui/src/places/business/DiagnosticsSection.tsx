@@ -6,6 +6,7 @@ import { Button } from '../../parts/Button';
 import { formatFileSize } from '../../parts/when';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
 import r from './Reports.module.css';
 
 /**
@@ -49,14 +50,13 @@ export function DiagnosticsSection() {
     <TileSection title={t('diagnostics.title')}>
       {today && <p className={s.line} data-engine-line="">{today.line}</p>}
       {today && today.rows.length > 0 && (
-        <details className={r.counted}>
-          <summary>{t('diagnostics.counted')}</summary>
+        <Fold summary={t('diagnostics.counted')} className={r.counted}>
           <ul className={r.files}>
             {today.rows.map((row) => (
               <li key={row.key} data-engine-line="">{t('diagnostics.row', { label: row.label, time: row.display, count: row.receipt.items.length })}</li>
             ))}
           </ul>
-        </details>
+        </Fold>
       )}
       {canExport && <p className={s.line}>{t('diagnostics.line')}</p>}
       {said && <p className={s.note} role="status" data-engine-line="">{said}</p>}

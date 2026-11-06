@@ -33,7 +33,7 @@ describe('the monthly pack for the CA', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to my CA' })); });
     await settle();
     expect(window.location.hash).toContain('sheet=accountant:2026-11');
-    const sheet = await screen.findByRole('complementary', { name: /accountant/i });
+    const sheet = await screen.findByRole('complementary', { name: 'Share with your CA' });
     await waitFor(() => expect((within(sheet).getByLabelText('Month') as HTMLSelectElement).value).toBe('2026-11'));
     await act(async () => { fireEvent.click(await within(sheet).findByRole('button', { name: 'Send to my CA' })); });
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Open the draft' })); });
@@ -46,7 +46,7 @@ describe('the monthly pack for the CA', () => {
     window.location.hash = '#/money?sheet=accountant:books';
     const engine = new FakeEngine({ now: () => NOW });
     render(<App client={createFakeClient(engine)} language="en" />);
-    const sheet = await screen.findByRole('complementary', { name: /accountant/i });
+    const sheet = await screen.findByRole('complementary', { name: 'Share with your CA' });
     const on = await within(sheet).findByRole('checkbox', { name: 'Save the month for my CA on the 1st' });
     expect((on as HTMLInputElement).checked).toBe(false);
     await act(async () => { fireEvent.click(on); });

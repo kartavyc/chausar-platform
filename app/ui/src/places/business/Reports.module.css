@@ -44,5 +44,4 @@
 .counted summary {
   cursor: pointer;
   font-size: var(--text-read);
-  color: var(--fg2);
 }

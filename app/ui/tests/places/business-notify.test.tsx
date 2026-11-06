@@ -70,7 +70,7 @@ describe('Business > Notifications on this computer', () => {
     const summary = await within(reach).findByText('Get alerts on your phone', { selector: 'summary' });
     const fold = summary.closest('details') as HTMLDetailsElement;
     await waitFor(() => expect(fold.open).toBe(true));
-    expect([...reach.querySelectorAll('summary')].map((item) => item.textContent)).toEqual(['Get alerts on your phone']);
+    expect([...reach.querySelectorAll('summary')].map((item) => item.textContent)).toEqual(['Get alerts on your phone', 'Type the chat id yourself']);
     expect(reach.querySelectorAll('a')).toHaveLength(0);
     const headings = await within(fold).findAllByRole('heading');
     expect(headings.map((item) => item.textContent)).toEqual(['Telegram alerts', 'Phone access']);

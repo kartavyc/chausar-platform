@@ -24,7 +24,7 @@ function withStatus(first: EngineStatus) {
 
 function expectPairScreen() {
   expect(screen.getByRole('heading', { level: 1, name: 'Pair this browser' })).toBeTruthy();
-  expect(screen.getByText('Open Chausar on your computer and make a pairing link in Settings, Notifications, Phone access.')).toBeTruthy();
+  expect(screen.getByText('Open Chausar on your computer, go to Connections, and scan the code with this phone.')).toBeTruthy();
   expect(screen.queryByRole('navigation', { name: 'Places' })).toBeNull();
   expect(screen.queryByRole('alert')).toBeNull();
   expect(document.body.textContent).not.toMatch(/Couldn't load/);

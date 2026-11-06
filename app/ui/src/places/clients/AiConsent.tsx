@@ -66,13 +66,12 @@ export function AiDefault() {
     finally {setBusy(false);}
   }
   if(!view)return null;
-  return <details className={s.aiConsent}>
-    <summary>{t('clients.aiDefault.title')}<span className={s.state}> · {t(view.on?'clients.aiDefault.on':'clients.aiDefault.off')}</span></summary>
+  return <Fold summary={<span>{t('clients.aiDefault.title')}<span className={s.state}> · {t(view.on?'clients.aiDefault.on':'clients.aiDefault.off')}</span></span>} className={s.aiConsent}>
     <div className={s.inlineForm}>
       {problem && <p className={s.failed} role="alert">{problem}</p>}
       <p className={s.quiet}>{view.line}</p>
       <p data-content className={s.quiet}>{view.disclosure}</p>
       <div className={s.formActions}><Button locked={busy} onClick={()=>void set(!view.on)}>{t(view.on?'clients.aiDefault.turnOff':'clients.aiDefault.turnOn')}</Button></div>
     </div>
-  </details>;
+  </Fold>;
 }

@@ -19,9 +19,7 @@ describe('Telegram: Find me', () => {
     client.request = (async (method: string, params?: unknown) => { calls.push([method, params]); return request(method as never, params as never); }) as EngineClient['request'];
     render(<ClockProvider now={() => new Date(NOW)}><App client={client} language="en" /></ClockProvider>);
     const section = (await screen.findByText('How alerts reach you', { selector: 'h2' })).closest('section') as HTMLElement;
-    const fold = (await within(section).findByText('Telegram alerts', { selector: 'summary' })).closest('details') as HTMLDetailsElement;
-    fold.open = true;
-    fireEvent(fold, new Event('toggle'));
+    const fold = (await within(section).findByRole('heading', { name: 'Telegram alerts' })).closest('section') as HTMLElement;
     await within(fold).findByText('No Telegram bot is set. Alerts can go to your own bot as a count only.');
     expect((within(fold).getByLabelText('Your chat id').closest('details') as HTMLDetailsElement).open).toBe(false);
     fireEvent.change(within(fold).getByLabelText('Bot token'), { target: { value: TOKEN } });

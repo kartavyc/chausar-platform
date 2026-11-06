@@ -235,6 +235,8 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     const { spy } = start({ queue: [row] });
     const card = await cardTitled('Sponsor script for episode 14');
     await press(within(card).getByRole('button', { name: 'Reject' }));
+    // C5 task 9: a reject asks why first.
+    await press(within(card).getByRole('button', { name: 'Just reject' }));
     const decided = document.querySelector<HTMLElement>('[data-row-id="run:d-ep14-script:review-blocked"][data-decided]')!;
     expect(decided.textContent).toContain('Draft rejected. The agent learns from it.');
     await press(within(decided).getByRole('button', { name: 'Undo' }));

@@ -29,7 +29,7 @@ describe('who picks the language', () => {
   });
 
   it('the owner picks it: the words change once the pack lands, and the page says its language', async () => {
-    window.location.hash = '#/business/owner';
+    window.location.hash = '#/business/app';
     render(<App client={createFakeClient(new FakeEngine())} language="en" />);
     const row = await screen.findByRole('region', { name: 'Language' });
     expect(document.documentElement.lang).toBe('en');
@@ -45,7 +45,7 @@ describe('who picks the language', () => {
   it('a stored Hindi is read at the start, with English on screen until then', async () => {
     const engine = new FakeEngine();
     await engine.request('app.preferences.set', { language: 'hi' });
-    window.location.hash = '#/business/owner';
+    window.location.hash = '#/business/app';
     render(<App client={createFakeClient(engine)} language="en" />);
     await waitFor(() => expect(document.documentElement.lang).toBe('hi'));
     expect(await screen.findByRole('region', { name: 'भाषा' })).toBeTruthy();

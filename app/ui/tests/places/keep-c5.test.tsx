@@ -38,21 +38,21 @@ describe('task 18: the export format', () => {
   }
   it('offers Tally always and the GST return only with GST on; the chosen format goes to the engine', async () => {
     catching();
-    const { calls } = start('#/money', new FakeEngine(), {}, { 'venture.blueprint.get': (result) => ({ ...result, blueprint: { ...result.blueprint, backOffice: { ...result.blueprint.backOffice, taxRegistered: { ...result.blueprint.backOffice.taxRegistered, value: true } } } }) });
+    const { calls } = start('#/money/books?sheet=accountant:books', new FakeEngine(), {}, { 'venture.blueprint.get': (result) => ({ ...result, blueprint: { ...result.blueprint, backOffice: { ...result.blueprint.backOffice, taxRegistered: { ...result.blueprint.backOffice.taxRegistered, value: true } } } }) });
     const pick = await screen.findByLabelText('File format') as HTMLSelectElement;
     await waitFor(() => expect([...pick.options].map((option) => option.textContent)).toEqual(['CSV', 'Tally', 'GST return (GSTR-1)']));
     fireEvent.change(pick, { target: { value: 'tally-xml' } });
-    await press(screen.getByRole('button', { name: /^Export for your CA/ }));
+    await press(screen.getByRole('button', { name: /^Save the files/ }));
     expect(calls.find(([method]) => method === 'venture.money.export')![1]).toMatchObject({ format: 'tally-xml' });
     expect(DOWNLOADS[0]).toMatch(/-tally\.xml$/);
   });
   it('without GST there is no GST return, and CSV asks as before', async () => {
     catching();
-    const { calls } = start('#/money', new FakeEngine(), {}, { 'venture.blueprint.get': (result) => ({ ...result, blueprint: { ...result.blueprint, backOffice: { ...result.blueprint.backOffice, taxRegistered: { ...result.blueprint.backOffice.taxRegistered, value: false } } } }) });
+    const { calls } = start('#/money/books?sheet=accountant:books', new FakeEngine(), {}, { 'venture.blueprint.get': (result) => ({ ...result, blueprint: { ...result.blueprint, backOffice: { ...result.blueprint.backOffice, taxRegistered: { ...result.blueprint.backOffice.taxRegistered, value: false } } } }) });
     const pick = await screen.findByLabelText('File format') as HTMLSelectElement;
     await settle();
     expect([...pick.options].map((option) => option.textContent)).toEqual(['CSV', 'Tally']);
-    await press(screen.getByRole('button', { name: /^Export for your CA/ }));
+    await press(screen.getByRole('button', { name: /^Save the files/ }));
     expect(calls.find(([method]) => method === 'venture.money.export')![1]).toEqual({ month: expect.any(String) });
   });
 });

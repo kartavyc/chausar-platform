@@ -324,10 +324,9 @@ export function OpenCopyFold() {
   const restarted = useContext(StartedContext);
   if (!client.pickCopy || !client.importCopy) return null;
   return (
-    <details className={s.fold}>
-      <summary>{t('onboarding.copy.title')}</summary>
+    <Fold summary={t('onboarding.copy.title')} className={s.fold}>
       <CopyImport onOpened={restarted} />
-    </details>
+    </Fold>
   );
 }
 

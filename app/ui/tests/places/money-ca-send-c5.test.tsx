@@ -15,7 +15,7 @@ describe('Send to my CA', () => {
     const sharePack = vi.fn(async () => ({ how: 'email' as const, opened: 'draft' as const, file: 'x.csv', to: 'ca@example.com' }));
     client.sharePack = sharePack;
     render(<App client={client} language="en" />);
-    const sheet = await screen.findByRole('complementary', { name: /accountant/i });
+    const sheet = await screen.findByRole('complementary', { name: 'Share with your CA' });
     fireEvent.change(await within(sheet).findByLabelText("Your CA's email"), { target: { value: 'ca@example.com' } });
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Keep contact' })); });
     await settle();

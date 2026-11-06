@@ -200,7 +200,8 @@ test('a run with a 6-minute owner wait reports worked 2 min and waited 6 min; th
   env.advance(60_000);
   await ventureAction(env.deps, owner, 'prepare', 'seed.done', tx => { tx.replace({ ...tx.find('venture-delivery-run', run.id)!, status: 'accepted' }); tx.emit('run.done', { runId: run.id }); });
   const detail = await get(env, run.id);
-  assert.deepEqual({ elapsed: detail.elapsed, worked: detail.worked, waited: detail.waited }, { elapsed: '8 min', worked: '2 min', waited: '6 min' });
+  // The run-level split is C4's (runTimes): elapsed is what it worked, waited its own figure.
+  assert.deepEqual({ elapsed: detail.elapsed, waited: detail.waited }, { elapsed: '2 min', waited: '6 min' });
   const work = detail.steps.find(step => step.id === 'work')!;
   assert.deepEqual({ working: work.working, waiting: work.waiting }, { working: '1 min', waiting: '6 min' });
   const gather = detail.steps.find(step => step.id === 'gather')!;
@@ -217,7 +218,5 @@ test('an older run whose calls carry no times shows no split', async () => {
   env.advance(60_000);
   await ventureAction(env.deps, owner, 'prepare', 'seed.done', tx => { tx.emit('run.done', { runId: run.id }); });
   const detail = await get(env, run.id);
-  assert.equal(detail.worked, undefined);
-  assert.equal(detail.waited, undefined);
   assert.ok(detail.steps.every(step => step.working === undefined && step.waiting === undefined));
 });

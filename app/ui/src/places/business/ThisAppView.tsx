@@ -46,18 +46,22 @@ export function ThisAppView() {
     { id: 'off', label: t('business.app.motion.off') },
   ];
   return (
-    <TileSection title={t('business.app.motion')}>
-      <fieldset className={s.group} role="radiogroup" aria-labelledby={legend} data-app-motion="">
-        <legend id={legend} className="sr-only">{t('business.app.motion')}</legend>
-        {options.map((option) => (
-          <label key={option.id} className={s.choice}>
-            <input type="radio" name={name} value={option.id} checked={motion === option.id} disabled={motion === null}
-              onChange={() => void choose(option.id)} /> {option.label}
-          </label>
-        ))}
-      </fieldset>
-      <p className={s.line}>{t('business.app.motion.line')}</p>
-      {problem && <p role="alert" className={s.problem}>{problem}</p>}
-    </TileSection>
+    <>
+      <TileSection title={t('business.app.motion')}>
+        <fieldset className={s.group} role="radiogroup" aria-labelledby={legend} data-app-motion="">
+          <legend id={legend} className="sr-only">{t('business.app.motion')}</legend>
+          {options.map((option) => (
+            <label key={option.id} className={s.choice}>
+              <input type="radio" name={name} value={option.id} checked={motion === option.id} disabled={motion === null}
+                onChange={() => void choose(option.id)} /> {option.label}
+            </label>
+          ))}
+        </fieldset>
+        <p className={s.line}>{t('business.app.motion.line')}</p>
+        {problem && <p role="alert" className={s.problem}>{problem}</p>}
+      </TileSection>
+      <LanguageSetting />
+      <BuildLine />
+    </>
   );
 }
