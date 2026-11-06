@@ -10,6 +10,7 @@ import { EngineError, type GoalView } from '../../engine/types';
 import { GOAL_EVENTS, goalAmount, goalFromView, monthBefore, monthOf, useGoalSuggestion } from '../today/goal';
 import { TileSection, messageOf, usePlan } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
+import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './GoalsView.module.css';
 
@@ -197,8 +198,7 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
           inputMode="decimal" autoComplete="off" value={typed} disabled={busy}
           onChange={(event) => { setTyped(event.currentTarget.value); setProblem(null); }}
         />
-        {problem && <p className={b.problem} role="alert">{problem}</p>}
-        {saved && <p className={b.quiet} role="status">{saved}</p>}
+        <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? saved}</ResultLine>
         <div className={b.formEnd}>
           <DraftWord saved={draft.saved} refused={draft.refused} shown={typed.trim() !== ''} />
           <Button variant="primary" type="submit" disabled={busy}>{t(shown?.state === 'set' ? 'business.goals.change' : 'business.goals.set')}</Button>

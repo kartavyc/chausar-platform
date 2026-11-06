@@ -5,6 +5,8 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient, type FakeOptions } from '../../src/engine/fake';
 import { CUSTODY_ERROR_WORDS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE } from '../../src/engine/fixtures';
 import type { EngineClient, MoveFile, Transport } from '../../src/engine/types';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * Welcome back carries every way in the old renderer had (platform/tests/venture-onboarding-renderer.test.ts, the
@@ -89,6 +91,17 @@ describe('Welcome back: a business locked with a passphrase', () => {
     await press(screen.getByRole('button', { name: 'Recover' }));
     await appShown();
     expect(sent(calls, 'workspace.recover')).toEqual([{ folder: 'sitara', recoveryCode: SAMPLE_RECOVERY_CODE }]);
+  });
+});
+
+describe('Welcome back: the card holds still (B4 task 5)', () => {
+  it('the card is anchored to the top, so an error line grows down and does not move it', async () => {
+    start({ closed: true });
+    await welcome();
+    const main = screen.getByRole('main');
+    expect(main.hasAttribute('data-anchored')).toBe(true);
+    const css = readFileSync(join(import.meta.dirname, '../../src/places/onboarding/Onboarding.module.css'), 'utf8');
+    expect(/\.firstMain\[data-anchored\] \{([^}]*)\}/.exec(css)![1]).toContain('align-content: start');
   });
 });
 

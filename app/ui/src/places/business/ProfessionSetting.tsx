@@ -4,6 +4,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { ComplianceCheck, type ComplianceAnswer } from '../../parts/ComplianceCheck';
 import { TileSection, messageOf } from './shared';
+import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './ProfessionSetting.module.css';
 
@@ -87,8 +88,7 @@ export function ProfessionSetting({ onChanged }: { onChanged?: () => void }) {
       {data && !fieldOnly && <p className={b.line}>{data.profession.label}</p>}
       {data && fieldOnly && <p className={b.line}>{t('business.profession.field', { field: data.profession.label })}</p>}
       {none && <p className={b.line}>{t('business.profession.none')}</p>}
-      {said && <p className={b.said} role="status">{t('business.profession.saved')}</p>}
-      {problem && <p className={b.problem} role="alert">{problem}</p>}
+      <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? (said ? t('business.profession.saved') : null)}</ResultLine>
       {!open && (
         <span className={b.buttons}>
           <Button variant="secondary" onClick={start}>{current ? t('business.profession.change') : t('business.profession.pick')}</Button>

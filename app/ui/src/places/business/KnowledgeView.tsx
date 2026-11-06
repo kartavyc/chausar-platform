@@ -7,6 +7,7 @@ import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
 import { Field } from '../../parts/Field';
 import { TileSection, dayOf, messageOf } from './shared';
+import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './KnowledgeView.module.css';
 // W6 6G4: the business's dated facts (since when, what they replaced, source, who may see them).
@@ -58,8 +59,7 @@ export function KnowledgeView() {
       <div className={b.split}>
         <TileSection title={t('business.knowledge.sources')} meta={data.sources.length ? t('business.knowledge.count', { count: data.sources.length }) : undefined}>
           <p className={b.line}>{data.line}</p>
-          {said && <p className={b.said} role="status">{said}</p>}
-          {problem && <p className={b.problem} role="alert">{problem}</p>}
+          <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? said}</ResultLine>
           {data.sources.length === 0 ? <p className={b.note}>{t('business.knowledge.none')}</p> : (
             <ul className={s.sources}>
               {data.sources.map((source) => (

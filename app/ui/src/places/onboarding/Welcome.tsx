@@ -106,7 +106,7 @@ function Shell({ status, children }: { status: ReactNode; children: ReactNode })
   return (
     <div className={s.first}>
       <div>{status}</div>
-      <main id="main" tabIndex={-1} className={s.firstMain}>
+      <main id="main" tabIndex={-1} className={s.firstMain} data-anchored="">
         <div className={s.alone}>
           <Brand />
           {children}

@@ -6,6 +6,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
 import { TileSection, messageOf } from './shared';
+import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './VoiceView.module.css';
 
@@ -168,8 +169,7 @@ function VoiceTile({ voice, said, onSet }: { voice: Voice; said: string | null; 
           />
         ))}
       </div>
-      {problem && <p className={b.problem} role="alert">{problem}</p>}
-      {said && <p className={b.said} role="status">{said}</p>}
+      <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? said}</ResultLine>
       {asking ? <SecondAsk busy={busy} onYes={() => void yes()} onNo={() => setAsking(null)} /> : (
         <div className={s.buttons}>
           {voice.undo && (

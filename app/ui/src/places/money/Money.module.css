@@ -781,6 +781,10 @@
   color: var(--fg);
 }
 
+.result {
+  margin-top: var(--sp-2);
+}
+
 .noticeStale {
   color: var(--wait);
 }

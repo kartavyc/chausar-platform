@@ -9,6 +9,7 @@ import { ExternalLink, openProblem } from '../connections/external';
 import { BUILDER_NAMES, handOff } from './handoff';
 import { TileSection, messageOf } from './shared';
 import { SiteEdits } from './SiteEdits';
+import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
 
 const SYNTHETIC = /synthetic recording/i;
@@ -115,8 +116,7 @@ function Builders({ status, ready, onOpened }: { status: BuildStatusView; ready:
         <Button variant="primary" disabled={busy || !ready} onClick={() => void open('lovable')}>{t('business.openLovable')}</Button>
       </div>
       <p className={s.note}>{t('business.replitNote')}</p>
-      {said?.lines.map((line) => <p key={line} className={s.said} role="status">{line}</p>)}
-      {said?.problem && <p className={s.problem} role="alert">{said.problem}</p>}
+      <ResultLine tone={said?.problem ? 'problem' : 'done'}>{said?.problem ?? (said?.lines.length ? said.lines.map((line) => <span key={line}>{line} </span>) : null)}</ResultLine>
       {status.handoffs.length > 0 && (
         <details className={s.fold}>
           <summary>{t('business.handoffs')}</summary>

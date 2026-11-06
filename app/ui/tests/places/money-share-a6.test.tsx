@@ -37,6 +37,18 @@ const shared = (result: InvoiceShareResult) => vi.fn(async (_invoiceId: string, 
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('A6: Email it and Share on WhatsApp on the desktop', () => {
+  it('B4 task 5: the result fills a slot that is there before the press, so what follows stays put', async () => {
+    const shareInvoice = shared({ how: 'email', opened: 'draft', file: 'INV-0039.pdf', attached: 'INV-0039.pdf', to: true, note: null });
+    const { pay } = await start({ shareInvoice });
+    const slot = pay.querySelector('[data-result-line]')!;
+    expect(slot.textContent).toBe('');
+    const children = pay.children.length;
+    await click(within(pay).getByRole('button', { name: 'Email it' }));
+    await waitFor(() => expect(slot.textContent).toContain('Your mail app opened an email'));
+    expect(pay.querySelector('[data-result-line]')).toBe(slot);
+    expect(pay.children.length).toBe(children);
+  });
+
   it('Email it opens an email in the mail app with the PDF attached, says what to do when it has no Send button, and offers the PDF', async () => {
     const shareInvoice = shared({ how: 'email', opened: 'draft', file: 'INV-0039.pdf', attached: 'INV-0039.pdf', to: true, note: null });
     const { calls, panel, pay } = await start({ shareInvoice, showShared: vi.fn(async () => undefined) });

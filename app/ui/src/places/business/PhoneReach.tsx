@@ -15,6 +15,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { ParamsOf, PhoneAccessView, TelegramView } from '../../engine/types';
 import { messageOf } from './shared';
+import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
 import n from './Notifications.module.css';
 
@@ -82,8 +83,7 @@ function Telegram() {
           {t('business.notify.botDetails')}
         </label>
       )}
-      {shown.said && <p className={s.note} role="status">{shown.said}</p>}
-      {problem && <p className={s.problem} role="alert">{problem}</p>}
+      <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? shown.said}</ResultLine>
     </form>
   );
 }

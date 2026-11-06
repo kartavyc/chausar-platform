@@ -11,6 +11,7 @@ import { EngineError, type AgentView, type RoutineSchedule, type RoutineView } f
 import { Tile, TileHead } from '../../parts/Tile';
 import { dayOf, messageOf } from './shared';
 import { ModelReceipt } from '../../parts/ModelReceipt';
+import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
 import r from './RoutinesView.module.css';
 
@@ -122,7 +123,7 @@ export function RoutinesView() {
       {list.error && !list.data && <p className={s.problem} role="alert">{t('business.failed', { message: list.error.message })}</p>}
       {!list.data && !list.error && <p className={s.note}>{t('business.loading')}</p>}
       {list.data && routines.length === 0 && <p className={s.line}>{t('business.routines.none')}</p>}
-      {said && <p className={s.note} role="status">{said}</p>}
+      <ResultLine>{said}</ResultLine>
       {routines.length > 0 && (
         <div className={r.list}>
           {routines.map((routine) => <RoutineCard key={routine.id} routine={routine} agents={agents} zone={firstZone} onChanged={changed} />)}

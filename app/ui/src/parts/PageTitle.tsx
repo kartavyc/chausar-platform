@@ -35,7 +35,13 @@ function withCount(line: ReactNode, count: string | undefined): ReactNode {
   return <>{line.slice(0, at)}<b>{count}</b>{line.slice(at + count.length)}</>;
 }
 
-/** A place's header (D's `header.phead`): the eyebrow, the title (28/600), its line, and the page tools beside them. */
+/** Longer than this wraps on a small window, so the line gives its height back there (B4 task 5). */
+const LONG_LINE = 48;
+
+/**
+ * A place's header (D's `header.phead`): the eyebrow, the title (28/600), its line, and the page tools beside them. The
+ * line's slot is always there with one line's height, so sub-pages with and without a line keep one header (B4 task 5).
+ */
 export function PageTitle({ title, eyebrow, line, count, tools }: PageTitleProps) {
   const t = useT();
   const shellTools = useContext(ShellToolsContext);
@@ -44,7 +50,7 @@ export function PageTitle({ title, eyebrow, line, count, tools }: PageTitleProps
       <div className={s.text}>
         {eyebrow && <p className={s.eyebrow}>{eyebrow}</p>}
         <h1 className={s.title}>{title}</h1>
-        {line && <p className={s.line}>{withCount(line, count)}</p>}
+        <p className={s.line} data-line-slot="" data-long={typeof line === 'string' && line.length > LONG_LINE ? '' : undefined}>{withCount(line, count)}</p>
       </div>
       {(tools || shellTools) && <div className={s.tools} role="group" aria-label={t('shell.pageTools')}>{tools}{shellTools}</div>}
     </header>

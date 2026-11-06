@@ -8,6 +8,7 @@ import { TileSection, messageOf } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import { SizeSetting } from './SizeSetting';
 import { ProfessionSetting } from './ProfessionSetting';
+import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './OwnerView.module.css';
 
@@ -98,8 +99,7 @@ export function OwnerView() {
         <form className={s.form} onSubmit={save} noValidate>
           <Field label={t('business.owner.name')} hint={t('business.owner.nameHint')} value={name} maxLength={80} autoComplete="given-name" onChange={(event) => { const next = event.currentTarget.value; edit(() => setName(next)); }} />
           <Field multiline label={t('business.owner.services')} hint={t('business.owner.servicesHint')} rows={4} value={services} onChange={(event) => { const next = event.currentTarget.value; edit(() => setServices(next)); }} />
-          {problem && <p className={b.problem} role="alert">{problem}</p>}
-          {said && said.map((line) => <p key={line} className={b.said} role="status">{line}</p>)}
+          <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? said?.map((line) => <span key={line}>{line} </span>)}</ResultLine>
           <div className={s.end}>
             <span className={b.buttons}>
               <Button variant="primary" type="submit" disabled={busy || (!touched && said !== null)} disabledReason={!busy && !touched && said === null ? t('business.owner.changeFirst') : undefined} aria-busy={busy || undefined}>{t('business.owner.save')}</Button>

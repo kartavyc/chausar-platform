@@ -17,6 +17,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
+import { ResultLine } from '../../parts/ResultLine';
 import { useEngine } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
@@ -205,13 +206,13 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
           <Button size="sm" disabled={busy} onClick={() => void email()}>{t('money-pay.email')}</Button>
         </div>
       )}
-      {said && <p className={s.notice} role="status" data-engine-line="">{said}</p>}
+      {/* B4 task 5: Saved, Shared and a refusal share one slot that is there before the press. */}
+      <ResultLine tone={problem ? 'problem' : 'done'} className={s.result} data-engine-line="">{problem ?? said}</ResultLine>
       {kept && engine.showShared && (
         <p className={s.payRow}>
           <Button size="sm" variant="quiet" onClick={() => void showKept(kept)}>{t(kept.endsWith('.pdf') ? 'money-pay.showPdf' : 'money-pay.showFile')}</Button>
         </p>
       )}
-      {problem && <p className={s.refusal} role="status" data-engine-line="">{problem}</p>}
     </section>
   );
 }

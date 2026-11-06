@@ -6,9 +6,11 @@
 /* First run and Welcome back: the whole window, the status line on top and the tile in the middle. */
 .first {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: 100vh;
-  min-height: 100dvh;
+  grid-template-rows: auto minmax(auto, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   background: var(--bg);
   color: var(--fg);
 }
@@ -23,6 +25,12 @@
 
 .firstMain:focus {
   outline: none;
+}
+
+/* Welcome's card starts at a fixed height, so an error line under a field grows down and never moves the card. */
+.firstMain[data-anchored] {
+  align-content: start;
+  padding-top: 10vh;
 }
 
 .alone {
@@ -560,7 +568,8 @@
 
 /* A phone: the tile fills the width, the steps stack as rows, and every control is a full touch target. */
 @media (max-width: 759px) {
-  .firstMain {
+  .firstMain,
+  .firstMain[data-anchored] {
     align-content: start;
     padding: var(--sp-4) var(--gutter-phone);
   }
