@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import { houseStyleFindings } from '../runtime/venture/records.ts';
 import {
   RIGHTS_BASES, RIGHTS_INTAKE_FIELD, isClippingStep, recordRights, requireRights, rightsLine, type PlaybookIntake,

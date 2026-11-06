@@ -6,7 +6,7 @@
 // day the newest tie was worked out.
 import type { State } from '../../contracts.ts';
 import type { NetworkBands, SumReceiptSubject, TieBand, TieRecord, VentureRecord } from '../contracts.ts';
-import { TIE_BANDS } from '../contracts.ts';
+import { TIE_BANDS } from '../contract-values.ts';
 import { listRecords, type VentureTx } from '../records.ts';
 import type { Addend, SumPlan } from '../money/sums.ts';
 import { localDayAt } from '../local-day.ts';

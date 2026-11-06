@@ -2,7 +2,7 @@
 // It sees prices and dates only as placeholders, so no receipt amount leaves Chausar under standing consent.
 import { check } from '../../contracts.ts';
 import { modelNumbers, modelWords } from '../records.ts';
-import { JUDGE_QUESTIONS } from '../contracts.ts';
+import { JUDGE_QUESTIONS } from '../contract-values.ts';
 import type { JudgeAnswer, JudgeQuestionId, ModelTask } from '../contracts.ts';
 
 export const JUDGE_POLICY = 'Never promise a price, a date or a result that is not in the plan. Never claim work was done unless the proven list shows it.';

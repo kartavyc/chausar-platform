@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import { STEP_PLAN } from '../runtime/venture/contracts.ts';
+import { STEP_PLAN } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintRecord, ClientRecord, CountryProfile, EvidenceItem, EvidenceRecord, ModelOutcome, ModelPort, ModelPreset, ModelPreview,
   ModelStatusView, ModelTask, OrderRecord, PlaybookPatch, PlaybookRecord, PlaybookStep, PriceFigure, PriceReceiptRecord, QueueList, SecretShelf,

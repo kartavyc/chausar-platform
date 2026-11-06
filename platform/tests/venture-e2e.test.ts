@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import { numberGuard } from '../runtime/calculator.ts';
-import { EXTERNAL_ORIGINS, STEP_PLAN } from '../runtime/venture/contracts.ts';
+import { EXTERNAL_ORIGINS, STEP_PLAN } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintView, BooksSummary, BriefRecord, BuildStatus, CapabilityStatus, ClientRecord, ConnectorCard, CountryProfile, DeliveryRunRecord,
   HandoffPlan, HandoffRecord, InterviewView, InvoiceView, LaunchStatus, ModelCallRecord, ModelPreset, ModelStatusView, OrderRecord, PlanPreview, PriceReceiptRecord,

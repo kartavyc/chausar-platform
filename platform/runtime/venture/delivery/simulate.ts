@@ -28,7 +28,7 @@ import { refusalsOf } from '../playbooks/ca-firm/claims.ts';
 import type { FileLike } from './harness/files.ts';
 import { listScenarios, signalScenario } from './scenarios.ts';
 import { withExpectations } from './corrections.ts';
-import { REQUIRED_SECTIONS } from '../contracts.ts';
+import { REQUIRED_SECTIONS } from '../contract-values.ts';
 import { acceptedBlueprint, errorCode, optionalFlag, quote, readAs, serviceTypeOf, todayIso, ventureReceipts } from './shared.ts';
 import { refuseNewWork } from './run-guards.ts';
 import { PRESETS } from '../models/presets.ts';

@@ -8,7 +8,7 @@ import { CalculatorService, numberGuard } from '../runtime/calculator.ts';
 import { OntologyService, starterPacks } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { digest, listRecords, ventureAction } from '../runtime/venture/records.ts';
-import { METHOD_OWNERS, STEP_PLAN, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { METHOD_OWNERS, STEP_PLAN, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import type {
   BackOffice, BlueprintRecord, ClientRecord, CountryProfile, ModelPort, Offer, PriceReceiptRecord, PricingModel, RecordBase, SecretName, SecretShelf,
   TermRecord, VentureDeps, VentureHandler, VentureMethod, VentureRecord, VentureResults, VentureStorage,

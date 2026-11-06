@@ -14,7 +14,7 @@
 // a send is the owner's own record ("I sent it"), and recordCardSend is the one way a send reaches a card (4E2's
 // venture.outreach.sent calls it too).
 import { check, type State } from '../../contracts.ts';
-import { LOST_REASONS } from '../contracts.ts';
+import { LOST_REASONS } from '../contract-values.ts';
 import type {
   CardTouch, CardVote, ClientRecord, FollowupSequence, IsoDate, IsoTime, LeadRecord, LostReason, OpportunityRecord, OpportunityTrigger, OutreachChannel,
   OutreachKind, OutreachSentChannel, PersonRecord, PipelineEvidenceInput, PipelineSettingsRecord, PipelineStage, StageMove, VentureRecord,

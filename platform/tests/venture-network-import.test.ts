@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, NETWORK_IMPORT_KINDS, W4_METHOD_LEVELS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, NETWORK_IMPORT_KINDS, W4_METHOD_LEVELS } from '../runtime/venture/contract-values.ts';
 import type { ClientRecord, NetworkImportRecord, NetworkImportResult, NetworkImportUndo, NetworkSourcesView, OpportunityRecord, PersonRecord } from '../runtime/venture/contracts.ts';
 import { combinedSignals } from '../runtime/venture/network/people.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';

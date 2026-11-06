@@ -9,7 +9,7 @@ import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
 import { OntologyService, starterPacks } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
-import { CHECK_IDS } from '../runtime/venture/contracts.ts';
+import { CHECK_IDS } from '../runtime/venture/contract-values.ts';
 import type {
   Deliverable, DeliveryRunView, Episode, HarnessState, ModelOutcome, ModelPort, ModelPreview, ModelStatusView, ModelTask, PriceReceiptRecord, RunDetail, SecretShelf,
   SimulationRunRecord, TextPart, VentureDeps, VentureMethod, WorkReceiptRecord,

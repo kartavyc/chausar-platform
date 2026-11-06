@@ -1,0 +1,30 @@
+name: D8 contract type probe
+on:
+  push:
+    branches: ['b2c/os-d8-probe-*']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compare baseline and direct contract import
+        run: |
+          npm run typecheck:ui > "$RUNNER_TEMP/d8-base.log" 2>&1 || true
+          printf "import type { QueueRow } from '../../../../platform/runtime/venture/contracts.ts';\nexport type Probe = QueueRow;\n" > app/ui/src/d8-contract-probe.ts
+          npm run typecheck:ui > "$RUNNER_TEMP/d8-probe.log" 2>&1 || true
+          diff -u "$RUNNER_TEMP/d8-base.log" "$RUNNER_TEMP/d8-probe.log" > "$RUNNER_TEMP/d8-diff.log" || true
+          cat "$RUNNER_TEMP/d8-diff.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d8-type-probe
+          path: ${{ runner.temp }}/d8-*.log

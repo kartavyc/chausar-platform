@@ -13,7 +13,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { authorize, ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
-import { MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS } from '../contracts.ts';
+import { MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS } from '../contract-values.ts';
 import type {
   CliFinding, DelegateCli, ModelOutcome, ModelPort, ModelPortOptions, ModelProcessResponse, ModelPreset, ModelPresetId, ModelPreview, ModelPriceTable, ModelPurpose, ModelRouteKind,
   ModelStatusView, ModelTask, ModelTier, SpendRate, VentureDeps,

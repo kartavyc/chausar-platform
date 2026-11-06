@@ -12,7 +12,7 @@
 // (an auditor's tool allowlist). Rewrites in TypeScript, not copies.
 import type { State } from '../../contracts.ts';
 import { listRecords } from '../records.ts';
-import { TOOL_NAMES } from '../contracts.ts';
+import { TOOL_NAMES } from '../contract-values.ts';
 import type { DeliveryRunRecord, HarnessState, ToolName } from '../contracts.ts';
 import { REDACTED, secretFindings } from '../core/secrets.ts';
 import { classifyEffects, toolDeclaration } from '../policy/effects.ts';

@@ -11,7 +11,7 @@
 // evidence, and a figure the calculator refutes fails; correctDraft puts the calculator's figure in its place first,
 // and summaryReceipts does the same for a run summary.
 import { assertNoMoney, doneClaimMatches, houseStyleFindings, modelNumbers } from '../records.ts';
-import { REQUIRED_SECTIONS } from '../contracts.ts';
+import { REQUIRED_SECTIONS } from '../contract-values.ts';
 import type {
   CheckId, CheckResult, ClaimProof, DateOrder, Deliverable, GatePreference, HarnessState, MockEffect, ServiceType, TextPart, WorkReceiptRecord,
 } from '../contracts.ts';
