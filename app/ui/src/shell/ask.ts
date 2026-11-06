@@ -1,24 +1,28 @@
 /**
  * Asking Chausar from anywhere (Ink v2 wave 4, 4C2; C2): the command bar's Ask row, the Chausar story on Today and the
  * questions on Start all hand their words to Chats this way. The words wait here, in memory only (never in the
- * address, where they would sit in the history, and never in browser storage), until the Chats place takes them into
- * its composer. Ctrl K (useFindKey) goes to the command bar.
+ * address, where they would sit in the history, and never in browser storage), until the Chats place takes them. The
+ * Ask row sends them through Chats' own send and its consent card (the founder's F1); every other caller puts them in
+ * the composer, unsent. Ctrl K (useFindKey) goes to the command bar.
  */
 
 import { useEffect, useRef } from 'react';
 import { goTo } from './navigation';
 
 let pending: string | null = null;
+let pendingSend = false;
 const listeners = new Set<() => void>();
 
 /** Forget clears the in-memory handoff, including words not yet taken by Chats. */
 export function forgetAskWords(): void {
   pending = null;
+  pendingSend = false;
 }
 
-/** Opens a new chat with these words in the composer, unsent; left out, an empty new chat. */
-export function askChausar(text?: string): void {
+/** Opens a new chat with these words in the composer, unsent, or sent with `send`; left out, an empty new chat. */
+export function askChausar(text?: string, options: { send?: boolean } = {}): void {
   pending = (text ?? '').trim();
+  pendingSend = options.send === true && pending !== '';
   goTo('chats');
   for (const listener of [...listeners]) listener();
 }
@@ -27,6 +31,7 @@ export function askChausar(text?: string): void {
 export function takeAsk(): string | null {
   const words = pending;
   pending = null;
+  pendingSend = false;
   return words;
 }
 
@@ -37,15 +42,17 @@ export function onAsk(listener: () => void): () => void {
 }
 
 /**
- * Chats' side: the words waiting when it opens, then each later ask, handed to `take` (and taken, so they show once).
+ * Chats' side: the words waiting when it opens, then each later ask, handed to `take` (and taken, so they show once),
+ * with whether Chats sends them.
  */
-export function useAskWords(take: (words: string) => void): void {
+export function useAskWords(take: (words: string, send: boolean) => void): void {
   const latest = useRef(take);
   latest.current = take;
   useEffect(() => {
     const receive = () => {
+      const send = pendingSend;
       const words = takeAsk();
-      if (words !== null) latest.current(words);
+      if (words !== null) latest.current(words, send);
     };
     receive();
     return onAsk(receive);

@@ -77,7 +77,7 @@ describe('the rail and the header (spec 4.3: Today, Chats, Team, Work, Clients, 
     expect(within(rail).getByRole('link', { name: 'Chats, new' })).toBeTruthy();
   });
 
-  it('the command bar: the Ask row opens #/chats with the words in the composer, never sent', async () => {
+  it('F1: Enter on the Ask row sends through Chats: one send, the new chat opens with the answer', async () => {
     stubWidth(false);
     const { spy } = await start('#/team');
     const box = await screen.findByRole('combobox', { name: 'Find or ask' }) as HTMLInputElement;
@@ -86,11 +86,29 @@ describe('the rail and the header (spec 4.3: Today, Chats, Team, Work, Clients, 
     await waitFor(() => expect(screen.getAllByRole('option')[0]!.textContent).toBe('Ask Chausar: What waits on me this week?'));
     await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
     await hashChanged();
+    await waitFor(() => expect(window.location.hash).toMatch(/^#\/chats\?thread=/));
+    await hashChanged();
     await settle();
-    expect(window.location.hash).toBe('#/chats');
-    await waitFor(() => expect(composer().value).toBe('What waits on me this week?'));
-    expect(document.activeElement).toBe(composer());
-    expect(calls(spy, 'venture.chief.thread.send')).toHaveLength(0);
+    expect(calls(spy, 'venture.chief.thread.send').map(([, p]) => p)).toEqual([{ text: 'What waits on me this week?' }]);
+    await waitFor(() => expect(within(thread()).getByText('What waits on me this week?')).toBeTruthy());
+    expect(composer().value).toBe('');
+  });
+
+  it('F1: asked from a chat that is open, the words go to a new chat, not that one', async () => {
+    stubWidth(false);
+    const { spy } = await start('#/chats?thread=chiefthread-billed');
+    await waitFor(() => expect(within(thread()).getByText('How much have we billed this month?')).toBeTruthy());
+    await act(async () => { fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true }); });
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' }) as HTMLInputElement;
+    await act(async () => { fireEvent.change(box, { target: { value: 'What waits on me this week?' } }); });
+    await waitFor(() => expect(screen.getAllByRole('option')[0]!.textContent).toBe('Ask Chausar: What waits on me this week?'));
+    await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
+    await hashChanged();
+    await settle();
+    await hashChanged();
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.send').map(([, p]) => p)).toEqual([{ text: 'What waits on me this week?' }]);
+    await waitFor(() => expect(window.location.hash).not.toBe('#/chats?thread=chiefthread-billed'));
   });
 
   it('Ctrl K from anywhere goes to the bar and sends nothing; the box names the keys', async () => {
@@ -366,6 +384,27 @@ describe('#/chats: asking', () => {
     );
     return { seen, override };
   }
+
+  it('F1: the Ask row with no consent yet shows the consent with the words waiting; nothing is sent; after Agree, one send', async () => {
+    stubWidth(false);
+    const { override } = consentEngine('needed', 'Chats send your message to Claude Sonnet 5.5 with your key.');
+    const { spy } = await start('#/team', { override });
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' }) as HTMLInputElement;
+    box.focus();
+    await act(async () => { fireEvent.change(box, { target: { value: 'How is the month going?' } }); });
+    await waitFor(() => expect(screen.getAllByRole('option').some((row) => row.textContent === 'Ask Chausar: How is the month going?')).toBe(true));
+    await act(async () => { fireEvent.click(screen.getAllByRole('option').find((row) => row.textContent === 'Ask Chausar: How is the month going?')!); });
+    await hashChanged();
+    await settle();
+    const consent = await screen.findByRole('region', { name: 'Before your first message' });
+    expect(within(consent).getByText('How is the month going?')).toBeTruthy();
+    const sends = calls(spy, 'venture.chief.thread.send').length;
+    expect(sends).toBe(1); // refused by the engine: nothing kept
+    await click(within(consent).getByRole('button', { name: 'Agree and send' }));
+    await settle();
+    expect(calls(spy, 'venture.chief.thread.send')).toHaveLength(2);
+    expect(calls(spy, 'venture.chats.consent')).toHaveLength(1);
+  });
 
   it('before the first message: the consent the thread list carries, then Agree and send agrees with that digest and sends; no agent is needed', async () => {
     stubWidth(false);

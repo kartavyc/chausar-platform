@@ -112,7 +112,7 @@ export function CommandBox({ variant = 'header', onDone, opener }: CommandBoxPro
   function choose(row: FindRow) {
     setText('');
     setOpen(false);
-    if (row.kind === 'ask') askChausar(row.words);
+    if (row.kind === 'ask') askChausar(row.words, { send: true });
     else if (row.href === null) askChausar('');
     else go(row.href);
     onDone?.(true);
