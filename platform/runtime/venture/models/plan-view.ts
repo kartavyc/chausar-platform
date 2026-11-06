@@ -3,7 +3,8 @@
 // figures are only what the tools reported (plan-meter.ts); nothing is guessed. fresh: true asks Codex once through a
 // short app-server read (no thread, no turn) and never asks Claude Code. The hosted app answers TIER_UNAVAILABLE.
 import { authorize, check, type Context } from '../../contracts.ts';
-import { DELEGATE_CLIS, type DelegateCli, type IsoTime, type VentureDeps } from '../contracts.ts';
+import { DELEGATE_CLIS } from '../contract-values.ts';
+import type { DelegateCli, IsoTime, VentureDeps } from '../contracts.ts';
 import { currentVenture, exactPayload } from '../records.ts';
 import { formatTime, formatWeekday, ownerZone } from '../../owner-format.ts';
 import { CLI_LABELS } from './presets.ts';

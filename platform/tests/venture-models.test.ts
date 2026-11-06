@@ -14,7 +14,7 @@ import { isAbsolute, join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
-import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import type {
   ModelHttpRequest, ModelHttpResponse, ModelPort, ModelProcessRequest, ModelProcessResponse, ModelPurpose, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport,
   SecretName, SecretShelf, VentureDeps,
@@ -1233,4 +1233,58 @@ test('D3 fix: the month spent counts a held call at its reservation and says it 
   const status = deps.models.status(owner);
   assert.equal(status.spentThisMonthMicros, held.costMicros, 'the reservation, not 0');
   assert.equal(status.estimate, true);
+});
+
+// D2 task 19: the exact cached body is previewed, recorded and sent only with saved cache prices.
+async function cacheRates(deps: VentureDeps, enabled: boolean, writeRate = '3750000') {
+  await spendPolicySet(deps, owner, { rates: [{
+    item: 'model:anthropic-sonnet-5-5', model: preset('anthropic-sonnet-5-5').model,
+    unit: 'per-million-tokens', inputMicrosPerMillion: '3000000', outputMicrosPerMillion: '15000000',
+    ...(enabled ? { cacheReadMicrosPerMillion: '300000', cacheWriteMicrosPerMillion: writeRate } : {}),
+    source: 'Synthetic owner rate', checkedOn: '2026-10-15',
+  }] });
+}
+
+test('D2 cache marker: saved rates bind the preview, stored digest and exact sent body', async () => {
+  const { deps, store, rec } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5');
+  await cacheRates(deps, true);
+  const task = wordsTask({ purpose: 'delivery', containsClientData: true });
+  const preview = (await deps.models.preview(owner, task))!;
+  assert.deepEqual(JSON.parse(preview.payloadText).system, [{ type: 'text', text: task.instructions, cache_control: { type: 'ephemeral' } }]);
+  assert.equal(preview.digest, digest(preview.payloadText));
+  assert.equal(calls(store).find(row => row.id === preview.callId).payloadText, preview.payloadText);
+  await deps.models.runPreview(owner, preview.callId, preview.digest, validateWords);
+  assert.equal(rec.http[0].body, preview.payloadText);
+});
+
+test('D2 cache marker: standing calls use the saved rates and retain the exact dispatched body', async () => {
+  const { deps, store, rec } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5');
+  await cacheRates(deps, true);
+  const result = await deps.models.generate(owner, wordsTask({ purpose: 'delivery' }));
+  assert.equal(JSON.parse(rec.http[0].body).system[0].cache_control.type, 'ephemeral');
+  const saved = calls(store).find(row => row.id === result.callId);
+  assert.equal(saved.payloadDigest, digest(rec.http[0].body));
+  assert.equal(saved.payloadText, rec.http[0].body);
+});
+
+test('D2 cache marker: a preview becomes stale when its system caching policy changes', async () => {
+  for (const before of [false, true]) {
+    const { deps, rec } = await setup();
+    await connect(deps, 'anthropic-sonnet-5-5');
+    await cacheRates(deps, before);
+    const preview = (await deps.models.preview(owner, wordsTask({ purpose: 'delivery', containsClientData: true })))!;
+    await cacheRates(deps, !before);
+    await assert.rejects(deps.models.runPreview(owner, preview.callId, preview.digest, validateWords), code('APPROVAL_STALE'));
+    assert.equal(rec.http.length, 0);
+  }
+});
+
+test('D2 cache marker: premium write rates cannot pass the connection cap at plain input prices', async () => {
+  const { deps, rec } = await setup();
+  await connect(deps, 'anthropic-sonnet-5-5', { monthlyCapUsd: '0.05' });
+  await cacheRates(deps, true, '3000000000');
+  await assert.rejects(deps.models.generate(owner, wordsTask({ purpose: 'delivery' })), code('BUDGET_REACHED'));
+  assert.equal(rec.http.length, 0);
 });

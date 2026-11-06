@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -22,7 +23,7 @@ import { cardLines, chatRefresh, itemId, partsText } from './chat';
 import c from './AgentChat.module.css';
 
 const CONSENT_CODES = new Set(['CHAT_CONSENT_REQUIRED', 'CHAT_CONSENT_STALE']);
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /** The owner said no to the consent: nothing failed, so the words go back to the box. */
 class ConsentDeclined extends Error {}

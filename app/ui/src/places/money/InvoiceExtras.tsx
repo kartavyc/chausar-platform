@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The parts of one invoice that wave 4 adds to its sheet (W4 4J5, M11, M12 and M15): its one next step by state, a
  * draft's rate change (recalculating is the owner's choice), its credit notes and a way to ask for one, each payment
@@ -20,7 +21,7 @@ import { Figure } from '../../parts/Figure';
 import { Receipt } from '../../parts/Receipt';
 import type { InvoiceViewLite, PaymentLite } from '../../engine/types';
 import { keepDraft } from '../clients/handoff';
-import { messageOf, typedWords, useDay } from './words';
+import { typedWords, useDay } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 
@@ -32,7 +33,7 @@ export function NextStep({ view }: { view: InvoiceViewLite }) {
   const engine = useEngine();
   const [problem, setProblem] = useState<string | null>(null);
   const next = view.next;
-  if (!next || next.action === 'none' || next.action === 'issue') return null;
+  if (!next || next.action === 'none' || next.action === 'issue' || next.action === 'wait') return null;
   const late = view.late ?? view.invoice.late;
   const words = next.action === 'clear' ? t('money.next.clear')
     : next.action === 'remind' ? (next.draftId ? t('money.next.drafted') : t('money.next.remind'))
@@ -227,7 +228,7 @@ function CreditForm({ view, onDone }: { view: InvoiceViewLite; onDone: () => voi
 export function Timeline({ view }: { view: InvoiceViewLite }) {
   const t = useT();
   const day = useDay();
-  const entries = view.timeline ?? [];
+  const entries = (view.timeline ?? []).filter(entry => entry.what !== 'awaiting' && entry.what !== 'settled');
   if (entries.length === 0) return null;
   return (
     <section className={s.block} aria-label={t('money.timeline.title')}>

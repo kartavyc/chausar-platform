@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The person sheet beside the Network tab (`?sheet=person:<id>`; 4D4 from the engine's 4D1 to 4D3): who they are and
  * how well you know them (the five dots open the tie receipt); How you know them (the tie's lines, each from its file,
@@ -24,7 +25,7 @@ import type { PersonView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { ExternalLink } from '../connections/external';
 import { clientsChanged, useClientsChanged } from './signals';
-import { dotsOf, LinkedInButton, messageOf, networkRefresh, personForgotten, roleLine, WarmPath } from './network';
+import { dotsOf, LinkedInButton, networkRefresh, personForgotten, roleLine, WarmPath } from './network';
 import s from './Network.module.css';
 
 export function PersonSheet({ id, onClose, returnFocus }: SheetComponentProps) {

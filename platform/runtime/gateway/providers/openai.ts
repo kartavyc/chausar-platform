@@ -32,10 +32,10 @@ export function parseOpenAiResponsesOutput(data: any): { value: unknown; usage?:
 
 /** A Chat Completions answer: one choice, no tool, no refusal, finished with stop. */
 export function parseOpenAiCompatibleOutput(data: any): { value: unknown; usage?: any } {
-check(!data.error, 'MODEL_FAILED', 'The provider returned an error rather than a completed response.');
-check(data.choices?.length === 1 && !data.choices[0].message?.tool_calls?.length && !data.choices[0].message?.function_call, 'MODEL_TOOL_ATTEMPT', 'The model must return a single plan without tools.');
-const choice = data.choices[0];
-check(choice.finish_reason !== 'content_filter' && !choice.message?.refusal, 'MODEL_REFUSAL', 'The provider refused this response.');
-check(choice.finish_reason === undefined || choice.finish_reason === 'stop', 'MODEL_INCOMPLETE', 'The provider did not complete this response.');
-return { value: JSON.parse(choice.message.content), usage: data.usage };
+  check(!data.error, 'MODEL_FAILED', 'The provider returned an error rather than a completed response.');
+  check(data.choices?.length === 1 && !data.choices[0].message?.tool_calls?.length && !data.choices[0].message?.function_call, 'MODEL_TOOL_ATTEMPT', 'The model must return a single plan without tools.');
+  const choice = data.choices[0];
+  check(choice.finish_reason !== 'content_filter' && !choice.message?.refusal, 'MODEL_REFUSAL', 'The provider refused this response.');
+  check(choice.finish_reason === undefined || choice.finish_reason === 'stop', 'MODEL_INCOMPLETE', 'The provider did not complete this response.');
+  return { value: JSON.parse(choice.message.content), usage: data.usage };
 }

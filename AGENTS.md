@@ -14,7 +14,7 @@ Plans, specs, research and requirements are private. They live in the private re
 - Catalogue of research rows: `docs/research/harvest/cards2/CATALOGUE.md`.
 - The enterprise engine (formerly `enterprise/` here) is in that repository too.
 
-What the app does and its known limits stays public, in this repository: `docs/venture/ink.md`, `docs/venture/*.md`.
+What the app does and its known limits stays public, in this repository: `docs/venture/ink.md`, `docs/venture/*.md`. The `docs/` folder is for public readers; build logs belong in the private repository.
 
 ## Rules that never bend (the founder's)
 
@@ -34,9 +34,11 @@ What the app does and its known limits stays public, in this repository: `docs/v
 
 ## How work is done
 
+- A new engine method: add it to its list, its payload and result types and its level, change the one pinned count in `method-registry-d8.test.ts`, then run `node scripts/gen-contract.mjs`.
+
 - Test first: write the failing test, see it fail for the right reason, then implement.
 - Engine tests: `node --test platform/tests/<file>.test.ts`. UI tests: `npx vitest run --config app/ui/vitest.config.ts <path>`.
-- Before a commit: `npm ci` if a pull changed `package-lock.json`, then `npm run typecheck`, `npm run typecheck:ui`, `node scripts/check.mjs`, the tests near your change. Before a PR: `npm run test:ui`, `npm run build:ui`, the three engine shards (`node scripts/bench.mjs --shard=N/3`, one at a time; each receipt goes to the run root) and the screenshot walk (`node scripts/ui-shots/walk.mjs --cdp=9481 --workers=4`).
+- Before a commit: `npm ci` if a pull changed `package-lock.json`, then `npm run typecheck`, `npm run typecheck:ui`, `node scripts/check.mjs`, the tests near your change. Before a PR: `npm run test:ui`, `npm run build:ui`, the three engine shards (`node scripts/bench.mjs --shard=N/3`, one at a time; each receipt goes to the run root) and the screenshot walk (`node scripts/ui-shots/walk.mjs --cdp=9481 --workers=4`). For repo diet changes, review `npm run knip` findings before the PR.
 - Ink UI rules (held by tests): tokens only, no inline styles, type never below 12 px, motion once and at most 400 ms, one filled primary per card, quotes in `[data-content]`, contrast 4.5:1 in both themes, locked buttons `aria-disabled`, no sideways scroll at 390 px, word budgets per place in `app/ui/tests/baselines/words.json` (they only shrink; raises go to the founder in the PR).
 - The fake engine (`app/ui/src/engine/fake*.ts`) must answer exactly like the engine: same codes, shapes, order and field-exact checks.
 - Live checks: a package that talks to an installed tool or an outside service is not done until it has run once for real on harmless sample data (the founder's own Codex on this machine, test-mode accounts), with the result written in the notes. Fixture tests alone hid a Windows bug for weeks.

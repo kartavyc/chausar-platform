@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, W4_METHOD_LEVELS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, W4_METHOD_LEVELS } from '../runtime/venture/contract-values.ts';
 import type { PersonResearch, VentureMethod } from '../runtime/venture/contracts.ts';
 import { VentureHost } from '../runtime/venture/host.ts';
 import { listRecords } from '../runtime/venture/records.ts';

@@ -1,3 +1,4 @@
+import { VENTURE_METHODS as REGISTRY_VENTURE_METHODS, PRE_VAULT_METHODS as REGISTRY_PRE_VAULT, DRAFT_METHODS as REGISTRY_DRAFT } from '../runtime/method-registry.ts';
 // Ink v2 wave 4, package 4J10 (H38): method hints and one method set across every surface. METHOD_HINTS gives every
 // venture method readOnly, undoable, idempotent and reachesOutside, made from VENTURE_METHODS itself; this test checks
 // that the same methods are in the engine's list, the hints, the desktop's IPC allowlist, the Ink app's method map and
@@ -7,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS, W4_METHOD_LEVELS, W4_METHODS, W5_METHOD_LEVELS, W5_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS, W4_METHOD_LEVELS, W4_METHODS, W5_METHOD_LEVELS, W5_METHODS } from '../runtime/venture/contract-values.ts';
 import { METHOD_HINTS, METHOD_LEVEL_OF } from '../runtime/venture/method-hints.ts';
 import { ACTOR_ACTIONS } from '../runtime/hosted/runtime/contract.ts';
 import { VentureHost } from '../runtime/venture/host.ts';
@@ -21,7 +22,7 @@ const UI_METHODS = [...block.matchAll(/^\s*'([a-z]+(?:\.[A-Za-z]+)+)':/gm)].map(
 const venture = (methods: readonly string[]) => [...new Set(methods.filter(method => method.startsWith('venture.')))].sort();
 const sorted = (methods: readonly string[]) => [...methods].sort();
 
-test('the pinned counts: 421 venture methods, 401 reached through the hosted host', () => {
+test('venture and hosted method counts agree with the registry', () => {
   // Wave 6 adds consent, native settings and exact approvals, and removes three obsolete turn methods. 6C1 and 6C2 add
   // six draft methods (not hosted); 6C7 adds venture.needs.list, which the hosted host reaches. 6D adds billing get and
   // set, the invoice PDF and Razorpay payment links, all reached (hosted has no print port or key storage, and says so). 6C5
@@ -34,9 +35,9 @@ test('the pinned counts: 421 venture methods, 401 reached through the hosted hos
   // Batch 10: 6J2 feedback (6), all reached (hosted has no report keys composed and says so).
   // One-shot A2: venture.ai.setup.trust, the owner's choice of Codex, answered by the engine (hosted refuses it).
   // C2 added venture.find. C3 added venture.work.list. One-shot C4 added venture.invoice.shared, venture.routines.suggestions and venture.goNoGo.remove, all reached.
-  assert.equal(VENTURE_METHODS.length, 421);
+  assert.equal(VENTURE_METHODS.length, REGISTRY_VENTURE_METHODS.length);
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 401);
+  assert.equal(hosted.length, REGISTRY_VENTURE_METHODS.filter(name => !REGISTRY_PRE_VAULT.includes(name) && !REGISTRY_DRAFT.includes(name)).length);
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
@@ -5,7 +6,7 @@ import type { AgentView } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import s from './AgentExtras.module.css';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * The skills at the top of the agent panel's Can do tab (W4 4J22b, from 4J17's skills.ts; catalogue A18): each skill the engine reads from the

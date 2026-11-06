@@ -6,7 +6,7 @@
 // and nothing else: never client data. With templates only the role is the sentence as the job, and the owner names it.
 // A hired agent works in chat, routines and trackers only: it owns no delivery step, has no write tool, and always asks.
 import { ChausarError, check, type Context } from '../../contracts.ts';
-import { DEPARTMENT_IDS } from '../contracts.ts';
+import { DEPARTMENT_IDS } from '../contract-values.ts';
 import type { DepartmentId, Json, ModelTask, PersonaFields, VentureDeps } from '../contracts.ts';
 import { digest, exactPayload, identifier, listRecords, plainText, requireAppChannel, ventureAction } from '../records.ts';
 import { readAs } from '../delivery/shared.ts';

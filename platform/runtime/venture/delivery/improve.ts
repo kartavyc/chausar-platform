@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Chausar venture launcher, delivery package (P5): the gated improvement loop (Harness Learning, EvoOntology).
 // One run: freeze the business's signals and split them by time into a pool (what the proposer may read) and a
 // held-back reserve (only the gate sees it); diagnose the pool and the latest rehearsal failures; attribute the biggest
@@ -11,7 +12,7 @@
 import { check, newId, type Context, type State, internalCheck } from '../../contracts.ts';
 import { liveSignals } from './check-signals.ts';
 import { digest, exactPayload, findRecord, identifier, listRecords, modelWords, requireAppChannel, smallInteger, ventureAction, type VentureTx } from '../records.ts';
-import { ATTRIBUTION_LEVELS, CHECK_IDS, JUDGE_QUESTIONS, PLAYBOOK_PATCH_OPS } from '../contracts.ts';
+import { ATTRIBUTION_LEVELS, CHECK_IDS, JUDGE_QUESTIONS, PLAYBOOK_PATCH_OPS } from '../contract-values.ts';
 import type {
   AttributionLevel, CaseScore, CheckId, Diagnosis, Episode, GateCase, GatePreference, GateResult, ImprovementCase, ImprovementRound, ImprovementRunRecord,
   ImprovementStatus, ImproveModelOutput, Json, ModelOutcome, ModelTask, PlaybookPatch, PlaybookPatchOp, PlaybookRecord, Scenario,
@@ -384,7 +385,7 @@ async function improveRun(deps: VentureDeps, ctx: Context, payload: unknown, sta
   const window = signalWindow(signals, startedAt);
   // The budget in rupees at the owner's rate, when they set one; USD otherwise.
   const rupees = venture.country ? rupeesOf(state, venture) : null;
-  const budgetLine = `The run reached its budget of ${budgetWords(capMicros, rupees)}, so it stopped.`;
+  const budgetLine = `The job reached its budget of ${budgetWords(capMicros, rupees)}, so it stopped.`;
   const left = () => BigInt(capMicros) - BigInt(spendSummary(spend).costMicros);
 
   const work = deps.work?.begin('improve', WORK_STEPS.improve.map((step) => step.id)) ?? NO_WORK;
@@ -584,9 +585,9 @@ export function staleReason(state: State, venture: VentureRecord, run: Improveme
   if (run.rolledBack) return 'You went back from this version. Run the loop again to try another change.';
   const current = currentPlaybook(state, venture);
   if (current?.id === candidate.id) return 'This version is already in use.';
-  if (current?.id !== run.parentPlaybookId) return 'The work instructions changed since this run, so its result no longer applies. Run the loop again.';
+  if (current?.id !== run.parentPlaybookId) return 'The work instructions changed since this job, so its result no longer applies. Run the loop again.';
   const blueprint = findRecord(state, 'venture-blueprint', venture.acceptedBlueprintId ?? '');
-  if (!blueprint || blueprint.digest !== candidate.blueprintDigest) return 'Your plan changed since this run. Run the loop again.';
+  if (!blueprint || blueprint.digest !== candidate.blueprintDigest) return 'Your plan changed since this job. Run the loop again.';
   return null;
 }
 
@@ -626,13 +627,13 @@ export async function improveAdoptHandler(deps: VentureDeps, ctx: Context, paylo
   requireAppChannel(ctx, 'venture.improve.adopt');
   const body = exactPayload(payload, ['runId', 'digest'], ['runId', 'digest']);
   const runId = identifier(body.runId, 'Improvement run');
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you approved.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you approved.');
   const approved = body.digest;
   readAs(deps, ctx, 'approve');
   return ventureAction(deps, ctx, 'approve', 'improve.adopt', tx => {
     const run = tx.find('venture-improvement-run', runId);
     check(run, 'IMPROVEMENT_NOT_FOUND', 'That improvement run was not found.');
-    check(run.status === 'kept-candidate' && run.candidatePlaybookId, 'INVALID_VENTURE_REQUEST', 'This run kept the old version, so there is nothing to adopt.');
+    check(run.status === 'kept-candidate' && run.candidatePlaybookId, 'INVALID_VENTURE_REQUEST', 'This job kept the old version, so there is nothing to adopt.');
     check(run.digest === approved, 'CANDIDATE_STALE', 'The change you approved is not the one stored. Open it again.');
     const stale = staleReason(tx.state, tx.venture!, run);
     check(stale === null, 'CANDIDATE_STALE', stale ?? '');
@@ -670,7 +671,7 @@ export async function improveRollbackHandler(deps: VentureDeps, ctx: Context, pa
   requireAppChannel(ctx, 'venture.improve.rollback');
   const body = exactPayload(payload, ['playbookId', 'digest'], ['playbookId', 'digest']);
   const playbookId = identifier(body.playbookId, 'How the work is done');
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
   const approved = body.digest;
   readAs(deps, ctx, 'approve');
   return ventureAction(deps, ctx, 'approve', 'improve.rollback', tx => {

@@ -61,7 +61,7 @@ test('the file holds only the preference; a broken file reads as the defaults', 
   const directory = await folder(t);
   const { ask } = engineAt(t, directory);
   await ask('app.preferences.set', { motion: 'off' });
-  assert.deepEqual(JSON.parse(await readFile(join(directory, 'preferences.json'), 'utf8')), { motion: 'off', language: 'en' });
+  assert.deepEqual(JSON.parse(await readFile(join(directory, 'preferences.json'), 'utf8')), { format: 'chausar.preferences.v1', motion: 'off', language: 'en' });
   await writeFile(join(directory, 'preferences.json'), '{ not json');
   assert.deepEqual(await ask('app.preferences.get'), { motion: 'system', language: 'en' });
   await writeFile(join(directory, 'preferences.json'), JSON.stringify({ motion: 'off', business: 'Asha Studio' }));

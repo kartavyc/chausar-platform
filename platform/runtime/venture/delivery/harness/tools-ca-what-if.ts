@@ -9,7 +9,7 @@ export const WHAT_IF:Spec={name:'tax.whatIf',effect:'compute',tier:'code',endsTu
  const {caAnswer,noRetry}=await import('./tools-ca.ts');
  return noRetry(async()=>{
   requireRupees(env);const match=/^w([1-9]\d*)$/.exec(input.base),base=match?env.receipts[wholeCount(match[1])-1]:null;
-  check(base?.ca?.engine==='income-tax'&&base.ventureId===env.ventureId&&JSON.stringify(base.runRef)===JSON.stringify(env.runRef),'TOOL_FAILED','Choose an income-tax receipt from this run.');
+  check(base?.ca?.engine==='income-tax'&&base.ventureId===env.ventureId&&JSON.stringify(base.runRef)===JSON.stringify(env.runRef),'TOOL_FAILED','Choose an income-tax receipt from this job.');
   check(rederiveCaReceipt(base).rederived==='same','TOOL_FAILED','The base working changed. Work the income tax again first.');
   const log=newLog();noteSource(log,{id:base.id,name:input.base,digest:base.digest});
   let request:WhatIfInput;

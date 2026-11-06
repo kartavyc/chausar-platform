@@ -19,15 +19,15 @@ export type SpotSample = { sampled: boolean; reason: SpotCheckRecord['reason']; 
 
 /** Whether the run with this ordinal and this spend is picked. The spend line wins when both pick it. */
 export function sampleRun(ordinal: number, spendMicros: MicroString, rule: SpotCheckRule = SPOT_CHECK_RULE): SpotSample {
-  check(Number.isInteger(ordinal) && ordinal >= 1, 'INVALID_VENTURE_REQUEST', 'A run count starts at one.');
-  check(Number.isInteger(rule.everyNth) && rule.everyNth >= 1 && rule.everyNth <= 1000, 'INVALID_VENTURE_REQUEST', 'Check one run in at least one.');
+  check(Number.isInteger(ordinal) && ordinal >= 1, 'INVALID_VENTURE_REQUEST', 'A job count starts at one.');
+  check(Number.isInteger(rule.everyNth) && rule.everyNth >= 1 && rule.everyNth <= 1000, 'INVALID_VENTURE_REQUEST', 'Check one job in at least one.');
   check(/^\d{1,30}$/.test(spendMicros) && /^\d{1,30}$/.test(rule.overMicros), 'INVALID_AMOUNT', 'Spend must be whole micro units.');
   const nth = inWords(rule.everyNth);
   if (BigInt(spendMicros) > BigInt(rule.overMicros)) {
-    return { sampled: true, reason: 'over-spend', line: `This run spent ${formatUsd(spendMicros)}, more than ${formatUsd(rule.overMicros)}.` };
+    return { sampled: true, reason: 'over-spend', line: `This job spent ${formatUsd(spendMicros)}, more than ${formatUsd(rule.overMicros)}.` };
   }
-  if (ordinal % rule.everyNth === 0) return { sampled: true, reason: 'every-nth', line: `One run in ${nth} is checked, and this is one.` };
-  return { sampled: false, reason: null, line: `Not picked: not one run in ${nth}, and it spent no more than ${formatUsd(rule.overMicros)}.` };
+  if (ordinal % rule.everyNth === 0) return { sampled: true, reason: 'every-nth', line: `One job in ${nth} is checked, and this is one.` };
+  return { sampled: false, reason: null, line: `Not picked: not one job in ${nth}, and it spent no more than ${formatUsd(rule.overMicros)}.` };
 }
 
 /**

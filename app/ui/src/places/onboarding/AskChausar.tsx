@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Start's two tiles from Chausar as chief of staff (W4 4C2; D-Start's fit tile and `.unsure`):
  *   FitTile   "Good fit for you": the one way to earn venture.chief.fit picks for this owner, by its name from
@@ -23,7 +24,7 @@ import { Tile } from '../../parts/Tile';
 import s from './AskChausar.module.css';
 
 const QUESTIONS = ['onboarding.unsure.hours', 'onboarding.unsure.add'] as const;
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /** Where asking for the fit stands: not asked, asking, no fit, refused (the engine's words), or the fit with its way. */
 export type FitAsk =

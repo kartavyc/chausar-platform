@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -9,7 +10,7 @@ import s from './Money.module.css';
 import c from './JournalChain.module.css';
 import { Fold } from '../../parts/Fold';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 /** The reasons that mean the receipt is not what was signed: changed after signing, or unsigned though signing had begun. */
 const MISMATCH: ReadonlySet<ReceiptVerifyView['reason']> = new Set(['changed', 'unsigned-since']);
 

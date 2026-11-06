@@ -43,7 +43,7 @@ export function playbookForRun(state: State, run: DeliveryRunRecord): RunPlayboo
   const base = findRecord(state, 'venture-playbook', run.playbookId);
   if (!base || !run.workflow) return base;
   const pin = run.workflow;
-  check(pin.orderId === run.orderId && pin.baseHash === base.hash && pin.hash === run.playbookHash && workflowHash(pin) === pin.hash, 'PLAYBOOK_WORKFLOW_CHANGED', 'This run workflow changed. Start a new run for a new approval.');
+  check(pin.orderId === run.orderId && pin.baseHash === base.hash && pin.hash === run.playbookHash && workflowHash(pin) === pin.hash, 'PLAYBOOK_WORKFLOW_CHANGED', 'This job workflow changed. Start a new job for a new approval.');
   validatePlaybook(pin.steps, { limits: pin.limits, aliases: pin.aliases });
   return { ...base, hash: pin.hash, steps: pin.steps, limits: pin.limits, aliases: pin.aliases, runWorkflow: pin };
 }

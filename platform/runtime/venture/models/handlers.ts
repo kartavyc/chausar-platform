@@ -2,7 +2,7 @@
 // CLI status checked against the installed tools, and which AI answers for each role (roles.ts).
 // Desktop model keys persist through the private OS-protected host port; the unlocked shelf is only a cache.
 import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
-import { DELEGATE_CLIS, MODEL_PRESET_IDS, MODEL_PURPOSES } from '../contracts.ts';
+import { DELEGATE_CLIS, MODEL_PRESET_IDS, MODEL_PURPOSES } from '../contract-values.ts';
 import type {
   CliCheckRecord, CliFinding, CliStatusList, ModelPresetId, ModelPurpose, ModelStatusView, ModelTier, VentureDeps, VentureHandlerTable, VentureResults,
 } from '../contracts.ts';
@@ -229,7 +229,7 @@ async function cliStatus(deps: VentureDeps, ctx: Context, payload: unknown): Pro
     if (trouble) view.provider = trouble;
   }
   // D4: a look answered from the file kept between starts is not a new check; the background look that replaces it is.
-  const checked = clis.filter((_view, index) => (findings[index] as CliFinding & { kept?: true }).kept !== true);
+  const checked = clis.filter((_view, index) => findings[index]!.kept !== true);
   if (venture && checked.length) await keepChecks(deps, ctx, checked);
   return { clis, line: cliListLine(findings) };
 }

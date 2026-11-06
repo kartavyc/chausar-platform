@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode, useState } from 'react';
+import contractSource from '../../src/engine/types.ts?raw';
+import { RAIL_PLACES, OTHER_PLACES } from '../../src/shell/routes';
 import { EngineProvider, useEngine, useResource } from '../../src/engine/context';
-import { kindOf } from '../../src/engine/reads';
+import { READS, kindOf } from '../../src/engine/reads';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { App } from '../../src/shell/App';
 import { EngineError, type EngineClient, type QueueList, type VentureRunEvent } from '../../src/engine/types';
@@ -260,7 +262,7 @@ describe('at rest, nothing loops (B3)', () => {
     return calls;
   }
 
-  for (const hash of ['#/today', '#/money', '#/apps', '#/connections']) {
+  for (const hash of [...RAIL_PLACES, ...OTHER_PLACES].map(place => `#/${place}`)) {
     it(`${hash} sends nothing more once it has settled`, async () => {
       const calls = await open(hash);
       await settle();
@@ -279,4 +281,13 @@ describe('at rest, nothing loops (B3)', () => {
     await settle();
     expect(calls.slice(before)).toEqual([]);
   });
+});
+
+
+it('cleanup: every read-looking UI contract method is classified as a read', async () => {
+  const types = contractSource;
+  const contract = types.slice(types.indexOf('export interface EngineMethods'), types.indexOf('export type MethodName'));
+  const methods = [...contract.matchAll(/^  '([^']+)':/gm)].map(match => match[1]!).filter(method => /\.(get|list|status|inspect|options)$/.test(method));
+  expect(methods.length).toBeGreaterThan(80);
+  expect(methods.filter(method => !(READS as readonly string[]).includes(method))).toEqual([]);
 });

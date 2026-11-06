@@ -1,3 +1,4 @@
+import { CURRENT_SCHEMA } from '../runtime/migrations/ladder.ts';
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -422,7 +423,7 @@ test('actual fresh Vault revisions require narrow current-live authentication wh
     assert.equal(JSON.stringify(input.publication.state), JSON.stringify(publication.state));
     const opened = await Vault.open({ directory: main, storage: 'experimental-file', passphrase: freshPassphrase });
     try {
-      const state = opened.read(); assert.equal(opened.vaultId, freshVaultId); assert.equal(state.schemaVersion, 1);
+      const state = opened.read(); assert.equal(opened.vaultId, freshVaultId); assert.equal(state.schemaVersion, CURRENT_SCHEMA);
       assert.equal(state.workspace.demo, true); assert.deepEqual(state.workspace, publication.state.workspace);
       assert.deepEqual(state.members, [publication.authority.owner]); assert.deepEqual(state.policy, publication.state.policy);
       assert.equal(authorize(opened, publication.authority.context, 'admin').epoch, 7);

@@ -12,10 +12,12 @@ const FILE_NAME = /^[a-z][a-z0-9-]{0,40}\.jsonl$/;
 const TAG = /^[A-Za-z0-9_.:@+-]{1,100}$/;
 const CRASH_WORDS = 'Chausar hit a problem and needs to close. Nothing was sent anywhere.';
 /**
- * C5 task 26: the start-up steps, in the order they normally happen. D4 moves the window before the engine and shows
- * start-up progress from these same names, so this is the one list of them.
+ * C5 task 26, D4: the start-up steps, in the order they normally happen: the window first, then the engine. This is the one
+ * list of them. WINDOW_PHASES are the ones the window is told, before the engine says it's ready.
  */
-const STARTUP_PHASES = Object.freeze(['app-ready', 'engine-forked', 'engine-ready', 'window-shown', 'first-request', 'first-paint']);
+const FIRST_PAINT = 'first-paint';
+const STARTUP_PHASES = Object.freeze(['app-ready', 'window-shown', 'engine-forked', 'loaded', 'engine-ready', FIRST_PAINT, 'first-request']);
+const WINDOW_PHASES = Object.freeze(['window-shown', 'engine-forked', 'loaded']);
 
 function cleanFields(record) {
   const out = {};
@@ -84,4 +86,4 @@ function createTimeline({ diagnostics, now = Date.now }) {
   });
 }
 
-module.exports = Object.freeze({ DIAGNOSTICS_MAX_BYTES, CRASH_WORDS, STARTUP_PHASES, createDiagnostics, startMainGuard, createTimeline });
+module.exports = Object.freeze({ DIAGNOSTICS_MAX_BYTES, CRASH_WORDS, FIRST_PAINT, STARTUP_PHASES, WINDOW_PHASES, createDiagnostics, startMainGuard, createTimeline });

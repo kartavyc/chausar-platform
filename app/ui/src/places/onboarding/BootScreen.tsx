@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The window before the app. It asks the engine once what to show (boot.ts): the first run, "Welcome back" with the
  * businesses on this computer, or the app itself. While the engine is starting, offline or the browser is not paired,
@@ -23,7 +24,7 @@ import { withViewTransition } from '../../parts/motion';
 type WelcomeShown = WelcomeFound & { ask?: Leaving['ask'] };
 type Shown = { kind: 'checking' } | { kind: 'leaving' } | { kind: 'app' } | { kind: 'first-run'; back?: WelcomeShown } | WelcomeShown;
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 export function BootScreen({ status, children }: { status: ReactNode; children: (checking: boolean) => ReactNode }) {
   const client = useEngine();

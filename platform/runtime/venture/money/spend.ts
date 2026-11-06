@@ -16,7 +16,8 @@
 import { REFERENCE_RATE, REFERENCE_SOURCE } from './reference-rate.ts';
 import { formatCount, formatMoney, formatUsd, formatRate } from '../../owner-format.ts';
 import { ChausarError, check, money, type Context, type State } from '../../contracts.ts';
-import { ESTIMATE_WORDS, microsAsUsd, recordedCallMicros, usdToMicros } from '../models/cost.ts';
+import { ESTIMATE_WORDS, microsAsUsd, usdToMicros } from '../models/cost.ts';
+import { modelBudgetUsed } from '../models/budget.ts';
 import { NOT_REPORTED } from '../models/types.ts';
 import { modelLabel } from '../models/written-by.ts';
 import { localDayAt } from '../local-day.ts';
@@ -387,7 +388,7 @@ function usdOrMicros(body: Record<string, unknown>, usd: string, micros: string,
 function rateLine(value: unknown): SpendRate {
   const body = exactPayload(value, RATE_KEYS, ['item', 'unit', 'source', 'checkedOn']);
   check(typeof body.item === 'string' && ITEM.test(body.item), 'INVALID_VENTURE_REQUEST', 'A rate card line names a model, a heavy-work tool or a connector.');
-  check(UNITS.includes(body.unit as SpendRateUnit), 'INVALID_VENTURE_REQUEST', 'A rate is per million tokens, per call, or a run cap.');
+  check(UNITS.includes(body.unit as SpendRateUnit), 'INVALID_VENTURE_REQUEST', 'A rate is per million tokens, per call, or a job cap.');
   check(body.by === undefined || body.by === 'owner', 'INVALID_VENTURE_REQUEST', 'Lines on your rate card are your own.');
   check(body.confirmed === undefined || typeof body.confirmed === 'boolean', 'INVALID_VENTURE_REQUEST', 'Say whether this rate is confirmed.');
   check(body.model === undefined || (typeof body.model === 'string' && /^~?[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$/.test(body.model) && body.item.startsWith('model:') && body.unit === 'per-million-tokens'), 'INVALID_VENTURE_REQUEST', 'Use the exact model id for a model token price.');
@@ -397,7 +398,7 @@ function rateLine(value: unknown): SpendRate {
     microsPerCall: field('microsPerCall'), source: plainText(body.source, 'Where the rate comes from', { max: 200 }), checkedOn: isoDate(body.checkedOn, 'The date checked'),
     confirmed: body.confirmed !== false, by: 'owner', ...(typeof body.model === 'string' ? { model: body.model } : {}),
   };
-  check(complete(rate), 'INVALID_VENTURE_REQUEST', 'A rate per million tokens needs both its input and output figures; a rate per call or a run cap needs its figure.');
+  check(complete(rate), 'INVALID_VENTURE_REQUEST', 'A rate per million tokens needs both its input and output figures; a rate per call or a job cap needs its figure.');
   // Ink v2 wave 4 (4F2, M6): prompt-cache prices go only on a rate per million tokens, and only when given.
   for (const name of ['cacheReadMicrosPerMillion', 'cacheWriteMicrosPerMillion'] as const) {
     if (body[name] === undefined || body[name] === null) continue;
@@ -576,7 +577,7 @@ export function ratePrice(rate: SpendRate): Display {
     return `${formatRate(rate.inputMicrosPerMillion ?? '0')} in and ${formatRate(rate.outputMicrosPerMillion ?? '0')} out, per million tokens`;
   }
   const figure = formatRate(rate.microsPerCall ?? '0');
-  return rate.unit === 'per-call' ? `${figure} per call` : `Up to ${figure} a run`;
+  return rate.unit === 'per-call' ? `${figure} per call` : `Up to ${figure} a job`;
 }
 
 function policyView(policy: SpendPolicyRecord | null, dateOrder: DateOrder, country: Pick<CountryProfile, 'code'>): SpendPolicyView {
@@ -1048,20 +1049,14 @@ function agentCapViews(state: State, venture: VentureRecord, policy: SpendPolicy
  */
 function keyLimits(state: State, venture: VentureRecord, nowIso: string): LimitReachedView[] {
   const month = monthOf(nowIso);
-  const calls = listRecords(state, 'venture-model-call', venture.id) as { presetId: ModelPresetId; status: string; costMicros: string | null; usage: unknown; estimatedMaxCostMicros: string; at: string }[];
+  const calls = listRecords(state, 'venture-model-call', venture.id);
+  const spends = listRecords(state, 'venture-spend', venture.id);
   const reset = shortDay(resetDay(nowIso), venture.country.dateOrder);
   return listRecords(state, 'venture-model-connection', venture.id).filter(item => item.status === 'connected').flatMap(connection => {
     let spec: ReturnType<typeof presetSpec>;
     try { spec = presetSpec(connection.presetId); } catch { return []; }
     if (!spec.needsKey) return [];
-    let used = 0n;
-    for (const call of calls) {
-      if (call.presetId !== connection.presetId) continue;
-      if (call.status === 'dispatching') { used += BigInt(call.estimatedMaxCostMicros); continue; }
-      // D3 fix: a held cost counts at its reservation, as the port's budget does (models/budget.ts).
-      const micros = monthOf(call.at) === month ? recordedCallMicros(call) : null;
-      if (micros !== null) used += BigInt(micros);
-    }
+    const used = modelBudgetUsed(calls, spends, connection.presetId, month);
     if (used < BigInt(connection.monthlyCapMicros)) return [];
     return [{
       scope: 'key' as const, presetId: connection.presetId,

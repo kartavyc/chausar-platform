@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { ALL_METHODS } from '../runtime/method-registry.ts';
 import type { DesktopPayload } from '../../app/desktop/types.ts';
 
-const { METHODS, validateRequest } = createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs');
+const { METHODS, validateRequest, validateHostRequest } = createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs');
 const connectorMethods = [
   'connectors.profiles', 'connectors.read', 'connectors.reviewMapping', 'connectors.capture',
   'connectors.publish', 'connectors.ready', 'connectors.captureStatus', 'connectors.releaseRead',
@@ -57,7 +58,7 @@ test('desktop runtime and TypeScript declaration expose the same unique method t
   assert.equal(new Set(METHODS).size, METHODS.length);
 });
 
-test('desktop jobs and connectors whitelist covers exactly the actual dispatch methods', async () => {
+test('engine jobs and connectors remain dispatched but cannot be called by the renderer', async () => {
   const [engine, connectors] = await Promise.all([
     readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8'),
     readFile(new URL('../runtime/engine-connectors.ts', import.meta.url), 'utf8'),
@@ -65,38 +66,40 @@ test('desktop jobs and connectors whitelist covers exactly the actual dispatch m
   for (const [namespace, source] of [['jobs', engine], ['connectors', connectors]]) {
     const dispatched = [...source.matchAll(/case '([^']+)':/g)].map(match => match[1]).filter(method => method.startsWith(`${namespace}.`));
     assert.ok(dispatched.length > 0, `${namespace} needs real dispatcher cases.`);
-    assert.deepEqual(METHODS.filter((method: string) => method.startsWith(`${namespace}.`)).sort(), [...new Set(dispatched)].sort());
+    assert.deepEqual(ALL_METHODS.filter(method => method.startsWith(`${namespace}.`)).sort(), [...new Set(dispatched)].sort());
+    assert.deepEqual(METHODS.filter((method: string) => method.startsWith(`${namespace}.`)), []);
   }
-  for (const method of [...addedJobMethods, ...calendarMethods, ...connectorMethods]) assert.ok(METHODS.includes(method), `${method} must reach the engine.`);
+  for (const method of [...addedJobMethods, ...calendarMethods, ...connectorMethods]) assert.ok(ALL_METHODS.includes(method), `${method} must reach the engine.`);
 });
 
-test('desktop forwards new connector and job payloads without changing JSON values', () => {
+test('trusted engine requests preserve connector and job JSON values while the renderer refuses them', () => {
   for (const [method, payload] of Object.entries(requests)) {
-    const forwarded = validateRequest({ method, payload });
+    assert.throws(() => validateRequest({ method, payload }), { code: 'INVALID_REQUEST' });
+    const forwarded = validateHostRequest({ method, payload });
     assert.deepEqual(forwarded, { method, payload });
     assert.notEqual(forwarded.payload, payload, 'The forwarded request is an independent JSON value.');
   }
-  assert.deepEqual(validateRequest({ method: 'connectors.profiles' }), { method: 'connectors.profiles', payload: {} });
-  assert.deepEqual(validateRequest({ method: 'jobs.types' }), { method: 'jobs.types', payload: {} });
-  assert.deepEqual(validateRequest({ method: 'sources.groups' }), { method: 'sources.groups', payload: {} });
+  assert.deepEqual(validateHostRequest({ method: 'connectors.profiles' }), { method: 'connectors.profiles', payload: {} });
+  assert.deepEqual(validateHostRequest({ method: 'jobs.types' }), { method: 'jobs.types', payload: {} });
+  assert.deepEqual(validateHostRequest({ method: 'sources.groups' }), { method: 'sources.groups', payload: {} });
 });
 
-test('desktop retains legacy source requests and refuses invented connector or job methods', async () => {
+test('legacy source requests remain engine-only and invented requests are refused', async () => {
   const engine = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
   const sourceMethods = [...engine.matchAll(/case '(sources\.[^']+)':/g)].map(match => match[1]);
   assert.ok(sourceMethods.length >= 11);
   assert.ok(sourceMethods.includes('sources.groups'), 'The planned family catalogue must be publicly dispatched.');
-  assert.deepEqual(METHODS.filter((method: string) => method.startsWith('sources.')).sort(), [...new Set(sourceMethods)].sort());
-  for (const method of sourceMethods) assert.deepEqual(validateRequest({ method, payload: {} }), { method, payload: {} });
+  assert.deepEqual(ALL_METHODS.filter(method => method.startsWith('sources.')).sort(), [...new Set(sourceMethods)].sort());
+  assert.deepEqual(METHODS.filter((method: string) => method.startsWith('sources.')), []);
+  for (const method of sourceMethods) { assert.throws(() => validateRequest({ method, payload: {} }), { code: 'INVALID_REQUEST' }); assert.deepEqual(validateHostRequest({ method, payload: {} }), { method, payload: {} }); }
   for (const method of ['connectors.install', 'connectors.readBytes', 'jobs.executePlan', 'jobs.calendar.installRules']) {
     assert.throws(() => validateRequest({ method, payload: {} }), (error: any) => error.code === 'INVALID_REQUEST');
   }
 });
 
-test('desktop forwards the nine onboarding draft methods, right after venture.preview, in the contract order', async () => {
-  const { DRAFT_METHODS } = await import('../runtime/venture/contracts.ts');
-  const at = METHODS.indexOf('venture.preview');
-  assert.deepEqual(METHODS.slice(at + 1, at + 1 + DRAFT_METHODS.length), [...DRAFT_METHODS]);
+test('desktop forwards every onboarding draft method from the generated contract', async () => {
+  const { DRAFT_METHODS } = await import("../runtime/venture/contract-values.ts");
+  assert.deepEqual(METHODS.filter((name: string) => (DRAFT_METHODS as readonly string[]).includes(name)).sort(), [...DRAFT_METHODS].sort());
   const declared = await readFile(new URL('../../app/desktop/ipc-contract.d.cts', import.meta.url), 'utf8');
   const typed = JSON.parse(/METHODS: readonly (\[[^\]]+\])/.exec(declared)?.[1] ?? '[]');
   assert.deepEqual(typed, [...METHODS], 'the declaration file lists the same methods in the same order');

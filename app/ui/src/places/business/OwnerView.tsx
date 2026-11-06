@@ -1,10 +1,11 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { OwnerView as Owner } from '../../engine/types';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import { SizeSetting } from './SizeSetting';
 import { ProfessionSetting } from './ProfessionSetting';

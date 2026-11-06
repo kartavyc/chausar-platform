@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Who owes you (D-Money `.owe`, `.ow-*`, `.ag-l`): what clients owe, as the engine's figure with its receipt; how many
  * invoices are open (a Count); and either the five ages of what is owed (W4 4J4 venture.money.aging: the AgingBar, its
@@ -26,7 +27,7 @@ import { Tile, TileHead, type TileSpan } from '../../parts/Tile';
 import type { AgingView, InvoiceLite, MoneyOverviewLine } from '../../engine/types';
 import { keepDraft } from '../clients/handoff';
 import { Counted, InvoiceRef, lineProof } from './parts';
-import { messageOf, onMoney, useDay, type OpenInvoice } from './words';
+import { onMoney, useDay, type OpenInvoice } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 

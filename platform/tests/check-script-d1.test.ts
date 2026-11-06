@@ -100,3 +100,11 @@ test('parity with node --check: the bad JavaScript files fail there too, and the
   const old = spawnSync(process.execPath, ['--check', join(root, 'platform/type-first.ts')], { encoding: 'utf8' });
   assert.notEqual(old.status, 0, 'node --check refuses a .ts that opens with a type alias');
 });
+
+
+test('cleanup: the syntax checker refuses a second parser start instead of looping', async t => {
+  const root = await repo(t);
+  const result = spawnSync(process.execPath, ['scripts/check.mjs', '--parser-started'], { cwd: root, encoding: 'utf8', timeout: 10000, windowsHide: true });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /parser is unavailable after restart/);
+});

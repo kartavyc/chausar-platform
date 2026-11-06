@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
 import { PhoneError, requirePhone, validBinding, validBrief, isId } from './contracts.ts';
 import type { Brief, BriefCache, CachedBrief, DeviceBinding } from './contracts.ts';
 
@@ -40,7 +41,7 @@ const MAX_TOTAL_BYTES = 2 * 1024 * 1024;
 const FORMAT = 'chausar-phone-brief-v1';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
-const opaqueKey = (key: string) => /^[a-f0-9]{64}$/.test(key);
+const opaqueKey = (key: string) => DIGEST_PATTERN.test(key);
 const bindingText = (binding: DeviceBinding) => JSON.stringify([binding.workspaceId, binding.memberId, binding.deviceId, binding.epoch]);
 const allowedBinding = (binding: DeviceBinding): DeviceBinding => ({ workspaceId: binding.workspaceId, memberId: binding.memberId, deviceId: binding.deviceId, epoch: binding.epoch });
 const allowedBrief = (brief: Brief): Brief => ({

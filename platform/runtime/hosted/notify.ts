@@ -1,3 +1,4 @@
+import { sha256Hex } from '../hash.ts';
 // Chausar hosted tier: phone alerts (Ink v2 wave 4, package 4G3; spec 5.7, catalogue O13). Two pieces the venture
 // engine of each business needs from the server: the web push key, and whether the owner is looking.
 // The push key (VAPID) is derived from the custody key (custody.ts pushKey), so it is the same on every server process
@@ -8,7 +9,7 @@
 // is kept a day at most: the alert pacing looks back no further, and a business nobody watches leaves nothing behind.
 // A push subscription belongs to the session that made it: the engine keeps only a hash of that session's id
 // (pushSessionHash), and counts the subscription only while the session is live.
-import { createHash } from 'node:crypto';
+
 import type { HostedCustody } from './custody.ts';
 import type { IsoTime, WebPushPort } from '../venture/contracts.ts';
 
@@ -21,7 +22,7 @@ export function hostedPushPort(custody: HostedCustody, subject: string | null): 
 
 /** The hash of a hosted session id a push subscription is tied to (PushSubscriptionRecord.sessionHash), never the id. */
 export function pushSessionHash(sessionId: string): string {
-  return createHash('sha256').update(`chausar.hosted.push-session.v1:${sessionId}`, 'utf8').digest('hex');
+  return sha256Hex(`chausar.hosted.push-session.v1:${sessionId}`);
 }
 
 /** How long when a stream closed is kept: the alert pacing of venture/notify/centre.ts looks back a day at most. */

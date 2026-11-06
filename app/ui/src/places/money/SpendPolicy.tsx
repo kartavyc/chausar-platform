@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The owner's spend settings (venture.spend.policy.get and .set): a monthly limit across every paid call, a figure
  * above which a call waits for the owner, and the owner's own rate card. At rest it is the engine's words for each and
@@ -21,7 +22,7 @@ import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
 import type { CurrencyLead, SpendPolicyView, SpendRateInput, SpendRateLine, SpendRateUnit } from '../../engine/types';
 import { EngineWords, Failed, Rupees, Section } from './parts';
-import { messageOf, useDay, useLocalToday } from './words';
+import { useDay, useLocalToday } from './words';
 import { DraftRecover, DraftWord, useSettingsDraft } from '../business/settingsDraft';
 // 4Z3: the rate said once per page (4A2's rule), on its own line; the limits show only their rupee amounts.
 import { withoutRate } from '../team/departments';

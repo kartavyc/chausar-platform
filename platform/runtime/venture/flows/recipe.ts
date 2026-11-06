@@ -1,3 +1,5 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher, recorded flows (wave 6, package 6H2; DECISIONS D41): the recipe as data. The owner does a
 // website task once in Chausar's browser window (app/desktop/flow-browser.cjs); what they did comes back as recorded
 // events and becomes a recipe of plain steps: open the page, fill a box, tick a box, press a button, a stop for the
@@ -6,7 +8,7 @@
 // again on each run; the recorded words are kept only as the dry run's samples until the owner approves the recipe.
 // A password, a card number or a one-time code is never kept, not even if a page leaked it into the recording: it is a
 // stop where the owner types it in the window. Code reads every control; no model decides what a step is.
-import { createHash } from 'node:crypto';
+
 import { check } from '../../contracts.ts';
 import { sensitiveKind, type ElementFacts } from '../build/browser.ts';
 import { originProblem } from './flow-words.ts';
@@ -147,7 +149,7 @@ function plain(value: unknown, max: number): boolean {
 function checkTarget(target: FlowTarget, at: number): void {
   invalid(target && Array.isArray(target.candidates) && target.candidates.length > 0 && target.candidates.length <= MAX_CANDIDATES, `Step ${at + 1} needs a way to find its control.`);
   for (const item of target.candidates) invalid(KINDS.includes(item.kind) && plain(item.value, 200) && item.value.trim().length > 0, `Step ${at + 1} has a way to find its control Chausar cannot read.`);
-  invalid(typeof target.fingerprint === 'string' && /^[a-f0-9]{64}$/.test(target.fingerprint), `Step ${at + 1} needs its control's fingerprint.`);
+  invalid(typeof target.fingerprint === 'string' && DIGEST_PATTERN.test(target.fingerprint), `Step ${at + 1} needs its control's fingerprint.`);
   invalid(plain(target.label, MAX_LABEL) && target.label.trim().length > 0, `Step ${at + 1} needs a name for its control.`);
   invalid(![target.label, ...target.candidates.map(item => item.value)].some(text => CAPTCHA.test(text)), 'This step is a CAPTCHA. Chausar never fills or solves one; you do it yourself.');
 }
@@ -194,5 +196,5 @@ export function validateRecipe(recipe: FlowRecipe): FlowRecipe {
 /** The fingerprint of a recipe: what the owner approves. Any change to a step, a blank, the site or the name changes it. */
 export function recipeDigest(recipe: FlowRecipe): string {
   const canonical = { name: recipe.name, origin: recipe.origin, blanks: recipe.blanks.map(({ name, label }) => ({ name, label })), steps: recipe.steps };
-  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+  return sha256Hex(JSON.stringify(canonical));
 }

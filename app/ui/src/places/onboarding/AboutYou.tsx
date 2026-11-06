@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -38,7 +39,7 @@ const ASKS_RENAME = /\b(?:(?:call|name)\s+(?:it|this|the business|my business|th
 const rowsOf = (next: AboutReadLite): OfferRow[] => next.offers.map((offer, index) => ({ key: index, name: offer.name, line: offer.line ?? '', kept: true, editing: false }));
 /** name (one-shot A1, row 3): the name the card shows, which the saved plan keeps with the card's offers. */
 export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string; firstName?: string };
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * Step 2 of the first run, About you (W6 6C2, DECISIONS D16 and D16a; reference-ui/OnboardAB.dc.html). It opens as

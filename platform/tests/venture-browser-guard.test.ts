@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
 import type { PostingStepsView, VentureDeps } from '../runtime/venture/contracts.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import { houseStyleFindings } from '../runtime/venture/records.ts';
 import { handlers as build } from '../runtime/venture/build/index.ts';
 import { IS_PICKED, LINKS_IN, PAGE_LANG, PAGE_NOTICE, PICK_ELEMENT, READ_ELEMENT, UNMARK_PICK } from '../runtime/venture/build/browser.ts';

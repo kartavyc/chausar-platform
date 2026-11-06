@@ -11,6 +11,7 @@ import type { Context } from '../runtime/contracts.ts';
 import type { MicroString, SpendPolicyView, SpendRecord, VentureDeps } from '../runtime/venture/contracts.ts';
 import { findRecord, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as money } from '../runtime/venture/money/index.ts';
+import { modelBudgetUsed } from '../runtime/venture/models/budget.ts';
 import { budgetPressure } from '../runtime/venture/money/spend.ts';
 import { actTask, newHarnessState, DEFAULT_LIMITS } from '../runtime/venture/delivery/harness/loop.ts';
 import { BUDGET_LINE, SKIPPED_STEP_LINE } from '../runtime/venture/delivery/harness/breaker.ts';
@@ -264,4 +265,34 @@ test('pressure: the automatic judge does not run past the alert share and says s
   assert.equal(env.models.rulesTasks().length, 0, 'no judge call was made');
   assert.ok(run.checks.length > 0, 'code checks always run');
   assert.equal(listRecords(env.store.read(), 'venture-delivery-run').length, 1);
+});
+
+
+test('cleanup: a sent unanswered call holds its reservation once in the key limit and month meter; a released call stays free', async () => {
+  const env = await realPortEnv({ answer: () => { throw new Error('Synthetic transport failure'); } });
+  await env.connect('anthropic-haiku-5-5');
+  const { outcome } = await env.approveTask(wordsTask('interview', { containsClientData: true }));
+  await assert.rejects(outcome);
+  assert.equal(env.sent.length, 1);
+  const rows = () => listRecords(env.store.read(), 'venture-spend');
+  const calls = () => listRecords(env.store.read(), 'venture-model-call');
+  const held = rows().find(row => row.phase === 'unknown')!;
+  assert.ok(held, 'sent but unanswered stays held');
+  const call = calls().find(call => call.id === held.ref)!;
+  assert.equal(call.costMicros, null);
+  assert.equal(call.usage, null);
+  const amount = BigInt(held.reservedMicros);
+  assert.equal(modelBudgetUsed(calls(), rows(), call.presetId, '2026-10'), amount, 'the key counts the linked hold exactly once');
+  await ventureAction(env.deps, portOwner, 'prepare', 'seed.limit', tx => {
+    const connection = tx.list('venture-model-connection').find(row => row.presetId === call.presetId)!;
+    tx.replace({ ...connection, monthlyCapMicros: held.reservedMicros });
+  });
+  const view = await env.money('venture.spend.policy.get');
+  assert.deepEqual(view.keyLimits?.map((row: { presetId: string }) => row.presetId), [call.presetId]);
+  const next = await env.approveTask(wordsTask('interview', { containsClientData: true }));
+  await assert.rejects(next.outcome, code('BUDGET_REACHED'));
+  assert.equal(env.sent.length, 1, 'no second send passes the held cap');
+  await ventureAction(env.deps, portOwner, 'prepare', 'seed.released', tx => tx.replace({ ...held, phase: 'released', settledMicros: '0' }));
+  assert.equal(modelBudgetUsed(calls(), rows(), call.presetId, '2026-10'), 0n);
+  assert.equal((await env.money('venture.spend.policy.get')).keyLimits, undefined);
 });

@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Exact owner-approved Zoho setup. Masters and organization opening balances are separate effects.
 import {authorize,check,type Context} from '../../contracts.ts';
 import type {VentureDeps} from '../contracts.ts';
@@ -13,9 +14,9 @@ function owner(deps:VentureDeps,ctx:Context){requireAppChannel(ctx,'venture.desk
 const external=(input:ZohoSetupMasterInput)=>input.kind==='contact'?input.number:input.code;
 function targetSource(deps:VentureDeps,ctx:Context,row:SetupRecord,target:SetupTarget){const source=setupSourceNow(deps,ctx,row);check(source.companyId===target.companyId&&typeof target.identity==='string'&&target.identity.length>0&&target.identity.length<=120,'BOOKS_CONNECTION_INVALID','Connect this exact client accounting company.');return source;}
 function preparedCheck(value:ZohoPreparedMaster|ZohoPreparedOpening,input:ZohoSetupMasterInput|ZohoOpeningInput,target:SetupTarget,kind:'zoho-setup-master'|'zoho-setup-opening'){
- check(value?.kind===kind&&value.connectionIdentity===target.identity&&value.digest===digest({...value,digest:''})&&digest(value.input)===digest(input)&&typeof value.body==='string'&&value.body.length>0&&value.method==='POST'&&/^[a-f0-9]{64}$/.test(value.materialDigest),'APPROVAL_STALE','Review the exact source-bound provider request.');
+ check(value?.kind===kind&&value.connectionIdentity===target.identity&&value.digest===digest({...value,digest:''})&&digest(value.input)===digest(input)&&typeof value.body==='string'&&value.body.length>0&&value.method==='POST'&&DIGEST_PATTERN.test(value.materialDigest),'APPROVAL_STALE','Review the exact source-bound provider request.');
 }
-function validMaster(record:ZohoSetupMasterRecord|null,input:ZohoSetupMasterInput):record is ZohoSetupMasterRecord{return !!record&&Object.keys(record).length===4&&typeof record.id==='string'&&/^\d{1,100}$/.test(record.id)&&record.kind===input.kind&&record.externalIdentity===external(input)&&/^[a-f0-9]{64}$/.test(record.materialDigest);}
+function validMaster(record:ZohoSetupMasterRecord|null,input:ZohoSetupMasterInput):record is ZohoSetupMasterRecord{return !!record&&Object.keys(record).length===4&&typeof record.id==='string'&&/^\d{1,100}$/.test(record.id)&&record.kind===input.kind&&record.externalIdentity===external(input)&&DIGEST_PATTERN.test(record.materialDigest);}
 function openingMatches(found:ZohoOpeningRecord|null,prepared:ZohoPreparedOpening):found is ZohoOpeningRecord{
  if(!found||Object.keys(found).length!==5||typeof found.id!=='string'||!/^\d{1,100}$/.test(found.id)||found.materialDigest!==prepared.materialDigest||found.migrationDate!==prepared.input.migrationDate||found.locationId!==prepared.input.locationId||!Array.isArray(found.lines))return false;
  const expected=prepared.input.lines.map(line=>({...line,currencyId:prepared.input.currencyId})).sort((a,b)=>a.accountId.localeCompare(b.accountId));

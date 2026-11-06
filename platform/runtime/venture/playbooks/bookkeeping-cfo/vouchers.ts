@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../../shared/digest.ts';
 // Finance-workspace (MIT) receipt workflow ideas, original exact-entry Chausar implementation.
 import {check,digest} from '../../../portable.ts';
 import {validateCycle,type FinanceCycle} from './cycles.ts';
@@ -14,7 +15,7 @@ export function voucherDraft(input:VoucherInput):VoucherDraft{
  booksExact(input,['cycle','date','description','receipt','lines']);validateCycle(input.cycle);booksDate(input.date);
  check(input.date>=input.cycle.from&&input.date<=input.cycle.to,'BOOKS_CYCLE_INVALID','The receipt date must belong to this finance cycle.');booksText(input.description,1000);
  booksExact(input.receipt,['uploadId','digest','clientId','orderId']);booksText(input.receipt.uploadId);booksText(input.receipt.orderId);
- check(input.receipt.clientId===input.cycle.clientId&&typeof input.receipt.digest==='string'&&/^[a-f0-9]{64}$/.test(input.receipt.digest),'BOOKS_RECEIPT_REQUIRED','Use the actual receipt uploaded to this client order.');
+ check(input.receipt.clientId===input.cycle.clientId&&typeof input.receipt.digest==='string'&&DIGEST_PATTERN.test(input.receipt.digest),'BOOKS_RECEIPT_REQUIRED','Use the actual receipt uploaded to this client order.');
  check(Array.isArray(input.lines)&&input.lines.length>=2&&input.lines.length<=200,'BOOKS_SETUP_INVALID','Use two to two hundred voucher entries.');
  for(const line of input.lines){booksExact(line,['accountId','debitMinor','creditMinor']);booksText(line.accountId);}
  const totals=balancedEntries(input.lines);

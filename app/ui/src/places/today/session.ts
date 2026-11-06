@@ -196,6 +196,7 @@ function takeBack(client: EngineClient, row: QueueRow): () => Promise<string> {
  */
 export async function decide(client: EngineClient, row: QueueRow, action: QueueActionId, extra: Partial<DecideExtra>, t: T): Promise<QueueDecision> {
   const session = sessionFor(client);
+  if (session.isBusy(row.id)) return { outcome: 'refused', reason: 'DECISION_PENDING', line: t('approval.pending') };
   session.begin(row);
   try {
     const answer = await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action, ...extra });

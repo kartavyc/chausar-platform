@@ -5,7 +5,7 @@ import { authorize, ChausarError, check, type Context } from '../../contracts.ts
 import {
   bpsPercent, copiedTokens, exactPayload, identifier, percentBps, plainText, requireVenture, ventureAction,
 } from '../records.ts';
-import { INTERVIEW_IDS, SERVICE_TYPES } from '../contracts.ts';
+import { INTERVIEW_IDS, SERVICE_TYPES } from '../contract-values.ts';
 import type {
   CountryProfile, InterviewAnswer, InterviewModelOutput, InterviewQuestion, InterviewRecord, InterviewView, Json,
   ModelTask, PricingModel, ServiceType, VentureDeps, VentureRecord,

@@ -7,7 +7,8 @@ import { localDayAt, ventureTimeZone } from '../local-day.ts';
 import { BOOKS_PERIOD_KEYS, booksPeriods, calendarMonth, todayLocal } from './dates.ts';
 import { previousMonth } from './goal-plans.ts';
 import { newestFirst } from './shared.ts';
-import { experimentalStorage, type BooksFigure, type BooksPeriodKey, type BooksSummary, type IsoDate, type MinorString, type VentureDeps, type VentureRecord } from '../contracts.ts';
+import { experimentalStorage } from '../contract-values.ts';
+import type { BooksFigure, BooksPeriodKey, BooksSummary, IsoDate, MinorString, VentureDeps, VentureRecord } from '../contracts.ts';
 
 export const EXPERIMENTAL_NOTE = "Test version: practice here, don't send real invoices yet.";
 export const BOOKS_TAX_NOTE = 'Billed and earned leave out tax. Received is the cash that came in, tax included.';
@@ -67,7 +68,7 @@ async function booksFigures(deps: VentureDeps, ctx: Context, venture: VentureRec
     check(receipt.currency === venture.country.currency, 'CURRENCY_CONFLICT', 'The books receipt must use this business currency.');
     const currency = receipt.currency;
     if (receipt.exclusions?.some((row: { reason: string }) => row.reason.includes('currency scope'))) notes.add(`Totals are in ${currency}. Other currencies are excluded; no conversion was made.`);
-    figures.push({ operation, label, receiptId: receipt.id, minor: receipt.totalMinor, display: formatMoney(receipt.totalMinor, currency), stale: receipt.stale === true });
+    figures.push({ operation, label, receiptId: receipt.id, minor: receipt.totalMinor, display: formatMoney(receipt.totalMinor, currency), stale: receipt.stale === true, ...(BigInt(receipt.totalMinor) === 0n ? { zero: true as const } : {}) });
   }
   return figures;
 }

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Posting from the owner's own browser, on a connector tile (Ink v2 wave 2, K1): "Sign in" opens the platform's own
  * sign-in page in the Chausar browser window (venture.posting.signIn). It shows only while the engine says browser
@@ -15,7 +16,7 @@ import { StepsCheck } from './StepsCheck';
 import s from './Connections.module.css';
 
 const TEXT_POSTING = new Set(['linkedin', 'x']);
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /** Whether this card's browser posting is available now, as the engine lists it. */
 export function signInOffered(card: ConnectorCardLite): boolean {

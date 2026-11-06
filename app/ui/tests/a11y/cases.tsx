@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { expect } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import axe from 'axe-core';
-import { App } from '../src/shell/App';
-import { FakeEngine, createFakeClient, type FakeOptions } from '../src/engine/fake';
-import { QUEUE, SAMPLE_PASSPHRASE } from '../src/engine/fixtures';
-import { NARROW } from '../src/shell/useNarrow';
+import { App } from '../../src/shell/App';
+import { FakeEngine, createFakeClient, type FakeOptions } from '../../src/engine/fake';
+import { QUEUE, SAMPLE_PASSPHRASE } from '../../src/engine/fixtures';
+import { NARROW } from '../../src/shell/useNarrow';
 
 /**
  * axe-core on every place, sub-page and sheet, with the fake engine, in jsdom. jsdom computes no colours, so
@@ -222,29 +222,13 @@ async function violations(root: HTMLElement): Promise<string[]> {
   return result.violations.flatMap((v) => v.nodes.map((node) => `${v.id} (${v.impact ?? 'none'}): ${v.help} at ${node.target.join(' ')}`));
 }
 
-describe('the axe check itself', () => {
-  it('finds a real fault, so a clean result means something', async () => {
-    const { container } = render(<div><button type="button" /><img src="x.png" /><input type="text" /></div>);
-    const found = (await violations(container)).map((line) => line.split(' ')[0]);
-    expect(found).toEqual(expect.arrayContaining(['button-name', 'image-alt', 'label']));
-  });
-});
-
-describe('axe on every place', () => {
-  for (const place of PLACES) {
-    it(place.name, async () => {
-      expect(await violations(await settle(place))).toEqual([]);
-    }, timeoutOf(place));
-  }
-});
-
 /** Forms and second asks that open inside a page or sheet: pressed in order, then checked. */
 const OPENED: Case[] = [
   { name: 'Today, a second ask inside a row', hash: '#/today', press: ['Approve'] },
   { name: 'Chats, a plan step raised to Today', hash: '#/chats?thread=chiefthread-billed', press: ['Start'] },
-  { name: 'Today, Show 8 more opened', hash: '#/today', press: ['Show 8 more'] },
-  // 4Z3: the question waits behind the fold of the five most urgent cards.
-  { name: 'Today, an answer box inside a card', hash: '#/today', press: ['Show 8 more', 'Answer'] },
+  { name: 'Today, Show 8 more opened', hash: '#/today', options: { queue: Array.from({ length: 13 }, (_, i) => ({ ...QUEUE.find(row => row.id === 'q-question-title')!, id: "a11y-question-" + i })) }, press: ['Show 8 more'] },
+  // Keep a question in view to check the opened answer form independently of queue grouping.
+  { name: 'Today, an answer box inside a card', hash: '#/today', options: { queue: QUEUE.filter(row => row.id === 'q-question-title') }, press: ['Answer'] },
   { name: 'Money, spend limits being changed', hash: '#/money/spend', press: ['Change'] },
   // W4 4B3: the chat consent asked before a first message, and a note's Forget asked once more.
   { name: 'Team, the chat consent asked', hash: '#/team?sheet=agent:bookkeeper&tab=chat', before: ledgerline, press: ['What are you working on?', 'Send'] },
@@ -327,24 +311,6 @@ const OPENED: Case[] = [
   },
 ];
 
-describe('axe on every sheet', () => {
-  for (const sheet of SHEETS) {
-    it(sheet.name, async () => {
-      const root = await settle(sheet);
-      expect(root.querySelector('aside')).not.toBeNull();
-      expect(await violations(root)).toEqual([]);
-    }, timeoutOf(sheet));
-  }
-});
-
-describe('axe on forms and second asks', () => {
-  for (const opened of OPENED) {
-    it(opened.name, async () => {
-      expect(await violations(await settle(opened))).toEqual([]);
-    }, timeoutOf(opened));
-  }
-});
-
 /** w3 3H1: the phone frame (the top bar, the bottom tabs, a sheet that covers the screen, Today's swipe cards and tip),
  *  drawn with matchMedia saying the window is phone-wide. */
 const PHONE: Case[] = [
@@ -357,44 +323,4 @@ const PHONE: Case[] = [
   { name: 'phone, the agent chat covering the screen (W4 4B3)', hash: '#/team?sheet=agent:editor&tab=chat' },
   { name: 'phone, a second ask inside a swipe card', hash: '#/today', press: ['Approve'] },
 ];
-
-describe('axe on a phone', () => {
-  for (const each of PHONE) {
-    it(each.name, async () => {
-      vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
-        matches: query === NARROW, media: query, onchange: null,
-        addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
-      }) as unknown as MediaQueryList);
-      const root = await settle(each);
-      expect(root.querySelector('[data-phone]')).not.toBeNull();
-      expect(await violations(root)).toEqual([]);
-    }, timeoutOf(each));
-  }
-});
-
-describe('axe on the command bar (C2)', () => {
-  it('the list open, with records, pages, actions and the Ask row', async () => {
-    const root = await settle({ name: 'the bar', hash: '#/money' });
-    const box = await screen.findByRole('combobox', { name: 'Find or ask' });
-    box.focus();
-    await act(async () => { fireEvent.change(box, { target: { value: 'invoice' } }); });
-    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Find or ask' }).querySelectorAll('[role="group"]').length).toBeGreaterThan(2));
-    expect(await violations(root)).toEqual([]);
-  }, 30_000);
-});
-
-describe('axe on the command bar on a phone (C2)', () => {
-  it('the dialog open with a list', async () => {
-    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
-      matches: query === NARROW, media: query, onchange: null,
-      addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
-    }) as unknown as MediaQueryList);
-    const root = await settle({ name: 'the bar on a phone', hash: '#/today' });
-    const [button] = await screen.findAllByRole('button', { name: 'Find or ask' });
-    await act(async () => { fireEvent.click(button!); });
-    const box = screen.getByRole('combobox', { name: 'Find or ask' });
-    await act(async () => { fireEvent.change(box, { target: { value: 'invoice' } }); });
-    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Find or ask' }).querySelectorAll('[role="group"]').length).toBeGreaterThan(2));
-    expect(await violations(root)).toEqual([]);
-  }, 30_000);
-});
+export { PLACES, SHEETS, OPENED, PHONE, settle, violations, timeoutOf, NARROW };

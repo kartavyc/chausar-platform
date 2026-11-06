@@ -5,7 +5,8 @@ import { Button } from '../../parts/Button';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 import { ResultLine } from '../../parts/ResultLine';
-import { messageOf, usePlan } from './shared';
+import { messageOf } from '../../../../../platform/shared/errors.ts';
+import { usePlan } from './shared';
 import s from './Business.module.css';
 
 /** Country is a business setting. The engine drafts the change for the owner's exact approval. */

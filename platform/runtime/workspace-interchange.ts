@@ -1,5 +1,8 @@
-import { createHash } from 'node:crypto';
-import { ChausarError, type State } from './contracts.ts';
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
+
+import { ChausarError, now, type State } from './contracts.ts';
+import { CURRENT_SCHEMA, migrate } from './migrations/ladder.ts';
 import type { CalculationReceipt } from './calculator.ts';
 import {
   COLLECTION_STORES, SINGLETON_STORES, RETAINED_ARTIFACT_CATEGORIES, INTERCHANGE_FORMAT, STATE_PROFILE,
@@ -10,7 +13,7 @@ import {
 const MAX_BYTES = 64 * 1024 * 1024;
 const MAX_ARTIFACTS = 4096;
 const MAX_NODES = 1_000_000;
-const digestPattern = /^[a-f0-9]{64}$/;
+const digestPattern = DIGEST_PATTERN;
 const identifierPattern = /^[A-Za-z0-9_.:-]{1,200}$/;
 const coreProfile: StoreProfile = {
   id: STATE_PROFILE,
@@ -76,7 +79,7 @@ function persistedJson(value: unknown): string {
   requireValue(typeof text === 'string' && Buffer.byteLength(text, 'utf8') <= MAX_BYTES, 'INTERCHANGE_LIMIT', 'Persisted JSON exceeds its byte bound.');
   return text;
 }
-function sha(value: string | Uint8Array): string { return createHash('sha256').update(value).digest('hex'); }
+function sha(value: string | Uint8Array): string { return sha256Hex(value); }
 function record(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -98,7 +101,8 @@ function assertState(state: unknown): asserts state is State {
   for (const store of coreProfile.stores) if (store.kind === 'collection') {
     requireValue(Array.isArray(state[store.name]), 'INTERCHANGE_STORES', 'Every persisted collection must be an explicit array, including empty collections.');
   }
-  requireValue(state.schemaVersion === 1 && safeCount(state.revision), 'INTERCHANGE_SCHEMA', 'Unsupported State schema or revision.');
+  // D12: any version up to this app's; readHistoricalWorkspaceState brings an older one up through the ladder.
+  requireValue(Number.isSafeInteger(state.schemaVersion) && (state.schemaVersion as number) >= 1 && (state.schemaVersion as number) <= CURRENT_SCHEMA && safeCount(state.revision), 'INTERCHANGE_SCHEMA', 'Unsupported State schema or revision.');
   requireValue(record(state.workspace) && identifier(state.workspace.id) && typeof state.workspace.name === 'string' &&
     typeof state.workspace.currency === 'string' && typeof state.workspace.demo === 'boolean' && typeof state.workspace.createdAt === 'string',
   'INTERCHANGE_STATE', 'The workspace identity is incomplete.');
@@ -325,7 +329,7 @@ export function readHistoricalWorkspaceState(value: WorkspaceInterchange): State
   const checked = inspectWorkspaceInterchange(canonicalInterchangeJson(value));
   const state: Record<string, unknown> = Object.create(null);
   for (const item of checked.stores) state[item.manifest.name] = JSON.parse(item.text);
-  return JSON.parse(persistedJson(state)) as State;
+  return migrate(JSON.parse(persistedJson(state)), now()).state as State;
 }
 /** Same saved request/asOf and access: only the new receipt id and creation time may vary. */
 export function compareRecalculatedReceipt(original: CalculationReceipt, recalculated: CalculationReceipt) {

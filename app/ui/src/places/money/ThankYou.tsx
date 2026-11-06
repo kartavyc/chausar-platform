@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * One-shot C6 task 5 (SCREENS 95): on a paid invoice, a thank-you receipt the owner sends on WhatsApp, and the same
  * receipt saved. Chausar sends nothing: on the desktop, the desktop keeps the file and opens WhatsApp with the words; on
@@ -15,7 +16,7 @@ import type { InvoicePdfView, InvoiceViewLite, ReceiptShareResult } from '../../
 import { performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
 import { saveFile } from './InvoicePay';
-import { messageOf } from './words';
+
 import s from './Money.module.css';
 
 export function ThankYou({ view }: { view: InvoiceViewLite }) {

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ipcContract from '../../app/desktop/ipc-contract.cjs';
 import type { Context } from '../runtime/contracts.ts';
-import { CONNECTOR_CATEGORIES, EXTERNAL_ORIGINS, STARTER_CONNECTORS } from '../runtime/venture/contracts.ts';
+import { CONNECTOR_CATEGORIES, EXTERNAL_ORIGINS, STARTER_CONNECTORS } from '../runtime/venture/contract-values.ts';
 import type { BlueprintRecord, ConnectorCard, CountryProfile, VentureDeps } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings, ventureAction } from '../runtime/venture/records.ts';
 import { CONNECTOR_CATALOGUE, handlers } from '../runtime/venture/build/index.ts';

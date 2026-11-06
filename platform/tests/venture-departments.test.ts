@@ -2,7 +2,8 @@
 // one agent the eight fixed steps have, and which role a harness turn worked for (code decides, never a guess).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEPARTMENT_IDS, SERVICE_TYPES, type AgentTurnRecord } from '../runtime/venture/contracts.ts';
+import { DEPARTMENT_IDS, SERVICE_TYPES } from '../runtime/venture/contract-values.ts';
+import type { AgentTurnRecord } from '../runtime/venture/contracts.ts';
 import {
   DEPARTMENTS, ROLE_DEPARTMENTS, departmentOfRole, departmentOfService, roleOfTurn, validateDepartments,
 } from '../runtime/venture/playbooks/departments.ts';

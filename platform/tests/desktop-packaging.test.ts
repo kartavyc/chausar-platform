@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm, readdir, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 // A variable import allows Node's native TypeScript test runner to exercise the JS CLI without a TS emit step.
 const modulePath = '../../scripts/desktop-package.mjs';
@@ -18,6 +19,7 @@ const beta = JSON.parse(await readFile(new URL('../../app/desktop/builder.beta.j
 async function fixture(t: any, config = preview, betaConfig = beta) {
   const root = await mkdtemp(join(tmpdir(), 'chausar-package-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root + '-output', { recursive: true, force: true }));
   for (const path of ['app/desktop/icons/png', 'app/ui/src', 'platform/runtime', 'scripts']) await mkdir(join(root, path), { recursive: true });
   for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'app/desktop/icon@1.5x.png', 'app/desktop/icon@2x.png', ...ICON_FILES, './scripts/desktop-after-pack.cjs', 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', 'app/ui/vite.config.ts']) await writeFile(join(root, path), '// Unit-test source; never launched.\n');
   await writeFile(join(root, 'package.json'), JSON.stringify(pkg));
@@ -44,7 +46,7 @@ test('all six native targets have explicit architecture, configuration and no-pu
       assert.equal(plan.target, `${platform}-${architecture}`);
       assert.equal(plan.mode, 'preview');
       assert.equal(plan.config, 'app/desktop/builder.preview.json');
-      assert.equal(plan.output, 'release/preview');
+      assert.equal(basename(plan.output), 'preview');
       assert.ok(plan.builderArguments.includes(`--${architecture}`));
       assert.deepEqual(plan.builderArguments.slice(-2), ['--publish', 'never']);
     }
@@ -62,7 +64,7 @@ test('unsupported targets and cross-host builds are refused before a packaging c
 test('final packaging keeps the original signed config and never publishes', () => {
   const plan = createDesktopPackagePlan({ mode: 'final', unpacked: true });
   assert.equal(plan.config, 'app/desktop/builder.json');
-  assert.equal(plan.output, 'release');
+  assert.equal(basename(plan.output), 'final');
   assert.ok(plan.builderArguments.includes('--dir'));
   assert.deepEqual(plan.builderArguments.slice(-3), ['--publish', 'never', '--dir']);
   assert.equal(final.forceCodeSigning, true);
@@ -240,7 +242,7 @@ test('preview checks refuse accidental final signing, runtime bundling, inherita
 test('a caller cannot alter a plan to inject builder arguments or write outside the output folder', async t => {
   const root = await fixture(t), plan = createDesktopPackagePlan();
   await assert.rejects(desktopPackagePrerequisites({ root, plan: { ...plan, builderArguments: ['--publish', 'always'] } }), /unchanged native plan/);
-  await assert.rejects(packageDesktop({ root, plan: { ...plan, output: '../outside' } }), /unchanged native plan/);
+  await assert.rejects(packageDesktop({ root, plan: { ...plan, output: '../outside' } }), /absolute folder|unchanged native plan/);
 });
 
 test('lockfiles with missing integrity or conflicting root pins block packaging before installation', async t => {
@@ -276,42 +278,41 @@ test('read-only native header validation refuses wrong Windows architecture and 
   await assert.rejects(validateElectronExecutable(path, 'win32', 'x64'), /PE executable/);
 });
 
-test('freshness checks preserve previous receipts and interrupted artifacts and never relabel stale output', async t => {
-  const root = await fixture(t), plan = createDesktopPackagePlan();
+test('freshness checks preserve previous receipts and interrupted artifacts outside the checkout', async t => {
+  const root = await fixture(t), plan = createDesktopPackagePlan({ output: root + '-output' });
   const fresh = await validateDesktopPackagingOutput({ root, plan, version: pkg.version });
   assert.equal(fresh.expectedArtifacts.length, process.platform === 'win32' ? 1 : 2);
-  if (process.platform === 'win32') assert.match(fresh.expectedArtifacts[0], /-win-(x64|arm64)\.zip$/);
-  await mkdir(join(root, 'release/preview'), { recursive: true });
-  const previousReceipt = 'previous qualification evidence';
-  await writeFile(fresh.receiptPath, previousReceipt);
+  await mkdir(plan.output, { recursive: true });
+  await writeFile(fresh.receiptPath, 'previous qualification evidence');
   await assert.rejects(validateDesktopPackagingOutput({ root, plan, version: pkg.version }), /output directory is not empty/);
-  assert.equal(await readFile(fresh.receiptPath, 'utf8'), previousReceipt);
-  const other = await fixture(t), artifact = fresh.expectedArtifacts[0];
-  await mkdir(join(other, 'release/preview'), { recursive: true });
-  await writeFile(join(other, 'release/preview', artifact), 'old output; never executed');
-  await assert.rejects(validateDesktopPackagingOutput({ root: other, plan, version: pkg.version }), /output directory is not empty/);
-  assert.equal(await readFile(join(other, 'release/preview', artifact), 'utf8'), 'old output; never executed');
+  assert.equal(await readFile(fresh.receiptPath, 'utf8'), 'previous qualification evidence');
+  const other = await fixture(t), otherPlan = createDesktopPackagePlan({ output: other + '-output' });
+  await mkdir(otherPlan.output, { recursive: true });
+  const artifact = join(otherPlan.output, fresh.expectedArtifacts[0]);
+  await writeFile(artifact, 'old output; never executed');
+  await assert.rejects(validateDesktopPackagingOutput({ root: other, plan: otherPlan, version: pkg.version }), /output directory is not empty/);
+  assert.equal(await readFile(artifact, 'utf8'), 'old output; never executed');
 });
 
-test('output validation refuses a symlinked release directory before a builder can write outside the checkout', async t => {
+test('output validation refuses a symlinked output directory before a builder writes', async t => {
   const root = await fixture(t), outside = await fixture(t);
-  try { await symlink(outside, join(root, 'release'), process.platform === 'win32' ? 'junction' : 'dir'); }
+  const plan = createDesktopPackagePlan({ output: root + '-output' });
+  try { await symlink(outside, plan.output, process.platform === 'win32' ? 'junction' : 'dir'); }
   catch (error: any) { if (['EPERM', 'EACCES'].includes(error.code)) { t.skip('This host cannot create a disposable test symlink.'); return; } throw error; }
-  await assert.rejects(validateDesktopPackagingOutput({ root, version: pkg.version }), /real directories inside the checkout/);
-  assert.ok(!(await readdir(outside)).includes('preview'));
+  await assert.rejects(validateDesktopPackagingOutput({ root, plan, version: pkg.version }), /real director/);
 });
 
 test('final executable leftovers and interrupted unpacked directories block rebuilding without overwriting evidence', async t => {
-  const root = await fixture(t), finalPlan = createDesktopPackagePlan({ mode: 'final' });
-  await mkdir(join(root, 'release'));
-  const priorInstaller = join(root, 'release', 'previous-final.exe');
+  const root = await fixture(t), finalPlan = createDesktopPackagePlan({ mode: 'final', output: root + '-output' });
+  await mkdir(finalPlan.output);
+  const priorInstaller = join(finalPlan.output, 'previous-final.exe');
   await writeFile(priorInstaller, 'interrupted final output; never executed');
   await assert.rejects(validateDesktopPackagingOutput({ root, plan: finalPlan, version: pkg.version }), /output directory is not empty/);
   assert.equal(await readFile(priorInstaller, 'utf8'), 'interrupted final output; never executed');
-  const other = await fixture(t), previewPlan = createDesktopPackagePlan({ unpacked: true });
-  await mkdir(join(other, 'release/preview', `${process.platform}-unpacked`), { recursive: true });
+  const other = await fixture(t), previewPlan = createDesktopPackagePlan({ unpacked: true, output: other + '-output' });
+  await mkdir(join(previewPlan.output, `${process.platform}-unpacked`), { recursive: true });
   await assert.rejects(validateDesktopPackagingOutput({ root: other, plan: previewPlan, version: pkg.version }), /output directory is not empty/);
-  assert.deepEqual(await readdir(join(other, 'release/preview')), [`${process.platform}-unpacked`]);
+  assert.deepEqual(await readdir(previewPlan.output), [`${process.platform}-unpacked`]);
 });
 
 test('local Electron distribution validation checks version without importing or executing Electron', async t => {
@@ -338,10 +339,10 @@ test('local Electron distribution validation checks version without importing or
 test('the beta plan uses its own configuration and output folder, never publishes and says it is unsigned (6J1)', () => {
   const plan = createDesktopPackagePlan({ mode: 'beta', platform: 'win32', architecture: 'x64', hostPlatform: 'win32', hostArchitecture: 'x64' });
   assert.equal(plan.config, 'app/desktop/builder.beta.json');
-  assert.equal(plan.output, 'release/beta');
-  assert.deepEqual(plan.builderArguments, ['--config', 'app/desktop/builder.beta.json', '--win', '--x64', '--publish', 'never']);
+  assert.equal(basename(plan.output), 'beta');
+  assert.deepEqual(plan.builderArguments, ['--config', 'app/desktop/builder.beta.json', `-c.directories.output=${plan.output}`, '--win', '--x64', '--publish', 'never']);
   assert.match(plan.qualification, /unsigned beta/);
-  assert.deepEqual(createDesktopPackagePlan({ mode: 'beta', platform: 'linux', architecture: 'x64', hostPlatform: 'linux', hostArchitecture: 'x64' }).builderArguments, ['--config', 'app/desktop/builder.beta.json', '--linux', '--x64', '--publish', 'never']);
+  assert.deepEqual(createDesktopPackagePlan({ mode: 'beta', platform: 'linux', architecture: 'x64', hostPlatform: 'linux', hostArchitecture: 'x64' }).builderArguments, ['--config', 'app/desktop/builder.beta.json', `-c.directories.output=${plan.output}`, '--linux', '--x64', '--publish', 'never']);
   assert.deepEqual(parseDesktopPackageArguments(['--mode', 'beta']), { mode: 'beta' });
   assert.throws(() => createDesktopPackagePlan({ mode: 'beta', platform: 'darwin', architecture: 'arm64', hostPlatform: 'darwin', hostArchitecture: 'arm64' }), /Windows and Linux/);
   assert.throws(() => createDesktopPackagePlan({ mode: 'beta', platform: 'linux', architecture: 'x64', hostPlatform: 'win32', hostArchitecture: 'x64' }), /matching native host/);
@@ -369,10 +370,10 @@ test('the beta configuration: product Chausar, real data, unsigned NSIS per user
   assert.equal(beta.publish, null);
   assert.equal(beta.npmRebuild, false);
   assert.equal(beta.electronDist, 'node_modules/electron/dist');
-  assert.equal(beta.directories.output, 'release/beta');
+  assert.equal(beta.directories?.output, undefined);
   // electron-builder 26 lists every unpacked file of a mixed file set in one pattern, and @electron/asar refuses a
   // pattern over 64 KB (the first live build stopped there). Each folder that is unpacked whole is its own file set.
-  for (const folder of ['platform/runtime', 'platform/semantic-qualification/src', 'platform/helpers']) {
+  for (const folder of ['app/engine/dist']) {
     assert.ok(beta.files.some((entry: any) => JSON.stringify(entry) === JSON.stringify({ from: folder, to: folder, filter: ['**/*'] })), folder);
     assert.ok(!beta.files.includes(`${folder}/**/*`), folder);
   }
@@ -402,7 +403,7 @@ test('beta checks refuse signing, publishing, the preview identity, other resour
     { ...beta, linux: { ...beta.linux, afterRemove: 'own-remove.sh' } },
     { ...beta, extraMetadata: { ...beta.extraMetadata, homepage: undefined } },
     { ...beta, directories: { output: '../outside' } },
-    { ...beta, files: (beta.files ?? []).map((entry: any) => entry?.from === 'platform/runtime' ? 'platform/runtime/**/*' : entry) },
+    { ...beta, files: (beta.files ?? []).map((entry: any) => entry?.from === 'app/engine/dist' ? 'app/engine/dist/**/*' : entry) },
   ];
   for (const config of variants) {
     const result = await desktopPackagePrerequisites({ root: await fixture(t, preview, config), plan: createDesktopPackagePlan({ mode: 'beta' }), environment: {} });
@@ -558,4 +559,28 @@ test('the beta receipt records the bundled Codex setup and the --allow-unrecorde
   assert.deepEqual(bundledReceipt({ ...codex, evidence: null }, { allowUnrecordedCodex: true }).codex, {
     version: '0.166.0', target: 'x86_64-pc-windows-msvc', licence: 'Apache-2.0', files: 2, setup: 'not recorded', allowUnrecordedCodex: true,
   });
+});
+
+
+test('cleanup: package output is outside the checkout and the builder receives that exact folder', () => {
+  const root = fileURLToPath(new URL('../../', import.meta.url));
+  const plan = createDesktopPackagePlan();
+  assert.ok(plan.output.startsWith('/') || /^[A-Za-z]:[\\/]/.test(plan.output), 'an absolute run-root output');
+  assert.ok(plan.builderArguments.includes(`-c.directories.output=${plan.output}`));
+  assert.throws(() => createDesktopPackagePlan({ output: join(root, 'release') }), /outside/);
+});
+
+
+test('cleanup: a later node_modules inclusion cannot restore trimmed program files', () => {
+  for (const inclusion of ['node_modules/**/*', { from: 'node_modules', to: 'node_modules', filter: ['**/*'] }]) {
+    assert.throws(() => desktopPackage.validateTrim({ ...beta, files: [...beta.files, inclusion] }), /nothing puts one back/);
+  }
+});
+
+
+test('cleanup: an unsupported macOS contents gate refuses qualification explicitly', async t => {
+  const root = await fixture(t);
+  const plan = createDesktopPackagePlan({ platform: 'darwin', architecture: 'arm64', hostPlatform: 'darwin', hostArchitecture: 'arm64' });
+  const result = await desktopPackagePrerequisites({ root, plan, environment: {}, hostPlatform: 'darwin', hostArchitecture: 'arm64' });
+  assert.ok(result.failures.some((failure: any) => failure.check === 'packaged contents validation support' && /macOS/.test(failure.reason)));
 });

@@ -1,8 +1,9 @@
+import { DIGEST_PATTERN } from '../../../../shared/digest.ts';
 // Strict private-host response boundaries. No renderer-provided page content is trusted as browser evidence.
 import {check} from '../../../portable.ts';
 import type {FormCapture,SavedCapture,FormSubmitReview} from './browser-state.ts';
 const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
-const hash=(v:unknown):v is string=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
+const hash=(v:unknown):v is string=>typeof v==='string'&&DIGEST_PATTERN.test(v);
 const text=(v:unknown,max=4000):v is string=>typeof v==='string'&&v.length<=max;
 const id=(v:unknown):v is string=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(v);
 function need(ok:unknown):asserts ok{check(ok,'FORM_CAPTURE_INCOMPLETE','The private browser response is incomplete. Stop and inspect the client record manually.');}

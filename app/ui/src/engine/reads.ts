@@ -54,6 +54,7 @@ export const READS = [
   'venture.trackers.list',
   'venture.trackers.get',
   'venture.events.get',
+  'venture.flows.list', 'venture.inbound.list', 'venture.simulation.get', 'venture.improve.get', 'venture.delegate.get', 'venture.compose.get',
 ] as const satisfies readonly MethodName[];
 
 export type ReadMethod = (typeof READS)[number];

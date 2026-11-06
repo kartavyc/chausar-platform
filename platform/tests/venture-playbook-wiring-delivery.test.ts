@@ -11,7 +11,7 @@ import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
 import { OntologyService, starterPacks } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
-import { PURPOSE_TIER } from '../runtime/venture/contracts.ts';
+import { PURPOSE_TIER } from '../runtime/venture/contract-values.ts';
 import type {
   Deliverable, DeliveryRunView, ModelOutcome, ModelPort, ModelPreview, ModelStatusView, ModelTask, PlaybookRecord, SecretShelf, VentureDeps, VentureMethod,
 } from '../runtime/venture/contracts.ts';

@@ -2,6 +2,7 @@
 
 const REQUEST_CHANNEL = 'chausar:request';
 const STATUS_CHANNEL = 'chausar:engine-status';
+const { WINDOW_PHASES } = require('./diagnostics.cjs');
 // Run events pushed to the window (VentureRunEvent in platform/runtime/venture/contracts.ts). The preload checks them again.
 const VENTURE_EVENT_CHANNEL = 'chausar:venture-event';
 const VENTURE_EVENT_TYPES = Object.freeze([
@@ -37,186 +38,13 @@ const DIAGNOSTICS_PREVIEW_CHANNEL = 'chausar:diagnostics:preview';
 const DIAGNOSTICS_SAVE_CHANNEL = 'chausar:diagnostics:save';
 // C5 task 32: Show installer: the window names only which release; main checks it again and shows it in the file manager.
 const UPDATE_SHOW_CHANNEL = 'chausar:updates:showInstaller';
+const UPDATE_GO_BACK_CHANNEL = 'chausar:updates:goBack';
+const UPDATE_GO_BACK_OFFER_CHANNEL = 'chausar:updates:goBackOffer';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
-const METHODS = Object.freeze([
-  'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.backup', 'workspace.export', 'workspace.delete',
-  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.transfer.peek', 'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect', 'workspace.backups.inspect',
-  // One-shot C3: the app's own preferences on this computer (APP_PREFERENCE_METHODS, platform/runtime/app-preferences.ts).
-  'app.preferences.get', 'app.preferences.set',
-  // One-shot C3: which step long work is on, for a page opened mid-job (ENGINE_METHODS, answered by the engine).
-  'venture.work.list',
-  'workspace.backup.v2.create', 'workspace.backup.v2.read', 'workspace.backup.v2.restoreInert', 'workspace.backup.v2.readRestored', 'workspace.backup.v2.inspectRestored', 'workspace.backup.v2.diagnostics',
-  'workspace.activation.target.create', 'workspace.activation.target.get', 'workspace.backup.activation.prepare', 'workspace.backup.activation.inspect', 'workspace.activation.review', 'workspace.activation.execute', 'workspace.activation.get',
-  'workspace.interchange.export', 'workspace.interchange.prepare', 'workspace.interchange.review', 'workspace.interchange.discard', 'workspace.interchange.diagnostics',
-  'trials.create', 'trials.evaluate', 'trials.get', 'trials.receiptContext', 'trials.list', 'trials.savedQuestions', 'trials.discard', 'trials.impact', 'trials.promote',
-  'auth.invite', 'auth.accept', 'auth.session', 'auth.revoke', 'auth.sessions',
-  'phone.invite', 'phone.sessions', 'phone.revoke', 'phone.conversation.offer',
-  'sync.status', 'sync.identity', 'sync.enable', 'sync.trust', 'sync.preview', 'sync.approve', 'sync.push', 'sync.pull',
-  'sync.writer.status', 'sync.writer.review', 'sync.reconcile',
-  'dashboard.get', 'conversation.ask', 'conversation.history', 'conversation.get', 'conversation.continuation', 'conversation.synthesis.preview', 'conversation.synthesis.run', 'business.context.receipt', 'business.profile.record', 'business.profile.history', 'business.profile.remove', 'calculation.run', 'receipts.get',
-  'answers.recovery.review', 'answers.recovery.prepare', 'answers.recovery.execute', 'answers.recovery.get', 'answers.recovery.list',
-  'analysis.bridge.publish', 'analysis.bridge.profiles', 'analysis.bridge.run', 'analysis.bridge.get',
-  'investigations.create', 'investigations.get', 'investigations.list', 'investigations.advance', 'investigations.resume', 'investigations.pause', 'investigations.revise', 'investigations.cancel', 'investigations.capsule', 'investigations.drilldown', 'research.search',
-  'sources.list', 'sources.delete', 'sources.preview', 'sources.import', 'sources.catalogue', 'sources.groups', 'sources.fetch', 'sources.recipe', 'sources.accept', 'sources.workbook', 'sources.workbookPreview', 'sources.workbookImport',
-  'connectors.profiles', 'connectors.read', 'connectors.reviewMapping', 'connectors.capture', 'connectors.publish', 'connectors.ready', 'connectors.captureStatus', 'connectors.releaseRead',
-  'ontology.packs', 'ontology.get', 'ontology.publish', 'memory.list', 'memory.correct', 'memory.merge', 'memory.undo', 'memory.precedence',
-  'decisions.list', 'decisions.create', 'decisions.review',
-  'decisions.journal.draft', 'decisions.journal.confirm', 'decisions.journal.revise', 'decisions.journal.review', 'decisions.journal.due',
-  'reports.get', 'reports.brief', 'reports.forecast',
-  'forecasts.evaluate', 'forecasts.get', 'alerts.create', 'alerts.publish', 'alerts.evaluate', 'alerts.list', 'alerts.get',
-  'actions.list', 'actions.catalogue', 'actions.prepare', 'actions.approve', 'actions.revise', 'actions.execute', 'actions.reconcile',
-  'jobs.list', 'jobs.types', 'jobs.create', 'jobs.amend', 'jobs.cancel', 'jobs.reconcile', 'jobs.progress', 'jobs.pause', 'jobs.resume', 'jobs.accept', 'jobs.approve', 'jobs.reject', 'jobs.run',
-  'jobs.calendar.preview', 'jobs.calendar.configure', 'jobs.calendar.pause', 'jobs.calendar.resume',
-  'trust.get', 'trust.update', 'members.list', 'members.add', 'members.revoke',
-  'models.list', 'models.configure', 'models.preview', 'models.approve', 'models.test',
-  'speech.list', 'speech.configure', 'speech.preview', 'speech.approve', 'speech.transcribe', 'activity.list',
-  'learning.list', 'learning.log', 'learning.preview', 'learning.consent', 'learning.sharing', 'learning.share',
-  'plugins.list', 'plugins.install', 'plugins.enable', 'plugins.disable', 'plugins.remove', 'plugins.run', 'plugins.miniapp',
-  'mcp.info', 'mcp.handle', 'helpers.run', 'updates.status', 'updates.settings', 'updates.check', 'updates.verify', 'updates.stage',
-  'venture.countries', 'venture.preview',
-  'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls', 'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
-  'venture.country.suggest',
-  'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel', 'venture.about.read', 'venture.about.pick', 'venture.about.families',
-  'venture.needs.list',
-  // A2: the owner's yes to the Codex found on this computer (engine.ts answers it, with or without a vault).
-  'venture.ai.setup.trust',
-  'venture.agents.hire.duties',
-  'venture.events.calKey.set',
-  'venture.events.relay.set',
-  'venture.events.get',
-  'venture.agents.hire.cancel',
-  'venture.agents.hire.confirm',
-  'venture.agents.hire.answer',
-  'venture.agents.hire.start',
-  'venture.trackers.rows.undo',
-  'venture.trackers.rows.remove',
-  'venture.trackers.rows.edit',
-  'venture.trackers.rows.add',
-  'venture.trackers.remove',
-  'venture.trackers.set',
-  'venture.trackers.get',
-  'venture.trackers.list',
-  // C7: What's new, once per version on this computer (engine.ts answers it before any vault).
-  'whatsNew.get', 'whatsNew.seen',
-  'venture.routines.backup.set',
-  'venture.routines.backup.get',
-  'venture.models.plan',
-  'venture.create', 'venture.get', 'venture.events', 'venture.interview.next',
-  'venture.interview.answer', 'venture.blueprint.draft', 'venture.blueprint.get', 'venture.blueprint.update', 'venture.blueprint.accept', 'venture.models.presets',
-  'venture.models.connect', 'venture.models.disconnect', 'venture.models.status', 'venture.models.calls', 'venture.price.quote', 'venture.receipt.get',
-  'venture.client.add', 'venture.client.list', 'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw', 'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink', 'venture.payment.receipt', 'venture.agentSettings.get', 'venture.agentSettings.set', 'venture.mcpCredential.set', 'venture.mcpRegistry.list', 'venture.mcpOAuth.start', 'venture.packs.list', 'venture.packs.add', 'venture.packs.remove', 'venture.agentApproval.decide', 'venture.order.create', 'venture.order.list', 'venture.order.deliver', 'venture.invoice.prepare',
-  'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list', 'venture.payment.record', 'venture.books.summary', 'venture.spend.list', 'venture.build.brief',
-  'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status', 'venture.connectors.list',
-  'venture.delivery.playbook', 'venture.simulation.scenarios', 'venture.simulation.run', 'venture.simulation.get', 'venture.simulation.fromSignal', 'venture.launch.status',
-  'venture.launch.advance', 'venture.delivery.run', 'venture.delivery.review', 'venture.delivery.list', 'venture.capabilities',
-  'venture.files.add', 'venture.files.list', 'venture.work.get', 'venture.improve.status', 'venture.improve.run', 'venture.improve.get', 'venture.improve.adopt',
-  'venture.delegate.get',
-  'venture.queue.list', 'venture.queue.decide', 'venture.runs.list', 'venture.runs.get', 'venture.team.list', 'venture.team.gate',
-  'venture.evidence.list', 'venture.evidence.apply',
-  'venture.journal.list', 'venture.journal.resolve',
-  'venture.untrusted.mode', 'venture.untrusted.release',
-  'venture.bank.import', 'venture.bank.consent', 'venture.site.stage', 'venture.site.apply', 'venture.site.revert',
-  'venture.leads.add', 'venture.leads.list', 'venture.leads.draft', 'venture.leads.recordSend',
-  'venture.spend.policy.get', 'venture.spend.policy.set',
-  'venture.queue.view', 'venture.team.posture', 'venture.evidence.dismiss', 'venture.money.overview', 'venture.tax.working',
-  'venture.ca.get', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates',
-  'venture.leads.block', 'venture.share.create', 'venture.share.list', 'venture.share.revoke',
-  'venture.delivery.judge', 'venture.delivery.judgeSend', 'venture.improve.rollback', 'venture.files.transcribe',
-  'venture.posting.propose', 'venture.posting.signIn', 'venture.posting.checkSteps', 'venture.share.recordAnswer', 'venture.social.calendar',
-  'venture.bank.ledger', 'venture.bank.apply', 'venture.bank.alerts.get', 'venture.bank.alerts.set',
-  'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list', 'venture.rules.locks', 'venture.rules.attest', 'venture.compliance.get', 'venture.compliance.set',
-  'venture.judge.auto.get', 'venture.judge.auto.set',
-  'venture.posting.limits.get', 'venture.posting.limits.set',
-  'venture.transcription.get', 'venture.transcription.set',
-  // Ink v2 wave 4 (W4_METHODS in platform/runtime/venture/contracts.ts, same order)
-  'venture.team.keeper', 'venture.team.clearQuarantine',
-  'venture.agents.thread.list', 'venture.agents.thread.send', 'venture.agents.proposal.decide', 'venture.agents.version.undo',
-  'venture.agents.orders.list', 'venture.chats.consent',
-  'venture.agents.notes.list', 'venture.agents.notes.edit', 'venture.agents.notes.forget', 'venture.agents.notes.undo',
-  'venture.chief.threads', 'venture.chief.thread.list', 'venture.chief.thread.send', 'venture.chief.thread.pin', 'venture.chief.fit',
-  // W6 6G1: a chat's state and the quiet days before one settles.
-  'venture.chief.thread.state', 'venture.chief.settle.set',
-  // W6 6H3: a place's layout.
-  'venture.layout.get', 'venture.layout.change',
-  // C2: the command bar's find.
-  'venture.find',
-  'venture.diagnostics.today',
-  'venture.build.briefFile',
-  'venture.accountant.pack.done',
-  'venture.accountant.schedule.set',
-  'venture.accountant.schedule.get',
-  'venture.accountant.set',
-  'venture.accountant.get',
-  'venture.notify.telegram.findChat',
-  'venture.client.aiDefault.set',
-  'venture.client.aiDefault.get',
-  'venture.away.preview',
-  'venture.team.introduced',
-  // Wave 6 (6H2): recorded flows
-  'venture.flows.list', 'venture.flows.act',
-  'venture.proposals.raise', 'venture.proposals.dismiss',
-  'venture.network.import', 'venture.network.importUndo', 'venture.network.merge', 'venture.network.split', 'venture.network.forget',
-  'venture.network.hide', 'venture.network.people', 'venture.network.person', 'venture.network.sources',
-  'venture.network.recompute', 'venture.network.know', 'venture.network.link',
-  'venture.network.search', 'venture.network.searchMore', 'venture.network.saveSearch', 'venture.network.research',
-  'venture.pipeline.list', 'venture.pipeline.followups', 'venture.pipeline.add', 'venture.pipeline.setNext', 'venture.pipeline.move', 'venture.pipeline.settings',
-  'venture.outreach.draft', 'venture.outreach.open', 'venture.outreach.sent', 'venture.outreach.restricted',
-  'venture.mailbox.connect', 'venture.mailbox.disconnect', 'venture.mailbox.sync', 'venture.inbound.list', 'venture.inbound.confirm',
-  'venture.network.calendar', 'venture.meeting.digest',
-  'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set', 'venture.away.get',
-  'venture.runs.allowWrites',
-  'venture.notify.list', 'venture.notify.read', 'venture.notify.settings',
-  'venture.notify.push.key', 'venture.notify.push.subscribe', 'venture.notify.push.unsubscribe', 'venture.notify.relay', 'venture.notify.telegram', 'venture.phone.access', 'venture.web.search', 'venture.web.read', 'venture.people.services', 'venture.people.lookup',
-  'venture.crm.client', 'venture.crm.client.edit', 'venture.crm.companies', 'venture.crm.company', 'venture.crm.company.save', 'venture.crm.link', 'venture.crm.log', 'venture.crm.lists', 'venture.crm.list', 'venture.crm.list.save', 'venture.crm.list.place', 'venture.memory.list', 'venture.memory.add', 'venture.memory.replace', 'venture.memory.visibility', 'venture.memory.forget',
-  // Wave 6 (6G2): retiring an agent and Bring back
-  'venture.agents.retire.check', 'venture.agents.retire', 'venture.agents.restore',
-  // Wave 6 (6H1): mini apps and their MCP Apps bridge
-  'venture.apps.list', 'venture.apps.get', 'venture.apps.make', 'venture.apps.grant', 'venture.apps.revoke', 'venture.apps.restore',
-  'venture.apps.pin', 'venture.apps.export', 'venture.apps.call', 'venture.apps.remove',
-  'venture.talk.get', 'venture.talk.consent', 'venture.talk.setup', 'venture.talk.start', 'venture.talk.hear', 'venture.talk.say',
-  'venture.feedback.get', 'venture.feedback.consent', 'venture.feedback.send', 'venture.feedback.answer', 'venture.feedback.crash', 'venture.feedback.delete',
-  'venture.models.cli.status', 'venture.models.roles',
-  'venture.goals.get', 'venture.goals.set', 'venture.goals.suggest',
-  'venture.decisions.list', 'venture.policy.allowSession',
-  'venture.queue.sendBack', 'venture.queue.edit', 'venture.queue.undo', 'venture.queue.set', 'venture.triage.set', 'venture.triage.preview',
-  'venture.delivery.fix', 'venture.delivery.decideChange', 'venture.delivery.changes', 'venture.settings.draft', 'venture.settings.drafts',
-  'venture.queue.setPreview', 'venture.delivery.copy',
-  'venture.files.poster',
-  'venture.money.aging', 'venture.money.flow', 'venture.money.cash', 'venture.money.margins', 'venture.money.export',
-  'venture.bills.add', 'venture.bills.pay', 'venture.bills.list', 'venture.credit.issue', 'venture.invoice.recurring', 'venture.invoice.recurringList',
-  'venture.invoice.remind', 'venture.payment.clear', 'venture.bills.stop',
-  'venture.money.across', 'venture.runs.across',
-  'venture.connectors.check', 'venture.share.request',
-  'venture.playbooks.list', 'venture.blueprint.suggest',
-  'venture.owner.get', 'venture.owner.set',
-  'venture.receipt.verify', 'venture.journal.chain', 'venture.journal.acceptBreak',
-  'venture.order.contract', 'venture.order.contract.propose', 'venture.order.contract.sign',
-  'venture.routines.list', 'venture.routines.runs', 'venture.routines.set', 'venture.routines.remove',
-  'venture.options.rerank',
-  'venture.drills.run', 'venture.drills.list', 'venture.auto.readiness', 'venture.shadow.summary',
-  'venture.playbook.guidance',
-  'venture.voice.get', 'venture.voice.set', 'venture.voice.learn', 'venture.persona.get', 'venture.persona.set', 'venture.persona.test',
-  'venture.agents.export', 'venture.agents.import',
-  'venture.knowledge.list', 'venture.knowledge.add', 'venture.knowledge.remove', 'venture.knowledge.test',
-  'venture.ideas.list', 'venture.ideas.start', 'venture.ideas.dismiss', 'venture.agents.capabilities',
-  // Ink v2 wave 5 (W5_METHODS in platform/runtime/venture/contracts.ts, same order)
-  'venture.order.chain',
-  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list', 'venture.goNoGo.remove',
-  'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
-  'venture.brandKit.get', 'venture.brandKit.set', 'venture.assets.list', 'venture.assets.rerun', 'venture.assets.reuse',
-  'venture.voiceConsent.record', 'venture.voiceConsent.revoke', 'venture.voiceConsent.list',
-  'venture.report.render', 'venture.report.share', 'venture.report.shareRotate', 'venture.report.shareDisable', 'venture.report.list',
-  'venture.monitors.list', 'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.mail.threads',
-  'venture.localApps.list', 'venture.webhook.set', 'venture.webhook.send', 'venture.speechOut.providers',
-  'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
-  'venture.desk.list', 'venture.desk.get', 'venture.desk.act',
-  // One-shot C4 (T20): a share of an invoice the owner made, or their "Mark as sent".
-  'venture.invoice.shared',
-  // One-shot C4 (T32): the ready routines from the plan.
-  'venture.routines.suggestions',
-]);
+const METHODS = require('./ipc-methods.cjs');
 const allowedMethods = new Set(METHODS);
+const hostMethods = new Set(require('./engine-methods.cjs'));
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
 // A frozen copy of EXTERNAL_ORIGINS in platform/runtime/venture/contracts.ts, same order.
 const EXTERNAL_ORIGINS = Object.freeze([
@@ -288,12 +116,15 @@ function assertJson(value) {
   }
   walk(value, 0);
 }
-function validateRequest(input) {
+function validateRequest(input) { return checkedRequest(input, allowedMethods, false); }
+/** Main owns its file dialogs. No request field can select this trusted path. */
+function validateHostRequest(input) { return checkedRequest(input, hostMethods, true); }
+function checkedRequest(input, methods, host) {
   if (!isRecord(input)) throw failure('INVALID_REQUEST', 'Use a named request with an object payload.');
   assertJson(input);
-  if (Object.keys(input).some(name => !['method', 'payload'].includes(name)) || !allowedMethods.has(input.method) || (input.payload !== undefined && !isRecord(input.payload))) throw failure('INVALID_REQUEST', 'This desktop request is not supported.');
+  if (Object.keys(input).some(name => !['method', 'payload'].includes(name)) || !methods.has(input.method) || (input.payload !== undefined && !isRecord(input.payload))) throw failure('INVALID_REQUEST', 'This desktop request is not supported.');
   // One-shot C4 task 36: where an export goes is chosen in main's own save dialog (export-save.cjs), never by the window.
-  if (input.method === 'workspace.export' && input.payload && Object.hasOwn(input.payload, 'path')) throw failure('INVALID_REQUEST', 'Choose where to save the copy in the save dialog.');
+  if (!host && input.method === 'workspace.export' && input.payload && Object.hasOwn(input.payload, 'path')) throw failure('INVALID_REQUEST', 'Choose where to save the copy in the save dialog.');
   const canonical = JSON.stringify({ method: input.method, payload: input.payload ?? {} });
   if (Buffer.byteLength(canonical) > MAX_REQUEST_BYTES) throw failure('REQUEST_TOO_LARGE', 'The desktop request exceeds the size limit.');
   return JSON.parse(canonical);
@@ -376,6 +207,14 @@ function validateBackgroundChange(input) {
   return { ...(keys.includes('startAtLogin') ? { startAtLogin: input.startAtLogin } : {}), ...(keys.includes('keepRunning') ? { keepRunning: input.keepRunning } : {}) };
 }
 // B1 fix round 1: `owner: true` (only ever true) says the engine wrote these words for the owner, so the page shows them as sent.
+/** D4 task 4: what the window may hear about the engine: a known state, and a known phase while it starts. */
+const ENGINE_STATES = Object.freeze(['starting', 'ready', 'failed', 'stopping', 'stopped', 'reconnecting']);
+function validateEngineStatus(input) {
+  const state = ENGINE_STATES.includes(input?.state) ? input.state : 'failed';
+  const status = { state, healthy: state === 'ready' && input?.healthy === true };
+  if (state === 'starting' && WINDOW_PHASES.includes(input?.phase)) status.phase = input.phase;
+  return Object.freeze(status);
+}
 function publicError(error) {
   return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.', ...(error?.owner === true ? { owner: true } : {}) };
 }
@@ -399,4 +238,4 @@ function validateVentureEvent(input) {
     ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
   });
 }
-module.exports = Object.freeze({ UPDATE_SHOW_CHANNEL, DIAGNOSTICS_PREVIEW_CHANNEL, DIAGNOSTICS_SAVE_CHANNEL, FIRST_PAINT_CHANNEL, MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ UPDATE_GO_BACK_CHANNEL, UPDATE_GO_BACK_OFFER_CHANNEL, UPDATE_SHOW_CHANNEL, DIAGNOSTICS_PREVIEW_CHANNEL, DIAGNOSTICS_SAVE_CHANNEL, FIRST_PAINT_CHANNEL, MAILTO_ADDRESS, mailtoParts, REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, REPORT_SAVE_CHANNEL, BACKGROUND_GET_CHANNEL, BACKGROUND_SET_CHANNEL, validateBackgroundChange, BACKGROUND_LATER_GET_CHANNEL, BACKGROUND_LATER_SET_CHANNEL, validateLaterDay, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateHostRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateEngineStatus, validateVentureEvent });

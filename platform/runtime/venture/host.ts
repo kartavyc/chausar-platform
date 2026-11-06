@@ -1,3 +1,6 @@
+import { runTransport } from './replay/transport.ts';
+import { captureSampleKey } from './replay/sample.ts';
+import { runClock } from './replay/scope.ts';
 // Chausar venture launcher: the host that serves every venture method to the engine.
 // Owned by package P6. The engine reaches this file only through a dynamic import at request time.
 //
@@ -11,7 +14,7 @@ import { settleError } from './refusals.ts';
 import { readFile } from 'node:fs/promises';
 import { ChausarError, type Context, type State, type StateStore } from '../contracts.ts';
 import type { WorkKind } from './views/work-steps.ts';
-import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contracts.ts';
+import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS, VENTURE_RUN_EVENT_TYPES } from './contract-values.ts';
 import type {
   CountryProfile, GitHubFixture, GitHubRequest, GitHubResponse, GitHubTransport, ModelPort, ModelPortOptions, ModelPreset,
   ModelPresetId, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport, PlanPreview, SecretName, SecretShelf,
@@ -221,11 +224,11 @@ export class VentureHost {
     const derive = (store as StateStore & { derivedKey?: (purpose: 'network-forget' | 'receipt-signing' | 'journal-head') => Buffer }).derivedKey;
     try { if (typeof derive === 'function') this.#secrets.set('network:forget', derive.call(store, 'network-forget').toString('hex')); } catch { /* never throws */ }
     // 4J10: the receipt signing key's seed and the journal head's HMAC key, the same way, never in a record, export or backup.
-    try { if (typeof derive === 'function') this.#secrets.set('receipt:signing', derive.call(store, 'receipt-signing').toString('hex')); } catch { /* never throws */ }
-    try { if (typeof derive === 'function') this.#secrets.set('journal:head', derive.call(store, 'journal-head').toString('hex')); } catch { /* never throws */ }
+    try { if (typeof derive === 'function') this.#secrets.set('receipt:signing', (captureSampleKey(store, 'receipt-signing') ?? derive.call(store, 'receipt-signing')).toString('hex')); } catch { /* never throws */ }
+    try { if (typeof derive === 'function') this.#secrets.set('journal:head', (captureSampleKey(store, 'journal-head') ?? derive.call(store, 'journal-head')).toString('hex')); } catch { /* never throws */ }
     this.#deps = Object.freeze({
       store,
-      clock: options.clock ?? (() => new Date()),
+      clock: () => runClock(options.clock),
       models: this.#modelsProxy(),
       services,
       github: this.#githubProxy(),
@@ -569,7 +572,7 @@ export class VentureHost {
       }
     }
     const portOptions: ModelPortOptions & { cliLooks?: import('./models/cli-look-file.ts').CliLookPort } = {
-      store: this.#store, clock: this.#deps.clock, transport, secrets: this.#secrets, host: this.#deps.host, demo: this.#deps.demo,
+      store: this.#store, clock: this.#deps.clock, transport: runTransport(transport), secrets: this.#secrets, host: this.#deps.host, demo: this.#deps.demo,
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),
       ...(options.cliLooks && this.#deps.host !== 'hosted-web' ? { cliLooks: options.cliLooks } : {}),
       claudeCodeTerms: this.#deps.claudeCodeTerms ?? 'accepted',

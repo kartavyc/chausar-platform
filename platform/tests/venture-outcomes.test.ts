@@ -60,7 +60,7 @@ test('a run: the weakest of its acts; the gave-up line only when nothing was app
   assert.deepEqual(runOutcome({ failed: null, proposed: false, acts: [ok, unchecked] }), { outcome: 'not-checked', line: 'Not checked: 1 of 2 outside actions has no code check of its real result.' });
   assert.deepEqual(runOutcome({ failed: null, proposed: false, acts: [ok, refused] }), { outcome: 'failed', line: 'Failed: 1 of 2 outside actions did not happen.' });
   assert.deepEqual(runOutcome({ failed: 'agent', proposed: true, acts: [] }), { outcome: 'failed', line: 'Failed: the agent gave up before its outside action was done.' });
-  assert.deepEqual(runOutcome({ failed: 'provider', proposed: true, acts: [] }), { outcome: 'failed', line: 'Failed: the run failed before its outside action was done.' });
+  assert.deepEqual(runOutcome({ failed: 'provider', proposed: true, acts: [] }), { outcome: 'failed', line: 'Failed: the job failed before its outside action was done.' });
   assert.deepEqual(runOutcome({ failed: 'agent', proposed: false, acts: [refused] }), { outcome: 'failed', line: 'Failed: the agent gave up before its outside action was done.' });
   assert.deepEqual(runOutcome({ failed: 'agent', proposed: false, acts: [ok] }), { outcome: 'success', line: 'Success: the outside action was confirmed.' },
     'what was applied stands on its own; the gave-up line is only for a run that applied nothing');
@@ -184,7 +184,7 @@ test('venture.runs.get: a posted draft is Success, an owner-sent one Not checked
   assert.equal((await get(quiet.id)).outcome, undefined, 'still waiting for the owner: nothing went out yet');
   const failed = await get(gaveUp.id);
   assert.deepEqual([failed.state, failed.outcome], ['failed', { outcome: 'failed', line: 'Failed: the agent gave up before its outside action was done.' }]);
-  assert.deepEqual((await get(providerDown.id)).outcome, { outcome: 'failed', line: 'Failed: the run failed before its outside action was done.' });
+  assert.deepEqual((await get(providerDown.id)).outcome, { outcome: 'failed', line: 'Failed: the job failed before its outside action was done.' });
   // The report rides on the run's own sheet.
   const report = (await get(posted.id)).report!;
   assert.deepEqual(report.measured.map(item => item.line), ['Passed: Fine.']);

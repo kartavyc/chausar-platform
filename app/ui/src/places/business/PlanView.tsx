@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import {playbookLabel} from '../../text/playbook-label';
 import { useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
@@ -10,7 +11,7 @@ import { Icon } from '../../parts/Icon';
 import { ProgressBar } from '../../parts/ProgressBar';
 import { Tile } from '../../parts/Tile';
 import { SERVICE_TYPES, type BlueprintLite, type BlueprintPatchLite, type BlueprintViewLite } from '../../engine/types';
-import { LabelTag, PendingPlanRows, TileSection, messageOf, quoteAgain, totalOf, usePlan } from './shared';
+import { LabelTag, PendingPlanRows, TileSection, quoteAgain, totalOf, usePlan } from './shared';
 import { RulesSection } from './RulesSection';
 import { Recipes } from './Recipes';
 import s from './Business.module.css';

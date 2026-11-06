@@ -8,6 +8,7 @@ import { Chip, type ChipTone } from '../../parts/Chip';
 import { momentOf } from '../../parts/custody';
 import { Icon } from '../../parts/Icon';
 import { Tile, TileHead } from '../../parts/Tile';
+import { useMoment } from '../../parts/when';
 import { EngineError, type CliStatusView, type ModelAvailability, type PlanToolLite } from '../../engine/types';
 import s from './Connections.module.css';
 import c from './CliStatus.module.css';
@@ -38,6 +39,7 @@ export function useCliChecks(): number {
 }
 
 const refreshOn = (event: { type: string }) => event.type === 'queue.changed';
+const KEPT_LOOK_REREAD_MS = 3000;
 
 /**
  * Your AI apps (W4 4H2; spec 5.3 and 8), the tile under Your AI: Claude Code and Codex as the engine found them on
@@ -67,6 +69,14 @@ export function CliStatus() {
 
   const data = fresh ?? status.data;
   const keysOnly = status.error?.code === 'TIER_UNAVAILABLE';
+  // D4 task 6: a look kept between starts stands in only while the real one runs, so the row reads again until it lands.
+  const holdsKept = status.data?.clis.some(view => view.kept === true) === true;
+  const reloadStatus = status.reload;
+  useEffect(() => {
+    if (!holdsKept) return;
+    const timer = setTimeout(() => { void reloadStatus(); }, KEPT_LOOK_REREAD_MS);
+    return () => clearTimeout(timer);
+  }, [holdsKept, status.data, reloadStatus]);
 
   async function checkAgain() {
     if (busy) return;
@@ -114,6 +124,7 @@ export function CliStatus() {
  */
 function Tool({ view, onChosen, plan, onPlan }: { view: CliStatusView; onChosen: () => void; plan?: PlanToolLite; onPlan: (next: { tools: PlanToolLite[] }) => void }) {
   const t = useT();
+  const moment = useMoment('short');
   const client = useEngine();
   const nameId = useId();
   const [choosing, setChoosing] = useState(false);
@@ -149,6 +160,7 @@ function Tool({ view, onChosen, plan, onPlan }: { view: CliStatusView; onChosen:
       {atRest !== null && (view.fix || setup
         ? <p className={c.fix} data-fix-line="">{connectionWords(t, atRest)}</p>
         : <p className={s.line} data-cli-line="">{connectionWords(t, atRest)}</p>)}
+      {view.kept === true && view.checkedAt && <p className={s.line} data-cli-kept="">{t('connections.cli.lastChecked', { time: moment(view.checkedAt) })}</p>}
       {view.provider && <ProviderTrouble trouble={view.provider} className={s.line} />}
       {plan && <PlanMeter plan={plan} onPlan={onPlan} />}
       {setup?.state === 'review' && <Button size="sm" disabled={choosing} aria-busy={choosing || undefined} onClick={() => void choose()}>{t('first-run.ai.setup.use')}</Button>}

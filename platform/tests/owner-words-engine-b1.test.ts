@@ -51,7 +51,7 @@ test('B1 fix round 2: bannedIn names each developer word a line uses, whole word
 test('B1 fix round 2: quotable keeps owner words and plain sentences, and drops the rest', async () => {
   const { quotable } = await import('../runtime/owner-flag.ts');
   const { ChausarError, InternalError } = await import('../runtime/contracts.ts');
-  assert.equal(quotable(new ChausarError('INVALID_VENTURE_REQUEST', 'Use an https address (or http on this computer) with no password or ? part in it. Add a password in the box for it.')), 'Use an https address (or http on this computer) with no password or ? part in it. Add a password in the box for it.');
+  assert.equal(quotable(new ChausarError('INVALID_VENTURE_REQUEST', 'Use a web address starting with https (or http on this computer), with no password and nothing after ? or #. Add a password in its own box.')), 'Use a web address starting with https (or http on this computer), with no password and nothing after ? or #. Add a password in its own box.');
   assert.equal(quotable(new Error('A quoted cell was cut short.')), 'A quoted cell was cut short.');
   for (const inner of [new InternalError('UNSAFE_PATH', 'Choose an explicit non-root absolute directory.'), new ChausarError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.'),
     new Error('The engine stopped.'), Object.assign(new Error("ENOENT: no such file, open 'C:\\x\\y.csv'"), { code: 'ENOENT' }), new Error('Unexpected token < in JSON at position 0\n    at JSON.parse'), 'a string', null]) {

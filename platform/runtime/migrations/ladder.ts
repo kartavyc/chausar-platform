@@ -4,14 +4,14 @@
 // goes to State.unsupported with the step's name and reason) and sets the data version to its own `to`. migrate() runs
 // the steps from the data's version upward on a copy; data newer than this app is refused with both numbers and left
 // alone. Vault.open (vault.ts) reads every business through here.
-import { ChausarError } from '../portable.ts';
+import { ChausarError, InternalError } from '../portable.ts';
 import { BUILT_STEPS } from './steps/index.ts';
 
-export const CURRENT_SCHEMA = 1;
+export const CURRENT_SCHEMA = 2;
 
 export type LadderStep = { from: number; to: number; name: string; run(state: any, at: string): any };
 
-/** The real steps, in order. Step 1 to 2 (what changed since the published beta) comes with D12 task 5. */
+/** The real steps, in order. */
 export const STEPS: readonly LadderStep[] = BUILT_STEPS;
 
 /** Data saved by a newer Chausar: answered only after the key opened the data, and the file is never touched. */
@@ -19,13 +19,14 @@ export class DataNewerError extends ChausarError {
   found: number;
   supported: number;
   constructor(found: number, supported: number) {
-    super('DATA_NEWER', `This business was saved by a newer version of Chausar (data version ${found}; this version reads up to ${supported}). Update Chausar to open it. Nothing was changed.`);
+    super('DATA_NEWER', 'This business was saved by a newer version of Chausar. Update Chausar to open it. Nothing was changed.');
     this.found = found;
     this.supported = supported;
   }
 }
 
-const failed = (message: string) => new ChausarError('DATA_MIGRATION_FAILED', message);
+// In developer words (a step's name); the app says the code's own line (owner-flag.ts INTERNAL_LINE_CODES).
+const failed = (message: string) => new InternalError('DATA_MIGRATION_FAILED', message);
 /** Every record the State holds, counted across its lists (moved records count in unsupported). */
 const recordCount = (state: unknown) => Object.values(state as Record<string, unknown>).filter(Array.isArray).reduce((sum: number, list) => sum + (list as unknown[]).length, 0);
 

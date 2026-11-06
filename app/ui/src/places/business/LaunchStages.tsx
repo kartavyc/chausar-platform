@@ -1,9 +1,10 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import type { LaunchStatusView, VentureRunEvent } from '../../engine/types';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import s from './Business.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { FilterChips } from '../../parts/FilterChips';

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Recording a payment, as a form beside the list. The amount is the owner's own text, sent as typed; the engine
  * reads it, checks it against the balance and answers with the invoice's new figures. Recording cannot be undone,
@@ -24,7 +25,7 @@ import { Sheet } from '../../parts/Sheet';
 import { PAYMENT_METHODS, type InvoiceViewLite, type PaymentMethod } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { ThankYou } from './ThankYou';
-import { invoiceTitle, messageOf, statusOf, typedWords, useDay, useLocalToday } from './words';
+import { invoiceTitle, statusOf, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
@@ -109,7 +110,6 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     body = (
       <>
         <p className={s.notice} role="status">
-          <span>{t('money.payment.done')}</span>
           {recorded.receiptId && <Receipt id={recorded.receiptId} />}
         </p>
         {recorded.note && <p className={s.quietLine} data-engine-line="">{recorded.note}</p>}
@@ -170,7 +170,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
         </form>
         {(phase === 'confirm' || phase === 'sending') && (
           <div className={s.block}><Confirm action={t('money.payment.confirm')} busy={phase === 'sending'} onCancel={() => setPhase('form')} onConfirm={() => void record(current)}>
-            <p>{split ? t('money.payment.splitAsk', { amount: typedWords(amount, currency), date: day(receivedOn), count: String(allocations.length) }) : t('money.payment.ask', { amount: typedWords(amount, currency), date: day(receivedOn) })}</p>
+            <p>{split ? t('money.payment.splitAsk', { amount: typedWords(amount, currency), date: day(receivedOn), method: t(`money.method.${method}`), count: String(allocations.length) }) : t('money.payment.ask', { amount: typedWords(amount, currency), date: day(receivedOn), method: t(`money.method.${method}`) })}</p>
             {/* A split's second ask names each part as typed, like every other second ask. */}
             {split && (
               <ul className={s.plain}>
@@ -189,8 +189,8 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     <Sheet
       label={t('money.payment.label')}
       eyebrow={current ? invoiceTitle(t, current.invoice, current.client.name) : undefined}
-      title={t('money.payment.title')}
-      line={current && !takesPayment && phase !== 'done' ? statusOf(t, day, current.invoice) : owed || undefined}
+      title={t(phase === 'done' ? 'money.payment.recorded' : 'money.payment.title')}
+      line={phase === 'done' ? undefined : current && !takesPayment ? statusOf(t, day, current.invoice) : owed || undefined}
       onClose={onClose}
       returnFocus={returnFocus}
     >

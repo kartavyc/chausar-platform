@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../../platform/shared/digest.ts';
 /**
  * Wave 6 first run in the fake engine, answering as the engine does:
  *   venture.ai.tools / .login.start / .login.cancel  each tool's own sign-in (platform/runtime/venture/models/login.ts):
@@ -22,12 +23,16 @@ export const FIRST_RUN_METHODS: ReadonlySet<string> = new Set([
   'venture.about.read', 'venture.about.pick', 'venture.about.families', 'venture.needs.list',
   // A2: the owner's yes to the Codex found on this computer (engine.ts answers it with or without a business).
   'venture.ai.setup.trust',
+  // D5: Install Claude Code; the real one asks in main's own dialog first, and this one has said yes.
+  'venture.ai.claude.install', 'venture.ai.claude.progress',
 ]);
 /**
  * A2: the sample program digests: the Codex that comes with Chausar, and an owner's own Codex found on the search path.
  * A2 second review: an npm Codex is shown as the native codex.exe behind npm's shim, as codex-trust.ts shows it.
  */
 const BUNDLED_SHA = 'b'.repeat(64);
+const CLAUDE_FOUND_AT = 'C:\\Users\\owner\\.local\\bin\\claude.exe';
+const CLAUDE_INSTALLED = 'Claude Code is installed. Open it once in a terminal and sign in yourself; Chausar never signs in for you.';
 const OWN_SHA = 'c'.repeat(64);
 /** The engine's words (platform/runtime/codex-trust.ts SETUP_WORDS), word for word. */
 const SETUP = {
@@ -155,6 +160,8 @@ export class FakeFirstRun {
 
   request(method: string, p: Record<string, unknown>): unknown {
     if (method === 'venture.ai.setup.trust') return this.trust(p);
+    if (method === 'venture.ai.claude.install') { exact(p, []); return this.installClaude(); }
+    if (method === 'venture.ai.claude.progress') { exact(p, []); return { step: this.claudeInstalled ? 'done' : 'idle', receivedBytes: 0, totalBytes: null, line: this.claudeInstalled ? CLAUDE_INSTALLED : null }; }
     if (method !== 'venture.needs.list' && this.host.hosted()) throw new EngineError('HOSTED_NOT_AVAILABLE', 'The hosted web app adds your AI after you keep your business.');
     switch (method) {
       case 'venture.ai.tools': exact(p, []); return this.tools();
@@ -191,7 +198,7 @@ export class FakeFirstRun {
   private trust(p: Record<string, unknown>): { setup: CodexSetupLite } {
     if (this.host.hosted() || this.dialogAnswer === 'missing') throw new EngineError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
     const asked = { cli: p.cli, sha256: p.sha256 };
-    if (asked.cli !== 'codex' || typeof asked.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(asked.sha256)) throw invalid('Choose the Codex Chausar showed you.');
+    if (asked.cli !== 'codex' || typeof asked.sha256 !== 'string' || !DIGEST_PATTERN.test(asked.sha256)) throw invalid('Choose the Codex Chausar showed you.');
     if (this.setup.state === 'trusted' && this.setup.sha256 === asked.sha256) return { setup: { ...this.setup } };
     if (!this.heldReview || asked.sha256 !== OWN_SHA) throw new EngineError('CODEX_SETUP_CHANGED', 'That Codex changed since you looked at it. Check it again.');
     this.dialogs.push({ title: DIALOG.title, detail: DIALOG.detail(SETUP.review.version, OWN_PROGRAM), buttons: [...DIALOG.buttons] });
@@ -200,7 +207,16 @@ export class FakeFirstRun {
     this.heldReview = false;
     return { setup: { ...this.setup } };
   }
+  /** D5: as the engine's installClaudeCodeFor: found now, and the owner signs in themselves. */
+  private claudeInstalled = false;
+  private installClaude() {
+    if (this.host.hosted()) throw new EngineError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+    if (this.claudeInstalled) return { outcome: 'already-installed', path: CLAUDE_FOUND_AT, installerUrl: null, installerSha256: null, words: 'Claude Code is already on this computer.' };
+    this.claudeInstalled = true;
+    return { outcome: 'installed', path: CLAUDE_FOUND_AT, installerUrl: 'https://claude.ai/install.ps1', installerSha256: 'c'.repeat(64), words: CLAUDE_INSTALLED };
+  }
   private claudeView(): ToolLite {
+    if (this.claudeInstalled) return { cli: 'claude-code', label: 'Claude Code', found: true, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: null } };
     return { cli: 'claude-code', label: 'Claude Code', found: false, signedIn: 'unknown', login: { state: 'idle', code: null, link: null, line: 'Install Claude Code with its own installer, then check again.' } };
   }
 
@@ -212,6 +228,7 @@ export class FakeFirstRun {
   }
 
   private start(cli: 'codex' | 'claude-code'): ToolLite {
+    if (cli === 'claude-code' && this.claudeInstalled) return this.claudeView();
     if (cli === 'claude-code') throw new EngineError('CLI_UNAVAILABLE', 'Install Claude Code with its own installer, then check again.');
     if (this.codex.signedIn === 'yes' || this.codex.login.state === 'starting' || this.codex.login.state === 'waiting') return this.codexView();
     this.codex.login = { state: 'starting', code: null, link: null, line: null };

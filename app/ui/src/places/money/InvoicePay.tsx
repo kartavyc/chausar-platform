@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Wave 6 money on the invoice sheet (6D1 to 6D3). How clients pay: the UPI QR code exactly as the engine drew it (the
  * UI only draws its squares), the UPI ID, the amount the engine wrote beside its receipt, the bank details, the file
@@ -25,12 +26,13 @@ import { ResultLine } from '../../parts/ResultLine';
 import { useEngine } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
+import { Icon } from '../../parts/Icon';
 import { Field } from '../../parts/Field';
 import { Receipt } from '../../parts/Receipt';
 import type { InvoicePdfView, InvoiceShareResult, InvoiceViewLite } from '../../engine/types';
 import { copyText, performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
-import { messageOf } from './words';
+
 import s from './Money.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
@@ -72,6 +74,7 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
   const t = useT();
   const engine = useEngine();
   const headId = useId();
+  const sendId = useId();
   const [said, setSaid] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   /** A6: the file the desktop kept for the owner to attach themselves, shown in its folder on request. */
@@ -162,6 +165,7 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
   const copy = (link: string) => act(async () => { if (await copyText(link)) setSaid(t('money-pay.copied')); else setProblem(t('money-pay.cantSave')); });
 
   return (
+    <>
     <section className={s.block} aria-labelledby={headId} data-how-to-pay="">
       <h3 id={headId} className={s.blockTitle}>{t('money-pay.title')}</h3>
       {!pay ? (
@@ -218,23 +222,26 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
           </p>
         </>
       )}
-      {issued && (
-        <div className={s.buttons}>
+      {!issued && <ResultLine tone={problem ? 'problem' : 'done'} className={s.result}>{problem ?? said}</ResultLine>}
+    </section>
+    {issued && <section className={s.block} aria-labelledby={sendId} data-send-invoice>
+      <h3 id={sendId} className={s.blockTitle}>{t('money-pay.send')}</h3>
+      <div className={s.sendButtons}>
           <Button size="sm" disabled={busy} onClick={() => void save()}>{t('money-pay.saveFile')}</Button>
           <Button size="sm" disabled={busy} onClick={whatsapp}>{t('money-pay.whatsapp')}</Button>
           <Button size="sm" disabled={busy} onClick={() => void email()}>{t('money-pay.email')}</Button>
           {/* C4 (T20): the owner's own word that it went; until then the invoice reads "Issued, not sent". */}
           {invoice.status === 'issued' && view.sent === false && <Button size="sm" variant="quiet" disabled={busy} onClick={() => void markSent()}>{t('money-pay.markSent')}</Button>}
         </div>
-      )}
       {/* B4 task 5: Saved, Shared and a refusal share one slot that is there before the press. */}
-      <ResultLine tone={problem ? 'problem' : 'done'} className={s.result} data-engine-line="">{problem ?? said}</ResultLine>
+      <ResultLine tone={problem ? 'problem' : 'done'} className={s.result} data-engine-line="">{!problem && said && <Icon name="check" size={16} />}{problem ?? said}</ResultLine>
       {kept && engine.showShared && (
         <p className={s.payRow}>
           <Button size="sm" variant="quiet" onClick={() => void showKept(kept)}>{t(kept.endsWith('.pdf') ? 'money-pay.showPdf' : 'money-pay.showFile')}</Button>
         </p>
       )}
-    </section>
+    </section>}
+    </>
   );
 }
 

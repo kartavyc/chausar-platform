@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -5,7 +6,7 @@ import type { FeedbackView } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { FeedbackQuestionCard } from '../../parts/FeedbackQuestion';
 import { DiagnosticsSection } from './DiagnosticsSection';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import s from './Business.module.css';
 import r from './Reports.module.css';
 import { CheckRow } from '../../parts/OptionRows';

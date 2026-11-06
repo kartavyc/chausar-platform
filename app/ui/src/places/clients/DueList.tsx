@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * "Due today and late" (D-Clients `.due`; the engine's 4E1 venture.pipeline.followups): each follow-up due now, oldest
  * first, with the engine's line ("Follow up 21 Oct, 2 days late. Nudge drafted for Mail."). With a nudge drafted, its
@@ -17,7 +18,7 @@ import { Tile, TileHead } from '../../parts/Tile';
 import type { FollowupView, OutreachChannel } from '../../engine/types';
 import { reserveTab } from '../connections/external';
 import { NeverContactLost } from './NeverContactLost';
-import { codeOf, messageOf } from './network';
+import { codeOf } from './network';
 import { clientsChanged } from './signals';
 import { handoffText, opensPage, performHandoff, SENT_OF } from './handoff';
 import { pipelineRefresh } from './pipeline';

@@ -79,6 +79,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     else if (arg.startsWith('--changed=')) given = arg.slice(10).split(',').map(file => file.trim().replaceAll('\\', '/')).filter(Boolean);
     else { process.stderr.write('Usage: node scripts/near.mjs [--base=<branch>] [--list] [--changed=<file>[,<file>...]]\n'); process.exit(2); }
   }
+  if (!base || base.startsWith('-') || /[\x00-\x20]/.test(base)) { process.stderr.write('The base must be a revision name, not a git option.\n'); process.exit(2); }
   let changed = given;
   if (!changed) {
     try {

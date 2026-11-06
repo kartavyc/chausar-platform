@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EngineHarness } from '../../app/desktop/engine-harness.cjs';
-import type { DesktopBridge } from '../../app/desktop/types.ts';
+import type { DesktopBridge, DesktopPayload, DesktopResult } from '../../app/desktop/types.ts';
 import type { CalculationReceipt } from '../runtime/calculator.ts';
 import type { JournalContent, JournalDraft } from '../runtime/decision-journal.ts';
 import { Vault } from '../runtime/vault.ts';
@@ -43,8 +43,9 @@ function code(expected: string) {
 }
 
 // Type-only consumer regression: journal payloads and result contracts are named
-// on the real desktop bridge, including mandatory revision for both rich writers.
-function typedBridgeContract(bridge: DesktopBridge, draft: JournalDraft) {
+// on the trusted worker port, including mandatory revision for both rich writers.
+type JournalMethod = 'decisions.journal.draft' | 'decisions.journal.confirm' | 'decisions.journal.revise' | 'decisions.journal.due' | 'decisions.journal.review';
+function typedBridgeContract(bridge: { request<M extends JournalMethod>(method: M, payload: DesktopPayload<M>): Promise<DesktopResult<M>> }, draft: JournalDraft) {
   const pendingDraft: Promise<JournalDraft> = bridge.request('decisions.journal.draft', { content });
   void pendingDraft;
   void bridge.request('decisions.journal.confirm', { draft, reviewedDigest: draft.digest });
@@ -56,6 +57,11 @@ function typedBridgeContract(bridge: DesktopBridge, draft: JournalDraft) {
   void bridge.request('decisions.journal.review', { id: 'synthetic', review: { outcome: 'continue', observation: { state: 'pending', measurements: [], notes: '', uncertainty: [], concurrentInterventions: [], executionReceiptIds: [] } } });
 }
 void typedBridgeContract;
+function rendererCannotReachJournal(bridge: DesktopBridge) {
+  // @ts-expect-error The renderer cannot reach engine-only journal operations.
+  void bridge.request('decisions.journal.draft', { content });
+}
+void rendererCannotReachJournal;
 
 async function seed(directory: string) {
   const { vault } = await Vault.create({ directory: join(directory, 'main'), name: 'Synthetic journal worker',

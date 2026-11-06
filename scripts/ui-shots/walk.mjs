@@ -25,7 +25,7 @@
 // one Chrome on its own debugging port (--cdp, --cdp+1, ...) with its own profile under --profiles (default: inside
 // --out), removed when the walk ends.
 // D3: the output folder is the run root, CHAUSAR_RUN_ROOT/ui-shots, else the temp folder's chausar-runs/<date>-ui-shots,
-// never inside the checkout (an --out there is refused). Four Chrome profiles need a few hundred MB there.
+// Relative --out paths use the working folder; an output inside the checkout is refused. Four Chrome profiles need a few hundred MB there.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -44,7 +44,7 @@ const option = (name, fallback) => {
   if (!found) return fallback;
   return found.includes('=') ? found.slice(found.indexOf('=') + 1) : true;
 };
-const OUT = option('out', '') ? refuseInsideRepo(resolve(ROOT, String(option('out'))), { variable: '--out', fallback: runRoot('ui-shots') }) : runRoot('ui-shots');
+const OUT = option('out', '') ? refuseInsideRepo(resolve(String(option('out'))), { variable: '--out', fallback: runRoot('ui-shots') }) : runRoot('ui-shots');
 const PROFILES = resolve(String(option('profiles', join(OUT, '.profiles'))));
 const CDP = Number(option('cdp', 9481));
 const WORKERS = Math.max(1, Math.min(8, Number(option('workers', 4))));

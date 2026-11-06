@@ -1,10 +1,11 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import type { UpdatesView as View } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { formatBytes } from '../../parts/when';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import s from './Business.module.css';
 import r from './Reports.module.css';
 
@@ -57,6 +58,7 @@ export function UpdatesView() {
     <div className={s.page}>
       <TileSection title={t('updates.title')}>
         <p className={s.line} role="status">{words}</p>
+        {view.rolledBack && <p className={s.note} data-rolled-back="">{t(`updates.rolledBack.${view.rolledBack.reason}`, { from: view.rolledBack.from, to: view.rolledBack.to })}</p>}
         {view.state === 'needs-signing' && <p className={s.note}>{t('updates.needsSigning', { version })}</p>}
         {problem && <p className={s.problem} role="alert" data-engine-line="">{problem}</p>}
         {BY_HAND.includes(view.state) && client.showUpdateInstaller && (

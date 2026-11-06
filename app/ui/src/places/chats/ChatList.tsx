@@ -47,9 +47,10 @@ export interface ChatListProps {
   /** The chat open beside the list. */
   selected: string | undefined;
   onNew: () => void;
+  newDisabled?: boolean | undefined;
 }
 
-export function ChatList({ threads, selected, onNew }: ChatListProps) {
+export function ChatList({ threads, selected, onNew, newDisabled }: ChatListProps) {
   const t = useT();
   const zone = useOwnerZone();
   const clock = useClock();
@@ -81,18 +82,18 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
     <nav className={s.list} aria-labelledby={titleId}>
       <div className={s.listHead}>
         <h2 id={titleId} className={s.listTitle}>{t('chats.list.title')}</h2>
-        {/* 6G1: settled chats leave the list for Old chats in Settings (D42: the archive lives in Settings). C1 task 12: the
-            way there is here whenever the business has had a chat, with the count once any have settled. */}
-        {(settled > 0 || groups.length > 0) && needle === '' && (
-          <a className={s.settledLink} href="#/business/chats" aria-label={oldChats} title={oldChats}>
-            <Icon name="history" size={16} />
-          </a>
-        )}
-        <Button variant="ink" size="sm" onClick={onNew}>
+        <Button variant="ink" size="sm" onClick={onNew} disabled={newDisabled}>
           <Icon name="plus" size={16} />
           {t('chats.list.new')}
         </Button>
       </div>
+        {/* 6G1: settled chats leave the list for Old chats in Settings (D42: the archive lives in Settings). C1 task 12: the
+            way there is here whenever the business has had a chat, with the count once any have settled. */}
+        {(settled > 0 || groups.length > 0) && needle === '' && (
+          <a className={s.settledLink} href="#/business/chats" aria-label={oldChats} title={oldChats}>
+            <Icon name="history" size={16} /><span>{oldChats}</span>
+          </a>
+        )}
       <div className={s.search}>
         <Icon name="search" size={16} />
         <label className="sr-only" htmlFor={searchId}>{t('chats.list.search')}</label>

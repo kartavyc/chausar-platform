@@ -1,10 +1,10 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import type { DiagnosticsPreview } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { formatFileSize } from '../../parts/when';
-import { messageOf } from './shared';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import r from './Reports.module.css';

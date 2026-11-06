@@ -70,3 +70,7 @@ test('A1 final check: only a branded refusal converts; a library error with the 
   assert.equal(branded.crash, false);
   assert.deepEqual(ownerError(branded.error), { code: 'STRATEGY_BINDING_REQUIRED', message: 'Build a strategy from its recorded work, panel and publication receipt.', owner: true });
 });
+
+test('unexpected failures point to the current Reports page', () => {
+  assert.match(ownerError(new Error('unexpected')).message, /Settings > Safety > Reports/);
+});

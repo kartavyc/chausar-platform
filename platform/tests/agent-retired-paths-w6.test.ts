@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { handlers } from '../runtime/venture/delivery/index.ts';
-import { VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import * as delivery from '../runtime/venture/delivery/runs.ts';
 
 test('delivery exposes one native job entry and no turn approval or separate delegation path', () => {

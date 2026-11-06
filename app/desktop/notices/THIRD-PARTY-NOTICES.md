@@ -39,3 +39,11 @@ Chausar bundles Codex so the owner can connect their own ChatGPT plan without in
 ## Installer
 
 - The Windows installer is built with NSIS (zlib licence) through electron-builder. The Linux AppImage uses the AppImage runtime (MIT).
+
+## Fonts
+
+Built into the app screens. Each licence text is beside this file.
+
+- DMMono: SIL Open Font License 1.1. File: `fonts/DMMono-OFL.txt`.
+- InstrumentSans: SIL Open Font License 1.1. File: `fonts/InstrumentSans-OFL.txt`.
+- NotoSansDevanagari: SIL Open Font License 1.1. File: `fonts/NotoSansDevanagari-OFL.txt`.

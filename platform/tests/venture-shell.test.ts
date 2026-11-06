@@ -13,7 +13,7 @@ import { Engine } from '../runtime/engine.ts';
 import { createLocalServer, createServerEngine } from '../runtime/server.ts';
 import { listInkFiles } from '../runtime/ui-ink.ts';
 import { createWorkerEngine } from '../runtime/worker.ts';
-import { EXTERNAL_ORIGINS } from '../runtime/venture/contracts.ts';
+import { EXTERNAL_ORIGINS } from '../runtime/venture/contract-values.ts';
 import type { PlanPreview, VentureView } from '../runtime/venture/contracts.ts';
 import type { DesktopBridge } from '../../app/desktop/types.ts';
 

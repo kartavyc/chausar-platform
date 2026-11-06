@@ -1,6 +1,7 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState } from 'react';
 import { useLanguageChoice, useT, type Language } from '../../text';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import b from './Business.module.css';
 import { Select } from '../../parts/Select';
 import p from './ProfessionSetting.module.css';

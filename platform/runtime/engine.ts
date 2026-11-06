@@ -1,4 +1,9 @@
+import { DRAFT_DESK_METHODS, VENTURE_METHODS } from './method-registry.ts';
+import { markNewCaptureSample, isCaptureSample } from './venture/replay/sample.ts';
+import { currentRun } from './venture/replay/scope.ts';
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { resolve, join, relative, isAbsolute, basename } from 'node:path';
+import { CLAUDE_INSTALL_WORDS, installClaudeCode, mintClaudeInstallYes, type ClaudeInstallPorts, type ClaudeInstallProgress, type ClaudeInstallResult, type ClaudeInstallView } from './venture/models/claude-code-install.ts';
 import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -82,6 +87,7 @@ import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-sn
 
 /** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
 type DraftDeskHandle = {
+  sampleState(authority: StateStore, state?: State): Promise<State>;
   request(ctx: Context, method: string, payload: unknown): Promise<unknown>;
   /** workspace.create succeeded: reset and pause the idle timer while the owner keeps the plan safe. */
   hold(): void;
@@ -96,7 +102,7 @@ export type EngineBackupCustodyOptions = {
   /** Trusted installed host capability, never supplied by an RPC payload. */
   withCompleteOwner?<T>(context: Context, historical: State, work: (assertCurrent: () => void) => Promise<T>): Promise<T>;
 };
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
+export type EngineOptions = { capture?: { dir: string }; directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
   /** Trusted local composition: how the speech service starts the local whisper.cpp (tests inject a stand-in). */
   speech?: SpeechOptions;
   /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
@@ -109,6 +115,8 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   /** Trusted host composition (server.ts, worker.ts): keep each business's vault key with this computer's login and
    * write automatic encrypted backups. Absent: today's behaviour, a passphrase for every vault and no automatic backups. */
   workspaceCustody?: { deviceKeys: 'os' | 'none' | DeviceKeyStore; autoBackups: boolean; clock?: () => number };
+  /** D5: Install Claude Code. Only the desktop worker passes this, with the real ports; a test passes fakes. Absent: refused. */
+  claudeInstall?: { host: 'desktop' | 'hosted-web'; ports: ClaudeInstallPorts; platform?: NodeJS.Platform; environment?: NodeJS.ProcessEnv; onFound?: (path: string) => void };
   /** C5 task 31: the daily update check: main hands the worker the build's key, feed and folder (update-service.ts). Tests add seams. */
   updates?: Omit<UpdateServiceOptions, 'version' | 'isBusy'>;
   /** C5 task 24: the Google client, for tests; a build's comes from package.json. tokens: where tests keep the refresh token. */
@@ -161,6 +169,8 @@ function copyViewOf(copy: BackupCopySetting | null | undefined): BackupCopyView 
   return copy ? { folderName: copy.folder.split(/[\\/]/).filter(Boolean).pop() ?? copy.folder, lastCopiedAt: copy.lastCopiedAt, problem: copy.problem } : null;
 }
 
+const DRAFT_DESK_DISPATCH: ReadonlySet<string> = new Set(DRAFT_DESK_METHODS);
+const VENTURE_DISPATCH: ReadonlySet<string> = new Set(VENTURE_METHODS);
 export class Engine {
   options: EngineOptions;
   readonly version: string;
@@ -168,10 +178,14 @@ export class Engine {
   /** C5 task 24: the open business's Drive client. */
   #drive: { workspaceId: string; client: DriveBackup } | null = null;
   #baseContext: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
+  /** D5: how far Install Claude Code has come, and the one under way. */
+  #claudeProgress: ClaudeInstallView = { step: 'idle', receivedBytes: 0, totalBytes: null, line: null };
+  #claudeInstalling: Promise<ClaudeInstallResult> | null = null;
   #requestContext = new AsyncLocalStorage<Context>();
   #stagedVaults = new Set<Vault>();
   #transition = false;
   #activeRequests = 0;
+  #capturing = false;
   #closing = false;
   #companion: { store: Vault; sessions: PhoneSessionService; runtime: EnginePhoneRuntime } | undefined;
   #idleWaiters = new Set<() => void>();
@@ -912,7 +926,7 @@ export class Engine {
   }
   async close() {
     if (this.#activeRequests && !this.#transition) await this.stopLongWork();
-    check(!this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Chausar is still finishing work in this business. Try again in a moment.');
+    check(!this.#capturing && !this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Chausar is still finishing work in this business. Try again in a moment.');
     await this.closeVault();
   }
   private async closeVault() {
@@ -970,7 +984,32 @@ export class Engine {
     this.#snapshots?.forgetKey(); // the summary key leaves memory with the engine (4J6)
   }
   private notifyIdle() { if (!this.#activeRequests && !this.#transition) for (const finished of this.#idleWaiters) finished(); }
+  /**
+   * D12 task 4: a business from an older Chausar. The file as it was goes to a migration backup first, then the one commit of
+   * the brought-up State, a diagnostics line and the data-version index. A failure leaves the file as it was.
+   */
+  private async migrationBackup(json: string, workspaceId: string, from: number): Promise<string> {
+    const files = this.custodyFiles(), folder = await safeDirectory(files.backups, true);
+    let at = this.custodyNow(), name = backupName(workspaceId, at, 'migration');
+    for (const taken = new Set((await readdir(folder)).map(item => item.toLowerCase())); taken.has(name.toLowerCase()); name = backupName(workspaceId, ++at, 'migration'));
+    await atomicWriteText(join(folder, name), `{"backupFormat":"chausar.backup.v1","envelope":${json}}`, true);
+    await files.noteDataVersion({ file: { name, version: from } });
+    return name;
+  }
+  private async settleMigration(vault: Vault) {
+    const from = vault.migratedFrom; if (from === null) return;
+    let backup = '';
+    const { to } = await vault.commitMigration(async (json, workspaceId) => { backup = await this.migrationBackup(json, workspaceId, from); });
+    await this.noteMigrated(vault, from, to, backup);
+  }
+  private async noteMigrated(vault: Vault, from: number, to: number, backup: string) {
+    const files = this.custodyFiles(), state = vault.read();
+    await files.noteDiagnostic('migration', `${from}-to-${to}`, { code: 'DATA_BROUGHT_UP' }, new Date(this.custodyNow()).toISOString());
+    await files.noteDataVersion({ live: { folder: basename(vault.directory), entry: { version: to, workspaceId: state.workspace.id, migratedBy: String(this.options.version ?? ''), from, backup } } });
+  }
   private async attachSafely(vault: Vault) { try {
+    // D12: before anything else can write. A read-only device leaves it to the writer: every write there waits anyway.
+    if (this.options.sync === undefined) await this.settleMigration(vault);
     await this.attach(vault);
     // Read-only devices may inspect/review enrollment without mutating recovery
     // state. A reviewed writer later performs ordinary recovery on reopen.
@@ -1038,7 +1077,7 @@ export class Engine {
     const keys = confirm ? 'cli,path,sha256' : 'cli,sha256';
     const path = (payload as { path?: unknown } | null)?.path;
     check(payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).sort().join(',') === keys && (payload as { cli?: unknown }).cli === 'codex'
-      && typeof (payload as { sha256?: unknown }).sha256 === 'string' && /^[a-f0-9]{64}$/.test((payload as { sha256: string }).sha256)
+      && typeof (payload as { sha256?: unknown }).sha256 === 'string' && DIGEST_PATTERN.test((payload as { sha256: string }).sha256)
       && (!confirm || (typeof path === 'string' && path.length > 0 && path.length <= 4096)),
       'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
     const trust = this.options.venture?.codexCli as { record?: (sha256: unknown, path: unknown) => Promise<unknown>; held?(sha256: unknown): unknown; current?(): unknown } | undefined;
@@ -1050,6 +1089,31 @@ export class Engine {
    * review of that exact program (its real path and version), or { inUse } when that program is already the Codex in
    * use (the owner's earlier choice, or the bundled Codex): the dialog is asked for once per program.
    */
+  /**
+   * D5 (main only, through the worker's host channel): the owner pressed yes in main's own dialog, so the yes is made here,
+   * fresh, and spent once by the install. A second press joins the one under way. Nothing here reads a payload.
+   */
+  installClaudeCodeFor(): Promise<ClaudeInstallResult> {
+    const context = this.context, wired = this.options.claudeInstall;
+    try {
+      check(context && context.channel === 'desktop' && !context.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+      check(context.role === 'owner', 'FORBIDDEN', 'Only the owner installs Claude Code on this computer.');
+      check(wired?.host === 'desktop', 'TIER_UNAVAILABLE', CLAUDE_INSTALL_WORDS.hosted);
+    } catch (error) { return Promise.reject(error); }
+    return this.#claudeInstalling ??= (async () => {
+      this.#claudeProgress = { step: 'idle', receivedBytes: 0, totalBytes: null, line: null };
+      const note = (progress: ClaudeInstallProgress) => { this.#claudeProgress = { step: progress.step, receivedBytes: progress.receivedBytes ?? this.#claudeProgress.receivedBytes, totalBytes: progress.totalBytes === undefined ? this.#claudeProgress.totalBytes : progress.totalBytes, line: null }; };
+      try {
+        const result = await installClaudeCode({ approval: mintClaudeInstallYes(), platform: wired!.platform ?? process.platform, host: wired!.host, ...(wired!.environment ? { environment: wired!.environment } : {}) }, wired!.ports, note);
+        this.#claudeProgress = { ...this.#claudeProgress, step: 'done', line: result.words };
+        if (result.path) wired!.onFound?.(result.path);
+        return result;
+      } catch (error) {
+        this.#claudeProgress = { ...this.#claudeProgress, step: 'failed', line: null };
+        throw error;
+      } finally { this.#claudeInstalling = null; }
+    })();
+  }
   async codexChoiceFor(payload: unknown): Promise<{ path: string; version: string } | { inUse: unknown }> {
     const { trust, sha256 } = this.#codexChoiceChecked(payload);
     const current = typeof trust.current === 'function' ? trust.current() as { sha256?: unknown } | null : null;
@@ -1068,7 +1132,25 @@ export class Engine {
       return { setup: await trust.record(sha256, path) };
     } finally { this.#activeRequests--; this.notifyIdle(); }
   }
+  /** Developer capability, never an RPC method. Each capture needs explicit sample-data consent. */
+  async captureDraftState(state?: State): Promise<State> {
+    check(this.options.capture && this.options.demo && this.vault && isCaptureSample(this.vault), 'CAPTURE_SAMPLE_REQUIRED', 'Use a newly created disposable sample workspace.');
+    return (await this.#draftDesk()).sampleState(this.vault!, state);
+  }
+
+  async captureRequest(method: string, payload: Record<string, unknown>, consent: string): Promise<{ result: unknown; path: string }> {
+    check(this.options.capture, 'CAPTURE_DISABLED', 'Run capture is not enabled.');
+    check(consent === 'sample business' && this.options.demo === true && !!this.vault && isCaptureSample(this.vault),
+      'CAPTURE_SAMPLE_REQUIRED', 'Capture only a sample business with explicit consent.');
+    check(!this.#capturing && !this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Finish the current request before capturing.');
+    this.#capturing = true;
+    try {
+      const { captureEngineRequest } = await import('./venture/replay/engine-run.ts');
+      return await captureEngineRequest(this, method, payload, this.options.capture.dir);
+    } finally { this.#capturing = false; }
+  }
   async request(method: string, payload: any = {}): Promise<any> {
+    check(!this.#capturing || currentRun()?.owner === this, 'VAULT_BUSY', 'Finish the sample capture before another request.');
     check(!this.#closing, 'ENGINE_STOPPING', 'Chausar is finishing its work and closing. Open it again in a moment.');
     const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'workspace.transfer.import', 'workspace.backups.restore', 'workspace.import']);
     const transition = transitions.has(method);
@@ -1133,28 +1215,16 @@ export class Engine {
     if (method === 'venture.playbooks.list') return (await this.#ventureModule()).venturePlaybooks(payload, this.vault ? { state: this.vault.read(), businessId: (this.options.venture?.workspace ?? this.#ventureWorkspace).current().id } : null,
       (await this.snapshotReads()).flatMap(read => (read.snapshot ? [{ businessId: read.id, name: read.snapshot.name, playbook: read.snapshot.playbook }] : [])));
     // The draft desk answers these before the vault check: connect an AI and compose a plan before any vault exists.
-    switch (method) {
-      case 'venture.ai.options':
-      case 'venture.ai.connect':
-      case 'venture.ai.disconnect':
-      case 'venture.ai.status':
-      case 'venture.ai.calls':
-      case 'venture.compose.decide':
-      case 'venture.compose.fill':
-      case 'venture.compose.get':
-      case 'venture.compose.update':
-      // Wave 6 (6C1, 6C2): the tools' own sign-in and About you, before the vault.
-      case 'venture.ai.tools':
-      case 'venture.ai.login.start':
-      case 'venture.ai.login.cancel':
-      case 'venture.about.read':
-      case 'venture.about.pick':
-      case 'venture.about.families':
-        return (await this.#draftDesk()).request(this.context, method, payload);
-    }
+    if (DRAFT_DESK_DISPATCH.has(method)) return (await this.#draftDesk()).request(this.context, method, payload);
     // A2: the owner's yes to the Codex found on this computer, before the vault (onboarding) and after it (Your AI).
     // A2 second review: never as a request; only main's dialog confirms a Codex (confirmCodexSetup).
     if (method === 'venture.ai.setup.trust') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+    // D5: never as a request either: a payload can't say yes. Only main's dialog starts it (installClaudeCodeFor).
+    if (method === 'venture.ai.claude.install') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+    if (method === 'venture.ai.claude.progress') {
+      check(Object.keys(payload).length === 0, 'INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+      return this.#claudeProgress;
+    }
     // One-shot C3 task 9: the open business's live jobs and any before a business was opened, never another business's.
     if (method === 'venture.work.list') {
       check(Object.keys(payload).length === 0, 'INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
@@ -1224,6 +1294,7 @@ export class Engine {
           }
         }
         try {
+          if (this.options.capture && this.options.demo === true && payload.demo === true) markNewCaptureSample(result.vault);
           await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
           if (payload.demo) await seedDemo(this.store(), this.context);
           this.#draft?.hold();
@@ -1294,8 +1365,10 @@ export class Engine {
         if (!newPassphrase) { fresh = randomBytes(32); newPassphrase = fresh.toString('base64url'); }
       }
       try {
-        const vault = await Vault.recover({ directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
+        let moved: { from: number; backup: string } | null = null;
+        const vault = await Vault.recover({ migrationBackup: async (json, workspaceId, from) => { moved = { from, backup: await this.migrationBackup(json, workspaceId, from) }; }, directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() });
         if (fresh) await this.storeComputerSecret(vault, fresh);
+        if (moved) await this.noteMigrated(vault, (moved as { from: number }).from, vault.read().schemaVersion, (moved as { backup: string }).backup);
         await this.attachSafely(vault);
       } finally { fresh?.fill(0); }
       await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: 'made', reseal: true });
@@ -1574,7 +1647,7 @@ export class Engine {
       case 'answers.recovery.prepare': {
         const input = this.journalPayload(payload, ['answerId', 'source', 'reviewedEvidencePin', 'timeScope', 'confirmedNewCalculation'],
           ['answerId', 'source', 'reviewedEvidencePin', 'timeScope', 'confirmedNewCalculation'], 'INVALID_ANSWER_RECOVERY');
-        check(typeof input.reviewedEvidencePin === 'string' && /^[a-f0-9]{64}$/.test(input.reviewedEvidencePin),
+        check(typeof input.reviewedEvidencePin === 'string' && DIGEST_PATTERN.test(input.reviewedEvidencePin),
           'INVALID_ANSWER_RECOVERY', 'Review the exact current source evidence before preparing a fresh calculation.');
         const id = await store.update(state => {
           const view = this.answerRecoveryView(state), resolved = this.answerRecoveryEvidence(ctx, input.answerId, view);
@@ -1854,411 +1927,9 @@ export class Engine {
         // C4 task 37 (211.x1): the name and how many backups went, for Welcome's "Pune Frames is deleted. 7 backups removed."
         return { deleted: true, name: deletedName, backupsRemoved: removed.filter(path => path.startsWith('backups/')).length, copiesRemoved: removed, exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       }
-      case 'venture.create':
-      case 'venture.country.suggest':
-      case 'venture.get':
-      case 'venture.events':
-      case 'venture.interview.next':
-      case 'venture.interview.answer':
-      case 'venture.blueprint.draft':
-      case 'venture.blueprint.get':
-      case 'venture.blueprint.update':
-      case 'venture.blueprint.accept':
-      case 'venture.models.presets':
-      case 'venture.models.connect':
-      case 'venture.models.disconnect':
-      case 'venture.models.status':
-      case 'venture.agentSettings.get':
-      case 'venture.agentSettings.set':
-      case 'venture.mcpCredential.set':
-      case 'venture.mcpRegistry.list':
-      case 'venture.mcpOAuth.start':
-      case 'venture.packs.list':
-      case 'venture.packs.add':
-      case 'venture.packs.remove':
-      case 'venture.agentApproval.decide':
-      case 'venture.models.calls':
-      case 'venture.price.quote':
-      case 'venture.receipt.get':
-      case 'venture.client.add':
-      case 'venture.client.list':
-      case 'venture.client.aiConsent.get':
-      case 'venture.client.aiConsent.agree':
-      case 'venture.client.aiConsent.withdraw':
-      case 'venture.billing.get':
-      case 'venture.billing.set':
-      case 'venture.invoice.pdf':
-      case 'venture.payment.receipt':
-      case 'venture.invoice.payLink':
-      case 'venture.invoice.shared':
-      case 'venture.order.create':
-      case 'venture.order.list':
-      case 'venture.order.deliver':
-      case 'venture.invoice.prepare':
-      case 'venture.invoice.issue':
-      case 'venture.invoice.get':
-      case 'venture.invoice.list':
-      case 'venture.payment.record':
-      case 'venture.books.summary':
-      case 'venture.spend.list':
-      case 'venture.spend.policy.get':
-      case 'venture.spend.policy.set':
-      case 'venture.build.brief':
-      case 'venture.build.handoff':
-      case 'venture.build.handoffOpened':
-      case 'venture.build.link':
-      case 'venture.build.sync':
-      case 'venture.build.status':
-      case 'venture.connectors.list':
-      case 'venture.delivery.playbook':
-      case 'venture.simulation.scenarios':
-      case 'venture.simulation.run':
-      case 'venture.simulation.get':
-      case 'venture.simulation.fromSignal':
-      case 'venture.launch.status':
-      case 'venture.launch.advance':
-      case 'venture.delivery.run':
-      case 'venture.delivery.review':
-      case 'venture.delivery.list':
-      case 'venture.capabilities':
-      case 'venture.files.add':
-      case 'venture.files.list':
-      case 'venture.work.get':
-      case 'venture.improve.status':
-      case 'venture.improve.run':
-      case 'venture.improve.get':
-      case 'venture.improve.adopt':
-      case 'venture.delegate.get':
-      case 'venture.queue.list':
-      case 'venture.queue.decide':
-      case 'venture.runs.list':
-      case 'venture.runs.get':
-      case 'venture.team.list':
-      case 'venture.team.gate':
-      case 'venture.evidence.list':
-      case 'venture.evidence.apply':
-      case 'venture.journal.list':
-      case 'venture.journal.resolve':
-      case 'venture.untrusted.mode':
-      case 'venture.untrusted.release':
-      case 'venture.bank.import':
-      case 'venture.bank.consent':
-      case 'venture.site.stage':
-      case 'venture.site.apply':
-      case 'venture.site.revert':
-      case 'venture.leads.add':
-      case 'venture.leads.list':
-      case 'venture.leads.draft':
-      case 'venture.leads.recordSend':
-      case 'venture.queue.view':
-      case 'venture.team.posture':
-      case 'venture.evidence.dismiss':
-      case 'venture.money.overview':
-      case 'venture.tax.working':
-      case 'venture.ca.get':
-      case 'venture.ca.setOfRecord':
-      case 'venture.ca.recordSignoff':
-      case 'venture.ca.confirmRates':
-      case 'venture.leads.block':
-      case 'venture.share.create':
-      case 'venture.share.list':
-      case 'venture.share.revoke':
-      case 'venture.delivery.judge':
-      case 'venture.delivery.judgeSend':
-      case 'venture.improve.rollback':
-      case 'venture.files.transcribe':
-      case 'venture.posting.propose':
-      case 'venture.posting.signIn':
-      case 'venture.posting.checkSteps':
-      case 'venture.share.recordAnswer':
-      case 'venture.social.calendar':
-      case 'venture.bank.ledger':
-      case 'venture.bank.apply':
-      case 'venture.bank.alerts.get':
-      case 'venture.bank.alerts.set':
-      case 'venture.ca.receipt':
-      case 'venture.ca.explainDiff':
-      case 'venture.rules.list':
-      case 'venture.rules.locks':
-      case 'venture.rules.attest':
-      case 'venture.compliance.get':
-      case 'venture.compliance.set':
-      case 'venture.judge.auto.get':
-      case 'venture.judge.auto.set':
-      case 'venture.posting.limits.get':
-      case 'venture.posting.limits.set':
-      case 'venture.transcription.get':
-      case 'venture.transcription.set':
-      // Ink v2 wave 4 (venture/contracts.ts W4_METHODS; venture.playbooks.list is answered before the vault check)
-      case 'venture.team.keeper':
-      case 'venture.team.clearQuarantine':
-      case 'venture.agents.thread.list':
-      case 'venture.agents.thread.send':
-      case 'venture.agents.proposal.decide':
-      case 'venture.agents.version.undo':
-      case 'venture.agents.orders.list':
-      case 'venture.chats.consent':
-      case 'venture.agents.notes.list':
-      case 'venture.agents.notes.edit':
-      case 'venture.agents.notes.forget':
-      case 'venture.agents.notes.undo':
-      case 'venture.chief.threads':
-      case 'venture.chief.thread.list':
-      case 'venture.chief.thread.send':
-      case 'venture.chief.thread.pin':
-      case 'venture.chief.thread.state':
-      case 'venture.chief.settle.set':
-      case 'venture.layout.get':
-      case 'venture.layout.change':
-      case 'venture.find':
-      case 'venture.diagnostics.today':
-      case 'venture.build.briefFile':
-      case 'venture.accountant.pack.done':
-      case 'venture.accountant.schedule.set':
-      case 'venture.accountant.schedule.get':
-      case 'venture.accountant.set':
-      case 'venture.accountant.get':
-      case 'venture.notify.telegram.findChat':
-      case 'venture.client.aiDefault.set':
-      case 'venture.client.aiDefault.get':
-      case 'venture.away.preview':
-      case 'venture.team.introduced':
-      case 'venture.flows.list':
-      case 'venture.flows.act':
-      case 'venture.chief.fit':
-      case 'venture.proposals.raise':
-      case 'venture.proposals.dismiss':
-      case 'venture.network.import':
-      case 'venture.network.importUndo':
-      case 'venture.network.merge':
-      case 'venture.network.split':
-      case 'venture.network.forget':
-      case 'venture.network.hide':
-      case 'venture.network.people':
-      case 'venture.network.person':
-      case 'venture.network.sources':
-      case 'venture.network.recompute':
-      case 'venture.network.know':
-      case 'venture.network.link':
-      case 'venture.network.search':
-      case 'venture.network.searchMore':
-      case 'venture.network.saveSearch':
-      case 'venture.network.research':
-      case 'venture.pipeline.list':
-      case 'venture.pipeline.followups':
-      case 'venture.pipeline.add':
-      case 'venture.pipeline.setNext':
-      case 'venture.pipeline.move':
-      case 'venture.pipeline.settings':
-      case 'venture.outreach.draft':
-      case 'venture.outreach.open':
-      case 'venture.outreach.sent':
-      case 'venture.outreach.restricted':
-      case 'venture.mailbox.connect':
-      case 'venture.mailbox.disconnect':
-      case 'venture.mailbox.sync':
-      case 'venture.inbound.list':
-      case 'venture.inbound.confirm':
-      case 'venture.network.calendar':
-      case 'venture.meeting.digest':
-      case 'venture.runs.stop':
-      case 'venture.runs.resume':
-      case 'venture.runs.roundGate':
-      case 'venture.runs.steer':
-      case 'venture.business.pause':
-      case 'venture.away.set':
-      case 'venture.away.get':
-      case 'venture.runs.allowWrites':
-      case 'venture.notify.list':
-      case 'venture.notify.read':
-      case 'venture.notify.settings':
-      case 'venture.notify.push.key':
-      case 'venture.notify.push.subscribe':
-      case 'venture.notify.push.unsubscribe':
-      case 'venture.notify.relay':
-      case 'venture.notify.telegram':
-      case 'venture.phone.access':
-      case 'venture.web.search':
-      case 'venture.web.read':
-      case 'venture.people.services':
-      case 'venture.people.lookup':
-      case 'venture.crm.client':
-      case 'venture.crm.client.edit':
-      case 'venture.crm.companies':
-      case 'venture.crm.company':
-      case 'venture.crm.company.save':
-      case 'venture.crm.link':
-      case 'venture.crm.log':
-      case 'venture.crm.lists':
-      case 'venture.crm.list':
-      case 'venture.crm.list.save':
-      case 'venture.crm.list.place':
-      case 'venture.memory.list':
-      case 'venture.memory.add':
-      case 'venture.memory.replace':
-      case 'venture.memory.visibility':
-      case 'venture.memory.forget':
-      case 'venture.agents.retire.check':
-      case 'venture.agents.retire':
-      case 'venture.agents.restore':
-      case 'venture.apps.list':
-      case 'venture.apps.get':
-      case 'venture.apps.make':
-      case 'venture.apps.grant':
-      case 'venture.apps.revoke':
-      case 'venture.apps.restore':
-      case 'venture.apps.pin':
-      case 'venture.apps.export':
-      case 'venture.apps.call':
-      case 'venture.apps.remove':
-      case 'venture.talk.get':
-      case 'venture.talk.consent':
-      case 'venture.talk.setup':
-      case 'venture.talk.start':
-      case 'venture.talk.hear':
-      case 'venture.talk.say':
-      case 'venture.feedback.get':
-      case 'venture.feedback.consent':
-      case 'venture.feedback.send':
-      case 'venture.feedback.answer':
-      case 'venture.feedback.crash':
-      case 'venture.feedback.delete':
-      case 'venture.models.cli.status':
-      case 'venture.models.roles':
-      case 'venture.goals.get':
-      case 'venture.goals.set':
-      case 'venture.goals.suggest':
-      case 'venture.decisions.list':
-      case 'venture.policy.allowSession':
-      case 'venture.queue.sendBack':
-      case 'venture.queue.edit':
-      case 'venture.queue.undo':
-      case 'venture.queue.set':
-      case 'venture.triage.set':
-      case 'venture.triage.preview':
-      case 'venture.delivery.fix':
-      case 'venture.delivery.decideChange':
-      case 'venture.delivery.changes':
-      case 'venture.settings.draft':
-      case 'venture.settings.drafts':
-      case 'venture.queue.setPreview':
-      case 'venture.delivery.copy':
-      case 'venture.files.poster':
-      case 'venture.money.aging':
-      case 'venture.money.flow':
-      case 'venture.money.cash':
-      case 'venture.money.margins':
-      case 'venture.money.export':
-      case 'venture.bills.add':
-      case 'venture.bills.pay':
-      case 'venture.bills.list':
-      case 'venture.credit.issue':
-      case 'venture.invoice.recurring':
-      case 'venture.invoice.recurringList':
-      case 'venture.invoice.remind':
-      case 'venture.payment.clear':
-      case 'venture.bills.stop':
-      case 'venture.money.across':
-      case 'venture.runs.across':
-      case 'venture.connectors.check':
-      case 'venture.share.request':
-      case 'venture.blueprint.suggest':
-      case 'venture.owner.get':
-      case 'venture.owner.set':
-      case 'venture.needs.list':
-      case 'venture.receipt.verify':
-      case 'venture.journal.chain':
-      case 'venture.journal.acceptBreak':
-      case 'venture.order.contract':
-      case 'venture.order.contract.propose':
-      case 'venture.order.contract.sign':
-      case 'venture.routines.list':
-      case 'venture.routines.suggestions':
-      case 'venture.routines.runs':
-      case 'venture.routines.set':
-      case 'venture.routines.remove':
-      case 'venture.options.rerank':
-      case 'venture.drills.run':
-      case 'venture.drills.list':
-      case 'venture.auto.readiness':
-      case 'venture.shadow.summary':
-      case 'venture.playbook.guidance':
-      case 'venture.voice.get':
-      case 'venture.voice.set':
-      case 'venture.voice.learn':
-      case 'venture.persona.get':
-      case 'venture.persona.set':
-      case 'venture.persona.test':
-      case 'venture.agents.export':
-      case 'venture.agents.import':
-      case 'venture.knowledge.list':
-      case 'venture.knowledge.add':
-      case 'venture.knowledge.remove':
-      case 'venture.knowledge.test':
-      case 'venture.ideas.list':
-      case 'venture.ideas.start':
-      case 'venture.ideas.dismiss':
-      case 'venture.agents.capabilities':
-      // Ink v2 wave 5 (venture/contracts.ts W5_METHODS)
-      case 'venture.order.chain':
-      case 'venture.salesProposal.draft':
-      case 'venture.salesProposal.get':
-      case 'venture.goNoGo.card':
-      case 'venture.goNoGo.list':
-      case 'venture.goNoGo.remove':
-      case 'venture.ideas.add':
-      case 'venture.ideas.move':
-      case 'venture.ideas.grade':
-      case 'venture.brandKit.get':
-      case 'venture.brandKit.set':
-      case 'venture.assets.list':
-      case 'venture.assets.rerun':
-      case 'venture.assets.reuse':
-      case 'venture.voiceConsent.record':
-      case 'venture.voiceConsent.revoke':
-      case 'venture.voiceConsent.list':
-      case 'venture.report.render':
-      case 'venture.report.share':
-      case 'venture.report.shareRotate':
-      case 'venture.report.shareDisable':
-      case 'venture.report.list':
-      case 'venture.monitors.list':
-      case 'venture.monitors.add':
-      case 'venture.monitors.remove':
-      case 'venture.mail.import':
-      case 'venture.mail.threads':
-      case 'venture.localApps.list':
-      case 'venture.webhook.set':
-      case 'venture.webhook.send':
-      case 'venture.speechOut.providers':
-      case 'venture.ca.confirmCitations':
-      case 'venture.ca.signoff.get':
-      case 'venture.ca.differential.add':
-      case 'venture.ca.dataPack.export':
-      case 'venture.desk.list':
-      case 'venture.desk.get':
-      case 'venture.models.plan':
-      case 'venture.routines.backup.get':
-      case 'venture.routines.backup.set':
-      case 'venture.trackers.list':
-      case 'venture.trackers.get':
-      case 'venture.trackers.set':
-      case 'venture.trackers.remove':
-      case 'venture.trackers.rows.add':
-      case 'venture.trackers.rows.edit':
-      case 'venture.trackers.rows.remove':
-      case 'venture.trackers.rows.undo':
-      case 'venture.agents.hire.start':
-      case 'venture.agents.hire.answer':
-      case 'venture.agents.hire.confirm':
-      case 'venture.agents.hire.cancel':
-      case 'venture.events.get':
-      case 'venture.events.relay.set':
-      case 'venture.events.calKey.set':
-      case 'venture.agents.hire.duties':
-      case 'venture.desk.act':
-        return (await this.#ventureHost()).request(ctx, method, payload);
-      default: throw new Error(`Unknown request: ${method}`);
+      default:
+        if (VENTURE_DISPATCH.has(method)) return (await this.#ventureHost()).request(ctx, method, payload);
+        throw new Error(`Unknown request: ${method}`);
     }
   }
   private async runJob(id: string) {
@@ -2357,7 +2028,7 @@ export class Engine {
     return { ...base, status: 'completed', lineage: structuredClone(lineage), answer: result.answer, receipt };
   }
   private async executeAnswerRecovery(ctx: Context, newRequestId: unknown, preparationDigest: unknown) {
-    check(typeof preparationDigest === 'string' && /^[a-f0-9]{64}$/.test(preparationDigest), 'INVALID_ANSWER_RECOVERY', 'This answer changed since you looked. Look at it again before confirming.');
+    check(typeof preparationDigest === 'string' && DIGEST_PATTERN.test(preparationDigest), 'INVALID_ANSWER_RECOVERY', 'This answer changed since you looked. Look at it again before confirming.');
     const vault = this.store(), issued = this.answerRecoveryRecord(ctx, newRequestId, vault);
     check(issued.record.preparation.digest === preparationDigest, 'ANSWER_RECOVERY_PREPARATION_CHANGED', 'Review this exact issued preparation before execution.');
     if (issued.record.status === 'completed') return this.answerRecoveryRead(ctx, newRequestId);
@@ -2813,6 +2484,7 @@ export class Engine {
   private async afterOpen(folder: string, how: 'this-computer' | 'typed', options: { recovery?: RecoveryState; reseal?: boolean; created?: boolean } = {}) {
     this.#openFolder = folder; this.#openUnlock = how === 'this-computer' ? 'this-computer' : 'passphrase'; this.#closedByOwner = false;
     const custody = this.custodyHost(); if (!custody) return;
+    await this.noteLiveVersion(folder);
     await this.loadSchedule();
     const vault = this.store(), state = vault.read(), unlock = this.#openUnlock, prior = await custody.files.readCard(folder);
     const recovery: RecoveryState = options.recovery ?? (prior?.state === 'ready' ? prior.recovery : how === 'typed' ? 'made' : 'unknown');
@@ -2825,6 +2497,11 @@ export class Engine {
     if (how === 'typed') await this.forgetKeyIfUnused(vault.vaultId, folder);
     if (how === 'typed') await this.snapshotStore()?.remove(folder); // a passphrase business keeps no summary (4J6)
     if (reseal) await custody.files.writeCard({ ...card, pending: null });
+  }
+  /** D12: what the open business's live file holds, for a closed business's count at the next update. Keeps who moved it. */
+  private async noteLiveVersion(folder: string) {
+    const files = this.custodyFiles(), state = this.store().read(), prior = (await files.readDataVersions()).live[folder];
+    await files.noteDataVersion({ live: { folder, entry: { ...(prior?.version === state.schemaVersion ? prior : {}), version: state.schemaVersion, workspaceId: state.workspace.id } } });
   }
   private async loadSchedule() {
     this.#schedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
@@ -2857,6 +2534,7 @@ export class Engine {
     let at = this.custodyNow(), name = backupName(workspaceId, at, kind);
     for (const taken = new Set((await readdir(folder)).map(item => item.toLowerCase())); taken.has(name.toLowerCase()); name = backupName(workspaceId, ++at, kind));
     await vault.backup(join(folder, name));
+    await files.noteDataVersion({ file: { name, version: vault.read().schemaVersion } });
     this.#schedule = { lastAt: at, lastRevision: revision, due: false, lastError: null };
     if (kind !== 'manual') {
       const { remove } = keepBackups(await files.backupFiles(workspaceId), this.custodyNow());
@@ -3350,14 +3028,16 @@ export class Engine {
   /** C5 task 31: one for the engine's life, so its ten quiet minutes count from the start. */
   #updates: UpdateService | null = null;
   private updateService(): UpdateService {
-    return this.#updates ??= new UpdateService({ publicKey: this.options.updatePublicKey ?? null, feedUrl: null, directory: resolve(this.options.directory, 'updates'), channel: 'stable', windowsPublisher: null, ...this.options.updates, version: this.version, isBusy: () => this.updatesBusy() });
+    return this.#updates ??= new UpdateService({ publicKey: this.options.updatePublicKey ?? null, feedUrl: null, directory: resolve(this.options.directory, 'updates'), channel: 'stable', windowsCertificateThumbprint: null, ...this.options.updates, version: this.version, isBusy: () => this.updatesBusy() });
   }
   /**
    * C5 task 32, trusted main-process route only, at quit: is a run busy, the open data's version, and the safety copy of the
    * open business while its vault is still open (D12 attach points 1 and 2). A failed copy is said; main then installs nothing.
    */
   async prepareUpdateInstall(payload: { backup?: unknown }): Promise<{ busy: boolean; openDataSchema: number | null; backup: 'made' | 'failed' | 'none-open' | 'skipped' }> {
-    const busy = this.updatesBusy(), open = this.vault ? this.vault.read().schemaVersion : null;
+    // D12 task 8: the newest data on this computer, a closed business's too, not only the open one's.
+    const busy = this.updatesBusy(), liveNow = this.vault ? this.vault.read().schemaVersion : null, noted = this.custodyHost() ? await this.custodyFiles().newestDataVersion() : null;
+    const open = liveNow === null && noted === null ? null : Math.max(liveNow ?? 0, noted ?? 0);
     if (busy || payload?.backup !== true) return { busy, openDataSchema: open, backup: 'skipped' };
     if (!this.vault) return { busy, openDataSchema: open, backup: 'none-open' };
     return { busy, openDataSchema: open, backup: await this.custodySerial(() => this.safetyBackup()) ? 'made' : 'failed' };

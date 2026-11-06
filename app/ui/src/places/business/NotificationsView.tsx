@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Business > Notifications (Ink v2 wave 4, 4G4; spec 5.7 and 8, catalogue O12 and O13, W3's U18). What the engine's
  * settings say, in its own words, then two tiles and a list:
@@ -22,7 +23,7 @@ import { useDay, useLocalToday } from '../../parts/when';
 import { dayKeyPlus, formatClock } from '../../../../../platform/runtime/owner-format';
 import { useBrowserPush, type PushPermission } from '../../shell/push';
 import { EngineError, type BackgroundStateLite, type NotifySettingsView, type ParamsOf } from '../../engine/types';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import { PhoneReach } from './PhoneReach';
 import s from './Business.module.css';

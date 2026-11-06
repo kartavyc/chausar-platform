@@ -10,7 +10,7 @@ import type { BlueprintViewLite, EngineClient, LabelledLite, QueueDecision, Queu
 import { formatDay } from '../../../../../platform/runtime/owner-format';
 import s from './Business.module.css';
 
-export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * A day (2026-10-21) or a moment as the owner reads the date, "21 Oct 2026". A moment reads in the owner's zone

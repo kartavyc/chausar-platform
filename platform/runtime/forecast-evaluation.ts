@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { check, hash, type Context, type Fact, type State, type StateStore, internalCheck } from './contracts.ts';
 import { selectFacts, validDate, type Period } from './memory.ts';
 import type { Definition } from './ontology.ts';
@@ -40,7 +41,7 @@ function receiptMonth(period: Period | null): number {
 export function validateForecastRequest(value: unknown): ForecastRequest {
   closed(value, ['version', 'mode', 'operation', 'dictionaryHash', 'sourceIds', 'branch', 'horizonsMonths', 'cadenceMonths', 'minimumTrainingMonths', 'method', 'benchmark', 'availabilityLagMs', 'origins']);
   check(value.version === 1 && ['operational-as-known', 'restated-diagnostic'].includes(String(value.mode)) && value.method === 'linear-trend-v1' && value.benchmark === 'last-observed-v1', 'INVALID_FORECAST', 'Use the supported version, mode, method and benchmark.');
-  internalCheck(identifier(value.operation) && typeof value.dictionaryHash === 'string' && /^[a-f0-9]{64}$/.test(value.dictionaryHash), 'INVALID_FORECAST', 'Bind a published operation and dictionary digest.');
+  internalCheck(identifier(value.operation) && typeof value.dictionaryHash === 'string' && DIGEST_PATTERN.test(value.dictionaryHash), 'INVALID_FORECAST', 'Bind a published operation and dictionary digest.');
   check(ids(value.sourceIds, 64) && (value.branch === null || identifier(value.branch)), 'INVALID_FORECAST', 'Declare a distinct source scope and a branch or explicit all-branch scope.');
   check(Array.isArray(value.horizonsMonths) && value.horizonsMonths.length > 0 && value.horizonsMonths.length <= 24 && Array.from(value.horizonsMonths).every(h => integer(h, 1, 120)) && distinct(value.horizonsMonths), 'INVALID_FORECAST', 'Choose distinct monthly horizons within the supported bound.');
   check(integer(value.cadenceMonths, 1, 120) && integer(value.minimumTrainingMonths, 2, 600) && integer(value.availabilityLagMs, 0, 31536000000), 'INVALID_FORECAST', 'Declare a bounded cadence, training window and availability lag.');

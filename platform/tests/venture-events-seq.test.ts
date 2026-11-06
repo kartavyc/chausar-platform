@@ -13,7 +13,7 @@ import vm from 'node:vm';
 import { ChausarError } from '../runtime/contracts.ts';
 import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
-import { VENTURE_RUN_EVENT_TYPES } from '../runtime/venture/contracts.ts';
+import { VENTURE_RUN_EVENT_TYPES } from '../runtime/venture/contract-values.ts';
 import type { ModelTransport, QueueList, VentureDeps, VentureRunEvent } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { PACKAGE_LOADERS, VentureHost } from '../runtime/venture/host.ts';

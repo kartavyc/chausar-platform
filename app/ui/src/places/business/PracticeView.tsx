@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
@@ -6,7 +7,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { keepPracticeDraft, practiceDraftId } from '../work/practice-drafts';
 import { Button } from '../../parts/Button';
 import type { EpisodeLite, ImprovementRunLite, ScenarioLite, SimulationRunLite, VentureRunEvent } from '../../engine/types';
-import { TileSection, dayOf, messageOf } from './shared';
+import { TileSection, dayOf } from './shared';
 // W4 4J22a: drills (4J15), experiments (4J16) and the guidance report (4J16).
 import { Drills, Experiments } from './Drills';
 import { GuidanceReport } from './GuidanceReport';

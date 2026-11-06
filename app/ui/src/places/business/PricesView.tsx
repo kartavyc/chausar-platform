@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
@@ -8,7 +9,7 @@ import { Figure } from '../../parts/Figure';
 import { Tile } from '../../parts/Tile';
 import { PriceGuideList } from '../../parts/PriceSources';
 import type { BlueprintLite, BlueprintPatchLite, OfferLite, PriceGuideView, ReceiptLite } from '../../engine/types';
-import { PendingPlanRows, messageOf, quoteAgain, totalOf, usePlan } from './shared';
+import { PendingPlanRows, quoteAgain, totalOf, usePlan } from './shared';
 import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';

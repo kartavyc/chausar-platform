@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import type { BankConsentView, BankImportResult, VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords } from '../runtime/venture/records.ts';
 import { handlers } from '../runtime/venture/build/index.ts';

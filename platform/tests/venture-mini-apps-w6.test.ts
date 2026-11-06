@@ -7,7 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ModelTask, SumReceiptRecord } from '../runtime/venture/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import { METHOD_LEVEL_OF } from '../runtime/venture/method-hints.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { APP_PROTOCOL_VERSION, MINI_FRAME_CSP, OFFLINE_LINE, appCodeFindings, permissionsOf } from '../runtime/venture/apps/frame.ts';

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Connections, "Your calendar" (Ink v2 wave 4, 4E4; the engine's 4E3 venture.network.calendar): the private address of
  * the owner's calendar, read through the network guard each morning (no redirect is followed), so calls with people
@@ -20,7 +21,7 @@ import { Tile, TileHead } from '../../parts/Tile';
 import type { CalendarFeedView } from '../../engine/types';
 import s from './Mailbox.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 export function CalendarFeed() {
   const t = useT();

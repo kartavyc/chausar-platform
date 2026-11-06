@@ -1,3 +1,4 @@
+import { VENTURE_METHODS as REGISTRY_VENTURE_METHODS, PRE_VAULT_METHODS as REGISTRY_PRE_VAULT, DRAFT_METHODS as REGISTRY_DRAFT } from '../runtime/method-registry.ts';
 // P0 contract tests for the venture launcher: shared lists, record helpers, text guards, the host
 // environment reader, the test store, and the engine registration of the venture methods.
 import test from 'node:test';
@@ -7,11 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import type { Context } from '../runtime/contracts.ts';
-import {
-  APP_ONLY_METHODS, CHECK_IDS, CONNECTOR_CATEGORIES, DRAFT_METHODS, EVIDENCE_METHODS, EXTERNAL_ORIGINS, INDIA_STATES, JUDGE_QUESTIONS, LAUNCH_STAGES,
-  METHOD_OWNERS, MODEL_PRESET_IDS, PRE_VAULT_METHODS, REQUIRED_SECTIONS, SECOND_OFFER_MODEL, SERVICE_TYPE_LABELS, SERVICE_TYPES,
-  STEP_IDS, STEP_PLAN, VENTURE_ERRORS, VENTURE_EVENTS, VENTURE_METHODS, VENTURE_RECORD_KINDS,
-} from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, CHECK_IDS, CONNECTOR_CATEGORIES, DRAFT_METHODS, EVIDENCE_METHODS, EXTERNAL_ORIGINS, INDIA_STATES, JUDGE_QUESTIONS, LAUNCH_STAGES, METHOD_OWNERS, MODEL_PRESET_IDS, PRE_VAULT_METHODS, REQUIRED_SECTIONS, SECOND_OFFER_MODEL, SERVICE_TYPE_LABELS, SERVICE_TYPES, STEP_IDS, STEP_PLAN, VENTURE_ERRORS, VENTURE_EVENTS, VENTURE_METHODS, VENTURE_RECORD_KINDS } from '../runtime/venture/contract-values.ts';
 import type { ClientRecord, TermRecord, VentureDeps, VentureMethod } from '../runtime/venture/contracts.ts';
 import {
   MAX_EVENTS, activateTerm, amountText, assertNoMoney, assertNoNumbers, assertNoPriceWords, bpsPercent, copiedTokens, currentVenture, doneClaimFindings, exactPayload, formatMicros,
@@ -56,7 +53,7 @@ test('VENTURE_METHODS: 383 unique valid names with owners and well-formed subset
   // Wave 6 adds country suggestion, three client-consent methods, exact native approval,
   // two AI settings methods and MCP credentials; the three per-turn delivery methods are removed. 6C1 adds the tools'
   // own sign-in (tools, login.start, login.cancel), 6C2 About you (about.read, .pick, .families), 6C7 needs.list.
-  assert.equal(VENTURE_METHODS.length, 421); // the one-shot batches: C2 venture.find, C3 venture.work.list, C4 3, C5 7 and C6 venture.payment.receipt, C7 19 // C2 added venture.find // C3 added venture.work.list // C4 added venture.invoice.shared, venture.routines.suggestions and venture.goNoGo.remove // A2 added venture.ai.setup.trust (the owner's Codex choice) // W6 Batch 6 added 12 (MCP registry and OAuth, packs, web, people, Telegram, phone, webhook send); Batch 7 added 21 (chat states, retire, CRM, facts); Batches 8 and 9 added 20 (mini apps 10, flows 2, layout 2, talk 6); Batch 10 added 6 (feedback)
+  assert.equal(VENTURE_METHODS.length, REGISTRY_VENTURE_METHODS.length); // the one-shot batches: C2 venture.find, C3 venture.work.list, C4 3, C5 7 and C6 venture.payment.receipt, C7 19 // C2 added venture.find // C3 added venture.work.list // C4 added venture.invoice.shared, venture.routines.suggestions and venture.goNoGo.remove // A2 added venture.ai.setup.trust (the owner's Codex choice) // W6 Batch 6 added 12 (MCP registry and OAuth, packs, web, people, Telegram, phone, webhook send); Batch 7 added 21 (chat states, retire, CRM, facts); Batches 8 and 9 added 20 (mini apps 10, flows 2, layout 2, talk 6); Batch 10 added 6 (feedback)
   assert.ok(unique(VENTURE_METHODS));
   for (const method of VENTURE_METHODS) { assert.match(method, METHOD_NAME); assert.ok(method.length <= 80); }
   assert.deepEqual(Object.keys(METHOD_OWNERS), [...VENTURE_METHODS]);

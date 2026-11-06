@@ -1,5 +1,6 @@
+import { sha256Hex } from '../../../hash.ts';
 // Original career bindings on the existing W4 hosted review-token transport.
-import {createHash} from 'node:crypto';
+
 import {attestedNow,attestedRules} from '../kit/attestation-records.ts';
 import type {State} from '../../../contracts.ts';
 import type {ShareLinkStoredRecord} from '../../contracts.ts';
@@ -7,7 +8,7 @@ import {digest,listRecords} from '../../records.ts';
 import {careerEvidence} from './source-state.ts';
 import {careerFileBinding,type CareerStoredPack} from './thread-state.ts';
 import {requireCareerClientRule} from './rules.ts';
-export function careerFilesValid(pack:CareerStoredPack){return pack.files.length===2&&new Set(pack.files.map(f=>f.name)).size===2&&pack.files.every(file=>{const bytes=Buffer.from(file.contentBase64,'base64');return bytes.length>0&&bytes.length<=8_000_000&&bytes.length===file.bytes&&createHash('sha256').update(bytes).digest('hex')===file.sha256;});}
+export function careerFilesValid(pack:CareerStoredPack){return pack.files.length===2&&new Set(pack.files.map(f=>f.name)).size===2&&pack.files.every(file=>{const bytes=Buffer.from(file.contentBase64,'base64');return bytes.length>0&&bytes.length<=8_000_000&&bytes.length===file.bytes&&sha256Hex(bytes)===file.sha256;});}
 /** Every access rechecks current order, approved ledger, rendered bytes and named professional confirmation. */
 export function careerLinkCurrent(state:State,link:ShareLinkStoredRecord,now:string){
  if(!link.career)return true;

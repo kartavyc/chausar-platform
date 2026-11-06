@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher, network (Ink v2 wave 4, package 4D1): importing the owner's own files into their network.
 // Six kinds of file, all downloaded by the owner: LinkedIn's Connections and Messages exports, a contacts CSV or vCard,
 // a calendar ICS and a mail export. The desktop reads the file on the owner's computer and sends only what Chausar
@@ -6,9 +7,9 @@
 // be read refuses the whole file with its line; every refusal leaves the store as it was. One record per person, merged
 // by email, phone or LinkedIn address, never by a name alone; a merge records what it moved. Check answers what an
 // import would do and stores nothing; Undo removes exactly what one import made, and says first what goes with it.
-import { createHash } from 'node:crypto';
+
 import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
-import { NETWORK_IMPORT_KINDS } from '../contracts.ts';
+import { NETWORK_IMPORT_KINDS } from '../contract-values.ts';
 import type {
   IsoDate, IsoTime, NetworkAbsorbed, NetworkImportKind, NetworkImportRecord, NetworkImportResult, NetworkImportUndo, NetworkImportView, OpportunityRecord,
   OutreachRecord, PersonFact, PersonRecord, RecordBase, VentureDeps, VentureRecord,
@@ -44,7 +45,7 @@ function fileNameOf(value: unknown): string {
 }
 
 /** The digest an import is known by: the kind and the exact text. The same file again is refused. */
-const fileDigest = (kind: NetworkImportKind, text: string) => createHash('sha256').update(`${kind}\n${text}`).digest('hex');
+const fileDigest = (kind: NetworkImportKind, text: string) => sha256Hex(`${kind}\n${text}`);
 
 type Parsed = { kind: NetworkImportKind; fileName: string; digest: string; file: ReadProjection };
 

@@ -1,10 +1,11 @@
+import { messageOf } from '../../../../platform/shared/errors.ts';
 import { useRef, useState } from 'react';
 import type { ThreadEntry } from './ChatThread';
 
 /** One message that failed to send: the owner's words, when, the reason, and which chat it belongs to. */
 interface Unsent { id: string; scope: string; words: string; at: string; problem: string; busy: boolean }
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 export interface UnsentOptions {
   /** The chat on screen; a bubble shows only in the chat it was written in. */

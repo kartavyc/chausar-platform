@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
@@ -11,7 +12,7 @@ import { GateList } from './GateList';
 import s from './Team.module.css';
 import c from './AgentChat.module.css';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 export interface InstructionsProps {
   agent: AgentView;

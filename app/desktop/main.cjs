@@ -1,10 +1,10 @@
 const { app, crashReporter, BrowserWindow, WebContentsView, ipcMain, protocol, session, shell, dialog, Tray, Menu, nativeImage, powerMonitor, Notification, safeStorage } = require('electron');
 const { readFile, writeFile } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
-const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError } = require('./ipc-contract.cjs');
+const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CHANNEL, TRUSTED_DOCUMENT, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateEngineStatus } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
 // C5 task 25: this computer's own diagnostic files; before anything else, so an early problem is noted too.
-const { createDiagnostics, startMainGuard, createTimeline } = require('./diagnostics.cjs');
+const { createDiagnostics, startMainGuard, createTimeline, WINDOW_PHASES } = require('./diagnostics.cjs');
 const diagnostics = createDiagnostics({ folder: join(app.getPath('userData'), 'diagnostics'), fs: require('node:fs/promises') });
 startMainGuard({ process, crashReporter, dialog, app, diagnostics });
 // C5 task 26: each start-up step goes to startup.jsonl, and each request's timing to rpc.jsonl (never its content).
@@ -17,7 +17,7 @@ const smokeUserData = process.argv.find(arg => arg.startsWith('--smoke-user-data
 if (smokeUserData && require('node:path')[process.platform === 'win32' ? 'win32' : 'posix'].isAbsolute(smokeUserData)) app.setPath('userData', smokeUserData);
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
-let window; let engine; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
+let window; let engine; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve(); let startPrepared = false;
 let hostAwake = false;
 const captionMicrophone = require('./caption-permission.cjs').captionPermission({window:()=>window,isTrustedDocument,verify:async(orderId,sessionId)=>{const reply=await engine.request('venture.desk.act',{playbook:'translation-studio',kind:'caption',id:orderId,action:'status',payload:{sessionId}});return reply?.result?.active===true&&reply.result.sessionId===sessionId;},verifyTalk:async sessionId=>{const view=await engine.request('venture.talk.get',{});return view?.desktop===true&&view.consent?.given===true&&view.session?.id===sessionId;}});
 const formsBrowser = require('./owner-browser-host.cjs').createFormsHost({BrowserWindow,WebContentsView,session,window:()=>window,onClosed:()=>stopFormsBrowser()});
@@ -57,7 +57,8 @@ async function listInkFiles() {
   found.set('/', 'index.html');
   return found;
 }
-const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
+// D7 task 5: the packaged app runs the bundle, a development run the source (engine-paths.cjs).
+const engineFiles = require('./engine-paths.cjs').enginePaths({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, root });
 function reportJobLifecycle() {
   if (engine?.state !== 'ready') return Promise.resolve();
   return engine.updateJobLifecycle({ awake: !stopping && hostAwake, windowOpen: !stopping && !!window && !window.isDestroyed(), backgroundEnabled: !stopping && runsInBackground() });
@@ -69,24 +70,39 @@ function lifecycleChanged() {
   });
 }
 // C5 task 29: a worker that died unexpectedly is started again, three times at most (worker-restart.cjs).
-let engineEnvironment = null; let engineStarted = false; let lastToldStatus = null;
+let engineEnvironment = null; let engineStarted = false; let lastStatus = Object.freeze({ state: 'starting', healthy: false }); let lastStatusSent = false;
 // C5 tasks 31, 32: the update check's settings for the worker, the boot marker, and install on quit (update-wiring.cjs).
 let updateWiring = null;
 const workerRestart = require('./worker-restart.cjs').createWorkerRestart({
   start: () => { startupTask = launchEngine(); return startupTask; },
   onReconnecting: () => { engine?.reconnecting?.(); },
   note: fields => { timeline.note('engine-restart', fields); },
-  onGiveUp: () => { dialog.showErrorBox('Chausar could not start', 'Chausar stopped and could not restart. Open it again. Nothing you asked for was run twice.'); app.quit(); },
+  onGiveUp: () => { engineGate.changed(); dialog.showErrorBox('Chausar could not start', 'Chausar stopped and could not restart. Open it again. Nothing you asked for was run twice.'); app.quit(); },
 });
 function firstPainted() { timeline.mark('first-paint'); void updateWiring?.notePaint(); }
-async function startEngine() {
+// D4 task 3: what the window asks waits here for the start or a restart, for at most a minute, and goes once (engine-gate.cjs).
+let startFailure = null;
+const engineGate = require('./engine-gate.cjs').createEngineGate({ current: () => engine, waiting: () => !stopping && (!engineStarted || workerRestart.pending()), startError: () => startFailure });
+/** D4 task 2: what the start decides before anything shows: the build, the demo, a refusal, the beta's background state. */
+async function prepareStart() {
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
-  if (stopping) return;
+  if (stopping) return null;
   const demo = metadata.chausarPreview === true || process.argv.includes('--demo'); demoMode = demo;
   if (metadata.chausarPreview === true && process.argv.includes('--production')) throw new Error('This unsigned preview supports synthetic data only.');
   releaseBeta = app.isPackaged && metadata.chausarReleaseChannel === 'beta' && metadata.chausarPreview !== true;
   if (releaseBeta) await startBackground();
-  if (stopping) return;
+  return stopping ? null : { metadata, demo };
+}
+/** D4 task 2: the tray and the window first; the engine starts behind them. A failed engine start still ends in the error box. */
+async function startUp() {
+  const prepared = await prepareStart();
+  if (!prepared) return;
+  startPrepared = true;
+  createTray();
+  if (!(releaseBeta && hiddenStart)) createWindow();
+  await startEngine(prepared);
+}
+async function startEngine({ metadata, demo }) {
   const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0',
     // A2: where the owner's choice of their own Codex is kept (platform/runtime/codex-trust.ts).
     CHAUSAR_CODEX_TRUST_DIR: join(app.getPath('userData'), 'codex-trust'),
@@ -104,8 +120,10 @@ async function startEngine() {
   if (stopping) return;
   Object.assign(environment, require('./update-wiring.cjs').updateEnvironment(metadata, { userData: app.getPath('userData'), packaged: app.isPackaged }));
   engineEnvironment = environment;
-  updateWiring = require('./update-wiring.cjs').createUpdateWiring({ metadata, userData: app.getPath('userData'), packaged: app.isPackaged, version: metadata.version, platform: process.platform, appImage: process.env.APPIMAGE ?? null, updates: require('./updates.cjs'), engine: () => engine, dialog, shell, note: line => { void diagnostics.line('main.jsonl', line); }, fs: require('node:fs/promises') });
+  updateWiring = require('./update-wiring.cjs').createUpdateWiring({ metadata, userData: app.getPath('userData'), packaged: app.isPackaged, version: metadata.version, platform: process.platform, appImage: process.env.APPIMAGE ?? null, updates: require('./updates.cjs'), app, engine: () => engine, dialog, shell, note: line => { void diagnostics.line('main.jsonl', line); }, fs: require('node:fs/promises') });
   await updateWiring.beforeStart();
+  // D4: the window opens first, so its first paint can come before there is a boot marker to clear.
+  if (timeline.reached('first-paint')) void updateWiring.notePaint();
   if (stopping) return;
   await launchEngine();
 }
@@ -113,28 +131,36 @@ async function startEngine() {
 async function launchEngine() {
   await engine?.stop().catch(() => {});
   if (stopping) return;
-  const harness = createHarness(), restarted = engineStarted;
+  const harness = createHarness();
   engine = harness;
   const starting = harness.start();
-  timeline.mark('engine-forked');
+  notePhase('engine-forked');
   await starting;
   engineStarted = true;
   timeline.mark('engine-ready');
   void updateWiring?.noteReady();
   await reportJobLifecycle();
-  if (restarted) harness.reportWatching?.(windowWatching());
+  // D4: the window may have opened and taken focus before the engine could hear it; a restart needs telling too.
+  harness.reportWatching?.(windowWatching());
 }
-/** C5 task 29: what the window hears: one word through a whole restart, and each state once. */
+/** C5 task 29, D4 task 4: what the window hears: one word through a whole restart, each state once, and the start's phases in order. */
 function sendEngineStatus(status) {
-  const told = workerRestart.statusForWindow(status);
-  if (told?.state === lastToldStatus) return;
-  lastToldStatus = told?.state;
+  const mapped = workerRestart.statusForWindow(status);
+  const told = validateEngineStatus(mapped?.state === 'starting' && !mapped.phase && lastStatus.phase ? { ...mapped, phase: lastStatus.phase } : mapped);
+  if (told.state === lastStatus.state && told.phase === lastStatus.phase && lastStatusSent) return;
+  lastStatus = told; lastStatusSent = true;
   if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, told);
+}
+/** D4 task 4: one phase of the first start, for the timeline and the window. The line never goes back. */
+function notePhase(phase) {
+  timeline.mark(phase);
+  if (engineStarted || !WINDOW_PHASES.includes(phase) || engine?.state === 'ready') return;
+  if (WINDOW_PHASES.indexOf(phase) > WINDOW_PHASES.indexOf(lastStatus.phase)) sendEngineStatus({ state: 'starting', healthy: false, phase });
 }
 const currentEngine = () => engine;
 function createHarness() {
-  const engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment: engineEnvironment, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
-  engine.on('status', status => { if (engine !== currentEngine()) return; if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (status?.state === 'failed' && engineStarted && !stopping) workerRestart.died(); sendEngineStatus(status); if (status?.state !== 'ready') noteEngineDown(); });
+  const engine = new EngineHarness({ workerPath: engineFiles.worker, environment: engineEnvironment, requestTimeoutMs: 900_000, onTiming: line => { void diagnostics.line('rpc.jsonl', line); } });
+  engine.on('status', status => { if (engine !== currentEngine()) return; engineGate.changed(); if (status?.phase) notePhase(status.phase); if(status?.state!=='ready'){captionMicrophone.clear();stopFormsBrowser();} if (status?.state === 'failed' && engineStarted && !stopping) workerRestart.died(); sendEngineStatus(status); if (status?.state !== 'ready') noteEngineDown(); });
   // Run events, already checked by the harness: the window reads the queue or the run again when one arrives.
   engine.on('venture-event', event => { if(event?.type==='privacy.forgotten'){captionMicrophone.clear();stopFormsBrowser();} if (window && !window.isDestroyed()) window.webContents.send(VENTURE_EVENT_CHANNEL, event); noteTrayEvent(event); });
   // A client report's PDF (5A5): the engine's print port; a hidden window that runs no script prints the report's HTML.
@@ -301,7 +327,9 @@ function createWindow(hash = '') {
   window.webContents.on('render-process-gone', (_event, details) => { if (details?.reason !== 'clean-exit' && engine?.state === 'ready') void engine.request('venture.feedback.crash', { source: 'desktop', name: 'WindowGone', message: `The window stopped: ${String(details?.reason ?? 'unknown').replace(/[^a-z-]/g, '')}` }).catch(() => {}); });
   // W6 6H1: a frame (a mini app's, the website preview's) stays on the sandbox proxy or the app's own blob previews.
   window.webContents.on('will-frame-navigate', event => { if (!event.isMainFrame && !subframeAllowed(event.url)) event.preventDefault(); });
-  window.once('ready-to-show', () => { window.show(); timeline.mark('window-shown'); });
+  window.once('ready-to-show', () => { window.show(); notePhase('window-shown'); });
+  // D4 task 4: a window opened part way through the start learns where it is once its page has loaded.
+  window.webContents.on('did-finish-load', () => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, lastStatus); });
   window.loadURL(TRUSTED_DOCUMENT + hash);
   window.on('closed', () => { captionMicrophone.clear(); stopFormsBrowser(); window = null; lifecycleChanged(); noteStillRunning(); });
   // Notifications (Ink v2 wave 4, 4G1): the owner is watching only while this window is shown, not minimised and
@@ -344,11 +372,15 @@ if (singleInstance) app.whenReady().then(async () => {
   // A2 second review: the owner's choice of Codex is asked in main's own dialog, never forwarded from the window.
   // A fix: the engine is set later, by startEngine() below, so the choice reads it at each use.
   const codexChoice = require('./codex-choice.cjs').createCodexChoice({ engine: () => engine, dialog, window: () => window });
+  // D5: Install Claude Code asks in main's own dialog too; a yes reaches the engine over the worker's host channel only.
+  const claudeInstall = require('./claude-install.cjs').createClaudeInstall({ engine: () => engine, dialog, window: () => window });
   ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {
     try {
       assertTrustedSender(event, window?.webContents);
       const request = validateRequest(input);
+      const engine = await engineGate.ready();
       if (request.method === 'venture.ai.setup.trust') return { ok: true, result: await codexChoice(request.payload) };
+      if (request.method === 'venture.ai.claude.install') return { ok: true, result: await claudeInstall() };
       if(['workspace.lock','workspace.open','workspace.create'].includes(request.method))stopFormsBrowser();
       if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();if(request.method==='venture.talk.hear')captionMicrophone.clear();
       const result=await engine.request(request.method, request.payload);timeline.mark('first-request');captionMicrophone.observe(request,result);
@@ -364,6 +396,15 @@ if (singleInstance) app.whenReady().then(async () => {
       await updateWiring.showInstaller(input.kind);
       return { ok: true };
     } catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  // D12 task 10: after a business couldn't be brought up to date, the window may offer to go back; main asks first, in its own dialog.
+  ipcMain.handle(require('./ipc-contract.cjs').UPDATE_GO_BACK_OFFER_CHANNEL, async event => {
+    try { assertTrustedSender(event, window?.webContents); return { ok: true, result: (await updateWiring?.goBackOffer()) ?? null }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  ipcMain.handle(require('./ipc-contract.cjs').UPDATE_GO_BACK_CHANNEL, async event => {
+    try { assertTrustedSender(event, window?.webContents); return { ok: true, result: await updateWiring.goBack(window) }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
   });
   // C5 task 26: the window has painted (app/ui/src/shell/first-paint.ts).
   ipcMain.handle(require('./ipc-contract.cjs').FIRST_PAINT_CHANNEL, event => {
@@ -386,30 +427,30 @@ if (singleInstance) app.whenReady().then(async () => {
   });
   // A6 (answer 6, and the file for answer 7): Email it and Share on WhatsApp on an invoice. Main makes the file and keeps
   // it in Chausar's own share folder, beside the vaults, never in them; the window names only the invoice and how.
-  const shareDeps = () => ({ window, shell, assertTrustedSender, publicError, engine, folder: join(app.getPath('userData'), 'share'), whatsappApp, emlApp: () => invoiceShare.emlHandler() });
+  const shareDeps = () => ({ window, shell, assertTrustedSender, publicError, engine: engineGate.engine, folder: join(app.getPath('userData'), 'share'), whatsappApp, emlApp: () => invoiceShare.emlHandler() });
   ipcMain.handle('chausar:invoice:share', (event, input) => invoiceShare.shareInvoice(event, input, shareDeps()));
   // C5 task 16: Send to my CA, a draft or WhatsApp with the month's file; the window names only the month and how.
   ipcMain.handle('chausar:pack:share', (event, input) => require('./pack-share.cjs').sharePack(event, input, shareDeps()));
   ipcMain.handle('chausar:share:show', (event, input) => invoiceShare.showShared(event, input, shareDeps()));
   // The network import (4D1): the owner picks one of their own files; a worker process reads it and only what Chausar keeps comes back.
-  ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: join(engineRoot, 'platform/runtime/venture/network/extract-worker.ts') }));
+  ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: engineFiles.extractWorker, runtimeRoot: engineFiles.runtimeRoot }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
-  ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents'), settingsFile: join(app.getPath('userData'), 'money-export.json') }));
+  ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents'), settingsFile: join(app.getPath('userData'), 'money-export.json') }));
   // C5 task 35: the brief for Lovable or Replit as a file: the engine makes it, the owner picks where.
-  ipcMain.handle('chausar:brief:saveFile', (event, input) => require('./brief-save.cjs').saveBriefFile(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
+  ipcMain.handle('chausar:brief:saveFile', (event, input) => require('./brief-save.cjs').saveBriefFile(event, input, { dialog, window, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents') }));
   // A client report (5A5): the engine makes the files, the owner picks a folder, and they are saved atomically in a new folder.
-  ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') }));
-  const youtubeProjects = require('./youtube-project.cjs').createYoutubeProject();
-  const youtubeProjectDeps = () => ({ dialog, window, shell, assertTrustedSender, publicError, engine, documents: app.getPath('documents') });
+  ipcMain.handle(require('./ipc-contract.cjs').REPORT_SAVE_CHANNEL, (event, input) => require('./report-save.cjs').saveReport(event, input, { dialog, window, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents') }));
+  const youtubeProjects = require('./youtube-project.cjs').createYoutubeProject({ projectFolder: engineFiles.projectFolder });
+  const youtubeProjectDeps = () => ({ dialog, window, shell, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents') });
   ipcMain.handle('chausar:youtube:saveProject', (event, input) => youtubeProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:youtube:openProject', (event, input) => youtubeProjects.open(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:apptest:pickApk', (event, input) => require('./app-test-apk.cjs').pickClientApk(event, input, youtubeProjectDeps()));
-  const socialProjects = require('./social-project.cjs').createSocialProject();
+  const socialProjects = require('./social-project.cjs').createSocialProject({ projectFolder: engineFiles.projectFolder });
   ipcMain.handle('chausar:social:saveProject', (event, input) => socialProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
   // After Delete (review of A1, row 1): a kept export, shown in the file manager; only a file of the engine's exports folder.
   // One-shot C4 task 36: Export asks where to save in main's save dialog; the window gets the name, and Show in folder an id.
-  { const exportSave = require('./export-save.cjs'); const exportDeps = () => ({ dialog, shell, window, engine, assertTrustedSender, publicError, documents: app.getPath('documents') });
+  { const exportSave = require('./export-save.cjs'); const exportDeps = () => ({ dialog, shell, window, engine: engineGate.engine, assertTrustedSender, publicError, documents: app.getPath('documents') });
     ipcMain.handle(exportSave.SAVE_CHANNEL, (event, input) => exportSave.saveBusinessExport(event, input, exportDeps()));
     ipcMain.handle(exportSave.SHOW_CHANNEL, (event, input) => exportSave.showSavedExport(event, input, exportDeps())); }
   ipcMain.handle('chausar:exports:show', (event, input) => require('./export-folder.cjs').showExport(event, input, { window, shell, assertTrustedSender, publicError, exportsFolder: join(app.getPath('userData'), 'vaults', 'exports') }));
@@ -419,7 +460,7 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle(require('./ipc-contract.cjs').DIAGNOSTICS_PREVIEW_CHANNEL, (event, input) => diagnosticsExport.preview(event, input, diagnosticsDeps()));
   ipcMain.handle(require('./ipc-contract.cjs').DIAGNOSTICS_SAVE_CHANNEL, (event, input) => diagnosticsExport.save(event, input, diagnosticsDeps()));
   // C5 tasks 21, 23: an exported copy and a backup folder, picked here so the window never names a path.
-  const keepDeps = () => ({ dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') });
+  const keepDeps = () => ({ dialog, window, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents') });
   ipcMain.handle('chausar:copy:pick', (event, input) => require('./keep-files.cjs').pickCopy(event, input, keepDeps()));
   ipcMain.handle('chausar:copy:import', (event, input) => require('./keep-files.cjs').importCopy(event, input, keepDeps()));
   ipcMain.handle('chausar:backups:folder', (event, input) => require('./keep-files.cjs').setBackupFolder(event, input, keepDeps()));
@@ -447,15 +488,17 @@ if (singleInstance) app.whenReady().then(async () => {
       return { ok: true, result: { day: await background.askLater(day) } };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
-  try { startupTask = startEngine(); await startupTask; if (stopping) return; createTray(); if (!(releaseBeta && hiddenStart)) createWindow(); else void updateWiring?.notePaint(); }
-  catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
+  try { startupTask = startUp(); await startupTask; if (stopping) return; if (releaseBeta && hiddenStart && !window) void updateWiring?.notePaint(); }
+  catch (error) { startFailure = error; engineGate.changed(); if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
-app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });
-app.on('activate', () => { if (!window && engine?.state === 'ready') createWindow(); });
+// D4 task 2: a window needs no engine; it waits with the owner. Before the start has decided, the window it opens is the one.
+const askForWindow = () => { if (stopping) return; if (startPrepared) createWindow(); else hiddenStart = false; };
+app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else askForWindow(); });
+app.on('activate', () => { if (!window) askForWindow(); });
 app.on('window-all-closed', () => { if (!runsInBackground()) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
-  event.preventDefault(); stopping = true; workerRestart.stop();
+  event.preventDefault(); stopping = true; workerRestart.stop(); engineGate.changed();
   // C5 task 32: the engine says if a run is busy and makes the safety copy before it stops; the install runs once it has.
   let prepared = null;
   startupTask.catch(error => console.error(publicError(error).message)).then(() => reportJobLifecycle()).catch(error => console.error(publicError(error).message)).then(() => updateWiring?.prepareQuit()).then(answer => { prepared = answer ?? null; }, () => {}).then(() => engine?.stop()).then(result => {

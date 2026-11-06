@@ -1,10 +1,11 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { SizePicker, savedSize } from '../../parts/SizePicker';
 import type { SizeAnswersLite } from '../../engine/types';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './SizeSetting.module.css';

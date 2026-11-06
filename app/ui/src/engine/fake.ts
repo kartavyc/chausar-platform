@@ -670,7 +670,7 @@ export class FakeEngine {
       }
       case 'venture.runs.get': {
         const run = this.runs.find((r) => r.runId === p.runId);
-        if (!run) throw new EngineError('RUN_NOT_FOUND', 'This run is not on this computer.');
+        if (!run) throw new EngineError('RUN_NOT_FOUND', 'This job is not on this computer.');
         // 4F3: the scope's cap in rupees at the owner's rate, read when asked, as the engine's views/runs.ts does.
         // W6 6G5 (D44): with the run's model receipt, as the engine's runs.get adds it.
         const view = this.w4.runView(run);

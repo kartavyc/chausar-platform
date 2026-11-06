@@ -3,7 +3,7 @@
 // D1 fix: it reads package.json and package-lock.json only, never node_modules, so NOTICE is the same on every system
 // (the lockfile records each platform-specific build, such as the Agent SDK's and DuckDB's, for every system).
 // It never reads credentials, never runs package scripts and never downloads.
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -220,16 +220,63 @@ export function renderNotice(shipped, root) {
   ].join('\n');
 }
 
+// D5 task 3: every font's OFL text travels in app/desktop/notices/fonts, shipped as resources/notices/fonts, because a build
+// leaves app/ui/assets behind. A copy reads the same on every system: line endings don't count.
+const FONTS_HEADING = '## Fonts';
+const oneEnding = text => text.replace(/\r\n/g, '\n');
+function fontFolders(root) {
+  const fonts = join(root, 'app', 'ui', 'assets', 'fonts'), notices = join(root, 'app', 'desktop', 'notices');
+  const names = existsSync(fonts) ? readdirSync(fonts).sort() : [];
+  const licences = names.filter(name => /-OFL\.txt$/.test(name)), faces = names.filter(name => /\.woff2$/.test(name));
+  const unlicensed = faces.filter(face => !licences.includes(`${face.split('-')[0]}-OFL.txt`)).map(face => `${face} has no ${face.split('-')[0]}-OFL.txt`);
+  return { fonts, notices, licences, unlicensed };
+}
+function fontSection(licences) {
+  const lines = licences.map(name => `- ${name.replace(/-OFL\.txt$/, '')}: SIL Open Font License 1.1. File: \`fonts/${name}\`.`);
+  return [FONTS_HEADING, '', 'Built into the app screens. Each licence text is beside this file.', '', ...lines, ''].join('\n');
+}
+function withFontSection(index, licences) {
+  const text = oneEnding(index), at = text.indexOf(`${FONTS_HEADING}\n`);
+  if (at < 0) return `${text.trimEnd()}\n\n${fontSection(licences)}`;
+  const next = text.indexOf('\n## ', at + FONTS_HEADING.length);
+  return `${text.slice(0, at)}${fontSection(licences)}${next < 0 ? '' : text.slice(next)}`;
+}
+/** Every problem with the font licences, by name; empty when they are all in place. */
+export function fontLicenceProblems(root) {
+  const { fonts, notices, licences, unlicensed } = fontFolders(root);
+  const problems = [...unlicensed];
+  for (const name of licences) {
+    const copy = join(notices, 'fonts', name);
+    if (!existsSync(copy)) problems.push(`notices/fonts/${name} is missing`);
+    else if (oneEnding(readFileSync(copy, 'utf8')) !== oneEnding(readFileSync(join(fonts, name), 'utf8'))) problems.push(`notices/fonts/${name} differs from the font's own licence`);
+  }
+  const indexPath = join(notices, 'THIRD-PARTY-NOTICES.md');
+  if (licences.length && existsSync(indexPath) && oneEnding(readFileSync(indexPath, 'utf8')) !== withFontSection(readFileSync(indexPath, 'utf8'), licences)) problems.push('THIRD-PARTY-NOTICES.md does not list the fonts');
+  return problems;
+}
+/** Copies each OFL text beside the notices and lists the fonts there. Refuses when a font has no licence to copy. */
+export function writeFontLicences(root) {
+  const { fonts, notices, licences, unlicensed } = fontFolders(root);
+  if (unlicensed.length) throw new Error(unlicensed.join('; '));
+  mkdirSync(join(notices, 'fonts'), { recursive: true });
+  for (const name of licences) writeFileSync(join(notices, 'fonts', name), oneEnding(readFileSync(join(fonts, name), 'utf8')));
+  const indexPath = join(notices, 'THIRD-PARTY-NOTICES.md');
+  if (licences.length && existsSync(indexPath)) writeFileSync(indexPath, withFontSection(readFileSync(indexPath, 'utf8'), licences));
+}
+
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const text = renderNotice(collectShippedPackages(projectRoot), projectRoot);
   const target = join(projectRoot, 'NOTICE');
   if (process.argv.includes('--write')) {
     writeFileSync(target, text);
-    console.log(`NOTICE written (${text.split('\n').length} lines).`);
+    writeFontLicences(projectRoot);
+    console.log(`NOTICE written (${text.split('\n').length} lines), and the font licences beside the notices.`);
   } else if (process.argv.includes('--check')) {
     const current = existsSync(target) ? readFileSync(target, 'utf8').replace(/\r\n/g, '\n') : '';
     if (current !== text) { console.error('NOTICE is out of date: run node scripts/third-party-notices.mjs --write'); process.exit(1); }
+    const fontProblems = fontLicenceProblems(projectRoot);
+    if (fontProblems.length) { console.error(`Font licences: ${fontProblems.join('; ')}. Run node scripts/third-party-notices.mjs --write`); process.exit(1); }
     console.log('NOTICE matches package-lock.json.');
   } else {
     process.stdout.write(text);

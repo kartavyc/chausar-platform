@@ -74,7 +74,7 @@ export function experimentOf(input: {
     hypothesis: input.patch.note.hypothesis, change: input.change, patchId: input.patch.id, control,
     budget: { capMicros: cap, capDisplay: budgetWords(cap, rupees), spentMicros: input.spentMicros, spentDisplay: budgetWords(input.spentMicros, rupees) },
     stopRules: [
-      `Stop when the run has spent its budget of ${budgetWords(cap, rupees)}, between practice episodes.`,
+      `Stop when the job has spent its budget of ${budgetWords(cap, rupees)}, between practice episodes.`,
       `Stop after ${input.maxRounds} ${input.maxRounds === 1 ? 'round' : 'rounds'}.`,
       'Keep the old version when the change makes any case newly fail or adds a critical error.',
     ],

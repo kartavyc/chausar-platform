@@ -1,13 +1,10 @@
 name: Open verification
 
-# Every push runs: a push to main and every pull request get the full matrix (docs-only pull requests are skipped);
+# Every push runs: a push to main and every pull request get the full matrix (including docs-only pull requests);
 # a push to any other branch gets the fast lane only (lint, the fast engine tier, the changed UI tests). Also by hand.
 on:
   push:
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
   workflow_dispatch:
 
 permissions:
@@ -71,7 +68,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/node-cc
-          key: node-cc-${{ runner.os }}-24.13.1-${{ hashFiles('package-lock.json') }}
+          key: node-cc-${{ runner.os }}-24.13.1-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: node-cc-${{ runner.os }}-24.13.1-${{ hashFiles('package-lock.json') }}-
       - name: Install the locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Point the run root at the runner's temp folder, outside the checkout

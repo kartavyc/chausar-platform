@@ -56,7 +56,7 @@ test('fold: a failure quotes the rule\'s clause word for word; a no that does no
 test('fold: cited event ids are checked against the run\'s log; a rule that needs a receipt is a yes only when one is cited', () => {
   const made = foldVotes(CALIBRATION_RULES, [yes(FIGURES.id, ['rcpt_9']), yes(FILES.id, ['t1.1'])], trace);
   assert.equal(made.value, false);
-  assert.match(made.votes[0].problem!, /rcpt_9.*not in the run's trace/);
+  assert.match(made.votes[0].problem!, /rcpt_9.*not in the job's trace/);
   const uncited = foldVotes(CALIBRATION_RULES, [yes(FIGURES.id, []), yes(FILES.id, ['t1.1'])], trace);
   assert.equal(uncited.value, false);
   // A yes on the figures rule that points only at the draft: the right figure, but nothing shows code worked it out.

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
 import { useDay, useLocalToday, useMoment } from '../../parts/when';
@@ -10,7 +11,7 @@ import type { ConnectorCheckRow, ConnectorChecksView } from '../../engine/types'
 import s from './Connections.module.css';
 import c from './ChecksTile.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 const TONE: Readonly<Record<ConnectorCheckRow['outcome'], StatusTone>> = { answered: 'ok', failed: 'fail', skipped: 'question' };
 
 /** Where a connection is set up again: Your AI for a key or a tool, the bank sheet, Website build for GitHub. */

@@ -10,7 +10,7 @@ import type {
   ClientRecord, DateOrder, IsoDate, MergeSuggestion, NetworkAbsorbed, NetworkImportKind, NetworkImportRecord, PersonFact, PersonFactKind, PersonFieldView,
   PersonRecord, PersonRole, PersonSummary, PersonView, SourceRef, TieRecord, VentureRecord,
 } from '../contracts.ts';
-import { TIE_BANDS } from '../contracts.ts';
+import { TIE_BANDS } from '../contract-values.ts';
 import { formatVentureDate, listRecords, type VentureTx } from '../records.ts';
 import { count, fold, foldCompany, plural } from './text.ts';
 import { pathIndex, warmPaths } from './paths.ts';

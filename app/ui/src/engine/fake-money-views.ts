@@ -165,9 +165,9 @@ export class FakeMoneyViews {
     const billed = this.sum(`Billed in ${label}`, ledger.invoices.filter((i) => this.issuedIn(i, period)).map((i) => ({ label: `${i.number} for ${i.client}`, minor: i.subtotal })), 'Nothing was billed.');
     const received = this.sum(`Received in ${label}`, this.receivedIn(ledger, period), 'Nothing came in.');
     const figures: BooksFigureLite[] = [
-      { operation: 'billed', label: 'Billed', receiptId: billed.receiptId, display: billed.display, stale: false },
-      { operation: 'received', label: 'Received', receiptId: received.receiptId, display: received.display, stale: false },
-      { operation: 'earned', label: 'Earned', receiptId: billed.receiptId, display: billed.display, stale: false },
+      { operation: 'billed', label: 'Billed', receiptId: billed.receiptId, display: billed.display, stale: false, ...(billed.minor === 0 ? { zero: true as const } : {}) },
+      { operation: 'received', label: 'Received', receiptId: received.receiptId, display: received.display, stale: false, ...(received.minor === 0 ? { zero: true as const } : {}) },
+      { operation: 'earned', label: 'Earned', receiptId: billed.receiptId, display: billed.display, stale: false, ...(billed.minor === 0 ? { zero: true as const } : {}) },
     ];
     return figures;
   }
@@ -452,7 +452,7 @@ export class FakeMoneyViews {
       ...(rate === null && this.country().currency === 'INR' ? { needsRate: true } : {}),
       line: rate === null ? `${words}: invoiced before tax. The AI and tool spend is not counted: ${this.noRate()}.` : `${words}: invoiced before tax, less the AI and tool spend of each client's orders at ${rate}.`,
       basis: this.basis(
-        [`Invoices issued in ${words}, before tax, less credit notes`, "AI and tool spend by UTC month, tagged to a client through its run and order"],
+        [`Invoices issued in ${words}, before tax, less credit notes`, "AI and tool spend by UTC month, tagged to a client through its job and order"],
         leftOut.count ? { count: leftOut.count, line: `${leftOut.count} not counted: ${plural(leftOut.count, leftOut.one, leftOut.many)}` } : null,
       ),
     };

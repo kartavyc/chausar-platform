@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -11,7 +12,7 @@ import { Fold } from '../../parts/Fold';
 /** Ideas rest on the business's records: a queue change (an invoice paid, an order moved) can make or retire one. */
 const IDEA_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.done' || event.type === 'run.failed';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /** An idea the owner started here: the proposal it drafted, and where it stands now. */
 type Started = { idea: IdeaView; proposal: ProposalView | null; line: string; raised: string | null };

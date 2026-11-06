@@ -1,4 +1,7 @@
-import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
+import { isCaptureSample } from './venture/replay/sample.ts';
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
+import { createCipheriv, createDecipheriv, hkdfSync, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { constants } from 'node:fs';
 import { open, readFile, mkdir, lstat, realpath, rename, unlink, link, readdir, rmdir } from 'node:fs/promises';
 import { dirname, basename, isAbsolute, parse, resolve, join } from 'node:path';
@@ -53,7 +56,8 @@ export type CreateBootstrapVaultOptions = Common & {
 };
 /** migrationSteps: tests only (D12), a stand-in ladder; every host opens through the real STEPS. */
 export type OpenVaultOptions = Common & { passphrase: string; migrationSteps?: readonly LadderStep[] };
-export type RecoverVaultOptions = Common & { recoveryCode: string; newPassphrase: string };
+/** migrationBackup: given the untouched file before an older business is written brought up to date (D12). */
+export type RecoverVaultOptions = Common & { recoveryCode: string; newPassphrase: string; migrationBackup?: (untouchedEnvelopeJson: string, workspaceId: string, from: number) => Promise<void> };
 export type RestoreVaultOptions = Common & { backupFile: string } & ({ passphrase: string } | { recoveryCode: string; newPassphrase: string });
 
 // B1 fix round 2: the vault's refusals are in developer words, so they are InternalError (owner-flag.ts refusalTravel).
@@ -167,7 +171,7 @@ function freshBootstrapState(options: CreateBootstrapVaultOptions): State {
     || budget.maxStateBytes > MAX_BYTES / 2 || budget.maxJsonDepth > 256)
     fail('BOOTSTRAP_LIMIT', 'Supply explicit positive bounded bootstrap byte, JSON and record budgets.');
   if (!bootstrapId(options.expectedWorkspaceId) || !bootstrapId(options.expectedOwnerId)
-    || typeof options.expectedStateDigest !== 'string' || !/^[a-f0-9]{64}$/.test(options.expectedStateDigest))
+    || typeof options.expectedStateDigest !== 'string' || !DIGEST_PATTERN.test(options.expectedStateDigest))
     fail('BOOTSTRAP_PIN_REQUIRED', 'Use independently reviewed constructor State, workspace and fresh owner pins.');
   const text = bootstrapJson(options.state, budget);
   if (hash(text) !== options.expectedStateDigest) fail('BOOTSTRAP_STATE_CHANGED', 'The exact ordered State differs from its independently reviewed digest.');
@@ -239,11 +243,19 @@ function encodeSnapshot(state: State, envelope: Omit<VaultEnvelope, 'snapshot'>,
   try { const sealed: VaultEnvelope = { ...envelope, snapshot: seal(key, plaintext, aad(envelope)) }; sealedBytes.set(sealed, plaintext.length); return sealed; }
   finally { plaintext.fill(0); }
 }
-function decodeSnapshot(envelope: VaultEnvelope, key: Uint8Array): State {
+/** D12: every reader of a sealed snapshot goes through the ladder. Older data comes up to date on a copy; newer is DATA_NEWER. */
+function decodeSnapshot(envelope: VaultEnvelope, key: Uint8Array): State { return openSnapshot(envelope, key, STEPS).state; }
+/** D12: a refusal the ladder made, which says more than "wrong credential"; it can only come after the key opened the data. */
+const ladderAnswer = (error: unknown) => (error as { code?: unknown })?.code === 'DATA_NEWER' || (error as { code?: unknown })?.code === 'DATA_MIGRATION_FAILED';
+/** D12: the same data sealed under another header, as it was: a backup keeps its own data version. */
+function resealSnapshot(envelope: VaultEnvelope, header: Omit<VaultEnvelope, 'snapshot'>, key: Uint8Array): VaultEnvelope {
   validateEnvelope(envelope);
   const plaintext = unseal(key, envelope.snapshot, aad(envelope));
-  try { const state = JSON.parse(plaintext.toString('utf8')); validateState(state); if (state.revision !== envelope.revision) throw new Error('Revision mismatch'); return state; }
-  finally { plaintext.fill(0); }
+  try {
+    const raw = JSON.parse(plaintext.toString('utf8'));
+    if (raw?.revision !== envelope.revision) throw new Error('Revision mismatch');
+    return { ...header, snapshot: seal(key, plaintext, aad(header)) };
+  } finally { plaintext.fill(0); }
 }
 /** D12: opening a business. Decrypts, then brings the State up to CURRENT_SCHEMA through the ladder (on a copy; the
  * file is not touched). DATA_NEWER and DATA_MIGRATION_FAILED can only be thrown after the key opened the data. */
@@ -301,7 +313,7 @@ export async function atomicWriteText(path: string, content: string, replace: bo
 export async function readBoundedText(path: string): Promise<string> { return readBounded(path); }
 /** Public ciphertext metadata: which passphrase and recovery wrappers an envelope carries. */
 export function wrappersDigestOf(envelope: Pick<VaultEnvelope, 'passphrase' | 'recovery'>): string {
-  return createHash('sha256').update(JSON.stringify({ passphrase: envelope.passphrase, recovery: envelope.recovery })).digest('hex');
+  return sha256Hex(JSON.stringify({ passphrase: envelope.passphrase, recovery: envelope.recovery }));
 }
 async function readBounded(path: string): Promise<string> {
   if (!isAbsolute(path)) throw new Error('Absolute path required');
@@ -348,6 +360,7 @@ export class Vault implements StateStore {
   #shutdown?: Promise<void>;
   #transaction = new AsyncLocalStorage<boolean>();
   #snapshotScope = new AsyncLocalStorage<boolean>();
+  #captureRestored = false;
   #keychain?: KeychainHook;
   #writerGuard?: VaultWriterGuard;
   /** D12: the data version this business was opened at, when the ladder brought it up in memory; null otherwise. */
@@ -454,6 +467,12 @@ export class Vault implements StateStore {
     const vault = await Vault.unlock(options, options.recoveryCode, true);
     try {
       const wrapper = await wrap(options.newPassphrase, vault.#key, vault.#envelope.id, 'passphrase');
+      // D12: an older business: the file as it was goes to its migration backup first, and this one write brings it up to date.
+      if (vault.#migratedFrom !== null) {
+        if (!options.migrationBackup) fail('MIGRATION_PENDING', 'Recovering an older business needs somewhere to keep it as it was.');
+        await options.migrationBackup(JSON.stringify(vault.#envelope), vault.#state.workspace.id, vault.#migratedFrom);
+        vault.#migrating = true;
+      }
       await vault.guarded(async assertCurrent => {
         const draft = structuredClone(vault.#state); draft.revision++;
         const envelope = encodeSnapshot(draft, { ...vault.#envelope, passphrase: wrapper, revision: draft.revision }, vault.#key);
@@ -461,6 +480,7 @@ export class Vault implements StateStore {
         vault.#state = draft; vault.#envelope = envelope;
         return { result: undefined, committedState: vault.read() };
       });
+      vault.#migrating = false; vault.#migratedFrom = null;
       return vault;
     } catch (error) { await vault.close(); throw error; }
   }
@@ -490,12 +510,12 @@ export class Vault implements StateStore {
    * as JSON text, which is what a chausar.backup.v1 backup wraps); only after it succeeds is the brought-up State
    * written, once, as the next revision. Any failure leaves the file as it was and the migration pending.
    */
-  commitMigration(backup: (untouchedEnvelopeJson: string) => Promise<void>): Promise<{ from: number; to: number }> {
+  commitMigration(backup: (untouchedEnvelopeJson: string, workspaceId: string) => Promise<void>): Promise<{ from: number; to: number }> {
     return this.#enqueue(() => this.#transaction.run(true, async () => {
       const from = this.#migratedFrom;
       if (from === null) fail('NO_MIGRATION', 'This business is already up to date.');
       const unchanged = 'This version of Chausar couldn\'t bring your business up to date. Your business is unchanged.';
-      try { await backup(JSON.stringify(this.#envelope)); }
+      try { await backup(JSON.stringify(this.#envelope), this.#state.workspace.id); }
       catch { fail('DATA_MIGRATION_FAILED', unchanged); }
       this.#migrating = true;
       try {
@@ -526,24 +546,30 @@ export class Vault implements StateStore {
       const state = decodeSnapshot(envelope, key);
       const madeAt = typeof backup.transfer?.madeAt === 'string' ? backup.transfer.madeAt : null;
       return { name: String(state.workspace.name), madeAt };
-    } catch { return null; } finally { key?.fill(0); }
+    } catch (error) { if (ladderAnswer(error)) throw error; return null; } finally { key?.fill(0); }
   }
   static async restore(options: RestoreVaultOptions): Promise<Vault> {
-    let envelope: VaultEnvelope, state: State, key: Buffer | undefined;
+    let envelope: VaultEnvelope, state: State, key: Buffer | undefined, migratedFrom: number | null = null;
     try {
       const backup = JSON.parse(await readBounded(options.backupFile));
       if (backup.backupFormat !== 'chausar.backup.v1') throw new Error('Invalid backup');
       envelope = backup.envelope; validateEnvelope(envelope);
       const recovering = 'recoveryCode' in options;
       key = await unwrap(recovering ? options.recoveryCode : options.passphrase, recovering ? envelope.recovery : envelope.passphrase, envelope.id, recovering ? 'recovery' : 'passphrase');
-      state = decodeSnapshot(envelope, key);
+      // D12: an older backup comes up to date as it is restored, and the backup file itself is never rewritten.
+      ({ state, migratedFrom } = openSnapshot(envelope, key, STEPS));
       if (recovering) {
         passphrase(options.newPassphrase);
         const wrapper = await wrap(options.newPassphrase, key, envelope.id, 'passphrase');
         state.revision++;
         envelope = encodeSnapshot(state, { ...envelope, passphrase: wrapper, revision: state.revision }, key);
+        migratedFrom = null;
       }
-    } catch { key?.fill(0); await closeTransferred(options.storage); return fail('UNLOCK_FAILED', 'Unable to unlock backup. Check your credential or use a valid backup.'); }
+    } catch (error) {
+      key?.fill(0); await closeTransferred(options.storage);
+      if (ladderAnswer(error)) throw error;
+      return fail('UNLOCK_FAILED', 'Unable to unlock backup. Check your credential or use a valid backup.');
+    }
     let directory: string, adapter: EncryptedSnapshotAdapter, lock: Lock;
     try { directory = await safeDirectory(options.directory, true); adapter = adapterFor(directory, options.storage); lock = await takeLock(directory); }
     catch (error) { key!.fill(0); await closeTransferred(options.storage); throw error; }
@@ -551,7 +577,9 @@ export class Vault implements StateStore {
       if (await adapter.load()) fail('VAULT_EXISTS', 'Restore requires an empty vault location.');
       await adapter.commit(envelope, null);
       if (options.keychain) await options.keychain.store(envelope.id, Uint8Array.from(key!));
-      return new Vault(directory, adapter, lock, key!, envelope, state, options.keychain, options.writerGuard);
+      const vault = new Vault(directory, adapter, lock, key!, envelope, state, options.keychain, options.writerGuard);
+      vault.#migratedFrom = migratedFrom;
+      return vault;
     } catch (error) { key!.fill(0); await lock.release(); await adapter.close?.(); throw error; }
   }
   #ready() { if (this.#closed || this.#closing) fail('VAULT_CLOSED', 'The vault is closed.'); }
@@ -607,7 +635,7 @@ export class Vault implements StateStore {
     let plaintext: Buffer | undefined;
     try {
       const envelope: PrivateArtifactEnvelope = JSON.parse(raw);
-      if (Object.keys(envelope).sort().join(',') !== 'ciphertext,format,id,purpose,valueDigest,vaultId' || envelope.format !== 'chausar.private-artifact.v1' || envelope.vaultId !== this.#envelope.id || envelope.id !== input.id || envelope.purpose !== input.purpose || !/^[a-f0-9]{64}$/.test(envelope.valueDigest)) throw new Error('Artifact identity mismatch');
+      if (Object.keys(envelope).sort().join(',') !== 'ciphertext,format,id,purpose,valueDigest,vaultId' || envelope.format !== 'chausar.private-artifact.v1' || envelope.vaultId !== this.#envelope.id || envelope.id !== input.id || envelope.purpose !== input.purpose || !DIGEST_PATTERN.test(envelope.valueDigest)) throw new Error('Artifact identity mismatch');
       plaintext = unseal(key, envelope.ciphertext, `${envelope.format}:${envelope.vaultId}:${envelope.purpose}:${envelope.id}:${envelope.valueDigest}`);
       const value = JSON.parse(plaintext.toString('utf8'));
       if (hash(JSON.stringify(value)) !== envelope.valueDigest) throw new Error('Artifact payload mismatch');
@@ -705,7 +733,7 @@ export class Vault implements StateStore {
     for (const item of input.artifacts) {
       if (!item || !item.ref || !['private-trial', 'workspace-interchange'].includes(item.ref.purpose)
         || typeof item.ref.id !== 'string' || !/^[A-Za-z0-9_-]{1,180}$/.test(item.ref.id)
-        || !/^[a-f0-9]{64}$/.test(item.ref.valueDigest) || !Number.isSafeInteger(item.ref.diskBytes) || item.ref.diskBytes <= 0)
+        || !DIGEST_PATTERN.test(item.ref.valueDigest) || !Number.isSafeInteger(item.ref.diskBytes) || item.ref.diskBytes <= 0)
         fail('ARTIFACT_AUTHENTICATION_FAILED', 'A retained artifact reference has invalid identity or size.');
       if (!(item.bytes instanceof Uint8Array) || !item.bytes.byteLength || item.bytes.byteLength > budget.maxEntryBytes
         || item.bytes.byteLength > budget.maxTotalEntryBytes - totalBytes) fail('ARTIFACT_LIMIT', 'Encrypted artifacts exceed their authentication budget.');
@@ -740,7 +768,7 @@ export class Vault implements StateStore {
     for (const item of input.artifacts) {
       if (!exact(item, ['ref', 'bytes']) || !exact(item.ref, ['id', 'purpose', 'valueDigest', 'diskBytes'])
         || !['private-trial', 'workspace-interchange'].includes(item.ref.purpose) || typeof item.ref.id !== 'string'
-        || !/^[A-Za-z0-9_-]{1,180}$/.test(item.ref.id) || !/^[a-f0-9]{64}$/.test(item.ref.valueDigest)
+        || !/^[A-Za-z0-9_-]{1,180}$/.test(item.ref.id) || !DIGEST_PATTERN.test(item.ref.valueDigest)
         || !Number.isSafeInteger(item.ref.diskBytes) || item.ref.diskBytes <= 0)
         fail('ARTIFACT_AUTHENTICATION_FAILED', 'Archived artifact references require exact typed identity, digest and byte fields.');
       const id = `${item.ref.purpose}/${item.ref.id}`.toLowerCase();
@@ -764,7 +792,7 @@ export class Vault implements StateStore {
   }
   writeArtifact(input: { id: string; purpose: PrivateArtifactPurpose; value: unknown; expectedDigest: string | null }): Promise<PrivateArtifactRef> {
     artifactIdentity(input.id, input.purpose);
-    if (!(input.expectedDigest === null || /^[a-f0-9]{64}$/.test(input.expectedDigest))) fail('ARTIFACT_REVISION_REQUIRED', 'Supply the exact previous artifact digest or create-only admission.');
+    if (!(input.expectedDigest === null || DIGEST_PATTERN.test(input.expectedDigest))) fail('ARTIFACT_REVISION_REQUIRED', 'Supply the exact previous artifact digest or create-only admission.');
     const text = JSON.stringify(input.value);
     if (typeof text !== 'string' || Buffer.byteLength(text) > 40 * 1024 * 1024) fail('ARTIFACT_LIMIT', 'Managed artifact payload exceeds its bounded size.');
     const value = JSON.parse(text), valueDigest = hash(JSON.stringify(value));
@@ -804,7 +832,7 @@ export class Vault implements StateStore {
   }
   removeArtifact(input: { id: string; purpose: PrivateArtifactPurpose; expectedDigest: string }): Promise<{ removed: boolean; diskBytes: number }> {
     artifactIdentity(input.id, input.purpose);
-    if (!/^[a-f0-9]{64}$/.test(input.expectedDigest)) fail('ARTIFACT_REVISION_REQUIRED', 'Supply the exact retained artifact digest before discard.');
+    if (!DIGEST_PATTERN.test(input.expectedDigest)) fail('ARTIFACT_REVISION_REQUIRED', 'Supply the exact retained artifact digest before discard.');
     return this.#artifactOperation(() => this.guarded<{ removed: boolean; diskBytes: number }>(async assertCurrent => {
       let ref: PrivateArtifactRef;
       try { ref = await this.#readArtifact(input); }
@@ -843,6 +871,22 @@ export class Vault implements StateStore {
     if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.'));
     this.#ready();
     const pending = this.#chain.then(work); this.#chain = pending.catch(() => {}); return pending;
+  }
+  /** Trusted developer replay only: a fresh marked sample vault, never an existing business or RPC route. */
+  restoreCaptureState(state: State): Promise<void> {
+    if (this.#captureRestored || !isCaptureSample(this) || this.#state.conversations.some(row => typeof row?.kind === 'string' && row.kind.startsWith('venture-')))
+      return Promise.reject(new InternalError('CAPTURE_SAMPLE_REQUIRED', 'Restore a capture only into a newly created disposable sample vault.'));
+    if (state.workspace?.demo !== true) return Promise.reject(new InternalError('CAPTURE_SAMPLE_REQUIRED', 'Replay only sample data.'));
+    validateState(state);
+    this.#captureRestored = true;
+    return this.#enqueue(() => this.#transaction.run(true, () => this.guarded(async assertCurrent => {
+      const draft = structuredClone(state);
+      const envelope = encodeSnapshot(draft, { ...this.#envelope, revision: draft.revision }, this.#key);
+      const checked = decodeSnapshot(envelope, this.#key);
+      assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
+      this.#state = checked; this.#envelope = envelope;
+      return { result: undefined, committedState: structuredClone(checked) };
+    })));
   }
   update<T>(change: (state: State) => T | Promise<T>): Promise<T> {
     if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault transactions are not supported.'));
@@ -923,7 +967,7 @@ export class Vault implements StateStore {
       const resealed: string[] = [], skipped: { path: string; reason: string }[] = [];
       for (const path of paths) {
         if (typeof path !== 'string' || !isAbsolute(path)) { skipped.push({ path: String(path), reason: 'not-absolute' }); continue; }
-        let state: State, envelope: VaultEnvelope;
+        let envelope: VaultEnvelope;
         try {
           const backup = JSON.parse(await readBounded(path));
           if (backup?.backupFormat !== 'chausar.backup.v1') throw new Error('format');
@@ -931,11 +975,12 @@ export class Vault implements StateStore {
         } catch { skipped.push({ path, reason: 'not-a-backup' }); continue; }
         if (envelope.id !== this.#envelope.id) { skipped.push({ path, reason: 'other-vault' }); continue; }
         if (wrappersDigestOf(envelope) === wrappersDigestOf(this.#envelope)) { skipped.push({ path, reason: 'already-current' }); continue; }
-        try { state = decodeSnapshot(envelope, this.#key); }
+        // D12: a reseal never changes a backup's data version: the same data, under the live wrappers.
+        let next: VaultEnvelope;
+        const { snapshot, ...header } = envelope;
+        try { next = resealSnapshot(envelope, { ...header, passphrase: this.#envelope.passphrase, recovery: this.#envelope.recovery }, this.#key); }
         catch { skipped.push({ path, reason: 'not-authentic' }); continue; }
         try {
-          const { snapshot, ...header } = envelope;
-          const next = encodeSnapshot(state, { ...header, passphrase: this.#envelope.passphrase, recovery: this.#envelope.recovery }, this.#key);
           await atomicWrite(path, JSON.stringify({ backupFormat: 'chausar.backup.v1', envelope: next }), true);
           resealed.push(path);
         } catch { skipped.push({ path, reason: 'write-failed' }); }

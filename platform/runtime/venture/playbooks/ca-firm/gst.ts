@@ -7,7 +7,7 @@
 // Idea taken, code written here: akaunting/akaunting (BUSL-1.1, ideas only), which stores the rate charged on each
 // line rather than a pointer to today's rate. The rate on each line here is checked against the table for its date.
 import { gstinValid } from '../../../memory.ts';
-import { INDIA_STATES } from '../../contracts.ts';
+import { INDIA_STATES } from '../../contract-values.ts';
 import { bpsText, divRound, invalid, isoDate, longDate, minBig, notModelled, paise, sumBig, type IsoDate } from './money.ts';
 import { rateTableFor, sectionOf, useRateTable, REHEARSAL, type GstRatesPayload, type RateTable, type RateUse, type TableStamp } from './rates.ts';
 import { ReceiptBuilder, type CaReceipt } from './receipt.ts';

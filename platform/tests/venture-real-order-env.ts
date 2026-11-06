@@ -4,7 +4,7 @@
 // here touches the network or pays for anything.
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import { JUDGE_QUESTIONS, STEP_PLAN } from '../runtime/venture/contracts.ts';
+import { JUDGE_QUESTIONS, STEP_PLAN } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintRecord, DelegatePorts, DeliveryRunView, ModelOutcome, ModelPort, ModelPreset, ModelPreview, ModelStatusView, ModelTask, OrderRecord, PriceFigure,
   PriceReceiptRecord, VentureDeps, VentureRecord,

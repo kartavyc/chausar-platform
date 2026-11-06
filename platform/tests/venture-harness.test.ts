@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { ChausarError } from '../runtime/contracts.ts';
 import { numberGuard } from '../runtime/calculator.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import type {
   ClaimProof, Deliverable, ScenarioKind, SandboxProcessRequest, SandboxProcessResponse, ToolName, VentureDeps,
 } from '../runtime/venture/contracts.ts';

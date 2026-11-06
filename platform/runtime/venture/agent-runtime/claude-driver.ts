@@ -1,3 +1,5 @@
+import { runIdentity } from '../replay/scope.ts';
+import { runClaudeQuery } from '../replay/driver-hooks.ts';
 /** Claude owns the agent loop; Chausar owns consent, job boundaries and every outside effect. */
 import { randomUUID } from 'node:crypto';
 import { lstat, readdir, realpath } from 'node:fs/promises';
@@ -153,7 +155,7 @@ export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
     const root = await realpath(input.jobRoot);
     // Project settings must be app-owned. Client documents cannot become auto-loaded instructions or hooks.
     for (const name of ['CLAUDE.md', 'CLAUDE.local.md', '.claude', '.mcp.json']) if (await exists(join(root, name))) throw new Error('The job folder must not contain Claude project instructions or hooks.');
-    let sdk: ClaudeQuery | undefined, reader: Promise<void> | undefined, closed = false, model = input.settings.model, sessionId: string = randomUUID();
+    let sdk: ClaudeQuery | undefined, reader: Promise<void> | undefined, closed = false, model = input.settings.model, sessionId: string = runIdentity('claude-session', randomUUID);
     // A4 review (L8): the last of what Claude Code printed on stderr, in memory for this session only.
     let stderrTail = '';
     const heard = (text: string) => { stderrTail = (stderrTail + text).slice(-STDERR_TAIL); };
@@ -322,10 +324,10 @@ export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
         if (closed) throw new Error('This Claude session is closed.');
         if (active) throw new Error('A Claude turn is already running.');
         input.guard();
-        const id = randomUUID();
+        const id = runIdentity('claude-user-message', randomUUID);
         const result = new Promise<AgentTurnResult>(finish => { active = { id, text: '', interrupted: false, finish, blocks: new Map(), completedBlocks: new Map(), messageUuids: new Set(), messageId: id, block: 0, usage: new Map() }; });
         queue.push({ type: 'user', message: { role: 'user', content: prompt }, parent_tool_use_id: null, session_id: sessionId, uuid: id });
-        if (!sdk) { try { sdk = (dependencies.queryFactory ?? query)({ prompt: queue, options }); reader = drain(); } catch { stop('failed', FAILED); } }
+        if (!sdk) { try { sdk = runClaudeQuery(dependencies.queryFactory ?? query, { prompt: queue, options }); reader = drain(); } catch { stop('failed', FAILED); } }
         return result;
       },
       async interrupt() { if (active && !closed) { active.interrupted = true; try { await sdk?.interrupt(); } catch { stop('interrupted'); } } },

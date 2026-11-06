@@ -21,7 +21,7 @@
 import { check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, digest, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import {appendChiefMessage} from '../chief/store.ts';
-import { ROUTINE_ANSWER_MS } from '../contracts.ts';
+import { ROUTINE_ANSWER_MS } from '../contract-values.ts';
 import type { ChiefThreadRecord, QueueAction, RoutineRecord, RoutineRunRecord, RoutineRunState, VentureDeps, VentureRecord } from '../contracts.ts';
 import type { W4Decision, W4Outcome, W4RowItem } from '../views/queue-w4.ts';
 import { askedName, liveRoutines, occurrencesBetween, runsOf } from './routines.ts';
@@ -59,7 +59,7 @@ export const ROUTINE_WORDS = Object.freeze({
   running: 'Getting it ready.',
   waiting: 'Waiting for you on Today. Nothing goes to your AI until you approve it.',
   missed: (count: number) => (count === 1 ? 'Missed once while Chausar was closed.' : `Missed ${count} times while Chausar was closed.`),
-  overlap: 'Skipped: the run before it was still waiting for you.',
+  overlap: 'Skipped: the job before it was still waiting for you.',
   paused: (line: string) => `Skipped: ${line}.`,
   noAnswer: 'Nobody approved it within 24 hours, so it counts as no. Nothing was sent.',
   notNow: 'You said not now. Nothing was sent.',

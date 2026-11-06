@@ -4,7 +4,7 @@ import {appTestingModes} from './app-testing-modes.ts';
 // Ink v2 wave 4 (4J7): each card carries its setup guide (guides.ts) and, in venture.connectors.list, each mode's rung
 // of the truth ladder from this business's records and the operations it really takes (connector-truth.ts).
 import { authorize, check, type Context, type State } from '../../contracts.ts';
-import { CONNECTOR_CATEGORIES, STARTER_CONNECTORS } from '../contracts.ts';
+import { CONNECTOR_CATEGORIES, STARTER_CONNECTORS } from '../contract-values.ts';
 import type { ConnectorCard, ConnectorCategory, ConnectorMode, ConnectorModeName, IsoDate, PostingOption, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, exactPayload, listRecords } from '../records.ts';
 import { CATEGORY_LABELS, CONNECTOR_CATALOGUE, type CatalogueEntry } from './catalogue.ts';

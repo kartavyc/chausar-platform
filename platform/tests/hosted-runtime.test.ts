@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { newBusinessId, newTenantId } from '../runtime/hosted/custody.ts';
 import { ACTOR_ACTIONS, ACTOR_EVENTS } from '../runtime/hosted/runtime/contract.ts';
-import { DRAFT_METHODS, PRE_VAULT_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, PRE_VAULT_METHODS } from '../runtime/venture/contract-values.ts';
 import { LocalVentureRuntime } from '../runtime/hosted/runtime/local.ts';
 import { RIVET_DESCRIPTOR, rivetActionName, ventureActorConfig } from '../runtime/hosted/runtime/rivet.ts';
 import { code, harness, runtimeConformance, web } from './hosted-runtime-conformance.ts';

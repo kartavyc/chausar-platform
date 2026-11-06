@@ -99,3 +99,8 @@ test('D3: every nightly job sets the run root before its tests, uploads from it,
   assert.match(job('engine-one-worker'), /path: \$\{\{ runner\.temp \}\}\/chausar\/engine-tests\/factory-bench\.json$/m);
   assert.match(job('ui'), /path: \$\{\{ runner\.temp \}\}\/chausar\/ui-tests\/ui-tests\.json$/m);
 });
+
+
+test('cleanup: nightly shuffles the shared logic process to catch test state leaks', () => {
+  assert.ok(runs(job('ui')).some(command => command.includes('--project=logic') && command.includes('--sequence.shuffle')));
+});

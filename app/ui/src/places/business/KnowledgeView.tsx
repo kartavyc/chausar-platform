@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
@@ -6,7 +7,7 @@ import type { KnowledgeSourceInput, KnowledgeSourceView } from '../../engine/typ
 import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
 import { Field } from '../../parts/Field';
-import { TileSection, dayOf, messageOf } from './shared';
+import { TileSection, dayOf } from './shared';
 import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './KnowledgeView.module.css';

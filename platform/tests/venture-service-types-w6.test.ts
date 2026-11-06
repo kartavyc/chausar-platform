@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { SECOND_OFFER_MODEL, SERVICE_TYPE_LABELS, SERVICE_TYPES } from '../runtime/venture/contracts.ts';
+import { SECOND_OFFER_MODEL, SERVICE_TYPE_LABELS, SERVICE_TYPES } from '../runtime/venture/contract-values.ts';
 import { FAMILIES, familyOf } from '../runtime/venture/core/families.ts';
 import { familyIdea, keywordFamily } from '../runtime/venture/core/family-plan.ts';
 import { classifyIdea, SERVICE_KEYWORDS, serviceTemplate } from '../runtime/venture/core/service-types.ts';

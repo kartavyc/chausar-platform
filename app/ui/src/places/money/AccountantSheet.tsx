@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Share with your CA (C4 T24; `?sheet=accountant:books`, from For your CA and the business menu's Invite your accountant):
  * the one sheet, with two ways to hand one month over. Save the files (ExportButton.tsx), and Make a link (W4 4J7's 'books'
@@ -17,7 +18,7 @@ import type { ShareLink } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { copyText } from '../clients/handoff';
 import { ExportButton } from './ExportButton';
-import { messageOf, monthBefore, useMoment, useMonthWords, useThisMonth } from './words';
+import { monthBefore, useMoment, useMonthWords, useThisMonth } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 import { Select } from '../../parts/Select';
@@ -67,7 +68,7 @@ export function AccountantSheet({ id, onClose, returnFocus }: SheetComponentProp
   }
 
   return (
-    <Sheet label={t('money.accountant.label')} title={t('money.accountant.title')} line={t('money.accountant.line')} onClose={onClose} returnFocus={returnFocus}>
+    <Sheet label="" title={t('money.accountant.title')} line={t('money.accountant.line')} onClose={onClose} returnFocus={returnFocus}>
       <SendToCa month={month} />
       <MonthlyPack />
       {!link && (
@@ -100,13 +101,13 @@ export function AccountantSheet({ id, onClose, returnFocus }: SheetComponentProp
                 <Button size="sm" variant="quiet" onClick={() => void copy(link.url!)}>{t('money.accountant.copy')}</Button>
               </p>
             )
-            : link.reason && <p className={s.quietLine} data-engine-line="">{link.reason}</p>}
+            : <p className={s.quietLine}>{t('money.accountant.offline')}</p>}
           {/* One-shot A4 (row 29): how long a link stays open is said only for a link that opens. */}
           {link.url && <p className={s.quietLine}>{t('money.accountant.until', { when: moment(link.expiresAt) })}</p>}
-          {!link.url && <p className={s.quietLine}>{t('money.accountant.export')}</p>}
-          <div className={s.buttons}>
+          {!link.url && <><p className={s.quietLine}>{t('money.accountant.export')}</p><ExportButton month={month} /></>}
+          {link.url && <div className={s.buttons}>
             <Button disabled={busy} onClick={() => void revoke(link.id)}>{t('money.accountant.revoke')}</Button>
-          </div>
+          </div>}
         </div>
       )}
       {said && <p className={said.problem ? s.refusal : s.notice} role="status" data-engine-line={said.problem ? '' : undefined}>{said.text}</p>}

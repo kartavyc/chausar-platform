@@ -1,4 +1,6 @@
 {
+  "errors.DATA_MIGRATION_FAILED": "This version of Chausar couldn't bring your business up to date. Your business is unchanged.",
+  "errors.MIGRATION_PENDING": "Chausar is still bringing this business up to date. Open it again; nothing was changed.",
   "errors.general": "Something went wrong inside Chausar. Try again; if it happens again, send a report from the business menu.",
   "errors.UNLOCK_FAILED": "That passphrase didn't open it. Check Caps Lock and try again, or use your recovery code.",
   "errors.VAULT_CLOSED": "This business is closed. Open it again from the list.",

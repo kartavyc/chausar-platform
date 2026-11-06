@@ -4,7 +4,7 @@
 // in its last turn (fields load on demand, the turn after first use). The current step is the first agent step that
 // names tools and has none of them audited yet (judge/auditor.ts); once each has, the last one. A playbook whose steps
 // name no tools offers every tool whole, as before. The idea follows kimo's toolgroups.rs (2026-10-21 harvest).
-import { TOOL_NAMES } from '../../contracts.ts';
+import { TOOL_NAMES } from '../../contract-values.ts';
 import type { HarnessState, PlaybookRecord, ToolName } from '../../contracts.ts';
 
 export type ToolGroup = 'files' | 'dictionary' | 'calculator' | 'sandbox' | 'ask' | 'outside' | 'heavy' | 'tax' | 'youtube' | 'social' | 'evidence'

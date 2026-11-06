@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Chausar venture launcher, agents (Ink v2 wave 4, package 4B1, catalogue A3 and A4): the owner's changes in use and
 // going back from one. The owner's accepted "from now on" changes are owner patches in the playbook in use; an agent's
 // standing orders are its owner guidance lines still in use on its steps, each with the version it arrived in and the
@@ -111,7 +112,7 @@ export async function versionUndoHandler(deps: VentureDeps, ctx: Context, payloa
   requireAppChannel(ctx, 'venture.agents.version.undo');
   const body = exactPayload(payload, ['agent', 'digest'], ['agent', 'digest']);
   const agentId = identifier(body.agent, 'Agent');
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
   const seen = body.digest;
   const { state, venture: open } = readAs(deps, ctx, 'approve');
   chatAgent(state, open, agentId);

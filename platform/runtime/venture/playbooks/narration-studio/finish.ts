@@ -1,13 +1,14 @@
+import { sha256Hex } from '../../../hash.ts';
 // Original local verification, mastering and export. Stored bytes, not owner-supplied measurements, are authoritative.
 import {recordNarrationAsset} from './assets.ts';
 import {attestedNow,attestedRules} from '../kit/attestation-records.ts';
 import {narrationFinishedPrice} from './price.ts';
-import {createHash} from 'node:crypto';import {check,type Context} from '../../../contracts.ts';
+import {check,type Context} from '../../../contracts.ts';
 import type {VentureDeps,NarrationSegmentRecord,UploadRecord} from '../../contracts.ts';
 import {digest,exactPayload,identifier,listRecords,readVenture,ventureAction,type VentureTx} from '../../records.ts';
 import {narrationRows,narrationJobDigest,currentNarrationSource,liveNarration} from './runtime.ts';
 import {inspectNarrationAudio,masterNarrationAudio} from './media.ts';import {verifyNarrationSegment,approveNarrationSegment,narrationReady} from './segments.ts';import {narrationMasterCheck} from './master-core.ts';import {requireNarrationClientRule} from './rules.ts';
-const sha=(bytes:Buffer)=>createHash('sha256').update(bytes).digest('hex');
+const sha=(bytes:Buffer)=>sha256Hex(bytes);
 function audio(read:Pick<VentureTx,'find'>,row:NarrationSegmentRecord){const attempt=row.attempts.at(-1),id=row.masterFileId??attempt?.audioFileId,expected=row.masterDigest??attempt?.audioDigest;const file=id?read.find('venture-upload',id):undefined;check(file&&file.scope.kind==='order'&&file.scope.orderId===row.orderId&&file.format==='audio','NARRATION_AUDIO_REQUIRED','Make or import this segment audio first.');const bytes=Buffer.from(file.contentBase64,'base64');check(bytes.length>0&&sha(bytes)===expected,'DERIVED_STALE','The narration audio changed. Verify the current bytes again.');return {file,bytes,hash:sha(bytes),format:file.name.endsWith('.wav')?'wav':'mp3'};}
 /** Preview only the current stored bytes so the owner can actually listen before approving. */
 export function narrationAudioPreview(read:Pick<VentureTx,'find'>,rows:readonly NarrationSegmentRecord[]){return rows.flatMap(row=>{if(!row.masterFileId&&!row.attempts.at(-1)?.audioFileId)return [];const value=audio(read,row);return [{segmentId:row.id,name:value.file.name,contentBase64:value.file.contentBase64,digest:value.hash}];});}
