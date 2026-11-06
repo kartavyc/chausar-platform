@@ -167,3 +167,14 @@ export const BASE_SHEETS: Readonly<Record<string, SheetComponent>> = { run: RunS
   notifications: NotificationCentre,
   // C7: Help from the guide, and What's new.
   help: HelpSheet, 'whats-new': WhatsNewSheet };
+
+/** Each place-owned kind has one owner; the exported place maps are checked against this list. */
+export const SHEET_OWNERS: Readonly<Record<string, PlaceId>> = {
+  client: 'clients', lead: 'clients', person: 'clients', 'network-import': 'clients', card: 'clients', outreach: 'clients',
+  proposal: 'clients', company: 'clients', lists: 'clients', list: 'clients',
+  connector: 'connections', 'bank-import': 'connections', bank: 'connections',
+  invoice: 'money', payment: 'money', limit: 'money', accountant: 'money', billing: 'money',
+  agent: 'team', hire: 'team',
+  view: 'today', 'call-notes': 'today', 'edit-draft': 'today', 'work-receipt': 'today', layout: 'today',
+  'new-order': 'work', draft: 'work',
+};

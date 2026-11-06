@@ -26,7 +26,7 @@ test('chunk report resolves entry assets from HTML, distinguishes scripts from f
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
     assert.deepEqual(report.entryJs, { path: 'assets/start-B.js', bytes: 20 });
-    assert.deepEqual(report.entryCss, { path: 'assets/main-C.css', bytes: 10 });
+    assert.deepEqual(report.entryCss, { paths: ['assets/main-C.css'], bytes: 10 });
     assert.deepEqual(report.largestChunk, { path: 'assets/vendor-A.js', bytes: 40 });
     assert.equal(report.assets.length, 4);
   } finally { await rm(f.root, { recursive: true, force: true }); }
@@ -49,5 +49,32 @@ test('a missing entry is a failed report, not a zero byte pass', async () => {
     const result = run(f.dist, f.baseline, '--check');
     assert.equal(result.status, 1);
     assert.match(result.stderr, /entry script/i);
+  } finally { await rm(f.root, { recursive: true, force: true }); }
+});
+
+test('a required vendor chunk cannot silently disappear from a passing budget', async () => {
+  const f = await fixture();
+  try {
+    await writeFile(f.baseline, JSON.stringify({ entryJs: 25, entryCss: 15, largestChunk: 45, requiredChunks: ['react-vendor'] }));
+    const missing = run(f.dist, f.baseline, '--check');
+    assert.equal(missing.status, 1);
+    assert.match(missing.stderr, /Missing required chunk: react-vendor/);
+    await writeFile(join(f.dist, 'assets/react-vendor-Ab_12.js'), 'small vendor');
+    const present = run(f.dist, f.baseline, '--check');
+    assert.equal(present.status, 0, present.stderr);
+  } finally { await rm(f.root, { recursive: true, force: true }); }
+});
+
+test('every initial stylesheet contributes to the CSS budget after splitting', async () => {
+  const f = await fixture();
+  try {
+    await writeFile(join(f.dist, 'assets/shared-Z.css'), 'x'.repeat(20));
+    await writeFile(join(f.dist, 'index.html'), `<link rel="stylesheet" href="./assets/shared-Z.css"><link rel="stylesheet" href="./assets/main-C.css"><script type="module" src="./assets/start-B.js"></script>`);
+    const result = run(f.dist, f.baseline, '--json', '--check');
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.entryCss.bytes, 30);
+    assert.deepEqual(report.entryCss.paths, ['assets/shared-Z.css', 'assets/main-C.css']);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /entryCss.*30 exceeds 15/);
   } finally { await rm(f.root, { recursive: true, force: true }); }
 });

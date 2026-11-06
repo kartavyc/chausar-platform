@@ -1,5 +1,8 @@
 {
   "entryJs": 2501453,
   "entryCss": 365335,
-  "largestChunk": 2501453
+  "largestChunk": 2501453,
+  "requiredChunks": [
+    "react-vendor"
+  ]
 }
