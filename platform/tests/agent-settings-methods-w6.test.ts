@@ -48,3 +48,13 @@ test('AI settings carry the models Codex lists, or null when there is no list', 
   // No new input: the request stays exact.
   await assert.rejects(getAgentSettings(codex, owner, { models: true }), code('INVALID_VENTURE_REQUEST'));
 });
+
+
+test('simple model choices remain engine defaults after an owner changes both jobs (B4)', async () => {
+  const env = await setup(); await seedBlueprint(env);
+  const initial = await getAgentSettings(env.deps, owner, {});
+  assert.deepEqual(initial.modelChoices, { codex: { faster: 'gpt-6-luna', smarter: 'gpt-6.1-terra' }, claude: { faster: 'claude-haiku-5-5', smarter: 'claude-sonnet-5-5' } });
+  initial.settings.codex.quick.model = 'owner-model'; initial.settings.codex.main.model = 'owner-model';
+  const saved = await setAgentSettings(env.deps, owner, { settings: initial.settings });
+  assert.deepEqual(saved.modelChoices, initial.modelChoices);
+});

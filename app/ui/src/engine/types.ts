@@ -2739,6 +2739,8 @@ export interface EngineClient {
    * addresses the owner sends from, needed for mail. Null when the owner cancelled. Absent on the web and the fake,
    * where the page reads the file itself.
    */
+  /** Desktop only: the owner chooses a transcription path; nothing runs until separately saved. */
+  pickTranscriptionFile?(kind: 'command' | 'model'): Promise<string | null>;
   pickNetworkFile?(kind: NetworkImportKind, options?: { ownerAddresses?: string[] }): Promise<PickedNetworkFile | null>;
   /**
    * Desktop only (4J4, read by 4J20's Export for your CA): the desktop asks the engine for one month's CSV

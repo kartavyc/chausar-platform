@@ -116,3 +116,11 @@ describe('6F1 and 6F9 on the run card', () => {
     expect(within(cost).getByText('₹3.98')).toBeTruthy();
   });
 });
+
+
+it('empty external tool sections stay quiet with one small Add server action (B4)', async () => {
+  const settings = await openSettings(new FakeEngine({ latencyMs: 0 }));
+  expect(settings.queryByRole('group', { name: 'External tools (MCP)' })).toBeNull();
+  const add = settings.getByRole('button', { name: 'Add server' });
+  expect(add.getAttribute('data-size')).toBe('sm');
+});
