@@ -108,3 +108,21 @@
   color: var(--mute);
   overflow-wrap: anywhere;
 }
+
+/* C5 task 8: an app idea with its preview line under it; plain text, no box. */
+.idea {
+  display: block;
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-read);
+  text-align: start;
+  cursor: pointer;
+}
+
+.ideaPreview {
+  display: block;
+  color: var(--mute);
+}

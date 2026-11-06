@@ -97,7 +97,7 @@ export class FakeAppsDesk {
     switch (method) {
       case 'venture.apps.list': {
         exact(p, []);
-        return { apps: this.mine().map((app) => this.card(app)).reverse(), ideas: [...APP_IDEAS], never: APP_NEVER_LINE };
+        return { apps: this.mine().map((app) => this.card(app)).reverse(), ideas: APP_IDEAS.map((idea) => ({ ...idea })), never: APP_NEVER_LINE };
       }
       case 'venture.apps.get': return { app: this.view(this.find(p, ['app'])) };
       case 'venture.apps.make': return this.make(p);

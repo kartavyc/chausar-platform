@@ -12,8 +12,10 @@ export interface ComposerProps {
   placeholder?: string | undefined;
   /** Stores the message. The text is cleared only once this resolves; if it rejects the text stays. */
   onSend: (text: string) => Promise<void>;
-  /** Short things to ask; a tap puts the words in the box and never sends them. */
-  suggestions?: readonly string[] | undefined;
+  /** Short things to ask; a tap puts the words in the box and never sends them. C5 task 8: an idea may carry a preview line. */
+  suggestions?: readonly (string | { label: string; preview: string })[] | undefined;
+  /** The suggestions' name for screen readers, when not plain suggestions. */
+  suggestionsLabel?: string | undefined;
   /** One quiet line under the box, such as what the agent does without asking. */
   hint?: string | undefined;
   /** Words already in the box when it opens (W4 4C2: an ask from the header or Start), unsent until Send. */
@@ -30,7 +32,7 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  * is read-only and the suggestions wait, and a failure leaves the words in place with the reason under them. A send
  * starts once however fast Enter is pressed. Nothing goes to browser storage.
  */
-export function Composer({ label, placeholder, onSend, suggestions, hint, initial, className }: ComposerProps) {
+export function Composer({ label, placeholder, onSend, suggestions, suggestionsLabel, hint, initial, className }: ComposerProps) {
   const t = useT();
   const id = useId();
   const box = useRef<HTMLTextAreaElement>(null);
@@ -81,18 +83,22 @@ export function Composer({ label, placeholder, onSend, suggestions, hint, initia
       onSubmit={(event) => { event.preventDefault(); void send(); }}
     >
       {suggestions && suggestions.length > 0 && (
-        <div className={s.suggestions} role="group" aria-label={t('composer.suggestions')}>
-          {suggestions.map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              className={s.suggestion}
-              disabled={sending}
-              onClick={() => { write(suggestion); box.current?.focus(); }}
-            >
-              {suggestion}
-            </button>
-          ))}
+        <div className={s.suggestions} role="group" aria-label={suggestionsLabel ?? t('composer.suggestions')}>
+          {suggestions.map((suggestion) => {
+            const words = typeof suggestion === 'string' ? suggestion : suggestion.label;
+            return (
+              <button
+                key={words}
+                type="button"
+                className={typeof suggestion === 'string' ? s.suggestion : s.idea}
+                disabled={sending}
+                onClick={() => { write(words); box.current?.focus(); }}
+              >
+                {words}
+                {typeof suggestion !== 'string' && <span className={s.ideaPreview}>{suggestion.preview}</span>}
+              </button>
+            );
+          })}
         </div>
       )}
       <div className={s.box} data-sending={sending ? '' : undefined}>

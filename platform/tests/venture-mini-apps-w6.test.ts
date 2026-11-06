@@ -110,6 +110,9 @@ test('6H1: the owner AI writes the app as data; code checks it and works out wha
   const listed = await env.call('venture.apps.list');
   assert.deepEqual(listed.apps.map((item: any) => [item.id, item.allowed, item.reads]), [[app.id, false, ['Reads: Clients', 'Reads: Invoices', 'Keeps notes', 'Proposes cards']]]);
   assert.equal(listed.ideas.length, 3);
+  // C5 task 8: each idea carries a code-written preview line of what the app would show.
+  assert.deepEqual(listed.ideas[0], { label: 'Who owes me, by client', preview: 'A table of unpaid invoices grouped by client, with what each owes.' });
+  assert.ok(listed.ideas.every((idea: any) => typeof idea.label === 'string' && typeof idea.preview === 'string' && idea.preview.length > 0));
 });
 
 test('6H1: code that reaches outside or writes money is not kept; the reasons are said', async () => {

@@ -25,7 +25,7 @@ import { sumReceipt } from '../money/sums.ts';
 import { appCalcPlan, appCalcSubject } from './calc.ts';
 import { makeTask } from './make.ts';
 import { APP_PERMISSIONS, APP_TOOLS, appCodeFindings, appDocument, appUri, exportDocument, permissionsOf, type AppPermission } from './frame.ts';
-import { APP_ERRORS, APP_IDEAS, APP_LINES, APP_NEVER_LINE, madeLine, PERMISSION_WORDS } from './words.ts';
+import { APP_ERRORS, APP_IDEAS, type AppIdea, APP_LINES, APP_NEVER_LINE, madeLine, PERMISSION_WORDS } from './words.ts';
 
 /** At most this many versions are kept; the oldest that is not in use goes first. */
 export const APP_VERSIONS_KEPT = 20;
@@ -93,11 +93,11 @@ const appId = (payload: unknown, fields: readonly string[] = ['app']) => {
 };
 
 /** venture.apps.list {} (read): the business's apps, newest first, with ideas and the line about what apps never do. */
-export async function appsListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ apps: MiniAppCard[]; ideas: string[]; never: string }> {
+export async function appsListHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ apps: MiniAppCard[]; ideas: AppIdea[]; never: string }> {
   exactPayload(payload, []);
   const { state, venture } = readAs(deps, ctx, 'read');
   const apps = listRecords(state, 'venture-mini-app', venture.id).map(cardOf).reverse();
-  return { apps, ideas: [...APP_IDEAS], never: APP_NEVER_LINE };
+  return { apps, ideas: APP_IDEAS.map(idea => ({ ...idea })), never: APP_NEVER_LINE };
 }
 
 /** venture.apps.get { app } (read): one app, opened, with its frame document and its permission screen if it needs one. */

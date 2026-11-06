@@ -13,7 +13,13 @@ export const PERMISSION_WORDS: Readonly<Record<AppPermission, { verb: 'Read' | '
 });
 
 export const APP_NEVER_LINE = 'Use the internet, send or pay by itself, see other apps, or open files on your computer.';
-export const APP_IDEAS: readonly string[] = Object.freeze(['Who owes me, by client', 'Weekly work planner', 'Price calculator for clients']);
+/** C5 task 8: each idea with one code-written line of what the app would show, under it on Apps. */
+export type AppIdea = { label: string; preview: string };
+export const APP_IDEAS: readonly AppIdea[] = Object.freeze([
+  { label: 'Who owes me, by client', preview: 'A table of unpaid invoices grouped by client, with what each owes.' },
+  { label: 'Weekly work planner', preview: "This week's open orders as a list by day, with notes you keep." },
+  { label: 'Price calculator for clients', preview: 'Pick an offer and a quantity; the calculator works out the price with a receipt.' },
+]);
 
 /** Names for the reads an app makes, joined in plain words: "Clients and Invoices". */
 const READ_NAMES: Readonly<Partial<Record<AppPermission, string>>> = Object.freeze({ clients: 'your Clients', orders: 'your Orders', invoices: 'your invoices' });
