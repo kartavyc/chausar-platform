@@ -5,7 +5,7 @@
 // port does (preview, dispatching, completed), so Forget's erasure of a call's text can be seen.
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import { PURPOSE_TIER } from '../runtime/venture/contracts.ts';
+import { PURPOSE_TIER } from '../runtime/venture/contract-values.ts';
 import type {
   ModelOutcome, ModelPort, ModelPreview, ModelStatusView, ModelTask, NetworkSearchRecord, NetworkSearchView, PersonRecord, VentureMethod, WebSearchPort,
 } from '../runtime/venture/contracts.ts';

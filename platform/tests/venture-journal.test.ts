@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_ERRORS, VENTURE_METHODS, VENTURE_RECORD_KINDS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_ERRORS, VENTURE_METHODS, VENTURE_RECORD_KINDS } from '../runtime/venture/contract-values.ts';
 import type { ConnectorPostRecord, JournalEntry, JournalRecord, SiteEditRecord, VentureDeps } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as views } from '../runtime/venture/views/index.ts';

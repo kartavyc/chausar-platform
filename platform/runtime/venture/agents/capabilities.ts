@@ -12,7 +12,7 @@
 // reads, records, hands off, planned or off. An empty list never means everything. The words are typed against the
 // engine's own lists, so a new tool or effect cannot ship without them. Reads only; no model is asked.
 import { check, type Context, type State } from '../../contracts.ts';
-import { STEP_PLAN, TOOL_NAMES } from '../contracts.ts';
+import { STEP_PLAN, TOOL_NAMES } from '../contract-values.ts';
 import type {
   CapabilityItemView, CapabilityPageView, PlaybookStep, ServiceType, ToolName, VentureDeps, VentureHostKind, VentureRecord,
 } from '../contracts.ts';

@@ -9,7 +9,7 @@
 // order carry the personas of the agents doing them, and the writing turn the writer's, as background that grants
 // nothing (personaInputs, wired in delivery/runs.ts and delivery/harness/loop.ts).
 import { check, type Context, type State } from '../../contracts.ts';
-import { PURPOSE_TIER } from '../contracts.ts';
+import { PURPOSE_TIER } from '../contract-values.ts';
 import type { Json, ModelTask, PersonaFields, PersonaRecord, PersonaTestView, PersonaView, PlaybookRecord, Scenario, VentureDeps, VentureRecord } from '../contracts.ts';
 import { exactPayload, identifier, listRecords, modelWords, requireAppChannel, singleLine, sumMicros, tidyWords, ventureAction, type VentureTx } from '../records.ts';
 import { acceptedBlueprint, readAs } from '../delivery/shared.ts';

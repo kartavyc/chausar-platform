@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_ERRORS, VENTURE_METHODS, VENTURE_RECORD_KINDS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_ERRORS, VENTURE_METHODS, VENTURE_RECORD_KINDS } from '../runtime/venture/contract-values.ts';
 import type { ClientRecord, EvidenceItem, EvidenceRecord, ToolCallRecord, VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { EVIDENCE_TYPES, scoreEvidence } from '../runtime/venture/evidence/types.ts';

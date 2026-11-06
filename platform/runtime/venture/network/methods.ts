@@ -4,7 +4,7 @@
 // and link, at the end, and the bands on the source cards; 4D3 search).
 import { networkChips } from './chips.ts';
 import { check, type Context } from '../../contracts.ts';
-import { NETWORK_IMPORT_KINDS } from '../contracts.ts';
+import { NETWORK_IMPORT_KINDS } from '../contract-values.ts';
 import type {
   IsoDate, NetworkImportKind, NetworkRecompute, NetworkSourceCard, NetworkSourcesView, PeopleView, PersonFact, PersonRecord, PersonSplit, PersonSummary,
   PersonView, VentureDeps,

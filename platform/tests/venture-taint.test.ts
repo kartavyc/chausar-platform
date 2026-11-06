@@ -5,7 +5,7 @@
 // No network, no paid calls.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TOOL_NAMES } from '../runtime/venture/contracts.ts';
+import { TOOL_NAMES } from '../runtime/venture/contract-values.ts';
 import type { DelegationRequest, HarnessState, PolicyHold, ScenarioKind, TaintMark, ToolName } from '../runtime/venture/contracts.ts';
 import { practiceFiles } from '../runtime/venture/delivery/harness/practice.ts';
 import type { FileLike } from '../runtime/venture/delivery/harness/files.ts';

@@ -15,7 +15,7 @@
 // page, never a profile page, after the owner's own network. Find more serves what waits first and leaves out everyone
 // already shown. A search that stops before it is stored erases the text its calls carried.
 import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
-import { SEARCH_FIELDS } from '../contracts.ts';
+import { SEARCH_FIELDS } from '../contract-values.ts';
 import type {
   Json, ModelPort, ModelTask, NetworkSearchRecord, NetworkSearchResult, NetworkSearchView, PersonRecord, SearchField, SearchFilters, SearchTrait,
   SearchWebState, TieBand, TraitCheck, VentureDeps, VentureRecord,

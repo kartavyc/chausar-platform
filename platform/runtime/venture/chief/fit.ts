@@ -3,7 +3,7 @@
 // runs; it is the AI's judgement, so it always comes labelled a model estimate. Only the ways and the business kinds
 // are sent, never client data or a business name. With templates only there is no fit to show (null).
 import { authorize, ChausarError, type Context } from '../../contracts.ts';
-import { PURPOSE_TIER } from '../contracts.ts';
+import { PURPOSE_TIER } from '../contract-values.ts';
 import type { ChiefFit, Json, ModelTask, VentureDeps, WaysView } from '../contracts.ts';
 import { currentVenture, exactPayload, houseStyleFindings, tidyWords } from '../records.ts';
 import { statesMoney } from '../delivery/harness/patches.ts';

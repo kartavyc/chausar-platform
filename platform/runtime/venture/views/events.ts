@@ -4,7 +4,7 @@
 // them to the desktop window over IPC and streams them to the web over Server-Sent Events at GET /api/events. A
 // screen that hears one reads the queue or the run again: the event says only what changed, never the data itself.
 // This file is a leaf: it imports no venture package, so the web servers can use it without loading the engine's views.
-import { VENTURE_RUN_EVENT_TYPES } from '../contracts.ts';
+import { VENTURE_RUN_EVENT_TYPES } from '../contract-values.ts';
 import type { VentureFrame, VentureRunEvent, VentureRunEventType } from '../contracts.ts';
 
 /** An event as the hosted runtime hands it to listeners (platform/runtime/hosted/runtime/contract.ts ActorEvent). */

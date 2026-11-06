@@ -21,7 +21,7 @@
 import { check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, digest, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import {appendChiefMessage} from '../chief/store.ts';
-import { ROUTINE_ANSWER_MS } from '../contracts.ts';
+import { ROUTINE_ANSWER_MS } from '../contract-values.ts';
 import type { ChiefThreadRecord, QueueAction, RoutineRecord, RoutineRunRecord, RoutineRunState, VentureDeps, VentureRecord } from '../contracts.ts';
 import type { W4Decision, W4Outcome, W4RowItem } from '../views/queue-w4.ts';
 import { askedName, liveRoutines, occurrencesBetween, runsOf } from './routines.ts';

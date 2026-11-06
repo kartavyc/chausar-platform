@@ -36,7 +36,7 @@ import type {
 DeliveryReason,DeliveryRunRecord,Display,EvidenceRecord,HarnessState,InvoiceRecord,MicroString,Offer,QueueAction,QueueActionId,
 QueueDecision,QueueDecisionRecord,QueueKind,QueueList,QueueRow,VentureBusinessRef,VentureDeps,VentureRecord,
 } from '../contracts.ts';
-import { DELIVERY_REASONS,QUEUE_ACTION_IDS } from '../contracts.ts';
+import { DELIVERY_REASONS, QUEUE_ACTION_IDS } from '../contract-values.ts';
 import { blueprintAccept } from '../core/blueprint.ts';
 import { allowCapWindow } from '../delivery/harness/loop.ts';
 import { judgeStateLine } from '../delivery/judge-run.ts';

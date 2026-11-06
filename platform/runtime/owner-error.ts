@@ -5,7 +5,7 @@
 // source text, stack lines, hosts and paths never reach a screen. The local server and the desktop engine worker answer
 // this way.
 import { ChausarError } from './contracts.ts';
-import { VENTURE_ERRORS } from './venture/contracts.ts';
+import { VENTURE_ERRORS } from './venture/contract-values.ts';
 import { CUSTODY_ERRORS } from './workspace-custody-contracts.ts';
 import type { PhoneErrorCode } from './phone/contracts.ts';
 import { refusalTravel } from './owner-flag.ts';

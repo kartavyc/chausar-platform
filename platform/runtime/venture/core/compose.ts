@@ -6,7 +6,7 @@
 import { formatMoney } from '../../owner-format.ts';
 import { check, ChausarError } from '../../contracts.ts';
 import { copiedTokens, digest, exactPayload } from '../records.ts';
-import { SERVICE_TYPE_LABELS, SERVICE_TYPES } from '../contracts.ts';
+import { SERVICE_TYPE_LABELS, SERVICE_TYPES } from '../contract-values.ts';
 import type {
   BackOffice, CountryProfile, InterviewAnswer, Json, ModelOutcome, ModelTask, PricingModel, ServiceType,
 } from '../contracts.ts';

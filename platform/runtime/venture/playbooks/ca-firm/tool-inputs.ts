@@ -5,7 +5,7 @@
 // amount is picked once per call, so nothing is counted twice. Awkward rows never sink a whole table: rows the agent
 // leaves out (a subtotal, a note) and rows the working cannot take (a credit note, a payment outside the year, a
 // section that is not exact) are listed as not counted, each with its reason, and logged on the receipt.
-import { INDIA_STATES } from '../../contracts.ts';
+import { INDIA_STATES } from '../../contract-values.ts';
 import type { IsoDate, WorkStep } from '../../contracts.ts';
 import { amountCandidates, parseDateCell, parseMoneyCell } from '../../delivery/harness/cells.ts';
 import { pdfPages, type SourceTable } from '../../delivery/harness/files.ts';

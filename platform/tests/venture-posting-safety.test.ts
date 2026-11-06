@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
 import type { BrowserPort, BrowserPostJob, BrowserPostResult, ConnectorCard, ConnectorPostRecord, ShareLinkView, VentureDeps } from '../runtime/venture/contracts.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import { digest, houseStyleFindings, listRecords } from '../runtime/venture/records.ts';
 import { handlers as build } from '../runtime/venture/build/index.ts';
 import {

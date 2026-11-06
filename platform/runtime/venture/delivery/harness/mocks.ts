@@ -5,7 +5,7 @@
 // refuses it (MOCK_REAL_RUN), so it never fakes a capability. Mock providers (payment link, mail, posting) live in
 // mock-providers.ts. The pattern follows einvoice's mock.ts and llm-space's custom function tool (2026-10-21 harvest).
 import { check } from '../../../contracts.ts';
-import { TOOL_NAMES } from '../../contracts.ts';
+import { TOOL_NAMES } from '../../contract-values.ts';
 import type { Json, ToolName } from '../../contracts.ts';
 import type { ToolEnv, ToolResult } from './tools.ts';
 

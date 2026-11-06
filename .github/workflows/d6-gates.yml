@@ -1,0 +1,33 @@
+name: D6 full engine qualification
+on:
+  push:
+    branches: ['b2c/os-d6-gates-*']
+permissions:
+  contents: read
+jobs:
+  engine:
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node scripts/bench.mjs --shard=${{ matrix.shard }}/6 --workers=3
+        env:
+          CHAUSAR_RUN_ROOT: ${{ runner.temp }}/d6
+      - run: node scripts/desktop-smoke.mjs
+        if: matrix.shard == 1 && !cancelled()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d6-engine-${{ matrix.shard }}
+          path: ${{ runner.temp }}/d6/engine-tests/factory-bench.json

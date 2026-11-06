@@ -10,7 +10,7 @@ import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import { PURPOSE_TIER, STEP_PLAN } from '../runtime/venture/contracts.ts';
+import { PURPOSE_TIER, STEP_PLAN } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintRecord, CapabilityStatus, CountryProfile, DelegatePorts, DelegateRunRecord, DeliveryRunView, HarnessState, ModelOutcome, ModelPort, ModelPreset,
   ModelPreview, ModelPurpose, ModelStatusView, ModelTask, OrderRecord, PriceReceiptRecord, VentureDeps, VentureRecord, WorkReceiptRecord,

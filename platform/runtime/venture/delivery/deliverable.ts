@@ -4,7 +4,7 @@
 import { check, type State } from '../../contracts.ts';
 import { currencyMinorDigits, formatMinor } from '../../currency.ts';
 import { copiedTokens, formatVentureDate, modelNumbers, modelWords } from '../records.ts';
-import { REQUIRED_SECTIONS } from '../contracts.ts';
+import { REQUIRED_SECTIONS } from '../contract-values.ts';
 import type {
   BlueprintRecord, CountryProfile, Deliverable, DeliveryModelOutput, IsoDate, Json, ModelTask, OrderRecord, PriceFigure,
   PriceReceiptRecord, ServiceType, TextPart, WorkReceiptRecord,

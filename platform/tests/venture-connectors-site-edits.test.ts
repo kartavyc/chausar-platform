@@ -7,7 +7,7 @@ import { mkdtemp, readFile, rm, symlink, writeFile, mkdir } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Context } from '../runtime/contracts.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import type { GitHubRequest, GitHubTransport, VentureDeps } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import {

@@ -5,7 +5,7 @@
 // payout details and issuing for real; deleting a scheduled job stays off it. Pure functions; no network.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TOOL_NAMES } from '../runtime/venture/contracts.ts';
+import { TOOL_NAMES } from '../runtime/venture/contract-values.ts';
 import { classifyEffects, DESTRUCTIVE_WORDS, EFFECT_KINDS, MUTATING_HTTP, toolDeclaration } from '../runtime/venture/policy/effects.ts';
 import { FLOOR_KINDS, FLOOR_WORDS, floorOf, type PolicyAction } from '../runtime/venture/policy/floor.ts';
 import { ladderPolicy, type PolicyContext } from '../runtime/venture/policy/ladder.ts';

@@ -25,5 +25,18 @@ jobs:
         if: '!cancelled()'
       - run: node --test --test-concurrency=2 platform/tests/venture-contracts.test.ts platform/tests/venture-method-hints.test.ts platform/tests/venture-engine.test.ts platform/tests/hosted-runtime.test.ts platform/tests/desktop-ipc-methods.test.ts
         if: '!cancelled()'
-      - run: node --test --test-name-pattern='contract-values exports' platform/tests/contracts-types-only-d6.test.ts
+      - run: node --test platform/tests/contracts-types-only-d6.test.ts
         if: '!cancelled()'
+      - run: |
+          node .github/d6-measure.mjs
+          for i in 1 2 3; do node .github/d6-count-modules.mjs "$GITHUB_WORKSPACE/platform/runtime/worker.ts" > "$RUNNER_TEMP/d6-worker-after-$i.json"; done
+        if: '!cancelled()'
+      - run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/engine
+        if: '!cancelled()'
+      - run: npm run build:ui
+        if: '!cancelled()'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d6-after
+          path: ${{ runner.temp }}/d6-*.json

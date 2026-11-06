@@ -2,7 +2,7 @@
 // CLI status checked against the installed tools, and which AI answers for each role (roles.ts).
 // Desktop model keys persist through the private OS-protected host port; the unlocked shelf is only a cache.
 import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
-import { DELEGATE_CLIS, MODEL_PRESET_IDS, MODEL_PURPOSES } from '../contracts.ts';
+import { DELEGATE_CLIS, MODEL_PRESET_IDS, MODEL_PURPOSES } from '../contract-values.ts';
 import type {
   CliCheckRecord, CliFinding, CliStatusList, ModelPresetId, ModelPurpose, ModelStatusView, ModelTier, VentureDeps, VentureHandlerTable, VentureResults,
 } from '../contracts.ts';

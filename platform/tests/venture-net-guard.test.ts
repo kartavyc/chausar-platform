@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { createServer, type IncomingHttpHeaders } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import { houseStyleFindings } from '../runtime/venture/records.ts';
 import {
   NET_LIMITS, checkUrl, classifyAddress, guardedFetch, pinnedLookup, pinnedSend, resolvePublic, type NetAddress, type PinnedTarget,

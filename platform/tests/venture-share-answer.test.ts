@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import type { BrowserPort, DeliveryRunRecord, ShareLinkView, VentureDeps } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings, listRecords } from '../runtime/venture/records.ts';
 import { handlers as build } from '../runtime/venture/build/index.ts';

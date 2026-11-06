@@ -18,7 +18,7 @@
 // No LinkedIn page is read and nothing is automated there; Chausar never sends a message of any kind.
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { refuseRegulatorForbidden } from '../core/compliance.ts';
-import { OUTREACH_KINDS } from '../contracts.ts';
+import { OUTREACH_KINDS } from '../contract-values.ts';
 import type {
   IsoDate, IsoTime, Json, LawfulBasis, LeadRecord, LeadSettingsRecord, ModelTask, OpportunityRecord, OutreachChannel, OutreachHandoff, OutreachKind,
   OutreachLanguage, OutreachRecord, OutreachRestriction, OutreachSentChannel, OutreachSentResult, OutreachView, PersonRecord, TieBand, VentureDeps,
