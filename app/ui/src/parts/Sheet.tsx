@@ -10,6 +10,13 @@ import s from './Sheet.module.css';
  */
 export const SheetTitleContext = createContext<((titleId: string | undefined) => void) | null>(null);
 
+/**
+ * One-shot C3 task 5: how the shell is showing this sheet. `leaving`: it was closed and plays its exit (Sheet.module.css
+ * [data-leaving]) before the shell drops it; `replacing`: it took another sheet's place (Read to Edit), so it cross-fades
+ * on the press time instead of sliding in.
+ */
+export const SheetMotionContext = createContext<'leaving' | 'replacing' | null>(null);
+
 export interface SheetProps {
   /** What kind of sheet this is, for the top line: "Run", "Receipt". */
   label: string;
@@ -46,6 +53,7 @@ export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, child
   const restore = useRef(returnFocus);
   restore.current = returnFocus;
   const reportTitle = useContext(SheetTitleContext);
+  const motion = useContext(SheetMotionContext);
 
   useEffect(() => {
     reportTitle?.(titleId);
@@ -62,7 +70,8 @@ export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, child
   }, []);
 
   return (
-    <aside className={s.sheet} aria-labelledby={titleId} data-sheet="" data-width={width} data-receipt-sheet={receipt ? '' : undefined}>
+    <aside className={s.sheet} aria-labelledby={titleId} data-sheet="" data-width={width} data-receipt-sheet={receipt ? '' : undefined}
+      data-leaving={motion === 'leaving' ? '' : undefined} data-replacing={motion === 'replacing' ? '' : undefined}>
       <header className={s.head}>
         {avatar && <span className={s.avatar}>{avatar}</span>}
         <div className={s.id}>

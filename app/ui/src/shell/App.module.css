@@ -11,6 +11,9 @@
   height: 100dvh;
   background: var(--bg);
   color: var(--fg);
+  /* One-shot C3: the page column makes room for a sheet, and takes it back after the sheet left, over the sheet time
+     (0 with motion off, tokens/motion.css). */
+  transition: grid-template-columns var(--t-sheet) var(--ease);
 }
 
 .app[data-sheet-open] {

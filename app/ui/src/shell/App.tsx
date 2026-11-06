@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EngineProvider, useEngine, useEngineStatus } from '../engine/context';
 import { TextProvider, useT, type Language } from '../text';
-import { SheetTitleContext } from '../parts/Sheet';
+import { SheetMotionContext, SheetTitleContext } from '../parts/Sheet';
+import { afterExit, motionOff } from '../parts/motion';
 import { ShellToolsContext } from '../parts/PageTitle';
 import { AskBox } from './AskBox';
 import { useAskKey } from './ask';
@@ -12,7 +13,8 @@ import { PrivacyBoundary } from './PrivacyBoundary';
 import { useShellKeys } from './keys';
 import { PLACES, SHEETS } from './places';
 import { Rail } from './Rail';
-import { UnknownSheet } from './sheets';
+import { UnknownSheet, type SheetComponent } from './sheets';
+import type { SheetRef } from './routes';
 import { PhoneTabs, TopBar } from './TopBar';
 import { TrialBanner } from './TrialBanner';
 import { useNarrow } from './useNarrow';
@@ -65,8 +67,10 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
 
   const { Place } = PLACES[route.place];
   const sheet = route.sheet;
-  const SheetKind = sheet ? SHEETS[sheet.kind] ?? UnknownSheet : null;
+  const SheetKind = sheet ? SheetFor(sheet) : null;
   const covered = narrow && Boolean(sheet && SheetKind);
+  const motion = useSheetMotion(sheet, SheetKind);
+  const shown = motion.shown;
   const [sheetTitle, setSheetTitle] = useState<string | undefined>();
   const dialog = covered ? { role: 'dialog', 'aria-modal': true, 'aria-labelledby': sheetTitle } : {};
   const shellTools = useMemo(() => (narrow ? null : <><AskBox /><Bell /></>), [narrow]);
@@ -75,7 +79,7 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
     // One notification list for the bell and the centre (W4 4G4), so they never disagree.
     <OwnerZone>
     <NotifyProvider>
-    <div className={s.app} data-phone={narrow ? '' : undefined} data-sheet-open={sheet ? '' : undefined} data-boot={checking ? '' : undefined}>
+    <div className={s.app} data-phone={narrow ? '' : undefined} data-sheet-open={shown ? '' : undefined} data-boot={checking ? '' : undefined}>
       <button type="button" className={s.skip} inert={covered} onClick={() => main.current?.focus()}>{t('shell.skip')}</button>
       <div className={s.status}>{statusLine}</div>
       {narrow
@@ -89,10 +93,13 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
           <div className={s.page}><TrialBanner /><AiGo /><Place key={route.place} /></div>
         </ShellToolsContext.Provider>
       </main>
-      {sheet && SheetKind && (
-        <div className={s.sheet} data-cover={narrow ? '' : undefined} {...dialog}>
-          <SheetTitleContext.Provider value={setSheetTitle}>
-            <SheetKind key={`${sheet.kind}:${sheet.id}`} id={sheet.id} onClose={closeSheet} returnFocus={returnFocus} />
+      {/* One-shot C3: a closed sheet stays as an inert, hidden leaving copy (the same element) until its exit ends. */}
+      {shown && (
+        <div ref={motion.holder} className={s.sheet} data-cover={narrow ? '' : undefined} {...(motion.state === 'leaving' ? { inert: true, 'aria-hidden': true } : dialog)}>
+          <SheetTitleContext.Provider value={motion.state === 'leaving' ? null : setSheetTitle}>
+            <SheetMotionContext.Provider value={motion.state}>
+              <shown.Kind key={`${shown.sheet.kind}:${shown.sheet.id}`} id={shown.sheet.id} onClose={closeSheet} returnFocus={returnFocus} />
+            </SheetMotionContext.Provider>
           </SheetTitleContext.Provider>
         </div>
       )}
@@ -102,3 +109,39 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
     </OwnerZone>
   );
 }
+
+const SheetFor = (sheet: SheetRef): SheetComponent => SHEETS[sheet.kind] ?? UnknownSheet;
+type Shown = { sheet: SheetRef; Kind: SheetComponent };
+const keyOf = (shown: Shown | null) => (shown ? `${shown.sheet.kind}:${shown.sheet.id}` : null);
+
+/**
+ * One-shot C3 task 5: the one sheet, as it opens, is replaced and leaves. When the address loses its sheet, the last
+ * one stays drawn as a leaving copy (the same element, so nothing reloads), focus goes back to its opener at once, and
+ * the copy goes when its exit animation ends (or its timer, or at once with motion off). A sheet that opens while one
+ * leaves replaces it at once. A sheet that takes another's place (Read to Edit) cross-fades instead of sliding in.
+ */
+function useSheetMotion(sheet: SheetRef | undefined, Kind: SheetComponent | null) {
+  const live: Shown | null = sheet && Kind ? { sheet, Kind } : null;
+  const [last, setLast] = useState<Shown | null>(live);
+  const [leaving, setLeaving] = useState<Shown | null>(null);
+  const [replacing, setReplacing] = useState(false);
+  const holder = useRef<HTMLDivElement>(null);
+  if (keyOf(live) !== keyOf(last)) {
+    setLast(live);
+    setLeaving(!live && last && !motionOff() ? last : null);
+    setReplacing(Boolean(live && last));
+  }
+  const leavingKey = keyOf(leaving);
+  // Focus goes back at close, while the copy still leaves (the Sheet's own unmount then finds nothing to do).
+  useLayoutEffect(() => {
+    if (leavingKey) returnFocus();
+  }, [leavingKey]);
+  useEffect(() => {
+    if (!leavingKey) return undefined;
+    return afterExit(holder.current?.querySelector('aside[data-sheet]') ?? null, () => setLeaving(null));
+  }, [leavingKey]);
+  const shown = live ?? leaving;
+  const state: SheetMotion = live ? (replacing ? 'replacing' : null) : leaving ? 'leaving' : null;
+  return { shown, state, holder };
+}
+type SheetMotion = 'leaving' | 'replacing' | null;
