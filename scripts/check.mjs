@@ -92,5 +92,8 @@ async function main() {
     const kept = await readFile(join(root, 'platform', 'runtime', 'venture', 'core', 'guide-data.json'), 'utf8').catch(() => '');
     if (kept.replace(/\r\n/g, '\n') !== guideData(guide)) { process.stderr.write('guide-data.json is out of date with the guide. Run: node scripts/guide-index.mjs\n'); process.exit(1); }
   }
+  const { checkGenerated } = await import('./gen-contract.mjs');
+  const contractDifferences = await checkGenerated();
+  if (contractDifferences.length) { process.stderr.write(`${contractDifferences.join('\n')}\n`); process.exit(1); }
   console.log(`Syntax and JSON validation passed for ${files.length} source files.`);
 }
