@@ -1,5 +1,6 @@
+import { runTransport } from './replay/transport.ts';
 import { captureSampleKey } from './replay/sample.ts';
-import { runClock, runTransport } from './replay/scope.ts';
+import { runClock } from './replay/scope.ts';
 // Chausar venture launcher: the host that serves every venture method to the engine.
 // Owned by package P6. The engine reaches this file only through a dynamic import at request time.
 //
