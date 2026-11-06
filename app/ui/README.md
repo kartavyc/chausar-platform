@@ -25,7 +25,7 @@ src/shell                      App, Rail, BusinessMenu, routes, navigation, keys
 src/parts                      Row, ApprovalRow, Change, Receipt, ModelEstimate, Button, Sheet, RunSheet, Steps,
                                EmptyState, Field, Gate, Provenance, ConnectorLabel, StatusLine, PageTitle
 src/places/<place>/index.tsx   one folder per place, exporting Place (and optionally sheets)
-tests                          one file per area; parts, shell, engine, text, tokens, source rules, axe (a11y.test.tsx),
+tests                          one file per area; parts, shell, engine, text, tokens, source rules, axe (a11y/),
                                text contrast from the tokens (contrast.test.ts), the desktop IPC allowlist
 ```
 
