@@ -123,16 +123,16 @@ test('the forecast: quotes weighed by the share won from each stage, labelled an
   const env = await setup();
   const { open } = await history(env);
   const view = await board(env);
-  // Closed cards that reached Proposal: 4 (3 won, 1 lost), so 750 in 1,000. The open quote is INR 2,499.00 before tax.
-  // 249,900 x 750 / 1,000 = 187,425 paise, INR 1,874.25.
+  // Closed cards that reached Proposal: 4 (3 won, 1 lost), so 750 in 1,000. The open quote is ₹2,499 before tax.
+  // 249,900 x 750 / 1,000 = 187,425 paise, ₹1,874.25.
   assert.ok(view.forecast && 'value' in view.forecast);
-  assert.deepEqual([view.forecast.value, view.forecast.label], ['INR 1,874.25', 'forecast in INR only, from your last 90 days']);
+  assert.deepEqual([view.forecast.value, view.forecast.label], ['₹1,874.25', 'forecast in INR only, from your last 90 days']);
   const receipt = await moneyCall<SumReceiptRecord>(env, 'venture.receipt.get', { id: view.forecast.receiptId });
   assert.deepEqual([receipt.unit, receipt.totalMinor, receipt.estimate, receipt.figures[0].label], ['minor', '187425', true, 'Forecast in INR only, from your last 90 days']);
   assert.ok(receipt.explanation.endsWith('Each amount is a forecast in INR, not money anyone owes. Other currencies are excluded.'), receipt.explanation);
   assert.ok(!receipt.explanation.includes('Calls not settled'), 'its own estimate words, not the spend ones');
   assert.deepEqual(receipt.addends.map(item => [item.recordId, item.amount, item.label]), [
-    [open, '187425', 'A card at Proposal: a quote of INR 2,499.00 before tax, times 750 in 1,000 won from Proposal'],
+    [open, '187425', 'A card at Proposal: a quote of ₹2,499 before tax, times 750 in 1,000 won from Proposal'],
   ]);
   await move(env, open, 'lost', { reason: 'timing' });
   const after = await moneyCall<SumReceiptRecord>(env, 'venture.receipt.get', { id: view.forecast.receiptId });

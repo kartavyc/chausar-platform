@@ -120,7 +120,7 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
   if (owing && invoice.dueDate) {
     due = (
       <>
-        <span className={cx(s.wideOnly, 'mono')}>{day(invoice.dueDate)}</span>
+        <span className={s.wideOnly} data-num="">{day(invoice.dueDate)}</span>
         <span className={s.phoneOnly} data-phone-label="">{t('money.due', { date: day(invoice.dueDate) })}</span>
       </>
     );
@@ -155,7 +155,7 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
       <td role="cell" className={s.cellNumber}>
         <button
           type="button"
-          className={cx(s.invoiceNo, invoice.number && 'mono')}
+          data-code="" className={cx(s.invoiceNo, invoice.number && 'mono')}
           data-open=""
           aria-label={invoice.number ? t('money.invoiceRef', { number: invoice.number }) : t('money.invoices.draftTitle', { client: who })}
           onClick={(event) => open(event.currentTarget)}
@@ -174,7 +174,7 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
       </td>
       <td role="cell" className={s.cellAmount}>
         {proved && <span className={cx(s.phoneOnly, s.cellLabel)} data-phone-label="">{t('money.table.amount')}</span>}
-        {proved && <span className={cx(s.amount, 'mono')}>{total}</span>}
+        {proved && <span className={s.amount} data-num="">{total}</span>}
         {view.error && <EngineWords className={s.quietSmall}>{t('money.failed', { message: view.error.message })}</EngineWords>}
       </td>
       <td role="cell" className={s.cellStatus}><StateChip kind="invoice" value={invoice.status} /></td>

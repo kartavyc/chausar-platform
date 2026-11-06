@@ -1,5 +1,5 @@
 // Chausar website report desk and monthly re-check. lintapple (MIT), original guarded scheduled check integration.
-import { check } from '../../../contracts.ts';
+import { check,internalCheck } from '../../../contracts.ts';
 import type { SeoFindingRecord } from '../../contracts.ts';
 import { exactPayload, readVenture, listRecords, digest, requireAppChannel, ventureAction } from '../../records.ts';
 import { websiteReport, approveWebsiteCheck } from './site-check.ts';
@@ -15,7 +15,7 @@ export const SEO_WEBSITE_DESK: DeskHandlers = { website: {
             const result = await ventureAction(deps, ctx, 'approve', 'seo.website.' + payload.action, tx => {
                 let record: SeoFindingRecord;
                 if (payload.action === 'import') {
-                    check(payload.id === 'new' && payload.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new website check has no prior digest.');
+                    internalCheck(payload.id === 'new' && payload.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new website check has no prior digest.');
                     const p = exactPayload(payload.payload, ['url', 'report'], ['url', 'report']);
                     check(typeof p.url === 'string', 'SITE_CHECK_INVALID', 'Choose the client site URL.');
                     const report = websiteReport(p.url, p.report);

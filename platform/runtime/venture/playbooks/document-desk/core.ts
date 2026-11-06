@@ -4,7 +4,7 @@
 // money.ts, the extractor the tender desk uses too), the two approvals, taking an accepted draft's sections, and the
 // export pack (kit/documents/pack.ts, the tender desk's pack). Written for Chausar; nothing here is learned elsewhere.
 import {check,digest} from '../../../portable.ts';
-import {currencyMinorDigits,decimalMinor,formatMinor} from '../../../currency.ts';
+import {currencyMinorDigits,decimalMinor,formatMinor} from '../../../currency.ts';import {formatMoney} from '../../../owner-format.ts';
 import {moneyAmounts} from '../kit/documents/money.ts';
 import {csvText,docxEntries,xlsxEntries,type PackSection} from '../kit/documents/pack.ts';
 import type {ZipEntry} from '../kit/ooxml/zip-core.ts';
@@ -136,16 +136,17 @@ export function takeDraft(body:DocumentBody,runId:string,text:string):DocumentBo
  return {...next,takenFromRun:runId,approval:null};
 }
 
-/** The figures as lines of words, made by code from minor units. */
-export function figureLines(figures:DocumentFigures):string[]{
- return [...figures.lines.map(line=>`${line.label}: ${line.quantity} at ${formatMinor(line.unitMinor,figures.currency)} is ${formatMinor(line.lineMinor,figures.currency)}`),`Total: ${formatMinor(figures.totalMinor,figures.currency)}`,`Receipt ${figures.receiptId}`];
+/** The figures as lines of words, made by code from minor units: the owner form on the desk, the exact form in the exported document. */
+export function figureLines(figures:DocumentFigures,form:'owner'|'exact'='owner'):string[]{
+ const show=(minor:string)=>form==='exact'?formatMinor(minor,figures.currency):formatMoney(minor,figures.currency);
+ return [...figures.lines.map(line=>`${line.label}: ${line.quantity} at ${show(line.unitMinor)} is ${show(line.lineMinor)}`),`Total: ${show(figures.totalMinor)}`,`Receipt ${figures.receiptId}`];
 }
 
 /** The export pack's parts: the Word document, and the figures workbook, CSV and receipt when the document has figures. */
 export function documentExportParts(body:DocumentBody):{docx:ZipEntry[];xlsx:ZipEntry[]|null;csv:string|null;receipt:string|null}{
  check(documentApproved(body),'DOCUMENT_APPROVAL_REQUIRED','Approve the finished document before exporting it.');
  const sections:PackSection[]=body.sections.map(row=>({heading:row.heading,paragraphs:row.text.split(/\n{2,}/).map(part=>part.trim()).filter(Boolean)}));
- if(body.figures)sections.push({heading:'Figures',paragraphs:figureLines(body.figures)});
+ if(body.figures)sections.push({heading:'Figures',paragraphs:figureLines(body.figures,'exact')});
  const cover=[DOCUMENT_TYPE_LABELS[body.docType],'Prepared for the owner\'s review. Every amount comes from the figures receipt.'];
  if(!body.figures)return {docx:docxEntries(body.title,cover,sections),xlsx:null,csv:null,receipt:null};
  const f=body.figures,digits=currencyMinorDigits(f.currency);

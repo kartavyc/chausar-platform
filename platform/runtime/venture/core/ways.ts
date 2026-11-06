@@ -6,6 +6,7 @@
 // owner already runs come only from trusted host composition (the open business; 4J6's snapshots add the others),
 // never from the payload, which must be empty. Sorting and the hours filter are code here, so every screen orders the
 // tiles the same way.
+import { formatCount } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
 import type { WaysView, WayView } from '../contracts.ts';
 import { currentVenture, exactPayload } from '../records.ts';
@@ -31,8 +32,8 @@ export function initialsOf(name: string): string {
   return (second ? [first[0], second[0]] : first.slice(0, 2)).join('').toLocaleUpperCase('en-IN');
 }
 
-const RUPEES = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
-const rupees = (amount: number) => `₹${RUPEES.format(amount)}`;
+// Whole rupees in the owner form (B2), the same grouping as every rupee amount on a screen.
+const rupees = (amount: number) => `₹${formatCount(Math.round(amount), 'IN')}`;
 
 /**
  * W6 6C3 (D17): what clients usually pay. A sourced range that prices the way's own service replaces the model

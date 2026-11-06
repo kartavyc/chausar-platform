@@ -9,6 +9,7 @@
 // against the official page yet". No section number here was taken from anywhere but the official text read.
 //
 // Pure: no clock, no store, no engine import. The fake engine reads this file too.
+import { formatCount } from '../../owner-format.ts';
 import type { FamilyId } from './first-run-types.ts';
 
 /**
@@ -311,6 +312,8 @@ export function cautionApplies(caution: Pick<Caution, 'size'>, business: Busines
 
 /** Whole rupees from paise in Indian words: "₹1.5 crore", "₹12 lakh", "₹50,000". */
 export function rupeeWords(minor: string): string {
+  // B2 fix round 1: the sign leads, as formatMoney writes it ("-₹500", never "₹-5").
+  if (BigInt(minor) < 0n) return `-${rupeeWords(String(-BigInt(minor)))}`;
   const rupees = BigInt(minor) / 100n;
   const scaled = (unit: bigint, word: string) => {
     const hundredths = (rupees * 100n) / unit;
@@ -319,7 +322,7 @@ export function rupeeWords(minor: string): string {
   };
   if (rupees >= 10_000_000n) return scaled(10_000_000n, 'crore');
   if (rupees >= 100_000n) return scaled(100_000n, 'lakh');
-  return `₹${new Intl.NumberFormat('en-IN').format(rupees)}`;
+  return `₹${formatCount(rupees, 'IN')}`;
 }
 
 /**

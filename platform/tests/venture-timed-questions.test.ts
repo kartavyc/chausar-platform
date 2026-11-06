@@ -11,7 +11,7 @@ test('rehearsal question windows retain explicit playbook timing and a safe UTC 
   assert.equal(questionWindowMs(step()), 24 * hour);
   assert.equal(questionWindowMs(step(2 * hour)), 2 * hour);
   assert.equal(questionWindowMs(step(1000)), 15 * 60_000);
-  assert.equal(noAnswerLine('2026-10-17T10:00:00.000Z', { country: null } as never), 'No answer by 2026-10-17, 10:00. Go on without it, or stop.');
+  assert.equal(noAnswerLine('2026-10-17T10:00:00.000Z', { country: null } as never), 'No answer by 2026-10-17, 10:00 am. Go on without it, or stop.');
 });
 
 test('rehearsal question stamping never adds expiry to a trusted missing-facts question', () => {

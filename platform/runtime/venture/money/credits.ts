@@ -9,8 +9,9 @@
 // holds its amount, so no payment or other note takes the same money. The card's balances carry a receipt worked out
 // again from the records on every read ('credit-balance:<note id>', served by venture.receipt.get). A payment that came
 // in shows as "<client> paid <invoice>" for a week, until the owner marks it seen; a cheque only once it clears.
-import { ChausarError, check, type Context, type State } from '../../contracts.ts';
-import { decimalMinor, formatMinor } from '../../currency.ts';
+import { formatMoney } from '../../owner-format.ts';
+import { ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
+import { decimalMinor } from '../../currency.ts';
 import { amountText, digest, exactPayload, formatVentureDate, listRecords, plainText, readVenture, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
 import { invoiceCountry } from '../core/country-history.ts';
@@ -70,7 +71,7 @@ function shownDigest(note: CreditNoteRecord, invoice: InvoiceRecord): string {
 function tooLarge(free: bigint, invoice: InvoiceRecord): string {
   return free <= 0n
     ? `Nothing is left to credit on ${invoice.number}.`
-    : `A credit note can be at most ${formatMinor(free, invoice.currency)} on ${invoice.number}: what is owed and not held by a cheque or another credit note.`;
+    : `A credit note can be at most ${formatMoney(free, invoice.currency)} on ${invoice.number}: what is owed and not held by a cheque or another credit note.`;
 }
 
 const clientName = (clients: readonly ClientRecord[], invoice: InvoiceRecord) => clients.find(item => item.id === invoice.clientId)?.name ?? 'Your client';
@@ -90,7 +91,7 @@ export function creditRowId(note: CreditNoteRecord, invoice: InvoiceRecord): str
 export function creditNoteView(state: State, venture: VentureRecord, note: CreditNoteRecord): CreditNoteView {
   const invoice = listRecords(state, 'venture-invoice', venture.id).find(item => item.id === note.invoiceId);
   const country = invoice ? invoiceCountry(state, venture, invoice) : venture.country;
-  const amount = formatMinor(note.amountMinor, note.currency);
+  const amount = formatMoney(note.amountMinor, note.currency);
   const line = note.status === 'waiting' ? 'Waiting on Today for you to issue it.'
     : note.status === 'cancelled' ? 'Cancelled. Nothing changed.'
       : `Issued on ${formatVentureDate(localDayAt(note.issuedAt as string, country), country.dateOrder)}. Takes ${amount} off ${invoice?.number ?? 'its invoice'}.`;
@@ -119,7 +120,7 @@ export async function creditIssue(deps: VentureDeps, ctx: Context, payload: unkn
   check((body.amount === undefined) !== (body.amountMinor === undefined), 'INVALID_AMOUNT', 'Give the credit once, as you would type it, like 1500 or 1500.50.');
   if (body.amountMinor !== undefined) minorAmount(body.amountMinor, 'The credit');
   const reason = plainText(body.reason, 'The reason', { min: 3, max: 300 }).replace(/\s+/g, ' ');
-  check(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
   const checked = body.digest;
   return ventureAction(deps, ctx, 'approve', 'credit.ask', tx => {
     const venture = tx.venture;
@@ -157,7 +158,7 @@ export function creditBalanceReceipt(state: State, venture: VentureRecord, id: s
   const currency = plan.currency;
   const amount = BigInt(note.amountMinor);
   const now = planTotal(plan), after = now - amount;
-  const show = (minor: bigint) => formatMinor(minor, currency);
+  const show = (minor: bigint) => formatMoney(minor, currency);
   const addends: Addend[] = [...plan.addends, { recordId: note.id, label: 'Less this credit note, waiting for you to issue it', amount: String(-amount), display: show(-amount), estimate: false }];
   const figures = [
     { key: 'balance' as const, label: `Left to pay on ${invoice.number} now`, minor: String(now), display: show(now), currency },
@@ -195,7 +196,7 @@ export function creditNoteReceipt(state: State, venture: VentureRecord, id: stri
 function issuedNoteReceipt(id: string, note: CreditNoteRecord, number: string, plan: ReturnType<typeof statementPlan>, venture: VentureRecord): SumReceiptRecord {
   const currency = plan.currency;
   const now = planTotal(plan);
-  const show = (minor: bigint) => formatMinor(minor, currency);
+  const show = (minor: bigint) => formatMoney(minor, currency);
   return {
     id, kind: 'venture-sum-receipt', ventureId: venture.id, memberId: note.memberId, epoch: note.epoch, at: note.issuedAt ?? note.at,
     subject: plan.subject, operation: 'venture.sum', currency, unit: 'minor',
@@ -221,9 +222,9 @@ function creditRows(state: State, venture: VentureRecord): W4RowItem[] {
     rows.push({
       kind: 'invoice', ...rowParts(note, invoice), createdAt: note.at,
       title: `Credit note for ${name} on ${invoice.number}`,
-      line: `Takes ${formatMinor(note.amountMinor, note.currency)} off what ${name} owes. Reason: ${note.reason}`,
+      line: `Takes ${formatMoney(note.amountMinor, note.currency)} off what ${name} owes. Reason: ${note.reason}`,
       change: {
-        label: `Left to pay on ${invoice.number}`, before: formatMinor(balance, invoice.currency), after: formatMinor(balance - BigInt(note.amountMinor), invoice.currency),
+        label: `Left to pay on ${invoice.number}`, before: formatMoney(balance, invoice.currency), after: formatMoney(balance - BigInt(note.amountMinor), invoice.currency),
         receiptId: `${CREDIT_BALANCE}${note.id}`,
       },
       viewRef: { kind: 'file', id: invoice.id },
@@ -260,7 +261,7 @@ function paidRows(state: State, venture: VentureRecord, now: string): W4RowItem[
       // The version leaves the words out: a row the owner marked seen never comes back because a credit note changed them.
       kind: 'notice', subject: `paid:${payment.id}`, version: digest({ payment: payment.id, receipt: payment.booksReceiptId }).slice(0, 16), createdAt: cameIn(payment),
       title: `${clientName(clients, invoice)} paid ${invoice.number}`, line,
-      change: { label: 'Received', after: formatMinor(payment.amountMinor, payment.currency), ...(payment.booksReceiptId ? { receiptId: payment.booksReceiptId } : {}) },
+      change: { label: 'Received', after: formatMoney(payment.amountMinor, payment.currency), ...(payment.booksReceiptId ? { receiptId: payment.booksReceiptId } : {}) },
       viewRef: { kind: 'file', id: invoice.id },
       actions: [{ id: 'later', label: 'Later', primary: false }, { id: 'approve', label: 'Seen', primary: true }],
     });
@@ -331,7 +332,7 @@ export function issueCreditIn(tx: VentureTx, deps: VentureDeps, noteId: string, 
   tx.emit('queue.changed', { creditNoteId: note.id });
   const line = left === 0n
     ? `Issued credit note ${number}. ${invoice.number} is settled.`
-    : `Issued credit note ${number}. ${client?.name ?? 'Your client'} now owes ${formatMinor(left, invoice.currency)} on ${invoice.number}.`;
+    : `Issued credit note ${number}. ${client?.name ?? 'Your client'} now owes ${formatMoney(left, invoice.currency)} on ${invoice.number}.`;
   handle?.settleIn(tx, line);
   return { line };
 }
@@ -364,7 +365,7 @@ async function issueFromRow(deps: VentureDeps, ctx: Context, noteId: string, row
   const client = clientName(listRecords(state, 'venture-client', venture.id), invoice);
   const done = await journalled(deps, ctx, {
     action: 'credit.issue', subject: note.id, target: client, actionDigest: approved,
-    line: `Issue a credit note of ${formatMinor(note.amountMinor, note.currency)} on ${invoice.number} for ${client}.`,
+    line: `Issue a credit note of ${formatMoney(note.amountMinor, note.currency)} on ${invoice.number} for ${client}.`,
   }, async handle => {
     // The always-ask floor: issuing for real goes ahead only on the owner's approval sealed on this entry.
     gateEffect({ name: 'credit.issue', digest: approved, touches: ['issue'] }, sealApproval(handle.entry, digestOf(handle.entry)));

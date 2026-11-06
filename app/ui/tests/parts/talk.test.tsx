@@ -8,6 +8,7 @@ import { StrengthDots } from '../../src/parts/StrengthDots';
 import { Board, BoardCard } from '../../src/parts/Board';
 import { NotificationBell } from '../../src/parts/NotificationBell';
 import { Composer } from '../../src/parts/Composer';
+import { ClockProvider } from '../../src/shell/clock';
 import { ChatThread, type ThreadEntry } from '../../src/parts/ChatThread';
 import { DiffCard } from '../../src/parts/DiffCard';
 import { TextProvider } from '../../src/text';
@@ -378,64 +379,64 @@ describe('ChatThread', () => {
   ];
 
   it('is a polite live log named for the agent', () => {
-    render(<ChatThread agent={{ name: 'Editor', dept: 'prod' }} entries={entries} now={now} timeZone="Asia/Kolkata" />);
+    render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor', dept: 'prod' }} entries={entries} now={now} /></ClockProvider>);
     const log = screen.getByRole('log', { name: 'Conversation with Editor' });
     expect(log.getAttribute('aria-live')).toBe('polite');
     assertInkRules(document.body);
   });
 
   it('separates days', () => {
-    render(<ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} timeZone="Asia/Kolkata" />);
+    render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} /></ClockProvider>);
     const days = [...screen.getByRole('log').querySelectorAll('[data-day]')].map((d) => d.textContent);
     expect(days).toEqual(['Yesterday', 'Today']);
   });
 
-  it("shows the owner's and the agent's messages with their time in DM Mono", () => {
-    render(<ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} timeZone="Asia/Kolkata" />);
+  it("shows the owner's and the agent's messages with their time in the body font", () => {
+    render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} /></ClockProvider>);
     const mine = screen.getByText('Cut episode 14 from the recording.').closest('[data-from]')!;
     expect(mine.getAttribute('data-from')).toBe('owner');
-    const time = within(mine as HTMLElement).getByText('08:02');
+    const time = within(mine as HTMLElement).getByText('8:02 am');
     expect(time.tagName).toBe('TIME');
-    expect(time.classList.contains('mono')).toBe(true);
+    expect(time.classList.contains('mono')).toBe(false); // B2
     const theirs = screen.getByText('Episode 14 is cut. It is on Today for you to watch.').closest('[data-from]')!;
     expect(theirs.getAttribute('data-from')).toBe('agent');
-    expect(within(theirs as HTMLElement).getByText('08:40').classList.contains('mono')).toBe(true);
+    expect(within(theirs as HTMLElement).getByText('8:40 am').classList.contains('mono')).toBe(false); // B2
     // A screen reader hears who said each message; the eye has the side and the avatar.
     expect(mine.textContent).toContain('You:');
     expect(theirs.textContent).toContain('Editor:');
   });
 
   it('folds a finished run to one row that opens its steps', () => {
-    render(<ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} timeZone="Asia/Kolkata" />);
+    render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} /></ClockProvider>);
     const fold = screen.getByRole('button', { name: /^Cut episode 14 · 3 steps done/ });
     expect(fold.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByText('Read the transcript')).toBeNull();
     fireEvent.click(fold);
     expect(fold.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByText('Read the transcript')).toBeTruthy();
-    expect(within(fold).getByText('4m').classList.contains('mono')).toBe(true);
+    expect(within(fold).getByText('4m').classList.contains('mono')).toBe(false); // B2
   });
 
   it('a run still going says how far it is, and a run with no steps to show is not a button', () => {
-    render(<ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} timeZone="Asia/Kolkata" />);
+    render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} /></ClockProvider>);
     expect(screen.getByText(/Shorts from episode 13/).closest('[data-run]')!.textContent).toContain('3 of 5 steps');
     expect(screen.queryByRole('button', { name: /Shorts from episode 13/ })).toBeNull();
     expect(screen.getByText('A card the caller draws')).toBeTruthy();
   });
 
   it('a failed run says so in words', () => {
-    render(<ChatThread agent={{ name: 'Editor' }} entries={[{ kind: 'run', id: 'r3', at: '2026-10-23T09:00:00.000Z', title: 'Render the thumbnail set', state: 'failed', done: 1 }]} now={now} timeZone="Asia/Kolkata" />);
+    render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor' }} entries={[{ kind: 'run', id: 'r3', at: '2026-10-23T09:00:00.000Z', title: 'Render the thumbnail set', state: 'failed', done: 1 }]} now={now} /></ClockProvider>);
     expect(screen.getByText(/Render the thumbnail set/).closest('[data-run]')!.textContent).toContain('failed');
   });
 
   it('Chausar as chief of staff has its own mark and name', () => {
-    const { container } = render(<ChatThread agent={{ name: 'Chausar', chausar: true }} entries={entries.slice(2, 3)} now={now} timeZone="Asia/Kolkata" />);
+    const { container } = render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Chausar', chausar: true }} entries={entries.slice(2, 3)} now={now} /></ClockProvider>);
     expect(screen.getByRole('log', { name: 'Conversation with Chausar' })).toBeTruthy();
     expect(container.querySelector('[data-chausar]')).not.toBeNull();
   });
 
   it('a model-written figure in a reply carries the "model estimate" label', () => {
-    render(<ChatThread agent={{ name: 'Chausar', chausar: true }} entries={[{ kind: 'agent', id: 'm9', at: '2026-10-23T13:00:00.000Z', text: 'About 18,000 views.', estimate: true }]} now={now} timeZone="Asia/Kolkata" />);
+    render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Chausar', chausar: true }} entries={[{ kind: 'agent', id: 'm9', at: '2026-10-23T13:00:00.000Z', text: 'About 18,000 views.', estimate: true }]} now={now} /></ClockProvider>);
     expect(screen.getByText('About 18,000 views.').closest('[data-from]')!.querySelector('[data-estimate]')).not.toBeNull();
   });
 
@@ -445,14 +446,14 @@ describe('ChatThread', () => {
   });
 
   it('lets each message set its own direction, so a right-to-left reply reads right', () => {
-    render(<ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} timeZone="Asia/Kolkata" />);
+    render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor' }} entries={entries} now={now} /></ClockProvider>);
     expect(screen.getByText('Cut episode 14 from the recording.').getAttribute('dir')).toBe('auto');
     expect(screen.getByText('Episode 14 is cut. It is on Today for you to watch.').getAttribute('dir')).toBe('auto');
   });
 
   it('follows new messages only while the owner is at the bottom, never pulling them away from older ones', () => {
     const view = { top: 0, height: 1000, client: 300 };
-    const { rerender } = render(<ChatThread agent={{ name: 'Editor' }} entries={entries.slice(0, 3)} now={now} timeZone="Asia/Kolkata" />);
+    const { rerender } = render(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor' }} entries={entries.slice(0, 3)} now={now} /></ClockProvider>);
     const log = screen.getByRole('log');
     Object.defineProperty(log, 'scrollHeight', { configurable: true, get: () => view.height });
     Object.defineProperty(log, 'clientHeight', { configurable: true, get: () => view.client });
@@ -461,13 +462,13 @@ describe('ChatThread', () => {
     view.top = 100;
     fireEvent.scroll(log);
     view.height = 1200;
-    rerender(<ChatThread agent={{ name: 'Editor' }} entries={entries.slice(0, 4)} now={now} timeZone="Asia/Kolkata" />);
+    rerender(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor' }} entries={entries.slice(0, 4)} now={now} /></ClockProvider>);
     expect(view.top).toBe(100);
     // Back at the bottom, the next message brings the thread along.
     view.top = 900;
     fireEvent.scroll(log);
     view.height = 1400;
-    rerender(<ChatThread agent={{ name: 'Editor' }} entries={entries.slice(0, 5)} now={now} timeZone="Asia/Kolkata" />);
+    rerender(<ClockProvider now={() => now} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor' }} entries={entries.slice(0, 5)} now={now} /></ClockProvider>);
     expect(view.top).toBe(1400);
   });
 
@@ -556,7 +557,7 @@ describe('DiffCard', () => {
     await act(async () => { fireEvent.click(accept); });
     rerender(<DiffCard {...base} decided="accepted" onAccept={done()} onReject={done()} onUndo={onUndo} />);
     const outcome = screen.getByRole('status');
-    expect(outcome.textContent).toBe('Accepted. Editor works to version 5 from the next run.');
+    expect(outcome.textContent).toBe('Accepted. Editor works to version 5 from the next job.');
     expect(document.activeElement).toBe(outcome);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Undo' })); });
     expect(onUndo).toHaveBeenCalledTimes(1);

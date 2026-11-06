@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import axe from 'axe-core';
 import { ApprovalRow, timeOf, type ApprovalHandle, type PressResult } from '../../src/parts/ApprovalRow';
+import { computerZone, formatTime } from '../../../../platform/runtime/owner-format';
 import { Change } from '../../src/parts/Change';
 import { TextProvider } from '../../src/text';
 import { assertFiguresProved, assertInkRules, receiptMark } from '../helpers/ink-rules';
@@ -58,7 +59,8 @@ const card = () => document.querySelector<HTMLElement>('article[data-card]')!;
  *  button is natively disabled instead. */
 const isLocked = (button: HTMLElement) => button.hasAttribute('data-locked') && ((button as HTMLButtonElement).disabled || button.getAttribute('aria-disabled') === 'true');
 const approveIn = (name = 'Approve') => within(card()).getByRole('button', { name }) as HTMLButtonElement;
-const time = (at: string) => new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(at));
+/** The time a card shows: the owner zone falls back to the computer's when no business is open (B2). */
+const time = (at: string) => formatTime(at, computerZone());
 
 describe('ApprovalRow as a card (layout="card")', () => {
   it('is an article with the row id, a head with avatar, name, business and time, a kind chip, an h3 title and the line', () => {
@@ -74,7 +76,7 @@ describe('ApprovalRow as a card (layout="card")', () => {
     expect(within(article).getByText('Editor')).toBeTruthy();
     const meta = article.querySelector('[data-meta]')!;
     expect(meta.textContent).toBe(`Lumen Studio · ${time(draft.createdAt)}`);
-    expect(meta.querySelector('.mono')!.textContent).toBe(time(draft.createdAt));
+    expect(meta.querySelector('.mono')).toBeNull(); // B2: the time is in the body font
     const kind = article.querySelector('[data-kind]')!;
     expect(kind.textContent).toBe('Draft');
     expect(kind.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
@@ -82,9 +84,9 @@ describe('ApprovalRow as a card (layout="card")', () => {
     assertInkRules(document.body);
   });
 
-  it('formats the time of day in the UI language', () => {
-    expect(timeOf('2026-10-21T08:40:00.000Z', 'en')).toBe(time('2026-10-21T08:40:00.000Z'));
-    expect(timeOf('not a date', 'en')).toBe('');
+  it('formats the time of day in the owner zone on the 12-hour clock', () => {
+    expect(timeOf('2026-10-21T08:40:00.000Z', 'Asia/Kolkata')).toBe('2:10 pm');
+    expect(timeOf('not a date', 'Asia/Kolkata')).toBe('');
   });
 
   it('names only the agent and the time when the list holds one business; a row with no agent is Chausar', () => {
@@ -117,7 +119,7 @@ describe('ApprovalRow as a card (layout="card")', () => {
     // The old and the new price share one receipt, so the change is one figure group (3B1a's strict rule).
     const change = article.querySelector<HTMLElement>('[data-figure-group][data-size="pill"]')!;
     expect(change.querySelector('del')!.textContent).toBe('₹25,000');
-    expect(within(change).getByText('₹30,000').className).toContain('mono');
+    expect(within(change).getByText('₹30,000').className).not.toContain('mono'); // B2 fix round 1: the body font
     expect(within(change).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     assertInkRules(document.body);
   });
@@ -204,11 +206,11 @@ describe('ApprovalRow as a card (layout="card")', () => {
       render(<ApprovalRow layout="card" row={price} onDecide={onDecide} />);
       fireEvent.click(within(card()).getByRole('button', { name: 'Approve' }));
       expect(onDecide).not.toHaveBeenCalled();
-      expect(card().textContent).toContain("This can't be undone. Approve?");
-      expect(document.activeElement).toBe(within(card()).getByRole('button', { name: 'Not now' }));
+      expect(card().textContent).toContain("Approve? Check it once more.");
+      expect(document.activeElement).toBe(within(card()).getByRole('button', { name: 'Cancel' }));
       assertInkRules(document.body);
-      fireEvent.click(within(card()).getByRole('button', { name: 'Not now' }));
-      expect(card().textContent).not.toContain("can't be undone");
+      fireEvent.click(within(card()).getByRole('button', { name: 'Cancel' }));
+      expect(card().textContent).not.toContain("Check it once more");
       expect(document.activeElement).toBe(within(card()).getByRole('button', { name: 'Approve' }));
       fireEvent.click(within(card()).getByRole('button', { name: 'Approve' }));
       await act(async () => { fireEvent.click(within(card()).getAllByRole('button', { name: 'Approve' }).at(-1)!); });
@@ -328,11 +330,11 @@ describe('Driving a card from outside (the swipe on phone)', () => {
     let result: string | undefined;
     act(() => { result = handle.current!.pressPrimary(); });
     expect(result).toBe('locked');
-    expect(card().textContent).not.toContain("can't be undone");
+    expect(card().textContent).not.toContain("Check it once more");
     rerender(<ApprovalRow layout="card" row={post} viewed onDecide={onDecide} handle={handle} />);
     act(() => { result = handle.current!.pressPrimary(); });
     expect(result).toBe('asking');
-    expect(card().textContent).toContain("This can't be undone. Approve and post?");
+    expect(card().textContent).toContain("Approve and post? Check it once more.");
     act(() => { result = handle.current!.pressPrimary(); });
     expect(result).toBe('asking');
     expect(onDecide).not.toHaveBeenCalled();
@@ -371,14 +373,14 @@ describe('Driving a card from outside (the swipe on phone)', () => {
 });
 
 describe('Change, in its three sizes', () => {
-  it('a pill strikes the old value, points with an arrow to the new one in mono, with its receipt, and reads as was and now', () => {
+  it('a pill strikes the old value, points with an arrow to the new one in the body font, with its receipt, and reads as was and now', () => {
     const onReceipt = vi.fn();
     const { container } = render(<Change size="pill" label="Sponsor slot" before="₹25,000" after="₹30,000" receiptId="R-0415" onReceipt={onReceipt} />);
     const root = container.querySelector<HTMLElement>('[data-figure-group]')!;
     expect(root.getAttribute('data-size')).toBe('pill');
-    expect(root.querySelector('del')!.className).toContain('mono');
+    expect(root.querySelector('del')!.className).not.toContain('mono');
     expect(root.querySelector('svg.lucide-arrow-right')!.getAttribute('aria-hidden')).toBe('true');
-    expect(within(root).getByText('₹30,000').className).toContain('mono');
+    expect(within(root).getByText('₹30,000').className).not.toContain('mono'); // B2 fix round 1: the body font
     expect(root.textContent).toContain('Sponsor slot');
     expect(root.textContent).toContain('was ₹25,000');
     expect(root.textContent).toContain('now ₹30,000');
@@ -459,9 +461,9 @@ describe('Review of 3B5a', () => {
       const onDecide = vi.fn(async () => done('Approved'));
       const { rerender } = render(<ApprovalRow layout="card" row={price} onDecide={onDecide} />);
       fireEvent.click(approveIn());
-      expect(card().textContent).toContain("can't be undone");
+      expect(card().textContent).toContain("Check it once more");
       rerender(<ApprovalRow layout="card" row={newer} onDecide={onDecide} />);
-      expect(card().textContent).not.toContain("can't be undone");
+      expect(card().textContent).not.toContain("Check it once more");
       expect(card().textContent).toContain('This changed. Here is the new version.');
       expect(card().textContent).toContain('₹90,000');
       expect(within(card()).getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
@@ -478,11 +480,11 @@ describe('Review of 3B5a', () => {
       const { rerender } = render(<ApprovalRow layout="card" row={price} onDecide={onDecide} handle={handle} />);
       act(() => { handle.current!.pressPrimary(); });
       rerender(<ApprovalRow layout="card" row={newer} onDecide={onDecide} handle={handle} />);
-      expect(card().textContent).not.toContain("can't be undone");
+      expect(card().textContent).not.toContain("Check it once more");
       let result: PressResult | undefined;
       act(() => { result = handle.current!.pressPrimary(); });
       expect(result).toBe('asking');
-      expect(card().textContent).toContain("can't be undone");
+      expect(card().textContent).toContain("Check it once more");
       expect(onDecide).not.toHaveBeenCalled();
     });
 
@@ -564,7 +566,7 @@ describe('Review of 3B5a', () => {
   it('Not now in the answer box puts focus back on Answer', () => {
     render(<ApprovalRow layout="card" row={question} onDecide={vi.fn()} />);
     fireEvent.click(within(card()).getByRole('button', { name: 'Answer' }));
-    fireEvent.click(within(card()).getByRole('button', { name: 'Not now' }));
+    fireEvent.click(within(card()).getByRole('button', { name: 'Cancel' }));
     expect(document.activeElement).toBe(within(card()).getByRole('button', { name: 'Answer' }));
   });
 

@@ -260,8 +260,8 @@ const OPENED: Case[] = [
   // 4Z2: Lumen's episode 12 is delivered; Ledgerline's September books are done and not delivered yet.
   { name: 'Work, an order asked once more before it is marked delivered', hash: '#/work', before: (engine) => engine.request('workspace.open', { folder: 'ledgerline' }), press: ['Mark delivered'] },
   // W4 4F3: the Stop dialog and its Force stop ask, on a tile and in Working now; Away with its days set.
-  { name: 'Work, the Stop dialog asking Force stop', hash: '#/work', press: ['Stop run 31', 'Force stop'] },
-  { name: 'Today, the Stop dialog in Working now', hash: '#/today', press: ['Stop run 30'] },
+  { name: 'Work, the Stop dialog asking Force stop', hash: '#/work', press: ['Stop: Cutting shorts from episode 13', 'Force stop'] },
+  { name: 'Today, the Stop dialog in Working now', hash: '#/today', press: ['Stop: Checking titles against the last 30 videos'] },
   { name: 'Business, away with its days set', hash: '#/business/away', press: [{ fill: 'First day away', with: '2026-12-01' }, { fill: 'Last day away', with: '2026-12-05' }, 'Set the days'] },
   { name: 'Clients, blocking a lead', hash: '#/clients/leads?sheet=lead:lead-pocket', press: ['Block'] },
   // W4 4E4: a block is a flag on its card, not a stage; the folded stage is Not now.
@@ -283,7 +283,7 @@ const OPENED: Case[] = [
   { name: 'Welcome back, the recovery code', hash: '#/today', options: { closed: true }, openFolds: true, press: ['Use a recovery code'] },
   { name: 'Welcome back, restore a backup', hash: '#/today', options: { closed: true }, openFolds: true, press: ['Restore a backup'] },
   { name: 'Welcome back, move a business here', hash: '#/today', options: { closed: true }, press: ['Move from another computer'] },
-  { name: 'Welcome back, open by folder name on a new computer', hash: '#/today', options: { fresh: true }, openFolds: true, press: ['Open a business you already have', 'Open by folder name'] },
+  { name: 'Welcome back, open by folder name on a new computer', hash: '#/today', options: { fresh: true }, openFolds: true, press: ['Open a business you already have', 'Find it on this computer'] },
   // w3 3G1: Connections with every AI choice and a channel's posting limits open, an AI being connected, and the
   // simple-first folds of Business open for a GST-registered business (tax details, a price's working).
   { name: 'Connections, every AI choice and the posting limits open', hash: '#/connections', openFolds: true, press: [/^Posting limits for X$/] },

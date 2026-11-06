@@ -1,3 +1,4 @@
+import {formatClock} from '../../../../platform/runtime/owner-format';
 import {occurrencesBetween,nextOccurrence} from '../../../../platform/runtime/venture/agents/routine-time';
 import {VA_REPORT_PROMPTS} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/routines-core';
 import {RETIRED_LINE} from '../../../../platform/runtime/venture/agents/retired-words';
@@ -86,7 +87,8 @@ function wall(ms: number, timeZone: string): Wall {
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const momentIn = (iso: string, zone: string) => { const w = wall(Date.parse(iso), zone); return `${pad(w.d)} ${MONTHS[w.m - 1]} ${w.y}, ${pad(w.h)}:${pad(w.min)}`; };
+// As the engine's routines.ts: the day without a leading zero and the 12-hour clock (B2 fix round 1).
+const momentIn = (iso: string, zone: string) => { const w = wall(Date.parse(iso), zone); return `${w.d} ${MONTHS[w.m - 1]} ${w.y}, ${formatClock(`${pad(w.h)}:${pad(w.min)}`)}`; };
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 
 function whenWords(schedule: RoutineSchedule): string {
@@ -96,7 +98,7 @@ function whenWords(schedule: RoutineSchedule): string {
     return `Every ${every.replace(/^1 (day|hour|minute)s$/, '$1')}, from ${momentIn(schedule.from, ZONE)}, ${ZONE}`;
   }
   const days = schedule.weekdays.length === 7 ? 'day' : schedule.weekdays.join() === '1,2,3,4,5' ? 'weekday' : listWords(schedule.weekdays.map((day) => DAY_NAMES[day - 1]!));
-  return `Every ${days} ${schedule.time}, ${schedule.timeZone}`;
+  return `Every ${days} ${formatClock(schedule.time)}, ${schedule.timeZone}`;
 }
 
 function checkSchedule(raw: unknown, nowMs: number): RoutineSchedule {
@@ -259,7 +261,7 @@ export class FakeQualityDesk {
       case 'venture.auto.readiness': return this.readiness(p);
       case 'venture.shadow.summary': return this.shadow(p);
       case 'venture.playbook.guidance': exact(p, []); return this.guidance();
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -284,7 +286,7 @@ export class FakeQualityDesk {
 
   private acceptBreak(p: Record<string, unknown>): JournalChainView {
     exact(p, ['digest'], ['digest']);
-    if (typeof p.digest !== 'string' || !DIGEST.test(p.digest)) throw invalid('Send the digest of the break you saw.');
+    if (typeof p.digest !== 'string' || !DIGEST.test(p.digest)) throw invalid('Look at it again first.');
     if (this.host.hosted()) throw new EngineError('APP_APPROVAL_REQUIRED', 'Accept this inside the Chausar app.');
     const seen = this.chain();
     if (seen.state !== 'corrupt') throw invalid("Chausar's record of outside actions adds up. There is no break to accept.");
@@ -527,7 +529,7 @@ export class FakeQualityDesk {
       { id: 'real-run', label: 'A real order passed in the last 14 days', met: false, line: 'No real order passed in the last 14 days with every check passing and your Accept.' },
       { id: 'spend-log', label: 'The spend log is complete', met: true, line: 'Every paid call is settled in the spend log.' },
       { id: 'drills', label: 'Two clean drill runs within 30 days and since the work instructions last changed', met: clean, line: drillLine },
-      { id: 'no-taint', label: 'No run was latched by outside content', met: true, line: 'No real run in the last 14 days read mail, a post or a web page, or had content held by the screen.' },
+      { id: 'no-taint', label: 'No run was latched by outside content', met: true, line: 'No real job in the last 14 days read mail, a post or a web page, or had content held by the screen.' },
     ];
     return { agent: agent.id, items, locked: true, line: `0 of ${agent.steps.length} steps have every item met. ${AUTO_LOCKED_WORDS}` };
   }

@@ -19,6 +19,7 @@
  * view carries its next step, its timeline and its credit notes, as the engine's does.
  */
 
+import { formatMoney } from '../../../../platform/runtime/owner-format';
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
 import { currencyMinorDigits, decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
 import { BUSINESSES, RECEIPTS } from './fixtures';
@@ -123,7 +124,7 @@ const PAYMENT_SEED: HeldPayment[] = [
 const OWN_RECEIPTS: ReceiptLite[] = [
   {
     id: 'R-0391', at: '2026-10-01T10:00:00.000Z', explanation: 'Four mentions at ₹21,550 each, no discount, priced before tax.', stale: false,
-    figures: [{ key: 'unit', label: 'Per mention', display: '₹21,550.00' }, { key: 'subtotal', label: 'Four mentions', display: '₹86,200.00' }, { key: 'total', label: 'Total before tax', display: '₹86,200.00' }],
+    figures: [{ key: 'unit', label: 'Per mention', display: '₹21,550' }, { key: 'subtotal', label: 'Four mentions', display: '₹86,200' }, { key: 'total', label: 'Total before tax', display: '₹86,200' }],
   },
 ];
 
@@ -135,16 +136,9 @@ export const BOOK_PERIODS: { key: BooksPeriodKey; label: string; from: string; t
   { key: 'this-year', label: 'This year', from: '2026-01-01', to: '2026-12-31' },
 ];
 
-/** Paise as rupees with Indian digit grouping, the way the sample figures are written: ₹1,12,400.00. */
+/** Paise as rupees in the owner form, as the engine writes them on a screen (B2): ₹1,12,400, ₹2,000.50. */
 export function inr(minor: number): string {
-  const negative = minor < 0;
-  const absolute = Math.abs(minor);
-  const rupees = String(Math.floor(absolute / 100));
-  const paise = String(absolute % 100).padStart(2, '0');
-  const last = rupees.slice(-3);
-  const rest = rupees.slice(0, -3);
-  const grouped = rest ? `${rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${last}` : last;
-  return `${negative ? '-' : ''}₹${grouped}.${paise}`;
+  return formatMoney(String(Math.trunc(minor)), 'INR');
 }
 
 function digest(value: unknown): string {
@@ -231,7 +225,7 @@ export class FakeMoney {
       case 'venture.billing.set': { const view = this.billing.set(this.host.business(), p, this.host.now()); this.host.changed(); return view; }
       case 'venture.invoice.pdf': return this.pdf(p);
       case 'venture.invoice.payLink': return this.payLink(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -381,13 +375,15 @@ export class FakeMoney {
 
   private figures(invoice: HeldInvoice): PriceFigureLite[] {
     const total = totalOf(invoice.price);
+    // As the engine's invoiceFigures: each figure carries its minor units and currency beside the display (B2 fix round 1).
+    const fig = (key: string, label: string, minor: number) => ({ key, label, minor: String(Math.trunc(minor)), display: this.show(invoice, minor), currency: invoice.currency });
     return [
-      { key: 'subtotal', label: 'Subtotal', display: this.show(invoice, invoice.price.subtotal) },
-      ...invoice.price.taxes.map((line) => ({ key: line.key, label: line.label, display: this.show(invoice, line.minor) })),
-      { key: 'total', label: 'Total', display: this.show(invoice, total) },
-      { key: 'paid', label: 'Paid', display: this.show(invoice, invoice.paid) },
-      ...((invoice.credited ?? 0) > 0 ? [{ key: 'credited', label: 'Credited', display: this.show(invoice, invoice.credited ?? 0) }] : []),
-      { key: 'balance', label: 'Balance', display: this.show(invoice, this.balance(invoice)) },
+      fig('subtotal', 'Subtotal', invoice.price.subtotal),
+      ...invoice.price.taxes.map((line) => fig(line.key, line.label, line.minor)),
+      fig('total', 'Total', total),
+      fig('paid', 'Paid', invoice.paid),
+      ...((invoice.credited ?? 0) > 0 ? [fig('credited', 'Credited', invoice.credited ?? 0)] : []),
+      fig('balance', 'Balance', this.balance(invoice)),
     ];
   }
 
@@ -446,7 +442,7 @@ export class FakeMoney {
     return { id: credit.id, invoiceId: credit.invoiceId, amount: this.show(invoice ?? { currency: 'INR' }, credit.amount), reason: credit.reason, state: credit.status, number: credit.number, rowId: credit.status === 'waiting' ? `credit:${credit.id}:open` : null, line, receiptId };
   }
 
-  private show(invoice: { currency: string }, amount: number): string { return invoice.currency === 'INR' ? inr(amount) : formatMinor(BigInt(amount), invoice.currency); }
+  private show(invoice: { currency: string }, amount: number): string { return invoice.currency === 'INR' ? inr(amount) : formatMoney(BigInt(amount), invoice.currency); }
 
   private view(invoice: HeldInvoice): InvoiceViewLite {
     const name = this.clientName(invoice.clientId);
@@ -507,7 +503,8 @@ export class FakeMoney {
     const view = this.view(invoice);
     const html = fakeInvoiceHtml(`${invoice.documentTitle} ${invoice.number}`, view.documentText);
     const client = this.host.clients().find((c) => c.id === invoice.clientId);
-    const share = shareWords({ client: view.client.name, number: invoice.number, balance: this.show(invoice, this.balance(invoice)), due: invoice.dueDate, seller: this.sellerName(), email: client?.email ?? null, howToPay: view.howToPay ?? null });
+    const share = shareWords({ client: view.client.name, number: invoice.number, balance: formatMinor(String(this.balance(invoice)), invoice.currency), // the client's words leave the app in the exact form (B2)
+      due: invoice.dueDate, seller: this.sellerName(), email: client?.email ?? null, howToPay: view.howToPay ?? null });
     return { fileName: `${invoice.number.replace(/[^A-Za-z0-9-]/g, '-')}.html`, format: 'html' as const, mimeType: 'text/html' as const, contentBase64: base64Utf8(html), note: 'A PDF needs the desktop app.', share };
   }
 
@@ -515,7 +512,7 @@ export class FakeMoney {
   private payLink(p: Record<string, unknown>): InvoiceViewLite {
     if (Object.keys(p).some((key) => !['invoiceId', 'action', 'digest'].includes(key)) || p.invoiceId === undefined || p.action === undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
     if (p.action !== 'create' && p.action !== 'check') throw new EngineError('INVALID_VENTURE_REQUEST', 'Say create or check.');
-    if (p.action === 'create' ? typeof p.digest !== 'string' || !/^[A-Za-z0-9]{1,200}$/.test(p.digest) : p.digest !== undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the digest of the link you checked, only to create one.');
+    if (p.action === 'create' ? typeof p.digest !== 'string' || !/^[A-Za-z0-9]{1,200}$/.test(p.digest) : p.digest !== undefined) throw new EngineError('INVALID_VENTURE_REQUEST', 'Look at the link again before creating it.');
     if (!this.billing.of(this.host.business()).razorpay) throw new EngineError('RAZORPAY_NOT_CONNECTED', 'Add your Razorpay keys in How clients pay first.');
     const invoice = this.find(p.invoiceId);
     const input = { id: invoice.id, number: invoice.number, status: invoice.status, balance: this.balance(invoice), currency: invoice.currency, digest, ...(invoice.payLink ? { payLink: invoice.payLink } : {}) };
@@ -571,7 +568,7 @@ export class FakeMoney {
     const snapshot = this.host.orderSnapshot?.(order.id);
     const priced = snapshot ? { price: { subtotal: Number(snapshot.subtotal), taxes: snapshot.taxes.map(tax => ({ ...tax, minor: Number(tax.minor) })) }, title: snapshot.taxes.length ? 'TAX INVOICE' : NOT_TAX, notes: [] } : ORDER_PRICES[order.id];
     const currency = snapshot?.currency ?? 'INR';
-    if (!priced) throw new EngineError('ORDER_NOT_PRICED', 'The sample engine has no price for this order.');
+    if (!priced) throw new EngineError('ORDER_NOT_PRICED', 'This sample order has no price yet.');
     const settings = this.billing.of(this.host.business());
     let dueInDays: number;
     let reminderDays: number[] | undefined;
@@ -632,7 +629,7 @@ export class FakeMoney {
 
   private issue(p: Record<string, unknown>): InvoiceViewLite {
     const invoice = this.find(p.invoiceId);
-    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
+    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Look at it again first.');
     if (invoice.status !== 'draft') throw new EngineError('INVOICE_NOT_DRAFT', 'This invoice was already issued.');
     if (invoice.digest !== p.digest) throw new EngineError('APPROVAL_STALE', 'This invoice changed after you checked it. Look at it again, then issue it.');
     // 6D1: nothing issues past the order's total, whatever was issued since this draft was made.
@@ -752,7 +749,7 @@ export class FakeMoney {
     if (p.amountMinor !== undefined && (typeof p.amountMinor !== 'string' || !/^(0|[1-9]\d{0,13})$/.test(p.amountMinor) || p.amountMinor === '0')) throw new EngineError('INVALID_AMOUNT', 'The credit must be a whole amount in minor units, above zero.');
     const reason = typeof p.reason === 'string' ? p.reason.trim().replace(/\s+/g, ' ') : '';
     if (reason.length < 3 || reason.length > 300) throw new EngineError('INVALID_VENTURE_REQUEST', 'The reason must be between 3 and 300 characters.');
-    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
+    if (typeof p.digest !== 'string' || !p.digest) throw new EngineError('INVALID_VENTURE_REQUEST', 'Look at it again first.');
     if (invoice.status === 'draft' || !invoice.number) throw new EngineError('INVALID_VENTURE_REQUEST', 'This invoice is still a draft. Change the draft instead of crediting it.');
     if (invoice.digest !== p.digest) throw new EngineError('APPROVAL_STALE', 'This invoice changed after you checked it. Look at it again.');
     const amount = typed ?? Number.parseInt(p.amountMinor as string, 10);

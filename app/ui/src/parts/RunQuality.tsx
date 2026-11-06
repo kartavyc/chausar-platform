@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useId, useState, type ReactNode } from 'react';
 import { useT, type T } from '../text';
-import { useClock } from '../shell/clock';
+import { useClock, useOwnerCountry } from '../shell/clock';
 import { Count } from './Figure';
 import { StateChip } from './Chip';
 import { stateText } from './states';
 import type { CoverageView, DeliverableReport, ReportItem, RunDetail } from '../engine/types';
 import s from './RunQuality.module.css';
+import { formatCount } from '../../../../platform/runtime/owner-format';
 
 /**
  * The run sheet's quality lines (W4 4J22a, from 4J13 and 4J14; catalogue Q6, Q7, Q8, A13, H34), each drawn only from
@@ -14,8 +15,8 @@ import s from './RunQuality.module.css';
  * expiry, and a run Chausar was interrupted in. The engine's own lines show beside the words as its words.
  */
 
-/** A count as the app writes counts (Indian grouping, the same in both languages). */
-const counted = (n: number) => n.toLocaleString('en-IN');
+/** A count grouped as the open business's country groups it (B2): Indian grouping for India, western elsewhere. */
+const counted = (n: number, country: string) => formatCount(n, country);
 const MARK_DONE = '\u0001';
 const MARK_TOTAL = '\u0002';
 
@@ -32,13 +33,13 @@ function whatOf(t: T, cover: CoverageView): string {
 }
 
 /** "1,204 of 1,210 lines matched": the template in the reader's language, the two counts as Counts. */
-function fraction(t: T, cover: CoverageView): ReactNode {
+function fraction(t: T, cover: CoverageView, country: string): ReactNode {
   const what = whatOf(t, cover);
   if (cover.done === null || cover.total === null) {
     const words = t('runsheet.coverage.none', { what });
     return words.charAt(0).toUpperCase() + words.slice(1);
   }
-  const done = counted(cover.done), total = counted(cover.total);
+  const done = counted(cover.done, country), total = counted(cover.total, country);
   return t('runsheet.coverage', { done: MARK_DONE, total: MARK_TOTAL, what }).split(/([\u0001\u0002])/).map((part, i) => (
     part === MARK_DONE ? <Count key={i} value={done} /> : part === MARK_TOTAL ? <Count key={i} value={total} /> : <Fragment key={i}>{part}</Fragment>
   ));
@@ -47,6 +48,7 @@ function fraction(t: T, cover: CoverageView): ReactNode {
 /** Coverage on the run's steps, fraction first; partial unless code saw it complete. */
 export function RunCoverage({ run }: { run: RunDetail }) {
   const t = useT();
+  const country = useOwnerCountry() ?? 'IN';
   const notRunId = useId();
   const covers = run.steps.flatMap((step) => (step.coverage ? [step.coverage] : []));
   const notRun = run.steps.flatMap((step) => step.notRun ?? []);
@@ -55,7 +57,7 @@ export function RunCoverage({ run }: { run: RunDetail }) {
     <div className={s.block}>
       {covers.map((cover, i) => (
         <p key={i} className={s.coverage} data-coverage="">
-          {fraction(t, cover)}
+          {fraction(t, cover, country)}
           {!cover.complete && <>{' · '}<span className={s.partial}>{t('runsheet.partial')}</span></>}
         </p>
       ))}

@@ -12,9 +12,9 @@
 // counts, or skipped. venture.bank.alerts.* keep the owner's alert rules and where alerts go; after an import, code
 // checks the rules on the new rows, Today shows what they found, and one journalled bank.alert sends the count of
 // alerts, and nothing else, to the owner's address through the network guard with redirects refused.
+import { formatMoney } from '../../owner-format.ts';
 import { createHash } from 'node:crypto';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import type {
   BankAccountRecord, BankAlertsView, BankApplyResult, BankConsentView, BankImportRecord, BankImportResult, BankLedgerRow, BankLedgerView,
   BankMatchRecord, BankTransactionData, Display, QueueAction, QueueActionId, VentureDeps, VentureRecord,
@@ -216,7 +216,7 @@ function ledgerIdFrom(value: unknown): string {
 }
 
 function suggestionLine(match: InvoiceMatch, currency: string): Display {
-  return match.full ? `Pays ${match.number} in full.` : `Pays part of ${match.number}. ${formatMinor(match.leftMinor, currency)} would be left.`;
+  return match.full ? `Pays ${match.number} in full.` : `Pays part of ${match.number}. ${formatMoney(match.leftMinor, currency)} would be left.`;
 }
 
 /**
@@ -287,7 +287,7 @@ function bankBook(state: State, venture: VentureRecord): Book {
       data: row, match, billPaid,
       view: {
         id: row.ledgerId, accountId: row.accountId, account: row.account, date: row.date, dateDisplay: formatVentureDate(row.date, venture.country.dateOrder),
-        amount: formatMinor(amount < 0n ? -amount : amount, row.currency), direction: amount > 0n ? 'in' : 'out',
+        amount: formatMoney(amount < 0n ? -amount : amount, row.currency), direction: amount > 0n ? 'in' : 'out',
         description: row.description, counterparty: row.counterparty, classification, flag, pairedWith: partner,
         suggestion: match ? { invoiceId: match.invoiceId, number: match.number, line: cheque ? `Pays the cheque waiting on ${match.number}.` : suggestionLine(match, row.currency) } : null,
         decided,
@@ -381,7 +381,7 @@ export async function bankApply(deps: VentureDeps, ctx: Context, payload: unknow
       const recorded = recordPaymentMinor(tx, deps, { invoiceId: invoice.id, amount: { minor: amount.toString() }, receivedOn: entry.data.date, method: 'bank-transfer', bankTransactionId: rowId });
       tx.put<BankMatchRecord>({ ...decision, invoiceId: invoice.id, paymentId: recorded.paymentId, factId: null });
       return {
-        as, rowId, line: `Recorded ${formatMinor(amount, entry.data.currency)} as a payment of ${invoice.number ?? 'the invoice'}.`,
+        as, rowId, line: `Recorded ${formatMoney(amount, entry.data.currency)} as a payment of ${invoice.number ?? 'the invoice'}.`,
         payment: { ...recorded, date: entry.data.date, currency: invoice.currency }, cost: null,
       };
     }
@@ -392,7 +392,7 @@ export async function bankApply(deps: VentureDeps, ctx: Context, payload: unknow
       const description = entry.data.description ?? entry.data.counterparty ?? 'Bank payment';
       const fact = insertBooksFact(tx, deps.store, costFact(base.id, minor, entry.data.currency, entry.data.date, description, rowId));
       tx.put<BankMatchRecord>({ ...decision, invoiceId: null, paymentId: null, factId: fact.id });
-      return { as, rowId, line: `Added ${formatMinor(minor, entry.data.currency)} to your costs.`, payment: null, cost: { minor, date: entry.data.date, currency: entry.data.currency } };
+      return { as, rowId, line: `Added ${formatMoney(minor, entry.data.currency)} to your costs.`, payment: null, cost: { minor, date: entry.data.date, currency: entry.data.currency } };
     }
     tx.put<BankMatchRecord>({ ...decision, invoiceId: null, paymentId: null, factId: null });
     return { as, rowId, line: 'Line skipped. It stays in your bank ledger and is not counted in the books.', payment: null, cost: null };
@@ -497,7 +497,7 @@ export function bankQueueItems(state: State, venture: VentureRecord, ctx: Contex
     const suggestion = view.suggestion;
     items.push({
       subject: `bank:${subjectPart(view.id)}`, version: `pay-${suggestion.invoiceId}`, createdAt: data.importedAt,
-      title: `Record ${formatMinor(data.amountMinor, data.currency)} from ${formatVentureDate(data.date, venture.country.dateOrder)} as payment of ${suggestion.number}?`,
+      title: `Record ${formatMoney(data.amountMinor, data.currency)} from ${formatVentureDate(data.date, venture.country.dateOrder)} as payment of ${suggestion.number}?`,
       line: suggestion.line,
       actions: [act('deny', 'Not this', false), act('approve', 'Record payment', true)],
       perform: {

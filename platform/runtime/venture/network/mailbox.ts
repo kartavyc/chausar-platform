@@ -10,7 +10,7 @@
 import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type { MailboxRecord, MailboxSync, MailboxView, VentureDeps, VentureRecord } from '../contracts.ts';
 import { exactPayload, formatVentureDate, listRecords, readVenture, requireAppChannel, requireVenture, singleLine, smallInteger, ventureAction } from '../records.ts';
-import { localDayAt, localTimeAt } from '../local-day.ts';
+import { localDayAt, ownerClock } from '../local-day.ts';
 import { addDays } from './followups.ts';
 import { cardsOf } from './pipeline.ts';
 import { listPeople } from './store.ts';
@@ -49,7 +49,7 @@ export function mailboxView(deps: VentureDeps, venture: VentureRecord, record: M
   // 4E4: connected, but the password left the shelf with the last restart: the owner types it again.
   if (!deps.secrets.has(SECRET)) return { connected: true, host: record.host, user: record.user, lastSync: record.lastSync, line: PASSWORD_AGAIN, needsPassword: true };
   const when = record.lastSync && venture.country
-    ? `Last read ${formatVentureDate(localDayAt(record.lastSync, venture.country), venture.country.dateOrder)} at ${localTimeAt(record.lastSync, venture.country).slice(11, 16)}.`
+    ? `Last read ${formatVentureDate(localDayAt(record.lastSync, venture.country), venture.country.dateOrder)} at ${ownerClock(record.lastSync, venture.country)}.`
     : 'Not read yet.';
   return { connected: true, host: record.host, user: record.user, lastSync: record.lastSync, line: `Reading ${record.user} on ${record.host}, read-only. ${when} Chausar never sends mail or marks it read.`, needsPassword: false };
 }

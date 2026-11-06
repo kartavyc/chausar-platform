@@ -6,6 +6,7 @@
 //
 // Ideas taken, code written here: Open Security's worklist that the read tool marks, Pinloop's coverage first, and
 // OpenQodex's "partial unless complete".
+import { formatCount } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
 import type { CoverageView, ToolCallRecord, WorkReceiptRecord } from '../contracts.ts';
 import { findRecord } from '../records.ts';
@@ -19,11 +20,13 @@ export type CoverageVerb = CoverageView['verb'];
 const UNIT_WORDS: Readonly<Record<CoverageUnit, readonly [string, string]>> = Object.freeze({
   rows: ['row', 'rows'], lines: ['line', 'lines'], pages: ['page', 'pages'], items: ['item', 'items'], 'bank-lines': ['bank line', 'bank lines'],
 });
-const count = (value: number) => value.toLocaleString('en-US');
+// B2: counts group as the owner's country does (fix round 1: the caller names it); India first when no business is at hand.
+const countIn = (country: string | null | undefined) => (value: number) => formatCount(value, country ?? 'IN');
 
 /** A coverage line, fraction first: "1,204 of 1,210 lines matched". Complete only when every item counted was seen. */
-export function coverageView(done: number | null, total: number | null, unit: CoverageUnit, verb: CoverageVerb, unitWords?: string): CoverageView {
+export function coverageView(done: number | null, total: number | null, unit: CoverageUnit, verb: CoverageVerb, unitWords?: string, country?: string | null): CoverageView {
   const [one, many] = UNIT_WORDS[unit];
+  const count = countIn(country);
   const words = (n: number | null) => unitWords ?? (n === 1 ? one : many);
   const line = done === null ? `${many.charAt(0).toUpperCase()}${many.slice(1)} ${verb}: not observed`
     : total === null ? `${count(done)} ${words(done)} ${verb}; how many there are is not known`
@@ -43,7 +46,7 @@ export type ReadCoverage = { coverage: CoverageView; files: (CoverageView & { ta
  * once however often it was read, and only from answers the agent saw whole. A PDF never read leaves its count, and so the whole count, unknown. Null when the run
  * has no client files.
  */
-export function readCoverage(files: readonly FileLike[], calls: readonly ToolCallRecord[]): ReadCoverage | null {
+export function readCoverage(files: readonly FileLike[], calls: readonly ToolCallRecord[], country?: string | null): ReadCoverage | null {
   const list = worklistOf(files);
   if (!list.length) return null;
   const seen = new Map<string, Set<string>>();
@@ -69,14 +72,14 @@ export function readCoverage(files: readonly FileLike[], calls: readonly ToolCal
     const marked = seen.get(item.target);
     const total = known ? known.size : totals.get(item.target) ?? null;
     const done = known ? [...(marked ?? [])].filter(id => known.has(id)).length : marked ? marked.size : null;
-    return { ...coverageView(done, total, item.unit, 'read'), target: item.target, name: item.name };
+    return { ...coverageView(done, total, item.unit, 'read', undefined, country), target: item.target, name: item.name };
   });
   const units = [...new Set(each.map(item => item.unit))];
   const done = each.every(item => item.done === null) ? null : each.reduce((sum, item) => sum + (item.done ?? 0), 0);
   const total = each.some(item => item.total === null) ? null : each.reduce((sum, item) => sum + item.total!, 0);
   const unit: CoverageUnit = units.length === 1 ? units[0] : 'items';
   const words = units.length === 1 ? undefined : units.map(item => UNIT_WORDS[item][1]).join(' and ');
-  const coverage = coverageView(done, total, unit, 'read', words);
+  const coverage = coverageView(done, total, unit, 'read', words, country);
   return { coverage: units.length > 1 ? { ...coverage, units: units as NonNullable<CoverageView['units']> } : coverage, files: each };
 }
 
@@ -96,13 +99,14 @@ function rowsIn(state: State, files: readonly FileLike[], tableId: string): numb
  * inputs and no worklist here: null.
  */
 export function workReceiptCoverage(state: State, files: readonly FileLike[], receipt: WorkReceiptRecord): CoverageView | null {
+  const country = findRecord(state, 'venture-record', receipt.ventureId)?.country?.code ?? null;
   if (receipt.operation === 'work.reconcile' && receipt.reconciliation) {
     const matched = receipt.reconciliation.matched.length;
-    return coverageView(matched, matched + receipt.reconciliation.unmatchedBank.length, 'bank-lines', 'matched');
+    return coverageView(matched, matched + receipt.reconciliation.unmatchedBank.length, 'bank-lines', 'matched', undefined, country);
   }
   if (receipt.operation !== 'work.sum' && receipt.operation !== 'work.totals') return null;
   const used = new Set(receipt.inputs?.rowIds ?? []).size;
   const sizes = (receipt.inputs?.tables ?? []).map(table => rowsIn(state, files, table.id));
   const total = sizes.length && sizes.every(size => size !== null) ? sizes.reduce((sum: number, size) => sum + size!, 0) : null;
-  return coverageView(used, total, 'rows', 'used');
+  return coverageView(used, total, 'rows', 'used', undefined, country);
 }

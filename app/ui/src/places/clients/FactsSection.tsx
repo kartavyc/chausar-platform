@@ -13,7 +13,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { FactView, FactVisibility } from '../../engine/types';
 import { useDay, useLocalToday } from '../money/words';
-import { Fold, dayOfMoment, messageOf } from './CrmParts';
+import { Fold, messageOf } from './CrmParts';
 import s from './Crm.module.css';
 
 /** The facts with their heading, for a sheet. */
@@ -60,7 +60,7 @@ export function FactsBody({ subject }: { subject: string }) {
                 </span>
                 <span className={s.when}>
                   {t('crm.facts.since', { day: day(fact.since) })}
-                  {fact.replacedAt && <>{', '}{t('crm.facts.replacedOn', { day: day(dayOfMoment(fact.replacedAt)) })}</>}
+                  {fact.replacedAt && <>{', '}{t('crm.facts.replacedOn', { day: day(fact.replacedAt) })}</>}
                 </span>
               </li>
             ))}

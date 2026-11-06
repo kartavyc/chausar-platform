@@ -22,7 +22,7 @@ test('dry run binds source, company and all rows; draft and issue have separate 
  const env=await fixture();const staged=await stageBooksPosting(env.deps,owner,env.target,{cycleId:env.cycle.id,orderId:env.clientOrder.id,uploadId:env.upload.id});
  assert.equal(env.counts().writes,0);assert.equal(staged.entry.kind,'posting');assert.equal(staged.entry.batch.rows.length,1);
  assert.equal(staged.entry.prepared.length,1,'The owner dry run persists exact provider bytes before approval');
- const proof=listRecords(env.deps.store.read(),'venture-work-receipt').find(value=>value.id===staged.entry.receiptId)!;assert.equal(proof.figures.find(value=>value.key===staged.entry.batch.rows[0]!.externalId)?.display,'INR 118.00');
+ const proof=listRecords(env.deps.store.read(),'venture-work-receipt').find(value=>value.id===staged.entry.receiptId)!;assert.equal(proof.figures.find(value=>value.key===staged.entry.batch.rows[0]!.externalId)?.display,'₹118');
  await assert.rejects(applyBooksPosting(env.deps,owner,env.target,{id:staged.id,digest:'old'}),{code:'APPROVAL_STALE'});
  const done=await applyBooksPosting(env.deps,owner,env.target,{id:staged.id,digest:staged.entry.reviewDigest});
  assert.equal(done.entry.state,'drafted');assert.deepEqual(env.counts(),{writes:1,issues:0});

@@ -24,7 +24,7 @@ export async function selectAgentRoute(deps: VentureDeps, ctx: Context, agentId:
   const connection = listRecords(state, 'venture-model-connection', venture.id).findLast(row => row.status === 'connected' && row.presetId === serving.presetId && row.tiers.includes('main'));
   check(plan || connection, 'MODEL_KEY_MISSING', 'Reconnect this AI before starting.');
   if (serving.presetId === 'openrouter') {
-    check(connection!.model, 'SPEND_UNPRICED', 'Select the exact gateway model before starting.');
+    check(connection!.model, 'SPEND_UNPRICED', 'Choose the exact AI model before starting.');
     settings.model = connection!.model;
   }
   const apiKey = plan ? null : deps.secrets.get(`model:${serving.presetId}`);

@@ -1,5 +1,5 @@
+import { formatMoney } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import type { InvoiceRecord, SumReceiptSubject, VentureRecord } from '../contracts.ts';
 import { listRecords } from '../records.ts';
 import { invoiceCountry } from '../core/country-history.ts';
@@ -22,5 +22,5 @@ export function taxTotalPlan(state: State, venture: VentureRecord, subject: Extr
   return { subject: { ...subject }, currency: subject.currency, unit: 'minor',
     words: { label: `${subject.taxLabel} on issued invoices`, one: 'invoice', many: 'invoices', none: 'No invoices issued.' },
     addends: invoices.map(invoice => ({ recordId: invoice.id, label: `${invoice.number}, ${subject.taxLabel}`, amount: invoice.taxMinor,
-      display: formatMinor(invoice.taxMinor, invoice.currency), estimate: false })) };
+      display: formatMoney(invoice.taxMinor, invoice.currency), estimate: false })) };
 }

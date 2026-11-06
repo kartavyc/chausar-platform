@@ -64,7 +64,7 @@ export type RivetActorHost = BusinessEngineOptions & { passphrase: (key: ActorKe
 export function ventureActorConfig(event: () => unknown, host: RivetActorHost): RivetVentureConfig {
   const keyOf = (c: RivetActorContext): ActorKey => { const key = [c.state.tenantId, c.state.businessId] as const; checkKey(key); return key; };
   const business = async (c: RivetActorContext): Promise<BusinessEngine> => {
-    check(c.state.hasVault, 'BUSINESS_NOT_FOUND', 'This business has no vault.');
+    check(c.state.hasVault, 'BUSINESS_NOT_FOUND', 'There is no business here yet.');
     if (!c.vars.business) {
       const opened = await BusinessEngine.open(host, keyOf(c), await host.passphrase(keyOf(c)));
       opened.lastSeq = Math.max(opened.lastSeq, c.state.lastSeq);
@@ -87,7 +87,7 @@ export function ventureActorConfig(event: () => unknown, host: RivetActorHost): 
     };
   }
   actions[CREATE_VAULT] = async (c, input: ActorCreateInput) => {
-    check(!c.state.hasVault, 'BUSINESS_EXISTS', 'This business already has a vault.');
+    check(!c.state.hasVault, 'BUSINESS_EXISTS', 'This business already exists.');
     const { business: opened, created } = await BusinessEngine.create(host, keyOf(c), input);
     c.vars.business = opened;
     c.state.hasVault = true;

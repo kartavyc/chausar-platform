@@ -14,14 +14,14 @@ import { call, code } from './venture-views-env.ts';
 const RUPEES = { rate: { perUsd: '835000', setOn: '2026-10-23' }, dateOrder: 'day-month-year' } as const;
 
 test('a lead figure in dollars has two decimals at most, rounded half up in BigInt; a spend above zero never reads as nothing', () => {
-  // 719800 micros is USD 0.7198: (719800 + 5000) / 10000 = 72 cents.
-  assert.equal(dollarsLead('719800'), 'USD 0.72');
+  // 719800 micros is $0.72: (719800 + 5000) / 10000 = 72 cents.
+  assert.equal(dollarsLead('719800'), '$0.72');
   // 5000 micros is half a cent: rounded up to a cent.
-  assert.equal(dollarsLead('5000'), 'USD 0.01');
-  assert.equal(dollarsLead('4999'), 'under USD 0.01');
-  assert.equal(dollarsLead('0'), 'USD 0.00');
+  assert.equal(dollarsLead('5000'), '$0.01');
+  assert.equal(dollarsLead('4999'), 'under $0.01');
+  assert.equal(dollarsLead('0'), '$0.00');
   // 1234567890 micros: 123457 cents.
-  assert.equal(dollarsLead('1234567890'), 'USD 1234.57');
+  assert.equal(dollarsLead('1234567890'), '$1,234.57');
 });
 
 test('which currency leads: Auto by where the business is, or the owner\'s own choice', () => {
@@ -33,14 +33,14 @@ test('which currency leads: Auto by where the business is, or the owner\'s own c
 });
 
 test('a spend figure as it leads: rupees with dollars beneath, dollars with rupees beneath, or dollars alone without a rate', () => {
-  // USD 0.7198 at 83.50: 719800 x 835000 / 10^8 = 6010.83 paise, to the nearest paisa 6010: ₹60.10.
+  // $0.72 at 83.50: 719800 x 835000 / 10^8 = 6010.83 paise, to the nearest paisa 6010: ₹60.10.
   assert.deepEqual(spendLead('719800', { ...RUPEES, leads: true }), {
-    currency: 'INR', figure: '₹60.10', beside: 'USD 0.72 at ₹83.50 per $1', other: 'USD 0.72',
+    currency: 'INR', figure: '₹60.10', beside: '$0.72 at ₹83.50 per $1', other: '$0.72',
   });
   assert.deepEqual(spendLead('719800', { ...RUPEES, leads: false }, ' this month'), {
-    currency: 'USD', figure: 'USD 0.72 this month', beside: '₹60.10 at ₹83.50 per $1', other: '₹60.10',
+    currency: 'USD', figure: '$0.72 this month', beside: '₹60.10 at ₹83.50 per $1', other: '₹60.10',
   });
-  assert.deepEqual(spendLead('719800', null), { currency: 'USD', figure: 'USD 0.72' });
+  assert.deepEqual(spendLead('719800', null), { currency: 'USD', figure: '$0.72' });
 });
 
 test('spend settings: Auto by default; the choice is kept, said back with which currency leads, and refused when unknown', async () => {
@@ -67,7 +67,7 @@ test('every view that shows spend sends its lead: Money\'s spend line, the spend
   const env = await goalBusiness();
   await paidCall(env, '719800');
   await env.money('venture.spend.policy.set', { inrPerUsd: '83.50' });
-  const rupeesFirst = { currency: 'INR', figure: '₹60.10', beside: 'USD 0.72 at ₹83.50 per $1', other: 'USD 0.72' };
+  const rupeesFirst = { currency: 'INR', figure: '₹60.10', beside: '$0.72 at ₹83.50 per $1', other: '$0.72' };
 
   const overview = await env.money<MoneyOverview>('venture.money.overview');
   assert.deepEqual(overview.lines.find(line => line.id === 'spent')!.lead, rupeesFirst);
@@ -81,25 +81,25 @@ test('every view that shows spend sends its lead: Money\'s spend line, the spend
 
   // Dollars first: two decimals lead, the rupees beneath.
   await env.money('venture.spend.policy.set', { currencyLead: 'usd' });
-  const dollarsFirst = { currency: 'USD', figure: 'USD 0.72', beside: '₹60.10 at ₹83.50 per $1', other: '₹60.10' };
+  const dollarsFirst = { currency: 'USD', figure: '$0.72', beside: '₹60.10 at ₹83.50 per $1', other: '₹60.10' };
   assert.deepEqual((await env.money<MoneyOverview>('venture.money.overview')).lines.find(line => line.id === 'spent')!.lead, dollarsFirst);
   assert.deepEqual((await call<TeamListView>(env, 'venture.team.list')).totals!.spendThisMonth.lead, dollarsFirst);
   // The exact figure is still the receipt's, and still the line's own value.
-  assert.equal((await env.money<MoneyOverview>('venture.money.overview')).lines.find(line => line.id === 'spent')!.value, 'USD 0.7198');
+  assert.equal((await env.money<MoneyOverview>('venture.money.overview')).lines.find(line => line.id === 'spent')!.value, '$0.72');
 });
 
 test('the limit lines lead as the owner chose, the dollars to two decimals; none without a limit', async () => {
   const env = await goalBusiness();
   const none = await env.money<SpendPolicyView>('venture.spend.policy.set', { inrPerUsd: '83.50' });
   assert.deepEqual([none.capLead, none.askFirstLead], [undefined, undefined]);
-  // USD 20 and USD 2 at 83.50: ₹1,670.00 and ₹167.00.
+  // USD 20 and USD 2 at 83.50: ₹1,670 and ₹167.
   const rupeesFirst = await env.money<SpendPolicyView>('venture.spend.policy.set', { capUsd: '20', askFirstUsd: '2' });
-  assert.deepEqual(rupeesFirst.capLead, { currency: 'INR', figure: '₹1,670.00 a month', beside: 'USD 20.00 at ₹83.50 per $1', other: 'USD 20.00' });
-  assert.deepEqual(rupeesFirst.askFirstLead, { currency: 'INR', figure: 'Asks you first above ₹167.00', beside: 'USD 2.00 at ₹83.50 per $1', other: 'USD 2.00' });
+  assert.deepEqual(rupeesFirst.capLead, { currency: 'INR', figure: '₹1,670 a month', beside: '$20.00 at ₹83.50 per $1', other: '$20.00' });
+  assert.deepEqual(rupeesFirst.askFirstLead, { currency: 'INR', figure: 'Asks you first above ₹167', beside: '$2.00 at ₹83.50 per $1', other: '$2.00' });
   const dollarsFirst = await env.money<SpendPolicyView>('venture.spend.policy.set', { currencyLead: 'usd' });
-  assert.deepEqual(dollarsFirst.capLead, { currency: 'USD', figure: 'USD 20.00 a month', beside: '₹1,670.00 at ₹83.50 per $1', other: '₹1,670.00' });
+  assert.deepEqual(dollarsFirst.capLead, { currency: 'USD', figure: '$20.00 a month', beside: '₹1,670 at ₹83.50 per $1', other: '₹1,670' });
   // The limits as the engine keeps them are unchanged.
-  assert.deepEqual([dollarsFirst.cap, dollarsFirst.capUsd], ['USD 20.0000 a month', '20.00']);
+  assert.deepEqual([dollarsFirst.cap, dollarsFirst.capUsd], ['$20.00 a month', '20.00']);
 });
 
 test('the businesses page: a saved summary carries no rate or country, so the others lead by the open business\'s choice and say so', async () => {
@@ -109,14 +109,14 @@ test('the businesses page: a saved summary carries no rate or country, so the ot
   const figure = (amount: string, display: string, unit: 'minor' | 'micros' = 'minor', currency = 'INR') => ({ amount, unit, currency, display, receiptId: 'their_sum' });
   const other: BusinessSnapshot = {
     format: 'chausar.snapshot.v1', businessId: 'lumen', vaultId: 'vault_lumen', name: 'Lumen Studio', playbook: null, asOf: '2026-10-21T05:00:00.000Z',
-    money: { month: '2026-10', currency: 'INR', invoiced: figure('0', 'INR 0.00'), received: figure('0', 'INR 0.00'), owed: figure('0', 'INR 0.00'), late: 0, spend: figure('1250000', 'USD 1.2500', 'micros', 'USD') },
+    money: { month: '2026-10', currency: 'INR', invoiced: figure('0', '₹0'), received: figure('0', '₹0'), owed: figure('0', '₹0'), late: 0, spend: figure('1250000', '$1.25', 'micros', 'USD') },
     runs: { working: 0, waiting: 0, stopped: 0 }, needsYou: 0,
   };
   const reads: BusinessSnapshotRead[] = [{ id: 'lumen', name: 'Lumen Studio', opens: 'with-this-computer', openedAt: '2026-10-21T05:00:00.000Z', read: 'saved', snapshot: other }];
   Object.assign(env.deps.workspace!, { snapshots: async () => reads });
   const view = await env.money<AcrossMoneyView>('venture.money.across');
   // The open business: its own rate and choice, as on every other page.
-  assert.deepEqual(view.businesses[0]!.spendLead, { currency: 'INR', figure: '₹60.10', beside: 'USD 0.72 at ₹83.50 per $1', other: 'USD 0.72' });
-  // Another business at the open one's rate: USD 1.25 at 83.50 is ₹104.38 (10437.5 paise, a half paisa up), said so.
-  assert.deepEqual(view.businesses[1]!.spendLead, { currency: 'INR', figure: '₹104.38', beside: "USD 1.25 at the open business's rate, ₹83.50 per $1", other: 'USD 1.25' });
+  assert.deepEqual(view.businesses[0]!.spendLead, { currency: 'INR', figure: '₹60.10', beside: '$0.72 at ₹83.50 per $1', other: '$0.72' });
+  // Another business at the open one's rate: $1.25 at 83.50 is ₹104.38 (10437.5 paise, a half paisa up), said so.
+  assert.deepEqual(view.businesses[1]!.spendLead, { currency: 'INR', figure: '₹104.38', beside: "$1.25 at the open business's rate, ₹83.50 per $1", other: '$1.25' });
 });

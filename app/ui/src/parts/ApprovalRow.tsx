@@ -1,5 +1,7 @@
 import { useEffect, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
-import { useLanguage, useT, type Language, type T } from '../text';
+import { useT, type T } from '../text';
+import { useOwnerZone } from '../shell/clock';
+import { formatTime } from '../../../../platform/runtime/owner-format';
 import { Avatar, ChausarAvatar, type AvatarState, type DeptId } from './Avatar';
 import { Button, type ButtonSize } from './Button';
 import { Change } from './Change';
@@ -49,11 +51,11 @@ const KIND_ICON: Record<QueueKind, IconName> = {
 /** The icon a primary carries on a card when it is not locked (D's Approve check, Run again arrow). */
 const ACTION_ICON: Partial<Record<QueueAction['id'], IconName>> = { approve: 'check', 'run-again': 'rotate-ccw', 'send-to-ca': 'send' };
 
-/** The time of day a row came in (createdAt), as the reader's clock writes it: "08:40". Empty for a bad date. */
-export function timeOf(at: string, language: Language): string {
+/** The time of day a row came in (createdAt), in the owner's zone on the 12-hour clock: "8:40 am". Empty for a bad date. */
+export function timeOf(at: string, zone: string): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  return formatTime(date, zone);
 }
 
 export interface DecideExtra { viewed: boolean; answer?: string }
@@ -144,6 +146,8 @@ export interface ApprovalRowProps {
   buttonSize?: ButtonSize | undefined;
   /** W4 4J22b: the answer box's send words for what is typed (an agent's question card says the answer back). */
   answerLabel?: ((answer: string) => string) | undefined;
+  /** B3: the row was decided already (Today's session holds its line): it is drawn as that line from the start. */
+  done?: { line: string; receiptId?: string | undefined } | undefined;
 }
 
 type Phase = 'idle' | 'confirm' | 'answer' | 'sending' | 'decided';
@@ -161,6 +165,16 @@ export function readBack(list: QueueList, row: QueueRow, t: T): QueueDecision {
   if (!now) return { outcome: 'done', line: t('approval.afterWait') };
   if (now.digest !== row.digest) return { outcome: 'stale', line: t('approval.stale'), latest: now };
   return { outcome: 'refused', reason: 'NOT_RECORDED', line: t('approval.notYet') };
+}
+
+/**
+ * B3: a plan or price row's decided line is the engine's outcome alone ("Plan accepted.", "New price for Monthly books
+ * accepted."), since its title is an ask or the outcome already names it; every other row says "title · line". A line
+ * that is not the engine's outcome (resolved elsewhere, after a wait) keeps the title, so it still says what it was.
+ */
+export function decidedWords(row: QueueRow, line: string, t: T): { title: string | null; line: string } {
+  const own = line !== t('approval.elsewhere') && line !== t('approval.afterWait');
+  return { title: row.viewRef?.kind === 'plan' && own ? null : row.title, line };
 }
 
 /**
@@ -196,15 +210,15 @@ export function primaryOf(row: QueueRow, viewed: boolean, t: T): ApprovalPrimary
  */
 export function ApprovalRow({
   row, onDecide, onView, viewed, onOpen, onReceipt, onAction, showBusiness = true, onReread,
-  layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize, tools, answerLabel,
+  layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize, tools, answerLabel, done,
 }: ApprovalRowProps) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const [current, setCurrent] = useState(row);
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<Phase>(done ? 'decided' : 'idle');
   const [pending, setPending] = useState<QueueAction | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const [decided, setDecided] = useState<{ line: string; receiptId?: string | undefined; undo?: (() => Promise<string>) | undefined } | null>(null);
+  const [decided, setDecided] = useState<{ line: string; receiptId?: string | undefined; undo?: (() => Promise<string>) | undefined } | null>(done ? { line: done.line, receiptId: done.receiptId } : null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [viewedHere, setViewedHere] = useState(false);
   const [answer, setAnswer] = useState('');
@@ -219,7 +233,7 @@ export function ApprovalRow({
   const focusDecided = useRef(false);
   // Set before the decision is sent and checked by every way in (click, confirm, handle, keys), so two presses in the
   // same moment send one decision: state alone would let the second one through before the first re-renders.
-  const inFlight = useRef(false);
+  const inFlight = useRef(Boolean(done));
 
   const staleWords = layout === 'row' ? `${t('approval.stale')} ${t('approval.staleNew')}` : t('approval.staleHere');
 
@@ -372,10 +386,10 @@ export function ApprovalRow({
     const { line, receiptId, undo } = decided;
     // 4Z3: the receipt is a mark after the line; its code is not printed (the engine's line may end with it).
     const text = receiptId && line.endsWith(receiptId) ? line.slice(0, -receiptId.length).replace(/\s*·\s*$/, '') : line;
+    const words = decidedWords(current, text, t);
     const status = (
       <span role="status">
-        <span className={s.decidedTitle}>{current.title}</span>
-        {' · '}
+        {words.title !== null && <><span className={s.decidedTitle}>{words.title}</span>{' · '}</>}
         {text}
         {receiptId && <>{' '}<Receipt id={receiptId} onOpen={onReceipt} /></>}
         {/* W4 4J19: a send back or an edit can be taken back until its revision starts. */}
@@ -512,7 +526,7 @@ export function ApprovalRow({
   const kindIcon: IconName = stopped ? 'triangle-alert' : KIND_ICON[current.kind] ?? 'file-text';
   const name = current.agent ?? t('app.name');
   // W4 4E4: a follow-up's time is only its due day's start, so it shows none.
-  const time = current.kind === 'followup' ? '' : timeOf(current.createdAt, language);
+  const time = current.kind === 'followup' ? '' : timeOf(current.createdAt, zone);
   const note = lockNote ?? (primary.secondAsk ? t('approval.asksAgain') : current.kind === 'plan' ? t('approval.nothingYet') : current.needs?.answer === 'day' ? t('approval.pickDay') : undefined);
   const previewNode = typeof preview === 'function'
     ? preview(view, { answer: (text) => { if (phase !== 'idle' || inFlight.current) return; setAnswer(text); setPhase('answer'); } })

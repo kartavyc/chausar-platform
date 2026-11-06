@@ -8,7 +8,7 @@
   "work.new": "New order",
   "work.orders": "Orders",
   "work.empty": "No work yet.",
-  "work.emptyLine": "New orders and runs show up here.",
+  "work.emptyLine": "New orders and jobs show up here.",
   "work.none.done": "Nothing finished yet.",
   "work.none.failed": "Nothing has failed.",
   "work.none.orders": "No orders yet.",
@@ -26,7 +26,7 @@
   "work.order.draft-ready": "Draft ready. Read it before it goes to the client.",
   "work.order.approved": "Approved. Send it, then mark it delivered.",
   "work.order.returned": "You sent the draft back. Run it again when ready.",
-  "work.order.stopped": "The last run failed.",
+  "work.order.stopped": "The last job failed.",
   "work.order.delivered": "Delivered. Not invoiced yet.",
   "work.order.deliveredDraft": "Delivered. Its invoice is ready to issue on Today.",
   "work.order.invoiced": "Invoiced as {number}. Waiting for payment.",
@@ -52,7 +52,7 @@
   "work.form.submit": "Add order",
   "work.form.sending": "Adding",
   "work.form.noServices": "Your plan has no services yet. Add them from the business menu.",
-  "work.form.failed": "Couldn't add the order: {message}",
+  "work.form.failed": "{message}",
   "work.form.rightsRefused": "The rights don't cover this order. {message}",
   "work.intake.rights": "Rights to the footage",
   "work.intake.rightsHint": "Needed before any clip is cut.",
@@ -103,8 +103,8 @@
   "work.form.partial": "The order is in. These files weren't added:",
   "work.form.fileFailed": "{name}: {message}",
   "work.focus.order": "Order",
-  "work.focus.runs": "Runs",
-  "work.focus.noRuns": "No runs yet.",
+  "work.focus.runs": "Jobs",
+  "work.focus.noRuns": "No jobs yet.",
   "work.focus.price": "Priced on",
   "work.focus.missing": "This order isn't in this business.",
   "work.focus.back": "All orders",
@@ -180,16 +180,16 @@
   "work.none.waiting": "Nothing here needs you.",
   "work.none.active": "Nothing is running right now.",
   "work.line.runs": {
-    "one": "{count} run going.",
-    "other": "{count} runs going."
+    "one": "{count} job going.",
+    "other": "{count} jobs going."
   },
   "work.line.runsFailed": {
-    "one": "{count} run going and {failed} failed.",
-    "other": "{count} runs going and {failed} failed."
+    "one": "{count} job going and {failed} failed.",
+    "other": "{count} jobs going and {failed} failed."
   },
   "work.line.failed": {
-    "one": "{count} run failed.",
-    "other": "{count} runs failed."
+    "one": "{count} job failed.",
+    "other": "{count} jobs failed."
   },
   "work.line.idle": "Nothing running now.",
   "work.line.orders": {
@@ -201,7 +201,7 @@
     "other": "{count} clients"
   },
   "work.running": "Running now",
-  "work.run.foot": "Run {id} · {elapsed}",
+  "work.run.foot": "Started {elapsed} ago",
   "work.run.waitsAt": "Step {step} of {total} waits on you",
   "work.run.waitsAfter": "{done} of {total} done, waits on you",
   "work.run.answer": "Answer",
@@ -209,13 +209,12 @@
   "work.running.meta": "{count} running",
   "work.running.metaFailed": "{count} running · {failed} failed",
   "work.failedRun.heading": "Failed",
-  "work.failedRun.run": "run {id}",
   "work.failedRun.at": "Failed at step {step} of {total}",
   "work.failedRun.chip": "Failed",
   "work.failedRun.why": "What went wrong",
-  "work.failedRun.noReason": "This run failed.",
+  "work.failedRun.noReason": "This job failed.",
   "work.finished": "Finished",
-  "work.finished.more": "All finished runs",
+  "work.finished.more": "All finished jobs",
   "work.finished.took": "Worked for {elapsed}",
   "work.orders.meta": "{count} open for {clients}",
   "work.orders.clients": "Open Clients",
@@ -227,12 +226,12 @@
   "work.client.owes": "Owes you",
   "work.order.ordered": "Ordered {date}",
   "work.order.price": "Price",
-  "work.order.priced": "Priced on receipt",
+  "work.order.priced": "How it's priced",
   "work.order.due": "due {date}",
   "work.order.onToday": "Open on Today",
   "work.stop.button": "Stop",
-  "work.stop.label": "Stop run {id}",
-  "work.stop.title": "Stop run {id}?",
+  "work.stop.label": "Stop: {purpose}",
+  "work.stop.title": "Stop this job?",
   "work.stop.line": "Stop lets the step in progress finish, then stops. Finished steps are kept.",
   "work.stop.force": "Force stop",
   "work.stop.forceAsk": "Force stop throws away the step in progress: {step}. Anything already sent stays sent. Force stop?",
@@ -280,12 +279,12 @@
   "work.gate.note": "Anything for the next step? (optional)",
   "work.gate.failed": "Could not send it: {message}",
   "work.line.stopped": {
-    "one": "{count} run stopped.",
-    "other": "{count} runs stopped."
+    "one": "{count} job stopped.",
+    "other": "{count} jobs stopped."
   },
   "work.stop.unpauseFirst": "Unpause first",
   "work.stop.waitsResume": "Waiting for Resume",
-  "work.stop.forceLabel": "Force stop run {id}",
+  "work.stop.forceLabel": "Force stop: {purpose}",
   "work.request.title": "A file from your client",
   "work.request.line": "Your client sends one file through a link that works once, for 15 minutes.",
   "work.request.ask": "Ask the client for a file",

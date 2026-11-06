@@ -53,7 +53,7 @@ export function NetworkSources({ view }: { view: NetworkSourcesView }) {
                 <span className={s.kindMark} aria-hidden="true"><Icon name={KIND_ICONS[source.kind]} size={18} /></span>
                 <div className={s.sourceBody}>
                   <p className={s.sourceName}>{t(`clients.network.kind.${source.kind}`)}</p>
-                  <p className={`${s.file} mono`}>{source.fileName}</p>
+                  <p data-code="" className={`${s.file} mono`}>{source.fileName}</p>
                   <p className={s.sourceLine}>{source.line}</p>
                   {/* 4Z2: the engine's line already says how many it kept; what it left out is said once here. */}
                   {source.dropped > 0 && (

@@ -15,8 +15,8 @@ it('prepares an exact price handoff through two visible owner approvals with rec
  fireEvent.change(within(region).getByLabelText('Maximum price change (%)'),{target:{value:'25'}});fireEvent.change(within(region).getByLabelText('Maximum promotion (%)'),{target:{value:'20'}});
  fireEvent.click(within(region).getByRole('button',{name:'Read products'}));await within(region).findByRole('option',{name:'shopify / A: Cotton bag'});
  fireEvent.change(within(region).getByLabelText('New price (rupees)'),{target:{value:'90.25'}});fireEvent.click(within(region).getByRole('button',{name:'Preview change'}));
- expect(await within(region).findByText('INR 90.25')).toBeTruthy();expect(within(region).queryByRole('button',{name:'Download your copy'})).toBeNull();
- fireEvent.change(within(region).getByLabelText('New price (rupees)'),{target:{value:'89'}});expect(within(region).queryByRole('button',{name:'Approve this change'})).toBeNull();fireEvent.click(within(region).getByRole('button',{name:'Preview change'}));await within(region).findByText('INR 89.00');
+ expect(await within(region).findByText('₹90.25')).toBeTruthy();expect(within(region).queryByRole('button',{name:'Download your copy'})).toBeNull();
+ fireEvent.change(within(region).getByLabelText('New price (rupees)'),{target:{value:'89'}});expect(within(region).queryByRole('button',{name:'Approve this change'})).toBeNull();fireEvent.click(within(region).getByRole('button',{name:'Preview change'}));await within(region).findByText('₹89');
  fireEvent.click(within(region).getByRole('button',{name:'Approve this change'}));fireEvent.click(await within(region).findByRole('button',{name:'Confirm and prepare your copy'}));
  expect(await within(region).findByRole('button',{name:'Download your copy'})).toBeTruthy();expect(within(region).getByText('No marketplace change was made. You upload the file.')).toBeTruthy();
 });
@@ -37,7 +37,7 @@ it('previews an owner-app photo quote before approval and keeps the main product
  const png=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aOmgAAAAASUVORK5CYII='),c=>c.charCodeAt(0));
  fireEvent.change(within(region).getByLabelText('Real main product photo'),{target:{files:[new File([png],'real-main.png',{type:'image/png'})]}});
  for(const [label,value] of [['Exact brand text','Acme bag'],['Background','white'],['Palette','green'],['Font','plain'],['Icons','none'],['Image brief','Show the actual bag.'],['Image provider','Owner image app'],['Quote per image (rupees)','10'],['Quote source','Provider page checked by owner'],['Quote expires at','2027-01-01T00:00:00Z']])fireEvent.change(within(region).getByLabelText(label!),{target:{value}});
- fireEvent.click(within(region).getByRole('button',{name:'Preview photo quote'}));expect(await within(region).findByText('INR 10.00')).toBeTruthy();expect(within(region).getByText('real-main.png')).toBeTruthy();expect(within(region).getByRole('button',{name:'Approve photo quote'})).toBeTruthy();expect(within(region).queryByLabelText('Generated image')).toBeNull();fireEvent.change(within(region).getByLabelText('Image brief'),{target:{value:'A different brief'}});expect(within(region).queryByRole('button',{name:'Approve photo quote'})).toBeNull();
+ fireEvent.click(within(region).getByRole('button',{name:'Preview photo quote'}));expect(await within(region).findByText('₹10')).toBeTruthy();expect(within(region).getByText('real-main.png')).toBeTruthy();expect(within(region).getByRole('button',{name:'Approve photo quote'})).toBeTruthy();expect(within(region).queryByLabelText('Generated image')).toBeNull();fireEvent.change(within(region).getByLabelText('Image brief'),{target:{value:'A different brief'}});expect(within(region).queryByRole('button',{name:'Approve photo quote'})).toBeNull();
 });
 
 

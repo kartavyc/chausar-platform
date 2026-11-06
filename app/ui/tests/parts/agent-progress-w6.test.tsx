@@ -101,5 +101,5 @@ it('A2 second review: a job the watchdog stopped for running too long says so, i
 it('A2: a site the job stopped asking after three refusals is named as unavailable for this run',()=>{
  const progress:RunDetail['agentProgress']={messages:[],tools:[],unavailableSites:['news.example','shop.example']};
  render(<TextProvider language="en"><AgentProgress progress={progress}/></TextProvider>);
- expect(screen.getByText('Unavailable for this run: news.example, shop.example')).toBeTruthy();
+ expect(screen.getByText('Unavailable for this job: news.example, shop.example')).toBeTruthy();
 });

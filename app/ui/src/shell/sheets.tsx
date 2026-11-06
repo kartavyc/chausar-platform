@@ -33,7 +33,7 @@ function ReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const receipt = useResource('venture.receipt.get', { id });
   return (
-    <Sheet label={t('sheet.receipt')} title={<span className="mono">{id}</span>} onClose={onClose} returnFocus={returnFocus} receipt>
+    <Sheet label={t('sheet.receipt')} title={<span data-code="" className="mono">{id}</span>} onClose={onClose} returnFocus={returnFocus} receipt>
       {receipt.error && <p className={s.failed}>{t('sheet.failed', { message: receipt.error.message })}</p>}
       {!receipt.data && !receipt.error && <p className={s.quiet}>{t('sheet.loading')}</p>}
       {receipt.data && (
@@ -44,7 +44,7 @@ function ReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
               {receipt.data.figures.map((figure) => (
                 <div key={figure.key} className={s.figure}>
                   <dt>{figure.label}</dt>
-                  <dd className="mono">{figure.display}</dd>
+                  <dd data-num="">{figure.display}</dd>
                 </div>
               ))}
             </dl>
@@ -69,7 +69,7 @@ function CaReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const view = receipt.data;
   return (
     <Sheet
-      label={t('sheet.receipt')} title={<span className="mono">{id}</span>}
+      label={t('sheet.receipt')} title={<span data-code="" className="mono">{id}</span>}
       line={view ? t(`business.ca.engine.${view.engine}`) : undefined}
       onClose={onClose} returnFocus={returnFocus} receipt
     >
@@ -82,7 +82,7 @@ function CaReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
               {view.figures.map((figure) => (
                 <div key={figure.key} className={s.figure}>
                   <dt>{figure.label}</dt>
-                  <dd className="mono">{figure.display}</dd>
+                  <dd data-num="">{figure.display}</dd>
                 </div>
               ))}
             </dl>
@@ -97,7 +97,7 @@ function CaReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
                       {step.label}
                       {step.section && <span className={s.section}> · {t('receipt.ca.section', { section: step.section })}</span>}
                     </span>
-                    <span className="mono">{step.display}</span>
+                    <span data-num="">{step.display}</span>
                   </li>
                 ))}
               </ol>

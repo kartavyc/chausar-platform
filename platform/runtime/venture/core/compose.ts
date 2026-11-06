@@ -3,8 +3,8 @@
 // (main tier) picks blocks from the checked library and writes short words for them. Code checks every id, count,
 // word and word cap, then assembles the plan. The model never writes markup, a number (in digits or in words), a
 // price, or who does a step. One repair call each, then a clear refusal: never a made-up or template plan.
+import { formatMoney } from '../../owner-format.ts';
 import { check, ChausarError } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { copiedTokens, digest, exactPayload } from '../records.ts';
 import { SERVICE_TYPE_LABELS, SERVICE_TYPES } from '../contracts.ts';
 import type {
@@ -587,7 +587,7 @@ export function revalidateComposed(held: DraftCompose): ComposedPlan {
 const PATCH_KEYS = ['countryCode', 'offers', 'taxRegistered', 'taxRate', 'answers'] as const;
 const has = (record: Record<string, unknown>, key: string) => Object.hasOwn(record, key);
 
-/** Applies one owner patch to a held plan. No model call. Prices only from ownerPrice; display from formatMinor. */
+/** Applies one owner patch to a held plan. No model call. Prices only from ownerPrice; display from formatMoney (the owner form, B2). */
 export function applyComposePatch(current: ComposedPlan, value: unknown): ComposedPlan {
   const patch = exactPayload(value, PATCH_KEYS) as Record<string, unknown> & ComposePatch;
   check(Object.keys(patch).length > 0, 'INVALID_VENTURE_REQUEST', 'Send at least one change.');
@@ -626,7 +626,7 @@ export function applyComposePatch(current: ComposedPlan, value: unknown): Compos
         } else {
           const price = ownerPrice(change.unitPrice, country.currency);
           offer.pricing = offerPricing(offer.pricing.model, price.minor);
-          offer.priceDisplay = formatMinor(price.minor, country.currency);
+          offer.priceDisplay = formatMoney(price.minor, country.currency);
         }
       }
     }

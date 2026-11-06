@@ -33,12 +33,12 @@ it('owner drafts a receipt voucher with rupee text and reviews each entry before
  fireEvent.change(screen.getByLabelText('Credit account'),{target:{value:'bank'}});
  fireEvent.change(screen.getByLabelText('Amount in rupees'),{target:{value:'100'}});
  fireEvent.submit(screen.getByRole('form',{name:'Draft a receipt voucher'}));
- expect(await screen.findByRole('button',{name:'Approve these entries'})).toBeTruthy();expect(screen.getAllByText('INR 100.00').length).toBeGreaterThan(0);
+ expect(await screen.findByRole('button',{name:'Approve these entries'})).toBeTruthy();expect(screen.getAllByText('₹100').length).toBeGreaterThan(0);
  fireEvent.click(screen.getByRole('button',{name:'Approve these entries'}));
  expect(await screen.findByText('Approved for the bookkeeper. Nothing posted.')).toBeTruthy();assertInkRules();
  fireEvent.change(screen.getByLabelText('Monthly seller file'),{target:{value:monthly.id}});fireEvent.change(screen.getByLabelText('Accounting month'),{target:{value:'2026-10'}});
  fireEvent.submit(screen.getByRole('form',{name:'Monthly seller books'}));
- expect(await screen.findByText('INR 0.10')).toBeTruthy();expect(screen.getByText('A CA must confirm tax sections. Nothing was posted or filed.')).toBeTruthy();assertInkRules();
+ expect(await screen.findByText('₹0.10')).toBeTruthy();expect(screen.getByText('A CA must confirm tax sections. Nothing was posted or filed.')).toBeTruthy();assertInkRules();
  const setupFile=await client.request('venture.files.add',{orderId:order.id,name:'setup.csv',contentBase64:btoa('kind,id,name,source,debitRupees,creditRupees\ncustomer,c1,Example client,Client list,,\ncategory,bank,Bank,Statement,,\ncategory,equity,Equity,Statement,,\nopening,bank,,Statement,100,0\nopening,equity,,Statement,0,100')});
  // Selecting the same order again refreshes the uploaded-file list and leaves the existing cycle available.
  fireEvent.change(screen.getByLabelText('Client order'),{target:{value:''}});fireEvent.change(screen.getByLabelText('Client order'),{target:{value:order.id}});fireEvent.change(screen.getByLabelText('Finance cycle'),{target:{value:screen.getByRole('option',{name:'Client books · Tally · 2026-04-01 to 2027-03-31'}).getAttribute('value')}});

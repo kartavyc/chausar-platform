@@ -1,5 +1,5 @@
 // Chausar S12 owner-approved single-slot scheduling. Original code, no standing auto-post permission.
-import { check } from '../../../contracts.ts';
+import { check,internalCheck } from '../../../contracts.ts';
 import type { SocialScheduledRecord } from '../../contracts.ts';
 import { digest, exactPayload, findRecord, listRecords, readVenture, requireAppChannel, ventureAction } from '../../records.ts';
 import { approveScheduledPostIn, scheduledPostProposalIn, scheduledPostingAccount, validateScheduledPost, LINKEDIN_HANDOFF_ONLY } from '../../build/posting.ts';
@@ -59,7 +59,7 @@ export const SCHEDULED_DESK: DeskHandlers = { scheduled: {
             const result = await ventureAction(deps, ctx, 'approve', 'social.scheduled.' + payload.action, tx => {
                 let row: SocialScheduledRecord;
                 if (payload.action === 'create') {
-                    check(payload.id === 'new' && payload.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new slot has no prior digest.');
+                    internalCheck(payload.id === 'new' && payload.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new slot has no prior digest.');
                     const p = exactPayload(payload.payload, ['postId', 'connectorId', 'dueAt'], ['postId', 'connectorId', 'dueAt']);
                     check(typeof p.connectorId === 'string' && ['x', 'instagram', 'youtube', 'linkedin', 'bluesky', 'mastodon', 'telegram', 'discord'].includes(p.connectorId), 'INVALID_VENTURE_REQUEST', 'Choose a posting channel.');
                     check(p.connectorId !== 'linkedin', 'NOT_BUILT_YET', LINKEDIN_HANDOFF_ONLY);

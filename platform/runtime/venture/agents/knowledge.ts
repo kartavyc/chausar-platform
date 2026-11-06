@@ -14,6 +14,7 @@
 // keeps them out of a later source. Each act and writing turn of a real order carries the sources that share words
 // with its work (agents/knowledge-recall.ts, wired in delivery/harness/loop.ts); a source the screen holds as it is
 // read says why here. A business with no country yet (still in its interview) shows plain dates and no requests.
+import { formatCount } from '../../owner-format.ts';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import type {
@@ -87,7 +88,7 @@ function scrubForgotten(text: string, index: ForgottenIndex | null): string {
 
 /** The owner's day of a time, in the country's date order; the plain date while the business has no country yet. */
 function dayOf(venture: VentureRecord, at: string): string {
-  return venture.country ? formatVentureDate(localDayAt(at, venture.country), venture.country.dateOrder) : at.slice(0, 10);
+  return venture.country ? formatVentureDate(localDayAt(at, venture.country), venture.country.dateOrder) : localDayAt(at, null);
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +291,7 @@ function sourceView(state: State, venture: VentureRecord, record: KnowledgeRecor
   const held = sourceHeld(record);
   const line = [
     lead, ...screenWords(record.screen),
-    ...(record.text.length >= MAX_SOURCE_CHARS ? [`Chausar keeps the first ${MAX_SOURCE_CHARS.toLocaleString('en-IN')} characters.`] : []),
+    ...(record.text.length >= MAX_SOURCE_CHARS ? [`Chausar keeps the first ${formatCount(MAX_SOURCE_CHARS, venture.country?.code ?? 'IN')} characters.`] : []),
     ...(erased ? [ERASED_LINE] : []),
     ...(held.length ? [`Held: it has ${listWords(held)}, so agents never read the parts that hold them.`] : []),
   ].join(' ');

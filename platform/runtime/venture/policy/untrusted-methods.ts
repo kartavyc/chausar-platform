@@ -2,7 +2,7 @@
 // venture.untrusted.mode sets the business's screen mode: observe by default, enforce once the owner turns it on.
 // venture.untrusted.release lets one held content through, bound to its digest, so changed content is held again.
 // Both are the owner's, inside the app. screenSettingOf is what a run reads (delivery/harness/env.ts).
-import { check, type Context, type State } from '../../contracts.ts';
+import { check, type Context, type State, internalCheck } from '../../contracts.ts';
 import type { ScreenSettingRecord, UntrustedReleaseRecord, VentureDeps } from '../contracts.ts';
 import { exactPayload, listRecords, requireAppChannel, ventureAction } from '../records.ts';
 import { SCREEN_MODES, type ScreenMode, type ScreenSetting } from './untrusted.ts';
@@ -40,7 +40,7 @@ export async function untrustedReleaseHandler(deps: VentureDeps, ctx: Context, p
   requireAppChannel(ctx, 'venture.untrusted.release');
   ownerOnly(ctx);
   const body = exactPayload(payload, ['digest'], ['digest']);
-  check(typeof body.digest === 'string' && DIGEST.test(body.digest), 'INVALID_VENTURE_REQUEST', 'That is not the digest of held content.');
+  internalCheck(typeof body.digest === 'string' && DIGEST.test(body.digest), 'INVALID_VENTURE_REQUEST', 'That is not the digest of held content.');
   const digest = body.digest;
   await ventureAction(deps, ctx, 'approve', 'untrusted.release', tx => { tx.put<UntrustedReleaseRecord>({ ...tx.base('venture-untrusted-release'), digest }); });
   return { digest, released: true };

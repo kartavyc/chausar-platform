@@ -6,11 +6,12 @@ import { FakeEngine, createFakeClient, queueOrder } from '../../src/engine/fake'
 import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
 import { EngineError, type EngineClient, type QueueDecision, type QueueKind, type QueueRow } from '../../src/engine/types';
 import { receiptMark } from '../helpers/ink-rules';
+import common from '../../src/text/en/common.json';
 
 type Seed = Omit<QueueRow, 'digest'>;
 
-/** Today's title is the greeting for the hour (Ink v2, 3C): these tests read the page at 10:00 on this computer's clock. */
-const MORNING = () => new Date(2026, 9, 23, 10, 0);
+/** Today's title is the greeting for the hour (Ink v2, 3C): these tests read the page at 10:00 in India, the fake business's zone (B2). */
+const MORNING = () => new Date('2026-10-23T04:30:00.000Z');
 
 function start({ engine = new FakeEngine(), client, hash = '#/today', language = 'en' }: { engine?: FakeEngine; client?: EngineClient; hash?: string; language?: 'en' } = {}) {
   window.location.hash = hash;
@@ -68,8 +69,8 @@ describe('Today: the header and the list', () => {
   // Ink v2 (3C): the page title is the greeting for the hour, and the engine's summary leads the line under it.
   it('greets the owner and says the engine summary line', async () => {
     start();
-    expect(screen.getByRole('heading', { level: 1, name: 'Good morning' })).toBeTruthy();
-    await waitFor(() => expect(headerLine()).toBe('13 need you, across 3 businesses. 2 agents are working.'));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Good morning' })).toBeTruthy();
+    await waitFor(() => expect(headerLine()).toBe('12 need you, across 2 businesses. 2 agents are working.'));
   });
 
   it('lists every row in the engine order, across businesses, each tagged with its business and agent', async () => {
@@ -135,7 +136,7 @@ describe('Today: deciding', () => {
     await readFirst(row);
     await click(within(row).getByRole('button', { name: 'Send to CA' }));
     await waitFor(() => expect((needsYou().querySelector('[data-row-id="q-signoff-gst"]') as HTMLElement).textContent).toBe('GST working for September · Sent to your CA'));
-    await waitFor(() => expect(headerLine()).toBe('12 need you, across 3 businesses. 2 agents are working.'));
+    await waitFor(() => expect(headerLine()).toBe('11 need you, across 2 businesses. 2 agents are working.'));
   });
 
   it('a second ask confirms inside the row; the decided line carries the receipt', async () => {
@@ -144,7 +145,7 @@ describe('Today: deciding', () => {
     const row = await rowOf('Sponsor slot price');
     await click(within(row).getByRole('button', { name: 'Approve' }));
     expect(spy.mock.calls.some(([m]) => m === 'venture.queue.decide')).toBe(false);
-    expect(row.textContent).toContain("This can't be undone. Approve?");
+    expect(row.textContent).toContain("Approve? Check it once more.");
     await click(within(row).getByRole('button', { name: 'Approve' }));
     const line = await waitFor(() => {
       const li = needsYou().querySelector<HTMLElement>('[data-row-id="q-price-sponsor"][data-decided]');
@@ -306,6 +307,89 @@ describe('Today: deciding', () => {
     expect(rowIds().indexOf('q-signoff-gst')).toBe(QUEUE.findIndex((r) => r.id === 'q-signoff-gst'));
   });
 
+  it('answering a run\'s question in the run sheet open over Today leaves the engine\'s line on Today (B3)', async () => {
+    start();
+    const row = await rowOf('The sponsor wants to see the video before it goes up');
+    await go('#/today?sheet=run:29');
+    expect(row.getAttribute('data-row-id')).toBe('q-question-preview');
+    const sheet = await screen.findByRole('complementary', { name: 'Pricing the sponsor slot' });
+    await click(await within(sheet).findByRole('button', { name: 'Yes, share a private link' }));
+    await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-question-preview"][data-decided]')).not.toBeNull());
+    const line = needsYou().querySelector('[data-row-id="q-question-preview"]')!.textContent!;
+    expect(line).not.toContain(common['approval.elsewhere']);
+    expect(line).toBe('The sponsor wants to see the video before it goes up · Answered');
+  });
+
+  it('while a decision is on its way and the list has dropped its row, the card stays the same element with focus (B3)', async () => {
+    const engine = new FakeEngine();
+    const fake = createFakeClient(engine);
+    let release: () => void = () => {};
+    const answered = new Promise<void>((resolve) => { release = resolve; });
+    const client: EngineClient = {
+      ...fake,
+      request: (async (method: string, params?: unknown) => {
+        const answer = await fake.request(method as never, params as never);
+        if (method === 'venture.queue.decide') await answered;
+        return answer;
+      }) as EngineClient['request'],
+    };
+    start({ client });
+    const card = await rowOf('GST working for September');
+    await readFirst(card);
+    const button = within(card).getByRole('button', { name: 'Send to CA' });
+    button.focus();
+    await click(button);
+    // The engine decided it and said so; the list read again without the row, and the answer has not come yet.
+    await act(async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0)); });
+    const listed = (await engine.request('venture.queue.list', { scope: 'all' })) as { rows: { id: string }[] };
+    expect(listed.rows.some((r) => r.id === 'q-signoff-gst')).toBe(false);
+    const now = needsYou().querySelector('[data-row-id="q-signoff-gst"]');
+    expect(now).toBe(card);
+    expect(card.contains(document.activeElement) || document.activeElement === card).toBe(true);
+    await act(async () => { release(); });
+    await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-signoff-gst"][data-decided]')?.textContent).toBe('GST working for September · Sent to your CA'));
+  });
+
+  it('with a locked business, the heading, the All chip, the greeting and the rail say the engine\'s count (B3)', async () => {
+    const engine = new FakeEngine();
+    start({ engine });
+    const listed = (await engine.request('venture.queue.list', { scope: 'all' })) as { rows: QueueRow[]; needsYou: number };
+    expect(listed.rows.some((row) => row.kind === 'locked')).toBe(true);
+    const count = String(listed.needsYou);
+    expect(count).toBe(String(listed.rows.filter((row) => row.kind !== 'locked').length));
+    await waitFor(() => expect(rowIds().length).toBeGreaterThan(0));
+    const head = needsYou().querySelector('h2')!.parentElement!;
+    await waitFor(() => expect(head.querySelector('[aria-hidden="true"]')?.textContent).toBe(count));
+    expect(within(needsYou()).getByRole('button', { name: /^All/ }).textContent?.replace(/\s/g, '')).toBe(`All${count}`);
+    expect(screen.getByRole('heading', { level: 1 }).nextElementSibling?.querySelector('b')?.textContent).toBe(count);
+    const rail = screen.getByRole('navigation', { name: 'Places' });
+    expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')?.textContent).toBe(count);
+  });
+
+  it('accepting the plan leaves the engine\'s outcome alone, not the plan\'s ask (B3)', async () => {
+    start();
+    const row = await rowOf('Your plan is ready. Read it.');
+    await click(within(row).getByRole('button', { name: 'Read' }));
+    await settleHash();
+    await waitFor(() => expect(locked(within(row).getByRole('button', { name: 'Accept' }))).toBe(false));
+    const id = row.getAttribute('data-row-id')!;
+    await click(within(row).getByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(needsYou().querySelector(`[data-row-id="${id}"][data-decided]`)?.textContent).toBe('Plan accepted.'));
+    expect(needsYou().textContent).not.toContain('Your plan is ready');
+  });
+
+  it('the sheet beside Today says the plan was accepted once Accept is pressed on its card (B3)', async () => {
+    start();
+    const row = await rowOf('Your plan is ready. Read it.');
+    await click(within(row).getByRole('button', { name: 'Read' }));
+    await settleHash();
+    const sheet = await screen.findByRole('complementary');
+    await waitFor(() => expect(locked(within(row).getByRole('button', { name: 'Accept' }))).toBe(false));
+    expect(sheet.querySelector('[data-sheet-decided]')).toBeNull();
+    await click(within(row).getByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(sheet.querySelector('[role="status"][data-sheet-decided]')?.textContent).toBe('Plan accepted.'));
+  });
+
   it('a row decided somewhere else shrinks to "Resolved elsewhere"', async () => {
     const { client } = start();
     await rowOf('GST working for September');
@@ -367,11 +451,11 @@ describe('Today: working now', () => {
     start();
     await within(await screen.findByRole('region', { name: 'Working now' })).findByRole('button', { name: 'Cutting shorts from episode 13' });
     expect([...working().querySelectorAll('li')].map((li) => li.getAttribute('data-row-id'))).toEqual(['run-31', 'run-30', 'run-29', 'run-28']);
-    await waitFor(() => expect(line('Cutting shorts from episode 13').textContent).toBe('EDCutting shorts from episode 13Editor · Rendering 3 of 63 of 5Stop4m'));
+    await waitFor(() => expect(line('Cutting shorts from episode 13').textContent).toBe('EDCutting shorts from episode 13Editor · Rendering 3 of 63 of 5Stop4 min'));
     const waiting = line('Pricing the sponsor slot');
     expect(waiting.textContent).toContain('Producer');
     expect(waiting.textContent).toContain('Waiting on you');
-    expect(waiting.textContent).not.toContain('6m');
+    expect(waiting.textContent).not.toContain('6 min');
     expect(line('Rendering the thumbnail set').textContent).toContain('Failed');
   });
 
@@ -446,5 +530,41 @@ describe('Today: keys', () => {
     await act(async () => { press('a'); press('d'); });
     expect(row.textContent).not.toContain("can't be undone");
     expect(spy.mock.calls.some(([m]) => m === 'venture.queue.decide')).toBe(false);
+  });
+});
+
+describe('Today: the date and the greeting in the owner zone (one-shot B2)', () => {
+  const LATE = () => new Date('2026-11-02T19:11:00.000Z'); // 12:41 am on 3 Nov in India, 2:11 pm on 2 Nov in New York
+  const header = async () => (await screen.findByRole('heading', { level: 1 })).closest('header')!;
+  // B2 fix round 1 (CI on UTC runners): the computer's own zone is set to UTC and to New York here, so the page must
+  // read the business's zone (India) from its first paint; the computer's zone never shows, not even while loading.
+  for (const computer of ['UTC', 'America/New_York']) {
+    it(`at 00:41 in India the eyebrow is that day and the greeting is the night one, on a computer in ${computer}`, async () => {
+      const was = process.env.TZ;
+      process.env.TZ = computer;
+      // The ICU zone the app falls back to is read once per process, so the computer's zone is stubbed where it is read.
+      const real = Intl.DateTimeFormat.prototype.resolvedOptions;
+      const stub = vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(function (this: Intl.DateTimeFormat) {
+        return { ...real.call(this), timeZone: computer };
+      });
+      try {
+        expect(new Date('2026-11-02T19:11:00.000Z').getDate()).toBe(2); // the computer really reads another day
+        window.location.hash = '#/today';
+        render(<ClockProvider now={LATE}><App client={createFakeClient(new FakeEngine())} language="en" /></ClockProvider>);
+        const title = await screen.findByRole('heading', { level: 1 });
+        expect(title.textContent).toBe('Good evening');
+        expect(title.closest('header')!.textContent).toContain('Tuesday, 3 November');
+        expect(title.closest('header')!.textContent).not.toContain('2 November');
+      } finally {
+        stub.mockRestore();
+        if (was === undefined) delete process.env.TZ; else process.env.TZ = was;
+      }
+    });
+  }
+  it('a zone the clock pins reads its own day and hour', async () => {
+    window.location.hash = '#/today';
+    render(<ClockProvider now={LATE} zone="America/New_York"><App client={createFakeClient(new FakeEngine())} language="en" /></ClockProvider>);
+    expect((await header()).textContent).toContain('Monday, 2 November');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Good afternoon');
   });
 });

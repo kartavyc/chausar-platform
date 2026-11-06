@@ -159,6 +159,6 @@ export class FakePlaybooksDesk {
       return handler.call(kind, p);
     }
     for (const desk of this.desks) if (desk.methods && Object.hasOwn(desk.methods, method)) return desk.methods[method]!(p);
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 }

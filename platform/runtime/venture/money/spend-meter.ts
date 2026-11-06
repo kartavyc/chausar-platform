@@ -5,8 +5,9 @@
 // port keeps; nothing is a guessed price. Runs on the owner's own Codex or Claude plan are counted, never priced, and
 // never shown in rupees. Sunra generations (6F9) show beside an agent's AI spend at the quote code worked out for each,
 // and are not held against its cap: each already waits for its own approval card.
+import { formatRate, formatUsd } from '../../owner-format.ts';
 import { ChausarError, check, type State } from '../../contracts.ts';
-import { exactPayload, formatMicros, listRecords } from '../records.ts';
+import { exactPayload, listRecords } from '../records.ts';
 import { usdToMicros } from '../models/cost.ts';
 import { presetSpec } from '../models/presets.ts';
 import { AGENT_ID, AGENT_PURPOSES, agentName } from '../views/shared.ts';
@@ -28,7 +29,7 @@ export const METER_WORDS = Object.freeze({
   noLimit: 'No limit of its own',
   paused: 'Paused: it reached its limit. Other work goes on.',
   used: (percent: string) => `${percent} of its limit used`,
-  plan: (count: number) => `${count} ${count === 1 ? 'run' : 'runs'} on your plan`,
+  plan: (count: number) => `${count} ${count === 1 ? 'job' : 'jobs'} on your plan`,
   media: (upTo: boolean, figure: string) => `Images and video: ${upTo ? 'up to ' : ''}${figure}, quoted by Sunra`,
   retired: (name: string) => `${name} (retired)`,
   removed: (name: string) => `${name} (removed)`,
@@ -134,7 +135,7 @@ export function routineCapRefusal(state: State, venture: VentureRecord, policy: 
   if (!cap) return null;
   if (routineMonthTotal(records, routine, monthOf(nowIso)) + estimate <= BigInt(cap.capMicros)) return null;
   const record = listRecords(state, 'venture-routine', venture.id).find(item => item.id === routine);
-  return METER_WORDS.ownLimit(routineName(record, routine), formatMicros(cap.capMicros));
+  return METER_WORDS.ownLimit(routineName(record, routine), formatRate(cap.capMicros));
 }
 
 /** Whether a routine's runs go to a key (counted and capped) or to the owner's plan (neither). */
@@ -170,7 +171,7 @@ function addendsOf(records: readonly SpendRecord[]): Addend[] {
   const months = [...new Set(records.map(record => monthOf(record.at)))].sort();
   return months.flatMap(month => spendOfMonth(records, month)).map(item => ({
     recordId: item.record.id, label: item.record.label, amount: String(item.micros),
-    display: `${formatMicros(String(item.micros))}${item.estimate ? ' (estimate)' : ''}`, estimate: item.estimate,
+    display: `${formatUsd(String(item.micros))}${item.estimate ? ' (estimate)' : ''}`, estimate: item.estimate,
   }));
 }
 
@@ -192,7 +193,7 @@ export function spentByPlan(state: State, venture: VentureRecord, subject: Extra
   } else {
     const run = listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === subject.id);
     chosen = run ? deliveryRunSpends(state, run) : [];
-    label = 'AI spend of this run';
+    label = 'AI spend of this job';
   }
   return { subject, currency: 'USD', unit: 'micros', addends: addendsOf(chosen), words: { label, one: 'paid call', many: 'paid calls', none: 'No paid calls.' } };
 }

@@ -10,8 +10,9 @@
  * shows once, with Copy; New link and Turn off change it (.shareRotate, .shareDisable). Written for Chausar.
  */
 
-import { useId, useMemo, useState, type ReactNode } from 'react';
-import { useLanguage, useT, type T } from '../../text';
+import { useId, useState, type ReactNode } from 'react';
+import { useT, type T } from '../../text';
+import { useDay as useOwnerDay, useLocalToday } from '../../parts/when';
 import { useEngine, useResource } from '../../engine/context';
 import { EngineError, type DeliveryLite, type ReportFileView, type ReportListItem, type ReportShareView, type ReportView } from '../../engine/types';
 import { Button } from '../../parts/Button';
@@ -20,7 +21,6 @@ import { ModelEstimate } from '../../parts/ModelEstimate';
 import { Tile, TileHead } from '../../parts/Tile';
 import r from './ReportFiles.module.css';
 
-const LOCALE = { en: 'en-IN', hi: 'hi-IN' } as const;
 const FORMATS = ['html', 'pdf', 'docx', 'xlsx'] as const;
 /** The engine codes this screen words itself, in both languages. */
 const WORDED = new Set([
@@ -45,8 +45,6 @@ function wordsOf(error: unknown, t: T): string {
   return error instanceof Error ? error.message : String(error);
 }
 const lineOf = (line: string, t: T) => (LINES[line] ? t(LINES[line]) : line);
-/** Today in India, as 2026-10-27: the default day of a share link's dates. */
-const indiaToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
 /** Saves bytes the engine sent as a file, without keeping them anywhere: a temporary address, clicked once, let go. */
 function saveFile(name: string, contentBase64: string, type: string): boolean {
@@ -67,13 +65,9 @@ function saveFile(name: string, contentBase64: string, type: string): boolean {
   return true;
 }
 
-/** A day like '14 Nov' on this computer's calendar. */
+/** A day like '14 Nov' in the owner's zone (B2). */
 function useDay(): (iso: string) => string {
-  const language = useLanguage();
-  return useMemo(() => {
-    const format = new Intl.DateTimeFormat(LOCALE[language], { day: 'numeric', month: 'short' });
-    return (iso) => { const at = new Date(iso); return Number.isNaN(at.getTime()) ? iso : format.format(at); };
-  }, [language]);
+  return useOwnerDay('short');
 }
 
 /**
@@ -154,7 +148,7 @@ function DraftReport({ runId, draft, canMake, reports, reload }: { runId: string
             <ul className={r.files} aria-label={t('kit-report.files', { title })}>
               {shown.files.map((file) => (
                 <li key={file.name} className={r.file} data-report-file={file.format}>
-                  <span className={`${r.name} mono`}>{file.name}</span>
+                  <span data-code="" className={`${r.name} mono`}>{file.name}</span>
                   {!engine.saveReport && (
                     <span className={r.act}>
                       <Button variant="quiet" disabled={busy !== null} aria-label={t('kit-report.saveName', { name: file.name })} onClick={() => void save(file.name, file.format)}>{t('kit-report.save')}</Button>
@@ -196,10 +190,12 @@ function ShareReport({ report, links, reload, again }: { report: Pick<ReportList
   const t = useT();
   const engine = useEngine();
   const day = useDay();
+  // Today on the owner's calendar, from the app's one clock (B2; it read the computer's clock in India's zone).
+  const today = useLocalToday();
   const formId = useId();
   const [open, setOpen] = useState(false);
-  const [from, setFrom] = useState(report.period?.from ?? indiaToday());
-  const [to, setTo] = useState(report.period?.to ?? indiaToday());
+  const [from, setFrom] = useState(() => report.period?.from ?? today());
+  const [to, setTo] = useState(() => report.period?.to ?? today());
   const [channels, setChannels] = useState<string[]>(report.channels);
   /** An address shown once: the engine sends it only in the answer that made or rotated the link. */
   const [fresh, setFresh] = useState<ReportShareView | null>(null);
@@ -272,7 +268,7 @@ function ShareReport({ report, links, reload, again }: { report: Pick<ReportList
         <ul className={r.links} aria-label={t('kit-report.share.links')}>
           {shown.map((link) => (
             <li key={link.id} className={r.link} data-report-link={link.state}>
-              {link.url ? <span className={`${r.name} mono`}>{link.url}</span> : <span className={r.quiet}>{lineOf(link.reason ?? '', t)}</span>}
+              {link.url ? <span data-code="" className={`${r.name} mono`}>{link.url}</span> : <span className={r.quiet}>{lineOf(link.reason ?? '', t)}</span>}
               {link.state === 'open' && LINES[link.reason ?? ''] !== 'kit-report.reason.notServed' && <span className={r.quiet}>{t('kit-report.share.until', { day: day(link.expiresAt) })}</span>}
               <span className={r.quiet}>{views(link)}</span>
               {link.state !== 'disabled' && (

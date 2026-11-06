@@ -1,6 +1,6 @@
 // Chausar delivery (Ink v2 wave 4, 4J14, catalogue Q21): the computed fallback. When a model's summary or chart of the
 // business fails (no answer, a refused answer, no AI at all), the view shows what code can count from the records
-// instead: how many there are of each kind, and how many new ones each month, labelled "Counted by code; the summary
+// instead: how many there are of each kind, and how many new ones each month, labelled "Counts from your records. The summary
 // didn't work." Never a guess in place of the summary, and never both at once.
 //
 // Ideas taken, code written here: helix-foundry's onboarding, which falls back to counts per entity and per month.
@@ -9,7 +9,7 @@ import type { VentureRecord, VentureRecordKind } from '../contracts.ts';
 import { listRecords } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
 
-export const COUNTED_BY_CODE = "Counted by code; the summary didn't work.";
+export const COUNTED_BY_CODE = "Counts from your records. The summary didn't work this time.";
 /** The kinds counted, in the order shown. */
 const COUNTED: readonly { kind: string; record: VentureRecordKind; label: string }[] = Object.freeze([
   { kind: 'clients', record: 'venture-client', label: 'Clients' },

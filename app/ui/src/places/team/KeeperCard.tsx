@@ -60,14 +60,17 @@ function JobRow({ job }: { job: KeeperJobView }) {
   );
 }
 
-/** How Keeper's jobs stand, in one line: how many to look at, or that every job that ran went fine. */
-function KeeperSummary({ jobs }: { jobs: readonly KeeperJobView[] | undefined }) {
+/**
+ * How Keeper's jobs stand, in one line: how many to look at, that every job that ran went fine, or (B1 fix round 1)
+ * that none has run yet.
+ */
+export function KeeperSummary({ jobs }: { jobs: readonly KeeperJobView[] | undefined }) {
   const t = useT();
   if (!jobs) return null;
   const attention = jobs.filter((job) => job.lastRun && job.lastRun.outcome !== 'ok').length;
   const ran = jobs.some((job) => job.lastRun);
   if (attention > 0) return <p className={s.now} data-tone="wait">{t('team.keeper.attention', { count: attention })}</p>;
-  return ran ? <p className={s.now}>{t('team.keeper.allGood')}</p> : null;
+  return <p className={s.now}>{t(ran ? 'team.keeper.allGood' : 'team.keeper.noJobs')}</p>;
 }
 
 /**

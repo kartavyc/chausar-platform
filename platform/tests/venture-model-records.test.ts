@@ -311,8 +311,8 @@ test('roles: the delivery agent with its steps\' tiers, the preset serving each 
   env.models.connected = true;
   view = await roles(env);
   assert.deepEqual(view.roles[0].tiers, [
-    { tier: 'fast', presetId: 'anthropic-haiku-5-5', model: 'anthropic-haiku-5-5', price: 'USD 0.1000 in, USD 0.5000 out per million tokens. Anthropic list price for prompts up to 100K tokens, checked 15 Oct 2026.', usable: true },
-    { tier: 'main', presetId: 'anthropic-sonnet-5-5', model: 'anthropic-sonnet-5-5', price: 'USD 2.0000 in, USD 10.0000 out per million tokens. Anthropic list price, checked 15 Oct 2026.', usable: true },
+    { tier: 'fast', presetId: 'anthropic-haiku-5-5', model: 'anthropic-haiku-5-5', price: '$0.10 in, $0.50 out per million tokens. Anthropic list price for prompts up to 100K tokens, checked 15 Oct 2026.', usable: true },
+    { tier: 'main', presetId: 'anthropic-sonnet-5-5', model: 'anthropic-sonnet-5-5', price: '$2.00 in, $10.00 out per million tokens. Anthropic list price, checked 15 Oct 2026.', usable: true },
   ]);
   assert.equal(view.line, ONE_AGENT);
   assert.equal(aiWaitLine(env.deps.models.status(viewsOwner)), null);
@@ -326,7 +326,7 @@ test('roles: the delivery agent with its steps\' tiers, the preset serving each 
     ...tx.base('venture-spend-policy'), capMicros: null, askAboveMicros: null, rates: [], rupeeRate: { perUsd: '835000', setOn: '2026-10-15' },
   }));
   view = await roles(env);
-  assert.equal(view.roles[0].tiers[0].price, 'USD 0.1000 in, USD 0.5000 out per million tokens. Anthropic list price for prompts up to 100K tokens, checked 15 Oct 2026. In rupees: ₹8.35 in, ₹41.75 out at ₹83.50 per $1 (your rate, set 15 Oct 2026).');
+  assert.equal(view.roles[0].tiers[0].price, '$0.10 in, $0.50 out per million tokens. Anthropic list price for prompts up to 100K tokens, checked 15 Oct 2026. In rupees: ₹8.35 in, ₹41.75 out at ₹83.50 per $1 (your rate, set 15 Oct 2026).');
   for (const tier of view.roles[0].tiers) assert.deepEqual(houseStyleFindings(tier.price), []);
   assert.deepEqual(houseStyleFindings(view.line), []);
 });

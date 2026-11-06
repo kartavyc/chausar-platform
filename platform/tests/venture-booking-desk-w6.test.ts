@@ -2,6 +2,7 @@
 // order's own price receipt; the deposit is an advance invoice on that order (6D1), paid through its How to pay UPI link
 // (6D2); every amount a client sees comes from those code receipts, never from the AI. Reminders are drafted by fixed
 // templates and handed to the owner through the action journal after exact approval; Chausar sends nothing.
+import { formatMoney } from '../runtime/owner-format.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { kitBusiness, owner } from './fixtures/venture/kit-business.ts';
@@ -61,14 +62,14 @@ test('6E3 the quote is the order\'s own price receipt; the deposit is an advance
   await f.act(id, 'quote', { orderId: f.order.id });
   const receipt = listRecords(f.env.store.read(), 'venture-price-receipt').find(row => row.id === f.order.priceReceiptId)!;
   const quoted = (await f.getBooking(id)).item;
-  assert.deepEqual([quoted.status, quoted.quote.receiptId, quoted.quote.total], ['quoted', receipt.id, formatMinor(receipt.totalMinor, receipt.currency)]);
+  assert.deepEqual([quoted.status, quoted.quote.receiptId, quoted.quote.total], ['quoted', receipt.id, formatMoney(receipt.totalMinor, receipt.currency)]);
   await f.act(id, 'deposit', { percent: '25' });
   const view = (await f.getBooking(id)).item;
   const invoice = listRecords(f.env.store.read(), 'venture-invoice').find(row => row.id === view.deposit.invoiceId)!;
   assert.equal(invoice.orderId, f.order.id);
   assert.equal(invoice.part?.kind, 'advance');
   assert.equal(BigInt(invoice.totalMinor) * 4n, BigInt(receipt.totalMinor), 'a quarter of the quote, cut by the invoice code');
-  assert.deepEqual([view.deposit.status, view.deposit.total], ['draft', formatMinor(invoice.totalMinor, invoice.currency)]);
+  assert.deepEqual([view.deposit.status, view.deposit.total], ['draft', formatMoney(invoice.totalMinor, invoice.currency)]);
   const other = await f.call('venture.order.create', { clientId: f.env.client.id, offerId: f.env.offers[0]!.id, request: 'Another job' });
   const second = await f.intake('Haircut at home');
   await f.act(second, 'quote', { orderId: other.id });

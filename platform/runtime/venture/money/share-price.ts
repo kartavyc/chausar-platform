@@ -6,9 +6,9 @@
 // price or a share, never both; setting or changing either is a price change that waits on Today and asks twice
 // (views/queue.ts). Simple first: the price editor shows a fixed price, and a share is one step away. Written for
 // Chausar; nothing here is learned from an outside source.
+import { formatMoney, plainMoney } from '../../owner-format.ts';
 import { check, type State } from '../../contracts.ts';
 import { numberGuard } from '../../calculator.ts';
-import { formatMinor } from '../../currency.ts';
 import { bpsPercent, digest, findRecord } from '../records.ts';
 import type { BpsString, Offer, VentureRecord } from '../contracts.ts';
 import type { SharePrice, ShareQuote } from '../playbooks/kit/records-sales.ts';
@@ -73,17 +73,17 @@ export function shareQuote(state: State, venture: VentureRecord, price: SharePri
   const shareMinor = quoteShare({ bps: price.bps, baseMinor: price.baseMinor });
   const currency = venture.country.currency;
   const percent = bpsPercent(price.bps);
-  const base = formatMinor(price.baseMinor, currency), share = formatMinor(shareMinor, currency);
+  const base = formatMoney(price.baseMinor, currency), share = formatMoney(shareMinor, currency);
   const figures: ShareQuote['figures'] = [
     { key: 'base', label: 'The amount your client confirmed', minor: price.baseMinor, display: base },
     { key: 'share', label: `Your share at ${percent}%`, minor: shareMinor, display: share },
   ];
-  const plain = (display: string) => display.slice(currency.length + 1).replace(/,/g, '');
+  const plain = (minor: string) => plainMoney(minor, currency);
   const quote: ShareQuote = {
     kind: 'share', bps: price.bps, baseMinor: price.baseMinor, baseEvidenceFileId: file.id, shareMinor, currency, figures,
     steps: [{ op: 'multiply', inputs: [price.baseMinor, price.bps], resultMinor: shareMinor, rule: 'the amount times the share in basis points, over 10000, rounded half up to the minor unit' }],
     explanation: `${percent}% of ${base} (shown by ${file.name}) = ${share}.`,
-    allowedNumbers: [...new Set([price.baseMinor, shareMinor, price.bps, percent, plain(base), plain(share)])],
+    allowedNumbers: [...new Set([price.baseMinor, shareMinor, price.bps, percent, plain(price.baseMinor), plain(shareMinor)])],
     digest: '',
   };
   numberGuard(quote.explanation.replace(file.name, ''), quote);

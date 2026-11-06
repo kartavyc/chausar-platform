@@ -170,7 +170,7 @@ function GitHub({ status, onChanged }: { status: BuildStatusView; onChanged: () 
           <p className={s.strong}>
             <span>{t(`business.buildWord.${current.word}`)}</span>
             {current.syncConflictBranch && <span> {t('business.onBranch', { branch: current.syncConflictBranch })}</span>}
-            <span className={`${s.repo} mono`}>{repoName}</span>
+            <span data-code="" className={`${s.repo} mono`}>{repoName}</span>
           </p>
           {current.uiWorkflow === 'needs-fix' || current.uiWorkflow === 'missing' ? <p className={s.warn}>{t(`business.workflow.${current.uiWorkflow}`)}</p> : null}
           {current.lastCommit && (
@@ -178,7 +178,7 @@ function GitHub({ status, onChanged }: { status: BuildStatusView; onChanged: () 
           )}
           <p className={s.note}>{t(`business.marker.${current.briefMarker}`)} {t(`business.checks.${current.checks}`)}</p>
           {current.deployment && (
-            <p className={s.line}>{t('business.address')} <span className="mono">{current.deployment.url}</span></p>
+            <p className={s.line}>{t('business.address')} <span data-code="" className="mono">{current.deployment.url}</span></p>
           )}
           {/* A recording is said at rest; the other limits wait one fold away. */}
           {current.cannotSay.filter((line) => SYNTHETIC.test(line)).map((line) => <p key={line} className={s.note}>{line}</p>)}

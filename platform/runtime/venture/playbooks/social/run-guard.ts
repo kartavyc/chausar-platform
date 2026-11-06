@@ -14,7 +14,8 @@ import { isPracticeStage } from '../../core/launch-stage.ts';
 import { findRecord } from '../../records.ts';
 import { socialLegalBlock } from './legal-confirmation.ts';
 export { boundSocialSource } from './bound-source.ts';
-export function refuseSocialDraft(state: State, venture: VentureRecord, order: OrderRecord, today = new Date().toISOString().slice(0,10)): void {
+/** today: the owner's day from the injected clock (kit/voice-consent.ts todayOf), never the computer's own clock. */
+export function refuseSocialDraft(state: State, venture: VentureRecord, order: OrderRecord, today: string): void {
     const key = acceptedBlueprintOrNull(state, venture)?.offers.find(offer => offer.id === order.offerId)?.playbookOffer;
     const fields = order.intake?.fields ?? {};
     try {

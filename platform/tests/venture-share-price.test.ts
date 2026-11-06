@@ -70,11 +70,11 @@ test('a share quote needs a recorded base and its evidence file in this business
   const quote = shareQuote(state(), env.venture, { ...price, baseMinor: '120000000' });
   assert.equal(quote.shareMinor, '9996000');
   assert.equal(quote.currency, 'INR');
-  assert.deepEqual(quote.figures.map(figure => [figure.key, figure.minor, figure.display]), [['base', '120000000', 'INR 1,200,000.00'], ['share', '9996000', 'INR 99,960.00']]);
+  assert.deepEqual(quote.figures.map(figure => [figure.key, figure.minor, figure.display]), [['base', '120000000', '₹12,00,000'], ['share', '9996000', '₹99,960']]);
   assert.deepEqual(quote.steps, [
     { op: 'multiply', inputs: ['120000000', '833'], resultMinor: '9996000', rule: 'the amount times the share in basis points, over 10000, rounded half up to the minor unit' },
   ]);
-  assert.equal(quote.explanation, '8.33% of INR 1,200,000.00 (shown by offer-letter.pdf) = INR 99,960.00.');
+  assert.equal(quote.explanation, '8.33% of ₹12,00,000 (shown by offer-letter.pdf) = ₹99,960.');
   assert.match(quote.digest, /^[a-f0-9]{64}$/);
   assert.ok(quote.allowedNumbers.includes('99960.00') && quote.allowedNumbers.includes('8.33'));
 });
@@ -92,12 +92,12 @@ test('setting a share is a price change: the plan keeps it as the offer\'s price
   const price = rows.find(row => row.kind === 'price') as QueueRow;
   assert.ok(price, 'the change waits on Today');
   assert.equal(price.title, 'New price for Catch up clean up');
-  assert.deepEqual(price.change, { label: 'Catch up clean up', before: 'INR 15,000.00 per project', after: '8.33% of the amount your client confirms' });
+  assert.deepEqual(price.change, { label: 'Catch up clean up', before: '₹15,000 per project', after: '8.33% of the amount your client confirms' });
   assert.deepEqual(price.actions.map(action => [action.id, action.primary, action.secondAsk ?? false]), [['read', false, false], ['approve', true, true]]);
   // The row's counted change and its receipt (4J1) say the share in the same words.
-  assert.ok(price.changeCount?.details.includes('Catch up clean up: INR 15,000.00 per project to 8.33% of the amount your client confirms'), JSON.stringify(price.changeCount));
+  assert.ok(price.changeCount?.details.includes('Catch up clean up: ₹15,000 per project to 8.33% of the amount your client confirms'), JSON.stringify(price.changeCount));
   const proof = await (money as Record<string, Handler>)['venture.receipt.get'](env.deps, owner, { id: `fig:plan:${latest(env).id}` });
-  assert.match(proof.explanation, /Catch up clean up is INR 15,000\.00 per project in the plan in use and 8\.33% of the amount your client confirms in version 2/);
+  assert.match(proof.explanation, /Catch up clean up is ₹15,000 per project in the plan in use and 8\.33% of the amount your client confirms in version 2/);
   // An offer priced as a share has its price: Today does not ask the owner to set one.
   assert.equal(rows.filter(row => row.kind === 'setup' && /no price yet/.test(row.line ?? '')).length, 0);
 

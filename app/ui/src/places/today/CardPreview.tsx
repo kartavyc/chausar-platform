@@ -183,7 +183,7 @@ function structured(preview: QueuePreview, open: () => void, extra: PreviewExtra
             <p className={s.short} data-short="">
               <Icon name="play" size={14} />
               <span data-content="">{preview.short.title.text}</span>
-              {preview.short.length && <span className="mono">{preview.short.length.clock}</span>}
+              {preview.short.length && <span data-num="">{preview.short.length.clock}</span>}
               {preview.short.title.estimate && <ModelEstimate />}
             </p>
           )}

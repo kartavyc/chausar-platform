@@ -74,9 +74,9 @@ test('rate card: the owner\'s checked rate is confirmed with its source and date
   view = await env.money('venture.spend.policy.get') as SpendPolicyView;
   const mine = view.card!.filter(line => line.item === 'model:anthropic-haiku-5-5');
   assert.deepEqual(mine.map(line => [line.label, line.state, line.price, line.checked, line.source]), [
-    ['Claude Haiku 5.5', 'confirmed', 'USD 1.0000 in and USD 5.0000 out, per million tokens', 'Your rate, checked 14 Oct 2026', 'https://www.anthropic.com/pricing'],
-    ['Claude Haiku 5.5, prompt-cache reads', 'confirmed', 'USD 0.1000 per million tokens', 'Your rate, checked 14 Oct 2026', 'https://www.anthropic.com/pricing'],
-    ['Claude Haiku 5.5, prompt-cache writes', 'confirmed', 'USD 1.2500 per million tokens', 'Your rate, checked 14 Oct 2026', 'https://www.anthropic.com/pricing'],
+    ['Claude Haiku 5.5', 'confirmed', '$1.00 in and $5.00 out, per million tokens', 'Your rate, checked 14 Oct 2026', 'https://www.anthropic.com/pricing'],
+    ['Claude Haiku 5.5, prompt-cache reads', 'confirmed', '$0.10 per million tokens', 'Your rate, checked 14 Oct 2026', 'https://www.anthropic.com/pricing'],
+    ['Claude Haiku 5.5, prompt-cache writes', 'confirmed', '$1.25 per million tokens', 'Your rate, checked 14 Oct 2026', 'https://www.anthropic.com/pricing'],
   ]);
   const rate = view.rates.find(line => line.item === 'model:anthropic-haiku-5-5')!;
   assert.deepEqual([rate.cacheReadMicrosPerMillion, rate.cacheWriteMicrosPerMillion], ['100000', '1250000']);

@@ -3,8 +3,8 @@
 // heavy-work brief, an agent's question, an invoice, the plan, a CA sign-off request, the rate tables waiting for the
 // CA, a post's exact text, a cost to approve, or a suggested value. id is a Today row id; with kind it is instead the
 // id in a row's viewRef. Text only: every figure is already formatted by code, and model numbers say so.
+import { formatMoney } from '../../owner-format.ts';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { exactPayload, formatVentureDate, isAppChannel, listRecords, readVenture } from '../records.ts';
 import { markViewed } from './view-marks.ts';
 import type {
@@ -92,7 +92,7 @@ function checksLine(run: DeliveryRunRecord): Display | undefined {
 function planView(head: Head, blueprint: BlueprintRecord): QueueItemView {
   const currency = blueprint.backOffice.currency;
   const offerLine = (offer: BlueprintRecord['offers'][number]) => {
-    const price = offer.pricing.unitPriceMinor === null ? 'no price yet' : `${formatMinor(offer.pricing.unitPriceMinor, currency)} per ${offer.pricing.quantityUnit}`;
+    const price = offer.pricing.unitPriceMinor === null ? 'no price yet' : `${formatMoney(offer.pricing.unitPriceMinor, currency)} per ${offer.pricing.quantityUnit}`;
     return `${labelled(offer.name)}: ${price}. ${labelled(offer.description)}`;
   };
   const tax = blueprint.backOffice;

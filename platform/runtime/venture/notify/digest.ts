@@ -43,7 +43,7 @@ export function digestLine(input: { kinds: readonly DigestKind[]; stillWaiting: 
     sentences.push(`Today: ${total} ${total === 1 ? 'needs' : 'need'} you (${parts.join(', ')}).`);
     if (input.stillWaiting > 0) sentences.push(input.stillWaiting === 1 ? '1 of them is still waiting from before.' : `${input.stillWaiting} of them are still waiting from before.`);
   }
-  if (input.runsFinished > 0) sentences.push(`${input.runsFinished} ${input.runsFinished === 1 ? 'run' : 'runs'} finished.`);
+  if (input.runsFinished > 0) sentences.push(`${input.runsFinished} ${input.runsFinished === 1 ? 'job' : 'jobs'} finished.`);
   if (input.ready) sentences.push(`${input.ready} is ready to invoice.`);
   return sentences.join(' ');
 }

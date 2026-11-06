@@ -13,6 +13,7 @@
  * An agent file import is a proposal in the agent's chat through the agents' desk; nothing changes until it is accepted.
  */
 
+import { formatDay } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type AgentProposalView, type AgentView, type BlueprintViewLite, type CapabilityItemView, type CapabilityPageView,
   type ClientLite, type DeliveryLite, type DiffLine, type IdeaView, type KnowledgeSourceInput, type KnowledgeSourceView, type ModelStatusLite,
@@ -146,12 +147,11 @@ export function shortName(clause: string): string {
   return words.join(' ') || clause.slice(0, 60);
 }
 const listWords = (items: readonly string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 /** The owner's calendar day of an instant, in Kolkata (the sample businesses are in India). */
 const localDay = (iso: string): string => new Date(Date.parse(iso) + 330 * 60_000).toISOString().slice(0, 10);
 /** formatVentureDate, day-month-year: "28 Oct 2026". */
-const dayWords = (day: string): string => `${day.slice(8, 10)} ${MONTHS[Number(day.slice(5, 7)) - 1]} ${day.slice(0, 4)}`;
+const dayWords = (day: string): string => formatDay(day.slice(0, 10), 'UTC');
 const monthWords = (month: string): string => `${LONG_MONTHS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
 
 function exact(p: Record<string, unknown>, allowed: readonly string[], required: readonly string[] = allowed): Record<string, unknown> {
@@ -261,7 +261,7 @@ export class FakeAgentExtras {
       case 'venture.ideas.start': return this.ideaStart(p);
       case 'venture.ideas.dismiss': return this.ideaDismiss(p);
       case 'venture.agents.capabilities': { const body = exact(p, ['agent']); return this.capabilities(id(body.agent, 'Agent')); }
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -401,7 +401,7 @@ export class FakeAgentExtras {
     if (agentId === 'keeper') throw new EngineError('AGENT_IS_CODE', 'Keeper is code, not AI. It holds no tools; its jobs are on Team.');
     const found = this.agents().find((agent) => agent.id === agentId);
     if (!found) throw new EngineError('AGENT_NOT_FOUND', 'That agent was not found.');
-    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each run's steps.`);
+    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
     return found;
   }
 
@@ -422,7 +422,7 @@ export class FakeAgentExtras {
     const before = versions.at(-2) ?? null;
     return {
       agent: agent.id, persona: clone(current?.persona ?? NO_PERSONA), skills: this.skills(agent),
-      line: line ?? (current ? `Version ${current.version} is in use from ${agent.name}'s next run.` : `${agent.name} has no persona yet, so it talks the way its role says. Its role and the facts it uses stay the same whatever you set.`),
+      line: line ?? (current ? `Version ${current.version} is in use from ${agent.name}'s next job.` : `${agent.name} has no persona yet, so it talks the way its role says. Its role and the facts it uses stay the same whatever you set.`),
       version: current?.version ?? 0, undo: before ? clone(before.persona) : null,
     };
   }
@@ -469,7 +469,7 @@ export class FakeAgentExtras {
     const record: PersonaRec = { agent: agent.id, persona: clone(persona), version: (versions.at(-1)?.version ?? 0) + 1 };
     this.book().personas.push(record);
     const words = source === 'import' ? 'The persona from the agent file you accepted is' : back ? 'Going back, my earlier way of talking is' : 'Your changes to how I talk are';
-    this.hooks.say?.(agent.id, `${words} version ${record.version}, in use from my next run. You can undo it in my persona.`);
+    this.hooks.say?.(agent.id, `${words} version ${record.version}, in use from my next job. You can undo it in my persona.`);
     return record;
   }
 
@@ -479,7 +479,7 @@ export class FakeAgentExtras {
     const persona = this.checkPersona(body.persona);
     const record = this.writePersona(agent, persona, 'owner');
     const back = record.version > 1 ? ` Version ${record.version - 1} is kept; undo sets it again.` : '';
-    return this.personaView(agent, `Version ${record.version} is in use from ${agent.name}'s next run.${back}`);
+    return this.personaView(agent, `Version ${record.version} is in use from ${agent.name}'s next job.${back}`);
   }
 
   /** venture.persona.test: the unsaved persona's first reply to each practice client, with the built-in templates or the owner's AI. */
@@ -492,8 +492,8 @@ export class FakeAgentExtras {
     const reply = [persona.greeting ? `${persona.greeting}.` : 'Hello.', LENGTH_WORDS[persona.replyLength ?? 'medium'], persona.handOffLine ?? '', persona.signOff ?? ''].filter(Boolean).join(' ').replace(/\.\./g, '.');
     return {
       results: SCENARIO_TITLES.map((scenario) => ({ scenario, reply })),
-      // The templates cost nothing; the fake's own AI is priced as the fake's model calls are (USD 0.0014 a reply).
-      cost: templates ? 'USD 0.0000' : 'USD 0.0042',
+      // The templates cost nothing; the fake's own AI is priced as the fake's model calls are (under $0.01 a reply; templates are Free).
+      cost: templates ? 'Free' : 'under $0.01',
       line: `Tried on ${SCENARIO_TITLES.length} practice clients with ${templates ? 'built-in templates' : 'your AI'}. Nothing was saved.`,
     };
   }
@@ -559,7 +559,7 @@ export class FakeAgentExtras {
     const current = this.personaView(agent).persona;
     const change = JSON.stringify(current) === JSON.stringify(persona) ? null : persona;
     if (!kept.length && !change) throw invalid(`This file holds nothing new for ${agent.name}.${skipped.length ? ` ${skipped[0]}` : ''}`);
-    if (!this.hooks.draftImport) throw new EngineError('METHOD_NOT_ALLOWED', 'The fake engine does not answer venture.agents.import.');
+    if (!this.hooks.draftImport) throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     const parts = change ? [
       change.tone ? `tone "${change.tone}"` : null, change.replyLength ? `${change.replyLength} replies` : null, change.greeting ? `greeting "${change.greeting}"` : null,
       change.handOffLine ? `hand-off line "${change.handOffLine}"` : null, change.blockedTopics.length ? `stays away from ${change.blockedTopics.join(', ')}` : null,
@@ -763,7 +763,7 @@ export class FakeAgentExtras {
       const came = localDay(order.at);
       if (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${came}T00:00:00Z`) < 86_400_000) continue;
       const offer = offerOf(order), on = dayWords(came);
-      out.push({ id: make('start-order', [order.id]), title: `Start work on ${client}'s order`, reason: `${client} ordered ${offer} on ${on}, and no run has started.`, evidence: [{ id: order.id, line: `${offer} for ${client}, ordered ${on}.` }], prompt: `Start a run on your AI for ${client}'s order. Each step that needs you still asks first.`, action: { kind: 'start-run', target: { order: order.id } } });
+      out.push({ id: make('start-order', [order.id]), title: `Start work on ${client}'s order`, reason: `${client} ordered ${offer} on ${on}, and no job has started.`, evidence: [{ id: order.id, line: `${offer} for ${client}, ordered ${on}.` }], prompt: `Start a job on your AI for ${client}'s order. Each step that needs you still asks first.`, action: { kind: 'start-run', target: { order: order.id } } });
     }
     return out.filter((idea) => !decided.has(idea.id)).slice(0, 10);
   }

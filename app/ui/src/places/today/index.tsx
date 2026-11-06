@@ -15,14 +15,14 @@ import { PausedNote } from '../../shell/PausedNote';
 import { useNarrow } from '../../shell/useNarrow';
 import { refusalWords } from '../../parts/custody';
 import { LeftContext } from '../onboarding/started';
-import { ApprovalRow, readBack, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
+import { ApprovalRow, decidedWords, type ApprovalHandle, type DecideExtra } from '../../parts/ApprovalRow';
 import type { AvatarState } from '../../parts/Avatar';
 import { Receipt } from '../../parts/Receipt';
 import { SwipeCard } from '../../parts/SwipeCard';
 import { cx } from '../../parts/cx';
 import { EngineError, type QueueAction, type QueueDecision, type QueueList, type QueueRow, type VentureRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
-import { seenKey, useTodaySession, type DecidedLine } from './session';
+import { decide as decideRow, reread as rereadRow, seenKey, undoOf, useTodaySession, type DecidedLine } from './session';
 import { ViewSheet, viewSheetId } from './ViewSheet';
 import { Greeting } from './Greeting';
 import { TodayGoal } from './GoalCard';
@@ -193,8 +193,8 @@ export function Place() {
     openSheet('view', id, origin);
   }
 
-  function settle(row: QueueRow, line: string, receiptId: string | undefined, hadFocus: boolean) {
-    session.keep(row, line, receiptId);
+  /** A decided card settles where it was; the session already keeps its line (session.ts decide). */
+  function settle(row: QueueRow, hadFocus: boolean) {
     setSettled((ids) => new Set(ids).add(row.id));
     if (hadFocus) setFocusAfter(row.id);
   }
@@ -230,33 +230,21 @@ export function Place() {
   async function decide(row: QueueRow, action: QueueAction, extra: DecideExtra): Promise<QueueDecision> {
     const hadFocus = focusedRowId() === row.id;
     if (action.id === 'open') return openBusiness(row);
-    session.begin(row.id);
-    try {
-      return after(row, await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action: action.id, ...extra }), hadFocus);
-    } finally {
-      session.end(row.id);
-    }
+    return after(row, await decideRow(client, row, action.id, extra, t), hadFocus);
   }
 
   /** A decision that timed out: read the list again and keep what the engine holds. It never decides a second time. */
   async function reread(row: QueueRow): Promise<QueueDecision> {
     const hadFocus = focusedRowId() === row.id;
-    session.begin(row.id);
-    try {
-      return after(row, readBack(await client.request('venture.queue.list', { scope: 'all' }), row, t), hadFocus);
-    } finally {
-      session.end(row.id);
-    }
+    return after(row, await rereadRow(client, row, 'all', t), hadFocus);
   }
 
   function after(row: QueueRow, decision: QueueDecision, hadFocus: boolean): QueueDecision {
-    if (decision.outcome === 'done') settle(row, decision.line, decision.receiptId, hadFocus);
+    if (decision.outcome === 'done' || decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') settle(row, hadFocus);
     else if (decision.outcome === 'stale') {
-      session.unview(row.id);
       const latest = decision.latest;
       if (latest) setNewer((map) => new Map(map).set(row.id, { from: row.digest, latest }));
-    } else if (decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') settle(row, t('approval.elsewhere'), undefined, hadFocus);
-    else if (decision.reason === 'VIEW_FIRST') session.unview(row.id);
+    }
     return decision;
   }
 
@@ -269,10 +257,15 @@ export function Place() {
     return true;
   }
 
-  session.placeRows(live);
+  // B3: places are taken from a list that is not being read again: a shared list can still be the one from before a
+  // write (a new business), and its rows would otherwise keep places ahead of the rows the engine leads with.
+  if (!queue.loading) session.placeRows(live);
   const liveIds = new Set(live.map((row) => row.id));
+  // B3: a row whose decision is on its way stays a card until the answer, though a refresh dropped it meanwhile.
+  const held = session.heldRows().filter((row) => !liveIds.has(row.id) && !session.line(row.id) && !session.isHidden(row.id));
   const items: NeedsItem[] = [
     ...live.map((row) => ({ row, done: session.line(row.id) })),
+    ...held.map((row) => ({ row, done: undefined })),
     ...session.lines().filter((line) => !liveIds.has(line.row.id)).map((line) => ({ row: line.row, done: line })),
   ].sort((a, b) => deferredLast((id) => session.deferredRank(id))(a.row, b.row) || order((id) => session.place(id))(a.row, b.row));
   const waiting = items.filter((item) => !item.done).length;
@@ -339,7 +332,7 @@ export function Place() {
   }
 
   const card = (item: NeedsItem, layout: CardLayout) => (item.done ? (
-    <Decided line={item.done} settle={settled.has(item.row.id)} layout={layout} phone={narrow} />
+    <Decided line={{ ...item.done, undo: undoOf(item.done, live) }} settle={settled.has(item.row.id)} layout={layout} phone={narrow} />
   ) : (
     <TodayCard
       row={item.row}
@@ -540,13 +533,15 @@ const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, tax
 
 /** A decided card, shrunk to one line: title, what was done, and its receipt. It stays until the session ends. */
 function Decided({ line: { row, line, receiptId, undo }, settle, layout, phone = false }: { line: DecidedLine; settle: boolean; layout: CardLayout; phone?: boolean }) {
+  const t = useT();
   // 4Z3: the receipt is a mark after the line; its code is not printed (the engine's line may end with it).
   const said = receiptId && line.endsWith(receiptId) ? line.slice(0, -receiptId.length).replace(/\s*·\s*$/, '') : line;
+  // B3: a plan row's line is the engine's outcome alone (its title is an ask).
+  const { title } = decidedWords(row, said, t);
   return (
     <article className={cx(s.decided, settle && s.settle)} data-row="" data-row-id={row.id} data-decided="" data-layout={layout} tabIndex={-1}>
       <span role="status">
-        <span className={s.decidedTitle}>{row.title}</span>
-        {' · '}
+        {title !== null && <><span className={s.decidedTitle}>{title}</span>{' · '}</>}
         {said}
         {receiptId && <>{' '}<Receipt id={receiptId} /></>}
         {undo && <UndoButton row={row} undo={undo} phone={phone} />}

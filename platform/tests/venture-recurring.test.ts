@@ -15,8 +15,8 @@ import { VentureHost } from '../runtime/venture/host.ts';
 import { DAY, goalBusiness, invoice } from './venture-goals-helpers.ts';
 import { call, code, owner, phone } from './venture-views-env.ts';
 
-// The business: 23 October 2026, 15:30 in Kolkata. INR 19,750.00 a month before tax; with CGST and SGST at 9% each
-// (177750 each) a month is 2330500 (INR 23,305.00).
+// The business: 23 October 2026, 15:30 in Kolkata. ₹19,750 a month before tax; with CGST and SGST at 9% each
+// (177750 each) a month is 2330500 (₹23,305).
 
 async function business(options: { price?: string | null } = {}) {
   const env = await goalBusiness(options);
@@ -33,7 +33,7 @@ test('venture.invoice.recurring sets one schedule per client and offer, inside t
   const set = await env.schedule({ startOn: '2026-11-01' });
   assert.deepEqual([set.recurring.frequency, set.recurring.startOn, set.recurring.end, set.recurring.nextOn, set.recurring.clientId, set.recurring.offerId],
     ['monthly', '2026-11-01', null, '2026-11-01', env.client.id, 'offer_1']);
-  assert.equal(set.recurring.line, 'Monthly books for Cafe Aroma Demo, every month from 01 Nov 2026. Next draft on 01 Nov 2026, for you to check and issue.');
+  assert.equal(set.recurring.line, 'Monthly books for Cafe Aroma Demo, every month from 1 Nov 2026. Next draft on 1 Nov 2026, for you to check and issue.');
   assert.equal(env.drafts().length, 0, 'nothing is drafted before its day');
   for (const [payload, expected] of [
     [{ startOn: '2026-11-01', clientId: 'client_missing' }, 'CLIENT_NOT_FOUND'],
@@ -54,7 +54,7 @@ test('venture.invoice.recurring sets one schedule per client and offer, inside t
   const changed = await env.schedule({ startOn: '2026-11-05', frequency: 'quarterly', end: '2027-11-05', reminderDays: [5, 20] });
   assert.equal(changed.recurring.id, set.recurring.id);
   assert.deepEqual([changed.recurring.frequency, changed.recurring.nextOn, changed.recurring.end], ['quarterly', '2026-11-05', '2027-11-05']);
-  assert.equal(changed.recurring.line, 'Monthly books for Cafe Aroma Demo, every 3 months from 05 Nov 2026 until 05 Nov 2027, 3 months each. Next draft on 05 Nov 2026, for you to check and issue.');
+  assert.equal(changed.recurring.line, 'Monthly books for Cafe Aroma Demo, every 3 months from 5 Nov 2026 until 5 Nov 2027, 3 months each. Next draft on 5 Nov 2026, for you to check and issue.');
   const list = await env.money<RecurringInvoicesView>('venture.invoice.recurringList');
   assert.deepEqual(list.items.map(item => item.id), [set.recurring.id]);
   assert.deepEqual(listRecords(env.store.read(), 'venture-recurring-invoice')[0].reminderDays, [5, 20]);
@@ -70,7 +70,7 @@ test('each due date makes a draft invoice on Today, never issued by itself, and 
   const [draft] = env.drafts();
   assert.deepEqual([draft.status, draft.number, draft.issueDate, draft.dueDate, draft.totalMinor], ['draft', null, '2026-11-01', '2026-11-16', '2330500']);
   const order = listRecords(env.store.read(), 'venture-order').find(item => item.id === draft.orderId)!;
-  assert.deepEqual([order.clientId, order.offerId, order.quantity, order.request], [env.client.id, 'offer_1', '1', 'From your monthly schedule: Monthly books, dated 01 Nov 2026.']);
+  assert.deepEqual([order.clientId, order.offerId, order.quantity, order.request], [env.client.id, 'offer_1', '1', 'From your monthly schedule: Monthly books, dated 1 Nov 2026.']);
   const record = listRecords(env.store.read(), 'venture-recurring-invoice').find(item => item.id === set.recurring.id)!;
   assert.equal(record.nextOn, '2026-12-01');
   assert.deepEqual(record.made, [{ on: '2026-11-01', orderId: order.id, invoiceId: draft.id }]);
@@ -126,7 +126,7 @@ test('a schedule that cannot draft says why on its line and is tried again on th
   assert.deepEqual(await runMoneySchedules(env.deps, owner), { invoices: 0, bills: 0 });
   const [item] = (await env.money<RecurringInvoicesView>('venture.invoice.recurringList')).items;
   assert.equal(item.nextOn, '2026-11-01');
-  assert.equal(item.line, 'Monthly books for Cafe Aroma Demo, every month from 01 Nov 2026. The draft for 01 Nov 2026 cannot be made yet: Set your price for Monthly books first.');
+  assert.equal(item.line, 'Monthly books for Cafe Aroma Demo, every month from 1 Nov 2026. The draft for 1 Nov 2026 cannot be made yet: Set your price for Monthly books first.');
   await priceOffer(env, '1975000');
   env.advance(DAY);
   assert.deepEqual(await runMoneySchedules(env.deps, owner), { invoices: 1, bills: 0 });
@@ -156,7 +156,7 @@ test('venture.invoice.remind drafts a reminder for you to send yourself; nothing
   assert.equal(draft.text, [
     'Hello Cafe Aroma Demo,',
     '',
-    'This is a reminder that invoice INV-0001, dated 01 Oct 2026, was due on 16 Oct 2026. INR 23,305.00 is still to pay.',
+    'This is a reminder that invoice INV-0001, dated 1 Oct 2026, was due on 16 Oct 2026. INR 23,305.00 is still to pay.',
     '',
     'If you have already paid, thank you, and please ignore this note.',
     '',
@@ -182,7 +182,7 @@ test('a reminder before the due day says when it is due; drafts, paid invoices a
   const env = await business();
   const soon = await invoice(env, '1', '2026-10-20'); // due 4 November
   const { draft } = await env.remind(soon.invoice.id);
-  assert.match(draft.text, /This is a reminder that invoice INV-0001, dated 20 Oct 2026, is due on 04 Nov 2026\. INR 23,305\.00 is still to pay\./);
+  assert.match(draft.text, /This is a reminder that invoice INV-0001, dated 20 Oct 2026, is due on 4 Nov 2026\. INR 23,305\.00 is still to pay\./);
   const unsent = await invoice(env, '1', '2026-10-21', true);
   await assert.rejects(env.remind(unsent.invoice.id), code('INVALID_VENTURE_REQUEST'));
   const paid = await invoice(env, '1', '2026-10-01');
@@ -214,8 +214,8 @@ test('every invoice has one next action by its state and a short timeline: issue
   const fresh = await invoice(env, '1', '2026-10-23', true);
   assert.deepEqual([(await env.get(fresh.invoice.id)).next, (await env.get(fresh.invoice.id)).timeline], [{ action: 'issue', line: 'Check it and issue it.' }, []]);
   const issuedNow = await env.money<InvoiceView>('venture.invoice.issue', { invoiceId: fresh.invoice.id, digest: fresh.invoice.digest });
-  assert.deepEqual(issuedNow.next, { action: 'wait', line: 'Awaiting payment, due 07 Nov 2026.' });
-  assert.deepEqual(issuedNow.timeline?.map(item => item.line), ['Issued on 23 Oct 2026', 'Awaiting payment, due 07 Nov 2026']);
+  assert.deepEqual(issuedNow.next, { action: 'wait', line: 'Awaiting payment, due 7 Nov 2026.' });
+  assert.deepEqual(issuedNow.timeline?.map(item => item.line), ['Issued on 23 Oct 2026', 'Awaiting payment, due 7 Nov 2026']);
 
   const late = await invoice(env, '1', '2026-10-01');
   const id = late.invoice.id;
@@ -230,23 +230,23 @@ test('every invoice has one next action by its state and a short timeline: issue
   });
   await env.money('venture.payment.record', { invoiceId: id, amount: '1000', receivedOn: '2026-10-12', method: 'cheque' });
   const view = await env.get(id);
-  // Left: 2330500 - 500000 - 233050 = 1597450 (INR 15,974.50); the cheque for 100000 waits.
+  // Left: 2330500 - 500000 - 233050 = 1597450 (₹15,974.50); the cheque for 100000 waits.
   assert.deepEqual(view.timeline?.map(item => [item.what, item.on, item.line]), [
-    ['issued', '2026-10-01', 'Issued on 01 Oct 2026'],
-    ['paid', '2026-10-05', 'Paid INR 5,000.00 by UPI on 05 Oct 2026, marked paid by you'],
-    ['cheque', '2026-10-12', 'Cheque for INR 1,000.00 received on 12 Oct 2026, waiting to clear'],
-    ['credited', '2026-10-23', 'Credit note CN-0001 for INR 2,330.50 on 23 Oct 2026'],
+    ['issued', '2026-10-01', 'Issued on 1 Oct 2026'],
+    ['paid', '2026-10-05', 'Paid ₹5,000 by UPI on 5 Oct 2026, marked paid by you'],
+    ['cheque', '2026-10-12', 'Cheque for ₹1,000 received on 12 Oct 2026, waiting to clear'],
+    ['credited', '2026-10-23', 'Credit note CN-0001 for ₹2,330.50 on 23 Oct 2026'],
     ['reminded', '2026-10-23', 'Reminder sent on 23 Oct 2026'],
-    ['awaiting', '2026-10-16', 'Awaiting INR 15,974.50, due 16 Oct 2026'],
+    ['awaiting', '2026-10-16', 'Awaiting ₹15,974.50, due 16 Oct 2026'],
   ]);
-  assert.deepEqual(view.next, { action: 'clear', line: 'A cheque for INR 1,000.00 is waiting to clear. Mark it cleared once it is in your bank.' });
+  assert.deepEqual(view.next, { action: 'clear', line: 'A cheque for ₹1,000 is waiting to clear. Mark it cleared once it is in your bank.' });
   const listed = (await env.money<(InvoiceView['invoice'] & { next?: unknown })[]>('venture.invoice.list')).find(item => item.id === id)!;
   assert.deepEqual(listed.next, view.next);
 
   const settled = await invoice(env, '1', '2026-10-02');
   const done = await env.money<InvoiceView>('venture.payment.record', { invoiceId: settled.invoice.id, amount: '23305', receivedOn: '2026-10-09', method: 'bank-transfer' });
   assert.deepEqual(done.next, { action: 'none', line: 'Paid in full.' });
-  assert.deepEqual(done.timeline?.map(item => item.line), ['Issued on 02 Oct 2026', 'Paid INR 23,305.00 by bank transfer on 09 Oct 2026', 'Paid in full']);
+  assert.deepEqual(done.timeline?.map(item => item.line), ['Issued on 2 Oct 2026', 'Paid ₹23,305 by bank transfer on 9 Oct 2026', 'Paid in full']);
 });
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 // The model writes words and picks references; the engine fills every price and date from receipts and its clock.
 // A draft reply is never called a deliverable on screen: an agent in this build only has the client's message.
 import { check, type State } from '../../contracts.ts';
+import { currencyMinorDigits, formatMinor } from '../../currency.ts';
 import { copiedTokens, formatVentureDate, modelNumbers, modelWords } from '../records.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import type {
@@ -100,9 +101,9 @@ export function rehearsalRefs(state: State, ventureId: string, blueprint: Bluepr
 
 /**
  * Real order refs: the order's own price receipt, today and the date the order came in. Both dates are days on the
- * owner's calendar; orderDay defaults to the UTC day of the order's time only for callers that have no venture.
+ * owner's calendar (localDayAt with the business's country); every caller has the business.
  */
-export function orderRefs(blueprint: BlueprintRecord, order: OrderRecord, receipt: PriceReceiptRecord, today: IsoDate, orderDay: IsoDate = order.at.slice(0, 10)): DraftRefs {
+export function orderRefs(blueprint: BlueprintRecord, order: OrderRecord, receipt: PriceReceiptRecord, today: IsoDate, orderDay: IsoDate): DraftRefs {
   const offer = blueprint.offers.find(item => item.id === order.offerId);
   const unit = offer ? UNIT_WORD[offer.pricing.quantityUnit] ?? 'unit' : 'unit';
   return {
@@ -280,7 +281,30 @@ export type AnyReceipt = PriceReceiptRecord | WorkReceiptRecord;
 
 function findFigure(receipts: readonly AnyReceipt[], part: { receiptId: string; figureKey: string }): { label: string; display: string } | null {
   const receipt = receipts.find(item => item.id === part.receiptId);
-  return (receipt?.figures as readonly { key: string; label: string; display: string }[] | undefined)?.find(figure => figure.key === part.figureKey) ?? null;
+  const found = (receipt?.figures as readonly ExactFigure[] | undefined)?.find(figure => figure.key === part.figureKey);
+  return found ? { label: found.label, display: exactDisplay(found) } : null;
+}
+
+type ExactFigure = { key: string; label: string; display: string; minor?: string; currency?: string; unit?: string };
+/**
+ * One-shot B2: a deliverable goes to the client, so an amount in it keeps the exact form ("INR 2,948.82"), worked out
+ * from the figure's minor units unless the display is already exact; the receipt itself shows the owner form on the
+ * owner's screens.
+ */
+function exactDisplay(figure: ExactFigure): string {
+  const money = figure.unit === undefined || figure.unit === 'money';
+  if (isExactForm(figure.display)) return figure.display;
+  return money && figure.currency && typeof figure.minor === 'string' && /^-?\d+$/.test(figure.minor) ? formatMinor(figure.minor, figure.currency) : figure.display;
+}
+
+/**
+ * Whether a display has the exact form's whole shape: a code, a space, digits grouped in threes and every minor digit
+ * of that currency ("INR 1,180.00", "JPY 5,000"). The owner form of a code currency ("SGD 5,000") does not.
+ */
+function isExactForm(display: string): boolean {
+  const found = /^([A-Z]{3}) -?\d{1,3}(?:,\d{3})*(?:\.(\d+))?$/.exec(display);
+  if (!found) return false;
+  try { return (found[2] ?? '').length === currencyMinorDigits(found[1]!); } catch { return false; }
 }
 
 /** A text part that is one social post ("LinkedIn: ...", playbooks/social/post-lines.ts). */
@@ -339,13 +363,15 @@ export function reconciliationBlock(receipt: AnyReceipt | undefined, country: Pi
   const rec = receipt && 'reconciliation' in receipt ? receipt.reconciliation : null;
   if (!receipt || !rec) return '## Reconciliation\n[the reconciliation receipt was not found]';
   const blocks = ["## Reconciliation\nWorked out by Chausar's calculator from the files you sent. Every amount comes from a receipt."];
-  blocks.push((receipt.figures as readonly { key: string; label: string; display: string; unit?: string }[]).filter(figure => figure.unit === 'money').map(figure => `${figure.label}: ${figure.display}`).join('\n'));
+  blocks.push((receipt.figures as readonly ExactFigure[]).filter(figure => figure.unit === 'money').map(figure => `${figure.label}: ${exactDisplay(figure)}`).join('\n'));
   blocks.push(!rec.statementClosing ? 'The statement has no balance column, so the closing balance was not checked.'
     : rec.balanced ? 'The statement balances.' : 'The statement does not balance. The difference above needs your answer.');
   const day = (iso: string | null) => (iso ? `${formatVentureDate(iso, country.dateOrder)} ` : '');
   const count = (key: string) => (receipt.figures as readonly { key: string; display: string }[]).find(figure => figure.key === key)?.display ?? '';
-  blocks.push([`Payments matched to bills: ${count('matched-count')}`, ...rec.matched.map(item => `- ${item.bankText}, ${item.display}, bill: ${item.billText}`)].join('\n'));
-  if (rec.unmatchedBank.length) blocks.push([`Payments with no bill: ${count('unmatched-bank-count')}`, ...rec.unmatchedBank.map(item => `- ${day(item.date)}${item.text}, ${item.display}`)].join('\n'));
-  if (rec.unmatchedBills.length) blocks.push([`Bills not paid in this statement: ${count('unmatched-bills-count')}`, ...rec.unmatchedBills.map(item => `- ${day(item.date)}${item.text}, ${item.display}`)].join('\n'));
+  // The client's copy quotes each line's amount in the exact form, from its minor units (the screens show the owner form).
+  const amount = (item: { amountMinor: string; display: string }) => exactDisplay({ key: '', label: '', display: item.display, minor: item.amountMinor, currency: receipt.currency, unit: 'money' });
+  blocks.push([`Payments matched to bills: ${count('matched-count')}`, ...rec.matched.map(item => `- ${item.bankText}, ${amount(item)}, bill: ${item.billText}`)].join('\n'));
+  if (rec.unmatchedBank.length) blocks.push([`Payments with no bill: ${count('unmatched-bank-count')}`, ...rec.unmatchedBank.map(item => `- ${day(item.date)}${item.text}, ${amount(item)}`)].join('\n'));
+  if (rec.unmatchedBills.length) blocks.push([`Bills not paid in this statement: ${count('unmatched-bills-count')}`, ...rec.unmatchedBills.map(item => `- ${day(item.date)}${item.text}, ${amount(item)}`)].join('\n'));
   return blocks.join('\n\n');
 }

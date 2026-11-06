@@ -12,8 +12,9 @@
 // venture.team.clearQuarantine lets the owner clear a quarantined agent, or the team ('team'), with the health digest
 // they saw; this file installs the quarantine check delivery runs before work moves on (delivery/quarantine-gate.ts).
 // Keeper has no steps or posture to change. The team's flagship comes from views/team-shape.ts, shared with Money.
+import { formatUsd } from '../../owner-format.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
-import { currentVenture, exactPayload, formatMicros, identifier, listRecords, requireAppChannel, sumMicros, ventureAction } from '../records.ts';
+import { currentVenture, exactPayload, identifier, listRecords, requireAppChannel, sumMicros, ventureAction } from '../records.ts';
 import type { AgentHealth, AgentPostureRecord, AgentView, HealthClearRecord, PlaybookStep, Posture, TeamGateRecord, TeamListView, VentureDeps, VentureRecord } from '../contracts.ts';
 import type { FlagshipDelivery } from '../playbooks/steps.ts';
 import { effectivePosture, STEP_FLOOR_WORDS, stepFloorReason } from '../policy/context.ts';
@@ -76,7 +77,7 @@ function knownAgent(flagship: FlagshipDelivery | null, steps: readonly PlaybookS
 function spendOf(state: State, venture: VentureRecord): string {
   const calls = state.conversations.filter((record: any) => record?.kind === 'venture-model-call' && record.ventureId === venture.id
     && AGENT_PURPOSES.includes(record.purpose) && typeof record.costMicros === 'string' && /^\d{1,30}$/.test(record.costMicros)) as { costMicros: string; priceConfirmed?: unknown }[];
-  const total = formatMicros(sumMicros(calls.map(call => call.costMicros)));
+  const total = formatUsd(sumMicros(calls.map(call => call.costMicros)));
   return calls.some(call => call.priceConfirmed === false) ? `${total}${ESTIMATE_WORDS}` : total;
 }
 

@@ -1,4 +1,5 @@
-import { ChausarError } from './contracts.ts';
+// B1 fix round 2: storage refusals are in developer words, so they are InternalError (owner-flag.ts refusalTravel).
+import { InternalError } from './contracts.ts';
 import type { EncryptedSnapshotAdapter, VaultEnvelope } from './vault.ts';
 
 type Client = { query(sql: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }>; release(): void };
@@ -12,7 +13,7 @@ export const VAULT_TABLE_SQL = `CREATE TABLE IF NOT EXISTS public.chausar_vault_
       envelope JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`;
 export function checkLoopbackPostgres(options: LoopbackPostgres) {
-  if (!['127.0.0.1', '::1'].includes(options.host) || !Number.isInteger(options.port) || options.port < 1024 || options.port > 65535 || !options.user || !options.database || !options.password) throw new ChausarError('INVALID_POSTGRES_CONFIG', 'Provide explicit loopback database configuration and credentials.');
+  if (!['127.0.0.1', '::1'].includes(options.host) || !Number.isInteger(options.port) || options.port < 1024 || options.port > 65535 || !options.user || !options.database || !options.password) throw new InternalError('INVALID_POSTGRES_CONFIG', 'Provide explicit loopback database configuration and credentials.');
 }
 /** A pg pool to a loopback server. pg loads only here, so nothing needs it until a database is configured. */
 export async function openLoopbackPool(options: LoopbackPostgres, applicationName: string): Promise<PostgresPool> {
@@ -23,14 +24,14 @@ export async function openLoopbackPool(options: LoopbackPostgres, applicationNam
 /** postgres://user:password@127.0.0.1:5432/database, checked like the options above. No query options: there is no TLS to set. */
 export function loopbackPostgresUrl(text: string): LoopbackPostgres {
   let url: URL;
-  try { url = new URL(text); } catch { throw new ChausarError('INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL.'); }
-  if ((url.protocol !== 'postgresql:' && url.protocol !== 'postgres:') || url.search || url.hash) throw new ChausarError('INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL without query options.');
+  try { url = new URL(text); } catch { throw new InternalError('INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL.'); }
+  if ((url.protocol !== 'postgresql:' && url.protocol !== 'postgres:') || url.search || url.hash) throw new InternalError('INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL without query options.');
   const options = { host: url.hostname.replace(/^\[|\]$/g, '') as LoopbackPostgres['host'], port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password), database: decodeURIComponent(url.pathname.slice(1)) };
   checkLoopbackPostgres(options);
   return options;
 }
 function exactObjectFields(value: any, fields: string[]) {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== fields.length || !fields.every(field => Object.hasOwn(value, field))) throw new ChausarError('CORRUPT_VAULT', 'The stored key wrapper shape is inconsistent.');
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== fields.length || !fields.every(field => Object.hasOwn(value, field))) throw new InternalError('CORRUPT_VAULT', 'The stored key wrapper shape is inconsistent.');
 }
 /** JSONB reorders nested object keys. Restore the existing v1 wrapper order
  * produced by Vault before its unchanged GCM AAD serialization. Reject extra
@@ -38,7 +39,7 @@ function exactObjectFields(value: any, fields: string[]) {
 function orderedWrapper(value: any): VaultEnvelope['passphrase'] {
   exactObjectFields(value, ['salt', 'kdf', 'ciphertext']);
   exactObjectFields(value.ciphertext, ['nonce', 'tag', 'data']);
-  if (typeof value.salt !== 'string' || value.kdf !== 'scrypt-32768-8-1' || !['nonce', 'tag', 'data'].every(field => typeof value.ciphertext[field] === 'string')) throw new ChausarError('CORRUPT_VAULT', 'The stored key wrapper fields are inconsistent.');
+  if (typeof value.salt !== 'string' || value.kdf !== 'scrypt-32768-8-1' || !['nonce', 'tag', 'data'].every(field => typeof value.ciphertext[field] === 'string')) throw new InternalError('CORRUPT_VAULT', 'The stored key wrapper fields are inconsistent.');
   return { salt: value.salt, kdf: value.kdf, ciphertext: { nonce: value.ciphertext.nonce, tag: value.ciphertext.tag, data: value.ciphertext.data } };
 }
 /** Durable production adapter. Only authenticated ciphertext enters PostgreSQL. */
@@ -48,7 +49,7 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
   #slot: string;
   #ownPool: boolean;
   private constructor(pool: PostgresPool, vaultSlot: string, ownPool: boolean) {
-    if (!/^[A-Za-z0-9_.-]{1,100}$/.test(vaultSlot)) throw new ChausarError('INVALID_SLOT', 'Use a named vault storage slot.');
+    if (!/^[A-Za-z0-9_.-]{1,100}$/.test(vaultSlot)) throw new InternalError('INVALID_SLOT', 'Use a named vault storage slot.');
     this.#pool = pool; this.#slot = vaultSlot; this.#ownPool = ownPool;
   }
   static async connect(options: PostgresOptions): Promise<PostgresSnapshotAdapter> {
@@ -69,11 +70,11 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
     const result = await this.#pool.query('SELECT revision, envelope FROM public.chausar_vault_authority WHERE slot = $1', [this.#slot]);
     if (!result.rows.length) return null;
     const row = result.rows[0], envelope = typeof row.envelope === 'string' ? JSON.parse(row.envelope) : row.envelope;
-    if (!envelope || !Number.isSafeInteger(envelope.revision) || envelope.revision < 0 || String(row.revision) !== String(envelope.revision)) throw new ChausarError('CORRUPT_VAULT', 'The stored authority revision is inconsistent.');
+    if (!envelope || !Number.isSafeInteger(envelope.revision) || envelope.revision < 0 || String(row.revision) !== String(envelope.revision)) throw new InternalError('CORRUPT_VAULT', 'The stored authority revision is inconsistent.');
     return { ...envelope, passphrase: orderedWrapper(envelope.passphrase), recovery: orderedWrapper(envelope.recovery) };
   }
   async commit(envelope: VaultEnvelope, expectedRevision: number | null): Promise<void> {
-    if (!envelope || !Number.isSafeInteger(envelope.revision) || envelope.revision < 0 || (expectedRevision !== null && (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || envelope.revision !== expectedRevision + 1))) throw new ChausarError('INVALID_REVISION', 'A replacement snapshot must advance its expected revision by exactly one.');
+    if (!envelope || !Number.isSafeInteger(envelope.revision) || envelope.revision < 0 || (expectedRevision !== null && (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || envelope.revision !== expectedRevision + 1))) throw new InternalError('INVALID_REVISION', 'A replacement snapshot must advance its expected revision by exactly one.');
     const client = await this.#pool.connect();
     try {
       await client.query('BEGIN');
@@ -81,7 +82,7 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`chausar-vault:${this.#slot}`]);
       const result = await client.query('SELECT revision FROM public.chausar_vault_authority WHERE slot = $1 FOR UPDATE', [this.#slot]);
       const current = result.rows.length ? Number(result.rows[0].revision) : null;
-      if (current !== expectedRevision) throw new ChausarError('REVISION_CONFLICT', 'The workspace changed in another writer.');
+      if (current !== expectedRevision) throw new InternalError('REVISION_CONFLICT', 'The workspace changed in another writer.');
       if (expectedRevision === null) await client.query('INSERT INTO public.chausar_vault_authority (slot, revision, envelope) VALUES ($1, $2, $3::jsonb)', [this.#slot, envelope.revision, JSON.stringify(envelope)]);
       else await client.query('UPDATE public.chausar_vault_authority SET revision = $2, envelope = $3::jsonb, updated_at = CURRENT_TIMESTAMP WHERE slot = $1 AND revision = $4', [this.#slot, envelope.revision, JSON.stringify(envelope), expectedRevision]);
       await client.query('COMMIT');

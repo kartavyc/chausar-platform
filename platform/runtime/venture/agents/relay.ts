@@ -10,8 +10,9 @@
 // in W4 (FlagshipRole.parent is unset everywhere), so nothing here runs on a real order yet.
 // The rules follow Beeline's commander and system events, prime-agent's agent-message skill, Xiryn's squad block and
 // agent-harness's brief guard (2026-10-23 harvest, cards2/harness-a.md and harness-b.md); this is a rewrite.
+import { formatUsd } from '../../owner-format.ts';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
-import { exactPayload, findRecord, formatMicros, identifier, listRecords, plainText, type VentureTx } from '../records.ts';
+import { exactPayload, findRecord, identifier, listRecords, plainText, type VentureTx } from '../records.ts';
 import type { AgentRelayRecord, ChatPart, RelayKind, RelayReport, VentureDeps, VentureRecord } from '../contracts.ts';
 import { HELPER_RETURN_CAP, helperBrief } from './helper-brief.ts';
 import { ERASED_NAMED } from './notes.ts';
@@ -166,7 +167,7 @@ export function nestTeam<T extends { id: string; spend: string }>(agents: readon
     const member = team.members.find(item => item.id === agent.id);
     if (!member) return agent;
     const helps = team.members.some(item => item.parentId === member.id);
-    const spend = `${formatMicros(String(helps ? rolled.get(member.id) ?? 0n : spent.get(member.id) ?? 0n))}${suffix}${helps ? ' with its helpers' : ''}`;
+    const spend = `${formatUsd(String(helps ? rolled.get(member.id) ?? 0n : spent.get(member.id) ?? 0n))}${suffix}${helps ? ' with its helpers' : ''}`;
     return { ...agent, spend, ...(member.parentId ? { parentId: member.parentId } : {}) };
   });
 }
@@ -232,7 +233,7 @@ const ownerParts = (text: string): ChatPart[] => (/\d/.test(text) ? [{ kind: 'es
  */
 export function relaySend(tx: VentureTx, team: RelayTeam, rootId: string, input: RelaySendInput): RelayReceipt {
   const root = findRecord(tx.state, 'venture-delivery-run', rootId);
-  check(root && root.ventureId === tx.venture!.id, 'RUN_NOT_FOUND', 'That run was not found.');
+  check(root && root.ventureId === tx.venture!.id, 'RUN_NOT_FOUND', 'That job was not found.');
   const body = exactPayload(input, INPUT_FIELDS, ['kind', 'from', 'to', 'text']);
   check(RELAY_KINDS.includes(body.kind as RelayKind), 'INVALID_VENTURE_REQUEST', 'A message is an order, a report, a handover or a message.');
   const kind = body.kind as RelayKind;

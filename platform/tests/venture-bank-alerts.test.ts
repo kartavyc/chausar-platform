@@ -47,7 +47,7 @@ test('w6 bank alert thresholds keep the account currency after the business move
   await ventureAction(env.deps, owner, 'admin', 'test.move', tx => tx.touch({ originalCountry: tx.venture!.country, country: countryProfile('JP') }));
   const view = await run<BankAlertsView>(env, 'venture.bank.alerts.set', { account: ACCOUNT, rules: [{ kind: 'balance-below', amount: '125.50' }] });
   assert.deepEqual(view.accounts[0].rules[0], { kind: 'balance-below', minor: '12550' });
-  assert.match(view.accounts[0].ruleLines[0], /INR 125\.50/);
+  assert.match(view.accounts[0].ruleLines[0], /₹125\.50/);
 });
 
 test('venture.bank.alerts.set keeps the rules and the address the owner set; get shows the rules and never the address', async () => {
@@ -71,8 +71,8 @@ test('venture.bank.alerts.set keeps the rules and the address the owner set; get
   assert.equal(account.account, ACCOUNT);
   assert.deepEqual(account.rules, [{ kind: 'large-debit', minor: '5000000' }, { kind: 'balance-below', minor: '1000000' }, { kind: 'credit-matching', text: 'INV-0007' }]);
   assert.deepEqual(account.ruleLines, [
-    'When INR 50,000.00 or more goes out in one payment.',
-    'When the balance falls below INR 10,000.00.',
+    'When ₹50,000 or more goes out in one payment.',
+    'When the balance falls below ₹10,000.',
     'When money comes in that mentions INV-0007.',
   ]);
   assert.match(account.destination, /^Alerts go to the address you set/);

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { authorize, ChausarError, type Context, type State } from './contracts.ts';
+import { authorize, ChausarError, type Context, type State, internalCheck } from './contracts.ts';
 import type { PrivateArtifactPurpose, PrivateArtifactRef } from './vault.ts';
 
 export const WORKSPACE_BACKUP_V2_FORMAT = 'chausar.backup.v2' as const;
@@ -168,13 +168,13 @@ function ciphertext(value: unknown, budget: WorkspaceBackupV2Budgets, wrappedKey
 function persisted(bytes: Uint8Array, budget: WorkspaceBackupV2Budgets): any {
   requireValue(bytes instanceof Uint8Array && bytes.byteLength > 0 && bytes.byteLength <= budget.maxEntryBytes, 'BACKUP_LIMIT', 'An encrypted entry exceeds its operation budget.');
   const copy = Buffer.from(bytes), text = copy.toString('utf8');
-  requireValue(Buffer.from(text, 'utf8').equals(copy), 'BACKUP_ENCODING', 'Encrypted envelope JSON must retain exact valid UTF-8 bytes.');
+  internalCheck(Buffer.from(text, 'utf8').equals(copy), 'BACKUP_ENCODING', 'Encrypted envelope JSON must retain exact valid UTF-8 bytes.');
   return parseJson(text, budget);
 }
 function authority(bytes: Uint8Array, source: WorkspaceBackupV2Source, budget: WorkspaceBackupV2Budgets) {
   const envelope = persisted(bytes, budget);
   exact(envelope, ['format', 'id', 'revision', 'passphrase', 'recovery', 'snapshot']);
-  requireValue(envelope.format === 'chausar.vault.v1' && envelope.id === source.vaultId && envelope.revision === source.revision,
+  internalCheck(envelope.format === 'chausar.vault.v1' && envelope.id === source.vaultId && envelope.revision === source.revision,
     'BACKUP_BINDING', 'Authority envelope identity or revision differs from the independently pinned source.');
   for (const wrapper of [envelope.passphrase, envelope.recovery]) {
     exact(wrapper, ['salt', 'kdf', 'ciphertext']);
@@ -186,7 +186,7 @@ function authority(bytes: Uint8Array, source: WorkspaceBackupV2Source, budget: W
 function artifact(bytes: Uint8Array, manifest: WorkspaceBackupV2ArtifactManifest, vaultId: string, budget: WorkspaceBackupV2Budgets) {
   const envelope = persisted(bytes, budget);
   exact(envelope, ['format', 'vaultId', 'id', 'purpose', 'valueDigest', 'ciphertext']);
-  requireValue(envelope.format === 'chausar.private-artifact.v1' && envelope.vaultId === vaultId && envelope.id === manifest.id
+  internalCheck(envelope.format === 'chausar.private-artifact.v1' && envelope.vaultId === vaultId && envelope.id === manifest.id
     && envelope.purpose === manifest.purpose && envelope.valueDigest === manifest.valueDigest,
   'BACKUP_BINDING', 'Encrypted artifact identity, purpose, vault or value digest differs.');
   ciphertext(envelope.ciphertext, budget);
@@ -201,7 +201,7 @@ function validatePin(pin: WorkspaceBackupV2SourcePin, budget: WorkspaceBackupV2B
   requireValue(pin.format === PIN_FORMAT && pin.scope === SCOPE && pin.fullWorkspacePortable === false,
     'BACKUP_SCOPE', 'This profile covers encrypted authority and all typed private artifacts with explicit wider scope requirements.');
   source(pin.source); exact(pin.authority, ['bytes', 'sha256']);
-  requireValue(count(pin.authority.bytes) && pin.authority.bytes > 0 && pin.authority.bytes <= budget.maxEntryBytes && digest(pin.authority.sha256), 'BACKUP_MANIFEST', 'Authority byte and digest pins are required.');
+  internalCheck(count(pin.authority.bytes) && pin.authority.bytes > 0 && pin.authority.bytes <= budget.maxEntryBytes && digest(pin.authority.sha256), 'BACKUP_MANIFEST', 'Authority byte and digest pins are required.');
   requireValue(Array.isArray(pin.artifacts) && pin.artifacts.length + 1 <= budget.maxEntries
     && Array.isArray(pin.namespaces) && pin.namespaces.length <= budget.maxEntries
     && Array.isArray(pin.externalKeyRequirements) && pin.externalKeyRequirements.length <= budget.maxEntries,
@@ -209,7 +209,7 @@ function validatePin(pin: WorkspaceBackupV2SourcePin, budget: WorkspaceBackupV2B
   let total = pin.authority.bytes, last = ''; const identities = new Set<string>();
   for (const item of pin.artifacts) {
     exact(item, ['id', 'purpose', 'valueDigest', 'bytes', 'sha256']); const key = `${item.purpose}/${item.id}`;
-    requireValue(typeof item.id === 'string' && artifactIdentifier.test(item.id) && purposes.includes(item.purpose)
+    internalCheck(typeof item.id === 'string' && artifactIdentifier.test(item.id) && purposes.includes(item.purpose)
       && digest(item.valueDigest) && count(item.bytes) && item.bytes > 0 && item.bytes <= budget.maxEntryBytes && digest(item.sha256)
       && key > last && !identities.has(key.toLowerCase()), 'BACKUP_MANIFEST', 'Every artifact requires a unique sorted typed identity and exact byte/digest pins without filesystem case aliases.');
     identities.add(key.toLowerCase());
@@ -245,7 +245,7 @@ function validatePin(pin: WorkspaceBackupV2SourcePin, budget: WorkspaceBackupV2B
   last = ''; const keyIdentities = new Set<string>();
   for (const item of pin.externalKeyRequirements) {
     exact(item, ['provider', 'namespace', 'requirement']); const key = `${item.provider}/${item.namespace}`;
-    requireValue(['keychain', 'postgres', 'other'].includes(item.provider) && typeof item.namespace === 'string'
+    internalCheck(['keychain', 'postgres', 'other'].includes(item.provider) && typeof item.namespace === 'string'
       && item.namespace.length <= 200 && namespacePattern.test(item.namespace) && !item.namespace.split('/').some(part => part === '.' || part === '..')
       && key > last && !keyIdentities.has(key.toLowerCase())
       && typeof item.requirement === 'string' && item.requirement.trim().length > 0 && item.requirement.length <= 4096,
@@ -297,11 +297,11 @@ export function inspectWorkspaceBackupV2(text: string, budget: WorkspaceBackupV2
   requireValue(typeof text === 'string' && Buffer.byteLength(text, 'utf8') <= budget.maxArchiveUtf8Bytes, 'BACKUP_LIMIT', 'Archive exceeds its explicit wire byte budget.');
   const value = parseJson(text, budget);
   exact(value, ['backupFormat', 'pin', 'authorityBase64', 'artifacts', 'digest']);
-  requireValue(value.backupFormat === WORKSPACE_BACKUP_V2_FORMAT && digest(value.digest), 'BACKUP_FORMAT', 'Unsupported complete archive format or digest.');
+  internalCheck(value.backupFormat === WORKSPACE_BACKUP_V2_FORMAT && digest(value.digest), 'BACKUP_FORMAT', 'Unsupported complete archive format or digest.');
   validatePin(value.pin, budget);
   requireValue(Array.isArray(value.artifacts) && value.artifacts.length === value.pin.artifacts.length, 'BACKUP_MANIFEST', 'All pinned encrypted entries must appear exactly once.');
   const authorityBytes = decode64(value.authorityBase64, budget.maxEntryBytes);
-  requireValue(authorityBytes.length === value.pin.authority.bytes && sha(authorityBytes) === value.pin.authority.sha256, 'BACKUP_DIGEST', 'Authority bytes differ from the exact pinned envelope.');
+  internalCheck(authorityBytes.length === value.pin.authority.bytes && sha(authorityBytes) === value.pin.authority.sha256, 'BACKUP_DIGEST', 'Authority bytes differ from the exact pinned envelope.');
   authority(authorityBytes, value.pin.source, budget);
   for (let index = 0; index < value.artifacts.length; index++) {
     const entry = value.artifacts[index], manifest = value.pin.artifacts[index]; exact(entry, ['id', 'purpose', 'dataBase64']);
@@ -311,7 +311,7 @@ export function inspectWorkspaceBackupV2(text: string, budget: WorkspaceBackupV2
     artifact(bytes, manifest, value.pin.source.vaultId, budget);
   }
   const { digest: declared, ...body } = value;
-  requireValue(sha(canonical(body, budget)) === declared, 'BACKUP_DIGEST', 'Archive manifest or ciphertext content changed.');
+  internalCheck(sha(canonical(body, budget)) === declared, 'BACKUP_DIGEST', 'Archive manifest or ciphertext content changed.');
   requireValue(canonical(value, budget) === text, 'BACKUP_CANONICAL', 'Outer archive JSON must use the exact deterministic wire representation.');
   return value as WorkspaceBackupV2Archive;
 }
@@ -465,7 +465,7 @@ export class WorkspaceBackupV2Host {
   }
   async #authenticatedRead(context: Context, backupId: string, reviewedDigest?: string) {
     const initial = await this.#read(context, backupId);
-    if (reviewedDigest !== undefined) requireValue(initial.archive.digest === reviewedDigest, 'BACKUP_REVIEW_CHANGED', 'The reviewed archive digest changed.');
+    if (reviewedDigest !== undefined) internalCheck(initial.archive.digest === reviewedDigest, 'BACKUP_REVIEW_CHANGED', 'The reviewed archive digest changed.');
     await this.#assertReadCurrent(context, backupId, initial);
     await completed(() => this.#ports.authenticateArchive(structuredClone(context), structuredClone(initial.archive)));
     await this.#assertReadCurrent(context, backupId, initial);
@@ -482,7 +482,7 @@ export class WorkspaceBackupV2Host {
   /** Reopens committed inert target custody across restart; this read cannot attach or activate authority. */
   async readRestored(contextInput: Context, input: { backupId: string; targetId: string; creationId: string; reviewedDigest: string }): Promise<WorkspaceBackupV2RestoredReadback> {
     exact(input, ['backupId', 'targetId', 'creationId', 'reviewedDigest']); const payload = structuredClone(input), context = structuredClone(contextInput);
-    requireValue(id(payload.backupId) && id(payload.targetId) && id(payload.creationId) && digest(payload.reviewedDigest),
+    internalCheck(id(payload.backupId) && id(payload.targetId) && id(payload.creationId) && digest(payload.reviewedDigest),
       'BACKUP_REVIEW_REQUIRED', 'Read one exact managed inert target creation and reviewed backup digest.'); this.#readOwner(context);
     const initial = await this.#authenticatedRead(context, payload.backupId, payload.reviewedDigest), archive = initial.archive;
     const expected: WorkspaceBackupV2RestoreReceipt = { targetId: payload.targetId, creationId: payload.creationId, archiveDigest: archive.digest,
@@ -539,7 +539,7 @@ export class WorkspaceBackupV2Host {
     requireValue(id(payload.backupId) && id(payload.targetId) && digest(payload.reviewedDigest), 'BACKUP_REVIEW_REQUIRED', 'Review one exact managed encrypted backup and empty target.');
     requireValue(context.channel === 'desktop' && context.role === 'owner' && !context.sourceTainted, 'APP_APPROVAL_REQUIRED', 'The current untainted desktop owner must approve inert restore.');
     const initial = await this.#read(context, payload.backupId), archive = initial.archive;
-    requireValue(archive.digest === payload.reviewedDigest, 'BACKUP_REVIEW_CHANGED', 'The reviewed archive digest changed.');
+    internalCheck(archive.digest === payload.reviewedDigest, 'BACKUP_REVIEW_CHANGED', 'The reviewed archive digest changed.');
     const assertArchiveCurrent = async () => {
       await completed(() => this.#ports.assertRestoreOwner(structuredClone(context), structuredClone(archive.pin.source)));
       const current = await this.#read(context, payload.backupId);

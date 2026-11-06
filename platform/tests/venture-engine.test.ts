@@ -165,7 +165,7 @@ async function planScreen(engine: Engine, quote: boolean) {
   if (quote) {
     receipt = await need('venture.price.quote', engine.request('venture.price.quote', { offerId: 'offer_1' })) as PriceReceiptRecord;
     assert.equal(receipt.inputs.blueprintDigest, draft.blueprint.digest, 'the quote prices the draft');
-    // INR 2,499.00 at 18%: tax (249900 x 1800 + 5000) / 10000 = 44982, total 249900 + 44982 = 294882.
+    // ₹2,499 at 18%: tax (249900 x 1800 + 5000) / 10000 = 44982, total 249900 + 44982 = 294882.
     assert.equal(receipt.totalMinor, '294882');
     const onDraft = await engine.request('venture.blueprint.get', {}) as BlueprintView;
     assert.equal(onDraft.offerReceipts.offer_1?.id, receipt.id);
@@ -186,7 +186,7 @@ test('the Plan screen sequence prices the draft, keeps the receipt through accep
     const markdown = brief.markdown;
     const section3 = markdown.slice(markdown.indexOf('## 3.'), markdown.indexOf('## 4.'));
     assert.ok(section3.startsWith('## 3.'), markdown);
-    assert.match(section3, /INR 2,948\.82/);
+    assert.match(section3, /₹2,948\.82/);
   });
 });
 

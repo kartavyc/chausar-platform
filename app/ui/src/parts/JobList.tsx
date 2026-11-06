@@ -44,7 +44,7 @@ export function JobList({ runs, onOpen, onRunAgain }: JobListProps) {
       : run.progress === 'indeterminate'
         ? <span>{t('ring.indeterminate')}</span>
         : run.progress
-          ? <span className="mono" data-count="">{t('steps.progress', { done: run.progress.done, total: run.progress.total })}</span>
+          ? <span data-num="" data-count="">{t('steps.progress', { done: run.progress.done, total: run.progress.total })}</span>
           : null;
     if (!words) return undefined;
     return (

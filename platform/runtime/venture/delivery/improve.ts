@@ -8,7 +8,7 @@
 // and can go back to the version it was made from with another (rollback, Ink v2 wave 2, Q2). Each gated round is kept
 // as an experiment with its control, budget and rules; a change that did not help against a real control waits its
 // retry spacing; the run stops at its budget (Ink v2 wave 4, 4J16, experiments.ts).
-import { check, newId, type Context, type State } from '../../contracts.ts';
+import { check, newId, type Context, type State, internalCheck } from '../../contracts.ts';
 import { digest, exactPayload, findRecord, identifier, listRecords, modelWords, requireAppChannel, smallInteger, ventureAction, type VentureTx } from '../records.ts';
 import { ATTRIBUTION_LEVELS, CHECK_IDS, JUDGE_QUESTIONS, PLAYBOOK_PATCH_OPS } from '../contracts.ts';
 import type {
@@ -30,7 +30,7 @@ import { rupeesOf } from '../money/spend.ts';
 import {
   budgetReached, budgetWords, EXPERIMENT_BUDGET_MICROS, EXPERIMENT_CANDIDATES, experimentOf, recentlyTried, RETRY_SPACING_DAYS, reviewQueue, signalWindow, spacingReason,
 } from './experiments.ts';
-import { formatMicros } from '../records.ts';
+import { formatUsd } from '../../owner-format.ts';
 import { scanTrace } from './trace-scan.ts';
 
 export const MAX_ROUNDS = 4;
@@ -322,7 +322,7 @@ async function tiePreferences(
  */
 function budgetOf(value: unknown): string {
   check(typeof value === 'string' && /^\d{1,13}$/.test(value) && BigInt(value) > 0n && BigInt(value) <= BigInt(EXPERIMENT_BUDGET_MICROS), 'INVALID_VENTURE_REQUEST',
-    `A budget is a whole number of micro-dollars, above zero and at most ${formatMicros(EXPERIMENT_BUDGET_MICROS)}.`);
+    `A budget is a whole number of micro-dollars, above zero and at most ${formatUsd(EXPERIMENT_BUDGET_MICROS)}.`);
   return String(BigInt(value as string));
 }
 
@@ -600,7 +600,7 @@ export async function improveAdoptHandler(deps: VentureDeps, ctx: Context, paylo
   requireAppChannel(ctx, 'venture.improve.adopt');
   const body = exactPayload(payload, ['runId', 'digest'], ['runId', 'digest']);
   const runId = identifier(body.runId, 'Improvement run');
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you approved.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you approved.');
   const approved = body.digest;
   readAs(deps, ctx, 'approve');
   return ventureAction(deps, ctx, 'approve', 'improve.adopt', tx => {
@@ -644,7 +644,7 @@ export async function improveRollbackHandler(deps: VentureDeps, ctx: Context, pa
   requireAppChannel(ctx, 'venture.improve.rollback');
   const body = exactPayload(payload, ['playbookId', 'digest'], ['playbookId', 'digest']);
   const playbookId = identifier(body.playbookId, 'How the work is done');
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
   const approved = body.digest;
   readAs(deps, ctx, 'approve');
   return ventureAction(deps, ctx, 'approve', 'improve.rollback', tx => {

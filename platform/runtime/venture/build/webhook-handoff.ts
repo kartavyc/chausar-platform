@@ -20,7 +20,7 @@
 // digest? } first answers the exact text and its digest; the send needs that digest back, so the bytes that leave are
 // the bytes the owner saw, to the address they registered. The journal entry is the receipt.
 import { createHmac } from 'node:crypto';
-import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
+import { authorize, check, ChausarError, type Context, internalCheck } from '../../contracts.ts';
 import type { Json, SecretName, VentureDeps } from '../contracts.ts';
 import { digest, exactPayload, identifier, requireAppChannel, readVenture } from '../records.ts';
 import { checkUrl, guardedFetch, resolvePublic } from '../core/net-guard.ts';
@@ -224,7 +224,7 @@ export async function webhookSend(deps: VentureDeps, ctx: Context, payload: unkn
   const body = exactPayload(payload, ['kind', 'subject', 'payload', 'digest'], ['kind', 'subject', 'payload']);
   const kind = kindOf(body.kind);
   const subject = identifier(body.subject, 'The subject');
-  check(body.digest === undefined || typeof body.digest === 'string', 'INVALID_VENTURE_REQUEST', 'Send back the digest you were shown.');
+  internalCheck(body.digest === undefined || typeof body.digest === 'string', 'INVALID_VENTURE_REQUEST', 'Send back the digest you were shown.');
   authorize(deps.store, ctx, 'approve');
   readVenture(deps, ctx);
   const { url } = registered(deps, kind);

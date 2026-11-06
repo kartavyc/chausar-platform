@@ -19,6 +19,7 @@ import { JobsTile } from './JobsTile';
 import { OneDepartment } from './OneDepartment';
 import { membersOf, refreshOn } from './shared';
 import { TeamStats } from './TeamStats';
+import { useNeedsYou } from '../../shell/needsYou';
 import s from './Team.module.css';
 
 /**
@@ -33,6 +34,8 @@ export function Place() {
   const t = useT();
   const route = useRoute();
   const narrow = useNarrow();
+  // B3: Waiting on you counts what Today counts for this business (shell/needsYou.ts), the engine's number.
+  const needs = useNeedsYou('current');
   const team = useResource('venture.team.list', {}, { refreshOn });
   const runs = useResource('venture.runs.list', { state: 'all' }, { refreshOn });
   const overview = useResource('venture.money.overview', {}, { refreshOn });
@@ -88,7 +91,7 @@ export function Place() {
             <OneDepartment data={split.departments.find((d) => d.dept === chosen) ?? emptyDepartment(chosen)} onChanged={team.reload} />
           ) : (
             <>
-              <TeamStats members={members} spent={spent} totals={team.data?.totals} bars={split?.departments.flatMap((d) => (d.jobsPermille === undefined ? [] : [d.jobsPermille]))} />
+              <TeamStats members={members} spent={spent} totals={team.data?.totals} needsYou={needs.loaded ? needs.count : undefined} bars={split?.departments.flatMap((d) => (d.jobsPermille === undefined ? [] : [d.jobsPermille]))} />
               {split
                 ? <Departments departments={split.departments} apart={split.apart} jobs={team.data?.totals?.doneThisWeek.count} onChanged={team.reload} />
                 : <AllAgents members={members} onChanged={team.reload} />}

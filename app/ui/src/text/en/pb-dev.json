@@ -63,7 +63,7 @@
   "pb-dev.approveCoding": "Approve this coding request",
   "pb-dev.untrusted": "Untrusted coding output",
   "pb-dev.audit": "Dependency audit",
-  "pb-dev.auditHelp": "Only the approved package metadata goes to the npm registry. No install, scripts or fix runs. Additional scanners stay manual until a reviewed adapter is available.",
+  "pb-dev.auditHelp": "Only the approved package metadata goes to the npm registry. No install, scripts or fix runs. Other scanners stay manual for now.",
   "pb-dev.previewAudit": "Review audit request",
   "pb-dev.approveAudit": "Approve metadata disclosure",
   "pb-dev.auditResults": "Reported dependency findings",
@@ -103,7 +103,7 @@
   "pb-dev.error.TIER_UNAVAILABLE": "Set up your own supported coding tool on desktop. Use the manual review meanwhile.",
   "pb-dev.error.RULE_UNCONFIRMED": "Security delivery waits for named professional review. Prepare a manual report meanwhile.",
   "pb-dev.error.SEND_DISABLED": "Sending is off. Change your sending choice before requesting a tool.",
-  "pb-dev.error.DEV_CLI_PENDING": "Check the previous coding run before starting another.",
+  "pb-dev.error.DEV_CLI_PENDING": "Check the previous coding job before starting another.",
   "pb-dev.error.ORDER_NOT_FOUND": "Choose a current developer order.",
   "pb-dev.error.CLIENT_NOT_FOUND": "The client is no longer available. Start with a current client.",
   "pb-dev.removeFinding": "Remove finding"

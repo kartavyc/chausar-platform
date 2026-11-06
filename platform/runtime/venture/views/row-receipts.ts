@@ -7,8 +7,8 @@ import { socialRevisionReceipt } from '../playbooks/social/revision-receipt.ts';
 // its record ('fig:<kind>:<record id>[:<call id>]') and is worked out again from that record on every read, so nothing
 // here is stored and no number comes from a model. A receipt whose record has moved on says it is stale.
 import { ChausarError, type Context, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { digest, findRecord, formatMicros, listRecords } from '../records.ts';
+import { formatMoney, formatRate, formatUsd } from '../../owner-format.ts';
 import type {
   BlueprintRecord, DeliveryRunRecord, Display, IsoTime, Offer, RowFigure, RowFigureReceipt, VentureDeps, VentureRecord,
 } from '../contracts.ts';
@@ -22,7 +22,8 @@ import { weekFigureReceipt } from './probe-figures.ts';
 import { shareWords } from '../money/share-price.ts';
 
 /** Money text as the screens' money rule finds it: a currency sign or code, then its digits. */
-export const MONEY_TEXT = /(?:[₹$€]\s?|\b(?:INR|USD|EUR|GBP|AED|SGD|AUD|CAD)\s?)\d[\d,]*(?:\.\d+)?/g;
+export { MONEY_TEXT } from '../../owner-format.ts';
+import { MONEY_TEXT } from '../../owner-format.ts';
 
 /** Every amount a text states, in order, as it is written there. */
 export function moneyIn(text: string | undefined | null): string[] {
@@ -49,14 +50,25 @@ export function offerPriceText(offer: Offer | undefined, currency: string): stri
   // Ink v2 wave 5 (5A2): an offer priced as a share of an amount the client confirms later (money/share-price.ts).
   if (offer?.pricing.share) return shareWords(offer.pricing.share.bps);
   const minor = offer?.pricing.unitPriceMinor ?? null;
-  return minor === null ? 'Not set' : `${formatMinor(minor, currency)} per ${offer!.pricing.quantityUnit}`;
+  return minor === null ? 'Not set' : `${formatMoney(minor, currency)} per ${offer!.pricing.quantityUnit}`;
 }
 
 const usd = (key: string, label: string, micros: string, display: Display = formatMicros(micros)): RowFigure =>
   ({ key, label, amount: micros, unit: 'micros', currency: 'USD', display });
 
+/**
+ * One-shot B2: the owner form of each figure, so a card that says "$0.15" or "₹2,000" is proved by a receipt whose rows
+ * keep the exact form ("USD 0.1500", "INR 2,000.00"). Both name the same amount.
+ */
+function ownerForms(figure: RowFigure): string[] {
+  if (!/^-?\d+$/.test(figure.amount)) return [];
+  if (figure.unit === 'micros' && figure.currency === 'USD' && !figure.amount.startsWith('-')) return [formatUsd(figure.amount), formatRate(figure.amount)];
+  if (figure.unit === 'minor') { try { return [formatMoney(figure.amount, figure.currency)]; } catch { return []; } }
+  return [];
+}
+
 function receiptOf(venture: VentureRecord, id: string, subject: RowFigureReceipt['subject'], at: IsoTime, figures: RowFigure[], explanation: string, stale: boolean): RowFigureReceipt {
-  const allowedNumbers = [...new Set(figures.flatMap(figure => moneyIn(figure.display)))];
+  const allowedNumbers = [...new Set(figures.flatMap(figure => [...moneyIn(figure.display), ...ownerForms(figure).flatMap(moneyIn)]))];
   return {
     id, kind: 'row-figure', ventureId: venture.id, at, operation: 'venture.row-figure', subject, figures, allowedNumbers, explanation,
     digest: digest({ id, figures: figures.map(figure => [figure.key, figure.unit, figure.amount]) }), stale,
@@ -102,8 +114,8 @@ function capRoom(state: State, venture: VentureRecord, id: string, runId: string
   if (!preview || !harness || window === null) return receiptOf(venture, id, subject, run.at, [], MOVED_ON, true);
   const cap = String(runCapMicros(harness));
   const figures = [
-    usd('room', BigInt(window) <= BigInt(harness.limits.maxCostMicros) ? 'One more window' : 'More spend for this run', window),
-    usd('cap', "This run's spend cap", cap), usd('used', 'Used so far', harness.used.costMicros),
+    usd('room', BigInt(window) <= BigInt(harness.limits.maxCostMicros) ? 'One more window' : 'More spend for this job', window),
+    usd('cap', "This job's spend cap", cap), usd('used', 'Used so far', harness.used.costMicros),
     usd('next', 'The next step could cost up to', preview.estimatedMaxCostMicros, preview.estimatedMaxCostDisplay),
   ];
   const rupees = rupeesOf(state, venture);
@@ -114,7 +126,7 @@ function capRoom(state: State, venture: VentureRecord, id: string, runId: string
     said = ` In rupees at ${rupeeRateWords(rupees)}: ${rupeeFigure(window, rupees)}.`;
   }
   return receiptOf(venture, id, subject, run.at, figures,
-    `This run's spend cap is ${formatMicros(cap)} and it has used ${formatMicros(harness.used.costMicros)}. The next step could cost up to ${preview.estimatedMaxCostDisplay}, which would pass the cap. More room comes in whole windows of the run's own cap of ${formatMicros(harness.limits.maxCostMicros)}: ${formatMicros(window)}.${said} Nothing is spent until the step runs.`,
+    `This job's spend cap is ${formatMicros(cap)} and it has used ${formatMicros(harness.used.costMicros)}. The next step could cost up to ${preview.estimatedMaxCostDisplay}, which would pass the cap. More room comes in whole windows of the job's own cap of ${formatMicros(harness.limits.maxCostMicros)}: ${formatMicros(window)}.${said} Nothing is spent until the step runs.`,
     false);
 }
 
@@ -123,7 +135,7 @@ function scopeCap(state: State, venture: VentureRecord, id: string, runId: strin
   const run = runOf(state, venture, runId);
   if (!run.scope) throw new ChausarError('RECEIPT_NOT_FOUND', GONE);
   const subject = { type: 'scope-cap' as const, recordId: run.id };
-  const figures = [usd('cap', "This run's spend cap", run.scope.capMicros)];
+  const figures = [usd('cap', "This job's spend cap", run.scope.capMicros)];
   const rupees = rupeesOf(state, venture);
   let said = '';
   if (rupees) {
@@ -132,7 +144,7 @@ function scopeCap(state: State, venture: VentureRecord, id: string, runId: strin
     said = ` In rupees at ${rupeeRateWords(rupees)}: ${rupeeFigure(run.scope.capMicros, rupees)}.`;
   }
   return receiptOf(venture, id, subject, run.scope.frozenAt, figures,
-    `Set when the run started, from the business's spend cap for one run: ${formatMicros(run.scope.capMicros)}.${said} It does not change while the run goes on.`,
+    `Set when the job started, from the business's spend cap for one job: ${formatMicros(run.scope.capMicros)}.${said} It does not change while the job goes on.`,
     false);
 }
 

@@ -2471,11 +2471,14 @@ export type ResultOf<M extends MethodName> = EngineMethods[M]['result'];
 export class EngineError extends Error {
   readonly code: string;
   readonly reason?: string;
-  constructor(code: string, message: string, reason?: string) {
+  /** B1 fix round 1: the words are written for the owner and are shown exactly as they are (engine/owner-errors.ts). */
+  readonly owner?: true;
+  constructor(code: string, message: string, reason?: string, owner?: boolean) {
     super(message);
     this.name = 'EngineError';
     this.code = code;
     if (reason !== undefined) this.reason = reason;
+    if (owner === true) this.owner = true;
   }
 }
 

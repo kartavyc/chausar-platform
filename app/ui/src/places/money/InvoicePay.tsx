@@ -155,10 +155,10 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
             <div className={s.payUpi}>
               <QrCode rows={pay.upi.qr.rows} label={t('money-pay.qr', { number: pay.upi.reference })} />
               <dl className={s.payFacts} data-figure-group="">
-                <div><dt>{t('money-pay.upiId')}</dt><dd className="mono" data-content="">{pay.upi.id}</dd></div>
+                <div><dt>{t('money-pay.upiId')}</dt><dd data-code="" className="mono" data-content="">{pay.upi.id}</dd></div>
                 <div>
                   <dt>{t('money-pay.amount')}</dt>
-                  <dd className="mono">{pay.upi.amount} <Receipt id={pay.upi.receiptId} amount={pay.upi.amount} /></dd>
+                  <dd data-num="">{pay.upi.amount} <Receipt id={pay.upi.receiptId} amount={pay.upi.amount} /></dd>
                 </div>
               </dl>
               <Button size="sm" variant="quiet" disabled={busy} onClick={() => void copy(pay.upi!.link)}>{t('money-pay.copyLink')}</Button>
@@ -175,7 +175,7 @@ export function HowToPay({ view, onChanged }: { view: InvoiceViewLite; onChanged
           {pay.payLink && (
             <p className={s.sheetLine} data-pay-link={pay.payLink.status}>
               <span className={s.figureLabel}>{t('money-pay.link')} <span className={s.chipQuiet}>{t('money-pay.fixture')}</span></span>
-              <span className="mono" data-content="">{pay.payLink.shortUrl}</span>
+              <span data-code="" className="mono" data-content="">{pay.payLink.shortUrl}</span>
               <span>{t(`money-pay.linkStatus.${pay.payLink.status}`)}</span>
             </p>
           )}

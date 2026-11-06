@@ -110,7 +110,7 @@ describe('the fake engine answers the CLI status and the role models as the engi
     await engine.request('workspace.open', { folder: 'ledgerline' });
     const ledgerline = (await engine.request('venture.models.roles', {})) as { roles: RoleModelView[]; line: string };
     const fast = ledgerline.roles.flatMap((r) => r.tiers).find((tier) => tier.tier === 'fast')!;
-    expect(fast).toMatchObject({ presetId: 'anthropic-haiku-5-5', usable: true, price: 'USD 0.1000 in, USD 0.5000 out per million tokens. Anthropic list price for prompts up to 100K tokens, checked 15 Oct 2026.' });
+    expect(fast).toMatchObject({ presetId: 'anthropic-haiku-5-5', usable: true, price: '$0.10 in, $0.50 out per million tokens. Anthropic list price for prompts up to 100K tokens, checked 15 Oct 2026.' });
     expect(ledgerline.line).not.toContain('Connect your AI');
   });
 });
@@ -405,7 +405,7 @@ describe('Team: which AI serves each role', () => {
     await engine.request('workspace.open', { folder: 'ledgerline' });
     start({ hash: '#/team?sheet=agent:bookkeeper', engine });
     const panel = (await screen.findByText('Bookkeeper', { selector: 'aside h2' })).closest('aside') as HTMLElement;
-    fireEvent.click(within(panel).getByRole('tab', { name: 'Runs' }));
+    fireEvent.click(within(panel).getByRole('tab', { name: 'Jobs' }));
     const run = (await within(panel).findByText('Matched September bank lines to invoices')).closest('li') as HTMLElement;
     expect(run.querySelector('[data-written-by]')?.textContent).toBe('Written by Claude Sonnet 5.5');
     assertInkRules(document.body);
@@ -423,7 +423,7 @@ describe('Team: which AI serves each role', () => {
   it('a run the engine names no writer for claims none', async () => {
     start({ hash: '#/team?sheet=agent:researcher' });
     const panel = (await screen.findByText('Researcher', { selector: 'aside h2' })).closest('aside') as HTMLElement;
-    fireEvent.click(within(panel).getByRole('tab', { name: 'Runs' }));
+    fireEvent.click(within(panel).getByRole('tab', { name: 'Jobs' }));
     const run = (await within(panel).findByText('Estimated reach for episode 14')).closest('li') as HTMLElement;
     expect(run.querySelector('[data-written-by]')).toBeNull();
   });

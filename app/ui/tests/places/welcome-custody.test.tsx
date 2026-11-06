@@ -54,7 +54,7 @@ describe('Welcome back: a business locked with a passphrase', () => {
     fireEvent.change(field, { target: { value: 'not the passphrase' } });
     await press(screen.getByRole('button', { name: 'Open' }));
     expect(field.value).toBe('');
-    expect(screen.getByRole('alert').textContent).toBe("That didn't open it. Check what you typed and try again.");
+    expect(screen.getByRole('alert').textContent).toBe("That passphrase didn't open it. Check Caps Lock and try again, or use your recovery code.");
 
     fireEvent.change(field, { target: { value: SAMPLE_PASSPHRASE } });
     await press(screen.getByRole('button', { name: 'Open' }));
@@ -71,7 +71,7 @@ describe('Welcome back: a business locked with a passphrase', () => {
     const field = screen.getByLabelText('Passphrase for Sitara Events') as HTMLInputElement;
     fireEvent.change(field, { target: { value: 'not the passphrase' } });
     await press(screen.getByRole('button', { name: 'Open' }));
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("That didn't open it. Check what you typed and try again."));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("That passphrase didn't open it. Check Caps Lock and try again, or use your recovery code."));
     expect((screen.getByRole('button', { name: 'Open' }) as HTMLButtonElement).disabled).toBe(false);
     expect(field.value).toBe('');
   });
@@ -106,7 +106,7 @@ describe('Welcome back: the recovery code', () => {
     expect(sent(calls, 'workspace.recover')).toEqual([]);
     fireEvent.change(screen.getByLabelText('Recovery code'), { target: { value: 'WRONG-CODE' } });
     await press(screen.getByRole('button', { name: 'Recover' }));
-    expect(screen.getByRole('alert').textContent).toBe("That didn't open it. Check what you typed and try again.");
+    expect(screen.getByRole('alert').textContent).toBe("That passphrase didn't open it. Check Caps Lock and try again, or use your recovery code.");
     expect((screen.getByLabelText('Recovery code') as HTMLInputElement).value).toBe('');
     fireEvent.change(screen.getByLabelText('Recovery code'), { target: { value: SAMPLE_RECOVERY_CODE } });
     await press(screen.getByRole('button', { name: 'Recover' }));
@@ -259,14 +259,14 @@ describe('Welcome back: open by folder name', () => {
     start({ closed: true });
     await welcome();
     fireEvent.click(screen.getByText('More options', { selector: 'summary' }));
-    expect(screen.queryByRole('button', { name: 'Open by folder name' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Find it on this computer' })).toBeNull();
   });
 
   it('with an incomplete list, sends the folder alone, and the passphrase only when one is typed, then clears it', async () => {
     const { calls } = start({}, { engine: incomplete() });
     await welcome();
-    await moreOption('Open by folder name');
-    expect(screen.getByRole('heading', { level: 1, name: 'Open by folder name' })).toBeTruthy();
+    await moreOption('Find it on this computer');
+    expect(screen.getByRole('heading', { level: 1, name: 'Find it on this computer' })).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Folder'), { target: { value: 'sitara' } });
     await press(screen.getByRole('button', { name: 'Open' }));
     expect(screen.getByRole('alert').textContent).toBe(CUSTODY_ERROR_WORDS.PASSPHRASE_REQUIRED);
@@ -281,7 +281,7 @@ describe('Welcome back: open by folder name', () => {
   it('on a computer with no business, the typed folder is offered and a folder with nothing in it is said plainly', async () => {
     const { calls } = start({ fresh: true });
     await press(await screen.findByRole('button', { name: 'Open a business you already have' }));
-    await moreOption('Open by folder name');
+    await moreOption('Find it on this computer');
     expect((screen.getByLabelText('Folder') as HTMLInputElement).value).toBe('main');
     await press(screen.getByRole('button', { name: 'Open' }));
     expect(sent(calls, 'workspace.open')).toEqual([{ folder: 'main' }]);

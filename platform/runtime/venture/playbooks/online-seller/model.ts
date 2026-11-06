@@ -1,6 +1,9 @@
 // Chausar seller calculations, independently written from commerce.md and sealeap-amazon-skills ideas (MIT).
 // Browser-safe domain core shared by the real and fake engines. It reads no files and performs no outside effect.
 import { refusalError } from '../../refusal-brand.ts';
+import { dayKeyIn, ownerZone } from '../../../owner-format.ts';
+/** The seller desk works India's marketplaces (GST, the India listing rules), so a check with no day given reads India's day, by the engine's zone table. */
+const sellerToday = (): string => dayKeyIn(Date.now(), ownerZone('IN', 'UTC'));
 export type SellerEvidence = { type: 'fact' | 'estimate' | 'assumption'; value: string; source: string; observedAt: string }
   | { type: 'unknown'; source: string; observedAt: string; missingReason: string };
 export type SellerRate = { id: string; rateBps: string; source: string; checkedOn: string; confirmedBy: { name: string; on: string } | null };
@@ -49,7 +52,7 @@ export function sellerDay(value: unknown): value is string {
 export function sellerRate(raw: unknown, use: SellerUse): SellerRate {
   exact(raw, ['id', 'rateBps', 'source', 'checkedOn', 'confirmedBy']);
   const r = raw as unknown as SellerRate;
-  const today = use.today ?? new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+  const today = use.today ?? sellerToday();
   if (!r.id || typeof r.source !== 'string' || !r.source.trim() || !sellerDay(r.checkedOn) || r.checkedOn > today || sellerInteger(r.rateBps, 'Rate') > 10000n) sellerRefuse('SELLER_INPUT_INVALID', 'Use a dated tax source with its rate.');
   if (r.confirmedBy !== null) {
     exact(r.confirmedBy, ['name', 'on']);
@@ -212,7 +215,7 @@ export function computeIndiaListing(raw: unknown, use: SellerUse & { confirmedBy
   exact(raw, ['packaged', 'sellingMinor', 'mrpMinor', 'countryOfOrigin', 'sellerDetails']);
   const input = raw as unknown as IndiaListingInput;
   if (typeof input.packaged !== 'boolean' || typeof input.countryOfOrigin !== 'string' || typeof input.sellerDetails !== 'string') sellerRefuse('SELLER_INPUT_INVALID', 'Record the packaged-goods status, origin and seller details.');
-  if (!use.rehearsal && (!use.confirmedBy || !use.confirmedBy.name.trim() || !sellerDay(use.confirmedBy.on) || Boolean(use.checkedOn && use.confirmedBy.on < use.checkedOn) || use.confirmedBy.on > (use.today ?? new Date(Date.now() + 19800000).toISOString().slice(0, 10)))) sellerRefuse('RULE_UNCONFIRMED', 'A lawyer must confirm the India listing rules before client work.');
+  if (!use.rehearsal && (!use.confirmedBy || !use.confirmedBy.name.trim() || !sellerDay(use.confirmedBy.on) || Boolean(use.checkedOn && use.confirmedBy.on < use.checkedOn) || use.confirmedBy.on > (use.today ?? sellerToday()))) sellerRefuse('RULE_UNCONFIRMED', 'A lawyer must confirm the India listing rules before client work.');
   const findings: { code: string; field: string; fix: string }[] = [];
   const sale = sellerInteger(input.sellingMinor, 'Selling price');
   if (input.packaged && input.mrpMinor === null) findings.push({ code: 'MRP_REQUIRED', field: 'mrpMinor', fix: 'Add the MRP from the package.' });

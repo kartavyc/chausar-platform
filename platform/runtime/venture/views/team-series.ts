@@ -8,9 +8,10 @@
 // weeks, Monday to Sunday; spend uses UTC days and the UTC month, as the spend limit and Money count them. Series
 // points are scaled in code to the largest week by integer division; a week with no data has no value and no scale
 // (null, never 0), and no receipt. One ledger serves the whole request.
+import { formatUsd } from '../../owner-format.ts';
 import type { Context, State } from '../../contracts.ts';
 import type { AgentView, DepartmentId, DepartmentSpend, DepartmentView, IsoDate, MoneyFigureView, SeriesPoint, SpendLead, VentureDeps, VentureRecord } from '../contracts.ts';
-import { formatMicros, formatVentureDate } from '../records.ts';
+import { formatVentureDate } from '../records.ts';
 import { ownerToday } from '../local-day.ts';
 import { DEPARTMENTS } from '../playbooks/departments.ts';
 import { departmentSpendPlan, heldPlan, heldWords, jobsCountPlan, monthDays, type SpendWhere, type TeamLedger } from '../money/department-spend.ts';
@@ -135,7 +136,7 @@ export async function departmentViews(deps: VentureDeps, ctx: Context, state: St
       spendThisMonth: spend!,
       series: {
         jobs: await seriesOf(deps, ctx, venture, jobWeeks, week => String(week.total)),
-        spend: await seriesOf(deps, ctx, venture, spendWeeks, week => `${formatMicros(String(week.total))}${planEstimate(week.plan) ? SPEND_WORDS.includesEstimates : ''}`, rupees,
+        spend: await seriesOf(deps, ctx, venture, spendWeeks, week => `${formatUsd(String(week.total))}${planEstimate(week.plan) ? SPEND_WORDS.includesEstimates : ''}`, rupees,
           // 4Z3: each week as the owner's currency leads it, the dollars to two decimals.
           week => spendLead(String(week.total), rupees, planEstimate(week.plan) ? SPEND_WORDS.includesEstimates : '')),
       },

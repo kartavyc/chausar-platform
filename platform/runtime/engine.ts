@@ -64,7 +64,7 @@ import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
-import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
+import { authorize, audit, check, ChausarError, hash, InternalError, internalCheck, newId, now, type Context, type State, type StateStore } from './contracts.ts';
 import type { BusinessSnapshot, BusinessSnapshotRead, SecretShelf, VentureClosingPort, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
 import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
@@ -269,7 +269,7 @@ export class Engine {
   #ventureHost() {
     const vault = this.store();
     const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
-      check(this.vault === vault, 'VAULT_LOCKED', 'Open your workspace first.');
+      check(this.vault === vault, 'VAULT_LOCKED', 'This business is closed. Open it first.');
       const venture = this.options.venture ?? {};
       const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper, speech: this.services.speech },
         { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
@@ -563,7 +563,7 @@ export class Engine {
   private currentWorkspaceOwner(vault: Vault) {
     const state = vault.read(), authority = this.options.workspaceAuthority;
     check(!authority || state.workspace.id === authority.workspaceId, 'WORKSPACE_AUTHORITY_CHANGED', 'The trusted launch workspace differs from actual encrypted custody.');
-    check(!authority?.vaultId || vault.vaultId === authority.vaultId, 'WORKSPACE_AUTHORITY_CHANGED', 'The actual Vault differs from the independently pinned launch identity.');
+    internalCheck(!authority?.vaultId || vault.vaultId === authority.vaultId, 'WORKSPACE_AUTHORITY_CHANGED', 'The actual Vault differs from the independently pinned launch identity.');
     return state.members.find(m => m.id === (authority?.ownerId ?? 'owner') && m.active && m.role === 'owner');
   }
   /** Local host launch only: a separately paired Engine/server, explicit fresh
@@ -573,7 +573,7 @@ export class Engine {
     return new Engine({directory: selected.directory, version: this.version, demo: true, storage: 'experimental-file',
       workspaceAuthority: {workspaceId: selected.workspaceId, ownerId: selected.ownerId, vaultId: selected.vaultId}});
   }
-  private store(): Vault { check(this.vault, 'VAULT_LOCKED', 'Open your workspace first.'); return this.vault; }
+  private store(): Vault { check(this.vault, 'VAULT_LOCKED', 'This business is closed. Open it first.'); return this.vault; }
   private writerGuard(): VaultWriterGuard | undefined {
     if (this.options.sync === undefined) return undefined;
     return (input, work) => {
@@ -608,13 +608,13 @@ export class Engine {
       // A trusted host's own file store (the hosted server's capped one, 4J23); the same folder-name check first.
       this.workspacePath(folder);
       const adapter = await this.options.vaultStorage(folder);
-      if (adapter.kind !== 'experimental-file') { await adapter.close?.(); throw new ChausarError('STORAGE_REQUIRED', 'Experimental file storage needs a file vault adapter.'); }
+      if (adapter.kind !== 'experimental-file') { await adapter.close?.(); throw new InternalError('STORAGE_REQUIRED', 'Experimental file storage needs a file vault adapter.'); }
       return adapter;
     }
     if (this.options.storage === 'postgres' && this.options.vaultStorage) {
       this.workspacePath(folder); // the same folder-name check as the other storage paths
       const adapter = await this.options.vaultStorage(folder);
-      if (adapter.kind !== 'postgres') { await adapter.close?.(); throw new ChausarError('INVALID_POSTGRES_CONFIG', 'PostgreSQL storage needs a PostgreSQL vault adapter.'); }
+      if (adapter.kind !== 'postgres') { await adapter.close?.(); throw new InternalError('INVALID_POSTGRES_CONFIG', 'PostgreSQL storage needs a PostgreSQL vault adapter.'); }
       return adapter;
     }
     check(this.options.storage === 'postgres' && this.options.postgresUrl, 'DATABASE_REQUIRED', 'Use the desktop encrypted file store or configure PostgreSQL for this host.');
@@ -625,7 +625,7 @@ export class Engine {
   private workspacePath(name = 'main') {
     check(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(name), 'INVALID_PATH', 'Use a short workspace folder name without path separators.');
     const path = resolve(this.options.directory, name); const rel = relative(this.options.directory, path);
-    check(!rel.startsWith('..') && !isAbsolute(rel), 'INVALID_PATH', 'Workspace path is outside the vault folder.'); return path;
+    check(!rel.startsWith('..') && !isAbsolute(rel), 'INVALID_PATH', 'That place is outside this business\'s folder.'); return path;
   }
   private async attach(vault: Vault) {
     this.#venture?.close(); this.#venture = null; this.#venturePromise = null;
@@ -636,7 +636,7 @@ export class Engine {
     // (Windows may spell the same directory with a short-name alias).
     const applicationDirectory = await safeDirectory(this.options.directory);
     const owner = this.currentWorkspaceOwner(vault);
-    check(owner, 'OWNER_REQUIRED', 'No current owner is available for this vault.');
+    check(owner, 'OWNER_REQUIRED', 'This business has no owner set up yet.');
     this.vault = vault; delete this.services.workspaceActivation;
     this.#unknownAnswerRecoveries.clear();
     this.context = { memberId: owner.id, role: owner.role, epoch: owner.epoch, channel: 'desktop' };
@@ -849,7 +849,7 @@ export class Engine {
   }
   async close() {
     if (this.#activeRequests && !this.#transition) await this.stopLongWork();
-    check(!this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Drain pending engine requests before closing its authority.');
+    check(!this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Chausar is still finishing work in this business. Try again in a moment.');
     await this.closeVault();
   }
   private async closeVault() {
@@ -880,7 +880,7 @@ export class Engine {
   private async privateSearchAdapter(): Promise<ResearchSearchPort> {
     if (this.options.research?.search) return this.options.research.search;
     check(this.options.storage === 'postgres' && this.options.postgresUrl, 'SEARCH_DATABASE_REQUIRED',
-      'Private token search requires configured local PostgreSQL; no fallback search engine is selected.');
+      'Private search needs its own database on this computer, and it isn\'t set up.');
     if (!this.#searchAdapter) {
       const url = new URL(this.options.postgresUrl);
       check(['postgresql:', 'postgres:'].includes(url.protocol), 'INVALID_POSTGRES_CONFIG', 'Use a local PostgreSQL connection URL.');
@@ -891,7 +891,7 @@ export class Engine {
     return this.#searchAdapter;
   }
   async shutdown(timeoutMs = 70000) {
-    check(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded engine shutdown deadline.');
+    internalCheck(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded engine shutdown deadline.');
     this.#closing = true;
     // Quitting stops a transcript being made: whisper.cpp and ffmpeg never outlive the engine, nor their temp folders.
     this.#stopWork.abort();
@@ -997,7 +997,7 @@ export class Engine {
   }
   /** A2 second review (main only, after the owner clicked "Use this Codex" in main's dialog): records the choice. */
   async confirmCodexSetup(payload: unknown): Promise<{ setup: unknown }> {
-    check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
+    check(!this.#closing, 'ENGINE_STOPPING', 'Chausar is finishing its work and closing. Open it again in a moment.');
     check(!this.#transition, 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
     this.#activeRequests++;
     try {
@@ -1006,7 +1006,7 @@ export class Engine {
     } finally { this.#activeRequests--; this.notifyIdle(); }
   }
   async request(method: string, payload: any = {}): Promise<any> {
-    check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
+    check(!this.#closing, 'ENGINE_STOPPING', 'Chausar is finishing its work and closing. Open it again in a moment.');
     const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'workspace.transfer.import', 'workspace.backups.restore']);
     const transition = transitions.has(method);
     // Lock, open, switch, delete and restore stop a transcript being made, and wait for it (capped), instead of VAULT_BUSY.
@@ -1267,7 +1267,7 @@ export class Engine {
         const input = this.journalPayload(payload, ['backupId', 'targetId', 'reviewedDigest'],
           ['backupId', 'targetId', 'reviewedDigest'], 'INVALID_BACKUP_REQUEST');
         const host = this.backupHost(); const reviewed = await host.read(ctx, { backupId: input.backupId as string });
-        check(input.reviewedDigest === reviewed.summary.archiveDigest, 'BACKUP_REVIEW_CHANGED', 'Inspect the exact reviewed archive digest.');
+        check(input.reviewedDigest === reviewed.summary.archiveDigest, 'BACKUP_REVIEW_CHANGED', 'This backup changed since you looked. Look at it again before restoring.');
         const identity = await s.backupLocal.restoredIdentity(ctx, input.targetId);
         check(identity.archiveDigest === reviewed.summary.archiveDigest, 'BACKUP_TARGET_CHANGED', 'The reserved copy belongs to a different archive.');
         return host.readRestored(ctx, { backupId: input.backupId as string, targetId: identity.targetId,
@@ -1599,7 +1599,7 @@ export class Engine {
       case 'decisions.journal.confirm': {
         this.journalWriter(ctx);
         const input = this.journalPayload(payload, ['draft', 'reviewedDigest'], ['draft', 'reviewedDigest'], 'INVALID_CONFIRMATION');
-        check(typeof input.reviewedDigest === 'string' && input.reviewedDigest.trim().length > 0, 'INVALID_CONFIRMATION', 'Confirm the exact reviewed draft digest.');
+        check(typeof input.reviewedDigest === 'string' && input.reviewedDigest.trim().length > 0, 'INVALID_CONFIRMATION', 'This draft changed since you looked. Look at it again before confirming.');
         const draft = this.journalPayload(input.draft, ['kind', 'content', 'receipts', 'digest'], ['kind', 'content', 'receipts', 'digest'], 'INVALID_DRAFT');
         check(draft.kind === 'journal-draft' && Array.isArray(draft.receipts) && typeof draft.digest === 'string', 'INVALID_DRAFT', 'Confirm a prepared journal draft.');
         return s.reports.confirmDecision(ctx, input.draft, { reviewedDigest: input.reviewedDigest });
@@ -1711,7 +1711,7 @@ export class Engine {
         return { ...result, qualification: 'analytical-preview', financialReceipt: false, requiresHumanReview: true };
       }
       case 'updates.status': authorize(store, ctx, 'admin'); return { configured: !!s.updater, version: this.version, installMode: 'manual-native-installer-required' };
-      case 'updates.verify': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater, 'UPDATES_UNAVAILABLE', 'Configure a publisher-pinned release key in the engine.'); return s.updater.verify(payload.manifest, payload.signature);
+      case 'updates.verify': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater, 'UPDATES_UNAVAILABLE', 'Updates aren\'t set up in this copy of Chausar.'); return s.updater.verify(payload.manifest, payload.signature);
       case 'updates.stage': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater && payload.confirmed === true, 'UPDATES_UNAVAILABLE', 'Review and explicitly confirm a publisher-signed update.'); return s.updater.stage(payload.manifest, payload.signature);
       case 'workspace.backup': {
         this.requireWorkspaceOwner(ctx); const folder = join(this.options.directory, 'backups'); await mkdir(folder, { recursive: true });
@@ -1723,7 +1723,7 @@ export class Engine {
         await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
       }
       case 'workspace.delete': {
-        this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+        this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete it.');
         // One-shot A1 (row 1): its backups go; the copies the owner exported stay, and the answer names them.
         const removed = await this.purgeManagedCopies(['backups']), exportsKept = await this.managedExports();
         const deletedVault = store.vaultId, deletedFolder = this.#openFolder, deletedWorkspace = store.read().workspace.id;
@@ -2202,7 +2202,7 @@ export class Engine {
     return { ...base, status: 'completed', lineage: structuredClone(lineage), answer: result.answer, receipt };
   }
   private async executeAnswerRecovery(ctx: Context, newRequestId: unknown, preparationDigest: unknown) {
-    check(typeof preparationDigest === 'string' && /^[a-f0-9]{64}$/.test(preparationDigest), 'INVALID_ANSWER_RECOVERY', 'Confirm the exact reviewed preparation digest.');
+    check(typeof preparationDigest === 'string' && /^[a-f0-9]{64}$/.test(preparationDigest), 'INVALID_ANSWER_RECOVERY', 'This answer changed since you looked. Look at it again before confirming.');
     const vault = this.store(), issued = this.answerRecoveryRecord(ctx, newRequestId, vault);
     check(issued.record.preparation.digest === preparationDigest, 'ANSWER_RECOVERY_PREPARATION_CHANGED', 'Review this exact issued preparation before execution.');
     if (issued.record.status === 'completed') return this.answerRecoveryRead(ctx, newRequestId);
@@ -2310,7 +2310,7 @@ export class Engine {
     return this.services.backupV2;
   }
   private activationHost(): EngineWorkspaceActivation {
-    check(this.services.workspaceActivation instanceof EngineWorkspaceActivation, 'ACTIVATION_ROOT_REQUIRED',
+    internalCheck(this.services.workspaceActivation instanceof EngineWorkspaceActivation, 'ACTIVATION_ROOT_REQUIRED',
       'Install the reviewed synthetic local activation, actual encrypted journal and fresh credential capability in the trusted host.');
     return this.services.workspaceActivation;
   }
@@ -2948,7 +2948,7 @@ export class Engine {
       if (record) { await custody.keys.forget(record).catch(() => {}); await custody.files.removeKey(vaultId); }
     }
   }
-  private requireWorkspaceOwner(ctx: Context) { const member = authorize(this.store(), ctx, 'admin'); check(member.role === 'owner' && member.branches.includes('*'), 'FORBIDDEN', 'Only an unrestricted workspace owner can copy or delete the entire vault.'); }
+  private requireWorkspaceOwner(ctx: Context) { const member = authorize(this.store(), ctx, 'admin'); check(member.role === 'owner' && member.branches.includes('*'), 'FORBIDDEN', 'Only the business\'s owner can copy or delete the whole business.'); }
   private jobRunner() { check(this.services.jobRunner, 'JOB_POLICY_REQUIRED', 'Configure explicit worker, active-job and lease policy before creating typed goals.'); return this.services.jobRunner; }
   private createBriefJob(ctx: Context, payload: any) {
     check(payload.plan === undefined, 'INVALID_JOB_PLAN', 'The installed runner creates its own plan.');

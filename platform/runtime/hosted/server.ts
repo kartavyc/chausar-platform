@@ -11,6 +11,8 @@ import { mkdir, open, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { ChausarError, check } from '../contracts.ts';
+import { knownError } from '../owner-error.ts';
+import { refusalTravel } from '../owner-flag.ts';
 import { openLoopbackPool, type PostgresPool } from '../postgres.ts';
 import { SESSION_TTL_MS, type Authenticated, type Browser, type SignedIn } from './accounts.ts';
 import { HostedApp, SHARE_TOKEN_PATTERN, type FileRequestPageView, type SharePageView } from './app.ts';
@@ -252,6 +254,28 @@ async function readJson(req: IncomingMessage, limit: number): Promise<unknown> {
   return value;
 }
 
+/** What the hosted server says when a request fails on its side: nothing of the fault, nothing changed. */
+export const HOSTED_FAULT_WORDS = 'Something went wrong on the server. Nothing was changed by this request.';
+
+/**
+ * The error body of a refused hosted request. Only Chausar's own refusals show their words; Node's errors (ENOENT,
+ * ERR_...) can carry paths, so they become HOSTED_FAULT_WORDS (known: false, logged by the caller). B1 fix rounds 1 and
+ * 2: owner: true when the words are written for the owner, by the one rule every transport uses (owner-flag.ts
+ * refusalTravel): an internal refusal (InternalError) the app has no line for says HOSTED_FAULT_WORDS, flagged, and a
+ * code with an app line goes without the flag. A plain error with a code of its own that is not the engine's is sent
+ * without the flag, so the app checks its words.
+ */
+export function hostedRefusal(error: unknown): { known: boolean; body: { code: string; message: string; owner?: true } } {
+  const raw = error as { code?: unknown; syscall?: unknown; errno?: unknown; owner?: unknown };
+  const known = error instanceof ChausarError || (typeof raw?.code === 'string' && /^[A-Z_]{1,64}$/.test(raw.code) && !raw.code.startsWith('ERR_')
+    && raw.syscall === undefined && raw.errno === undefined);
+  if (!known) return { known, body: { code: 'SERVER_ERROR', message: HOSTED_FAULT_WORDS, owner: true } };
+  const code = (error as ChausarError).code, message = (error as Error).message;
+  const travel = knownError(error) ? refusalTravel(code, message, raw.owner) : 'unflagged';
+  if (travel === 'internal') return { known, body: { code, message: HOSTED_FAULT_WORDS, owner: true } };
+  return { known, body: { code, message, ...(travel === 'owner' ? { owner: true as const } : {}) } };
+}
+
 export function createHostedServer(app: HostedApp, options: HostedServerOptions) {
   const origin = new URL(options.origin);
   const secure = origin.protocol === 'https:';
@@ -418,17 +442,12 @@ export function createHostedServer(app: HostedApp, options: HostedServerOptions)
         default: throw new ChausarError('NOT_FOUND', 'Nothing is here.');
       }
     } catch (error) {
-      // Only Chausar's own refusals show their words. Node's errors (ENOENT, ERR_...) can carry paths, so they don't.
-      const raw = error as { code?: unknown; syscall?: unknown; errno?: unknown };
-      const known = error instanceof ChausarError || (typeof raw?.code === 'string' && /^[A-Z_]{1,64}$/.test(raw.code) && !raw.code.startsWith('ERR_')
-        && raw.syscall === undefined && raw.errno === undefined);
-      const code = known ? (error as ChausarError).code : 'SERVER_ERROR';
-      const message = known ? (error as Error).message : 'Something went wrong on the server. Nothing was changed by this request.';
+      const { known, body } = hostedRefusal(error);
       if (!known) console.error('[hosted] request failed', (error as Error)?.stack ?? error);
       if (res.headersSent) { res.end(); return; }
       const extra: Record<string, string> = {};
-      if (code === 'RATE_LIMITED') extra['Retry-After'] = String((error as any).retryAfterSeconds ?? 60);
-      send(statusOf(code), { error: { code, message } }, extra);
+      if (body.code === 'RATE_LIMITED') extra['Retry-After'] = String((error as any).retryAfterSeconds ?? 60);
+      send(statusOf(body.code), { error: body }, extra);
     }
   };
 

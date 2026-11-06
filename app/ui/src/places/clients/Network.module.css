@@ -174,12 +174,6 @@
   color: var(--fg);
 }
 
-.consentText {
-  margin: 0;
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
 /* Results */
 
 .results {

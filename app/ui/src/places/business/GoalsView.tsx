@@ -4,6 +4,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
+import { useMonth } from '../../parts/when';
 import { GoalBar } from '../../parts/charts/GoalBar';
 import { EngineError, type GoalView } from '../../engine/types';
 import { GOAL_EVENTS, goalAmount, goalFromView, monthBefore, monthOf, useGoalSuggestion } from '../today/goal';
@@ -22,7 +23,6 @@ import s from './GoalsView.module.css';
 export function GoalsView() {
   const t = useT();
   const language = useLanguage();
-  const locale = 'en-IN';
   const current = useResource('venture.goals.get', {}, { refreshOn: GOAL_EVENTS });
   const [picked, setPicked] = useState<string | null>(null);
   const thisMonth = current.data?.month;
@@ -30,7 +30,7 @@ export function GoalsView() {
   const other = useResource('venture.goals.get', { month: month ?? '' }, { refreshOn: GOAL_EVENTS, skip: !month || month === thisMonth });
   const view = month === thisMonth ? current.data : other.data;
   const failed = month === thisMonth ? current.error : other.error;
-  const words = (m: string) => new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1));
+  const words = useMonth();
 
   return (
     <div className={b.page}>
@@ -87,7 +87,6 @@ interface MonthGoalProps {
 function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalProps) {
   const t = useT();
   const language = useLanguage();
-  const locale = 'en-IN';
   const client = useEngine();
   const plan = usePlan();
   const taxRegistered = plan.data?.blueprint.backOffice.taxRegistered.value === true;
@@ -106,7 +105,7 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
   // Asked only on a press of "Suggest a goal", and never for a month that has a goal.
   const { suggestion, ask } = useGoalSuggestion(shown?.state === 'unset' ? month : null);
   const pastBy = shown?.past ? goalAmount(shown.pastBy) : null;
-  const data = shown ? goalFromView(shown, { month: words(month), lastMonth: monthOf(monthBefore(month), locale) }, t) : null;
+  const data = shown ? goalFromView(shown, { month: words(month), lastMonth: monthOf(monthBefore(month)) }, t) : null;
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -144,7 +143,7 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
             )}
             <div className={s.pair}>
               <dt>{t('business.goals.share')}</dt>
-              <dd className="mono">{data.percent}</dd>
+              <dd data-num="">{data.percent}</dd>
             </div>
             {pastBy && (
               <div className={s.pair}>
@@ -241,7 +240,7 @@ function EarlierGoals({ thisMonth, words }: { thisMonth: string; words: (month: 
                     <Figure value={invoiced.value} receiptId={invoiced.receiptId!} />
                   </span>
                 )}
-                {view.invoicedPercent !== null && <span className="mono">{`${view.invoicedPercent}%`}</span>}
+                {view.invoicedPercent !== null && <span data-num="">{`${view.invoicedPercent}%`}</span>}
               </li>
             );
           })}

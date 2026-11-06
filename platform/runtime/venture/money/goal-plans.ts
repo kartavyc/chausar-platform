@@ -6,8 +6,8 @@
 // same proportion as its invoice. A sum that would go below zero is written the other way round ("Past the goal by",
 // "Behind today's pace by"), so a headline never shows a negative figure. Calendar arithmetic on 'YYYY-MM' only (month
 // names and bounds from dates.ts calendarMonth, the tax working's too); money in BigInt minor units.
+import { formatMoney } from '../../owner-format.ts';
 import { check, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { formatVentureDate, listRecords } from '../records.ts';
 import type { CreditNoteRecord, GoalRecord, InvoiceRecord, IsoDate, SumReceiptSubject, VentureRecord } from '../contracts.ts';
 import { localDayAt } from '../local-day.ts';
@@ -131,7 +131,7 @@ const sum = (lines: Line[]) => lines.reduce((total, line) => total + line.amount
 function addends(lines: Line[], currency: string): Addend[] {
   return lines.map(line => ({
     recordId: line.recordId, label: line.amount < 0n ? `Less ${lowerFirst(line.label)}` : line.label,
-    amount: String(line.amount), display: formatMinor(line.amount, currency), estimate: false,
+    amount: String(line.amount), display: formatMoney(line.amount, currency), estimate: false,
   }));
 }
 
@@ -197,7 +197,7 @@ export function goalPlan(state: State, venture: VentureRecord, subject: Extract<
   const elapsed = elapsedOn(subject.month, subject.day);
   const pace = paceTarget(goalMinor, elapsed, days);
   const when = `day ${elapsed} of ${days}`;
-  const target: Line = { recordId: goal.id, label: `Today's pace: ${when} of the ${formatMinor(goalMinor, currency)} goal`, amount: pace };
+  const target: Line = { recordId: goal.id, label: `Today's pace: ${when} of the ${formatMoney(goalMinor, currency)} goal`, amount: pace };
   return aheadOfPace(net, goalMinor, elapsed, days)
     ? plan([...invoiced, { ...target, amount: -pace }], `Ahead of today's pace (${when}) by`)
     : plan([target, ...flipped(invoiced)], `Behind today's pace (${when}) by`);

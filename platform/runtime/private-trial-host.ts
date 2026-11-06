@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks';
-import { ChausarError, authorize, check, hash, type Context, type State, type StateStore } from './contracts.ts';
+import { ChausarError, authorize, check, hash, type Context, type State, type StateStore, internalCheck } from './contracts.ts';
 import { canSeeFact, currentAccess } from './memory.ts';
 import { assertSourceAccess } from './trust.ts';
 import { PrivateTrialService } from './private-trials.ts';
@@ -63,7 +63,7 @@ const authorityDigest = (state: State) => hash({ schemaVersion: state.schemaVers
   policy: state.policy, ontology: state.ontology, facts: state.facts, imports: state.imports, sourceRules: state.sourceRules, merges: state.merges, tombstones: state.tombstones });
 const withoutDigest = (value: { digest: string }) => { const { digest: ignored, ...body } = value; return body; };
 function ref(value: PrivateTrialArtifactRef, expectedId?: string): PrivateTrialArtifactRef {
-  check(value && opaqueId(value.id) && (!expectedId || value.id === expectedId) && value.purpose === purpose
+  internalCheck(value && opaqueId(value.id) && (!expectedId || value.id === expectedId) && value.purpose === purpose
     && /^[a-f0-9]{64}$/.test(value.valueDigest) && Number.isSafeInteger(value.diskBytes) && value.diskBytes > 0,
   'TRIAL_CUSTODY_INVALID', 'Encrypted custody must return the exact opaque identity, authenticated digest and measured encrypted bytes.');
   return { id: value.id, purpose, valueDigest: value.valueDigest, diskBytes: value.diskBytes };
@@ -175,7 +175,7 @@ export class PrivateTrialHostService {
       },
       assertArtifactAuthentic: (ctx, kind, issuedDigest) => {
         check(loaded, 'TRIAL_CUSTODY_REQUIRED', 'Load independently authenticated trial issuance.'); this.#current(ctx, loaded, view);
-        check((kind === 'fork' ? loaded.binding.fork : loaded.binding.evaluation)?.issuedDigest === issuedDigest,
+        internalCheck((kind === 'fork' ? loaded.binding.fork : loaded.binding.evaluation)?.issuedDigest === issuedDigest,
           'TRIAL_ARTIFACT_UNAUTHENTIC', 'A caller-recomputed digest is not an independently issued artifact.');
       },
     };

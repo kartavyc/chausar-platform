@@ -20,7 +20,7 @@ export function ModelEstimate({ value, tone }: ModelEstimateProps) {
   if (value === undefined) return chip;
   return (
     <span className={s.estimate} data-estimate="">
-      <span className="mono">{value}</span>
+      <span data-num="">{value}</span>
       {' '}
       {chip}
     </span>

@@ -36,7 +36,7 @@ test('Resume refuses a stopped run that a newer run of the same order replaced, 
   assert.notEqual(again.id, run.id);
   await assert.rejects(call(env, 'venture.runs.resume', { runId: run.id }), (error: { code?: string; message?: string }) => {
     assert.equal(error.code, 'RUN_SUPERSEDED');
-    assert.equal(error.message, 'A newer run of this order replaced this one, so it cannot be resumed. Open the newer run instead.');
+    assert.equal(error.message, 'A newer job for this order replaced this one, so it cannot be resumed. Open the newer job instead.');
     return true;
   });
 });

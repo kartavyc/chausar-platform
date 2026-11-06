@@ -45,7 +45,7 @@ export function AgingBar({ data, onReceipt, legend = 'all' }: AgingBarProps) {
             <span className={s.swatch} data-swatch="" data-bucket={bucket.id} data-zero={bucket.permille > 0 ? undefined : ''} aria-hidden="true" />
             <span className={s.ageName}>{bucket.label}</span>
             <span className={s.ageCount}>{bucket.count}</span>
-            <span className={`${s.ageAmount} mono`}>{bucket.amount}</span>
+            <span className={s.ageAmount} data-num="">{bucket.amount}</span>
           </li>
         ))}
       </ul>
@@ -53,7 +53,7 @@ export function AgingBar({ data, onReceipt, legend = 'all' }: AgingBarProps) {
         <ChartData
           caption={data.label}
           columns={[t('chart.data.invoices'), t('chart.data.amount')]}
-          rows={buckets.map((bucket) => ({ key: bucket.id, heading: bucket.label, cells: [bucket.count, <span className="mono">{bucket.amount}</span>] }))}
+          rows={buckets.map((bucket) => ({ key: bucket.id, heading: bucket.label, cells: [bucket.count, <span data-num="">{bucket.amount}</span>] }))}
         />
       </ChartFoot>
     </div>

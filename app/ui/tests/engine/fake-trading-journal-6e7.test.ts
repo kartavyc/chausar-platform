@@ -15,7 +15,7 @@ describe('fake trading journal (6E7)', () => {
     expect(made.line).toBe('Tradebook imported. Charges were worked by code; compare them with your contract notes.');
     const view = await client.request('venture.desk.get', { ...desk, id: 'journal' }) as any;
     expect(view.item.journal.totals.total).toBe('13122');
-    expect(view.item.summary.figures.find((f: any) => f.key === 'charges-total').display).toBe('INR 131.22');
+    expect(view.item.summary.figures.find((f: any) => f.key === 'charges-total').display).toBe('₹131.22');
     const receipt = await client.request('venture.work.get', { id: made.result.receiptId }).catch(() => null) as any;
     if (receipt) expect(receipt.figures.find((f: any) => f.key === 'stt').minor).toBe('4578');
     await expect(client.request('venture.desk.act', { ...desk, id: 'new', action: 'import', payload: { broker: null, name: 'again.csv', csv: fixture('zerodha-tradebook.csv') } })).rejects.toMatchObject({ code: 'TRADEBOOK_DUPLICATE', message: 'This tradebook is already imported.' });

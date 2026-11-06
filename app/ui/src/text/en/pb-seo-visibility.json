@@ -20,7 +20,7 @@
   "pb-seo-visibility.noAnswers": "No captured answers yet. Missing slots stay in the denominator.",
   "pb-seo-visibility.insufficient": "Not enough data",
   "pb-seo-visibility.measured": "Captured slots counted. API answers can differ from consumer apps.",
-  "pb-seo-visibility.notLive": "Recorded fixtures, not live visibility evidence",
+  "pb-seo-visibility.notLive": "Recorded samples, not live results",
   "pb-seo-visibility.capture": "Record a captured answer",
   "pb-seo-visibility.question": "Buyer question",
   "pb-seo-visibility.engine": "Answer engine",

@@ -78,7 +78,7 @@ export class HostedCustody {
 
   wrapPassphrase(tenantId: string, businessId: string, passphrase: string): Sealed {
     check(isTenantId(tenantId) && isBusinessId(businessId), 'CUSTODY_INVALID', 'Unknown tenant or business.');
-    check(typeof passphrase === 'string' && passphrase.length >= 12 && passphrase.length <= 1024, 'CUSTODY_INVALID', 'A vault passphrase must be 12 to 1024 characters.');
+    check(typeof passphrase === 'string' && passphrase.length >= 12 && passphrase.length <= 1024, 'CUSTODY_INVALID', 'Use a passphrase of 12 to 1024 characters.');
     const key = this.#derive('chausar.hosted.tenant.v1', tenantId);
     try { return this.#seal(key, Buffer.from(passphrase, 'utf8'), `chausar.hosted.custody.v1:${tenantId}:${businessId}`); }
     finally { key.fill(0); }

@@ -37,22 +37,22 @@ const SERVICES: Readonly<Record<string, Service>> = Object.freeze({
   },
   tailscale: {
     // 6F7: built; the phone access guide is docs/venture/phone-access.md.
-    id: 'tailscale', name: 'Tailscale', connect: 'guide', why: 'Approve work from your phone when you are away from home.',
+    id: 'tailscale', name: 'Phone approvals', connect: 'guide', why: 'Approve work from your phone when you are away from home, through Tailscale.',
   },
   happenstance: {
     id: 'happenstance', name: 'Happenstance', connect: 'key', why: 'Find people in your own network who could become clients.',
     // 6F8: built and fixture-tested; it waits on the owner's own key and a first run on a real account.
-    planned: { waitsOn: 'Fixture-tested, needs your own Happenstance key: add it under Connections, More ways to connect.', meanwhile: 'Add your contacts under Clients, Network.' },
+    planned: { waitsOn: 'Needs your own Happenstance key, added in Connections, More ways to connect. Not tried on a live account yet.', meanwhile: 'Add your contacts under Clients, Network.' },
   },
   probe42: {
     id: 'probe42', name: 'Probe42', connect: 'key', why: 'Look up Indian company records before you pitch a business.',
     // 6F8: built and fixture-tested; it waits on the owner's own key and a first run on a real account.
-    planned: { waitsOn: 'Fixture-tested, needs your own Probe42 key: add it under Connections, More ways to connect.', meanwhile: 'Check a company on the MCA website yourself.' },
+    planned: { waitsOn: 'Needs your own Probe42 key, added in Connections, More ways to connect. Not tried on a live account yet.', meanwhile: 'Check a company on the MCA website yourself.' },
   },
   sunra: {
     id: 'sunra', name: 'Sunra', connect: 'key', why: 'Make images and short videos, with a cost shown before each one.',
     // 6F9: built and fixture-tested through the MCP client; it waits on the owner's own account.
-    planned: { waitsOn: 'Fixture-tested, needs your own Sunra account: add it under Connections, MCP servers.', meanwhile: 'Make images in your own tools and add them as files.' },
+    planned: { waitsOn: 'Needs your own Sunra account, added in Connections, MCP servers. Not tried on a live account yet.', meanwhile: 'Make images in your own tools and add them as files.' },
   },
   'google-calendar': { id: 'google-calendar', name: 'Google Calendar', connectorId: 'google-calendar', connect: 'sign-in', why: 'Your classes and sessions show next to your own plans.' },
   'cal-com': { id: 'cal-com', name: 'Cal.com', connectorId: 'cal-com', connect: 'sign-in', why: 'Clients book a free slot on a page you control.' },
@@ -113,7 +113,7 @@ function needOf(service: Service, why: string | null, rail: string | null): Need
   }
   const label = base.planned ? 'planned' : base.label ?? (base.connectorId ? cardLabel(base.connectorId) : 'planned');
   const planned = label === 'planned'
-    ? base.planned ?? { waitsOn: `Waits on Chausar's ${base.name} connection, which is planned.`, meanwhile: base.id === rail ? 'Share your payment details and mark payments paid yourself.' : `Use ${base.name} yourself for now.` }
+    ? base.planned ?? { waitsOn: `Chausar's ${base.name} link is coming later.`, meanwhile: base.id === rail ? (rail === 'razorpay' ? 'For now, share your UPI or bank details and mark payments yourself.' : 'For now, share your payment details and mark payments yourself.') : `Use ${base.name} on its own until then.` }
     : null;
   return {
     id: base.id, name: base.name, why: why ?? base.why, label,

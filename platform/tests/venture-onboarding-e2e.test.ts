@@ -2,6 +2,7 @@
 // as before, through the real Engine with demo mode, experimental file storage and a temp folder. Every model answer
 // comes from a hand-written recording in fixtures/venture/onboarding/ (labelled synthetic recording), and GitHub answers
 // from the existing recording in fixtures/venture/e2e/github-sync.json; no network.
+import { formatMoney } from '../runtime/owner-format.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
@@ -196,7 +197,7 @@ test('onboarding end to end: connect first, compose a fitted plan from blocks, k
   plan = await ask('venture.compose.update', { composeId: plan.composeId, patch: { offers: [{ id: 'offer_1', unitPrice: '18' }, { id: 'offer_2', unitPrice: '60.50' }] } }) as ComposedPlan;
   plan = await ask('venture.compose.update', { composeId: plan.composeId, patch: { taxRegistered: false } }) as ComposedPlan;
   assert.deepEqual(plan.offers.map(offer => [offer.pricing.unitPriceMinor, offer.pricing.unitPriceLabel, offer.priceDisplay]),
-    [['1800', 'told-by-you', formatMinor('1800', 'GBP')], ['6050', 'told-by-you', formatMinor('6050', 'GBP')]]);
+    [['1800', 'told-by-you', formatMoney('1800', 'GBP')], ['6050', 'told-by-you', formatMoney('6050', 'GBP')]]);
   assert.equal(plan.backOffice.taxRegistered.value, false);
   await assert.rejects(ask('venture.compose.update', { composeId: plan.composeId, patch: { offers: [{ id: 'offer_1', pricingModel: 'hourly' }] } }), code('INVALID_VENTURE_REQUEST'), 'a subscription is priced per month');
   const draftCalls = await ask('venture.ai.calls') as ModelCallRecord[];
@@ -259,7 +260,7 @@ test('onboarding end to end: connect first, compose a fitted plan from blocks, k
   assert.equal(brief.markdown.includes(SIGN_IN_LINE), false);
   assert.equal(brief.markdown.includes('Keep client uploads private'), false);
   assert.equal(brief.markdown.includes('A signed-in client sees only their own requests and files'), false);
-  assert.ok(brief.markdown.includes(formatMinor('1800', 'GBP')), 'the price is copied from the receipt');
+  assert.ok(brief.markdown.includes(formatMoney('1800', 'GBP')), 'the price is copied from the receipt');
 
   // Follow the build on GitHub, read only, from the existing recording (its repo name is the recording's, not this plan's).
   await ask('venture.build.link', { repo: 'https://github.com/demo-owner/ledger-cafe-books', token: GITHUB_TOKEN });
@@ -288,7 +289,8 @@ test('onboarding end to end: connect first, compose a fitted plan from blocks, k
   // Every money amount on the invoice is a figure from its receipt, formatted by code.
   const amounts = issued.documentText.match(/GBP [\d,]+\.\d{2}/g) ?? [];
   assert.ok(amounts.length > 0);
-  const receiptDisplays = new Set(orderReceipt.figures.map(figure => figure.display));
+  // B2: the invoice leaves the app in the exact form; the receipt's figures name the same amounts in minor units.
+  const receiptDisplays = new Set(orderReceipt.figures.map(figure => formatMinor(figure.minor, 'GBP')));
   for (const amount of amounts) assert.ok(receiptDisplays.has(amount), `${amount} comes from the receipt`);
 
   // numberGuard on the invoice text. The whole text also holds the invoice number, the issue and due dates and the

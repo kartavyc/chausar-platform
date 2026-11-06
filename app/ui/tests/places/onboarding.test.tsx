@@ -66,7 +66,7 @@ describe('onboarding: first run', () => {
     await skipAi();
     expect(await screen.findByText('India, from your time zone')).toBeTruthy();
     expect(screen.getByText('INR')).toBeTruthy();
-    expect(within(main).getByRole('heading', { level: 1 }).textContent).toBe('What do you do today?');
+    expect(within(main).getByRole('heading', { level: 1 }).textContent).toBe('What work do you do?');
   });
 
   it('lets the owner change the country, and uses "another country" for an unsupported time zone', async () => {
@@ -137,10 +137,10 @@ describe('onboarding: an engine that is still starting', () => {
       transport: 'desktop',
       status: () => status.get(),
       onStatus: (listener) => status.subscribe(listener),
-      request: ((method: string, params?: unknown) => (up ? fake.request(method as never, params as never) : Promise.reject(new EngineError('ENGINE_STARTING', 'The engine is starting.')))) as EngineClient['request'],
+      request: ((method: string, params?: unknown) => (up ? fake.request(method as never, params as never) : Promise.reject(new EngineError('ENGINE_STARTING', 'Chausar is starting.')))) as EngineClient['request'],
     };
     render(<App client={client} language="en" />);
-    expect((await screen.findByRole('status')).textContent).toBe('The engine is starting.');
+    expect((await screen.findByRole('status')).textContent).toBe('Chausar is starting.');
     expect(screen.queryByRole('heading', { name: 'Connect your AI' })).toBeNull();
     up = true;
     await act(async () => { status.set({ state: 'ok' }); });

@@ -3,8 +3,9 @@
 // currency) and an operation, and code works the figure out in BigInt minor units, with a sum receipt whose subject
 // holds the inputs, so the same question always opens the same receipt. The app gets the display and the receipt id
 // only, never raw minor units to add up on its own. Nothing here is a model number.
+import { formatMoney } from '../../owner-format.ts';
 import { check } from '../../portable.ts';
-import { decimalMinor, formatMinor } from '../../currency.ts';
+import { decimalMinor } from '../../currency.ts';
 
 /** The 'app-calc' sum receipt subject (contracts.ts SumReceiptSubject), spelled here so the browser can load this file. */
 export type AppCalcSubject = { type: 'app-calc'; appId: string; operation: 'add' | 'times' | 'percent-off'; amounts: string[]; count: string | null; percentBps: string | null; currency: string };
@@ -51,7 +52,7 @@ const percentWords = (bps: bigint): string => (bps % 100n === 0n ? String(bps / 
 /** The plan behind an app's figure, worked out again from its subject alone. Discounts round half up to a minor unit. */
 export function appCalcPlan(subject: AppCalcSubject): AppCalcPlan {
   const { currency } = subject;
-  const show = (amount: bigint) => formatMinor(amount, currency);
+  const show = (amount: bigint) => formatMoney(amount, currency);
   const line = (index: number, label: string, amount: bigint) => ({ recordId: `${subject.appId}:${index}`, label, amount: String(amount), display: show(amount), estimate: false });
   let addends: AppCalcPlan['addends'];
   if (subject.operation === 'add') {

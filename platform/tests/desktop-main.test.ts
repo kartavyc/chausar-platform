@@ -345,7 +345,7 @@ test('the installed beta registers no login item on its first start, starts real
   assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '0');
   assert.deepEqual(d.logins, [], "start at login waits for the owner's answer in onboarding");
   const menu = d.menus.at(-1);
-  assert.deepEqual(JSON.parse(JSON.stringify(menu.filter((item: any) => item.type === 'checkbox').map((item: any) => [item.label, item.checked]))), [['Start at login', false], ['Keep running in the tray', true]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(menu.filter((item: any) => item.type === 'checkbox').map((item: any) => [item.label, item.checked]))), [['Start when you sign in to this computer', false], ['Keep running in the tray', true]]);
   d.windows[0].emit('closed'); await flush();
   assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: true });
   d.app.emit('window-all-closed'); assert.equal(d.app.quits, 0, 'closing the window keeps Chausar in the tray');
@@ -398,7 +398,7 @@ test('A5: the window reads start at login and keep running, and a change registe
   const changed = await set(own, { startAtLogin: true });
   assert.deepEqual(plain(changed), { ok: true, result: { supported: true, asked: true, startAtLogin: true, keepRunning: true, registered: true, systemOff: false } });
   assert.deepEqual(d.logins, [{ openAtLogin: true, path: '/owned/app/Chausar.exe', args: ['--background', '--hidden'], name: 'Chausar' }]);
-  assert.equal(d.menus.at(-1).find((item: any) => item.label === 'Start at login').checked, true);
+  assert.equal(d.menus.at(-1).find((item: any) => item.label === 'Start when you sign in to this computer').checked, true);
   const kept = await set(own, { keepRunning: false });
   assert.equal(kept.result.keepRunning, false);
   await flush();
@@ -420,6 +420,12 @@ test('A5: a preview or development run answers that start at login is not here, 
   const refused = await d.handlers.get(contract.BACKGROUND_SET_CHANNEL)(own, { startAtLogin: true });
   assert.deepEqual([refused.ok, refused.error.code], [false, 'BACKGROUND_UNAVAILABLE']);
   assert.deepEqual(d.logins, []);
+  // B1 fix round 1 (quality 8): the refusal's words are one constant, shared by main and background.cjs.
+  const { BACKGROUND_UNAVAILABLE_LINE } = require('./background.cjs');
+  assert.equal(refused.error.message, BACKGROUND_UNAVAILABLE_LINE);
+  assert.equal(BACKGROUND_UNAVAILABLE_LINE, 'Only the installed Chausar app can start when you sign in to this computer.');
+  const sources = (await Promise.all(['main.cjs', 'background.cjs'].map(name => readFile(new URL(`../../app/desktop/${name}`, import.meta.url), 'utf8')))).join(' ');
+  assert.equal(sources.split(BACKGROUND_UNAVAILABLE_LINE).length - 1, 1, 'written once');
 });
 
 test('A5: the real preload forwards only the two ticks', async () => {
@@ -442,7 +448,7 @@ test('A5: the tray reads start at login again as the pointer reaches it and when
   const contract = require('./ipc-contract.cjs');
   const own = { sender: d.windows[0].webContents, senderFrame: d.windows[0].webContents.mainFrame };
   await d.handlers.get(contract.BACKGROUND_SET_CHANNEL)(own, { startAtLogin: true });
-  const tick = () => d.menus.at(-1).find((item: any) => item.label === 'Start at login').checked;
+  const tick = () => d.menus.at(-1).find((item: any) => item.label === 'Start when you sign in to this computer').checked;
   assert.equal(tick(), true);
   d.app.loginRun.get('Chausar').enabled = false;
   d.trays[0].emit('mouse-enter'); await flush(); await flush();

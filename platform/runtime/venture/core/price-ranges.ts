@@ -4,6 +4,7 @@
 // reliable data". A guide is information beside the owner's own price: nothing here sets, suggests or changes a price.
 // Pure: no clock, no store, no model. The fake engine imports this file too, so it answers exactly like the engine.
 import { ChausarError, check } from '../../portable.ts';
+import { formatMoneyRange } from '../../owner-format.ts';
 import { PRICE_FAMILIES, PRICES_CHECKED_ON, PROFESSION_PRICES, type PriceRangeRow, type ProfessionPrices } from './price-ranges-data.ts';
 import { PRICE_FAMILY_OF, PROFESSIONS, professionsForPlaybook } from './professions.ts';
 
@@ -59,7 +60,6 @@ export const WAY_PRICES: Readonly<Record<string, { profession: string; range: st
 });
 
 const SYMBOL: Readonly<Record<PriceRangeRow['currency'], string>> = Object.freeze({ INR: '₹', USD: '$' });
-const GROUPING: Readonly<Record<PriceRangeRow['currency'], string>> = Object.freeze({ INR: 'en-IN', USD: 'en-US' });
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** An ISO day in words, as the app writes dates: "1 Nov 2026". */
@@ -69,12 +69,10 @@ export function dayWords(iso: string): string {
   return `${day} ${MONTHS[month! - 1]} ${year}`;
 }
 
-/** Both amounts in words, from minor units (both currencies here have two minor digits); paise show only when either has some. */
+/** Both amounts in words, from minor units, through the owner form (B2): paise show at both ends when either has some. */
 function amounts(row: PriceRangeRow): [string, string] {
-  const fractional = row.low % 100n !== 0n || row.high % 100n !== 0n;
-  const group = new Intl.NumberFormat(GROUPING[row.currency], { maximumFractionDigits: 0 });
-  const words = (minor: bigint) => `${SYMBOL[row.currency]}${group.format(minor / 100n)}${fractional ? `.${String(minor % 100n).padStart(2, '0')}` : ''}`;
-  return [words(row.low), words(row.high)];
+  const [low, high] = formatMoneyRange(row.low, row.high, row.currency).split(' to ');
+  return [low!, high!];
 }
 
 /** A range's words: "₹300 to ₹400"; one figure when low and high agree; "Up to" a legal cap; "or more" for minimum fees. */

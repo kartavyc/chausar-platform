@@ -11,7 +11,7 @@ import {
 } from '../../../../platform/runtime/venture/apps/frame';
 import { APP_ERRORS, APP_IDEAS, APP_LINES, APP_NEVER_LINE, madeLine, PERMISSION_WORDS } from '../../../../platform/runtime/venture/apps/words';
 import { appCalcPlan, appCalcSubject } from '../../../../platform/runtime/venture/apps/calc';
-import { formatMinor } from '../../../../platform/runtime/currency';
+import { formatMoney } from '../../../../platform/runtime/owner-format';
 import { EngineError, type ClientLite, type MiniAppCallResult, type MiniAppCard, type MiniAppMessage, type MiniAppView, type OrderLite, type ReceiptLite } from './types';
 
 export const FAKE_APP_METHODS: ReadonlySet<string> = new Set([
@@ -259,7 +259,7 @@ export class FakeAppsDesk {
         try { plan = appCalcPlan(appCalcSubject(app.id, this.host.currency(), args)); } catch (error) { throw new EngineError('INVALID_VENTURE_REQUEST', (error as Error).message); }
         const total = plan.addends.reduce((sum, addend) => sum + BigInt(addend.amount), 0n);
         const receiptId = `R-app-${this.host.digest(plan.subject).slice(0, 12)}`;
-        const shown = formatMinor(total, plan.currency);
+        const shown = formatMoney(total, plan.currency);
         if (!this.receipts.has(receiptId)) {
           this.receipts.set(receiptId, {
             id: receiptId, at: this.host.now(), stale: false, totalMinor: String(total),

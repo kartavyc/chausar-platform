@@ -36,7 +36,7 @@ const NOT_FOUND = 'That agent was not found.';
 const KEY_REFUSED = 'That looks like a key. Keys go in Connections, never in chat.';
 const FLOOR_REPLY = 'That needs your approval on Today.';
 const WORK_REPLY = 'I can start on that as a new order. Check the details in New order, then create it.';
-const STANDING_REPLY = "You said 'from now on', so here is the change to my instructions.";
+const STANDING_REPLY = "Got it. I've proposed it as a new rule for you to approve.";
 const NOTE_REPLY = 'Here is the note I would keep. Nothing is saved until you accept it.';
 const NOTE_KEPT_LINE = "I'll keep this note. You can correct it, forget it or undo it in my notes.";
 const NOTE_REJECTED_LINE = "You said no, so nothing was saved. I won't ask to keep these words again.";
@@ -166,7 +166,7 @@ export class FakeAgentsDesk {
       case 'venture.agents.notes.edit': return this.notesEdit(p);
       case 'venture.agents.notes.forget': return this.notesForget(p);
       case 'venture.agents.notes.undo': return this.notesUndo(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -244,7 +244,7 @@ export class FakeAgentsDesk {
     // W6 6G2: a retired agent keeps its own steps for its read-only thread on the Retired shelf.
     const found = this.agents().find((a) => a.id === agentId) ?? this.retired(agentId)?.agent;
     if (!found) throw new EngineError('AGENT_NOT_FOUND', NOT_FOUND);
-    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each run's steps.`);
+    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
     return found;
   }
 
@@ -357,7 +357,7 @@ export class FakeAgentsDesk {
 
   private consent(p: Record<string, unknown>): ChatConsentView {
     const body = exact(p, ['digest'], ['digest']);
-    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Send the digest of the consent you read.');
+    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Look at it again first.');
     const view = this.consentView();
     const route = this.route();
     if (!route) return view;
@@ -540,7 +540,7 @@ export class FakeAgentsDesk {
     this.seq += 1;
     const prop: Prop = {
       id: this.nextId('aprop'), agent: agent.id, at: said.at, seq: this.seq, kind: 'instruction', status: 'drafted', quote: words, quoteKey: keyOf(words), messageId: said.id,
-      appliesTo: `Applies to "${step.purpose}" from the next run.`, diff: [...before.map((text) => ({ op: 'same' as const, text })), { op: 'add', text: value }],
+      appliesTo: `Applies to "${step.purpose}" from the next job.`, diff: [...before.map((text) => ({ op: 'same' as const, text })), { op: 'add', text: value }],
       fromVersion: playbook.version, toVersion, parentHash: playbook.hash, note: null, patch, digest: '',
     };
     prop.digest = this.hex({ id: prop.id, patch, toVersion, parent: prop.parentHash });
@@ -586,7 +586,7 @@ export class FakeAgentsDesk {
   private decide(p: Record<string, unknown>): { proposal: AgentProposalView; line: string; playbook?: { id: string; version: number } } {
     const body = exact(p, ['id', 'digest', 'decision'], ['id', 'digest', 'decision']);
     const proposalId = id(body.id, 'Proposal');
-    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Send the digest of the change you read.');
+    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Look at it again first.');
     if (body.decision !== 'accept' && body.decision !== 'reject') throw invalid('Choose accept or reject.');
     const book = this.book();
     const prop = book.proposals.find((x) => x.id === proposalId);
@@ -622,8 +622,8 @@ export class FakeAgentsDesk {
     prop.status = 'accepted';
     prop.toVersion = made.version;
     const going = this.runs().filter((run) => run.state === 'waiting' || run.state === 'active');
-    const kept = going.length === 1 ? `Run ${going[0]!.runId} keeps` : `Runs ${going.slice(0, -1).map((r) => r.runId).join(', ')} and ${going.at(-1)?.runId ?? ''} keep`;
-    const line = going.length === 0 ? `Version ${made.version} is in use now. You can undo it.` : `Version ${made.version} is in use from the next run. ${kept} version ${current.version}.`;
+    const kept = going.length === 1 ? `Job ${going[0]!.runId} keeps` : `Jobs ${going.slice(0, -1).map((r) => r.runId).join(', ')} and ${going.at(-1)?.runId ?? ''} keep`;
+    const line = going.length === 0 ? `Version ${made.version} is in use now. You can undo it.` : `Version ${made.version} is in use from the next job. ${kept} version ${current.version}.`;
     this.put(book, agent.id, 'agent', line);
     return { proposal: this.proposalView(prop, agent.name), line, playbook: { id: made.id, version: made.version } };
   }
@@ -641,7 +641,7 @@ export class FakeAgentsDesk {
     this.seq += 1;
     const prop: Prop = {
       id: this.nextId('aprop'), agent: agent.id, at: said.at, seq: this.seq, kind: 'import', status: 'drafted', quote: 'An agent file you imported.', quoteKey: keyOf('An agent file you imported.'),
-      messageId: said.id, appliesTo: `Applies to ${agent.name} from the next run.${input.skipped.length ? ` Left out: ${input.skipped.join(' ')}` : ''}`,
+      messageId: said.id, appliesTo: `Applies to ${agent.name} from the next job.${input.skipped.length ? ` Left out: ${input.skipped.join(' ')}` : ''}`,
       diff: [...patches.map((patch) => ({ op: 'add' as const, text: patch.value })), ...input.personaLines],
       fromVersion: current?.version ?? null, toVersion: patches.length ? Math.max(0, ...book.versions.map((v) => v.version)) + 1 : null, parentHash: current?.hash ?? null,
       note: null, patch: null, digest: '', imported: { patches, accept: input.onAccept },
@@ -668,7 +668,7 @@ export class FakeAgentsDesk {
     prop.imported?.accept?.();
     prop.status = 'accepted';
     prop.toVersion = made?.version ?? null;
-    const line = made ? `Version ${made.version} is in use from the next run, with the orders from the file. You can undo it.` : 'The persona from the file is in use from the next run. You can undo it.';
+    const line = made ? `Version ${made.version} is in use from the next job, with the orders from the file. You can undo it.` : 'The persona from the file is in use from the next job. You can undo it.';
     this.put(book, agent.id, 'agent', line);
     return { proposal: this.proposalView(prop, agent.name), line, ...(made ? { playbook: { id: made.id, version: made.version } } : {}) };
   }
@@ -676,7 +676,7 @@ export class FakeAgentsDesk {
   private undoVersion(p: Record<string, unknown>): { playbookId: string; version: number; line: string } {
     const body = exact(p, ['agent', 'digest'], ['agent', 'digest']);
     const agent = this.agent(id(body.agent, 'Agent'));
-    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Send the digest of the version you saw in use.');
+    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Look at it again first.');
     const book = this.book();
     const current = this.current(book);
     const changes = (current?.patches ?? []).filter((patch) => patch.agent === agent.id);

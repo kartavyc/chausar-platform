@@ -1,7 +1,7 @@
 // Chausar venture launcher, package P2 (models): the replay transport for tests and the offline demo.
 // It answers from a synthetic recording (hand-written, never captured from a live account) and refuses any
 // fixture with another label. It never touches the network or starts a process.
-import { ChausarError, check } from '../../contracts.ts';
+import { InternalError, check } from '../../contracts.ts';
 import { MODEL_PURPOSES } from '../contracts.ts';
 import type { ModelHttpRequest, ModelHttpResponse, ModelProcessRequest, ModelProcessResponse, ModelReplayFixture, ModelRouteKind, ModelTransport } from '../contracts.ts';
 import { isPlainRecord } from './types.ts';
@@ -58,7 +58,7 @@ export function createReplayTransport(fixture: ModelReplayFixture): ModelTranspo
       .map((response, index) => ({ response, index }))
       .filter(({ response }) => response.purpose === purpose && response.kind === kind && response.model === model
         && response.mustInclude.every(fragment => text.includes(fragment)));
-    if (!candidates.length) throw new ChausarError('FIXTURE_MISSING', `Record this fixture: ${purpose} for ${model || 'an unknown model'}.`);
+    if (!candidates.length) throw new InternalError('FIXTURE_MISSING', `Record this fixture: ${purpose} for ${model || 'an unknown model'}.`);
     const chosen = candidates.find(({ index }) => !used.has(index)) ?? candidates[candidates.length - 1];
     used.add(chosen.index);
     return chosen.response;

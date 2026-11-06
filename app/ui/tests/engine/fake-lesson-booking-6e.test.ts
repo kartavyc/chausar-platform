@@ -78,7 +78,9 @@ describe('fake booking desk (6E3)', () => {
     expect(issued.upi.link).toMatch(/^upi:\/\/pay\?pa=asha\.salon@okaxis/);
     await act('remind', { kind: 'deposit', channel: 'whatsapp' });
     const message = ((await get()).item as any).messages[0];
-    expect(message.text).toContain(issued.balance);
+    // B2 fix round 1: the desk shows the owner form; the message to the client quotes the exact form, as the engine does.
+    expect(issued.balance).toBe('₹7,500');
+    expect(message.text).toContain('deposit of INR 7,500.00 for invoice');
     expect(message.text).toContain(issued.upi.link);
     const handed = await act('handoff', { messageId: message.id }) as any;
     expect(handed.result.handoff.url).toMatch(/^https:\/\/wa\.me\/919812345678/);

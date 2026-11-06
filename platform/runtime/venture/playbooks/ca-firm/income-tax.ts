@@ -8,7 +8,7 @@
 // opentax-engine (AGPL-3.0, ideas only) for refusing loudly when a case is not modelled.
 import { ChausarError } from '../../../portable.ts';
 import {
-  applyBps, invalid, minBig, maxBig, notModelled, optionalPaise, paise, round288, sumBig, inr,
+  applyBps, invalid, minBig, maxBig, notModelled, optionalPaise, paise, round288, sumBig, inr, exactInr,
 } from './money.ts';
 import { rateTableFor, sectionOf, useRateTable, REHEARSAL, type AgeBand, type IncomeTaxPayload, type RateTable, type RateUse, type RegimeRates, type Slab } from './rates.ts';
 import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
@@ -135,7 +135,8 @@ function deductionsAllowed(builder: ReceiptBuilder, table: RateTable<IncomeTaxPa
       const capText = rule.capByAge?.[input.ageBand] ?? rule.capMinor;
       const cap = capText === null ? null : BigInt(capText);
       allowed = cap === null ? claimed : minBig(claimed, cap);
-      label = allowed < claimed ? `${title}: claimed ${inr(claimed)}, capped at ${inr(cap!)}` : title;
+      // B2 fix round 3: a client document quotes this label beside the figure, so its amounts are the exact form too.
+      label = allowed < claimed ? `${title}: claimed ${exactInr(claimed)}, capped at ${exactInr(cap!)}` : title;
     }
     builder.step(`deduction-${code}`, label, allowed, section);
     total += allowed;

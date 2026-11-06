@@ -1,13 +1,13 @@
 // Wave 6 money (6D2): the UPI payment link for an invoice, built by code from the exact balance and the invoice number,
 // in NPCI's deep-link form upi://pay?pa=&pn=&am=&cu=INR&tn=&tr=. Portable, so the fake engine builds the same link.
 // Paying through it is the client's act in their own UPI app; Chausar only learns of it when the owner marks it paid.
-import { formatMinor } from '../../currency.ts';
+import { plainMoney } from '../../owner-format.ts';
 import { qrMatrix } from './qr.ts';
 import type { QrMatrix } from './billing-types.ts';
 
 /** The amount as a UPI link carries it: rupees with two decimals and no separators ('23305.00'). */
 export function upiAmountText(minor: string): string {
-  return formatMinor(minor, 'INR').slice('INR '.length).replace(/,/g, '');
+  return plainMoney(minor, 'INR');
 }
 
 /** Percent-encodes a value for the link, keeping the @ of a UPI ID as UPI apps expect it. */

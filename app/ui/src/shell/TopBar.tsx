@@ -1,6 +1,6 @@
 import type { MouseEvent } from 'react';
 import { useT } from '../text';
-import { useResource } from '../engine/context';
+import { useNeedsYou } from './needsYou';
 import { BottomTabs, type BottomTab } from '../parts/BottomTabs';
 import { Logo } from '../parts/Logo';
 import type { IconName } from '../parts/icons';
@@ -51,8 +51,7 @@ export const MORE_SHEET = { kind: 'more', id: 'places' } as const;
  */
 export function PhoneTabs({ route }: { route: Route }) {
   const t = useT();
-  const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: (event) => event.type === 'queue.changed' });
-  const needsYou = queue.data?.needsYou ?? 0;
+  const needsYou = useNeedsYou().count;
   const more = formatHash({ ...route, sheet: MORE_SHEET });
   const tabs: BottomTab[] = [
     ...TAB_PLACES.map((place): BottomTab => ({

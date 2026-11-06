@@ -24,7 +24,7 @@ test('runs: a template draft waits on you, its steps skip the agent loop, and it
   const [summary] = await runs(env);
   assert.deepEqual(summary, {
     runId: outline.id, businessId: 'main', agent: 'Bookkeeping agent', purpose: `Draft a reply for ${CLIENT_NAME}`, state: 'waiting',
-    startedAt: START, elapsed: '0s', progress: { done: 3, total: 5 }, writtenBy: "Written by Chausar's template, not your AI",
+    startedAt: START, elapsed: '', progress: { done: 3, total: 5 }, writtenBy: "Written by Chausar's template, not your AI",
   });
   const detail = await get(env, outline.id);
   assert.deepEqual(states(detail), [['price', 'done'], ['draft', 'done'], ['verify', 'done'], ['approve', 'waiting'], ['send', 'pending']]);
@@ -41,7 +41,7 @@ test('runs: a template draft waits on you, its steps skip the agent loop, and it
   env.advance(60 * 60_000);
   const [done] = await runs(env, 'done');
   assert.deepEqual({ state: done.state, elapsed: done.elapsed, result: done.result, progress: done.progress },
-    { state: 'done', elapsed: '5m', result: 'Draft accepted. You send it to the client.', progress: undefined });
+    { state: 'done', elapsed: '5 min', result: 'Draft accepted. You send it to the client.', progress: undefined });
   assert.deepEqual(states(await get(env, outline.id)).slice(-2), [['approve', 'done'], ['send', 'pending']]);
   assert.deepEqual(await runs(env, 'active'), []);
 });
@@ -130,7 +130,7 @@ test('runs: a failed run shows the engine error; rehearsals are listed; unknown 
     });
     return tx.put<SimulationRunRecord>({
       ...tx.base('venture-simulation-run'), playbookId: 'playbook_x', playbookHash: 'h', scenarioIds: scenarios.slice(0, 2).map(item => item.id),
-      episodes: [episode(0, true), episode(1, false)], passed: false, summary: { scenarios: 2, passed: 1, failed: 1 }, costMicros: '0', costDisplay: 'USD 0.0000',
+      episodes: [episode(0, true), episode(1, false)], passed: false, summary: { scenarios: 2, passed: 1, failed: 1 }, costMicros: '0', costDisplay: '$0.00',
       startedAt: '2026-10-15T10:01:00.000Z', finishedAt: '2026-10-15T10:02:30.000Z', modelMode: 'template',
     });
   });
@@ -138,7 +138,7 @@ test('runs: a failed run shows the engine error; rehearsals are listed; unknown 
   assert.deepEqual(all.map(run => run.runId), [rehearsal.id, failed.id], 'newest first');
   assert.deepEqual({ ...all[0] }, {
     runId: rehearsal.id, businessId: 'main', agent: 'Bookkeeping agent', purpose: 'Rehearse with practice clients', state: 'done',
-    startedAt: '2026-10-15T10:01:00.000Z', elapsed: '1m', result: '1 of 2 practice clients passed.',
+    startedAt: '2026-10-15T10:01:00.000Z', elapsed: '1 min 30 s', result: '1 of 2 practice clients passed.',
   });
   const steps = (await get(env, rehearsal.id)).steps;
   assert.deepEqual(steps.map(step => [step.purpose, step.state, step.error ?? null]), [

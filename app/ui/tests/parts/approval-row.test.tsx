@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ApprovalRow, readBack } from '../../src/parts/ApprovalRow';
 import { EngineError, type QueueDecision, type QueueList, type QueueRow } from '../../src/engine/types';
 import { receiptMark } from '../helpers/ink-rules';
+import { ClockProvider } from '../../src/shell/clock';
 
 const price: QueueRow = {
   id: 'q1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Producer', kind: 'price', createdAt: '2026-10-21T08:00:00Z', digest: 'd1',
@@ -40,12 +41,23 @@ describe('ApprovalRow', () => {
     expect(container.querySelector('[data-row]')!.hasAttribute('data-second-ask')).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     expect(onDecide).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("This can't be undone. Approve?");
-    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    expect(container.textContent).toContain("Approve? Check it once more.");
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(container.textContent).not.toContain("can't be undone");
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Approve' }).at(-1)!); });
     expect(onDecide).toHaveBeenCalledWith(price, price.actions[1], { viewed: false });
+  });
+
+  it('a decided plan row says the engine\'s outcome alone, since its title is an ask (B3)', async () => {
+    const plan: QueueRow = {
+      id: 'plan:v1:bp1', businessId: 'ledgerline', businessName: 'Ledgerline', kind: 'plan', createdAt: '2026-10-21T08:00:00Z', digest: 'd4',
+      title: 'Your plan is ready. Read it.', line: 'Monthly books for small shops.', viewRef: { kind: 'plan', id: 'bp1' },
+      actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, requiresView: true }],
+    };
+    const { container } = list(<ApprovalRow row={plan} viewed onDecide={vi.fn(async () => done('Plan accepted.'))} />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accept' })); });
+    expect(container.textContent).toBe('Plan accepted.');
   });
 
   it('a decided row shrinks to its receipt line', async () => {
@@ -213,5 +225,14 @@ describe('ApprovalRow', () => {
     list(<ApprovalRow row={signoff} onDecide={pending} />);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to CA' })); });
     expect(screen.queryByText(POSTING)).toBeNull();
+  });
+});
+
+describe('ApprovalRow: the time a row came in (one-shot B2)', () => {
+  it('reads on the 12-hour clock in the owner zone: 19:11 UTC is 12:41 am in India', () => {
+    const late: QueueRow = { ...price, createdAt: '2026-11-02T19:11:00.000Z' };
+    const { container } = render(<ClockProvider now={() => new Date('2026-11-02T19:30:00.000Z')} zone="Asia/Kolkata"><ApprovalRow layout="card" row={late} onDecide={vi.fn()} /></ClockProvider>);
+    expect(container.textContent).toContain('12:41 am');
+    expect(container.textContent).not.toContain('00:41');
   });
 });

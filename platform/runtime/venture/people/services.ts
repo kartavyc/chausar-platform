@@ -12,7 +12,7 @@
 // no answer link is ever opened. Answers are untrusted: a person's line with words aimed at the AI is held. Only the
 // fields a pitch needs are kept and nothing is stored: the answer goes to the owner's screen.
 // Requests follow the services' public API docs (Happenstance's OpenAPI; Probe42's API portal and its client notes);
-// no key exists in this build's checks, so both say "fixture-tested, needs your key".
+// no key exists in this build's checks, so both say "Not tried live yet, needs your key".
 import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
 import type { VentureDeps, VentureRecord } from '../contracts.ts';
 import { guardedFetch, type NetResolver, type PinnedSender } from '../core/net-guard.ts';

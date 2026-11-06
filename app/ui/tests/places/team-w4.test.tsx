@@ -78,8 +78,8 @@ describe('Team w4: the department toggle and panels from the engine', () => {
     expect(production.querySelector('[data-count]')?.textContent).toBe('4');
     const spend = production.querySelector('[data-figure-group]') as HTMLElement;
     // 4Z3: rupees lead; the dollars beside, without the rate: the page says the rate once, in the stats tile.
-    expect(spend.querySelector('[data-ui-number]')?.textContent).toBe('₹38.00');
-    expect(spend.textContent).toContain('USD 0.46');
+    expect(spend.querySelector('[data-ui-number]')?.textContent).toBe('₹38');
+    expect(spend.textContent).toContain('$0.46');
     expect(spend.textContent).not.toContain('per $1');
     expect(within(spend).getAllByRole('button', { name: receiptMark(/^R-0/) })).toHaveLength(1);
     expect(within(production).getByRole('button', { name: 'Editor' })).toBeTruthy();
@@ -174,8 +174,8 @@ describe('Team w4: one department', () => {
     expect(hero.querySelectorAll('[data-count]')).toHaveLength(2);
     expect(hero.querySelectorAll('[data-figure]')).toHaveLength(1);
     // 4Z3: rupees lead, the dollars beneath with two decimals and the rate.
-    expect(hero.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹38.00');
-    expect(hero.textContent).toContain('USD 0.46 at ₹83.50 per $1');
+    expect(hero.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹38');
+    expect(hero.textContent).toContain('$0.46 at ₹83.50 per $1');
     // The rate once on the page: beside the hero's figure, not again after the held words.
     expect(main().textContent!.split('per $1').length - 1).toBe(1);
     const flow = await within(main()).findByRole('region', { name: 'How Production runs' });
@@ -226,7 +226,7 @@ describe('Team w4: Keeper', () => {
   it('is code, not AI: a chip says so, no Chat button, no posture, and one row per job with its last run or the engine\'s note', async () => {
     start();
     const keeper = await cardOf('Keeper');
-    expect(within(keeper).getByText('Runs as code, not AI')).toBeTruthy();
+    expect(within(keeper).getByText('Fixed rules, no AI')).toBeTruthy();
     expect(within(keeper).queryByRole('button', { name: /chat/i })).toBeNull();
     expect(keeper.querySelector('[data-posture]')).toBeNull();
     const jobs = await within(keeper).findByRole('list', { name: "Keeper's jobs" });
@@ -256,7 +256,7 @@ describe('Team w4: Keeper', () => {
     start();
     await click(await within(main()).findByRole('button', { name: 'Keeper' }));
     const sheet = await screen.findByRole('complementary', { name: 'Keeper' });
-    expect(within(sheet).getByText('Runs as code, not AI')).toBeTruthy();
+    expect(within(sheet).getByText('Fixed rules, no AI')).toBeTruthy();
     expect(await within(sheet).findByRole('list', { name: "Keeper's jobs" })).toBeTruthy();
     expect(within(sheet).queryByRole('radiogroup')).toBeNull();
     expect(within(sheet).queryByRole('group', { name: 'How much it asks you' })).toBeNull();
@@ -322,11 +322,11 @@ describe('Team w4: health', () => {
   });
 
   it('failing says its reason in fail words, with nothing to clear', async () => {
-    start('#/team', { intercept: withHealth('editor', { status: 'failing', reason: 'Its last 2 runs failed.' }) });
+    start('#/team', { intercept: withHealth('editor', { status: 'failing', reason: 'Its last 2 jobs failed.' }) });
     const editor = await cardOf('Editor');
     await waitFor(() => expect(editor.querySelector('[data-health]')).not.toBeNull());
     expect(editor.querySelector('[data-health] [data-tone="fail"]')?.textContent).toBe('Failing');
-    expect(editor.textContent).toContain('Its last 2 runs failed.');
+    expect(editor.textContent).toContain('Its last 2 jobs failed.');
     expect(within(editor).queryByRole('button', { name: 'Clear quarantine' })).toBeNull();
   });
 
@@ -355,10 +355,10 @@ describe('Team w4: the stats tiles from the team totals', () => {
     const spend = within(glance).getByText('Monthly AI spend').closest('[data-card]') as HTMLElement;
     // 4Z3: rupees lead, the dollars beneath with two decimals and the rate.
     expect(spend.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹60.10');
-    expect(spend.textContent).toContain('USD 0.72 at ₹83.50 per $1');
+    expect(spend.textContent).toContain('$0.72 at ₹83.50 per $1');
     expect(within(spend).getAllByRole('button', { name: receiptMark('R-0431') })).toHaveLength(1);
     const held = spend.querySelector('[data-held]') as HTMLElement;
-    expect(held.textContent).toContain('including ₹18.00 held for running work: USD 0.22');
+    expect(held.textContent).toContain('including ₹18 held for running work: $0.22');
     expect(held.textContent).not.toContain('per $1');
     // The rate once on the page, beside the month's figure; every other spend line shows only the rupee amount.
     await panel('Production');

@@ -64,7 +64,7 @@ export function PriceRange({ guide, range, className }: { guide: PriceGuideView;
   return (
     <span className={cx(s.line, className)} data-sourced-range="">
       <span id={labelId} className={s.label}>{range.label}</span>
-      <span className={cx(s.amount, 'mono')}>{range.text}</span>
+      <span className={s.amount} data-num="">{range.text}</span>
       <span className={s.per}>{range.city ? t('price-sources.perIn', { per: range.per, city: range.city }) : range.per}</span>
       <PriceSources guide={guide} range={range} describedBy={labelId} />
     </span>

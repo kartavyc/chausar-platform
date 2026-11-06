@@ -42,9 +42,9 @@ describe('Sheet', () => {
 });
 
 describe('Steps', () => {
-  it('marks done, current, pending, waiting and failed steps, with words for each and times in mono', () => {
+  it('marks done, current, pending, waiting and failed steps, with words for each and times in the body font', () => {
     const steps: RunDetail['steps'] = [
-      { id: 'a', purpose: 'Read the transcript', state: 'done', elapsed: '12s' },
+      { id: 'a', purpose: 'Read the transcript', state: 'done', elapsed: '12 s' },
       { id: 'b', purpose: 'Rendering 3 of 6', state: 'current', elapsed: 'now' },
       { id: 'c', purpose: 'Asking you', state: 'waiting' },
       { id: 'd', purpose: 'Render', state: 'failed', error: 'ffmpeg was not found on this computer.' },
@@ -59,7 +59,7 @@ describe('Steps', () => {
     expect(items[0]!.textContent).toContain('done');
     expect(items[2]!.textContent).toContain('Waiting on you');
     expect(items[3]!.textContent).toContain('ffmpeg was not found on this computer.');
-    expect(items[0]!.querySelector('.mono')!.textContent).toBe('12s');
+    expect(items[0]!.textContent).toContain('12 s'); // B2: the time is in the body font
   });
 
   it('says "indeterminate" in words instead of drawing a bar, and counts otherwise', () => {
@@ -83,9 +83,9 @@ describe('RunSheet', () => {
     const onEvidence = vi.fn();
     const onAnswer = vi.fn(async () => {});
     render(<RunSheetView run={run('29')} onClose={() => {}} onEvidence={onEvidence} onAnswer={onAnswer} />);
-    expect(screen.getByText('Producer · run 29')).toBeTruthy();
+    expect(screen.getByText('Run by Producer')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Pricing the sponsor slot' })).toBeTruthy();
-    expect(screen.getByText('Started 6m ago')).toBeTruthy();
+    expect(screen.getByText('Started 6 min ago')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'sponsor brief' }));
     expect(onEvidence).toHaveBeenCalledWith({ kind: 'file', id: 'f-brief-sponsor', label: 'sponsor brief' });
     expect(screen.getByText(/Share a private preview link/)).toBeTruthy();
@@ -97,7 +97,7 @@ describe('RunSheet', () => {
     const { container } = render(<RunSheetView run={run('27')} onClose={() => {}} />);
     const fold = container.querySelector('details[data-fold="worked"]') as HTMLDetailsElement;
     expect(fold.open).toBe(false);
-    expect(fold.querySelector('summary')!.textContent).toBe('Worked for 4m');
+    expect(fold.querySelector('summary')!.textContent).toBe('Worked for 4 min');
     expect(container.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(screen.getAllByRole('button', { name: receiptMark('R-0412') }).length).toBeGreaterThan(0);
   });
@@ -157,7 +157,7 @@ describe('RunSheet: run controls (W4 4F3)', () => {
     expect(fold.querySelector('summary')!.textContent).toBe('What it may do');
     expect(fold.textContent).toContain('Cut video with ffmpeg');
     expect(fold.textContent).toContain('Post to YouTube, for your approval');
-    expect(container.textContent).toContain('Started 4m ago · Usually 3 to 5 min');
+    expect(container.textContent).toContain('Started 4 min ago · Usually 3 to 5 min');
     unmount();
     const plain = render(<RunSheetView run={run('31')} onClose={() => {}} />);
     expect(plain.container.textContent).not.toContain('Usually');
@@ -200,7 +200,7 @@ describe('RunSheet: run controls (W4 4F3)', () => {
   it('a run a crash cut says Interrupted in its head, never Stopped', () => {
     const line = 'Interrupted: Chausar stopped while this ran. Nothing was sent again.';
     const { container } = render(<RunSheetView run={{ ...run('29'), question: undefined, stop: { state: 'stopped', line }, interrupted: { at: '2026-10-21T10:00:00.000Z', line, steps: [] } }} onClose={() => {}} />);
-    const head = container.querySelector('[data-sheet-line]') ?? screen.getByText(/Started 6m ago/).parentElement!;
+    const head = container.querySelector('[data-sheet-line]') ?? screen.getByText(/Started 6 min ago/).parentElement!;
     expect(head.textContent).toContain('Interrupted');
     expect(head.textContent).not.toContain('Stopped');
   });
@@ -217,7 +217,7 @@ describe('RunSheet: run controls (W4 4F3)', () => {
     render(<RunSheetView run={run('31')} onClose={() => {}} onSteer={onSteer} />);
     fireEvent.change(screen.getByLabelText('Tell Editor something for its next step'), { target: { value: 'Hello' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to Editor' })); });
-    expect(screen.getByText('Could not send it: This run is not running, so there is nothing to stop or steer.')).toBeTruthy();
+    expect(screen.getByText('Could not send it: This job is not running, so there is nothing to stop or steer.')).toBeTruthy();
   });
 
   it('marks each tool call with a shape and a word, with its measured time, and counts the calls in flight', () => {
@@ -259,7 +259,7 @@ describe('JobList', () => {
     const onOpen = vi.fn();
     render(<JobList runs={summaries} onOpen={onOpen} onRunAgain={onRunAgain} />);
     // 4Z2: the engine sends no result line on a failed run; the row says it failed.
-    expect(screen.getByText('This run failed.')).toBeTruthy();
+    expect(screen.getByText('This job failed.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
     expect(onRunAgain).toHaveBeenCalledWith(expect.objectContaining({ runId: '28' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cutting shorts from episode 13' }));
@@ -295,7 +295,7 @@ describe('Ink v2 look', () => {
 
   it('marks each step with a shape that differs beyond colour: a check, a still arc, a dashed circle, an x, a clock', () => {
     const steps: RunDetail['steps'] = [
-      { id: 'a', purpose: 'Read the transcript', state: 'done', elapsed: '12s' },
+      { id: 'a', purpose: 'Read the transcript', state: 'done', elapsed: '12 s' },
       { id: 'b', purpose: 'Rendering 3 of 6', state: 'current', elapsed: 'now' },
       { id: 'c', purpose: 'Asking you', state: 'waiting' },
       { id: 'd', purpose: 'Render', state: 'failed', error: 'ffmpeg was not found on this computer.' },
@@ -342,7 +342,7 @@ describe('Ink v2 look', () => {
         <Sheet label="Run" eyebrow="Editor · run 28" title="Rendering" name="Editor" onClose={() => {}} avatar={<span aria-hidden="true">ED</span>}>
           <Steps
             steps={[
-              { id: '1', purpose: 'Read the transcript', state: 'done', elapsed: '2s', tools: [{ name: 'transcript.read', line: 'read 412 lines' }] },
+              { id: '1', purpose: 'Read the transcript', state: 'done', elapsed: '2 s', tools: [{ name: 'transcript.read', line: 'read 412 lines' }] },
               { id: '2', purpose: 'Rendering', state: 'current' },
               { id: '3', purpose: 'Render', state: 'failed', error: 'ffmpeg was not found on this computer.' },
               { id: '4', purpose: 'Asking you', state: 'waiting' },

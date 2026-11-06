@@ -14,7 +14,7 @@ import type {
 } from '../contracts.ts';
 import { exactPayload, formatVentureDate, identifier, listRecords, requireAppChannel, ventureAction } from '../records.ts';
 import { readAs } from '../delivery/shared.ts';
-import { localTimeAt } from '../local-day.ts';
+import { localDayAt, localTimeAt, ownerClock } from '../local-day.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -101,10 +101,9 @@ export function snoozeOptions(now: IsoTime, country: VentureRecord['country']): 
   });
 }
 
-/** A wake time as the owner reads it, where the business is: '22 Oct 2026, 09:00'. */
+/** A wake time as the owner reads it, where the business is: '22 Oct 2026, 9:00 am'. */
 export function wakeWords(until: IsoTime, venture: VentureRecord): string {
-  const local = localTimeAt(until, venture.country);
-  return `${formatVentureDate(local.slice(0, 10), venture.country.dateOrder)}, ${local.slice(11, 16)}`;
+  return `${formatVentureDate(localDayAt(until, venture.country), venture.country.dateOrder)}, ${ownerClock(until, venture.country)}`;
 }
 
 /** The request that puts a chat back in the state it shows now. */
@@ -112,11 +111,14 @@ function undoOf(threadId: string, view: ThreadStateView): ChiefThreadStateInput 
   return view.state === 'snoozed' && view.snoozedUntil ? { threadId, state: 'snoozed', until: view.snoozedUntil } : { threadId, state: view.state };
 }
 
+/** B1 fix round 1: what moving a chat aside says ("Settled chats" are "Old chats"); the fake says the same. */
+export const CHAT_STATE_WORDS = Object.freeze({ settled: 'Moved to old chats. It stays there until you open it again.' });
+
 /** The engine's words for a change, said the same way by the fake engine. */
 function lineOf(state: ChiefThreadState, until: IsoTime | null, venture: VentureRecord): string {
   if (state === 'pinned') return 'Pinned to the top of your chats.';
   if (state === 'snoozed' && until) return `Snoozed until ${wakeWords(until, venture)}. It comes back early if it needs you.`;
-  if (state === 'settled') return 'Settled. It is in Settled chats until you open it again.';
+  if (state === 'settled') return CHAT_STATE_WORDS.settled;
   return 'Back in your chats.';
 }
 

@@ -61,12 +61,12 @@ describe('The business button says the kind once', () => {
 });
 
 describe('Rows and lines stay quiet (Ink v2, 3B5b)', () => {
-  it("a row's sub line and end time are grey, and its end time is DM Mono", async () => {
+  it("a row's sub line and end time are grey, and its end time is in the body font", async () => {
     const { Row } = await import('../../src/parts/Row');
     const { container } = render(<ul><Row id="r" title="Matched September bank lines" line="212 of 214 lines" end="4m" /></ul>);
     const end = container.querySelector('li')!.lastElementChild!;
     expect(end.textContent).toBe('4m');
-    expect(end.classList.contains('mono')).toBe(true);
+    expect(end.classList.contains('mono')).toBe(false); // B2: the body font
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const css = readFileSync(join(import.meta.dirname, '../../src/parts/Row.module.css'), 'utf8');

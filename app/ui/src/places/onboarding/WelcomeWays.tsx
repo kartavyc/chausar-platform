@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import type { BackupLite, ParamsOf } from '../../engine/types';
 import { Button } from '../../parts/Button';
@@ -141,7 +142,7 @@ export function RestoreBackup({ onOpened, onBack }: WayProps) {
  */
 function RestoreRow({ backup, onOpened }: { backup: BackupLite; onOpened: () => void }) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const client = useEngine();
   const [ask, setAsk] = useState<null | 'passphrase' | 'code'>(null);
   const [reason, setReason] = useState<string | null>(null);
@@ -183,7 +184,7 @@ function RestoreRow({ backup, onOpened }: { backup: BackupLite; onOpened: () => 
   return (
     <li className={s.backup}>
       <div className={s.backupLine}>
-        <span>{momentOf(backup.at, language)}</span>
+        <span>{momentOf(backup.at, zone)}</span>
         <span className={s.businessNote}>{t(`custody.kind.${backup.kind}`)}</span>
         <Button disabled={busy} onClick={() => void restore()}>{t('onboarding.restore.go')}</Button>
       </div>

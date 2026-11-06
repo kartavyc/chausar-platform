@@ -18,7 +18,8 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
-import { useClock } from '../../shell/clock';
+import { useLocalToday } from '../../parts/when';
+import { dayKeyPlus, formatClock } from '../../../../../platform/runtime/owner-format';
 import { useBrowserPush, type PushPermission } from '../../shell/push';
 import { EngineError, type BackgroundStateLite, type NotifySettingsView, type ParamsOf } from '../../engine/types';
 import { TileSection, messageOf } from './shared';
@@ -30,10 +31,9 @@ import n from './Notifications.module.css';
 type Change = ParamsOf<'venture.notify.settings'>;
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
-const clockWords = (hour: number) => `${String(hour).padStart(2, '0')}:00`;
-/** A date on this computer's calendar, as a date field writes it. */
-const dayOf = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const daysAfter = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+// B2 fix round 1: the digest hour on the 12-hour clock, as every other time the owner reads ("9:00 am").
+const clockWords = (hour: number) => formatClock(`${String(hour).padStart(2, '0')}:00`);
+
 
 export function NotificationsView() {
   const t = useT();
@@ -252,7 +252,7 @@ function Relay({ view }: { view: { relay: string | null; line: string } }) {
 /** Quiet hours and the digest hour (saved together), then the pause. */
 function QuietTimes({ settings, change }: { settings: NotifySettingsView; change: (params: Change) => Promise<void> }) {
   const t = useT();
-  const clock = useClock();
+  const localToday = useLocalToday();
   const ids = useId();
   const [quiet, setQuiet] = useState(settings.quietHours !== null);
   const [from, setFrom] = useState(settings.quietHours?.from ?? '22:00');
@@ -262,7 +262,8 @@ function QuietTimes({ settings, change }: { settings: NotifySettingsView; change
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const today = clock();
+  // B2 fix round 1: the away dates count from today where the business is, not on this computer's calendar.
+  const today = localToday();
   // W4 4J21: quiet hours and the digest, kept as a draft of exactly what Save sends to venture.notify.settings.
   const [touched, setTouched] = useState(false);
   const values = { quietHours: quiet ? { from, to } : null, digest: digest === 'off' ? null : { hour: Number(digest) } };
@@ -341,7 +342,7 @@ function QuietTimes({ settings, change }: { settings: NotifySettingsView; change
           <>
             <Field
               label={t('business.notify.pause')} hint={t('business.notify.pauseHint')} type="date" value={until} disabled={busy}
-              min={dayOf(daysAfter(today, 1))} max={dayOf(daysAfter(today, 30))} onChange={(event) => setUntil(event.currentTarget.value)}
+              min={dayKeyPlus(today, 1)} max={dayKeyPlus(today, 30)} onChange={(event) => setUntil(event.currentTarget.value)}
             />
             <div className={s.buttons}><Button variant="secondary" disabled={busy || !until} onClick={() => void pause()}>{t('business.notify.pauseButton')}</Button></div>
           </>

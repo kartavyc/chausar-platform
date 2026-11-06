@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import type { ChatConsentView } from '../../engine/types';
 import { Button } from '../../parts/Button';
+import { ConsentWords } from '../../parts/ConsentWords';
 import c from './AgentChat.module.css';
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -37,10 +38,11 @@ export function ChatConsent({ view, onAgree, onCancel }: { view: ChatConsentView
     <section className={c.consent} aria-labelledby={titleId} data-consent={view.state}>
       <h3 id={titleId} ref={title} tabIndex={-1} className={c.consentTitle}>{t('team.chat.consent.title')}</h3>
       {view.state === 'stale' && <p className={c.consentStale}>{t('team.chat.consent.stale')}</p>}
-      <p className={c.consentText}>{view.text}</p>
+      {/* B1 fix round 1 (quality 7): no consent without the exact words agreed to; never an empty fold. */}
+      {view.text ? <ConsentWords line={t('consent.chatLine')} text={view.text} /> : <p className={c.problem} role="alert">{t('team.chat.consent.missing')}</p>}
       <div className={c.actions}>
         <Button onClick={onCancel} disabled={busy}>{t('team.chat.consent.cancel')}</Button>
-        <Button variant="primary" onClick={() => void agree()} disabled={busy}>{t('team.chat.consent.accept')}</Button>
+        {view.text && <Button variant="primary" onClick={() => void agree()} disabled={busy}>{t('team.chat.consent.accept')}</Button>}
       </div>
       {problem && <p className={c.problem} role="alert">{problem}</p>}
     </section>

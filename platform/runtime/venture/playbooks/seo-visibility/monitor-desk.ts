@@ -1,7 +1,7 @@
 // Chausar owner-approved bounded site monitoring. beyondseo (MIT), original code; no source copied.
 import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { check, ChausarError, type Context } from '../../../contracts.ts';
+import { check, ChausarError, type Context, internalCheck } from '../../../contracts.ts';
 import { localPathProblem } from '../../../speech.ts';
 import type { VentureDeps, SeoFindingRecord } from '../../contracts.ts';
 import { currentVenture, digest, exactPayload, listRecords, readVenture, requireAppChannel, ventureAction } from '../../records.ts';
@@ -24,7 +24,7 @@ export const SEO_MONITOR_DESK: DeskHandlers = { monitor: {
             return ventureAction(deps, ctx, 'approve', 'seo.monitor.' + payload.action, tx => {
                 let record: SeoFindingRecord;
                 if (payload.action === 'create') {
-                    check(payload.id === 'new' && payload.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new monitor has no prior digest.');
+                    internalCheck(payload.id === 'new' && payload.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new monitor has no prior digest.');
                     const p = exactPayload(payload.payload, ['url', 'root', 'cycles', 'intervalSeconds'], ['url', 'root', 'cycles', 'intervalSeconds']);
                     check(typeof p.url === 'string' && p.url.length <= 2000, 'MONITOR_INVALID', 'Give the client public site URL.');
                     const url = checkFetchPolicy(p.url).href;

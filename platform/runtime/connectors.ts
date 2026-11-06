@@ -101,7 +101,7 @@ export function tallyExportRequest(company: string): string {
 }
 function tallyEndpoint(value = 'http://127.0.0.1:9000/'): string {
   const url = new URL(value), host = url.hostname.replace(/^\[|\]$/g, '');
-  check(url.protocol === 'http:' && ['127.0.0.1','::1','localhost'].includes(host) && Number(url.port) >= 1024 && Number(url.port) <= 65535 && url.pathname === '/' && !url.username && !url.password && !url.search && !url.hash, 'ENDPOINT_REFUSED', 'Tally must use an explicit loopback HTTP port with no path or credentials.');
+  check(url.protocol === 'http:' && ['127.0.0.1','::1','localhost'].includes(host) && Number(url.port) >= 1024 && Number(url.port) <= 65535 && url.pathname === '/' && !url.username && !url.password && !url.search && !url.hash, 'ENDPOINT_REFUSED', 'Use Tally\'s port on this computer, with no path, user name or password.');
   if (host === 'localhost') url.hostname = '127.0.0.1'; return url.href;
 }
 function zohoEndpoint(value?: string): string {
@@ -189,10 +189,10 @@ export class ConnectorService {
     } else if (input.connector === 'zoho-books') {
       check(typeof input.organizationId === 'string' && /^\d{1,30}$/.test(input.organizationId), 'ORGANIZATION_REQUIRED', 'Choose the explicit Zoho organization ID.');
       const base = zohoEndpoint(input.endpoint); company = input.organizationId;
-      check(this.#credentials, 'CREDENTIAL_REQUIRED', 'A trusted engine credential broker must provide the Zoho access token.');
+      check(this.#credentials, 'CREDENTIAL_REQUIRED', 'Connect Zoho Books again in Connections.');
       const token = await this.#credentials(context, { connector:input.connector, sourceId:input.sourceId, organizationId:input.organizationId, origin:new URL(base).origin });
       this.#access(context, input.sourceId, fingerprint);
-      check(typeof token === 'string' && token.length > 0 && token.length <= 4096 && !/[\r\n]/.test(token), 'CREDENTIAL_REQUIRED', 'The credential broker did not return a usable token.');
+      check(typeof token === 'string' && token.length > 0 && token.length <= 4096 && !/[\r\n]/.test(token), 'CREDENTIAL_REQUIRED', 'Zoho Books did not give Chausar a sign-in it can use. Connect it again in Connections.');
       const headers = { Authorization:`Zoho-oauthtoken ${token}`, Accept:'application/json' };
       const invoices: any[] = [], seen = new Set<string>(); let expectedRows: number | null = null, complete = false;
       for (let page = 1; page <= CONNECTOR_LIMITS.maxPages; page++) {
@@ -221,7 +221,7 @@ export class ConnectorService {
       check(complete, 'INCOMPLETE_SOURCE', 'Zoho still has more pages at the hard limit. No partial export was accepted.');
       check(expectedRows === null || expectedRows === rows, 'INCOMPLETE_SOURCE', 'The complete Zoho read does not match its declared row count.');
       content = JSON.stringify({ code:0, invoices, complete:true, page_context:{ page:pages, has_more_page:false }, organization_id:input.organizationId }); format = 'zoho-json';
-    } else check(false, 'CONNECTOR_PLANNED', 'This system has no installed native read adapter. Use an explicitly scoped file recipe.');
+    } else check(false, 'CONNECTOR_PLANNED', 'Chausar can\'t read this system directly yet. Import a file exported from it instead.');
     checkTotals(input.sourceOwnTotals, company!, rows);
     this.#access(context, input.sourceId, fingerprint);
     const receipt = { id:newId('connector-read'), at:now(), connector:input.connector, sourceId:input.sourceId, format:format!, pages, rows, bytes, requests, detailRequests:details, contentHash:hash(content!), qualification:'fixture-tested', liveVerified:false, upstreamTotals:input.sourceOwnTotals ? structuredClone(input.sourceOwnTotals) : null };

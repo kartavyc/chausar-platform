@@ -1,3 +1,4 @@
+import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
 /**
  * The Ink rules a test can see in rendered output, as plain assertions every part and place test calls
  * (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold").
@@ -16,7 +17,7 @@
  *
  * The markers they read are set by the parts, never by hand in a place:
  *   [data-figure]        the Figure part: exactly one engine figure with its proof (src/parts/Figure.tsx)
- *   [data-ui-number]     that figure's value, in DM Mono with tabular digits
+ *   [data-ui-number]     that figure's value, in the body font with tabular digits (B2)
  *   [data-figure-words]  the engine's words after a figure's amount ("includes estimates"), in the body face; they
  *                        never hold an amount of their own
  *   [data-receipt="id"]  a Receipt control (src/parts/Receipt.tsx): a button or link with a non-empty receipt id. 4Z3:
@@ -62,8 +63,8 @@
 // types from a file it has detected as one.
 export type Root = ParentNode;
 
-/** A currency sign or a currency code (the engine writes "INR 2,825.00" and "USD 0.2500" too) followed by a digit. */
-const MONEY = /(?:[₹$€]\s?|\b(?:INR|USD|EUR|GBP|AED|SGD|AUD|CAD)\s?)\d/;
+/** A currency sign or a currency code followed by a digit: the one money pattern the engine and the app use (owner-format.ts, B2). */
+const MONEY = HOLDS_MONEY;
 /** Where money-looking text may sit: proved, labelled, quoted, an engine row line (until W4 4J1, see above), a receipt
  *  sheet (the proof itself, see above), or typed by the owner. Counts are left to their own, clearer check. Receipt ids
  *  (R-0419) never hold a currency sign, so they need no exemption, and none is given. */
@@ -254,12 +255,44 @@ export function assertNoInlineStyles(root: Root = document.body): void {
   fail('no inline styles', styleProblems(root));
 }
 
-/** All three rules at once, reporting every problem rather than the first. Every place test calls it on the page. */
+/** One-shot B2: where an exact form may still show: a receipt sheet (the proof), quoted client or AI words, form fields. */
+const OWNER_FORMAT_ALLOWED = '[data-receipt-sheet], [data-content], input, textarea, select, option, script, style';
+const EXACT_MONEY = /\b(?:INR|USD|EUR) -?\d/;
+const FOUR_DECIMALS = /\d\.\d{4}\b/;
+const CLOCK_24 = /\b[0-2]\d:\d{2}\b(?! ?[ap]m)/;
+
+/**
+ * One-shot B2 task 12: money and time in the owner form on every screen. Outside a receipt sheet, quoted words and form
+ * fields, no text shows the exact money form ("INR 2,000.00"), four decimals ("USD 0.0042"), or a 24-hour time in a
+ * <time> ("00:41").
+ */
+export function ownerFormatProblems(root: Root = document.body): string[] {
+  const problems: string[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const parent = node.parentElement;
+    const text = node.textContent ?? '';
+    if (!parent || parent.closest(OWNER_FORMAT_ALLOWED)) continue;
+    if (EXACT_MONEY.test(text) || FOUR_DECIMALS.test(text)) problems.push(`"${text.trim().slice(0, 80)}" shows money in the exact form: show the owner form ("₹2,000", "$0.42")`);
+  }
+  for (const time of root.querySelectorAll('time')) {
+    if (time.closest(OWNER_FORMAT_ALLOWED)) continue;
+    if (CLOCK_24.test(time.textContent ?? '')) problems.push(`<time> "${time.textContent}" is on the 24-hour clock: show "12:41 am"`);
+  }
+  return problems;
+}
+
+export function assertOwnerFormats(root: Root = document.body): void {
+  fail('money and time in the owner form', ownerFormatProblems(root));
+}
+
+/** All the rules at once, reporting every problem rather than the first. Every place test calls it on the page. */
 export function assertInkRules(root: Root = document.body): void {
   const problems = [
     ...figureProblems(root).problems.map((p) => `receipts on figures: ${p}`),
     ...primaryProblems(root).map((p) => `one filled primary per card: ${p}`),
     ...styleProblems(root).map((p) => `no inline styles: ${p}`),
+    ...ownerFormatProblems(root).map((p) => `owner formats: ${p}`),
   ];
   if (problems.length) throw new Error(`Ink rules are broken:\n- ${problems.join('\n- ')}`);
 }

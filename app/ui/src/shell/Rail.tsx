@@ -1,5 +1,6 @@
 import { useT } from '../text';
 import { useResource } from '../engine/context';
+import { useNeedsYou } from './needsYou';
 import { BusinessMenu } from './BusinessMenu';
 import { RAIL_PLACES, type Route } from './routes';
 import { cx } from '../parts/cx';
@@ -30,8 +31,7 @@ const PLACE_ICONS: Readonly<Record<RailPlace, IconName>> = {
  */
 export function Rail({ route }: { route: Route }) {
   const t = useT();
-  const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: (event) => event.type === 'queue.changed' });
-  const needsYou = queue.data?.needsYou ?? 0;
+  const needsYou = useNeedsYou().count;
   // W4 4C2: Chats says "New" until the open business has its first chat; where the engine cannot list chats, nothing.
   const chats = useResource('venture.chief.threads', {}, { refreshOn: (event) => event.type === 'chief.message' });
   // W6 6G1: a business whose chats are all settled has had chats, so no "New".
@@ -55,7 +55,7 @@ export function Rail({ route }: { route: Route }) {
                 <span>{t(`place.${place}`)}</span>
                 {place === 'today' && needsYou > 0 && (
                   <>
-                    <span className={cx(s.count, 'mono')} aria-hidden="true" data-tone={here ? undefined : 'wait'}>{needsYou}</span>
+                    <span className={s.count} data-num="" aria-hidden="true" data-tone={here ? undefined : 'wait'}>{needsYou}</span>
                     <span className="sr-only">, {t('rail.needsYou', { count: needsYou })}</span>
                   </>
                 )}

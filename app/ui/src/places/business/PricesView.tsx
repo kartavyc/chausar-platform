@@ -125,7 +125,7 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
                 {receipt.figures.map((figure) => (
                   <div key={figure.key} className={s.pair}>
                     <dt>{figure.label}</dt>
-                    <dd className="mono">{figure.display}</dd>
+                    <dd data-num="">{figure.display}</dd>
                   </div>
                 ))}
               </dl>

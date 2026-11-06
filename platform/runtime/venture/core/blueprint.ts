@@ -2,7 +2,8 @@
 // Code makes the structure (offers and their pricing, steps, approval count, back office, starter connectors)
 // from the interview; a model or the templates only write words into named slots. The structure is hashed before
 // the model writes and again inside the write, so nothing moves while it writes (APPROVAL_STALE otherwise).
-import { authorize, check, ChausarError, type Context } from '../../contracts.ts';
+import { shownLine } from './shown-line.ts';
+import { authorize, check, ChausarError, type Context, internalCheck } from '../../contracts.ts';
 import {
   activateTerm, bpsPercent, copiedTokens, digest, exactPayload, percentBps, requireAppChannel, requireVenture, singleLine,
   tidyWords, ventureAction, type VentureTx,
@@ -699,7 +700,7 @@ const STALE_SUGGESTION = 'Your plan changed since this was suggested. Ask again,
 function basedOnOf(value: unknown): { blueprintId: string; digest: string } {
   const body = exactPayload(value, ['blueprintId', 'digest'], ['blueprintId', 'digest']);
   check(typeof body.blueprintId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(body.blueprintId), 'INVALID_VENTURE_REQUEST', 'Send the id of the plan the change was made from.');
-  check(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan the change was made from.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan the change was made from.');
   return { blueprintId: body.blueprintId, digest: body.digest };
 }
 const OFFER_PATCH_KEYS = ['id', 'name', 'description', 'unitPrice', 'pricingModel', 'share'] as const;
@@ -896,6 +897,9 @@ function applyShown(record: BlueprintRecord, shown: Shown): void {
   const template = record.offers.filter(offer => !offer.addedByOwner);
   const owned = record.offers.filter(offer => offer.addedByOwner);
   record.name = words(shown.name);
+  // One-shot B1 (A3 notes line 51): the one line is the kept card's offers, never the template's line.
+  const line = shownLine(shown.offers.map(kept => kept.name));
+  if (line) record.oneLiner = words(line);
   record.offers = [...shown.offers.map((kept, index) => {
     const was = template[index];
     return {
@@ -1039,7 +1043,7 @@ export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: 
 export async function blueprintAccept(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BlueprintView> {
   requireAppChannel(ctx, 'venture.blueprint.accept');
   const body = exactPayload(payload, ['digest'], ['digest']);
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan you read.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan you read.');
   return ventureAction(deps, ctx, 'approve', 'blueprint.accept', tx => {
     const venture = tx.venture as VentureRecord;
     const latest = latestBlueprint(tx.state, venture.id);

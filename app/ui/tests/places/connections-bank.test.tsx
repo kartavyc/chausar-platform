@@ -39,16 +39,16 @@ describe('Connections > Bank account', () => {
 
     const transfer = rowOf(sheet, 'TRANSFER TO SAVINGS');
     expect(transfer.textContent).toContain('Between your own accounts');
-    expect(transfer.textContent).toContain('Out ₹20,000.00');
+    expect(transfer.textContent).toContain('Out ₹20,000');
     // The engine's display date, never the stored ISO date.
-    expect(transfer.textContent).toContain('03 Oct 2026');
+    expect(transfer.textContent).toContain('3 Oct 2026');
     expect(transfer.textContent).not.toContain('2026-10-03');
     expect(within(transfer).queryByRole('button', { name: 'Record payment' })).toBeNull();
     expect(within(transfer).queryByRole('button', { name: 'Add as cost' })).toBeNull();
 
     const payment = rowOf(sheet, 'NEFT/INV-0039/BOAT AUDIO');
     expect(payment.textContent).toContain('Looks like an invoice payment');
-    expect(payment.textContent).toContain('In ₹26,200.00');
+    expect(payment.textContent).toContain('In ₹26,200');
     expect(payment.textContent).toContain('Pays INV-0039 in full.');
     expect(within(payment).getByRole('button', { name: 'Record payment' })).toBeTruthy();
     expect(within(payment).queryByRole('button', { name: 'Add as cost' })).toBeNull();
@@ -66,12 +66,12 @@ describe('Connections > Bank account', () => {
     const spy = vi.spyOn(engine, 'request');
     const payment = rowOf(sheet, 'NEFT/INV-0039/BOAT AUDIO');
     await act(async () => { fireEvent.click(within(payment).getByRole('button', { name: 'Record payment' })); });
-    await waitFor(() => expect(within(sheet).getByText('Recorded ₹26,200.00 as a payment of INV-0039.')).toBeTruthy());
+    await waitFor(() => expect(within(sheet).getByText('Recorded ₹26,200 as a payment of INV-0039.')).toBeTruthy());
     expect(callsOf(spy, 'venture.bank.apply')).toEqual([{ transactionId: 'bankaccount-hdfc:ref_2c3d4e5f60718293', as: 'payment', invoiceId: 'inv-0039' }]);
     expect(rowOf(sheet, 'NEFT/INV-0039/BOAT AUDIO').textContent).toContain('In your books');
 
     await act(async () => { fireEvent.click(within(rowOf(sheet, 'OFFICE RENT OCTOBER')).getByRole('button', { name: 'Add as cost' })); });
-    await waitFor(() => expect(within(sheet).getByText('Added ₹25,000.00 to your costs.')).toBeTruthy());
+    await waitFor(() => expect(within(sheet).getByText('Added ₹25,000 to your costs.')).toBeTruthy());
     await act(async () => { fireEvent.click(within(rowOf(sheet, 'UPI-CAFE BLUE')).getByRole('button', { name: 'Skip' })); });
     await waitFor(() => expect(rowOf(sheet, 'UPI-CAFE BLUE').textContent).toContain('Skipped'));
     expect(callsOf(spy, 'venture.bank.apply').slice(1)).toEqual([
@@ -93,12 +93,12 @@ describe('Connections > Bank account', () => {
     // The options are the engine's open invoices, its numbers, names and balances as it wrote them.
     const pick = await waitFor(() => {
       const select = within(part).getByLabelText('Invoice it pays') as HTMLSelectElement;
-      expect([...select.options].map((option) => option.textContent)).toContain('INV-0039, Boat Audio, ₹26,200.00 open');
+      expect([...select.options].map((option) => option.textContent)).toContain('INV-0039, Boat Audio, ₹26,200 open');
       return select;
     });
     fireEvent.change(pick, { target: { value: 'inv-0039' } });
     await act(async () => { fireEvent.click(within(part).getByRole('button', { name: 'Record payment' })); });
-    await waitFor(() => expect(within(sheet).getByText('Recorded ₹5,000.00 as a payment of INV-0039.')).toBeTruthy());
+    await waitFor(() => expect(within(sheet).getByText('Recorded ₹5,000 as a payment of INV-0039.')).toBeTruthy());
     expect(callsOf(spy, 'venture.bank.apply')).toEqual([{ transactionId: 'bankaccount-hdfc:fp_5f60718293041526', as: 'payment', invoiceId: 'inv-0039' }]);
     const after = rowOf(sheet, 'IMPS BOAT AUDIO PART');
     expect(after.textContent).toContain('In your books');
@@ -117,7 +117,7 @@ describe('Connections > Bank account', () => {
     });
     fireEvent.change(pick, { target: { value: 'inv-0039' } });
     await act(async () => { fireEvent.click(within(large).getByRole('button', { name: 'Record payment' })); });
-    await waitFor(() => expect(within(rowOf(sheet, 'NEFT LARGE CREDIT')).getByText("Couldn't record this: This is more than the balance of ₹26,200.00.")).toBeTruthy());
+    await waitFor(() => expect(within(rowOf(sheet, 'NEFT LARGE CREDIT')).getByText("Couldn't record this: This is more than the balance of ₹26,200.")).toBeTruthy());
     expect(rowOf(sheet, 'NEFT LARGE CREDIT').querySelector('[data-receipt]')).toBeNull();
     await act(async () => { fireEvent.click(within(rowOf(sheet, 'NEFT LARGE CREDIT')).getByRole('button', { name: 'Skip' })); });
     await waitFor(() => expect(rowOf(sheet, 'NEFT LARGE CREDIT').textContent).toContain('Skipped'));
@@ -146,9 +146,9 @@ describe('Connections > Bank account', () => {
     const sbi = accountOf(sheet, 'SBI savings');
     fireEvent.change(within(sbi).getByLabelText('Days'), { target: { value: '30' } });
     await act(async () => { fireEvent.click(within(sbi).getByRole('button', { name: 'Renew' })); });
-    await waitFor(() => expect(within(accountOf(sheet, 'SBI savings')).getByText(/^Bank access ends on \d{2} [A-Z][a-z]{2} \d{4}, in 30 days\.$/)).toBeTruthy());
+    await waitFor(() => expect(within(accountOf(sheet, 'SBI savings')).getByText(/^Bank access ends on \d{1,2} [A-Z][a-z]{2} \d{4}, in 30 days\.$/)).toBeTruthy());
     await act(async () => { fireEvent.click(within(accountOf(sheet, 'SBI savings')).getByRole('button', { name: 'Stop' })); });
-    await waitFor(() => expect(within(accountOf(sheet, 'SBI savings')).getByText(/^You stopped bank access on \d{2} [A-Z][a-z]{2} \d{4}\.$/)).toBeTruthy());
+    await waitFor(() => expect(within(accountOf(sheet, 'SBI savings')).getByText(/^You stopped bank access on \d{1,2} [A-Z][a-z]{2} \d{4}\.$/)).toBeTruthy());
     expect(callsOf(spy, 'venture.bank.consent')).toEqual([{ account: 'SBI savings', days: 30 }, { account: 'SBI savings', revoke: true }]);
   });
 
@@ -156,7 +156,7 @@ describe('Connections > Bank account', () => {
     const engine = start();
     const sheet = await openSheet();
     const hdfc = accountOf(sheet, 'HDFC current');
-    await waitFor(() => expect(within(hdfc).getByText('When ₹50,000.00 or more goes out in one payment.')).toBeTruthy());
+    await waitFor(() => expect(within(hdfc).getByText('When ₹50,000 or more goes out in one payment.')).toBeTruthy());
     expect(within(hdfc).getByText('Alerts show on Today only. No address is set, so nothing is sent.')).toBeTruthy();
 
     const spy = vi.spyOn(engine, 'request');
@@ -166,7 +166,7 @@ describe('Connections > Bank account', () => {
     fireEvent.change(within(hdfc).getByLabelText('Amount'), { target: { value: '10,000' } });
     fireEvent.change(within(hdfc).getByLabelText('Alert address (https)'), { target: { value: address } });
     await act(async () => { fireEvent.click(within(hdfc).getByRole('button', { name: 'Save alerts' })); });
-    await waitFor(() => expect(within(accountOf(sheet, 'HDFC current')).getByText('When the balance falls below ₹10,000.00.')).toBeTruthy());
+    await waitFor(() => expect(within(accountOf(sheet, 'HDFC current')).getByText('When the balance falls below ₹10,000.')).toBeTruthy());
     expect(callsOf(spy, 'venture.bank.alerts.set')).toEqual([{
       account: 'HDFC current', rules: [{ kind: 'large-debit', minor: '5000000' }, { kind: 'balance-below', amount: '10,000' }], alertAddress: address,
     }]);
@@ -177,7 +177,7 @@ describe('Connections > Bank account', () => {
 
     // Remove sends the rules that are left; the address stays as it was (left out).
     await act(async () => { fireEvent.click(within(after).getAllByRole('button', { name: 'Remove' })[0]!); });
-    await waitFor(() => expect(within(accountOf(sheet, 'HDFC current')).queryByText('When ₹50,000.00 or more goes out in one payment.')).toBeNull());
+    await waitFor(() => expect(within(accountOf(sheet, 'HDFC current')).queryByText('When ₹50,000 or more goes out in one payment.')).toBeNull());
     expect(callsOf(spy, 'venture.bank.alerts.set')[1]).toEqual({ account: 'HDFC current', rules: [{ kind: 'balance-below', minor: '1000000' }] });
 
     // Stop sending clears the address.
@@ -190,7 +190,7 @@ describe('Connections > Bank account', () => {
     start();
     const sheet = await openSheet();
     const hdfc = accountOf(sheet, 'HDFC current');
-    await waitFor(() => expect(within(hdfc).getByText('When ₹50,000.00 or more goes out in one payment.')).toBeTruthy());
+    await waitFor(() => expect(within(hdfc).getByText('When ₹50,000 or more goes out in one payment.')).toBeTruthy());
     fireEvent.change(within(hdfc).getByLabelText('Alert address (https)'), { target: { value: 'https://10.0.0.7/hook' } });
     await act(async () => { fireEvent.click(within(hdfc).getByRole('button', { name: 'Save alerts' })); });
     await waitFor(() => expect(within(accountOf(sheet, 'HDFC current')).getByText("Couldn't save alerts: This address points inside your computer or your network, so Chausar will not open it.")).toBeTruthy());

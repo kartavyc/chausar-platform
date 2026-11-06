@@ -80,7 +80,8 @@ export function DraftTools({ api }: { api: ApprovalToolsApi }) {
 
   /** A decision taken here: kept on Today as the card's line, with Undo while its revision has not started. */
   function settle(decision: QueueDecision, undo?: () => Promise<string>) {
-    if (decision.outcome === 'done') session.keep(row, decision.line, decision.receiptId, true, undo);
+    // B3: a send back's Undo leaves once its revision is listed (session.ts undoOf).
+    if (decision.outcome === 'done') session.keep(row, decision.line, decision.receiptId, true, undo, true);
     api.finish(decision, undo);
   }
 

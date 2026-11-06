@@ -69,7 +69,7 @@ function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
         <p className={s.runStep}><StillArc />{steps[at]!.purpose}</p>
       ) : null}
       <div className={s.runFoot}>
-        <span className="mono">{t('work.run.foot', { id: run.runId, elapsed: run.elapsed })}</span>
+        {run.elapsed ? <span>{t('work.run.foot', { elapsed: run.elapsed })}</span> : <span />}
         {stopping ? <span className={s.runActs}><span className={s.stopping}>{t('work.stop.stopping')}</span>{stop.button}</span> : (
           <span className={s.runActs}>
             {/* While the round gate waits, its own Stop decides the run: the tile's Stop steps aside. */}

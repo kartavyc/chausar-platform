@@ -5,8 +5,8 @@
 // come after rows with money. The step is the first ranked row whose primary action the owner takes (never Not now,
 // Read or Watch in its place), said as that action inside the app; Chausar does nothing on its own here. "Goal after"
 // is code: what the month's goal reads once that draft invoice is issued.
+import { formatMoney } from '../../owner-format.ts';
 import { type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { listRecords } from '../records.ts';
 import type { MoneyFigureView, NextBestStep, QueueAction, QueueRow, VentureRecord } from '../contracts.ts';
 import { beforeTax } from './goal-plans.ts';
@@ -27,12 +27,12 @@ function receiptAmount(state: State, venture: VentureRecord, receiptId: string):
   if (price) {
     if (price.currency !== currency || price.stale) return null;
     const amount = BigInt(price.totalMinor);
-    return amount > 0n ? { amount, figure: { display: formatMinor(amount, currency), receiptId } } : null;
+    return amount > 0n ? { amount, figure: { display: formatMoney(amount, currency), receiptId } } : null;
   }
   const sum = listRecords(state, 'venture-sum-receipt', venture.id).find(record => record.id === receiptId);
   if (!sum || sum.unit !== 'minor' || sum.currency !== currency || sum.estimate) return null;
   const amount = BigInt(sum.totalMinor);
-  return amount > 0n ? { amount, figure: { display: formatMinor(amount, currency), receiptId } } : null;
+  return amount > 0n ? { amount, figure: { display: formatMoney(amount, currency), receiptId } } : null;
 }
 
 /** A row's money at stake: its change's receipt (not an estimate), else its price's, else its paper preview's total; or null. */

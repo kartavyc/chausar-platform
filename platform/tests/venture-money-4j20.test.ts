@@ -10,14 +10,14 @@ import { goalBusiness, invoice } from './venture-goals-helpers.ts';
 import { bankCosts, issueCredit, paidCall } from './venture-money-env.ts';
 import { code } from './venture-views-env.ts';
 
-/** Each invoice is INR 19,750.00 before tax plus GST 18%: 2330500 (INR 23,305.00), due 15 days after issue. Today is 23 Oct 2026. */
+/** Each invoice is ₹19,750 before tax plus GST 18%: 2330500 (₹23,305), due 15 days after issue. Today is 23 Oct 2026. */
 test('credit.issue takes the amount as typed, read in the invoice currency; never both forms, nor more places than the currency has', async () => {
   const env = await goalBusiness();
   const issued = await invoice(env, '1', '2026-10-01');
   const base = { invoiceId: issued.invoice.id, reason: 'Two sessions were not held.', digest: issued.invoice.digest };
   // '2,330.50' is 233050 paise.
   const asked = await env.money<{ creditNote: CreditNoteView }>('venture.credit.issue', { ...base, amount: '2,330.50' });
-  assert.equal(asked.creditNote.amount, 'INR 2,330.50');
+  assert.equal(asked.creditNote.amount, '₹2,330.50');
   await assert.rejects(env.money('venture.credit.issue', { ...base, amount: '10', amountMinor: '1000' }), code('INVALID_AMOUNT'));
   await assert.rejects(env.money('venture.credit.issue', { ...base, amount: '10.555' }), code('INVALID_AMOUNT'));
   await assert.rejects(env.money('venture.credit.issue', base), code('INVALID_AMOUNT'));
@@ -25,15 +25,15 @@ test('credit.issue takes the amount as typed, read in the invoice currency; neve
 
 test('bills.add and bills.pay take amounts and the tax rate as typed; each bill on bills.list opens the receipt of its balance', async () => {
   const env = await goalBusiness();
-  // INR 5,000.00 at 18%: tax (500000 x 1800 + 5000) / 10000 = 90000; with a courier of 120.00: 500000 + 90000 + 12000 = 602000.
+  // ₹5,000 at 18%: tax (500000 x 1800 + 5000) / 10000 = 90000; with a courier of 120.00: 500000 + 90000 + 12000 = 602000.
   const added = await env.money<BillResult>('venture.bills.add', {
     vendor: 'Metro Repairs', billDate: '2026-10-20', dueDate: '2026-10-30',
     lines: [{ description: 'Laptop repair', amount: '5,000', taxName: 'GST', taxRate: '18' }, { description: 'Courier', amount: '120.00', taxName: '', taxRate: '0' }],
   });
-  assert.equal(added.bill.total, 'INR 6,020.00');
+  assert.equal(added.bill.total, '₹6,020');
   // Paid 1,000.50 typed: 602000 - 100050 = 501950 left.
   const paid = await env.money<BillResult>('venture.bills.pay', { billId: added.bill.id, amount: '1,000.50', paidOn: '2026-10-22', method: 'upi' });
-  assert.equal(paid.bill.balance, 'INR 5,019.50');
+  assert.equal(paid.bill.balance, '₹5,019.50');
   await assert.rejects(env.money('venture.bills.pay', { billId: added.bill.id, amount: '1', amountMinor: '100', paidOn: '2026-10-22', method: 'upi' }), code('INVALID_AMOUNT'));
   await assert.rejects(env.money('venture.bills.add', { vendor: 'X', billDate: '2026-10-20', dueDate: '2026-10-30', lines: [{ description: 'Y', amount: '1', taxName: 'GST', taxRate: '101' }] }), code('INVALID_TAX_RATE'));
   const list = await env.money<BillsView>('venture.bills.list');
@@ -52,8 +52,8 @@ test('aging sends what the late invoices owe with its own receipt; invoice.get s
   const late = await invoice(env, '1', '2026-10-01');
   const later = await invoice(env, '1', '2026-09-01');
   const view = await env.money<AgingView>('venture.money.aging');
-  // Two late (due 16 Oct and 16 Sep): 2330500 x 2 = 4661000 (INR 46,610.00).
-  assert.equal(view.late?.display, 'INR 46,610.00');
+  // Two late (due 16 Oct and 16 Sep): 2330500 x 2 = 4661000 (₹46,610).
+  assert.equal(view.late?.display, '₹46,610');
   assert.notEqual(view.late?.receiptId, view.total.receiptId);
   const receipt = await env.money<SumReceiptRecord>('venture.receipt.get', { id: view.late!.receiptId });
   assert.deepEqual(receipt.subject, { type: 'aging', asOf: '2026-10-23', late: true });
@@ -91,7 +91,7 @@ test('cash ahead says what issuing each draft today brings in and in which week,
   const view = await env.money<CashView>('venture.money.cash');
   // Issued on 23 Oct with 15 days' terms: due 7 Nov, in the week to 13 Nov (23 Oct + 21 days); 2330500.
   assert.deepEqual(view.ifIssued.map(item => [item.invoiceId, item.client, item.due, item.week, item.amount.display, item.amount.receiptId, item.amount.projected]), [
-    [draft.invoice.id, 'Cafe Aroma Demo', '2026-11-07', '2026-11-13', 'INR 23,305.00', draft.invoice.priceReceiptId, true],
+    [draft.invoice.id, 'Cafe Aroma Demo', '2026-11-07', '2026-11-13', '₹23,305', draft.invoice.priceReceiptId, true],
   ]);
 });
 
@@ -102,7 +102,7 @@ test('money across businesses gives the open business spend in rupees at the own
   assert.equal(before.businesses[0]!.spendRupees, undefined);
   await env.money('venture.spend.policy.set', { inrPerUsd: '83.50' });
   const view = await env.money<AcrossMoneyView>('venture.money.across');
-  // USD 1.5000 at 83.50: 1500000 micros x 83.50 = 125.25 rupees (INR 125.25 as ₹125.25).
+  // $1.50 at 83.50: 1500000 micros x 83.50 = 125.25 rupees (₹125.25 as ₹125.25).
   assert.equal(view.businesses[0]!.spendRupees, '₹125.25');
   assert.match(view.businesses[0]!.spendRate!, /^₹83\.50 per \$1 \(your rate, set /);
 });

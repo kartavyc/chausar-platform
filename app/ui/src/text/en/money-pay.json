@@ -30,7 +30,7 @@
   "money-pay.showFile": "Show the file in its folder",
   "money-pay.showFailed": "Couldn't show the file: {message}",
   "money-pay.link": "Payment link",
-  "money-pay.fixture": "fixture-tested",
+  "money-pay.fixture": "Not tried live yet",
   "money-pay.linkMake": "Make a payment link",
   "money-pay.linkAsk": "Make a Razorpay link for {amount} on your own account? Razorpay sends nothing to the client; you share the link.",
   "money-pay.linkConfirm": "Make link",

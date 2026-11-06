@@ -27,7 +27,7 @@ describe('F4: an own-use desk tile', () => {
   it('shows what it saves the owner as a model estimate, and no clients pay range', () => {
     const { container } = render(<GalleryTile way={OWN} onStart={() => {}} />);
     const tile = screen.getByRole('article', { name: 'Trading journal' });
-    expect(within(tile).queryByText(/Clients usually pay/)).toBeNull();
+    expect(within(tile).queryByText(/Usual pay/)).toBeNull();
     expect(container.textContent).not.toContain('₹');
     const label = within(tile).getByText('Saves you');
     const group = label.closest('[data-figure-group]') as HTMLElement;

@@ -36,7 +36,7 @@ describe('fake engine: run controls (4F3)', () => {
     const events: string[] = [];
     engine.subscribe((event) => { if (event.runId === '31') events.push(event.type); });
     const result = await engine.request('venture.runs.stop', { runId: '31' }) as RunControlResult;
-    expect(result.line).toBe('Stop received. The step in progress finishes, then the run stops.');
+    expect(result.line).toBe('Stop received. The step in progress finishes, then the job stops.');
     expect(result.run.stop).toEqual({ state: 'stopping', line: 'Stopping: the step in progress finishes first.' });
     expect(result.run.state).toBe('active');
     await wait(FAKE_STOP_SETTLES_MS + 50);
@@ -111,9 +111,9 @@ describe('fake engine: run controls (4F3)', () => {
     expect(await engine.request('venture.business.pause', { paused: true })).toEqual({ paused: true, stopped: 0, line: 'Paused. No new work starts until you unpause.' });
     const all = await engine.request('venture.business.pause', { paused: true, stopRunning: true }) as { stopped: number; line: string };
     expect(all.stopped).toBe(3);
-    expect(all.line).toBe('Paused. 3 runs are stopping or stopped. No new work starts until you unpause.');
+    expect(all.line).toBe('Paused. 3 jobs are stopping or stopped. No new work starts until you unpause.');
     expect(await refused(engine.request('venture.business.pause', { paused: false, stopRunning: true }))).toBe('INVALID_VENTURE_REQUEST');
-    expect((await engine.request('venture.business.pause', { paused: false }) as { line: string }).line).toBe('Unpaused. Stopped runs stay stopped until you resume them.');
+    expect((await engine.request('venture.business.pause', { paused: false }) as { line: string }).line).toBe('Unpaused. Stopped jobs stay stopped until you resume them.');
   });
 
   it("venture.get says paused, since when, with the engine's line; the scope's cap has its receipt", async () => {
@@ -138,8 +138,8 @@ describe('fake engine: run controls (4F3)', () => {
     expect(await refused(engine.request('venture.away.set', { from: '2026-10-01', to: '2026-10-02' }))).toBe('INVALID_VENTURE_REQUEST');
     const away = await engine.request('venture.away.set', { from: '2026-10-28', to: '2026-11-05' }) as AwayView;
     expect(away.away).toEqual({ from: '2026-10-28', to: '2026-11-05' });
-    expect(away.autoReply).toContain('I am away from 28 Oct 2026 to 05 Nov 2026 and back on 06 Nov 2026.');
-    expect(away.line).toMatch(/^Away from 28 Oct 2026 to 05 Nov 2026\. \d+ things? waits? for you\.$/);
+    expect(away.autoReply).toContain('I am away from 28 Oct 2026 to 5 Nov 2026 and back on 6 Nov 2026.');
+    expect(away.line).toMatch(/^Away from 28 Oct 2026 to 5 Nov 2026\. \d+ things? waits? for you\.$/);
     expect(away.keepsRunning.length).toBeGreaterThan(0);
     for (const promise of away.promises) expect(promise.due >= '2026-10-28' && promise.due <= '2026-11-05').toBe(true);
   });

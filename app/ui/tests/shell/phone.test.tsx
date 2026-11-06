@@ -93,9 +93,9 @@ describe('the phone frame', () => {
     expect(links.map((a) => a.textContent?.replace(/\d+, \d+ needs? you$/, ''))).toEqual(['Today', 'Chats', 'Team', 'Work', 'More']);
     expect(links.slice(0, 4).map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work']);
     const today = links[0]!;
-    await waitFor(() => expect(today.querySelector('[data-badge]')?.textContent).toBe('13'));
+    await waitFor(() => expect(today.querySelector('[data-badge]')?.textContent).toBe('12'));
     expect(today.querySelector('[data-badge]')?.getAttribute('aria-hidden')).toBe('true');
-    expect(within(today).getByText(', 13 need you').className).toBe('sr-only');
+    expect(within(today).getByText(', 12 need you').className).toBe('sr-only');
     expect(today.getAttribute('aria-current')).toBe('page');
   });
 

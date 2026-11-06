@@ -40,7 +40,7 @@ describe('a chat\'s head: Pin, Snooze and Settle, each with Undo', () => {
     await settle();
     expect(calls(spy, 'venture.chief.thread.state')).toEqual([{ threadId: 'chiefthread-titles', state: 'snoozed', preset: 'tomorrow' }]);
     const status = await screen.findByRole('status', { name: 'Chat change' });
-    expect(status.textContent).toContain('Snoozed until 24 Oct 2026, 09:00. It comes back early if it needs you.');
+    expect(status.textContent).toContain('Snoozed until 24 Oct 2026, 9:00 am. It comes back early if it needs you.');
     await waitFor(() => expect(within(chatList()).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Today', 'Last week', 'Snoozed']));
     await act(async () => { fireEvent.click(within(status).getByRole('button', { name: 'Undo' })); });
     await settle();
@@ -53,13 +53,13 @@ describe('a chat\'s head: Pin, Snooze and Settle, each with Undo', () => {
   it('Settle takes the chat out of the list into Settled chats; Reopen shows on its head; Undo brings it back', async () => {
     const { spy } = await start('#/chats?thread=chiefthread-trailer');
     const actions = await screen.findByRole('group', { name: 'Chat actions' });
-    await waitFor(() => expect(within(chatList()).getByRole('link', { name: '1 settled chat' })).toBeTruthy());
-    await act(async () => { fireEvent.click(within(actions).getByRole('button', { name: 'Settle' })); });
+    await waitFor(() => expect(within(chatList()).getByRole('link', { name: '1 old chat' })).toBeTruthy());
+    await act(async () => { fireEvent.click(within(actions).getByRole('button', { name: 'Move to old chats' })); });
     await settle();
     expect(calls(spy, 'venture.chief.thread.state')).toEqual([{ threadId: 'chiefthread-trailer', state: 'settled' }]);
-    expect((await screen.findByRole('status', { name: 'Chat change' })).textContent).toContain('Settled. It is in Settled chats until you open it again.');
+    expect((await screen.findByRole('status', { name: 'Chat change' })).textContent).toContain('Moved to old chats. It stays there until you open it again.');
     await waitFor(() => expect(within(chatList()).queryByText('@Editor cut a short trailer for episode 14')).toBeNull());
-    const link = within(chatList()).getByRole('link', { name: '2 settled chats' });
+    const link = within(chatList()).getByRole('link', { name: '2 old chats' });
     expect(link.getAttribute('href')).toBe('#/business/chats');
     await waitFor(() => expect(within(screen.getByRole('group', { name: 'Chat actions' })).getByRole('button', { name: 'Reopen' })).toBeTruthy());
     await act(async () => { fireEvent.click(within(screen.getByRole('status', { name: 'Chat change' })).getByRole('button', { name: 'Undo' })); });
@@ -73,7 +73,7 @@ describe('a chat\'s head: Pin, Snooze and Settle, each with Undo', () => {
     const actions = await screen.findByRole('group', { name: 'Chat actions' });
     await settle();
     const snooze = within(actions).getByRole('button', { name: 'Snooze' });
-    const settleButton = within(actions).getByRole('button', { name: 'Settle' });
+    const settleButton = within(actions).getByRole('button', { name: 'Move to old chats' });
     expect(snooze.getAttribute('aria-disabled')).toBe('true');
     expect(settleButton.getAttribute('aria-disabled')).toBe('true');
     await act(async () => { fireEvent.click(settleButton); });
@@ -86,24 +86,24 @@ describe('a chat\'s head: Pin, Snooze and Settle, each with Undo', () => {
 describe('Settled chats (Business, from the business menu)', () => {
   it('lists the settled chats with why; Reopen with Undo; the quiet days with Undo', async () => {
     const { spy } = await start('#/business/chats');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Settled chats' })).toBeTruthy();
-    const list = await screen.findByRole('list', { name: 'Settled chats' });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Old chats' })).toBeTruthy();
+    const list = await screen.findByRole('list', { name: 'Old chats' });
     const row = within(list).getByRole('listitem');
     const open = within(row).getByRole('link', { name: 'Which offer should the channel page lead with?' });
     expect(open.getAttribute('href')).toBe('#/chats?thread=chiefthread-offer');
-    expect(within(row).getByText('Settled on 18 Oct after 7 quiet days')).toBeTruthy();
+    expect(within(row).getByText('Moved here on 18 Oct after 7 quiet days')).toBeTruthy();
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Reopen' })); });
     await settle();
     expect(calls(spy, 'venture.chief.thread.state')).toEqual([{ threadId: 'chiefthread-offer', state: 'active' }]);
     const status = await screen.findByRole('status', { name: 'Chat change' });
     expect(status.textContent).toContain('Back in your chats.');
-    await waitFor(() => expect(screen.getByText('No settled chats. A chat settles after its quiet days, or when you settle it.')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('No old chats. A chat moves here after its quiet days, or when you move it.')).toBeTruthy());
     await act(async () => { fireEvent.click(within(status).getByRole('button', { name: 'Undo' })); });
     await settle();
     expect(calls(spy, 'venture.chief.thread.state').at(-1)).toEqual({ threadId: 'chiefthread-offer', state: 'settled' });
-    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Settled chats' })).getByText('You settled it on 23 Oct')).toBeTruthy());
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Old chats' })).getByText('You moved it here on 23 Oct')).toBeTruthy());
 
-    const days = screen.getByRole('combobox', { name: 'Settle quiet chats' }) as HTMLSelectElement;
+    const days = screen.getByRole('combobox', { name: 'Move quiet chats to old chats' }) as HTMLSelectElement;
     expect(days.value).toBe('7');
     expect([...days.options].map((option) => option.textContent)).toEqual(['After 3 quiet days', 'After 7 quiet days', 'After 14 quiet days', 'After 30 quiet days', 'Never']);
     await act(async () => { fireEvent.change(days, { target: { value: '0' } }); });
@@ -114,7 +114,7 @@ describe('Settled chats (Business, from the business menu)', () => {
     await act(async () => { fireEvent.click(within(said).getByRole('button', { name: 'Undo' })); });
     await settle();
     expect(calls(spy, 'venture.chief.settle.set').at(-1)).toEqual({ days: 7 });
-    await waitFor(() => expect((screen.getByRole('combobox', { name: 'Settle quiet chats' }) as HTMLSelectElement).value).toBe('7'));
+    await waitFor(() => expect((screen.getByRole('combobox', { name: 'Move quiet chats to old chats' }) as HTMLSelectElement).value).toBe('7'));
     assertInkRules(document.body);
   });
 
@@ -123,6 +123,6 @@ describe('Settled chats (Business, from the business menu)', () => {
     const button = await within(screen.getByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ });
     await act(async () => { fireEvent.click(button); });
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
-    expect(within(menu).getByRole('link', { name: 'Settled chats' }).getAttribute('href')).toBe('#/business/chats');
+    expect(within(menu).getByRole('link', { name: 'Old chats' }).getAttribute('href')).toBe('#/business/chats');
   });
 });

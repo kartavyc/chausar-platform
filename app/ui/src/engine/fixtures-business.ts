@@ -552,7 +552,7 @@ const READY_ANTHROPIC = 'Uses your Anthropic key. Not yet checked with a live ke
 export const MODEL_PRESETS: ModelPresetLite[] = [
   { id: 'anthropic-haiku-5-5', label: 'Claude Haiku 5.5', kind: 'anthropic-messages', model: 'claude-haiku-5-5', modelEditable: false, tiers: ['fast'], needsKey: true, keyHint: 'Create a key at console.anthropic.com', runsOn: 'provider-api', consentText: apiConsent('Anthropic'), consentDigest: 'consent-anthropic', verification: 'not-live-verified', verificationNote: KEY_NOTE, availability: 'ready', availabilityReason: READY_ANTHROPIC },
   { id: 'anthropic-sonnet-5-5', label: 'Claude Sonnet 5.5', kind: 'anthropic-messages', model: 'claude-sonnet-5-5', modelEditable: false, tiers: ['main'], needsKey: true, keyHint: 'Create a key at console.anthropic.com', runsOn: 'provider-api', consentText: apiConsent('Anthropic'), consentDigest: 'consent-anthropic', verification: 'not-live-verified', verificationNote: KEY_NOTE, availability: 'ready', availabilityReason: READY_ANTHROPIC },
-  { id: 'openai-gpt-6-luna', label: 'GPT-6 Luna', kind: 'openai-responses', model: 'gpt-6-luna', modelEditable: true, tiers: ['fast', 'main'], needsKey: true, keyHint: 'Create a key at platform.openai.com', runsOn: 'provider-api', consentText: apiConsent('OpenAI'), consentDigest: 'consent-openai', verification: 'not-live-verified', verificationNote: KEY_NOTE, availability: 'unverified', availabilityReason: 'Not yet tried on a real account, and a past probe failed. Type the model id your account shows. Costs are estimates.' },
+  { id: 'openai-gpt-6-luna', label: 'GPT-6 Luna', kind: 'openai-responses', model: 'gpt-6-luna', modelEditable: true, tiers: ['fast', 'main'], needsKey: true, keyHint: 'Create a key at platform.openai.com', runsOn: 'provider-api', consentText: apiConsent('OpenAI'), consentDigest: 'consent-openai', verification: 'not-live-verified', verificationNote: KEY_NOTE, availability: 'unverified', availabilityReason: 'Not yet tried on a real account, and a past check failed. Type the model id your account shows. Costs are estimates.' },
   { id: 'openrouter', label: 'OpenRouter', kind: 'openai-responses', model: 'openai/gpt-6-luna', modelEditable: true, tiers: ['fast', 'main'], needsKey: true, keyHint: 'Create a key at openrouter.ai/keys', runsOn: 'provider-api', consentText: apiConsent('OpenRouter and its selected model provider'), consentDigest: 'consent-openrouter', verification: 'not-live-verified', verificationNote: KEY_NOTE, availability: 'unverified', availabilityReason: 'Uses your OpenRouter key and chosen model. Add its exact model price first. Not yet checked with a live key.' },
   { id: 'claude-code-cli', label: 'Claude Code on this computer', kind: 'claude-cli', model: 'claude-sonnet-5-5', modelEditable: false, tiers: ['fast', 'main'], needsKey: false, keyHint: null, runsOn: 'this-computer', consentText: cliConsent('Claude Code'), consentDigest: 'consent-claude-code', verification: 'not-live-verified', verificationNote: CLI_NOTE, availability: 'unverified', availabilityReason: 'Found on this computer. Not yet tried on a real task.' },
   { id: 'codex-cli', label: 'Codex on this computer', kind: 'codex-cli', model: 'gpt-6-luna', modelEditable: true, tiers: ['fast', 'main'], needsKey: false, keyHint: null, runsOn: 'this-computer', consentText: cliConsent('Codex'), consentDigest: 'consent-codex', verification: 'not-live-verified', verificationNote: CLI_NOTE, availability: 'needs-setup', availabilityReason: "Chausar's reviewed setup for Codex isn't on this computer yet. Use an OpenAI key for now." },
@@ -563,7 +563,7 @@ export const MODEL_PRESETS: ModelPresetLite[] = [
 export const TEMPLATES_TIER = { presetId: 'built-in-templates', model: null, usable: true, reason: 'No AI connected; using built-in templates', verificationNote: null };
 const NOTHING_CONNECTED: ModelStatusLite = {
   connections: [], tiers: { fast: { ...TEMPLATES_TIER }, main: { ...TEMPLATES_TIER } },
-  spentThisMonthDisplay: 'USD 0.0000', estimate: false, sendPolicy: 'shape', replay: { active: false, label: null },
+  spentThisMonthDisplay: '$0.00', estimate: false, sendPolicy: 'shape', replay: { active: false, label: null },
 };
 
 export const MODEL_STATUS: Record<string, ModelStatusLite> = {
@@ -577,7 +577,7 @@ export const MODEL_STATUS: Record<string, ModelStatusLite> = {
       fast: { presetId: 'anthropic-haiku-5-5', model: 'claude-haiku-5-5', usable: true, reason: READY_ANTHROPIC, verificationNote: KEY_NOTE },
       main: { presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', usable: true, reason: READY_ANTHROPIC, verificationNote: KEY_NOTE },
     },
-    spentThisMonthDisplay: 'USD 0.0420 (estimate, price unconfirmed)', estimate: true, sendPolicy: 'shape', replay: { active: false, label: null },
+    spentThisMonthDisplay: '$0.04 (estimate)', estimate: true, sendPolicy: 'shape', replay: { active: false, label: null },
   },
 };
 /** The draft desk (venture.ai.*) before any business exists: nothing connected. */
@@ -596,8 +596,8 @@ export const PLAYBOOKS: Record<string, PlaybookPick> = {
 };
 
 export const OFFER_RECEIPTS: ReceiptLite[] = [
-  { id: 'R-0408', at: '2026-10-14T10:00:00.000Z', explanation: 'One mention at ₹15,000.00, no discount, no tax added, because tax is not turned on for this price.', stale: false, figures: [{ key: 'unit', label: 'Per mention', display: '₹15,000.00' }, { key: 'total', label: 'Total', display: '₹15,000.00' }] },
-  { id: 'R-0409', at: '2026-10-21T08:05:00.000Z', explanation: 'Monthly books at ₹16,000.00, GST at 18% split as CGST and SGST.', stale: false, figures: [{ key: 'subtotal', label: 'Monthly books', display: '₹16,000.00' }, { key: 'cgst', label: 'CGST at 9%', display: '₹1,440.00' }, { key: 'sgst', label: 'SGST at 9%', display: '₹1,440.00' }, { key: 'total', label: 'Total', display: '₹18,880.00' }] },
+  { id: 'R-0408', at: '2026-10-14T10:00:00.000Z', explanation: 'One mention at ₹15,000, no discount, no tax added, because tax is not turned on for this price.', stale: false, figures: [{ key: 'unit', label: 'Per mention', display: '₹15,000' }, { key: 'total', label: 'Total', display: '₹15,000' }] },
+  { id: 'R-0409', at: '2026-10-21T08:05:00.000Z', explanation: 'Monthly books at ₹16,000, GST at 18% split as CGST and SGST.', stale: false, figures: [{ key: 'subtotal', label: 'Monthly books', display: '₹16,000' }, { key: 'cgst', label: 'CGST at 9%', display: '₹1,440' }, { key: 'sgst', label: 'SGST at 9%', display: '₹1,440' }, { key: 'total', label: 'Total', display: '₹18,880' }] },
 ];
 
 const told = (value: string) => ({ value, label: 'told-by-you' as const, by: 'owner' as const });

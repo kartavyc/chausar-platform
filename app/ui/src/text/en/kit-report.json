@@ -15,7 +15,7 @@
   "kit-report.note.hindi": "The PDF could not draw Hindi on this computer, so the report is the HTML file.",
   "kit-report.note.failed": "The PDF could not be made on this computer, so the report is the HTML file.",
   "kit-report.share.open": "Share with your client",
-  "kit-report.share.close": "Not now",
+  "kit-report.share.close": "Cancel",
   "kit-report.share.form": "Share the report",
   "kit-report.share.from": "From",
   "kit-report.share.to": "To",

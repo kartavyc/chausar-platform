@@ -20,7 +20,7 @@ function FileLine({ file }: { file: DeliveredFile }) {
       </span>
       <span className={s.digest} title={file.digest}>
         <span className="sr-only">{t('delivered.digest')} </span>
-        <span className="mono">{file.digest.slice(0, SHORT_DIGEST)}</span>
+        <span data-code="" className="mono">{file.digest.slice(0, SHORT_DIGEST)}</span>
       </span>
     </li>
   );

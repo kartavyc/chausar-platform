@@ -14,7 +14,7 @@ export function WorkReceiptSheet({ id, onClose, returnFocus }: SheetComponentPro
   const receipt = useResource('venture.work.get', { id });
   const view = receipt.data;
   return (
-    <Sheet label={t('sheet.receipt')} title={<span className="mono">{id}</span>} onClose={onClose} returnFocus={returnFocus} receipt>
+    <Sheet label={t('sheet.receipt')} title={<span data-code="" className="mono">{id}</span>} onClose={onClose} returnFocus={returnFocus} receipt>
       {receipt.error && <p className={s.problem}>{t('sheet.failed', { message: receipt.error.message })}</p>}
       {!view && !receipt.error && <p className={s.hint}>{t('sheet.loading')}</p>}
       {view && (
@@ -24,7 +24,7 @@ export function WorkReceiptSheet({ id, onClose, returnFocus }: SheetComponentPro
               {view.figures.map((figure) => (
                 <div key={figure.key} className={s.workFigure}>
                   <dt>{figure.label}</dt>
-                  <dd className="mono">{figure.display}</dd>
+                  <dd data-num="">{figure.display}</dd>
                 </div>
               ))}
             </dl>

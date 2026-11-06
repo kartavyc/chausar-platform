@@ -2,6 +2,7 @@
 import {useState} from 'react';
 import {useEngine,useResource} from '../../../engine/context';
 import {useT} from '../../../text';
+import {useDay} from '../../../parts/when';
 import {Tile,TileHead} from '../../../parts/Tile';
 import {Field} from '../../../parts/Field';
 import {Button} from '../../../parts/Button';
@@ -9,7 +10,7 @@ import type {SeoPublication} from '../../../../../../platform/runtime/venture/pl
 import s from './SeoVisibilityDesk.module.css';
 const base={playbook:'seo-visibility' as const,kind:'publishing'};
 export function SeoPublishingWork(){
- const t=useT(),engine=useEngine(),[runId,setRun]=useState(''),[publicationId,setPublication]=useState(''),[url,setUrl]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[failed,setFailed]=useState(false);
+ const t=useT(),day=useDay(),engine=useEngine(),[runId,setRun]=useState(''),[publicationId,setPublication]=useState(''),[url,setUrl]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[failed,setFailed]=useState(false);
  const deliveries=useResource('venture.delivery.list',{}),list=useResource('venture.desk.list',base),preview=useResource('venture.desk.get',{...base,id:runId},{skip:!runId}),publication=useResource('venture.desk.get',{...base,id:publicationId},{skip:!publicationId});
  const item=preview.data?.item as {title:string;text?:string;content:string;site:string}|undefined,rows=(list.data?.rows??[]) as (SeoPublication&{id:string})[];
  async function act(action:'send'|'verify'){setBusy(true);setNotice('');setFailed(false);try{const result=await engine.request('venture.desk.act',{...base,id:action==='send'?runId:publicationId,action,digest:action==='send'?preview.data?.digest:publication.data?.digest,payload:action==='send'?{}:{url}});const answer=result.result as {outcome?:string;pass?:boolean};setNotice(t('pb-seo-publish.'+(action==='verify'?(answer.pass?'verified':'verifyFailed'):(answer.outcome==='applied'?'saved':answer.outcome==='not-sent'?'notSent':'unknown'))));if(action==='send')setRun('');list.reload();publication.reload();}catch{setFailed(true);setNotice(t('pb-seo-publish.failed'));}finally{setBusy(false);}}
@@ -17,7 +18,7 @@ export function SeoPublishingWork(){
   <label className={s.label}>{t('pb-seo-publish.article')}<select value={runId} onChange={e=>{setRun(e.target.value);setNotice('');}}><option value="">{t('pb-seo-publish.choose')}</option>{deliveries.data?.filter(r=>!r.practice&&['accepted','edited'].includes(r.status)).map(r=><option key={r.id} value={r.id}>{r.deliverable?.title??r.id}</option>)}</select></label>
   {preview.error&&<p role="alert">{t('pb-seo-publish.needsApproval')}</p>}
   {item&&<><p data-content>{item.site}</p><h3 data-content>{item.title}</h3><p data-content>{item.text??item.content}</p><Button variant="primary" disabled={busy} locked={!preview.data?.digest} onClick={()=>void act('send')}>{t('pb-seo-publish.send')}</Button></>}
-  {!!rows.length&&<><label className={s.label}>{t('pb-seo-publish.savedDraft')}<select value={publicationId} onChange={e=>setPublication(e.target.value)}><option value="">{t('pb-seo-publish.choose')}</option>{rows.filter(r=>r.outcome==='applied').map((r,i)=><option key={r.id} value={r.id}>{t('pb-seo-publish.draftNumber',{number:i+1})} · {r.at.slice(0,10)}</option>)}</select></label>{publicationId&&<><Field label={t('pb-seo-publish.liveUrl')} type="url" value={url} onChange={e=>setUrl(e.target.value)}/><Button locked={!url||!publication.data?.digest} disabled={busy} onClick={()=>void act('verify')}>{t('pb-seo-publish.verify')}</Button></>}</>}
+  {!!rows.length&&<><label className={s.label}>{t('pb-seo-publish.savedDraft')}<select value={publicationId} onChange={e=>setPublication(e.target.value)}><option value="">{t('pb-seo-publish.choose')}</option>{rows.filter(r=>r.outcome==='applied').map((r,i)=><option key={r.id} value={r.id}>{t('pb-seo-publish.draftNumber',{number:i+1})} · {day(r.at)}</option>)}</select></label>{publicationId&&<><Field label={t('pb-seo-publish.liveUrl')} type="url" value={url} onChange={e=>setUrl(e.target.value)}/><Button locked={!url||!publication.data?.digest} disabled={busy} onClick={()=>void act('verify')}>{t('pb-seo-publish.verify')}</Button></>}</>}
   {notice&&<p role={failed?'alert':'status'}>{notice}</p>}
  </details></Tile><SeoEdgeWork/></section>;
 }

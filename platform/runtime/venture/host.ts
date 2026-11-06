@@ -303,12 +303,12 @@ export class VentureHost {
     }
     const name = method as VentureMethod;
     requireAppChannel(ctx, name);
-    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'Open your workspace first.');
+    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'This business is closed. Open it first.');
     const module = await this.#load(METHOD_OWNERS[name]);
     if (!ownsHandler(module.handlers, name)) throw notBuilt();
     const handler = (module.handlers as Record<string, Handler>)[name];
     await this.#modelsReady();
-    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'Open your workspace first.');
+    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'This business is closed. Open it first.');
     try {
       const answer = await handler(this.#deps, ctx, payload ?? {});
       // 4J2 (O22): a settings form's autosaved draft is cleared once its real method succeeded with the same values.
@@ -391,7 +391,7 @@ export class VentureHost {
    * their phone alert subscriptions are deleted. No RPC method reaches this. Answers how many went.
    */
   async endPushSessions(ctx: Context, hashes: readonly string[]): Promise<number> {
-    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'Open your workspace first.');
+    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'This business is closed. Open it first.');
     if (!this.#store.read().conversations.some(record => record?.kind === 'venture-record')) return 0;
     const notify = await this.#load('notify');
     this.#notify = notify;
@@ -408,7 +408,7 @@ export class VentureHost {
    * opens nothing.
    */
   async shareLink(ctx: Context, op: 'page' | 'decide' | 'comment' | 'upload', token: string, input: unknown = {}): Promise<unknown> {
-    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'Open your workspace first.');
+    if (this.#closed) throw new ChausarError('VAULT_LOCKED', 'This business is closed. Open it first.');
     const module = await this.#load('build');
     const page = module.sharePage, decide = module.shareDecide, comment = module.shareComment, upload = module.fileRequestEntry;
     if (typeof page !== 'function' || typeof decide !== 'function' || typeof comment !== 'function' || typeof upload !== 'function') throw notBuilt();

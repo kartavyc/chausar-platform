@@ -63,11 +63,11 @@ describe('run sheet: coverage, outcomes, the report, expiry and interruptions (4
     assertInkRules(container);
   });
 
-  it('an unobserved count is never 0: it says code did not count it', () => {
+  it('an unobserved count is never 0: it says it was not counted', () => {
     const detail = run('27');
     detail.steps[0]!.coverage = coverage({ done: null, total: 1210, complete: false });
     const { container } = show(detail);
-    expect(container.querySelector('[data-coverage]')!.textContent).toBe('Lines matched: not counted by code · Partial');
+    expect(container.querySelector('[data-coverage]')!.textContent).toBe('Lines matched: not counted · Partial');
     expect(container.querySelector('[data-coverage]')!.textContent).not.toMatch(/\b0\b/);
   });
 
@@ -123,7 +123,7 @@ describe('run sheet: coverage, outcomes, the report, expiry and interruptions (4
 
   it("says when a run's question expires, from the clock", () => {
     show(run('29'), { questionExpiresAt: '2026-10-21T13:00:00.000Z' });
-    const question = screen.getByRole('region', { name: 'The run asks' });
+    const question = screen.getByRole('region', { name: 'The job asks' });
     expect(within(question).getByText('Expires in 3 h')).toBeTruthy();
   });
 

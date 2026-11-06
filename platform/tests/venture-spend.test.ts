@@ -126,7 +126,7 @@ test('a connector with no rate is refused before the call, never counted as free
   assert.equal(list.rows[0].kind, 'refused');
   assert.equal(list.rows[0].label, 'One video render');
   assert.equal(list.rows[0].reserved, 'No price');
-  assert.equal(list.total, 'USD 0.0000 this month');
+  assert.equal(list.total, '$0.00 this month');
 });
 
 // ---------------------------------------------------------------------------
@@ -145,10 +145,10 @@ test('reserve then settle: the charge record is written before the call, then se
   });
   assert.equal(value, 'video-1');
   const list = await rows(deps);
-  // Reserved 150,000 micros is USD 0.1500; billed 120,000 micros is USD 0.1200.
+  // Reserved 150,000 micros is $0.15; billed 120,000 micros is $0.12.
   assert.deepEqual(list.rows.map(row => ({ kind: row.kind, reserved: row.reserved, settled: row.settled, connector: row.connector })),
-    [{ kind: 'billed', reserved: 'USD 0.1500', settled: 'USD 0.1200', connector: 'fal-video' }]);
-  assert.equal(list.total, 'USD 0.1200 this month');
+    [{ kind: 'billed', reserved: '$0.15', settled: '$0.12', connector: 'fal-video' }]);
+  assert.equal(list.total, '$0.12 this month');
 });
 
 test('a retry never pays twice: the same key is refused while held or once paid, and a lost answer stays held', async () => {
@@ -165,10 +165,10 @@ test('a retry never pays twice: the same key is refused while held or once paid,
   assert.equal(ran, 2);
   const lost = (await rows(deps)).rows.find(row => row.settled === undefined)!;
   assert.equal(lost.kind, 'estimate');
-  assert.equal(lost.reserved, 'USD 0.1500');
+  assert.equal(lost.reserved, '$0.15');
   assert.match(lost.label, /not known/);
-  // 150,000 paid plus 150,000 held is 300,000 micros, USD 0.3000; the held part is an estimate.
-  assert.equal((await rows(deps)).total, 'USD 0.3000 this month (includes estimates)');
+  // 150,000 paid plus 150,000 held is 300,000 micros, $0.30; the held part is an estimate.
+  assert.equal((await rows(deps)).total, '$0.30 this month (includes estimates)');
 });
 
 test('the monthly cap is hard: a call that would pass it is refused before it runs', async () => {
@@ -179,8 +179,8 @@ test('the monthly cap is hard: a call that would pass it is refused before it ru
   // 120,000 spent plus 150,000 reserved is 270,000, over the 200,000 cap.
   await assert.rejects(paidCall(deps, owner, render('render-2'), async () => { ran += 1; return { value: 'no', billedMicros: '1' }; }), (error: any) => {
     assert.equal(error.code, 'SPEND_CAP');
-    assert.match(error.message, /USD 0\.2700/);
-    assert.match(error.message, /USD 0\.2000/);
+    assert.match(error.message, /\$0\.27\b/);
+    assert.match(error.message, /limit of \$0\.20\b/);
     return true;
   });
   assert.equal(ran, 0);
@@ -192,7 +192,7 @@ test('an unconfirmed owner rate shows every figure as an estimate', async () => 
   await setSpendPolicy(deps, owner, { rates: [perCall('connector:fal-video', '150000', false)] });
   await paidCall(deps, owner, render('render-1'), async () => ({ value: 'ok', billedMicros: '150000' }));
   const [row] = (await rows(deps)).rows;
-  assert.equal(row.reserved, 'USD 0.1500 (estimate, price unconfirmed)');
+  assert.equal(row.reserved, '$0.15 (estimate)');
   assert.equal(row.kind, 'billed', 'the connector billed it; only the rate was unconfirmed');
 });
 
@@ -236,7 +236,7 @@ test('above the ask-first figure a quote waits for the owner; one approval buys 
   const quotes = openSpendQuotes(store.read());
   assert.equal(quotes.length, 1);
   const [quote] = quotes;
-  assert.equal(quote.figure, 'USD 0.1500');
+  assert.equal(quote.figure, '$0.15');
   assert.equal(quote.figureMicros, '150000');
   assert.equal(quote.draftDigest, DRAFT);
   assert.equal(quote.payer, 'connector:fal');
@@ -292,7 +292,7 @@ test('venture.spend.list is a money read method with an empty payload, listed ev
   }
   const { deps } = await setup();
   // 4Z3: the total as the owner's currency leads it, two decimals of dollars at most.
-  assert.deepEqual(await moneyHandlers['venture.spend.list']!(deps, owner, {}), { rows: [], total: 'USD 0.0000 this month', totalLead: { currency: 'USD', figure: 'USD 0.00 this month' } });
+  assert.deepEqual(await moneyHandlers['venture.spend.list']!(deps, owner, {}), { rows: [], total: '$0.00 this month', totalLead: { currency: 'USD', figure: '$0.00 this month' } });
   await assert.rejects(moneyHandlers['venture.spend.list']!(deps, owner, { limit: 5 }), code('INVALID_VENTURE_REQUEST'));
 });
 
@@ -317,7 +317,7 @@ test('a keyed model call reserves its most it can cost, then settles at the prov
   assert.equal(record.settledMicros, '164');
   const [row] = (await rows(deps)).rows;
   assert.equal(row.kind, 'billed');
-  assert.equal(row.settled, 'USD 0.0002');
+  assert.equal(row.settled, 'under $0.01');
   assert.equal(row.connector, 'anthropic-haiku-5-5');
   assert.equal(row.label, 'Claude Haiku 5.5, interview');
 });
@@ -333,13 +333,13 @@ test('the owner rate card prices model calls too: the call record and the spend 
   assert.equal(outcome.priceConfirmed, false);
   assert.equal((listRecords(store.read(), 'venture-model-call') as any[])[0].costMicros, '327');
   assert.equal(spendRecords(store)[0].settledMicros, '327');
-  assert.equal((await rows(deps)).rows[0].settled, 'USD 0.0003 (estimate, price unconfirmed)');
+  assert.equal((await rows(deps)).rows[0].settled, 'under $0.01 (estimate)');
 });
 
 test('a model call past the business cap is refused before anything is sent or recorded as a call', async () => {
   const { deps, store, http } = await setup();
   await connectHaiku(deps);
-  await setSpendPolicy(deps, owner, { capMicros: '100' }); // USD 0.0001, below any Haiku estimate
+  await setSpendPolicy(deps, owner, { capMicros: '100' }); // under $0.01, below any Haiku estimate
   await assert.rejects(deps.models.generate(owner, wordsTask()), code('SPEND_CAP'));
   assert.equal(http.length, 0);
   assert.equal(listRecords(store.read(), 'venture-model-call').length, 0);

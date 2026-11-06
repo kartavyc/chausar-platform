@@ -4,6 +4,7 @@ import type { DeliveryRunRecord, VentureDeps, UploadRecord } from '../contracts.
 import { digest, findRecord, listRecords, requireVenture, stateView, ventureAction } from '../records.ts';
 import { requireClientAiConsent } from '../clients/ai-consent.ts';
 import { blueprintCountry } from '../core/country-history.ts';
+import { localDayAt } from '../local-day.ts';
 import { orderRefs, type AnyReceipt } from '../delivery/deliverable.ts';
 import { pdfPages, tablesOfFile } from '../delivery/harness/files.ts';
 import { readDocx } from '../playbooks/kit/ooxml/read.ts';
@@ -174,7 +175,7 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
         client: { id: client.id, ventureId: venture.id, name: client.name, email: client.email ?? '', ...(calculationGrant(deps.store.read(), run).some(name => name.startsWith('tax.')) ? { taxId: client.taxId ?? null } : {}) },
         order: { id: order.id, ventureId: venture.id, clientId: client.id, request: order.request, status: order.status, intake: order.intake ?? null, chainStage: order.chainStage ?? null },
         files: files.map(file => ({ id: file.id, ventureId: venture.id, orderId: order.id, name: file.name, mediaType: file.format, bytes: file.bytes, digest: file.digest })),
-        sections: [...options.sections], dates: [...orderRefs(blueprint, order, receipt, deps.clock().toISOString().slice(0, 10)).dates,
+        sections: [...options.sections], dates: [...orderRefs(blueprint, order, receipt, localDayAt(deps.clock(), country), localDayAt(order.at, country)).dates,
           ...(background.approvedBrief ? [{ref:'room.deadline',label:'The deadline in the approved client brief',iso:background.approvedBrief.deadline}] : [])] };
     },
     readFile: async (_scope, file, page) => {
@@ -227,7 +228,7 @@ export async function createNativeJob(deps: VentureDeps, ctx: Context, runId: st
       if(!(work?.ventureId===scope.ventureId&&work.runRef.kind==='delivery'&&work.runRef.runId===run.id))return null;
       if(work.operation==='seo.claim'){
         const live=sourceNetworkGuard(),file=live.files.find(row=>row.id===work.inputs.columns.manifestId);
-        check(file,'JOB_FILE_FORBIDDEN','The claim manifest is no longer attached to this order.');
+        check(file,'JOB_FILE_FORBIDDEN','The list of claimed files is no longer attached to this order.');
         const checked=await checkedSourceClaim(file,work.inputs.columns.claimId,runId,live.receipt.currency,sourceNet).finally(()=>{sourceNetworkGuard();});
         sourceNetworkGuard();check(sourceClaimUnchanged(work,checked),'JOB_SOURCE_CHANGED','The claim source pages changed. Check the sources in a new job.');
       }

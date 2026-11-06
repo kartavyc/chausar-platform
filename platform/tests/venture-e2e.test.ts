@@ -195,7 +195,7 @@ test('the whole venture journey in India, with a model and GitHub answering from
   assert.equal(figure(quote, 'subtotal').minor, '249900');
   assert.equal(figure(quote, 'tax').minor, '44982');
   assert.equal(figure(quote, 'total').minor, '294882');
-  assert.equal(figure(quote, 'total').display, 'INR 2,948.82');
+  assert.equal(figure(quote, 'total').display, '₹2,948.82');
   assert.equal(quote.totalMinor, '294882');
   assert.equal(quote.inputs.blueprintDigest, updated.digest);
   assert.doesNotThrow(() => numberGuard(quote.explanation, quote));
@@ -213,7 +213,7 @@ test('the whole venture journey in India, with a model and GitHub answering from
   const brief = await ask('venture.build.brief') as BriefRecord;
   assert.equal(brief.lint.ok, true, JSON.stringify(brief.lint.findings));
   assert.equal(brief.wordsBy, 'model');
-  assert.ok(brief.markdown.includes('INR 2,948.82'));
+  assert.ok(brief.markdown.includes('₹2,948.82'));
   assert.ok(brief.markdown.split('\n')[0].includes(brief.briefId));
   for (const line of RLS_LINES) assert.ok(brief.markdown.includes(line), line);
   assert.ok(brief.markdown.includes('lintapple@0.1.20'));
@@ -267,7 +267,7 @@ test('the whole venture journey in India, with a model and GitHub answering from
     const run = await ask('venture.simulation.run', { scenarioIds: [`bookkeeping-${kind}`] }) as SimulationRunRecord;
     assert.equal(run.passed, true, JSON.stringify(run.episodes.map(e => [e.firstFailure, e.checks.filter(c => !c.passed)])));
     assert.equal(run.modelMode, 'model');
-    assert.match(run.costDisplay, /^USD /);
+    assert.match(run.costDisplay, /^(?:\$|under \$)\d/);
     for (const episode of run.episodes) {
       assert.equal(episode.judge.length, 4);
       assert.ok(episode.judge.every(answer => answer.answer === 'yes'), JSON.stringify(episode.judge));

@@ -6,7 +6,7 @@
 // reject stores the decision and changes nothing; a proposal drafted against an older version is stale. A note proposal
 // (4B2) is drafted by code from the owner's own words, quoting them, and accept keeps the note (notes.ts); words the
 // owner said no to are never proposed again. An agent never proposes on its own: only the owner's words start one.
-import { check, newId, type Context, type State } from '../../contracts.ts';
+import { check, newId, type Context, type State, internalCheck } from '../../contracts.ts';
 import type {
   AgentProposalDecision, AgentProposalRecord, AgentProposalView, DiffLine, Json, ModelTask, PlaybookPatch, PlaybookRecord, VentureDeps, VentureRecord,
 } from '../contracts.ts';
@@ -28,7 +28,7 @@ import { decideImport } from './export.ts';
 /** The label on a change drafted from the owner's own words rather than by the owner's AI. */
 export const FROM_YOUR_WORDS = 'Drafted by Chausar from your words';
 /** The agent's reply when it drafts a change. */
-export const STANDING_REPLY = "You said 'from now on', so here is the change to my instructions.";
+export const STANDING_REPLY = "Got it. I've proposed it as a new rule for you to approve.";
 
 /** The typed patch the agent drafts: one guidance change on one of its own steps. */
 export type DraftedPatch = { stepId: string; op: 'guidance.add' | 'guidance.remove'; value: string };
@@ -131,7 +131,7 @@ export function storeInstruction(tx: VentureTx, input: { agent: ChatAgent; playb
     const record: AgentProposalRecord = {
       ...tx.base('venture-agent-proposal'), agent: agent.id, proposalKind: 'instruction', quote: words, quoteDigest: digest(words.trim().toLowerCase()),
       messageId, patch, fromVersion, toVersion, parentHash: playbook.hash, diff: diffOf(before.guidance ?? [], patch, changed.guidance ?? []),
-      appliesTo: `Applies to "${before.title}" from the next run.`, note: null, label: draft.fromWords ? FROM_YOUR_WORDS : null,
+      appliesTo: `Applies to "${before.title}" from the next job.`, note: null, label: draft.fromWords ? FROM_YOUR_WORDS : null,
       status: 'drafted', digest: '', decidedAt: null, decidedBy: null,
     };
     record.digest = digest({ id: record.id, agent: record.agent, patch: { id: patch.id, op: patch.op, stepId: patch.stepId, value: patch.value }, fromVersion, toVersion, parentHash: record.parentHash, quote: words });
@@ -175,9 +175,9 @@ function inUseLine(state: State, venture: VentureRecord, version: number): strin
     byVersion.set(kept, [...(byVersion.get(kept) ?? []), run.number]);
   }
   const kept = [...byVersion.entries()].map(([old, numbers]) => numbers.length === 1
-    ? `Run ${numbers[0]} keeps version ${old}.`
-    : `Runs ${numbers.slice(0, -1).join(', ')} and ${numbers.at(-1)} keep version ${old}.`);
-  return `Version ${version} is in use from the next run. ${kept.join(' ')}`;
+    ? `Job ${numbers[0]} keeps version ${old}.`
+    : `Jobs ${numbers.slice(0, -1).join(', ')} and ${numbers.at(-1)} keep version ${old}.`);
+  return `Version ${version} is in use from the next job. ${kept.join(' ')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +259,7 @@ export async function proposalDecideHandler(deps: VentureDeps, ctx: Context, pay
   requireAppChannel(ctx, 'venture.agents.proposal.decide');
   const body = exactPayload(payload, ['id', 'digest', 'decision'], ['id', 'digest', 'decision']);
   const id = identifier(body.id, 'Proposal');
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you read.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you read.');
   check(body.decision === 'accept' || body.decision === 'reject', 'INVALID_VENTURE_REQUEST', 'Choose accept or reject.');
   const seen = body.digest, decision = body.decision;
   const { state } = readAs(deps, ctx, 'approve');

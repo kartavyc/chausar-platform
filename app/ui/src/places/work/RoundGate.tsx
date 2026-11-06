@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
+import { decide as decideRow } from '../today/session';
 import { refusalWords } from '../../parts/custody';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
@@ -37,10 +38,8 @@ export function RoundGate({ detail, row, onChanged }: { detail: RunDetail | unde
     setProblem(null);
     const words = note.trim();
     try {
-      const params = action.id === 'continue' && words
-        ? { id: current.id, digest: current.digest, action: action.id, viewed: false, answer: words }
-        : { id: current.id, digest: current.digest, action: action.id, viewed: false };
-      const decision = await client.request('venture.queue.decide', params);
+      const extra = action.id === 'continue' && words ? { viewed: false, answer: words } : { viewed: false };
+      const decision = await decideRow(client, current, action.id, extra, t);
       if (decision.outcome !== 'done') setProblem(t('work.gate.failed', { message: decision.line }));
       else setNote('');
       onChanged?.();

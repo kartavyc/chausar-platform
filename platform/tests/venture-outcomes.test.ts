@@ -225,7 +225,7 @@ test('fallback: counts per kind and new records per month, by code, labelled as 
   const state = env.store.read();
   const venture = listRecords(state, 'venture-record').at(-1)!;
   const view = countedByCode(state, venture, new Date(env.now()));
-  assert.equal(view.line, "Counted by code; the summary didn't work.");
+  assert.equal(view.line, "Counts from your records. The summary didn't work this time.");
   assert.equal(COUNTED_BY_CODE, view.line);
   const counts = Object.fromEntries(view.entities.map(entity => [entity.kind, entity.count]));
   assert.deepEqual(counts, { clients: 2, orders: 2, invoices: 0, runs: 0, people: 0, leads: 0 });

@@ -243,7 +243,7 @@ export async function agentsImportHandler(deps: VentureDeps, ctx: Context, paylo
       ...tx.base('venture-agent-proposal'), agent: agent.id, proposalKind: 'import', quote: 'An agent file you imported.', quoteDigest: digest(text),
       messageId: message.id, patch: null, fromVersion: playbook.version, toVersion: patches.length ? Math.max(0, ...versions) + 1 : null, parentHash: playbook.hash,
       diff: [...patches.map(patch => ({ op: 'add' as const, text: patch.value })), ...(personaChange ? personaLines(personaChange) : [])],
-      appliesTo: `Applies to ${agent.name} from the next run.${skipped.length ? ` Left out: ${skipped.join(' ')}` : ''}`, note: null, label: null,
+      appliesTo: `Applies to ${agent.name} from the next job.${skipped.length ? ` Left out: ${skipped.join(' ')}` : ''}`, note: null, label: null,
       status: 'drafted', digest: '', decidedAt: null, decidedBy: null, imported: { patches, persona: personaChange, skipped },
     };
     record.digest = digest({ id: record.id, agent: record.agent, imported: record.imported, parentHash: record.parentHash, fromVersion: record.fromVersion, toVersion: record.toVersion });
@@ -275,7 +275,7 @@ export function decideImport(tx: VentureTx, record: AgentProposalRecord, decisio
   }
   if (imported.persona) writePersonaVersion(tx, agent, imported.persona, 'import');
   const stored = tx.replace<AgentProposalRecord>({ ...record, status: 'accepted', toVersion: made?.version ?? null, ...decided });
-  const line = made ? `Version ${made.version} is in use from the next run, with the orders from the file. You can undo it.` : 'The persona from the file is in use from the next run. You can undo it.';
+  const line = made ? `Version ${made.version} is in use from the next job, with the orders from the file. You can undo it.` : 'The persona from the file is in use from the next job. You can undo it.';
   const message = appendAgentMessage(tx, { agent: agent.id, from: 'agent', text: line, author: 'engine', proposalId: record.id });
   tx.emit('agent.message', { agent: agent.id, messageId: message.id });
   return { proposal: proposalView(tx.state, venture, stored, agent.name), line, ...(made ? { playbook: { id: made.id, version: made.version } } : {}) };

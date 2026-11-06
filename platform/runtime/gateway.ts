@@ -3,7 +3,7 @@ import { spawnTree } from './process-tree.ts';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, isAbsolute } from 'node:path';
-import { authorize, audit, check, ChausarError, hash, newId, now } from './contracts.ts';
+import { authorize, audit, check, ChausarError, hash, newId, now, internalCheck } from './contracts.ts';
 import type { Context, State, StateStore } from './contracts.ts';
 import type { Definition, Dictionary, Operation } from './ontology.ts';
 import { assertSourceAccess, isNoResend, sourceAllowed, trustFingerprint, visibleFacts } from './trust.ts';
@@ -314,7 +314,7 @@ export function validatePlan(value: unknown, operations: string[], selectors: { 
 
 export function validateEndpoint(endpoint: string, kind: RouteKind): string {
   let url: URL; try { url = new URL(endpoint); } catch { throw new ChausarError('INVALID_ENDPOINT', 'The route needs a valid endpoint URL.'); }
-  check(!url.username && !url.password && !url.search && !url.hash, 'INVALID_ENDPOINT', 'Endpoint credentials, queries and fragments are not allowed.');
+  check(!url.username && !url.password && !url.search && !url.hash, 'INVALID_ENDPOINT', 'Use an address with no user name, password, query or # part.');
   const local = ['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname);
   if (kind === 'ollama') check(local && ['http:', 'https:'].includes(url.protocol), 'INVALID_ENDPOINT', 'Ollama must run on localhost.');
   else check(url.protocol === 'https:', 'INVALID_ENDPOINT', 'Cloud model endpoints must use HTTPS.');
@@ -450,15 +450,15 @@ export class ModelGateway {
   async configureRoute(context: Context, config: RouteConfig, secret?: string) {
     authorize(this.store, context, 'admin');
     const allowed = ['id', 'kind', 'model', 'endpoint', 'command', 'enabled', 'budgetMinor', 'maxCostMinor', 'maxOutputTokens', 'inputPerMillionMinor', 'outputPerMillionMinor', 'credentialEnv', 'label'];
-    check(Object.keys(config).every(k => allowed.includes(k)), 'INVALID_ROUTE', 'Unknown route field; credentials must use the credential broker.');
+    internalCheck(Object.keys(config).every(k => allowed.includes(k)), 'INVALID_ROUTE', 'Unknown route field; credentials must use the credential broker.');
     check(Object.hasOwn(PRIORITY, config.kind) && typeof config.model === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(config.model), 'INVALID_ROUTE', 'The route needs a kind and explicit model identifier.');
     for (const key of ['budgetMinor', 'maxCostMinor', 'inputPerMillionMinor', 'outputPerMillionMinor'] as const) {
       const value = config[key];
       if (value !== undefined) check(typeof value === 'string' && /^\d{1,30}$/.test(value), 'INVALID_BUDGET', 'Costs and budgets use integer paise strings.');
     }
     if (config.maxOutputTokens !== undefined) check(Number.isInteger(config.maxOutputTokens) && config.maxOutputTokens >= 64 && config.maxOutputTokens <= 4096, 'INVALID_ROUTE', 'Output token limits must be between 64 and 4096.');
-    if (config.credentialEnv) check(/^CHAUSAR_[A-Z0-9_]+$/.test(config.credentialEnv), 'INVALID_ROUTE', 'Use a dedicated CHAUSAR credential environment variable.');
-    if (secret !== undefined) check(typeof secret === 'string' && secret.length > 0 && secret.length <= 8192 && !/[\r\n]/.test(secret), 'INVALID_CREDENTIAL', 'The supplied API credential is invalid.');
+    if (config.credentialEnv) internalCheck(/^CHAUSAR_[A-Z0-9_]+$/.test(config.credentialEnv), 'INVALID_ROUTE', 'Use a dedicated CHAUSAR credential environment variable.');
+    if (secret !== undefined) check(typeof secret === 'string' && secret.length > 0 && secret.length <= 8192 && !/[\r\n]/.test(secret), 'INVALID_CREDENTIAL', 'That AI key is not valid. Check it and save it again.');
     const cli = config.kind.endsWith('-cli');
     check(!cli || secret === undefined, 'SUBSCRIPTION_TOKEN_REFUSED', 'The official CLI owns its login. Chausar never handles a subscription token.');
     let endpoint = config.endpoint;
@@ -774,7 +774,7 @@ export class ModelGateway {
         check(preview.questionDisclosure === 'verbatim' && typeof preview.naturalQuestion === 'string'
           && hash(preview.naturalQuestion) === preview.questionHash, 'PAYLOAD_CHANGED', 'The reviewed original question changed.');
         for (const key of ['sourceIds', 'branch', 'asOf', 'onDate', 'period'] as const) if (preview.requestScope?.[key] !== undefined)
-          check(preview.businessContext.request[key] !== undefined && sameContinuationScope(key, preview.requestScope[key], preview.businessContext.request[key]),
+          internalCheck(preview.businessContext.request[key] !== undefined && sameContinuationScope(key, preview.requestScope[key], preview.businessContext.request[key]),
             'TOOL_SCOPE_CHANGED', 'The private request scope differs from its exact reviewed manifest.');
         const admitted = [...(CALCULATION_REVIEW_KEYS.some(key => Object.hasOwn(preview, key))
           ? preview.businessContext.request.sourceIds ?? preview.businessContext.sourceIds : preview.businessContext.sourceIds)].sort();
@@ -930,7 +930,7 @@ export class ModelGateway {
     if (route.kind === 'codex-cli') {
       const settings = this.options.codexCli;
       check(settings, 'CLI_CAPABILITY_REQUIRED', 'The trusted host must provide the reviewed Codex CLI interface.');
-      check(settings.mode !== 'synthetic-fixture' || this.options.process, 'CLI_CAPABILITY_REQUIRED', 'Synthetic CLI evidence requires an explicitly injected fixture process.');
+      internalCheck(settings.mode !== 'synthetic-fixture' || this.options.process, 'CLI_CAPABILITY_REQUIRED', 'Synthetic CLI evidence requires an explicitly injected fixture process.');
       processPort = createCodexCliProcessAdapter({ ...settings, process: processPort });
       if (settings.mode === 'local-cli') check(settings.capabilities.evidence.kind === 'installed-help' && route.command === settings.capabilities.evidence.executable, 'INVALID_COMMAND', 'The route must use the exact reviewed native Codex executable.');
       codexCapabilities = settings.capabilities;
@@ -938,7 +938,7 @@ export class ModelGateway {
       cliArguments(route, join(tmpdir(), 'plan-schema.json'), codexCapabilities);
     }
     const key = cli || route.kind === 'ollama' ? undefined : this.#credentials.get(route.id) || (route.credentialEnv ? process.env[route.credentialEnv] : undefined) || await this.options.credentialBroker?.(route.id);
-    check(cli || route.kind === 'ollama' || Boolean(key), route.kind === 'managed' ? 'MANAGED_UNAVAILABLE' : 'CREDENTIAL_REQUIRED', 'This model route needs its configured API credential.');
+    check(cli || route.kind === 'ollama' || Boolean(key), route.kind === 'managed' ? 'MANAGED_UNAVAILABLE' : 'CREDENTIAL_REQUIRED', 'This AI model needs its key. Add it in Connections.');
     // Credentials may be retrieved asynchronously; recheck access immediately before reserving and dispatch.
     route = this.#assertCurrent(context, preview);
     await this.store.update(state => {

@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient, type FakeOptions } from '../../src/engine/fake';
-import { EngineError, type ChiefThreadView, type EngineClient } from '../../src/engine/types';
+import { EngineError, type ChiefThreadView, type ChiefThreadsView, type EngineClient } from '../../src/engine/types';
+import { ClockProvider } from '../../src/shell/clock';
 import { NARROW } from '../../src/shell/useNarrow';
 import { assertFiguresProved, assertInkRules, receiptMark } from '../helpers/ink-rules';
 
@@ -155,7 +156,7 @@ describe('#/chats: the list', () => {
     expect(links[0]!.querySelector('[data-content]')!.textContent).toBe('How much have we billed this month?');
     // The last line's amounts are Figures with their receipts (ChiefThreadSummary.amounts), outside the link.
     const line = list.querySelector('[data-last-line]')!;
-    expect(assertFiguresProved(line).map((n) => n.textContent)).toEqual(['₹1,12,400.00', '₹86,200.00']);
+    expect(assertFiguresProved(line).map((n) => n.textContent)).toEqual(['₹1,12,400', '₹86,200']);
     expect(line.closest('a')).toBeNull();
     expect(list.querySelector('[data-engine-line]')).toBeNull();
     assertInkRules(document.body);
@@ -192,10 +193,10 @@ describe('#/chats: a thread', () => {
     const log = thread();
     // Two figures inline and two in the worked table, every one with its receipt.
     const numbers = assertFiguresProved(log);
-    expect(numbers.map((n) => n.textContent)).toEqual(['₹1,12,400.00', '₹86,200.00', '₹1,12,400.00', '₹86,200.00']);
+    expect(numbers.map((n) => n.textContent)).toEqual(['₹1,12,400', '₹86,200', '₹1,12,400', '₹86,200']);
     expect(within(log).getAllByRole('button', { name: receiptMark('R-0401') })).toHaveLength(2);
     const worked = within(log).getByRole('table', { name: 'Worked by the calculator' });
-    expect(within(worked).getAllByRole('row').map((row) => row.textContent?.replace(/R-\d+/, '').trim())).toEqual(['Billed in October₹1,12,400.00', 'Received in October₹86,200.00']);
+    expect(within(worked).getAllByRole('row').map((row) => row.textContent?.replace(/R-\d+/, '').trim())).toEqual(['Billed in October₹1,12,400', 'Received in October₹86,200']);
     const plan = within(log).getByRole('region', { name: 'A short plan' });
     expect(within(plan).getByText('2 steps · each one asks you first')).toBeTruthy();
     expect(within(plan).getAllByRole('listitem').map((li) => li.querySelector('[data-step-title]')!.textContent)).toEqual([
@@ -311,9 +312,9 @@ describe('#/chats: a thread', () => {
   it('counts by code arrive structured and are worded here, kind by kind and month by month, with no estimate label', async () => {
     stubWidth(false);
     await start('#/chats?thread=chiefthread-billed', { override: counted });
-    const box = await within(await screen.findByRole('log')).findByRole('group', { name: "Counted by code; the summary didn't work." });
+    const box = await within(await screen.findByRole('log')).findByRole('group', { name: "Counts from your records. The summary didn't work this time." });
     expect(within(box).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      '4 clients', '1 order', '2 invoices', '6 runs', '0 people in your network', '3 leads', 'August 2026: 2 new', 'September 2026: 5 new', 'October 2026: 9 new',
+      '4 clients', '1 order', '2 invoices', '6 jobs', '0 people in your network', '3 leads', 'August 2026: 2 new', 'September 2026: 5 new', 'October 2026: 9 new',
     ]);
     expect(box.querySelector('[data-estimate]')).toBeNull();
     expect(within(thread()).getByText('One figure was left out: it had no receipt.')).toBeTruthy();
@@ -454,7 +455,7 @@ describe('#/chats: asking', () => {
     fireEvent.change(composer(), { target: { value: 'How is the month going?' } });
     await click(screen.getByRole('button', { name: 'Send' }));
     await settle();
-    await click(within(screen.getByRole('region', { name: 'Before your first message' })).getByRole('button', { name: 'Not now' }));
+    await click(within(screen.getByRole('region', { name: 'Before your first message' })).getByRole('button', { name: 'Cancel' }));
     await settle();
     expect(screen.queryByRole('region', { name: 'Before your first message' })).toBeNull();
     expect(composer().value).toBe('How is the month going?');
@@ -602,5 +603,21 @@ describe('Start: the fit and "Not sure which fits?"', () => {
     expect(window.location.hash).toBe('#/chats');
     await waitFor(() => expect(composer().value).toBe('Which way fits 5 hours a week?'));
     expect(calls(spy, 'venture.chief.thread.send')).toHaveLength(0);
+  });
+});
+
+describe('Chats: the list writes times in the owner zone (one-shot B2)', () => {
+  it("today's thread shows its time on the 12-hour clock in the business's zone: 19:12 UTC is 12:42 am in India", async () => {
+    const LATE = '2026-11-02T19:12:00.000Z';
+    window.location.hash = '#/chats';
+    const fake = createFakeClient(new FakeEngine({ now: () => LATE }));
+    answer('venture.chief.threads', async (_params, base) => {
+      const view = await base('venture.chief.threads') as ChiefThreadsView;
+      const first = view.groups.flatMap((group) => group.threads).find((one) => !one.snoozedUntil)!;
+      return { ...view, groups: view.groups.map((group) => ({ ...group, threads: group.threads.map((one) => (one === first ? { ...one, lastAt: LATE } : one)) })) };
+    })(fake);
+    render(<ClockProvider now={() => new Date('2026-11-02T19:30:00.000Z')}><App client={fake} language="en" /></ClockProvider>);
+    await waitFor(() => expect(chatList().querySelector(`time[datetime="${LATE}"]`)).not.toBeNull());
+    expect(chatList().querySelector(`time[datetime="${LATE}"]`)!.textContent).toBe('12:42 am');
   });
 });

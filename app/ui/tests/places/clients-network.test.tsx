@@ -232,7 +232,10 @@ describe('Network: the search box', () => {
     await click(screen.getByRole('button', { name: 'Agree and search' }));
     await settle();
     expect(calls(spy, 'venture.chats.consent').at(-1)![1]).toEqual({ digest: shown });
-    expect(calls(spy, 'venture.network.people').length, 'no second read at the click').toBe(read);
+    // No second read at the click: the digest sent is the one on screen. (B3: once the consent is recorded, the screens
+    // read again, as after any write.)
+    const order = spy.mock.calls.map(([method]) => method);
+    expect(order.slice(0, order.lastIndexOf('venture.chats.consent')).filter((method) => method === 'venture.network.people').length, 'no second read at the click').toBe(read);
     expect(calls(spy, 'venture.agents.thread.list')).toHaveLength(0);
     expect(screen.getByRole('heading', { level: 2, name: '6 people fit' })).toBeTruthy();
   });

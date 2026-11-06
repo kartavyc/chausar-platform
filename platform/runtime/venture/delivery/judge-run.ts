@@ -24,7 +24,7 @@ import {vaRunCurrent} from '../playbooks/virtual-assistant/run-source.ts';
 // a signal for the improvement loop; a vote code could not check settles nothing and blocks nothing; a refused answer
 // leaves every rule unsettled, never a pass.
 import { playbookForRun } from './workflow.ts';
-import { ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { currentVenture, digest, exactPayload, findRecord, identifier, listRecords, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import type {
   CheckResult, DeliveryJudgePreview, DeliveryRunRecord, DeliveryRunView, JudgeAutoView, JudgeSettingRecord, ModelPreview, ModelPresetId,
@@ -377,7 +377,7 @@ export async function deliveryJudgeSendHandler(deps: VentureDeps, ctx: Context, 
   requireAppChannel(ctx, 'venture.delivery.judgeSend');
   const body = exactPayload(payload, ['runId', 'digest'], ['runId', 'digest']);
   const runId = identifier(body.runId, 'Draft reply');
-  check(typeof body.digest === 'string' && DIGEST.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the quality check call you read.');
+  internalCheck(typeof body.digest === 'string' && DIGEST.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the quality check call you read.');
   const { state, venture } = readAs(deps, ctx, 'approve');
   const run = findRun(state, venture, runId);
   const held = run.judge;

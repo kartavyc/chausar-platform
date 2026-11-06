@@ -50,7 +50,7 @@ test('queue: a spend quote is a quote row; Approve takes the second ask and appr
   const [row] = await ofKind(env, 'quote');
   assert.ok(row, 'a quote row');
   assert.equal(row.title, 'Approve the cost of Thumbnail render');
-  assert.deepEqual(row.change, { label: 'It may cost', after: 'USD 0.1500' });
+  assert.deepEqual(row.change, { label: 'It may cost', after: '$0.15' });
   assert.deepEqual(row.actions.map(item => [item.id, item.primary, item.secondAsk ?? false]), [['later', false, false], ['approve', true, true]]);
 
   const done = await decide(env, row, 'approve');

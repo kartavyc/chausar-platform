@@ -7,7 +7,7 @@
   "pb-va.item": "Item to buy",
   "pb-va.quantity": "Quantity",
   "pb-va.unit": "Unit price in paise",
-  "pb-va.priceHelp": "Use the exact owner-agreed price in paise. The engine computes the total and receipt.",
+  "pb-va.priceHelp": "Use the exact owner-agreed price in paise. Chausar works out the total and its receipt.",
   "pb-va.reviewPurchase": "Review purchase total",
   "pb-va.payManual": "Chausar never types payment details. Pay it yourself.",
   "pb-va.notBought": "Nothing was bought. Check this item and total, then buy it yourself.",

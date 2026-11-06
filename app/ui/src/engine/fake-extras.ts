@@ -8,6 +8,7 @@
  * a statement import never counts a line twice, and a preview link needs a public address.
  */
 
+import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
 import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
 import { FakeCountryMoney, type CountryMoneyHost } from './fake-country-money';
@@ -49,11 +50,9 @@ const EXTRA_METHODS = new Set([
   'venture.share.create', 'venture.share.list', 'venture.share.revoke',
 ]);
 
-/** USD with four decimals from whole micro-dollars, as the engine's formatMicros writes it. Sample text work only. */
+/** Dollars from whole micro-dollars in the owner form, as the engine writes a spent amount (B2). Sample text work only. */
 function usd(micros: string): string {
-  const padded = micros.padStart(7, '0');
-  const tenThousandths = padded.slice(0, -2);
-  return `USD ${tenThousandths.slice(0, -4).replace(/^0+(?=\d)/, '')}.${tenThousandths.slice(-4)}`;
+  return formatUsd(micros);
 }
 /** US dollars as typed ('20', '12.50', '0.000075') to whole micro-dollars, as the engine's usdToMicros. Null clears. */
 function dollars(value: unknown, field: string, decimals: 2 | 6): string | null {
@@ -96,7 +95,7 @@ function rateWords(rate: SampleRupeeRate): string {
 /** Micro-dollars in rupees beside the dollars, as the engine's rupeesBeside: to the nearest paisa, a half paisa up. */
 function rupeesBeside(micros: string, rate: SampleRupeeRate): string {
   const paise = (BigInt(micros) * rate.perUsd + 50_000_000n) / 100_000_000n;
-  return `₹${(paise / 100n).toLocaleString('en-IN')}.${String(paise % 100n).padStart(2, '0')} at ${rateWords(rate)}`;
+  return `${formatMoney(paise, 'INR')} at ${rateWords(rate)}`;
 }
 /**
  * W6 6G5 (D44): each sample agent's spend this month with its sum receipt, as money/agent-meters.ts sends it: the Editor's
@@ -113,7 +112,7 @@ const METER_SAMPLE: Readonly<Record<string, readonly { id: string; name: string;
 const EMPTY_SUM_RECEIPT = 'R-0453';
 const METER_WORDS = {
   noLimit: 'No limit of its own', paused: 'Paused: it reached its limit. Other work goes on.',
-  plan: (n: number) => `${n} ${n === 1 ? 'run' : 'runs'} on your plan`, used: (permille: number) => `${Math.floor(permille / 10)}% of its limit used`,
+  plan: (n: number) => `${n} ${n === 1 ? 'job' : 'jobs'} on your plan`, used: (permille: number) => `${Math.floor(permille / 10)}% of its limit used`,
 };
 const DAY = 86_400_000;
 const UNSUBSCRIBE = 'If you would rather not hear from us, reply "unsubscribe" and we will not write again.';
@@ -194,7 +193,7 @@ export class FakeExtrasDesk {
         return { links, shares: structuredClone(links) };
       }
       case 'venture.share.revoke': return this.revoke(biz, p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

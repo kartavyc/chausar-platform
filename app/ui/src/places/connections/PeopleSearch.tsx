@@ -1,7 +1,7 @@
 /**
  * Connections, "People search" (wave 6, 6F8; the engine's people/services.ts). Happenstance (your own network) and
  * Probe42 (Indian company records) each run on the owner's own key, saved in this computer's protected storage; each
- * says "fixture-tested, needs your key" until it has run on a real account. Tofler is planned, with the manual path.
+ * says "Not tried live yet, needs your key" until it has run on a real account. Tofler is planned, with the manual path.
  * A lookup shows the exact words and cost first; nothing is sent until "Approve and look up". Answers come from the
  * service, so they sit in [data-content]. Nothing here ever opens or asks LinkedIn.
  */

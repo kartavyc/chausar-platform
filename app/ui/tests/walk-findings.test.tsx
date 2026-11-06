@@ -169,11 +169,11 @@ describe('listed by the walk, fixed before wave 3 ships (the integrator, 26 Oct)
     expect(() => assertInkRules(container)).toThrow(/words.*plus ₹18\.00 held/);
   });
 
-  it('6. a figure the engine wrote with words after it keeps the amount in mono and sets the words in the body face', () => {
+  it('6. a figure the engine wrote with words after it keeps the amount apart, in tabular figures, and sets the words beside it (B2: both in the body font)', () => {
     const { container } = render(<Figure value="₹60.10, includes estimates" receiptId="R-0431" />);
     const number = container.querySelector('[data-ui-number]')!;
     expect(number.textContent).toBe('₹60.10');
-    expect(number.classList.contains('mono')).toBe(true);
+    expect(number.classList.contains('mono')).toBe(false); // B2: the body font, tabular figures
     const words = container.querySelector('[data-figure-words]')!;
     expect(words.textContent).toBe(', includes estimates');
     expect(words.classList.contains('mono')).toBe(false);
@@ -199,7 +199,7 @@ describe('listed by the walk, fixed before wave 3 ships (the integrator, 26 Oct)
     render(<App client={createFakeClient(new FakeEngine())} language="en" />);
     const order = (await screen.findByRole('heading', { name: 'Two mentions in episode 14' })).closest('li')!;
     await settle();
-    const meta = within(order).getByText('Priced on receipt').closest('p')!;
+    const meta = within(order).getByText("How it's priced").closest('p')!;
     expect(within(meta).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     // W4 4J3: the order's stage steps name a "Price" stage; that is a step's name, not a price line.
     expect(within(order).queryAllByText(/^Price$/).filter((el) => !el.closest('[data-order-steps]'))).toEqual([]);

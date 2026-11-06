@@ -71,9 +71,9 @@ describe('Today: the goal card with a goal set (W4 4I2)', () => {
     const goal = await goalCard('October goal');
     await waitFor(() => expect(goal.querySelector('[data-goal-foot]')?.textContent).toContain('₹1,109.67'));
     expect(calls.some(([method]) => method === 'venture.goals.get')).toBe(true);
-    expect(goal.querySelector('[data-ui-number]')?.textContent).toBe('₹1,12,400.00');
+    expect(goal.querySelector('[data-ui-number]')?.textContent).toBe('₹1,12,400');
     expect(goal.textContent).toContain('of');
-    expect(goal.textContent).toContain('₹1,50,000.00');
+    expect(goal.textContent).toContain('₹1,50,000');
     expect(goal.textContent).toContain('74%');
     expect(goal.textContent).toContain('8 days left');
     const bar = within(goal).getByRole('img');
@@ -82,7 +82,7 @@ describe('Today: the goal card with a goal set (W4 4I2)', () => {
     // How far ahead of today's pace comes from the engine with its receipt: "₹1,109.67 ahead of pace".
     expect(foot.textContent).toMatch(/ahead of pace/i);
     expect(foot.textContent).toContain('Still to invoice');
-    expect(foot.textContent).toContain('₹37,600.00');
+    expect(foot.textContent).toContain('₹37,600');
     expect(foot.textContent).toContain('Received so far');
     expect(within(foot).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     expect(foot.querySelectorAll('[data-receipt][data-tone="dark"]')).toHaveLength(3);
@@ -145,7 +145,7 @@ describe('Today: no goal for the month yet (spec 8)', () => {
     const { calls } = await start({ folder: 'ledgerline' });
     const goal = await goalCard('October goal');
     await waitFor(() => expect(goal.textContent).toContain('No goal for October yet.'));
-    expect(goal.querySelector('[data-ui-number]')?.textContent).toBe('₹16,000.00');
+    expect(goal.querySelector('[data-ui-number]')?.textContent).toBe('₹16,000');
     expect(within(goal).queryByRole('img')).toBeNull();
     expect(goal.textContent).not.toContain('%');
     expect(within(goal).queryByRole('button', { name: 'Change the goal' })).toBeNull();
@@ -159,7 +159,7 @@ describe('Today: no goal for the month yet (spec 8)', () => {
   });
 
   it("Suggest a goal asks the engine once, on the press, and shows its figure as a model estimate with the engine's words", async () => {
-    const suggestion: GoalSuggestion = { amountMinor: '20000000', display: '₹2,00,000.00', estimate: true, line: 'A model estimate from your offers and prices. Change it to what you aim for.', typed: '200000.00' };
+    const suggestion: GoalSuggestion = { amountMinor: '20000000', display: '₹2,00,000', estimate: true, line: 'A model estimate from your offers and prices. Change it to what you aim for.', typed: '200000.00' };
     const { calls } = await start({
       folder: 'ledgerline',
       override: {
@@ -168,14 +168,14 @@ describe('Today: no goal for the month yet (spec 8)', () => {
       },
     });
     const goal = await goalCard('October goal');
-    await waitFor(() => expect(goal.textContent).toContain('₹48,600.00'));
-    const last = [...goal.querySelectorAll('[data-figure]')].find((f) => f.textContent?.includes('₹48,600.00'))!;
+    await waitFor(() => expect(goal.textContent).toContain('₹48,600'));
+    const last = [...goal.querySelectorAll('[data-figure]')].find((f) => f.textContent?.includes('₹48,600'))!;
     expect(within(last as HTMLElement).getByRole('button', { name: receiptMark('R-0401') })).toBeTruthy();
     expect(goal.textContent).toContain('September');
     expect(calls.some(([method]) => method === 'venture.goals.suggest')).toBe(false);
     await act(async () => { fireEvent.click(within(goal).getByRole('button', { name: 'Suggest a goal' })); });
     await settle();
-    const suggested = [...goal.querySelectorAll('[data-figure]')].find((f) => f.textContent?.includes('₹2,00,000.00'))!;
+    const suggested = [...goal.querySelectorAll('[data-figure]')].find((f) => f.textContent?.includes('₹2,00,000'))!;
     expect(suggested.querySelector('[data-estimate]')?.textContent).toBe('model estimate');
     expect(suggested.querySelector('[data-receipt]')).toBeNull();
     expect(goal.textContent).toContain(suggestion.line);
@@ -220,7 +220,7 @@ describe('Today: the next best step (W4 4I2)', () => {
     expect(next.textContent).toContain('Next best step');
     expect(next.textContent).toContain('Producer');
     expect(within(next).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
-    expect(next.querySelector('[data-ui-number]')?.textContent).toBe('₹30,000.00');
+    expect(next.querySelector('[data-ui-number]')?.textContent).toBe('₹30,000');
     // The card already says what the row is and that it asks once more: the tile repeats neither.
     expect(next.textContent).not.toContain('The sponsor asked for two mentions in one episode.');
     expect(next.textContent).not.toContain('Asks you once more');
@@ -236,7 +236,7 @@ describe('Today: the next best step (W4 4I2)', () => {
     await act(async () => { fireEvent.click(within(next).getByRole('button', { name: /^Approve/ })); });
     await settle();
     const card = screen.getByRole('region', { name: 'Needs you' }).querySelector<HTMLElement>('[data-row-id="q-price-sponsor"]')!;
-    const notNow = within(card).getByRole('button', { name: 'Not now' });
+    const notNow = within(card).getByRole('button', { name: 'Cancel' });
     expect(document.activeElement).toBe(notNow);
     expect(calls.some(([method]) => method === 'venture.queue.decide')).toBe(false);
   });
@@ -283,7 +283,7 @@ describe('Today: the next best step (W4 4I2)', () => {
     await act(async () => { fireEvent.click(within(folded).getByRole('button', { name: /^Approve/ })); });
     await settle();
     const card = screen.getByRole('region', { name: 'Needs you' }).querySelector<HTMLElement>('[data-row-id="q-price-sponsor"]')!;
-    expect(within(card).getByRole('button', { name: 'Not now' })).toBeTruthy();
+    expect(within(card).getByRole('button', { name: 'Cancel' })).toBeTruthy();
     expect(calls.some(([method]) => method === 'venture.queue.decide')).toBe(false);
   });
 });

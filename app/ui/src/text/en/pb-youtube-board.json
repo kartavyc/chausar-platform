@@ -18,7 +18,7 @@
   "pb-youtube-board.unit.UTF-8 bytes": "bytes",
   "pb-youtube-board.unit.UTF-16 units": "text units",
   "pb-youtube-board.unit.characters": "characters",
-  "pb-youtube-board.countHelp": "Counted by code from the saved text. Save edits to refresh the count.",
+  "pb-youtube-board.countHelp": "Counted from the saved text. Save edits to refresh the count.",
   "pb-youtube-board.saveText": "Save publishing text",
   "pb-youtube-board.preview": "Read output",
   "pb-youtube-board.approve": "Approve output",

@@ -36,7 +36,7 @@ test('pause all: new runs are refused, Team reads Paused, routines skip; unpausi
   assert.equal(listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === waiting.id)!.status, 'waiting-for-you', 'pausing alone stops no run');
 
   const unpaused = await call(env, 'venture.business.pause', { paused: false });
-  assert.deepEqual(unpaused, { paused: false, stopped: 0, line: 'Unpaused. Stopped runs stay stopped until you resume them.' });
+  assert.deepEqual(unpaused, { paused: false, stopped: 0, line: 'Unpaused. Stopped jobs stay stopped until you resume them.' });
   assert.equal(pauseSkipLine(env.store.read()), null);
   const started = await run(env, order.id);
   assert.equal(started.status, 'ready-for-review');

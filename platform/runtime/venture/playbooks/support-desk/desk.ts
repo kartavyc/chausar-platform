@@ -10,6 +10,7 @@ import { signedReplyAddress } from './threading.ts';
 import { mailThreadsOf, threadForAgent, threadIdOf } from '../../build/mail-in.ts';
 import { redactSecrets, screenReadback } from '../../core/secrets.ts';
 import { dueAt, dueBadge, queueRank, snoozeTicket, wakeTicket, supportHours, type ShopHours } from './due.ts';
+import { ventureTimeZone } from '../../local-day.ts';
 import { confirmTicket, moveTicket, proposeTicket, requestMoney, checkSupportDraft, sendHandoff, type TicketInput, type TicketProposal } from './tickets.ts';
 import { humanHandoff, needsPerson, replyPair, triageSupport } from './handoff.ts';
 import { addRating, ratingSummary } from './ratings.ts';
@@ -60,7 +61,7 @@ async function act(deps:VentureDeps,ctx:Context,p:{id:string;action:string;paylo
     if(body.messages.some(m=>needsPerson(m.text)))body=humanHandoff(body,[],tx.now).ticket;
    }
    const targets={...order?.intake?.fields,...b};
-   const policy=b.hours===undefined?supportHours(targets):b.hours as unknown as ShopHours;
+   const policy=b.hours===undefined?supportHours(targets,ventureTimeZone(tx.venture!.country)):b.hours as unknown as ShopHours;
    const due=targets.firstReplyHours===undefined||targets.firstReplyHours===null||targets.firstReplyHours===''?null:dueAt(tx.now,Number(targets.firstReplyHours),policy);
    const resolution=targets.resolutionHours===undefined||targets.resolutionHours===null||targets.resolutionHours===''?null:dueAt(tx.now,Number(targets.resolutionHours),policy);
    const ticket=tx.put<SupportTicketRecord>({...tx.base('venture-support-ticket'),...body,number:String(tx.list('venture-support-ticket').length+1),proposal:{expiresAt:proposal.expiresAt},dueAt:due,resolutionDueAt:resolution});

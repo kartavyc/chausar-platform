@@ -9,6 +9,7 @@
  * subscription, so the fake accepts one without it. Nothing here sends anything anywhere.
  */
 
+import { dayKeyIn, formatClock, formatDay, formatTime, ownerZone, timeKeyIn } from '../../../../platform/runtime/owner-format';
 import { EngineError, type NotificationView, type NotifyDigestView, type NotifySettingsView, type PushSubscriptionInput, type QueueRow } from './types';
 import type { W4DeskHost } from './fake-w4';
 import { qrMatrix } from '../../../../platform/runtime/venture/money/qr';
@@ -42,7 +43,7 @@ const CHAT_ID = /^-?\d{1,20}$/;
 const FAKE_WIFI = '192.168.1.20';
 const FAKE_PAIR_LINK = `http://${FAKE_WIFI}:43117/#pair=${'Fk'.repeat(21)}x`;
 
-/** centre.ts KIND_WORDS: what an ended item says instead of its row's title. */
+/** centre.ts KIND_WORDS and endedTitle: what an ended item says instead of its row's title, and that it ended. */
 const KIND_WORDS: Readonly<Record<string, string>> = {
   plan: 'Your plan', price: 'A price change', quote: 'A cost to approve', draft: 'A draft', invoice: 'An invoice', signoff: 'A sign-off',
   question: 'A question', setup: 'A setup step', locked: 'A locked business', connector: 'A connection', bank: 'A bank line',
@@ -68,9 +69,6 @@ const SAMPLE_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjS
 const MAX_PAUSE_MS = 30 * 24 * 3_600_000;
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-/** India Standard Time, the sample businesses' time zone. */
-const IST_MS = 330 * 60_000;
 
 interface Note { id: string; rowId: string; kind: QueueRow['kind']; title: string; at: string; readAt: string | null; ended: boolean }
 interface Settings {
@@ -108,12 +106,13 @@ function digestLine(rows: readonly QueueRow[]): string {
   return `Today: ${rows.length} ${rows.length === 1 ? 'needs' : 'need'} you (${parts.join(', ')}).`;
 }
 
-/** The owner's clock in India at an instant: [the day, 'HH:MM']. */
+/** The sample businesses are in India: their zone from the engine's table, not a fixed offset (B2). */
+const INDIA = ownerZone('IN', 'UTC');
+/** The owner's clock in India at an instant: [the day, 'HH:MM'], keys to compare with the settings. */
 function indiaAt(instant: string): [string, string] {
-  const local = new Date(Date.parse(instant) + IST_MS).toISOString();
-  return [local.slice(0, 10), local.slice(11, 16)];
+  return [dayKeyIn(instant, INDIA), timeKeyIn(instant, INDIA)];
 }
-const dayWords = (day: string) => `${day.slice(8, 10)} ${MONTHS[Number(day.slice(5, 7)) - 1]} ${day.slice(0, 4)}`;
+const dayWords = (day: string) => formatDay(day, 'UTC');
 
 export class FakeNotifyDesk {
   protected readonly host: W4DeskHost;
@@ -149,7 +148,7 @@ export class FakeNotifyDesk {
       case 'venture.notify.relay': return this.relay(p);
       case 'venture.notify.telegram': return this.telegram(p);
       case 'venture.phone.access': return this.phoneAccess(p);
-      default: return refuse('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: return refuse('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -163,7 +162,7 @@ export class FakeNotifyDesk {
       if (note.ended || rows.some((row) => row.id === note.rowId)) continue;
       note.ended = true;
       note.readAt ??= now;
-      note.title = KIND_WORDS[note.kind] ?? 'An item';
+      note.title = `${KIND_WORDS[note.kind] ?? 'An item'}, no longer waiting on you`;
     }
     for (const row of rows) {
       if (notes.some((note) => note.rowId === row.id && !note.ended)) continue;
@@ -230,15 +229,15 @@ export class FakeNotifyDesk {
     const paused = stored.pausedUntil !== null && Date.parse(stored.pausedUntil) > nowMs;
     const parts: string[] = [];
     if (paused) {
-      const [day, time] = indiaAt(stored.pausedUntil!);
-      parts.push(`Alerts outside the app are paused until ${dayWords(day)}, ${time}. The bell still lists everything.`);
+      const [day] = indiaAt(stored.pausedUntil!);
+      parts.push(`Alerts outside the app are paused until ${dayWords(day)}, ${formatTime(stored.pausedUntil!, INDIA)}. The bell still lists everything.`);
     } else if (hosted) {
       parts.push(push ? 'Phone alerts are on, with a count only, and come while Chausar is awake for this business.' : 'Phone alerts are off. The bell still lists everything.');
     } else {
       parts.push(stored.tray ? 'The tray shows how many things need you.' : 'The tray count is off. The bell still lists everything.');
     }
-    parts.push(stored.quietHours ? `Quiet hours: ${stored.quietHours.from} to ${stored.quietHours.to}.` : 'No quiet hours.');
-    parts.push(stored.digest ? `Daily digest at ${String(stored.digest.hour).padStart(2, '0')}:00.` : 'No daily digest.');
+    parts.push(stored.quietHours ? `Quiet hours: ${formatClock(stored.quietHours.from)} to ${formatClock(stored.quietHours.to)}.` : 'No quiet hours.');
+    parts.push(stored.digest ? `Daily summary at ${formatClock(`${String(stored.digest.hour).padStart(2, '0')}:00`)}.` : 'No daily summary.');
     // settings.ts keepsRunning: the Keeper jobs that ran here; the hosted app sleeps while nobody has it open.
     const keepsRunning = hosted || this.fresh ? [] : ['Backups, by Keeper', 'Journal sweep, by Keeper', 'Connection checks, by Keeper'];
     return {
@@ -277,7 +276,7 @@ export class FakeNotifyDesk {
       const value = p.digest as { hour?: unknown } | null;
       if (value === null) change.digest = null;
       else {
-        check(value && Number.isInteger(value.hour) && (value.hour as number) >= 0 && (value.hour as number) <= 23, 'INVALID_VENTURE_REQUEST', 'Choose the digest hour from 0 to 23.');
+        check(value && Number.isInteger(value.hour) && (value.hour as number) >= 0 && (value.hour as number) <= 23, 'INVALID_VENTURE_REQUEST', 'Choose the daily summary hour from 0 to 23.');
         change.digest = { hour: value.hour as number };
       }
     }

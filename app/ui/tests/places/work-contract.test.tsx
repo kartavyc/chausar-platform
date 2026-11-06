@@ -75,7 +75,7 @@ describe('Work: the order contract (4J22a)', SLOW, () => {
     expect(calls.some((c) => c.method === 'venture.order.contract.sign')).toBe(false);
     const ask = tile.querySelector('[data-second-ask]')!;
     expect(ask.textContent).toContain('Sign revision 1? Work on this order follows it, and every draft is checked against what it keeps as it is.');
-    expect(document.activeElement).toBe(within(ask as HTMLElement).getByRole('button', { name: 'Not now' }));
+    expect(document.activeElement).toBe(within(ask as HTMLElement).getByRole('button', { name: 'Cancel' }));
     await act(async () => { fireEvent.click(within(ask as HTMLElement).getByRole('button', { name: 'Sign revision 1' })); });
     const signed = calls.find((c) => c.method === 'venture.order.contract.sign')!;
     expect(signed.params).toEqual({ orderId: 'o-iyer-oct', digest: read.digest });

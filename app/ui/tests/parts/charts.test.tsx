@@ -159,13 +159,13 @@ const yearOut: BarSeries = { label: 'Out', points: MONTHS.map((m) => ({ key: m, 
 describe('BarChart', () => {
   it('counts with a money note under each, each note proved by its own receipt (proof "each", W4 4A2)', () => {
     const weeks: BarSeries = { label: 'Jobs', points: [
-      { key: 'w1', label: '5 Oct', valuePermille: 500, value: '4', note: 'USD 0.0400', receiptId: 'R-0601' },
-      { key: 'w2', label: '12 Oct', valuePermille: 1000, value: '8', note: 'USD 0.0800', receiptId: 'R-0602' },
+      { key: 'w1', label: '5 Oct', valuePermille: 500, value: '4', note: '$0.04', receiptId: 'R-0601' },
+      { key: 'w2', label: '12 Oct', valuePermille: 1000, value: '8', note: '$0.08', receiptId: 'R-0602' },
     ] };
     const { container } = render(<BarChart kind="count" proof="each" noteLabel="Spend" series={[weeks]} label="Jobs and spend by week" />);
     const root = container.querySelector('[data-chart]')!;
     expect(root.hasAttribute('data-figure-group')).toBe(true);
-    expect([...container.querySelectorAll('[data-note]')].map((note) => note.textContent)).toEqual(['USD 0.0400', 'USD 0.0800']);
+    expect([...container.querySelectorAll('[data-note]')].map((note) => note.textContent)).toEqual(['$0.04', '$0.08']);
     // No one receipt in the foot: each week's own is in the table.
     expect(within(container.querySelector('table')!).getAllByRole('button').map((button) => button.getAttribute('data-receipt'))).toEqual(['R-0601', 'R-0602']);
     expect(container.querySelectorAll('[data-receipt]')).toHaveLength(2);

@@ -201,15 +201,18 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     </div>
   );
 
+  // B3: the read failed and nothing was read: the preview says the problem, not that it is still reading.
+  const failedRead = !busy && !read && problem !== null;
   // On Send the preview comes in with the chat, in the same motion, and fills in when the answer arrives.
   const preview = mode !== 'a' && (
     <Tile as="section" span={mode === 'plan' ? 12 : 5} label={t('first-run.about.preview')} className={mode === 'b' ? `${s.preview} ${s.slide}` : s.preview} card>
       <div className={s.previewHead}>
         <h2 className={s.chatTitle}>{t('first-run.about.business')}</h2>
-        {mode === 'b' && <Chip tone="working">{t('first-run.about.updating')}</Chip>}
+        {/* B3: only while a read is on its way. */}
+        {mode === 'b' && busy && <Chip tone="working">{t('first-run.about.updating')}</Chip>}
         {mode === 'plan' && <Button variant="quiet" onClick={() => setMode('a')}>{t('first-run.about.back')}</Button>}
       </div>
-      {read ? planOf(read) : <p className={s.hint}>{t('first-run.about.reading')}</p>}
+      {read ? planOf(read) : failedRead ? <p className={f.problem} role="alert">{problem}</p> : <p className={s.hint}>{t('first-run.about.reading')}</p>}
     </Tile>
   );
 
@@ -338,7 +341,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
         )}
         {preview}
       </Bento>
-      {problem && <p className={f.problem} role="alert">{problem}</p>}
+      {problem && !failedRead && <p className={f.problem} role="alert">{problem}</p>}
     </div>
   );
 }

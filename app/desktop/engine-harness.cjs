@@ -113,7 +113,8 @@ class EngineHarness extends EventEmitter {
           if (typeof message.id !== 'string') return;
           const pending = this.waiting.get(message.id); if (!pending) return;
           this.waiting.delete(message.id); clearTimeout(pending.timer);
-          if (message.error) pending.reject(failure(typeof message.error.code === 'string' ? message.error.code : 'REQUEST_FAILED', typeof message.error.message === 'string' ? message.error.message : 'The engine request failed.'));
+          // B1 fix round 1: the worker's owner flag goes on with the words (owner-error.ts).
+          if (message.error) pending.reject(Object.assign(failure(typeof message.error.code === 'string' ? message.error.code : 'REQUEST_FAILED', typeof message.error.message === 'string' ? message.error.message : 'The engine request failed.'), message.error.owner === true ? { owner: true } : {}));
           else if (pending.kind === 'host-lifecycle' && (message.kind !== 'host-lifecycle' || message.applied !== true || message.result?.applied !== true)) pending.reject(failure('INVALID_JOB_LIFECYCLE_ACK', 'The engine did not acknowledge its host lifecycle.'));
           else if (Object.hasOwn(message, 'result')) pending.resolve(message.result);
           else pending.reject(failure('INVALID_ENGINE_REPLY', 'The engine returned an invalid response.'));

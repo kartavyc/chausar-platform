@@ -9,7 +9,7 @@
 // replaced by plain words. Ids travel in fields named id, which the chat's id-number screen leaves alone.
 import { type Context, type State } from '../../contracts.ts';
 import type { AcrossFigureId, BlueprintRecord, BusinessSnapshot, ChatPart, Json, Offer, PriceReceiptRecord, VentureDeps, VentureRecord } from '../contracts.ts';
-import { asOfWords, readSnapshots, savedReceipts, unreadableLine } from '../money/across.ts';
+import { asOfWords, readSnapshots, savedReceipts, savedWords, unreadableLine } from '../money/across.ts';
 import { findRecord, listRecords, ventureAction } from '../records.ts';
 import { buildPriceReceipt } from '../money/quote.ts';
 import { acceptedBlueprintOrNull, readAs } from '../delivery/shared.ts';
@@ -265,7 +265,7 @@ const SAVED_LABELS: Readonly<Record<AcrossFigureId, string>> = Object.freeze({
 });
 function savedFigures(receipts: Record<AcrossFigureId, string>, snapshot: BusinessSnapshot, name: string, when: string): ToolFigure[] {
   return (['invoiced', 'received', 'owed', 'spend'] as const).map(what => ({
-    receiptId: receipts[what], key: 'total', label: `${name}: ${SAVED_LABELS[what]}, ${when}`, display: snapshot.money![what].display,
+    receiptId: receipts[what], key: 'total', label: `${name}: ${SAVED_LABELS[what]}, ${when}`, display: savedWords(snapshot.money![what]) ?? snapshot.money![what].display,
   }));
 }
 
@@ -286,7 +286,7 @@ export async function savedAnswer(deps: VentureDeps, ctx: Context, businessId: s
     const receipts = await savedReceipts(deps, ctx, venture, snapshot);
     for (const what of ['invoiced', 'received', 'owed', 'spend'] as const) {
       const words = SAVED_LABELS[what];
-      parts.push({ kind: 'text', text: `${words[0].toUpperCase()}${words.slice(1)}` }, { kind: 'figure', receiptId: receipts[what], key: 'total', display: snapshot.money[what].display });
+      parts.push({ kind: 'text', text: `${words[0].toUpperCase()}${words.slice(1)}` }, { kind: 'figure', receiptId: receipts[what], key: 'total', display: savedWords(snapshot.money[what]) ?? snapshot.money[what].display });
     }
   } else parts.push({ kind: 'text', text: 'It was still being set up then.' });
   const counts = [

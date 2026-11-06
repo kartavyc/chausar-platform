@@ -16,7 +16,7 @@ type Handler = (deps: Env['deps'], ctx: typeof owner, payload: unknown) => Promi
 const card = (env: Env, payload: Record<string, unknown>) => (playbooks as Record<string, Handler>)['venture.goNoGo.card'](env.deps, owner, payload) as Promise<GoNoGoCardView>;
 const list = (env: Env) => (playbooks as Record<string, Handler>)['venture.goNoGo.list'](env.deps, owner, {}) as Promise<GoNoGoListView>;
 const receipt = (env: Env, id: string) => (money as Record<string, Handler>)['venture.receipt.get'](env.deps, owner, { id }) as Promise<RowFigureReceipt>;
-// INR 20,000 to start, INR 5,000 a month for 3 months: the most it can lose is 20,000 + 5,000 x 3 = INR 35,000.
+// ₹20,000 to start, ₹5,000 a month for 3 months: the most it can lose is 20,000 + 5,000 x 3 = ₹35,000.
 // The owner types rupees as they write them; the engine reads them as ownerPrice does (thousands commas, two decimals).
 const INPUTS = { upfront: '20,000', monthly: '5000', months: '3', limit: '50000.00' };
 
@@ -25,27 +25,27 @@ test('GO: the maximum loss is inside the owner\'s limit; the card says GO spends
   const made = await card(env, { playbook: 'general', subject: 'A reels pack for gyms', inputs: INPUTS });
   assert.equal(made.verdict, 'GO');
   assert.equal(made.subject, 'A reels pack for gyms');
-  assert.equal(made.line, 'GO: the most you could lose is INR 35,000.00, within your limit of INR 50,000.00.');
+  assert.equal(made.line, 'GO: the most you could lose is ₹35,000, within your limit of ₹50,000.');
   assert.equal(made.spendsNothing, 'GO spends nothing: each spend still asks you.');
   assert.deepEqual(made.unknown, []);
-  assert.deepEqual(made.maxLoss, { minor: '3500000', display: 'INR 35,000.00', receiptId: made.id });
-  assert.deepEqual(made.limit, { minor: '5000000', display: 'INR 50,000.00' });
+  assert.deepEqual(made.maxLoss, { minor: '3500000', display: '₹35,000', receiptId: made.id });
+  assert.deepEqual(made.limit, { minor: '5000000', display: '₹50,000' });
 
   const proof = await receipt(env, made.id);
   assert.equal(proof.kind, 'row-figure');
   assert.deepEqual(proof.subject, { type: 'go-no-go', recordId: made.id });
   assert.deepEqual(proof.figures.map(figure => [figure.key, figure.amount, figure.display]), [
-    ['upfront', '2000000', 'INR 20,000.00'], ['monthly', '500000', 'INR 5,000.00'], ['running', '1500000', 'INR 15,000.00'],
-    ['max-loss', '3500000', 'INR 35,000.00'], ['limit', '5000000', 'INR 50,000.00'],
+    ['upfront', '2000000', '₹20,000'], ['monthly', '500000', '₹5,000'], ['running', '1500000', '₹15,000'],
+    ['max-loss', '3500000', '₹35,000'], ['limit', '5000000', '₹50,000'],
   ]);
-  assert.equal(proof.explanation, 'INR 20,000.00 to start, plus INR 5,000.00 a month for 3 months (INR 15,000.00) = INR 35,000.00 at most. Your limit is INR 50,000.00.');
+  assert.equal(proof.explanation, '₹20,000 to start, plus ₹5,000 a month for 3 months (₹15,000) = ₹35,000 at most. Your limit is ₹50,000.');
   assert.equal(proof.stale, false);
 
   // A loss exactly at the limit is still within it.
   assert.equal((await card(env, { playbook: 'general', subject: 'At the limit', inputs: { ...INPUTS, limit: '35,000' } })).verdict, 'GO');
   // Nothing to start is a cost of nothing; the card keeps the amounts as paise.
   const free = await card(env, { playbook: 'general', subject: 'No start cost', inputs: { ...INPUTS, upfront: '0' } });
-  assert.equal(free.maxLoss?.display, 'INR 15,000.00');
+  assert.equal(free.maxLoss?.display, '₹15,000');
   assert.deepEqual(listRecords(env.store.read(), 'venture-go-no-go').find(item => item.id === made.id)!.inputs, { upfront: '2000000', monthly: '500000', months: '3', limit: '5000000' });
 });
 
@@ -53,9 +53,9 @@ test('NO-GO: the maximum loss is above the owner\'s limit, and the card says so 
   const env = await setup();
   const made = await card(env, { playbook: 'general', subject: 'A reels pack for gyms', inputs: { ...INPUTS, limit: '30000' } });
   assert.equal(made.verdict, 'NO-GO');
-  assert.equal(made.line, 'NO-GO: the most you could lose, INR 35,000.00, is above your limit of INR 30,000.00.');
+  assert.equal(made.line, 'NO-GO: the most you could lose, ₹35,000, is above your limit of ₹30,000.');
   assert.equal(made.spendsNothing, null);
-  assert.equal(made.maxLoss?.display, 'INR 35,000.00');
+  assert.equal(made.maxLoss?.display, '₹35,000');
 });
 
 test('HOLD lists every input the owner did not know, by its plain name; a missing input counts as not known', async () => {
@@ -71,7 +71,7 @@ test('HOLD lists every input the owner did not know, by its plain name; a missin
   // With only the limit unknown the loss is worked out, and still HOLD.
   const partly = await card(env, { playbook: 'general', subject: 'Product photos for sellers', inputs: { ...INPUTS, limit: null } });
   assert.equal(partly.verdict, 'HOLD');
-  assert.equal(partly.maxLoss?.display, 'INR 35,000.00');
+  assert.equal(partly.maxLoss?.display, '₹35,000');
 });
 
 test('each card is stored and listed, newest first; inputs are checked before anything is stored', async () => {

@@ -10,6 +10,8 @@ import { DepartmentPanel } from '../../src/places/team/DepartmentPanel';
 import { OneDepartment } from '../../src/places/team/OneDepartment';
 import type { DepartmentData, Member } from '../../src/places/team/departments';
 import { assertInkRules, receiptMark } from '../helpers/ink-rules';
+import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
+import team from '../../src/text/en/team.json';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -94,7 +96,7 @@ const agent = (id: string, name: string, extra: Partial<AgentView> = {}): AgentV
   id, name, role: `${name} role`, now: 'Idle', posture: 'approve-each', spend: '', steps: [], ...extra,
 });
 const run = (runId: string, agentName: string, extra: Partial<RunSummary>): RunSummary => ({
-  runId, businessId: 'lumen', agent: agentName, purpose: `${agentName} purpose`, state: 'active', startedAt: '2026-10-21T10:00:00.000Z', elapsed: '2m', ...extra,
+  runId, businessId: 'lumen', agent: agentName, purpose: `${agentName} purpose`, state: 'active', startedAt: '2026-10-21T10:00:00.000Z', elapsed: '2 min', ...extra,
 });
 
 describe('Team v2: the stats tiles', () => {
@@ -108,7 +110,8 @@ describe('Team v2: the stats tiles', () => {
     expect(working.querySelectorAll('[data-dept][aria-hidden="true"]')).toHaveLength(2);
 
     const waiting = within(glance).getByText('Waiting on you').closest('[data-card]') as HTMLElement;
-    expect(waiting.querySelector('[data-count]')?.textContent).toBe('1');
+    // B3: the count is what Today counts for this business (7 rows wait in Lumen); the line names the agent who waits.
+    await waitFor(() => expect(waiting.querySelector('[data-count]')?.textContent).toBe('7'));
     expect(waiting.getAttribute('data-tone')).toBe('wait');
     expect(waiting.textContent).toContain('Producer: Pricing the sponsor slot');
     expect(waiting.querySelector('[data-state="waiting"]')).not.toBeNull();
@@ -119,7 +122,7 @@ describe('Team v2: the stats tiles', () => {
     // 4Z3: a business in India with a rupee rate leads with rupees, its words after them, the dollars beneath (two decimals).
     expect(spend.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹60.10');
     expect(spend.querySelector('[data-figure] [data-figure-words]')?.textContent).toBe(', includes estimates');
-    expect(spend.textContent).toContain('USD 0.72 at ₹83.50 per $1');
+    expect(spend.textContent).toContain('$0.72 at ₹83.50 per $1');
     expect(within(spend).getByRole('button', { name: receiptMark('R-0431') })).toBeTruthy();
     expect(within(spend).queryByText('model estimate')).toBeNull();
     // No "Done this week" until the engine counts it (W4 4A).
@@ -138,9 +141,25 @@ describe('Team v2: the stats tiles', () => {
     const working = within(glance).getByText('Working').closest('[data-card]') as HTMLElement;
     expect(working.textContent).toContain('Nobody is working right now.');
     const waiting = within(glance).getByText('Waiting on you').closest('[data-card]') as HTMLElement;
-    expect(waiting.textContent).toContain('Nothing waits on you.');
-    expect(waiting.hasAttribute('data-tone')).toBe(false);
+    // B3: no agent waits, but five of Ledgerline's rows do: the tile says Today's count, not "Nothing waits on you."
+    await waitFor(() => expect(waiting.textContent).toContain('5 need you'));
+    expect(waiting.textContent).not.toContain('Nothing waits on you.');
+    expect(waiting.getAttribute('data-tone')).toBe('wait');
     assertInkRules(document.body);
+  });
+
+  it('counts what Today counts: a plan, a price and a setup step wait with no agent waiting, and the tile says 3 (B3)', async () => {
+    const rows = [QUEUE.find((row) => row.kind === 'plan')!, QUEUE.find((row) => row.kind === 'price')!, SETUP_ROWS[0]!]
+      .map((row) => ({ ...row, businessId: 'ledgerline', businessName: 'Ledgerline' }));
+    const engine = new FakeEngine({ queue: rows });
+    await engine.request('workspace.open', { folder: 'ledgerline' });
+    window.location.hash = '#/team';
+    render(<App client={createFakeClient(engine)} language="en" />);
+    const glance = await screen.findByRole('region', { name: 'Team summary' });
+    const waiting = (await within(glance).findByText('Waiting on you')).closest('[data-card]') as HTMLElement;
+    await waitFor(() => expect(waiting.querySelector('[data-count]')?.textContent).toBe('3'));
+    expect(waiting.textContent).not.toContain(team['team.stats.waitingNone']);
+    expect(waiting.getAttribute('data-tone')).toBe('wait');
   });
 
   it('a spend line with no receipt draws no spend tile, never a bare amount', async () => {
@@ -201,7 +220,7 @@ describe('Team v2: without departments, one tile of agent cards', () => {
     await waitFor(() => expect(avatarIn(editor).getAttribute('data-state')).toBe('working'));
     expect(editor.textContent).toContain('Cuts episodes and shorts');
     expect(within(editor).getByRole('img', { name: '3 of 5 steps done' })).toBeTruthy();
-    expect(editor.textContent).toContain('4m');
+    expect(editor.textContent).toContain('4 min');
     expect(within(editor).getByText('Asks each time')).toBeTruthy();
     // At work, the card says what it does now, not its last result (4A2 review).
     expect(editor.textContent).not.toContain('Episode 14 cut, 11 min 42 s');
@@ -229,7 +248,7 @@ describe('Team v2: without departments, one tile of agent cards', () => {
     expect(within(producer).getByRole('img', { name: '2 of 3 steps done, waiting on you' })).toBeTruthy();
     // 4Z2: no "paused" beside "Waiting on you": one state, said once.
     expect(producer.textContent).not.toContain('paused');
-    expect(producer.textContent).not.toContain('6m');
+    expect(producer.textContent).not.toContain('6 min');
   });
 
   it('unmeasured work has a still bar with no count; an idle agent has no ring and no bar', async () => {
@@ -275,7 +294,7 @@ describe('Team v2: without departments, one tile of agent cards', () => {
 
 describe('Team v2: a department panel', () => {
   const members: Member[] = [
-    { agent: agent('editor', 'Editor', { now: 'Cutting shorts', posture: 'approve-each' }), run: run('31', 'Editor', { progress: { done: 3, total: 5 }, elapsed: '4m' }), state: 'working' },
+    { agent: agent('editor', 'Editor', { now: 'Cutting shorts', posture: 'approve-each' }), run: run('31', 'Editor', { progress: { done: 3, total: 5 }, elapsed: '4 min' }), state: 'working' },
   ];
   const data: DepartmentData = {
     dept: 'prod', counts: { working: 1, waiting: 0, stopped: 1, idle: 0 }, jobs: 6, spend: { value: '₹42.10', receiptId: 'R-0419' }, members,
@@ -309,7 +328,7 @@ describe('Team v2: a department panel', () => {
     const panel = screen.getByRole('article', { name: 'Sales and clients' });
     const wait = within(panel).getByText('2 waiting on you');
     expect(wait.getAttribute('data-tone')).toBe('wait');
-    expect(panel.textContent).toContain('2 runs failed');
+    expect(panel.textContent).toContain('2 jobs failed');
     expect(panel.textContent).toContain('3 idle');
     // A department with nobody in it says so and points to the ways to earn (spec section 8).
     expect(within(panel).getByText('No agents in Sales and clients yet.')).toBeTruthy();
@@ -394,7 +413,7 @@ describe('Team v2: one department', () => {
     expect(within(hero).getByRole('button', { name: receiptMark('R-0419') })).toBeTruthy();
     expect(within(hero).getByText('work steps').closest('div')!.querySelector('[data-count]')!.textContent).toBe('3');
     expect(within(hero).getByText('1 working')).toBeTruthy();
-    expect(within(hero).getByText('1 run failed')).toBeTruthy();
+    expect(within(hero).getByText('1 job failed')).toBeTruthy();
 
     const flow = screen.getByRole('region', { name: 'How Production runs' });
     const steps = within(flow).getAllByRole('listitem');
@@ -467,13 +486,13 @@ describe('Team v2: the agent panel', () => {
     const [chat, steps, runs, notes] = within(tabs).getAllByRole('tab');
     expect([chat!.textContent, notes!.textContent]).toEqual(['Chat', 'Notes']);
     expect(steps!.textContent).toMatch(/^Instructions/);
-    expect(runs!.textContent).toMatch(/^Runs/);
+    expect(runs!.textContent).toMatch(/^Jobs/);
     expect(steps!.getAttribute('aria-selected')).toBe('true');
     expect(within(panel).getByRole('tabpanel', { name: /^Instructions/ })).toBeTruthy();
     await act(async () => { steps!.focus(); fireEvent.keyDown(steps!, { key: 'ArrowRight' }); });
     expect(runs!.getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(runs);
-    expect(within(panel).getByRole('tabpanel', { name: 'Runs' })).toBeTruthy();
+    expect(within(panel).getByRole('tabpanel', { name: 'Jobs' })).toBeTruthy();
     await act(async () => { fireEvent.keyDown(runs!, { key: 'Home' }); });
     expect(chat!.getAttribute('aria-selected')).toBe('true');
     // W4 4J22b: Can do comes after Notes, so End is Can do and Left from there is Notes.
@@ -506,8 +525,8 @@ describe('Team v2: the agent panel', () => {
   it('Runs: its runs with rings and state words, each opening the run sheet', async () => {
     start();
     const panel = await openPanel();
-    await click(within(panel).getByRole('tab', { name: 'Runs' }));
-    const runs = await within(panel).findByRole('list', { name: 'Runs' });
+    await click(within(panel).getByRole('tab', { name: 'Jobs' }));
+    const runs = await within(panel).findByRole('list', { name: 'Jobs' });
     const items = within(runs).getAllByRole('listitem');
     expect(items).toHaveLength(2);
     expect(within(items[0]!).getByRole('img', { name: '3 of 5 steps done' })).toBeTruthy();
@@ -526,7 +545,7 @@ describe('Team v2: the agent panel', () => {
     const check = async () => (await axe.run(container, { rules: { 'color-contrast': { enabled: false } }, resultTypes: ['violations'] }))
       .violations.flatMap((v) => v.nodes.map((node) => `${v.id}: ${node.target.join(' ')}`));
     expect(await check()).toEqual([]);
-    await click(within(panel).getByRole('tab', { name: 'Runs' }));
+    await click(within(panel).getByRole('tab', { name: 'Jobs' }));
     await settle();
     expect(await check()).toEqual([]);
   });

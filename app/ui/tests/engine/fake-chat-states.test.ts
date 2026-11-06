@@ -43,12 +43,12 @@ describe('fake chat states (6G1)', () => {
     expect(snoozed.thread.state).toBe('snoozed');
     expect(snoozed.thread.snoozedUntil).toBe('2026-10-24T03:30:00.000Z');
     expect(snoozed.undo).toEqual({ threadId: 'chiefthread-titles', state: 'active' });
-    expect(snoozed.line).toBe('Snoozed until 24 Oct 2026, 09:00. It comes back early if it needs you.');
+    expect(snoozed.line).toBe('Snoozed until 24 Oct 2026, 9:00 am. It comes back early if it needs you.');
     expect((await client.request('venture.chief.threads', {})).groups.map((group) => group.key)).toEqual(['today', 'last-week', 'snoozed']);
     const settled = await client.request('venture.chief.thread.state', { threadId: 'chiefthread-titles', state: 'settled' });
     expect(settled.thread.settled).toEqual({ at: NOW, by: 'owner' });
     expect(settled.undo).toEqual({ threadId: 'chiefthread-titles', state: 'snoozed', until: '2026-10-24T03:30:00.000Z' });
-    expect(settled.line).toBe('Settled. It is in Settled chats until you open it again.');
+    expect(settled.line).toBe('Moved to old chats. It stays there until you open it again.');
     const back = await client.request('venture.chief.thread.state', settled.undo);
     expect(back.thread.snoozedUntil).toBe('2026-10-24T03:30:00.000Z');
     expect((await client.request('venture.chief.thread.state', { threadId: 'chiefthread-trailer', state: 'pinned' })).line).toBe('Pinned to the top of your chats.');

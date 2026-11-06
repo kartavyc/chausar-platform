@@ -3,7 +3,7 @@
 // standing orders are its owner guidance lines still in use on its steps, each with the version it arrived in and the
 // owner's words. Undo points the business back at the version the change was made from (which stays stored), or, when
 // later changes sit on top, builds a new version from the plan without that change so the later ones stay.
-import { check, type Context, type State } from '../../contracts.ts';
+import { check, type Context, type State, internalCheck } from '../../contracts.ts';
 import type { AgentVersionUndo, PlaybookPatch, PlaybookRecord, StandingOrdersView, StandingOrderView, StandingUndoView, VentureDeps, VentureRecord } from '../contracts.ts';
 import { digest, exactPayload, findRecord, identifier, listRecords, requireAppChannel, ventureAction } from '../records.ts';
 import { buildBody, currentPlaybook, ensurePlaybook, fits, grantTopUp, ownerVersion } from '../delivery/playbook.ts';
@@ -111,7 +111,7 @@ export async function versionUndoHandler(deps: VentureDeps, ctx: Context, payloa
   requireAppChannel(ctx, 'venture.agents.version.undo');
   const body = exactPayload(payload, ['agent', 'digest'], ['agent', 'digest']);
   const agentId = identifier(body.agent, 'Agent');
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
   const seen = body.digest;
   const { state, venture: open } = readAs(deps, ctx, 'approve');
   chatAgent(state, open, agentId);

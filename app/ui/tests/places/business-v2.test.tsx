@@ -98,7 +98,7 @@ describe('Business in the Ink v2 look', () => {
     const sponsor = await offer('Sponsor slot');
     expect(within(sponsor).getByRole('heading', { level: 3 }).textContent).toContain('Sponsor slot');
     const figure = sponsor.querySelector('[data-figure]')!;
-    expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹15,000.00');
+    expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹15,000');
     expect(within(figure as HTMLElement).getByRole('button', { name: receiptMark('R-0408') })).toBeTruthy();
     const shorts = await offer('Shorts from your long video');
     expect(shorts.querySelector('[data-figure]')).toBeNull();
@@ -162,7 +162,7 @@ describe('Business in the Ink v2 look', () => {
   it("Prices: the price at rest, its working one step away, and Save price the card's one filled button", async () => {
     start('#/business/prices', await ledgerline());
     const books = await offer('Monthly books');
-    await waitFor(() => expect(books.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹18,880.00'));
+    await waitFor(() => expect(books.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹18,880'));
     expect(visibleText(books)).not.toContain('CGST at 9%');
     const fold = within(books).getByText('How this price is worked out').closest('details')!;
     expect(fold.open).toBe(false);
@@ -175,7 +175,7 @@ describe('Business in the Ink v2 look', () => {
   });
 
   it('the local web experimental storage note shows under the header on every business page but Keep, which says it once itself', async () => {
-    const EXPERIMENTAL = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
+    const EXPERIMENTAL = "Test version: practice here, don't send real invoices yet.";
     function custody(hash: string) {
       window.location.hash = hash;
       const fake = createFakeClient(new FakeEngine());
@@ -243,10 +243,10 @@ describe('Business in the Ink v2 look', () => {
     await act(async () => { fireEvent.click(chip); window.dispatchEvent(new HashChangeEvent('hashchange')); });
     const sheet = (await screen.findByText('w-portal-sep', { selector: 'aside h2, aside h2 *' })).closest('aside') as HTMLElement;
     await within(sheet).findByText('Net payable: the portal less ours', { selector: 'dt' });
-    expect(within(sheet).getAllByText('INR 80.00').length).toBeGreaterThan(0);
+    expect(within(sheet).getAllByText('₹80').length).toBeGreaterThan(0);
     const steps = sheet.querySelector('ol[data-receipt-steps]') as HTMLElement;
     expect(within(steps).getAllByRole('listitem').map((step) => step.textContent)).toEqual([expect.stringContaining('Net payable: the portal less ours')]);
-    expect(within(sheet).getByText('Recomputed: differs. Net payable: the portal less ours: the stored receipt has INR 80.00; worked again it is INR 75.00.')).toBeTruthy();
+    expect(within(sheet).getByText('Recomputed: differs. Net payable: the portal less ours: the stored receipt has ₹80; worked again it is ₹75.')).toBeTruthy();
     expect(calls.filter(([method]) => method === 'venture.ca.receipt').map(([, params]) => params)).toContainEqual({ id: 'w-portal-sep' });
     expect(calls.filter(([method]) => method === 'venture.receipt.get')).toEqual([]);
   });

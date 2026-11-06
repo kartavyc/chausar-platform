@@ -5,8 +5,11 @@ import { ClockProvider, useClock } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type CustodyViewLite, type EngineClient } from '../../src/engine/types';
 
-/** Today's title is the greeting for the hour (Ink v2, 3C), so the shell reads the app at 10:00 on this computer's clock. */
-const MORNING = () => new Date(2026, 9, 23, 10, 0);
+/**
+ * Today's title is the greeting for the hour (Ink v2, 3C) on the business's clock (B2), so the shell reads the app at
+ * 10:00 in India, the fake business's zone, whatever zone the computer is in (CI runs in UTC).
+ */
+const MORNING = () => new Date('2026-10-23T04:30:00.000Z');
 const TODAY = 'Good morning';
 
 function start(hash = '#/today', language: 'en' = 'en') {
@@ -27,7 +30,7 @@ describe('shell', () => {
     expect(brand!.getAttribute('href')).toBe('#/today');
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/apps', '#/connections']);
     expect(links[0]!.getAttribute('aria-current')).toBe('page');
-    await waitFor(() => expect(links[0]!.textContent).toMatch(/^Today13, 13 need you$/));
+    await waitFor(() => expect(links[0]!.textContent).toMatch(/^Today12, 12 need you$/));
     expect(screen.getByRole('status').textContent).toBe('Sample data. Nothing here is real.');
   });
 
@@ -57,7 +60,7 @@ describe('shell', () => {
   it('shows a receipt from the address, and says so for a sheet nobody provides', async () => {
     start('#/money?sheet=receipt:R-0415');
     const sheet = await screen.findByRole('complementary', { name: 'R-0415' });
-    await waitFor(() => expect(sheet.textContent).toContain('₹30,000.00'));
+    await waitFor(() => expect(sheet.textContent).toContain('₹30,000'));
     await go('#/money?sheet=nobody:mehta');
     expect(await screen.findByRole('complementary', { name: "This can't be shown here." })).toBeTruthy();
   });
@@ -90,7 +93,7 @@ describe('shell', () => {
 
 // Catalogue U14: the experimental storage notice is back beyond Keep. Today, Work and Money say it under the header.
 describe('the experimental storage notice', () => {
-  const EXPERIMENTAL = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
+  const EXPERIMENTAL = "Test version: practice here, don't send real invoices yet.";
   const STORAGE_PLACES = [['Today', '#/today', TODAY], ['Work', '#/work', 'Work'], ['Money', '#/money', 'Money']] as const;
 
   /**

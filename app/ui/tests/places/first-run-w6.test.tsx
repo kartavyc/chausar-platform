@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { FAKE_DEVICE_CODE } from '../../src/engine/fake-first-run';
-import type { EngineClient, ModelStatusLite } from '../../src/engine/types';
+import { EngineError, type EngineClient, type ModelStatusLite } from '../../src/engine/types';
+import firstRun from '../../src/text/en/first-run.json';
 import { answerSideWork, confirmProfession } from './first-run-steps';
 
 /**
@@ -61,7 +62,7 @@ describe('first run, step 1: Connect your AI', () => {
     expect(await screen.findByText('Signed in', {}, { timeout: 8000 })).toBeTruthy();
     await press('Use Codex');
     expect(calls.some(([method, params]) => method === 'venture.ai.connect' && params.presetId === 'codex-cli' && typeof params.consentDigest === 'string')).toBe(true);
-    expect(await screen.findByRole('heading', { level: 1, name: 'What do you do today?' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
     expect(screen.getByText('Connected: ChatGPT plan')).toBeTruthy();
   }, 15000);
 
@@ -120,7 +121,7 @@ describe('first run, step 2: About you, A that becomes B', () => {
     timeZone('Asia/Kolkata');
     start();
     await skipAi();
-    expect(await screen.findByRole('heading', { level: 1, name: 'What do you do today?' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Tell Chausar about your work' })).toBeTruthy();
     expect(await screen.findByText('India, from your time zone')).toBeTruthy();
     expect(await screen.findByRole('button', { name: /^Money and tax/ })).toBeTruthy();
@@ -150,8 +151,30 @@ describe('first run, step 2: About you, A that becomes B', () => {
     expect(within(preview).getByText('Monthly books')).toBeTruthy();
     expect(preview.textContent).not.toMatch(/₹|\d/);
     await press('Back to fields');
-    expect(await screen.findByRole('heading', { level: 1, name: 'What do you do today?' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
     expect((screen.getByRole('textbox', { name: 'Tell Chausar about your work' }) as HTMLTextAreaElement).value).toBe(CA);
+  });
+
+  it('a read that fails says so in the preview, not that it is updating or reading (B3)', async () => {
+    reducedMotion(false);
+    const engine = new FakeEngine({ fresh: true });
+    const fake = createFakeClient(engine);
+    const client: EngineClient = {
+      ...fake,
+      request: ((method: string, params?: Record<string, unknown>) => (method === 'venture.about.read'
+        ? Promise.reject(new EngineError('MODEL_UNAVAILABLE', 'Your AI did not answer. Try again in a moment.', undefined, true))
+        : fake.request(method as never, params as never))) as EngineClient['request'],
+    };
+    window.location.hash = '#/today';
+    render(<App client={client} language="en" />);
+    await skipAi();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: CA } });
+    await press('Send');
+    const preview = await screen.findByRole('region', { name: 'Your business, live' });
+    await waitFor(() => expect(within(preview).getByRole('alert').textContent).toBe('Your AI did not answer. Try again in a moment.'));
+    expect(screen.queryByText(firstRun['first-run.about.updating'])).toBeNull();
+    expect(screen.queryByText(firstRun['first-run.about.reading'])).toBeNull();
+    expect(screen.getAllByText('Your AI did not answer. Try again in a moment.')).toHaveLength(1);
   });
 
   it('moves nothing with reduced motion', async () => {
@@ -175,7 +198,7 @@ describe('first run, step 2: About you, A that becomes B', () => {
     await act(async () => { fireEvent.change(within(preview).getByRole('combobox', { name: 'Field' }), { target: { value: 'creative' } }); });
     expect(await within(preview).findByText('Video edits')).toBeTruthy();
     await press('Back to fields');
-    expect(await screen.findByRole('heading', { level: 1, name: 'What do you do today?' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' })).toBeTruthy();
   });
 });
 
@@ -221,7 +244,7 @@ describe('first run, step 3: Connect what your business needs', () => {
     expect(calls.find(([method]) => method === 'venture.owner.set')?.[1]).toEqual({ familyId: 'teaching' });
     const list = await screen.findByRole('list', { name: 'Services for Teaching and coaching' });
     const rows = within(list).getAllByRole('listitem');
-    expect(rows.map((row) => row.querySelector('[class*="needName"]')?.textContent)).toEqual(['Google Calendar', 'WhatsApp', 'Razorpay', 'Tally forms', 'Telegram alerts', 'Tailscale']);
+    expect(rows.map((row) => row.querySelector('[class*="needName"]')?.textContent)).toEqual(['Google Calendar', 'WhatsApp', 'Razorpay', 'Tally forms', 'Telegram alerts', 'Phone approvals']);
     expect(within(rows[0]!).getByText('Reads')).toBeTruthy();
     expect(within(rows[0]!).getByRole('button', { name: 'Set up' })).toBeTruthy();
     // A planned service says what it waits on and offers nothing to connect.

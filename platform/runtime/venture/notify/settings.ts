@@ -9,7 +9,8 @@
 // are not being reached.
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { exactPayload, formatVentureDate, listRecords, requireAppChannel, requireVenture, ventureAction } from '../records.ts';
-import { localDayAt, localTimeAt } from '../local-day.ts';
+import { localDayAt, localTimeAt, ownerClock } from '../local-day.ts';
+import { formatClock } from '../../owner-format.ts';
 import type {
   CountryProfile, IsoTime, KeeperJobId, NotifySettingsRecord, NotifySettingsView, VentureDeps, VentureHostKind, VentureRecord,
 } from '../contracts.ts';
@@ -81,7 +82,7 @@ export function keepsRunning(state: State, venture: VentureRecord, host: Venture
   return [...jobs, ...routines];
 }
 
-const hourText = (hour: number) => `${String(hour).padStart(2, '0')}:00`;
+const hourText = (hour: number) => formatClock(`${String(hour).padStart(2, '0')}:00`);
 
 /** The owner's browsers for phone alerts (4G3): how many are live, and how many of those are not being reached. */
 export type BrowserCounts = { live: number; failing: number };
@@ -109,7 +110,7 @@ function settingsLine(settings: NotifySettings, venture: VentureRecord, host: Ve
   const parts: string[] = [];
   if (pausedAt(settings, nowMs)) {
     const until = settings.pausedUntil!;
-    parts.push(`Alerts outside the app are paused until ${formatVentureDate(localDayAt(until, venture.country), venture.country.dateOrder)}, ${localClock(until, venture.country)}. The bell still lists everything.`);
+    parts.push(`Alerts outside the app are paused until ${formatVentureDate(localDayAt(until, venture.country), venture.country.dateOrder)}, ${ownerClock(until, venture.country)}. The bell still lists everything.`);
   } else if (host === 'hosted-web') {
     parts.push(settings.push ? 'Phone alerts are on, with a count only, and come while Chausar is awake for this business.' : 'Phone alerts are off. The bell still lists everything.');
     if (settings.push && browsers.failing > 0) parts.push(`Not reaching ${browsers.failing} ${browsers.failing === 1 ? 'browser' : 'browsers'}.`);
@@ -117,8 +118,8 @@ function settingsLine(settings: NotifySettings, venture: VentureRecord, host: Ve
     parts.push(settings.tray ? 'The tray shows how many things need you.' : 'The tray count is off. The bell still lists everything.');
   }
   if (gaveUp && !pausedAt(settings, nowMs)) parts.push("Phone alerts couldn't be sent: Chausar will try with the next new item.");
-  parts.push(settings.quietHours ? `Quiet hours: ${settings.quietHours.from} to ${settings.quietHours.to}.` : 'No quiet hours.');
-  parts.push(settings.digest ? `Daily digest at ${hourText(settings.digest.hour)}.` : 'No daily digest.');
+  parts.push(settings.quietHours ? `Quiet hours: ${formatClock(settings.quietHours.from)} to ${formatClock(settings.quietHours.to)}.` : 'No quiet hours.');
+  parts.push(settings.digest ? `Daily summary at ${hourText(settings.digest.hour)}.` : 'No daily summary.');
   return parts.join(' ');
 }
 
@@ -155,7 +156,7 @@ function quietHoursOf(value: unknown): NotifySettings['quietHours'] {
 function digestOf(value: unknown): NotifySettings['digest'] {
   if (value === null) return null;
   const body = exactPayload(value, ['hour'], ['hour']);
-  check(Number.isInteger(body.hour) && (body.hour as number) >= 0 && (body.hour as number) <= 23, 'INVALID_VENTURE_REQUEST', 'Choose the digest hour from 0 to 23.');
+  check(Number.isInteger(body.hour) && (body.hour as number) >= 0 && (body.hour as number) <= 23, 'INVALID_VENTURE_REQUEST', 'Choose the daily summary hour from 0 to 23.');
   return { hour: body.hour as number };
 }
 

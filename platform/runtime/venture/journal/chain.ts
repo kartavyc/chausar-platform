@@ -12,7 +12,7 @@
 // the app, the owner only): a new chain starts there, every item there now linked again, with a line that says so.
 // The sequence, previous-digest and record-digest chain with a corrupt stop follows OpenGCUA (Apache-2.0,
 // packages/harness/runtime/action_journal.py); this is a rewrite in TypeScript, not a copy.
-import { authorize, check, ChausarError, hash, newId, type Context, type State } from '../../contracts.ts';
+import { authorize, check, ChausarError, hash, newId, type Context, type State, internalCheck } from '../../contracts.ts';
 import type {
   AnyVentureRecord, DeliveryRunRecord, IsoTime, JournalChainLink, JournalChainRecord, JournalChainView, JournalEntry, VentureDeps,
   VentureRecord,
@@ -485,7 +485,7 @@ export async function journalAcceptBreakHandler(deps: VentureDeps, ctx: Context,
   const { exactPayload, isAppChannel, ventureAction } = await import('../records.ts');
   const { recordDecision } = await import('./decisions.ts');
   const body = exactPayload(payload, ['digest'], ['digest']);
-  check(typeof body.digest === 'string' && /^[0-9a-f]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the break you saw.');
+  internalCheck(typeof body.digest === 'string' && /^[0-9a-f]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the break you saw.');
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', 'Accept this inside the Chausar app.');
   authorize(deps.store, ctx, 'approve');
   check(ctx.role === 'owner', 'FORBIDDEN', 'Only the owner can accept a break in Chausar\'s record of outside actions.');

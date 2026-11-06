@@ -52,13 +52,64 @@ test('ventureAction publishes nothing for a rolled-back write and adds queue.cha
   await assert.rejects(ventureAction(env.deps, owner, 'prepare', 'boom', tx => { tx.emit('run.done', { runId: 'delivery_x' }); throw new Error('stop'); }), /stop/);
   assert.equal(env.published.length, 0);
   await ventureAction(env.deps, owner, 'prepare', 'client', tx => { tx.emit('client-added', {}); });
-  assert.deepEqual(env.published.at(-1)!.map(event => event.name), ['client-added']);
+  assert.deepEqual(env.published.at(-1)!.map(event => event.name), ['client-added', 'queue.changed']);
   await ventureAction(env.deps, owner, 'prepare', 'two', tx => { tx.emit('invoice-prepared', {}); tx.emit('run.failed', { runId: 'delivery_x' }); });
   assert.deepEqual(env.published.at(-1)!.map(event => event.name), ['invoice-prepared', 'run.failed', 'queue.changed']);
   // A listener that throws never undoes the commit.
   env.deps.publish = () => { throw new Error('listener failed'); };
   await ventureAction(env.deps, owner, 'prepare', 'three', tx => { tx.emit('run.step', { runId: 'delivery_x' }); });
   assert.equal(names(env).at(-1), 'run.step');
+});
+
+// B3 task 1: the owner's record events tell every screen. Each is written only by an owner's write (or a sweep that
+// runs once per due day), never by a read, so a queue.changed after it cannot make the screens read in a loop.
+const OWNER_RECORD_EVENTS = [
+  'price-quoted', 'client-added', 'order-created', 'order-delivered', 'payment-recorded', 'brief-ready', 'handoff-prepared',
+  'repo-linked', 'repo-synced', 'rule-attested', 'rule-attestation-withdrawn', 'compliance-recorded', 'simulation-finished',
+  'improvement-finished', 'playbook-adopted',
+] as const;
+
+for (const name of OWNER_RECORD_EVENTS) {
+  test(`one commit with ${name} publishes it followed by one queue.changed`, async () => {
+    const env = await setup();
+    env.published.length = 0;
+    await ventureAction(env.deps, owner, 'prepare', `b3.${name}`, tx => { tx.emit(name, {}); });
+    assert.deepEqual(env.published.at(-1)!.map(event => event.name), [name, 'queue.changed']);
+  });
+}
+
+test('events a run or a migration can write still add no queue.changed (a read must never start a loop)', async () => {
+  const env = await setup();
+  for (const name of ['interview-updated', 'plan-composed', 'playbook-ready', 'signal-recorded', 'upload-added', 'retention-changed', 'send-policy-changed'] as const) {
+    env.published.length = 0;
+    await ventureAction(env.deps, owner, 'prepare', `b3.left.${name}`, tx => { tx.emit(name, {}); });
+    assert.deepEqual(env.published.at(-1)!.map(event => event.name), [name], name);
+  }
+});
+
+test('the reads Today, Money and Practice use publish nothing through the host', async () => {
+  const env = await setup();
+  const plan = await seedBlueprint(env, { price2: '1500000' });
+  await seedOrder(env, plan);
+  const heard: VentureRunEvent[][] = [];
+  const host = new VentureHost(env.store, env.deps.services, {
+    demo: true, storage: 'experimental-file', host: 'test', modelTransport: silentTransport(), clock: env.deps.clock, workspace: env.workspace,
+    notify: events => { heard.push(events); },
+  });
+  try {
+    const queue = await host.request(owner, 'venture.queue.list', {}) as QueueList;
+    await host.request(owner, 'venture.queue.list', { scope: 'all' });
+    for (const [method, payload] of [
+      ['venture.blueprint.get', {}], ['venture.runs.list', {}], ['venture.team.list', {}], ['venture.journal.list', {}],
+      ['venture.invoice.list', {}], ['venture.improve.status', {}],
+    ] as const) await host.request(owner, method, payload);
+    const viewed = queue.rows.find(row => row.viewRef);
+    if (viewed?.viewRef) await host.request(owner, 'venture.queue.view', { kind: viewed.viewRef.kind, id: viewed.viewRef.id, opened: true });
+    await host.request(owner, 'venture.queue.list', { scope: 'all' });
+    assert.deepEqual(heard, []);
+  } finally {
+    host.close();
+  }
 });
 
 function silentTransport(): ModelTransport {

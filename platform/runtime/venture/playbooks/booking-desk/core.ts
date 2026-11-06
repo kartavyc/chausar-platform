@@ -6,6 +6,8 @@
 // Written for Chausar; nothing here is learned from an outside source.
 import { check, ChausarError, digest } from '../../../portable.ts';
 import { validDate } from '../../../date-core.ts';
+import { formatClock } from '../../../owner-format.ts';
+import { formatMinor } from '../../../currency.ts';
 import { messageDigest, ownerPhone, OWNER_CHANNELS, type OwnerChannel } from '../kit/owner-message.ts';
 import { exact, idOf, line, words } from '../lesson-desk/core.ts';
 import type { BookingBody, BookingMessage, BookingSlotBody, BookingStatus } from './records.ts';
@@ -18,7 +20,7 @@ const MAX_MESSAGES = 100;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export type SlotState = 'open' | 'held' | 'booked' | 'closed';
-export type BookingInvoice = { invoiceId: string; number: string | null; status: string; total: string; balance: string; receiptId: string; digest: string; upi: { link: string; amount: string } | null };
+export type BookingInvoice = { invoiceId: string; number: string | null; status: string; total: string; balance: string; balanceMinor: string; currency: string; receiptId: string; digest: string; upi: { link: string; amount: string } | null };
 
 /** What the desk reads beyond its own records: clients, orders, the quote receipt and the deposit invoice. */
 export type BookingWorld = {
@@ -75,9 +77,9 @@ export function closeSlot(slotId: string, slot: BookingSlotBody, bookings: reado
 export const slotDigest = (slotId: string, slot: BookingSlotBody, bookings: readonly Held<BookingBody>[]) => digest({ slot, state: slotState(slotId, slot, bookings) });
 export const slotView = (slotId: string, slot: BookingSlotBody, bookings: readonly Held<BookingBody>[]) => ({ id: slotId, start: slot.start, words: startWords(slot.start), minutes: slot.minutes, note: slot.note, state: slotState(slotId, slot, bookings) });
 
-/** A start as reminders write it: "5 Nov 2026 at 10:00". */
+/** A start as reminders write it: "5 Nov 2026 at 10:00 am" (a wall time where the business is, on the 12-hour clock, B2). */
 export function startWords(start: string): string {
-  return `${Number(start.slice(8, 10))} ${MONTHS[Number(start.slice(5, 7)) - 1]} ${start.slice(0, 4)} at ${start.slice(11, 16)}`;
+  return `${Number(start.slice(8, 10))} ${MONTHS[Number(start.slice(5, 7)) - 1]} ${start.slice(0, 4)} at ${formatClock(start.slice(11, 16))}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -162,7 +164,7 @@ export function bookingAct(id: string, booking: BookingBody, action: string, pay
       const invoice = booking.depositInvoiceId ? world.invoice(booking.depositInvoiceId) : null;
       // Issued or part paid: money is still due on it (paid leaves nothing, a draft or a cancelled one asks nothing).
       check(invoice && invoice.number && (invoice.status === 'issued' || invoice.status === 'part-paid'), 'BOOKING_DEPOSIT_NOT_ISSUED', 'Issue the deposit invoice before you remind the client to pay it.');
-      text = [`Hello ${client.name},`, '', `To confirm your booking, please pay the deposit of ${invoice.balance} for invoice ${invoice.number}.`, ...(invoice.upi ? [`Pay by UPI: ${invoice.upi.link}`] : ['The bank details are on the invoice.']), '', 'If you have already paid, thank you.'].join('\n');
+      text = [`Hello ${client.name},`, '', `To confirm your booking, please pay the deposit of ${formatMinor(invoice.balanceMinor, invoice.currency)} for invoice ${invoice.number}.`, ...(invoice.upi ? [`Pay by UPI: ${invoice.upi.link}`] : ['The bank details are on the invoice.']), '', 'If you have already paid, thank you.'].join('\n');
     }
     check(booking.messages.length < MAX_MESSAGES, INVALID, 'This booking holds as many reminders as it can.');
     const seq = booking.seq + 1;

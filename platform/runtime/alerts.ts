@@ -1,4 +1,4 @@
-import { authorize, audit, check, hash as rawHash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
+import { authorize, audit, check, hash as rawHash, newId, now, type Context, type State, type StateStore, internalCheck } from './contracts.ts';
 import { CalculatorService, type CalculationReceipt, type CalculationRequest } from './calculator.ts';
 import { currentAccess, validDate, type Period } from './memory.ts';
 import { OntologyService } from './ontology.ts';
@@ -155,7 +155,7 @@ export class AlertsService {
   private calculator(store: StateStore) { return new CalculatorService(store, this.options.calculatorOptions?.(store) ?? this.options); }
   private writer(store: StateStore, ctx: Context) {
     authorize(store, ctx, 'prepare');
-    check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'ALERT_APP_REQUIRED', 'Author and evaluate alerts in the untainted desktop engine.');
+    internalCheck(ctx.channel === 'desktop' && !ctx.sourceTainted, 'ALERT_APP_REQUIRED', 'Author and evaluate alerts in the untainted desktop engine.');
   }
   private receipt(store: StateStore, ctx: Context, id: string) {
     const calculator = this.calculator(store), receipt = calculator.receipt(ctx, id);

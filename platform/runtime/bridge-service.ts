@@ -1,4 +1,4 @@
-import { authorize, audit, check, hash, newId, now, type Context, type Fact, type State, type StateStore } from './contracts.ts';
+import { authorize, audit, check, hash, newId, now, type Context, type Fact, type State, type StateStore, internalCheck } from './contracts.ts';
 import { CalculatorService, type CalculationReceipt, type CalculatorOptions, type CalculationRequest } from './calculator.ts';
 import { assertCompiledSingleSum } from './compiled-calculation.ts';
 import { currentAccess, canSeeFact, selectFacts, type Period } from './memory.ts';
@@ -151,7 +151,7 @@ export class BridgeService {
       const matches = state.answers.filter(item => item.receiptId === receipt.id && plain(item.request));
       check(matches.length === 1, 'BRIDGE_REQUEST_MANIFEST_REQUIRED', 'Retain the original calculation request to establish its population selectors.');
       const original = matches[0].request as CalculationRequest;
-      check(original.operation === receipt.operation && hash(original.period) === hash(receipt.period) && (original.branch ?? null) === receipt.branch
+      internalCheck(original.operation === receipt.operation && hash(original.period) === hash(receipt.period) && (original.branch ?? null) === receipt.branch
         && (!original.asOf || new Date(original.asOf).toISOString() === receipt.asOf), 'BRIDGE_RECEIPT_MISMATCH', 'The receipt and its original population manifest differ.');
       return { branch: receipt.branch, customerId: original.customerId ?? null, orderId: original.orderId ?? null, asOf: receipt.asOf };
     });
@@ -201,7 +201,7 @@ export class BridgeService {
       receiptIds: receipts.map(receipt => receipt.id), receiptHashes: receipts.map(receipt => hash(receipt)), sourceIds, managedSourceIds: managedSources(state, sourceIds), rowIds: allRows,
       factors, population: { ...requests[0], baselinePeriod: structuredClone(baselinePeriod), comparisonPeriod: structuredClone(comparisonPeriod) } };
     const admission = this.options.factorAdmission?.({ ...ctx }, structuredClone(manifest), at);
-    if (manifest.managedSourceIds.length) check(admission && SHA.test(admission.digest) && ['synthetic-tested', 'source-qualified'].includes(admission.qualification),
+    if (manifest.managedSourceIds.length) internalCheck(admission && SHA.test(admission.digest) && ['synthetic-tested', 'source-qualified'].includes(admission.qualification),
       'BRIDGE_FACTOR_ADMISSION_REQUIRED', 'Managed sources require the trusted host to admit product grain, quantity and unit semantics for this exact profile and manifest.');
     const result = computeDescriptiveBridge({ baseline: populations[0], comparison: populations[1], quantityScale: profile.definition.quantityScale,
       factorRule: profile.definition.factorRule, method: profile.definition.method, rounding: profile.definition.rounding, incompleteCoverage: profile.definition.incompleteCoverage, coverageGaps: unique(gaps) });
@@ -232,7 +232,7 @@ export class BridgeService {
     const saved = at.read().answers.find(item => item.kind === RECEIPT_KIND && item.id === input.id && item.memberId === ctx.memberId && item.epoch === ctx.epoch) as BridgeRecord | undefined;
     check(saved, 'BRIDGE_UNAVAILABLE', 'This private bridge receipt is unavailable.');
     check(!saved.stale, 'BRIDGE_STALE_EVIDENCE', 'Recalculate a stale descriptive bridge.');
-    check(saved.contentHash === contentHash(saved as unknown as Record<string, unknown>), 'BRIDGE_EVIDENCE_CHANGED', 'The saved bridge lost its manifest integrity.');
+    internalCheck(saved.contentHash === contentHash(saved as unknown as Record<string, unknown>), 'BRIDGE_EVIDENCE_CHANGED', 'The saved bridge lost its manifest integrity.');
     const current = this.build(at, ctx, { profileId: saved.profileId, profileRevision: saved.profileRevision, baselineReceiptId: saved.receipts[0].id, comparisonReceiptId: saved.receipts[1].id });
     check(hash(current.manifest) === hash(saved.manifest) && hash(current.receipts) === hash(saved.receipts)
       && hash(current.admission) === hash(saved.factorAdmission) && hash(current.result) === hash(saved.result), 'BRIDGE_EVIDENCE_CHANGED', 'The current evidence or factor admission differs from the saved bridge.');

@@ -14,9 +14,9 @@ import { DAY, goalBusiness } from './venture-goals-helpers.ts';
 import { code, owner, phone, seedBlueprint } from './venture-views-env.ts';
 
 /**
- * Metro Repairs' bill: a laptop repair of INR 5,000.00 with GST at 18% and a courier of INR 120.00 with no tax.
- * Tax on the repair = (500000 x 1800 + 5000) / 10000 = 90000 (INR 900.00); total 500000 + 90000 + 12000 = 602000
- * (INR 6,020.00). Before tax: 500000 + 12000 = 512000.
+ * Metro Repairs' bill: a laptop repair of ₹5,000 with GST at 18% and a courier of ₹120 with no tax.
+ * Tax on the repair = (500000 x 1800 + 5000) / 10000 = 90000 (₹900); total 500000 + 90000 + 12000 = 602000
+ * (₹6,020). Before tax: 500000 + 12000 = 512000.
  */
 const REPAIR = { description: 'Laptop repair', amountMinor: '500000', taxName: 'GST', taxRateBps: '1800' };
 const COURIER = { description: 'Courier', amountMinor: '12000', taxName: '', taxRateBps: '0' };
@@ -34,7 +34,7 @@ test('bills.add keeps each line with its tax name and rate, works out the total 
   const added = await env.bill({ vendor: 'Metro Repairs', lines: [REPAIR, COURIER], billDate: '2026-10-20', dueDate: '2026-10-30' });
   assert.deepEqual(
     [added.bill.vendor, added.bill.billDate, added.bill.dueDate, added.bill.total, added.bill.paid, added.bill.balance, added.bill.state, added.bill.recurring],
-    ['Metro Repairs', '2026-10-20', '2026-10-30', 'INR 6,020.00', 'INR 0.00', 'INR 6,020.00', 'posted', null],
+    ['Metro Repairs', '2026-10-20', '2026-10-30', '₹6,020', '₹0', '₹6,020', 'posted', null],
   );
   const record = listRecords(env.store.read(), 'venture-bill').find(item => item.id === added.bill.id)!;
   assert.deepEqual(record.lines, [REPAIR, COURIER]);
@@ -45,10 +45,10 @@ test('bills.add keeps each line with its tax name and rate, works out the total 
 
   // A second bill: owed is now both. 250000 x 1200 = 300,000,000; + 5000, / 10000 = 30000; total 280000. 602000 + 280000 = 882000.
   const second = await env.bill({ vendor: 'Cloud Host', lines: [{ description: 'Hosting', amountMinor: '250000', taxName: 'GST', taxRateBps: '1200' }], billDate: '2026-10-21', dueDate: '2026-11-05' });
-  assert.equal(second.bill.total, 'INR 2,800.00');
+  assert.equal(second.bill.total, '₹2,800');
   const list = await env.money<BillsView>('venture.bills.list');
   assert.deepEqual(list.bills.map(item => item.vendor), ['Metro Repairs', 'Cloud Host'], 'the nearest due date first');
-  assert.equal(list.owed?.display, 'INR 8,820.00');
+  assert.equal(list.owed?.display, '₹8,820');
   const owed = await env.money<SumReceiptRecord>('venture.receipt.get', { id: list.owed!.receiptId });
   assert.equal(owed.totalMinor, '882000');
 });
@@ -84,10 +84,10 @@ test('states come from the records: posted, overdue after the due day, partial, 
   assert.equal((await env.money<BillsView>('venture.bills.list')).bills[0].state, 'overdue');
   // Half: 301000 of 602000. Left 301000; still overdue (late comes before part paid).
   const half = await env.pay(bill.id, '301000', '2026-10-31');
-  assert.deepEqual([half.bill.paid, half.bill.balance, half.bill.state], ['INR 3,010.00', 'INR 3,010.00', 'overdue']);
+  assert.deepEqual([half.bill.paid, half.bill.balance, half.bill.state], ['₹3,010', '₹3,010', 'overdue']);
   await assert.rejects(env.pay(bill.id, '301001', '2026-10-31'), code('BILL_PAYMENT_TOO_LARGE'));
   const rest = await env.pay(bill.id, '301000', '2026-10-31');
-  assert.deepEqual([rest.bill.paid, rest.bill.balance, rest.bill.state], ['INR 6,020.00', 'INR 0.00', 'paid']);
+  assert.deepEqual([rest.bill.paid, rest.bill.balance, rest.bill.state], ['₹6,020', '₹0', 'paid']);
   await assert.rejects(env.pay(bill.id, '1', '2026-10-31'), code('BILL_PAYMENT_TOO_LARGE'));
 
   // Paid before its due day and only in part: partial.
@@ -159,7 +159,7 @@ test('a recurring bill: its next one is drafted on its day as an expected bill, 
   // The real November bill came for a little more: it takes the draft's place (the same bill, now posted). 260000 x 1800: 46800, total 306800.
   const real = await env.bill({ vendor: 'cloud host', lines: [{ description: 'Hosting', amountMinor: '260000', taxName: 'GST', taxRateBps: '1800' }], billDate: '2026-11-01', dueDate: '2026-11-12', recurring: 'monthly' });
   assert.equal(real.bill.id, draft.id);
-  assert.deepEqual([real.bill.state, real.bill.total, real.bill.dueDate], ['posted', 'INR 3,068.00', '2026-11-12']);
+  assert.deepEqual([real.bill.state, real.bill.total, real.bill.dueDate], ['posted', '₹3,068', '2026-11-12']);
   assert.equal(listRecords(env.store.read(), 'venture-bill').length, 2);
 
   // December's draft, paid as it is: paying it confirms it.

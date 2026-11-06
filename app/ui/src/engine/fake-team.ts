@@ -16,6 +16,7 @@
  * business, ₹60.10 at that rate), split the way the engine splits it; the receipts this desk makes are served by `receipt`.
  */
 
+import { formatUsd } from '../../../../platform/runtime/owner-format';
 import { EngineError, type AgentHealth, type AgentView, type DepartmentId, type DepartmentSpend, type DepartmentView, type KeeperJobView, type ModelStatusLite, type ReceiptLite, type RunSummary, type SeriesPoint, type TeamListView } from './types';
 import type { W4DeskHost } from './fake-w4';
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.
@@ -33,12 +34,12 @@ const DEPARTMENTS: readonly { id: DepartmentId; name: string }[] = [
   { id: 'money', name: 'Money' },
   { id: 'operations', name: 'Operations' },
 ];
-const KEEPER_ROLE = 'Runs the engine\'s own jobs as code, not AI: backups, the journal sweep, connection checks, rule and rate dates, posting steps and network strength.';
+const KEEPER_ROLE = 'Keeps Chausar running by fixed rules, not AI: backups, delivery checks, connection checks, rule and rate dates, posting steps and network strength.';
 const KEEPER_IS_CODE = 'Keeper runs code checks. Agent approval settings do not apply; its jobs are on Team.';
 const CLEAR_STALE = "This agent's health changed since you looked, or it is not quarantined now. Look again before clearing it.";
-const UNDECLARED = 'It proposed an outside action that none of its steps allows. Look at its runs before you clear it.';
+const UNDECLARED = 'It proposed an outside action that none of its steps allows. Look at its jobs before you clear it.';
 const WEEKS = ['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19'];
-const WEEK_LABELS = ['Week of 14 Sep 2026', 'Week of 21 Sep 2026', 'Week of 28 Sep 2026', 'Week of 05 Oct 2026', 'Week of 12 Oct 2026', 'Week of 19 Oct 2026'];
+const WEEK_LABELS = ['Week of 14 Sep 2026', 'Week of 21 Sep 2026', 'Week of 28 Sep 2026', 'Week of 5 Oct 2026', 'Week of 12 Oct 2026', 'Week of 19 Oct 2026'];
 
 /**
  * One department's sample: jobs per week (this week last), spend per week and this month in micro-dollars (the engine
@@ -112,7 +113,7 @@ const EMPTY: Sample = {
 const share = (part: number, whole: number) => (whole > 0 ? Math.floor((part * 1000) / whole) : 0);
 
 /** The engine's words for spend (records.ts formatMicros, money/spend.ts): US dollars to four places, the estimate words. */
-const usd = (micros: number) => `USD ${Math.floor(micros / 1_000_000)}.${String(Math.floor((micros % 1_000_000) / 100)).padStart(4, '0')}`;
+const usd = (micros: number) => formatUsd(String(Math.round(micros)));
 const ESTIMATES = ' (includes estimates)';
 /**
  * money/department-spend.ts heldWords: the currency the owner's choice leads with first, dollars to two decimals, and
@@ -145,7 +146,7 @@ export class FakeTeamDesk {
   request(method: string, p: Record<string, unknown>): unknown {
     if (method === 'venture.team.keeper') return { jobs: structuredClone(this.sample().keeper) };
     if (method === 'venture.team.clearQuarantine') return this.clear(p);
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 
   /** venture.team.list: the fake's agents (fake.ts) as the engine lists them, with the departments and totals. */
@@ -174,7 +175,7 @@ export class FakeTeamDesk {
         ...this.spendWords(sample.shared, false),
       },
       totals: {
-        doneThisWeek: { count: jobs, receiptId: this.make('Jobs done this week by the whole team: runs that reached review, and practice runs that finished.', String(jobs)) },
+        doneThisWeek: { count: jobs, receiptId: this.make('Jobs done this week by the whole team: jobs that reached review, and practice jobs that finished.', String(jobs)) },
         spendThisMonth: {
           display: totalDisplay,
           receiptId: sample.total.receiptId || this.make('AI and tool calls this month.', totalDisplay),

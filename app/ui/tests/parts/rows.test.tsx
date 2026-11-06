@@ -32,7 +32,7 @@ describe('Row, the D list row (lrow)', () => {
     expect(parts).toEqual(['ED', 'Cutting shorts from episode 13Editor', '3 of 5', 'Open', '4m']);
     expect(row.firstElementChild!.querySelector('[aria-hidden="true"]')!.textContent).toBe('ED');
     const end = row.lastElementChild!;
-    expect(end.classList.contains('mono')).toBe(true);
+    expect(end.classList.contains('mono')).toBe(false); // B2: the body font
   });
 
   it('is 60 px with a soft line between rows and none above the first; a dense row is 52 px', () => {
@@ -140,7 +140,7 @@ describe('JobList in the D look', () => {
     const bar = cutting.querySelector('progress')!;
     expect(bar.getAttribute('value')).toBe('3');
     expect(bar.dataset.tone).toBe('working');
-    expect(within(cutting).getByText('3 of 5').classList.contains('mono')).toBe(true);
+    expect(within(cutting).getByText('3 of 5').classList.contains('mono')).toBe(false);
     const waiting = rowOf('Pricing the sponsor slot');
     expect(waiting.querySelector('progress')!.dataset.tone).toBe('wait');
     expect(waiting.textContent).toContain('Waiting on you');
@@ -178,7 +178,7 @@ describe('JobList in the D look', () => {
     expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
     const failed = rowOf('Rendering the thumbnail set');
     // 4Z2: a failed run carries no result line from the engine; the row says it failed.
-    expect(within(failed).getByText('This run failed.').className).toMatch(/fail/);
+    expect(within(failed).getByText('This job failed.').className).toMatch(/fail/);
     fireEvent.click(within(failed).getByRole('button', { name: 'Run again' }));
     expect(onRunAgain).toHaveBeenCalledWith(expect.objectContaining({ runId: '28' }));
     assertInkRules(document.body);

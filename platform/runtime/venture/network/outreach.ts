@@ -466,7 +466,7 @@ function leadDraftOf(state: State, venture: VentureRecord, draftId: string): { l
 }
 
 const sentLine = (at: IsoTime, venture: VentureRecord) =>
-  `You already sent this, on ${venture.country ? formatVentureDate(localDayAt(at, venture.country), venture.country.dateOrder) : at.slice(0, 10)}.`;
+  `You already sent this, on ${venture.country ? formatVentureDate(localDayAt(at, venture.country), venture.country.dateOrder) : localDayAt(at, null)}.`;
 
 /**
  * Refuses opening when the governor says not now: a paused channel, mail held after a delivery report, a day the owner

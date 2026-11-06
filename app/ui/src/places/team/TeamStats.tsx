@@ -46,7 +46,8 @@ function SpendTile({ line, held, span }: { line: MoneyOverviewLine; held?: { wor
   const shown = spendShown(line.lead, line.value, line.rupees);
   return (
     <Tile span={span} pad="compact" card className={s.spendTile}>
-      <p className={s.statLabel}><Icon name="indian-rupee" size={14} />{t('team.stats.spend')}</p>
+      {/* B2: the rupee icon only beside a figure that leads in rupees, never beside dollars. */}
+      <p className={s.statLabel}>{line.lead?.currency === 'INR' && <Icon name="indian-rupee" size={14} />}{t('team.stats.spend')}</p>
       <div className={cx(s.statValue, WORDS.test(shown.value) && s.worded)}>
         <ProvedFigure value={shown.value} proof={proof} rupees={shown.rupees} />
       </div>
@@ -72,18 +73,22 @@ function totalsLine(totals: NonNullable<TeamListView['totals']>): MoneyOverviewL
  * AI spend this month. Counts are counted; nothing is worked out. With the engine's team totals (W4 4A1), "Done this
  * week" is its count of jobs and the spend is its figure (Money's own); before them the spend is the money overview's.
  */
-export function TeamStats({ members, spent, totals, bars }: {
+export function TeamStats({ members, spent, totals, bars, needsYou }: {
   members: readonly Member[];
   spent: MoneyOverviewLine | undefined;
   totals?: TeamListView['totals'] | undefined;
   /** Each department's jobs this week, per mille of the busiest's (the engine's), for the small bars beside the count. */
   bars?: readonly number[] | undefined;
+  /** B3: what needs the owner, the engine's count (shell/needsYou.ts); left out, the agents whose job waits. */
+  needsYou?: number | undefined;
 }) {
   const t = useT();
   const language = useLanguage();
   const working = members.filter((member) => member.state === 'working');
   const waiting = members.filter((member) => member.state === 'waiting');
   const one = waiting.length === 1 ? waiting[0] : undefined;
+  // B3: the tile counts what Today counts (a plan, a price or a setup step has no agent); the line names the agents.
+  const waits = needsYou ?? waiting.length;
   // With the engine's totals (W4 4A1) the stats are four, D-Team's row: jobs done this week, and the spend from the
   // same partition as the departments, with what running work holds.
   const span: TileSpan = totals ? 3 : 4;
@@ -101,13 +106,14 @@ export function TeamStats({ members, spent, totals, bars }: {
       <StatTile
         span={span}
         dot="wait"
-        tone={waiting.length > 0 ? 'wait' : undefined}
+        tone={waits > 0 ? 'wait' : undefined}
         label={t('team.stats.waiting')}
-        count={waiting.length}
+        count={waits}
         side={waiting.length > 0 ? <Stack members={waiting} ring /> : undefined}
         sub={one?.run
           ? t('team.stats.waitingOne', { agent: one.agent.name, purpose: one.run.purpose })
-          : waiting.length > 0 ? joined(waiting.map((m) => m.agent.name), language) : t('team.stats.waitingNone')}
+          : waiting.length > 0 ? joined(waiting.map((m) => m.agent.name), language)
+            : waits > 0 ? t('today.needs.count', { count: waits }) : t('team.stats.waitingNone')}
       />
       {totals && (
         <StatTile

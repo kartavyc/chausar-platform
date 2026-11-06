@@ -69,12 +69,12 @@ describe('Today: the engine\'s previews on the cards (4J3)', () => {
     expect(card.querySelector('[data-checks]')!.textContent).toBe('2 of 3 checks passed · 1 not run');
   });
 
-  it('an invoice is paper lines in DM Mono with the total\'s receipt; a post has its exact text and counts; a choice labels each model estimate', async () => {
+  it('an invoice is paper lines in the body font with the total\'s receipt; a post has its exact text and counts; a choice labels each model estimate', async () => {
     // The invoice and the sign-off on their own, so each is one of the five full cards (4Z3) with its paper.
     start({ queue: QUEUE.filter((row) => row.id === 'q-invoice-mehta' || row.id === 'q-signoff-gst') });
     const invoice = await cardTitled('Invoice INV-0042 to Mehta Traders');
     const paper = invoice.querySelector('[data-preview="paper"]')!;
-    expect([...paper.querySelectorAll('li .mono')].map((n) => n.textContent)).toEqual(['₹16,000.00', '₹1,440.00', '₹1,440.00']);
+    expect([...paper.querySelectorAll('li [data-num]')].map((n) => n.textContent)).toEqual(['₹16,000', '₹1,440', '₹1,440']);
     expect(paper.querySelector('[data-figure-group] [data-receipt="R-0419"]')).not.toBeNull();
     // The line already says when it is due, and the title who it is to: neither is said twice (4J19 review).
     expect(invoice.querySelector('[data-due]')).toBeNull();
@@ -172,12 +172,12 @@ describe('Today: a working paper\'s receipt from the work tools (4J19 review)', 
       actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'send-to-ca', label: 'Send to CA', primary: true, requiresView: true }],
       preview: {
         kind: 'paper', paper: 'working', title: 'Totals for September', client: null, more: 0, signer: null,
-        working: [{ label: 'Sales in September', value: '₹16,000.00', receiptId: 'wr-sept', receiptKind: 'work' }],
+        working: [{ label: 'Sales in September', value: '₹16,000', receiptId: 'wr-sept', receiptKind: 'work' }],
       },
     };
     const work = {
       id: 'wr-sept', at: '2026-10-21T09:00:00.000Z', operation: 'work.sum', currency: 'INR', explanation: 'Added the 4 sales rows of the September register.',
-      figures: [{ key: 'total', label: 'Sales in September', minor: '1600000', display: '₹16,000.00', currency: 'INR', unit: 'money' }],
+      figures: [{ key: 'total', label: 'Sales in September', minor: '1600000', display: '₹16,000', currency: 'INR', unit: 'money' }],
       steps: [{ op: 'add', inputs: ['r1', 'r2', 'r3', 'r4'], result: 'total', rule: 'sum of the amount column' }],
     };
     const { spy } = start({ queue: [row], stub: (method) => (method === 'venture.work.get' ? work : undefined) });
@@ -192,7 +192,7 @@ describe('Today: a working paper\'s receipt from the work tools (4J19 review)', 
       expect(found?.textContent).toContain('Added the 4 sales rows of the September register.');
       return found!;
     });
-    expect(sheet.textContent).toContain('₹16,000.00');
+    expect(sheet.textContent).toContain('₹16,000');
     assertInkRules(document.body);
   });
 });
@@ -223,6 +223,27 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     const rows = [...needs.querySelectorAll<HTMLElement>('[data-row-id]')];
     expect(rows.slice(5).some((row) => !row.hasAttribute('data-decided') && (row.textContent ?? '').includes('Episode 14 is cut'))).toBe(true);
     assertInkRules(document.body);
+  });
+
+  it('after Send back, Undo leaves the line once the revised draft is listed (B3)', async () => {
+    const { client } = start();
+    const card = await cardTitled('Episode 14 is cut');
+    await press(within(card).getByRole('button', { name: 'Send back' }));
+    const box = card.querySelector<HTMLElement>('[data-send-back]')!;
+    fireEvent.change(within(box).getByRole('textbox', { name: 'What to change' }), { target: { value: 'Revise this to cut the intro to 20 seconds' } });
+    await press(within(box).getByRole('button', { name: 'Send back' }));
+    const line = () => document.querySelector<HTMLElement>('[data-row-id="run:d-ep14:review-1"][data-decided]')!;
+    expect(within(line()).getByRole('button', { name: 'Undo' })).toBeTruthy();
+    // The revision lands: the queue lists the next version of the same draft.
+    const engine = client.engine as unknown as { rows: QueueRow[]; emit: (event: { type: 'queue.changed'; businessId: string; at: string }) => void };
+    const sent = QUEUE.find((row) => row.id === 'run:d-ep14:review-1')!;
+    await act(async () => {
+      engine.rows.push({ ...sent, id: 'run:d-ep14:review-2', createdAt: NOW, digest: 'revised-1' });
+      engine.emit({ type: 'queue.changed', businessId: 'lumen', at: NOW });
+    });
+    await settle();
+    await waitFor(() => expect(within(line()).queryByRole('button', { name: 'Undo' })).toBeNull());
+    expect(line().textContent).toContain('Sent back. The revised draft will wait for your review.');
   });
 
   it('empty words are refused in the engine\'s words', async () => {
@@ -503,7 +524,7 @@ describe('Today: approve several (O9)', () => {
     expect(approve().getAttribute('aria-disabled')).toBeNull();
 
     await press(approve());
-    expect(within(picker).getByText("This can't be undone. Approve these 2?")).toBeTruthy();
+    expect(within(picker).getByText("Approve these 2? Check them once more.")).toBeTruthy();
     expect(calls(spy, 'venture.queue.set')).toEqual([]);
     await press(within(picker).getByRole('button', { name: 'Approve 2' }));
     const sent = calls(spy, 'venture.queue.set');

@@ -1,7 +1,7 @@
 // The books: the existing calculator proves billed, received and earned from the facts the venture wrote.
 // Every calculator call here runs after a venture transaction has committed, never inside one.
+import { formatMoney } from '../../owner-format.ts';
 import { check, type Context, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { exactPayload, isoDate, listRecords, readVenture } from '../records.ts';
 import { localDayAt, ventureTimeZone } from '../local-day.ts';
 import { BOOKS_PERIOD_KEYS, booksPeriods, calendarMonth, todayLocal } from './dates.ts';
@@ -9,7 +9,7 @@ import { previousMonth } from './goal-plans.ts';
 import { newestFirst } from './shared.ts';
 import { experimentalStorage, type BooksFigure, type BooksPeriodKey, type BooksSummary, type IsoDate, type MinorString, type VentureDeps, type VentureRecord } from '../contracts.ts';
 
-export const EXPERIMENTAL_NOTE = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
+export const EXPERIMENTAL_NOTE = "Test version: practice here, don't send real invoices yet.";
 export const BOOKS_TAX_NOTE = 'Billed and earned leave out tax. Received is the cash that came in, tax included.';
 export const BOOKS_AGING_NOTE = "The back office's receivable aging compares invoices without tax to cash with tax, so use these invoice balances for taxed invoices.";
 export const BILLED_COVERS_MORE = 'The books receipt covers more than this invoice.';
@@ -67,7 +67,7 @@ async function booksFigures(deps: VentureDeps, ctx: Context, venture: VentureRec
     check(receipt.currency === venture.country.currency, 'CURRENCY_CONFLICT', 'The books receipt must use this business currency.');
     const currency = receipt.currency;
     if (receipt.exclusions?.some((row: { reason: string }) => row.reason.includes('currency scope'))) notes.add(`Totals are in ${currency}. Other currencies are excluded; no conversion was made.`);
-    figures.push({ operation, label, receiptId: receipt.id, minor: receipt.totalMinor, display: formatMinor(receipt.totalMinor, currency), stale: receipt.stale === true });
+    figures.push({ operation, label, receiptId: receipt.id, minor: receipt.totalMinor, display: formatMoney(receipt.totalMinor, currency), stale: receipt.stale === true });
   }
   return figures;
 }
@@ -114,7 +114,7 @@ export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unk
       number: invoice.number as string,
       clientName: clients.find(c => c.id === invoice.clientId)?.name ?? 'Unknown client',
       balanceMinor: invoice.balanceMinor,
-      balanceDisplay: formatMinor(invoice.balanceMinor, invoice.currency),
+      balanceDisplay: formatMoney(invoice.balanceMinor, invoice.currency),
       dueDate: invoice.dueDate as IsoDate,
     }));
 

@@ -321,8 +321,9 @@ function validateBackgroundChange(input) {
   if (keys.length === 0 || keys.some(key => !['startAtLogin', 'keepRunning'].includes(key) || typeof input[key] !== 'boolean')) throw failure('INVALID_REQUEST', 'Change start at login or keep running, as on or off.');
   return { ...(keys.includes('startAtLogin') ? { startAtLogin: input.startAtLogin } : {}), ...(keys.includes('keepRunning') ? { keepRunning: input.keepRunning } : {}) };
 }
+// B1 fix round 1: `owner: true` (only ever true) says the engine wrote these words for the owner, so the page shows them as sent.
 function publicError(error) {
-  return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.' };
+  return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.', ...(error?.owner === true ? { owner: true } : {}) };
 }
 // A run event from the engine worker, cut down to its plain fields (seq when present, count on notify.new only); null
 // when anything is off.

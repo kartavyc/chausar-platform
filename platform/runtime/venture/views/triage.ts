@@ -5,7 +5,7 @@
 // today's rows in that order; set saves the rule and Today's order uses it. A rule only orders: it never hides, drops
 // or adds a row, and never changes an id or a digest. The plan and setup rows still lead and locked businesses still
 // come last; the rule orders the rows between. Every key's value comes from the row's own fields and receipts, by code.
-import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { authorize, ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { PURPOSE_TIER } from '../contracts.ts';
 import type { Json, ModelTask, QueueKind, QueueRow, TriageField, TriagePreview, TriageRule, TriageRuleRecord, TriageRuleView, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, digest, exactPayload, listRecords, requireAppChannel, singleLine, ventureAction } from '../records.ts';
@@ -200,7 +200,7 @@ export async function triageSetHandler(deps: VentureDeps, ctx: Context, payload:
   requireAppChannel(ctx, 'venture.triage.set');
   const body = exactPayload(payload, ['rule', 'digest'], ['rule', 'digest']);
   const rule = validateRule(body.rule, null);
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the dry run you saw.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the dry run you saw.');
   return ventureAction(deps, ctx, 'approve', 'triage.set', tx => {
     check(ruleInForceDigest(tx.state, tx.venture!) === body.digest, 'APPROVAL_STALE', 'Your order changed on another screen. Look at the dry run again.');
     tx.put<TriageRuleRecord>({ ...tx.base('venture-triage-rule'), rule, digest: digest({ rule }), by: ctx.memberId });

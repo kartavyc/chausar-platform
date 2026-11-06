@@ -11,8 +11,8 @@
 //
 // For every other business it is the plan's tax setting, the tax on each invoice issued in the period with its price
 // receipt, the period's total, and the books' tax note. Nothing here computes money outside BigInt code.
+import { formatMoney } from '../../owner-format.ts';
 import { check, type Context, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { gstinValid } from '../../memory.ts';
 import { bpsPercent, exactPayload, listRecords, readVenture } from '../records.ts';
 import type {
@@ -70,7 +70,7 @@ function clientNames(state: State, venture: VentureRecord): Map<string, string> 
 
 /** One issued invoice as a line: its tax on its taxable value, with the price receipt that proves both. */
 function invoiceLine(invoice: InvoiceRecord, clients: Map<string, string>, taxLabel: string): TaxWorkingLine {
-  const money = (minor: bigint | string) => formatMinor(String(minor), invoice.currency);
+  const money = (minor: bigint | string) => formatMoney(String(minor), invoice.currency);
   return {
     label: `${invoice.number}, ${clients.get(invoice.clientId) ?? 'a client'}`,
     value: `${taxLabel} ${money(invoice.taxMinor)} on ${money(taxableOf(invoice))}`,
@@ -104,7 +104,7 @@ async function plainWorking(deps: VentureDeps, ctx: Context, state: State, ventu
   }
   for (const total of totals.values()) {
     const receipt = await sumReceipt(deps, ctx, venture.id, taxTotalPlan(state, venture, { type: 'tax-total', from: period.from, to: period.to, currency: total.currency, taxLabel: total.label }));
-    lines.push({ label: `${total.label} on invoices issued in ${period.display}`, value: formatMinor(receipt.totalMinor, receipt.currency), receiptId: receipt.id });
+    lines.push({ label: `${total.label} on invoices issued in ${period.display}`, value: formatMoney(receipt.totalMinor, receipt.currency), receiptId: receipt.id });
   }
   if (!invoices.length) {
     lines.push({ label: `${taxLabel} on invoices issued in ${period.display}`, value: 'No invoices issued' });
@@ -211,7 +211,7 @@ async function caWorking(deps: VentureDeps, ctx: Context, state: State, venture:
       const numbers = new Map(built.lines.map(line => [line.id, line.invoiceNo]));
       for (const item of working.exceptions) left.push({ label: numbers.get(item.lineId) ?? item.lineId, value: item.reason });
       for (const item of working.differences) {
-        left.push({ label: `${item.invoiceNo}, ${item.head.toUpperCase()}`, value: `The invoice shows ${formatMinor(item.chargedMinor, 'INR')}; the working gives ${formatMinor(item.computedMinor, 'INR')}.` });
+        left.push({ label: `${item.invoiceNo}, ${item.head.toUpperCase()}`, value: `The invoice shows ${formatMoney(item.chargedMinor, 'INR')}; the working gives ${formatMoney(item.computedMinor, 'INR')}.` });
       }
       sections.push({
         id: 'gst', title: `GST for ${period.display}`,
@@ -263,7 +263,7 @@ async function caWorking(deps: VentureDeps, ctx: Context, state: State, venture:
     try { engines.incomeTax.incomeTaxTable(period.ay); tableOn('income-tax', period.from); } catch (error) { unconfirmed = true; tableNotes.push(errorMessage(error)); }
     sections.push({
       id: 'income-tax', title: `Income tax for ${period.display}`,
-      lines: [{ label: 'Billed in the year, without tax', value: formatMinor(String(billed), 'INR') }],
+      lines: [{ label: 'Billed in the year, without tax', value: formatMoney(String(billed), 'INR') }],
       note: ['The computation needs your whole income for the year, your regime and your deductions, which Chausar does not hold. The income tax return offer works it from Form 16, AIS and 26AS, and your CA signs it off.',
         ...(allInvoices.length > invoices.length ? ['This total is in INR. Invoices in other currencies are excluded; no conversion was made.'] : []),
         ...tableNotes.slice(before)].join(' '),

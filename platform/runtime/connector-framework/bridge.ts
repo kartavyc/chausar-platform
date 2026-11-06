@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { audit, authorize, check } from '../contracts.ts';
+import { audit, authorize, check, internalCheck } from '../contracts.ts';
 import type { Context, StateStore } from '../contracts.ts';
 import { canonical, digest } from '../actions.ts';
 import { assertSourceAccess } from '../trust.ts';
@@ -88,7 +88,7 @@ export class ConnectorReadImportBridge {
       'BRIDGE_PAGE_COUNT_INVALID', 'The complete read must account for each captured page.');
     if (request.snapshot.kind === 'source-snapshot') {
       const snapshotId = request.snapshot.id;
-      check(result.completeness.snapshot === 'same-declared-snapshot' && result.pages.every(page => page.provenance.source.snapshotId === snapshotId),
+      internalCheck(result.completeness.snapshot === 'same-declared-snapshot' && result.pages.every(page => page.provenance.source.snapshotId === snapshotId),
         'BRIDGE_SNAPSHOT_MISMATCH', 'A capture cannot promote an unknown or different source snapshot.');
     }
     const output: CapturedPageInput[] = []; let nextCursor: string | null = null, totalBytes = 0, rows = 0;

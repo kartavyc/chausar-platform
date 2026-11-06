@@ -9,6 +9,7 @@
 // venture.connectors.list shows stepsCheckedOn on the browser mode: the oldest day across the three steps on which one
 // of the step's candidates last worked, or null while any step has none. The record holds dates and candidates only;
 // what the owner picked was screened by the secret screen in build/browser.ts before it reached here.
+import {localDayAt} from '../local-day.ts';
 import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type {
   BrowserPort, BrowserPostResult, BrowserStepsResult, ChannelHoldRecord, IsoDate, PostingCandidate, PostingStepId, PostingStepPick, PostingStepsRecord,
@@ -145,7 +146,7 @@ export async function recordStepsWorked(deps: VentureDeps, ctx: Context, connect
     await ventureAction(deps, ctx, 'approve', 'posting.steps.worked', tx => {
       const known = knownKeys(tx.state, connectorId, []);
       const kept = worked.filter(item => known.has(`${item.step} ${item.key}`));
-      if (kept.length) tx.replace(withDates(recordIn(tx, connectorId), kept, tx.now.slice(0, 10)));
+      if (kept.length) tx.replace(withDates(recordIn(tx, connectorId), kept, localDayAt(tx.now, tx.venture?.country)));
     });
   } catch {
     // The post's own record is what matters; the steps are dated again by the next check or post.
@@ -240,7 +241,7 @@ export async function postingCheckSteps(deps: VentureDeps, ctx: Context, payload
   }
   const picked = (Array.isArray(result.picked) ? result.picked : []).filter(isPick).map(item => ({ step: item.step, candidate: { ...item.candidate } }));
   return ventureAction(deps, ctx, 'approve', 'posting.steps.check', tx => {
-    const day = tx.now.slice(0, 10);
+    const day = localDayAt(tx.now, tx.venture?.country);
     const known = knownKeys(tx.state, connectorId, picked);
     const worked = (Array.isArray(result.steps) ? result.steps : [])
       .filter(item => !!item && STEP_IDS.includes(item.step) && typeof item.key === 'string' && item.visible === 1 && known.has(`${item.step} ${item.key}`))

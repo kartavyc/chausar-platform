@@ -1,5 +1,6 @@
 import { useId } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useResource } from '../../engine/context';
 import type { PlatformRuleView } from '../../engine/types';
 import { onDesktop, safeUrl } from '../connections/external';
@@ -20,7 +21,7 @@ const RISKS = ['low', 'medium', 'high'];
  */
 export function RulesSection() {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const staleId = useId();
   const currentId = useId();
   const rules = useResource('venture.rules.list', {}, { refreshOn: (event) => event.type === 'queue.changed' });
@@ -47,7 +48,7 @@ export function RulesSection() {
           <p className={s.note}>
             {t('business.rules.review', {
               risk: RISKS.includes(view.playbook.riskLevel) ? t(`business.rules.risk.${view.playbook.riskLevel}`) : view.playbook.riskLevel,
-              day: dayOf(view.playbook.lastReviewed, language),
+              day: dayOf(view.playbook.lastReviewed, zone),
             })}
           </p>
           {stale.length > 0 && (

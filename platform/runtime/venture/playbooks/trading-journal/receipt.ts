@@ -2,7 +2,7 @@
 // receipt shape (operation work.totals): every figure, the steps that add it up with the rule and source behind each,
 // and the numbers a draft may quote. Browser-safe, so the fake engine builds the same receipt. Written for Chausar.
 import { digest } from '../../../portable.ts';
-import { formatMinor } from '../../../currency.ts';
+import { formatMoney } from '../../../owner-format.ts';
 import type { ChargeLine, Journal } from './journal.ts';
 import type { TaxPack } from './tax-pack.ts';
 import { EXCHANGE_PERIODS, GST, SEBI_FEE, STAMP_DUTY, STT_PERIODS, BROKER_RATES, type BrokerId } from './rates.ts';
@@ -21,7 +21,7 @@ function ruleOf(key: keyof Omit<ChargeLine, 'total'>, brokers: readonly BrokerId
   if (key === 'gst') return `${GST.bps / 100}% of brokerage, exchange, SEBI, investor protection and DP charges per contract note line; ${sourceLine(GST.source)}`;
   return brokers.map(b => sourceLine(BROKER_RATES[b].source)).join(' | ');
 }
-const money = (key: string, label: string, minor: string): Figure => ({ key, label, minor, display: formatMinor(minor, 'INR'), currency: 'INR', unit: 'money' });
+const money = (key: string, label: string, minor: string): Figure => ({ key, label, minor, display: formatMoney(minor, 'INR'), currency: 'INR', unit: 'money' });
 const finish = <T extends { digest: string }>(body: T): T => { const { digest: _d, ...rest } = body; return { ...body, digest: digest(rest) }; };
 
 export function journalReceipt(workId: string, sources: readonly { id: string; name: string; digest: string }[], journal: Journal) {

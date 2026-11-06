@@ -23,8 +23,8 @@
 // Ink v2 wave 4 (package 4-0): five more row sources (proposals, follow-ups, replies, notices, run controls) whose
 // decisions go to views/queue-w4.ts, and three hooks that run after the digests: meta (row-meta.ts), previews
 // (previews.ts) and the owner's triage order (triage.ts). Each package fills its own file; none edits this one.
-import { authorize,ChausarError,check,type Context,type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
+import { formatUsd, formatMoney } from '../../owner-format.ts';
+import { authorize,ChausarError,check,type Context,type State,internalCheck } from '../../contracts.ts';
 import { decideAgentApproval } from '../agent-runtime/approvals.ts';
 import { answerAgentFacts } from '../agent-runtime/facts.ts';
 import { routineRows } from '../agents/routine-runner.ts';
@@ -56,7 +56,7 @@ import { sendRunToCa,waitsToGoToCa } from '../playbooks/ca-firm/delivery-signoff
 import { caFirmQueueItems } from '../playbooks/ca-firm/signoff.ts';
 import { pendingSpotChecks,reviewSpotCheck } from '../policy/spot-check.ts';
 import {
-currentVenture,digest,exactPayload,formatMicros,formatVentureDate,listRecords,plainText,requireAppChannel,ventureAction,
+currentVenture,digest,exactPayload,formatVentureDate,listRecords,plainText,requireAppChannel,ventureAction,
 } from '../records.ts';
 import { withPreviews } from './previews.ts';
 import { noticeRows } from './probes.ts';
@@ -111,7 +111,7 @@ function priceText(offer: Offer | undefined, currency: string): string {
   // Ink v2 wave 5 (5A2): an offer priced as a share of an amount the client confirms later (money/share-price.ts).
   if (offer?.pricing.share) return shareWords(offer.pricing.share.bps);
   const minor = offer?.pricing.unitPriceMinor ?? null;
-  return minor === null ? 'Not set' : `${formatMinor(minor, currency)} per ${offer!.pricing.quantityUnit}`;
+  return minor === null ? 'Not set' : `${formatMoney(minor, currency)} per ${offer!.pricing.quantityUnit}`;
 }
 
 function planRows(state: State, venture: VentureRecord, business: Business): Pending[] {
@@ -252,7 +252,7 @@ function callError(state: State, callId: string | null): string | null {
 
 /** Why a run stopped, in the engine's own words; plain words when it kept none. */
 export function runError(state: State, run: DeliveryRunRecord): string {
-  return run.agentJob?.failure?.line ?? callError(state, run.callId) ?? run.harness?.stopReason ?? 'This run stopped before it finished. Nothing was sent to the client.';
+  return run.agentJob?.failure?.line ?? callError(state, run.callId) ?? run.harness?.stopReason ?? 'This job stopped before it finished. Nothing was sent to the client.';
 }
 
 const reviewReason = (answer: string | null): DeliveryReason =>
@@ -361,12 +361,12 @@ async function allowRunWindow(deps: VentureDeps, ctx: Context, runId: string, ca
  * With the owner's rupee rate, the room is said in rupees too, beside the dollars, with that rate.
  */
 function roomWords(harness: HarnessState, window: MicroString, rupees: Rupees | null): Pick<QueueRow, 'line' | 'change'> {
-  const figure = formatMicros(window);
+  const figure = formatUsd(window);
   const said = rupees ? `${figure}, ${rupeesBeside(window, rupees)}` : figure;
   const after = rupees ? `${figure} · ${rupeeFigure(window, rupees)}` : figure;
   return BigInt(window) <= BigInt(harness.limits.maxCostMicros)
     ? { line: `Allow one more window of ${said}?`, change: { label: 'One more window', after } }
-    : { line: `Allow more spend for this run: ${said}`, change: { label: 'More spend for this run', after } };
+    : { line: `Allow more spend for this job: ${said}`, change: { label: 'More spend for this job', after } };
 }
 
 /** Runs a spot check picked at auto with spot checks: each waits until the owner says it looks right or needs work. */
@@ -403,7 +403,7 @@ function invoiceRows(state: State, venture: VentureRecord, business: Business): 
         },
         row: {
           ...base(business, 'invoice', subject, invoice.digest.slice(0, 16), invoice.at), title: `Invoice for ${client}`, line: `${invoice.documentTitle}${due}`,
-          change: { label: 'Total', after: formatMinor(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId },
+          change: { label: 'Total', after: formatMoney(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId },
           viewRef: { kind: 'file', id: invoice.id }, actions: [action('read', 'Read', false), action('issue', 'Issue', true, { secondAsk: true })],
         },
       };
@@ -753,7 +753,7 @@ export async function queueDecideHandler(deps: VentureDeps, ctx: Context, payloa
   requireAppChannel(ctx, 'venture.queue.decide');
   const body = exactPayload(payload, ['id', 'digest', 'action', 'answer', 'viewed'], ['id', 'digest', 'action']);
   check(typeof body.id === 'string' && /^[A-Za-z0-9_.:-]{3,400}$/.test(body.id) && body.id.includes(':'), 'INVALID_VENTURE_REQUEST', 'Send the id of the row you decided on.');
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
   check(typeof body.action === 'string' && (QUEUE_ACTION_IDS as readonly string[]).includes(body.action), 'INVALID_VENTURE_REQUEST', 'Choose one of the row\'s actions.');
   check(body.viewed === undefined || typeof body.viewed === 'boolean', 'INVALID_VENTURE_REQUEST', 'viewed must be true or false.');
   const answer = body.answer === undefined ? null : plainText(body.answer, 'Answer', { min: 0, max: 2000 });

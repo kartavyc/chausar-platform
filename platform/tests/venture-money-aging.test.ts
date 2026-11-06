@@ -12,13 +12,13 @@ import { issueCredit } from './venture-money-env.ts';
 import { code, owner } from './venture-views-env.ts';
 
 /**
- * Today is 23 Oct 2026 in Kolkata. Each invoice is one month at INR 19,750.00 before tax plus GST 18%: 2330500
- * (INR 23,305.00), due 15 days after issue.
+ * Today is 23 Oct 2026 in Kolkata. Each invoice is one month at ₹19,750 before tax plus GST 18%: 2330500
+ * (₹23,305), due 15 days after issue.
  * - issued 20 Oct, due 4 Nov: not due yet.
- * - issued 1 Oct, due 16 Oct: 7 days late; INR 1,000.00 paid, so 2330500 - 100000 = 2230500 is left.
+ * - issued 1 Oct, due 16 Oct: 7 days late; ₹1,000 paid, so 2330500 - 100000 = 2230500 is left.
  * - issued 1 Sep, due 16 Sep: 37 days late (14 days of September after the 16th, and 23 of October).
  * - issued 1 Jul, due 16 Jul: 99 days late (15 + 31 + 30 + 23).
- * Total 2330500 x 3 + 2230500 = 9222000 (INR 92,220.00).
+ * Total 2330500 x 3 + 2230500 = 9222000 (₹92,220).
  */
 async function owed() {
   const env = await goalBusiness();
@@ -35,15 +35,15 @@ test('aging puts each open balance in one of five buckets, with counts, amounts 
   const view = await env.money<AgingView>('venture.money.aging');
   assert.equal(view.asOf, '2026-10-23');
   assert.deepEqual(view.buckets.map(bucket => [bucket.id, bucket.label, bucket.count, bucket.countLine, bucket.amount.display]), [
-    ['not-due', 'Not due yet', 1, '1 invoice', 'INR 23,305.00'],
-    ['1-30', '1 to 30 days late', 1, '1 invoice', 'INR 22,305.00'],
-    ['31-60', '31 to 60 days late', 1, '1 invoice', 'INR 23,305.00'],
-    ['61-90', '61 to 90 days late', 0, 'None', 'INR 0.00'],
-    ['over-90', 'Over 90 days late', 1, '1 invoice', 'INR 23,305.00'],
+    ['not-due', 'Not due yet', 1, '1 invoice', '₹23,305'],
+    ['1-30', '1 to 30 days late', 1, '1 invoice', '₹22,305'],
+    ['31-60', '31 to 60 days late', 1, '1 invoice', '₹23,305'],
+    ['61-90', '61 to 90 days late', 0, 'None', '₹0'],
+    ['over-90', 'Over 90 days late', 1, '1 invoice', '₹23,305'],
   ]);
   // 2330500 x 1000 / 9222000 = 252.7 -> 252; 2230500 x 1000 / 9222000 = 241.8 -> 241; an empty bucket is 0.
   assert.deepEqual(view.buckets.map(bucket => bucket.permille), [252, 241, 252, 0, 252]);
-  assert.equal(view.total.display, 'INR 92,220.00');
+  assert.equal(view.total.display, '₹92,220');
   assert.equal(view.total.kind, 'calculated');
   assert.deepEqual(view.total.source, { from: 'receipt', receiptId: view.total.receiptId });
   assert.deepEqual(view.total.basis, {
@@ -67,12 +67,12 @@ test('aging puts each open balance in one of five buckets, with counts, amounts 
   assert.equal([...byBucket.values()].reduce((sum, amount) => sum + amount, 0n), BigInt(receipt.totalMinor));
   // Oldest due first, with the lateness in words.
   assert.deepEqual(view.invoices.map(row => [row.number, row.bucket, row.late?.line ?? null, row.balance.display]), [
-    [old.invoice.number, 'over-90', '99 days late', 'INR 23,305.00'],
-    [month.invoice.number, '31-60', '37 days late', 'INR 23,305.00'],
-    [week.invoice.number, '1-30', '7 days late', 'INR 22,305.00'],
-    [notDue.invoice.number, 'not-due', null, 'INR 23,305.00'],
+    [old.invoice.number, 'over-90', '99 days late', '₹23,305'],
+    [month.invoice.number, '31-60', '37 days late', '₹23,305'],
+    [week.invoice.number, '1-30', '7 days late', '₹22,305'],
+    [notDue.invoice.number, 'not-due', null, '₹23,305'],
   ]);
-  assert.equal(view.line, 'INR 92,220.00 is owed on 4 open invoices as of 23 Oct 2026. 3 of them are late.');
+  assert.equal(view.line, '₹92,220 is owed on 4 open invoices as of 23 Oct 2026. 3 of them are late.');
 });
 
 test('aging as of another day moves an invoice past its due date into 1 to 30 days late; a read writes one receipt per sum', async () => {
@@ -97,13 +97,13 @@ test('a payment makes the old aging receipt read stale; nothing owed answers emp
   const stale = await env.money<SumReceiptRecord>('venture.receipt.get', { id: before.total.receiptId });
   assert.equal(stale.stale, true);
   const after = await env.money<AgingView>('venture.money.aging');
-  assert.equal(after.total.display, 'INR 68,915.00'); // 9222000 - 2330500 = 6891500
+  assert.equal(after.total.display, '₹68,915'); // 9222000 - 2330500 = 6891500
   assert.equal(after.buckets[4].count, 0);
 
   const empty = await goalBusiness();
   const none = await empty.money<AgingView>('venture.money.aging');
-  assert.deepEqual(none.buckets.map(bucket => [bucket.count, bucket.permille, bucket.amount.display]), Array(5).fill([0, 0, 'INR 0.00']));
-  assert.equal(none.total.display, 'INR 0.00');
+  assert.deepEqual(none.buckets.map(bucket => [bucket.count, bucket.permille, bucket.amount.display]), Array(5).fill([0, 0, '₹0']));
+  assert.equal(none.total.display, '₹0');
   assert.deepEqual(none.invoices, []);
   assert.equal(none.line, 'Nothing is owed on open invoices.');
 });
@@ -126,22 +126,22 @@ test('aging as of an earlier day is what was owed then: later invoices left out,
   await issueCredit(env, month, '233050');
   const today = await env.money<AgingView>('venture.money.aging');
   // 2330500 (not due) + 2230500 + (2330500 - 233050 = 2097450) = 6658450; the paid one is gone.
-  assert.deepEqual([today.total.display, today.invoices.map(row => row.number)], ['INR 66,584.50', [month.invoice.number, week.invoice.number, notDue.invoice.number]]);
-  // As of 1 Oct: the one issued on 20 Oct did not exist; the INR 1,000.00 of 20 Oct, the payment of 22 Oct and the credit
+  assert.deepEqual([today.total.display, today.invoices.map(row => row.number)], ['₹66,584.50', [month.invoice.number, week.invoice.number, notDue.invoice.number]]);
+  // As of 1 Oct: the one issued on 20 Oct did not exist; the ₹1,000 of 20 Oct, the payment of 22 Oct and the credit
   // note of 23 Oct had not happened. Due 16 Oct: not due; due 16 Sep: 15 days late; due 16 Jul: 15 + 31 + 30 + 1 = 77.
   const then = await env.money<AgingView>('venture.money.aging', { asOf: '2026-10-01' });
   assert.deepEqual(then.invoices.map(row => [row.number, row.bucket, row.late?.days ?? null, row.balance.display]), [
-    [old.invoice.number, '61-90', 77, 'INR 23,305.00'],
-    [month.invoice.number, '1-30', 15, 'INR 23,305.00'],
-    [week.invoice.number, 'not-due', null, 'INR 23,305.00'],
+    [old.invoice.number, '61-90', 77, '₹23,305'],
+    [month.invoice.number, '1-30', 15, '₹23,305'],
+    [week.invoice.number, 'not-due', null, '₹23,305'],
   ]);
   assert.deepEqual(then.buckets.map(bucket => bucket.count), [1, 1, 0, 1, 0]);
-  assert.equal(then.total.display, 'INR 69,915.00'); // 2330500 x 3 = 6991500
+  assert.equal(then.total.display, '₹69,915'); // 2330500 x 3 = 6991500
   const receipt = await env.money<SumReceiptRecord>('venture.receipt.get', { id: then.total.receiptId });
   assert.deepEqual([receipt.subject, receipt.totalMinor, receipt.stale], [{ type: 'aging', asOf: '2026-10-01' }, '6991500', false]);
-  assert.equal(then.total.basis?.filters[0], 'Invoices in INR issued by 01 Oct 2026, tax included, less what was paid or credited by then');
+  assert.equal(then.total.basis?.filters[0], 'Invoices in INR issued by 1 Oct 2026, tax included, less what was paid or credited by then');
   // A later day is not changed by the past one; asking for the future still counts what is owed now.
-  assert.equal((await env.money<AgingView>('venture.money.aging', { asOf: '2026-12-01' })).total.display, 'INR 66,584.50');
+  assert.equal((await env.money<AgingView>('venture.money.aging', { asOf: '2026-12-01' })).total.display, '₹66,584.50');
 });
 
 test('a business still choosing its country gets no invoice rows and no overview lines, never a guess (NOTES 32)', async () => {

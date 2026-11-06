@@ -6,6 +6,7 @@
  * template (no AI is connected here) and runs no kit playbook, so the honest exit never decides here.
  */
 
+import { formatMoney } from '../../../../platform/runtime/owner-format';
 import {
   EngineError,
   type BlueprintViewLite, type ClientLite, type GoNoGoCardView, type GoNoGoInputName, type OfferLite, type OrderLite, type OutreachHandoff, type PersonView,
@@ -127,12 +128,9 @@ const sentence = (text: string) => text.trim().replace(/[.\s]+$/, '');
 const joined = (items: readonly string[]) => (items.length <= 1 ? items[0] ?? '' : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 const ID = /^[A-Za-z0-9_-]{1,100}$/;
 
-/** Minor units as the engine's formatMinor writes rupees: "INR 35,000.00". */
+/** Minor units as the engine writes rupees on a screen since B2 (owner-format formatMoney): "₹35,000". */
 function inrMinor(minor: bigint): string {
-  const negative = minor < 0n;
-  const absolute = negative ? -minor : minor;
-  const whole = String(absolute / 100n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${negative ? '-' : ''}INR ${whole}.${String(absolute % 100n).padStart(2, '0')}`;
+  return formatMoney(minor, 'INR');
 }
 
 /**

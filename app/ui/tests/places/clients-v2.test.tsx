@@ -112,7 +112,7 @@ describe('Clients: the Clients tab', () => {
     expect(within(boat).getByRole('button', { name: 'Boat Audio' })).toBeTruthy();
     expect(boat.textContent).toContain('Order open: Two mentions in episode 14');
     const figure = boat.querySelector('[data-figure]') as HTMLElement;
-    expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200.00');
+    expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200');
     expect(within(figure).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     const nimbus = rows.find((row) => row.textContent?.includes('Nimbus Mics'))!;
     expect(nimbus.querySelector('[data-figure]')).toBeNull();
@@ -128,7 +128,7 @@ describe('Clients: the Clients tab', () => {
     await within(sheet).findByRole('list', { name: 'Orders' });
     // What they owe, in the sheet line, is a Figure too.
     const figure = await waitFor(() => sheet.querySelector('[data-figure]') as HTMLElement);
-    expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200.00');
+    expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200');
     assertInkRules();
   });
 

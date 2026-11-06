@@ -1,4 +1,5 @@
-import { useLanguage, useT } from '../text';
+import { useT } from '../text';
+import { useOwnerZone } from '../shell/clock';
 import type { ProviderTroubleLite } from '../engine/types';
 import { momentOf } from './custody';
 
@@ -8,6 +9,6 @@ import { momentOf } from './custody';
  */
 export function ProviderTrouble({ trouble, className }: { trouble: ProviderTroubleLite; className?: string }) {
   const t = useT();
-  const language = useLanguage();
-  return <p className={className} role="status" data-provider-status="">{trouble.line} {t('ai.statusFrom', { source: trouble.source, time: momentOf(trouble.readAt, language) })}</p>;
+  const zone = useOwnerZone();
+  return <p className={className} role="status" data-provider-status="">{trouble.line} {t('ai.statusFrom', { source: trouble.source, time: momentOf(trouble.readAt, zone) })}</p>;
 }

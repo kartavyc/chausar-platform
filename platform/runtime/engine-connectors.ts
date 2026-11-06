@@ -1,4 +1,4 @@
-import { authorize, check, ChausarError, newId, type Context, type State, type StateStore } from './contracts.ts';
+import { authorize, check, ChausarError, newId, type Context, type State, type StateStore, internalCheck } from './contracts.ts';
 import { digest } from './actions.ts';
 import { assertSourceAccess, sourceAllowed, trustFingerprint } from './trust.ts';
 import { validatePeriod } from './memory.ts';
@@ -114,7 +114,7 @@ export class EngineConnectorService {
       const { readPage, ...readerMetadata } = reader, { decode, ...decoderMetadata } = decoder;
       const profile: EngineConnectorProfile = { ...structuredClone(metadata),
         reader: { ...structuredClone(readerMetadata), readPage }, decoder: { ...structuredClone(decoderMetadata), decode } };
-      check(id(profile.id) && !this.#profiles.has(profile.id) && id(profile.sourceId) && typeof profile.title === 'string' && profile.title.length > 0
+      internalCheck(id(profile.id) && !this.#profiles.has(profile.id) && id(profile.sourceId) && typeof profile.title === 'string' && profile.title.length > 0
         && profile.title.length <= 200 && id(profile.companyId) && Object.hasOwn(levels, profile.environment)
         && (profile.environment !== 'synthetic' || profile.syntheticFixture === true),
       'CONNECTOR_PROFILE_INVALID', 'Install distinct exact profiles and explicitly label every synthetic fixture.');
@@ -238,7 +238,7 @@ export class EngineConnectorService {
     const { runtime, result, reader } = pending, profile = runtime.profile;
     this.#access(ctx, profile, 'prepare'); const qualification = this.#qualified(profile); this.#fresh(profile, result.freshness);
     check(trustFingerprint(this.#store.read(), ctx, [profile.sourceId]) === pending.authorityRevision, 'CONNECTOR_AUTHORITY_CHANGED', 'Read authority changed before capture.');
-    check(result.completeness.snapshot === 'same-declared-snapshot' && result.pages[0]?.provenance.source.snapshotId,
+    internalCheck(result.completeness.snapshot === 'same-declared-snapshot' && result.pages[0]?.provenance.source.snapshotId,
       'CONNECTOR_SNAPSHOT_REQUIRED', 'This consumer requires an explicit coherent source snapshot.');
     const captured = await this.#bridge(runtime, reader).capture(ctx, { read: result, request: {
       sourceId: profile.sourceId, scope: profile.importOperation, domain: profile.domain, recipe: input.recipe,

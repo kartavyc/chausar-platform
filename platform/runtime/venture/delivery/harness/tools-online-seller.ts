@@ -1,4 +1,6 @@
 // Chausar seller tools, sealeap and listing-doctor ideas (MIT), independently implemented.
+import { localDayAt } from '../../local-day.ts';
+import { currentVenture } from '../../records.ts';
 import type { ToolName } from '../../contracts.ts';
 import {sellerOperationTool,SELLER_STAGE_TOOL} from './tools-seller-operations.ts';
 import { fileOf, text, receiptOut, type Spec } from './tools.ts';
@@ -15,7 +17,7 @@ function sellerTool(name: Name, mode: SellerMode, summary: string): Spec {
     const file = fileOf(env, input.file), table = tablesOfFile(file)[0];
     const economics = mode === 'ads' && input.economicsFile ? fileOf(env, input.economicsFile) : null;
     const images = mode === 'listing' ? env.files.filter(f => f.format === 'image').map(image => ({ name: image.name, ...imageDimensions(Buffer.from(image.contentBase64, 'base64')), source: image.id })) : [];
-    const result = sellerCall(() => analyseSellerRows(mode, table?.rows.map(row => row.cells) ?? [], { rehearsal: env.runRef.kind !== 'delivery', ...sellerIndiaRule() }, sellerTaxSources(), images, economics ? tablesOfFile(economics)[0]?.rows.map(row => row.cells) ?? [] : undefined));
+    const result = sellerCall(() => analyseSellerRows(mode, table?.rows.map(row => row.cells) ?? [], { rehearsal: env.runRef.kind !== 'delivery', ...sellerIndiaRule(), today: localDayAt(env.deps.clock(), currentVenture(env.deps.store.read())?.country) }, sellerTaxSources(), images, economics ? tablesOfFile(economics)[0]?.rows.map(row => row.cells) ?? [] : undefined));
     const out = receiptOut(env, sellerWorkReceipt({ result, runRef: env.runRef, sourceId: file.id, sourceName: file.name, sourceDigest: file.digest, additionalSources: economics ? [{ id: economics.id, name: economics.name, digest: economics.digest }] : [] }));
     return { result: { ...result, receipt: out.alias, figures: out.figures }, receipts: [out.record] };
   } };

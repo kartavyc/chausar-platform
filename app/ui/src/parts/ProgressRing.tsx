@@ -84,7 +84,7 @@ export function ProgressRing({ progress, tone = 'working', className }: Progress
         )}
       </svg>
       {steps && (
-        <b className={cx(s.label, 'mono')} data-label="" aria-hidden="true">
+        <b className={s.label} data-num="" data-label="" aria-hidden="true">
           {steps.total > 9 ? steps.done : `${steps.done}/${steps.total}`}
         </b>
       )}

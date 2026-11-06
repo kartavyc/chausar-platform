@@ -109,7 +109,7 @@ export class FakeTalkDesk {
         label: 'fixture-tested', connected, price: { ...SARVAM_STT_PRICE }, rateDigest: SARVAM_RATE_DIGEST,
         capMinor: setting.capMinor, cap: rupees(setting.capMinor), spentMinor: spent, spent: rupees(spent),
         line: connected
-          ? `Sarvam is fixture-tested: its call follows Sarvam's public docs and has not run on a real key yet. ${rupees(spent)} of ${rupees(setting.capMinor)} used this month.`
+          ? `Not tried live yet: Sarvam's call follows its public docs and hasn't run on a real key. ${rupees(spent)} of ${rupees(setting.capMinor)} used this month.`
           : `Sarvam waits on your key. Its price is ${rupees(SARVAM_STT_PRICE.paisePerMinute)} a minute, read on its page on ${SARVAM_STT_PRICE.checkedOn}.`,
       },
       speak: { label: speaks ? 'write' : 'planned: write', line: speaks ? READ_LINE : TALK_WORDS.readOnScreen },

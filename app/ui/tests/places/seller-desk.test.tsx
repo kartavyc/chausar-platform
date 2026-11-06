@@ -67,8 +67,8 @@ it('shows each settlement split and total with its order and receipt',async()=>{
  render(<TextProvider language="en"><EngineProvider client={client}><OnlineSellerDesk/></EngineProvider></TextProvider>);
  fireEvent.click(await screen.findByRole('button',{name:'Read check'}));
  const report=await screen.findByRole('region',{name:'Seller check'});
- expect(within(report).getByText('order-a: Fee slab')).toBeTruthy();expect(within(report).getByText('INR 2.50')).toBeTruthy();
- expect(within(report).getByText('order-a: Unknown difference')).toBeTruthy();expect(within(report).getByText('INR 7.50')).toBeTruthy();
+ expect(within(report).getByText('order-a: Fee slab')).toBeTruthy();expect(within(report).getByText('₹2.50')).toBeTruthy();
+ expect(within(report).getByText('order-a: Unknown difference')).toBeTruthy();expect(within(report).getByText('₹7.50')).toBeTruthy();
  expect(within(report).getByText('order-b: Fee slab')).toBeTruthy();
  expect(within(report).getByText('order-a: Payout difference')).toBeTruthy();
  expect(within(report).getAllByRole('button',{name:/receipt/i})).toHaveLength(5);

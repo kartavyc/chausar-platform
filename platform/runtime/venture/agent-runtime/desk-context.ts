@@ -1,6 +1,7 @@
 import { check, type State } from '../../contracts.ts';
 import type { DeliveryRunRecord, OrderRecord, VentureRecordKind } from '../contracts.ts';
 import { digest, listRecords } from '../records.ts';
+import { localDayAt } from '../local-day.ts';
 import { refuseRecruitDraft } from '../playbooks/recruiting-desk/run-guard.ts';
 import { recruitingReport } from '../playbooks/recruiting-desk/report.ts';
 import { narrationReportRows, narrationReportReady } from '../playbooks/narration-studio/checks.ts';
@@ -19,7 +20,9 @@ export function deskContext(state: State, run: DeliveryRunRecord, order: OrderRe
   if (flagship === 'lesson-desk') return lessonDeskContext(state, run, order);
   if (flagship === 'online-seller') {
     const files=listRecords(state,'venture-upload',run.ventureId).filter(file=>file.scope.kind==='order'&&file.scope.orderId===order.id&&(run.uploadIds===undefined||run.uploadIds.includes(file.id)));
-    const report=sellerReportSource(order,offerKey,files,run.at.slice(0,10));
+    // The run's own day where the business is, as delivery/runs.ts reads today for the same report.
+    const venture = listRecords(state, 'venture-record').find(row => row.id === run.ventureId)!;
+    const report=sellerReportSource(order,offerKey,files,localDayAt(run.at, venture.country));
     return {binding:digest({files,report}),data:{sellerReport:report}};
   }
   if (flagship === 'social-agency' && order.socialChain?.offerKey === 'monthly-report') {
@@ -35,7 +38,7 @@ export function deskContext(state: State, run: DeliveryRunRecord, order: OrderRe
     const touches = listRecords(state, 'venture-recruit-touch', run.ventureId).filter(row => row.roleId === role.id);
     const interviews = listRecords(state, 'venture-recruit-interview', run.ventureId).filter(row => row.roleId === role.id);
     return { binding: digest({ role, candidates, touches, interviews }), data: {
-      recruitingRole: role.brief, recruitingReport: recruitingReport(role, candidates, touches, run.at.slice(0, 10)),
+      recruitingRole: role.brief, recruitingReport: recruitingReport(role, candidates, touches, localDayAt(run.at, venture.country), venture.country),
     } };
   }
   if (flagship === 'data-entry-desk') {

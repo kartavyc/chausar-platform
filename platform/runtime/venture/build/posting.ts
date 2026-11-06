@@ -31,7 +31,7 @@ import { actualSocialPosts } from '../playbooks/social/post-label.ts';
 // forbids: the consent line is the guarantee.
 // The described / approved / applied journal follows cloudflare/cloudflare-os (Apache-2.0); this is a rewrite, not a copy.
 // Approved before promoted, refused with a reason per post: an idea from postmill-ai/postmill-app (AGPL-3.0, ideas only).
-import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
+import { authorize, check, ChausarError, type Context, type State, internalCheck } from '../../contracts.ts';
 import type {
   BrowserPort, BrowserPostResult, BrowserProbe, BrowserSiteHold, ChannelHoldRecord, ConnectorPorts, ConnectorPostRecord, DeliveryRunRecord,
   Display, JournalEntry, PostLogPort, PostingModeName, PostingOption, PostingProposal, VentureDeps,
@@ -715,7 +715,7 @@ export type PostDecision = { outcome: 'done' | 'refused'; line: string; post: Co
 export async function decidePost(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PostDecision> {
   const body = exactPayload(payload, ['postId', 'digest', 'action'], ['postId', 'digest', 'action']);
   const postId = identifier(body.postId, 'postId');
-  check(typeof body.digest === 'string' && body.digest.length > 0 && body.digest.length <= 128, 'INVALID_VENTURE_REQUEST', 'Send the digest you saw.');
+  internalCheck(typeof body.digest === 'string' && body.digest.length > 0 && body.digest.length <= 128, 'INVALID_VENTURE_REQUEST', 'Send the digest you saw.');
   check(body.action === 'approve' || body.action === 'deny', 'INVALID_VENTURE_REQUEST', 'Choose approve or deny.');
   check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', 'Approve this post inside the Chausar app.');
   authorize(deps.store, ctx, 'approve');

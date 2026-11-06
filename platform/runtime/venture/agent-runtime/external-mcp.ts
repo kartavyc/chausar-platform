@@ -7,7 +7,7 @@
  * tokens from protected storage; a server's questions go to the owner on the same card (mcp-elicitation.ts).
  * Adapters (mcp-adapters.ts) add exact fields to a card, such as a code-computed cost, or refuse a tool outright.
  */
-import { ChausarError, check, newId, type Context, type State } from '../../contracts.ts';
+import { ChausarError, check, newId, type Context, type State, internalCheck } from '../../contracts.ts';
 import type { RegisteredMCPTool } from '../../mcp.ts';
 import { validateMCPArguments } from '../../mcp.ts';
 import type { VentureDeps } from '../contracts.ts';
@@ -110,7 +110,7 @@ export function createExternalMcpTools(deps: VentureDeps, ctx: Context, capabili
   }
   async function planFor(server: ExternalMcpServer, tool: ExternalTool, input: Record<string, unknown>): Promise<McpCallPlan | undefined> {
     let plan: McpCallPlan | undefined;
-    for (const adapter of adapters) if (adapter.matches(server)) { const next = await adapter.plan({ deps, ctx, capability, server, tool, input }); guard(); if (next) { check(!plan, 'MCP_ADAPTER_CONFLICT', 'Two adapters claimed this call.'); plan = next; } }
+    for (const adapter of adapters) if (adapter.matches(server)) { const next = await adapter.plan({ deps, ctx, capability, server, tool, input }); guard(); if (next) { internalCheck(!plan, 'MCP_ADAPTER_CONFLICT', 'Two adapters claimed this call.'); plan = next; } }
     return plan;
   }
   async function dispatch(server: ExternalMcpServer, tool: ExternalTool, input: Record<string, unknown>, plan?: McpCallPlan) {

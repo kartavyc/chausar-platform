@@ -51,7 +51,7 @@ describe('#/approve/next', () => {
     await waitFor(() => expect(cards()[0]?.getAttribute('data-row-id')).toBe('q-price-sponsor'));
     expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
     fireEvent.click(within(cards()[0]!).getByRole('button', { name: 'Approve' }));
-    expect(cards()[0]!.textContent).toContain("This can't be undone. Approve?");
+    expect(cards()[0]!.textContent).toContain("Approve? Check it once more.");
     await act(async () => { fireEvent.click(within(cards()[0]!).getAllByRole('button', { name: 'Approve' }).at(-1)!); });
     await waitFor(() => expect(cards()[0]!.hasAttribute('data-decided')).toBe(true));
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }));

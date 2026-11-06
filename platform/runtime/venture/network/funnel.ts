@@ -6,10 +6,10 @@
 // won from its stage, from the same history; labelled a forecast, every amount an estimate). Counted from the cards'
 // own records in code; no model number anywhere. Addend labels never name a person ("A card reached Asked on ..."):
 // the record ids say which card, and Forget removes any receipt that counted one of theirs.
+import { formatMoney } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
 import { PIPELINE_STAGES } from '../contracts.ts';
 import type { IsoDate, PipelineStage, SumReceiptSubject, VentureRecord } from '../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { formatVentureDate, listRecords } from '../records.ts';
 import { localDayAt } from '../local-day.ts';
 import type { Addend, SumPlan } from '../money/sums.ts';
@@ -97,7 +97,7 @@ function forecastPlan(state: State, venture: VentureRecord, subject: CountSubjec
     const amount = (BigInt(quote.minor) * BigInt(share) + 500n) / 1000n;
     const label = STAGE_LABEL[card.stage];
     addends.push({
-      recordId: card.id, amount: String(amount), display: formatMinor(amount, venture.country.currency), estimate: true,
+      recordId: card.id, amount: String(amount), display: formatMoney(amount, venture.country.currency), estimate: true,
       label: `A card at ${label}: a quote of ${quote.display} before tax, times ${count(share)} in 1,000 won from ${label}`,
     });
   }

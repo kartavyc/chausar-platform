@@ -114,7 +114,7 @@ test('a pilot proposal: the one-page pilot in the Roadmap, its after-pilot asks 
     'Time needed: [hours a week from you] from you, [hours a week from us] from us.',
     'May we mention you as a client? [may we mention you as a client: yes or no]',
   ]);
-  assert.match(made.sections[2].lines[0], /^Pilot of Monthly books: INR [\d,]+\.\d\d per month$/);
+  assert.match(made.sections[2].lines[0], /^Pilot of Monthly books: ₹[\d,]+(?:\.\d\d)? per month$/);
   assert.deepEqual(made.sections[3].lines, [
     'Reply to say yes to the pilot, and we start on [the day it starts].',
     'After the pilot: A short case study, if the pilot meets its measure.',

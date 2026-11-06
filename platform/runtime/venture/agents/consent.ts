@@ -4,7 +4,7 @@
 // or of the AI it goes to (the preset) makes it stale; saving the same AI's settings again does not (one-shot A1,
 // row 11). With templates only nothing is sent, so none is asked.
 // A chat call carries client data: it goes by deps.models.preview and runPreview under this consent, never generate.
-import { check, type Context, type State } from '../../contracts.ts';
+import { check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { PURPOSE_TIER } from '../contracts.ts';
 import type { ChatConsentRecord, ChatConsentView, ModelPresetId, ModelStatusView, VentureDeps, VentureRecord } from '../contracts.ts';
 import { digest, exactPayload, listRecords, requireAppChannel, ventureAction } from '../records.ts';
@@ -93,7 +93,7 @@ export function requireChatConsent(deps: VentureDeps, ctx: Context, state: State
 export async function chatsConsentHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ChatConsentView> {
   requireAppChannel(ctx, 'venture.chats.consent');
   const body = exactPayload(payload, ['digest'], ['digest']);
-  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the consent you read.');
+  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the consent you read.');
   const seen = body.digest;
   readAs(deps, ctx, 'approve');
   return ventureAction(deps, ctx, 'approve', 'chats.consent', tx => {

@@ -14,6 +14,7 @@
  * sample studio's titles and hooks carry over), labelled a model estimate as the engine's is.
  */
 
+import { formatMoment, ownerZone } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type ChatConsentView, type ChatPart, type ChiefCounted, type ChiefFit, type ChiefLineAmount, type ChiefMessageView, type ChiefSendResult, type ChiefThreadSummary, type ChiefThreadView,
   type ChiefThreadsView, type ChiefSettleResult, type ChiefSnoozeOption, type ChiefThreadState, type ChiefThreadStateInput, type ChiefThreadStateResult, type InvoiceLite, type OrderLite, type ProposalKind, type ProposalStatus, type ProposalView, type QueueAction, type QueueRow,
@@ -52,7 +53,7 @@ const DAY_MS = 86_400_000;
 const KOLKATA_MS = 330 * 60_000;
 type GroupKey = (typeof GROUPS)[number]['key'];
 const LINES: Partial<Record<ProposalKind, string>> = {
-  'start-run': 'This starts a run on your AI for this order. Each step that needs you still asks first.',
+  'start-run': 'This starts a job on your AI for this order. Each step that needs you still asks first.',
   'draft-invoice': 'Chausar drafts the invoice from your price. You issue it from Today.',
   'draft-reminder': 'Chausar drafts a payment reminder. You send it yourself.',
   quote: 'Chausar works out the price with its receipt. Nothing is sent.',
@@ -124,16 +125,14 @@ function lastLineOf(parts: readonly ChatPart[]): { lastLine: string; amounts: Ch
   const kept = text.slice(0, cut).trimEnd();
   return { lastLine: `${kept}...`, amounts: amounts.filter((amount) => amount.start + amount.length <= kept.length) };
 }
-/** '22 Oct 2026, 18:00' in Kolkata, as the engine's asOfWords says it. */
+/** '22 Oct 2026, 6:00 pm' in India, as the engine's asOfWords says it (B2). */
 function asOfWords(iso: string): string {
-  const local = new Date(Date.parse(iso) + 330 * 60_000).toISOString();
-  return `${local.slice(8, 10)} ${MONTHS[Number(local.slice(5, 7)) - 1]!.slice(0, 3)} ${local.slice(0, 4)}, ${local.slice(11, 16)}`;
+  return formatMoment(iso, ownerZone('IN', 'UTC'));
 }
 
-/** W6 6G1: a wake time in Kolkata as chief/states.ts wakeWords says it: '22 Oct 2026, 09:00'. */
+/** W6 6G1: a wake time in India as chief/states.ts wakeWords says it: '22 Oct 2026, 9:00 am'. */
 function wakeWords(iso: string): string {
-  const local = new Date(Date.parse(iso) + KOLKATA_MS).toISOString();
-  return `${local.slice(8, 10)} ${MONTHS[Number(local.slice(5, 7)) - 1]!.slice(0, 3)} ${local.slice(0, 4)}, ${local.slice(11, 16)}`;
+  return formatMoment(iso, ownerZone('IN', 'UTC'));
 }
 
 /** W6 6G1: the snooze choices now (chief/states.ts snoozeOptions): in three hours, tomorrow 09:00, next Monday 09:00, in Kolkata. */
@@ -209,7 +208,7 @@ export class FakeChiefDesk {
       case 'venture.chief.fit': return this.fit(p);
       case 'venture.proposals.raise': return this.raise(p);
       case 'venture.proposals.dismiss': return this.dismiss(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -421,7 +420,7 @@ export class FakeChiefDesk {
     const undo: ChiefThreadStateInput = before.state === 'snoozed' && before.snoozedUntil ? { threadId: thread.id, state: 'snoozed', until: before.snoozedUntil } : { threadId: thread.id, state: before.state };
     const line = state === 'pinned' ? 'Pinned to the top of your chats.'
       : state === 'snoozed' && until ? `Snoozed until ${wakeWords(until)}. It comes back early if it needs you.`
-        : state === 'settled' ? 'Settled. It is in Settled chats until you open it again.' : 'Back in your chats.';
+        : state === 'settled' ? 'Moved to old chats. It stays there until you open it again.' : 'Back in your chats.';
     return { thread: this.summary(thread), undo, line };
   }
 

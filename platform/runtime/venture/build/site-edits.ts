@@ -14,9 +14,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
+import { authorize, check, ChausarError, type Context, type State, internalCheck } from '../../contracts.ts';
 import type { GitHubTransport, IsoTime, RepoRef, SiteEditRecord, SiteEditState, VentureDeps } from '../contracts.ts';
-import { MAX_STORED_PAYLOAD, digest, exactPayload, identifier, isAppChannel, listRecords, singleLine, ventureAction } from '../records.ts';
+import { MAX_STORED_PAYLOAD, currentVenture, digest, exactPayload, identifier, isAppChannel, listRecords, singleLine, ventureAction } from '../records.ts';
+import { ownerToday } from '../local-day.ts';
 import { digestOf, journalled } from '../journal/journal.ts';
 import { gateEffect, sealApproval } from '../policy/holds.ts';
 import { turnDownEditIn } from '../journal/action-extras.ts';
@@ -166,7 +167,7 @@ function findEdit(state: State, id: string): SiteEditRecord | undefined {
 
 function decision(payload: unknown): { editId: string; planDigest: string } {
   const body = exactPayload(payload, ['editId', 'planDigest'], ['editId', 'planDigest']);
-  check(typeof body.planDigest === 'string' && body.planDigest.length > 0 && body.planDigest.length <= 128, 'INVALID_VENTURE_REQUEST', 'Send the plan digest you reviewed.');
+  internalCheck(typeof body.planDigest === 'string' && body.planDigest.length > 0 && body.planDigest.length <= 128, 'INVALID_VENTURE_REQUEST', 'Send the plan digest you reviewed.');
   return { editId: identifier(body.editId, 'editId'), planDigest: body.planDigest };
 }
 
@@ -197,7 +198,7 @@ async function writeReviewed(deps: VentureDeps, ctx: Context, target: SiteTarget
   if (!done.replayed && done.value?.state === stepInfo.done) {
     await reportEndState(deps, ctx, {
       entryId: done.entry.id, state: 'verified', by: 'engine', line: 'Read back after writing: the file matches what you reviewed.',
-      check: { id: 'site-readback', checkedOn: deps.clock().toISOString().slice(0, 10) },
+      check: { id: 'site-readback', checkedOn: ownerToday(deps.clock, currentVenture(deps.store.read())?.country) },
     }).catch(() => {});
   }
   return done.value ?? reviewedAfter(deps, editId);

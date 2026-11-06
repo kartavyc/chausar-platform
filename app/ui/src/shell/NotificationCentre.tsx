@@ -7,7 +7,9 @@
  */
 
 import { useId, useState } from 'react';
-import { useLanguage, useT, type Language } from '../text';
+import { useT } from '../text';
+import { useOwnerZone } from './clock';
+import { formatMoment } from '../../../../platform/runtime/owner-format';
 import { useEngine } from '../engine/context';
 import { Button } from '../parts/Button';
 import { Chip } from '../parts/Chip';
@@ -20,16 +22,16 @@ import { useNotifyList } from './Bell';
 import type { SheetComponentProps } from './sheets';
 import s from './NotificationCentre.module.css';
 
-/** When an item came, on this computer's calendar and clock: "21 Oct, 10:06". */
-export function whenOf(at: string, language: Language): string {
+/** When an item came, in the owner's zone on the 12-hour clock: "21 Oct, 3:36 pm". Empty for a bad date. */
+export function whenOf(at: string, zone: string): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  return formatMoment(date, zone, 'short');
 }
 
 export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const client = useEngine();
   const list = useNotifyList();
   const digestId = useId();
@@ -62,7 +64,7 @@ export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps
         )}
         {data?.digest && (
           <section className={s.digest} aria-labelledby={digestId}>
-            <h3 id={digestId} className={s.heading}>{t('centre.digest', { day: whenOf(data.digest.at, language) })}</h3>
+            <h3 id={digestId} className={s.heading}>{t('centre.digest', { day: whenOf(data.digest.at, zone) })}</h3>
             {/* The digest's figures come from receipts the engine names; its words are the engine's own. */}
             <p className={s.digestLine} data-figure-group={data.digest.receiptIds.length ? '' : undefined}>
               {data.digest.line}
@@ -72,7 +74,7 @@ export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps
         )}
         {data && data.items.length > 0 && (
           <ul className={s.items} aria-label={title}>
-            {data.items.map((item) => <Item key={item.id} item={item} language={language} onFollow={() => { if (!item.read) void read({ ids: [item.id] }); }} />)}
+            {data.items.map((item) => <Item key={item.id} item={item} zone={zone} onFollow={() => { if (!item.read) void read({ ids: [item.id] }); }} />)}
           </ul>
         )}
         {data && data.items.length === 0 && <EmptyState title={t('centre.empty')} />}
@@ -82,7 +84,7 @@ export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps
   );
 }
 
-function Item({ item, language, onFollow }: { item: NotificationView; language: Language; onFollow: () => void }) {
+function Item({ item, zone, onFollow }: { item: NotificationView; zone: string; onFollow: () => void }) {
   const t = useT();
   return (
     <li className={s.item} data-unread={item.read ? undefined : ''}>
@@ -91,7 +93,7 @@ function Item({ item, language, onFollow }: { item: NotificationView; language: 
         <span className={s.meta}>
           <span data-kind="">{stateText(t, 'queue', item.kind)}</span>
           <span aria-hidden="true" data-sep="">·</span>
-          <time className="mono" dateTime={item.at}>{whenOf(item.at, language)}</time>
+          <time dateTime={item.at}>{whenOf(item.at, zone)}</time>
         </span>
       </a>
       {!item.read && <Chip className={s.fresh}>{t('centre.new')}</Chip>}

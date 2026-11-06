@@ -8,9 +8,10 @@
  * The sample engine has no clock running, so it never drafts a repeating bill's next one by itself.
  */
 
+import { formatMoney } from '../../../../platform/runtime/owner-format';
 import { EngineError, PAYMENT_METHODS, type BillView, type MoneyFigure, type ReceiptLite } from './types';
 import { inr } from './fake-money';
-import { decimalMinor, formatMinor } from '../../../../platform/runtime/currency';
+import { decimalMinor } from '../../../../platform/runtime/currency';
 
 interface HeldLine { description: string; amount: number; taxName: string; rate: number }
 interface HeldBill {
@@ -67,7 +68,7 @@ export class FakeBills {
       case 'venture.bills.pay': return this.pay(p);
       case 'venture.bills.list': return this.list();
       case 'venture.bills.stop': return this.stop(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -90,7 +91,7 @@ export class FakeBills {
   }
 
   private currency(): string { return this.host.currency?.() ?? 'INR'; }
-  private money(minor: number, currency = this.currency()): string { return currency === 'INR' ? inr(minor) : formatMinor(String(minor), currency); }
+  private money(minor: number, currency = this.currency()): string { return currency === 'INR' ? inr(minor) : formatMoney(String(minor), currency); }
   private today(): string { return this.host.now().slice(0, 10); }
   private mine(): HeldBill[] { return this.bills.filter((b) => b.businessId === this.host.business() && b.status !== 'cancelled'); }
 

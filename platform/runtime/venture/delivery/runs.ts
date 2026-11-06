@@ -86,7 +86,7 @@ const REVIEW_DECISION_WORDS: Readonly<Record<'accepted' | 'edited' | 'rejected',
 });
 
 export const STAGE_BLOCKED_REASON = 'Move the business to Practice or Live first.';
-export const PRACTICE_REASON = 'Practice drafts are not for clients. Move to approve each to use drafts.';
+export const PRACTICE_REASON = 'This is a practice draft, so it never goes to a client. To use drafts, set How much it asks you to Approve each.';
 export const DONE_CLAIM_REASON = 'This draft claims work that was not done. Edit it or reject it.';
 export const NO_QUICK_AI = 'No AI serves quick work, so the agent could not use its tools. The reply is written from the message alone.';
 /** The judge's line on a run the owner edited: the edit is the owner's own words, which the judge never reads. */
@@ -300,7 +300,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   (await import('../playbooks/recruiting-desk/run-guard.ts')).refuseRecruitDraft(state, venture, order);
   (await import('../playbooks/podcast-to-article/run-guard.ts')).refuseArticleDraft(state, venture, order, deps.clock().toISOString());
   refuseYoutubeDraft(state,venture,order,deps.clock().toISOString());
-  (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, order, deps.clock().toISOString().slice(0,10));
+  (await import('../playbooks/social/run-guard.ts')).refuseSocialDraft(state, venture, order, todayOf(venture, deps.clock()));
   // 5A4 (P9): everyone the order names as seen or heard still has their consent, at every run (a chain's next stage too).
   requireOrderPeopleConsent(state, venture, order, todayOf(venture, deps.clock()));
   // Ink v2 wave 5 (5A3): a client order on a kit offer starts nothing, before any preview or spend, while a rule its
@@ -336,7 +336,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   if (playbook.flagship === 'seo-visibility' && ['content-retainer','local-seo'].includes(context.offerKey ?? '')) (await import('../playbooks/seo-visibility/article-budget.ts')).articleLimitMicros(context.order.intake?.fields?.articleLimitUsd);
   const { refs } = draftContext(context, todayIso(deps, context.venture));
   const uploads = orderUploads(fresh.state, fresh.venture.id, orderId);
-  if(playbook.flagship==='online-seller') (await import('../playbooks/online-seller/report-source.ts')).sellerReportSource(context.order,context.offerKey,uploads,deps.clock().toISOString().slice(0,10));
+  if(playbook.flagship==='online-seller') (await import('../playbooks/online-seller/report-source.ts')).sellerReportSource(context.order,context.offerKey,uploads,todayIso(deps, context.venture));
   if (!template) {
     const denied=writeCapDenial(fresh.state,fresh.venture,'drafts',deps.clock().toISOString());
     check(!denied,denied?.code??'WRITE_CAP_REACHED',denied?.reason??'The daily draft limit was reached.');

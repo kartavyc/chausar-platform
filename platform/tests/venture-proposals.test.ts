@@ -63,7 +63,7 @@ test('proposals: an answer drafts proposals; a brief goes to the agent at once; 
     [drafted.id, 'start-run', 'drafted', TODAY_LINE, null, true],
   ]);
   // 4C2 review: the step's own line rides beside where it stands.
-  assert.equal(reply.proposals[0].what, 'This starts a run on your AI for this order. Each step that needs you still asks first.');
+  assert.equal(reply.proposals[0].what, 'This starts a job on your AI for this order. Each step that needs you still asks first.');
   assert.equal(reply.proposals[0].what, drafted.line);
   assert.deepEqual(listRecords(env.store.read(), 'venture-chief-message').at(-1)!.proposalIds, [drafted.id]);
   assert.deepEqual(reply.dropped, [
@@ -103,7 +103,7 @@ test('proposals: raise makes a Today card, announced once; Approve runs the real
   const [row] = await proposalRows(env);
   assert.equal(row.id, raised.rowId);
   assert.equal(row.title, "Start work on Asha Rao's order");
-  assert.equal(row.line, 'This starts a run on your AI for this order. Each step that needs you still asks first. Nothing changes until you approve.');
+  assert.equal(row.line, 'This starts a job on your AI for this order. Each step that needs you still asks first. Nothing changes until you approve.');
   assert.deepEqual(row.actions, [{ id: 'deny', label: 'Not now', primary: false }, { id: 'approve', label: 'Approve', primary: true, secondAsk: true }]);
   const runsBefore = listRecords(env.store.read(), 'venture-delivery-run').length;
   const decided = await env.call('venture.queue.decide', { id: row.id, digest: row.digest, action: 'approve' });

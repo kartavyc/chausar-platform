@@ -8,16 +8,17 @@
 // computer (cli-status.ts) and what was found rules their availability, the connection and each call. One look at a
 // time per tool; the status screen's look is reused for a minute, a connection always looks again; and a real call the
 // tool refuses for a route flag it does not know marks that tool's flags a mismatch for the rest of the session.
+import { formatRate, formatUsd } from '../../owner-format.ts';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
+import { authorize, ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS } from '../contracts.ts';
 import type {
   CliFinding, DelegateCli, ModelOutcome, ModelPort, ModelPortOptions, ModelProcessResponse, ModelPreset, ModelPresetId, ModelPreview, ModelPriceTable, ModelPurpose, ModelRouteKind,
   ModelStatusView, ModelTask, ModelTier, SpendRate, VentureDeps,
 } from '../contracts.ts';
-import { MAX_STORED_PAYLOAD, currentVenture, digest, formatMicros, isAppChannel, listRecords, ventureAction, type VentureTx } from '../records.ts';
+import { MAX_STORED_PAYLOAD, currentVenture, digest, isAppChannel, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import {
   listRateOfTable, modelTableOf, payerWords, reserveSpend, resolveRate, settleSpend, spendRatesOf, spendRefused, type SpendOutcome, type SpendSubject,
 } from '../money/spend.ts';
@@ -32,6 +33,7 @@ import {
   type CliPlan, type CodexHost,
 } from './cli.ts';
 import { callCostMicros, costDisplay, estimateMaxCostMicros } from './cost.ts';
+import { formatCost } from '../../owner-format.ts';
 import { clientDataFindings } from './guard.ts';
 import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts';
 import {
@@ -189,7 +191,7 @@ function checkBudget(calls: CallRecord[], connection: ConnectionRecord, spec: Pr
   if (!spec.needsKey) return;
   const total = BigInt(estimate)+modelBudgetUsed(calls,tx.list('venture-spend'),connection.presetId,month);
   check(total <= BigInt(connection.monthlyCapMicros), 'BUDGET_REACHED',
-    `This call could take ${spec.label} past your monthly limit of ${formatMicros(connection.monthlyCapMicros)}. Raise the limit or wait for next month.`);
+    `This call could take ${spec.label} past your monthly limit of ${formatRate(connection.monthlyCapMicros)}. Raise the limit or wait for next month.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -624,7 +626,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         connections: views,
         tiers,
         spentThisMonthMicros: spentText,
-        spentThisMonthDisplay: costDisplay(spentText, !estimate),
+        // B2: the month's total in the owner form; nothing spent reads $0.00 here (the total, not one call).
+        spentThisMonthDisplay: formatCost(spentText, { paidCalls: true, estimate }),
         estimate,
         sendPolicy: state.policy.send,
         replay: { active: transport.replay === true, label: transport.replay === true ? 'synthetic recording' : null },
@@ -735,7 +738,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
         const connection = requireCurrentConnection(tx, route.connection);
         // The run's own cap (W1 H4): a call that may cost more than its run has left is refused before anything is kept.
         if (task.capLeftMicros !== undefined && BigInt(estimate) > BigInt(task.capLeftMicros)) {
-          throw new ChausarError('RUN_CAP_REACHED', `This call could cost up to ${formatMicros(estimate)}, more than the ${formatMicros(task.capLeftMicros)} its run has left under its spend cap, so it was not sent.`);
+          throw new ChausarError('RUN_CAP_REACHED', `This call could cost up to ${formatRate(estimate)}, more than the ${formatRate(task.capLeftMicros)} its run has left under its spend cap, so it was not sent.`);
         }
         checkBudget(txCalls(tx), connection, route.spec, estimate, monthOf(tx.now),tx);
         const record = newCall(tx, route, tier, task, prepared, estimate, 'standing', table);
@@ -771,7 +774,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
 
     async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' | 'owner-file-drop' | 'client-ai'; clientAi?: { clientId: string; consentId: string; consentRevision: number }; beforeDispatch?: () => void }): Promise<ModelOutcome<T>> {
       check(isAppChannel(ctx), 'APP_APPROVAL_REQUIRED', MESSAGES.appApproval);
-      check(typeof callId === 'string' && typeof approvedDigest === 'string' && typeof validate === 'function', 'INVALID_VENTURE_REQUEST', 'Send the call id, the approved digest and a validator.');
+      internalCheck(typeof callId === 'string' && typeof approvedDigest === 'string' && typeof validate === 'function', 'INVALID_VENTURE_REQUEST', 'Send the call id, the approved digest and a validator.');
       // The rules judge's call going on its own (delivery/judge-run.ts) is recorded under the business's standing
       // consent, never as the owner's approval of that call. Only a judge call can go that way.
       const standing = options?.consent === 'standing-judge';

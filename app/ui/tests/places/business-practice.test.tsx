@@ -52,8 +52,8 @@ describe('Business: practice clients', () => {
     expect(calls.find((c) => c.method === 'venture.simulation.run')?.params).toEqual({});
     await waitFor(() => expect(within(practice).getByText('2 of 3 passed')).toBeTruthy());
     expect(within(practice).getByText('A pushy client: The draft uses a word on the avoid list: free.')).toBeTruthy();
-    expect(within(practice).getByText('Cost: USD 0.0000')).toBeTruthy();
-    expect(within(practice).getByText('Written from built-in templates, not by AI.')).toBeTruthy();
+    expect(within(practice).getByText('Cost: $0.00')).toBeTruthy();
+    expect(within(practice).getByText('From ready-made templates.')).toBeTruthy();
     expect(within(practice).getByText(OWN_AI)).toBeTruthy();
   });
 
@@ -130,7 +130,7 @@ describe('Business: improving the playbook', () => {
     await within(practice).findByText('2 of 3 passed');
     const improve = await region('Improve how the work is done');
     await press(improve, 'Run the improvement loop');
-    await within(improve).findByText('The last run found a better version.');
+    await within(improve).findByText('The last loop found a better version.');
     expect(within(improve).getByText('Adds to "Draft the reply": Keep the plan price from Chausar and offer no free work.')).toBeTruthy();
     const run = calls.find((c) => c.method === 'venture.improve.run');
     expect(run).toBeTruthy();

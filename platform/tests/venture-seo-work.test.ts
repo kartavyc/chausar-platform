@@ -30,9 +30,9 @@ test('A1 re-review: the SEO work refusals reach the owner in their own words, no
  const refusal=async(operation:string,uploadId:string)=>{try{await env.call('venture.desk.act',{...desk,id:'new',action:'create',payload:{orderId:order.id,operation,uploadId}});}catch(error){return error;}assert.fail('expected a refusal');};
  const strategy:any=await refusal('strategy',await seed('{"site":"https://clinic.example"}'));
  assert.ok(strategy instanceof ChausarError,'a refusal, not an engine fault');
- assert.deepEqual(ownerError(strategy),{code:'STRATEGY_BINDING_REQUIRED',message:'Build a strategy from its recorded work, panel and publication receipt.'});
+ assert.deepEqual(ownerError(strategy),{code:'STRATEGY_BINDING_REQUIRED',message:'Build a strategy from its recorded work, panel and publication receipt.',owner:true});
  // A seoNeed refusal on the same path: an evidence file that is not one keeps its own words too.
  const bad:any=await refusal('meta',await seed('not a manifest'));
  assert.ok(bad instanceof ChausarError);
- assert.deepEqual(ownerError(bad),{code:'SEO_INPUT_INVALID',message:'Upload a valid JSON evidence manifest.'});
+ assert.deepEqual(ownerError(bad),{code:'SEO_INPUT_INVALID',message:'Upload a valid JSON evidence file.',owner:true});
 });

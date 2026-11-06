@@ -1,5 +1,5 @@
 // Collections desk after finance-skills (MIT prompt ideas); original app-authorized records, no debtor contact.
-import { check, type State } from '../../../contracts.ts';
+import { check, type State, internalCheck } from '../../../contracts.ts';
 import type { PromiseToPayRecord, VentureRecord } from '../../contracts.ts';
 import type { DeskHandlers, DeskKindTypes } from '../desk-types.ts';
 import { exactPayload, identifier, isoDate, listRecords, requireAppChannel, singleLine, ventureAction, digest } from '../../records.ts';
@@ -83,7 +83,7 @@ export const BOOKKEEPING_CFO_DESK: DeskHandlers = Object.freeze({
         const venture = tx.venture!;
         const today = localDayAt(tx.now, venture.country);
         if (body.action === 'record') {
-          check(body.id === 'new' && body.digest === undefined, 'INVALID_VENTURE_REQUEST', 'Record a new promise without a prior digest.');
+          internalCheck(body.id === 'new' && body.digest === undefined, 'INVALID_VENTURE_REQUEST', 'Record a new promise without a prior digest.');
           const input = exactPayload(body.payload, ['clientId', 'serviceOrderId', 'sourceName', 'invoiceIds', 'amountRupees', 'promisedOn', 'method', 'statedBy'], ['clientId', 'serviceOrderId', 'sourceName', 'invoiceIds', 'amountRupees', 'promisedOn', 'method', 'statedBy']);
           const clientId = identifier(input.clientId, 'Client');
           check(tx.list('venture-client').some(row => row.id === clientId), 'CLIENT_NOT_FOUND', 'That client was not found.');

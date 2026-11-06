@@ -3,6 +3,8 @@ import { useId, useState, type FormEvent } from 'react';
 import { useEngine, useResource } from '../../../engine/context';
 import { EngineError, type UploadLite } from '../../../engine/types';
 import { useT } from '../../../text';
+import { useDayKey } from '../../../parts/when';
+import { useClock } from '../../../shell/clock';
 import { Tile, TileHead } from '../../../parts/Tile';
 import { Button } from '../../../parts/Button';
 import { Field } from '../../../parts/Field';
@@ -46,7 +48,9 @@ export function SeoVisibilityDesk() {
     const [selected, setSelected] = useState(''), [adding, setAdding] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
     const detail = useResource('venture.desk.get', { ...base, id: selected }, { skip: !selected, refreshOn: event => event.type === 'desk.changed' });
     const files = useResource('venture.files.list', {}, { skip: !selected });
-    const [questions, setQuestions] = useState(''), [engines, setEngines] = useState('chatgpt, claude'), [from, setFrom] = useState(() => new Date().toISOString().slice(0, 10)), [to, setTo] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10)), [repeats, setRepeats] = useState('2');
+    // The window's days on the owner's calendar, from the app's one clock (B2), not the UTC day.
+    const dayKey = useDayKey(), clock = useClock();
+    const [questions, setQuestions] = useState(''), [engines, setEngines] = useState('chatgpt, claude'), [from, setFrom] = useState(() => dayKey(clock())), [to, setTo] = useState(() => dayKey(clock().getTime() + 86400000)), [repeats, setRepeats] = useState('2');
     const [questionId, setQuestionId] = useState(''), [engineId, setEngineId] = useState(''), [windowId, setWindowId] = useState(''), [repeat, setRepeat] = useState('1'), [capturedAt, setCapturedAt] = useState(''), [screenshot, setScreenshot] = useState(''), [answer, setAnswer] = useState(''), [mentioned, setMentioned] = useState(false);
     const rows = (panels.data?.rows ?? []) as PanelRow[];
     const item = detail.data?.item as PanelItem | undefined;

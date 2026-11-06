@@ -8,6 +8,15 @@ export class ChausarError extends Error {
  constructor(code:string,message:string){super(message);this.name='ChausarError';this.code=code;}
 }
 export function check(condition:unknown,code:string,message:string):asserts condition {if(!condition)throw new ChausarError(code,message);}
+/**
+ * B1 fix round 2: a refusal in developer words (the vault, sync and storage internals). It is a ChausarError with
+ * owner: false, so no transport sends its words as the owner's: the app says its own line for the code, or the
+ * general sentence (owner-flag.ts refusalTravel).
+ */
+export class InternalError extends ChausarError { readonly owner=false as const; }
+export function internalCheck(condition:unknown,code:string,message:string):asserts condition {if(!condition)throw new InternalError(code,message);}
+/** The same refusal as an InternalError (a lock or another helper threw it as a plain ChausarError). */
+export function asInternal(error:unknown):unknown {return error instanceof ChausarError&&!(error instanceof InternalError)?Object.assign(new InternalError(error.code,error.message),{stack:error.stack}):error;}
 export const hash=(value:unknown)=>bytesToHex(sha256(utf8ToBytes(typeof value==='string'?value:JSON.stringify(value))));
 /** Canonical JSON matches the engine's established approval representation. */
 export function canonical(value:unknown):string{

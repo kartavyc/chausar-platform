@@ -4,6 +4,8 @@ import { useEngine } from '../../engine/context';
 import type { BackgroundStateLite } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import s from './StartAtLogin.module.css';
+import { useLocalToday } from '../../parts/when';
+import { useOwnerZoneReady } from '../../shell/clock';
 
 /**
  * Whether start at login is still to be asked on this computer: the installed app (the desktop says it is supported)
@@ -25,30 +27,33 @@ export const asksStartAtLogin = (state: BackgroundStateLite): boolean => state.s
  * Shown only while asksStartAtLogin holds; a preview, the web and the hosted app have no start at login, and a
  * computer that answered keeps its answer (it is changed in Business > Notifications).
  */
-/** This computer's calendar day, YYYY-MM-DD (never UTC: an evening in India is still today). */
-function localDay(now = new Date()): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
+
 
 export function StartAtLogin({ place, onChoice }: { place: 'first-run' | 'today'; onChoice?: (startAtLogin: boolean | null) => void }) {
   const t = useT();
   const client = useEngine();
+  // Today where the business is (the computer's own day when none is open yet), from the app's one clock (B2 fix round 1).
+  const localDay = useLocalToday();
   const hintId = useId();
   const [ticked, setTicked] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
+  // The day is the business's, so it waits until the zone is known (the computer's guess never decides it).
+  const ready = useOwnerZoneReady();
+  const today = localDay();
   useEffect(() => {
+    if (!ready) return;
     let live = true;
     const aside = place === 'today' && client.getAskLater ? client.getAskLater().catch(() => null) : Promise.resolve(null);
     Promise.all([client.getBackground?.(), aside]).then(([state, later]) => {
-      if (!live || !state || !asksStartAtLogin(state) || later === localDay()) return;
+      if (!live || !state || !asksStartAtLogin(state) || later === today) return;
       const start = state.systemOff ? false : state.startAtLogin;
       setTicked(start);
       onChoice?.(start);
     }, () => { /* Not readable: nothing is asked, and nothing is registered. */ });
     return () => { live = false; };
-  }, [client, onChoice]);
+  }, [client, onChoice, ready, today]);
 
   /** Save answers with the tick. Not now (later) answers nothing: only today's day is kept, so it asks again tomorrow. */
   async function save(later = false) {

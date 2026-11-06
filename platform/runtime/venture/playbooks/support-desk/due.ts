@@ -89,8 +89,11 @@ export function queueRank(ticket: SupportTicketBody, now: string): number {
   return ticket.status === 'waiting-customer' ? 3 : 2;
 }
 
-/** Owner intake text, such as Mon-Sat 10:00-19:00; unknown schedules refuse instead of guessing. */
-export function supportHours(fields:Readonly<Record<string,unknown>>):ShopHours|undefined {
+/**
+ * Owner intake text, such as Mon-Sat 10:00-19:00; unknown schedules refuse instead of guessing. With no time zone typed
+ * the hours are read where the business is (B2 fix round 3: `zone`, the business's zone, never India's for everyone).
+ */
+export function supportHours(fields:Readonly<Record<string,unknown>>,zone:string):ShopHours|undefined {
  const raw=fields.shopHours;
  if(raw===undefined||raw===null||raw==='')return undefined;
  check(typeof raw==='string'&&raw.length<=1000,'SUPPORT_HOURS_INVALID','Give opening days and local times.');
@@ -105,7 +108,7 @@ export function supportHours(fields:Readonly<Record<string,unknown>>):ShopHours|
    let day=first;for(let i=0;i<7;i++){hours.push({day,start:match[2]!,end:match[3]!});if(day===last)break;day=(day+1)%7;}
   }
  }
- const timeZone=fields.timeZone===undefined||fields.timeZone===''?'Asia/Kolkata':fields.timeZone;
+ const timeZone=fields.timeZone===undefined||fields.timeZone===''?zone:fields.timeZone;
  check(typeof timeZone==='string','SUPPORT_HOURS_INVALID','Choose a valid shop timezone.');
  const holidays=fields.holidays??[];
  check(Array.isArray(holidays)&&holidays.length<=366&&holidays.every(v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v),'SUPPORT_HOURS_INVALID','Holidays are valid local dates.');

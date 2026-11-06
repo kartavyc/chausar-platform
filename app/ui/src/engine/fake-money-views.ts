@@ -16,9 +16,10 @@
  * figure, where the engine's calculator works earned out from the books.
  */
 
+import { formatMoney } from '../../../../platform/runtime/owner-format';
 import { EngineError, type AgingBucketId, type AgingView, type BooksFigureLite, type BooksSummaryLite, type CashView, type FlowView, type KindedFigure, type MarginsView, type MoneyExportFile, type ReceiptLite, type SpendPolicyView, type TotalBasis } from './types';
 import { inr, type MoneyLedger } from './fake-money';
-import { formatMinor, currencyMinorDigits } from '../../../../platform/runtime/currency';
+import { currencyMinorDigits } from '../../../../platform/runtime/currency';
 import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
 import type { VentureViewLite } from './types';
@@ -117,7 +118,7 @@ export class FakeMoneyViews {
   }
 
   private country() { const view = this.host.ask('venture.get', {}) as VentureViewLite | null; return countryProfile(view?.venture.country?.code ?? 'IN'); }
-  private money(minor: number) { return this.country().currency === 'INR' ? inr(minor) : formatMinor(String(minor), this.country().currency); }
+  private money(minor: number) { return this.country().currency === 'INR' ? inr(minor) : formatMoney(String(minor), this.country().currency); }
   private noRate() { return this.country().currency === 'INR' ? NO_RATE : `no rate from US dollars to ${this.country().currency}`; }
   private ledger(): MoneyLedger {
     const all = this.host.ledger(), currency = this.country().currency;
@@ -145,7 +146,7 @@ export class FakeMoneyViews {
       case 'venture.money.cash': return this.cash(p);
       case 'venture.money.margins': return this.margins(p);
       case 'venture.money.export': return this.export(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 

@@ -29,6 +29,66 @@ describe('rules the UI keeps (spec section 6)', () => {
   it('no money arithmetic: no BigInt, parseFloat or toFixed on figures in the UI', () => {
     for (const { f, text } of code.filter((c) => !c.f.startsWith('engine/fake'))) expect(text, f).not.toMatch(/BigInt\(|parseFloat\(|toFixed\(|Intl\.NumberFormat/);
   });
+  it('dates and times go through parts/when.ts: no own date formats, 24-hour clocks, UTC pins or raw ISO days (one-shot B2)', () => {
+    // parts/when.ts writes every day and time in the owner's zone; onboarding/flow.ts guesses the country from the
+    // computer's zone, which is not a date shown to anyone. The fake engine answers as the engine does.
+    const exempt = (f: string) => f.startsWith('engine/fake') || f === 'places/onboarding/flow.ts';
+    const found: string[] = [];
+    for (const { f, text } of code.filter((c) => /\.tsx?$/.test(c.f) && !exempt(c.f))) {
+      if (/Intl\.DateTimeFormat/.test(text)) found.push(`${f}: Intl.DateTimeFormat`);
+      if (/hourCycle/.test(text)) found.push(`${f}: hourCycle`);
+      if (/timeZone:\s*'UTC'/.test(text)) found.push(`${f}: timeZone 'UTC'`);
+      if (/toLocaleString\(/.test(text)) found.push(`${f}: toLocaleString`);
+      if (/\.slice\(0,\s?10\)/.test(text)) found.push(`${f}: a raw ISO day`);
+      // B2 fix round 1: a day or hour read off a Date is the computer's zone; useLocalToday, useDayKey and the
+      // when.ts hooks read the business's zone.
+      if (/\.get(?:FullYear|Month|Date|Hours|Day|Minutes)\(/.test(text)) found.push(`${f}: the computer's own day or hour`);
+    }
+    expect(found).toEqual([]);
+  });
+  it('the fake engine writes amounts as the engine does: the exact form only in the listed places (B2 fix round 1)', () => {
+    // Each place, how many exact calls or exact amounts it writes, and why; the engine's own list is
+    // platform/tests/owner-format-sources-b2.test.ts. A hand-made formatter (its own digit grouping) is never allowed.
+    const EXACT: Record<string, [count: number, why: string]> = {
+      'engine/fake-money.ts': [1, 'the words sent with a shared invoice leave the app, as money/invoice-pdf.ts writes them'],
+      'engine/fake-work.ts': [1, 'the client room keeps the exact price, as playbooks/kit/client-room-state.ts does'],
+      'engine/fake-model-receipt.ts': [1, "a model call's receipt keeps four decimals, as money/model-receipt.ts does"],
+    };
+    const EXACT_AMOUNT = /\bformat(?:Minor|Micros)\(|['`"][^'`"\n]*\b[A-Z]{3} -?\d{1,3}(?:,\d{3})*\.\d{2,4}\b/g;
+    const found: string[] = [];
+    for (const { f, text } of code.filter((c) => c.f.startsWith('engine/fake'))) {
+      const count = (text.match(EXACT_AMOUNT) ?? []).length;
+      if (count !== (EXACT[f]?.[0] ?? 0)) found.push(`${f}: ${count} exact, listed ${EXACT[f]?.[0] ?? 0}`);
+      if (text.includes(String.raw`(?=(\d{3})+(?!\d))`)) found.push(`${f}: its own digit grouping`);
+    }
+    expect(found).toEqual([]);
+  });
+  it('DM Mono is for codes only: figures, counts and times are in the body font (B2 fix round 1)', () => {
+    // A `mono` class sits on the same line as data-code (an id, a number such as an invoice number, a link, a file
+    // name, a key); a CSS rule in DM Mono is one of the listed code styles.
+    const CODE_RULES: Record<string, string> = {
+      'tokens/base.css .mono': 'the code class itself', 'places/business/Business.module.css .mono': 'a code in the business pages',
+      'places/business/Business.module.css .diff': 'a file diff', 'places/business/Reports.module.css .json': 'raw JSON',
+      'places/business/RulesSection.module.css .address span': 'an email address', 'places/connections/KitConnect.module.css .code': 'a pairing code',
+      'places/money/Money.module.css .pre': 'preformatted text', 'places/onboarding/FirstRun.module.css .code': 'a code',
+      'places/onboarding/Onboarding.module.css .code': 'a code', 'places/work/desks/YoutubeDesk.module.css .summary': 'a script as written',
+      'places/work/desks/YoutubeDesk.module.css .preview': 'a script as written', 'parts/QuestionCard.module.css .number': 'a question code',
+    };
+    const found: string[] = [];
+    for (const { f, text } of code.filter((c) => c.f.endsWith('.tsx'))) {
+      text.split('\n').forEach((line, index) => {
+        if (/className=[^\n]*\bmono\b/.test(line) && !/data-code/.test(line)) found.push(`${f}:${index + 1}`);
+      });
+    }
+    for (const { f, text } of code.filter((c) => c.f.endsWith('.css') && !c.f.endsWith('fonts.css') && !c.f.endsWith('tokens.css'))) {
+      for (const rule of uncomment(text).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (!/font-family:\s*var\(--font-mono\)/.test(rule[2]!)) continue;
+        const selector = rule[1]!.trim();
+        if (!Object.hasOwn(CODE_RULES, `${f} ${selector}`)) found.push(`${f} ${selector}`);
+      }
+    }
+    expect(found).toEqual([]);
+  });
   it('no em dashes in code or copy', () => {
     for (const { f, text } of code) expect(text.includes('—'), f).toBe(false);
   });

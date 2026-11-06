@@ -3,7 +3,7 @@ import type { RevisionQuote, SocialRevisionRow } from './revision-types.ts';
 export type { RevisionQuote, SocialRevisionRow } from './revision-types.ts';
 // Owner-approved per-post revisions. An extra round has an exact quote before a model preview.
 import { check, type State } from '../../../contracts.ts';
-import { formatMinor } from '../../../currency.ts';
+import {formatMoney} from '../../../owner-format.ts';
 import { digest, findRecord, listRecords, requireAppChannel, exactPayload, ventureAction } from '../../records.ts';
 import { readAs } from '../../delivery/shared.ts';
 import { startRevision, revisionWords } from '../../delivery/revise.ts';
@@ -74,7 +74,7 @@ function row(state: State, ventureId: string, runId: string, postId: string, wor
     const amount = typeof raw === 'string' && /^\d{1,30}$/.test(raw) ? raw : null;
     const exact = digest({ runId, postId, text: post.text, pack: run.editedText ?? run.renderedText, used, price: amount, currency, status: run.status });
     const receiptId=amount===null?'':revisionReceiptId(order.id,post.n,used+1,amount,currency);
-    const quote = !ghostwritingOffer(state, run) || used < 2 || amount === null ? null : { round: used + 1, amountMinor: amount, currency, display: formatMinor(amount, currency), receiptId, digest: digest({ item: exact, words, amount, currency, round: used + 1, receiptId }) };
+    const quote = !ghostwritingOffer(state, run) || used < 2 || amount === null ? null : { round: used + 1, amountMinor: amount, currency, display: formatMoney(amount, currency), receiptId, digest: digest({ item: exact, words, amount, currency, round: used + 1, receiptId }) };
     const answer = stored.decisions[key(postId)];
     return { id: postId, runId, postId, text: post.text, roundsUsed: used, clientDecision: draftApprovalsOfRun(state,runId).find(item=>item.post.draftId===postId)?.approval.client.decision??null, quote, digest: exact };
 }

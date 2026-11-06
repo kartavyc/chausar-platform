@@ -577,7 +577,8 @@ test('venture.build.handoff and handoffOpened: lint gate, records, events, once 
   assert.equal(record.briefId, written.briefId);
   assert.equal(record.briefDigest, written.digest);
   assert.ok(!JSON.stringify(record).includes('lovable.dev/#prompt'), 'the URL itself is not stored');
-  assert.equal(events(store).at(-1), 'handoff-prepared');
+  // B3: an owner's build record tells every screen, so queue.changed follows it.
+  assert.deepEqual(events(store).slice(-2), ['handoff-prepared', 'queue.changed']);
 
   const first = await opened(deps, plan.handoffId);
   assert.equal(first.openedAt, clock().toISOString());
@@ -666,7 +667,8 @@ test('GitHub sync with the Lovable recording: author from logins, marker, workfl
   assert.equal(reads[0].calls[0].etag, '"repo-1"');
   const followRecord = listRecords(store.read(), 'venture-build-follow').at(-1)!;
   assert.deepEqual(followRecord.lastStatus, result);
-  assert.equal(events(store).at(-1), 'repo-synced');
+  // B3: an owner's build record tells every screen, so queue.changed follows it.
+  assert.deepEqual(events(store).slice(-2), ['repo-synced', 'queue.changed']);
   assert.ok(!JSON.stringify(store.read()).includes(TOKEN), 'the token never reaches state');
 
   const view = await status(deps);
@@ -960,7 +962,8 @@ test('venture.build.link: repo shapes, fine-grained tokens only, admin and app o
   assert.equal(follow.tokenState, 'in-memory');
   assert.equal(follow.lastStatus, null);
   assert.equal(secrets.get('github:Owner-1/my.app'), TOKEN);
-  assert.equal(events(store).at(-1), 'repo-linked');
+  // B3: an owner's build record tells every screen, so queue.changed follows it.
+  assert.deepEqual(events(store).slice(-2), ['repo-linked', 'queue.changed']);
   assert.ok(!JSON.stringify(store.read()).includes(TOKEN));
 
   // A viewer cannot link a repo, and the token is not left on the shelf.

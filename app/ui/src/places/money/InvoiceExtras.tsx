@@ -20,7 +20,7 @@ import { Figure } from '../../parts/Figure';
 import { Receipt } from '../../parts/Receipt';
 import type { InvoiceViewLite, PaymentLite } from '../../engine/types';
 import { keepDraft } from '../clients/handoff';
-import { messageOf, useDay } from './words';
+import { messageOf, typedWords, useDay } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 
@@ -211,7 +211,7 @@ function CreditForm({ view, onDone }: { view: InvoiceViewLite; onDone: () => voi
         </div>
       ) : (
         <div className={s.ask}>
-          <p>{t('money.credit.askAgain', { amount: amount.trim(), currency, number: view.invoice.number ?? '' })}</p>
+          <p>{t('money.credit.askAgain', { amount: typedWords(amount, currency), number: view.invoice.number ?? '' })}</p>
           <div className={s.buttons}>
             <Button disabled={phase === 'sending'} onClick={() => setPhase('form')}>{t('approval.cancel')}</Button>
             <Button variant="primary" data-confirm="" disabled={phase === 'sending'} onClick={() => void send()}>{t('money.credit.confirm')}</Button>

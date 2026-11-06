@@ -401,10 +401,10 @@ it('says so when the board cannot be read, and draws no board', async () => {
     await start('#/clients/pipeline', {
       override: (client) => {
         const base = client.request.bind(client) as (m: string, p?: unknown) => Promise<unknown>;
-        client.request = ((m: string, p?: unknown) => (m === 'venture.pipeline.list' ? Promise.reject(new Error('The engine is not answering.')) : base(m, p))) as EngineClient['request'];
+        client.request = ((m: string, p?: unknown) => (m === 'venture.pipeline.list' ? Promise.reject(new Error("Chausar isn't answering right now.")) : base(m, p))) as EngineClient['request'];
       },
     });
-    expect((await screen.findByRole('alert')).textContent).toContain('The engine is not answering.');
+    expect((await screen.findByRole('alert')).textContent).toContain("Chausar isn't answering right now.");
     expect(screen.queryByRole('group', { name: 'Pipeline board' })).toBeNull();
   });
 });

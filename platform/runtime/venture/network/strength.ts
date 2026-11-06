@@ -162,7 +162,7 @@ export function tieInput(state: State, venture: VentureRecord, today: IsoDate): 
   };
 }
 
-/** 'Mail headers, a.mbox and b.mbox; Calendar, work.ics': each kind of file the facts came from, with its file names. */
+/** 'Email export, a.mbox and b.mbox; Calendar, work.ics': each kind of file the facts came from, with its file names. */
 function filesOf(facts: PersonFact[], imports: ReadonlyMap<string, NetworkImportRecord>): string {
   const byKind = new Map<string, string[]>();
   for (const fact of facts) {

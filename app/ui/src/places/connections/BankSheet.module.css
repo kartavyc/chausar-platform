@@ -157,11 +157,11 @@
 
 .amount {
   margin-left: auto;
-  font-family: var(--font-mono);
   font-size: var(--text-body);
   font-weight: var(--weight-medium);
   color: var(--fg);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .meta {
@@ -175,7 +175,7 @@
 }
 
 .date {
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .buttons {

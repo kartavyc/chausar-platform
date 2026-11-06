@@ -1,4 +1,4 @@
-import { ChausarError, check, hash } from './contracts.ts';
+import { ChausarError, check, hash, internalCheck } from './contracts.ts';
 
 export const INVESTIGATION_SEARCH_METHOD = 'simple-token-conjunction-v1' as const;
 export type InvestigationSearchDocument = { id: string; kind: 'investigation' | 'journal'; revision: number; digest: string; text: string };
@@ -47,7 +47,7 @@ function project(projection: AuthorizedInvestigationSearchProjection, request: I
   const documents = Array.from(projection.documents, document => {
     exactObject(document, ['id', 'kind', 'revision', 'digest', 'text']);
     check(typeof document.id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,199}$/.test(document.id) && !ids.has(document.id), 'SEARCH_DOCUMENT_INVALID', 'Search documents need distinct bounded identities.'); ids.add(document.id);
-    check(['investigation', 'journal'].includes(document.kind) && Number.isSafeInteger(document.revision) && document.revision >= 0 && typeof document.digest === 'string' && /^[a-f0-9]{64}$/.test(document.digest), 'SEARCH_DOCUMENT_INVALID', 'Search documents need declared kinds and pinned revisions and digests.');
+    internalCheck(['investigation', 'journal'].includes(document.kind) && Number.isSafeInteger(document.revision) && document.revision >= 0 && typeof document.digest === 'string' && /^[a-f0-9]{64}$/.test(document.digest), 'SEARCH_DOCUMENT_INVALID', 'Search documents need declared kinds and pinned revisions and digests.');
     check(typeof document.text === 'string' && !document.text.includes('\0') && !/[\uD800-\uDFFF]/u.test(document.text), 'SEARCH_DOCUMENT_INVALID', 'Search document text must be UTF-8 data.');
     textBytes += Buffer.byteLength(document.text); check(textBytes <= request.bounds.maxTextBytes, 'SEARCH_TEXT_LIMIT', 'The complete authorized text exceeds the UTF-8 byte bound.');
     return { id: document.id, kind: document.kind, revision: document.revision, digest: document.digest, text: document.text };
@@ -67,7 +67,7 @@ export class PostgresInvestigationSearch {
   static async connect(options: InvestigationSearchOptions): Promise<PostgresInvestigationSearch> {
     exactObject(options, ['host', 'port', 'user', 'password', 'database', 'maxConnections', 'operationTimeoutMs'], ['host', 'port', 'user', 'password', 'database']);
     check(['127.0.0.1', '::1'].includes(options.host) && Number.isSafeInteger(options.port) && options.port >= 1024 && options.port <= 65535, 'INVALID_POSTGRES_CONFIG', 'Use an explicit literal loopback host and unprivileged port.');
-    for (const name of ['user', 'password', 'database'] as const) check(typeof options[name] === 'string' && options[name].length > 0 && options[name].length <= 1024 && !/[\0\r\n]/.test(options[name]), 'INVALID_POSTGRES_CONFIG', 'Explicit bounded database credentials and identity are required.');
+    for (const name of ['user', 'password', 'database'] as const) internalCheck(typeof options[name] === 'string' && options[name].length > 0 && options[name].length <= 1024 && !/[\0\r\n]/.test(options[name]), 'INVALID_POSTGRES_CONFIG', 'Explicit bounded database credentials and identity are required.');
     check(options.maxConnections === undefined || (Number.isSafeInteger(options.maxConnections) && options.maxConnections >= 1 && options.maxConnections <= 4), 'INVALID_POSTGRES_CONFIG', 'Use one to four private search connections.');
     const limits = options.operationTimeoutMs === undefined ? {} : { operationTimeoutMs: options.operationTimeoutMs }; operationTimeout(limits);
     let pg: any;
@@ -92,7 +92,7 @@ export class PostgresInvestigationSearch {
     return new PostgresInvestigationSearch(pool, limits, false);
   }
   private async transaction<T>(work: (query: SearchClient['query']) => Promise<T>): Promise<T> {
-    check(!this.#closed, 'SEARCH_CLOSED', 'The private search adapter is closed.');
+    internalCheck(!this.#closed, 'SEARCH_CLOSED', 'The private search adapter is closed.');
     const controller = new AbortController(); this.#operations.add(controller);
     let client: SearchClient | undefined, released = false, began = false;
     const discard = () => { if (client && !released) { released = true; client.release(new Error('Private search interrupted.')); } };
@@ -132,7 +132,7 @@ export class PostgresInvestigationSearch {
     finally { if (timer) clearTimeout(timer); controller.signal.removeEventListener('abort', onAbort); this.#operations.delete(controller); }
   }
   async search(projection: AuthorizedInvestigationSearchProjection, request: InvestigationSearchRequest): Promise<InvestigationSearchResult> {
-    check(!this.#closed, 'SEARCH_CLOSED', 'The private search adapter is closed.');
+    internalCheck(!this.#closed, 'SEARCH_CLOSED', 'The private search adapter is closed.');
     const input = project(projection, request);
     const matches = await this.transaction(async query => {
       const terms = await query(QUERY_TERMS, [input.query]);

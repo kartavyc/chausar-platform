@@ -4,7 +4,8 @@
 // When a practice client sends practice files and an AI serves quick work, the episode runs the agent loop: act turns
 // with tools, hand-offs the practice client answers, then the write step with tools off.
 import { check, type Context, type State } from '../../contracts.ts';
-import { copiedTokens, digest, exactPayload, findRecord, formatMicros, identifier, modelWords, smallInteger, sumMicros, ventureAction } from '../records.ts';
+import { copiedTokens, digest, exactPayload, findRecord, identifier, modelWords, smallInteger, sumMicros, ventureAction } from '../records.ts';
+import { formatCost } from '../../owner-format.ts';
 import type {
   BlueprintRecord, CheckResult, ClientSimModelOutput, CountryProfile, Deliverable, Episode, EpisodeTurn, HarnessState, Json, JudgeAnswer, MockEffect, ModelOutcome,
   ModelTask, PlaybookCheckResult, PlaybookRecord, PriceReceiptRecord, Scenario, ServiceType, SimulationRunRecord, ToolCallRecord, VentureDeps, VentureRecord,
@@ -40,7 +41,6 @@ export const CLIENT_SIM_INSTRUCTIONS = 'You play a made-up client of a small ser
 /** What the template practice client says when asked a follow-up question. */
 export const TEMPLATE_CLIENT_ANSWER = 'That is all I can share for now. Please go ahead with what you have.';
 export const PERSON_FAILURE = 'The practice client asked for a person.';
-const ESTIMATE_WORDS = ' (estimate, price unconfirmed)';
 /**
  * Model errors that describe how the model behaved, and the run's spend cap stopping a call before it was sent; a
  * rehearsal records them as a failed episode instead of stopping.
@@ -323,7 +323,7 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
         return null;
       });
       // A turn that would cross the run's cap was not sent: the loop goes to its forced last step, as at the cap.
-      if (!turn) { state = skipActs(state, 'The run reached its spending limit.'); continue; }
+      if (!turn) { state = skipActs(state, 'The job reached its spending limit.'); continue; }
       state = await applyTurn(toolEnv, state, turn.value, { by: turn.by, callId: turn.callId, costMicros: turn.costMicros });
     }
 
@@ -435,9 +435,9 @@ export async function rehearse(deps: VentureDeps, ctx: Context, playbook: Playbo
 /** The presets that run on the owner's own AI plan (their Claude Code or Codex sign-in), never billed per call. */
 const ON_OWN_PLAN: ReadonlySet<string> = new Set(PRESETS.filter(preset => preset.kind === 'claude-cli' || preset.kind === 'codex-cli').map(preset => preset.id));
 /** Some calls ran on a key, some on the owner's own plan. */
-export const OWN_PLAN_PART = ' (plus calls on your own plan)';
+export const OWN_PLAN_PART = ' (plus calls on your own AI plan, nothing extra)';
 /** A4 review (L4): what a rehearsal or loop costs when it all ran on the owner's own plan. */
-export const RAN_ON_OWN_PLAN = 'Ran on your own plan.';
+export const RAN_ON_OWN_PLAN = 'Nothing extra, it ran on your own AI plan.';
 
 /** Cost words and the model mode for a list of spends. */
 export function spendSummary(spend: readonly Spend[]): { costMicros: string; costDisplay: string; modelMode: SimulationRunRecord['modelMode'] } {
@@ -451,7 +451,9 @@ export function spendSummary(spend: readonly Spend[]): { costMicros: string; cos
   // A4 review (L4): every AI call ran on the owner's own plan and nothing was charged to a key: no amount at all.
   if (ownPlan.length && ownPlan.length === spend.filter(item => item.by === 'model').length && BigInt(costMicros) === 0n) return { costMicros, costDisplay: RAN_ON_OWN_PLAN, modelMode };
   const plan = ownPlan.length ? OWN_PLAN_PART : '';
-  return { costMicros, costDisplay: `${formatMicros(costMicros)}${estimate ? ESTIMATE_WORDS : ''}${plan}`, modelMode };
+  // One-shot B2: the owner form, "$0.42", "under $0.01" or "Free" for templates alone; the receipt keeps the exact form.
+  const paidCalls = spend.some(item => item.by === 'model' && !ON_OWN_PLAN.has(item.presetId ?? ''));
+  return { costMicros, costDisplay: `${formatCost(costMicros, { paidCalls, estimate })}${plan}`, modelMode };
 }
 
 /** venture.simulation.run: practise on made-up clients with the current playbook. */

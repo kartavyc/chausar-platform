@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { EngineError, type EngineClient, type EngineStatus, type MethodName, type ParamsOf, type ResultOf, type VentureRunEvent } from './types';
+import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import { keyOf, readsFor, type ReadMethod } from './reads';
+import type { EngineClient, EngineError, EngineStatus, ParamsOf, ResultOf, VentureRunEvent } from './types';
 
 const EngineContext = createContext<EngineClient | null>(null);
 
@@ -7,7 +8,16 @@ export function EngineProvider({ client, children }: { client: EngineClient; chi
   return <EngineContext.Provider value={client}>{children}</EngineContext.Provider>;
 }
 
+/**
+ * The engine client for a place. One-shot B3: its request is wrapped (reads.ts), so a write refreshes every place on
+ * screen whose reads accept a queue change.
+ */
 export function useEngine(): EngineClient {
+  return readsFor(useRawEngine()).client;
+}
+
+/** The client as the provider was given it. */
+function useRawEngine(): EngineClient {
   const client = useContext(EngineContext);
   if (!client) throw new Error('useEngine needs an EngineProvider.');
   return client;
@@ -30,38 +40,25 @@ export interface Resource<T> { data: T | undefined; error: EngineError | undefin
 
 /**
  * Read one engine method and keep it fresh: it reloads when `refreshOn` says an event matters (by default, every
- * event). A reply that arrives after a newer request started is dropped.
+ * event). One-shot B3: the read goes through the client's one read store (reads.ts), so places that read the same
+ * method and params share one request and one answer. Only read methods (READS) are accepted.
  */
-export function useResource<M extends MethodName>(method: M, params: ParamsOf<M>, options: { refreshOn?: (event: VentureRunEvent) => boolean; skip?: boolean } = {}): Resource<ResultOf<M>> {
-  const client = useEngine();
-  const key = JSON.stringify(params);
-  const [state, setState] = useState<{ data: ResultOf<M> | undefined; error: EngineError | undefined; loading: boolean }>({ data: undefined, error: undefined, loading: !options.skip });
-  const generation = useRef(0);
+export function useResource<M extends ReadMethod>(method: M, params: ParamsOf<M>, options: { refreshOn?: (event: VentureRunEvent) => boolean; skip?: boolean } = {}): Resource<ResultOf<M>> {
+  const store = readsFor(useRawEngine()).store;
+  const key = keyOf(method, params);
+  const skip = options.skip ?? false;
   const refreshOn = useRef(options.refreshOn);
   refreshOn.current = options.refreshOn;
-
-  const load = useCallback(() => {
-    const mine = ++generation.current;
-    setState((s) => ({ ...s, loading: true }));
-    client.request(method, JSON.parse(key) as ParamsOf<M>).then(
-      (data) => { if (mine === generation.current) setState({ data, error: undefined, loading: false }); },
-      (error: unknown) => {
-        if (mine !== generation.current) return;
-        const e = error instanceof EngineError ? error : new EngineError('REQUEST_FAILED', error instanceof Error ? error.message : String(error));
-        setState((s) => ({ data: s.data, error: e, loading: false }));
-      },
-    );
-  }, [client, method, key]);
-
-  useEffect(() => {
-    if (options.skip) return;
-    load();
-  }, [load, options.skip]);
-
-  useEffect(() => {
-    if (options.skip) return;
-    return client.subscribe((event) => { if (!refreshOn.current || refreshOn.current(event)) load(); });
-  }, [client, load, options.skip]);
-
-  return { ...state, reload: load };
+  const subscribe = useCallback(
+    (changed: () => void) => (skip ? () => {} : store.subscribe(method, JSON.parse(key.slice(method.length + 1)) as unknown, changed, refreshOn)),
+    [store, method, key, skip],
+  );
+  const read = useCallback(() => store.snapshot<ResultOf<M>>(key, skip), [store, key, skip]);
+  const state = useSyncExternalStore(subscribe, read, read);
+  // As before the store: while a new key loads for the first time, the place keeps the answer it showed last.
+  const shown = useRef<ResultOf<M> | undefined>(undefined);
+  const data = state.data === undefined && !skip ? shown.current : state.data;
+  if (state.data !== undefined) shown.current = state.data;
+  const reload = useCallback(() => store.reload(key), [store, key]);
+  return { data, error: state.error, loading: state.loading, reload };
 }

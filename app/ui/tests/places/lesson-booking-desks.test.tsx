@@ -91,7 +91,7 @@ describe('booking desk (6E3)', () => {
     const { order } = await mount('booking');
     fireEvent.change(await screen.findByLabelText('Start'), { target: { value: '2026-11-05T10:00' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add slot' }));
-    await screen.findByText('5 Nov 2026 at 10:00');
+    await screen.findByText('5 Nov 2026 at 10:00 am');
     fireEvent.click(screen.getByRole('button', { name: 'New enquiry' }));
     await choose(screen.getByLabelText('Client'), order.clientId);
     fireEvent.change(screen.getByLabelText('What they asked for'), { target: { value: 'AC service at home' } });

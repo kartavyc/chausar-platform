@@ -19,7 +19,7 @@ export interface ChangeProps extends QueueChange {
 }
 
 /**
- * A value changing: the old one struck through in grey, an arrow (on a card), the new one in ink, both in mono; then
+ * A value changing: the old one struck through in grey, an arrow (on a card), the new one in ink, both in the body font with tabular digits (B2); then
  * its receipt, or the words "model estimate" when a model wrote it (an estimate never shows a receipt). The old and
  * the new value share that one proof, so the change is one figure group (`data-figure-group`, see
  * tests/helpers/ink-rules.ts); a change the engine sends with neither proof fails that rule rather than pass as proved.
@@ -33,7 +33,7 @@ export function Change({ label, before, after, receiptId, estimate, onReceipt, s
       {before !== undefined && (
         <>
           <span className="sr-only">{t('change.was')} </span>
-          <del className={cx(s.old, 'mono')}>{before}</del>
+          <del className={s.old} data-num="">{before}</del>
           {arrow && (
             <span className={s.arrow} aria-hidden="true">
               <Icon name="arrow-right" size={size === 'pill' ? 16 : 12} />
@@ -42,7 +42,7 @@ export function Change({ label, before, after, receiptId, estimate, onReceipt, s
         </>
       )}
       <span className="sr-only">{t('change.now')} </span>
-      <span className={cx(s.now, 'mono')}>{after}</span>
+      <span className={s.now} data-num="">{after}</span>
     </>
   );
   const proof = estimate ? <ModelEstimate /> : receiptId ? <Receipt id={receiptId} amount={after} onOpen={onReceipt} /> : null;

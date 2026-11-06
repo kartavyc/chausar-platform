@@ -58,6 +58,8 @@ function tryExecPath(file) { return String(file).replace(/[\r\n]/g, '').replace(
  * deps: app (Electron app), fs ({ readFile, writeFile, mkdir, rm }), platform, directory (the app's own folder),
  * home, env, execPath, beta (true only for the packaged beta channel).
  */
+// B1 fix round 1 (quality 8): the one refusal outside the installed app, said once (main.cjs reads it from here).
+const BACKGROUND_UNAVAILABLE_LINE = 'Only the installed Chausar app can start when you sign in to this computer.';
 function createBackground({ app, fs, platform, directory, home, env = {}, execPath, beta = false }) {
   const defaults = defaultsFor(beta === true);
   const file = path.join(directory, BACKGROUND_FILE);
@@ -211,7 +213,7 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
   function menuItems(value, onChange) {
     if (!supported) return [];
     return [
-      { label: 'Start at login', type: 'checkbox', checked: value.registered === true, click: item => onChange({ startAtLogin: item.checked === true }) },
+      { label: 'Start when you sign in to this computer', type: 'checkbox', checked: value.registered === true, click: item => onChange({ startAtLogin: item.checked === true }) },
       { label: 'Keep running in the tray', type: 'checkbox', checked: value.keepRunning, click: item => onChange({ keepRunning: item.checked === true }) },
     ];
   }
@@ -229,7 +231,7 @@ function createBackground({ app, fs, platform, directory, home, env = {}, execPa
     return later;
   }
   async function askLater(day) {
-    if (!supported) throw Object.assign(new Error('Start at login is only in the installed Chausar app.'), { code: 'BACKGROUND_UNAVAILABLE' });
+    if (!supported) throw Object.assign(new Error(BACKGROUND_UNAVAILABLE_LINE), { code: 'BACKGROUND_UNAVAILABLE' });
     if (!realDay(day)) throw Object.assign(new Error('Send the day as YYYY-MM-DD.'), { code: 'INVALID_REQUEST' });
     await fs.mkdir(directory, { recursive: true });
     await fs.writeFile(path.join(directory, LATER_FILE), JSON.stringify({ day }), { mode: 0o600 });
@@ -255,4 +257,4 @@ function bundledCodexEnvironment(environment, { resourcesPath, platform, exists 
   return result;
 }
 
-module.exports = { createBackground, bundledCodexEnvironment, BACKGROUND_FILE, LOGIN_ARGS, LOGIN_NAME };
+module.exports = { createBackground, bundledCodexEnvironment, BACKGROUND_FILE, LOGIN_ARGS, LOGIN_NAME, BACKGROUND_UNAVAILABLE_LINE };

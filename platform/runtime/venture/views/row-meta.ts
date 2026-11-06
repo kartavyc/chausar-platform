@@ -8,8 +8,9 @@
 // earlier runs; counts from the platform limits register; the price and every amount a row states with a receipt that
 // venture.receipt.get serves (views/row-receipts.ts); a plan's change count by comparing the two versions in code.
 // Meta is added after the digest, so time passing never makes a click stale, and a hook never changes an id or digest.
+import { formatUsd } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
-import { currentVenture, findRecord, formatMicros, formatVentureDate, listRecords } from '../records.ts';
+import { currentVenture, findRecord, formatVentureDate, listRecords } from '../records.ts';
 import type {
   BlueprintRecord, ConnectorPostRecord, DeliveryRunRecord, Display, EvidenceRecord, InvoiceRecord, IsoTime, ProposalRecord, QueueAmount,
   QueueCount, QueueRow, QueueRowMeta, QueueSendsTo, RoutineRunRecord, SpendQuoteRecord, VentureRecord,
@@ -220,7 +221,7 @@ function priceOf(row: QueueRow, source: Source): Priced | undefined {
     const window = capWindow(run.harness, run.preview.estimatedMaxCostMicros);
     if (window === null) return undefined;
     const receiptId = ROW_FIGURE.room(run.id, run.preview.callId);
-    return { receiptId, lineReceiptId: receiptId, price: { display: formatMicros(window), receiptId, line: META_WORDS.nothingSpent } };
+    return { receiptId, lineReceiptId: receiptId, price: { display: formatUsd(window), receiptId, line: META_WORDS.nothingSpent } };
   }
   if (source.quote) {
     const receiptId = ROW_FIGURE.quote(source.quote.id);

@@ -130,7 +130,7 @@ function EditLine({ edit, onChanged }: { edit: SiteEditLite; onChanged: (edit: S
   return (
     <li className={s.step} data-row="" data-row-id={edit.id} data-second-ask="" tabIndex={-1} aria-labelledby={titleId}>
       <span id={titleId}>{edit.summary}</span>
-      <span className={s.stepWho}><span className="mono">{edit.path}</span> · {t(`business.site.state.${edit.state}`)}</span>
+      <span className={s.stepWho}><span data-code="" className="mono">{edit.path}</span> · {t(`business.site.state.${edit.state}`)}</span>
       <div className={s.diff} role="group" aria-label={t('business.site.diff', { path: edit.path })}>
         {diff.map((line, i) => (line.kind === 'removed' ? (
           <del key={i} className={s.removed}><span className="sr-only">{t('business.site.removed')} </span>{line.text || ' '}</del>

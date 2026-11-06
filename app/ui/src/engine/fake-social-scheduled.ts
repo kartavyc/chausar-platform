@@ -120,7 +120,7 @@ export function fakeSocialScheduledKind(host: W4DeskHost): FakeDeskKind & {
             need(!host.hosted(), 'SLOT_DESKTOP_ONLY', 'Scheduled posts run only in this desktop business.');
             let value: SocialScheduledItem;
             if (p.action === 'create') {
-                need(p.id === 'new' && p.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new slot has no prior digest.');
+                need(p.id === 'new' && p.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new slot has no earlier version.');
                 const input = exact(p.payload, ['postId', 'connectorId', 'dueAt']);
                 need(typeof input.connectorId === 'string' && ['x', 'instagram', 'youtube', 'linkedin', 'bluesky', 'mastodon', 'telegram', 'discord'].includes(input.connectorId), 'INVALID_VENTURE_REQUEST', 'Choose a posting channel.');
                 need(input.connectorId !== 'linkedin', 'NOT_BUILT_YET', POSTING_WORDS.linkedin);

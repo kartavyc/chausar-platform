@@ -42,7 +42,7 @@ export const PRACTICE_WORDS = Object.freeze({
   failedCheck: 'Fix the failed check first; the quality check reads only drafts that pass the code checks.',
   notReady: 'The quality check reads a draft once it is ready for your review.',
   outline: 'The quality check reads drafts an agent wrote; this is a template outline.',
-  practice: 'Practice drafts are not for clients. Move to approve each to use drafts.',
+  practice: 'This is a practice draft, so it never goes to a client. To use drafts, set How much it asks you to Approve each.',
   noAi: 'Connect an AI for quick work first; the quality check runs on your own AI.',
   already: 'The quality check already read this draft.',
   notWaiting: 'Ask the quality check first, then send it.',
@@ -67,9 +67,9 @@ const DAY_MS = 24 * 60 * MINUTE_MS;
 const DIGEST = /^[a-f0-9]{64}$/;
 const ID = /^[A-Za-z0-9_.:-]{1,200}$/;
 /** What one judge call or rehearsal may cost, as the model port writes it for an unconfirmed price. Sample text. */
-const JUDGE_COST = 'USD 0.0031 (estimate, price unconfirmed)';
-const MODEL_COST = 'USD 0.0184 (estimate, price unconfirmed)';
-const TEMPLATE_COST = 'USD 0.0000';
+const JUDGE_COST = 'under $0.01 (estimate)';
+const MODEL_COST = '$0.02 (estimate)';
+const TEMPLATE_COST = '$0.00';
 const CHANGE = 'Adds to "Draft the reply": Keep the plan price from Chausar and offer no free work.';
 
 const KINDS = ['clean', 'messy', 'pushback'] as const;
@@ -160,7 +160,7 @@ export class FakePracticeDesk {
       case 'venture.delivery.judgeSend': return this.judgeSend(biz, p);
       case 'venture.judge.auto.get': exact(p, []); return this.autoView(biz);
       case 'venture.judge.auto.set': return this.setAuto(biz, p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -363,7 +363,7 @@ export class FakePracticeDesk {
   private adopt(biz: string, p: Record<string, unknown>): PlaybookLite {
     const body = exact(p, ['runId', 'digest'], ['runId', 'digest']);
     const runId = identifier(body.runId, 'Improvement run');
-    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the change you approved.');
+    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Look at it again first.');
     const run = (this.improvements[biz] ?? []).find((r) => r.id === runId);
     if (!run) throw new EngineError('IMPROVEMENT_NOT_FOUND', 'That improvement run was not found.');
     if (run.status !== 'kept-candidate' || !run.candidatePlaybookId) throw invalid('This run kept the old version, so there is nothing to adopt.');
@@ -380,7 +380,7 @@ export class FakePracticeDesk {
   private rollback(biz: string, p: Record<string, unknown>): PlaybookLite {
     const body = exact(p, ['playbookId', 'digest'], ['playbookId', 'digest']);
     const playbookId = identifier(body.playbookId, 'How the work is done');
-    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the version you saw in use.');
+    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Look at it again first.');
     const current = this.find(biz, this.inUse[biz]);
     const parent = this.find(biz, playbookId);
     if (!current || current.origin !== 'improvement' || current.parentId !== playbookId || !parent) {
@@ -466,7 +466,7 @@ export class FakePracticeDesk {
   private judgeSend(biz: string, p: Record<string, unknown>): DeliveryLite {
     const body = exact(p, ['runId', 'digest'], ['runId', 'digest']);
     const runId = identifier(body.runId, 'Draft reply');
-    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Send the digest of the quality check call you read.');
+    if (typeof body.digest !== 'string' || !DIGEST.test(body.digest)) throw invalid('Look at it again first.');
     const run = this.run(runId);
     const held = run.judge;
     if (held?.status === 'done') throw new EngineError('JUDGE_ALREADY_SENT', PRACTICE_WORDS.already);

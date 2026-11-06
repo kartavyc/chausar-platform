@@ -119,7 +119,7 @@ test('every import works the ties out again: one tie per person with each signal
   const tie = tieOf(env, p.id);
   assert.match(tie.id, /^tie_/);
   assert.deepEqual(tie.signals, [
-    { kind: 'mail-both', count: 6, last: '2026-10-20', weightBp: 2400, decayedBp: 2372, source: 'Mail headers, takeout.mbox', line: 'Mail both ways in 6 months, the last on 20 Oct 2026' },
+    { kind: 'mail-both', count: 6, last: '2026-10-20', weightBp: 2400, decayedBp: 2372, source: 'Email export, takeout.mbox', line: 'Mail both ways in 6 months, the last on 20 Oct 2026' },
     { kind: 'meeting', count: 2, last: '2026-10-15', weightBp: 600, decayedBp: 581, source: 'Calendar, work.ics', line: '2 small meetings, the last on 15 Oct 2026' },
   ]);
   assert.deepEqual([tie.scoreBp, tie.band, tie.computedAt], [2953, 'close', env.now()]);
@@ -128,7 +128,7 @@ test('every import works the ties out again: one tie per person with each signal
   const rows = evidenceOf(env, p.id);
   const worked = 'Worked out by Chausar from your own files and records';
   assert.deepEqual(rows.map(row => [row.field, row.value, row.type, row.source, row.by, row.applied]), [
-    ['tie.mail-both', 'Mail both ways in 6 months, the last on 20 Oct 2026', 'engine-computed', `${worked}: Mail headers, takeout.mbox`, 'engine', true],
+    ['tie.mail-both', 'Mail both ways in 6 months, the last on 20 Oct 2026', 'engine-computed', `${worked}: Email export, takeout.mbox`, 'engine', true],
     ['tie.meeting', '2 small meetings, the last on 15 Oct 2026', 'engine-computed', `${worked}: Calendar, work.ics`, 'engine', true],
   ]);
   assert.ok(rows.every(row => row.type !== 'document'), 'never "read from a file in the run": no run read it');
@@ -155,7 +155,7 @@ test('venture.receipt.get serves the tie receipt: a line per signal with its sou
   const tie = tieOf(env, p.id);
   const served = await receipt<TieReceipt>(env, tie.id, phone);
   assert.deepEqual([served.id, served.kind, served.operation, served.personId, served.at, served.band, served.totalBp, served.stale], [tie.id, 'venture-tie', 'venture.tie', p.id, tie.computedAt, 'close', '2953', false]);
-  assert.deepEqual(served.lines, ['Mail both ways in 6 months, the last on 20 Oct 2026 (Mail headers, takeout.mbox)', '2 small meetings, the last on 15 Oct 2026 (Calendar, work.ics)']);
+  assert.deepEqual(served.lines, ['Mail both ways in 6 months, the last on 20 Oct 2026 (Email export, takeout.mbox)', '2 small meetings, the last on 15 Oct 2026 (Calendar, work.ics)']);
   assert.deepEqual(served.steps.map(step => [step.op, step.inputs, step.result]), [
     ['multiply', ['6', '400'], '2400'],
     ['fade', ['2400', '3', '988514', '0'], '2372'],
@@ -192,7 +192,7 @@ test('a re-imported month is never counted twice, and months only known by the m
   assert.deepEqual([both.kind, both.count], ['mail-both', 2], 'September and October, once each');
   // October also had a mail she was only copied on, so the last day of the both-ways mail is known only to the month.
   assert.deepEqual([both.last, both.line], ['2026-10-01', 'Mail both ways in 2 months, the last in Oct 2026']);
-  assert.equal(both.source, 'Mail headers, sep-oct.mbox and oct.mbox');
+  assert.equal(both.source, 'Email export, sep-oct.mbox and oct.mbox');
 });
 
 test('venture.network.sources gains the bands, from a count receipt listing each tie counted; hidden people are left out', async () => {

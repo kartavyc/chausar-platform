@@ -55,7 +55,7 @@ export class MCPService {
   scope(context: Context) { return digest({ memberId: context.memberId, role: context.role, epoch: context.epoch }); }
   receipt(context: Context, receipt: any) {
     const state = this.store.read(); current(state, context); check(receipt && typeof receipt.id === 'string', 'UNVERIFIED_NUMBER', 'The calculator did not provide a stored receipt.');
-    const stored = state.receipts.find(r => r.id === receipt.id); check(stored && digest(stored) === digest(receipt), 'UNVERIFIED_NUMBER', 'The result’s receipt does not match the engine ledger.');
+    const stored = state.receipts.find(r => r.id === receipt.id); check(stored && digest(stored) === digest(receipt), 'UNVERIFIED_NUMBER', 'The result’s receipt does not match Chausar’s records.');
     const memberId = receipt.memberId ?? receipt.scope?.memberId ?? receipt.context?.memberId;
     const epoch = receipt.epoch ?? receipt.scope?.epoch ?? receipt.context?.epoch;
     if (memberId === undefined) { check(this.receiptReader && digest(this.receiptReader(context, receipt.id)) === digest(stored), 'RECEIPT_FORBIDDEN', 'The calculator must verify this shared receipt against the current context.'); }

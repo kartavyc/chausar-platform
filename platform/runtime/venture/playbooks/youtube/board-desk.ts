@@ -31,7 +31,7 @@ export function boardEdit(state: State, ventureId: string, id: string, now: stri
   requireCurrentWordSource(state, edit);
   const order = findRecord(state, 'venture-order', edit.orderId);
   check(order && order.ventureId === ventureId && order.status !== 'cancelled', 'ORDER_NOT_FOUND', 'Choose an open order in this business.');
-  requireRights({ id: 'assemble', clipping: true }, order.intake ?? null, localDayAt(now, { code: 'IN' }));
+  requireRights({ id: 'assemble', clipping: true }, order.intake ?? null, localDayAt(now, findRecord(state, 'venture-record', ventureId)?.country));
   return { edit, order };
 }
 function sourcePath(path: unknown): string {

@@ -3,8 +3,8 @@
 // drafts fee invoices with the existing invoice code (money/invoices.ts draftInvoiceIn, parts from 6D1) and hands an
 // approved parent message to the owner through the action journal (owner.handoff, bound to the message digest).
 // Chausar sends nothing. Written for Chausar; nothing here is learned from an outside source.
+import { formatMoney } from '../../../owner-format.ts';
 import { check, type Context, type State } from '../../../contracts.ts';
-import { formatMinor } from '../../../currency.ts';
 import type { DeskHandlers, DeskKindTypes } from '../desk-types.ts';
 import type { LessonBatchRecord, VentureDeps, VentureRecord } from '../../contracts.ts';
 import { listRecords, readVenture, requireAppChannel, ventureAction } from '../../records.ts';
@@ -33,7 +33,7 @@ export function lessonWorld(state: State, venture: VentureRecord, now: Date | st
     consent(id) { const record = listRecords(state, 'venture-voice-consent', venture.id).find(row => row.id === id); return record ? { id: record.id, speaker: record.speaker, state: consentState(state, record, today) } : null; },
     fees(orderId) {
       return listRecords(state, 'venture-invoice', venture.id).filter(row => row.orderId === orderId && row.status !== 'void').map(row => ({
-        invoiceId: row.id, number: row.number, status: row.status, total: formatMinor(row.totalMinor, row.currency), balance: formatMinor(row.balanceMinor, row.currency), receiptId: row.priceReceiptId,
+        invoiceId: row.id, number: row.number, status: row.status, total: formatMoney(row.totalMinor, row.currency), balance: formatMoney(row.balanceMinor, row.currency), receiptId: row.priceReceiptId,
       }));
     },
   };

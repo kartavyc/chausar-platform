@@ -84,7 +84,7 @@ function AssetRow({ asset, others, onChanged }: { asset: AssetView; others: read
 
   return (
     <li className={a.row} data-asset-state={asset.blocked ? 'blocked' : 'ok'}>
-      <span className={`${a.name} mono`}>{asset.name}</span>
+      <span data-code="" className={`${a.name} mono`}>{asset.name}</span>
       <span className={a.facts}>
         <span>{sourceWords(asset, t)}</span>
         <span>{asset.licence ?? t('kit-media.assets.noLicence')}</span>

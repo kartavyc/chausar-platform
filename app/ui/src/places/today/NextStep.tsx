@@ -77,7 +77,7 @@ export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
           {data.goalAfter && (
             <div className={s.figure}>
               <span className={s.figureLabel}>{t('today.next.goalAfter')}</span>
-              <span className={cx(s.after, 'mono')}>{data.goalAfter}</span>
+              <span className={s.after} data-num="">{data.goalAfter}</span>
             </div>
           )}
         </div>

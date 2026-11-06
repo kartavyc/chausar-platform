@@ -395,7 +395,7 @@ export class FakeKitConnectDesk {
     if (p.kind !== 'n8n' && p.kind !== 'make') throw invalid(WORDS.choose);
     const kind: WebhookKind = p.kind;
     if (typeof p.subject !== 'string' || !/^[A-Za-z0-9_.:-]{1,200}$/.test(p.subject)) throw invalid('The subject must be a known identifier.');
-    if (p.digest !== undefined && typeof p.digest !== 'string') throw invalid('Send back the digest you were shown.');
+    if (p.digest !== undefined && typeof p.digest !== 'string') throw invalid('Look at it again first.');
     const book = this.book();
     const href = book.webhooks[kind];
     if (!href) throw new EngineError('WEBHOOK_NOT_SET', `No ${NAMES[kind]} connection is set. Set its address under Connections first.`);

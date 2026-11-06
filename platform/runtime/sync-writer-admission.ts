@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { link, lstat, open, readdir, rename, unlink } from 'node:fs/promises';
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path';
-import { authorize, check, ChausarError, hash } from './contracts.ts';
+// B1 fix round 2: sync refusals are in developer words, so they are InternalError (owner-flag.ts refusalTravel).
+import { asInternal, authorize, internalCheck as check, ChausarError, InternalError, hash } from './contracts.ts';
 import type { Context, State, StateStore } from './contracts.ts';
 import { acquireProcessLock } from './process-lock.ts';
 import { assertSourceAccess } from './trust.ts';
@@ -73,7 +74,7 @@ export function writerStateDigest(state: State): string {
   return hash({ ...state, revision: 0, modelReceipts: state.modelReceipts.filter(r => !String(r.kind).startsWith('sync-')), activity: state.activity.filter(a => !String(a.event).startsWith('sync.')) });
 }
 function stateStore(state: State): StateStore {
-  return { read: () => state, update: async () => { throw new ChausarError('SYNC_WRITER_STORE_CORRUPT', 'Writer admission does not mutate a workspace.'); } };
+  return { read: () => state, update: async () => { throw new InternalError('SYNC_WRITER_STORE_CORRUPT', 'Writer admission does not mutate a workspace.'); } };
 }
 function fullAdmin(state: State, context: Context): void {
   const member = authorize(stateStore(state), context, 'admin');
@@ -142,7 +143,7 @@ export class FileSyncWriterAdmission implements SyncWriterAdmission {
     } finally { await file.close(); }
   }
   #parse(raw: string): any {
-    let value; try { value = JSON.parse(raw); } catch { throw new ChausarError('SYNC_WRITER_STORE_CORRUPT', 'The writer authority contains an invalid record.'); }
+    let value; try { value = JSON.parse(raw); } catch { throw new InternalError('SYNC_WRITER_STORE_CORRUPT', 'The writer authority contains an invalid record.'); }
     check(JSON.stringify(value) === raw, 'SYNC_WRITER_STORE_CORRUPT', 'The writer record is not canonical JSON.');
     return value;
   }
@@ -179,11 +180,11 @@ export class FileSyncWriterAdmission implements SyncWriterAdmission {
   }
   async #locked<T>(action: () => Promise<T>): Promise<T> {
     await this.#directory();
-    const lock = await acquireProcessLock(join(this.directory, '.admission.lock'), { busyCode: 'SYNC_WRITER_BUSY', busyMessage: 'Another local process holds or may hold writer admission.', changedCode: 'SYNC_WRITER_LOCK_CHANGED', unsafeCode: 'SYNC_UNSAFE_PATH' });
+    const lock = await acquireProcessLock(join(this.directory, '.admission.lock'), { busyCode: 'SYNC_WRITER_BUSY', busyMessage: 'Another local process holds or may hold writer admission.', changedCode: 'SYNC_WRITER_LOCK_CHANGED', unsafeCode: 'SYNC_UNSAFE_PATH' }).catch((error: unknown) => { throw asInternal(error); });
     try { return await action(); } finally { await lock.release(); }
   }
   #time(floor: number): number {
-    let time: Date; try { time = this.#clock(); } catch { throw new ChausarError('SYNC_CLOCK_INVALID', 'The trusted writer clock is unavailable.'); }
+    let time: Date; try { time = this.#clock(); } catch { throw new InternalError('SYNC_CLOCK_INVALID', 'The trusted writer clock is unavailable.'); }
     const ms = time instanceof Date ? time.getTime() : NaN;
     check(integer(ms) && Number.isFinite(new Date(ms).getTime()), 'SYNC_CLOCK_INVALID', 'The trusted writer clock must return a valid current Date.');
     check(ms >= floor, 'SYNC_CLOCK_REGRESSED', 'The trusted writer clock regressed behind persistent authority.');

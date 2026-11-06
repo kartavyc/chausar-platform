@@ -118,7 +118,7 @@ export function personaView(state: State, venture: VentureRecord, agent: ChatAge
   const before = versions.at(-2) ?? null;
   return {
     agent: agent.id, persona: structuredClone(current?.persona ?? NO_PERSONA), skills: agentSkills(agent),
-    line: line ?? (current ? `Version ${current.version} is in use from ${agent.name}'s next run.` : `${agent.name} has no persona yet, so it talks the way its role says. Its role and the facts it uses stay the same whatever you set.`),
+    line: line ?? (current ? `Version ${current.version} is in use from ${agent.name}'s next job.` : `${agent.name} has no persona yet, so it talks the way its role says. Its role and the facts it uses stay the same whatever you set.`),
     version: current?.version ?? 0, undo: before ? structuredClone(before.persona) : null,
   };
 }
@@ -133,7 +133,7 @@ export function writePersonaVersion(tx: VentureTx, agent: ChatAgent, persona: Pe
   const back = versions.length >= 2 && samePersona(versions.at(-2)!.persona, persona);
   const record = tx.put<PersonaRecord>({ ...tx.base('venture-persona'), agent: agent.id, persona: structuredClone(persona), version: (versions.at(-1)?.version ?? 0) + 1, source: back && source === 'owner' ? 'undo' : source });
   const words = source === 'import' ? 'The persona from the agent file you accepted is' : back ? 'Going back, my earlier way of talking is' : 'Your changes to how I talk are';
-  const message = appendAgentMessage(tx, { agent: agent.id, from: 'agent', text: `${words} version ${record.version}, in use from my next run. You can undo it in my persona.`, author: 'engine' });
+  const message = appendAgentMessage(tx, { agent: agent.id, from: 'agent', text: `${words} version ${record.version}, in use from my next job. You can undo it in my persona.`, author: 'engine' });
   tx.emit('agent.message', { agent: agent.id, messageId: message.id });
   return record;
 }
@@ -240,7 +240,7 @@ export async function personaSetHandler(deps: VentureDeps, ctx: Context, payload
     const agent = chatAgent(tx.state, venture, agentId);
     const record = writePersonaVersion(tx, agent, persona, 'owner');
     const back = record.version > 1 ? ` Version ${record.version - 1} is kept; undo sets it again.` : '';
-    return personaView(tx.state, venture, agent, `Version ${record.version} is in use from ${agent.name}'s next run.${back}`);
+    return personaView(tx.state, venture, agent, `Version ${record.version} is in use from ${agent.name}'s next job.${back}`);
   });
 }
 

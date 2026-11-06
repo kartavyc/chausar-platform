@@ -4,7 +4,7 @@
   "budgets": {
     "today": 530,
     "team": 210,
-    "work": 310,
+    "work": 300,
     "clients/pipeline": 190,
     "money": 120,
     "apps": 120,
@@ -18,7 +18,7 @@
     "business/prices": 130,
     "business/build": 120,
     "business/keep": 140,
-    "onboarding": 930,
+    "onboarding": 890,
     "chats": 150,
     "clients": 30,
     "clients/network": 190,

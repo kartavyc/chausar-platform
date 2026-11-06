@@ -82,7 +82,7 @@ test('6E4 the full document path: brief, AI draft, take, approve, export; a chan
   await act('figures', FIGURES);
   view = await get();
   assert.equal(view.item.figures.totalMinor, '143333');
-  assert.deepEqual(view.item.figureWords, ['Printing: 2.5 at INR 333.33 is INR 833.33', 'Binding: 4 at INR 150.00 is INR 600.00', 'Total: INR 1,433.33', 'Receipt ' + view.item.figures.receiptId]);
+  assert.deepEqual(view.item.figureWords, ['Printing: 2.5 at ₹333.33 is ₹833.33', 'Binding: 4 at ₹150 is ₹600', 'Total: ₹1,433.33', 'Receipt ' + view.item.figures.receiptId]);
   await assert.rejects(act('section', { sectionId: 'section-3', text: 'Printing costs INR 2,000.' }), code('DOCUMENT_FIGURE_UNRECEIPTED', /INR 2,000/));
   await assert.rejects(act('approve', {}), code('DOCUMENT_BRIEF_REQUIRED'));
 

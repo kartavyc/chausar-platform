@@ -3,6 +3,7 @@
 // presses send; Chausar sends nothing. The PDF is printed from the client's copy (document.ts) and the UPI QR code drawn
 // as shapes, through the desktop's print port (playbooks/kit/report/pdf.ts); without one the file is the same page as
 // HTML and says why. The client's copy carries no internal receipt id.
+import { formatMinor } from '../../currency.ts';
 import { check, type Context } from '../../contracts.ts';
 import { exactPayload, formatVentureDate, listRecords, readVenture, requireAppChannel } from '../records.ts';
 import { pdfOf } from '../playbooks/kit/report/pdf.ts';
@@ -38,7 +39,7 @@ export function qrSvg(qr: QrMatrix, sizePx = 176): string {
 export function invoiceHtml(view: InvoiceView): string {
   const title = `${view.invoice.documentTitle} ${view.invoice.number ?? 'DRAFT'}`;
   const qr = view.howToPay?.upi
-    ? `<figure><div>${qrSvg(view.howToPay.upi.qr)}</div><figcaption>Scan with any UPI app to pay ${escapeHtml(view.howToPay.upi.amount)} to ${escapeHtml(view.howToPay.upi.id)}</figcaption></figure>`
+    ? `<figure><div>${qrSvg(view.howToPay.upi.qr)}</div><figcaption>Scan with any UPI app to pay ${escapeHtml(formatMinor(view.howToPay.upi.amountMinor, 'INR'))} to ${escapeHtml(view.howToPay.upi.id)}</figcaption></figure>`
     : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>`
     + 'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px}pre{font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.5;white-space:pre-wrap}'
@@ -49,7 +50,9 @@ export function invoiceHtml(view: InvoiceView): string {
 /** The words the owner sends with the PDF, by template: every figure and date from the invoice, never a receipt id. */
 function shareWords(view: InvoiceView, sellerName: string): { subject: string; text: string } {
   const { invoice } = view;
-  const balance = view.figures.find(figure => figure.key === 'balance')?.display ?? '';
+  // The client's words leave the app, so the exact form (B2): the PDF's own font has no rupee sign either.
+  const owed = view.figures.find(figure => figure.key === 'balance');
+  const balance = owed ? formatMinor(owed.minor, owed.currency ?? invoice.currency) : '';
   const due = invoice.dueDate ? `, due on ${formatVentureDate(invoice.dueDate, (view.country ?? { dateOrder: 'day-month-year' }).dateOrder)}` : '';
   const lines = [`Hello ${oneLine(view.client.name)},`, '', `Here is invoice ${invoice.number} for ${balance}${due}. The PDF is attached.`];
   if (view.howToPay?.upi) lines.push(`You can pay by UPI to ${view.howToPay.upi.id}.`);

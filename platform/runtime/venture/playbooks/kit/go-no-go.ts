@@ -5,9 +5,9 @@
 // limit; GO otherwise, and every GO card says "GO spends nothing: each spend still asks you." Each card is stored
 // (venture-go-no-go) and listed on Business; its loss opens a receipt (venture.receipt.get with the card's id) worked
 // out again from the stored card. Learned from sealeap-ecommerce-skills' assets/decision-template.md, ideas only.
+import { formatMoney, plainMoney } from '../../../owner-format.ts';
 import { check, type Context, type State } from '../../../contracts.ts';
 import { numberGuard, sumMoney } from '../../../calculator.ts';
-import { formatMinor } from '../../../currency.ts';
 import { digest, exactPayload, listRecords, readVenture, singleLine, ventureAction } from '../../records.ts';
 import type { GoNoGoRecord, MinorString, PriceStep, RowFigure, RowFigureReceipt, VentureDeps, VentureRecord } from '../../contracts.ts';
 import { ownerPrice } from '../../core/words.ts';
@@ -66,10 +66,10 @@ function working(inputs: Readonly<Record<GoNoGoInputName, string | null>>, curre
       { op: 'multiply', inputs: [monthlyMinor, months], resultMinor: running, rule: 'what it costs each month times the months you will try it' },
       { op: 'add', inputs: [upfrontMinor, running], resultMinor: maxLossMinor, rule: 'plus what it costs to start: the most you could lose' },
     ];
-    const show = (minor: string) => formatMinor(minor, currency);
+    const show = (minor: string) => formatMoney(minor, currency);
     explanation = `${show(upfrontMinor)} to start, plus ${show(monthlyMinor)} a month for ${months} months (${show(running)}) = ${show(maxLossMinor)} at most.`
       + (limitMinor === null ? '' : ` Your limit is ${show(limitMinor)}.`);
-    const plain = (minor: string) => show(minor).slice(currency.length + 1).replace(/,/g, '');
+    const plain = (minor: string) => plainMoney(minor, currency);
     const amounts = [upfrontMinor, monthlyMinor, running, maxLossMinor, ...(limitMinor === null ? [] : [limitMinor])];
     allowedNumbers = [...new Set([...amounts, ...amounts.map(plain), months])];
     numberGuard(explanation, { allowedNumbers });
@@ -80,7 +80,7 @@ function working(inputs: Readonly<Record<GoNoGoInputName, string | null>>, curre
 
 /** A stored card as the screens read it, with its line in the engine's words. */
 export function cardView(record: GoNoGoRecord): GoNoGoCardView {
-  const show = (minor: string) => formatMinor(minor, record.currency);
+  const show = (minor: string) => formatMoney(minor, record.currency);
   const label = (name: GoNoGoInputName) => GO_NO_GO_INPUTS.find(input => input.name === name)!;
   const line = record.verdict === 'HOLD'
     ? `HOLD: say ${joined(record.unknown.map(name => label(name).ask))}, then make the card again.`
@@ -134,7 +134,7 @@ export function goNoGoReceipt(state: State, venture: VentureRecord, id: string):
   check(record.maxLossMinor !== null && record.explanation !== null, 'RECEIPT_NOT_FOUND', 'This card has no loss worked out yet: it is waiting for your inputs.');
   const again = working(record.inputs, record.currency);
   const { id: _id, kind: _kind, ventureId: _venture, memberId: _member, epoch: _epoch, at: _at, digest: stored, ...body } = record;
-  const show = (minor: string) => formatMinor(minor, record.currency);
+  const show = (minor: string) => formatMoney(minor, record.currency);
   const figure = (key: string, label: string, amount: string): RowFigure => ({ key, label, amount, unit: 'minor', currency: record.currency, display: show(amount) });
   const { upfront: upfrontMinor, monthly: monthlyMinor, limit: limitMinor } = record.inputs;
   const figures = [

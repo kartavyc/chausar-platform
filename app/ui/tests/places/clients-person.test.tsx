@@ -32,7 +32,7 @@ describe('the person sheet', () => {
     await settle();
     expect(screen.getAllByText('Brand partnerships lead at Kettle Audio').length).toBeGreaterThan(0);
     const how = section('How you know them');
-    expect(within(how).getByText('11 emails both ways, the last on 14 Oct (Mail headers, takeout-mail.mbox)')).toBeTruthy();
+    expect(within(how).getByText('11 emails both ways, the last on 14 Oct (Email export, takeout-mail.mbox)')).toBeTruthy();
     expect(within(how).getByRole('button', { name: /receipt/i }).getAttribute('data-receipt')).toBe('tie_person_tara');
     expect(screen.getByRole('button', { name: /know well, 4 of 5/i })).toBeTruthy();
     assertInkRules();

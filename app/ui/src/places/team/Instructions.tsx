@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, type Resource } from '../../engine/context';
 import { EngineError, type AgentView, type StandingOrdersView, type StandingPlaybookView, type StandingUndoView } from '../../engine/types';
 import { Button } from '../../parts/Button';
@@ -33,7 +34,7 @@ export interface InstructionsProps {
  */
 export function Instructions({ agent, standing, onPlaybookChanged }: InstructionsProps) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const howId = useId();
   const ordersId = useId();
   const stepsId = useId();
@@ -52,7 +53,7 @@ export function Instructions({ agent, standing, onPlaybookChanged }: Instruction
         <h3 id={howId} className={s.small}>{t('team.instructions.how', { name: agent.name })}</h3>
         {playbook && (
           <p className={c.version} data-version="">
-            {t(`team.instructions.from.${playbook.origin}`, { version: playbook.version, date: dayWords(playbook.at, language) })}
+            {t(`team.instructions.from.${playbook.origin}`, { version: playbook.version, date: dayWords(playbook.at, zone) })}
           </p>
         )}
         {data?.rebuildDue && <p className={s.quiet} data-rebuild="">{t('team.instructions.rebuildDue')}</p>}
@@ -85,7 +86,7 @@ export function Instructions({ agent, standing, onPlaybookChanged }: Instruction
                 <li key={`${order.stepId}-${order.text}`} className={c.order}>
                   <p className={c.orderText} data-content="">{order.text}</p>
                   <p className={c.orderMeta}>
-                    <span className="mono">{t('team.instructions.since', { version: order.since })}</span>
+                    <span data-code="" className="mono">{t('team.instructions.since', { version: order.since })}</span>
                     {' · '}
                     {order.step}
                   </p>

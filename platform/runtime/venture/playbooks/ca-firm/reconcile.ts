@@ -11,7 +11,7 @@
 // as opening plus ticked rows equals closing.
 import { digest } from '../../records.ts';
 import type { BankLedger } from '../../build/bank.ts';
-import { inr, invalid, paise, signedPaise, sumBig } from './money.ts';
+import { exactInr, inr, invalid, paise, signedPaise, sumBig } from './money.ts';
 import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
 
 export type StatementSource = 'books' | 'ais' | '26as' | 'form16';
@@ -82,10 +82,11 @@ export function reconcileTaxStatements(input: { entries: StatementEntry[] }): Ca
       const kind: DifferenceKind | null = !b ? 'missing-in-books' : !s ? 'missing-in-source' : bg !== sg ? 'amount-differs' : bt !== st ? 'tds-differs' : null;
       if (!kind) continue;
       const words = SOURCE_WORDS[against];
-      const line = kind === 'missing-in-books' ? `${words} shows ${category} from ${payer} of ${inr(sg)}, tax deducted ${inr(st)}, which is not in the books.`
-        : kind === 'missing-in-source' ? `The books show ${category} from ${payer} of ${inr(bg)}, tax deducted ${inr(bt)}, which ${words} does not show.`
-          : kind === 'amount-differs' ? `${words} shows ${category} from ${payer} of ${inr(sg)}; the books show ${inr(bg)}.`
-            : `${words} shows tax deducted by ${payer} of ${inr(st)}; the books show ${inr(bt)}.`;
+      // B2 fix round 3: each line is a step's label, which a client document quotes, so its amounts are the exact form.
+      const line = kind === 'missing-in-books' ? `${words} shows ${category} from ${payer} of ${exactInr(sg)}, tax deducted ${exactInr(st)}, which is not in the books.`
+        : kind === 'missing-in-source' ? `The books show ${category} from ${payer} of ${exactInr(bg)}, tax deducted ${exactInr(bt)}, which ${words} does not show.`
+          : kind === 'amount-differs' ? `${words} shows ${category} from ${payer} of ${exactInr(sg)}; the books show ${exactInr(bg)}.`
+            : `${words} shows tax deducted by ${payer} of ${exactInr(st)}; the books show ${exactInr(bt)}.`;
       found.push({
         id: `diff_${digest({ against, category, payer }).slice(0, 12)}`, against, kind, category, payer,
         booksGrossMinor: String(bg), sourceGrossMinor: String(sg), booksTdsMinor: String(bt), sourceTdsMinor: String(st),

@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useT } from '../../text';
+import { useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
 import { EngineError, type AgentNoteView, type AgentView } from '../../engine/types';
 import { Button } from '../../parts/Button';
@@ -23,7 +24,7 @@ type Draft = { noteId: string | null; text: string; basedOn: string | null };
  */
 export function AgentNotes({ agent, readOnly = false }: { agent: AgentView; /** W6 6G2: a retired agent's shelf: no new notes or corrections; Forget and Undo still work. */ readOnly?: boolean }) {
   const t = useT();
-  const language = useLanguage();
+  const zone = useOwnerZone();
   const client = useEngine();
   const listId = useId();
   const changesId = useId();
@@ -103,7 +104,7 @@ export function AgentNotes({ agent, readOnly = false }: { agent: AgentView; /** 
             {data.notes.map((note) => (
               <li key={note.id} className={c.note} data-note={note.id}>
                 <p className={c.noteText} data-content="">{note.text}</p>
-                <p className={c.noteMeta}>{about(note)} · {t('team.notes.captured', { date: dayWords(note.captured, language) })}</p>
+                <p className={c.noteMeta}>{about(note)} · {t('team.notes.captured', { date: dayWords(note.captured, zone) })}</p>
                 <p className={c.noteSource} data-content="">{note.source}</p>
                 {draft?.noteId === note.id ? form('team.notes.editLabel') : forgetting === note.id ? (
                   <div className={c.ask} role="group" aria-label={t('team.notes.forgetAsk')}>
@@ -141,7 +142,7 @@ export function AgentNotes({ agent, readOnly = false }: { agent: AgentView; /** 
             {data.changes.map((change) => (
               <li key={change.id} className={c.change}>
                 <span className={c.changeLine}>{change.line}</span>
-                <span className={c.changeAt}>{dayWords(change.at, language)}</span>
+                <span className={c.changeAt}>{dayWords(change.at, zone)}</span>
                 {change.undone
                   ? <span className={c.changeAt}>{t('team.notes.undone')}</span>
                   : alive.has(change.noteId) && erasing !== change.id && (

@@ -1,6 +1,7 @@
 // P2 tests for the venture model package: presets, connections, the model port, the routes, cost, the client
 // data guard, previews and approvals, replay. No test touches a provider: every model call goes through a
 // recording fake transport, the replay transport, or a loopback server on 127.0.0.1.
+import { formatCost } from '../runtime/owner-format.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spendPolicySet } from '../runtime/venture/money/spend.ts';
@@ -784,9 +785,9 @@ test('cost: the hand-worked examples, the monthly limit, and reservations by cal
   const lunaStatus = lunaSetup.deps.models.status(owner);
   assert.equal(lunaStatus.spentThisMonthMicros, '164');
   assert.equal(lunaStatus.estimate, true);
-  assert.equal(lunaStatus.spentThisMonthDisplay, 'USD 0.0002 (estimate, price unconfirmed)');
+  assert.equal(lunaStatus.spentThisMonthDisplay, 'under $0.01 (estimate)');
   const lunaPreview = await lunaSetup.deps.models.preview(owner, wordsTask({ containsClientData: true }));
-  assert.ok(lunaPreview!.estimatedMaxCostDisplay.endsWith(' (estimate, price unconfirmed)'));
+  assert.ok(lunaPreview!.estimatedMaxCostDisplay.endsWith(' (estimate)'));
 
   // A tiny limit refuses before anything is sent. Sonnet, 8192 output tokens: 8192 x 10,000,000 / 1,000,000 = 81,920 micros
   // for the output alone, above a limit of 0.01 dollars (10,000 micros).
@@ -819,7 +820,7 @@ test('cost: the hand-worked examples, the monthly limit, and reservations by cal
   held.rec.replyHttp = () => anthropicReply({ words: 'More plan words' }, { usage: { input_tokens: 1430, output_tokens: 402 } });
   await held.deps.models.generate(owner, wordsTask({ purpose: 'blueprint', maxOutputTokens: 4096 }));
   assert.equal(held.deps.models.status(owner).spentThisMonthMicros, '13760');
-  assert.equal(held.deps.models.status(owner).spentThisMonthDisplay, 'USD 0.0138');
+  assert.equal(held.deps.models.status(owner).spentThisMonthDisplay, '$0.01');
 });
 
 // ---------------------------------------------------------------------------
@@ -884,7 +885,7 @@ test('preview and approval: flagged tasks never go standing, a preview sends not
   assert.equal(JSON.stringify(stored).includes('x-api-key'), false);
   assert.equal(Object.hasOwn(preview, 'expiresAt'), false);
   assert.equal(preview.endpoint, 'https://api.anthropic.com/v1/messages');
-  assert.equal(preview.estimatedMaxCostDisplay, formatMicros(preview.estimatedMaxCostMicros));
+  assert.equal(preview.estimatedMaxCostDisplay, formatCost(preview.estimatedMaxCostMicros, { paidCalls: true })); // B2: the owner form
 
   await assert.rejects(deps.models.runPreview(owner, preview.callId, 'wrong-digest', validateWords), code('APPROVAL_STALE'));
   await assert.rejects(deps.models.runPreview(phone, preview.callId, preview.digest, validateWords), code('APP_APPROVAL_REQUIRED'));

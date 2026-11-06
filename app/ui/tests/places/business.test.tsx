@@ -5,6 +5,7 @@ import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError, type BlueprintViewLite, type BuildStatusView, type QueueList, type RulesListView } from '../../src/engine/types';
 import { lineDiff } from '../../src/places/business/SiteEdits';
 import { receiptMark } from '../helpers/ink-rules';
+import common from '../../src/text/en/common.json';
 
 type Bridged = Window & { chausar?: unknown };
 
@@ -43,11 +44,12 @@ describe('Business: plan and playbook', () => {
   it("shows the plan with the work plan's kind, offers priced only by receipt, steps and what you approve", async () => {
     start('#/business/plan');
     expect(await screen.findByRole('heading', { level: 1, name: 'How the work is done' })).toBeTruthy();
-    await waitFor(() => expect(within(screen.getByRole('main')).getByText(/YouTube channel/)).toBeTruthy());
+    // B3: the plan's kind line (the platform rules may name the platform too, once they are read).
+    await waitFor(() => expect(within(screen.getByRole('main')).getByText(/Version 2, accepted/).textContent).toContain('YouTube channel'));
     expect(screen.getByText(/Version 2, accepted/)).toBeTruthy();
     expect(screen.getByText('Weekly audio gear reviews on YouTube, cut into shorts, with sponsor slots.')).toBeTruthy();
     const sponsor = await offerRow('Sponsor slot');
-    expect(sponsor.textContent).toContain('₹15,000.00');
+    expect(sponsor.textContent).toContain('₹15,000');
     expect(within(sponsor).getByRole('button', { name: receiptMark('R-0408') })).toBeTruthy();
     const shorts = await offerRow('Shorts from your long video');
     expect(shorts.textContent).toContain('Price not set');
@@ -197,6 +199,8 @@ describe('Business: platform rules (2H)', () => {
     expect(screen.queryByRole('region', { name: 'Platform rules' })).toBeNull();
     expect(screen.queryByText('This business has no work instructions with dated platform rules.')).toBeNull();
     unmount();
+    // B3: the read store lets go of what nobody reads after the current task, so the page opened again reads afresh.
+    await act(async () => { await Promise.resolve(); });
 
     answer = () => Promise.reject(new EngineError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'));
     render(<App client={client} language="en" />);
@@ -210,10 +214,10 @@ describe('Business: prices', () => {
     const engine = await ledgerline();
     start('#/business/prices', engine);
     const books = await offerRow('Monthly books');
-    for (const text of ['₹16,000.00', 'CGST at 9%', '₹1,440.00', '₹18,880.00']) expect(books.textContent).toContain(text);
+    for (const text of ['₹16,000', 'CGST at 9%', '₹1,440', '₹18,880']) expect(books.textContent).toContain(text);
     const gst = await offerRow('GST working');
     await act(async () => { fireEvent.click(within(gst).getByRole('button', { name: 'Work out the price' })); });
-    await waitFor(() => expect(gst.textContent).toContain('₹5,000.00'));
+    await waitFor(() => expect(gst.textContent).toContain('₹5,000'));
     expect(within(gst).getByRole('button', { name: receiptMark(/^R-0\d{3}$/) })).toBeTruthy();
   });
 
@@ -222,14 +226,46 @@ describe('Business: prices', () => {
     const shorts = await offerRow('Shorts from your long video');
     fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
     await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
-    await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000.00'));
+    await waitFor(async () => expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000'));
     const waiting = await region('Waiting on you');
     const row = within(waiting).getByText('New price for Shorts from your long video').closest('li')!;
     expect(row.textContent).toContain('Not set');
     await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
-    expect(within(row).getByText(/This can't be undone/)).toBeTruthy();
+    expect(within(row).getByText(/Check it once more/)).toBeTruthy();
     await act(async () => { fireEvent.click(within(row).getAllByRole('button', { name: 'Accept' }).at(-1)!); });
     await waitFor(async () => expect((await plan(engine)).blueprint.status).toBe('accepted'));
+    // B3 (row 33, bug 9): one decided line in the engine's words; the card never comes back with Read and Accept.
+    await waitFor(() => expect(waiting.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
+    await act(async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(waiting.querySelectorAll('[data-row]')).toHaveLength(1);
+    expect(within(waiting).queryByRole('button', { name: 'Read' })).toBeNull();
+    expect(within(waiting).queryByRole('button', { name: 'Accept' })).toBeNull();
+    expect((await offerRow('Shorts from your long video')).textContent).toContain('₹12,000');
+    // Opened again in this session: the line, not a card.
+    await act(async () => { window.location.hash = '#/business/plan'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    await act(async () => { window.location.hash = '#/business/prices'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    const again = await region('Waiting on you');
+    await waitFor(() => expect(again.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
+    expect(within(again).queryByRole('button', { name: 'Accept' })).toBeNull();
+  });
+
+  it('a price decided on Prices shows the same line on Today, not "resolved elsewhere" (B3)', async () => {
+    start('#/business/prices');
+    const shorts = await offerRow('Shorts from your long video');
+    fireEvent.change(within(shorts).getByLabelText('New price for Shorts from your long video, in INR'), { target: { value: '12000' } });
+    await act(async () => { fireEvent.click(within(shorts).getByRole('button', { name: 'Save price' })); });
+    const waiting = await region('Waiting on you');
+    const row = (await within(waiting).findByText('New price for Shorts from your long video')).closest('li')!;
+    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Accept' })); });
+    await act(async () => { fireEvent.click(within(row).getAllByRole('button', { name: 'Accept' }).at(-1)!); });
+    await waitFor(() => expect(waiting.querySelector('[data-decided]')).not.toBeNull());
+    await act(async () => { window.location.hash = '#/today'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    const needs = await screen.findByRole('region', { name: 'Needs you' });
+    // A row Today never listed takes its place after the cards, behind the fold.
+    const more = await waitFor(() => within(needs).getByRole('button', { name: /^Show \d+ more$/ }));
+    await act(async () => { fireEvent.click(more); });
+    await waitFor(() => expect(needs.querySelector('[data-decided]')?.textContent).toContain('New price for Shorts from your long video accepted.'));
+    expect(needs.textContent).not.toContain(common['approval.elsewhere']);
   });
 
   it('an offer with no price says so and the engine refuses to price it', async () => {
@@ -464,7 +500,7 @@ describe('Business menu', () => {
     const hrefs = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
     // W4 4J20: last, after Away, "Invite your accountant" opens Money's accountant sheet (a read-only month of books).
     // W5 5A2: Go or no go, after Goals.
-    expect(hrefs).toEqual([['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Settled chats', '#/business/chats'], ['Reports', '#/business/reports'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
+    expect(hrefs).toEqual([['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Old chats', '#/business/chats'], ['Reports', '#/business/reports'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
     expect(hrefs).toHaveLength(13);
     expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
@@ -559,7 +595,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     await waitFor(() => expect(gst.textContent).toContain('Recomputed: same'));
     const portal = (await within(receipts).findByText("The portal's figures against the receipts")).closest('li')!;
     // The engine's own words for a stored portal diff whose figure was changed after it was made.
-    await waitFor(() => expect(portal.textContent).toContain('Recomputed: differs. Net payable: the portal less ours: the stored receipt has INR 80.00; worked again it is INR 75.00.'));
+    await waitFor(() => expect(portal.textContent).toContain('Recomputed: differs. Net payable: the portal less ours: the stored receipt has ₹80; worked again it is ₹75.'));
     expect(spy.mock.calls.filter(([method]) => method === 'venture.ca.receipt').map(([, params]) => params)).toEqual([{ id: 'w-gst-sep' }, { id: 'w-portal-sep' }]);
   });
 
@@ -567,7 +603,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     const engine = await ledgerline();
     start('#/business/ca', engine);
     const receipts = await screen.findByRole('region', { name: 'Receipts of the latest papers' });
-    const row = (await within(receipts).findByText('Net payable: ours INR 2,825.00, the portal INR 2,900.00')).closest('li')!;
+    const row = (await within(receipts).findByText('Net payable: ours ₹2,825, the portal ₹2,900')).closest('li')!;
     fireEvent.click(within(row).getByRole('button', { name: 'Explain' }));
     const note = 'The portal rounds the payable; the CA accepts the portal figure.';
     fireEvent.change(within(row).getByLabelText("Your CA's explanation"), { target: { value: note } });

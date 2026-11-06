@@ -135,12 +135,12 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       return (
         <>
           {t('team.instructions.tab')}
-          {version !== undefined && <>{' '}<span className={cx(c.tabBadge, 'mono')}>{t('team.instructions.badge', { version })}</span></>}
+          {version !== undefined && <>{' '}<span data-code="" className={cx(c.tabBadge, 'mono')}>{t('team.instructions.badge', { version })}</span></>}
         </>
       );
     }
     if (which === 'runs') {
-      return <>{t('team.runs')}{runs.data && <span className={cx(c.tabBadge, 'mono')} aria-hidden="true">{` ${mine.length}`}</span>}</>;
+      return <>{t('team.runs')}{runs.data && <span className={c.tabBadge} data-num="" aria-hidden="true">{` ${mine.length}`}</span>}</>;
     }
     return t(which === 'chat' ? 'team.chat.tab' : which === 'notes' ? 'team.notes.tab' : `team.${which}.tab`);
   };
@@ -156,7 +156,7 @@ export function AgentSheet({ id, onClose, returnFocus }: SheetComponentProps) {
           {' · '}
           <span className={s.panelState} data-tone={state}>
             {stateWords(t, state)}
-            {steps && <>{', '}<span className="mono">{t('bar.count', { done: steps.done, total: steps.total })}</span></>}
+            {steps && <>{', '}<span>{t('bar.count', { done: steps.done, total: steps.total })}</span></>}
           </span>
         </>
       )}
@@ -231,7 +231,7 @@ function RunLine({ run, agentId }: { run: RunSummary; agentId: string }) {
         </button>
         <p className={s.runMeta}>
           <StateChip kind="run" value={run.state} />
-          {elapsedOf(run) && <span className={cx(s.elapsed, 'mono')}>{elapsedOf(run)}</span>}
+          {elapsedOf(run) && <span className={s.elapsed}>{elapsedOf(run)}</span>}
         </p>
         {run.state === 'failed' && <p className={s.failure}>{run.result ?? t('run.stopped')}</p>}
         {run.state === 'done' && run.result !== undefined && (

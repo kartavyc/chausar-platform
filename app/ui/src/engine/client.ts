@@ -8,6 +8,7 @@
  */
 
 import { createEventFeed, pageVisibility, type PageVisibility } from './events';
+import { errorLine, ownerError } from './owner-errors';
 import { EngineError, type BackgroundStateLite, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
 
 export interface ChausarBridge {
@@ -125,10 +126,11 @@ function shareResult(value: unknown): InvoiceShareResult {
   throw new EngineError('REQUEST_FAILED', 'The desktop could not share the invoice.');
 }
 
+/** B1 fix round 1: the transport's owner flag goes on with the words (owner-errors.ts). */
 function asEngineError(error: unknown): EngineError {
-  if (error instanceof EngineError) return error;
-  const e = error as { code?: unknown; message?: unknown; reason?: unknown } | null;
-  return new EngineError(typeof e?.code === 'string' ? e.code : 'REQUEST_FAILED', typeof e?.message === 'string' ? e.message : 'The engine could not complete the request.', typeof e?.reason === 'string' ? e.reason : undefined);
+  if (error instanceof EngineError) return ownerError(error);
+  const e = error as { code?: unknown; message?: unknown; reason?: unknown; owner?: unknown } | null;
+  return ownerError({ code: typeof e?.code === 'string' ? e.code : 'REQUEST_FAILED', message: typeof e?.message === 'string' ? e.message : 'The request did not finish.', reason: e?.reason, owner: e?.owner });
 }
 
 export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient {
@@ -156,12 +158,12 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
       response = await env.fetch!('/api/phone/pair', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
     } catch {
       status.set({ state: 'offline' });
-      throw new EngineError('OFFLINE', 'The computer is not answering. Check that this phone is on the same Wi-Fi.');
+      throw new EngineError('OFFLINE', errorLine('client.phoneOffline'), undefined, true);
     }
     const body = (await response.json().catch(() => null)) as { token?: unknown; error?: { code?: string; message?: string } } | null;
     if (response.ok && typeof body?.token === 'string' && LOCAL_TOKEN.test(body.token)) { localToken = body.token; return; }
     status.set({ state: 'unpaired' });
-    throw asEngineError(body?.error ?? { code: 'UNAUTHENTICATED', message: 'This phone could not pair.' });
+    throw asEngineError(body?.error ?? { code: 'UNAUTHENTICATED', message: errorLine('client.pairFailed'), owner: true });
   }
 
   async function bearer(): Promise<string | null> {
@@ -211,7 +213,7 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     const token = await bearer();
     if (!token) {
       if (status.get().state !== 'offline') status.set(transport === 'web' && !hashToken ? { state: 'unpaired' } : { state: 'session-ended' });
-      throw new EngineError('UNAUTHENTICATED', 'This browser is not connected to the engine.');
+      throw new EngineError('UNAUTHENTICATED', errorLine('client.unpaired'), undefined, true);
     }
     let response: Response;
     try {
@@ -222,24 +224,26 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
       });
     } catch {
       status.set({ state: 'offline' });
-      throw new EngineError('OFFLINE', 'The engine is not answering.');
+      throw new EngineError('OFFLINE', errorLine('client.offline'), undefined, true);
     }
-    type Reply = { result?: unknown; error?: { code?: string; message?: string; reason?: string } };
+    type Reply = { result?: unknown; error?: { code?: string; message?: string; reason?: string; owner?: unknown } };
     let body: Reply | null = null;
     try { body = (await response.json()) as Reply; } catch { body = null; }
     if (response.status === 401) {
       if (transport === 'web') localToken = null; else hostedToken = null;
       status.set({ state: 'session-ended' });
-      throw new EngineError('UNAUTHENTICATED', body?.error?.message ?? 'This session ended.');
+      // B1 fix round 1: the server's own words (the trial-ended line) as sent; else this page's.
+      throw ownerError(body?.error?.message ? { code: 'UNAUTHENTICATED', message: body.error.message, owner: body.error.owner } : { code: 'UNAUTHENTICATED', message: errorLine('client.sessionEnded'), owner: true });
     }
     if (body?.error) {
       status.set({ state: 'ok' });
       throw asEngineError(body.error);
     }
     if (!response.ok || !body) {
-      const message = `HTTP ${response.status}`;
+      // B1 fix round 2: the status code stays out of the owner's words; the line is the page's own (errors.json).
+      const message = errorLine('client.noAnswer');
       status.set({ state: 'error', message });
-      throw new EngineError('HTTP_ERROR', message);
+      throw new EngineError('HTTP_ERROR', message, undefined, true);
     }
     status.set({ state: 'ok' });
     return body.result;
@@ -249,7 +253,8 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     transport,
     request<M extends MethodName>(method: M, params?: ParamsOf<M>): Promise<ResultOf<M>> {
       const payload = params ?? {};
-      return (bridge ? overDesktop(method, payload) : overHttp(method, payload)) as Promise<ResultOf<M>>;
+      // One-shot B1: a refusal reaches the page in the owner's words (owner-errors.ts), with its code kept.
+      return (bridge ? overDesktop(method, payload) : overHttp(method, payload)).catch((error: unknown) => { throw ownerError(error); }) as Promise<ResultOf<M>>;
     },
     subscribe(listener: (event: VentureRunEvent) => void) { return feed.subscribe(listener); },
     status: () => status.get(),

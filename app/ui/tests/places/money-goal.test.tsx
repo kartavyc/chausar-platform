@@ -36,8 +36,8 @@ describe('Money: the invoiced tile with the goal (W4 4I2)', () => {
   it('with a goal: the invoiced figure of the goal, the percent, the bar, days left in the pill and ahead of pace, each amount with its receipt', async () => {
     await start();
     const tile = await invoicedTile();
-    await waitFor(() => expect(tile.textContent).toContain('₹1,50,000.00'));
-    expect(tile.querySelector('[data-ui-number]')?.textContent).toBe('₹1,12,400.00');
+    await waitFor(() => expect(tile.textContent).toContain('₹1,50,000'));
+    expect(tile.querySelector('[data-ui-number]')?.textContent).toBe('₹1,12,400');
     expect(tile.textContent).toContain('74%');
     expect(tile.querySelector('[data-pill]')?.textContent).toBe('8 days left');
     expect(within(tile).getByRole('img').getAttribute('aria-label')).toBe("74% of the goal invoiced. Today's pace is 74%.");
@@ -62,7 +62,7 @@ describe('Money: the invoiced tile with the goal (W4 4I2)', () => {
     const tile = await invoicedTile();
     await waitFor(() => expect(tile.textContent).toContain('118%'));
     const foot = tile.querySelector<HTMLElement>('[data-goal-foot]')!;
-    expect(foot.textContent).toContain('₹18,880.00');
+    expect(foot.textContent).toContain('₹18,880');
     expect(foot.textContent).toContain('ready to issue');
     expect(foot.textContent).toContain('Past the goal by');
     expect(within(foot).getByRole('button', { name: receiptMark('R-0501') })).toBeTruthy();
@@ -72,7 +72,7 @@ describe('Money: the invoiced tile with the goal (W4 4I2)', () => {
   it("with no goal: the goals view's invoiced figure with its receipt, and no bar or percent", async () => {
     await start({ folder: 'ledgerline' });
     const tile = await invoicedTile();
-    await waitFor(() => expect(tile.querySelector('[data-ui-number]')?.textContent).toBe('₹16,000.00'));
+    await waitFor(() => expect(tile.querySelector('[data-ui-number]')?.textContent).toBe('₹16,000'));
     expect(within(tile).queryByRole('button', { name: receiptMark('R-0401') })).toBeNull();
     expect(within(tile).queryByRole('img')).toBeNull();
     expect(tile.textContent).not.toContain('%');

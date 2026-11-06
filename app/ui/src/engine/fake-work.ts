@@ -7,6 +7,7 @@ import {taxDecision} from '../../../../platform/runtime/venture/money/tax-decisi
 import {computeInclusivePrice,splitsInclusive} from '../../../../platform/runtime/venture/money/price-inclusive';
 import {computePrice} from '../../../../platform/runtime/venture/money/price';
 import {currencyMinorDigits,decimalMinor,formatMinor} from '../../../../platform/runtime/currency';
+import {formatMoney} from '../../../../platform/runtime/owner-format';
 import {countryProfile} from '../../../../platform/runtime/venture/core/countries';
 import {digest as priceDigest} from '../../../../platform/runtime/portable';
 import type {RoomPrice} from '../../../../platform/runtime/venture/playbooks/kit/client-room-core';
@@ -273,7 +274,7 @@ export class FakeWorkDesk {
       return this.r5Delivery.handles(p.runId)?this.r5Delivery.request(method,p):this.phoneDelivery.handles(p.runId)?this.phoneDelivery.request(method,p):this.devDelivery.handles(p.runId)?this.devDelivery.request(method,p):this.careerDelivery.handles(p.runId)?this.careerDelivery.request(method,p):this.vaDelivery.handles(p.runId)?this.vaDelivery.request(method,p):this.youtubeServices.handles(p.runId)?this.youtubeServices.request(method,p):this.narrationChain.handles(p.runId)?this.narrationChain.request(method,p):this.articleChain.handles(p.runId)?this.articleChain.request(method,p):this.socialChain.request(method,p);
       case 'venture.files.list': return clone((this.uploads[biz] ?? []).filter((u) => typeof p.orderId !== 'string' || ((u.scope.kind === 'order' || u.scope.kind === 'media') && u.scope.orderId === p.orderId)));
       case 'venture.files.add': {if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');if(!hasDocx(p))return this.addFile(biz,p);if(Object.keys(p).sort().join(',')!=='contentBase64,name,orderId')throw invalid('Send the required fields and nothing else.');return checkFakeDocx(p).then(()=>{if(this.host.current()!==biz)throw new EngineError('APPROVAL_STALE','The business changed. Review the file again.');return this.addFile(biz,p);});}
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -377,7 +378,7 @@ export class FakeWorkDesk {
       if(foreignPrice&&decision.treatment==='igst')throw new EngineError('FOREIGN_NEEDS_LUT',`Confirm your Letter of Undertaking (LUT) in your plan to bill this client in their currency, or bill them in ${country.currency}.`);
       if(foreignPrice&&decision.treatment!=='zero-rated-lut'&&decision.rateBps!=='0')throw new EngineError('FOREIGN_NEEDS_LUT',`Tax on this sale is worked out in ${country.currency}, so bill this client in ${country.currency}.`);
       const input={unitPriceMinor:foreignPrice?.unitPriceMinor??offer.pricing.unitPriceMinor!,quantity:order.quantity,discountBps:'0',taxRateBps:decision.rateBps,currency,taxTreatment:decision.treatment},computed=p.taxInclusive===true&&splitsInclusive(decision.treatment)?computeInclusivePrice(input):computePrice(input),id=order.priceReceiptId;
-      const display=formatMinor(computed.amounts.total,currency),receipt:ReceiptLite={id,at:order.at,stale:false,totalMinor:computed.amounts.total,figures:[{key:'unit',label:'Price per '+offer.pricing.quantityUnit,display:formatMinor(computed.amounts.unit,currency)},{key:'subtotal',label:'Subtotal',display:formatMinor(computed.amounts.subtotal,currency)},...(['taxable','tax','cgst','sgst','igst'] as const).flatMap(key=>computed.amounts[key]===null?[]:[{key,label:key.toUpperCase(),display:formatMinor(computed.amounts[key]!,currency)}]),{key:'total',label:'Total',display}],explanation:computed.steps.map(step=>step.rule+'; inputs: '+step.inputs.join(', ')+'; result: '+step.resultMinor+' minor units').join('. ')};
+      const display=formatMinor(computed.amounts.total,currency),receipt:ReceiptLite={id,at:order.at,stale:false,totalMinor:computed.amounts.total,figures:[{key:'unit',label:'Price per '+offer.pricing.quantityUnit,display:formatMoney(computed.amounts.unit,currency)},{key:'subtotal',label:'Subtotal',display:formatMoney(computed.amounts.subtotal,currency)},...(['taxable','tax','cgst','sgst','igst'] as const).flatMap(key=>computed.amounts[key]===null?[]:[{key,label:key.toUpperCase(),display:formatMoney(computed.amounts[key]!,currency)}]),{key:'total',label:'Total',display:formatMoney(computed.amounts.total,currency)}],explanation:computed.steps.map(step=>step.rule+'; inputs: '+step.inputs.join(', ')+'; result: '+step.resultMinor+' minor units').join('. ')};
       roomPrice={price:{offerId:offer.id,minor:computed.amounts.total,currency,receiptId:id,priceDigest:priceDigest({orderId:order.id,input,computed}),display},receipt};order.priceReceiptId=id;
       const split = computed.amounts.cgst !== null || computed.amounts.sgst !== null || computed.amounts.igst !== null;
       invoiceSnapshot = { countryCode: country.code, currency, subtotal: computed.amounts.subtotal, treatment: decision.treatment, rateBps: decision.rateBps,
@@ -450,7 +451,7 @@ export class FakeWorkDesk {
       if(resume && (!this.nativeCanResume(resume)||this.nativeSources.get(biz+':'+resume.runId)?.digest!==this.nativeSource(biz,order)))throw new EngineError('RUN_RESTART_REQUIRED','The saved work no longer matches this order. Start a new job.');
       const at=this.host.now();
       this.nativeSources.set(biz+':'+runId,{digest:this.nativeSource(biz,order),fileIds:this.orderFiles(biz,order.id).map(file=>file.id)});
-      runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:`Draft a reply for ${client.name}`,state:'active',startedAt:at,elapsed:'0s',progress:'indeterminate',steps:[{id:'read',purpose:"Read the order and the client's files",state:'pending'},{id:'write',purpose:'Write the draft',state:'pending'},{id:'review',purpose:'Review the draft',state:'pending'}],agentProgress:{messages:[],tools:[]}});
+      runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:`Draft a reply for ${client.name}`,state:'active',startedAt:at,elapsed:'',progress:'indeterminate',steps:[{id:'read',purpose:"Read the order and the client's files",state:'pending'},{id:'write',purpose:'Write the draft',state:'pending'},{id:'review',purpose:'Review the draft',state:'pending'}],agentProgress:{messages:[],tools:[]}});
       // No installed AI runs in this fake. It starts honestly with no fabricated tool results or answer.
       const stage=(this.host.ask?.('venture.get',{}) as {venture?:{launchStage?:string}}|null|undefined)?.venture?.launchStage;
       // W6 6C4: in Practice an AI draft for a real order is a practice draft, as the engine marks it.
@@ -459,11 +460,11 @@ export class FakeWorkDesk {
     }
     if(this.host.plan()?.playbook?.id==='social-agency')throw new EngineError('NOT_BUILT_YET','Social writing stages need an AI draft. Connect your AI and start this stage again.');
     const social=this.r5Delivery.start(order,runId,p)??this.phoneDelivery.start(order,runId,p)??this.devDelivery.start(order,runId,p)??this.careerDelivery.start(order,runId,p)??this.vaDelivery.start(order,runId,p);
-    if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'0s',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
+    if(social){runs.unshift({runId,businessId:biz,agent:this.host.agentName(),purpose:'Demo writing stage',state:'waiting',startedAt:this.host.now(),elapsed:'',progress:{done:0,total:1},steps:[{id:'write',purpose:'Demo writing stage',state:'current',elapsed:'now'}]});this.host.emit({type:'run.started',businessId:biz,runId,at:this.host.now()});return social;}
     const client = this.host.clients().find((c) => c.id === order.clientId)?.name ?? 'the client';
     const at = this.host.now();
     runs.unshift({
-      runId, businessId: biz, agent: this.host.agentName(), purpose: `Draft a reply for ${client}`, state: 'waiting', startedAt: at, elapsed: '0s',
+      runId, businessId: biz, agent: this.host.agentName(), purpose: `Draft a reply for ${client}`, state: 'waiting', startedAt: at, elapsed: '',
       progress: { done: 1, total: 2 },
       steps: [
         { id: 'write', purpose: 'Prepare the template outline', state: 'done' },

@@ -134,7 +134,7 @@ export function foldVotes(rules: readonly CalibrationRule[], ballot: Calibration
  * caught when its fold is false. by: 'model' when a model wrote the ballots (the line is then a model estimate).
  */
 export function calibrate(rules: readonly CalibrationRule[], fixtures: readonly CalibrationFixture[], ballots: Readonly<Record<string, CalibrationBallot>>, by: 'model' | 'code'): CalibrationResult {
-  check(fixtures.length >= 1 && fixtures.every(fixture => Object.hasOwn(ballots, fixture.id)), 'INVALID_VENTURE_REQUEST', 'Every calibration fixture needs the quality check\'s ballot.');
+  check(fixtures.length >= 1 && fixtures.every(fixture => Object.hasOwn(ballots, fixture.id)), 'INVALID_VENTURE_REQUEST', 'Every calibration example needs the quality check\'s ballot.');
   const results = fixtures.map(fixture => ({ fixture, fold: foldVotes(rules, ballots[fixture.id], fixture.trace) }));
   const agreed = results.filter(item => item.fold.value === item.fixture.expected).length;
   const missed = results.filter(item => item.fold.value !== item.fixture.expected)

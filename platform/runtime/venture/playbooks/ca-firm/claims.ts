@@ -14,6 +14,7 @@ import { loadBaseline, type BaselineFile } from '../../delivery/judge/baseline.t
 import { validateRules, type JudgeRule } from '../../delivery/judge/rules.ts';
 import type { ToolEnvelope } from '../../contracts.ts';
 import { bpsText } from './money.ts';
+import { formatMinor } from '../../../currency.ts';
 import { RATE_TABLES, rateTableHash } from './rates.ts';
 import type { CaCheckId, CaOfferId } from './playbook.ts';
 import type { CaEngine, CaReceipt } from './receipt.ts';
@@ -109,7 +110,8 @@ function mask(text: string, patterns: readonly RegExp[]): string {
 export function receiptSources(receipts: readonly CaReceipt[]): SourceText[] {
   return receipts.map(receipt => {
     const rates = [...JSON.stringify(receipt.working ?? {}).matchAll(/"rateBps":"(\d{1,5})"/g)].map(match => bpsText(match[1]));
-    return { id: receipt.id, text: [...receipt.figures.map(item => `${item.label}: ${item.display}`), ...new Set(rates)].join('\n') };
+    // The claim check's source text, read by code and the AI judge only: each amount in the exact form from its minor units.
+    return { id: receipt.id, text: [...receipt.figures.map(item => `${item.label}: ${formatMinor(item.minor, 'INR')}`), ...new Set(rates)].join('\n') };
   });
 }
 

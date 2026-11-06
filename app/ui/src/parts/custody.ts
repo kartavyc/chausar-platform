@@ -6,6 +6,7 @@
 
 import { EngineError } from '../engine/types';
 import type { T } from '../text';
+import { formatMoment } from '../../../../platform/runtime/owner-format';
 
 /** TRANSFER.maxTextChars in platform/runtime/workspace-custody-contracts.ts: a bigger move file is refused before it is sent. */
 export const TRANSFER_MAX_CHARS = 1_900_000;
@@ -13,11 +14,13 @@ export const TRANSFER_MAX_CHARS = 1_900_000;
 export const NEW_PASSPHRASE_MIN = 12;
 
 /**
- * Engine refusals whose own words name the vault or a credential: Ink says them in plain words instead. Every other
- * refusal (the custody ones above all) arrives in the engine's plain words already and is shown as it came.
+ * Engine refusals Ink says in this screen's own words. Every other refusal arrives in the owner's words already and is
+ * shown as it came; a wrong passphrase (UNLOCK_FAILED) is worded once, in text/en/errors.json (engine/owner-errors.ts).
  */
 const PLAIN = new Set([
-  'UNLOCK_FAILED', 'VAULT_OPEN', 'VAULT_LOCKED', 'WEAK_PASSPHRASE', 'WORKSPACE_NOT_FOUND', 'INVALID_PATH',
+  // B1 fix round 2: not VAULT_LOCKED. The engine says it in owner words, some of them specific ("Choose one of your
+  // businesses first."), so its own line is shown.
+  'VAULT_OPEN', 'WEAK_PASSPHRASE', 'WORKSPACE_NOT_FOUND', 'INVALID_PATH',
   // W4 4F3: the run controls' refusals, in the screen's words (English and Hindi).
   'RUN_NOT_RUNNING', 'RUN_ALREADY_STOPPED', 'RUN_NOT_STOPPED', 'RUN_SUPERSEDED', 'BUSINESS_PAUSED',
 ]);
@@ -37,10 +40,9 @@ export function groupsOf(code: string): string[] {
   return code.match(/.{1,4}/g) ?? [];
 }
 
-/** A moment as the reader's calendar writes it: "21 Oct 2026, 11:30 am". Dates only; no figure is formatted here. */
-export function momentOf(at: string, language: string): string {
-  const date = new Date(at);
-  return Number.isNaN(date.getTime()) ? at : new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+/** A moment in the owner's zone (`useOwnerZone`): "21 Oct 2026, 11:30 am". Dates only; no figure is formatted here. */
+export function momentOf(at: string, zone: string): string {
+  return formatMoment(at, zone);
 }
 
 /**

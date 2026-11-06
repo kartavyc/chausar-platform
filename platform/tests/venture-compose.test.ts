@@ -112,7 +112,7 @@ function statusStub(): AiStatusView {
       fast: { presetId: 'built-in-templates', model: null, usable: true, reason: '', verification: 'built-in', verificationNote: null },
       main: { presetId: 'built-in-templates', model: null, usable: true, reason: '', verification: 'built-in', verificationNote: null },
     },
-    spentThisMonthMicros: '0', spentThisMonthDisplay: 'USD 0.0000', estimate: false, sendPolicy: 'shape', replay: { active: true, label: 'synthetic recording' },
+    spentThisMonthMicros: '0', spentThisMonthDisplay: '$0.00', estimate: false, sendPolicy: 'shape', replay: { active: true, label: 'synthetic recording' },
     scope: 'before-vault', idleUntil: null,
   };
 }
@@ -341,7 +341,7 @@ test('assembleComposed is pure: ids by order, labels, step data from the library
 
   const priced = applyComposePatch(plan, { offers: [{ id: 'offer_1', unitPrice: '18' }, { id: 'offer_2', unitPrice: '60.50' }] });
   assert.notEqual(priced.digest, plan.digest);
-  assert.deepEqual(priced.offers.map(offer => [offer.pricing.unitPriceMinor, offer.pricing.unitPriceLabel, offer.priceDisplay]), [['1800', 'told-by-you', 'GBP 18.00'], ['6050', 'told-by-you', 'GBP 60.50']]);
+  assert.deepEqual(priced.offers.map(offer => [offer.pricing.unitPriceMinor, offer.pricing.unitPriceLabel, offer.priceDisplay]), [['1800', 'told-by-you', 'GBP 18'], ['6050', 'told-by-you', 'GBP 60.50']]);
   assert.equal(plan.offers[0].pricing.unitPriceMinor, null, 'the patch never changes the plan it was given');
   const taxed = applyComposePatch(priced, { taxRegistered: true });
   assert.notEqual(taxed.digest, priced.digest);

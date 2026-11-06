@@ -53,8 +53,15 @@ select {
   letter-spacing: -0.01em;
 }
 
-/* Every number the engine sends keeps its digits in columns, whatever face its part sets. */
+/* Every number the engine sends, and every count and time, keeps its digits in columns in the body font (B2). */
 [data-ui-number] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* data-num: an amount, a percent, a duration or a time shown outside a Figure (a chart's axis, a receipt's rows). */
+[data-count],
+[data-num],
+time {
   font-variant-numeric: tabular-nums;
 }
 

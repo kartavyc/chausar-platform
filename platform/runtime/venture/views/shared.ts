@@ -2,6 +2,7 @@
 // Views only read. Every write goes through ventureAction in records.ts, or through the engine method that owns it.
 import type { State } from '../../contracts.ts';
 import { listRecords } from '../records.ts';
+import { formatAge } from '../../owner-format.ts';
 import { serviceTypeOf } from '../delivery/shared.ts';
 import type { ServiceType, VentureDeps, VentureRecord } from '../contracts.ts';
 
@@ -47,18 +48,13 @@ export function lastEventAt(state: State, ventureId: string): Map<string, string
   return times;
 }
 
-/** Elapsed time as the screens show it: '45s', '4m', '1h 5m', '2d 3h'. Whole units only, never negative. */
+/**
+ * Elapsed time as the screens show it (owner-format.ts formatAge): "45 s", "1 min 20 s" (seconds while under ten
+ * minutes), "12 min", "1 h 5 min", "2 days 3 h"; never negative, and nothing under a second, so no screen says
+ * "Worked for 0s" (the app hides an empty elapsed).
+ */
 export function elapsedText(fromIso: string, toIso: string): string {
-  const ms = Math.max(0, Date.parse(toIso) - Date.parse(fromIso));
-  if (!Number.isFinite(ms)) return '0s';
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return minutes % 60 ? `${hours}h ${minutes % 60}m` : `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return hours % 24 ? `${days}d ${hours % 24}h` : `${days}d`;
+  return formatAge(fromIso, toIso);
 }
 
 /** Plain JSON: drops keys whose value is undefined, so canonical digests never see them. */

@@ -2,7 +2,7 @@
 // final one), due dates on orders and invoices, payment terms and reminder schedules, every amount BigInt with a receipt,
 // and each invoice still issued only on the owner's approval of its exact digest. Amounts are worked out by hand.
 //
-// The goals business: INR 19,750.00 a month, GST 18% split CGST and SGST for a client in state 27:
+// The goals business: ₹19,750 a month, GST 18% split CGST and SGST for a client in state 27:
 // taxable 1975000, CGST 177750, SGST 177750, total 2330500.
 import test from 'node:test';
 import assert from 'node:assert/strict';

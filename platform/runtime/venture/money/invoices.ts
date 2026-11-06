@@ -7,8 +7,8 @@
 // charged, and a tax-included price says so on its line (tax-kinds.ts splits it); recurring schedules draft through
 // draftInvoiceIn; the view adds the invoice's next step, its timeline (invoice-states.ts), its credit notes, the TDS
 // the client deducted and, on a draft whose rate is no longer the plan's, the rate change, which only the owner acts on.
-import { check, type Context, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
+import { formatMoney, plainMoney } from '../../owner-format.ts';
+import { check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { gstinValid } from '../../memory.ts';
 import {
   activateTerm, digest, exactPayload, isoDate, listRecords, readVenture, requireAppChannel, ventureAction, type VentureTx,
@@ -117,7 +117,7 @@ export function invoiceDigest(invoice: InvoiceRecord): string {
  * display text, so Total = Paid + Credited + Balance.
  */
 function invoiceFigures(invoice: InvoiceRecord, receipt: PriceReceiptRecord, creditedMinor: bigint): PriceFigure[] {
-  const money = (key: PriceFigure['key'], label: string, minor: MinorString): PriceFigure => ({ key, label, minor, display: formatMinor(minor, invoice.currency), currency: invoice.currency });
+  const money = (key: PriceFigure['key'], label: string, minor: MinorString): PriceFigure => ({ key, label, minor, display: formatMoney(minor, invoice.currency), currency: invoice.currency });
   const keys = invoice.taxTreatment === 'zero-rated-lut' ? ['tax' as const] : taxLineKeys(invoice.taxTreatment);
   const figures: PriceFigure[] = [money('subtotal', 'Subtotal', invoice.subtotalMinor)];
   invoice.taxLines.forEach((line, index) => figures.push(money(keys[index] ?? 'tax', line.label, line.minor)));
@@ -196,7 +196,7 @@ function billedOf(state: State, venture: VentureRecord, invoice: InvoiceRecord):
   const counted = countedOn(listRecords(state, 'venture-invoice', venture.id), invoice.orderId);
   const billed = counted.reduce((sum, item) => sum + BigInt(item.totalMinor), 0n);
   const total = BigInt(invoice.part.orderTotalMinor);
-  const money = (minor: bigint) => formatMinor(minor, invoice.currency);
+  const money = (minor: bigint) => formatMoney(minor, invoice.currency);
   return {
     orderTotalMinor: String(total), billedMinor: String(billed), leftMinor: String(total - billed),
     orderTotal: money(total), billed: money(billed), left: money(total - billed), invoices: counted.length,
@@ -253,7 +253,7 @@ function partReceipt(tx: VentureTx, invoiceId: string, basis: PriceReceiptRecord
     igst: treatment === 'igst' ? String(cut.lines[0] ?? 0n) : null, total: String(cut.total),
   };
   const figures = priceFigures(amounts, decision, taxLabel, 'invoice', currency);
-  const money = (minor: bigint | string) => formatMinor(minor, currency);
+  const money = (minor: bigint | string) => formatMoney(minor, currency);
   const kind: PartAsk['kind'] = cut.final ? 'final' : ask.kind;
   const share = ask.shareBps !== null && !cut.final ? ratePercent(String(ask.shareBps)) : null;
   const explanation = cut.final
@@ -261,7 +261,7 @@ function partReceipt(tx: VentureTx, invoiceId: string, basis: PriceReceiptRecord
     : share !== null
       ? `${PART_WORDS[kind]}: ${share}% of the order's ${money(receiptTaxable(basis))} before tax is ${money(cut.taxable)}${partTaxWords(figures, decision, taxLabel, cut.tax)} = ${money(cut.total)}.`
       : `${PART_WORDS[kind]} of ${money(cut.taxable)} before tax${partTaxWords(figures, decision, taxLabel, cut.tax)} = ${money(cut.total)}.`;
-  const plain = (minor: bigint | string) => money(minor).slice(currency.length + 1).replace(/,/g, '');
+  const plain = (minor: bigint | string) => plainMoney(minor, currency);
   const record: PriceReceiptRecord = {
     ...tx.base('venture-price-receipt'),
     subject: { type: 'invoice', invoiceId },
@@ -447,7 +447,7 @@ export async function issueInvoice(deps: VentureDeps, ctx: Context, payload: unk
   requireAppChannel(ctx, 'venture.invoice.issue');
   const body = exactPayload(payload, ['invoiceId', 'digest'], ['invoiceId', 'digest']);
   const invoiceId = recordId(body.invoiceId, 'Invoice');
-  check(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the invoice you checked.');
   const approved = body.digest;
 
   // Checked before anything is journalled, with the same refusals the issue commit gives.
@@ -541,6 +541,6 @@ export async function listInvoices(deps: VentureDeps, ctx: Context, payload: unk
     .map(invoice => {
       // 4J4 (M9): an open invoice past its due day says how late it is, on the owner's calendar.
       const late = lateOf(invoice, today);
-      return { ...invoice, total: formatMinor(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId, next: invoiceNext(state, { ...venture, country: invoiceCountry(state, venture, invoice) }, invoice, today), ...(late ? { late } : {}) };
+      return { ...invoice, total: formatMoney(invoice.totalMinor, invoice.currency), receiptId: invoice.priceReceiptId, next: invoiceNext(state, { ...venture, country: invoiceCountry(state, venture, invoice) }, invoice, today), ...(late ? { late } : {}) };
     });
 }

@@ -8,6 +8,7 @@
  * ffmpeg, so it takes no still: the poster method answers as the engine does on a computer without ffmpeg.
  */
 
+import { formatDay } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type InvoiceLite, type OrderLite, type OrderStageReason, type OrderStageView, type OrderWaitsOnYou, type QueuePreview, type QueueRow, type UploadLite,
 } from './types';
@@ -27,16 +28,16 @@ export const FAKE_PREVIEWS: Readonly<Record<string, QueuePreview>> = {
   },
   'q-invoice-mehta': {
     kind: 'paper', paper: 'invoice', title: 'TAX INVOICE (draft)', from: 'Ledgerline', to: 'Mehta Traders',
-    lines: [{ label: 'Monthly books, September', quantity: '1', unit: '₹16,000.00', value: '₹16,000.00', ...price }],
-    subtotal: { label: 'Subtotal', value: '₹16,000.00', ...price },
-    taxLines: [{ label: 'CGST at 9%', value: '₹1,440.00', ...price }, { label: 'SGST at 9%', value: '₹1,440.00', ...price }],
-    total: { label: 'Total', value: '₹18,880.00', ...price },
+    lines: [{ label: 'Monthly books, September', quantity: '1', unit: '₹16,000', value: '₹16,000', ...price }],
+    subtotal: { label: 'Subtotal', value: '₹16,000', ...price },
+    taxLines: [{ label: 'CGST at 9%', value: '₹1,440', ...price }, { label: 'SGST at 9%', value: '₹1,440', ...price }],
+    total: { label: 'Total', value: '₹18,880', ...price },
     due: { days: 15, date: '2026-11-05', display: 'Due in 15 days' },
   },
   // The working's figures are the CA receipt's own (fixtures-extras.ts CA_RECEIPTS w-gst-sep).
   'q-signoff-gst': {
     kind: 'paper', paper: 'working', title: 'GST working for September', client: 'Mehta Traders',
-    working: [{ label: 'Output IGST', value: 'INR 900.00', ...gst }, { label: 'Net payable', value: 'INR 2,825.00', ...gst }],
+    working: [{ label: 'Output IGST', value: '₹900', ...gst }, { label: 'Net payable', value: '₹2,825', ...gst }],
     more: 0, signer: { name: 'Meera Joshi', state: 'to-send' },
   },
   'q-question-title': {
@@ -96,9 +97,8 @@ export const FAKE_ORDER_STEPS: Readonly<Record<string, { stages: OrderStageView[
   },
 };
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-/** A day as the engine writes it for an Indian business (records.ts formatVentureDate, day month year): "05 Nov 2026". */
-const dayWords = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d} ${MONTHS[Number(m) - 1] ?? m} ${y}`; };
+/** A day as the engine writes it for an Indian business (records.ts formatVentureDate, day month year): "5 Nov 2026". */
+const dayWords = (iso: string) => formatDay(iso, 'UTC');
 
 /** The fixed steps for an order the fake made itself: the Invoice and Paid steps from the order's own invoice. */
 function fixedSteps(order: OrderLite, invoices: readonly InvoiceLite[]): { stages: OrderStageView[]; waitsOnYou: OrderWaitsOnYou | null } {

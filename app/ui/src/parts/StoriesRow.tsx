@@ -79,7 +79,7 @@ export function StoriesRow({ stories, onOpen, lead, onAdd, scroll = false, label
             <button type="button" className={s.story} aria-label={status.name} onClick={() => onOpen(story.id)}>
               <Avatar name={story.name} dept={story.dept} state={story.state} badge size={60} />
               <span className={s.name}>{story.name}</span>
-              <span className={cx(s.status, status.count && 'mono')} data-tone={status.tone} data-count={status.count ? '' : undefined}>{status.word}</span>
+              <span className={s.status} data-tone={status.tone} data-count={status.count ? '' : undefined}>{status.word}</span>
             </button>
           </li>
         );

@@ -1,3 +1,4 @@
+import { formatDay, formatTime } from '../../../../platform/runtime/owner-format';
 import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
@@ -14,9 +15,9 @@ import { assertInkRules } from '../helpers/ink-rules';
 
 type Edit = (method: string, answer: unknown, params: unknown) => unknown;
 
-/** A moment as this computer's clock writes it, as the screen does: "21 Oct" and "10:42". */
-const dayOf = (iso: string) => new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(new Date(iso));
-const timeOf = (iso: string) => new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+/** A moment as the screen writes it (B2): the fake business is in India, so its zone, "21 Oct" and "10:42 am". */
+const dayOf = (iso: string) => formatDay(iso, 'Asia/Kolkata', 'short');
+const timeOf = (iso: string) => formatTime(iso, 'Asia/Kolkata');
 
 function start(options: FakeOptions = {}, edit?: Edit) {
   window.location.hash = '#/work?order=o-boat-14';

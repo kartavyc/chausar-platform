@@ -4,7 +4,7 @@ import { constants } from 'node:fs';
 import { lstat, mkdir, open, readdir, realpath, rmdir, link, unlink } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { authorize, check, ChausarError, hash, type Context, type State } from './contracts.ts';
+import { authorize, check, ChausarError, hash, type Context, type State, internalCheck } from './contracts.ts';
 import { acquireProcessLock } from './process-lock.ts';
 import { assertSourceAccess } from './trust.ts';
 import { safeDirectory, Vault, type PrivateArtifactRef, type VaultEncryptedCustodyCapture } from './vault.ts';
@@ -156,7 +156,7 @@ export class WorkspaceBackupV2LocalCustody {
   #measurements = new Map<string, WorkspaceBackupV2LocalMeasurement>();
 
   constructor(options: WorkspaceBackupV2LocalOptions) {
-    check(options?.vault instanceof Vault && options.vault.storageKind === 'experimental-file'
+    internalCheck(options?.vault instanceof Vault && options.vault.storageKind === 'experimental-file'
       && typeof options.assertCompleteOwner === 'function' && typeof options.withCompleteOwner === 'function'
       && typeof options.applicationDirectory === 'string' && isAbsolute(options.applicationDirectory),
     'BACKUP_LOCAL_REQUIRED', 'Local custody requires an experimental-file Vault, canonical root application directory and held complete-owner admission.');
@@ -165,7 +165,7 @@ export class WorkspaceBackupV2LocalCustody {
       'BACKUP_SOURCE_SCOPE', 'Use one direct managed source workspace below the application directory.');
     if (options.workspaceActivation !== undefined) {
       const activation = options.workspaceActivation, journal = activation?.journalVault;
-      check(activation && ['journalVault', 'inspectCurrentLive,journalVault'].includes(Object.keys(activation).sort().join(','))
+      internalCheck(activation && ['journalVault', 'inspectCurrentLive,journalVault'].includes(Object.keys(activation).sort().join(','))
         && (activation.inspectCurrentLive === undefined || typeof activation.inspectCurrentLive === 'function') && journal instanceof Vault
         && journal !== options.vault && journal.storageKind === 'experimental-file',
       'BACKUP_ACTIVATION_SCOPE', 'Reviewed activation requires a separate actual experimental-file journal Vault.');
@@ -301,7 +301,7 @@ export class WorkspaceBackupV2LocalCustody {
     });
   }
   async #locked<T>(section: 'records' | 'targets', key: string, work: () => Promise<T>) {
-    const scope = this.#scope.getStore(); check(scope, 'BACKUP_SOURCE_LEASE_REQUIRED', 'Acquire the Vault authority queue before record or target exclusion.');
+    const scope = this.#scope.getStore(); internalCheck(scope, 'BACKUP_SOURCE_LEASE_REQUIRED', 'Acquire the Vault authority queue before record or target exclusion.');
     const path = join(this.#options.applicationDirectory, CONTROL, section, `${sha(key)}.lock`);
     const lock = await acquireProcessLock(path, { busyCode: 'BACKUP_BUSY', changedCode: 'BACKUP_LOCK_CHANGED' });
     const witness = (await readRegular(path, `application/workspace-backup-control/${section}/${sha(key)}.lock`, this.#options.filesystemBudgets.maxBytes)).witness;
@@ -351,7 +351,7 @@ export class WorkspaceBackupV2LocalCustody {
         && /^attempt_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value.staging.name)
         && physicalValue(value.staging.physical), 'BACKUP_ACTIVATION_STAGING_UNBOUND', 'Staging must have an exact durable attempt name and physical identity.');
       if (['prepared', 'committed'].includes(value.phase)) {
-        check(value.staging && Array.isArray(value.files) && value.files.length > 0 && Array.isArray(value.directories)
+        internalCheck(value.staging && Array.isArray(value.files) && value.files.length > 0 && Array.isArray(value.directories)
           && value.directories.includes('live') && value.files.length + value.directories.length <= this.#options.filesystemBudgets.maxFiles
           && value.files.every(item => item && Object.keys(item).sort().join(',') === 'path,witness' && encryptedActivationPath(item.path)
             && item.witness && Object.keys(item.witness).sort().join(',') === 'birthtimeNs,bytes,dev,ino,sha256'
@@ -518,7 +518,7 @@ export class WorkspaceBackupV2LocalCustody {
         await safeDirectory(directory);
         for (const name of (await readdir(directory)).sort()) {
           const next = prefix ? `${prefix}/${name}` : name, child = join(directory, name), stat = await lstat(child, { bigint: true }), issued = expected.get(next);
-          check(!stat.isSymbolicLink() && (stat.isDirectory() ? expectedDirectories.has(next) : stat.isFile() && expected.has(next)),
+          internalCheck(!stat.isSymbolicLink() && (stat.isDirectory() ? expectedDirectories.has(next) : stat.isFile() && expected.has(next)),
             'BACKUP_ACTIVATION_STAGING_UNBOUND', 'An actual activation path has no exact issued encrypted manifest identity.');
           if (stat.isFile()) check(stat.nlink === 1n && stat.size > 0n && stat.size <= BigInt(b.maxBytes),
             'BACKUP_ACTIVATION_CUSTODY_CHANGED', 'Live inspection requires bounded regular singly owned encrypted files.');
@@ -547,7 +547,7 @@ export class WorkspaceBackupV2LocalCustody {
       await inspectCurrent(); await inspectLayout();
       const found = await walk(path, logical, 0, { prefix: logical, files: expected, directories: expectedDirectories, mutableAuthority });
       const actualDirectories = directories.slice(directoryStart).map(item => item.path.slice(logical.length + 1)).filter(Boolean);
-      check(same(actualDirectories.sort(), [...expectedDirectories].sort())
+      internalCheck(same(actualDirectories.sort(), [...expectedDirectories].sort())
         && same(files.slice(fileStart).map(item => item.path.slice(logical.length + 1)).sort(), [...expected.keys()].sort()),
       'BACKUP_ACTIVATION_STAGING_UNRESOLVED', 'Actual owned activation files and directories must equal the complete durable phase manifest.');
       for (const file of files.slice(fileStart)) {
@@ -571,7 +571,7 @@ export class WorkspaceBackupV2LocalCustody {
       for (const name of await readdir(directory)) check(['authority.encrypted.json', 'writer.lock', 'private-artifacts'].includes(name),
         'BACKUP_INVENTORY_INCOMPLETE', 'The reviewed journal contains an unclassified physical namespace.');
       const raw = await journal.captureEncryptedCustody(this.#vaultBudget(true));
-      check(raw.storageKind === 'experimental-file' && raw.authorityKind === 'exact-file-bytes' && raw.vaultId === journal.vaultId && same(raw.state, journal.read()),
+      internalCheck(raw.storageKind === 'experimental-file' && raw.authorityKind === 'exact-file-bytes' && raw.vaultId === journal.vaultId && same(raw.state, journal.read()),
         'BACKUP_ACTIVATION_JOURNAL_CHANGED', 'Journal namespace must authenticate with its own actual current Vault authority.');
       const logical = `application/journal/${journalName}`, journalStart = files.length;
       await walk(directory, logical, 0);
@@ -640,7 +640,7 @@ export class WorkspaceBackupV2LocalCustody {
         check(info.isDirectory() && same(physical(info), reserved.reservation.physical),
           'BACKUP_TARGET_CHANGED', 'A source-owned interchange target changed its reserved physical identity.');
         const populated = (await readdir(path)).length > 0, matching = journals.filter(value => value.journal.phase === 'committed' && same(value.journal.reservationRef, reserved.ref));
-        check(!populated || matching.length === 1, 'BACKUP_ACTIVATION_TARGET_UNBOUND', 'Populated target custody requires one exact committed durable activation manifest.');
+        internalCheck(!populated || matching.length === 1, 'BACKUP_ACTIVATION_TARGET_UNBOUND', 'Populated target custody requires one exact committed durable activation manifest.');
         const logical = `application/targets/${name}`, found = populated ? await manifestWalk(path, logical, matching[0], false) : await walk(path, logical, 0);
         namespaces.push({ namespace: logical, disposition: found.entries ? 'outside-archive' : 'empty', ...found,
           requirement: found.entries ? 'Source-owned initialized target ciphertext is separately measured under its exact committed manifest; it is outside this source archive and requires fresh target credentials.' : '' });
@@ -661,7 +661,7 @@ export class WorkspaceBackupV2LocalCustody {
       'BACKUP_LOCAL_REQUIRED', 'Local qualification requires authenticated exact persisted file authority.');
     const inventory = await this.#inventory();
     const authority = inventory.files.find(item => item.path === 'authority');
-    check(authority?.bytes === raw.authority.length && authority.sha256 === sha(raw.authority), 'BACKUP_FILE_CHANGED', 'Actual authority bytes differ from Vault-authenticated custody.');
+    internalCheck(authority?.bytes === raw.authority.length && authority.sha256 === sha(raw.authority), 'BACKUP_FILE_CHANGED', 'Actual authority bytes differ from Vault-authenticated custody.');
     const artifacts = raw.artifacts.map(item => ({ ref: identity(item.ref), bytes: Uint8Array.from(item.bytes) }));
     for (const item of artifacts) {
       const found = inventory.files.find(file => file.path === `private-artifacts/${item.ref.purpose}/${item.ref.id}.encrypted.json`);
@@ -675,7 +675,7 @@ export class WorkspaceBackupV2LocalCustody {
         bytes: artifacts.filter(item => item.ref.purpose === purpose).reduce((n, item) => n + item.bytes.length, 0), requirement: '' })), ...inventory.namespaces];
     namespaces.sort((a, b) => a.namespace < b.namespace ? -1 : a.namespace > b.namespace ? 1 : 0);
     const externalKeyRequirements = structuredClone(this.#options.externalKeyRequirements);
-    check(externalKeyRequirements.some(item => item.provider === 'other' && item.namespace === 'operator/credential-wrappers'),
+    internalCheck(externalKeyRequirements.some(item => item.provider === 'other' && item.namespace === 'operator/credential-wrappers'),
       'BACKUP_EXTERNAL_KEYS_REQUIRED', 'Explicitly classify operator credentials needed to unwrap archive authority.');
     if (raw.keychainHookPresent) check(externalKeyRequirements.some(item => item.provider === 'keychain'),
       'BACKUP_EXTERNAL_KEYS_REQUIRED', 'An active keychain hook requires explicit separate destination keychain custody.');
@@ -697,9 +697,9 @@ export class WorkspaceBackupV2LocalCustody {
     const expectedFiles = new Map(captured.inventory.files.map(item => [item.path, item]));
     for (const [key, change] of changes) {
       const path = `private-artifacts/${key}.encrypted.json`; expectedFiles.delete(path);
-      if (change) { const current = now.inventory.files.find(item => item.path === path); check(current && current.bytes === change.ref.diskBytes
+      if (change) { const current = now.inventory.files.find(item => item.path === path); internalCheck(current && current.bytes === change.ref.diskBytes
         && current.sha256 === change.sha256, 'BACKUP_SOURCE_CHANGED', 'An adapter-owned custody publication changed.'); }
-      else check(!now.inventory.files.some(item => item.path === path), 'BACKUP_SOURCE_CHANGED', 'Revoked adapter-owned ciphertext reappeared.');
+      else internalCheck(!now.inventory.files.some(item => item.path === path), 'BACKUP_SOURCE_CHANGED', 'Revoked adapter-owned ciphertext reappeared.');
     }
     const actualFiles = now.inventory.files.filter(item => !changes.has(item.path.replace(/^private-artifacts\//, '').replace(/\.encrypted\.json$/, '')));
     check(same(actualFiles, [...expectedFiles.values()].sort((a, b) => a.path.localeCompare(b.path))), 'BACKUP_SOURCE_CHANGED', 'Actual source bytes or wider files changed during custody.');
@@ -819,7 +819,7 @@ export class WorkspaceBackupV2LocalCustody {
       && typeof av.content === 'string' && pv.pin && sha(canonical(pv.pin)) === binding.pinDigest && pv.pin.archiveDigest === binding.archiveDigest,
     'BACKUP_CUSTODY_CHANGED', 'Authenticated archive and independent pin differ from their durable issuance binding.');
     const checked = validateWorkspaceBackupV2(av.content, pv.pin.sourcePin, this.#options.budgets);
-    check(checked.digest === binding.archiveDigest, 'BACKUP_CUSTODY_CHANGED', 'The complete archive differs from its durable issuance digest.');
+    internalCheck(checked.digest === binding.archiveDigest, 'BACKUP_CUSTODY_CHANGED', 'The complete archive differs from its durable issuance digest.');
     return { record: { content: av.content, pin: structuredClone(pv.pin) } as WorkspaceBackupV2CustodyRecord,
       measurement: this.#measure(identity(archive), identity(pin)), binding, ref: identity(retained) };
   }
@@ -832,7 +832,7 @@ export class WorkspaceBackupV2LocalCustody {
     }));
   }
   async #remove(context: Context, input: { recordId: string; creationId: string; expectedArchiveDigest: string; expectedPinDigest: string }) {
-    check(idPattern.test(input.recordId) && idPattern.test(input.creationId) && digestPattern.test(input.expectedArchiveDigest) && digestPattern.test(input.expectedPinDigest),
+    internalCheck(idPattern.test(input.recordId) && idPattern.test(input.creationId) && digestPattern.test(input.expectedArchiveDigest) && digestPattern.test(input.expectedPinDigest),
       'BACKUP_RECORD_ID', 'Cleanup requires exact issuance identity and both reviewed digests.');
     await this.#snapshot(context, () => this.#locked('records', `${this.#options.vault.vaultId}:${input.recordId}`, async () => {
       const started = performance.now(), result = await this.#readUnlocked(context, input.recordId);
@@ -999,11 +999,11 @@ export class WorkspaceBackupV2LocalCustody {
     const file = await readRegular(join(actual.path, INERT), `target/${input.targetId}/${INERT}`, this.#containerLimit());
     check(file.witness.sha256 === actual.reservation.containerSha256, 'BACKUP_TARGET_CHANGED', 'The exact inert container changed.');
     const value = JSON.parse(file.bytes.toString('utf8'));
-    check(value?.format === 'chausar.backup-inert-container.v2' && Object.keys(value).sort().join(',') === 'content,format,receipt'
+    internalCheck(value?.format === 'chausar.backup-inert-container.v2' && Object.keys(value).sort().join(',') === 'content,format,receipt'
       && value.receipt?.creationId === input.creationId && value.receipt.targetId === input.targetId && value.receipt.archiveDigest === actual.reservation.archiveDigest
       && value.receipt.inert === true && value.receipt.activation === 'root-only', 'BACKUP_PARTIAL_RESTORE', 'Inert readback must bind exact receipt identity and archive digest.');
     const archive = validateWorkspaceBackupV2(value.content, value.receipt.sourcePin, this.#options.budgets);
-    check(archive.digest === value.receipt.archiveDigest, 'BACKUP_PARTIAL_RESTORE', 'Complete inert archive digest differs from receipt.');
+    internalCheck(archive.digest === value.receipt.archiveDigest, 'BACKUP_PARTIAL_RESTORE', 'Complete inert archive digest differs from receipt.');
     const historical = await this.#options.vault.authenticateEncryptedCustody(workspaceBackupV2Bytes(archive, this.#options.budgets), this.#vaultBudget()); await this.#guard(context, historical);
     return { content: value.content as string, receipt: value.receipt as WorkspaceBackupV2RestoreReceipt, actual };
   }
@@ -1015,7 +1015,7 @@ export class WorkspaceBackupV2LocalCustody {
   async #rollback(context: Context, input: { targetId: string; creationId: string; expectedArchiveDigest: string }) {
     await this.#snapshot(context, () => this.#locked('targets', this.targetPath(input.targetId), async () => {
       const value = await this.#readRestoredUnlocked(context, input);
-      check(value.receipt.archiveDigest === input.expectedArchiveDigest, 'BACKUP_TARGET_CHANGED', 'Rollback must compare the exact original inert archive digest.');
+      internalCheck(value.receipt.archiveDigest === input.expectedArchiveDigest, 'BACKUP_TARGET_CHANGED', 'Rollback must compare the exact original inert archive digest.');
       const reservation: Reservation = { ...value.actual.reservation, state: 'rolled-back' };
       await this.#write(value.actual.ref.id, reservation, value.actual.ref.valueDigest);
       const current = await readRegular(join(value.actual.path, INERT), `target/${input.targetId}/${INERT}`, this.#containerLimit());

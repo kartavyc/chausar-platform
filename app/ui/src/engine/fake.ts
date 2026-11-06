@@ -1,4 +1,7 @@
 import { fakeClientAiConsent } from './fake-client-ai-consent';
+import { ownerError } from './owner-errors';
+import { INTERNAL_LINE_CODES, refusalTravel } from '../../../../platform/runtime/owner-flag';
+import { shownLine } from '../../../../platform/runtime/venture/core/shown-line';
 import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
 import { FakePacks } from './fake-packs';
@@ -520,7 +523,7 @@ export class FakeEngine {
   async request(method: string, params: unknown = {}): Promise<unknown> {
     if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
     const p = (params ?? {}) as Record<string, unknown>;
-    if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
+    if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
     if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
     if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);
     if (method === 'venture.agentApproval.decide') return rejectFakeAgentApproval(params);
@@ -586,7 +589,8 @@ export class FakeEngine {
       case 'venture.evidence.apply': return this.applyEvidence(String(p.id ?? ''));
       case 'venture.evidence.dismiss': return this.dismissEvidence(String(p.id ?? ''));
       case 'venture.client.list': return clone(this.clients[this.current] ?? []);
-      case 'venture.client.add': return this.addClient(p);
+      // B3: as the engine's client-added, one queue.changed tells every screen.
+      case 'venture.client.add': { const client = this.addClient(p); this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }); return client; }
       case 'venture.events': return { events: [], lastSeq: this.seq, firstSeq: 0, frames: [] };
       case 'venture.get': return this.ventureView();
       case 'venture.playbooks.list': {
@@ -641,7 +645,7 @@ export class FakeEngine {
         if (this.wiring.handles(method)) return this.wiring.request(method, p);
         if (this.network.handles(method)) return this.networkAnswer(method, p);
         for (const desk of [this.agentsDesk, this.chief, this.network, this.notify, this.w4, ...(this.w5 ?? [])]) if (desk.handles(method)) return desk.request(method, p);
-        throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+        throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -654,7 +658,7 @@ export class FakeEngine {
   }
 
   /**
-   * The sample month's spend total as money/spend.ts listSpend sends it: the sample spend (USD 0.7198, the total Team
+   * The sample month's spend total as money/spend.ts listSpend sends it: the sample spend ($0.72, the total Team
    * and Money send) with its words, in rupees too at the owner's rate when one is set, and 4Z3: as the owner's currency
    * leads it.
    */
@@ -681,7 +685,7 @@ export class FakeEngine {
     const { rate, choice } = spendSettings(() => this.answerNow('venture.spend.policy.get', {}));
     const words = ' this month (includes estimates)';
     return {
-      total: `USD 0.7198${words}`, ...(rate ? { totalRupees: rupeesAt(719_800, rate) } : {}),
+      total: `$0.72${words}`, ...(rate ? { totalRupees: rupeesAt(719_800, rate) } : {}),
       totalLead: spendLead(719_800, rate?.perUsd ?? null, rupeesLead(choice), words),
     };
   }
@@ -829,7 +833,7 @@ export class FakeEngine {
     for (const desk of [this.desk, this.work, this.extras, this.posting, this.practice, this.bank, this.wiring, this.agentsDesk, this.chief, this.network, this.notify, this.w4, ...(this.w5 ?? [])]) {
       if (desk.handles(method)) return desk.request(method, p);
     }
-    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+    throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
   }
 
   /** 5A2: drafts follow the engine's Forget and import Undo, only after the network change succeeds. */
@@ -881,11 +885,13 @@ export class FakeEngine {
     // A vault may be locked while its source files are read asynchronously.
     this.rows=this.rows.filter(row=>!row.id.startsWith('tender-gap:')||this.businesses.some(b=>b.id===row.businessId&&(b.opens==='with-this-computer'||this.open&&b.id===this.current)));
     const rows =this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort(queueOrder);
-    const businesses = new Set(rows.map((r) => r.businessId)).size;
-    const count = String(rows.length);
-    const summary = rows.length === 0 ? 'Nothing needs you.' : `${count} ${rows.length === 1 ? 'needs' : 'need'} you, across ${businesses} ${businesses === 1 ? 'business' : 'businesses'}`;
+    // B3, as views/queue.ts summaryOf: a locked business's row is only "open it", so it is not counted as needing you.
+    const open = rows.filter((r) => r.kind !== 'locked');
+    const businesses = new Set(open.map((r) => r.businessId)).size;
+    const count = String(open.length);
+    const summary = open.length === 0 ? 'Nothing needs you.' : `${count} ${open.length === 1 ? 'needs' : 'need'} you, across ${businesses} ${businesses === 1 ? 'business' : 'businesses'}`;
     // W6 6G2: a card naming a retired agent says "(retired)" after its name.
-    return { rows: clone(rows).map((row) => this.retire.rowName(row)), summary, needsYou: rows.length, businesses };
+    return { rows: clone(rows).map((row) => this.retire.rowName(row)), summary, needsYou: open.length, businesses };
   }
 
   private decide(p: ParamsOf<'venture.queue.decide'>): QueueDecision|Promise<QueueDecision> {
@@ -940,7 +946,12 @@ export class FakeEngine {
       this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
       return { outcome: 'done', line: sold };
     }
-    if (action.id === 'approve' && row.viewRef?.kind === 'plan') this.desk.accept(row.businessId, row.viewRef.id);
+    if (action.id === 'approve' && row.viewRef?.kind === 'plan') {
+      this.desk.accept(row.businessId, row.viewRef.id);
+      this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
+      // B3, as views/queue.ts planRows: the plan's line, or the price's own (one-shot A4), with no receipt.
+      return { outcome: 'done', line: row.kind === 'price' ? `${row.title} accepted.` : 'Plan accepted.' };
+    }
     const receiptId = RECEIPTED.has(row.kind) && (action.id === 'approve' || action.id === 'issue') ? `R-0${this.receiptSeq++}` : undefined;
     if (action.id === 'run-again' && row.viewRef?.kind === 'run') this.restart(row.viewRef.id);
     if (action.id === 'send-to-ca' && row.viewRef?.kind === 'file') this.extras.sentToCa(row.viewRef.id);
@@ -1300,8 +1311,8 @@ export class FakeEngine {
   /** workspace.delete: the business name exactly as the vault holds it; the business and its backups go, its exports stay. */
   private deleteBusiness(p: Record<string, unknown>) {
     const business = this.businesses.find((b) => b.id === this.current);
-    if (!business) throw new EngineError('VAULT_LOCKED', 'Open your workspace first.');
-    if (p.confirmation !== business.name) throw new EngineError('CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+    if (!business) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
+    if (p.confirmation !== business.name) throw new EngineError('CONFIRMATION_REQUIRED', 'Type the business name to delete it.');
     this.endPlaybookSession();
     this.businesses = this.businesses.filter((b) => b.id !== business.id);
     this.ventures.delete(business.id);
@@ -1457,6 +1468,11 @@ export class FakeEngine {
       const words = <T,>(value: T) => ({ value, label: 'assumption' as const, by });
       const template = (view.blueprint.offers as OfferLite[]).filter((offer) => !offer.addedByOwner);
       view.blueprint.name = words(shown.name);
+      // One-shot B1 (A3 notes line 51), as applyShown: the one line from the kept offers, on the plan and its Today row.
+      const line = shownLine(shown.offers.map((kept) => kept.name));
+      if (line) view.blueprint.oneLiner = words(line);
+      const planRow = this.rows.find((row) => row.id === `q-plan-${business.id}`);
+      if (planRow) { planRow.line = view.blueprint.oneLiner.value; const { digest: _was, ...seed } = planRow; planRow.digest = digestOf(seed); }
       (view.blueprint as BlueprintViewLite['blueprint']).offers = shown.offers.map((kept, index) => ({
         id: `offer_${index + 1}`, ...(template[index]?.playbookOffer ? { playbookOffer: template[index]!.playbookOffer } : {}),
         name: words(kept.name), description: words(kept.line.length >= 2 ? kept.line : kept.name),
@@ -1471,13 +1487,28 @@ export class FakeEngine {
   }
 }
 
+/**
+ * B1 fix round 2 (quality findings 2 and 6): the fake flags a refusal by the engine's rule (owner-flag.ts refusalTravel).
+ * It has no vault of its own, so a code the engine throws only from its vault, sync and storage internals
+ * (INTERNAL_LINE_CODES: a short passphrase, a missing name) travels as the engine's does, without the flag, and the app
+ * says its line. B1 fix round 3 (review 3, finding 1c): that rule exactly, with nothing of the fake's own on top, so a
+ * test on the fake sees what the engine would show; the fake's own refusals say plain words instead
+ * (tests/engine/fake-refusals-b1.test.ts).
+ */
+export function fakeFlags(error: EngineError): boolean {
+  const internal = INTERNAL_LINE_CODES.includes(error.code) ? false : undefined;
+  return refusalTravel(error.code, error.message, internal) === 'owner';
+}
+
 /** An EngineClient over the fake engine. Its status line says the data is a sample. */
 export function createFakeClient(engine: FakeEngine = new FakeEngine()): EngineClient & { engine: FakeEngine } {
   const status = createStatusStore({ state: 'ok' });
   return {
     engine,
     transport: 'fake',
-    request<M extends MethodName>(method: M, params?: ParamsOf<M>) { return engine.request(method, params) as Promise<ResultOf<M>>; },
+    // One-shot B1: refusals in the owner's words at the same edge as the real client (owner-errors.ts). B1 fix round 1:
+    // the fake's refusals carry the owner flag as the engine's transports send it (platform/runtime/owner-flag.ts).
+    request<M extends MethodName>(method: M, params?: ParamsOf<M>) { return (engine.request(method, params) as Promise<ResultOf<M>>).catch((error: unknown) => { throw ownerError(error instanceof EngineError && fakeFlags(error) ? { code: error.code, message: error.message, reason: error.reason, owner: true } : error); }); },
     subscribe: (listener) => engine.subscribe(listener),
     status: () => status.get(),
     onStatus: (listener) => status.subscribe(listener),

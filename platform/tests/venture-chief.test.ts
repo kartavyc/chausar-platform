@@ -196,7 +196,7 @@ test('chief: each turn is held against the answer\'s spend cap before it is sent
   assert.equal(env.models.sent, 1, 'the second call would pass the cap, so it never goes');
   assert.equal(tasks.length, 1);
   const reply = sent.added[1];
-  assert.match(reply.parts[0].text, /^Chausar stopped asking your AI: this answer reached its spend cap of USD 0\.1000\./);
+  assert.match(reply.parts[0].text, /^Chausar stopped asking your AI: this answer reached its spend cap of \$0\.10\./);
   assert.ok(reply.parts.some((part: any) => part.kind === 'figure'), 'what the money tool read, with receipts');
   assert.equal(listRecords(env.store.read(), 'venture-chief-message').at(-1)!.author, 'template');
 });

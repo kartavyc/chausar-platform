@@ -4,8 +4,8 @@
 // client named, and settles the invoice pending the client's TDS certificate; it is never money received. A draft whose
 // rate is no longer the plan's says so; it keeps the rate charged until the owner drafts it again. A business not
 // registered for GST never sees any of it: taxDecision gives it 'none', and none of this applies.
+import { formatMoney } from '../../owner-format.ts';
 import { check, type State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { listRecords } from '../records.ts';
 import { computePrice, PRICE_RULES, type PriceAmounts, type PriceInput } from './price.ts';
 import { ratePercent, taxDecision } from './tax.ts';
@@ -27,7 +27,7 @@ export function tdsSection(value: unknown): string {
 
 /** "TDS INR 1,975.00 under 194J, to be shown on the client's TDS certificate." */
 export function tdsLine(tds: { section: string; amountMinor: string }, currency: string): string {
-  return `TDS ${formatMinor(tds.amountMinor, currency)} under ${tds.section}, to be shown on the client's TDS certificate.`;
+  return `TDS ${formatMoney(tds.amountMinor, currency)} under ${tds.section}, to be shown on the client's TDS certificate.`;
 }
 
 // ---------------------------------------------------------------------------

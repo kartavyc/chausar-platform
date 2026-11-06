@@ -7,8 +7,8 @@
 // each bucket adds its invoices from that receipt, so the five add up to the total exactly. Each bucket's share is per
 // mille of the total, floored in BigInt, at least 1 when it holds anything. Invoices in another currency are left out
 // and the total says so. Money in BigInt minor units.
+import { formatMoney } from '../../owner-format.ts';
 import type { Context, State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { exactPayload, formatVentureDate, isoDate, listRecords, readVenture } from '../records.ts';
 import { localDayAt, ventureTimeZone } from '../local-day.ts';
 import type {
@@ -79,7 +79,7 @@ export function agingPlan(state: State, venture: VentureRecord, subject: Extract
   const addends = owed.map(({ invoice, minor }) => ({
     recordId: invoice.id,
     label: `${invoice.number} for ${names.get(invoice.clientId) ?? 'a client'}, ${BUCKETS.find(bucket => bucket.id === bucketOf(daysLate(invoice, subject.asOf)))!.word}`,
-    amount: String(minor), display: formatMinor(minor, invoice.currency), estimate: false,
+    amount: String(minor), display: formatMoney(minor, invoice.currency), estimate: false,
   }));
   return {
     subject: subject.late ? { type: 'aging', asOf: subject.asOf, late: true } : { type: 'aging', asOf: subject.asOf }, currency: country.currency, unit: 'minor', addends,
@@ -116,7 +116,7 @@ export async function moneyAging(deps: VentureDeps, ctx: Context, payload: unkno
     notCountedOf([otherCurrency(other, 'open invoice', 'open invoices', country.currency)]),
   );
   const total = calculatedFigure(receipt, { basis });
-  const part = (minor: bigint): KindedFigure => ({ display: formatMinor(minor, country.currency), receiptId: receipt.id, kind: 'calculated', source: { from: 'receipt', receiptId: receipt.id } });
+  const part = (minor: bigint): KindedFigure => ({ display: formatMoney(minor, country.currency), receiptId: receipt.id, kind: 'calculated', source: { from: 'receipt', receiptId: receipt.id } });
   const sums = new Map<AgingBucketId, { count: number; minor: bigint }>(BUCKETS.map(bucket => [bucket.id, { count: 0, minor: 0n }]));
   const names = new Map(listRecords(state, 'venture-client', venture.id).map(client => [client.id, client.name]));
   const rows: AgingInvoiceView[] = owed.map(({ invoice, minor }) => {

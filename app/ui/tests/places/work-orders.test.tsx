@@ -369,7 +369,7 @@ describe('a transcript made on this computer', () => {
   it('is not offered for an order that names no cut', async () => {
     const plain = await footage(null);
     show(plain.engine, plain.order.id);
-    await screen.findByRole('heading', { name: 'Runs' });
+    await screen.findByRole('heading', { name: 'Jobs' });
     expect(screen.queryByRole('button', { name: MAKE })).toBeNull();
   });
 
@@ -385,7 +385,7 @@ describe('a transcript made on this computer', () => {
   it('is not offered on the hosted server, which reads no file on your computer', async () => {
     const hosted = await footage(CUT);
     show(hosted.engine, hosted.order.id, { hosted: true });
-    await screen.findByRole('heading', { name: 'Runs' });
+    await screen.findByRole('heading', { name: 'Jobs' });
     expect(screen.queryByRole('button', { name: MAKE })).toBeNull();
   });
 

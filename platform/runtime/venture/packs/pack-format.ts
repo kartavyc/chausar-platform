@@ -7,6 +7,7 @@
  * Code hooks, scripts and any unknown part are refused. Browser-safe: the fake engine validates with this same file.
  */
 import { ChausarError, check, digest } from '../../portable.ts';
+import { quotable } from '../../owner-flag.ts';
 import { validateExternalServers, type ExternalMcpServer } from '../agent-runtime/external-config.ts';
 
 export const PACK_FORMAT = 'chausar-pack/1';
@@ -148,11 +149,11 @@ export function validatePack(raw: unknown): ValidPack {
   });
   for (const item of row.mcpServers as unknown[]) {
     const server = object(item, 'Describe each server reference.');
-    check(!Object.hasOwn(server, 'credentialRef') && !Object.hasOwn(server, 'credentialRevision'), BAD, 'A pack cannot carry saved credentials. The owner signs in or saves a key after adding the server.');
+    check(!Object.hasOwn(server, 'credentialRef') && !Object.hasOwn(server, 'credentialRevision'), BAD, 'A pack can’t carry a saved sign-in or password. Add the server first, then sign in or save its key.');
   }
   let mcpServers: ExternalMcpServer[] = [];
   try { mcpServers = validateExternalServers(row.mcpServers); }
-  catch (error) { throw new ChausarError(BAD, `A server reference is not valid: ${(error as Error).message}`); }
+  catch (error) { const why = quotable(error); throw new ChausarError(BAD, `A server reference is not valid${why ? `: ${why}` : '.'}`); }
   const calcIds = new Set<string>();
   const calculators = (row.calculators as unknown[]).map(item => { const calc = calculatorOf(item); check(!calcIds.has(calc.id), BAD, 'Give each calculator a unique id.'); calcIds.add(calc.id); return calc; });
   check(calculators.every(calc => packOperation(row.id as string, calc.id).length <= 64), BAD, 'Shorten the pack or calculator id: together they must stay under 58 letters.');

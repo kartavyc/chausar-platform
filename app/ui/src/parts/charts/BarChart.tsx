@@ -45,7 +45,7 @@ export function BarChart(props: BarChartProps) {
   const shown = (point: BarPoint | undefined) => valueOf(point) ?? none;
   const pairOf = (point: BarPoint) => second?.points.find((other) => other.key === point.key);
   const noted = noteLabel !== undefined && first.points.some((point) => point.note !== undefined);
-  const note = (point: BarPoint) => (point.note === undefined ? null : <span className={`${s.note} mono`} data-note="">{point.note}</span>);
+  const note = (point: BarPoint) => (point.note === undefined ? null : <span className={s.note} data-num="" data-note="">{point.note}</span>);
 
   const receipted = series.some((one) => one.points.some((point) => point.receiptId || point.noteReceiptId));
   const table = (
@@ -61,7 +61,7 @@ export function BarChart(props: BarChartProps) {
           cells: [
             <ChartValue money={money} value={valueOf(point)} />,
             ...(second ? [<ChartValue money={money} value={valueOf(pair)} />] : []),
-            ...(noted ? [point.note === undefined ? <ChartValue money value={null} /> : <span className="mono">{point.note}</span>] : []),
+            ...(noted ? [point.note === undefined ? <ChartValue money value={null} /> : <span data-num="">{point.note}</span>] : []),
             ...(receipted ? [<span className={s.receipts}>{ids.map((id) => <Receipt key={id} id={id} onOpen={onReceipt} />)}</span>] : []),
           ],
         };

@@ -1,5 +1,6 @@
 // P5 delivery tests: playbook, draft replies, checks, rehearsal, the launch ladder, real delivery runs and capabilities.
 // Records are seeded as literals; the model port is a stub driven by synthetic recordings in fixtures/venture/delivery/.
+import { formatCost } from '../runtime/owner-format.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
@@ -87,7 +88,7 @@ class StubPort implements ModelPort {
       : { presetId: 'built-in-templates' as const, model: null, usable: true, reason: 'No AI connected; using built-in templates' };
     return {
       connections: [], tiers: { fast: tier(this.fast, 'anthropic-haiku-5-5'), main: tier(this.main, 'anthropic-sonnet-5-5') },
-      spentThisMonthMicros: '0', spentThisMonthDisplay: 'USD 0.0000', estimate: false, sendPolicy: 'shape', replay: { active: true, label: 'synthetic recording' },
+      spentThisMonthMicros: '0', spentThisMonthDisplay: '$0.00', estimate: false, sendPolicy: 'shape', replay: { active: true, label: 'synthetic recording' },
     };
   }
   presets(): ModelPreset[] { throw new ChausarError('NOT_BUILT_YET', 'Not used in these tests.'); }
@@ -124,7 +125,7 @@ class StubPort implements ModelPort {
     if (this.recordCalls) await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview' }); });
     return {
       callId, payloadText, digest: payloadDigest, presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
-      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'USD 0.0010',
+      estimatedMaxCostMicros: '1000', estimatedMaxCostDisplay: 'under $0.01',
     };
   }
   async runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>> {
@@ -543,7 +544,7 @@ test('template rehearsal: three practice clients pass their checks, not judged, 
   assert.equal(run.passed, true);
   assert.equal(run.modelMode, 'template');
   assert.equal(run.costMicros, '0');
-  assert.equal(run.costDisplay, 'USD 0.0000');
+  assert.equal(run.costDisplay, 'Free');
   assert.deepEqual(run.summary, { scenarios: 3, passed: 3, failed: 0 });
   for (const episode of run.episodes) {
     assert.equal(episode.passed, true, `${episode.scenarioId}: ${episode.firstFailure}`);
@@ -636,12 +637,12 @@ test('model rehearsal: one practice client per call, judged, with costs worked o
   assert.ok(episode.turns.every(turn => turn.callId));
   assert.deepEqual(episode.judge.map(answer => answer.answer), ['yes', 'yes', 'yes', 'yes']);
   assert.ok(episode.judge.every(answer => answer.callId));
-  // Calls: client 100 + draft 2000 + client 100 + draft 2000 + rules judge 50 + judge 50 = 4300 micros, so USD 0.0043.
+  // Calls: client 100 + draft 2000 + client 100 + draft 2000 + rules judge 50 + judge 50 = 4300 micros, so under $0.01.
   assert.equal(run.costMicros, '4300');
   assert.equal(episode.costMicros, '4300');
   assert.equal(episode.checks.find(result => result.check === 'rules-judge')?.passed, true, 'the practice client asked the rules judge');
-  assert.equal(run.costDisplay, 'USD 0.0043');
-  assert.equal(run.costDisplay, formatMicros(run.costMicros));
+  assert.equal(run.costDisplay, 'under $0.01');
+  assert.equal(run.costDisplay, formatCost(run.costMicros, { paidCalls: true })); // B2: the owner form
 
   const purposes = env.models.generated.map(task => task.purpose);
   assert.deepEqual(purposes, ['client-sim', 'delivery', 'client-sim', 'delivery', 'judge', 'judge']);
@@ -668,7 +669,7 @@ test('model rehearsal: one practice client per call, judged, with costs worked o
   env.models.confirmed = false;
   env.models.used = {};
   const estimate = await call<SimulationRunRecord>(env, 'venture.simulation.run', { scenarioIds: ['bookkeeping-pushback'] });
-  assert.equal(estimate.costDisplay, 'USD 0.0043 (estimate, price unconfirmed)');
+  assert.equal(estimate.costDisplay, 'under $0.01 (estimate)');
 });
 
 test('model rehearsal: a missing section fails required-sections; a judge no fails that question; a person request stops', async () => {
@@ -884,7 +885,7 @@ test('capabilities: honest states per platform, storage and model tier', async (
   assert.equal(row(windows, 'improvement-loop').state, 'available');
   assert.equal(row(windows, 'outside-writes').state, 'planned');
   assert.equal(row(windows, 'durable-storage').state, 'planned');
-  assert.equal(row(windows, 'durable-storage').reason, "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.");
+  assert.equal(row(windows, 'durable-storage').reason, "Test version: practice here, don't send real invoices yet.");
   assert.equal(row(capabilityList('linux', undefined, 'postgres'), 'durable-storage').state, 'available');
   for (const id of ['model-fast', 'model-main']) {
     assert.equal(row(windows, id).state, 'needs-setup');

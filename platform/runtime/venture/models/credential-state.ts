@@ -3,7 +3,7 @@ import type { SecretShelf, VentureDeps } from '../contracts.ts';
 const closed = new WeakSet<SecretShelf>(), queues = new WeakMap<StateStore, Promise<unknown>>();
 export function closeCredentialSession(shelf: SecretShelf) { closed.add(shelf); }
 export function assertCredentialSession(deps: VentureDeps, ctx?: Context) {
-  if (closed.has(deps.secrets) || deps.closing?.signal.aborted) throw new ChausarError('VAULT_LOCKED', 'Open your workspace first.');
+  if (closed.has(deps.secrets) || deps.closing?.signal.aborted) throw new ChausarError('VAULT_LOCKED', 'This business is closed. Open it first.');
   if (ctx) authorize(deps.store, ctx, 'admin');
 }
 /** OS storage and connection metadata form one serialized change, with explicit compensation on failure. */

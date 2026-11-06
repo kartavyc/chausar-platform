@@ -26,14 +26,14 @@ const toIndia = (env: Env, day: number, hhmm: string) => {
 };
 
 test('the digest line is code: counts by kind, runs finished and money ready to invoice, or nothing needs you', () => {
-  assert.equal(digestLine({ kinds: ['approve', 'approve', 'approve', 'question', 'question'], stillWaiting: 0, runsFinished: 2, ready: 'INR 18,880.00' }),
-    'Today: 5 need you (3 to approve, 2 questions). 2 runs finished. INR 18,880.00 is ready to invoice.');
+  assert.equal(digestLine({ kinds: ['approve', 'approve', 'approve', 'question', 'question'], stillWaiting: 0, runsFinished: 2, ready: '₹18,880' }),
+    'Today: 5 need you (3 to approve, 2 questions). 2 jobs finished. ₹18,880 is ready to invoice.');
   assert.equal(digestLine({ kinds: [], stillWaiting: 0, runsFinished: 0, ready: null }), 'Nothing needs you today.');
   assert.equal(digestLine({ kinds: ['question'], stillWaiting: 1, runsFinished: 1, ready: null }),
-    'Today: 1 needs you (1 question). 1 of them is still waiting from before. 1 run finished.');
+    'Today: 1 needs you (1 question). 1 of them is still waiting from before. 1 job finished.');
   assert.equal(digestLine({ kinds: ['setup', 'look', 'approve'], stillWaiting: 2, runsFinished: 0, ready: null }),
     'Today: 3 need you (1 to approve, 1 to set up, 1 to look at). 2 of them are still waiting from before.');
-  assert.equal(digestLine({ kinds: [], stillWaiting: 0, runsFinished: 3, ready: null }), 'Nothing needs you today. 3 runs finished.');
+  assert.equal(digestLine({ kinds: [], stillWaiting: 0, runsFinished: 3, ready: null }), 'Nothing needs you today. 3 jobs finished.');
   // What each row counts as: an answer is a question, setup is setup, an approve or issue is to approve, the rest to look at.
   assert.equal(digestKind({ kind: 'question', actions: [{ id: 'approve' }] }), 'question');
   assert.equal(digestKind({ kind: 'draft', actions: [{ id: 'answer' }] }), 'question');
@@ -64,7 +64,7 @@ test('at the chosen hour in the business\'s time zone, once a day, never on the 
   const [made] = digests(env);
   assert.equal(result.digest, made.id);
   assert.equal(made.day, '2026-10-16');
-  assert.equal(made.line, 'Today: 2 need you (1 to set up, 1 to look at). 1 run finished.');
+  assert.equal(made.line, 'Today: 2 need you (1 to set up, 1 to look at). 1 job finished.');
   assert.equal(made.stillWaiting, 0);
   assert.equal(made.listed.length, 2);
   assert.equal(made.runIds.length, 1);
@@ -131,14 +131,14 @@ test('money ready to invoice: a dated draft invoice puts its amount before tax i
   await notifyRefresh(env.deps, owner);
   const [made] = digests(env);
   assert.equal(made.day, '2026-10-23');
-  assert.match(made.line, / INR 19,750\.00 is ready to invoice\.$/);
+  assert.match(made.line, / ₹19,750 is ready to invoice\.$/);
   const view = (await list(env)).digest!;
   assert.equal(view.receiptIds.length, 1);
   const receipt = listRecords(env.store.read(), 'venture-sum-receipt', env.venture.id).find(item => item.id === view.receiptIds[0])!;
   assert.deepEqual(receipt.subject, { type: 'invoiced', month: '2026-10', which: 'ready' });
-  assert.ok(receipt.allowedNumbers.includes('INR 19,750.00'));
+  assert.ok(receipt.allowedNumbers.includes('₹19,750'));
   assert.deepEqual(receipt.addends.map(addend => addend.recordId), [draft.invoice.id]);
-  assert.deepEqual(made.ready, { display: 'INR 19,750.00', receiptId: receipt.id });
+  assert.deepEqual(made.ready, { display: '₹19,750', receiptId: receipt.id });
 });
 
 test('the receipt is written only when a digest is surely due', async () => {

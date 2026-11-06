@@ -145,7 +145,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
               <ul className={s.items} aria-labelledby={filesId}>
                 {theirFiles.map((file) => (
                   <li key={file.id} className={s.item}>
-                    <span className={`${s.itemText} mono`}>{file.name}</span>{' '}
+                    <span data-code="" className={`${s.itemText} mono`}>{file.name}</span>{' '}
                     <span className={s.format}>{file.format}</span>
                   </li>
                 ))}

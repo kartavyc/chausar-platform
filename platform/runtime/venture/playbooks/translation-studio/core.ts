@@ -1,6 +1,6 @@
 // Original Chausar checks. Index-Translate (Apache-2.0), easyread and Mimi (MIT) informed constraints, not copied code.
 import {translationLanguageOptions} from './providers.ts';
-import {check,digest} from '../../../portable.ts';
+import {check,digest,internalCheck} from '../../../portable.ts';
 export type TranslationSegment={id:string;page:number;type:'paragraph'|'heading'|'sentence';source:string;target:string;probes:string[];ownerHash:string|null;startMs?:number;endMs?:number};
 export type GlossaryTerm={source:string;target:string};
 export type TranslationFinding={segmentId:string;code:string;detail:string};
@@ -23,7 +23,7 @@ export function sourceSentences(text:string,locale:string):string[]{check(bounde
 /** Structural repair cannot remove, move, retype or empty a source block. */
 export function repairSegments(original:readonly TranslationSegment[],repaired:readonly TranslationSegment[]):TranslationSegment[]{
  check(Array.isArray(repaired)&&repaired.length===original.length&&original.length>0&&original.length<=500,'TRANSLATION_REPAIR_LOSS','Keep every source block in order.');
- original.forEach((s,i)=>{const r=repaired[i];check(r&&r.id===s.id&&r.type===s.type&&r.page===s.page&&r.source===s.source&&r.startMs===s.startMs&&r.endMs===s.endMs&&bounded(r.target)&&(!s.source.trim()||r.target.trim())&&same(r.probes,s.probes),'TRANSLATION_REPAIR_LOSS','Keep the source identity, timing, probes and nonempty translation.');});
+ original.forEach((s,i)=>{const r=repaired[i];internalCheck(r&&r.id===s.id&&r.type===s.type&&r.page===s.page&&r.source===s.source&&r.startMs===s.startMs&&r.endMs===s.endMs&&bounded(r.target)&&(!s.source.trim()||r.target.trim())&&same(r.probes,s.probes),'TRANSLATION_REPAIR_LOSS','Keep the source identity, timing, probes and nonempty translation.');});
  return repaired.map(s=>({...s,probes:[...s.probes]}));
 }
 function keysOf(text:string):string[]|null{try{const root:unknown=JSON.parse(text);const out:string[]=[];const walk=(v:unknown,path:string)=>{if(Array.isArray(v)){out.push(path+'[]:'+v.length);v.forEach((x,i)=>walk(x,path+'['+i+']'));}else if(v&&typeof v==='object'){for(const key of Object.keys(v).sort()){const p=path+'/'+key;out.push(p);walk((v as Record<string,unknown>)[key],p);}}};walk(root,'');return out;}catch{return null;}}

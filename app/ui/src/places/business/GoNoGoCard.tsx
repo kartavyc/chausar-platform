@@ -95,7 +95,7 @@ function CardTile({ card }: { card: GoNoGoCardView }) {
           {card.limit && (
             <div className={s.pair}>
               <dt>{t('kit-sales.goNoGo.limitLabel')}</dt>
-              <dd className="mono">{card.limit.display}</dd>
+              <dd data-num="">{card.limit.display}</dd>
             </div>
           )}
         </dl>

@@ -94,7 +94,7 @@ describe('Money w4: cheques, TDS and credit notes', () => {
     await type('TDS section', '194J', panel);
     await type('TDS amount', '2620', panel);
     await click(within(panel).getByRole('button', { name: 'Record payment' }));
-    expect(within(panel).getByText('With TDS of 2620 INR under 194J.')).toBeTruthy();
+    expect(within(panel).getByText('With TDS of ₹2,620 under 194J.')).toBeTruthy();
     await click(within(panel).getByRole('button', { name: 'Record' }));
     await waitFor(() => expect(calls).toContainEqual(['venture.payment.record', expect.objectContaining({ amount: '23580', tds: { section: '194J', amount: '2620' } })]));
     await click(await within(panel).findByRole('button', { name: 'Back to the invoice' }));
@@ -109,7 +109,7 @@ describe('Money w4: cheques, TDS and credit notes', () => {
     await type('Credit amount', '500', panel);
     await type('Reason', 'Episode went out a day late', panel);
     await click(within(panel).getAllByRole('button', { name: 'Ask for a credit note' }).at(-1)!);
-    expect(within(panel).getByText('Ask for a credit note of 500 INR on INV-0039? It waits on Today for you to issue it.')).toBeTruthy();
+    expect(within(panel).getByText('Ask for a credit note of ₹500 on INV-0039? It waits on Today for you to issue it.')).toBeTruthy();
     expect(calls.map(([method]) => method)).not.toContain('venture.credit.issue');
     await click(within(panel).getByRole('button', { name: 'Ask for it' }));
     await waitFor(() => expect(calls).toContainEqual(['venture.credit.issue', { invoiceId: 'inv-0039', amount: '500', reason: 'Episode went out a day late', digest: expect.any(String) }]));
@@ -119,7 +119,7 @@ describe('Money w4: cheques, TDS and credit notes', () => {
     // The note lists as waiting, with the way to Today.
     const note = (await within(panel).findByText('Waiting on Today')).closest('li') as HTMLElement;
     // 4J20: its amount, with the receipt that names it.
-    expect(note.textContent).toContain('₹500.00');
+    expect(note.textContent).toContain('₹500');
     expect(within(note).getByRole('button', { name: receiptMark('credit-note:cn-1') })).toBeTruthy();
     assertInkRules(panel);
   });
@@ -172,7 +172,7 @@ describe('Money w4: bills', () => {
     const row = await waitFor(() => rowOf('Cloud Host'));
     expect(within(row).getByText('To pay')).toBeTruthy();
     // 4J20: what is left on the bill, with the receipt of its balance.
-    expect(row.textContent).toContain('₹1,180.00');
+    expect(row.textContent).toContain('₹1,180');
     expect(within(row).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
     expect(screen.getByText('Owed on bills')).toBeTruthy();
     assertInkRules();
@@ -187,7 +187,7 @@ describe('Money w4: bills', () => {
     await click(within(row).getByRole('button', { name: 'Record payment' }));
     await type('Amount you paid', '1180', row);
     await click(within(row).getAllByRole('button', { name: 'Record payment' }).at(-1)!);
-    expect(within(row).getByText(/^Record 1180 INR paid to Cloud Host on /)).toBeTruthy();
+    expect(within(row).getByText(/^Record ₹1,180 paid to Cloud Host on /)).toBeTruthy();
     await click(within(row).getByRole('button', { name: 'Record' }));
     await waitFor(() => expect(calls).toContainEqual(['venture.bills.pay', expect.objectContaining({ amount: '1180', method: 'bank-transfer' })]));
     expect(await waitFor(() => within(rowOf('Cloud Host')).getByText('Paid'))).toBeTruthy();
@@ -300,8 +300,8 @@ describe('Money w4: a payment split across invoices', () => {
     await click(within(panel).getByRole('button', { name: 'Record payment' }));
     expect(within(panel).getByText(/split across 2 invoices\? This can't be undone\.$/)).toBeTruthy();
     // Each part as typed, like every other second ask.
-    expect(within(panel).getByText('For INV-0039: 26200 INR')).toBeTruthy();
-    expect(within(panel).getByText('For INV-0042: 30000 INR')).toBeTruthy();
+    expect(within(panel).getByText('For INV-0039: ₹26,200')).toBeTruthy();
+    expect(within(panel).getByText('For INV-0042: ₹30,000')).toBeTruthy();
     await click(within(panel).getByRole('button', { name: 'Record' }));
     await waitFor(() => expect(calls).toContainEqual(['venture.payment.record', {
       amount: '56200', receivedOn: expect.any(String), method: 'bank-transfer',

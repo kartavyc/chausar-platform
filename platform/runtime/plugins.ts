@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { authorize, audit, check, newId, now } from './contracts.ts';
+import { authorize, audit, check, newId, now, internalCheck } from './contracts.ts';
 import type { Context, State, StateStore } from './contracts.ts';
 import { canonical, current, digest, sourceAccess } from './actions.ts';
 import { assertSourceAccess } from './trust.ts';
@@ -11,9 +11,9 @@ export type Plugin = { id: string; manifest: PluginManifest; moduleBase64: strin
 export type MiniappSpec = { title: string; cards: ({ kind: 'metric'; title: string; receiptId: string } | { kind: 'table'; title: string; receiptIds: string[] } | { kind: 'action'; title: string; actionId: string })[] };
 
 export function validateManifest(input: unknown): PluginManifest {
-  check(input && typeof input === 'object' && !Array.isArray(input), 'INVALID_MANIFEST', 'Provide a plugin manifest.');
+  internalCheck(input && typeof input === 'object' && !Array.isArray(input), 'INVALID_MANIFEST', 'Provide a plugin manifest.');
   const keys = ['id', 'name', 'version', 'runtime', 'entrypoint', 'capabilities', 'sourceIds', 'maxMemoryPages', 'timeoutMs'];
-  check(Object.keys(input).every(k => keys.includes(k)), 'INVALID_MANIFEST', 'Unknown manifest permissions are refused.');
+  internalCheck(Object.keys(input).every(k => keys.includes(k)), 'INVALID_MANIFEST', 'Unknown manifest permissions are refused.');
   const m = input as any; check(m.runtime === 'wasm', 'UNSUPPORTED_PLUGIN_RUNTIME', 'Plugins execute WebAssembly. JavaScript, vm and vm2 plugins are refused.');
   check(m.entrypoint === 'run' && /^[a-z][a-z0-9-]{0,63}$/.test(m.id), 'INVALID_MANIFEST', 'Use a safe ID and the run export.');
   check(typeof m.name === 'string' && m.name.length > 0 && m.name.length <= 100 && /^\d+\.\d+\.\d+$/.test(m.version), 'INVALID_MANIFEST', 'Set a name and semantic version.');
@@ -82,8 +82,8 @@ export class PluginService {
     const manifest = validateManifest(input.manifest);
     check(typeof input.moduleBase64 === 'string' && /^[A-Za-z0-9+/]*={0,2}$/.test(input.moduleBase64) && input.moduleBase64.length <= 1398104, 'INVALID_WASM', 'Use a base64 WASM binary.');
     const bytes = Buffer.from(input.moduleBase64, 'base64'); const inspected = inspectWasm(bytes, manifest.maxMemoryPages);
-    check(canonical([...new Set(inspected.imports)].sort()) === canonical(manifest.capabilities), 'CAPABILITY_MISMATCH', 'Every imported function must be named in the exact manifest permissions.');
-    for (const capability of manifest.capabilities) { const host = this.hostFunctions[capability]; check(host, 'UNSUPPORTED_CAPABILITY', `Host function ${capability} is not registered.`); check((host.sourceIds ?? []).every(s => manifest.sourceIds.includes(s)), 'CAPABILITY_MISMATCH', 'The manifest omits a host function’s source permission.'); }
+    internalCheck(canonical([...new Set(inspected.imports)].sort()) === canonical(manifest.capabilities), 'CAPABILITY_MISMATCH', 'Every imported function must be named in the exact manifest permissions.');
+    for (const capability of manifest.capabilities) { const host = this.hostFunctions[capability]; check(host, 'UNSUPPORTED_CAPABILITY', `Host function ${capability} is not registered.`); internalCheck((host.sourceIds ?? []).every(s => manifest.sourceIds.includes(s)), 'CAPABILITY_MISMATCH', 'The manifest omits a host function’s source permission.'); }
     return this.store.update(state => {
       current(state, context, 'admin'); check(!context.sourceTainted, 'TAINTED_PLUGIN', 'Imported text cannot install a plugin.'); sourceAccess(state, context, manifest.sourceIds);
       check(!state.plugins.some(p => p.manifest.id === manifest.id), 'PLUGIN_EXISTS', 'Uninstall this plugin before installing a different module.');

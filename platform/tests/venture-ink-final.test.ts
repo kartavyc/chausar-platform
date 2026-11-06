@@ -23,7 +23,7 @@ const run = <T>(table: unknown, env: Env, method: string, payload: unknown = {},
 const view = (env: Env, payload: Record<string, unknown>) => call<QueueItemView>(env, 'venture.queue.view', payload);
 const rows = async (env: Env) => (await call<QueueList>(env, 'venture.queue.list', {})).rows;
 
-/** A business with an accepted plan, one client with one order, and an issued invoice for INR 2,948.82. */
+/** A business with an accepted plan, one client with one order, and an issued invoice for ₹2,948.82. */
 async function withIssuedInvoice(env: Env): Promise<{ invoice: InvoiceView; clientId: string; orderId: string }> {
   const plan = await seedBlueprint(env, { price2: '1500000' });
   const { order, client } = await seedOrder(env, plan);
@@ -57,8 +57,8 @@ test('queue.view: the plan, an invoice and a draft, each in words to read before
   assert.equal(planView.line, 'Monthly books for cafes, drafted with AI help and checked by you.');
   const sell = planView.sections.find(section => section.heading === 'What you sell')!;
   assert.deepEqual(sell.lines, [
-    'Monthly books: INR 2,499.00 per month. Bank matching and a short monthly report.',
-    'Catch up clean up: INR 15,000.00 per project. A one time tidy up of past months.',
+    'Monthly books: ₹2,499 per month. Bank matching and a short monthly report.',
+    'Catch up clean up: ₹15,000 per project. A one time tidy up of past months.',
   ]);
   // The same view by the row's viewRef.
   assert.deepEqual(await view(env, { kind: 'plan', id: plan.id }), planView);
@@ -74,7 +74,7 @@ test('queue.view: the plan, an invoice and a draft, each in words to read before
   assert.equal(invoiceView.title, `TAX INVOICE (draft) for ${CLIENT_NAME}`);
   assert.equal(invoiceView.line, 'Due 30 Oct 2026.');
   assert.ok(invoiceView.sections[0].lines.length > 3, 'the document text');
-  assert.ok(invoiceView.sections.find(section => section.heading === 'Figures')!.lines.includes('Total: INR 2,948.82'));
+  assert.ok(invoiceView.sections.find(section => section.heading === 'Figures')!.lines.includes('Total: ₹2,948.82'));
 
   const draftText = '# Your September books\n\n## Summary\nWe matched every bank line.\n\n## Next steps\nSend the two missing bills.';
   const ready = await seedRun(env2, order, { status: 'ready-for-review', renderedText: draftText, checks: [{ check: 'house-style', passed: true, detail: 'Fine.' }] });
@@ -103,19 +103,19 @@ test('invoice.list rows carry the total and its price receipt; client.list carri
   const env = await setup();
   const { invoice, clientId } = await withIssuedInvoice(env);
   const [listed] = await run<InvoiceListRow[]>(money, env, 'venture.invoice.list');
-  assert.equal(listed.total, 'INR 2,948.82');
+  assert.equal(listed.total, '₹2,948.82');
   assert.equal(listed.receiptId, invoice.invoice.priceReceiptId);
 
   const [client] = await run<ClientListRow[]>(money, env, 'venture.client.list');
   assert.equal(client.id, clientId);
-  assert.equal(client.owed?.display, 'INR 2,948.82');
+  assert.equal(client.owed?.display, '₹2,948.82');
   const receipt = await run<SumReceiptRecord>(money, env, 'venture.receipt.get', { id: client.owed!.receiptId });
   assert.equal(receipt.kind, 'venture-sum-receipt');
   assert.deepEqual(receipt.subject, { type: 'owed', clientId });
   assert.equal(receipt.totalMinor, '294882');
   assert.deepEqual(receipt.addends.map(addend => [addend.recordId, addend.amount]), [[invoice.invoice.id, '294882']]);
-  assert.equal(receipt.figures[0].display, 'INR 2,948.82');
-  assert.equal(receipt.explanation, '1 open invoice: INV-0001 INR 2,948.82. Added together: INR 2,948.82.');
+  assert.equal(receipt.figures[0].display, '₹2,948.82');
+  assert.equal(receipt.explanation, '1 open invoice: INV-0001 ₹2,948.82. Added together: ₹2,948.82.');
   assert.equal(receipt.stale, false);
 
   // Asking again finds the same receipt and writes nothing.
@@ -127,7 +127,7 @@ test('invoice.list rows carry the total and its price receipt; client.list carri
   // A part payment changes the sum: a new receipt, and the old one reads stale.
   await run(money, env, 'venture.payment.record', { invoiceId: invoice.invoice.id, amount: '948.82', receivedOn: '2026-10-16', method: 'upi' });
   const [paid] = await run<ClientListRow[]>(money, env, 'venture.client.list');
-  assert.equal(paid.owed?.display, 'INR 2,000.00');
+  assert.equal(paid.owed?.display, '₹2,000');
   assert.notEqual(paid.owed?.receiptId, client.owed!.receiptId);
   assert.equal((await run<SumReceiptRecord>(money, env, 'venture.receipt.get', { id: client.owed!.receiptId })).stale, true);
 
@@ -143,7 +143,7 @@ test('money.overview: owed, received this month and spent on AI and tools, each 
   await seedBlueprint(empty);
   const nothing = await run<MoneyOverview>(money, empty, 'venture.money.overview');
   assert.deepEqual(nothing.lines.map(line => [line.id, line.label, line.value]), [
-    ['owed', 'Clients owe you', 'INR 0.00'], ['received', 'Came in this month', 'INR 0.00'], ['spent', 'AI and tools this month', 'USD 0.0000'],
+    ['owed', 'Clients owe you', '₹0'], ['received', 'Came in this month', '₹0'], ['spent', 'AI and tools this month', '$0.00'],
   ]);
   for (const line of nothing.lines) assert.match(line.receiptId!, /^sum_/);
 
@@ -161,9 +161,9 @@ test('money.overview: owed, received this month and spent on AI and tools, each 
   });
   const overview = await run<MoneyOverview>(money, env, 'venture.money.overview');
   const [owed, received, spent] = overview.lines;
-  assert.equal(owed.value, 'INR 2,000.00');
-  assert.equal(received.value, 'INR 948.82');
-  assert.equal(spent.value, 'USD 0.0046, includes estimates');
+  assert.equal(owed.value, '₹2,000');
+  assert.equal(received.value, '₹948.82');
+  assert.equal(spent.value, 'under $0.01, includes estimates');
   assert.equal(spent.estimate, true, 'a held reservation counts at its estimate');
   const spentReceipt = await run<SumReceiptRecord>(money, env, 'venture.receipt.get', { id: spent.receiptId });
   assert.equal(spentReceipt.unit, 'micros');

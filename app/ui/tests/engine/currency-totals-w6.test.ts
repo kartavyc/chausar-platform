@@ -29,7 +29,7 @@ describe('fake current-currency money views', () => {
   for (const period of ['all', 'this-month', '2026-10']) {
    const books = await engine.request('venture.books.summary', { period });
    expect(books.currency).toBe('USD');
-   expect(books.figures.every(figure => figure.display === 'USD 0.00')).toBe(true);
+   expect(books.figures.every(figure => figure.display === '$0')).toBe(true);
    expect(books.notes.join(' ')).toMatch(/other currencies.*excluded/i);
   }
   const old = (await engine.request('venture.invoice.list', {})).find(invoice => invoice.status === 'issued')!;
@@ -70,21 +70,21 @@ describe('fake current-currency money views', () => {
   const old = add('Old'); currency = 'JPY'; const current = add('New');
   expect(current.bill.total).toBe('JPY 250');
   const paid = bills.request('venture.bills.pay', { billId: old.bill.id, amount: '250', paidOn: '2026-10-23', method: 'bank-transfer' }) as { bill: { paid: string } };
-  expect(paid.bill.paid).toBe('₹250.00');
+  expect(paid.bill.paid).toBe('₹250');
   expect(bills.ledger().paid[0]?.currency).toBe('INR');
  });
  it('books, flow, aging and margins keep unlike amounts apart and disclose exclusions', () => {
   const view = desk();
-  expect(view.booksMonth('2026-10').figures[0]?.display).toBe('USD 2.50');
+  expect(view.booksMonth('2026-10').figures[0]?.display).toBe('$2.50');
   const flow = view.request('venture.money.flow', { months: 1 }) as FlowView;
-  expect(flow.months[0]?.in?.display).toBe('USD 2.50');
+  expect(flow.months[0]?.in?.display).toBe('$2.50');
   expect(JSON.stringify(flow.basis)).toMatch(/other currencies/i);
   const aging = view.request('venture.money.aging', {}) as AgingView;
   expect(aging.invoices.map(row => row.invoiceId)).toEqual(['invoice-USD']);
-  expect(aging.total.display).toBe('USD 2.50');
+  expect(aging.total.display).toBe('$2.50');
   const margins = view.request('venture.money.margins', { month: '2026-10' }) as MarginsView;
   expect(margins.rows.map(row => row.clientId)).toEqual(['client-1']);
-  expect(margins.rows[0]?.invoiced.display).toBe('USD 2.50');
+  expect(margins.rows[0]?.invoiced.display).toBe('$2.50');
   expect(margins.rows[0]?.note).toMatch(/US dollars to USD/);
  });
 });

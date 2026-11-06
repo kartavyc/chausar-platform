@@ -2,6 +2,7 @@
 import {csvRows} from '../../../../platform/runtime/csv';
 import type {OrderLite,UploadLite,DeliveryLite} from './types';
 import { EngineError } from './types';
+import { ownerZone } from '../../../../platform/runtime/owner-format';
 import type { FakePlaybookDesk } from './fake-playbooks';
 import type { W4DeskHost } from './fake-w4';
 import { matchShopRows,confirmTicket,proposeTicket,moveTicket,requestMoney,checkSupportDraft,sendHandoff,snoozeTicket,wakeTicket,supportHours,dueAt,dueBadge,queueRank,humanHandoff,needsPerson,replyPair,addRating,ratingSummary,triageSupport,type SupportTicketBody,type TicketStatus,type ShopHours,type SupportRatingBody,type SupportMessageBody }  from './fake-support-core';
@@ -63,7 +64,7 @@ export function fakeSupportDeskDesk(host:W4DeskHost):FakePlaybookDesk & {forgetP
     const order=v.serviceOrderId===undefined?null:orders().find(o=>o.id===v.serviceOrderId&&o.status!=='cancelled');ensure(v.serviceOrderId===undefined||order,'SUPPORT_ORDER_REQUIRED','Choose this shop service order before drafting a reply.');body={...body,serviceOrderId:order?.id??null,shopClientId:order?.clientId??null,...(v.customerOrderNumber===undefined?{}:{customerOrderNumber:text(v.customerOrderNumber,'Customer order number',80)}),...(v.customerPhone===undefined?{}:{customerPhone:text(v.customerPhone,'Customer phone',40)})};if(order)body={...body,customerMatch:matching(body)};if(order&&blocked(body))body={...body,blocked:true,autoDraftsPaused:true};
     const incoming=host.supportThread?.(proposal.thread);
     if(incoming){ensure(!incoming.held,'UNTRUSTED_HELD','Review and release the held mail before making its ticket.');ensure(incoming.messages.some(m=>m.from.toLowerCase()===proposal.customerEmail),'SUPPORT_THREAD_INVALID','The customer must be a sender in this imported conversation.');body={...body,messages:incoming.messages.map(m=>({ticketId:'',messageId:m.messageId,sender:m.from,text:m.text??'',at:m.date,messageKind:'customer' as const,references:m.references,untrusted:true}))};if(body.messages.some(m=>needsPerson(m.text)))body=humanHandoff(body,[],host.now()).ticket;}
-    const targets={...order?.intake?.fields,...v};const policy=v.hours===undefined?supportHours(targets):v.hours as ShopHours;
+    const targets={...order?.intake?.fields,...v};const policy=v.hours===undefined?supportHours(targets,ownerZone((host.ask('venture.get',{}) as {venture?:{country?:{code?:string}|null}}|null)?.venture?.country?.code,'UTC')):v.hours as ShopHours;
     const t:Ticket={id:`ticket_fake_${++sequence}`,kind:'venture-support-ticket',ventureId:host.current(),memberId:'owner',epoch:1,at:host.now(),...body,number:String(data.tickets.length+1),proposal:{expiresAt:proposal.expiresAt},dueAt:targets.firstReplyHours===undefined||targets.firstReplyHours===null||targets.firstReplyHours===''?null:dueAt(host.now(),Number(targets.firstReplyHours),policy),resolutionDueAt:targets.resolutionHours===undefined||targets.resolutionHours===null||targets.resolutionHours===''?null:dueAt(host.now(),Number(targets.resolutionHours),policy)};
     t.messages=t.messages.map(m=>({...m,ticketId:t.id}));data.messages.push(...t.messages);data.tickets.push(t);changed();return wrap(t.id,structuredClone(t),'Ticket proposed. Nothing has been sent.');
    }

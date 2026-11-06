@@ -2,6 +2,7 @@
 // division names its rounding. Nothing here uses a float. Idea taken, code written here: Invaro/opentax-engine
 // (AGPL-3.0, ideas only), whose money module keeps cents as bigint and makes each division say how it rounds.
 import { ChausarError } from '../../../portable.ts';
+import { formatMoney } from '../../../owner-format.ts';
 import { formatMinor } from '../../../currency.ts';
 
 export type Rounding = 'half-up' | 'half-even' | 'floor' | 'ceil';
@@ -71,7 +72,17 @@ export const minBig = (a: bigint, b: bigint) => (a < b ? a : b);
 export const maxBig = (a: bigint, b: bigint) => (a > b ? a : b);
 export const sumBig = (values: readonly bigint[]) => values.reduce((total, value) => total + value, 0n);
 
+/** Rupees as the CA's screens show them ("₹1,50,000"); the plain decimal for allowed numbers is plainMoney (B2 fix round 1). */
 export function inr(minor: bigint | string): string {
+  return formatMoney(minor, 'INR');
+}
+
+/**
+ * B2 fix round 3: an amount inside a step's label, in the exact form ("INR 150,000.00"). A step's label is its figure's
+ * label, which the work receipt copies and a client's deliverable quotes (deliverable.ts renderDeliverable), so it
+ * says what leaves the app the way the figure beside it does.
+ */
+export function exactInr(minor: bigint | string): string {
   return formatMinor(minor, 'INR');
 }
 

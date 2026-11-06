@@ -84,7 +84,7 @@ export class FakeRetireDesk {
       case 'venture.agents.retire.check': { const body = exact(p, ['agent'], ['agent']); return this.check(id(body.agent, 'Agent')); }
       case 'venture.agents.retire': return this.retire(p);
       case 'venture.agents.restore': return this.restore(p);
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -162,7 +162,7 @@ export class FakeRetireDesk {
     if (this.book().has(agentId)) throw new EngineError('AGENT_RETIRED', RETIRED_LINE);
     const found = (this.host.ask('venture.team.list', {}) as TeamListView).agents.find((agent) => agent.id === agentId);
     if (!found) throw new EngineError('AGENT_NOT_FOUND', NOT_FOUND);
-    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each run's steps.`);
+    if (found.kind === 'code') throw new EngineError('AGENT_IS_CODE', `${found.name} is code, not AI. It has no chat; its work shows in each job's steps.`);
     return found;
   }
 

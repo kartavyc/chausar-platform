@@ -18,8 +18,8 @@ describe('fake engine: set preview and Make a copy (4J2)', () => {
     const picked = rows.filter((row) => row.kind !== 'locked').slice(0, 3);
     const shown = await ask<QueueSetPreview>(fake, 'venture.queue.setPreview', { rowIds: picked.map((row) => row.id) });
     expect(shown.items.map((item) => item.rowId)).toEqual(picked.map((row) => row.id));
-    expect(shown.items.every((item) => item.cost === 'USD 0.0000')).toBe(true);
-    expect(shown.total.display).toBe('USD 0.0000');
+    expect(shown.items.every((item) => item.cost === '$0.00')).toBe(true);
+    expect(shown.total.display).toBe('$0.00');
     expect(shown.digest).toMatch(/^[a-f0-9]{8,}/);
     for (const row of picked) {
       const refused = shown.refusals.find((item) => item.rowId === row.id);

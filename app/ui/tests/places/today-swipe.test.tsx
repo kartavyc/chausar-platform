@@ -116,7 +116,7 @@ describe('Today on a phone: swipe', () => {
     await loaded();
     await swipe('q-price-sponsor', 120);
     const price = cardOf('q-price-sponsor');
-    expect(price.textContent).toContain("This can't be undone. Approve?");
+    expect(price.textContent).toContain("Approve? Check it once more.");
     expect(decides()).toHaveLength(0);
     // The click a browser sends right after a swipe is swallowed (SwipeCard); the owner's own tap comes later.
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 550)); });
@@ -151,7 +151,7 @@ describe('Today on a phone: swipe', () => {
     // A new swipe, on the version now on screen, goes the usual way.
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 550)); });
     await swipe('q-price-sponsor', 120);
-    expect(cardOf('q-price-sponsor').textContent).toContain("This can't be undone. Approve?");
+    expect(cardOf('q-price-sponsor').textContent).toContain("Approve? Check it once more.");
     expect(decides()).toHaveLength(0);
   });
 
@@ -186,10 +186,10 @@ describe('Today on a phone: swipe', () => {
     await loaded();
     const deny = within(cardOf('q-price-sponsor')).getByRole('button', { name: 'Deny' });
     await swipe('q-price-sponsor', 120, deny);
-    expect(cardOf('q-price-sponsor').textContent).toContain("This can't be undone. Approve?");
+    expect(cardOf('q-price-sponsor').textContent).toContain("Approve? Check it once more.");
     // The browser's click right after the swipe lands on the button the finger started on: swallowed.
-    await act(async () => { fireEvent.click(within(cardOf('q-price-sponsor')).getByRole('button', { name: 'Not now' })); });
-    expect(cardOf('q-price-sponsor').textContent).toContain("This can't be undone. Approve?");
+    await act(async () => { fireEvent.click(within(cardOf('q-price-sponsor')).getByRole('button', { name: 'Cancel' })); });
+    expect(cardOf('q-price-sponsor').textContent).toContain("Approve? Check it once more.");
     expect(decides()).toHaveLength(0);
   });
 

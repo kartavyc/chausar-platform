@@ -35,7 +35,7 @@ async function client(env: Env, name: string, stateCode: string | null, countryC
   return ventureAction(env.deps, owner, 'prepare', 'seed.client', tx => tx.put<ClientRecord>({ ...tx.base('venture-client'), name, email: null, countryCode, taxId: null, stateCode, note: null }));
 }
 
-/** An issued invoice for INR 2,499.00 before tax; GST at 18% split CGST 224.91 and SGST 224.91 unless a test says otherwise. */
+/** An issued invoice for ₹2,499 before tax; GST at 18% split CGST 224.91 and SGST 224.91 unless a test says otherwise. */
 async function invoice(env: Env, seed: InvoiceSeed): Promise<InvoiceRecord> {
   const treatment = seed.treatment ?? 'cgst-sgst';
   const taxLines = treatment === 'cgst-sgst' ? [{ label: 'CGST at 9%', rateBps: '900', minor: seed.cgst ?? '22491' }, { label: 'SGST at 9%', rateBps: '900', minor: seed.sgst ?? '22491' }]
@@ -83,8 +83,8 @@ test('any other business: the plan says what it charges, each issued invoice wit
   assert.equal(tax.note, BOOKS_TAX_NOTE);
   assert.deepEqual(tax.lines, [
     { label: 'What your plan says', value: 'You charge GST at 18%' },
-    { label: 'INV-0001, Cafe Aroma Demo', value: 'GST INR 449.82 on INR 2,499.00', receiptId: issued.priceReceiptId },
-    { label: 'GST on invoices issued in October 2026', value: 'INR 449.82', receiptId: tax.lines[2].receiptId },
+    { label: 'INV-0001, Cafe Aroma Demo', value: 'GST ₹449.82 on ₹2,499', receiptId: issued.priceReceiptId },
+    { label: 'GST on invoices issued in October 2026', value: '₹449.82', receiptId: tax.lines[2].receiptId },
   ]);
   const assumed = await setup();
   await seedBlueprint(assumed, { taxAssumed: true });
@@ -118,11 +118,11 @@ test('CA firm, a month: the GST engine works the issued invoices; what it cannot
   assert.equal(gst.title, 'GST for October 2025');
   // Three invoices of INR 2,499.00: CGST and SGST 224.91 each on two, IGST 449.82 on one; 449.82 x 3 = 1,349.46.
   assert.deepEqual(gst.lines.map(line => [line.label, line.value, line.receiptId]), [
-    ['Taxable value of sales counted', 'INR 7,497.00', undefined],
-    ['Output CGST', 'INR 449.82', undefined],
-    ['Output SGST', 'INR 449.82', undefined],
-    ['Output IGST', 'INR 449.82', undefined],
-    ['GST to pay in cash', 'INR 1,349.46', undefined],
+    ['Taxable value of sales counted', '₹7,497', undefined],
+    ['Output CGST', '₹449.82', undefined],
+    ['Output SGST', '₹449.82', undefined],
+    ['Output IGST', '₹449.82', undefined],
+    ['GST to pay in cash', '₹1,349.46', undefined],
   ]);
   assert.match(gst.note!, /^Worked by the GST engine from 3 issued invoices, working receipt ca_[a-f0-9]{24}\./);
   assert.ok(gst.note!.includes(NO_PURCHASES));
@@ -132,7 +132,7 @@ test('CA firm, a month: the GST engine works the issued invoices; what it cannot
   assert.deepEqual(section(view, 'gst-left-out').lines, [
     { label: 'INV-0003', value: 'Export under a Letter of Undertaking: zero-rated, for your CA to report.' },
     { label: 'INV-0004', value: 'The invoice has no SAC code.' },
-    { label: 'INV-0005, CGST', value: 'The invoice shows INR 225.91; the working gives INR 224.91.' },
+    { label: 'INV-0005, CGST', value: 'The invoice shows ₹225.91; the working gives ₹224.91.' },
   ]);
   assert.equal(section(view, 'tds').note, TDS_NOTE);
 
@@ -160,9 +160,9 @@ test('CA firm: no GST registration means no GST working; a year shows each month
   const year = await working(env, { period: 'FY 2025-26' });
   assert.equal(year.period, 'Financial year 2025-26 (assessment year 2026-27)');
   assert.equal(year.needsCaConfirmation, true);
-  assert.deepEqual(section(year, 'gst').lines, [{ label: 'October 2025', value: 'INR 449.82' }, { label: 'November 2025', value: 'INR 449.82' }]);
+  assert.deepEqual(section(year, 'gst').lines, [{ label: 'October 2025', value: '₹449.82' }, { label: 'November 2025', value: '₹449.82' }]);
   const income = section(year, 'income-tax');
-  assert.deepEqual(income.lines, [{ label: 'Billed in the year, without tax', value: 'INR 4,998.00' }]);
+  assert.deepEqual(income.lines, [{ label: 'Billed in the year, without tax', value: '₹4,998' }]);
   assert.match(income.note!, /^The computation needs your whole income for the year/);
   assert.ok(income.note!.includes('Your CA has not confirmed "Income tax slabs, rebate, surcharge and cess for assessment year 2026-27" (version 1) yet.'));
   // The tax year 2026-27 has its own table now, waiting for the CA; a year past every table says no table covers it.

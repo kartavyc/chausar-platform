@@ -13,8 +13,8 @@ import { bankCosts, foreignPayment, paidCall } from './venture-money-env.ts';
 import { code } from './venture-views-env.ts';
 
 /**
- * September: INV paid in full on 20 Sep, 2330500 (INR 23,305.00) in; rent of INR 1,500.00 out from the bank statement.
- * October: INR 1,000.00 in on 20 Oct; Metro Repairs' bill paid in full on 5 Oct, 602000 (INR 6,020.00) out: its cost
+ * September: INV paid in full on 20 Sep, 2330500 (₹23,305) in; rent of ₹1,500 out from the bank statement.
+ * October: ₹1,000 in on 20 Oct; Metro Repairs' bill paid in full on 5 Oct, 602000 (₹6,020) out: its cost
  * fact holds 512000 before GST and 90000 of GST the business can claim back, and both left the bank; and US$1.50 of AI.
  */
 async function months() {
@@ -43,10 +43,10 @@ test('flow: six months of in, out and what was left, the AI spend at the owner\'
   }
   const [september, october] = view.months.slice(4);
   // September: 2330500 in, 150000 out, 2330500 - 150000 = 2180500 left.
-  assert.deepEqual([september.label, september.in?.display, september.out?.display, september.left?.display], ['Sep 2026', 'INR 23,305.00', 'INR 1,500.00', 'INR 21,805.00']);
-  // October: US$1.50 at 83.50: 1500000 x 835000 = 1,252,500,000,000; + 50,000,000, / 100,000,000 = 12525 (INR 125.25).
-  // Out 602000 + 12525 = 614525 (INR 6,145.25); in 100000; left 100000 - 614525 = -514525.
-  assert.deepEqual([october.label, october.in?.display, october.out?.display, october.left?.display], ['Oct 2026 so far', 'INR 1,000.00', 'INR 6,145.25', 'INR -5,145.25']);
+  assert.deepEqual([september.label, september.in?.display, september.out?.display, september.left?.display], ['Sep 2026', '₹23,305', '₹1,500', '₹21,805']);
+  // October: US$1.50 at 83.50: 1500000 x 835000 = 1,252,500,000,000; + 50,000,000, / 100,000,000 = 12525 (₹125.25).
+  // Out 602000 + 12525 = 614525 (₹6,145.25); in 100000; left 100000 - 614525 = -514525.
+  assert.deepEqual([october.label, october.in?.display, october.out?.display, october.left?.display], ['Oct 2026 so far', '₹1,000', '₹6,145.25', '-₹5,145.25']);
   assert.deepEqual(october.out?.uses, ['₹83.50 per $1 (your rate, set 23 Oct 2026)']);
   assert.equal(october.note, null);
   // Bars per mille of the largest, 2330500: 150000 x 1000 / 2330500 = 64.3 -> 64; 100000 -> 42.9 -> 42; 614525 -> 263.6 -> 263.
@@ -71,7 +71,7 @@ test('flow without a rupee rate leaves the AI spend out and says so on the month
   const view = await env.money<FlowView>('venture.money.flow', {});
   assert.equal(view.months.length, 6, 'six months unless asked');
   const october = view.months[5];
-  assert.equal(october.out?.display, 'INR 6,020.00');
+  assert.equal(october.out?.display, '₹6,020');
   assert.equal(october.out?.uses, undefined);
   assert.equal(october.note, 'AI spend not counted: no rupee rate set');
   assert.deepEqual(view.basis.notCounted, { count: 1, line: '1 not counted: 1 paid AI call with no rupee rate set' });
@@ -90,7 +90,7 @@ test('flow counts a bill paid against its bank row once, and only cleared money 
   const sale = await invoice(env, '1', '2026-10-01');
   await env.money('venture.payment.record', { invoiceId: sale.invoice.id, amount: '5000.00', receivedOn: '2026-10-21', method: 'cheque' });
   const october = (await env.money<FlowView>('venture.money.flow', { months: 1 })).months[0];
-  assert.deepEqual([october.in, october.out?.display], [null, 'INR 6,020.00']);
+  assert.deepEqual([october.in, october.out?.display], [null, '₹6,020']);
   await assert.rejects(env.money('venture.money.flow', { months: 0 }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(env.money('venture.money.flow', { months: 25 }), code('INVALID_VENTURE_REQUEST'));
 });
@@ -102,7 +102,7 @@ test('books.summary takes a month as its period and gives the month before with 
   assert.deepEqual([october.period, october.periodKey, october.month], [{ from: '2026-10-01', to: '2026-10-31' }, 'custom', '2026-10']);
   assert.deepEqual(october.figures.map(figure => [figure.operation, figure.minor]), [['billed', '1975000'], ['received', '100000'], ['earned', '0']]);
   assert.deepEqual([october.previous?.month, october.previous?.label, october.previous?.period], ['2026-09', 'September 2026', { from: '2026-09-01', to: '2026-09-30' }]);
-  assert.deepEqual(october.previous?.figures.map(figure => [figure.operation, figure.minor, figure.display]), [['billed', '1975000', 'INR 19,750.00'], ['received', '2330500', 'INR 23,305.00'], ['earned', '0', 'INR 0.00']]);
+  assert.deepEqual(october.previous?.figures.map(figure => [figure.operation, figure.minor, figure.display]), [['billed', '1975000', '₹19,750'], ['received', '2330500', '₹23,305'], ['earned', '0', '₹0']]);
   assert.ok(october.previous?.figures.every(figure => typeof figure.receiptId === 'string' && figure.receiptId.length > 0));
   // This month is a whole month too; all time and this year are not.
   assert.equal((await env.money<BooksSummary>('venture.books.summary', { period: 'this-month' })).previous?.month, '2026-09');
@@ -123,8 +123,8 @@ test('flow: each AI call in rupees at the rate of the day, half up, a held call 
   const view = await env.money<FlowView>('venture.money.flow', { months: 1 });
   const out = view.months[0].out!;
   // One call at a time, half up: 1500000 x 835000 -> 12525; 500000 -> 4175; the held 300000 -> 250,500,000,000 + 50,000,000,
-  // / 100,000,000 = 2505. 12525 + 4175 + 2505 = 19205 (INR 192.05), the same rule margins use.
-  assert.deepEqual([out.display, out.estimate], ['INR 192.05', true]);
+  // / 100,000,000 = 2505. 12525 + 4175 + 2505 = 19205 (₹192.05), the same rule margins use.
+  assert.deepEqual([out.display, out.estimate], ['₹192.05', true]);
   const receipt = await env.money<SumReceiptRecord>('venture.receipt.get', { id: out.receiptId });
   assert.deepEqual(receipt.addends.map(addend => addend.amount), ['12525', '4175', '2505']);
   // Each addend names its own spend record, so a receipt check and a link still find it; the rate sits beside it.

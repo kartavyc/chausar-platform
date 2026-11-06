@@ -12,6 +12,7 @@
  * fake has none. Run again starts a new run id, as the engine does. Away is a list built from records; Chausar sends nothing.
  */
 
+import { formatDay, formatMoney } from '../../../../platform/runtime/owner-format';
 import { EngineError, type AwayView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail } from './types';
 import type { W4DeskHost } from './fake-w4';
 import {redactSecrets,screenReadback} from '../../../../platform/runtime/venture/core/secrets';
@@ -28,14 +29,14 @@ export const QUIET_LINE = 'The AI went quiet, so Chausar stopped it. Its work so
 export const TIME_LINE = 'The AI ran past its time limit, so Chausar stopped it. Its work so far is kept.';
 const FORCE_STOPPED = 'Stopped by you. The step in progress was thrown away.';
 const STOPPING = 'Stopping: the step in progress finishes first.';
-const RECEIVED = 'Stop received. The step in progress finishes, then the run stops.';
-const NOT_RUNNING = 'This run is not running, so there is nothing to stop or steer.';
-const ALREADY = 'This run is already stopped. Resume it or run it again.';
-const NOT_STOPPED = 'This run is not stopped, so there is nothing to resume.';
+const RECEIVED = 'Stop received. The step in progress finishes, then the job stops.';
+const NOT_RUNNING = 'This job is not running, so there is nothing to stop or steer.';
+const ALREADY = 'This job is already stopped. Resume it or run it again.';
+const NOT_STOPPED = 'This job is not stopped, so there is nothing to resume.';
 const RESUMED = 'Resumed. Approve the next step when you are ready.';
 const RESUMED_ANSWER = 'Resumed. Answer the question to go on.';
 const STEER_SENT = 'Sent. Waiting for the agent to pick it up.';
-const SUPERSEDED = 'A newer run of this order replaced this one, so it cannot be resumed. Open the newer run instead.';
+const SUPERSEDED = 'A newer job for this order replaced this one, so it cannot be resumed. Open the newer job instead.';
 const PAUSED_VIEW = 'Paused by you. No new work starts until you unpause.';
 const NOT_AWAY = 'You are not away. Set the days you will be away and Chausar lists what falls due.';
 const MAX_NOTE_CHARS = 500;
@@ -44,7 +45,6 @@ const MAX_AWAY_DAYS = 90;
 const DAY_MS = 86_400_000;
 /** The sample run's spend cap in micro-dollars, the amount behind its "$0.40". */
 const SAMPLE_CAP_MICROS = '400000';
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** How long the fake's step in progress takes to come back after a Stop, in ms. */
 export const FAKE_STOP_SETTLES_MS = 600;
 
@@ -55,7 +55,7 @@ const SAMPLE_CONTROLS: Record<string, Partial<RunDetail>> = {
     scope: {
       tools: ['Read the files you gave it', 'Cut video with ffmpeg', 'Checked the frames'], actions: ['Post to YouTube, for your approval'],
       cap: '$0.40', posture: 'approve-each', capReceiptId: 'fig:scope:31',
-      line: 'Set when it started: 3 tools, 1 outside action it may propose for your approval, a spend cap of $0.40, approve each step.',
+      line: 'Set when it started: 3 tools, 1 outside action it may propose for your approval, a spend cap of $0.40, with each step waiting for your approval.',
     },
   },
 };
@@ -68,12 +68,12 @@ function rupeesOf(micros: string, perUsd: string): string {
   const [whole = '0', part = ''] = perUsd.split('.');
   const rate = BigInt(whole) * 10_000n + BigInt(part.padEnd(4, '0').slice(0, 4));
   const paise = (BigInt(micros) * rate + 50_000_000n) / 100_000_000n;
-  return `₹${(paise / 100n).toLocaleString('en-IN')}.${String(paise % 100n).padStart(2, '0')}`;
+  return formatMoney(paise, 'INR');
 }
 const day = (iso: string) => iso.slice(0, 10);
 const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
-/** '2026-10-01' as '01 Oct 2026', the engine's day-month-year order (records.ts formatVentureDate). */
-const say = (iso: string) => `${iso.slice(8, 10)} ${MONTHS[parseInt(iso.slice(5, 7), 10) - 1]} ${iso.slice(0, 4)}`;
+/** '2026-10-01' as '1 Oct 2026', the engine's day-month-year order (records.ts formatVentureDate). */
+const say = (iso: string) => formatDay(iso.slice(0, 10), 'UTC');
 const isDay = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`));
 
 export class FakeRunControls {
@@ -127,7 +127,7 @@ export class FakeRunControls {
     if (!run?.scope) return undefined;
     const rate = this.rate();
     const rupees = rate ? rupeesOf(SAMPLE_CAP_MICROS, rate.perUsd) : null;
-    const figures: RowFigureReceipt['figures'] = [{ key: 'cap', label: "This run's spend cap", amount: SAMPLE_CAP_MICROS, unit: 'micros', currency: 'USD', display: run.scope.cap }];
+    const figures: RowFigureReceipt['figures'] = [{ key: 'cap', label: "This job's spend cap", amount: SAMPLE_CAP_MICROS, unit: 'micros', currency: 'USD', display: run.scope.cap }];
     if (rate && rupees) {
       figures.push({ key: 'cap-inr', label: 'The same in rupees', amount: SAMPLE_CAP_MICROS, unit: 'micros', currency: 'INR', display: rupees });
       figures.push({ key: 'rate', label: 'Your rate', amount: rate.perUsd, unit: 'rate', currency: 'INR', display: rate.words });
@@ -135,7 +135,7 @@ export class FakeRunControls {
     return {
       id, kind: 'row-figure', ventureId: run.businessId, at: run.startedAt, operation: 'venture.row-figure', subject: { type: 'scope-cap', recordId: run.runId },
       figures, allowedNumbers: figures.map((f) => f.display), digest: `scope-cap-${run.runId}`, stale: false,
-      explanation: `Set when the run started, from the business's spend cap for one run: ${run.scope.cap}.${rate && rupees ? ` In rupees at ${rate.words}: ${rupees}.` : ''} It does not change while the run goes on.`,
+      explanation: `Set when the job started, from the business's spend cap for one job: ${run.scope.cap}.${rate && rupees ? ` In rupees at ${rate.words}: ${rupees}.` : ''} It does not change while the job goes on.`,
     };
   }
 
@@ -155,7 +155,7 @@ export class FakeRunControls {
       case 'venture.business.pause': return this.pause(p);
       case 'venture.away.set': return this.awaySet(p);
       case 'venture.away.get': return this.awayView();
-      default: throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
+      default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
 
@@ -177,7 +177,7 @@ export class FakeRunControls {
       const again = `${runId}-${this.runs().filter((r) => r.runId === runId || r.runId.startsWith(`${runId}-`)).length + 1}`;
       const { stop: _s, result: _r, question: _q, steer: _n, gate: _g, live: _l, ...rest } = run;
       this.runs().push({
-        ...structuredClone(rest), runId: again, state: 'active', startedAt: this.host.now(), elapsed: '0s',
+        ...structuredClone(rest), runId: again, state: 'active', startedAt: this.host.now(), elapsed: '',
         ...(run.progress && run.progress !== 'indeterminate' ? { progress: { done: 0, total: run.progress.total } } : {}),
         steps: run.steps.map((s, i) => ({ id: s.id, purpose: s.purpose, state: i === 0 ? 'current' : 'pending' })),
       });
@@ -192,7 +192,7 @@ export class FakeRunControls {
       if (answer?.trim()) this.note(run, answer.trim());
       this.dropRows(runId);
       this.host.emit({ type: 'run.step', businessId: run.businessId, runId, at: this.host.now() });
-      return 'The run goes on. Approve the next step when you are ready.';
+      return 'The job goes on. Approve the next step when you are ready.';
     }
     return null;
   }
@@ -202,7 +202,7 @@ export class FakeRunControls {
   private runOf(p: Record<string, unknown>): RunDetail {
     const runId = typeof p.runId === 'string' ? p.runId : '';
     const run = this.runs().find((r) => r.runId === runId && r.businessId === this.host.current());
-    if (!run) throw new EngineError('RUN_NOT_FOUND', 'That run was not found.');
+    if (!run) throw new EngineError('RUN_NOT_FOUND', 'That job was not found.');
     return run;
   }
 
@@ -216,7 +216,7 @@ export class FakeRunControls {
     // The step in progress, named before the stop, for what a force stop loses.
     const step = run.steps.find((s) => s.state === 'current' || s.state === 'waiting')?.purpose ?? 'the step in progress';
     if (run.state === 'active' && !force) {
-      // A turn is out: the stop is recorded, the step in progress finishes, then the run stops.
+      // A turn is out: the stop is recorded, the step in progress finishes, then the job stops.
       run.stop = { state: 'stopping', line: STOPPING };
       this.host.emit({ type: 'run.step', businessId: run.businessId, runId: run.runId, at: this.host.now() });
       setTimeout(() => { if (run.stop?.state === 'stopping') this.stopNow(run, false); }, FAKE_STOP_SETTLES_MS);
@@ -297,7 +297,7 @@ export class FakeRunControls {
     if (raw.length < 1 || raw.length > MAX_NOTE_CHARS) throw new EngineError('INVALID_VENTURE_REQUEST', `Your note must be between 1 and ${MAX_NOTE_CHARS} characters.`);
     const run = this.runOf(p);
     if(run.agentProgress){
-      if(run.state!=='active'&&run.state!=='waiting')throw new EngineError('RUN_CONTROL_UNAVAILABLE','This run cannot receive AI instructions. Start a new AI job.');
+      if(run.state!=='active'&&run.state!=='waiting')throw new EngineError('RUN_CONTROL_UNAVAILABLE','This job cannot take AI instructions. Start a new AI job.');
       const line='Instruction saved. Continue in a new AI session when you are ready.';
       run.steer=[...(run.steer??[]),{text:screenReadback(redactSecrets(raw),{keep:['pan']}).text,at:this.host.now(),line:'Saved for the next AI session.'}];
       this.stopNow(run,false);return {run:clone(this.view(run)),line};
@@ -320,11 +320,11 @@ export class FakeRunControls {
     if (p.every !== undefined && ![1, 2, 3, 5].includes(p.every as number)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose every 1, 2, 3 or 5 rounds.');
     const run = this.runOf(p);
     if(run.agentProgress)throw new EngineError('RUN_CONTROL_UNAVAILABLE','The AI tool reviews its own steps. Change AI review settings or stop this job.');
-    if (run.state !== 'active' && run.state !== 'waiting') throw new EngineError('RUN_NOT_RUNNING', 'This run is not running, so it has no next round.');
+    if (run.state !== 'active' && run.state !== 'waiting') throw new EngineError('RUN_NOT_RUNNING', 'This job is not running, so it has no next round.');
     const every = (p.every ?? 1) as 1 | 2 | 3 | 5;
     run.gate = { on: p.on, every, waiting: p.on ? run.gate?.waiting ?? null : null };
     this.host.emit({ type: 'run.step', businessId: run.businessId, runId: run.runId, at: this.host.now() });
-    const line = !p.on ? 'The round gate is off.' : every === 1 ? 'The run waits for you after every round.' : `The run waits for you after every ${every} rounds.`;
+    const line = !p.on ? 'The round gate is off.' : every === 1 ? 'The job waits for you after every round.' : `The job waits for you after every ${every} rounds.`;
     return { run: clone(run), line };
   }
 
@@ -348,9 +348,9 @@ export class FakeRunControls {
       }
     }
     this.host.emit({ type: 'queue.changed', businessId: this.host.current(), at: this.host.now() });
-    const line = !p.paused ? 'Unpaused. Stopped runs stay stopped until you resume them.'
+    const line = !p.paused ? 'Unpaused. Stopped jobs stay stopped until you resume them.'
       : !p.stopRunning ? 'Paused. No new work starts until you unpause.'
-        : `Paused. ${stopped === 1 ? '1 run is' : `${stopped} runs are`} stopping or stopped. No new work starts until you unpause.`;
+        : `Paused. ${stopped === 1 ? '1 job is' : `${stopped} jobs are`} stopping or stopped. No new work starts until you unpause.`;
     return { paused: p.paused, stopped, line };
   }
 

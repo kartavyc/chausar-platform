@@ -1,3 +1,4 @@
+import { formatTime } from '../../../../platform/runtime/owner-format';
 import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
@@ -33,7 +34,8 @@ async function start(hash: string, { engine = new FakeEngine({ now: () => NOW })
   return { calls, engine };
 }
 
-const timeOf = (iso: string) => new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+/** The draft's time as the offer writes it: the fake business is in India, so its zone, on the 12-hour clock (B2). */
+const timeOf = (iso: string) => formatTime(iso, 'Asia/Kolkata');
 
 describe('Business > About you', () => {
   it('is a page in the business nav, with the first name and the services the business does not sell', async () => {
@@ -102,7 +104,7 @@ describe('Business > Plan: the setup steps by name', () => {
     const left = await within(setup).findByRole('list', { name: 'Next steps' });
     const links = within(left).getAllByRole('link');
     expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
-      ['Open it in Lovable or Replit', '#/business/build'],
+      ['Build your website', '#/business/build'],
       ['Follow the build on GitHub', '#/business/build'],
       ['Rehearse with practice clients', '#/business/practice'],
     ]);

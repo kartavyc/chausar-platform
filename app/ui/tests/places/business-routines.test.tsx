@@ -41,10 +41,10 @@ describe('Business > Routines (4J22a)', () => {
     const nav = screen.getByRole('navigation', { name: 'Business pages' });
     expect(within(nav).getByRole('link', { name: 'Routines' }).getAttribute('aria-current')).toBe('page');
     const item = await screen.findByRole('article', { name: 'Weekly review' });
-    expect(item.querySelector('[data-when]')!.textContent).toBe('Every Monday 09:00, Asia/Kolkata');
+    expect(item.querySelector('[data-when]')!.textContent).toBe('Every Monday 9:00 am, Asia/Kolkata');
     expect(item.querySelector('[data-asks]')!.textContent).toBe('Asks Chausar');
     // Worded by the screen from routine.on and routine.next, in the routine's own time zone.
-    expect(item.querySelector('[data-routine-line]')!.textContent).toBe('Next run 26 Oct, 09:00');
+    expect(item.querySelector('[data-routine-line]')!.textContent).toBe('Next time 26 Oct, 9:00 am');
     assertInkRules();
   });
 
@@ -75,7 +75,7 @@ describe('Business > Routines (4J22a)', () => {
     await press(form, 'Save routine');
     expect(calls.some((c) => c.method === 'venture.routines.set')).toBe(false);
     const ask = form.querySelector('[data-second-ask]') as HTMLElement;
-    expect(ask.textContent).toContain('Each run waits for your approval on Today before anything goes to your AI. Save it?');
+    expect(ask.textContent).toContain('Each job waits for your approval on Today before anything goes to your AI. Save it?');
     await press(ask, 'Save');
     const set = calls.find((c) => c.method === 'venture.routines.set')!;
     expect(set.params).toEqual({ routine: {
@@ -83,7 +83,7 @@ describe('Business > Routines (4J22a)', () => {
       schedule: { kind: 'calendar', weekdays: [1, 3], time: '08:30', timeZone: 'Asia/Kolkata' },
     } });
     const added = await screen.findByRole('article', { name: 'Morning check' });
-    expect(added.querySelector('[data-when]')!.textContent).toBe('Every Monday and Wednesday 08:30, Asia/Kolkata');
+    expect(added.querySelector('[data-when]')!.textContent).toBe('Every Monday and Wednesday 8:30 am, Asia/Kolkata');
   });
 
   it('a prompt that leans on the chat is refused in the engine words', async () => {
@@ -112,9 +112,9 @@ describe('Business > Routines (4J22a)', () => {
     await waitFor(() => expect(screen.getByRole('article', { name: 'Weekly review' }).querySelector('[data-routine-line]')!.textContent).toBe('Off. Nothing runs.'));
     const off = screen.getByRole('article', { name: 'Weekly review' });
     await press(off, 'Turn on');
-    expect((off.querySelector('[data-second-ask]') as HTMLElement).textContent).toContain('Turn it on? Each run waits for your approval on Today.');
+    expect((off.querySelector('[data-second-ask]') as HTMLElement).textContent).toContain('Turn it on? Each job waits for your approval on Today.');
     await press(off.querySelector('[data-second-ask]') as HTMLElement, 'Turn on');
-    await waitFor(() => expect(screen.getByRole('article', { name: 'Weekly review' }).querySelector('[data-routine-line]')!.textContent).toMatch(/^Next run /));
+    await waitFor(() => expect(screen.getByRole('article', { name: 'Weekly review' }).querySelector('[data-routine-line]')!.textContent).toMatch(/^Next time /));
   });
 
   it('changes a routine in its own form, prefilled, after a second ask', async () => {

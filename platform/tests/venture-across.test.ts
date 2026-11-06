@@ -32,7 +32,7 @@ function saved(id: string, name: string, overrides: Partial<BusinessSnapshot> = 
       invoiced: figure('4500000', `${currency} 45,000.00`, 'their_sum_1', 'minor', currency),
       received: figure('1200000', `${currency} 12,000.00`, 'their_sum_2', 'minor', currency),
       owed: figure('5310000', `${currency} 53,100.00`, 'their_sum_3', 'minor', currency), late: 2,
-      spend: figure('1250000', 'USD 1.2500', 'their_sum_4', 'micros', 'USD'),
+      spend: figure('1250000', '$1.25', 'their_sum_4', 'micros', 'USD'),
     },
     runs: { working: 1, waiting: 2, stopped: 1 }, needsYou: 3,
     ...overrides,
@@ -49,11 +49,11 @@ const moneyOf = (env: GoalEnv) => env.money<AcrossMoneyView>('venture.money.acro
 const runsOf = (env: Env) => (viewHandlers as Record<string, (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<unknown>>)['venture.runs.across'](env.deps, owner, {}) as Promise<AcrossRunsView>;
 
 /**
- * Today is 23 Oct 2026 in Kolkata. Two invoices of one month at INR 19,750.00 before tax, plus GST 18%: 2330500 each.
+ * Today is 23 Oct 2026 in Kolkata. Two invoices of one month at ₹19,750 before tax, plus GST 18%: 2330500 each.
  * - issued 20 Oct, due 4 Nov: not due.
- * - issued 1 Oct, due 16 Oct: 7 days late; INR 1,000.00 paid on 20 Oct, so 2230500 is left.
- * Invoiced in October before tax 1975000 x 2 = 3950000 (INR 39,500.00); received 100000 (INR 1,000.00); owed
- * 2330500 + 2230500 = 4561000 (INR 45,610.00); one late.
+ * - issued 1 Oct, due 16 Oct: 7 days late; ₹1,000 paid on 20 Oct, so 2230500 is left.
+ * Invoiced in October before tax 1975000 x 2 = 3950000 (₹39,500); received 100000 (₹1,000); owed
+ * 2330500 + 2230500 = 4561000 (₹45,610); one late.
  */
 async function business() {
   const env = await goalBusiness();
@@ -77,7 +77,8 @@ test('the open business\'s summary: its totals as code added them, each with its
   assert.deepEqual([money.spend.amount, money.spend.unit, money.spend.currency], ['0', 'micros', 'USD']);
   for (const item of [money.invoiced, money.received, money.owed, money.spend]) {
     const receipt = await env.money<SumReceiptRecord>('venture.receipt.get', { id: item.receiptId });
-    assert.equal(receipt.figures[0].display, item.display, 'each figure is its receipt\'s');
+    // B2: the snapshot keeps the exact form at rest; the receipt shows the same amount in the owner form.
+    assert.equal(receipt.totalMinor, item.amount, 'each figure is its receipt\'s');
   }
   assert.deepEqual(snapshot.runs, { working: 0, waiting: 0, stopped: 0 });
   assert.equal(typeof snapshot.needsYou, 'number');
@@ -98,25 +99,25 @@ test('venture.money.across: the open business live, the others as saved with "as
   const view = await moneyOf(env);
   const [open, lumen, sitara, neon, broken, fresh] = view.businesses;
   assert.deepEqual([open.businessId, open.name, open.open, open.locked, open.asOf, open.line], ['main', 'Ledger Cafe Books', true, false, null, 'Open now.']);
-  assert.deepEqual([open.invoiced, open.received, open.owed, open.late], ['INR 39,500.00', 'INR 1,000.00', 'INR 45,610.00', 1]);
+  assert.deepEqual([open.invoiced, open.received, open.owed, open.late], ['₹39,500', '₹1,000', '₹45,610', 1]);
   for (const key of ['invoiced', 'received', 'owed', 'spend'] as const) assert.ok(open.receipts?.[key], key);
 
-  assert.deepEqual([lumen.open, lumen.locked, lumen.asOf, lumen.line], [false, false, '2026-10-21T05:00:00.000Z', 'As of 21 Oct 2026, 10:30, when you last opened it.']);
-  assert.deepEqual([lumen.invoiced, lumen.received, lumen.owed, lumen.late, lumen.spend], ['INR 45,000.00', 'INR 12,000.00', 'INR 53,100.00', 2, 'USD 1.2500']);
+  assert.deepEqual([lumen.open, lumen.locked, lumen.asOf, lumen.line], [false, false, '2026-10-21T05:00:00.000Z', 'As of 21 Oct 2026, 10:30 am, when you last opened it.']);
+  assert.deepEqual([lumen.invoiced, lumen.received, lumen.owed, lumen.late, lumen.spend], ['₹45,000', '₹12,000', '₹53,100', 2, '$1.25']);
   // Its figures open here as receipts of what was saved; its own receipts open only in Lumen Studio.
   const theirs = await env.money<SumReceiptRecord>('venture.receipt.get', { id: lumen.receipts!.invoiced! });
-  assert.equal(theirs.figures[0].display, 'INR 45,000.00');
-  assert.equal(theirs.explanation, '1 saved figure: Lumen Studio, as saved on 21 Oct 2026, 10:30 INR 45,000.00. Added together: INR 45,000.00.');
+  assert.equal(theirs.figures[0].display, '₹45,000');
+  assert.equal(theirs.explanation, '1 saved figure: Lumen Studio, as saved on 21 Oct 2026, 10:30 am ₹45,000. Added together: ₹45,000.');
   assert.ok(!Object.values(lumen.receipts!).some(id => id.startsWith('their_sum')), 'another business\'s receipt ids never reach this one');
 
   assert.deepEqual([sitara.locked, sitara.asOf, sitara.invoiced, sitara.receipts], [true, null, null, undefined]);
   assert.equal(sitara.line, 'Sitara Events is locked with a passphrase, so Chausar shows nothing about it until you open it.');
-  assert.equal(neon.line, 'As of 28 Sep 2026, 10:30, when you last opened it.');
+  assert.equal(neon.line, 'As of 28 Sep 2026, 10:30 am, when you last opened it.');
   assert.deepEqual([broken.locked, broken.invoiced, broken.line], [false, null, "Couldn't read what Chausar saved about Broken Books."]);
   assert.deepEqual([fresh.invoiced, fresh.line], [null, 'Chausar has nothing saved about New Shop yet. Open it once and it shows here.']);
 
   // 3950000 (Ledger Cafe Books) + 4500000 (Lumen Studio) = 8450000. Neon Desk's figure is September's, so it is left out.
-  assert.equal(view.total!.display, 'INR 84,500.00');
+  assert.equal(view.total!.display, '₹84,500');
   assert.equal(view.line, 'Invoiced in October 2026 across 2 businesses. Not counted: Sitara Events (locked), Neon Desk (saved in September 2026), Broken Books (could not be read), New Shop (nothing saved yet).');
   // The same in parts, so a screen can word it in Hindi.
   assert.deepEqual(view.businesses.map(row => row.lineKey), ['open', 'as-of', 'locked', 'as-of', 'unreadable', 'none']);
@@ -127,12 +128,12 @@ test('venture.money.across: the open business live, the others as saved with "as
   const receipt = await env.money<SumReceiptRecord>('venture.receipt.get', { id: view.total!.receiptId });
   assert.equal(receipt.totalMinor, '8450000');
   assert.deepEqual(receipt.addends.map(item => item.recordId).slice(-1), ['snapshot:lumen-studio']);
-  assert.match(receipt.explanation, /Lumen Studio, as saved on 21 Oct 2026, 10:30 INR 45,000\.00/);
+  assert.match(receipt.explanation, /Lumen Studio, as saved on 21 Oct 2026, 10:30 am ₹45,000\b/);
   assert.equal(receipt.stale, false);
   // The open business's part is its own records: a new invoice makes the total read stale.
   await invoice(env, '1', '2026-10-22');
   assert.equal((await env.money<SumReceiptRecord>('venture.receipt.get', { id: view.total!.receiptId })).stale, true);
-  assert.equal((await moneyOf(env)).total!.display, 'INR 104,250.00', '3950000 + 1975000 + 4500000 = 10425000');
+  assert.equal((await moneyOf(env)).total!.display, '₹1,04,250', '3950000 + 1975000 + 4500000 = 10425000');
 });
 
 test('businesses that bill in other currencies are never added together, and the line says so', async () => {
@@ -140,7 +141,7 @@ test('businesses that bill in other currencies are never added together, and the
   withSnapshots(env, [{ ...ref('london-walks', 'London Walks'), read: 'saved', snapshot: saved('london-walks', 'London Walks', {}, 'GBP') }]);
   const view = await moneyOf(env);
   assert.equal(view.total, null);
-  assert.equal(view.businesses[1].invoiced, 'GBP 45,000.00');
+  assert.equal(view.businesses[1].invoiced, 'GBP 45,000');
   assert.equal(view.line, 'Your businesses bill in GBP and INR, so Chausar does not add them together.');
   assert.deepEqual([view.lineKey, view.currencies], ['currencies', ['GBP', 'INR']]);
 });
@@ -149,7 +150,7 @@ test('alone on this computer, or on the hosted app (no summaries), the across vi
   const env = await business();
   const view = await moneyOf(env);
   assert.equal(view.businesses.length, 1);
-  assert.equal(view.total!.display, 'INR 39,500.00');
+  assert.equal(view.total!.display, '₹39,500');
   assert.equal(view.line, 'Invoiced in October 2026 in 1 business.');
   delete (env.deps as { workspace?: unknown }).workspace;
   assert.equal((await moneyOf(env)).businesses.length, 1);
@@ -165,7 +166,7 @@ test('venture.runs.across: counts the open business live and the others as saved
   const view = await runsOf(env);
   const [open, lumen, sitara] = view.businesses;
   assert.deepEqual([open.open, open.working, open.waiting, open.stopped], [true, 0, 0, 0]);
-  assert.deepEqual([lumen.working, lumen.waiting, lumen.stopped, lumen.needsYou, lumen.line], [1, 2, 1, 3, 'As of 21 Oct 2026, 10:30, when you last opened it.']);
+  assert.deepEqual([lumen.working, lumen.waiting, lumen.stopped, lumen.needsYou, lumen.line], [1, 2, 1, 3, 'As of 21 Oct 2026, 10:30 am, when you last opened it.']);
   assert.deepEqual([sitara.working, sitara.needsYou, sitara.locked, sitara.lineKey], [null, null, true, 'locked']);
   assert.deepEqual(view.totals, { working: 1, waiting: 2, stopped: 1, needsYou: 3 + (open.needsYou ?? 0), businesses: 2 });
   assert.deepEqual(view.notCounted, [{ businessId: 'sitara-events', name: 'Sitara Events', why: 'locked', month: null }]);
@@ -187,7 +188,7 @@ test('a business still in its interview (no country yet) has no money to show, a
     { ...ref('lumen-studio', 'Lumen Studio'), read: 'saved', snapshot: saved('lumen-studio', 'Lumen Studio') },
   ]);
   const others = await (moneyHandlers as Record<string, (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<unknown>>)['venture.money.across'](env.deps, owner, {}) as AcrossMoneyView;
-  assert.equal(others.total!.display, 'INR 45,000.00');
+  assert.equal(others.total!.display, '₹45,000');
   assert.equal(others.line, 'Invoiced in October 2026 in 1 business. Not counted: Neon Desk (saved in September 2026).');
 });
 
@@ -275,9 +276,9 @@ test('chief: a question about a business that opens with this computer is answer
   assert.deepEqual(locked.added[1].parts, [{ kind: 'text', text: 'Sitara Events is locked. Open it to ask about it.' }]);
   const lumen = await env.chief('venture.chief.thread.send', { text: 'What did lumen studio invoice?' });
   const parts = lumen.added[1].parts;
-  assert.equal(parts[0].text, 'Lumen Studio, as of 21 Oct 2026, 10:30, when you last opened it:');
+  assert.equal(parts[0].text, 'Lumen Studio, as of 21 Oct 2026, 10:30 am, when you last opened it:');
   const figures = parts.filter((part: any) => part.kind === 'figure');
-  assert.deepEqual(figures.map((part: any) => part.display), ['INR 45,000.00', 'INR 12,000.00', 'INR 53,100.00', 'USD 1.2500']);
+  assert.deepEqual(figures.map((part: any) => part.display), ['₹45,000', '₹12,000', '₹53,100', '$1.25']);
   for (const part of figures) assert.ok(listRecords(env.store.read(), 'venture-sum-receipt').some(receipt => receipt.id === part.receiptId), 'each figure has its receipt here');
   assert.equal(parts.at(-1).text, '2 invoices late, 1 running, 2 waiting, 1 stopped, 3 need you. Open Lumen Studio to see its own receipts.');
   const fresh = await env.chief('venture.chief.thread.send', { text: 'How is Fresh Bakes doing?' });

@@ -25,7 +25,7 @@ export function validateExternalServers(raw: unknown): ExternalMcpServer[] {
     check(keys.every(key => Object.hasOwn(row, key)) && Object.keys(row).every(key => keys.includes(key) || optional.includes(key)), BAD, 'Server settings cannot contain passwords, tokens, headers or environment values.');
     check(typeof row.id === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(row.id) && !ids.has(row.id), BAD, 'Give every server a unique short identifier.');
     check(text(row.name), BAD, 'Name this server.'); ids.add(row.id);
-    check(row.credentialRef === undefined && row.credentialRevision === undefined || typeof row.credentialRef === 'string' && /^mcp:[A-Za-z0-9_-]{1,128}:[a-z][a-z0-9_-]{0,63}$/.test(row.credentialRef) && row.credentialRef.endsWith(`:${row.id}`) && typeof row.credentialRevision === 'string' && /^[A-Za-z0-9_-]+$/.test(row.credentialRevision), BAD, 'Use this server’s protected saved credential.');
+    check(row.credentialRef === undefined && row.credentialRevision === undefined || typeof row.credentialRef === 'string' && /^mcp:[A-Za-z0-9_-]{1,128}:[a-z][a-z0-9_-]{0,63}$/.test(row.credentialRef) && row.credentialRef.endsWith(`:${row.id}`) && typeof row.credentialRevision === 'string' && /^[A-Za-z0-9_-]+$/.test(row.credentialRevision), BAD, 'Use the sign-in saved for this server.');
     const identity = { id: row.id, name: row.name, ...(row.credentialRef ? { credentialRef: row.credentialRef as string, credentialRevision: row.credentialRevision as string } : {}) };
     if (row.transport === 'stdio') {
       check(text(row.command) && /^(?:[A-Za-z]:[\\/]|\/)/.test(row.command), BAD, 'Choose the full path of the program to run.');
@@ -39,12 +39,12 @@ export function validateExternalServers(raw: unknown): ExternalMcpServer[] {
     }
     check(row.transport === 'http' && text(row.url), BAD, 'Choose a local program or HTTP server.');
     let url: URL; try { url = new URL(row.url); } catch { check(false, BAD, 'Enter a full server URL.'); }
-    check(!url.username && !url.password && !url.search && !url.hash && (url.protocol === 'https:' || url.protocol === 'http:' && ['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname)), BAD, 'Use HTTPS, or local HTTP, without credentials or query parameters.');
+    check(!url.username && !url.password && !url.search && !url.hash && (url.protocol === 'https:' || url.protocol === 'http:' && ['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname)), BAD, 'Use an https address (or http on this computer) with no password or ? part in it. Add a password in the box for it.');
     if (brokerTradingHost(url.href)) refuseBrokerConnection('This server'); // W6 6E7 (D49)
     check(row.oauth === undefined || row.oauth === true, BAD, 'Turn sign-in on or leave it off.');
     return { ...identity, transport: 'http', url: url.href, ...(row.oauth ? { oauth: true as const } : {}) };
   });
 }
 export function validateExternalCredentialScope(servers: readonly ExternalMcpServer[], ventureId: string): void {
-  check(servers.every(server => !server.credentialRef || server.credentialRef === `mcp:${ventureId}:${server.id}`), BAD, 'Use only this business’s protected server credentials.');
+  check(servers.every(server => !server.credentialRef || server.credentialRef === `mcp:${ventureId}:${server.id}`), BAD, 'Use only the sign-ins saved for this business’s servers.');
 }

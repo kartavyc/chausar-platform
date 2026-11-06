@@ -44,7 +44,7 @@ export function AskBox() {
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
       />
-      {(focused || hovered) && <kbd className={cx(s.keys, 'mono')} aria-hidden="true">{KEYS}</kbd>}
+      {(focused || hovered) && <kbd data-code="" className={cx(s.keys, 'mono')} aria-hidden="true">{KEYS}</kbd>}
     </form>
   );
 }

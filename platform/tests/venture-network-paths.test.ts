@@ -74,7 +74,7 @@ test('how you know them: the receipt lines of the tie, each opening the tie rece
   const tie = tieOf(env, ids.rahul);
   assert.deepEqual(view.how.map(item => item.receiptId), tie.signals.map(() => tie.id));
   assert.deepEqual(view.how.map(item => item.line).slice(0, 2), [
-    'Mail both ways in 5 months, the last on 20 Oct 2026 (Mail headers, takeout.mbox)',
+    'Mail both ways in 5 months, the last on 20 Oct 2026 (Email export, takeout.mbox)',
     '1 small meeting, the last on 12 Oct 2026 (Calendar, work.ics)',
   ]);
   assert.equal(view.person.band, 'know-well');
@@ -105,7 +105,7 @@ test('one mail\'s headers and the owner\'s own word confirm a second leg; the we
   ]);
   assert.deepEqual(view.paths.map(path => path.line), [
     'Through Farhan Ali: you have met Farhan, and you said Farhan knows Sameer: They studied together.',
-    'Through Vikram Rao: you have met Vikram, and Vikram and Sameer were on a mail one of them wrote (Mail headers, team.mbox).',
+    'Through Vikram Rao: you have met Vikram, and Vikram and Sameer were on a mail one of them wrote (Email export, team.mbox).',
     'Sameer is in your network, but Chausar sees little between you.',
   ]);
   // The link goes both ways: Sameer is a confirmed path to Farhan too, when the owner knows Sameer well enough.

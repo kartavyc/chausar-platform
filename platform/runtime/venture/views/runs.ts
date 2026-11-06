@@ -11,11 +11,12 @@
 // calls, each call's state and measured time, and "Usually 3 to 5 min" once three runs of the same steps finished.
 // 4J14: check words come from one table (delivery/verdicts.ts); the run sheet adds coverage on the read step and on work
 // receipts, the checks that could not run, the outcome of what went outside, and the draft's three-column report.
+import { formatRate, formatUsd } from '../../owner-format.ts';
 import { playbookForRun } from '../delivery/workflow.ts';
 import { canResumeAgentJob } from '../agent-runtime/native-job.ts';
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { VOICE_PLAYBOOK } from '../playbooks/voice-match.ts';
-import { currentVenture, exactPayload, findRecord, formatMicros, identifier, listRecords } from '../records.ts';
+import { currentVenture, exactPayload, findRecord, identifier, listRecords } from '../records.ts';
 import type {
   CheckResult, DeliveryReason, DeliveryRunRecord, ImprovementRunRecord, PlaybookCheckResult, PlaybookStep, RunDetail, RunState, RunStep, RunSummary, SimulationRunRecord, StepKind,
   ToolCallRecord, VentureDeps, VentureRecord,
@@ -379,8 +380,13 @@ function posterTile(posters: PosterIndex, record: DeliveryRunRecord): Pick<RunSu
 // Ink v2 wave 4 (4F1): the run controls on the run sheet
 // ---------------------------------------------------------------------------
 
-const POSTURE_WORDS: Readonly<Record<Posture, string>> = Object.freeze({
-  rehearsal: 'in rehearsal', shadow: 'in practice on real orders', 'approve-each': 'at approve each', 'auto-spot-check': 'at auto with spot checks',
+/**
+ * The agent's setting (How much it asks you) as the scope line ends. One-shot B1 (bug 19): "in rehearsal" read as if
+ * a real order were a rehearsal, so each says it is the agent's.
+ */
+export const RUN_SCOPE_POSTURE: Readonly<Record<Posture, string>> = Object.freeze({
+  rehearsal: 'with the agent still rehearsing', shadow: 'with the agent practicing on real orders',
+  'approve-each': 'with each step waiting for your approval', 'auto-spot-check': 'on auto with spot checks',
 });
 const ACTION_WORDS: Readonly<Partial<Record<string, string>>> = Object.freeze({
   'outbox.propose': 'Propose an outside action, which waits for your approval',
@@ -415,14 +421,14 @@ function controlDetail(state: State, venture: VentureRecord, record: DeliveryRun
   if (scope) {
     const tools = scope.tools.map(tool => TOOL_PURPOSE[tool] ?? 'Used a tool');
     const actions = scope.actions.map(tool => ACTION_WORDS[tool] ?? TOOL_PURPOSE[tool] ?? 'An outside action, for your approval');
-    const cap = formatMicros(scope.capMicros);
+    const cap = formatRate(scope.capMicros);
     view.scope = {
       tools, actions, cap, posture: scope.posture,
       // 4F3: the cap's receipt, worked out again from the run's frozen scope (views/row-receipts.ts scopeCap), and the
       // cap in rupees at the owner's own rate when one is set.
       capReceiptId: `fig:scope:${record.id}`,
       ...scopeRupees(state, venture, scope.capMicros),
-      line: `Set when it started: ${plural(tools.length, 'tool', 'tools')}, ${plural(actions.length, 'outside action', 'outside actions')} it may propose for your approval, a spend cap of ${cap}, ${POSTURE_WORDS[scope.posture]}.`,
+      line: `Set when it started: ${plural(tools.length, 'tool', 'tools')}, ${plural(actions.length, 'outside action', 'outside actions')} it may propose for your approval, a spend cap of ${cap}, ${RUN_SCOPE_POSTURE[scope.posture]}.`,
     };
   }
   if (harness?.steer?.length) {
@@ -461,8 +467,8 @@ function runQuality(state: State, venture: VentureRecord, record: DeliveryRunRec
     const upload = findRecord(state, 'venture-upload', id);
     return upload && upload.ventureId === venture.id ? [upload] : [];
   });
-  const read = files.length === harness.uploadIds.length ? readCoverage(files, harness.toolCalls)
-    : { coverage: coverageView(null, null, 'items', 'read'), files: [] };
+  const read = files.length === harness.uploadIds.length ? readCoverage(files, harness.toolCalls, venture.country?.code)
+    : { coverage: coverageView(null, null, 'items', 'read', undefined, venture.country?.code), files: [] };
   return { files, read };
 }
 
@@ -633,7 +639,7 @@ export async function runsGetHandler(deps: VentureDeps, ctx: Context, payload: u
   const runId = identifier(body.runId, 'Run');
   const { state, venture, runs } = allRuns(deps, ctx, true);
   const build = runs.get(runId);
-  check(build, 'RUN_NOT_FOUND', 'That run was not found.');
+  check(build, 'RUN_NOT_FOUND', 'That job was not found.');
   const detail = build().detail;
   // W6 6G5 (D44): a delivery run's model receipt: the tool, tier, tokens and cost from its own records.
   const record = venture ? listRecords(state, 'venture-delivery-run', venture.id).find(item => item.id === runId) : undefined;

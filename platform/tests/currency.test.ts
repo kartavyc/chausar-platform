@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { currencyMinorDigits, decimalMinor } from '../runtime/currency.ts';
-import { CalculatorService, formatMoney } from '../runtime/calculator.ts';
+import { currencyMinorDigits, decimalMinor, formatMinor } from '../runtime/currency.ts';
+import { CalculatorService } from '../runtime/calculator.ts';
 import { defaultRecipe, ImportService, parseBankCsv, parseIndianMoney } from '../runtime/ingest.ts';
 import { OntologyService, starterPacks } from '../runtime/ontology.ts';
 import { FixtureStateStore, fixtureOwner } from './database-fixtures.ts';
@@ -14,7 +14,7 @@ test('exact currency parsing and presentation respect zero, two, three and four 
   ]) {
     assert.equal(decimalMinor(source, currency), minor);
     assert.equal(parseIndianMoney(source, 'major', currency), minor);
-    assert.equal(formatMoney(minor, currency), displayed);
+    assert.equal(formatMinor(minor, currency), displayed);
   }
   assert.equal(parseIndianMoney('JPY 123.00', 'major', 'JPY'), '123');
   assert.equal(parseIndianMoney('KWD 1.234', 'major', 'KWD'), '1234');

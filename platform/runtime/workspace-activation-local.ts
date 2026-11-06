@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { link, lstat, mkdir, open, readdir, unlink } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { authorize, check, ChausarError, hash, type Context, type State } from './contracts.ts';
+import { authorize, check, ChausarError, hash, type Context, type State, internalCheck } from './contracts.ts';
 import { acquireProcessLock } from './process-lock.ts';
 import { safeDirectory, Vault, type PrivateArtifactRef } from './vault.ts';
 import { canonicalInterchangeJson, interchangeDigest, readHistoricalWorkspaceState } from './workspace-interchange.ts';
@@ -115,7 +115,7 @@ export class WorkspaceActivationLocalCustody {
   readonly ports: WorkspaceActivationPorts;
   readonly #options: WorkspaceActivationLocalOptions;
   constructor(options: WorkspaceActivationLocalOptions) {
-    check(options?.sourceVault instanceof Vault && options.journalVault instanceof Vault
+    internalCheck(options?.sourceVault instanceof Vault && options.journalVault instanceof Vault
       && options.sourceVault !== options.journalVault && typeof options.source?.withSource === 'function'
       && typeof options.candidates?.read === 'function' && typeof options.candidates?.withCandidate === 'function'
       && typeof options.bootstrap?.allocateAuthority === 'function' && typeof options.bootstrap?.prepare === 'function'
@@ -124,7 +124,7 @@ export class WorkspaceActivationLocalCustody {
     check(typeof options.applicationDirectory === 'string' && isAbsolute(options.applicationDirectory),
       'ACTIVATION_UNSAFE_PATH', 'Supply the canonical root-owned application directory.');
     const applicationDirectory = resolve(options.applicationDirectory), child = relative(applicationDirectory, options.sourceVault.directory);
-    check(child !== '' && !isAbsolute(child) && child !== '..' && !child.startsWith(`..${sep}`) && !child.includes(sep)
+    internalCheck(child !== '' && !isAbsolute(child) && child !== '..' && !child.startsWith(`..${sep}`) && !child.includes(sep)
       && resolve(options.sourceVault.directory) !== resolve(options.journalVault.directory), 'ACTIVATION_UNSAFE_PATH',
     'Source must be a direct managed application child, with a distinct journal Vault.');
     check(options.budgets && Object.keys(options.budgets).sort().join(',') === 'maxBytes,maxDepth,maxFiles'
@@ -140,7 +140,7 @@ export class WorkspaceActivationLocalCustody {
     check(slotPattern.test(targetId) && !['backups', 'exports', 'updates', 'private-artifacts', 'reports', 'plugin-assets',
       'research-evidence', 'conversation-files', 'sync-evidence'].includes(targetId), 'ACTIVATION_UNSAFE_PATH', 'Use a distinct managed target slot.');
     const path = join(this.#options.applicationDirectory, targetId);
-    check(resolve(path) !== resolve(this.#options.sourceVault.directory)
+    internalCheck(resolve(path) !== resolve(this.#options.sourceVault.directory)
       && resolve(path) !== resolve(this.#options.journalVault.directory), 'ACTIVATION_UNSAFE_PATH', 'Target cannot be a source or journal Vault.');
     return path;
   }
@@ -204,7 +204,7 @@ export class WorkspaceActivationLocalCustody {
     let sourceCalls = 0, candidateCalls = 0;
     const result = await this.#options.source.withSource(context, pins.expectedInventory, async source => {
       check(++sourceCalls === 1, 'ACTIVATION_ROOT_GUARD', 'Source capability must execute once.'); this.#owner(context);
-      check(same(source.state, this.#options.sourceVault.read()), 'ACTIVATION_ROOT_GUARD', 'Source lease must fence the supplied actual Vault.');
+      internalCheck(same(source.state, this.#options.sourceVault.read()), 'ACTIVATION_ROOT_GUARD', 'Source lease must fence the supplied actual Vault.');
       return this.#targetLocked(pins.targetId, () => this.#options.candidates.withCandidate(context, pins.candidateId, async read => {
         check(++candidateCalls === 1 && typeof read === 'function', 'ACTIVATION_ROOT_GUARD', 'Candidate capability must execute once under issuance exclusion.');
           const target = await this.#reservation(context, pins.targetId);
@@ -320,12 +320,12 @@ export class WorkspaceActivationLocalCustody {
     const evidenceWitness = await this.#encryptedCopy(evidence, join(staging, EVIDENCE));
     await mkdir(join(staging, 'live'), { mode: 0o700 });
     const prepared = await this.#options.bootstrap.prepare({ stagingDirectory: staging, publication: structuredClone(publication) });
-    check(prepared && Object.keys(prepared).sort().join(',') === 'liveFiles,qualification'
+    internalCheck(prepared && Object.keys(prepared).sort().join(',') === 'liveFiles,qualification'
       && ['test-fixture', 'encrypted-local-host'].includes(prepared.qualification)
       && Array.isArray(prepared.liveFiles) && prepared.liveFiles.length > 0
       && prepared.liveFiles.every(name => { filePath(name, true); return true; }), 'ACTIVATION_BOOTSTRAP_REQUIRED', 'Root must return a closed encrypted live bootstrap manifest and truthful qualification.');
     const live = await this.#walk(join(staging, 'live'), 'live', this.#options.budgets.maxBytes - bootstrapWitness.bytes - evidenceWitness.bytes);
-    check(same(live.files.map(file => file.path).sort(), [...prepared.liveFiles].sort())
+    internalCheck(same(live.files.map(file => file.path).sort(), [...prepared.liveFiles].sort())
       && same((await readdir(staging)).sort(), [BOOTSTRAP, EVIDENCE, 'live'].sort()),
     'ACTIVATION_BOOTSTRAP_REQUIRED', 'Actual complete staging entries must match the reviewed manifest exactly.');
     await completed(() => this.#options.bootstrap.inspect({ targetDirectory: staging, publication: structuredClone(publication) }));
@@ -402,7 +402,7 @@ export class WorkspaceActivationLocalCustody {
     const retained = await this.#find(journalId(activationId));
     if (!retained) return unknown('ACTIVATION_ATTEMPT_NOT_FOUND');
     const journal = retained.value as Journal;
-    check(journal?.format === 'chausar.activation-local-journal.v1' && journal.record?.activationId === activationId
+    internalCheck(journal?.format === 'chausar.activation-local-journal.v1' && journal.record?.activationId === activationId
       && journal.sourceVaultId === this.#options.sourceVault.vaultId && journal.sourceWorkspaceId === source.state.workspace.id
       && journal.journalVaultId === this.#options.journalVault.vaultId && journal.record.contextDigest === interchangeDigest(context),
     'ACTIVATION_JOURNAL_CHANGED', 'Journal must bind this exact source, owner, control Vault and activation.');

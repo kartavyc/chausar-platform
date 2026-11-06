@@ -29,6 +29,8 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   // W4 4J19: the sheet is the owner opening it, so the engine keeps its view mark for a set approval.
   const view = useResource('venture.queue.view', { kind, id: ref, opened: true }, { skip: !known });
   const data = view.data;
+  // B3: a row about this thing decided in this session says so at the sheet's top, in the engine's words.
+  const decided = known ? session.lines().find((line) => line.row.viewRef?.kind === kind && line.row.viewRef.id === ref) : undefined;
 
   useEffect(() => {
     if (!data) return;
@@ -57,6 +59,7 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       onClose={onClose}
       returnFocus={returnFocus}
     >
+      {decided && <p className={s.sheetDecided} role="status" data-sheet-decided="">{decided.line}</p>}
       {data.sections.map((section, i) => (
         <section key={`${section.heading ?? ''}:${i}`} className={s.part}>
           {section.heading && <h3 className={s.partHeading}>{section.heading}</h3>}

@@ -62,7 +62,7 @@ test('the services: Happenstance and Probe42 fixture-tested on your own key, Tof
   const view = await peopleServices(env.deps, owner, {}) as PeopleSearchView;
   assert.deepEqual(view.services.map(item => [item.id, item.label]), [['happenstance', 'fixture-tested'], ['probe42', 'fixture-tested'], ['tofler', 'planned']]);
   for (const service of view.services.filter(item => item.label === 'fixture-tested')) {
-    assert.equal(service.needs, 'fixture-tested, needs your key');
+    assert.equal(service.needs, 'Not tried live yet, needs your key');
     assert.equal(service.saved, null);
     assert.match(service.docs, /^https:\/\//);
   }

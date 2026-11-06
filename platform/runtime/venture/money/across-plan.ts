@@ -4,20 +4,20 @@
 // With open, the open business's own amounts come from its records as of now; each other business's figure is what
 // its summary saved, with when, and never changes. Nothing here is a model number.
 import type { State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
+import { formatUsd, formatMoney } from '../../owner-format.ts';
 import type { AcrossFigureId, CountryProfile, IsoTime, SumReceiptSubject, VentureRecord } from '../contracts.ts';
-import { formatMicros, formatVentureDate } from '../records.ts';
-import { localTimeAt } from '../local-day.ts';
+import { formatVentureDate } from '../records.ts';
+import { localDayAt, ownerClock } from '../local-day.ts';
 import { calendarMonth } from './dates.ts';
 import { invoicedPlan } from './goal-plans.ts';
 import { owedPlan, receivedPlan, spentPlan, type Addend, type SumPlan } from './sums.ts';
 
 export type AcrossSubject = Extract<SumReceiptSubject, { type: 'across' }>;
 
-/** When a summary was taken, on the open business's clock: '21 Oct 2026, 10:30' (UTC for a business with no country yet). */
+/** When a summary was taken, on the open business's clock: '21 Oct 2026, 10:30 am' (UTC for a business with no country yet). */
 export function asOfWords(asOf: IsoTime, country: CountryProfile | null): string {
-  const local = localTimeAt(asOf, { code: country?.code ?? 'XX' });
-  return `${formatVentureDate(local.slice(0, 10), country?.dateOrder ?? 'day-month-year')}, ${local.slice(11, 16)}`;
+  const where = { code: country?.code ?? 'XX' };
+  return `${formatVentureDate(localDayAt(asOf, where), country?.dateOrder ?? 'day-month-year')}, ${ownerClock(asOf, where)}`;
 }
 
 const ACROSS_LABELS: Readonly<Record<AcrossFigureId, string>> = Object.freeze({
@@ -39,7 +39,7 @@ function openPlan(state: State, venture: VentureRecord, subject: AcrossSubject):
  */
 export function acrossPlan(state: State, venture: VentureRecord, subject: AcrossSubject): SumPlan {
   const unit = subject.what === 'spend' ? 'micros' as const : 'minor' as const;
-  const shown = (amount: string) => (unit === 'micros' ? formatMicros(amount, subject.currency) : formatMinor(amount, subject.currency));
+  const shown = (amount: string) => (unit === 'micros' ? formatUsd(amount) : formatMoney(amount, subject.currency));
   const own: Addend[] = subject.open
     ? openPlan(state, venture, subject).addends.map(item => ({ ...item, label: `${venture.workingName}: ${item.label}` }))
     : [];

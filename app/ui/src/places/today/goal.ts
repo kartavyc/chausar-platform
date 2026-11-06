@@ -11,6 +11,7 @@ import type { BooksSummaryLite, GoalFigure, GoalSuggestion, GoalView, MoneyFigur
 import type { T } from '../../text';
 import type { FigureProof } from '../../parts/Figure';
 import type { GoalBarData } from '../../parts/charts/types';
+import { formatMonth } from '../../../../../platform/runtime/owner-format';
 
 /** An amount the card shows: the engine's text and its receipt (or "model estimate"). stale: the books changed since
  *  that receipt was written, which the card says in Money's words. */
@@ -40,6 +41,9 @@ interface GoalBase {
   /** Money invoiced this month, before tax. Null when there is no figure with a receipt: then the card says nothing
    *  about it, rather than guess. */
   invoiced: GoalAmount | null;
+  /** One-shot B1 (bug 14): the goals view's invoiced sum was empty, which the engine sends as zero with no receipt.
+   *  Then the card says nothing was invoiced yet. A figure that only lacks its receipt (the books' fallback) is not. */
+  invoicedNone?: boolean | undefined;
   /** The open business, named when Today spans businesses. */
   business?: string | undefined;
 }
@@ -86,14 +90,13 @@ export function goalFromBooks(books: BooksSummaryLite, month: string): GoalCardD
 }
 
 /**
- * The month of an ISO date ("2026-10-01") in words, in the reader's language. The date is read from its parts so a
+ * The month of an ISO date ("2026-10-01") in words ("October"). The date is read from its parts so a
  * time zone never moves it into the month before.
  */
-export function monthOf(isoDate: string, locale: string): string {
+export function monthOf(isoDate: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
   if (!match) return '';
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(locale, { month: 'long' }).format(date);
+  return formatMonth(`${match[1]}-${match[2]}`, 'name');
 }
 
 /** An engine sum as a card amount: null for an empty sum, which the engine sends as zero with no receipt. */
@@ -117,7 +120,7 @@ export function goalFromView(view: GoalView, extras: GoalExtras, t: T): GoalCard
   const invoiced = goalAmount(view.invoiced);
   const received = goalAmount(view.receivedSoFar);
   const goal = view.state === 'set' ? goalAmount(view.goal) : null;
-  const base = { month: extras.month, invoiced, ...(extras.business ? { business: extras.business } : {}) };
+  const base = { month: extras.month, invoiced, ...(view.invoiced.receiptId === null ? { invoicedNone: true } : {}), ...(extras.business ? { business: extras.business } : {}) };
   if (!goal || view.invoicedPermille === null || view.invoicedPercent === null) {
     const last = goalAmount(view.lastMonth);
     return { ...base, state: 'unset', received, ...(last ? { lastMonth: { month: extras.lastMonth, amount: last } } : {}) };

@@ -38,7 +38,7 @@ export function fakeSeoMonitorKind(host: W4DeskHost): FakeDeskKind {
                 need(!host.hosted(), 'MONITOR_DESKTOP_ONLY', 'Bounded evidence collection runs in the desktop app.');
                 let value: SeoMonitorItem;
                 if (body.action === 'create') {
-                    need(body.id === 'new' && body.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new monitor has no prior digest.');
+                    need(body.id === 'new' && body.digest === undefined, 'INVALID_VENTURE_REQUEST', 'A new monitor has no earlier version.');
                     const input = exact(body.payload, ['url', 'root', 'cycles', 'intervalSeconds']);
                     need(typeof input.url === 'string' && input.url.length <= 2000, 'MONITOR_INVALID', 'Give the client public site URL.');
                     const url = fakeCheckedFetchUrl(input.url).href;

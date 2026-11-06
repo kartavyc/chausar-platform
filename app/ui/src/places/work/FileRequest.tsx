@@ -1,5 +1,6 @@
-import { useId, useMemo, useState } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useId, useState } from 'react';
+import { useT } from '../../text';
+import { useTime } from '../../parts/when';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Tile, TileHead } from '../../parts/Tile';
@@ -18,7 +19,6 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
  */
 export function FileRequest({ orderId }: { orderId: string }) {
   const t = useT();
-  const language = useLanguage();
   const client = useEngine();
   const headingId = useId();
   const reasonId = useId();
@@ -28,7 +28,7 @@ export function FileRequest({ orderId }: { orderId: string }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const time = useMemo(() => new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }), [language]);
+  const time = useTime();
 
   async function ask() {
     setBusy(true);
@@ -54,8 +54,8 @@ export function FileRequest({ orderId }: { orderId: string }) {
       {made && (made.url ? (
         <div className={s.links} data-request="">
           <p className={s.link}>
-            <span className={`${s.url} mono`}>{made.url}</span>
-            <span className={s.until}>{t('work.request.until', { time: time.format(new Date(made.expiresAt)) })}</span>
+            <span data-code="" className={`${s.url} mono`}>{made.url}</span>
+            <span className={s.until}>{t('work.request.until', { time: time(made.expiresAt) })}</span>
             <span className={s.act}><Button variant="quiet" onClick={() => copy(made.url!)}>{copied ? t('work.share.copied') : t('work.share.copy')}</Button></span>
           </p>
           <p className={s.note}>{made.line}</p>

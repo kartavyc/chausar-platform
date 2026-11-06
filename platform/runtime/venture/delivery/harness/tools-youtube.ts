@@ -5,9 +5,9 @@
 // step uses it as given (the chapter times). Only the YouTube playbook's agents may hold these tools (patches.ts
 // FLAGSHIP_TOOLS). They read the order's files and send nothing; their effects are declared in policy/effects.ts.
 import { ChausarError } from '../../../contracts.ts';
-import { assertNoNumbers, findRecord, modelWords } from '../../records.ts';
-import type { IsoDate, ToolName, VentureDeps } from '../../contracts.ts';
-import { localDayAt } from '../../local-day.ts';
+import { assertNoNumbers, modelWords } from '../../records.ts';
+import type { ToolName } from '../../contracts.ts';
+import { runDay } from './run-day.ts';
 import {
   buildEditList, chapterProblems, clock, draftChapters, rankHooks, readRetentionExport, sameHook, YOUTUBE_TABLES, type HookScore,
 } from '../../playbooks/youtube/checks.ts';
@@ -44,15 +44,6 @@ function inEngineWords<T>(work: () => T): T {
     if (error instanceof ChausarError && error.code === 'INVALID_VENTURE_REQUEST') fail(error.message);
     throw error;
   }
-}
-
-/** The run's day on the business's own calendar, for rights that end on a date; the clock's day where no vault is at hand. */
-function runDay(env: ToolEnv): IsoDate {
-  // A tool environment built by hand (a unit test) has no vault; every run the engine starts has one.
-  const store = (env.deps as Partial<VentureDeps>).store;
-  if (!store) return env.now().slice(0, 10);
-  const venture = findRecord(store.read(), 'venture-record', env.ventureId);
-  return venture ? localDayAt(env.now(), venture.country) : env.now().slice(0, 10);
 }
 
 const hookRow = (score: HookScore) => ({ Hook: score.hook, Score: String(score.verdict), Band: score.band, Weakest: score.weakest, Fix: score.fix });

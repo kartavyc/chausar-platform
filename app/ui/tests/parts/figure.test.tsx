@@ -16,12 +16,12 @@ afterEach(() => vi.unstubAllEnvs());
 const untyped = (proof: object) => proof as FigureProof;
 
 describe('Figure', () => {
-  it('shows a receipted amount in DM Mono with its receipt beside it', () => {
+  it('shows a receipted amount in the body font with tabular figures and its receipt beside it', () => {
     const { container } = render(<Figure value="₹18,880" receiptId="R-0419" />);
     const figure = container.querySelector('[data-figure]')!;
     const number = figure.querySelector('[data-ui-number]')!;
     expect(number.textContent).toBe('₹18,880');
-    expect(number.classList.contains('mono')).toBe(true);
+    expect(number.classList.contains('mono')).toBe(false); // B2: the body font with tabular figures
     // 4Z3: a small receipt mark named for the amount it proves; the code is not printed beside it.
     const mark = screen.getByRole('button', { name: 'Receipt for ₹18,880' });
     expect(figure.contains(mark)).toBe(true);
@@ -121,11 +121,11 @@ describe('proofOf', () => {
 });
 
 describe('Count', () => {
-  it('is mono text with no proof and no data-ui-number: steps, people and runs are counted, not money', () => {
+  it('is plain text with no proof and no data-ui-number: steps, people and runs are counted, not money', () => {
     const { container } = render(<Count value={3} />);
     const count = container.firstElementChild as HTMLElement;
     expect(count.textContent).toBe('3');
-    expect(count.classList.contains('mono')).toBe(true);
+    expect(count.classList.contains('mono')).toBe(false); // B2
     expect(count.hasAttribute('data-count')).toBe(true);
     expect(container.querySelector('[data-ui-number], [data-figure]')).toBeNull();
   });

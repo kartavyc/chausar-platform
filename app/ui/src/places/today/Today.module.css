@@ -61,6 +61,13 @@
   outline-offset: var(--focus);
 }
 
+/* B3: the decision on a row, at the top of the sheet beside Today that shows what it was about. */
+.sheetDecided {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
 .settle {
   animation: global(ink-settle) var(--t-settle) var(--ease) 1;
 }

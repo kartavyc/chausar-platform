@@ -8,10 +8,11 @@
 // adopt it, and the owner can go back with one tap (improve.ts rollback).
 // Ideas taken, code written here: sealeap-ecommerce-skills assets/experiment-template.md; odysseus
 // docs/skills-lifecycle.md (review at most N candidates, oldest first, with retry spacing; idea only).
+import { formatUsd } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
 import type { ExperimentControl, ExperimentLift, ExperimentRecord, GateResult, IsoTime, PlaybookPatch, SignalRecord } from '../contracts.ts';
 import { liftOf } from './lift.ts';
-import { formatMicros, listRecords } from '../records.ts';
+import { listRecords } from '../records.ts';
 import { rupeesBeside, type Rupees } from '../money/spend.ts';
 
 export type { ExperimentControl, ExperimentRecord };
@@ -26,7 +27,7 @@ const DAY_MS = 86_400_000;
 
 /** An amount in micro-dollars as the owner reads it: rupees at their rate, with the rate; USD only without one. */
 export function budgetWords(micros: string, rupees: Rupees | null): string {
-  return rupeesBeside(micros, rupees) ?? formatMicros(micros);
+  return rupeesBeside(micros, rupees) ?? formatUsd(micros);
 }
 
 /** Whether what was spent reached the cap. */

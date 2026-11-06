@@ -270,11 +270,11 @@ describe('Connections in the Ink v2 look', () => {
     assertInkRules(document.body);
     const payment = within(sheet).getByText('NEFT/INV-0039/BOAT AUDIO').closest('[data-bank-row]') as HTMLElement;
     await act(async () => { fireEvent.click(within(payment).getByRole('button', { name: 'Record payment' })); });
-    await waitFor(() => expect(within(sheet).getByText('Recorded ₹26,200.00 as a payment of INV-0039.')).toBeTruthy());
+    await waitFor(() => expect(within(sheet).getByText('Recorded ₹26,200 as a payment of INV-0039.')).toBeTruthy());
     expect(within(payment).getByRole('button', { name: receiptMark(/./) })).toBeTruthy();
     const rent = within(sheet).getByText('OFFICE RENT OCTOBER').closest('[data-bank-row]') as HTMLElement;
     await act(async () => { fireEvent.click(within(rent).getByRole('button', { name: 'Add as cost' })); });
-    const added = await within(sheet).findByText('Added ₹25,000.00 to your costs.');
+    const added = await within(sheet).findByText('Added ₹25,000 to your costs.');
     expect(added.closest('[data-engine-line]')).not.toBeNull();
     expect(added.closest('[data-content]')).toBeNull();
     assertInkRules(document.body);

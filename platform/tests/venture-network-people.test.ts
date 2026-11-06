@@ -131,10 +131,10 @@ test('venture.network.person lists every field Chausar keeps with its source row
     ['Email', 'asha@dewdrop.example', line5],
     ['LinkedIn', 'https://www.linkedin.com/in/asha-rao-dewdrop', line5],
     ['Role', 'Co-founder at Dewdrop Naturals', line5],
-    ['LinkedIn connection', 'Connected on 02 Oct 2026', line5],
+    ['LinkedIn connection', 'Connected on 2 Oct 2026', line5],
   ]);
   const messages = view.fields.find(field => field.field === 'LinkedIn messages')!;
-  assert.deepEqual(messages, { field: 'LinkedIn messages', value: '2 messages (1 you sent, 1 you received), the last on 02 Oct 2026', source: 'LinkedIn messages, messages.csv, 2 rows', sourceId: m.import.id });
+  assert.deepEqual(messages, { field: 'LinkedIn messages', value: '2 messages (1 you sent, 1 you received), the last on 2 Oct 2026', source: 'LinkedIn messages, messages.csv, 2 rows', sourceId: m.import.id });
   assert.equal(view.merged, true, 'two files make this person');
   assert.deepEqual([view.card, view.drafts, view.web], [null, [], []]);
   // how and paths are 4D2's: the tie's receipt lines and the direct path (venture-network-paths.test.ts holds the rest).

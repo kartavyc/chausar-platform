@@ -7,10 +7,12 @@
 // Ideas from noskillish/bankmcp (MIT, Copyright (c) 2026 Nils Smed): the twin counter and the four-a-day polling limit,
 // and (Ink v2 wave 2, 2D) pairing transfers between the owner's own accounts (findOwnTransfers) and whole-word search for
 // an invoice number. These are rewrites in TypeScript on BigInt minor units, not copies.
+import { formatMoney } from '../../owner-format.ts';
 import { createHash } from 'node:crypto';
 import { check, type Context } from '../../contracts.ts';
-import { decimalMinor, formatMinor } from '../../currency.ts';
-import type { DateOrder, IsoDate, IsoTime, MinorString } from '../contracts.ts';
+import { decimalMinor } from '../../currency.ts';
+import type { CountryProfile, DateOrder, IsoDate, IsoTime, MinorString } from '../contracts.ts';
+import { ownerClock } from '../local-day.ts';
 import { formatVentureDate, isAppChannel, isoDate, singleLine } from '../records.ts';
 import { validDate } from '../../memory.ts';
 import { checkUrl } from '../core/net-guard.ts';
@@ -70,17 +72,18 @@ export function requireActiveConsent(consent: BankConsent | null, now: Date): Ba
   return consent;
 }
 
-export function pollAllowed(polls: readonly IsoTime[], now: Date, limit = BANK_POLLS_PER_DAY): { allowed: boolean; used: number; nextAt: IsoTime | null; line: string } {
+/** country: where the business is, so the next read is said on the owner's clock (B2); without one, UTC and says so. */
+export function pollAllowed(polls: readonly IsoTime[], now: Date, limit = BANK_POLLS_PER_DAY, country?: Pick<CountryProfile, 'code'> | null): { allowed: boolean; used: number; nextAt: IsoTime | null; line: string } {
   const windowStart = now.getTime() - DAY_MS;
   const recent = polls.map(p => Date.parse(p)).filter(t => t > windowStart).sort((a, b) => a - b);
   if (recent.length < limit) return { allowed: true, used: recent.length, nextAt: null, line: `${recent.length} of ${limit} reads used in the last day.` };
   const nextAt = new Date(recent[0] + DAY_MS).toISOString();
-  return { allowed: false, used: recent.length, nextAt, line: `The bank allows ${limit} reads a day. The next one can run at ${nextAt.slice(11, 16)} UTC.` };
+  return { allowed: false, used: recent.length, nextAt, line: `The bank allows ${limit} reads a day. The next one can run at ${country ? ownerClock(nextAt, country) : `${ownerClock(nextAt, null)} UTC`}.` };
 }
 
 /** Records one unattended read, or refuses with BANK_POLL_LIMIT. Returns only the reads from the last day. */
-export function recordPoll(polls: readonly IsoTime[], now: Date, limit = BANK_POLLS_PER_DAY): IsoTime[] {
-  const verdict = pollAllowed(polls, now, limit);
+export function recordPoll(polls: readonly IsoTime[], now: Date, limit = BANK_POLLS_PER_DAY, country?: Pick<CountryProfile, 'code'> | null): IsoTime[] {
+  const verdict = pollAllowed(polls, now, limit, country);
   check(verdict.allowed, 'BANK_POLL_LIMIT', verdict.line);
   const windowStart = now.getTime() - DAY_MS;
   return [...polls.filter(p => Date.parse(p) > windowStart), now.toISOString()];
@@ -443,10 +446,10 @@ export function readAlertRules(value: unknown, currency: string): BankAlertRule[
 
 /** One rule in words, with its money as the engine formats it. */
 export function ruleLine(rule: BankAlertRule, currency: string, order: DateOrder): string {
-  if (rule.kind === 'large-debit') return `When ${formatMinor(rule.minor, currency)} or more goes out in one payment.`;
-  if (rule.kind === 'balance-below') return `When the balance falls below ${formatMinor(rule.minor, currency)}.`;
+  if (rule.kind === 'large-debit') return `When ${formatMoney(rule.minor, currency)} or more goes out in one payment.`;
+  if (rule.kind === 'balance-below') return `When the balance falls below ${formatMoney(rule.minor, currency)}.`;
   if (rule.kind === 'credit-matching') return `When money comes in that mentions ${rule.text}.`;
-  return `When no payment of ${formatMinor(rule.minor, currency)} or more that mentions ${rule.text} has come in by ${formatVentureDate(rule.by, order)}.`;
+  return `When no payment of ${formatMoney(rule.minor, currency)} or more that mentions ${rule.text} has come in by ${formatVentureDate(rule.by, order)}.`;
 }
 
 // ---------------------------------------------------------------------------

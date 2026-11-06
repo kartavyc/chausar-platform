@@ -26,7 +26,7 @@ export function HowStarting({ picking }: { picking: boolean }) {
         {steps.map((step, index) => (
           <li key={step.key} className={s.howStep}>
             <span className={s.howMark} aria-hidden="true">
-              <span className={cx(s.howNumber, 'mono')}>{index + 1}</span>
+              <span className={s.howNumber} data-num="">{index + 1}</span>
               <span className={s.howIcon}><Icon name={step.icon} size={20} /></span>
             </span>
             <h3 className={s.howTitle}>{t(`onboarding.how.${step.key}.title`)}</h3>

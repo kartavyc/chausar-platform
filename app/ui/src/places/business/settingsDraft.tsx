@@ -1,5 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { useLanguage, useT } from '../../text';
+import { useEffect, useId, useRef, useState } from 'react';
+import { useT } from '../../text';
+import { useTime } from '../../parts/when';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import b from './Business.module.css';
@@ -64,15 +65,14 @@ export function useSettingsDraft<V>(form: string, values: V, dirty: boolean): {
   return { saved, refused, offer, decline, taken: () => setOffer(null) };
 }
 
-/** "Recover unsaved changes from 18:42?" with Recover and Not now, for a draft a settings form left behind. */
+/** "Recover unsaved changes from 6:42 pm?" with Recover and Not now, for a draft a settings form left behind. */
 export function DraftRecover<V>({ offer, onRecover, onDecline }: { offer: DraftOffer<V>; onRecover: (values: V) => void; onDecline: () => void }) {
   const t = useT();
-  const language = useLanguage();
   const id = useId();
-  const time = useMemo(() => new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }), [language]);
+  const time = useTime();
   return (
     <div className={b.draftOffer} role="group" aria-labelledby={id} data-draft-offer="">
-      <p id={id} className={b.line}>{t('business.owner.recover', { time: time.format(new Date(offer.at)) })}</p>
+      <p id={id} className={b.line}>{t('business.owner.recover', { time: time(offer.at) })}</p>
       <span className={b.buttons}>
         <Button size="sm" onClick={() => onRecover(offer.values)}>{t('business.owner.recoverGo')}</Button>
         <Button size="sm" variant="quiet" onClick={onDecline}>{t('business.owner.recoverNo')}</Button>

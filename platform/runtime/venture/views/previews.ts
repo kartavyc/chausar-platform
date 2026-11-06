@@ -11,8 +11,8 @@
 // choice is only ever a model estimate. Simple first: an invoice from a business not registered for tax has no tax
 // lines, and no preview carries tax numbers or registration details. A row with nothing real to show gets none, and
 // drawing a preview never counts as viewed: that stays the screen's own rule (ApprovalRow), on Read or Watch.
+import { formatMoney } from '../../owner-format.ts';
 import type { State } from '../../contracts.ts';
-import { formatMinor } from '../../currency.ts';
 import { assertNoMoney, currentVenture, findRecord, listRecords, modelNumbers } from '../records.ts';
 import type {
   ConnectorPostRecord, DeliveryRunRecord, InvoiceRecord, PreviewFigure, PreviewLength, PreviewReceiptKind, PreviewWords, QueueCount, QueuePreview, QueueRow,
@@ -140,7 +140,7 @@ function invoicePaper(state: State, venture: VentureRecord, invoice: InvoiceReco
   const receipt = listRecords(state, 'venture-price-receipt', venture.id).find(item => item.id === invoice.priceReceiptId);
   if (!client || client.ventureId !== venture.id || !receipt || receipt.totalMinor !== invoice.totalMinor) return null;
   const receiptId = receipt.id;
-  const money = (minor: string) => formatMinor(minor, invoice.currency);
+  const money = (minor: string) => formatMoney(minor, invoice.currency);
   const figure = (label: string, minor: string): PreviewFigure => ({ label, value: money(minor), receiptId, receiptKind: 'price' });
   // Simple first: tax lines only for a business that charges tax on this invoice; registration details stay on the paper.
   const taxed = invoice.taxTreatment !== 'none' && invoice.taxLines.length > 0;

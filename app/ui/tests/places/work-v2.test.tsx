@@ -60,7 +60,7 @@ const withAgain = (change: Partial<QueueRow['actions'][number]>): Intercept => a
   return { ...sent, rows };
 };
 const doneRun = (runId: string, purpose: string): RunSummary => ({
-  runId, businessId: 'lumen', agent: 'Editor', purpose, state: 'done', startedAt: '2026-10-20T07:00:00.000Z', elapsed: '3m', result: 'Done.', receiptId: 'R-0412',
+  runId, businessId: 'lumen', agent: 'Editor', purpose, state: 'done', startedAt: '2026-10-20T07:00:00.000Z', elapsed: '3 min', result: 'Done.', receiptId: 'R-0412',
 });
 
 /**
@@ -150,7 +150,7 @@ describe('Work v2: running now', () => {
     expect(within(editor).getByText('Editor')).toBeTruthy();
     expect(within(editor).getByText('Lumen Studio')).toBeTruthy();
     expect(await within(editor).findByText('Rendering 3 of 6')).toBeTruthy();
-    expect(within(editor).getByText('Run 31 · 4m').className).toMatch(/mono/);
+    expect(within(editor).getByText('Started 4 min ago').className).not.toMatch(/mono/); // B2: the body font
     const researcher = await tileOf('Checking titles against the last 30 videos', running);
     expect(within(researcher).getByRole('img', { name: 'Working, no step count yet' })).toBeTruthy();
     expect(await within(researcher).findByText('Comparing the two new titles')).toBeTruthy();
@@ -199,14 +199,14 @@ describe('Work v2: running now', () => {
     const running = await screen.findByRole('region', { name: 'Running now' });
     await settle();
     expect(within(running).queryByText('3 running · 1 failed')).toBeNull();
-    expect(screen.getByText(/runs going and 1 failed\./)).toBeTruthy();
+    expect(screen.getByText(/jobs going and 1 failed\./)).toBeTruthy();
   });
 
   it('offers Stop on each running tile now that the engine has run controls (W4 4F3); Force stop and Resume wait until asked', async () => {
     await start();
     const running = await screen.findByRole('region', { name: 'Running now' });
     await settle();
-    expect(within(running).getAllByRole('button', { name: /^Stop run \d+$/ }).length).toBe(3);
+    expect(within(running).getAllByRole('button', { name: /^Stop: / }).length).toBe(3);
     // Force stop sits behind Stop, and Resume only on a stopped run: nothing is stopped at rest.
     for (const name of [/^Force stop/, /^Resume/]) expect(screen.queryByRole('button', { name })).toBeNull();
   });
@@ -219,7 +219,7 @@ describe('Work v2: the failed run', () => {
     expect(screen.getByRole('region', { name: 'Failed' }).contains(stopped)).toBe(true);
     expect(within(stopped).getByRole('heading', { level: 3, name: 'Rendering the thumbnail set' })).toBeTruthy();
     expect(await within(stopped).findByText('Failed at step 2 of 3')).toBeTruthy();
-    expect(within(stopped).getByText('Editor · Lumen Studio · run 28 · 40s')).toBeTruthy();
+    expect(within(stopped).getByText('Editor · Lumen Studio · 40 s')).toBeTruthy();
     expect(within(stopped).getByText('What went wrong')).toBeTruthy();
     expect(within(stopped).getByText('The renderer stopped: ffmpeg was not found on this computer.')).toBeTruthy();
     const steps = within(stopped).getByRole('list', { name: 'Steps' });
@@ -245,12 +245,12 @@ describe('Work v2: the failed run', () => {
     expect(within(stopped).queryByRole('button', { name: 'Run again' })).toBeNull();
     await act(async () => { fireEvent.click(again); });
     expect(decides(calls)).toEqual([]);
-    expect(within(stopped).getByText("This can't be undone. Try again?")).toBeTruthy();
-    const notNow = within(stopped).getByRole('button', { name: 'Not now' });
+    expect(within(stopped).getByText("Try again? Check it once more.")).toBeTruthy();
+    const notNow = within(stopped).getByRole('button', { name: 'Cancel' });
     expect(document.activeElement).toBe(notNow);
     assertInkRules();
     await act(async () => { fireEvent.click(notNow); });
-    expect(within(stopped).queryByText("This can't be undone. Try again?")).toBeNull();
+    expect(within(stopped).queryByText("Try again? Check it once more.")).toBeNull();
     expect(decides(calls)).toEqual([]);
     await act(async () => { fireEvent.click(within(stopped).getByRole('button', { name: 'Try again' })); });
     const confirm = within(stopped).getByRole('button', { name: 'Try again' });
@@ -276,7 +276,7 @@ describe('Work v2: the failed run', () => {
   });
 
   it('a failed run a newer run of its order replaced is left out of All, and the Failed chip still shows it', async () => {
-    const old: RunSummary = { runId: '25', businessId: 'lumen', agent: 'Writer', purpose: 'First go at the episode 12 script', state: 'failed', startedAt: '2026-10-02T10:00:00.000Z', elapsed: '1m', result: 'The model did not answer.' };
+    const old: RunSummary = { runId: '25', businessId: 'lumen', agent: 'Writer', purpose: 'First go at the episode 12 script', state: 'failed', startedAt: '2026-10-02T10:00:00.000Z', elapsed: '1 min', result: 'The model did not answer.' };
     const replaced: DeliveryLite = { id: '25', at: '2026-10-02T10:00:00.000Z', orderId: 'o-boat-12', status: 'failed', practice: false, deliverable: null, verdict: null };
     await start('#/work', {
       intercept: {
@@ -302,7 +302,7 @@ describe('Work v2: finished', () => {
     const books = await tileOf('Matched September bank lines to invoices', finished);
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
-    expect(within(books).getByText('Worked for 4m')).toBeTruthy();
+    expect(within(books).getByText('Worked for 4 min')).toBeTruthy();
     const reach = await tileOf('Estimated reach for episode 14', finished);
     // The model's words sit inside the estimate itself, so they read as labelled wherever they stand.
     const estimate = within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]') as HTMLElement | null;
@@ -310,24 +310,24 @@ describe('Work v2: finished', () => {
     expect(within(estimate!).getByText('model estimate')).toBeTruthy();
     expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
     expect(within(finished).queryByText('Rendering the thumbnail set')).toBeNull();
-    expect(within(finished).queryByRole('link', { name: 'All finished runs' })).toBeNull();
+    expect(within(finished).queryByRole('link', { name: 'All finished jobs' })).toBeNull();
     assertInkRules();
   });
 
-  it('All lists the newest five, and "All finished runs" leads to Done with every one', async () => {
+  it('All lists the newest five, and "All finished jobs" leads to Done with every one', async () => {
     const more = ['Cut episode 9', 'Cut episode 10', 'Cut episode 11', 'Cut episode 12', 'Cut episode 13'].map((purpose, i) => doneRun(`f${i}`, purpose));
     await start('#/work', { intercept: { 'venture.runs.list': withRuns(...more) } });
     const finished = await screen.findByRole('region', { name: 'Finished' });
     await within(finished).findByText('Matched September bank lines to invoices');
     expect(within(finished).getAllByRole('listitem')).toHaveLength(5);
     expect(within(finished).queryByText('Cut episode 12')).toBeNull();
-    const all = within(finished).getByRole('link', { name: 'All finished runs' });
+    const all = within(finished).getByRole('link', { name: 'All finished jobs' });
     expect(all.getAttribute('href')).toBe('#/work?state=done');
     await go('#/work?state=done');
     const every = await screen.findByRole('region', { name: 'Finished' });
     expect(await within(every).findByText('Cut episode 13')).toBeTruthy();
     expect(within(every).getAllByRole('listitem')).toHaveLength(7);
-    expect(within(every).queryByRole('link', { name: 'All finished runs' })).toBeNull();
+    expect(within(every).queryByRole('link', { name: 'All finished jobs' })).toBeNull();
   });
 });
 
@@ -339,7 +339,7 @@ describe('Work v2: orders by client', () => {
     expect(boat.querySelector('[aria-hidden="true"][data-size]')?.textContent).toBe('BA');
     expect(within(boat).getByText(/^Client since 2 Sept? · 2 orders$/)).toBeTruthy();
     const owes = within(boat).getByText('Owes you').parentElement!;
-    const owed = within(owes).getByText('₹26,200.00').closest('[data-figure]') as HTMLElement;
+    const owed = within(owes).getByText('₹26,200').closest('[data-figure]') as HTMLElement;
     expect(within(owed).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     await click(within(boat).getByRole('button', { name: 'Boat Audio' }));
     expect(window.location.hash).toBe('#/work?sheet=client%3Ac-boat');
@@ -362,7 +362,7 @@ describe('Work v2: orders by client', () => {
     expect(within(ep12).getByText('INV-0039')).toBeTruthy();
     expect(within(ep12).getByText(/^due 28 Oct/)).toBeTruthy();
     // Its price and its invoice total, each with its receipt (the sample bills the order at its price, R-0416).
-    const total = within(ep12).getByText('₹26,200.00').closest('[data-figure]') as HTMLElement;
+    const total = within(ep12).getByText('₹26,200').closest('[data-figure]') as HTMLElement;
     expect(within(total).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     expect(within(ep12).getAllByRole('button', { name: receiptMark('R-0416') })).toHaveLength(2);
     expect(within(ep12).queryByRole('link', { name: 'Open on Today' })).toBeNull();
@@ -387,7 +387,7 @@ describe('Work v2: the orders head and a failed verdict', () => {
       servedBy: 'model', deliverable: { title: 'Sponsor script for episode 14' }, verdict: null, awaitingYou: true,
       checks: [{ check: 'no-numeric-prose', passed: true, detail: 'No numbers in the prose.' }, { check: 'rules-judge', passed: false, detail: FAILED }],
       canAccept: false, acceptBlocked: `This draft failed a check: ${FAILED}`,
-      judge: { status: 'done', preview: null, auto: false, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: null, draftDigest: 'f'.repeat(64) },
+      judge: { status: 'done', preview: null, auto: false, estimatedMaxCostDisplay: 'under $0.01 (estimate)', line: null, draftDigest: 'f'.repeat(64) },
     };
     await start('#/work?order=o-boat-14', { intercept: { 'venture.delivery.list': () => [failed] } });
     const judge = await screen.findByRole('region', { name: 'Quality check' });
@@ -403,7 +403,7 @@ describe('Work v2: the header line and the other filters', () => {
   it('the line under the title counts what is going, failed and open, with the running count in bold', async () => {
     await start();
     const header = screen.getByRole('heading', { level: 1, name: 'Work' }).closest('header')!;
-    await waitFor(() => expect(header.textContent).toContain('3 runs going and 1 failed. 2 orders open for 1 client.'));
+    await waitFor(() => expect(header.textContent).toContain('3 jobs going and 1 failed. 2 orders open for 1 client.'));
     expect(header.querySelector('b')?.textContent).toBe('3');
   });
 

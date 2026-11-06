@@ -13,6 +13,7 @@ import { Avatar } from '../src/parts/Avatar';
 import { Board, BoardCard, type BoardColumn } from '../src/parts/Board';
 import { ChatThread, type ThreadEntry } from '../src/parts/ChatThread';
 import { Composer } from '../src/parts/Composer';
+import { ClockProvider } from '../src/shell/clock';
 import { DiffCard } from '../src/parts/DiffCard';
 import { Gallery, type GalleryWay } from '../src/parts/Gallery';
 import { PathLine } from '../src/parts/PathLine';
@@ -160,11 +161,11 @@ function Chats() {
   return (
     <Bento>
       <Section id="sp-chief" title="Chausar" span={7}>
-        <ChatThread agent={{ name: 'Chausar', chausar: true }} entries={CHIEF} now={NOW} timeZone="Asia/Kolkata" />
+        <ClockProvider now={() => NOW} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Chausar', chausar: true }} entries={CHIEF} now={NOW} /></ClockProvider>
         <Composer label="Ask Chausar" placeholder="Ask Chausar about your businesses" onSend={resolved} suggestions={['What needs me today?', 'Which client owes the most?']} />
       </Section>
       <Section id="sp-editor" title="Editor" span={5}>
-        <ChatThread agent={{ name: 'Editor', dept: 'prod' }} entries={EDITOR} now={NOW} timeZone="Asia/Kolkata" />
+        <ClockProvider now={() => NOW} zone="Asia/Kolkata"><ChatThread agent={{ name: 'Editor', dept: 'prod' }} entries={EDITOR} now={NOW} /></ClockProvider>
         <DiffCard
           agent="Editor" dept="prod" appliesTo="Applies to every short from now on" fromVersion={4} toVersion={5}
           lines={[

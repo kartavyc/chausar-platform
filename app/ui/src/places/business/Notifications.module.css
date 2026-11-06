@@ -42,8 +42,8 @@
   border-radius: var(--r-button);
   background: var(--surface);
   color: var(--fg);
-  font-family: var(--font-mono);
   font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
 }
 
 .select:focus-visible {

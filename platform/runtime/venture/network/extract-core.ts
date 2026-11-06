@@ -77,8 +77,15 @@ export function extractError(code: string, message: string): Error & { code: str
   return refusalError(new Error(message), { code });
 }
 
-/** A whole number with thousands commas. */
-export const count = (value: number) => value.toLocaleString('en-US');
+/**
+ * A whole number grouped as owner-format formatCount groups it for India (B2): the last three digits, then twos. Written
+ * here because the forked reader's permission model lets it read only its own files.
+ */
+export const count = (value: number) => {
+  const digits = String(Math.trunc(Math.abs(value)));
+  const grouped = digits.length <= 3 ? digits : `${digits.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${digits.slice(-3)}`;
+  return value < 0 ? `-${grouped}` : grouped;
+};
 /** '1 line', '3 lines'. */
 export const plural = (value: number, one: string, many: string) => `${count(value)} ${value === 1 ? one : many}`;
 

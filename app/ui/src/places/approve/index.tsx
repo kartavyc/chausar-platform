@@ -13,12 +13,12 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet, useRoute } from '../../shell/navigation';
 import { useNarrow } from '../../shell/useNarrow';
-import { ApprovalRow, readBack, type DecideExtra } from '../../parts/ApprovalRow';
+import { ApprovalRow, type DecideExtra } from '../../parts/ApprovalRow';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { PageTitle } from '../../parts/PageTitle';
 import type { QueueAction, QueueDecision, QueueRow, VentureRunEvent } from '../../engine/types';
-import { seenKey, useTodaySession } from '../today/session';
+import { decide as decideRow, reread as rereadRow, seenKey, useTodaySession } from '../today/session';
 import { viewSheetId } from '../today/ViewSheet';
 import { useCardPreview } from '../today/CardPreview';
 import s from './Approve.module.css';
@@ -77,29 +77,19 @@ export function Place() {
 
   async function decide(r: QueueRow, action: QueueAction, extra: DecideExtra): Promise<QueueDecision> {
     setKept(r);
-    session.begin(r.id);
-    try {
-      return after(r, await client.request('venture.queue.decide', { id: r.id, digest: r.digest, action: action.id, ...extra }));
-    } finally {
-      session.end(r.id);
-    }
+    return after(r, await decideRow(client, r, action.id, extra, t));
   }
   async function reread(r: QueueRow): Promise<QueueDecision> {
     setKept(r);
-    return after(r, readBack(await client.request('venture.queue.list', { scope: 'all' }), r, t));
+    return after(r, await rereadRow(client, r, 'all', t));
   }
+  /** The session keeps the line (session.ts decide); this page shows it and offers the next row. */
   function after(r: QueueRow, decision: QueueDecision): QueueDecision {
-    if (decision.outcome === 'done') {
-      setDone(true);
-      session.keep(r, decision.line, decision.receiptId);
-    } else if (decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') {
-      setDone(true);
-      session.keep(r, t('approval.elsewhere'), undefined, false);
-    } else if (decision.outcome === 'stale') {
-      session.unview(r.id);
+    if (decision.outcome === 'done' || decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') setDone(true);
+    else if (decision.outcome === 'stale') {
       const latest = decision.latest;
       if (latest) setNewer({ from: r.digest, latest });
-    } else if (decision.reason === 'VIEW_FIRST') session.unview(r.id);
+    }
     return decision;
   }
 

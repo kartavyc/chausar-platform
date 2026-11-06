@@ -126,7 +126,7 @@ export function OnlineSellerDesk() {
       </div>
     </Tile>}
     {receipt && report && <Sheet receipt label={t('pb-online-seller.receipt')} title={t('pb-online-seller.receipt')} line={t('pb-online-seller.receiptLine')} onClose={() => setReceipt(false)}>
-      <div className={s.body}><h3 className={s.heading}>{t('pb-online-seller.source')}</h3>{(report.receipt.inputs as { tables?: { name: string }[] }).tables?.map((source,i) => <p key={i} data-content="">{source.name}</p>)}<dl className={s.figures}>{report.figures.map(f => <div key={f.key}><dt>{label(f.key)}</dt><dd className="mono">{f.display}</dd></div>)}</dl></div>
+      <div className={s.body}><h3 className={s.heading}>{t('pb-online-seller.source')}</h3>{(report.receipt.inputs as { tables?: { name: string }[] }).tables?.map((source,i) => <p key={i} data-content="">{source.name}</p>)}<dl className={s.figures}>{report.figures.map(f => <div key={f.key}><dt>{label(f.key)}</dt><dd data-code="" className="mono">{f.display}</dd></div>)}</dl></div>
     </Sheet>}
   </>;
 }

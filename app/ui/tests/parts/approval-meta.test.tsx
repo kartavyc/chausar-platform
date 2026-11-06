@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { createRef } from 'react';
-import { ApprovalRow, timeOf, type ApprovalHandle, type ApprovalToolsApi } from '../../src/parts/ApprovalRow';
+import { ApprovalRow, type ApprovalHandle, type ApprovalToolsApi } from '../../src/parts/ApprovalRow';
 import { SwipeCard } from '../../src/parts/SwipeCard';
 import { ClockProvider } from '../../src/shell/clock';
 import { TextProvider } from '../../src/text';
@@ -76,7 +76,7 @@ const plain: QueueRow = {
 function card(row: QueueRow, props: Partial<Parameters<typeof ApprovalRow>[0]> = {}) {
   const onDecide = vi.fn(async (): Promise<QueueDecision> => ({ outcome: 'done', line: 'Approved' }));
   render(
-    <ClockProvider now={() => NOW}>
+    <ClockProvider now={() => NOW} zone="Asia/Kolkata">
       <TextProvider language="en"><main><ApprovalRow layout="card" row={row} onDecide={onDecide} showBusiness {...props} /></main></TextProvider>
     </ClockProvider>,
   );
@@ -84,10 +84,10 @@ function card(row: QueueRow, props: Partial<Parameters<typeof ApprovalRow>[0]> =
 }
 
 describe('the card meta line (4J1 meta)', () => {
-  it('reads "for Mehta Traders · Ledgerline · 09:20 · expires in 2 h" and how long it waited, in the wait tone', () => {
+  it('reads "for Mehta Traders · Ledgerline · 2:50 pm · expires in 2 h" and how long it waited, in the wait tone', () => {
     const { article } = card(invoice);
     const meta = article.querySelector('[data-meta]')!;
-    expect(meta.textContent).toBe(`for Mehta Traders · Ledgerline · ${timeOf(at, 'en')} · expires in 2 h · Waiting since yesterday`);
+    expect(meta.textContent).toBe(`for Mehta Traders · Ledgerline · 2:50 pm · expires in 2 h · Waiting since yesterday`);
     expect(meta.querySelector('[data-meta-expires]')).not.toBeNull();
     expect(meta.querySelector('[data-meta-waiting]')!.textContent).toBe('Waiting since yesterday');
     assertInkRules(document.body);
@@ -106,7 +106,7 @@ describe('the card meta line (4J1 meta)', () => {
 
   it('says nothing about an expiry or a client the engine did not send, and "expired" once the time is past', () => {
     const { article, onDecide: _ } = card({ ...invoice, meta: { client: null, business: 'Ledgerline', at, expiresAt: '2026-10-23T09:00:00.000Z' } });
-    expect(article.querySelector('[data-meta]')!.textContent).toBe(`Ledgerline · ${timeOf(at, 'en')} · expired`);
+    expect(article.querySelector('[data-meta]')!.textContent).toBe(`Ledgerline · 2:50 pm · expired`);
     expect(article.querySelector('[data-meta-client]')).toBeNull();
   });
 });

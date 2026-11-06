@@ -2,6 +2,7 @@
 // journal.ts, receipt.ts) over in-memory entries, so codes, words, figures and receipts match the engine. It holds only
 // the owner's own trades, reaches no broker and never says what to trade.
 import { check, digest } from '../../../../platform/runtime/portable';
+import { dayKeyIn, ownerZone } from '../../../../platform/runtime/owner-format';
 import { JOURNAL_LINES, sourcesOf, importEntry, importPayload, journalItem, journalOf, listRows, openingLot, packFor, type JournalEntryRow } from '../../../../platform/runtime/venture/playbooks/trading-journal/desk-core';
 import { journalReceipt, taxPackReceipt } from '../../../../platform/runtime/venture/playbooks/trading-journal/receipt';
 import type { TradeJournalEntry } from '../../../../platform/runtime/venture/playbooks/trading-journal/records';
@@ -24,7 +25,8 @@ export function fakeTradingJournalDesk(host: W4DeskHost): FakePlaybookDesk {
   const spaces = new Map<string, JournalEntryRow[]>(), receipts = new Map<string, WorkReceiptLite>();
   let seq = 0;
   const rows = () => spaces.get(host.current()) ?? [];
-  const today = () => host.now().slice(0, 10);
+  // The as-of day where the business is, as the engine's desk reads it (one-shot B2, the owner-day rule).
+  const today = () => dayKeyIn(host.now(), ownerZone((host.ask('venture.get', {}) as { venture?: { country?: { code: string } | null } } | null)?.venture?.country?.code, 'UTC'));
   const nextId = (kind: string) => `${kind}_${++seq}`;
   const keepReceipt = (body: ReturnType<typeof journalReceipt> | ReturnType<typeof taxPackReceipt>) => {
     const id = nextId('work');

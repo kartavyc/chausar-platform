@@ -6,9 +6,10 @@
 // and shows the receipt's own display; money written in words is cut out and replaced with "(figure left out: no
 // receipt)"; any other number in prose is shown as a model estimate. Proposals ride on the answer and are checked by
 // proposals.ts. With templates only, or when the AI's answer does not pass, code answers from the records.
+import { formatRate } from '../../owner-format.ts';
 import { ChausarError, type Context, type State } from '../../contracts.ts';
 import type { ChatPart, ChiefCounted, Json, ModelPort, ModelTask, VentureDeps, VentureRecord } from '../contracts.ts';
-import { copiedTokens, formatMicros, modelNumbers, tidyWords } from '../records.ts';
+import { copiedTokens, modelNumbers, tidyWords } from '../records.ts';
 import { hindiNumberWords, statesMoney } from '../delivery/harness/patches.ts';
 import { isCurrencyName, isMoneyScaleWord, isThousandWord, scaledAmountToken, thousandToken } from '../core/money-words.ts';
 import { chatCall, leftOutLine } from '../agents/answer.ts';
@@ -376,7 +377,7 @@ const NO_AI_TAIL = 'Connect your AI in Connections to ask in your own words.';
 const NOT_PASSED_LEAD = "Your AI's answer did not pass Chausar's checks, so here is what Chausar can say from its records.";
 /** One-shot A3 (S3): the AI call itself failed, so the answer is the records'. */
 export const AI_FAILED_LEAD = "Your AI couldn't answer this time, so here is what Chausar's records say.";
-const capLead = () => `Chausar stopped asking your AI: this answer reached its spend cap of ${formatMicros(ANSWER_CAP_MICROS)}. Here is what it read, with receipts.`;
+const capLead = () => `Chausar stopped asking your AI: this answer reached its spend cap of ${formatRate(ANSWER_CAP_MICROS)}. Here is what it read, with receipts.`;
 const SHOWN_FROM_RECORDS = 4;
 
 /**

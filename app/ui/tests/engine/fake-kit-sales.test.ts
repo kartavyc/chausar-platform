@@ -17,7 +17,7 @@ function salesDesk() {
       if (method === 'venture.blueprint.get') return BLUEPRINTS.lumen;
       if (method === 'venture.client.list') return [{ id: 'client', name: 'Client', email: null }];
       if (method === 'venture.order.list') return [];
-      if (method === 'venture.price.quote') return { id: 'receipt', figures: [{ key: 'total', display: 'INR 15,000.00' }], totalMinor: '1500000', explanation: 'The agreed price.' };
+      if (method === 'venture.price.quote') return { id: 'receipt', figures: [{ key: 'total', display: '₹15,000' }], totalMinor: '1500000', explanation: 'The agreed price.' };
       return null;
     },
   };
@@ -70,12 +70,12 @@ it('proposal investment is the quoted total, including default quantity and samp
       : method === 'venture.order.list' ? [] : business.request(method, params),
   });
   const result = sales.request('venture.salesProposal.draft', { clientId: 'client', offerId: 'offer_books' }) as SalesProposalView;
-  expect(result.investment[0]).toMatchObject({ totalMinor: '3776000', display: '\u20b937,760.00' });
+  expect(result.investment[0]).toMatchObject({ totalMinor: '3776000', display: '\u20b937,760' });
   const receipt = business.receipt(result.investment[0]!.kind === 'price' ? result.investment[0]!.receiptId : '') as ReceiptLite;
   expect(receipt).toMatchObject({ totalMinor: '3776000' });
-  expect(receipt.figures.find(figure => figure.key === 'unit')?.display).toBe('\u20b916,000.00');
-  expect(receipt.figures.find(figure => figure.key === 'subtotal')?.display).toBe('\u20b932,000.00');
-  expect(receipt.figures.find(figure => figure.key === 'cgst')?.display).toBe('\u20b92,880.00');
+  expect(receipt.figures.find(figure => figure.key === 'unit')?.display).toBe('\u20b916,000');
+  expect(receipt.figures.find(figure => figure.key === 'subtotal')?.display).toBe('\u20b932,000');
+  expect(receipt.figures.find(figure => figure.key === 'cgst')?.display).toBe('\u20b92,880');
 });
 it('Forget removes proposals for the person, their client, and proposals whose words mention them', async () => {
   const engine = new FakeEngine();

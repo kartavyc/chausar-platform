@@ -27,15 +27,15 @@
       "global"
     ],
     "regionNote": null,
-    "auth": "Amazon developer registration and seller authorization; Chausar adapter and account verification.",
+    "auth": "Amazon developer registration and seller authorization; Chausar's own connection, checked on your account.",
     "vendorUrl": "https://developer-docs.amazon.com/sp-api/docs/sp-api-registration-overview",
-    "note": "Amazon developer registration and seller authorization; Chausar adapter and account verification. Download the reports in Seller Central and add them to the order.",
+    "note": "Amazon developer registration and seller authorization; Chausar's own connection, checked on your account. Download the reports in Seller Central and add them to the order.",
     "starter": false,
     "postingOptions": [],
     "guide": {
       "steps": [
         "1. Nothing to set up in Chausar yet: linking Amazon.in Selling Partner API is planned.",
-        "2. When it is built, Chausar will ask for amazon developer registration and seller authorization; Chausar adapter and account verification., with read access only to what it needs, and no access to anything else.",
+        "2. When it is built, Chausar will ask for amazon developer registration and seller authorization; Chausar's own connection, checked on your account., with read access only to what it needs, and no access to anything else.",
         "3. Until then, use Amazon.in Selling Partner API on its own site."
       ],
       "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
@@ -78,15 +78,15 @@
       "global"
     ],
     "regionNote": null,
-    "auth": "Amazon Ads developer access and advertiser authorization; Chausar adapter.",
+    "auth": "Amazon Ads developer access and advertiser authorization; Chausar's own connection.",
     "vendorUrl": "https://advertising.amazon.com/API/docs/en-us/guides/get-started/overview",
-    "note": "Amazon Ads developer access and advertiser authorization; Chausar adapter. Download your ads reports in the Amazon Ads console.",
+    "note": "Amazon Ads developer access and advertiser authorization; Chausar's own connection. Download your ads reports in the Amazon Ads console.",
     "starter": false,
     "postingOptions": [],
     "guide": {
       "steps": [
         "1. Nothing to set up in Chausar yet: linking Amazon Ads API is planned.",
-        "2. When it is built, Chausar will ask for amazon Ads developer access and advertiser authorization; Chausar adapter., with read access only to what it needs, and no access to anything else.",
+        "2. When it is built, Chausar will ask for amazon Ads developer access and advertiser authorization; Chausar's own connection., with read access only to what it needs, and no access to anything else.",
         "3. Until then, use Amazon Ads API on its own site."
       ],
       "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
@@ -129,15 +129,15 @@
       "global"
     ],
     "regionNote": null,
-    "auth": "Seller developer access and authorization; Chausar adapter.",
+    "auth": "Seller developer access and authorization; Chausar's own connection.",
     "vendorUrl": "https://seller.flipkart.com/api-docs/FMSAPI.html",
-    "note": "Seller developer access and authorization; Chausar adapter. Download the settlement report in Seller Hub and add it to the order.",
+    "note": "Seller developer access and authorization; Chausar's own connection. Download the settlement report in Seller Hub and add it to the order.",
     "starter": false,
     "postingOptions": [],
     "guide": {
       "steps": [
         "1. Nothing to set up in Chausar yet: linking Flipkart Seller API is planned.",
-        "2. When it is built, Chausar will ask for seller developer access and authorization; Chausar adapter., with read access only to what it needs, and no access to anything else.",
+        "2. When it is built, Chausar will ask for seller developer access and authorization; Chausar's own connection., with read access only to what it needs, and no access to anything else.",
         "3. Until then, use Flipkart Seller API on its own site."
       ],
       "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
@@ -400,15 +400,15 @@
       "global"
     ],
     "regionNote": null,
-    "auth": "Owner API user and scoped token; Chausar shipment adapter and verified read-back.",
+    "auth": "Owner API user and scoped token; Chausar's own shipment connection, read back to check.",
     "vendorUrl": "https://apidocs.shiprocket.in/",
-    "note": "Owner API user and scoped token; Chausar shipment adapter and verified read-back. Create and check the shipment in Shiprocket yourself.",
+    "note": "Owner API user and scoped token; Chausar's own shipment connection, read back to check. Create and check the shipment in Shiprocket yourself.",
     "starter": false,
     "postingOptions": [],
     "guide": {
       "steps": [
         "1. Nothing to set up in Chausar yet: linking Shiprocket is planned.",
-        "2. When it is built, Chausar will ask for owner API user and scoped token; Chausar shipment adapter and verified read-back., with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "2. When it is built, Chausar will ask for owner API user and scoped token; Chausar's own shipment connection, read back to check., with read access to what it needs and write access only for what you approve, and no access to anything else.",
         "3. Until then, use Shiprocket on its own site."
       ],
       "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",
@@ -451,15 +451,15 @@
       "global"
     ],
     "regionNote": null,
-    "auth": "Owner business account API token; Chausar shipment adapter and verified read-back.",
+    "auth": "Owner business account API token; Chausar's own shipment connection, read back to check.",
     "vendorUrl": "https://help.delhivery.com/docs/api-token-generation",
-    "note": "Owner business account API token; Chausar shipment adapter and verified read-back. Create and check the shipment in Delhivery One yourself.",
+    "note": "Owner business account API token; Chausar's own shipment connection, read back to check. Create and check the shipment in Delhivery One yourself.",
     "starter": false,
     "postingOptions": [],
     "guide": {
       "steps": [
         "1. Nothing to set up in Chausar yet: linking Delhivery is planned.",
-        "2. When it is built, Chausar will ask for owner business account API token; Chausar shipment adapter and verified read-back., with read access to what it needs and write access only for what you approve, and no access to anything else.",
+        "2. When it is built, Chausar will ask for owner business account API token; Chausar's own shipment connection, read back to check., with read access to what it needs and write access only for what you approve, and no access to anything else.",
         "3. Until then, use Delhivery on its own site."
       ],
       "skipped": "Don't make a key or sign-in for Chausar yet: nothing here would use it, and an unused key is one more to lose.",

@@ -9,7 +9,7 @@ import s from './Secret.module.css';
  */
 export function CodeGroups({ code, label }: { code: string; label: string }) {
   return (
-    <div className={`${s.code} mono`} role="group" aria-label={label}>
+    <div data-code="" className={`${s.code} mono`} role="group" aria-label={label}>
       {groupsOf(code).map((part, i) => <span key={i} className={s.part}>{part}</span>)}
     </div>
   );
