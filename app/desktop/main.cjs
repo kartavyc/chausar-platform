@@ -433,6 +433,7 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle('chausar:pack:share', (event, input) => require('./pack-share.cjs').sharePack(event, input, shareDeps()));
   ipcMain.handle('chausar:share:show', (event, input) => invoiceShare.showShared(event, input, shareDeps()));
   // The network import (4D1): the owner picks one of their own files; a worker process reads it and only what Chausar keeps comes back.
+  ipcMain.handle('chausar:transcription:pickFile', (event, kind) => require('./transcription-files.cjs').pickTranscriptionFile(event, kind, { dialog, window, assertTrustedSender, publicError }));
   ipcMain.handle(require('./ipc-contract.cjs').PICK_FILE_CHANNEL, (event, input) => require('./network-files.cjs').pickNetworkFile(event, input, { dialog, window, assertTrustedSender, publicError, workerPath: engineFiles.extractWorker, runtimeRoot: engineFiles.runtimeRoot }));
   // Export for your CA (4J4): the engine makes the month's CSV, the owner picks where it goes, and it is saved atomically.
   ipcMain.handle(require('./ipc-contract.cjs').MONEY_EXPORT_CHANNEL, (event, input) => require('./money-export.cjs').saveMoneyExport(event, input, { dialog, window, assertTrustedSender, publicError, engine: engineGate.engine, documents: app.getPath('documents'), settingsFile: join(app.getPath('userData'), 'money-export.json') }));

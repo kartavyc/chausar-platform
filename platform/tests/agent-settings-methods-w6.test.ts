@@ -39,7 +39,7 @@ test('AI settings carry the models Codex lists, or null when there is no list', 
   const codex = listed(async () => ({ route: 'gpt-6-luna', quick: 'gpt-6-luna', main: 'gpt-6.1-terra', listed: ['gpt-6.1-terra', 'gpt-6-luna'], source: 'codex' as const }));
   const view = await getAgentSettings(codex, owner, {});
   assert.deepEqual(view.models, { codex: ['gpt-6.1-terra', 'gpt-6-luna'] });
-  assert.deepEqual(Object.keys(view), ['settings', 'boundaries', 'agents', 'models']);
+  assert.deepEqual(Object.keys(view), ['settings', 'boundaries', 'agents', 'modelChoices', 'models']);
   const saved = await setAgentSettings(codex, owner, { settings: view.settings });
   assert.deepEqual(saved.models, { codex: ['gpt-6.1-terra', 'gpt-6-luna'] });
   assert.deepEqual((await getAgentSettings(listed(undefined), owner, {})).models, { codex: null });
@@ -47,4 +47,14 @@ test('AI settings carry the models Codex lists, or null when there is no list', 
   assert.deepEqual((await getAgentSettings(listed(async () => { throw new Error('codex is not here'); }), owner, {})).models, { codex: null });
   // No new input: the request stays exact.
   await assert.rejects(getAgentSettings(codex, owner, { models: true }), code('INVALID_VENTURE_REQUEST'));
+});
+
+
+test('simple model choices remain engine defaults after an owner changes both jobs (B4)', async () => {
+  const env = await setup(); await seedBlueprint(env);
+  const initial = await getAgentSettings(env.deps, owner, {});
+  assert.deepEqual(initial.modelChoices, { codex: { faster: 'gpt-6-luna', smarter: 'gpt-6.1-terra' }, claude: { faster: 'claude-haiku-5-5', smarter: 'claude-sonnet-5-5' } });
+  initial.settings.codex.quick.model = 'owner-model'; initial.settings.codex.main.model = 'owner-model';
+  const saved = await setAgentSettings(env.deps, owner, { settings: initial.settings });
+  assert.deepEqual(saved.modelChoices, initial.modelChoices);
 });

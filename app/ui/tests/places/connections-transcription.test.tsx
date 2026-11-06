@@ -35,6 +35,8 @@ describe('Connections > Your AI: transcription on this computer', () => {
     const engine = new FakeEngine();
     const spy = vi.spyOn(engine, 'request');
     start(engine);
+    const startButton = await screen.findByRole('button', { name: 'Set up transcription' });
+    await act(async () => { fireEvent.click(startButton); });
     const box = await part();
     expect(await within(box).findByText('No whisper.cpp is set up on this computer.')).toBeTruthy();
     expect(within(box).getByText('Uses installed whisper.cpp. Chausar never installs it or downloads models.')).toBeTruthy();
@@ -46,8 +48,8 @@ describe('Connections > Your AI: transcription on this computer', () => {
     expect(await within(box).findByText('whisper.cpp is set up on this computer.')).toBeTruthy();
     await act(async () => { fireEvent.click(within(box).getByRole('button', { name: 'Remove' })); });
     expect(sets(spy)).toEqual([{ command: CLI, model: MODEL }, { clear: true }]);
-    expect(await within(box).findByText('No whisper.cpp is set up on this computer.')).toBeTruthy();
-    expect((within(box).getByLabelText('whisper-cli program') as HTMLInputElement).value).toBe('');
+    expect(screen.queryByLabelText('whisper-cli program')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Set up transcription' })).toBeTruthy();
   });
 
   it("shows the paths kept and the files-missing status in the engine's words, and its refusals", async () => {
@@ -86,4 +88,31 @@ describe('Connections > Your AI: transcription on this computer', () => {
     expect(((await engine.request('venture.transcription.get', {})) as TranscriptionSetupView).status).toBe('set-up');
     await expect(new FakeEngine({ hosted: true }).request('venture.transcription.set', { command: CLI, model: MODEL })).rejects.toMatchObject({ code: 'TIER_UNAVAILABLE' });
   });
+});
+
+
+it('keeps local transcription fields out of the page until the owner turns it on (B4)', async () => {
+  start();
+  expect(await screen.findByRole('button', { name: 'Set up transcription' })).toBeTruthy();
+  expect(screen.queryByLabelText('whisper-cli program')).toBeNull();
+  expect(screen.queryByLabelText('Model file')).toBeNull();
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Set up transcription' })); });
+  expect(await screen.findByLabelText('whisper-cli program')).toBeTruthy();
+});
+
+
+it('chooses installed transcription files without saving until the owner presses Save (B4)', async () => {
+  const engine = new FakeEngine(), client = createFakeClient(engine), requested = vi.spyOn(engine, 'request');
+  const pickTranscriptionFile = vi.fn(async (kind: 'command' | 'model') => kind === 'command' ? CLI : MODEL);
+  window.location.hash = '#/connections';
+  render(<App client={{ ...client, pickTranscriptionFile }} language="en" />);
+  await act(async () => { fireEvent.click(await screen.findByRole('button', { name: 'Set up transcription' })); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Choose program' })); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Choose model' })); });
+  expect(pickTranscriptionFile.mock.calls).toEqual([['command'], ['model']]);
+  expect((screen.getByLabelText('whisper-cli program') as HTMLInputElement).value).toBe(CLI);
+  expect((screen.getByLabelText('Model file') as HTMLInputElement).value).toBe(MODEL);
+  expect(sets(requested)).toEqual([]);
+  await act(async () => { fireEvent.click(within(await part()).getByRole('button', { name: 'Save' })); });
+  expect(sets(requested)).toEqual([{ command: CLI, model: MODEL }]);
 });
