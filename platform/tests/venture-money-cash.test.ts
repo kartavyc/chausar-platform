@@ -215,3 +215,14 @@ test('closingRow: the newest row of the latest day by its balances, the last lis
   assert.equal(closingRow([a, b]), b, 'two rows whose balances do not chain: the last listed');
   assert.equal(closingRow([]), null);
 });
+
+
+test('B4: the cash axis has a round level above the highest projected amount', async () => {
+  const env = await goalBusiness();
+  await bankCosts(env, ['2026-10-18,CLIENT DEPOSIT,51500.00,Someone,51500.00']);
+  const view = await env.money<CashView>('venture.money.cash');
+  const top = view.ticks.at(-1);
+  assert.equal(top?.label, '₹60,000');
+  assert.equal(top?.permille, 1000);
+  assert.ok(view.points.every(point => (point.forecastPermille ?? 0) < top!.permille));
+});
