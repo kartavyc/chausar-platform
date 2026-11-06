@@ -1,0 +1,25 @@
+name: B4 places validation
+on:
+  push:
+    branches: ['b2c/os-b4-places-check-*']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config app/ui/vitest.config.ts agent-settings-w6 --testNamePattern="overlapping" --maxWorkers=1 --reporter=default --reporter=json --outputFile=$RUNNER_TEMP/clients-ui.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clients-ui-report
+          path: ${{ runner.temp }}/clients-ui.json
