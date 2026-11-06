@@ -360,6 +360,7 @@
   "swipe.later": "Later",
   "swipe.locked": "Open it first, then approve",
   "tabs.label": "Places",
+  "tabs.more": "More",
   "tabs.needYou": {
     "one": "{count} needs you",
     "other": "{count} need you"

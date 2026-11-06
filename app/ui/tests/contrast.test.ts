@@ -79,6 +79,9 @@ const TEXT_PAIRS: [string, string][] = [
   ...DEPTS.map((d): [string, string] => ['fail', `${d}-tint`]),
   ['on-selected', 'selected'],
   ['on-selected', 'count-on-selected'],
+  // C1 task 1: a selected tab's words and count, in both themes.
+  ['fg', 'line'],
+  ['mute', 'line'],
   ...(['wash', 'inner', 'desk'] as const).flatMap((g): [string, string][] => [['fg', g], ['fg2', g], ['mute', g]]),
   ['link', 'inner'],
   ['link-hover', 'surface'],
