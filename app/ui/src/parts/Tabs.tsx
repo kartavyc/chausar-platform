@@ -211,7 +211,7 @@ export function Tabs(props: TabsProps) {
   };
 
   const more = showMore && (
-    <div className={s.moreHolder} data-tabs-more="">
+    <div className={s.moreHolder} data-tabs-more="" onKeyDown={(event) => { if (event.key === 'Escape' && open) { event.stopPropagation(); closeMenu(); } }}>
       <button
         ref={moreButton} type="button" className={cx(s.item, s.moreButton)} aria-expanded={open} aria-controls={menuId}
         tabIndex={measuring && underMore.length === 0 ? -1 : undefined} aria-hidden={measuring && underMore.length === 0 ? true : undefined}
@@ -220,10 +220,7 @@ export function Tabs(props: TabsProps) {
         {t('tabs.more')}
       </button>
       {open && underMore.length > 0 && (
-        <div
-          ref={menu} id={menuId} className={s.menu}
-          onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); closeMenu(); } }}
-        >
+        <div ref={menu} id={menuId} className={s.menu}>
           <ul className={s.menuList}>{underMore.map(moreItem)}</ul>
         </div>
       )}

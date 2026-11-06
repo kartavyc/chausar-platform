@@ -12,6 +12,18 @@
   margin-bottom: var(--sp-4);
 }
 
+/* The tabs take the room the tools leave (C1); what does not fit goes under More. On a phone they have their own line. */
+.toolbar > [data-tabs] {
+  flex: 1 1 0;
+  width: auto;
+}
+
+@media (max-width: 759px) {
+  .toolbar > [data-tabs] {
+    flex-basis: 100%;
+  }
+}
+
 .tools {
   display: flex;
   flex: none;
