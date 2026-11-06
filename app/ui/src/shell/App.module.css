@@ -162,3 +162,11 @@
   min-width: var(--target);
   min-height: var(--target);
 }
+
+/* C1 task 8: from 760 to 959 px the rail folds to its icons, so it no longer takes a third of a small window. */
+@media (min-width: 760px) and (max-width: 959px) {
+  .app,
+  .app[data-sheet-open] {
+    grid-template-columns: var(--rail-compact) minmax(0, 1fr);
+  }
+}

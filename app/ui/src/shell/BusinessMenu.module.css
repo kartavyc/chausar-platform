@@ -200,3 +200,25 @@
     min-height: var(--target);
   }
 }
+
+/* C1 task 8: in the rail folded to icons (760 to 959 px) the button is the initials square alone; the name and kind
+   stay in the page as its name, visually hidden, and the full name is its title. */
+@media (min-width: 760px) and (max-width: 959px) {
+  .business[data-variant='rail'] {
+    justify-content: center;
+    padding: var(--sp-1);
+    border-color: transparent;
+    background: none;
+    box-shadow: none;
+  }
+
+  .business[data-variant='rail'] .words,
+  .business[data-variant='rail'] .chevrons {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

@@ -193,7 +193,7 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
         if (event.key === 'Tab' && open) tabAcross(event);
       }}
     >
-      <button ref={button} type="button" className={s.business} data-variant={variant} aria-haspopup="dialog" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen((o) => !o)}>
+      <button ref={button} type="button" className={s.business} data-variant={variant} title={name || undefined} aria-haspopup="dialog" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen((o) => !o)}>
         {venture.data && <span className={s.square} data-initials="" aria-hidden="true">{initialsOf(name)}</span>}
         <span className={s.words}>
           {loading ? <span className={s.nameLoading} data-loading="" aria-hidden="true" /> : <span className={s.name}>{name}</span>}
