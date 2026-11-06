@@ -411,7 +411,7 @@ describe('C4 task 12: a Finished row names its client and its day', () => {
     const finished = await screen.findByRole('region', { name: 'Finished' });
     const title = await within(finished).findByRole('button', { name: 'Matched September bank lines to invoices' });
     const row = title.closest('[data-row]') as HTMLElement;
-    expect(within(row).getByText('21 Oct')).toBeTruthy();
+    expect(within(row).getByText('21 Oct, 1:04 pm')).toBeTruthy();
     fireEvent.click(within(row).getByRole('button', { name: 'Mehta Traders' }));
     expect(window.location.hash).toContain('sheet=client%3Ac-mehta');
   });
@@ -421,7 +421,7 @@ describe('C4 task 12: a Finished row names its client and its day', () => {
 describe('a new client on a new order', () => {
   it('takes a phone or WhatsApp number and sends it with the new client', async () => {
     const { calls, sheet, service, add } = await openOrder(await lumen());
-    fireEvent.change(within(sheet).getByLabelText('Client'), { target: { value: '+new' } });
+    fireEvent.click(within(sheet).getByRole('button', { name: '+ New client' }));
     fireEvent.change(within(sheet).getByLabelText("Client's name"), { target: { value: 'Kavya Rao' } });
     fireEvent.change(within(sheet).getByLabelText('Phone or WhatsApp'), { target: { value: '98765 43210' } });
     fireEvent.change(service, { target: { value: 'offer_shorts' } });

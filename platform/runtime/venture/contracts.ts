@@ -339,6 +339,8 @@ export type VentureRecord = RecordBase<'venture-record'> & {
   serviceType: ServiceType | null;
   status: VentureStatus;
   launchStage: LaunchStage;
+  /** When this business last entered Live; absent for a stage recorded before dates were kept. */
+  liveSince?: IsoTime | null;
   blueprintId: string | null; // latest blueprint version
   acceptedBlueprintId: string | null;
   /** Opaque Electron partition IDs awaiting an already owner-approved Forget. No credentials or client text. */
@@ -2175,6 +2177,7 @@ export type ImprovementReadiness = {
  */
 export type LaunchStatus = {
   stage: 'practice' | 'live';
+  liveSince: IsoTime | null;
   stages: { stage: 'practice' | 'live'; allowed: boolean; reason: string; current: boolean }[];
   acceptedDeliveries: number;
   improvement: ImprovementReadiness;
@@ -3136,6 +3139,9 @@ export type RunToolLine = { name: string; line: string; state?: 'done' | 'error'
  */
 export interface RunSummary {
   runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
+  /** Completion and practice are recorded facts, so Work never infers them from a title or start date. */
+  finishedAt?: IsoTime;
+  practice?: true;
   /**
    * C5 task 4: the run's time apart: worked (elapsed less every wait for the owner) and waited (each span from the run
    * waiting to the next thing it did). Only on runs whose calls carry stamped times; an older run shows elapsed alone.

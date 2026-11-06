@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
 import { decide as decideRow } from '../places/today/session';
@@ -66,6 +66,9 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
   const [answer, setAnswer] = useState('');
   const [sending, setSending] = useState(false);
   const evidence = run.steps.flatMap((step) => step.evidence ?? []);
+  const checks = evidence.filter((item) => item.kind === 'check').sort((a, b) => Number(b.label.startsWith('Failed:')) - Number(a.label.startsWith('Failed:')));
+  const passed = checks.filter((item) => item.label.startsWith('Passed:')).length;
+  const otherEvidence = evidence.filter((item) => item.kind !== 'check');
   const finished = run.state === 'done';
   const waitingWords = useWaitingWords();
 
@@ -188,18 +191,24 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
 
       <SteerBox run={run} onSteer={onSteer} />
 
-      {evidence.length > 0 && (
-        <p className={s.evidence}>
-          {t('run.evidence')}:{' '}
-          {evidence.map((item, i) => (
-            <Fragment key={`${item.kind}:${item.id}`}>
-              {i > 0 && ', '}
-              {item.kind === 'check'
-                ? <span>{evidenceLabel(item, (detail) => t('run.notChecked', { detail }))}</span>
-                : <Button variant="quiet" className={s.link} onClick={() => onEvidence?.(item)}>{item.label}</Button>}
-            </Fragment>
-          ))}
-        </p>
+      {checks.length > 0 && (
+        <Fold summary={t(passed === 1 ? 'run.checkPassed' : 'run.checksPassed', { count: passed })} open={passed < checks.length}>
+          <ul className={s.checks} data-check-evidence="">
+            {checks.map((item) => (
+              <li key={item.id} data-check-passed={item.label.startsWith('Passed:') ? '' : undefined}>
+                {item.label.startsWith('Passed:') && <Icon name="check" size={14} />}
+                <span>{evidenceLabel(item, (detail) => t('run.notChecked', { detail }))}</span>
+              </li>
+            ))}
+          </ul>
+        </Fold>
+      )}
+      {otherEvidence.length > 0 && (
+        <section aria-label={t('run.evidence')}>
+          <ul className={s.checks}>
+            {otherEvidence.map((item) => <li key={`${item.kind}:${item.id}`}><Button variant="quiet" className={s.link} onClick={() => onEvidence?.(item)}>{item.label}</Button></li>)}
+          </ul>
+        </section>
       )}
 
       {/* What the untrusted screen noted in outside content, as the engine words it; never the words it found. */}
