@@ -148,6 +148,9 @@ export interface ApprovalRowProps {
   answerLabel?: ((answer: string) => string) | undefined;
   /** B3: the row was decided already (Today's session holds its line): it is drawn as that line from the start. */
   done?: { line: string; receiptId?: string | undefined } | undefined;
+  /** B4: another button holds the view's one filled primary (Today's next best step): the row's primary is drawn as a
+   *  secondary. It stays the row's primary in every other way: its place, its key (A), its lock and its second ask. */
+  quietPrimary?: boolean | undefined;
 }
 
 type Phase = 'idle' | 'confirm' | 'answer' | 'sending' | 'decided';
@@ -210,7 +213,7 @@ export function primaryOf(row: QueueRow, viewed: boolean, t: T): ApprovalPrimary
  */
 export function ApprovalRow({
   row, onDecide, onView, viewed, onOpen, onReceipt, onAction, showBusiness = true, onReread,
-  layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize, tools, answerLabel, done,
+  layout = 'row', agentState, dept, nameTag, preview, handle, buttonSize, tools, answerLabel, done, quietPrimary = false,
 }: ApprovalRowProps) {
   const t = useT();
   const zone = useOwnerZone();
@@ -462,7 +465,7 @@ export function ApprovalRow({
             locked primary reads and acts the same in a row and on a card. It is still the row's one primary. */}
         <Button
           ref={primaryRef}
-          variant="primary"
+          variant={quietPrimary ? 'secondary' : 'primary'}
           data-key="primary"
           disabled={busy}
           locked={locked}
@@ -652,7 +655,7 @@ export function ApprovalRow({
           <Button
             ref={primaryRef}
             size={size}
-            variant="primary"
+            variant={quietPrimary ? 'secondary' : 'primary'}
             data-key="primary"
             disabled={busy}
             locked={locked}

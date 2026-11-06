@@ -5,6 +5,7 @@ import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
  *
  *   assertFiguresProved(root?)  every money figure carries its proof: a receipt, or the "model estimate" label
  *   assertOnePrimary(root?)     every card and list row holds at most one filled primary button
+ *   assertOnePrimaryPerView(root?)  the page, and each open sheet, shows at most one filled button that can be pressed
  *   assertNoInlineStyles(root?) nothing carries a style attribute (lengths are svg attributes, states are data-*)
  *   assertInkRules(root?)       all three, with every problem reported at once
  *
@@ -240,6 +241,38 @@ function primaryProblems(root: Root): string[] {
  */
 export function assertOnePrimary(root: Root = document.body): void {
   fail('one filled primary per card', primaryProblems(root));
+}
+
+/** A filled button an owner can press and can see: enabled, not locked, not inside a closed fold or a hidden block. */
+function pressableFilled(scope: Element): Element[] {
+  return [...scope.querySelectorAll('[data-variant="primary"]')].filter((button) => {
+    if (button.hasAttribute('data-locked') || button.getAttribute('aria-disabled') === 'true' || (button as HTMLButtonElement).disabled) return false;
+    if (button.closest('[hidden]')) return false;
+    const fold = button.closest('details');
+    return !fold || fold.open;
+  });
+}
+
+function viewProblems(root: Root): string[] {
+  const problems: string[] = [];
+  const check = (what: string, filled: Element[]) => {
+    if (filled.length > 1) problems.push(`${what} holds ${filled.length} filled buttons (${filled.map((p) => `"${p.getAttribute('aria-label') ?? textOf(p)}"`).join(', ')})`);
+  };
+  const mains = within(root, 'main');
+  const sheets = within(root, '[data-sheet]');
+  if (!mains.length && !sheets.length) problems.push('no <main> and no open sheet to check');
+  for (const main of mains) check('the page', pressableFilled(main).filter((button) => !button.closest('[data-sheet]')));
+  for (const sheet of sheets) check(`sheet ${nameOf(sheet)}`, pressableFilled(sheet));
+  return problems;
+}
+
+/**
+ * One-shot B4 task 2: one filled primary per view. `main` shows at most one filled button the owner can press, and so
+ * does each open sheet. A disabled or locked one does not count (a locked primary is drawn as an outline), nor does one
+ * inside a closed fold. assertOnePrimary still holds per card: a locked primary keeps its place there.
+ */
+export function assertOnePrimaryPerView(root: Root = document.body): void {
+  fail('one filled primary per view', viewProblems(root));
 }
 
 function styleProblems(root: Root): string[] {

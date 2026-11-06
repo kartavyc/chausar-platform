@@ -35,6 +35,29 @@ describe('ApprovalRow', () => {
     expect(container.querySelector('del')?.textContent).toBe('₹25,000');
   });
 
+  it('quietPrimary draws the primary as a secondary, and it stays the primary in every other way (B4)', async () => {
+    const onDecide = vi.fn(async () => done('Approved'));
+    const { container } = list(<ApprovalRow row={price} onDecide={onDecide} quietPrimary />);
+    const approve = screen.getByRole('button', { name: 'Approve' });
+    expect(approve.dataset.variant).toBe('secondary');
+    expect(approve.dataset.key).toBe('primary');
+    expect(container.querySelector('[data-variant="primary"]')).toBeNull();
+    // Its second ask still opens, and the ask's own button is the filled one while it asks.
+    fireEvent.click(approve);
+    expect(onDecide).not.toHaveBeenCalled();
+    const confirm = container.querySelector<HTMLElement>('[data-confirm]')!;
+    expect(confirm.dataset.variant).toBe('primary');
+    await act(async () => { fireEvent.click(confirm); });
+    expect(onDecide).toHaveBeenCalledTimes(1);
+  });
+
+  it('quietPrimary keeps a locked primary locked, on a card too (B4)', () => {
+    render(<ClockProvider now={() => new Date('2026-10-21T09:00:00Z')}><ApprovalRow row={draft} onDecide={vi.fn()} layout="card" quietPrimary /></ClockProvider>);
+    const approve = screen.getByRole('button', { name: 'Approve' });
+    expect(approve.dataset.variant).toBe('secondary');
+    expect(approve.getAttribute('aria-disabled')).toBe('true');
+  });
+
   it('a second ask confirms inside the row before deciding, and marks the row so A never runs it', async () => {
     const onDecide = vi.fn(async () => done('Approved · R-0421', 'R-0421'));
     const { container } = list(<ApprovalRow row={price} onDecide={onDecide} />);

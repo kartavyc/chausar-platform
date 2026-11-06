@@ -33,7 +33,7 @@ export interface GoalCardProps {
  * tax, "of" the goal, the engine's percent, the bar with what is ready to issue and today's pace, days left and the
  * foot figures, each with its receipt. With no goal for the month it still says what was invoiced, then asks for one,
  * with last month's figure; a suggestion, a model estimate on the owner's own AI, is asked for only on a press.
- * Without the goals view (W3) it says only what was invoiced and received. One card: at most one filled button.
+ * Without the goals view (W3) it says only what was invoiced and received. Its only filled button is a folded next step.
  */
 export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProps) {
   const t = useT();
@@ -110,7 +110,8 @@ export function GoalCard({ data, onEdit, onSet, suggestion, next }: GoalCardProp
               {suggestion && (
                 <Button size="sm" disabled={suggestion.state.state === 'asking'} onClick={suggestion.ask}>{t('today.goal.suggest')}</Button>
               )}
-              {onSet && <Button variant={next ? undefined : 'primary'} size="sm" onClick={onSet}>{t('today.goal.set')}</Button>}
+              {/* B4: Today's one filled button is the next best step or a card, never this. */}
+              {onSet && <Button size="sm" onClick={onSet}>{t('today.goal.set')}</Button>}
             </div>
           )}
         </div>

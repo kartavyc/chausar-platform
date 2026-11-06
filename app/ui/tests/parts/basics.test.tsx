@@ -73,10 +73,10 @@ describe('Button', () => {
     expect(approve.hasAttribute('title')).toBe(false);
   });
 
-  it('fills only the primary with the accent, and the locked primary with the soft accent', () => {
+  it('fills only the primary with the accent, and draws the locked primary as an outline (B4)', () => {
     const css = readFileSync(join(import.meta.dirname, '../../src/parts/Button.module.css'), 'utf8');
     expect(css).toMatch(/\.primary\s*\{[^}]*background:\s*var\(--accent\)[^}]*color:\s*var\(--accent-ink\)/);
-    expect(css).toMatch(/\.primary\[data-locked\]\s*\{[^}]*background:\s*var\(--accent-soft\)[^}]*color:\s*var\(--mute\)/);
+    expect(css).toMatch(/\.primary\[data-locked\]\s*\{[^}]*background:\s*var\(--surface\)[^}]*border-color:\s*var\(--btn-line\)[^}]*color:\s*var\(--mute\)/);
     for (const [, selector, body] of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)) {
       if (/var\(--accent\)/.test(body!)) expect(selector!.trim()).toMatch(/^\.primary\b/);
     }

@@ -5,7 +5,7 @@ import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient, queueOrder } from '../../src/engine/fake';
 import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
 import { EngineError, type EngineClient, type QueueDecision, type QueueKind, type QueueRow } from '../../src/engine/types';
-import { receiptMark } from '../helpers/ink-rules';
+import { receiptMark, assertOnePrimaryPerView } from '../helpers/ink-rules';
 import common from '../../src/text/en/common.json';
 
 type Seed = Omit<QueueRow, 'digest'>;
@@ -112,9 +112,10 @@ describe('Today: the header and the list', () => {
       const buttons = [...li.querySelectorAll<HTMLButtonElement>('[data-key]')];
       expect(buttons.length === 1 || buttons.length === 2, li.dataset.rowId).toBe(true);
       expect(buttons.at(-1)!.dataset.key, li.dataset.rowId).toBe('primary');
-      const filled = buttons.filter((b) => b.dataset.variant === 'primary');
-      expect(filled.length, li.dataset.rowId).toBe(buttons.at(-1)!.disabled ? 0 : 1);
+      // B4: the next best step or one card holds the page's one filled button; the others draw their primary as a secondary.
+      expect(buttons.filter((b) => b.dataset.variant === 'primary').length, li.dataset.rowId).toBeLessThanOrEqual(1);
     }
+    assertOnePrimaryPerView();
   });
 
   it('a change shows the old value struck through, the new one, and its receipt; a model number says so', async () => {

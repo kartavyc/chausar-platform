@@ -93,7 +93,8 @@ describe('Today w4: follow-ups, replies and notes after a call (4E4)', () => {
     expect(card.textContent).toContain('Tara Iyer, Kettle Audio: follow-up is 2 days late. Nudge drafted for Mail.');
     expect(card.querySelector('[data-kind]')?.textContent).toBe('Follow-up');
     const primary = within(card).getByRole('button', { name: 'Open in Mail' });
-    expect(primary.dataset.variant).toBe('primary');
+    // B4: the next best step may hold the page's one filled button; this is still the card's primary.
+    expect(primary.dataset.key).toBe('primary');
     assertOnePrimary(document.body);
     await press(primary);
     // The handoff is not a decision: it opens the owner's mail app and the card stays.

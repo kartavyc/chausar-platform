@@ -15,14 +15,47 @@
   color: var(--fg);
 }
 
-/* Plain tiles (B4, PLACE_TILES): a plain row on the page ground, no gradient, no border, no shadow. */
+/* Plain tiles (B4, PLACE_TILES): a plain row on the page ground, no gradient, no border, no shadow: the words on the
+   left, the buttons on the right, under the words when the column is narrow. */
 .next[data-plain] {
   --ring-ground: var(--bg);
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-4);
   padding: 0;
   border: 0;
   border-radius: 0;
   background: none;
   box-shadow: none;
+}
+
+.body {
+  min-width: 0;
+}
+
+.next[data-plain] .body {
+  flex: 1 1 200px;
+}
+
+.next[data-plain] .eyebrow {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.next[data-plain] .figures {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.next[data-plain] .acts {
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .top {

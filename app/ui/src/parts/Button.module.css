@@ -67,16 +67,16 @@
 }
 
 /* Locked until the owner opens the thing first (aria-disabled, so it stays reachable): at full strength with the
-   lock icon, never changing on hover; the note line beside it says why. The primary keeps its place on the soft
-   accent; any other button goes grey. */
+   lock icon, never changing on hover; the note line beside it says why. The primary keeps its place as an outline,
+   never a solid block (B4); any other button goes grey. */
 .button[data-locked] {
   opacity: 1;
   cursor: not-allowed;
 }
 
 .primary[data-locked] {
-  background: var(--accent-soft);
-  border-color: transparent;
+  background: var(--surface);
+  border-color: var(--btn-line);
   color: var(--mute);
 }
 
