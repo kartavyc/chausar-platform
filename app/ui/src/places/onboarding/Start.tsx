@@ -332,13 +332,9 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
           onChange={(event) => changeText(event.target.value)}
           onKeyDown={onBoxKey}
         />
-        {(editable || inBar) && (
-          <div className={s.boxBar}>
-            {editable && <Hint />}
-          {inBar && !countryCheck && submitButton}
-          </div>
-        )}
+        {inBar && !countryCheck && <div className={s.boxBar}>{submitButton}</div>}
       </div>}
+      {!plan && editable && <Hint />}
 
       {picking && business !== undefined && (
         <BusinessPick business={business} target={target} onTarget={(next) => { setTarget(next); setSuggestion(null); setProblem(null); }} disabled={busy} />

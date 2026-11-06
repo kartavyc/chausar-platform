@@ -15,7 +15,7 @@ import { useLanguage, useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import type { ChiefFit, WayView } from '../../engine/types';
 import { askChausar } from '../../shell/ask';
-import { ChausarAvatar } from '../../parts/Avatar';
+import { Fold } from '../../parts/Fold';
 import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import { ModelEstimate } from '../../parts/ModelEstimate';
@@ -72,11 +72,9 @@ export function NotSure({ fit, onFit }: { fit: FitAsk; onFit: () => void }) {
   const t = useT();
   const titleId = useId();
   return (
-    <Tile as="section" labelledBy={titleId} className={s.unsure}>
-      <div className={s.top}>
-        <ChausarAvatar size={32} />
-        <h2 id={titleId} className={s.unsureTitle}>{t('onboarding.unsure.title')}</h2>
-      </div>
+    <Tile as="section" plain labelledBy={titleId} className={s.unsure}>
+      <h2 id={titleId} className="sr-only">{t('onboarding.unsure.title')}</h2>
+      <Fold summary={t('onboarding.unsure.ask')}>
       <p className={s.unsureLine}>{t('onboarding.unsure.line')}</p>
       <div className={s.questions} role="group" aria-label={t('onboarding.unsure.questions')}>
         {QUESTIONS.map((key) => (
@@ -90,6 +88,7 @@ export function NotSure({ fit, onFit }: { fit: FitAsk; onFit: () => void }) {
       {fit.state === 'none' && <p className={s.unsureLine} role="status">{t('onboarding.fit.none')}</p>}
       {fit.state === 'failed' && <p className={s.problem} role="alert">{fit.message}</p>}
       <a className={s.open} href="#/chats">{t('onboarding.unsure.open')}</a>
+      </Fold>
     </Tile>
   );
 }

@@ -94,7 +94,8 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
 
   const past = (target: Step) => ORDER.indexOf(step) > ORDER.indexOf(target);
   const mark = (n: number, done: boolean) => <span className={f.stepMark} aria-hidden="true">{done ? <Icon name="check" size={12} /> : n}</span>;
-  const away = !begun && (step === 'ai' || step === 'about' || step === 'who' || step === 'check');
+  // B4 task 12: About you's chat and plan card have their own one way back.
+  const away = !begun && (step === 'ai' || (step === 'about' && aboutMode === 'a') || step === 'who' || step === 'check');
   // C1 task 11: step 2, "Your work", is About you before the plan card; step 3 runs from the plan card to the end.
   const work = step === 'about' && aboutMode !== 'plan';
   const business = (step === 'about' && aboutMode === 'plan') || step === 'who' || step === 'check' || step === 'keep' || step === 'needs';

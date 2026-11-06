@@ -42,6 +42,26 @@
   box-shadow: var(--shadow-tile);
 }
 
+/* B4 task 12: Welcome sits in the first run's frame, on the page ground with no card. */
+.aloneFlat {
+  width: min(600px, 100%);
+}
+
+/* The links under Welcome's list, one to a line. */
+.stacked {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-1);
+  margin-top: var(--sp-2);
+}
+
+.businessEnd {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+}
+
 /* The logo at the top of the first run and Welcome back. */
 .brand {
   display: flex;

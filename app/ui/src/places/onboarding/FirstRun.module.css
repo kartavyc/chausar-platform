@@ -106,6 +106,7 @@
 }
 
 .grid {
+  align-items: start;
   margin-top: var(--sp-6);
 }
 
@@ -113,7 +114,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  min-height: 220px;
 }
 
 .optionHead {
@@ -191,18 +191,12 @@
   letter-spacing: 0.08em;
 }
 
+/* B4 task 12: Skip and the limits line sit plainly under the cards. */
 .footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3);
-  color: var(--fg2);
-  font-size: var(--text-body);
-}
-
-.footer > p {
-  flex: 1 1 300px;
-  min-width: 0;
+  display: grid;
+  grid-column: 1 / -1;
+  justify-items: start;
+  gap: var(--sp-2);
 }
 
 .keyPanel {
@@ -212,11 +206,6 @@
 .problem {
   color: var(--fail);
   font-size: var(--text-body);
-}
-
-/* An error that belongs to the whole grid, not one card. */
-.wide {
-  grid-column: 1 / -1;
 }
 
 .status {
@@ -279,8 +268,20 @@
   gap: var(--sp-2);
 }
 
+/* B4 task 12: the one way on stays in view on a long list. */
 .needsFoot {
+  position: sticky;
+  bottom: 0;
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
   margin-top: var(--sp-6);
+  padding-block: var(--sp-3);
+  background: var(--bg);
+}
+
+.wide {
+  grid-column: 1 / -1;
 }

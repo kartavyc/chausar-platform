@@ -103,7 +103,8 @@ export function StartPage({ gallery, onStarted, business, country }: {
       <Beside aside={<NotSure fit={fit} onFit={() => void askFit()} />}>
         <Start variant="place" onStarted={onStarted} orDescribe={ways !== undefined} onBegin={setBegun} fill={fill} business={business} home={country} />
       </Beside>
-      {!begun && <ResumeSetup />}
+      {/* B4 task 12: another business's setup stays off the gallery. */}
+      {!begun && !ways && <ResumeSetup />}
     </div>
   );
 }

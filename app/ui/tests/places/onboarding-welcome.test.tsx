@@ -33,7 +33,7 @@ describe('Welcome back: businesses on this computer, none open', () => {
     await show();
     expect(await screen.findByRole('heading', { level: 1, name: 'Welcome back' })).toBeTruthy();
     const names = within(await list()).getAllByRole('button').map((b) => b.textContent);
-    expect(names).toEqual(['Lumen Studio', 'Ledgerline', 'Sitara EventsOpens with its passphrase']);
+    expect(names).toEqual(['Lumen StudioOpen', 'LedgerlineOpen', 'Sitara EventsOpens with its passphrase']);
     expect(screen.queryByRole('navigation', { name: 'Places' })).toBeNull();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ledgerline' })); });
     await screen.findByRole('navigation', { name: 'Places' });

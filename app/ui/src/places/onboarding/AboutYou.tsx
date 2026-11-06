@@ -18,6 +18,7 @@ import s from './AboutYou.module.css';
 import { Select } from '../../parts/Select';
 import { FilePick } from '../../parts/FilePick';
 import { Progress } from '../../parts/Progress';
+import { Fold } from '../../parts/Fold';
 
 export type AboutMode = 'a' | 'b' | 'plan';
 type Mode = AboutMode;
@@ -27,6 +28,8 @@ type Bubble = { who: 'me' | 'them'; text: string; failed?: boolean; byAi?: boole
 type OfferRow = { key: number; name: string; line: string; kept: boolean; editing: boolean };
 /** The engine keeps one to three offers from the card (core/blueprint.ts SHOWN_OFFER_IDS). */
 const CARD_OFFERS_MAX = 3;
+/** B4 task 12: the fields shown at rest; the others sit under More fields. */
+const FIELDS_AT_REST = 6;
 /**
  * C4 task 1 (146.w1): a message that asks for a rename in any words. When renameIn cannot read a name from it, the chat
  * says so in one fixed line and points at the name field.
@@ -251,8 +254,8 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
         </>
       ) : country ? (
         <>
-          <Chip tone="line">{fromZone ? t('first-run.about.fromZone', { country: country.name }) : country.name}</Chip>
-          <Chip tone="line">{country.currency}</Chip>
+          <span>{fromZone ? t('first-run.about.fromZone', { country: country.name }) : country.name}</span>
+          <span>{country.currency}</span>
           <Button variant="quiet" onClick={() => setChoosing(true)}>{t('onboarding.change')}</Button>
         </>
       ) : null}
@@ -284,7 +287,6 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
         <label className={s.label} htmlFor={`${fieldId}-name`}>{t('first-run.about.name')}</label>
         <input id={`${fieldId}-name`} className={s.name} data-content="" data-plan-name="" maxLength={60}
           value={ownName ?? name ?? read.family?.label ?? ''} onChange={(event) => setOwnName(event.target.value)} onFocus={(event) => event.currentTarget.select()} />
-        {read.family && <p className={s.offerLine}>{read.family.label}</p>}
       </div>
       <Select label={t('first-run.about.field')} id={fieldId} value={read.family?.id ?? ''} disabled={busy} onChange={(event) => void pick(event.target.value, mode)}>
         {!read.family && <option value="">{t('first-run.about.pick')}</option>}
@@ -343,16 +345,22 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
     );
   }
 
+  /** B4 task 12: a field is a plain row; its line is the row's title. */
+  const tileRow = (tile: (typeof tiles)[number]) => (
+    <li key={tile.id}>
+      <button type="button" className={s.family} title={tile.line} disabled={busy} onClick={() => void pick(tile.id, 'plan')}>{tile.label}</button>
+    </li>
+  );
+
   const firstNameField = <Field label={t('first-run.about.firstName')} autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.currentTarget.value)} />;
 
   if (mode === 'a') {
     return (
       <div className={f.wrap}>
-        <p className={f.eyebrow}>{t('first-run.stepOf', { n: '2' })}</p>
         <h1 id={headingId} className={f.title}>{t('first-run.about.title')}</h1>
         <p className={f.sub}>{t('first-run.about.sub')}</p>
         <Bento className={f.grid} as="section" labelledBy={headingId}>
-          <Tile span={12} card>
+          <Tile span={12} plain>
             {firstNameField}
             <form className={s.box} onSubmit={send} noValidate>
               <label htmlFor={boxId} className={s.boxLabel}>{t('first-run.about.label')}</label>
@@ -360,35 +368,21 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
                 <textarea ref={box} id={boxId} className={s.input} rows={2} value={text} placeholder={t('first-run.about.placeholder')}
                   aria-invalid={boxWrong ? true : undefined}
                   onChange={(event) => { setText(event.target.value); setProblem(null); setBoxWrong(false); }} onKeyDown={(event) => onKey(event, send)} />
-                <FilePick compact icon="paperclip" choose={t('first-run.about.attach')} files={[]} accept=".pdf,.zip,application/pdf,application/zip" onChange={(event) => void onFile(event)} />
                 <Button variant="primary" size="lg" type="submit" disabled={busy || (!text.trim() && !file)}>{t('first-run.about.send')}</Button>
               </div>
-              {file && (
-                <p className={s.file}><Icon name="file-text" size={14} /><span data-content="">{file.name}</span>
-                  <Button variant="quiet" size="sm" onClick={() => setFile(null)}>{t('first-run.about.removeFile', { name: file.name })}</Button></p>
-              )}
+              <FilePick icon="paperclip" choose={t('first-run.about.attach')} files={file ? [file] : []} onRemove={() => setFile(null)} accept=".pdf,.zip,application/pdf,application/zip" onChange={(event) => void onFile(event)} />
               <p className={s.hint}>{t('first-run.about.hint')}</p>
               {problem && <InlineError>{problem}</InlineError>}
             </form>
           </Tile>
-          <Tile span={12} pad="compact">{where}</Tile>
-          <h2 className={s.pickHead}>{t('first-run.about.pick')}</h2>
-          <ul className={s.families}>
-            {tiles.map((tile) => (
-              <li key={tile.id}>
-                <button type="button" className={s.family} disabled={busy} onClick={() => void pick(tile.id, 'plan')}>
-                  <span className={s.familyName}>{tile.label}</span>
-                  <span className={s.familyLine}>{tile.line}</span>
-                </button>
-              </li>
-            ))}
-            <li>
-              <button type="button" className={s.family} data-else="" onClick={() => box.current?.focus()}>
-                <span className={s.familyName}>{t('first-run.about.else')}</span>
-                <span className={s.familyLine}>{t('first-run.about.elseLine')}</span>
-              </button>
-            </li>
-          </ul>
+          <div className={f.wide}>{where}</div>
+          <h2 className={`${s.pickHead} ${f.wide}`}>{t('first-run.about.pick')}</h2>
+          <ul className={`${s.families} ${f.wide}`} aria-label={t('first-run.about.pick')}>{tiles.slice(0, FIELDS_AT_REST).map(tileRow)}</ul>
+          {tiles.length > FIELDS_AT_REST && (
+            <Fold summary={t('first-run.about.moreFields')} className={f.wide}>
+              <ul className={s.families} aria-label={t('first-run.about.moreFields')}>{tiles.slice(FIELDS_AT_REST).map(tileRow)}</ul>
+            </Fold>
+          )}
         </Bento>
         {!connected && <span className="sr-only">{t('first-run.step.templates')}</span>}
       </div>
