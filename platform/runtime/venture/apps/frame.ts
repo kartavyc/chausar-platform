@@ -71,8 +71,15 @@ const BRIDGE = '(function(){"use strict";var pending={},seq=0,done;var ready=new
   + 'if(m.method==="ui/resource-teardown"&&m.id!=null){send({jsonrpc:"2.0",id:m.id,result:{}});return;}'
   + 'if(m.method==="ui/notifications/host-context-changed")theme(m.params);});'
   + `ask("ui/initialize",{protocolVersion:"${APP_PROTOCOL_VERSION}",appCapabilities:{},clientInfo:{name:"chausar-mini-app",version:"1"}}).then(function(r){theme(r&&r.hostContext);send({jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}});done(r);});`
-  + 'function size(){send({jsonrpc:"2.0",method:"ui/notifications/size-changed",params:{width:document.documentElement.scrollWidth,height:document.documentElement.scrollHeight}});}'
-  + 'if(window.ResizeObserver)new ResizeObserver(size).observe(document.documentElement);window.addEventListener("load",size);'
+  // Measure content edges, not the iframe viewport. Body margins and positioned descendants count; a viewport
+  // minimum is not content and must not grow the iframe again after each host resize.
+  + 'var lastSize=-1;function size(){var b=document.body,c=getComputedStyle(b),bottom=b.getBoundingClientRect().top+(parseFloat(c.paddingTop)||0);'
+  + 'for(var e of b.querySelectorAll("*")){var r=e.getBoundingClientRect(),s=getComputedStyle(e),min=parseFloat(s.minHeight)||0;'
+  + 'if(!min||r.height>min+1)bottom=Math.max(bottom,r.bottom+(parseFloat(s.marginBottom)||0));}'
+  + 'var walk=document.createTreeWalker(b,NodeFilter.SHOW_TEXT),n;while(n=walk.nextNode()){if(!n.textContent.trim()||n.parentElement.closest("script,style"))continue;var range=document.createRange();range.selectNodeContents(n);for(var r of range.getClientRects())bottom=Math.max(bottom,r.bottom);}'
+  + 'var height=Math.max(1,Math.ceil(bottom+scrollY+(parseFloat(c.paddingBottom)||0)+(parseFloat(c.borderBottomWidth)||0)+(parseFloat(c.marginBottom)||0)));'
+  + 'if(height!==lastSize){lastSize=height;send({jsonrpc:"2.0",method:"ui/notifications/size-changed",params:{width:document.documentElement.scrollWidth,height:height}});}}'
+  + 'window.addEventListener("load",function(){var observer=window.ResizeObserver?new ResizeObserver(size):null;function watch(){if(observer){observer.disconnect();observer.observe(document.body);for(var e of document.body.querySelectorAll("*"))observer.observe(e);}size();}if(window.MutationObserver)new MutationObserver(watch).observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});watch();});'
   + 'window.chausar=Object.freeze({ready:ready,call:function(name,args){return ready.then(function(){return ask("tools/call",{name:String(name),arguments:args||{}});}).then(function(r){'
   + 'if(r&&r.isError)throw new Error(String(r.content&&r.content[0]&&r.content[0].text||"Chausar refused this."));return r?r.structuredContent:null;});}});})();';
 
