@@ -291,3 +291,23 @@ it('cleanup: every read-looking UI contract method is classified as a read', asy
   expect(methods.length).toBeGreaterThan(80);
   expect(methods.filter(method => !(READS as readonly string[]).includes(method))).toEqual([]);
 });
+
+it('a deferred settings change refreshes the kept empty settings read exactly once', async () => {
+  const engine = standIn();
+  let client: EngineClient | undefined;
+  function Settings() {
+    const read = useResource('venture.notify.settings', {});
+    return <p data-testid="settings">{read.data ? 'read' : 'waiting'}</p>;
+  }
+  render(<EngineProvider client={engine.client}><Settings /><Writer grab={value => { client = value; }} /></EngineProvider>);
+  await engine.answer(engine.calls[0]!, { push: false });
+  const changed = client!.request('venture.notify.settings', { push: true });
+  expect(engine.calls).toHaveLength(2);
+  await engine.answer(engine.calls[1]!, { push: true });
+  await act(async () => { await changed; });
+  expect(engine.calls).toHaveLength(3);
+  expect(engine.calls[2]!.params).toEqual({});
+  await engine.answer(engine.calls[2]!, { push: true });
+  expect(engine.calls).toHaveLength(3);
+  expect(screen.getByTestId('settings').textContent).toBe('read');
+});
