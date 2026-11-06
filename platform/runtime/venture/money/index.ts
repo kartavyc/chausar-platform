@@ -29,6 +29,7 @@ import { moneyAcross } from './across.ts';
 import { billingGet, billingSet } from './billing.ts';
 import { invoicePdf } from './invoice-pdf.ts';
 import { invoicePayLink } from './razorpay.ts';
+import { invoiceShared } from './invoice-share.ts';
 
 export { computePrice, type PriceInput } from './price.ts';
 // 4J6: the open business's summary for the others on this computer; the host's snapshot() reads it.
@@ -91,4 +92,6 @@ export const handlers: VentureHandlerTable = {
   'venture.billing.set': billingSet,
   'venture.invoice.pdf': invoicePdf,
   'venture.invoice.payLink': invoicePayLink,
+  // One-shot C4 (T20): a share the owner made, or their "Mark as sent".
+  'venture.invoice.shared': invoiceShared,
 };

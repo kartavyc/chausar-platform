@@ -156,6 +156,8 @@ const METHODS: readonly PaymentMethod[] = [...PAYMENT_METHODS, 'cheque'];
 /** The engine's 4J5 invoice and payment methods this desk answers, beside fake-bills.ts's bills. */
 const FAKE_4J5_MONEY_METHODS: readonly string[] = ['venture.payment.clear', 'venture.credit.issue', 'venture.invoice.remind', 'venture.invoice.recurring', 'venture.invoice.recurringList'];
 const DAY_MS = 86_400_000;
+/** C4 (T20): a share's timeline words, as money/invoice-states.ts says them. */
+const SHARE_WORDS = { whatsapp: 'Opened in WhatsApp to share', email: 'Opened in your mail app to share', file: 'Saved the PDF', marked: 'You marked it sent' } as const;
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / DAY_MS);
 /** "300000" or "3000.00" as paise, or null when it is not an amount. */
 const paiseOf = (value: unknown, currency = 'INR'): number | null => {
@@ -180,6 +182,8 @@ export class FakeMoney {
   private credits: HeldCredit[] = [];
   private schedules: HeldSchedule[] = [];
   private reminders: { id: string; invoiceId: string; at: string }[] = [];
+  /** One-shot C4 (T20): the owner's shares and marks, as money/invoice-share.ts records them. */
+  private shares: { invoiceId: string; how: 'whatsapp' | 'email' | 'file' | 'marked'; at: string }[] = [];
   private creditSeq = 1;
   private readonly bills: FakeBills;
   /** Wave 6 (6D1, 6D2, 6D3): the owner's billing settings per business. */
@@ -202,6 +206,7 @@ export class FakeMoney {
 
   static answers(method: string): boolean {
     return method === 'venture.invoice.list' || method === 'venture.invoice.get' || method === 'venture.invoice.prepare' || method === 'venture.invoice.issue' || method === 'venture.payment.record'
+      || method === 'venture.invoice.shared'
       || FAKE_4J5_MONEY_METHODS.includes(method) || FAKE_4J5_BILL_METHODS.includes(method) || FAKE_4J20_METHODS.includes(method) || FAKE_6D_METHODS.includes(method);
   }
 
@@ -225,6 +230,7 @@ export class FakeMoney {
       case 'venture.billing.set': { const view = this.billing.set(this.host.business(), p, this.host.now()); this.host.changed(); return view; }
       case 'venture.invoice.pdf': return this.pdf(p);
       case 'venture.invoice.payLink': return this.payLink(p);
+      case 'venture.invoice.shared': return this.shared(p);
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
@@ -346,7 +352,7 @@ export class FakeMoney {
 
   /** A list row: the record plus its total, price receipt and next step, formatted here as the engine formats them. */
   private listed(invoice: HeldInvoice): InvoiceLite {
-    return { ...this.lite(invoice), total: this.show(invoice, totalOf(invoice.price)), receiptId: invoice.priceReceiptId, next: this.next(invoice), ...this.late(invoice) };
+    return { ...this.lite(invoice), total: this.show(invoice, totalOf(invoice.price)), receiptId: invoice.priceReceiptId, next: this.next(invoice), ...this.late(invoice), sent: this.sent(invoice) };
   }
 
   /** 4J4: an open invoice past its due day says how late it is (money/aging.ts lateOf), on list rows only. */
@@ -427,6 +433,12 @@ export class FakeMoney {
     }
     for (const c of this.credits.filter((item) => item.invoiceId === invoice.id && item.status === 'issued')) events.push({ what: 'credited', on: c.at.slice(0, 10), line: `Credit note ${c.number} for ${this.show(invoice, c.amount)} on ${c.at.slice(0, 10)}` });
     for (const r of this.reminders.filter((item) => item.invoiceId === invoice.id)) events.push({ what: 'reminder', on: r.at.slice(0, 10), line: `Reminder drafted on ${r.at.slice(0, 10)}, not sent yet` });
+    // C4 (T20): each share and the owner's mark.
+    for (const share of this.shares.filter((item) => item.invoiceId === invoice.id)) {
+      const on = share.at.slice(0, 10);
+      const line = `${SHARE_WORDS[share.how]}, ${on}`;
+      events.push(share.how === 'marked' ? { what: 'marked', on, line } : { what: 'shared', on, line, how: share.how });
+    }
     events.sort((a, b) => a.on.localeCompare(b.on));
     if (this.balance(invoice) <= 0) return [...events, { what: 'settled', on: events.at(-1)!.on, line: (invoice.credited ?? 0) > 0 ? 'Settled: paid and credited' : 'Paid in full' }];
     const due = invoice.dueDate ?? invoice.issueDate;
@@ -481,7 +493,22 @@ export class FakeMoney {
       timeline: this.timeline(invoice),
       credits: this.credits.filter((c) => c.invoiceId === invoice.id).map((c) => this.creditView(c)),
       ...this.late(invoice),
+      sent: this.sent(invoice),
     };
+  }
+
+  /** C4 (T20): only the owner's mark makes an invoice sent. */
+  private sent(invoice: HeldInvoice): boolean { return this.shares.some((share) => share.invoiceId === invoice.id && share.how === 'marked'); }
+
+  /** venture.invoice.shared: records a share the owner made, or their mark; a draft or a void invoice refuses. */
+  private shared(p: Record<string, unknown>): InvoiceViewLite {
+    if (Object.keys(p).some((key) => key !== 'invoiceId' && key !== 'how') || typeof p.how !== 'string' || !['whatsapp', 'email', 'file', 'marked'].includes(p.how)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Say how it was shared: whatsapp, email, file or marked.');
+    const invoice = this.find(p.invoiceId);
+    if (invoice.status === 'void') throw new EngineError('INVALID_VENTURE_REQUEST', 'This invoice is cancelled, so there is nothing to send.');
+    if (invoice.status === 'draft' || !invoice.number) throw new EngineError('INVALID_VENTURE_REQUEST', 'Issue this invoice first, then share it.');
+    this.shares.push({ invoiceId: invoice.id, how: p.how as 'whatsapp' | 'email' | 'file' | 'marked', at: this.host.now() });
+    this.host.changed();
+    return this.view(invoice);
   }
 
   private sellerName(): string { return BUSINESSES.find((b) => b.id === this.host.business())?.name ?? 'Your business'; }
@@ -773,6 +800,9 @@ export class FakeMoney {
   }
 
   /** Issue or Cancel on a credit note's card (fake.ts decide calls this for 'credit:' rows): the engine's line. */
+  /** C4 (T22): the open business's bills due today or overdue, for Today's notices (fake.ts queueList). */
+  billDueRows(): ReturnType<FakeBills['dueRows']> { return this.bills.dueRows(); }
+
   decideCredit(rowId: string, action: string): string | null {
     const credit = this.credits.find((c) => rowId === `credit:${c.id}:open`);
     if (!credit || credit.status !== 'waiting') return null;

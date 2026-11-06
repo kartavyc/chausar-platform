@@ -11,7 +11,8 @@ const VALUES = {
   run: ['active', 'waiting', 'done', 'failed'] satisfies RunState[],
   step: ['done', 'current', 'pending', 'waiting', 'failed'] satisfies RunStep['state'][],
   posture: ['rehearsal', 'shadow', 'approve-each', 'auto-spot-check'] satisfies Posture[],
-  invoice: ['draft', 'issued', 'part-paid', 'paid', 'void'] satisfies InvoiceLite['status'][],
+  // C4 (T20): 'unsent' and 'sent' are an issued invoice before and after the owner marks it sent (InvoiceLite.sent).
+  invoice: ['draft', 'issued', 'part-paid', 'paid', 'void', 'unsent', 'sent'] satisfies (InvoiceLite['status'] | 'unsent' | 'sent')[],
   lead: ['new', 'drafted', 'contacted', 'replied', 'won', 'lost', 'blocked'] satisfies LeadStage[],
   delivery: ['waiting-for-you', 'needs-answer', 'brief-waiting', 'ready-for-review', 'accepted', 'edited', 'rejected', 'failed', 'stopped'] satisfies DeliveryStatus[],
   queue: ['draft', 'price', 'quote', 'plan', 'invoice', 'signoff', 'question', 'setup', 'locked', 'connector', 'bank', 'proposal', 'followup', 'reply', 'notice'] satisfies (QueueKind | QueueKindW4)[],
@@ -70,7 +71,7 @@ describe('state words: one module for every state the engine sends', () => {
 
   it('uses the posture, invoice, lead and card-kind words the places show', () => {
     expect(VALUES.posture.map((p) => en(stateWord('posture', p).key))).toEqual(['Rehearsing', 'Practice on real orders', 'Asks each time', 'Auto with spot checks']);
-    expect(VALUES.invoice.map((v) => en(stateWord('invoice', v).key))).toEqual(['Draft', 'Issued', 'Part paid', 'Paid', 'Void']);
+    expect(VALUES.invoice.map((v) => en(stateWord('invoice', v).key))).toEqual(['Draft', 'Issued', 'Part paid', 'Paid', 'Void', 'Issued, not sent', 'Sent']);
     expect(stateWord('invoice', 'paid').tone).toBe('done');
     expect(VALUES.lead.map((v) => en(stateWord('lead', v).key))).toEqual(['New', 'Drafted', 'Contacted', 'Replied', 'Won', 'Lost', 'Blocked']);
     expect(VALUES.queue.map((v) => en(stateWord('queue', v).key))).toEqual([

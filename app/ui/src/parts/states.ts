@@ -48,13 +48,18 @@ const POSTURE: Record<Posture, StateEntry> = {
   'auto-spot-check': { key: 'state.posture.auto-spot-check', tone: 'neutral' },
 };
 
-/** Lateness is not a status the engine sends yet (W4 4J), so no invoice status is amber or red here. */
-const INVOICE: Record<InvoiceLite['status'], StateEntry> = {
+/**
+ * Lateness is not a status the engine sends yet (W4 4J), so no invoice status is amber or red here. One-shot C4 (T20):
+ * an issued invoice reads "Issued, not sent" until the owner marks it sent (InvoiceLite.sent), then "Sent".
+ */
+const INVOICE: Record<InvoiceLite['status'] | 'unsent' | 'sent', StateEntry> = {
   draft: { key: 'state.invoice.draft', tone: 'neutral' },
   issued: { key: 'state.invoice.issued', tone: 'idle' },
   'part-paid': { key: 'state.invoice.part-paid', tone: 'neutral' },
   paid: { key: 'state.invoice.paid', tone: 'done' },
   void: { key: 'state.invoice.void', tone: 'idle' },
+  unsent: { key: 'state.invoice.unsent', tone: 'idle' },
+  sent: { key: 'state.invoice.sent', tone: 'idle' },
 };
 
 const LEAD: Record<LeadStage, StateEntry> = {

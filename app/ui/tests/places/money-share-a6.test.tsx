@@ -45,7 +45,8 @@ describe('A6: Email it and Share on WhatsApp on the desktop', () => {
     expect(await within(pay).findByText('Your mail app opened an email with INV-0039.pdf attached. Check it and send it. If it has no Send button, use Forward or Edit as new.')).toBeTruthy();
     expect(calls.map(([method]) => method)).not.toContain('venture.invoice.pdf');
     expect(within(pay).getByRole('button', { name: 'Show the PDF in its folder' })).toBeTruthy();
-    expect(pay.textContent).not.toMatch(/\bsent\b/i);
+    // C4 (T20): the line that says what opened never says sent (Mark as sent is the owner's own button).
+    expect(within(pay).getByRole('status').textContent).not.toMatch(/\bsent\b/i);
     assertInkRules(panel);
     assertOnePrimary(panel);
   });
@@ -86,7 +87,7 @@ describe('A6: Email it and Share on WhatsApp on the desktop', () => {
     shareInvoice.mockResolvedValueOnce({ how: 'whatsapp', opened: 'web', file: 'INV-0039.pdf', note: null });
     await click(within(pay).getByRole('button', { name: 'Share on WhatsApp' }));
     expect(await within(pay).findByText('WhatsApp opened in your browser with the invoice note. A WhatsApp link cannot carry a file, so attach INV-0039.pdf and send it yourself.')).toBeTruthy();
-    expect(pay.textContent).not.toMatch(/\bsent\b/i);
+    expect(within(pay).getByRole('status').textContent).not.toMatch(/\bsent\b/i);
   });
 
   it('A6 round 2 (low 7): the email names the file as the client gets it; the folder shows the copy kept on this computer', async () => {
@@ -138,5 +139,45 @@ describe('A6: sharing on the web', () => {
     const { pay } = await start();
     await click(within(pay).getByRole('button', { name: 'Share on WhatsApp' }));
     expect(await within(pay).findByText("Share on WhatsApp didn't work: Your browser blocked the new tab.")).toBeTruthy();
+  });
+});
+
+/*
+ * One-shot C4 (T20): each share the owner made is recorded on the invoice (venture.invoice.shared) and shows on its
+ * timeline. Only "Mark as sent" makes it sent: until then the invoice reads "Issued, not sent".
+ */
+describe('C4: shares recorded on the invoice, and Mark as sent', () => {
+  it('after WhatsApp opens, the share is recorded and the timeline says so; nothing says it was sent', async () => {
+    const shareInvoice = shared({ how: 'whatsapp', opened: 'app', file: 'INV-0039.pdf', note: null });
+    const { calls, panel, pay } = await start({ shareInvoice });
+    expect(panel.textContent).toContain('not sent');
+    await click(within(pay).getByRole('button', { name: 'Share on WhatsApp' }));
+    await waitFor(() => expect(calls).toContainEqual(['venture.invoice.shared', { invoiceId: 'inv-0039', how: 'whatsapp' }]));
+    const timeline = await within(panel).findByRole('region', { name: 'Timeline' });
+    await waitFor(() => expect(timeline.textContent).toContain('Opened in WhatsApp to share'));
+    expect(within(pay).getByRole('status').textContent).not.toMatch(/\bsent\b/i);
+    expect(panel.textContent).toContain('not sent');
+  });
+
+  it('Save file records the saved PDF on the timeline', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:x');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const { calls, panel, pay } = await start();
+    await click(within(pay).getByRole('button', { name: 'Save file' }));
+    await waitFor(() => expect(calls).toContainEqual(['venture.invoice.shared', { invoiceId: 'inv-0039', how: 'file' }]));
+    const timeline = await within(panel).findByRole('region', { name: 'Timeline' });
+    await waitFor(() => expect(timeline.textContent).toContain('Saved the PDF'));
+  });
+
+  it('Mark as sent records the mark, and the invoice then reads Sent', async () => {
+    const { calls, panel, pay } = await start();
+    await click(within(pay).getByRole('button', { name: 'Mark as sent' }));
+    await waitFor(() => expect(calls).toContainEqual(['venture.invoice.shared', { invoiceId: 'inv-0039', how: 'marked' }]));
+    const timeline = await within(panel).findByRole('region', { name: 'Timeline' });
+    await waitFor(() => expect(timeline.textContent).toContain('You marked it sent'));
+    await waitFor(() => expect(panel.textContent).toContain('marked sent'));
+    expect(within(pay).queryByRole('button', { name: 'Mark as sent' })).toBeNull();
+    const row = document.querySelector('[data-row-id="inv-0039"]') as HTMLElement;
+    await waitFor(() => expect(within(row).getByText('Sent')).toBeTruthy());
   });
 });

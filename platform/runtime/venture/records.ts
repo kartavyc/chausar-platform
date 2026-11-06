@@ -110,6 +110,8 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-flow': 'flowver', 'venture-flow-run': 'flowrun',
   // Wave 6 (6J2)
   'venture-feedback-setting': 'fbset', 'venture-feedback-item': 'fbitem',
+  // One-shot C4 (T20)
+  'venture-invoice-share': 'invshare',
 };
 
 export function isVentureRecord(value: unknown): value is AnyVentureRecord {
