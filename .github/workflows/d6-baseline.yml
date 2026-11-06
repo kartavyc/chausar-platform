@@ -1,0 +1,29 @@
+name: D6 baseline measurement
+on:
+  push:
+    branches: ['b2c/os-d6-baseline-*']
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: |
+          node .github/d6-measure.mjs
+          for i in 1 2 3; do node .github/d6-count-modules.mjs "$GITHUB_WORKSPACE/platform/runtime/worker.ts" > "$RUNNER_TEMP/d6-worker-before-$i.json"; done
+      - run: npm run typecheck
+      - run: npm run typecheck:ui
+        if: '!cancelled()'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d6-before
+          path: ${{ runner.temp }}/d6-*.json
