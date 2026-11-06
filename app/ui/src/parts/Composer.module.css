@@ -119,3 +119,10 @@
   display: block;
   color: var(--mute);
 }
+
+.suggestion[aria-pressed='true'],
+.idea[aria-pressed='true'] {
+  border-color: var(--link);
+  background: var(--hover);
+  color: var(--fg);
+}

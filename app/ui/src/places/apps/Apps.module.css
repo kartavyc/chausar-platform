@@ -264,9 +264,7 @@
 }
 
 .never {
-  padding: var(--sp-3);
-  border-radius: var(--r-button);
-  background: var(--inner);
+  padding: 0;
 }
 
 .neverTitle {
@@ -306,3 +304,7 @@
   display: grid;
   gap: var(--sp-2);
 }
+
+.make { margin-bottom: var(--gap-grid); }
+.rules { grid-column: 1 / -1; }
+.version time { display: block; }

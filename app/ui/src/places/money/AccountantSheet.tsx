@@ -67,7 +67,7 @@ export function AccountantSheet({ id, onClose, returnFocus }: SheetComponentProp
   }
 
   return (
-    <Sheet label={t('money.accountant.label')} title={t('money.accountant.title')} line={t('money.accountant.line')} onClose={onClose} returnFocus={returnFocus}>
+    <Sheet label="" title={t('money.accountant.title')} line={t('money.accountant.line')} onClose={onClose} returnFocus={returnFocus}>
       <SendToCa month={month} />
       <MonthlyPack />
       {!link && (
@@ -100,13 +100,13 @@ export function AccountantSheet({ id, onClose, returnFocus }: SheetComponentProp
                 <Button size="sm" variant="quiet" onClick={() => void copy(link.url!)}>{t('money.accountant.copy')}</Button>
               </p>
             )
-            : link.reason && <p className={s.quietLine} data-engine-line="">{link.reason}</p>}
+            : <p className={s.quietLine}>{t('money.accountant.offline')}</p>}
           {/* One-shot A4 (row 29): how long a link stays open is said only for a link that opens. */}
           {link.url && <p className={s.quietLine}>{t('money.accountant.until', { when: moment(link.expiresAt) })}</p>}
-          {!link.url && <p className={s.quietLine}>{t('money.accountant.export')}</p>}
-          <div className={s.buttons}>
+          {!link.url && <><p className={s.quietLine}>{t('money.accountant.export')}</p><ExportButton month={month} /></>}
+          {link.url && <div className={s.buttons}>
             <Button disabled={busy} onClick={() => void revoke(link.id)}>{t('money.accountant.revoke')}</Button>
-          </div>
+          </div>}
         </div>
       )}
       {said && <p className={said.problem ? s.refusal : s.notice} role="status" data-engine-line={said.problem ? '' : undefined}>{said.text}</p>}
