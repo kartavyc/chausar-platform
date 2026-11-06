@@ -1,0 +1,53 @@
+name: Replay snapshot checks
+on:
+  push:
+    branches: ['b2c/os-replay-check-*']
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: --max-old-space-size=3072
+      CHAUSAR_RUN_ROOT: /tmp/replay-receipts
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Focused replay and native tests
+        run: |
+          mkdir -p /tmp/replay-receipts
+          set -o pipefail
+          timeout 180s node --test --test-concurrency=1 platform/tests/flows-replay-d11.test.ts platform/tests/replay-operation-d11.test.ts platform/tests/onboarding-replay-d11.test.ts platform/tests/venture-about-w6.test.ts platform/tests/replay-timers-d11.test.ts platform/tests/model-replay-d11.test.ts platform/tests/codex-replay-d11.test.ts platform/tests/capture-public-d11.test.ts platform/tests/vault.test.ts platform/tests/vault-fresh-bootstrap.test.ts platform/tests/engine-replay-d11.test.ts platform/tests/native-replay-d11.test.ts platform/tests/replay-hooks-d11.test.ts platform/tests/run-capture-d11.test.ts platform/tests/replay-runs-d11.test.ts platform/tests/venture-codex-driver-w6.test.ts platform/tests/claude-agent-driver-w6.test.ts platform/tests/agent-delivery-w6.test.ts platform/tests/agent-native-job-w6.test.ts platform/tests/agent-run-guards-a2.test.ts platform/tests/engine-bundle-rules-d7.test.ts 2>&1 | tee /tmp/replay-receipts/tests.log
+      - name: Sample command
+        if: always()
+        run: |
+          mkdir -p /tmp/replay-receipts
+          node scripts/capture-run.mjs --sample-business --output /tmp/replay-receipts/cli > /tmp/replay-receipts/capture-path.txt
+          node scripts/replay-run.mjs "$(cat /tmp/replay-receipts/capture-path.txt)" | tee /tmp/replay-receipts/cli.log
+      - name: Engine types
+        if: always()
+        run: |
+          mkdir -p /tmp/replay-receipts
+          set -o pipefail
+          npm run typecheck 2>&1 | tee /tmp/replay-receipts/types.log
+      - name: Source checks
+        if: always()
+        run: |
+          set -o pipefail
+          node scripts/check.mjs 2>&1 | tee /tmp/replay-receipts/checks.log
+      - name: Retain receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-snapshot-receipts
+          path: /tmp/replay-receipts
+
+
+
