@@ -131,24 +131,8 @@
 
 .summary {
   min-height: var(--target);
-  display: flex;
-  align-items: center;
   gap: var(--sp-2);
-  list-style: none;
   font-size: var(--text-tile);
   font-weight: var(--weight-strong);
-  color: var(--fg);
-  cursor: pointer;
 }
 
-.summary:focus-visible {
-  outline: var(--hair) solid var(--focus);
-}
-
-.summary::-webkit-details-marker {
-  display: none;
-}
-
-.fold[open] > .summary > svg {
-  transform: rotate(90deg);
-}

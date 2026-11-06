@@ -15,7 +15,7 @@ import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
 import type { CrmListView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { Fold, HistoryList, messageOf } from './CrmParts';
+import { CrmFold, HistoryList, messageOf } from './CrmParts';
 import s from './Crm.module.css';
 
 const stagesOf = (text: string) => text.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -55,14 +55,14 @@ export function ListsSheet({ onClose, returnFocus }: SheetComponentProps) {
           ))}
         </ul>
       ))}
-      <Fold summary={t('crm.lists.new')}>
+      <CrmFold summary={t('crm.lists.new')}>
         <form className={s.form} onSubmit={(event) => void make(event)}>
           <Field label={t('crm.lists.name')} value={name} maxLength={60} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} />
           <Field multiline label={t('crm.lists.stages')} value={stages} rows={4} onChange={(event) => setStages(event.currentTarget.value)} />
           {problem && <p className={s.failed} role="alert">{problem}</p>}
           <div className={s.actions}><Button type="submit" disabled={busy || !name.trim()}>{t('crm.lists.make')}</Button></div>
         </form>
-      </Fold>
+      </CrmFold>
     </Sheet>
   );
 }
@@ -82,9 +82,9 @@ export function ListSheet({ id, onClose, returnFocus }: SheetComponentProps) {
           <p className={s.quiet}>{shown.line}</p>
           {problem && <p className={s.failed} role="alert">{problem}</p>}
           {shown.groups.map((group) => <StageGroup key={group.stage} view={shown} stage={group.stage} onChanged={changed} onFailed={(error) => setProblem(messageOf(error))} />)}
-          <Fold summary={t('crm.lists.addMember')}><AddMember view={shown} onChanged={changed} onFailed={(error) => setProblem(messageOf(error))} /></Fold>
-          <Fold summary={t('crm.history')}><HistoryList rows={shown.history} /></Fold>
-          <Fold summary={t('crm.lists.rename')}><RenameList view={shown} onChanged={changed} onFailed={(error) => setProblem(messageOf(error))} /></Fold>
+          <CrmFold summary={t('crm.lists.addMember')}><AddMember view={shown} onChanged={changed} onFailed={(error) => setProblem(messageOf(error))} /></CrmFold>
+          <CrmFold summary={t('crm.history')}><HistoryList rows={shown.history} /></CrmFold>
+          <CrmFold summary={t('crm.lists.rename')}><RenameList view={shown} onChanged={changed} onFailed={(error) => setProblem(messageOf(error))} /></CrmFold>
         </>
       )}
     </Sheet>

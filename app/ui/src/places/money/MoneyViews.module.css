@@ -597,16 +597,7 @@
 }
 
 .moreSummary {
-  width: fit-content;
   font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  color: var(--link);
-  cursor: pointer;
-}
-
-.moreSummary:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 /* What issuing a draft today brings in, under the cash line. */

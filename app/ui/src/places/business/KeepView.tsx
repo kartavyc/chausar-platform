@@ -13,6 +13,7 @@ import { AllBackups, CloseBusiness, DeleteBusiness, ExportCopy, MoveAway } from 
 import { LeftContext } from '../onboarding/started';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * Keep this business (workspace.custody.*), the way the old app keeps it: this computer's protected storage keeps the
@@ -181,8 +182,7 @@ function PassphraseFold({ custody, onCode, onChanged }: { custody: CustodyViewLi
   }
 
   return (
-    <details className={s.fold}>
-      <summary>{t(locked ? 'business.passphraseOffTitle' : 'business.passphraseOnTitle')}</summary>
+    <Fold summary={t(locked ? 'business.passphraseOffTitle' : 'business.passphraseOnTitle')} className={s.fold}>
       {stuck ? (
         <p className={s.line}>{custody.computer.where}</p>
       ) : (
@@ -198,7 +198,7 @@ function PassphraseFold({ custody, onCode, onChanged }: { custody: CustodyViewLi
           <div className={s.buttons}><Button type="submit" disabled={busy}>{t(locked ? 'business.stopAsking' : 'business.lockIt')}</Button></div>
         </form>
       )}
-    </details>
+    </Fold>
   );
 }
 

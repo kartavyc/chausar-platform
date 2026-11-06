@@ -9,6 +9,7 @@ import s from './AgentSettings.module.css';
 import connections from './Connections.module.css';
 import { McpServers } from './McpServers';
 import { Packs } from './Packs';
+import { Fold } from '../../parts/Fold';
 
 export function AgentSettings() {
   const t = useT(), engine = useEngine(), id = useId();
@@ -30,8 +31,7 @@ export function AgentSettings() {
     catch (error) { setSaid({ error: true, text: error instanceof Error ? error.message : String(error) }); }
     finally { setBusy(false); }
   }
-  return <details className={connections.fold} onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>{t('connections.settings.title')}</summary>
+  return <Fold summary={t('connections.settings.title')} className={connections.fold} onToggle={event => setOpen(event.currentTarget.open)}>
     {open && <Inner card={false}><form className={s.form} aria-label={t('connections.settings.title')} onSubmit={event => void save(event)}>
       {resource.error && <p role="alert">{resource.error.message}</p>}
       {!draft && !resource.error && <p>{t('connections.ai.loading')}</p>}
@@ -77,5 +77,5 @@ export function AgentSettings() {
         <div className={s.actions}><Button type="submit" variant="primary" locked={busy || resource.loading || Boolean(resource.error) || mcpChanged && !approveMcp} aria-describedby={id}>{t('connections.settings.save')}</Button>{said && <span role={said.error ? 'alert' : 'status'}>{said.text}</span>}</div>
       </>}
     </form></Inner>}
-  </details>;
+  </Fold>;
 }

@@ -126,10 +126,6 @@
   color: var(--mute);
 }
 
-.tools summary {
-  cursor: pointer;
-}
-
 .tool {
   margin-top: var(--sp-1);
   color: var(--fg2);

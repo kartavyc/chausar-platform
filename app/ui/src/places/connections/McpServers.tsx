@@ -7,6 +7,7 @@ import { Field } from '../../parts/Field';
 import { openExternal, openProblem, reserveTab } from './external';
 import s from './AgentSettings.module.css';
 import connections from './Connections.module.css';
+import { Fold } from '../../parts/Fold';
 
 export function McpServers({ servers, onChange, busy, saved, onCredentialSaved }: { servers: ExternalMcpServer[]; onChange(value: ExternalMcpServer[]): void; busy: boolean; saved: boolean; onCredentialSaved(): void }) {
   const t = useT();
@@ -51,12 +52,12 @@ function ServerToken({ server, onSaved }: { server: ExternalMcpServer; onSaved()
     catch (error) { setError(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   }
-  return <details className={connections.fold}><summary>{t(server.credentialRef ? 'connections.mcp.tokenSaved' : 'connections.mcp.token')}</summary>
+  return <Fold summary={t(server.credentialRef ? 'connections.mcp.tokenSaved' : 'connections.mcp.token')} className={connections.fold}>
     <Field type="password" autoComplete="off" label={t('connections.mcp.token')} value={token} onChange={event => setToken(event.currentTarget.value)} />
     <div className={s.actions}><Button type="button" locked={busy || !token} onClick={() => void save(token)}>{t('connections.mcp.saveToken')}</Button>
       {server.credentialRef && <Button type="button" locked={busy} onClick={() => void save(null)}>{t('connections.mcp.removeToken')}</Button>}</div>
     {error && <p role="alert">{error}</p>}
-  </details>;
+  </Fold>;
 }
 /** W6 6F1: Sign in opens the service's own sign-in in the owner's browser. Tokens go to protected storage only. */
 function ServerSignIn({ server }: { server: ExternalMcpServer }) {
@@ -83,8 +84,7 @@ function ServerSignIn({ server }: { server: ExternalMcpServer }) {
 function SuggestedServers({ servers, onAdd }: { servers: ExternalMcpServer[]; onAdd(server: ExternalMcpServer): void }) {
   const t = useT(); const [open, setOpen] = useState(false);
   const list = useResource('venture.mcpRegistry.list', {}, { skip: !open });
-  return <details className={connections.fold} onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>{t('connections.mcp.suggested')}</summary>
+  return <Fold summary={t('connections.mcp.suggested')} className={connections.fold} onToggle={event => setOpen(event.currentTarget.open)}>
     {list.error && <p role="alert">{list.error.message}</p>}
     {list.data && <>
       <p className={connections.note}>{t('connections.mcp.suggestedNote', { date: list.data.checkedOn })}</p>
@@ -94,5 +94,5 @@ function SuggestedServers({ servers, onAdd }: { servers: ExternalMcpServer[]; on
         <div className={s.actions}><Button type="button" locked={servers.some(server => server.id === entry.server.id)} onClick={() => onAdd(structuredClone(entry.server))}>{t('connections.mcp.addSuggested', { name: entry.name })}</Button></div>
       </li>)}</ul>
     </>}
-  </details>;
+  </Fold>;
 }

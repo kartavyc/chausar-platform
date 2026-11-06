@@ -25,6 +25,7 @@ import { QuestionCardView } from './QuestionCard';
 import { QuestionExpiry, RunQuality } from './RunQuality';
 import type { QueueActionId, QueueRow, RunDetail, RunState, RunStep } from '../engine/types';
 import s from './RunSheet.module.css';
+import { Fold } from './Fold';
 
 type Evidence = NonNullable<RunStep['evidence']>[number];
 
@@ -110,10 +111,9 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
       {needs && <RunNeeds rows={needs} />}
       {finished ? (
         <div>
-          <details className={s.fold} data-fold="worked">
-            <summary>{run.elapsed ? t('run.workedFor', { elapsed: run.elapsed }) : t('steps.list')}</summary>
+          <Fold summary={run.elapsed ? t('run.workedFor', { elapsed: run.elapsed }) : t('steps.list')} className={s.fold} data-fold="worked">
             <Steps steps={run.steps} showTools />
-          </details>
+          </Fold>
           {result}
         </div>
       ) : (!run.agentProgress || run.steps.length > 0) && (

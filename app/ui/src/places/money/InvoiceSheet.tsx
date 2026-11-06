@@ -24,6 +24,7 @@ import { Credits, NextStep, PaymentLine, RateChange, Timeline } from './InvoiceE
 import { BillPart, HowToPay } from './InvoicePay';
 import { messageOf, onMoney, statusOf, useDay } from './words';
 import s from './Money.module.css';
+import { Fold } from '../../parts/Fold';
 
 type Notice = { kind: 'done' | 'stale' | 'refused'; text: string; receiptId?: string | undefined };
 
@@ -145,11 +146,10 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       {current.notes.map((note) => <p key={note} className={s.quietLine} data-engine-line="">{note}</p>)}
       <Credits view={current} />
       <Timeline view={current} />
-      <details className={`${s.fold} ${s.block}`}>
-        <summary>{t('money.invoice.document')}</summary>
+      <Fold summary={t('money.invoice.document')} className={`${s.fold} ${s.block}`}>
         {/* The invoice as the client gets it, quoted as written; its figures are the ones above, with their receipts. */}
         <pre className={s.pre} data-content="">{current.documentText}</pre>
-      </details>
+      </Fold>
       {/* Issued and changed-since are this screen's own words; only a refusal carries the engine's, which may name an
           amount. */}
       {notice && (

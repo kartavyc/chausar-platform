@@ -21,6 +21,7 @@ import { Icon } from '../../parts/Icon';
 import { SectionHead } from '../../parts/Tile';
 import { dayOf } from '../business/shared';
 import s from './Ideas.module.css';
+import { Fold } from '../../parts/Fold';
 
 const FORWARD: readonly IdeaStage[] = ['inbox', 'triage', 'drafted', 'made', 'published'];
 const GRADES: readonly IdeaGrade[] = ['worked', 'so-so', 'did-not'];
@@ -101,8 +102,7 @@ export function Ideas() {
         </div>
       )}
       {dropped.length > 0 && (
-        <details className={s.fold} data-fold="dropped">
-          <summary>{t('kit-rules.dropped', { count: dropped.length })}<Icon name="chevron-down" size={16} /></summary>
+        <Fold summary={t('kit-rules.dropped', { count: dropped.length })} className={s.fold} data-fold="dropped">
           <ul className={s.droppedList}>
             {dropped.map((idea) => (
               <li key={idea.id} data-idea={idea.id}>
@@ -111,7 +111,7 @@ export function Ideas() {
               </li>
             ))}
           </ul>
-        </details>
+        </Fold>
       )}
     </section>
   );
@@ -186,8 +186,7 @@ function Card({ idea, handlers }: { idea: PipelineIdeaView; handlers: CardHandle
         </div>
       )}
       {(forward.length > 1 || canDrop) && (
-        <details className={s.more}>
-          <summary>{t('kit-rules.more')}<Icon name="chevron-down" size={16} /></summary>
+        <Fold summary={t('kit-rules.more')} className={s.more}>
           <div className={s.moreBody}>
             {forward.slice(1).map((stage) => (
               <Button key={stage} variant="quiet" size="sm" disabled={handlers.busy} onClick={() => { void handlers.move(idea, stage); }}>
@@ -201,7 +200,7 @@ function Card({ idea, handlers }: { idea: PipelineIdeaView; handlers: CardHandle
               </form>
             )}
           </div>
-        </details>
+        </Fold>
       )}
     </article>
   );

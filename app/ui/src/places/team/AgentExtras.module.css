@@ -217,13 +217,8 @@
 }
 
 .foldSummary {
-  display: flex;
-  align-items: center;
   min-height: var(--control-sm);
   font-size: var(--text-label);
-  font-weight: var(--weight-medium);
-  color: var(--mute);
-  cursor: pointer;
 }
 
 .fold[open] > .foldSummary {

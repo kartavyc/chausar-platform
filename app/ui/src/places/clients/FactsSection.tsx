@@ -13,7 +13,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { FactView, FactVisibility } from '../../engine/types';
 import { useDay, useLocalToday } from '../money/words';
-import { Fold, messageOf } from './CrmParts';
+import { CrmFold, messageOf } from './CrmParts';
 import s from './Crm.module.css';
 
 /** The facts with their heading, for a sheet. */
@@ -49,9 +49,9 @@ export function FactsBody({ subject }: { subject: string }) {
           {facts.map((fact) => <FactRow key={fact.id} fact={fact} onDone={done} onFailed={failed} />)}
         </ul>
       )}
-      <Fold summary={t('crm.facts.add')}><AddFact subject={subject} onDone={done} onFailed={failed} /></Fold>
+      <CrmFold summary={t('crm.facts.add')}><AddFact subject={subject} onDone={done} onFailed={failed} /></CrmFold>
       {earlier.length > 0 && (
-        <Fold summary={t('crm.facts.earlier')}>
+        <CrmFold summary={t('crm.facts.earlier')}>
           <ul className={s.items} data-earlier="">
             {earlier.map((fact) => (
               <li key={fact.id} className={s.item}>
@@ -65,7 +65,7 @@ export function FactsBody({ subject }: { subject: string }) {
               </li>
             ))}
           </ul>
-        </Fold>
+        </CrmFold>
       )}
     </>
   );

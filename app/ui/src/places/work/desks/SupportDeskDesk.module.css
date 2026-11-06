@@ -12,4 +12,3 @@
 .label { display: grid; gap: var(--sp-2); }
 .label select { min-height: var(--control); font: inherit; color: var(--fg); background: var(--surface); border: var(--hair) solid var(--btn-line); border-radius: var(--r-button); padding: var(--sp-2); }
 .readiness { padding: var(--pad-card); border: var(--hair) solid var(--line); border-radius: var(--r-card); }
-.readiness summary { cursor: pointer; margin-bottom: var(--sp-3); }

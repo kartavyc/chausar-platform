@@ -232,6 +232,23 @@ function broken(rule: Exclude<keyof typeof check, 'codeColours'>, { f, css }: Sh
   });
 }
 
+describe('one fold (B4 task 8)', () => {
+  it('every disclosure is parts/Fold.tsx: no raw <summary anywhere else in src', () => {
+    const found = scripts.filter(({ f, text }) => f !== 'parts/Fold.tsx' && text.includes('<summary')).map(({ f }) => f);
+    expect(found).toEqual([]);
+  });
+  it('no stylesheet colours a fold: a summary rule sets no colour of its own, and never link blue', () => {
+    // Apps .summary and YoutubeDesk .summary are text blocks, not folds.
+    const NOT_FOLDS = ['places/apps/Apps.module.css .summary', 'places/work/desks/YoutubeDesk.module.css .summary'];
+    const found = sheets
+      .filter(({ f }) => f !== 'parts/Fold.module.css')
+      .flatMap(({ f, css }) =>
+        rules(css).filter(({ selector, decls }) => /summary/i.test(selector) && !selector.includes(':not(summary)') && !NOT_FOLDS.includes(`${f} ${selector}`) && decls.some(([p]) => p === 'color')).map(({ selector }) => `${f} ${selector}`),
+      );
+    expect(found).toEqual([]);
+  });
+});
+
 describe('Ink v2 rules the UI keeps (w3 plan)', () => {
   it('the CSS checks catch what they should, on samples', () => {
     expect(check.colours('.a { box-shadow: 0 1px rgba(0, 0, 0, 0.1); color: hsl(0 0% 0%) }')).toHaveLength(2);

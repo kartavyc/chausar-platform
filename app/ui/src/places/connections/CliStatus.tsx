@@ -13,6 +13,7 @@ import s from './Connections.module.css';
 import c from './CliStatus.module.css';
 import { connectionWords } from './ConnectionWords';
 import { ProviderTrouble } from '../../parts/ProviderTrouble';
+import { Fold } from '../../parts/Fold';
 
 /** The state chip: words always say it; colour only repeats it. Ready only once a real task on the tool worked. */
 const STATE_TONE: Readonly<Record<ModelAvailability, ChipTone>> = { ready: 'done', unverified: 'line', 'needs-setup': 'wait', unavailable: 'idle' };
@@ -146,8 +147,7 @@ function Tool({ view, onChosen }: { view: CliStatusView; onChosen: () => void })
       {setup?.state === 'review' && <Button size="sm" disabled={choosing} aria-busy={choosing || undefined} onClick={() => void choose()}>{t('first-run.ai.setup.use')}</Button>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       {note && <p className={s.said} role="status">{note}</p>}
-      <details className={`${s.fold} ${c.more}`}>
-        <summary>{t('connections.cli.details')}</summary>
+      <Fold summary={t('connections.cli.details')} className={`${s.fold} ${c.more}`}>
         {(atRest === null || view.fix) && <p className={s.line} data-cli-line="">{connectionWords(t, view.line)}</p>}
         <dl className={c.facts}>
           {factsOf(view, t).map(([label, value]) => (
@@ -157,7 +157,7 @@ function Tool({ view, onChosen }: { view: CliStatusView; onChosen: () => void })
             </div>
           ))}
         </dl>
-      </details>
+      </Fold>
     </Inner>
   );
 }

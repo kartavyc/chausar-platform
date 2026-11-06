@@ -8,6 +8,7 @@ import { Button } from '../../../parts/Button';
 import { Field } from '../../../parts/Field';
 import type { SeoMonitorItem } from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/monitor-core';
 import s from './SeoVisibilityDesk.module.css';
+import { Fold } from '../../../parts/Fold';
 const base = { playbook: 'seo-visibility' as const, kind: 'monitor' };
 /** Configure first, then approve the exact site, count, interval and evidence destination. */
 export function SeoMonitors() {
@@ -55,7 +56,7 @@ export function SeoMonitors() {
  <p className={s.line}>{t('pb-seo-visibility.monitor.state.' + row.state)}</p><p className={s.line}>{t('pb-seo-visibility.monitor.completed', { count: row.completed })}</p>
  {row.error && <p role="status">{t('pb-seo-visibility.monitor.held')}</p>}
  {row.state === 'draft' ? <Button disabled={busy} onClick={() => void act('approve', row.id)}>{t('pb-seo-visibility.monitor.approve')}</Button> : ['active', 'collecting'].includes(row.state) && <Button disabled={busy} onClick={() => void act('stop', row.id)}>{t('pb-seo-visibility.monitor.stop')}</Button>}
- {!!row.evidence.length && <details><summary>{t('pb-seo-visibility.monitor.evidence')}</summary><ul>{row.evidence.map(evidence => <li key={evidence.index} data-content>{evidence.folder}<br />{evidence.receipt}</li>)}</ul></details>}
+ {!!row.evidence.length && <Fold summary={t('pb-seo-visibility.monitor.evidence')}><ul>{row.evidence.map(evidence => <li key={evidence.index} data-content>{evidence.folder}<br />{evidence.receipt}</li>)}</ul></Fold>}
  </div></li>)}</ul>
  </Tile>;
 }

@@ -10,6 +10,7 @@ import { Receipt } from '../../parts/Receipt';
 import type { CaLatestPapers, CaOfRecord, CaPendingRate, CaReceiptView, CaSignoffRequest } from '../../engine/types';
 import { TileSection, dayOf, messageOf } from './shared';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * Your CA (venture.ca.*), for a business on the CA firm playbook, as tiles: the CA of record (initials drawn here,
@@ -267,12 +268,11 @@ function RateTables({ rates, onConfirmed }: { rates: CaPendingRate[]; onConfirme
                 <span className={s.stepWho}>{t('business.ca.version', { version: rate.version })} · {validity(rate, t, zone)}</span>
                 {/* Where each table comes from, one fold away (simple first: rate tables' detail is for the CA). */}
                 {rate.citations.length > 0 && (
-                  <details className={s.fold}>
-                    <summary>{t('business.ca.sources')}</summary>
+                  <Fold summary={t('business.ca.sources')} className={s.fold}>
                     <ul className={s.plain}>
                       {rate.citations.map((citation) => <li key={citation}>{citation}</li>)}
                     </ul>
-                  </details>
+                  </Fold>
                 )}
               </li>
             ))}

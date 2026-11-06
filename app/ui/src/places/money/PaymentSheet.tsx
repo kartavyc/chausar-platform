@@ -25,6 +25,7 @@ import { PAYMENT_METHODS, type InvoiceViewLite, type PaymentMethod } from '../..
 import type { SheetComponentProps } from '../../shell/sheets';
 import { invoiceTitle, messageOf, statusOf, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
+import { Fold } from '../../parts/Fold';
 
 type Phase = 'form' | 'confirm' | 'sending' | 'done';
 /** The ways money comes in: the engine's list, and a cheque, which waits to clear (4J5). */
@@ -134,16 +135,14 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           {/* One step away, for a business in India: the TDS the client deducted, as they wrote it (4J5, M15). Kept while
               the payment is split, though a split payment carries none: closing Split brings it back as typed. */}
           {india && (
-            <details className={s.fold}>
-              <summary>{t('money.payment.tds')}</summary>
+            <Fold summary={t('money.payment.tds')} className={s.fold}>
               {split && <p className={s.quietLine}>{t('money.payment.tdsSplit')}</p>}
               <Field label={t('money.payment.tdsSection')} hint={t('money.payment.tdsSectionHint')} value={tdsSection} autoComplete="off" disabled={locked || split} onChange={(event) => setTdsSection(event.currentTarget.value)} />
               <Field label={t('money.payment.tdsAmount')} hint={t('money.payment.amountHint', { currency })} value={tdsAmount} inputMode="decimal" autoComplete="off" disabled={locked || split} onChange={(event) => setTdsAmount(event.currentTarget.value)} />
-            </details>
+            </Fold>
           )}
           {/* One step away: the payment split across invoices (4J5, M11). */}
-          <details className={s.fold} onToggle={(event) => setSplit(event.currentTarget.open)}>
-            <summary>{t('money.payment.split')}</summary>
+          <Fold summary={t('money.payment.split')} className={s.fold} onToggle={(event) => setSplit(event.currentTarget.open)}>
             <p className={s.quietLine}>{t('money.payment.splitLine')}</p>
             <Field
               label={t('money.payment.splitThis', { number: current.invoice.number ?? '' })} hint={t('money.payment.amountHint', { currency })} value={parts[id] ?? ''}
@@ -156,7 +155,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
               />
             ))}
             {list.data && others.length === 0 && <p className={s.quietLine}>{t('money.payment.splitNone')}</p>}
-          </details>
+          </Fold>
           {phase === 'form' && (
             <div className={s.buttons}>
               <Button variant="primary" type="submit" disabledReason={missing}>{t('money.payment.record')}</Button>

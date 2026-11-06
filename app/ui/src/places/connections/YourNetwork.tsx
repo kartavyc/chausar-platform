@@ -13,6 +13,7 @@ import { Icon } from '../../parts/Icon';
 import { Tile, TileHead } from '../../parts/Tile';
 import { KIND_ICONS } from '../clients/NetworkSources';
 import s from './Connections.module.css';
+import { Fold } from '../../parts/Fold';
 
 export function YourNetwork() {
   const t = useT();
@@ -26,8 +27,7 @@ export function YourNetwork() {
       {sources.data && sources.data.sources.length === 0 && <p className={s.note}>{t('connections.network.none')}</p>}
       {sources.data && sources.data.sources.length > 0 && (
         // One fold, so the page at rest stays short: the files open one step away.
-        <details className={s.networkFold}>
-          <summary className={s.networkSummary}><Icon name="chevron-right" size={14} />{t('connections.network.files', { count: sources.data.sources.length })}</summary>
+        <Fold summary={t('connections.network.files', { count: sources.data.sources.length })} className={s.networkFold}>
           <p className={s.note}>{t('connections.network.line')}</p>
           <ul className={s.networkList}>
             {sources.data.sources.map((source) => (
@@ -44,7 +44,7 @@ export function YourNetwork() {
               </li>
             ))}
           </ul>
-        </details>
+        </Fold>
       )}
     </Tile>
   );

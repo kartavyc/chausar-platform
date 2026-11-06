@@ -362,29 +362,6 @@
   color: var(--fg);
 }
 
-.checks summary,
-.keeps summary {
-  list-style: none;
-}
-
-.checksSummary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-size: var(--text-read);
-  color: var(--fg2);
-  cursor: pointer;
-}
-
-.checksSummary::-webkit-details-marker {
-  display: none;
-}
-
-.checks[open] .checksSummary > svg,
-.keeps[open] .checksSummary > svg {
-  transform: rotate(90deg);
-}
-
 .checkList {
   display: flex;
   flex-direction: column;

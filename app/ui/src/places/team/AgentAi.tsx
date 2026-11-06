@@ -5,6 +5,7 @@ import { TEMPLATES } from '../connections/YourAi';
 import { refreshOn } from './shared';
 import s from './Team.module.css';
 import a from './AgentAi.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * Its AI (W4 4H2; catalogue M19), in the agent panel: each kind of job this agent's steps use (quick work, plans and
@@ -42,10 +43,9 @@ export function AgentAi({ agentId }: { agentId: string }) {
       )}
       {/* How a role's AI is chosen, and that agents wait without one, one fold away. */}
       {roles.data && (
-        <details className={a.how}>
-          <summary>{t('connections.cli.role.how')}</summary>
+        <Fold summary={t('connections.cli.role.how')} className={a.how}>
           <p className={s.quiet}>{roles.data.line}</p>
-        </details>
+        </Fold>
       )}
       <a className={s.link} href="#/connections/ai">{t('connections.cli.role.change')}</a>
     </section>

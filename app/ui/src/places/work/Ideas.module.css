@@ -140,28 +140,6 @@
   align-items: center;
 }
 
-.more > summary,
-.fold > summary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  min-height: var(--control-sm);
-  font-size: var(--text-label);
-  color: var(--fg2);
-  cursor: pointer;
-  list-style: none;
-}
-
-.more > summary::-webkit-details-marker,
-.fold > summary::-webkit-details-marker {
-  display: none;
-}
-
-.more[open] > summary svg,
-.fold[open] > summary svg {
-  transform: rotate(180deg);
-}
-
 .moreBody {
   display: grid;
   gap: var(--sp-2);
@@ -185,10 +163,6 @@
   border: var(--hair) solid var(--line);
   border-radius: var(--r-tile);
   background: var(--surface);
-}
-
-.fold > summary {
-  font-size: var(--text-read);
 }
 
 .droppedList {

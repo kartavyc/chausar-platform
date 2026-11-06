@@ -17,6 +17,7 @@ import { Tile } from '../../parts/Tile';
 import { messageOf, onMoney, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
+import { Fold } from '../../parts/Fold';
 
 export function Recurring() {
   const t = useT();
@@ -38,8 +39,7 @@ export function Recurring() {
 
   return (
     // Simple first (4J20): one step away, in a fold under the invoices; its title is all it shows until opened.
-    <details className={`${v.moreFold} ${s.section}`}>
-      <summary className={v.moreSummary}>{t('money.recurring.title')}</summary>
+    <Fold summary={t('money.recurring.title')} className={`${v.moreFold} ${s.section}`} summaryClassName={v.moreSummary}>
       {/* The summary names it once; the tile under it carries no second label. */}
       <Tile className={v.repeatTile}>
       {!adding && offers.length > 0 && (clients.data ?? []).length > 0 && <p className={s.buttons}><Button size="sm" onClick={() => setAdding(true)}>{t('money.recurring.add')}</Button></p>}
@@ -60,7 +60,7 @@ export function Recurring() {
       <p className={s.quietLine}>{t('money.recurring.never')}</p>
       {adding && <AddRecurring clients={clients.data ?? []} offers={offers.map((offer) => ({ id: offer.id, name: offer.name.value }))} onDone={() => { setAdding(false); list.reload(); }} onCancel={() => setAdding(false)} />}
       </Tile>
-    </details>
+    </Fold>
   );
 }
 

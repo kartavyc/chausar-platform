@@ -28,6 +28,7 @@ import { copyText, performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
 import { messageOf } from './words';
 import s from './Money.module.css';
+import { Fold } from '../../parts/Fold';
 
 type Changed = (next?: InvoiceViewLite) => void;
 /** How often a waiting payment link is checked while the sheet is open. */
@@ -253,8 +254,7 @@ export function BillPart({ view, onChanged }: { view: InvoiceViewLite; onChanged
       {partLine}
       {restOpen && <p className={s.payRow}><Button size="sm" disabled={busy} onClick={() => void draft()}>{t('money-pay.part.rest')}</Button></p>}
       {invoice.status === 'draft' && (
-        <details className={`${s.fold} ${s.block}`}>
-          <summary>{t('money-pay.part.fold')}</summary>
+        <Fold summary={t('money-pay.part.fold')} className={`${s.fold} ${s.block}`}>
           <div className={s.field}>
             <label htmlFor={kindId} className={s.fieldLabel}>{t('money-pay.part.kind')}</label>
             <select id={kindId} className={s.select} value={kind} disabled={busy} onChange={(event) => setKind(event.currentTarget.value as Kind)}>
@@ -271,7 +271,7 @@ export function BillPart({ view, onChanged }: { view: InvoiceViewLite; onChanged
             })}>{t('money-pay.part.draft')}</Button>
           </div>
           {problem && <p className={s.refusal} role="status" data-engine-line="">{problem}</p>}
-        </details>
+        </Fold>
       )}
       {problem && invoice.status !== 'draft' && <p className={s.refusal} role="status" data-engine-line="">{problem}</p>}
     </>

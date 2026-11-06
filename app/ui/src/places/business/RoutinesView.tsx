@@ -15,6 +15,7 @@ import { ModelReceipt } from '../../parts/ModelReceipt';
 import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
 import r from './RoutinesView.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** Days as the engine numbers them: 1 Monday to 7 Sunday. */
 const DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
@@ -186,8 +187,7 @@ function History({ id }: { id: string }) {
   const [open, setOpen] = useState(false);
   const runs = useResource('venture.routines.runs', { id }, { skip: !open });
   return (
-    <details className={s.fold} data-fold="history" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{t('business.routines.history')}</summary>
+    <Fold summary={t('business.routines.history')} className={s.fold} data-fold="history" onToggle={(event) => setOpen(event.currentTarget.open)}>
       {runs.data && runs.data.runs.length === 0 && <p className={s.note}>{t('business.routines.noRuns')}</p>}
       {runs.data && runs.data.runs.length > 0 && (
         <ul className={s.log}>
@@ -201,7 +201,7 @@ function History({ id }: { id: string }) {
           ))}
         </ul>
       )}
-    </details>
+    </Fold>
   );
 }
 
@@ -209,10 +209,9 @@ function History({ id }: { id: string }) {
 function AddRoutine({ agents, zone, onAdded }: { agents: AgentView[]; zone: string; onAdded: () => void }) {
   const t = useT();
   return (
-    <details className={s.fold} data-fold="add-routine">
-      <summary>{t('business.routines.add')}</summary>
+    <Fold summary={t('business.routines.add')} className={s.fold} data-fold="add-routine">
       <RoutineForm agents={agents} zone={zone} onSaved={onAdded} />
-    </details>
+    </Fold>
   );
 }
 

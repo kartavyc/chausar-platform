@@ -37,6 +37,7 @@ import { NetworkSources } from './NetworkSources';
 import { NetworkDrafts } from './NetworkDrafts';
 import { codeOf, dotsOf, LinkedInButton, messageOf, networkRefresh, quoted, roleLine, usePersonForgotten, WarmPath } from './network';
 import s from './Network.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** How many people Browse everyone shows at a time. */
 const PAGE = 8;
@@ -342,8 +343,7 @@ function ResultCard({ result, searchId }: { result: SearchResultView; searchId: 
         </div>
         <p className={s.why} data-why="">{why}</p>
         {result.checks.length > 0 && (
-          <details className={s.checks}>
-            <summary className={s.checksSummary}><Icon name="chevron-right" size={14} />{t('clients.network.checks')}</summary>
+          <Fold summary={t('clients.network.checks')} className={s.checks}>
             <ul className={s.checkList}>
               {result.checks.map((check, index) => (
                 <li key={index} data-check={check.check}>
@@ -353,7 +353,7 @@ function ResultCard({ result, searchId }: { result: SearchResultView; searchId: 
                 </li>
               ))}
             </ul>
-          </details>
+          </Fold>
         )}
         {result.path && person && <Inner card={false} className={s.pathBox}><WarmPath path={result.path} name={person.name} /></Inner>}
         <div className={s.resultActions}>

@@ -7,19 +7,18 @@
 
 import type { ReactNode } from 'react';
 import { useT } from '../../text';
-import { Icon } from '../../parts/Icon';
 import type { FieldChangeView, TimelineEntryView } from '../../engine/types';
 import { useDay } from '../money/words';
 import s from './Crm.module.css';
+import { Fold } from '../../parts/Fold';
 
 export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-export function Fold({ summary, open, onToggle, children }: { summary: string; open?: boolean; onToggle?: (open: boolean) => void; children: ReactNode }) {
+export function CrmFold({ summary, open, onToggle, children }: { summary: string; open?: boolean; onToggle?: (open: boolean) => void; children: ReactNode }) {
   return (
-    <details className={s.more} open={open} onToggle={(event) => onToggle?.(event.currentTarget.open)}>
-      <summary className={s.moreSummary}><Icon name="chevron-right" size={16} />{summary}</summary>
+    <Fold summary={summary} className={s.more} open={open} onToggle={(event) => onToggle?.(event.currentTarget.open)} summaryClassName={s.moreSummary}>
       <div className={s.moreBody}>{children}</div>
-    </details>
+    </Fold>
   );
 }
 

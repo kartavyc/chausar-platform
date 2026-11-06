@@ -12,6 +12,7 @@ import { Tile, TileHead } from '../../../parts/Tile';
 import { TAX_YEARS } from '../../../../../../platform/runtime/venture/playbooks/trading-journal/tax-rules';
 import type { JournalItem } from '../../../../../../platform/runtime/venture/playbooks/trading-journal/desk-core';
 import s from './TradingJournal.module.css';
+import { Fold } from '../../../parts/Fold';
 
 const desk = { playbook: 'trading-journal' as const, kind: 'journal' };
 const BROKERS = ['zerodha', 'groww', 'upstox', 'dhan'] as const;
@@ -70,7 +71,7 @@ export function TradingJournalDesk() {
         </Tile>
       )}
       <Tile as="section" label={w('opening')}>
-        <details><summary>{w('opening')}</summary><OpeningForm busy={busy} act={act} /></details>
+        <Fold summary={w('opening')}><OpeningForm busy={busy} act={act} /></Fold>
       </Tile>
       <Tile as="section" label={w('pack')}>
         <TileHead title={w('pack')} />

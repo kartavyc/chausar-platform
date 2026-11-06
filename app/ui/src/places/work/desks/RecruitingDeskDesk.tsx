@@ -14,6 +14,7 @@ import type {RecruitRoleView,RecruitAct} from './recruiting-types';
 import {RecruitCandidates} from './RecruitCandidates';
 import {RecruitRoleTools} from './RecruitRoleTools';
 import s from './RecruitingDesk.module.css';
+import { Fold } from '../../../parts/Fold';
 
 export function RecruitingDeskDesk() {
   const t = useT(),engine=useEngine();const [creating,setCreating]=useState(false),[orderId,setOrder]=useState(''),[selected,setSelected]=useState(()=>new URLSearchParams(globalThis.location?.hash.split('?')[1]??'').get('recruitRole')??''),[answer,setAnswer]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
@@ -26,7 +27,7 @@ export function RecruitingDeskDesk() {
   <ul className={s.list}>{rows.map(r=><li key={r.id}><Button onClick={()=>{setSelected(r.id);setAnswer('');}}>{r.brief?.title??t('pb-recruit.unfinished')}</Button><span>{t('pb-recruit.roleStatus.'+r.status)}</span></li>)}</ul></Tile>
   {role&&<><Tile as="section" label={t('pb-recruit.role')}><TileHead title={role.brief?.title??t('pb-recruit.role')}/>
    {role.question?<form className={s.form} aria-label={t('pb-recruit.questions')} onSubmit={e=>{e.preventDefault();if(busy)return;const q=role.question!;const value=['hardRules','mustHaves','exclusions','targetCompanies','searchWords'].includes(q.id)?answer.split('\n').map(x=>x.trim()).filter(Boolean):answer;void act('role',role.id,'answer',{questionId:q.id,value}).then(r=>{if(r)setAnswer('');});}}><Field multiline label={t('pb-recruit.question.'+role.question.id)} hint={t('pb-recruit.suggestion.'+role.question.id)} value={answer} onChange={e=>setAnswer(e.target.value)}/><Button variant="primary" type="submit" aria-disabled={busy}>{t('pb-recruit.answer')}</Button></form>:<>
-    <details><summary>{t('pb-recruit.briefs')}</summary><p className={s.line}>{t('pb-recruit.publicBrief')}</p><pre data-content className={s.quote}>{role.brief?.publicDescription}</pre><p className={s.line}>{t('pb-recruit.privateBrief')}</p><pre data-content className={s.quote}>{role.brief?.privateSourcingNote}</pre></details>
+    <Fold summary={t('pb-recruit.briefs')}><p className={s.line}>{t('pb-recruit.publicBrief')}</p><pre data-content className={s.quote}>{role.brief?.publicDescription}</pre><p className={s.line}>{t('pb-recruit.privateBrief')}</p><pre data-content className={s.quote}>{role.brief?.privateSourcingNote}</pre></Fold>
     <ul className={s.list}>{role.brief?.criteria.map(c=><li key={c.id}><span data-content>{c.text} · {c.verify}</span>{role.approvedRules.includes(c.id)?<span>{t('pb-recruit.approved')}</span>:<Button aria-disabled={busy} onClick={()=>{if(!busy)void act('role',role.id,'approve-rule',{criterionId:c.id},detail.data?.digest);}}>{t('pb-recruit.approveRule')}</Button>}</li>)}</ul><p className={s.line}>{t('pb-recruit.privacyHold')}</p></>}
   </Tile>{role.brief&&<RecruitRoleTools key={'tools-'+role.id+'-'+role.version} role={role} digest={detail.data?.digest} act={act} busy={busy}/>} {role.status==='open'&&<RecruitCandidates key={'candidates-'+role.id+'-'+role.version+'-'+role.approvedDigest} role={role} act={act} busy={busy}/>}</>}
   </section>;

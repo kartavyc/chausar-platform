@@ -287,28 +287,9 @@
 }
 
 /* How people moved, folded under its heading (simple first). */
-.fold > summary {
-  list-style: none;
-}
-
-.fold > summary::-webkit-details-marker {
-  display: none;
-}
-
 .foldSummary {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: var(--sp-2);
-  cursor: pointer;
-}
-
-.foldSummary > svg {
-  transition: transform var(--t-press) var(--ease);
-}
-
-.fold[open] > .foldSummary > svg {
-  transform: rotate(90deg);
 }
 
 .fold[open] > .foldSummary {
@@ -462,12 +443,7 @@
 }
 
 .blurbSummary {
-  display: flex;
-  align-items: center;
   gap: var(--sp-2);
-  font-size: var(--text-read);
-  color: var(--fg);
-  cursor: pointer;
 }
 
 .blurb[open] > .blurbSummary {

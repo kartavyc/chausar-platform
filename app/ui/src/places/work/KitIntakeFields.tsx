@@ -8,6 +8,7 @@ import { Button } from '../../parts/Button';
 import type { OfferIntakeLite } from '../../engine/types';
 import { KIT_FILE_ACCEPT, isKitFile, kitFileProblem, type KitAnswers, type KitPerson } from './kit-intake';
 import s from './Work.module.css';
+import { Fold } from '../../parts/Fold';
 /** The selected service alone supplies the questions. Every value remains owner input, with no UI money arithmetic. */
 export function KitIntakeFields({ ask, answers, onChange, currency = null }: { ask: OfferIntakeLite | null; currency?: string | null; answers: KitAnswers; onChange: (answers: KitAnswers) => void }) {
   const t = useT();
@@ -23,7 +24,7 @@ export function KitIntakeFields({ ask, answers, onChange, currency = null }: { a
       const selected=typeof value==='string'?value.split('\n').filter(Boolean):[];
       return <fieldset className={s.group} key={field.id}><legend className={s.label}>{label}</legend><p className={s.hint}>{help}</p>{field.options.map(option=><label key={option} className={s.choice}><input type="checkbox" checked={selected.includes(option)} onChange={event=>put(field.id,(event.currentTarget.checked?[...selected,option]:selected.filter(item=>item!==option)).join('\n'))}/><span>{kitIntakeWords(t,option)}</span></label>)}</fieldset>;
     }
-    if (field.id === 'questions' && ask?.kit?.some(item=>item.id==='incomeKinds')) return <details key={field.id}><summary>{label}</summary><Field multiline label={label} hint={help} value={typeof value==='string'?value:''} maxLength={2000} onChange={event=>put(field.id,event.currentTarget.value)}/></details>;
+    if (field.id === 'questions' && ask?.kit?.some(item=>item.id==='incomeKinds')) return <Fold summary={label} key={field.id}><Field multiline label={label} hint={help} value={typeof value==='string'?value:''} maxLength={2000} onChange={event=>put(field.id,event.currentTarget.value)}/></Fold>;
     if (field.kind === 'consent') return <div className={s.field} key={field.id}>
       <label className={s.choice}><input type="checkbox" checked={value === true} onChange={event => put(field.id, event.currentTarget.checked)} aria-describedby={`${inputId}-help`} /><span>{label}</span></label>
       <p id={`${inputId}-help`} className={s.hint}>{help}</p>

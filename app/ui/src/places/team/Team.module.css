@@ -997,19 +997,6 @@
   composes: hit from '../../parts/touch.module.css';
 }
 
-.keeperSee {
-  width: fit-content;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--link);
-  cursor: pointer;
-}
-
-.keeperSee:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 2px;
-}
-
 .jobs {
   display: grid;
   gap: var(--sp-3);

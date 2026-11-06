@@ -580,12 +580,6 @@
   color: var(--mute);
 }
 
-.fold summary {
-  width: fit-content;
-  color: var(--link);
-  cursor: pointer;
-}
-
 .fold p {
   margin-top: var(--sp-2);
 }

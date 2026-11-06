@@ -11,6 +11,7 @@ import type { OfferLite, PriceGuideView, ReceiptLite } from '../../engine/types'
 import { PendingPlanRows, messageOf, quoteAgain, totalOf, usePlan } from './shared';
 import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * Prices in the D look: each offer a card with its price at rest as the calculator's total with its receipt
@@ -60,10 +61,9 @@ export function PricesView() {
 function PriceGuideSection({ guide }: { guide: PriceGuideView }) {
   const t = useT();
   return (
-    <details className={s.priceGuide} data-price-guide-fold="">
-      <summary className={s.priceGuideTitle}>{t('price-sources.title')}</summary>
+    <Fold summary={t('price-sources.title')} className={s.priceGuide} data-price-guide-fold="" summaryClassName={s.priceGuideTitle}>
       <PriceGuideList guide={guide} />
-    </details>
+    </Fold>
   );
 }
 
@@ -118,8 +118,7 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
             <Figure value={total} receiptId={receipt.id} size="tile" />
             <span className={s.unit}>{t(`business.unit.${offer.pricing.quantityUnit}`)}</span>
           </div>
-          <details className={s.fold}>
-            <summary>{t('business.howWorkedOut')}</summary>
+          <Fold summary={t('business.howWorkedOut')} className={s.fold}>
             <div className={s.foldBody}>
               <dl className={s.figures}>
                 {receipt.figures.map((figure) => (
@@ -131,7 +130,7 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
               </dl>
               <p className={s.note}>{receipt.explanation}</p>
             </div>
-          </details>
+          </Fold>
         </div>
       ) : (
         <div className={s.price}>

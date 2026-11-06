@@ -8,6 +8,7 @@ import { Button } from '../../../parts/Button';
 import { Field } from '../../../parts/Field';
 import type { SeoWebsiteItem } from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/records';
 import s from './SeoVisibilityDesk.module.css';
+import { Fold } from '../../../parts/Fold';
 const base = { playbook: 'seo-visibility' as const, kind: 'website' };
 const readFile = (file: File): Promise<string> => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('FILE_UNREADABLE')); reader.readAsText(file); });
 /** Store summaries and hashes, never the checker's large raw JSON bundle. */
@@ -68,7 +69,7 @@ export function SeoWebsiteChecks() {
    <p className={s.line} data-content>{item.report.url}</p>
    <p className={s.line}>{t('pb-seo-visibility.website.coverage')}</p>
    {item.report.previousReceipt && <p className={s.line}>{t(item.report.previousReceipt === item.report.receipt ? 'pb-seo-visibility.website.same' : 'pb-seo-visibility.website.changed')}</p>}
-   <details><summary>{t('pb-seo-visibility.website.evidence')}</summary><code className={s.line}>{item.report.receipt}</code><ul className={s.list}>{item.report.findings.map((finding, index) => <li key={index} data-content><span>{finding.what}</span><span>{finding.measured} / {finding.expected}</span><span>{finding.fix}</span></li>)}</ul></details>
+   <Fold summary={t('pb-seo-visibility.website.evidence')}><code className={s.line}>{item.report.receipt}</code><ul className={s.list}>{item.report.findings.map((finding, index) => <li key={index} data-content><span>{finding.what}</span><span>{finding.measured} / {finding.expected}</span><span>{finding.fix}</span></li>)}</ul></Fold>
    {!item.report.approved ? <Button variant="primary" disabled={busy} onClick={() => void act('approve', {})}>{t('pb-seo-visibility.website.approve')}</Button> : item.recheck && item.recheck.state !== 'stopped' ? <><p className={s.line}>{t(item.recheck.state === 'held' ? 'pb-seo-visibility.website.held' : 'pb-seo-visibility.website.scheduled')}</p><Button disabled={busy} onClick={()=>void act('stop-recheck',{})}>{t('pb-seo-visibility.website.stop')}</Button></> : <>
     {item.recheck?.state === 'stopped' && <p className={s.line}>{t('pb-seo-visibility.website.stopped')}</p>}
     <p className={s.line}>{t('pb-seo-visibility.website.scheduleHint')}</p>

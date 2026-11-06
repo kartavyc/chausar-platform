@@ -16,7 +16,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { ClientCrmView, CrmEntryKind } from '../../engine/types';
 import { useLocalToday } from '../money/words';
-import { Fold, HistoryList, TimelineList, messageOf } from './CrmParts';
+import { CrmFold, HistoryList, TimelineList, messageOf } from './CrmParts';
 import { FactsSection } from './FactsSection';
 import { clientsChanged } from './signals';
 import s from './Crm.module.css';
@@ -47,7 +47,7 @@ export function ClientCrm({ clientId }: { clientId: string }) {
       <section aria-labelledby={timelineId}>
         <h3 id={timelineId} className={s.heading}>{t('crm.timeline')}</h3>
         <TimelineList entries={view.timeline} />
-        <Fold summary={t('crm.log.open')}><LogForm clientId={clientId} onChanged={changed} onFailed={failed} /></Fold>
+        <CrmFold summary={t('crm.log.open')}><LogForm clientId={clientId} onChanged={changed} onFailed={failed} /></CrmFold>
       </section>
 
       <section aria-labelledby={listsId}>
@@ -62,13 +62,13 @@ export function ClientCrm({ clientId }: { clientId: string }) {
             ))}
           </ul>
         )}
-        <Fold summary={t('crm.lists.add')}><PlaceInList member={`client:${clientId}`} onChanged={changed} onFailed={failed} /></Fold>
+        <CrmFold summary={t('crm.lists.add')}><PlaceInList member={`client:${clientId}`} onChanged={changed} onFailed={failed} /></CrmFold>
       </section>
 
       <FactsSection subject={`client:${clientId}`} />
 
-      <Fold summary={t('crm.history')}><HistoryList rows={view.history} /></Fold>
-      <Fold summary={t('crm.edit.open')}><EditForm clientId={clientId} onChanged={changed} onFailed={failed} /></Fold>
+      <CrmFold summary={t('crm.history')}><HistoryList rows={view.history} /></CrmFold>
+      <CrmFold summary={t('crm.edit.open')}><EditForm clientId={clientId} onChanged={changed} onFailed={failed} /></CrmFold>
     </>
   );
 }
@@ -112,7 +112,7 @@ function CompanyLine({ view, onChanged, onFailed }: { view: ClientCrmView; onCha
   return (
     <>
       <p className={s.quiet}>{t('crm.company.none')}</p>
-      <Fold summary={t('crm.company.pick')}>
+      <CrmFold summary={t('crm.company.pick')}>
         <form className={s.form} onSubmit={(event) => void join(event)}>
           <div className={s.choice}>
             <label className={s.label} htmlFor={`${ids}-company`}>{t('crm.company.choose')}</label>
@@ -125,7 +125,7 @@ function CompanyLine({ view, onChanged, onFailed }: { view: ClientCrmView; onCha
           {pick === 'new' && <Field label={t('crm.company.newName')} value={name} maxLength={120} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} />}
           <div className={s.actions}><Button type="submit" disabled={busy || !pick || (pick === 'new' && !name.trim())}>{t('crm.company.join')}</Button></div>
         </form>
-      </Fold>
+      </CrmFold>
     </>
   );
 }

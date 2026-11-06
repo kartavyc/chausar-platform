@@ -19,6 +19,7 @@ import {BooksPosting} from './BooksPosting';
 import {SETUP_COLUMNS} from '../../../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/setup-source';
 import {BOOKS_SOURCE_COLUMNS} from '../../../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/posting-source';
 import {SELLER_BOOKS_COLUMNS} from '../../../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/seller-books-source';
+import { Fold } from '../../../parts/Fold';
 type Row=BooksPostingBody&{id:string;stale:boolean;amounts:{accountId:string;debit:string;credit:string}[];figures?:{key:string;label:string;display:string}[]};
 const base={playbook:'bookkeeping-cfo' as const,kind:'finance'};
 export function BooksFinance(){
@@ -38,8 +39,8 @@ export function BooksFinance(){
  const selectedOrder=orders.data?.find(row=>row.id===orderId),ownCycles=cycleRows.filter(row=>row.clientId===selectedOrder?.clientId&&row.entry.kind==='cycle'),activeCycle=ownCycles.find(row=>row.id===cycleId);
  const inScope=(row:Row)=>!!activeCycle&&row.clientId===selectedOrder?.clientId&&row.cycleId===activeCycle.cycleId;
  const workRows=((list.data?.rows??[]) as Row[]).filter(inScope),item=loadedItem?.id===selected&&inScope(loadedItem)?loadedItem:undefined;
- return <details className={f.root}><summary>{word('heading')}</summary><p className={s.boundary}>{word('boundary')}</p>{error&&<p role="alert" className={s.error}>{error}</p>}
-  <details><summary>{word('templates')}</summary><p>{word('templateHelp')}</p><ul>{[['setup',SETUP_COLUMNS],['posting',BOOKS_SOURCE_COLUMNS],['monthly',SELLER_BOOKS_COLUMNS]].map(([key,columns])=><li key={String(key)}><a download={'books-'+key+'-blank.csv'} href={'data:text/csv;charset=utf-8,'+encodeURIComponent((columns as readonly string[]).join(',')+'\r\n')}>{word(key+'Template')}</a></li>)}</ul><p>{t('pb-books-finance.setupHelp',{kinds:'customer, vendor, category, opening'})}</p><p>{t('pb-books-finance.monthlyHelp',{kinds:'order, settlement, fee-slab, weight-change, return-deduction, hold, gst, tcs, tds'})}</p></details>
+ return <Fold summary={word('heading')} className={f.root}><p className={s.boundary}>{word('boundary')}</p>{error&&<p role="alert" className={s.error}>{error}</p>}
+  <Fold summary={word('templates')}><p>{word('templateHelp')}</p><ul>{[['setup',SETUP_COLUMNS],['posting',BOOKS_SOURCE_COLUMNS],['monthly',SELLER_BOOKS_COLUMNS]].map(([key,columns])=><li key={String(key)}><a download={'books-'+key+'-blank.csv'} href={'data:text/csv;charset=utf-8,'+encodeURIComponent((columns as readonly string[]).join(',')+'\r\n')}>{word(key+'Template')}</a></li>)}</ul><p>{t('pb-books-finance.setupHelp',{kinds:'customer, vendor, category, opening'})}</p><p>{t('pb-books-finance.monthlyHelp',{kinds:'order, settlement, fee-slab, weight-change, return-deduction, hold, gst, tcs, tds'})}</p></Fold>
   <label>{word('order')}<select className={s.select} value={orderId} onChange={e=>{leaveScope();setOrder(e.target.value);setFile('');setCycle('');setSelected('');}}><option value="">{word('choose')}</option>{orders.data?.map(row=><option key={row.id} value={row.id}>{row.request}</option>)}</select></label>
   <label>{word('cycle')}<select className={s.select} value={cycleId} onChange={e=>{leaveScope();setCycle(e.target.value);setSelected('');}}><option value="">{word('choose')}</option>{ownCycles.map(row=>row.entry.kind==='cycle'&&<option key={row.id} value={row.id}>{t('pb-books-finance.cycleLabel',{company:row.entry.cycle.companyId,system:word(row.entry.cycle.system),from:row.entry.cycle.from,to:row.entry.cycle.to})}</option>)}</select></label>
   <Tile><form aria-label={word('create')} className={s.form} onSubmit={e=>{e.preventDefault();void act('create-cycle',{orderId,system,companyId:company,from,to});}}>
@@ -64,5 +65,5 @@ export function BooksFinance(){
    {item.entry.kind==='voucher'&&(item.entry.voucher.state==='approved'&&!item.stale?<p role="status">{word('approved')}</p>:<Button variant="primary" locked={busy||item.stale} onClick={()=>void act('approve-voucher',{},item.id)}>{word('approve')}</Button>)}
    {item.entry.kind==='seller-month'&&<>{activeCycle?.entry.kind==='cycle'&&<BooksSettlement key={item.id} id={item.id} system={activeCycle.entry.cycle.system} files={files.data??[]}/>}<p>{word('taxReview')}</p><ul className={s.list}>{item.figures?.map(row=><li className={s.row} key={row.key}><span>{word(row.key.startsWith('credit-')?'creditDifference':'payoutDifference')}</span><span data-content="">{row.label}</span><Figure value={row.display} receiptId={item.entry.kind==='seller-month'?item.entry.receiptId:''} onReceipt={id=>openSheet('work-receipt',id)}/></li>)}</ul></>}
   </Tile>}
- </details>;
+ </Fold>;
 }

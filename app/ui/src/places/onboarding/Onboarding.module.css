@@ -526,15 +526,6 @@
   color: var(--fg2);
 }
 
-.more summary {
-  cursor: pointer;
-  color: var(--link);
-}
-
-.more[open] summary {
-  margin-bottom: var(--sp-2);
-}
-
 .file {
   display: flex;
   flex-wrap: wrap;

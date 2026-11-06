@@ -18,15 +18,15 @@ import { messageOf } from './shared';
 import { ResultLine } from '../../parts/ResultLine';
 import s from './Business.module.css';
 import n from './Notifications.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** A fold that renders its body only once opened, so a closed fold asks the engine nothing. */
-function Fold({ title, children }: { title: string; children: () => ReactNode }) {
+function LazyFold({ title, children }: { title: string; children: () => ReactNode }) {
   const [opened, setOpened] = useState(false);
   return (
-    <details className={s.fold} onToggle={(event) => { if (event.currentTarget.open) setOpened(true); }}>
-      <summary>{title}</summary>
+    <Fold summary={title} className={s.fold} onToggle={(event) => { if (event.currentTarget.open) setOpened(true); }}>
       {opened && <div className={s.foldBody}>{children()}</div>}
-    </details>
+    </Fold>
   );
 }
 
@@ -34,8 +34,8 @@ export function PhoneReach() {
   const t = useT();
   return (
     <>
-      <Fold title={t('business.notify.telegram')}>{() => <Telegram />}</Fold>
-      <Fold title={t('business.notify.phone')}>{() => <PhoneAccess />}</Fold>
+      <LazyFold title={t('business.notify.telegram')}>{() => <Telegram />}</LazyFold>
+      <LazyFold title={t('business.notify.phone')}>{() => <PhoneAccess />}</LazyFold>
     </>
   );
 }

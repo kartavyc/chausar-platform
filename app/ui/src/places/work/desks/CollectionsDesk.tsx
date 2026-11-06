@@ -8,6 +8,7 @@ import { Button } from '../../../parts/Button';
 import { Field } from '../../../parts/Field';
 import { EmptyState } from '../../../parts/EmptyState';
 import s from './CollectionsDesk.module.css';
+import { Fold } from '../../../parts/Fold';
 
 type PromiseRow = { id: string; clientName: string; statedBy: string; promisedOn: string; status: 'kept' | 'pending' | 'broken'; stage: string; stageName: string; digest: string };
 type ClientInvoiceRow = { id: string; clientId: string; clientName: string; serviceOrderId: string; sourceName: string; invoiceId: string; number: string; debtor: string };
@@ -100,7 +101,7 @@ export function CollectionsDesk() {
     </Tile>}
     {prepared && <Tile as="section" label={t('pb-bookkeeping-cfo.prepared')}><p>{t('pb-bookkeeping-cfo.noteBoundary')}</p><blockquote data-content="">{prepared}</blockquote></Tile>}
     <Tile as="section" label={t('pb-bookkeeping-cfo.stages')} card>
-      <details><summary>{t('pb-bookkeeping-cfo.stages')}</summary>
+      <Fold summary={t('pb-bookkeeping-cfo.stages')}>
         <p className={s.boundary}>{t('pb-bookkeeping-cfo.stageBoundary')}</p>
         {(editedLadder?.ladder ?? config?.ladder ?? []).map((row, index) => <div key={row.id} className={s.stage}>
           <span>{stageName(row)}</span>
@@ -108,7 +109,7 @@ export function CollectionsDesk() {
         </div>)}
         {config && !editedLadder && <Button variant="quiet" onClick={() => setEditedLadder(structuredClone(config))}>{t('pb-bookkeeping-cfo.editStages')}</Button>}
         {editedLadder && <div className={s.actions}><Button onClick={() => setEditedLadder(null)}>{t('pb-bookkeeping-cfo.cancel')}</Button><Button variant="primary" disabled={busy} onClick={() => void saveStages()}>{t('pb-bookkeeping-cfo.saveStages')}</Button></div>}
-      </details>
+      </Fold>
     </Tile>
   </div>;
 }

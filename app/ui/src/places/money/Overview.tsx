@@ -37,17 +37,17 @@ import { drawnBlocks, useLayout } from '../../parts/layout/useLayout';
 import { LayoutNotice } from '../../parts/layout/LayoutNotice';
 import ls from '../../parts/layout/Layout.module.css';
 import v from './MoneyViews.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** The overview moves when money does (an invoice issued, a payment recorded) and when a paid call settles. */
 const onOverview = (event: VentureRunEvent) => onMoney(event) || onRuns(event);
 
 /** A closed fold under the headline tiles: its title is all it shows until the owner opens it. */
-function Fold({ title, children }: { title: string; children: ReactNode }) {
+function MoneyFold({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <details className={v.moreFold}>
-      <summary className={v.moreSummary}>{title}</summary>
+    <Fold summary={title} className={v.moreFold} summaryClassName={v.moreSummary}>
       {children}
-    </details>
+    </Fold>
   );
 }
 
@@ -79,8 +79,8 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
   const drawn = drawnBlocks('money', layout.data);
   const foldTitle = (id: string, own: string) => drawn.find((block) => block.id === id)?.name ?? own;
   const folds: Readonly<Record<string, () => ReactNode>> = {
-    flow: () => (flow ? <Fold title={foldTitle('flow', t('money.fold.flow'))}><Bento><InOutTile flow={flow} notes={views.engine?.flow} span={12} /></Bento></Fold> : null),
-    weeks: () => (ahead ? <Fold title={foldTitle('weeks', cashView ? t('money.fold.weeks') : t('money.next.title'))}><Bento>{next(12)}</Bento></Fold> : null),
+    flow: () => (flow ? <MoneyFold title={foldTitle('flow', t('money.fold.flow'))}><Bento><InOutTile flow={flow} notes={views.engine?.flow} span={12} /></Bento></MoneyFold> : null),
+    weeks: () => (ahead ? <MoneyFold title={foldTitle('weeks', cashView ? t('money.fold.weeks') : t('money.next.title'))}><Bento>{next(12)}</Bento></MoneyFold> : null),
   };
   const slot = (index: number, content: () => ReactNode) => {
     const block = drawn[index];

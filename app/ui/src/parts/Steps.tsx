@@ -3,6 +3,7 @@ import { Icon } from './Icon';
 import type { IconName } from './icons';
 import type { RunStep, RunSummary, RunToolLine } from '../engine/types';
 import s from './Steps.module.css';
+import { Fold } from './Fold';
 
 const WORD: Record<RunStep['state'], string> = { done: 'steps.done', current: 'steps.current', pending: 'steps.pending', waiting: 'steps.waiting', failed: 'steps.failed' };
 
@@ -80,8 +81,7 @@ export function Steps({ steps, progress, showTools = false, waitingWord, errors 
                 </div>
                 {errors && step.error && <p className={s.error}>{step.error}</p>}
                 {showTools && step.tools && step.tools.length > 0 && (
-                  <details className={s.tools}>
-                    <summary>{t('steps.tools', { count: step.tools.length })}</summary>
+                  <Fold summary={t('steps.tools', { count: step.tools.length })} className={s.tools}>
                     {step.tools.map((tool, i) => (
                       <p key={i} className={s.tool} data-tool-state={tool.state}>
                         {tool.state && <ToolMark state={tool.state} />}
@@ -91,7 +91,7 @@ export function Steps({ steps, progress, showTools = false, waitingWord, errors 
                         {tool.ms !== undefined && <> <span className={s.time}>{msWords(t, tool.ms)}</span></>}
                       </p>
                     ))}
-                  </details>
+                  </Fold>
                 )}
               </li>
             );

@@ -4,6 +4,7 @@ import { stateText } from '../../parts/states';
 import type { GuidanceLineView } from '../../engine/types';
 import { TileSection } from './shared';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * The guidance report on Business > Practice (W4 4J22a, from 4J16's venture.playbook.guidance; catalogue Q18): every
@@ -22,8 +23,7 @@ export function GuidanceReport() {
       <p className={s.line} data-guidance-summary="">
         {t('business.practice.guidance.summary', { measured: count('measured'), dark: count('dark'), unmeasured: count('unmeasured') })}
       </p>
-      <details className={s.fold} data-fold="guidance">
-        <summary>{t('business.practice.guidance.each')}</summary>
+      <Fold summary={t('business.practice.guidance.each')} className={s.fold} data-fold="guidance">
         <ul className={s.log}>
           {lines.map((line, i) => (
             <li key={`${line.stepId}:${i}`}>
@@ -32,7 +32,7 @@ export function GuidanceReport() {
             </li>
           ))}
         </ul>
-      </details>
+      </Fold>
     </TileSection>
   );
 }

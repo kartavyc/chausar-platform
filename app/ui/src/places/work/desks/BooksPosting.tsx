@@ -10,10 +10,11 @@ import {BooksPostingReview} from './BooksPostingReview';
 import type {BooksPostingBody} from '../../../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/records';
 import s from './CollectionsDesk.module.css';
 import p from './BooksPosting.module.css';
+import { Fold } from '../../../parts/Fold';
 export type BooksPostingProps={orderId:string;cycleId:string;system:'zoho'|'tally';companyId:string;files:readonly {id:string;name:string}[]};
 export const postingDesk={playbook:'bookkeeping-cfo' as const,kind:'posting'};
 export function BooksPosting(props:BooksPostingProps){return <PostingScope key={props.orderId+'.'+props.cycleId} {...props}/>;}
-function PostingScope(props:BooksPostingProps){const t=useT(),word=(key:string)=>t('pb-books-posting.'+key);return <details className={p.root}><summary>{word('heading')}</summary>{props.system==='tally'?<Tile><p>{word('tally')}</p><p>{word('tallyIssue')}</p></Tile>:<PostingZoho {...props}/>}</details>;}
+function PostingScope(props:BooksPostingProps){const t=useT(),word=(key:string)=>t('pb-books-posting.'+key);return <Fold summary={word('heading')} className={p.root}>{props.system==='tally'?<Tile><p>{word('tally')}</p><p>{word('tallyIssue')}</p></Tile>:<PostingZoho {...props}/>}</Fold>;}
 function PostingZoho({orderId,cycleId,companyId,files}:BooksPostingProps){
  const t=useT(),engine=useEngine(),word=(key:string)=>t('pb-books-posting.'+key),[file,setFile]=useState(''),[selected,setSelected]=useState(''),[revision,setRevision]=useState(0),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const connection=useResource('venture.desk.get',{...postingDesk,id:cycleId}),list=useResource('venture.desk.list',{...postingDesk,filter:{cycleId}},{refreshOn:e=>e.type==='desk.changed'}),connected=!!(connection.data?.item as {connected?:boolean}|undefined)?.connected;

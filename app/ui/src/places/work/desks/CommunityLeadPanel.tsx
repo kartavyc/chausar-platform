@@ -8,6 +8,7 @@ import { Button } from '../../../parts/Button';
 import { ExternalLink } from '../../connections/external';
 import type { CommunityInput, CommunityPost } from '../../../../../../platform/runtime/venture/playbooks/lead-generation/community-core';
 import s from './LeadGenerationDesk.module.css';
+import { Fold } from '../../../parts/Fold';
 const base = { playbook: 'lead-generation' as const, kind: 'source' };
 type Report = { sourceId: string; posts: CommunityPost[]; coverage: string };
 const fresh = () => ({ community: '', url: '', rulesUrl: '', rulesCheckedOn: '', on: '', text: '', painQuote: '', fitQuote: '', intentQuote: '', painScore: '1', fitScore: '1', intentScore: '1' });
@@ -32,7 +33,7 @@ export function CommunityLeadPanel() {
   async function read(id: string) { try { const answer = await engine.request('venture.desk.get', { ...base, id }); setReport(answer.item as Report); } catch { setError(t('pb-lead-generation.error.REQUEST_FAILED')); } }
   const coverage = report?.coverage.match(/\d+/g) ?? [];
   const rows = (saved.data?.rows ?? []) as { id: string; type: string; name: string }[];
-  return <Tile as="section" label={t('pb-lead-generation.community')}><details><summary>{t('pb-lead-generation.community')}</summary>
+  return <Tile as="section" label={t('pb-lead-generation.community')}><Fold summary={t('pb-lead-generation.community')}>
     <p className={s.line}>{t('pb-lead-generation.communityBoundary')}</p>
     {error && <p className={s.error} role="alert">{error}</p>}
     <form className={s.form} aria-label={t('pb-lead-generation.community')} onSubmit={create}>
@@ -60,5 +61,5 @@ export function CommunityLeadPanel() {
       <Button disabled={busy} onClick={() => void forget()}>{t('pb-lead-generation.forgetCommunity')}</Button>
     </div>}
     {rows.filter(row => row.type === 'community').map(row => <p className={s.line} key={row.id}><span data-content>{row.name}</span> <Button onClick={() => void read(row.id)}>{t('pb-lead-generation.readCommunity')}</Button></p>)}
-  </details></Tile>;
+  </Fold></Tile>;
 }

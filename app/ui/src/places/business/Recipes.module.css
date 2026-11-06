@@ -31,25 +31,6 @@
   color: var(--fg2);
 }
 
-.fold > summary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  min-height: var(--control-sm);
-  font-size: var(--text-label);
-  color: var(--fg2);
-  cursor: pointer;
-  list-style: none;
-}
-
-.fold > summary::-webkit-details-marker {
-  display: none;
-}
-
-.fold[open] > summary svg {
-  transform: rotate(180deg);
-}
-
 .body {
   display: grid;
   gap: var(--sp-2);

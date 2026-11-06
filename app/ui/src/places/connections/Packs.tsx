@@ -5,6 +5,7 @@ import { useT } from '../../text';
 import { Button } from '../../parts/Button';
 import s from './AgentSettings.module.css';
 import connections from './Connections.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * W6 6F2 (D31): playbook packs. A pack adds markdown skills, MCP server suggestions and pure calculators, never code
@@ -30,8 +31,7 @@ export function Packs() {
       setPreview({ pack, view: answer.pack, digest: answer.digest });
     });
   }
-  return <details className={connections.fold} onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>{t('connections.packs.title')}</summary>
+  return <Fold summary={t('connections.packs.title')} className={connections.fold} onToggle={event => setOpen(event.currentTarget.open)}>
     <div className={s.group}>
       <p className={connections.note}>{t('connections.packs.note')}</p>
       {list.error && <p role="alert">{list.error.message}</p>}
@@ -52,7 +52,7 @@ export function Packs() {
       </div>}
       {said && <p role={said.error ? 'alert' : 'status'}>{said.text}</p>}
     </div>
-  </details>;
+  </Fold>;
 }
 function PackSummary({ pack }: { pack: PackView }) {
   const t = useT();

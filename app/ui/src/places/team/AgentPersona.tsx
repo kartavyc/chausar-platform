@@ -6,6 +6,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { AgentFile } from './AgentFile';
 import s from './AgentExtras.module.css';
+import { Fold } from '../../parts/Fold';
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 /** The agent says each new persona version in its chat, so a message is when the persona may have changed. */
@@ -57,10 +58,9 @@ export function AgentPersona({ agent }: { agent: AgentView }) {
 
   // A closed fold in Instructions at rest (the tab stays simple); its summary names the section.
   const fold = (body: ReactNode) => (
-    <details className={s.fold}>
-      <summary className={s.foldSummary}><span id={headId}>{t('team.persona.title')}</span></summary>
+    <Fold summary={<span id={headId}>{t('team.persona.title')}</span>} className={s.fold} summaryClassName={s.foldSummary}>
       {body}
-    </details>
+    </Fold>
   );
   if (view.error) return fold(<p className={s.problem} role="alert">{messageOf(view.error)}</p>);
   if (!view.data || !form) return fold(<p className={s.quiet}>{t('team.loading')}</p>);

@@ -6,6 +6,7 @@ import { Button } from '../../parts/Button';
 import { Count } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
 import s from './IdeasFold.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** Ideas rest on the business's records: a queue change (an invoice paid, an order moved) can make or retire one. */
 const IDEA_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.done' || event.type === 'run.failed';
@@ -20,10 +21,6 @@ function hrefOf(id: string, recordId: string): string {
   return id.startsWith('waiting:order:') ? `#/work?order=${encodeURIComponent(recordId)}` : `#/today?row=${encodeURIComponent(`reply:${recordId}`)}`;
 }
 
-/** 4Z2: the chevron at a fold's end, so a closed fold reads as one that opens, never as an empty tile. */
-function FoldMark() {
-  return <span className={s.mark} data-fold-mark="" aria-hidden="true"><Icon name="chevron-down" size={16} /></span>;
-}
 
 /** An idea the owner started here: the proposal it drafted, and where it stands now. */
 type Started = { idea: IdeaView; proposal: ProposalView | null; line: string; raised: string | null };
@@ -91,13 +88,9 @@ export function IdeasFold({ title, ideas: showIdeas = true }: { title?: string |
   return (
     <div className={s.folds}>
       {waiting.length > 0 && (
-        <details className={s.fold} data-today-fold="waiting">
-          <summary className={s.summary}>
-            <Icon name="clock" size={16} />
+        <Fold summary={<><Icon name="clock" size={16} />
             <span className={s.title}>{t('today.ideas.waiting')}</span>
-            <Count value={waiting.length} className={s.count} />
-            <FoldMark />
-          </summary>
+            <Count value={waiting.length} className={s.count} /></>} className={s.fold} data-today-fold="waiting" summaryClassName={s.summary}>
           <ul className={s.waiting}>
             {waiting.map((item) => (
               <li key={item.id}>
@@ -105,16 +98,12 @@ export function IdeasFold({ title, ideas: showIdeas = true }: { title?: string |
               </li>
             ))}
           </ul>
-        </details>
+        </Fold>
       )}
       {showIdeas && (ideas.length > 0 || said || problem) && (
-        <details className={s.fold} data-today-fold="ideas">
-          <summary className={s.summary}>
-            <Icon name="sparkles" size={16} />
+        <Fold summary={<><Icon name="sparkles" size={16} />
             <span className={s.title}>{title ?? t('today.ideas.title')}</span>
-            <Count value={live.length} className={s.count} />
-            <FoldMark />
-          </summary>
+            <Count value={live.length} className={s.count} /></>} className={s.fold} data-today-fold="ideas" summaryClassName={s.summary}>
           <div className={s.body}>
             <p className={s.lead}>{t('today.ideas.lead')}</p>
             {said && <p className={s.said} role="status">{said}</p>}
@@ -134,7 +123,7 @@ export function IdeasFold({ title, ideas: showIdeas = true }: { title?: string |
               </ul>
             )}
           </div>
-        </details>
+        </Fold>
       )}
     </div>
   );

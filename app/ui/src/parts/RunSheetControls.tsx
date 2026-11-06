@@ -8,6 +8,7 @@ import { Figure } from './Figure';
 import { Icon } from './Icon';
 import type { RunDetail } from '../engine/types';
 import s from './RunSheetControls.module.css';
+import { Fold } from './Fold';
 
 /** The engine's longest note for the next step, in characters (delivery/run-controls.ts). */
 const MAX_NOTE = 500;
@@ -38,8 +39,7 @@ export function RunScope({ run }: { run: RunDetail }) {
   return (
     <div className={s.scope}>
       <p className={s.scopeLine}>{withCap(scope, runScopeWords(scope, language, t))}</p>
-      <details className={s.fold} data-fold="scope">
-        <summary>{t('runsheet.scope.more')}</summary>
+      <Fold summary={t('runsheet.scope.more')} className={s.fold} data-fold="scope">
         {scope.tools.length > 0 && (
           <>
             <p className={s.small}>{t('runsheet.scope.tools')}</p>
@@ -52,7 +52,7 @@ export function RunScope({ run }: { run: RunDetail }) {
             <ul className={s.list}>{scope.actions.map((action, i) => <li key={i}>{action}</li>)}</ul>
           </>
         )}
-      </details>
+      </Fold>
     </div>
   );
 }

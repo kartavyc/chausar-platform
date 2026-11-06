@@ -10,6 +10,7 @@ import { NewPassphrase } from '../../parts/Secret';
 import { TRANSFER_MAX_CHARS, codeOf, momentOf, newPassphraseProblem, refusalWords } from '../../parts/custody';
 import type { Openable } from './boot';
 import s from './Onboarding.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * The ways into a business that is not open, beside Welcome back's list (app/renderer/launch.js showRecover,
@@ -125,12 +126,11 @@ export function RestoreBackup({ onOpened, onBack }: WayProps) {
       {!found.data && !found.error && <p className={s.progress} role="status">{t('onboarding.restore.reading')}</p>}
       {found.data && groups.size === 0 && <p className={s.note}>{t('onboarding.restore.none')}</p>}
       {[...groups.entries()].map(([name, backups], index) => (
-        <details key={name} className={s.more} open={index === 0}>
-          <summary>{name}</summary>
+        <Fold summary={name} key={name} className={s.more} open={index === 0}>
           <ul className={s.backups} aria-label={name}>
             {backups.map((backup) => <RestoreRow key={backup.file} backup={backup} onOpened={onOpened} />)}
           </ul>
-        </details>
+        </Fold>
       ))}
     </Way>
   );

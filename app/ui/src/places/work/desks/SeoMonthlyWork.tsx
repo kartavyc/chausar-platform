@@ -8,6 +8,7 @@ import { Tile, TileHead } from '../../../parts/Tile';
 import type { SeoWorkItem, SeoWorkOperation } from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/work-core';
 import type { RefreshRow } from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/refresh';
 import s from './SeoVisibilityDesk.module.css';
+import { Fold } from '../../../parts/Fold';
 const base = { playbook: 'seo-visibility' as const, kind: 'work' };
 const operations: SeoWorkOperation[] = ['refresh', 'content', 'meta', 'impact', 'local'];
 /** Review the stored result and its current digest before any owner decision. */
@@ -45,7 +46,7 @@ export function SeoMonthlyWork() {
   </Tile>
   {item && <Tile as="section" label={t('pb-seo-work.result')} card><TileHead title={t('pb-seo-work.result')}/>{item.stale && <p role="alert">{t('pb-seo-work.error.SEO_SOURCE_CHANGED')}</p>}
    <WorkResult item={item}/>
-   <details><summary>{t('pb-seo-work.evidence')}</summary><p data-content>{files.data?.find(f => f.id === item.uploadId)?.name ?? item.uploadId}</p><p>{item.checkedAt}</p><p data-content>{item.receipt}</p></details>
+   <Fold summary={t('pb-seo-work.evidence')}><p data-content>{files.data?.find(f => f.id === item.uploadId)?.name ?? item.uploadId}</p><p>{item.checkedAt}</p><p data-content>{item.receipt}</p></Fold>
    {item.state !== 'approved' && <Button variant="primary" locked={item.stale || item.result.pass === false} disabled={busy || !detail.data?.digest} onClick={() => void act('approve')}>{t('pb-seo-work.approve')}</Button>}
    <Button disabled={busy} onClick={() => void act('rescan')}>{t('pb-seo-work.rescan')}</Button><Button variant="quiet" disabled={busy || item.stale} onClick={() => void act('dismiss')}>{t('pb-seo-work.dismiss')}</Button>
   </Tile>}

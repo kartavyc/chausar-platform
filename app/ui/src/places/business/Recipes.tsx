@@ -13,9 +13,9 @@ import { useId } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import type { RecipeView } from '../../engine/types';
-import { Icon } from '../../parts/Icon';
 import { TileSection } from './shared';
 import r from './Recipes.module.css';
+import { Fold } from '../../parts/Fold';
 
 export function Recipes() {
   const t = useT();
@@ -65,8 +65,7 @@ function Recipe({ recipe }: { recipe: RecipeView }) {
     <article aria-labelledby={titleId} className={r.recipe} data-recipe={recipe.id}>
       <h3 id={titleId} className={r.name}>{recipe.name}</h3>
       <p className={r.when}>{t('kit-rules.recipes.when', { when: recipe.whenToUse })}</p>
-      <details className={r.fold}>
-        <summary>{t('kit-rules.recipes.open')}<Icon name="chevron-down" size={16} /></summary>
+      <Fold summary={t('kit-rules.recipes.open')} className={r.fold}>
         <div className={r.body}>
           <h4 className={r.sub}>{t('kit-rules.recipes.steps')}</h4>
           <ol className={r.steps}>
@@ -84,7 +83,7 @@ function Recipe({ recipe }: { recipe: RecipeView }) {
             {recipe.mistakes.map((line) => <li key={line}>{line}</li>)}
           </ul>
         </div>
-      </details>
+      </Fold>
     </article>
   );
 }

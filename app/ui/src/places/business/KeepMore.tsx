@@ -10,6 +10,7 @@ import { CodeGroups } from '../../parts/Secret';
 import { momentOf, refusalWords, saveTextFile } from '../../parts/custody';
 import { LeftContext, StartedContext } from '../onboarding/started';
 import s from './Business.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * The rest of Keep this business: what the old app's "Your workspace" menu and its Trust & access panel offered for
@@ -50,8 +51,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
   }
 
   return (
-    <details className={s.fold}>
-      <summary>{t('business.allBackups', { count: String(backups.length) })}</summary>
+    <Fold summary={t('business.allBackups', { count: String(backups.length) })} className={s.fold}>
       <ul className={s.list}>
         {backups.map((backup) => (
           <li key={backup.file} className={s.backupRow}>
@@ -70,7 +70,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
           </li>
         ))}
       </ul>
-    </details>
+    </Fold>
   );
 }
 
@@ -117,8 +117,7 @@ export function MoveAway({ locked }: { locked: boolean }) {
   }
 
   return (
-    <details className={s.fold}>
-      <summary>{t('business.move')}</summary>
+    <Fold summary={t('business.move')} className={s.fold}>
       {made ? (
         <div>
           <p className={s.line}>{t('business.moveCodeOnce')}</p>
@@ -141,7 +140,7 @@ export function MoveAway({ locked }: { locked: boolean }) {
           <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.moveMake')}</Button></div>
         </form>
       )}
-    </details>
+    </Fold>
   );
 }
 
@@ -207,8 +206,7 @@ export function ExportCopy() {
   }
 
   return (
-    <details className={s.fold}>
-      <summary>{t('business.export')}</summary>
+    <Fold summary={t('business.export')} className={s.fold}>
       <form className={s.form} onSubmit={(event) => void go(event)}>
         <fieldset className={s.choices}>
           <legend className="sr-only">{t('business.exportKind')}</legend>
@@ -239,7 +237,7 @@ export function ExportCopy() {
           </div>
         )}
       </form>
-    </details>
+    </Fold>
   );
 }
 
@@ -271,8 +269,7 @@ export function DeleteBusiness({ onDeleted }: { onDeleted: (result: Deleted) => 
   }
 
   return (
-    <details className={s.fold}>
-      <summary data-tone="danger">{t('business.delete')}</summary>
+    <Fold summary={t('business.delete')} className={s.fold} tone="danger">
       {name === null ? (
         status.error ? <p className={s.problem} role="alert">{failed(t, status.error)}</p> : <p className={s.note}>{t('business.loading')}</p>
       ) : (
@@ -284,7 +281,7 @@ export function DeleteBusiness({ onDeleted }: { onDeleted: (result: Deleted) => 
           <div className={s.buttons}><Button type="submit" tone="danger" disabled={busy} disabledReason={typed !== name ? t('business.deleteTypeFirst') : undefined}>{t('business.delete')}</Button></div>
         </form>
       )}
-    </details>
+    </Fold>
   );
 }
 

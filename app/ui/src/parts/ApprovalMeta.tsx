@@ -7,6 +7,7 @@ import { Icon } from './Icon';
 import type { IconName } from './icons';
 import s from './ApprovalMeta.module.css';
 import { formatCount, HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
+import { Fold } from './Fold';
 
 /**
  * W4 4J19: what the engine says about a Today row beyond its title and line (4J1's views/row-meta.ts, 4J16's quote
@@ -150,8 +151,7 @@ export function RowFacts({ row, onReceipt }: { row: QueueRow; onReceipt?: ((id: 
         </p>
       )}
       {counted && changeCount && (
-        <details className={s.changes} data-change-count="">
-          <summary>{changeCount.line}</summary>
+        <Fold summary={changeCount.line} className={s.changes} data-change-count="">
           {changeCount.details.length > 0 && (
             <ul className={s.details}>
               {changeCount.details.map((detail, index) => {
@@ -161,7 +161,7 @@ export function RowFacts({ row, onReceipt }: { row: QueueRow; onReceipt?: ((id: 
             </ul>
           )}
           <p className={s.coverage} data-coverage="">{changeCount.coverage}</p>
-        </details>
+        </Fold>
       )}
       {stale && <p className={s.stale} data-stale-draft="">{stale}</p>}
     </div>

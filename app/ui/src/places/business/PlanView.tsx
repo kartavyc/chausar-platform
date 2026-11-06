@@ -16,6 +16,7 @@ import { RulesSection } from './RulesSection';
 import { Recipes } from './Recipes';
 import s from './Business.module.css';
 import fields from '../../parts/Field.module.css';
+import { Fold } from '../../parts/Fold';
 
 /**
  * Plan and playbook (venture.blueprint.get) in the D look: the plan's name and one line with who it is for, how far
@@ -86,12 +87,11 @@ export function PlanView() {
                   </li>
                 ))}
               </ol>
-              <details className={s.fold}>
-                <summary>{t('business.stepsMore')}</summary>
+              <Fold summary={t('business.stepsMore')} className={s.fold}>
                 <div className={s.foldBody}>
                   {bp.deliverySteps.map((step) => <p key={step.id} className={s.line}>{step.title.value}: {step.note}</p>)}
                 </div>
-              </details>
+              </Fold>
             </>
           )}
         </TileSection>
@@ -150,8 +150,7 @@ function Checklist({ items }: { items: ChecklistItemLite[] }) {
           </ul>
         </>
       )}
-      <details className={s.fold}>
-        <summary>{t('business.owner.allSteps', { count: String(items.length) })}</summary>
+      <Fold summary={t('business.owner.allSteps', { count: String(items.length) })} className={s.fold}>
         <ul className={cx(s.foldBody, s.list)}>
           {items.map((item) => (
             <li key={item.id} className={cx(s.line, s.checkItem)}>
@@ -160,7 +159,7 @@ function Checklist({ items }: { items: ChecklistItemLite[] }) {
             </li>
           ))}
         </ul>
-      </details>
+      </Fold>
     </>
   );
 }
@@ -176,15 +175,14 @@ function BackOffice({ plan }: { plan: BlueprintLite }) {
     <TileSection title={t('business.backOffice')}>
       <p className={s.line}>{t('business.invoicesIn', { currency: office.currency })}</p>
       {office.taxRegistered.value && (
-        <details className={s.fold}>
-          <summary>{t('business.taxDetails')}</summary>
+        <Fold summary={t('business.taxDetails')} className={s.fold}>
           <div className={s.foldBody}>
             <p className={s.line} data-tax-line="">{t('business.taxRegisteredLine', { tax: office.taxLabel })}<LabelTag line={office.taxRegistered} /></p>
             {office.taxInvoiceMissing.length > 0 && (
               <p className={s.note} data-tax-line="">{t('business.taxMissing', { list: office.taxInvoiceMissing.join(', ') })}</p>
             )}
           </div>
-        </details>
+        </Fold>
       )}
     </TileSection>
   );

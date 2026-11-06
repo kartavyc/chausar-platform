@@ -15,6 +15,7 @@ import { SeoMonitors } from './SeoMonitors';
 import { SeoMonthlyWork } from './SeoMonthlyWork';
 import { SeoPublishingWork } from './SeoPublishingWork';
 import { SeoStrategyWork } from './SeoStrategyWork';
+import { Fold } from '../../../parts/Fold';
 type PanelRow = {
     id: string;
     state: 'draft' | 'approved';
@@ -101,13 +102,13 @@ export function SeoVisibilityDesk() {
     {item && <Tile as="section" label={t('pb-seo-visibility.preview')} card>
       <TileHead title={t('pb-seo-visibility.preview')} level={3}/>
       <p className={s.line}>{t('pb-seo-visibility.state.' + item.panel.state)}</p>
-      <details><summary>{t('pb-seo-visibility.design')}</summary><ul className={s.list} data-content>{item.panel.spec.questions.map(question => <li key={question.id}>{question.text}</li>)}</ul><p data-content>{item.panel.spec.engines.join(', ')}</p>{item.panel.spec.timepoints.map(window => <p key={window.id} className={s.line}>{window.from} / {window.to}</p>)}</details>
+      <Fold summary={t('pb-seo-visibility.design')}><ul className={s.list} data-content>{item.panel.spec.questions.map(question => <li key={question.id}>{question.text}</li>)}</ul><p data-content>{item.panel.spec.engines.join(', ')}</p>{item.panel.spec.timepoints.map(window => <p key={window.id} className={s.line}>{window.from} / {window.to}</p>)}</Fold>
       {item.panel.state === 'draft' ? <Button variant="primary" disabled={busy} onClick={() => void act('approve', {})}>{t('pb-seo-visibility.approve')}</Button> : <>
         <p className={s.line}>{t('pb-seo-visibility.missing', { missing: item.metrics.mentions.missing, denominator: item.metrics.mentions.denominator })}</p>
         {!item.observations.length && <p className={s.line}>{t('pb-seo-visibility.noAnswers')}</p>}
         <p className={s.line}>{t(item.metrics.status === 'not-enough-data' ? 'pb-seo-visibility.insufficient' : 'pb-seo-visibility.measured')}</p>
         {!item.metrics.live && <p className={s.line}>{t('pb-seo-visibility.notLive')}</p>}
-        <details><summary>{t('pb-seo-visibility.capture')}</summary>
+        <Fold summary={t('pb-seo-visibility.capture')}>
           <form className={s.form} aria-label={t('pb-seo-visibility.capture')} onSubmit={capture}>
             <label className={s.label}>{t('pb-seo-visibility.question')}<select value={questionId || item.panel.spec.questions[0]?.id} onChange={event => setQuestionId(event.target.value)}>{item.panel.spec.questions.map(question => <option key={question.id} value={question.id}>{question.text}</option>)}</select></label>
             <label className={s.label}>{t('pb-seo-visibility.engine')}<select value={engineId || item.panel.spec.engines[0]} onChange={event => setEngineId(event.target.value)}>{item.panel.spec.engines.map(id => <option key={id}>{id}</option>)}</select></label>
@@ -120,7 +121,7 @@ export function SeoVisibilityDesk() {
             <label className={s.check}><input type="checkbox" checked={mentioned} onChange={event => setMentioned(event.target.checked)}/>{t('pb-seo-visibility.mentioned')}</label>
             <Button variant="primary" type="submit" disabled={busy}>{t('pb-seo-visibility.saveAnswer')}</Button>
           </form>
-        </details>
+        </Fold>
         {item.observations.length > 0 && <ul className={s.list}>{item.observations.map(observation => <li key={observation.slot} data-content><span>{observation.engine}</span><span>{observation.answer}</span></li>)}</ul>}
       </>}
     </Tile>}

@@ -306,11 +306,6 @@
   color: var(--fg);
 }
 
-.whyMore summary {
-  width: fit-content;
-  cursor: pointer;
-}
-
 .whyTech {
   margin-top: var(--sp-1);
   line-height: 18px;

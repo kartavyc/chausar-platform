@@ -19,6 +19,7 @@ import type { OfferLite } from '../../engine/types';
 import { salesWords } from '../clients/Proposal';
 import s from './Business.module.css';
 import own from './SharePrice.module.css';
+import { Fold } from '../../parts/Fold';
 
 /** An offer's share as its price card shows it at rest: the engine's own words. */
 export function ShareAtRest({ offer }: { offer: OfferLite }) {
@@ -59,8 +60,7 @@ export function ShareFold({ offers, onChanged }: { offers: readonly OfferLite[];
 
   return (
     <Tile className={own.tile}>
-      <details className={s.fold} data-share-fold="">
-        <summary>{t('kit-sales.share.fold')}</summary>
+      <Fold summary={t('kit-sales.share.fold')} className={s.fold} data-share-fold="">
         <div className={s.foldBody}>
           <p className={s.note}>{t('kit-sales.share.line')}</p>
           {offers.length > 1 && (
@@ -78,7 +78,7 @@ export function ShareFold({ offers, onChanged }: { offers: readonly OfferLite[];
           </form>
           {problem && <p className={s.problem} role="alert">{problem}</p>}
         </div>
-      </details>
+      </Fold>
     </Tile>
   );
 }
