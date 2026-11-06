@@ -306,6 +306,8 @@ export type VentureRecord = RecordBase<'venture-record'> & {
   aiSettings?: import('./agent-runtime/settings.ts').AiSettings;
   /** Host-owned revocation generations; owner settings never accept these counters. */
   aiNetworkRevision?: Partial<Record<'codex' | 'claude', number>>;
+  /** C7: the backup AI for routines (agents/routine-backup.ts): off by default; at is when the owner last set it. */
+  routineBackup?: { on: boolean; order: ModelPresetId[]; at: IsoTime };
   idea: string;
   ideaDigest: string;
   workingName: string;
@@ -3699,6 +3701,8 @@ export type ChatConsentRecord = RecordBase<'venture-chat-consent'> & {
 export type AgentNoteRecord = RecordBase<'venture-agent-note'> & {
   agent: string;
   scope: AgentNoteScope;
+  /** C7: a backup AI's consent for routines, given when the owner turned the backup on; the main chat consent ignores it. */
+  backup?: true;
   load: AgentNoteLoad;
   text: string;
   source: { kind: 'owner-words' | 'owner-edit'; quote: string | null; messageId: string | null };
@@ -4476,6 +4480,16 @@ export type RoutineRunRecord = RecordBase<'venture-routine-run'> & {
 export type DrillRunRecord = RecordBase<'venture-drill-run'> & {
   playbookHash: string;
   results: { drill: string; stopped: boolean; twinPassed: boolean; line: string }[];
+  /** C7: a run parked as queued until the AI plan resets (resetsAt null: no reset known, looked at again every 30 minutes). */
+  waitsFor?: { cli: DelegateCli; resetsAt: IsoTime | null };
+  /** C7: when the run started waiting for the plan. */
+  waitingSince?: IsoTime;
+  /** C7: when the run last parked on Today, if after it was made; its 24 hours count from here. */
+  parkedAt?: IsoTime;
+  /** C7: the backup AI a run went to and why ("Ran on Claude Code because your Codex plan was used up."). */
+  ranOn?: { presetId: ModelPresetId; label: string; why: string } | null;
+  /** C7: the client whose data the run carries (an event trigger's run), if any. */
+  clientId?: string | null;
   passed: boolean;
 };
 
@@ -5326,7 +5340,8 @@ export type OrderContractItem = { id: string; kind: 'deliverable' | 'check'; sta
 export type RoutineView = { id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
 export interface RoutinesView { routines: RoutineView[] }
 /** receipt (W6 6G5): the model receipt of a run that asked an AI; absent before it ran. */
-export type RoutineRunView = { id: string; dueAt: IsoTime; state: RoutineRunState; line: Display; receipt?: ModelReceiptView };
+/** ranOn (C7): the backup AI the run went to and why, in owner words. */
+export type RoutineRunView = { id: string; dueAt: IsoTime; state: RoutineRunState; line: Display; receipt?: ModelReceiptView; ranOn?: Display };
 export interface RoutineRunsView { runs: RoutineRunView[] }
 export type RoutineInput = { id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean; recordReport?: 'va-morning'|'va-weekly' };
 

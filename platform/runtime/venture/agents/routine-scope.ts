@@ -3,18 +3,24 @@
 // can write them on the call record and its charge without threading an id through every chat path. Node keeps the
 // scope across awaits; outside a routine run it is undefined.
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { ModelPresetId } from '../contracts.ts';
 
-export type RoutineScope = { routineId: string; runId: string };
+/**
+ * C7: presetId, when a routine run goes to its backup AI (agents/routine-backup.ts): the model port sends by that AI and
+ * the chat consent reads its backup consent. draftOnly, for a run an event started: its answer is words, a draft or a
+ * proposal for Today, nothing more.
+ */
+export type RoutineScope = { routineId: string; runId: string; presetId?: ModelPresetId; draftOnly?: true };
 
 const SCOPE = new AsyncLocalStorage<RoutineScope>();
 
 /** Runs work as part of one routine run. */
 export function withRoutineScope<T>(scope: RoutineScope, work: () => Promise<T>): Promise<T> {
-  return SCOPE.run({ routineId: scope.routineId, runId: scope.runId }, work);
+  return SCOPE.run({ routineId: scope.routineId, runId: scope.runId, ...(scope.presetId ? { presetId: scope.presetId } : {}), ...(scope.draftOnly ? { draftOnly: true as const } : {}) }, work);
 }
 
 /** The routine run the current work belongs to, or undefined. */
 export function currentRoutineScope(): RoutineScope | undefined {
   const scope = SCOPE.getStore();
-  return scope ? { routineId: scope.routineId, runId: scope.runId } : undefined;
+  return scope ? { ...scope } : undefined;
 }

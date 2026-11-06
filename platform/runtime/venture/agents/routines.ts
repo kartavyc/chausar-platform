@@ -221,7 +221,7 @@ export function routineView(state: State, venture: VentureRecord, routine: Routi
 
 /** One run in the history. A finished run says delivered, never done. */
 export function routineRunView(run: RoutineRunRecord): RoutineRunView {
-  return { id: run.id, dueAt: run.dueAt, state: run.state, line: run.line };
+  return { id: run.id, dueAt: run.dueAt, state: run.state, line: run.line, ...(run.ranOn ? { ranOn: run.ranOn.why } : {}) };
 }
 
 /** venture.routines.list {} (read): the open business's routines, oldest first, each with its schedule in words and the next time. */

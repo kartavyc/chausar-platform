@@ -409,7 +409,11 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
 
   const resolveTier = (state: State, ventureId: string | null, tier: ModelTier): Route => {
     if (!ventureId) return { kind: 'template' };
-    const connection = newest(listConnections(state, ventureId).filter(item => item.status === 'connected' && item.tiers.includes(tier)));
+    // C7: a routine run on its backup AI goes by that AI's own connection, whatever tiers it serves.
+    const backup = currentRoutineScope()?.presetId;
+    const connection = backup
+      ? newest(listConnections(state, ventureId).filter(item => item.status === 'connected' && item.presetId === backup))
+      : newest(listConnections(state, ventureId).filter(item => item.status === 'connected' && item.tiers.includes(tier)));
     if (!connection || connection.presetId === 'built-in-templates') return { kind: 'template' };
     const spec = presetSpec(connection.presetId);
     return { kind: 'model', connection, spec, problem: problemOf(spec) };

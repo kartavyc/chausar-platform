@@ -10,6 +10,7 @@ import type { ChatConsentRecord, ChatConsentView, ModelPresetId, ModelStatusView
 import { digest, exactPayload, listRecords, requireAppChannel, ventureAction } from '../records.ts';
 import { PRESETS } from '../models/presets.ts';
 import { readAs } from '../delivery/shared.ts';
+import { currentRoutineScope } from './routine-scope.ts';
 
 /** The tier every chat call uses (agent-chat). The consent names the AI that serves it. */
 export const CHAT_TIER = PURPOSE_TIER['agent-chat'];
@@ -65,7 +66,8 @@ export function chatConsentState(deps: VentureDeps, ctx: Context, state: State, 
   if (!route) return { view: { state: 'not-needed', text: null, digest: null, at: null }, route };
   const text = chatConsentText(route);
   const textDigest = digest(text);
-  const last = listRecords(state, 'venture-chat-consent', venture.id).at(-1);
+  // C7: a backup AI's consent for routines (agents/routine-backup.ts) is its own; the main consent's rule is unchanged.
+  const last = listRecords(state, 'venture-chat-consent', venture.id).filter(record => record.backup !== true).at(-1);
   if (!last) return { view: { state: 'needed', text, digest: textDigest, at: null }, route };
   // One-shot A1 (row 11): the consent is to what is sent (the text) and to whom (the AI named in it, and on OpenRouter
   // the model's company, also named in the text). Saving the same AI's settings again changes neither.
@@ -79,6 +81,13 @@ export function chatConsentState(deps: VentureDeps, ctx: Context, state: State, 
  * null with templates only, when nothing is sent and no consent is needed. 4C1 (Chats) and 4D3 (network search) use it too.
  */
 export function requireChatConsent(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord): ChatRoute | null {
+  // C7: a routine run on its backup AI goes by that AI and its own backup consent (agents/routine-backup.ts).
+  const backup = currentRoutineScope()?.presetId;
+  if (backup) {
+    const route = routeFor(deps.models.status(ctx), backup);
+    check(route && backupConsentHolds(state, venture, route), 'CHAT_CONSENT_REQUIRED', route ? chatConsentText(route) : 'Connect this backup AI again first.');
+    return route;
+  }
   const { view, route } = chatConsentState(deps, ctx, state, venture);
   check(view.state !== 'needed', 'CHAT_CONSENT_REQUIRED', view.text ?? '');
   check(view.state !== 'stale', 'CHAT_CONSENT_STALE', `Your AI connection changed since you agreed, so chats wait until you agree again. ${view.text ?? ''}`);
@@ -106,4 +115,24 @@ export async function chatsConsentHandler(deps: VentureDeps, ctx: Context, paylo
     });
     return { state: 'given', text: view.text, digest: view.digest, at: record.at };
   });
+}
+
+/** C7: the route a chat to this preset would take, from its newest connected row; null when it is not connected. */
+export function routeFor(status: ModelStatusView, presetId: ModelPresetId): ChatRoute | null {
+  const connection = status.connections.filter(item => item.status === 'connected' && item.presetId === presetId).at(-1);
+  if (!connection || presetId === TEMPLATES) return null;
+  const spec = PRESETS.find(preset => preset.id === presetId);
+  return { presetId, model: connection.model, connectionId: connection.id, label: spec?.label ?? presetId, withKey: spec?.kind === 'anthropic-messages' || spec?.kind === 'openai-responses' };
+}
+
+/**
+ * C7: whether a backup AI's consent for routines holds: the newest backup consent for its preset, to its text as it reads
+ * now, given at or after the owner last set the backup. The main chat consent never counts for a backup, nor this for it.
+ */
+export function backupConsentHolds(state: State, venture: VentureRecord, route: ChatRoute): boolean {
+  const backup = venture.routineBackup;
+  if (!backup?.on) return false;
+  const textDigest = digest(chatConsentText(route));
+  const newest = listRecords(state, 'venture-chat-consent', venture.id).filter(record => record.backup === true && record.presetId === route.presetId).at(-1);
+  return !!newest && newest.textDigest === textDigest && newest.at >= backup.at;
 }

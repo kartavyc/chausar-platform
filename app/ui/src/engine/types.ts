@@ -2399,7 +2399,7 @@ export interface EngineMethods {
   'venture.order.contract.propose': { params: { orderId: string; contract: OrderContract }; result: OrderContractView };
   'venture.order.contract.sign': { params: { orderId: string; digest: string }; result: OrderContractView };
   'venture.routines.list': { params: Record<string, never>; result: { routines: RoutineView[] } };
-  'venture.routines.runs': { params: { id: string }; result: { runs: { id: string; dueAt: string; state: RoutineRunState; line: Display; receipt?: ModelReceiptView }[] } };
+  'venture.routines.runs': { params: { id: string }; result: { runs: { id: string; dueAt: string; state: RoutineRunState; line: Display; receipt?: ModelReceiptView; ranOn?: Display }[] } };
   'venture.routines.set': { params: { routine: RoutineInput }; result: { routine: RoutineView } };
   'venture.routines.remove': { params: { id: string }; result: { removed: true; line: Display } };
   'venture.options.rerank': { params: { questionId: string; weights: Record<string, number> }; result: { options: RankedOptionView[] } };
