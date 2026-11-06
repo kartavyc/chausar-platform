@@ -42,7 +42,7 @@ test('B1 fix round 2: the shared list holds the engine\'s own words for its cons
 test('B1 fix 1: Chausar\'s own refusals are flagged for the owner and keep their words', () => {
   for (const [code, message] of NAMED) assert.deepEqual(ownerError(new ChausarError(code, message)), { code, message, owner: true }, message);
   const external = thrown(() => validateExternalServers([{ id: 'files', name: 'Files', transport: 'http', url: 'https://user:pass@example.com/mcp' }]));
-  assert.deepEqual(ownerError(external), { code: (external as ChausarError).code, message: 'Use an https address (or http on this computer) with no password or ? part in it. Add a password in the box for it.', owner: true });
+  assert.deepEqual(ownerError(external), { code: (external as ChausarError).code, message: 'Use a web address starting with https (or http on this computer), with no password and nothing after ? or #. Add a password in its own box.', owner: true });
   // A plain sentence in place of an engine fault is Chausar's own too.
   assert.deepEqual(ownerError(new TypeError('x is not a function')), { code: 'REQUEST_FAILED', message: UNEXPECTED_WORDS, owner: true });
 });
