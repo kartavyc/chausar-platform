@@ -17,8 +17,8 @@ export function useSwapped<T>(key: unknown, content: T): { old: T | null; gen: n
 }
 
 /** Removes the old copy when its fade ends, on its own timer if the end event never comes. */
-export function useOldCopy(gen: number, hasOld: boolean, clear: () => void) {
-  const ref = useRef<HTMLSpanElement>(null);
+export function useOldCopy<E extends HTMLElement = HTMLSpanElement>(gen: number, hasOld: boolean, clear: () => void) {
+  const ref = useRef<E>(null);
   const latest = useRef(clear);
   latest.current = clear;
   useEffect(() => {
@@ -33,14 +33,15 @@ export function useOldCopy(gen: number, hasOld: boolean, clear: () => void) {
  * where it stands (hidden from screen readers) while the new one fades in, so a word never jumps. Never on the first
  * render; with motion off only the new content. A repeated line that should show it ran again takes a new `value`.
  */
-export function Swap({ value, children, className }: { value: string | number; children: ReactNode; className?: string | undefined }) {
+export function Swap({ value, children, className, block = false }: { value: string | number; children: ReactNode; className?: string | undefined; block?: boolean | undefined }) {
   const { old, gen, clear } = useSwapped<ReactNode>(value, children);
-  const ref = useOldCopy(gen, old !== null, clear);
+  const ref = useOldCopy<HTMLElement>(gen, old !== null, clear);
+  const Tag = block ? 'div' : 'span';
   return (
-    <span className={cx(s.swap, className)}>
-      {old !== null && <span ref={ref} className={s.old} aria-hidden="true" data-swap-old="">{old}</span>}
-      <span key={gen} className={s.now} data-swap-new={gen > 0 ? '' : undefined}>{children}</span>
-    </span>
+    <Tag className={cx(s.swap, className)} data-swap-block={block ? '' : undefined}>
+      {old !== null && <Tag ref={node => { ref.current = node; }} className={s.old} aria-hidden="true" inert data-swap-old="" onClickCapture={event => { event.preventDefault(); event.stopPropagation(); }} onSubmitCapture={event => { event.preventDefault(); event.stopPropagation(); }}>{old}</Tag>}
+      <Tag key={gen} className={s.now} data-swap-new={gen > 0 ? '' : undefined}>{children}</Tag>
+    </Tag>
   );
 }
 

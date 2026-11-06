@@ -13,6 +13,7 @@ import { Receipt } from './Receipt';
 // W4 4J19: the row's meta line, facts, the price beside Approve and amounts at their places.
 import { BesideApprove, changeProof, MetaLine, provedText, RowFacts } from './ApprovalMeta';
 import { Row } from './Row';
+import { Swap } from './Swap';
 import { STARTS_WORK, usePausedWork } from './paused';
 import { stateText } from './states';
 import type { QueueAction, QueueDecision, QueueKind, QueueList, QueueRow } from '../engine/types';
@@ -554,7 +555,7 @@ export function ApprovalRow({
         line={shownLine ? <span {...lineMarks}>{shownLine.node}</span> : undefined}
         secondAsk={Boolean(primary.secondAsk)}
         onOpen={onOpen ? (origin) => onOpen(current, origin) : undefined}
-        actions={actions}
+        actions={<Swap block value={phase === 'confirm' ? 'confirm' : 'idle'}><div className={s.buttons}>{actions}</div></Swap>}
         className={busy ? s.sending : undefined}
       >
         {change && (
@@ -700,6 +701,7 @@ export function ApprovalRow({
           </div>
         </form>
       )}
+      <Swap block value={phase === 'confirm' ? 'confirm' : 'idle'} className={s.actionSwap}>
       {phase === 'confirm' && pending && <div className={s.acts}>{secondAsk(size)}</div>}
       {phase !== 'confirm' && phase !== 'answer' && phase !== 'reasons' && !toolsOpen && (
         <div className={s.acts}>
@@ -727,6 +729,7 @@ export function ApprovalRow({
           </Button>
         </div>
       )}
+      </Swap>
       {toolsNode}
     </article>
   );
