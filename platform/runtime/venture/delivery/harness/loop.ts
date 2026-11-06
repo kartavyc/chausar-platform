@@ -66,7 +66,7 @@ export const AGENT_TURN_INSTRUCTIONS = [
   'Each earlier tool call says audited true when Chausar checked its real output. Only audited work counts as done; a call that was not audited is evidence to plan around, not progress.',
 ].join(' ');
 
-const WRITE_NUMBERS = 'Never write digits, prices, dates as numbers, percentages or amounts; where an amount or a count belongs add a part of kind figure with one of the figure refs given, and where a date belongs add a part of kind date with one of the date refs given.';
+const WRITE_NUMBERS = 'Never write digits, prices, dates as numbers, percentages or amounts; where an amount or a count belongs add a part of kind figure with one of the figure refs given, and where a date belongs add a part of kind date with one of the date refs given. Never repeat the label of a receipt such as Total or Price per month with a colon, and never name the calculator or a receipt: the figure part says the amount.';
 const SEO_ARTICLE_NUMBERS = 'Article text may include source-grounded non-money numbers and percentages only with an adjacent [claim:id] marker matching the exact declared number in the supplied evidence. Never invent a number or reuse a marker for a different number. Final source checks must pass before delivery. Never write prices or monetary amounts in prose; use the supplied figure refs. Use date refs for dates. Keep titles and client questions free of digits.';
 export const HARNESS_WRITE_INSTRUCTIONS = [
   'You write the reply to a client of a small service business, after a delivery agent worked on the client files with tools.',
