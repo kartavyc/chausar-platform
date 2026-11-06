@@ -1,3 +1,5 @@
+import type { CoverageView, DeliverableReport, DeliveredFile, DraftChangeView, DrillRunView, FileRequestView, OrderContract, OrderContractView, OrderStageView, ReportItem, RunDetail, RunSummary, RunToolLine } from './contract.gen';
+export type { CoverageView, DeliverableReport, DeliveredFile, DraftChangeView, DrillRunView, FileRequestView, OrderContract, OrderContractView, OrderStageView, ReportItem, RunDetail, RunSummary, RunToolLine } from './contract.gen';
 import type { QueueRow, QueueRowMeta, QueueCount, QueueItemView, QueuePreview, QueueSetPreview, QuestionCard, QuestionItem, QuestionOption, PreviewFigure, PreviewLength, PreviewWords, NextBestStep, PlanChangeView, RowFigure, RowFigureReceipt, KindedFigure, RankedOptionView, DiffLine } from './contract.gen';
 export type { QueueRow, QueueRowMeta, QueueCount, QueueItemView, QueuePreview, QueueSetPreview, QuestionCard, QuestionItem, QuestionOption, PreviewFigure, PreviewLength, PreviewWords, NextBestStep, PlanChangeView, RowFigure, RowFigureReceipt, KindedFigure, RankedOptionView, DiffLine } from './contract.gen';
 import type { AcrossLineKey, AcrossRunsView, AgentHealthStatus, AgentNoteChange, AgentNoteLoad, AgentNoteScope, AgentNotesView, AgentSendResult, AgentSuggestion, AgentThreadItem, AgingBucketId, AutoReadinessView, BankApplyResult, BankLedgerView, BankRowClass, BooksPeriodKey, BoundaryView, BuildStatusWord, CaLatestPapers, CaPendingRate, CapabilityItemView, CapabilityPageView, ChatPart, ChiefSendResult, ChiefSettleResult, ChiefSnoozePreset, ChiefThreadState, ChiefThreadStateResult, ChiefThreadView, ConnectorLadder, ConnectorModeName, CurrencyLead, DecisionOpens, DeliveredView, Display, DraftChangesView, EvidenceItem, FigureKind, FigureSource, InboundTriage, InterviewAnswer, JournalChainView, JournalEntry, KeeperJobId, KeeperView, KnowledgeSourceInput, LawfulBasis, LimitReachedView, LineLabel, ModelAvailability, ModelReceiptView, ModelTier, MoneyOverviewLine, NetworkImportResult, NetworkSearchView, OrderStageId, OrderStageReason, OrderWaitsOnYou, OutreachChannel, OutreachHandoff, OutreachLane, OutreachLanguage, OutreachSentChannel, PaymentMethod, PipelineSettingsView, PostingStepId, Posture, PreviewReceiptKind, PricingModel, ProposalStatus, QueueAction, QueueActionId, QueueAmount, QueueChange, QueueDecision, QueueKind, QueueList, QueueSendsTo, RateCardLine, RecipeView, RetireCheckView, RoutineRunState, RunControlResult, RunScopeView, RunState, RunStep, SearchWebState, ShadowSummaryView, SiteEditState, SocialCalendarFile, SpendLead, SpendMeterRowView, SpendMetersView, SpendRateUnit, SpendRow, StandingOrdersView, StandingUndoView, TaxWorkingLine, TaxWorkingSection, TelegramView, TranscriptionSetupView, TriageField, TriagePreview, VentureRunEventType, WayCategory, WriteCapKind, WriteCapView } from './contract.gen';
@@ -62,92 +64,32 @@ export type QueueKindW4 = 'proposal' | 'followup' | 'reply' | 'notice';
 
 
 /** 4J14 (Q6): coverage, fraction first. done and total counted by code; null where nothing observed them, never 0. */
-export interface CoverageView {
-  done: number | null; total: number | null; unit: 'rows' | 'lines' | 'pages' | 'items' | 'bank-lines'; verb: 'read' | 'matched' | 'used';
-  complete: boolean; line: Display;
-  /** On an 'items' count only: the units it adds up, so the screen words "{done} of {total} ..." in its own language. */
-  units?: ('rows' | 'lines' | 'pages' | 'bank-lines')[];
-}
+
 /** 4J14 (Q7): one report line; outcome from the engine's one table (delivery/verdicts.ts). */
-export interface ReportItem {
-  id: string; outcome: 'pass' | 'fail' | 'not-run' | 'not-checked' | 'unknown'; line: Display;
-  /** The line without its outcome word, so the screen puts its own word (English or Hindi) in front. */
-  detail: Display;
-  /** A judged rule: its word, and the engine's line on why it was dropped below the keep line. */
-  judgment?: 'strong' | 'fair' | 'weak' | 'no' | null; drop?: Display;
-}
+
 /**
  * 4J14 (Q7, Q8): measured by code, looked at by a model, needs a human; findings by class; the draft verdict as a code
  * (null while the review is incomplete); result and coverage only where the run had client files; stale once the draft
  * changed after it.
  */
-export interface DeliverableReport {
-  measured: ReportItem[]; lookedAt: ReportItem[]; needsHuman: { code: string; line: Display }[];
-  findings: { class: 'hard-error' | 'content' | 'creative'; id: string; line: Display }[];
-  verdict: 'pass' | 'rewrite' | 'do-not-send' | null; verdictLine: Display;
-  review: { complete: boolean; line: Display | null };
-  result?: 'complete' | 'partial'; coverage?: CoverageView;
-  generatedBy: ('code' | 'judge')[]; at: string; stale: boolean; staleLine: Display | null;
-}
+
 /** One tool call on the run sheet. 4F1 (U7): its state and its measured time in ms, where the engine measured them. */
-export interface RunToolLine { name: string; line: string; state?: 'done' | 'error' | 'cancelled'; ms?: number }
+
 /** 4F1: usually, "Usually 3 to 5 min" once three runs finished (U6); stop, a stop on its way or done, in engine words (O1). */
-export interface RunSummary {
-  runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
-  finishedAt?: string;
-  practice?: true;
-  progress?: { done: number; total: number } | 'indeterminate'; result?: Display; receiptId?: string; estimate?: boolean;
-  usually?: Display; stop?: { state: 'stopping' | 'stopped'; line: Display; trigger?: 'same-error' | 'same-action' | 'failures-in-row' };
-  /** C4 task 12: elapsed is the time it worked; waited is its waits on the owner, when its events show any; waitingSince is when the current wait began. */
-  waited?: Display;
-  waitingSince?: string;
-  /** C4 task 12: the client a delivery run worked for, for a link to the client sheet. */
-  client?: { id: string; name: string };
-  /** C4 task 17: on an improvement run, its kept version still waits to be adopted. */
-  adoptReady?: true;
-  /**
-   * 4J3: on a YouTube run only, the still kept from its order's cut (a small JPEG data address), or null when none is.
-   * The run list carries src once per order, on its newest run, and src null on the others; venture.runs.get carries it.
-   */
-  poster?: { uploadId: string; src: string | null } | null;
-  /** 4H2 (U17): which engine wrote the run's draft, in the engine's words ("Written by Claude Sonnet 5.5"); absent before an answer. */
-  writtenBy?: Display;
-}
+
 /**
  * screen: one engine line saying what the untrusted screen noted in the run's outside content, never the words.
  * 4F1: scope frozen when the run started (O21); the owner's notes for the next turn (O3); the round gate (O2); the calls
  * of the turn in flight (U7).
  */
-export interface RunDetail extends RunSummary {
-  /** Actual driver updates. These words have not passed the delivery number guard. */
-  agentProgress?: {messages:{id:string;text:string;label:'model-estimate'}[];tools:{id:string;name:string;status:'running'|'done'|'failed'}[];model?:string;unavailableSites?:string[];canResume?:boolean;cost?:{display:string;state:'priced'|'unknown';spendId:string;receiptId?:string};pendingApproval?:{request:AgentApprovalRequest;digest:string}};
-  steps: RunStep[]; question?: { id: string; text: string; choices?: string[]; card?: QuestionCard }; error?: string; screen?: Display;
-  scope?: RunScopeView; steer?: { text: Display; at: string; line: Display }[];
-  gate?: { on: boolean; every: 1 | 2 | 3 | 5; waiting: { round: number; reason: 'finished' | 'limit' | 'needs-answer' | 'blocked' | 'failures'; line: Display } | null };
-  live?: { callId: string; state: 'start' | 'done' | 'error' }[];
-  /** W6 6G5 (D44): the run's model receipt (venture.runs.get on a delivery run). */
-  modelReceipt?: ModelReceiptView;
-  /** 4F2 (O14): "How to fix it", only when the owner must act on a failed or breaker-stopped run. */
-  fix?: Display;
-  /** 4F2 (O14): the failure in the table's plain words, and codes for the screen's own words (English and Hindi). */
-  failure?: { kind: 'allowance-spent' | 'not-signed-in' | 'offline' | 'too-long' | 'out-of-date' | 'unknown' | 'plan-used-up' | 'rate-limited' | 'step-limit' | 'connection-dropped' | 'model-missing'; line: Display };
-  fixKind?: 'raise-limit' | 'sign-in' | 'run-again-online' | 'split-work' | 'update-tool' | 'install-ffmpeg' | 'set-up-docker' | 'get-python-image' | 'set-up-cli' | 'wait-for-plan' | 'run-again' | 'choose-model' | 'wait-a-minute';
-  /** 4J3 (A17): the Delivered card, on an accepted or edited delivery run only. */
-  delivered?: DeliveredView;
-  /** 4J14 (Q8): on a run that acted outside: Success only when a code check of the real result passed. Absent otherwise. */
-  outcome?: { outcome: 'success' | 'not-checked' | 'failed'; line: Display };
-  /** 4J14 (Q7, Q8): the draft's three-column report, on venture.runs.get only. */
-  report?: DeliverableReport;
-  /** 4J13 (H34), mirrored by 4F3: set when Chausar stopped while a step of this run was out; never "Stopped by you". */
-  interrupted?: { at: string; line: Display; steps: { callId: string; state: string }[] };
-}
+
 /**
  * 4J3 (A17): what an accepted run handed over (files its own tools made, with digests) and, apart, the files on the order
  * that changed while it went on, labelled by changedLine ("Changed during this run, not proven to be the agent's.").
  * source is a code the screen words for itself.
  */
 
-export interface DeliveredFile { id: string; name: Display; digest: string; at: string; source: 'table' | 'delegate' | 'order-file' | 'transcript' | 'poster'; line: Display }
+
 /** 4F1. A run's scope: tools and outside actions in purpose words, the spend cap and the posture. */
 
 
@@ -725,10 +667,7 @@ export interface OrderLite {
  */
 
 
-export interface OrderStageView {
-  id: OrderStageId; label: Display; state: 'done' | 'waits' | 'not-yet' | 'always-asks' | 'unknown'; detail: Display; line: Display;
-  waitsOn?: 'you' | 'ca' | 'client'; due?: string; reason?: OrderStageReason;
-}
+
 
 /** `venture.files.list` (UploadView), trimmed: a file a client sent, kept in the vault. */
 export interface UploadLite {
@@ -1504,7 +1443,7 @@ export interface DecisionView {
 
 export interface TriageRule { keys: { field: TriageField; order: 'asc' | 'desc' }[]; words: string }
 
-export interface DraftChangeView { id: string; paragraph: number; before: string; after: string; by: 'owner' | 'agent'; status: 'open' | 'taken' | 'dropped' }
+
 /** 4J2: line says how the revision was merged; replacement is offered when the owner's own version sits beside the agent's. */
 
 export interface SettingsDraftView { form: string; values: unknown; at: string }
@@ -1583,7 +1522,7 @@ export interface AcrossMoneyView {
 /** 4J7 to 4J10 connection checks, file requests, ways to earn, the owner, signatures and the journal chain. */
 export interface ConnectorCheckRow { connectorId: string; name: string; outcome: 'answered' | 'failed' | 'skipped'; line: Display; account: string | null; expiresOn: string | null; fix: Display | null }
 export interface ConnectorChecksView { at: string; rows: ConnectorCheckRow[]; health: { ready: number; warnings: number; blocking: number } }
-export interface FileRequestView { id: string; orderId: string; url: string | null; reason?: Display; expiresAt: string; line: Display }
+
 /**
  * `WayView` in platform/runtime/venture/contracts.ts (4J8): one way per playbook that runs today. Hours and pay are a
  * model estimate (clientsPay.source is their basis); team is the playbook's agents only; starter fills the one-sentence
@@ -1697,16 +1636,9 @@ export interface ReceiptVerifyView { id: string; valid: boolean; label: 'reprodu
 
 
 /** 4J12 to 4J18 contracts, routines, options, drills, guidance, voice and persona, knowledge and ideas. */
-export interface OrderContract {
-  goal: string; scope: string[]; constraints: string[]; protected: { kind: 'phrase' | 'file'; value: string }[];
-  deliverables: { id: string; what: string; stage: string; doneWhen: string }[]; checks: { id: string; what: string }[];
-}
+
 /** proposedBy: an agent's revision changes only scope and checks; items: each deliverable's and check's state (4J12). */
-export interface OrderContractView {
-  orderId: string; contract: OrderContract; revision: number; digest: string; signed: { at: string; by: string } | null; line: Display;
-  proposedBy?: 'owner' | 'agent';
-  items?: { id: string; kind: 'deliverable' | 'check'; state: 'open' | 'done' | 'skipped'; evidence: Display | null; reason: Display | null }[];
-}
+
 export type RoutineSchedule =
   | { kind: 'once'; at: string }
   | { kind: 'interval'; everyMinutes: number; from: string }
@@ -1723,7 +1655,7 @@ export interface RoutineView { /** C7: a trigger's facts: what each event sends,
 export interface RoutineSuggestion { name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; when: Display; step: string }
 export interface RoutineInput { recordReport?:'va-morning'|'va-weekly'; id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
 
-export interface DrillRunView { id: string; at: string; playbookHash: string; version: number | null; passed: boolean; results: { drill: Display; stopped: boolean; twinPassed: boolean; line: Display }[] }
+
 
 
 export interface GuidanceLineView { stepId: string; text: string; check: string | null; state: 'measured' | 'dark' | 'unmeasured' }
