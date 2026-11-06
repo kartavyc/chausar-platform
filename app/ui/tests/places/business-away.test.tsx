@@ -94,7 +94,7 @@ describe('Business > Away', () => {
     expect(screen.getAllByText(/things? waits? for you/).length).toBe(1);
     expect(screen.getByText(/'s payment for .+ is due\./)).toBeTruthy();
     expect(screen.getByText('Backups of this business')).toBeTruthy();
-    const reply = screen.getByRole('region', { name: 'A reply for your own mail app' });
+    const reply = screen.getByRole('heading', { name: 'A reply for your own mail app' }).parentElement!;
     expect(within(reply).getByText('Chausar sends nothing. Copy this into the auto-reply of your own mail app.')).toBeTruthy();
     const quoted = reply.querySelector('[data-content]')!;
     // C4 task 40: the reply in the owner's words, signed with the business; no year when it is this year.
@@ -116,7 +116,7 @@ describe('Business > Away', () => {
     await click(screen.getByRole('button', { name: 'Clear the days' }));
     expect(of(calls, 'venture.away.set').at(-1)).toEqual({ clear: true });
     expect(await screen.findByText('You are not away. Set the days you will be away and Chausar lists what falls due.')).toBeTruthy();
-    expect(screen.queryByRole('region', { name: 'A reply for your own mail app' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'A reply for your own mail app' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Clear the days' })).toBeNull();
   });
 

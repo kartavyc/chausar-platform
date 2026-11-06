@@ -29,14 +29,14 @@ describe('Business > Reports (6J2)', () => {
     // Let the page set the boxes to what is in force before ticking one (a slow runner can tick first otherwise).
     await act(async () => {});
     expect(screen.getByText(/never holds names, client details, message text, file names, amounts or keys/)).toBeTruthy();
-    expect(screen.queryByRole('region', { name: 'What Send report sends' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'What Send report sends' })).toBeNull();
     const usage = screen.getByRole('checkbox', { name: /Usage reports/ }) as HTMLInputElement;
     const crashes = screen.getByRole('checkbox', { name: /Crash reports/ }) as HTMLInputElement;
     expect([usage.checked, crashes.checked]).toEqual([false, false]);
     fireEvent.click(usage);
     fireEvent.click(screen.getByRole('button', { name: 'Turn on reports' }));
     await waitFor(() => expect(request).toHaveBeenCalledWith('venture.feedback.consent', { digest: FEEDBACK_NOTICE_DIGEST, usage: true, crashes: false }));
-    const preview = await screen.findByRole('region', { name: 'What Send report sends' });
+    const preview = (await screen.findByRole('heading', { name: 'What Send report sends' })).parentElement!;
     expect(preview.textContent).toMatch(/chausar_report/);
     expect(preview.textContent).toMatch(/Only each service's own key is added on the way/);
     expect(preview.querySelector('[data-content]')).toBeTruthy();

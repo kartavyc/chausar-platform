@@ -12,6 +12,11 @@
   grid-column: 1 / -1;
 }
 
+.grid textarea {
+  field-sizing: content;
+  min-height: var(--sp-12);
+}
+
 .meta {
   display: inline-flex;
   flex-wrap: wrap;

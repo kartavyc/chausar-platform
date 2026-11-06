@@ -20,6 +20,16 @@ import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { CountrySetting } from './CountrySetting';
 
+function scrollOpenedFold(node: HTMLDivElement | null) {
+  if (!node) return;
+  const scroll = (event: Event) => {
+    const fold = event.target;
+    if (fold instanceof HTMLDetailsElement && fold.open) fold.scrollIntoView?.({ block: 'nearest' });
+  };
+  node.addEventListener('toggle', scroll, true);
+  return () => node.removeEventListener('toggle', scroll, true);
+}
+
 /**
  * Keep this business (workspace.custody.*), the way the old app keeps it: this computer's protected storage keeps the
  * key for the owner's login, so there is no passphrase to type. Keeping it means making the recovery code, shown
@@ -43,6 +53,16 @@ export function KeepView() {
   const backups = useResource('workspace.backups.list', {});
   const status = useResource('workspace.status', {});
   const [code, setCode] = useState<string | null>(null);
+  const [custodyAction, setCustodyAction] = useState<'recovery' | 'move' | 'passphrase' | null>(null);
+  const recoverySection = useRef<HTMLDivElement>(null);
+  const restoreRecoveryFocus = useRef(false);
+  useEffect(() => {
+    if (code || !restoreRecoveryFocus.current) return;
+    restoreRecoveryFocus.current = false;
+    const heading = recoverySection.current?.querySelector('h2');
+    heading?.setAttribute('tabindex', '-1');
+    heading?.focus();
+  }, [code]);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   // C4 task 36: "Backed up just now" after Back up now (203.x1); the line after a restore, once (209.x1).
@@ -54,9 +74,9 @@ export function KeepView() {
   const counts = custody.data?.business ? { backups: custody.data.business.backups.count, exports: custody.data.business.exportsHere ?? 0 } : null;
   const leave = (unlock: UnlockMode | null) => (
     <>
-      {!hosted && <CloseBusiness unlock={unlock} />}
       {!hosted && <ExportCopy />}
       {!hosted && <OpenCopyFold />}
+      {!hosted && <CloseBusiness unlock={unlock} />}
       <DeleteBusiness onDeleted={onDeleted} counts={hosted ? null : counts} />
     </>
   );
@@ -86,13 +106,13 @@ export function KeepView() {
     setCode(result.recoveryCode);
   });
 
-  if (code) return <CodeOnce code={code} folder={business.folder} name={status.data?.workspace?.name ?? business.folder} onDone={() => { setCode(null); refresh(); }} />;
+  if (code) return <CodeOnce code={code} folder={business.folder} name={status.data?.workspace?.name ?? business.folder} onDone={() => { restoreRecoveryFocus.current = true; setCode(null); refresh(); }} />;
 
   const loss = !locked && computer.loss ? `${computer.loss} ${made ? t('business.lossTail') : t('business.lossNoCode')}` : null;
   const newest = backups.data?.backups[0]?.at ?? business.backups.newestAt;
 
   return (
-    <div className={s.page}>
+    <div className={s.page} ref={scrollOpenedFold}>
       <CountrySetting />
       <Tile>
         <div className={s.where}>
@@ -105,11 +125,11 @@ export function KeepView() {
         </div>
       </Tile>
       <div className={s.split} data-ratio="even">
-        <TileSection title={t('business.recovery')}>
+        <div ref={recoverySection}><TileSection title={t('business.recovery')}>
           <p className={s.line}>{t(made ? 'business.recoveryMade' : business.recovery === 'not-made' ? 'business.recoveryNotMade' : 'business.recoveryUnknown')}</p>
           {made && <p className={s.note}>{t('business.oldCodeStops')}</p>}
-          <RecoveryForm locked={locked} made={made} busy={busy} onMake={makeCode} />
-        </TileSection>
+          <RecoveryForm locked={locked} made={made} busy={busy} onMake={makeCode} picked={custodyAction === 'recovery'} onPick={() => setCustodyAction('recovery')} />
+        </TileSection></div>
         <TileSection title={t('business.backups')}>
           <p className={s.line}>{t(business.backups.auto ? 'business.backupsAuto' : 'business.backupsManual')}</p>
           {business.backups.lastError
@@ -136,8 +156,8 @@ export function KeepView() {
       )}
       <TileSection title={t('business.keepMore')}>
         <div className={s.more}>
-          {!hosted && <MoveAway locked={locked} madeAt={business.moveMadeAt ?? null} noCode={!made} onChanged={refresh} onMakeCode={makeCode} />}
-          <PassphraseFold custody={custody.data} onCode={setCode} onChanged={refresh} />
+          {!hosted && <MoveAway locked={locked} madeAt={business.moveMadeAt ?? null} noCode={!made} onChanged={refresh} onMakeCode={makeCode} open={custodyAction === 'move'} onOpenChange={open => setCustodyAction(current => open ? 'move' : current === 'move' ? null : current)} />}
+          <PassphraseFold custody={custody.data} onCode={setCode} onChanged={refresh} open={custodyAction === 'passphrase'} onOpenChange={open => setCustodyAction(current => open ? 'passphrase' : current === 'passphrase' ? null : current)} />
           {leave(business.unlock)}
         </div>
       </TileSection>
@@ -145,12 +165,14 @@ export function KeepView() {
   );
 }
 
-function RecoveryForm({ locked, made, busy, onMake }: { locked: boolean; made: boolean; busy: boolean; onMake: (passphrase: string | null) => Promise<void> }) {
+function RecoveryForm({ locked, made, busy, onMake, picked, onPick }: { locked: boolean; made: boolean; busy: boolean; onMake: (passphrase: string | null) => Promise<void>; picked: boolean; onPick: () => void }) {
   const t = useT();
   const [passphrase, setPassphrase] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => { if (!picked) { setPassphrase(''); setProblem(null); } }, [picked]);
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (locked && !picked) { onPick(); return; }
     if (locked && !passphrase) { setProblem(t('business.passphraseFirst')); return; }
     const typed = passphrase;
     setPassphrase('');
@@ -159,7 +181,7 @@ function RecoveryForm({ locked, made, busy, onMake }: { locked: boolean; made: b
   }
   return (
     <form className={s.form} onSubmit={(event) => void submit(event)}>
-      {locked && <PassphraseField label={t('business.yourPassphrase')} autoComplete="current-password" value={passphrase} onChange={setPassphrase} />}
+      {locked && picked && <PassphraseField label={t('business.yourPassphrase')} autoComplete="current-password" value={passphrase} onChange={setPassphrase} />}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       <div className={s.buttons}>
         <Button variant={made ? 'secondary' : 'primary'} type="submit" disabled={busy}>{t(made ? 'business.makeNewCode' : 'business.makeCode')}</Button>
@@ -168,12 +190,12 @@ function RecoveryForm({ locked, made, busy, onMake }: { locked: boolean; made: b
   );
 }
 
-/** The optional passphrase: on asks twice for 12 or more characters; off asks for the current one. */
-function PassphraseFold({ custody, onCode, onChanged }: { custody: CustodyViewLite; onCode: (code: string) => void; onChanged: () => void }) {
+/** The optional passphrase: one labelled field after the owner picks the action. */
+function PassphraseFold({ custody, onCode, onChanged, open, onOpenChange }: { custody: CustodyViewLite; onCode: (code: string) => void; onChanged: () => void; open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useT();
   const client = useEngine();
   const [first, setFirst] = useState('');
-  const [again, setAgain] = useState('');
+  useEffect(() => { if (!open) setFirst(''); }, [open]);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const business = custody.business!;
@@ -184,11 +206,9 @@ function PassphraseFold({ custody, onCode, onChanged }: { custody: CustodyViewLi
     event.preventDefault();
     if (!locked) {
       if (first.length < 12) { setProblem(t('business.passphraseShort')); return; }
-      if (first !== again) { setProblem(t('business.passphraseMismatch')); return; }
     } else if (!first) { setProblem(t('business.passphraseFirst')); return; }
     const typed = first;
     setFirst('');
-    setAgain('');
     setBusy(true);
     setProblem(null);
     try {
@@ -208,8 +228,9 @@ function PassphraseFold({ custody, onCode, onChanged }: { custody: CustodyViewLi
   }
 
   return (
-    <Fold summary={t(locked ? 'business.passphraseOffTitle' : 'business.passphraseOnTitle')} className={s.fold}>
-      {stuck ? (
+    <Fold name="keep-action" open={open} summary={t(locked ? 'business.passphraseOffTitle' : 'business.passphraseOnTitle')} className={s.fold}
+      onToggle={event => onOpenChange(event.currentTarget.open)}>
+      {open && (stuck ? (
         <p className={s.line}>{custody.computer.where}</p>
       ) : (
         <form className={s.form} onSubmit={(event) => void submit(event)}>
@@ -219,11 +240,10 @@ function PassphraseFold({ custody, onCode, onChanged }: { custody: CustodyViewLi
             label={t(locked ? 'business.yourPassphrase' : 'business.newPassphrase')} isNew={!locked}
             autoComplete={locked ? 'current-password' : 'new-password'} value={first} onChange={setFirst}
           />
-          {!locked && <PassphraseField label={t('business.passphraseAgain')} autoComplete="new-password" value={again} onChange={setAgain} />}
           {problem && <p className={s.problem} role="alert">{problem}</p>}
           <div className={s.buttons}><Button type="submit" disabled={busy}>{t(locked ? 'business.stopAsking' : 'business.lockIt')}</Button></div>
         </form>
-      )}
+      ))}
     </Fold>
   );
 }
@@ -244,11 +264,13 @@ function CodeOnce({ code, folder, name, onDone }: { code: string; folder: string
       <div className={s.body}>
         <h2 ref={heading} tabIndex={-1} className={s.name}>{t('business.recovery')}</h2>
         <p className={s.line}>{t('business.codeOnce')}</p>
+        <div className={s.buttons}>
         <div data-code="" className={`${s.code} mono`} role="group" aria-label={t('business.codeLabel')}>
           {(code.match(/.{1,4}/g) ?? []).map((part, i) => <span key={i}>{part}</span>)}
         </div>
-        <div className={s.buttons}>
           <Button variant="quiet" onClick={() => { void navigator.clipboard?.writeText(code).then(() => setCopied(true), () => setCopied(false)); }}>{t('business.copy')}</Button>
+        </div>
+        <div className={s.buttons}>
           <Button variant="quiet" onClick={() => saveTextFile('chausar-recovery-code.txt', `Chausar recovery code\nFolder: ${folder}\n\n${code}\n`, 'text/plain')}>{t('business.saveFile')}</Button>
           <Button variant="quiet" onClick={() => setPrinting(true)}>{t('custody.print')}</Button>
           {copied && <span className={s.note} role="status">{t('business.codeCopied')}</span>}
