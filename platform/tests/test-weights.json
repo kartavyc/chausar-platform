@@ -109,7 +109,6 @@
   "platform/tests/connector-registry.test.ts": 0.1,
   "platform/tests/connector-write-contracts.test.ts": 0.3,
   "platform/tests/connectors.test.ts": 0.2,
-  "platform/tests/contracts-types-only-d6.test.ts": 0.9,
   "platform/tests/conversation-acceptance.test.ts": 22,
   "platform/tests/conversation-calculation-arguments.test.ts": 0.1,
   "platform/tests/conversation-calculation-functional.test.ts": 3.2,
@@ -1194,5 +1193,12 @@
   "replay-operation-d11.test.ts": 1,
   "replay-timers-d11.test.ts": 1,
   "platform/tests/engine-legacy-lazy-d10.test.ts": 2,
-  "platform/tests/trusted-host-fixture-d8.test.ts": 1
+  "platform/tests/trusted-host-fixture-d8.test.ts": 1,
+  "platform/tests/client-consent-start-c4.test.ts": 0.5,
+  "platform/tests/contract-declarations-d8.test.ts": 0.5,
+  "platform/tests/contracts-areas-d11.test.ts": 0.5,
+  "platform/tests/conversation-calculation-public-join.test.ts": 0.5,
+  "platform/tests/desktop-transcription-files.test.ts": 0.5,
+  "platform/tests/replay-operation-d11.test.ts": 0.5,
+  "platform/tests/replay-timers-d11.test.ts": 0.5
 }
