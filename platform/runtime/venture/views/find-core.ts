@@ -1,10 +1,14 @@
 import { ChausarError } from '../../portable.ts';
-import type { ChatPart, ChiefLineAmount, IsoTime } from '../contracts.ts';
 
 // C2 task 1: one matcher for every kind of thing the command bar finds. Browser safe (no node: import; its first
 // statement is an import, the check.mjs trap in AGENTS.md), so the engine's venture.find, the fake and the page
 // catalogue all parse, match, rank and cut snippets the same way and rank on one scale. Nothing here reads or writes
-// a business; the handler (C2 task 2) hands it the rows each list already shows the owner.
+// a business; the handler (C2 task 2) hands it the rows each list already shows the owner. The types of a chat's parts
+// are written out here, not imported from contracts.ts, so the app's stricter type check does not take in the engine.
+
+type IsoTime = string;
+type ChatPart = { kind: 'text' | 'estimate'; text: string } | { kind: 'figure'; receiptId: string; display: string };
+type ChiefLineAmount = { text: string; start: number; length: number; receiptId: string };
 
 export const FIND_KINDS = Object.freeze(['client', 'invoice', 'order', 'run', 'chat'] as const);
 export type FindKind = typeof FIND_KINDS[number];
@@ -104,7 +108,7 @@ function numberPlace(field: string[], word: string): number {
   const query = numberTokens(word);
   if (!query.length) return 0;
   for (let start = 0; start + query.length <= field.length; start++) {
-    const fits = query.every((token, offset) => /^\p{N}/u.test(token) ? field[start + offset] === token : field[start + offset].startsWith(token));
+    const fits = query.every((token, offset) => /^\p{N}/u.test(token) ? field[start + offset] === token : (field[start + offset] ?? '').startsWith(token));
     if (fits) return start === 0 ? START : INSIDE;
   }
   return 0;
@@ -119,7 +123,7 @@ export function match(query: string | string[], fields: readonly FindField[]): {
   if (!words.length || !fields.length) return null;
   const joined = words.join(' ');
   const prepared = fields.map((field, index) => ({ field, weight: index === 0 ? TITLE_WEIGHT : 1, folded: folded(field.text ?? ''), tokens: field.number ? numberTokens(field.text ?? '') : null }));
-  const title = prepared[0];
+  const title = prepared[0]!;
   for (const item of prepared) {
     const equal = item.tokens ? words.length === 1 && numberTokens(joined).join(' ') === item.tokens.join(' ') && item.tokens.length > 0 : item.folded.flat === joined;
     if (equal) return { score: WHOLE * item.weight, hit: item === title ? { field: title.field.name, start: 0, length: title.field.text.length } : null };
@@ -136,11 +140,11 @@ export function match(query: string | string[], fields: readonly FindField[]): {
   }
   let hit: FindHit | null = null;
   if (title.tokens) {
-    if (numberPlace(title.tokens, words[0])) hit = { field: title.field.name, start: 0, length: title.field.text.length };
+    if (numberPlace(title.tokens, words[0]!)) hit = { field: title.field.name, start: 0, length: title.field.text.length };
   } else {
-    const place = placeIn(title.folded.flat, words[0]);
+    const place = placeIn(title.folded.flat, words[0]!);
     if (place.tier) {
-      const start = title.folded.at[place.start], end = title.folded.at[place.start + words[0].length - 1] + 1;
+      const start = title.folded.at[place.start]!, end = title.folded.at[place.start + words[0]!.length - 1]! + 1;
       hit = { field: title.field.name, start, length: Math.max(1, end - start) };
     }
   }
@@ -176,7 +180,7 @@ export function snippetOf(parts: readonly ChatPart[], query: string | string[]):
     if (place !== -1 && (first === -1 || place < first)) { first = place; firstWord = word; }
   }
   if (first === -1) return null;
-  const hitStart = at[first], hitEnd = at[first + firstWord.length - 1] + 1, room = FIND_LIMITS.snippet;
+  const hitStart = at[first]!, hitEnd = at[first + firstWord.length - 1]! + 1, room = FIND_LIMITS.snippet;
   let start = Math.max(0, Math.min(hitStart - Math.floor((room - (hitEnd - hitStart)) / 3), text.length - room));
   if (start > 0 && text[start - 1] !== ' ') { const space = text.indexOf(' ', start); start = space === -1 || space >= hitStart ? hitStart : space + 1; }
   let end = Math.min(text.length, start + room);
