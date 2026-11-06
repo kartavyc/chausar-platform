@@ -1,7 +1,7 @@
 // D5 task 6: the headless smoke can run against a packaged build. `--packaged <unpacked dir>` takes the packaged program
 // (Chausar.exe, or chausar on Linux), run with ELECTRON_RUN_AS_NODE so no window ever opens, and the worker inside that
 // build's resources/app.asar.unpacked. Without the option the source paths stay as they were. Only the argument
-// parsing is tested here; nothing is started.
+// parsing is tested here; the final case starts only a tiny owned worker protocol fixture.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
@@ -61,4 +61,23 @@ test('--packaged refuses a missing value, a path that is not a folder, a folder 
     assert.throws(() => parse(['--packaged', build, '--packaged', build], { platform: 'win32' }), /Use only/);
   }
   assert.throws(() => parseSmokeArguments(['--check'], { platform: 'win32' }), /Use only/);
+});
+
+test('plain Node packaged smoke stays worker-only and reports the unperformed Electron asset check', async t => {
+  const { spawnSync } = await import('node:child_process');
+  const build = await packagedBuild(t, process.platform === 'win32' ? 'win32' : 'linux');
+  const unpacked = join(build, 'resources', 'app.asar.unpacked');
+  await writeFile(join(unpacked, 'package.json'), JSON.stringify({ type: 'module', version: '1.0.0' }));
+  const runtime = join(unpacked, 'app', 'engine', 'dist', 'runtime');
+  await mkdir(runtime, { recursive: true });
+  await writeFile(join(runtime, 'worker.js'), `process.on('message', message => { if (message.method === 'workspace.status') process.send({ id: message.id, result: { open: false, experimental: true, version: '1.0.0' } }); }); process.on('disconnect', () => process.exit(0)); process.send({ ready: true });`);
+  const environment = { ...process.env };
+  delete environment.ELECTRON_RUN_AS_NODE;
+  const script = join(ROOT, 'scripts', 'desktop-smoke.mjs');
+  const result = spawnSync(process.execPath, [script, '--packaged', build], { encoding: 'utf8', windowsHide: true, timeout: 15_000, env: environment });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).assetCheck, 'requires-electron-node-mode');
+  const wrong = spawnSync(process.execPath, [script, '--packaged', build], { encoding: 'utf8', windowsHide: true, timeout: 15_000, env: { ...environment, ELECTRON_RUN_AS_NODE: '1' } });
+  assert.equal(wrong.status, 1);
+  assert.match(wrong.stderr, /Expected Electron Node mode/);
 });

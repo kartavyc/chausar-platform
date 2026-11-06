@@ -38,6 +38,7 @@ export function parseSmokeArguments(args, { platform = process.platform } = {}) 
 }
 
 async function smoke({ packaged, worker, packageJson }) {
+  if (process.env.ELECTRON_RUN_AS_NODE === '1' && !process.versions.electron) throw new Error('Expected Electron Node mode for this smoke.');
   const metadata = JSON.parse(await readFile(packageJson, 'utf8'));
   const directory = await mkdtemp(join(tmpdir(), 'chausar-desktop-smoke-'));
   const engine = new EngineHarness({ workerPath: worker, environment: { ...process.env, CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: directory, CHAUSAR_DEMO: '1', CHAUSAR_UPDATE_PUBLIC_KEY: '' } });
@@ -48,8 +49,8 @@ async function smoke({ packaged, worker, packageJson }) {
     if (status.open !== false || status.experimental !== true || status.version !== metadata.version) throw new Error('The synthetic worker status is invalid.');
     const stopped = await engine.stop();
     if (!stopped.graceful) throw new Error('The worker did not shut down gracefully.');
-    const ink = packaged ? await packagedInkSmoke({ packaged, worker, metadata }) : undefined;
-    console.log(JSON.stringify({ ...(ink ? { ink } : {}), ok: true, platform: process.platform, architecture: process.arch, node: process.versions.node, version: status.version, worker: 'synthetic-only', ...(packaged ? { packaged } : {}), gui: 'not-executed', gracefulShutdown: true }));
+    const ink = packaged && process.versions.electron ? await packagedInkSmoke({ packaged, worker, metadata }) : undefined;
+    console.log(JSON.stringify({ assetCheck: ink ? 'verified' : packaged ? 'requires-electron-node-mode' : 'not-packaged', ...(ink ? { ink } : {}), ok: true, platform: process.platform, architecture: process.arch, node: process.versions.node, version: status.version, worker: 'synthetic-only', ...(packaged ? { packaged } : {}), gui: 'not-executed', gracefulShutdown: true }));
   } catch (error) { failed = error; throw error; }
   finally {
     await finishSmoke([() => engine.stop(), () => rm(directory, { recursive: true, force: true })], failed);
