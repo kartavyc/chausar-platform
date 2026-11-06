@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { ALL_METHODS, CORE_METHODS, DRAFT_DESK_METHODS, RENDERER_METHODS } from '../runtime/method-registry.ts';
+import { ALL_METHODS, CORE_METHODS, DRAFT_DESK_METHODS, RENDERER_METHODS, VENTURE_METHODS, PRE_VAULT_METHODS, DRAFT_METHODS } from '../runtime/method-registry.ts';
 import { CUSTODY_METHODS } from '../runtime/workspace-custody-contracts.ts';
 
 const { METHODS } = createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs');
@@ -15,6 +15,7 @@ test('method registry contains unique names and preserves every current engine e
 test('registry agrees with engine dispatch, including the main-only custody operations', async () => {
   const source = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
   const dispatch = new Set([...source.matchAll(/(?:case\s+|method\s*===\s*)'([^']+)'/g)].map(row => row[1]!));
+  for (const name of VENTURE_METHODS) dispatch.add(name);
   for (const name of ALL_METHODS) assert.ok(dispatch.has(name), `No engine dispatcher for ${name}`);
   for (const name of dispatch) if (name.includes('.')) assert.ok(ALL_METHODS.includes(name), `Unregistered dispatcher: ${name}`);
   assert.ok(ALL_METHODS.includes('workspace.import'));
@@ -43,4 +44,24 @@ test('main-only file operations pass host validation and remain unavailable to t
     assert.deepEqual(validateHostRequest(input), input);
   }
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: {}, host: true }), { code: 'INVALID_REQUEST' });
+});
+
+
+test('venture routing uses the registry without repeated switch arms', async () => {
+  const source = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /case ['"]venture\./);
+  assert.match(source, /DRAFT_DESK_DISPATCH\.has\(method\)/);
+  assert.match(source, /VENTURE_DISPATCH\.has\(method\)/);
+});
+
+test('the agent checklist names the contract generator', async () => {
+  assert.match(await readFile(new URL('../../AGENTS.md', import.meta.url), 'utf8'), /node scripts\/gen-contract\.mjs/);
+});
+
+// Wave 6 adds consent/native approvals, tool sign-in, client records, apps, voice and feedback.
+// One-shot A2 adds Codex trust; C2 find, C3 work, C4 invoice/routines, C5 seven, C6 payment, C7 nineteen.
+test('one pinned registry count covers venture, hosted and renderer methods', () => {
+  assert.equal(VENTURE_METHODS.length, 423);
+  assert.equal(VENTURE_METHODS.filter(name => !PRE_VAULT_METHODS.includes(name) && !DRAFT_METHODS.includes(name)).length, 403);
+  assert.equal(RENDERER_METHODS.length, 455);
 });
