@@ -1,3 +1,4 @@
+import { runClaudeQuery } from '../replay/driver-hooks.ts';
 /** Claude owns the agent loop; Chausar owns consent, job boundaries and every outside effect. */
 import { randomUUID } from 'node:crypto';
 import { lstat, readdir, realpath } from 'node:fs/promises';
@@ -325,7 +326,7 @@ export function createClaudeDriver(dependencies: Dependencies): AgentDriver {
         const id = randomUUID();
         const result = new Promise<AgentTurnResult>(finish => { active = { id, text: '', interrupted: false, finish, blocks: new Map(), completedBlocks: new Map(), messageUuids: new Set(), messageId: id, block: 0, usage: new Map() }; });
         queue.push({ type: 'user', message: { role: 'user', content: prompt }, parent_tool_use_id: null, session_id: sessionId, uuid: id });
-        if (!sdk) { try { sdk = (dependencies.queryFactory ?? query)({ prompt: queue, options }); reader = drain(); } catch { stop('failed', FAILED); } }
+        if (!sdk) { try { sdk = runClaudeQuery(dependencies.queryFactory ?? query, { prompt: queue, options }); reader = drain(); } catch { stop('failed', FAILED); } }
         return result;
       },
       async interrupt() { if (active && !closed) { active.interrupted = true; try { await sdk?.interrupt(); } catch { stop('interrupted'); } } },
