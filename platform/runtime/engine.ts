@@ -65,6 +65,7 @@ import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
+import { UpdateService, type UpdateServiceOptions } from './update-service.ts';
 import { authorize, audit, check, ChausarError, hash, InternalError, internalCheck, newId, now, type Context, type State, type StateStore } from './contracts.ts';
 import type { BusinessSnapshot, BusinessSnapshotRead, SecretShelf, VentureClosingPort, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
 import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
@@ -105,6 +106,8 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   /** Trusted host composition (server.ts, worker.ts): keep each business's vault key with this computer's login and
    * write automatic encrypted backups. Absent: today's behaviour, a passphrase for every vault and no automatic backups. */
   workspaceCustody?: { deviceKeys: 'os' | 'none' | DeviceKeyStore; autoBackups: boolean; clock?: () => number };
+  /** C5 task 31: the daily update check: main hands the worker the build's key, feed and folder (update-service.ts). Tests add seams. */
+  updates?: Omit<UpdateServiceOptions, 'version' | 'isBusy'>;
   /** C5 task 24: the Google client, for tests; a build's comes from package.json. tokens: where tests keep the refresh token. */
   drive?: { clientId: string | null; clientSecret?: string | null; endpoints?: DriveEndpoints; tokens?: DriveTokens; chunkBytes?: number };
 };
@@ -696,7 +699,7 @@ export class Engine {
       adapter: () => this.privateSearchAdapter() });
     this.services.connectors = new ConnectorService(store, { credentialBroker: this.options.connectorCredentials });
     this.services.helper = new AnalyticalHelper({ executable: this.options.pythonExecutable });
-    if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });
+    if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: this.options.updates ? join(this.options.updates.directory, 'stage') : resolve(this.options.directory, 'updates') });
     this.services.trust = new TrustService(store);
     const connectorForView = (view: StateStore) => view === store ? connectorRuntime : new EngineConnectorService(view, this.options.connectorRuntime);
     this.services.privateTrials = new PrivateTrialHostService(store, {
@@ -1103,6 +1106,10 @@ export class Engine {
     // Keeping the vault key on this computer (KEYCHAIN-SPEC 2 to 4). Answered before the vault check.
     switch (method) {
       case 'workspace.custody.get': return this.custodyView();
+      // C5 task 31: updates need no business open.
+      case 'updates.status': return this.updateService().view();
+      case 'updates.settings': return this.updateService().settings(payload);
+      case 'updates.check': return this.updateService().checkNow();
       case 'workspace.list': return this.custodyFiles().listBusinesses(this.storageKind());
       case 'workspace.backups.list': return this.backupList();
       case 'workspace.transfer.import': return this.transferImport(payload);
@@ -1742,7 +1749,6 @@ export class Engine {
         const result = await s.helper.run(payload.operation, payload.input); authorize(store, ctx, 'admin');
         return { ...result, qualification: 'analytical-preview', financialReceipt: false, requiresHumanReview: true };
       }
-      case 'updates.status': authorize(store, ctx, 'admin'); return { configured: !!s.updater, version: this.version, installMode: 'manual-native-installer-required' };
       case 'updates.verify': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater, 'UPDATES_UNAVAILABLE', 'Updates aren\'t set up in this copy of Chausar.'); return s.updater.verify(payload.manifest, payload.signature);
       case 'updates.stage': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater && payload.confirmed === true, 'UPDATES_UNAVAILABLE', 'Review and explicitly confirm a publisher-signed update.'); return s.updater.stage(payload.manifest, payload.signature);
       case 'workspace.backup': {
@@ -3188,7 +3194,20 @@ export class Engine {
     check(host && ['awake', 'windowOpen', 'backgroundEnabled'].every(key => typeof (host as any)[key] === 'boolean') && Object.keys(host).length === 3, 'INVALID_JOB_LIFECYCLE', 'Report explicit host awake, window and background state.');
     this.#jobLifecycle = { ...host };
   }
+  /** C5 task 31: one for the engine's life, so its ten quiet minutes count from the start. */
+  #updates: UpdateService | null = null;
+  private updateService(): UpdateService {
+    return this.#updates ??= new UpdateService({ publicKey: this.options.updatePublicKey ?? null, feedUrl: null, directory: resolve(this.options.directory, 'updates'), channel: 'stable', windowsPublisher: null, ...this.options.updates, version: this.version, isBusy: () => this.updatesBusy() });
+  }
+  /** A run is busy: a request is being answered, a job is running, or an owner's-AI job has a tool running. */
+  private updatesBusy(): boolean {
+    if (this.#activeRequests > 0 || this.#transition) return true;
+    const state = this.vault?.read();
+    if (!state) return false;
+    return state.jobs.some((job: Job) => job.status === 'running') || (state.conversations as { kind?: string; agentJob?: { tools?: { status: string }[] } }[]).some(record => record?.kind === 'venture-delivery-run' && record.agentJob?.tools?.some(tool => tool.status === 'running'));
+  }
   async tick() {
+    if (!this.#closing) void this.updateService().tick().catch(() => {});
     // Automatic backups run before the autonomy check: they don't depend on scheduled jobs. So do the journal sweep and
     // the notification centre's look at Today.
     await this.backupTick();

@@ -16,6 +16,10 @@ import { processFlowPort } from './venture/flows/port.ts';
 import { createPhoneAccess } from './phone-access.ts';
 import { inkFolderFor, listInkFiles } from './ui-ink.ts';
 import { ownerError } from './owner-error.ts';
+import { updatesOptionsFrom } from './update-service.ts';
+
+/** C5 task 31: the daily update check, when main named its folder. */
+function withUpdates(environment: NodeJS.ProcessEnv) { const updates = updatesOptionsFrom(environment); return updates ? { updates } : {}; }
 
 /** Verified host evidence is installed before the worker can announce readiness. */
 export async function createWorkerEngine(environment: NodeJS.ProcessEnv = process.env, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
@@ -29,7 +33,7 @@ export async function createWorkerEngine(environment: NodeJS.ProcessEnv = proces
   // One-shot A4 (row 107): the build desktop main names (inside app.asar in the packaged app), else the one beside us.
   const inkFolder = inkFolderFor(environment);
   const phoneAccess = createPhoneAccess(() => engine!, { ink: async () => ({ folder: inkFolder, files: await listInkFiles(inkFolder) }) });
-  return engine = new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: environment.CHAUSAR_VAULT_DIRECTORY ?? './data', demo: environment.CHAUSAR_DEMO === '1', storage: 'experimental-file', pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo: environment.CHAUSAR_DEMO === '1', host: 'desktop' }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true,
+  return engine = new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: environment.CHAUSAR_VAULT_DIRECTORY ?? './data', demo: environment.CHAUSAR_DEMO === '1', storage: 'experimental-file', pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, ...withUpdates(environment), durableJobs: engineJobOptions(environment), gateway, workspaceCustody: workspaceCustodyEnv(environment), venture: { ...ventureHostEnv(environment, { demo: environment.CHAUSAR_DEMO === '1', host: 'desktop' }), codexCli: codexTrust, hostProcess: codexTrust.process, statusPages: true,
     // Ink v2 wave 5 (5A5): a report's PDF is printed by the desktop main process, asked over this worker's own channel.
     ...(typeof process.send === 'function' ? { print: processPrintPort(process), formsBrowser: processFormsPort(process), credentials: processCredentialPort(process),
       // Wave 6 (6F3): pages that need JavaScript are read in the desktop's hidden window (web-render.cjs).
