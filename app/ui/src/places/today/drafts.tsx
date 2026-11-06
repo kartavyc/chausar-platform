@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useEngine, useResource } from '../../engine/context';
-import type { DeliveryLite, DraftChangesView, VentureRunEvent } from '../../engine/types';
+import type { DeliveryLite, DraftChangesView, UiRunEvent } from '../../engine/types';
 
 /**
  * W4 4J19 review: Today's draft replies, read once for the whole page and shared by every card (the engine that wrote a
@@ -12,7 +12,7 @@ export interface TodayDrafts { runs: readonly DeliveryLite[] | undefined; change
 
 const DraftsContext = createContext<TodayDrafts | null>(null);
 
-const DRAFT_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.done' || event.type === 'run.failed';
+const DRAFT_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.done' || event.type === 'run.failed';
 
 /** A version of a draft waiting for review: a new one (a revision landed, an edit, a fix) is read again. */
 const versionOf = (run: DeliveryLite) => `${run.id}@${run.at}@${run.status}@${run.editedText ?? ''}@${run.renderedText?.length ?? 0}`;

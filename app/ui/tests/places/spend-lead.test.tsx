@@ -195,7 +195,7 @@ describe('4Z3: the Businesses page', () => {
 
 describe('the rupee icon sits only beside a figure that leads in rupees (one-shot B2 task 10)', () => {
   const icon = (scope: Element) => scope.querySelector('.lucide-indian-rupee');
-  it('Team: dollars first shows no rupee icon beside Monthly AI spend; rupees first keeps it', async () => {
+  it('Team: compact Monthly AI spend leads in the chosen currency without a repeated icon', async () => {
     await start('#/team', { lead: 'usd' });
     let glance = await screen.findByRole('region', { name: 'Team summary' });
     let spend = (await within(glance).findByText('Monthly AI spend')).closest('[data-card]') as HTMLElement;
@@ -206,7 +206,7 @@ describe('the rupee icon sits only beside a figure that leads in rupees (one-sho
     glance = await screen.findByRole('region', { name: 'Team summary' });
     spend = (await within(glance).findByText('Monthly AI spend')).closest('[data-card]') as HTMLElement;
     await waitFor(() => expect(lead(spend)).toBe('₹60.10'));
-    expect(icon(spend)).not.toBeNull();
+    expect(icon(spend)).toBeNull();
   });
   it('Money spend settings: the rate line carries the rupee icon only while rupees lead', async () => {
     await start('#/money/spend', { lead: 'usd', rate: true });

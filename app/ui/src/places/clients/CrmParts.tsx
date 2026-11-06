@@ -11,6 +11,9 @@ import type { FieldChangeView, TimelineEntryView } from '../../engine/types';
 import { useDay } from '../money/words';
 import s from './Crm.module.css';
 import { Fold } from '../../parts/Fold';
+import { useArrivals } from '../../parts/useArrivals';
+import { useFlip } from '../../parts/flip';
+import motion from '../../parts/Leave.module.css';
 
 
 
@@ -24,12 +27,14 @@ export function CrmFold({ summary, open, onToggle, children }: { summary: string
 
 /** The field history, newest first. */
 export function HistoryList({ rows }: { rows: readonly FieldChangeView[] }) {
+  const arrivals = useArrivals(rows.map(row => row.id));
+  const list = useFlip<HTMLUListElement>(rows.map(row => row.id).join(' '));
   const t = useT();
   const day = useDay();
   return (
-    <ul className={s.items} data-history="">
+    <ul ref={list} className={s.items} data-history="">
       {rows.map((row) => (
-        <li key={row.id} className={s.item}>
+        <li key={row.id} className={`${s.item} ${motion.arrive}`} data-flip-id={row.id} data-arriving={arrivals.has(row.id) ? '' : undefined}>
           <span className={s.line}>
             {row.line}
             {row.after !== null && <>{': '}<span data-content="" className={s.words}>{row.after}</span></>}
@@ -44,13 +49,15 @@ export function HistoryList({ rows }: { rows: readonly FieldChangeView[] }) {
 
 /** A timeline, newest first: the engine's line, and what the owner wrote for an entry they logged. */
 export function TimelineList({ entries, names }: { entries: readonly TimelineEntryView[]; names?: ReadonlyMap<string, string> }) {
+  const arrivals = useArrivals(entries.map(entry => entry.id));
+  const list = useFlip<HTMLUListElement>(entries.map(entry => entry.id).join(' '));
   const t = useT();
   const day = useDay();
   if (!entries.length) return <p className={s.quiet}>{t('crm.timeline.none')}</p>;
   return (
-    <ul className={s.items} data-timeline="">
+    <ul ref={list} className={s.items} data-timeline="">
       {entries.map((entry) => (
-        <li key={entry.id} className={s.item} data-kind={entry.kind}>
+        <li key={entry.id} className={`${s.item} ${motion.arrive}`} data-kind={entry.kind} data-flip-id={entry.id} data-arriving={arrivals.has(entry.id) ? '' : undefined}>
           <span className={s.line}>
             {names?.get(entry.clientId) && <span className={s.tag}>{names.get(entry.clientId)}{' '}</span>}
             {entry.line}

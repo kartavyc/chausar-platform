@@ -123,6 +123,7 @@ export type CuratedMcpView = {
 declare namespace ContractModule102 {
 import AgentDriverSettings = ContractModule75.AgentDriverSettings;
 import ExternalMcpServer = ContractModule77.ExternalMcpServer;
+export type AiProvider = 'codex' | 'claude';
 export type AiNetwork = 'off' | 'research' | 'on';
 export type AiTaskSettings = {
     model: string;
@@ -162,6 +163,10 @@ export type AiSettingsView = {
     models: {
         codex: string[] | null;
     };
+    modelChoices: Record<AiProvider, {
+        faster: string;
+        smarter: string;
+    }>;
 };
 }
 
@@ -1645,6 +1650,8 @@ export type BlueprintPatch = {
         name: string;
         description: string;
         pricingModel: PricingModel;
+    } | {
+        youtubeService: string;
     };
     removeOffer?: {
         id: string;
@@ -6591,6 +6598,7 @@ export type RoutineView = {
     name: string;
     agent: string | null;
     prompt?: string;
+    recordReport?: 'va-morning' | 'va-weekly';
     schedule: RoutineSchedule;
     when: Display;
     on: boolean;
@@ -6843,6 +6851,7 @@ export type VenturePayloads = {
         workingName?: string;
         composeId?: string;
         composedDigest?: string;
+        reuseAi?: true;
     };
     'venture.get': Empty;
     'venture.events': {
@@ -6944,7 +6953,10 @@ export type VenturePayloads = {
         clientId: string;
     };
     'venture.billing.get': Empty;
-    'venture.billing.set': Partial<Omit<ContractModule527.BillingSettings, 'razorpay'>> & {
+    'venture.billing.set': Partial<Omit<ContractModule527.BillingSettings, 'razorpay' | 'bank' | 'dueInDays' | 'reminderDays'>> & {
+        dueInDays?: number | string;
+        reminderDays?: (number | string)[];
+        bank?: (Pick<ContractModule527.BankDetails, 'accountName' | 'accountNumber'> & Partial<Omit<ContractModule527.BankDetails, 'accountName' | 'accountNumber'>>) | null;
         razorpayKeys?: {
             keyId: string;
             keySecret: string;
@@ -6979,6 +6991,13 @@ export type VenturePayloads = {
             contentBase64: string;
         }>;
         intake?: {
+            calendar?: {
+                month: string;
+                channels: string[];
+                postsPerChannel: number;
+                weekdays: number[];
+            };
+            clientRules?: Partial<NonNullable<OrderIntake['clientRules']>>;
             rights?: unknown;
             format?: 'long' | 'short';
             aiVoice?: boolean;
@@ -7772,7 +7791,7 @@ export type VenturePayloads = {
     };
     'venture.crm.client.edit': {
         clientId: string;
-        field: 'name' | 'email' | 'note';
+        field: 'name' | 'email' | 'note' | 'phone';
         value: string;
     };
     'venture.crm.companies': Empty;
@@ -7923,7 +7942,7 @@ export type VenturePayloads = {
         vendor: string;
         lines: BillLineInput[];
         billDate: IsoDate;
-        dueDate: IsoDate;
+        dueDate?: IsoDate;
         recurring?: 'monthly' | 'quarterly' | null;
     };
     'venture.bills.pay': {
@@ -8370,6 +8389,7 @@ export type VentureResults = {
         total: Display;
         totalRupees?: Display;
         totalLead?: SpendLead;
+        needsRate?: boolean;
     };
     'venture.spend.policy.get': SpendPolicyView;
     'venture.spend.policy.set': SpendPolicyView;
@@ -10084,7 +10104,9 @@ export type OnboardingPayloads = {
         composeId: string;
         patch: ComposePatch;
     };
-    'venture.ai.tools': Record<string, never>;
+    'venture.ai.tools': {
+        cli?: ToolView['cli'] | undefined;
+    };
     'venture.ai.login.start': {
         cli: 'codex' | 'claude-code';
     };

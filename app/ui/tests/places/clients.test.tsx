@@ -59,8 +59,9 @@ describe('Clients place', () => {
   it('opens a receipt from what a client owes', async () => {
     start();
     await click(await screen.findByRole('button', { name: receiptMark('R-0416') }));
-    const sheet = await screen.findByRole('complementary', { name: 'R-0416' });
+    const sheet = await screen.findByRole('complementary', { name: '₹13,100' });
     await waitFor(() => expect(sheet.textContent).toContain('₹13,100'));
+    expect(sheet.querySelector('[data-code]')?.textContent).toBe('R-0416');
   });
 
   it('says "No clients yet." with one way to add one', async () => {

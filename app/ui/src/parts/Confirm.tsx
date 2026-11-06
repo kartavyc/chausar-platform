@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { useT } from '../text';
 import { Button, type ButtonSize } from './Button';
 import s from './Confirm.module.css';
+import { Swap } from './Swap';
 
 export interface ConfirmProps {
   /** What it asks, in words. */
@@ -28,7 +29,7 @@ export interface ConfirmProps {
 export function Confirm({ children, action, onCancel, onConfirm, busy = false, tone, size, label, cancelLabel }: ConfirmProps) {
   const t = useT();
   const cancel = useRef<HTMLButtonElement>(null);
-  useEffect(() => { cancel.current?.focus(); }, []);
+  useEffect(() => { if (!cancel.current?.closest('[inert]')) cancel.current?.focus(); }, []);
   return (
     <div className={s.confirm} data-confirm-box="" data-second-ask="" role={label ? 'group' : undefined} aria-label={label}>
       <div className={s.words}>{children}</div>
@@ -43,4 +44,9 @@ export function Confirm({ children, action, onCancel, onConfirm, busy = false, t
       </div>
     </div>
   );
+}
+
+/** Keep this slot mounted around the asking button and its confirmation. Only its current controls can be used. */
+export function ConfirmSlot({ asking, children }: { asking: boolean; children: ReactNode }) {
+  return <Swap block value={asking ? 'asking' : 'button'}>{children}</Swap>;
 }

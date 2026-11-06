@@ -18,6 +18,7 @@ import s from './Business.module.css';
 import fields from '../../parts/Field.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { useChanged } from '../../parts/useChanged';
 
 /**
  * Plan and playbook (venture.blueprint.get) in the D look: the plan's name and one line with who it is for, how far
@@ -33,15 +34,22 @@ import { LoadingPlace } from '../../parts/Skeleton';
 export function PlanView() {
   const t = useT();
   const plan = usePlan();
-  const [changing, setChanging] = useState(false);
 
   if (plan.error) return <p className={s.problem} role="alert">{t('business.failed', { message: plan.error.message })}</p>;
   if (plan.data === undefined) return <LoadingPlace shape="settings" />;
   if (plan.data === null) {
     return <EmptyState title={t('business.noPlan')} line={t('business.noPlanLine')} actions={[{ label: t('business.start'), href: '#/onboarding' }]} />;
   }
-  const view = plan.data;
+  return <PlanContent view={plan.data} onChanged={plan.reload} />;
+}
+
+function PlanContent({ view, onChanged }: { view: BlueprintViewLite; onChanged: () => void }) {
+  const t = useT();
+  const [changing, setChanging] = useState(false);
   const bp = view.blueprint;
+  const nameChanged = useChanged(bp.name.value);
+  const lineChanged = useChanged(bp.oneLiner.value);
+  const customerChanged = useChanged(bp.customer.value);
   // The playbook's own label when the idea picked a flagship playbook; else the service type's label.
   const kind = playbookLabel(t,view.playbook) ?? (SERVICE_TYPES.includes(bp.serviceType) ? t(`business.kind.${bp.serviceType}`) : bp.serviceType);
   const version = t(bp.status === 'accepted' ? 'business.versionAccepted' : 'business.versionDraft', { version: bp.version });
@@ -52,17 +60,17 @@ export function PlanView() {
         <Tile as="section" labelledBy="business-plan-name">
           <div className={s.body}>
             <p className={s.kind}>{kind} · {version}{bp.source === 'template' ? ` · ${t('business.fromTemplates')}` : ''}</p>
-            <h2 id="business-plan-name" tabIndex={-1} className={s.name}>{bp.name.value}<LabelTag line={bp.name} /></h2>
+            <h2 id="business-plan-name" tabIndex={-1} className={s.name} data-changed={nameChanged}>{bp.name.value}<LabelTag line={bp.name} /></h2>
             {changing ? (
-              <ChangeForm plan={bp} onDone={() => { setChanging(false); plan.reload(); }} onCancel={() => setChanging(false)} />
+              <ChangeForm plan={bp} onDone={() => { setChanging(false); onChanged(); }} onCancel={() => setChanging(false)} />
             ) : (
               <>
-                <p className={s.lead}>{bp.oneLiner.value}<LabelTag line={bp.oneLiner} /></p>
-                <p className={s.line}>{t('business.for', { customer: bp.customer.value })}<LabelTag line={bp.customer} /></p>
+                <p className={s.lead} data-changed={lineChanged}>{bp.oneLiner.value}<LabelTag line={bp.oneLiner} /></p>
+                <p className={s.line} data-changed={customerChanged}>{t('business.for', { customer: bp.customer.value })}<LabelTag line={bp.customer} /></p>
                 <div className={s.buttons}><Button size="sm" onClick={() => setChanging(true)}>{t('business.change')}</Button></div>
               </>
             )}
-            <PendingPlanRows onDecided={plan.reload} />
+            <PendingPlanRows onDecided={onChanged} />
             <BackOffice plan={bp} />
           </div>
         </Tile>

@@ -31,6 +31,7 @@ import { onMoney, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 import { Select } from '../../parts/Select';
+import { useArrivals } from '../../parts/useArrivals';
 import { Reveal } from '../../parts/RevealBlock';
 
 /** The ways a bill can be paid: the payment sheet's, and a cheque. */
@@ -53,11 +54,11 @@ export function Bills() {
       {!adding && list.data && bills.length === 0 && <EmptyState title={t('money.bills.none')} line={t('money.bills.noneLine')} primary={{ label: t('money.bills.add'), onSelect: () => setAdding(true) }} />}
       {!adding && bills.length > 0 && <div className={s.buttons}><Button size="sm" onClick={() => setAdding(true)}>{t('money.bills.add')}</Button></div>}
       <div>
-        {bills.length > 0 && (
+        {list.data && (
           <>
             {total}
             <ul className={s.list}>
-              {bills.map((bill) => <BillRow key={bill.id} bill={bill} currency={currency} onChanged={list.reload} />)}
+              <BillRows bills={bills} currency={currency} onChanged={list.reload} />
             </ul>
           </>
         )}
@@ -72,7 +73,13 @@ export function Bills() {
   );
 }
 
-function BillRow({ bill, currency, onChanged }: { bill: BillView; currency: string; onChanged: () => void }) {
+function BillRows({ bills, currency, onChanged }: { bills: BillView[]; currency: string; onChanged: () => void }) {
+  const arriving = useArrivals(bills.map(bill => bill.id));
+  // Paid bills stay in this plain list, with their new state and receipt. It has no disappearing To pay group.
+  return bills.map(bill => <BillRow key={bill.id} bill={bill} arriving={arriving.has(bill.id)} currency={currency} onChanged={onChanged} />);
+}
+
+function BillRow({ bill, currency, onChanged, arriving }: { bill: BillView; currency: string; onChanged: () => void; arriving?: boolean }) {
   const t = useT();
   const day = useDay();
   const engine = useEngine();
@@ -95,6 +102,7 @@ function BillRow({ bill, currency, onChanged }: { bill: BillView; currency: stri
   return (
     <Row
       id={bill.id}
+      arriving={arriving}
       title={bill.vendor}
       line={bill.purpose ? t('money.bills.lineFor', { purpose: bill.purpose, bill: day(bill.billDate), due: day(bill.dueDate) }) : t('money.bills.line', { bill: day(bill.billDate), due: day(bill.dueDate) })}
       aside={(

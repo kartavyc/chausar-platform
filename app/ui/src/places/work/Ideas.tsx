@@ -13,7 +13,7 @@
 import { useId, useState, type FormEvent } from 'react';
 import { useLanguage, useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { EngineError, type IdeaGrade, type IdeaStage, type PipelineIdeaView, type VentureRunEvent } from '../../engine/types';
+import { EngineError, type IdeaGrade, type IdeaStage, type PipelineIdeaView, type UiRunEvent } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { Field } from '../../parts/Field';
@@ -22,12 +22,15 @@ import { dayOf } from '../business/shared';
 import s from './Ideas.module.css';
 import { Fold } from '../../parts/Fold';
 import { Reveal } from '../../parts/RevealBlock';
+import { useArrivals } from '../../parts/useArrivals';
+import { useFlip } from '../../parts/flip';
+import motion from '../../parts/Leave.module.css';
 
 const FORWARD: readonly IdeaStage[] = ['inbox', 'triage', 'drafted', 'made', 'published'];
 const GRADES: readonly IdeaGrade[] = ['worked', 'so-so', 'did-not'];
 /** The engine codes this screen words itself (kit/ideas.ts), in both languages. */
 const WORDED = new Set(['IDEA_STAGE_BACKWARD', 'IDEA_DROP_REASON', 'IDEA_NOT_FOUND', 'IDEA_NOT_PUBLISHED', 'IDEA_GRADE_EARLY', 'ALREADY_DECIDED', 'APP_APPROVAL_REQUIRED']);
-const IDEA_EVENTS = (event: VentureRunEvent) => event.type === 'idea.changed' || event.type === 'queue.changed';
+const IDEA_EVENTS = (event: UiRunEvent) => event.type === 'idea.changed' || event.type === 'queue.changed';
 
 function wordsOf(error: unknown, t: T): string {
   if (error instanceof EngineError && WORDED.has(error.code)) return t(`kit-rules.error.${error.code}`);
@@ -43,6 +46,8 @@ export function Ideas() {
   const [said, setSaid] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const arriving = useArrivals(view.data?.pipeline.map(idea => idea.id));
+  const board = useFlip<HTMLDivElement>((view.data?.pipeline ?? []).map(idea => `${idea.stage}:${idea.id}`).join(' '));
 
   async function act(work: () => Promise<unknown>, done: string): Promise<boolean> {
     setBusy(true);
@@ -97,8 +102,8 @@ export function Ideas() {
       {open === 0 && !adding ? (
         <EmptyState title={t(dropped.length ? 'kit-rules.emptyOpen' : 'kit-rules.empty')} actions={[{ label: t('kit-rules.add'), onSelect: () => setAdding(true) }]} />
       ) : open > 0 && (
-        <div className={s.board} data-ideas-layout={open < 5 ? 'list' : 'board'}>
-          {FORWARD.filter((stage) => open >= 5 || all.some(idea => idea.stage === stage)).map((stage) => <Column key={stage} stage={stage} ideas={all.filter((idea) => idea.stage === stage)} handlers={handlers} />)}
+        <div ref={board} className={s.board} data-ideas-layout={open < 5 ? 'list' : 'board'}>
+          {FORWARD.filter((stage) => open >= 5 || all.some(idea => idea.stage === stage)).map((stage) => <Column key={stage} stage={stage} ideas={all.filter((idea) => idea.stage === stage)} handlers={handlers} arriving={arriving} />)}
         </div>
       )}
       {dropped.length > 0 && (
@@ -128,7 +133,7 @@ interface CardHandlers {
   grade: (idea: PipelineIdeaView, grade: IdeaGrade) => Promise<boolean>;
 }
 
-function Column({ stage, ideas, handlers }: { stage: IdeaStage; ideas: PipelineIdeaView[]; handlers: CardHandlers }) {
+function Column({ stage, ideas, handlers, arriving }: { stage: IdeaStage; ideas: PipelineIdeaView[]; handlers: CardHandlers; arriving: ReadonlySet<string> }) {
   const t = useT();
   const id = useId();
   return (
@@ -139,7 +144,7 @@ function Column({ stage, ideas, handlers }: { stage: IdeaStage; ideas: PipelineI
       </h3>
       {ideas.length === 0 ? <p className={s.none}>{t('kit-rules.stage.none')}</p> : (
         <ul className={s.cards}>
-          {ideas.map((idea) => <li key={idea.id}><Card idea={idea} handlers={handlers} /></li>)}
+          {ideas.map((idea) => <li key={idea.id} className={motion.arrive} data-flip-id={idea.id} data-arriving={arriving.has(idea.id) ? '' : undefined}><Card idea={idea} handlers={handlers} /></li>)}
         </ul>
       )}
     </section>

@@ -7,14 +7,14 @@
 
 import {
   EngineError, type BlueprintViewLite, type CalendarIntakeLite, type DeliveryLite, type DraftPostLite, type OrderLite, type ShareLink,
-  type SocialCalendarFile, type TranscriptionSetupView, type UploadLite, type VentureRunEvent,
+  type SocialCalendarFile, type TranscriptionSetupView, type UploadLite, type UiRunEvent,
 } from './types';
 import { rulesListFor } from './fixtures-rules';
 
 export interface WiringHost {
   current(): string;
   now(): string;
-  emit(event: VentureRunEvent): void;
+  emit(event: UiRunEvent): void;
   /** Whether this answers as the hosted web server, which reads no file on the owner's computer. */
   hosted(): boolean;
   /** Another desk's answer, for the records this desk reads and adds to (orders, files, delivery runs, the plan). */

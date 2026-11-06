@@ -7,10 +7,10 @@
  */
 
 import { useResource } from '../../engine/context';
-import type { LayoutBlockView, LayoutPlace, LayoutView, VentureRunEvent } from '../../engine/types';
+import type { LayoutBlockView, LayoutPlace, LayoutView, UiRunEvent } from '../../engine/types';
 import { LAYOUT_LIBRARY } from '../../../../../platform/runtime/venture/views/layout-core';
 
-export const LAYOUT_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed';
+export const LAYOUT_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed';
 
 export function useLayout(place: LayoutPlace) {
   return useResource('venture.layout.get', { place }, { refreshOn: LAYOUT_EVENTS });

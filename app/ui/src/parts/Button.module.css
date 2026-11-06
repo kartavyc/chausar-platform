@@ -179,3 +179,8 @@
     min-height: var(--target);
   }
 }
+
+.lock { display: inline-flex; }
+.lock[data-lock-leaving] {
+  animation: global(ink-page-out) var(--t-press) var(--ease) 1 both;
+}

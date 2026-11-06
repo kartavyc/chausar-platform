@@ -20,7 +20,7 @@ import { BLUEPRINTS, BUILDS, DRAFT_AI_STATUS, GITHUB_TOKEN_LINK, HANDOFF_NOTES, 
 import { CUSTODY_ERROR_WORDS, SAMPLE_MOVE_CODE } from './fixtures';
 import {
   EngineError, type BackupInspectLite, type BackupLite, type BlueprintLite, type BlueprintViewLite, type BuilderId, type BuildStatusView, type BusinessOnComputer,
-  type CustodyViewLite, type ModelPresetLite, type ModelStatusLite, type ModelTier, type MoveFile, type OfferLite, type PlaybookPick, type PricingModel, type QueueRow, type ReceiptLite, type VentureRunEvent,
+  type CustodyViewLite, type ModelPresetLite, type ModelStatusLite, type ModelTier, type MoveFile, type OfferLite, type PlaybookPick, type PricingModel, type QueueRow, type ReceiptLite, type UiRunEvent,
 } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -42,7 +42,7 @@ export interface DeskHost {
   digest(value: unknown): string;
   /** Takes a row off Today, as if decided. */
   settle(rowId: string): void;
-  emit(event: VentureRunEvent): void;
+  emit(event: UiRunEvent): void;
   /** The business as the fake keeps it; the desk changes how it opens and whether its recovery code exists. */
   business(id: string): { opens: BusinessOnComputer['opens']; recovery: 'made' | 'not-made'; passphrase?: string | undefined } | null;
   /** Whether this computer's protected storage can keep a business key. */

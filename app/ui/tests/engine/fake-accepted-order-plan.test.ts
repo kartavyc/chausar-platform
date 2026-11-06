@@ -18,13 +18,13 @@ it('new orders wait for the first owner-approved plan',async()=>{
 it('a newer unpriced draft cannot hide the accepted offer or its computed order price',async()=>{
  const f=await fixture();await f.approve();await f.client.request('venture.blueprint.draft',{useTemplate:true});
  const order=await f.client.request('venture.order.create',f.request),receipt=await f.client.request('venture.receipt.get',{id:order.priceReceiptId});
- expect(order.offerId).toBe(f.offer.id);expect(receipt.totalMinor).toBe('100000');expect(receipt.explanation).toContain('100000');
+ expect(order.offerId).toBe(f.offer.id);expect('totalMinor' in receipt ? receipt.totalMinor : null).toBe('100000');expect(receipt.explanation).toContain('100000');
 });
 it('a quote made after acceptance cannot substitute its quantity or receipt for the order',async()=>{
  const f=await fixture();await f.approve();const quote=await f.client.request('venture.price.quote',{offerId:f.offer.id,quantity:'1'});
  const order=await f.client.request('venture.order.create',{...f.request,quantity:'3'}),receipt=await f.client.request('venture.receipt.get',{id:order.priceReceiptId});
- expect(receipt.totalMinor).toBe('300000');expect(receipt.id).not.toBe(quote.id);
- expect((await f.client.request('venture.receipt.get',{id:quote.id})).totalMinor).toBe('100000');
+ expect('totalMinor' in receipt ? receipt.totalMinor : null).toBe('300000');expect(receipt.id).not.toBe(quote.id);
+ expect(await f.client.request('venture.receipt.get',{id:quote.id})).toMatchObject({totalMinor:'100000'});
 });
 
 it('refuses an order currency outside the accepted country books',async()=>{

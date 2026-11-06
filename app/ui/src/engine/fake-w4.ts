@@ -8,7 +8,7 @@
  * W4DeskHost is what fake.ts gives every wave 4 desk (fake-agents.ts, fake-chief.ts, fake-network.ts, fake-notify.ts).
  */
 
-import { EngineError, type AgentView, type DeliveryLite, type JournalEntry, type QueueAction, type QueueRow, type ReceiptLite, type RunDetail, type RunSummary, type TeamListView, type VentureRunEvent } from './types';
+import { EngineError, type AgentView, type DeliveryLite, type JournalEntry, type QueueAction, type QueueRow, type ReceiptLite, type RunDetail, type RunSummary, type TeamListView, type UiRunEvent } from './types';
 // 4J3: previews on Today's rows, order stage steps and the poster method (fake-previews.ts).
 import { FAKE_4J3_METHODS, fakePoster, withFakePreviews } from './fake-previews';
 // 4J8: "Add this to {business}", the plan suggestion (fake-plan-suggest.ts).
@@ -71,7 +71,7 @@ export interface W4DeskHost {
   supportImported?(mail:SupportImportedMail):void;
   current(): string;
   now(): string;
-  emit(event: VentureRunEvent): void;
+  emit(event: UiRunEvent): void;
   /** Whether this answers as the hosted web server. */
   hosted(): boolean;
   /** C7: whether the open business has tax fields (the GST tracker starter); left out means none. */

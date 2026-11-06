@@ -109,7 +109,8 @@ describe('Money overview', () => {
     start('#/money');
     await click(await screen.findByRole('button', { name: receiptMark('R-0402') }));
     expect(window.location.hash).toBe('#/money?sheet=receipt%3AR-0402');
-    expect(await screen.findByRole('complementary', { name: 'R-0402' })).toBeTruthy();
+    const sheet = await screen.findByRole('complementary', { name: '₹86,200' });
+    expect(sheet.querySelector('[data-code]')?.textContent).toBe('R-0402');
   });
 
   it('keeps each part of Money in the address; an unknown part shows the overview', async () => {

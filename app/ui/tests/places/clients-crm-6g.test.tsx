@@ -163,10 +163,11 @@ describe('dated facts (6G4)', () => {
 
   it('the business facts sit on What the AI knows', async () => {
     const { spy } = start('#/business/knowledge');
-    const heading = await screen.findByRole('heading', { name: 'What Chausar remembers' });
+    const heading = await screen.findByRole('heading', { name: 'What Chausar knows' });
     const tile = heading.closest('section') as HTMLElement;
     await settle();
-    const add = await openFold(tile, 'Add a fact');
+    const add = await openFold(tile, 'Add');
+    await click(within(add).getByRole('radio', { name: 'Fact' }));
     type(within(add).getByRole('textbox', { name: 'Topic' }), 'Episode rate');
     type(within(add).getByRole('textbox', { name: 'The fact' }), 'Rs 15000 an episode.');
     await click(within(add).getByRole('button', { name: 'Keep fact' }));
