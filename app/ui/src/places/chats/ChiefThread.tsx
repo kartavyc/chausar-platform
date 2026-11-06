@@ -42,6 +42,7 @@ import { PlanCard, type AgentLookup } from './PlanCard';
 import { ChangeNotice } from './ChangeNotice';
 import { PushToTalk } from './PushToTalk';
 import { ReadAloud } from './ReadAloud';
+import { PickTime } from './PickTime';
 import s from './Chats.module.css';
 
 /** The thread reads again when Chausar answers anywhere, and when a proposal's card moves on Today. */
@@ -206,6 +207,23 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
     }
   }
 
+  /** C4 task 8: a snooze to a time the owner picked; the engine's refusal comes back to show in place. */
+  async function snoozeUntil(threadId: string, until: string): Promise<string | null> {
+    setPinning(true);
+    try {
+      const result = await engine.request('venture.chief.thread.state', { threadId, state: 'snoozed', until });
+      setSnoozing(false);
+      setChange({ threadId, line: result.line, undo: result.undo });
+      view.reload();
+      onListChanged();
+      return null;
+    } catch (error) {
+      return messageOf(error);
+    } finally {
+      setPinning(false);
+    }
+  }
+
   const snoozeOptions: readonly ChiefSnoozeOption[] = shown?.snooze ?? [];
   const waiting = thread?.waiting ?? false;
   const shownChange = change && change.threadId === threadId ? change : null;
@@ -258,6 +276,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
           ))}
         </div>
       )}
+      {thread && snoozing && !waiting && <div className={s.paneNote}><PickTime busy={pinning} onPick={(until) => snoozeUntil(thread.id, until)} /></div>}
       {thread && waiting && lockedNote && <p className={cx(s.quiet, s.paneNote)}>{t('chats.thread.waiting')}</p>}
       {shownChange && <ChangeNotice className={s.paneNote} line={shownChange.line} busy={pinning} onUndo={() => void setState(shownChange.undo)} />}
       {threadId && view.error && !shown && !fallback ? (
