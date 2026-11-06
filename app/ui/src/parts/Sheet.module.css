@@ -127,6 +127,12 @@
   padding: 0 var(--pad-tile) var(--pad-tile);
 }
 
+.body:has([data-draft-editor]) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 /* A phone (3H1): the close button is a full 44 px touch target. */
 @media (max-width: 759px) {
   .close {

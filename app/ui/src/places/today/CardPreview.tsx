@@ -1,12 +1,13 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
-import type { PreviewFigure, PreviewWords, QueueItemView, QueuePreview, QueueRow } from '../../engine/types';
+import type { DeliveryLite, PreviewFigure, PreviewWords, QueueItemView, QueuePreview, QueueRow } from '../../engine/types';
 import type { PreviewExtra } from '../../parts/ApprovalRow';
 import { Icon } from '../../parts/Icon';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import { PreviewFrame } from '../../parts/PreviewFrame';
 import { QuestionCardView } from '../../parts/QuestionCard';
+import { Fold } from '../../parts/Fold';
 import { useTodayDrafts } from './drafts';
 import s from './CardPreview.module.css';
 
@@ -18,6 +19,22 @@ const MODEL_ESTIMATE = ' (model estimate)';
 
 /** The most lines of a file a card shows, for a business registered for tax; the sheet shows them all. */
 const FILE_LINES = 3;
+
+function DraftChecks({ run }: { run: DeliveryLite }) {
+  const t = useT();
+  const checks = [
+    ...(run.checks ?? []).map(check => ({ id: check.check, detail: check.detail, state: check.notChecked ? 'notRun' : check.passed ? 'passed' : 'failed' })),
+    ...(run.playbookChecks ?? []).map(check => ({ id: `${check.playbook}:${check.check}`, detail: check.detail, state: check.outcome === 'not-run' ? 'notRun' : check.outcome === 'pass' ? 'passed' : 'failed' })),
+  ];
+  if (checks.length === 0) return null;
+  const failed = checks.find(check => check.state === 'failed');
+  return <>
+    {failed && <p className={s.checks} data-tone="wait" data-failed-check=""><Icon name="triangle-alert" size={14} /><span data-content="">{failed.detail}</span></p>}
+    <Fold summary={t('today.preview.checks')}>
+      <ul>{checks.map(check => <li key={check.id}><span>{t(`today.preview.${check.state}`)}</span>{': '}<span data-content="">{check.detail}</span></li>)}</ul>
+    </Fold>
+  </>;
+}
 
 /**
  * A piece of a plan's or a file's view, as the engine wrote it, with each "(model estimate)" it marks shown as the
@@ -72,7 +89,7 @@ const sourceOf = (figure: PreviewFigure): 'ca' | 'work' | undefined => (figure.r
 function ChecksLine({ checks }: { checks: { passed: number; run: number; notRun: number } }) {
   const t = useT();
   if (checks.run === 0 && checks.notRun === 0) return null;
-  const all = checks.passed === checks.run;
+  const all = checks.passed === checks.run && checks.notRun === 0;
   return (
     <p className={s.checks} data-checks="" data-tone={all ? 'done' : 'wait'}>
       <Icon name={all ? 'check' : 'triangle-alert'} size={14} />
@@ -89,7 +106,7 @@ function Choices({ preview, extra }: { preview: Extract<QueuePreview, { kind: 'c
   const estimates = preview.options.filter((option) => option.estimate);
   return (
     <div className={s.choice}>
-      <PreviewFrame
+      <PreviewFrame plain
         variant="choice"
         label={preview.question.text}
         options={preview.options.map((option) => ({ id: option.label, label: option.text.text }))}
@@ -119,7 +136,7 @@ function structured(preview: QueuePreview, open: () => void, extra: PreviewExtra
     case 'video':
       return (
         <>
-          <PreviewFrame
+          <PreviewFrame plain
             variant="video"
             title={preview.title.text}
             unseen={unseen}
@@ -138,7 +155,7 @@ function structured(preview: QueuePreview, open: () => void, extra: PreviewExtra
         const lines = [...preview.lines, ...(preview.discount ? [preview.discount] : []), ...preview.taxLines].map((line) => ({ label: line.label, value: line.value }));
         return (
           <>
-            <PreviewFrame
+            <PreviewFrame plain
               variant="paper"
               label={t('today.preview.paperLabel', { title: preview.title, total: preview.total.value })}
               business={preview.from}
@@ -155,7 +172,7 @@ function structured(preview: QueuePreview, open: () => void, extra: PreviewExtra
       const proofs = [...new Map(preview.working.map((line) => [line.receiptId, { receiptId: line.receiptId, source: sourceOf(line) }])).values()];
       return (
         <>
-          <PreviewFrame
+          <PreviewFrame plain
             variant="paper"
             label={preview.title}
             title={preview.title}
@@ -177,7 +194,7 @@ function structured(preview: QueuePreview, open: () => void, extra: PreviewExtra
     case 'post':
       return (
         <>
-          <PreviewFrame variant="post" account={preview.account ?? preview.platform} platform={preview.platform} text={preview.text} />
+          <PreviewFrame plain variant="post" account={preview.account ?? preview.platform} platform={preview.platform} text={preview.text} />
           {preview.textEstimate && <p className={s.small}><ModelEstimate /></p>}
           {preview.short && (
             <p className={s.short} data-short="">
@@ -232,7 +249,9 @@ export function useCardPreview(row: QueueRow, { unseen, enabled, taxRegistered }
   const isDraft = enabled && row.kind === 'draft' && ref?.kind === 'draft';
   // Today reads the drafts once for every card (drafts.tsx); the approval page's card reads them itself.
   const drafts = useTodayDrafts(isDraft);
-  const writtenBy = isDraft ? drafts.runs?.find((run) => run.id === ref?.id)?.writtenBy : undefined;
+  const draft = isDraft ? drafts.runs?.find((run) => run.id === ref?.id) : undefined;
+  const writtenBy = draft?.writtenBy;
+  const checks = draft ? <DraftChecks run={draft} /> : null;
   // A view's text changes only with a new version of its row (a new digest): read it again then, not on every change
   // in the queue.
   const digest = useRef(row.digest);
@@ -245,26 +264,27 @@ export function useCardPreview(row: QueueRow, { unseen, enabled, taxRegistered }
 
   if (hasOwn) {
     const preview = row.preview!;
-    return (open, extra) => structured(preview, open, extra, unseen, writtenBy, t, row.line);
+    return (open, extra) => <>{structured(preview, open, extra, unseen, writtenBy, t, row.line)}{checks}</>;
   }
   const written = writtenBy ? <p className={s.written} data-written-by="">{writtenBy}</p> : null;
   if (!wanted || !ref) return undefined;
   if (watch) {
     const title = view.data?.title ?? row.title;
-    return (open) => <><PreviewFrame variant="video" title={title} unseen={unseen} onOpen={open} />{written}</>;
+    return (open) => <><PreviewFrame plain variant="video" title={title} unseen={unseen} onOpen={open} />{written}{checks}</>;
   }
 
   const data = view.data;
   // A draft whose view is not here still names the engine that wrote it.
-  if (!data) return written ? () => written : undefined;
+  if (!data) return written || checks ? () => <>{written}{checks}</> : undefined;
   if (ref.kind === 'draft') {
-    if (data.sections.length === 0) return undefined;
+    if (data.sections.length === 0) return checks ? () => checks : undefined;
     return () => (
       <>
         <div data-content="">
-          <PreviewFrame variant="text" view={{ title: data.title, line: data.line, sections: data.sections, amounts: data.amounts }} />
+          <PreviewFrame plain variant="text" view={{ title: data.title, line: data.line, sections: data.sections, amounts: data.amounts }} />
         </div>
         {written}
+        {checks}
       </>
     );
   }
@@ -273,7 +293,7 @@ export function useCardPreview(row: QueueRow, { unseen, enabled, taxRegistered }
   if (ref.kind === 'plan' && sections.length === 0) return undefined;
   return () => (
     <div data-engine-line="">
-      <PreviewFrame variant="text" view={{ title: data.title, line: data.line, sections }} renderText={engineText} />
+      <PreviewFrame plain variant="text" view={{ title: data.title, line: data.line, sections }} renderText={engineText} />
     </div>
   );
 }

@@ -491,7 +491,7 @@ describe('Today v2: previews on the cards', () => {
     const frame = draft.querySelector('[data-preview="video"]')!;
     expect(frame.textContent).toContain('Not watched yet');
     expect(locked(within(draft).getByRole('button', { name: 'Approve' }))).toBe(true);
-    expect(draft.textContent).toContain('Approve unlocks after you watch it');
+    expect(draft.textContent).toContain('Approve unlocks after you open it');
     // W4 4J19: the frame takes the title the engine's own preview gives it (4J3).
     await click(within(draft).getByRole('button', { name: 'Watch The budget mic that beat the room' }));
     expect(window.location.hash).toBe('#/today?sheet=view%3Adraft%3Adraft-ep14');
@@ -618,7 +618,7 @@ describe('Today v2: previews on the cards', () => {
   it('the draft card: Watch opens it, and once the sheet is closed Approve is unlocked', async () => {
     start();
     await loaded();
-    await click(within(cardOf('run:d-ep14:review-1')).getByRole('button', { name: 'Watch' }));
+    await click(within(cardOf('run:d-ep14:review-1')).getByRole('button', { name: 'Open draft' }));
     const sheet = await screen.findByRole('complementary', { name: 'Episode 14' });
     await click(within(sheet).getByRole('button', { name: /^Close/ }));
     await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
