@@ -4,6 +4,9 @@
 // "we will total the bills" and "the price per month is below" are a client's ordinary words and pass, and so is any of
 // these words when the client's own message or files use it (an app that is a calculator).
 
+/** What the check says, in plain words. */
+export const engineLabelLine = (label: string) => `This draft repeats words from inside Chausar: "${label}". Say it as the client would read it.`;
+
 const LABELS: readonly RegExp[] = [
   /(?<![\p{L}\p{N}])total:/iu,
   /(?<![\p{L}\p{N}])price per [\p{L}]+(?:, [^:\n]{1,40})?:/iu,
@@ -25,6 +28,3 @@ export function engineLabelIn(words: string, clientWords: readonly string[]): st
   }
   return null;
 }
-
-/** What the check says, in plain words. */
-export const engineLabelLine = (label: string) => `This draft repeats words from inside Chausar: "${label}". Say it as the client would read it.`;

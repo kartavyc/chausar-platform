@@ -648,6 +648,8 @@ function improvementRun(state: State, venture: VentureRecord, record: Improvemen
     // says why, in Practice's own words, never that it is ready to adopt.
     result: record.status === 'incomplete' ? short(`Stopped: ${record.incompleteReason ?? 'no change could be tried.'}`, 300)
       : record.status === 'kept-candidate' ? staleReason(state, venture, record) ?? IMPROVEMENT_RESULT[record.status] : IMPROVEMENT_RESULT[record.status],
+    // C4 task 17: Work's row links to Use this version while Practice still offers it.
+    ...(record.status === 'kept-candidate' && staleReason(state, venture, record) === null ? { adoptReady: true as const } : {}),
   };
   const steps: RunStep[] = record.rounds.map(round => plain({
     id: `round-${round.round}`, state: 'done' as const,

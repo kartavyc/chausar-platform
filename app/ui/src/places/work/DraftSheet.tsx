@@ -14,6 +14,7 @@ import { copyText, performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
 import { draftEditable, draftRunOf, failedChecks, UndoButton } from '../today/SendBack';
 import { decide, undoOf, useTodaySession } from '../today/session';
+import { practiceDraft } from './practice-drafts';
 import { workChanged } from './refresh';
 import s from './Work.module.css';
 
@@ -29,7 +30,30 @@ const everyEvent = () => true;
  * owner's own app with the text, Copy puts it on the clipboard, and Mark delivered records what the owner says they did.
  * A practice draft reads the same and offers none of it.
  */
-export function DraftSheet({ id, onClose, returnFocus }: SheetComponentProps) {
+export function DraftSheet(props: SheetComponentProps) {
+  return props.id.startsWith('practice:') ? <RehearsalDraft {...props} /> : <RunDraft {...props} />;
+}
+
+/** C4 task 17: a practice client's draft from a rehearsal: it reads the same, with what failed, and nothing to do with it. */
+function RehearsalDraft({ id, onClose, returnFocus }: SheetComponentProps) {
+  const t = useT();
+  const draft = practiceDraft(useEngine(), id);
+  if (!draft) return <Sheet label={t('work.draft.label')} title={t('work.draft.gone')} onClose={onClose} returnFocus={returnFocus} />;
+  const failed = draft.checks.filter((check) => !check.passed && !check.notChecked);
+  return (
+    <Sheet label={t('work.draft.label')} eyebrow={draft.client} title={t('today.edit.title')} onClose={onClose} returnFocus={returnFocus}>
+      <p className={s.draftLine} data-draft-practice="">{t('work.draft.practice')}</p>
+      <div className={s.draftMessage} data-content="" data-draft-message="">{toPlainMessage(draft.text)}</div>
+      {failed.length > 0 && (
+        <ul className={s.draftChecks} data-draft-checks="">
+          {failed.map((check) => <li key={check.check} className={s.failure} data-check="failed">{check.detail}</li>)}
+        </ul>
+      )}
+    </Sheet>
+  );
+}
+
+function RunDraft({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const client = useEngine();
   const session = useTodaySession();

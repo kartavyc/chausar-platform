@@ -678,3 +678,15 @@
     padding: var(--sp-6);
   }
 }
+
+/* C4 task 17: a practice client's row in a rehearsal's result, which opens its draft. */
+.rowLink {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rowLink:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}

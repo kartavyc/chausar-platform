@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
+import { openSheet, useRoute } from '../../shell/navigation';
 import { useEngine, useResource } from '../../engine/context';
+import { keepPracticeDraft, practiceDraftId } from '../work/practice-drafts';
 import { Button } from '../../parts/Button';
 import type { EpisodeLite, ImprovementRunLite, ScenarioLite, SimulationRunLite, VentureRunEvent } from '../../engine/types';
 import { TileSection, dayOf, messageOf } from './shared';
@@ -29,13 +31,15 @@ import s from './Business.module.css';
  */
 export function PracticeView() {
   const t = useT();
+  // C4 task 17: Suggest fixes under a rehearsal's result runs the loop; the Improve tile reads it and lands on Use this version.
+  const [suggested, setSuggested] = useState(0);
   return (
     <div className={s.page}>
       <p className={s.lead}>{t('business.practice.lead')}</p>
       <LaunchStages />
-      <Rehearsal />
+      <Rehearsal onSuggested={() => setSuggested((count) => count + 1)} />
       <div className={s.split} data-ratio="even">
-        <Improvement />
+        <Improvement suggested={suggested} />
         <JudgeSetting />
       </div>
       {/* W4 4J22a: the drills against the version in use, and each guidance line with the check that sees it. */}
@@ -71,23 +75,41 @@ function failureOf(episode: EpisodeLite): string {
     ?? named;
 }
 
-function Rehearsal() {
+function Rehearsal({ onSuggested }: { onSuggested: () => void }) {
   const t = useT();
   const client = useEngine();
   const scenarios = useResource('venture.simulation.scenarios', {}, { refreshOn: onQueue });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SimulationRunLite | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggested, setSuggested] = useState<string | null>(null);
 
   async function rehearse() {
     setBusy(true);
     setProblem(null);
+    setSuggested(null);
     try {
       setResult(await client.request('venture.simulation.run', {}));
     } catch (error) {
       setProblem(t('business.practice.rehearseFailed', { message: messageOf(error) }));
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** C4 task 17: the same venture.improve.run as the Improve tile, from this result. */
+  async function suggest() {
+    setSuggesting(true);
+    setProblem(null);
+    try {
+      const run = await client.request('venture.improve.run', {});
+      setSuggested(run.status === 'kept-candidate' ? t('business.practice.suggested') : latestLine(run, t));
+      onSuggested();
+    } catch (error) {
+      setProblem(t('business.practice.runFailed', { message: messageOf(error) }));
+    } finally {
+      setSuggesting(false);
     }
   }
 
@@ -99,6 +121,13 @@ function Rehearsal() {
   const title = (scenarioId: string) => list.find((scenario) => scenario.id === scenarioId)?.title ?? scenarioId;
   // Each failed client once: its first failed episode.
   const failed = (result?.episodes ?? []).filter((episode, index, all) => !episode.passed && all.findIndex((e) => e.scenarioId === episode.scenarioId && !e.passed) === index);
+  // C4 task 17: each practice client once, its failed episode when it has one; a row with a draft opens it.
+  const rows = (result?.episodes ?? []).filter((episode, index, all) => (failed.includes(episode) || (!failed.some((e) => e.scenarioId === episode.scenarioId) && all.findIndex((e) => e.scenarioId === episode.scenarioId) === index)));
+  const openDraft = (episode: EpisodeLite, origin: HTMLElement) => {
+    const id = practiceDraftId(result!.id, episode);
+    keepPracticeDraft(client, id, { client: title(episode.scenarioId), text: episode.renderedText ?? '', checks: episode.checks });
+    openSheet('draft', id, origin);
+  };
   const mode = result ? modeLine(result.modelMode, t) : null;
   return (
     <>
@@ -115,11 +144,24 @@ function Rehearsal() {
         {result && (
           <div className={s.foldBody} data-rehearsal={result.id}>
             <p className={s.strong} role="status">{t('business.practice.result', { passed: String(result.summary.passed), total: String(result.summary.scenarios) })}</p>
-            {failed.length > 0 && (
+            {rows.length > 0 && (
               <ul className={s.log}>
-                {failed.map((episode) => <li key={`${episode.scenarioId}-${episode.index}`}>{t('business.practice.failure', { client: title(episode.scenarioId), failure: failureOf(episode) })}</li>)}
+                {rows.map((episode) => {
+                  const words = episode.passed ? t('business.practice.passedRow', { client: title(episode.scenarioId) }) : t('business.practice.failure', { client: title(episode.scenarioId), failure: failureOf(episode) });
+                  return (
+                    <li key={`${episode.scenarioId}-${episode.index}`}>
+                      {episode.renderedText ? <button type="button" className={s.rowLink} onClick={(event) => openDraft(episode, event.currentTarget)}>{words}</button> : words}
+                    </li>
+                  );
+                })}
               </ul>
             )}
+            {failed.length > 0 && (
+              <div className={s.buttons}>
+                <Button disabled={suggesting} onClick={() => void suggest()}>{suggesting ? t('business.practice.running') : t('business.practice.suggest')}</Button>
+              </div>
+            )}
+            {suggested && <p className={s.line} role="status">{suggested}</p>}
             {/* What the run cost, as the engine writes it, with no receipt until W4 4J1: its words, marked so. */}
             <p className={s.note} data-engine-line="">{t('business.practice.cost', { cost: result.costDisplay })}</p>
             {mode && <p className={s.note}>{mode}</p>}
@@ -167,10 +209,16 @@ function latestLine(run: ImprovementRunLite, t: ReturnType<typeof useT>): string
     : t(`business.practice.latest.${run.status}`);
 }
 
-function Improvement() {
+function Improvement({ suggested }: { suggested: number }) {
   const t = useT();
   const client = useEngine();
+  const route = useRoute();
   const status = useResource('venture.improve.status', {});
+  const adoptRef = useRef<HTMLButtonElement>(null);
+  // C4 task 17: Work's row (#/business/practice?focus=adopt) and Suggest fixes land on Use this version.
+  const wantsAdopt = route.query.focus === 'adopt';
+  const landed = useRef(false);
+  useEffect(() => { if (suggested > 0) { landed.current = false; status.reload(); } }, [suggested]); // eslint-disable-line react-hooks/exhaustive-deps
   const [phase, setPhase] = useState<'idle' | 'running' | 'adopt' | 'rollback' | 'busy'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -204,6 +252,13 @@ function Improvement() {
   const candidate = data?.candidate ?? null;
   const inUse = data?.inUse ?? null;
   const rollback = inUse?.rollback ?? null;
+  const landOn = (wantsAdopt || suggested > 0) && !!candidate;
+  useEffect(() => {
+    if (!landOn || landed.current || !adoptRef.current) return;
+    landed.current = true;
+    adoptRef.current.focus();
+    adoptRef.current.scrollIntoView?.({ block: 'center' });
+  }, [landOn, candidate?.runId, suggested]);
   return (
     <TileSection title={t('business.practice.improve')}>
       {status.error && !data && <p className={s.problem} role="alert">{t('business.failed', { message: status.error.message })}</p>}
@@ -240,7 +295,7 @@ function Improvement() {
                 />
               ) : (
                 <div className={s.buttons}>
-                  <Button disabled={phase !== 'idle'} onClick={() => { setProblem(null); setPhase('adopt'); }}>{t('business.practice.adopt')}</Button>
+                  <Button ref={adoptRef} disabled={phase !== 'idle'} onClick={() => { setProblem(null); setPhase('adopt'); }}>{t('business.practice.adopt')}</Button>
                 </div>
               )}
             </div>

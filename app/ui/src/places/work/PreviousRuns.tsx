@@ -94,7 +94,8 @@ function RunRow({ run, detail, row, noRetry, onChanged }: RunRowProps) {
       // A model-written result is the estimate itself, labelled where it stands, and never carries a receipt.
       line = <>{run.agent}{who}{took}{SEP}<ModelEstimate value={run.result} /></>;
     } else {
-      line = <>{run.agent}{who}{took}{SEP}{run.result}</>;
+      // C4 task 17: better instructions wait: the line leads to Use this version on Practice.
+      line = <>{run.agent}{who}{took}{SEP}{run.adoptReady ? <a className={s.rowClient} href="#/business/practice?focus=adopt">{run.result}</a> : run.result}</>;
       if (run.receiptId) aside = <Receipt id={run.receiptId} />;
     }
   }
