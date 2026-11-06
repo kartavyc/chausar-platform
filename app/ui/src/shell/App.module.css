@@ -80,6 +80,8 @@
 .page {
   max-width: var(--page-max);
   margin: 0 auto;
+  /* One-shot C3: a place change cross-fades this column alone (tokens/motion.css); the rail and the bars stay still. */
+  view-transition-name: page;
 }
 
 .sheet {

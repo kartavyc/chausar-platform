@@ -6,6 +6,7 @@
 
 import { useMemo, useSyncExternalStore } from 'react';
 import { formatHash, parseHash, type PlaceId, type Route } from './routes';
+import { withViewTransition } from '../parts/motion';
 
 let origin: { element: HTMLElement | null; rowId: string | null } = { element: null, rowId: null };
 
@@ -14,11 +15,63 @@ export function forgetFocusOrigin(): void {
   origin = { element: null, rowId: null };
 }
 
-function subscribe(callback: () => void) {
-  window.addEventListener('hashchange', callback);
-  return () => window.removeEventListener('hashchange', callback);
+/**
+ * The hash as React reads it (one-shot C3 task 4). One listener on `hashchange` tells React's readers; when the place,
+ * the page inside Business (or Settings), or the first run's step in the address changes, it tells them inside one view
+ * transition (parts/motion.ts), so the old page fades and the new one rises in while the rail and the top bar stay
+ * still. A sheet or a filter alone changes at once. Until the transition's update runs, readers keep the hash they
+ * drew, so the old view is what the browser captures. The first read at boot is not a change.
+ */
+/** The hash the readers drew last; null before the first reader. */
+let last: string | null = null;
+/** While a swap's transition waits to run its update, the hash the readers keep drawing (the old page). */
+let held: string | null = null;
+const readers = new Set<() => void>();
+
+function tell(): void {
+  for (const reader of [...readers]) reader();
 }
-const snapshot = () => window.location.hash;
+
+/** Whether going from `before` to `after` swaps the page: a place or its page, not a sheet or a filter. */
+export function swapKind(before: Route, after: Route): 'place' | 'sub' | null {
+  if (before.place !== after.place) return 'place';
+  if ((before.sub ?? '') !== (after.sub ?? '')) return 'sub';
+  return null;
+}
+
+function onHashChange(): void {
+  const next = window.location.hash;
+  const before = held ?? last ?? next;
+  last = next;
+  const kind = swapKind(parseHash(before), parseHash(next));
+  if (!kind) {
+    held = null;
+    tell();
+    return;
+  }
+  held = before;
+  void withViewTransition(() => {
+    held = null;
+    tell();
+  }, kind === 'sub' ? 'sub' : undefined);
+}
+
+function subscribe(callback: () => void) {
+  if (readers.size === 0) {
+    window.addEventListener('hashchange', onHashChange);
+    last = window.location.hash;
+  }
+  readers.add(callback);
+  return () => {
+    readers.delete(callback);
+    if (readers.size === 0) {
+      window.removeEventListener('hashchange', onHashChange);
+      held = null;
+      last = null;
+    }
+  };
+}
+const snapshot = () => held ?? window.location.hash;
 
 export function currentRoute(): Route {
   return parseHash(window.location.hash);

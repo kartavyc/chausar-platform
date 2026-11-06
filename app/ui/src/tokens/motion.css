@@ -42,6 +42,41 @@
   to { opacity: 1; }
 }
 
+/* A place change (shell/navigation.ts, parts/motion.ts withViewTransition): only the page column has a name
+   (App.module.css .page), so the rail, the top bar and the tabs stay still while the page hands over. A page inside one
+   place (<html data-swap="sub">) cross-fades with no rise, on the press time. With motion off nothing transitions. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-old(page) {
+  animation: ink-page-out var(--t-exit) var(--ease-exit) 1 both;
+}
+
+::view-transition-new(page) {
+  animation: ink-page-in var(--t-sheet) var(--ease) 1 both;
+}
+
+:root[data-swap='sub']::view-transition-old(page) {
+  animation: ink-page-out var(--t-press) var(--ease-exit) 1 both;
+}
+
+:root[data-swap='sub']::view-transition-new(page) {
+  animation: ink-fade-in var(--t-press) var(--ease) 1 both;
+}
+
+/* The computer flips between light and dark (public/theme.js), or the window changes screen (open, lock, switch business; BootScreen.tsx): the whole window cross-fades once, nothing rises. */
+:root[data-swap='window']::view-transition-old(root),
+:root[data-swap='window']::view-transition-old(page) {
+  animation: ink-page-out var(--t-sheet) var(--ease) 1 both;
+}
+
+:root[data-swap='window']::view-transition-new(root),
+:root[data-swap='window']::view-transition-new(page) {
+  animation: ink-fade-in var(--t-sheet) var(--ease) 1 both;
+}
+
 @keyframes ink-sheet-in {
   from { opacity: 0; transform: translateX(8px); }
   to { opacity: 1; transform: none; }
