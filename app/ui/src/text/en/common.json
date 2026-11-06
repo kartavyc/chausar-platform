@@ -55,6 +55,8 @@
   "status.sessionEnded": "This session ended. Open Chausar on your computer, go to Connections, and scan the code with this phone.",
   "status.unpaired": "Open Chausar on your computer, go to Connections, and scan the code with this phone.",
   "status.starting": "Chausar is starting.",
+  "status.starting.engine": "Starting Chausar.",
+  "status.starting.loaded": "Opening your businesses.",
   "status.reconnecting": "Reconnecting to Chausar...",
   "status.error": "That didn't work: {message}",
   "status.fake": "Sample data. Nothing here is real.",

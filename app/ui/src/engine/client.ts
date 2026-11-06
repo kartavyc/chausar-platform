@@ -66,7 +66,7 @@ export interface ChausarBridge {
   pickAppTestApk?(orderId: string, fromClient: true, digest?: string): Promise<{ imported: true; orderId: string } | null>;
   saveSocialProject?(orderId: string, digest: string): Promise<{ saved: true; savedId: string; folder: string; line: string } | null>;
   openSocialProject?(savedId: string): Promise<{ opened: true }>;
-  onEngineStatus?(callback: (status: { healthy: boolean; state: string }) => void): () => void;
+  onEngineStatus?(callback: (status: { healthy: boolean; state: string; phase?: string }) => void): () => void;
   onEvent?(callback: (value: unknown) => void): () => void;
 }
 
@@ -173,9 +173,9 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
   const status = createStatusStore(transport === 'web' && !localToken && !pairCode ? { state: 'unpaired' } : { state: 'ok' });
 
   if (bridge?.onEngineStatus) {
-    bridge.onEngineStatus(({ state }) => {
+    bridge.onEngineStatus(({ state, phase }) => {
       if (state === 'ready') status.set({ state: 'ok' });
-      else if (state === 'starting') status.set({ state: 'starting' });
+      else if (state === 'starting') status.set(phase === 'window-shown' || phase === 'engine-forked' || phase === 'loaded' ? { state: 'starting', phase } : { state: 'starting' });
       else if (state === 'reconnecting') status.set({ state: 'reconnecting' });
       else status.set({ state: 'offline' });
     });
@@ -235,7 +235,9 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     } catch (error) {
       const e = asEngineError(error);
       // C5 task 29: while the desktop restarts its worker, a refused request changes nothing: the status line says why.
-      if (e.code.startsWith('ENGINE_') && status.get().state !== 'reconnecting') status.set({ state: 'offline' });
+      // D4 task 5: a request that gave up waiting for the start: the line waits with it, at the phase it had reached.
+      if (e.code === 'ENGINE_STARTING') { if (status.get().state !== 'starting') status.set({ state: 'starting' }); }
+      else if (e.code.startsWith('ENGINE_') && status.get().state !== 'reconnecting') status.set({ state: 'offline' });
       throw e;
     }
   }

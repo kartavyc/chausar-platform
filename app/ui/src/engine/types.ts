@@ -2705,7 +2705,8 @@ export type DiagnosticsPreview = { id: string; files: { name: string; bytes: num
 
 export type EngineStatus =
   | { state: 'ok' }
-  | { state: 'starting' }
+  /** D4 task 5: how far the desktop's start has come; the line changes only when a real phase arrives. */
+  | { state: 'starting'; phase?: 'window-shown' | 'engine-forked' | 'loaded' }
   | { state: 'reconnecting' }
   | { state: 'offline' }
   | { state: 'unpaired' }
