@@ -28,6 +28,7 @@
     "platform/tests/desktop-worker-restart-c5.test.ts",
     "platform/tests/durable-jobs.test.ts",
     "platform/tests/journal-execution.test.ts",
+    "platform/tests/recordings-d11.test.ts",
     "platform/tests/venture-build.test.ts",
     "platform/tests/venture-cli-look-kept-d4.test.ts",
     "platform/tests/venture-cli-status.test.ts",
