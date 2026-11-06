@@ -24,3 +24,8 @@
 .swap[data-slow] .now[data-swap-new] {
   animation-duration: var(--t-sheet);
 }
+
+.swap[data-swap-block] {
+  display: grid;
+  min-width: 0;
+}

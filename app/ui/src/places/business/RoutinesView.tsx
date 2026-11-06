@@ -5,7 +5,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { useOwnerZone } from '../../shell/clock';
 import { formatClock, formatDay, formatTime } from '../../../../../platform/runtime/owner-format';
 import { Button } from '../../parts/Button';
-import { Confirm } from '../../parts/Confirm';
+import { Confirm, ConfirmSlot } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { InlineError } from '../../parts/InlineError';
 import { stateText } from '../../parts/states';
@@ -188,7 +188,7 @@ function RoutineCard({ routine, agents, zone, onChanged }: { routine: RoutineVie
       <p className={s.note} data-asks="">{t('business.routines.asks', { who })}</p>
       <p className={s.line} data-routine-line="">{nextOf(routine, t, ownerZone)}</p>
       <History id={routine.id} />
-      {changing ? (
+      <ConfirmSlot asking={asking !== null}>{changing ? (
         <RoutineForm agents={agents} zone={zone} initial={routine} onSaved={() => { setChanging(false); onChanged(); }} onCancel={() => setChanging(false)} />
       ) : asking === 'toggle' ? (
         <Ask ask={t(routine.on ? 'business.routines.offAsk' : 'business.routines.onAsk')} label={t(offOrOn)} busy={busy} onNo={() => setAsking(null)} onYes={() => void toggle()} />
@@ -200,7 +200,7 @@ function RoutineCard({ routine, agents, zone, onChanged }: { routine: RoutineVie
           <Button variant="quiet" onClick={() => { problem.clear(); setChanging(true); }}>{t('business.routines.change')}</Button>
           <Button onClick={() => { problem.clear(); setAsking('toggle'); }}>{t(offOrOn)}</Button>
         </div>
-      )}
+      )}</ConfirmSlot>
       {problem.node}
     </Tile>
   );
@@ -377,9 +377,9 @@ function PlanPause() {
           {PAUSE_POINTS.map((point) => <option key={point} value={String(point)}>{t('business.routines.plan.percent', { percent: point })}</option>)}
         </Select>
       </label>
-      {asking
+      <ConfirmSlot asking={asking}>{asking
         ? <Ask ask={t('business.routines.plan.ask')} label={t('business.routines.save')} busy={busy} onNo={() => setAsking(false)} onYes={() => void save()} />
-        : <div className={s.buttons}><Button disabled={!current.data || choice === null} onClick={() => setAsking(true)}>{t('business.routines.save')}</Button></div>}
+        : <div className={s.buttons}><Button disabled={!current.data || choice === null} onClick={() => setAsking(true)}>{t('business.routines.save')}</Button></div>}</ConfirmSlot>
       {said && <p className={s.note} role="status">{said}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </Fold>
@@ -456,9 +456,9 @@ function BackupAi() {
               );
             })}
           </ul>
-          {asking
+          <ConfirmSlot asking={asking}>{asking
             ? <Ask ask={isOn ? t('business.routines.backup.askOn') : t('business.routines.backup.askOff')} label={t('business.routines.save')} busy={busy} onNo={() => setAsking(false)} onYes={() => void save()} />
-            : <div className={s.buttons}><Button disabled={!changed || (isOn && chosen.length === 0)} onClick={() => setAsking(true)}>{t('business.routines.save')}</Button></div>}
+            : <div className={s.buttons}><Button disabled={!changed || (isOn && chosen.length === 0)} onClick={() => setAsking(true)}>{t('business.routines.save')}</Button></div>}</ConfirmSlot>
         </>
       )}
       {said && <p className={s.note} role="status">{said}</p>}

@@ -221,10 +221,16 @@ export function assertFiguresProved(root: Root = document.body): Element[] {
   return numbers;
 }
 
+// C3: a fading old control is a decorative copy in the current control's same grid cell.
+// All three marks are required; an ordinary hidden or inert duplicate still fails this rule.
+function retiredSwap(button: Element): boolean {
+  return Boolean(button.closest('[data-swap-old][inert][aria-hidden="true"]'));
+}
+
 function primaryProblems(root: Root): string[] {
   const problems: string[] = [];
   for (const unit of within(root, '[data-card], [data-row]')) {
-    const primaries = [...unit.querySelectorAll('[data-variant="primary"]')];
+    const primaries = [...unit.querySelectorAll('[data-variant="primary"]')].filter(button => !retiredSwap(button));
     if (primaries.length > 1) {
       const labels = primaries.map((p) => `"${p.getAttribute('aria-label') ?? textOf(p)}"`).join(', ');
       problems.push(`${nameOf(unit)} holds ${primaries.length} filled primaries (${labels})`);
@@ -246,6 +252,7 @@ export function assertOnePrimary(root: Root = document.body): void {
 /** A filled button an owner can press and can see: enabled, not locked, not inside a closed fold or a hidden block. */
 function pressableFilled(scope: Element): Element[] {
   return [...scope.querySelectorAll('[data-variant="primary"]')].filter((button) => {
+    if (retiredSwap(button)) return false;
     if (button.hasAttribute('data-locked') || button.getAttribute('aria-disabled') === 'true' || (button as HTMLButtonElement).disabled) return false;
     if (button.closest('[hidden]')) return false;
     const fold = button.closest('details');
