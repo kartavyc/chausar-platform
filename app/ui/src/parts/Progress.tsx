@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../text';
 import { useWork, type WorkStepView } from '../engine/useWork';
-import { LONG_WORK, type WorkKind } from '../../../../platform/runtime/venture/views/work-steps';
+import { LONG_WORK } from '../../../../platform/shared/venture/views/work-steps.ts';
+import type { WorkKind } from '../../../../platform/runtime/venture/views/work-steps.ts';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import { StillArc } from './StepMark';
 import { Swap } from './Swap';
-import { formatAge } from '../../../../platform/runtime/owner-format';
+import { formatAge } from '../../../../platform/shared/owner-format.ts';
 import s from './Progress.module.css';
 
 /**

@@ -119,7 +119,7 @@ function flag(value: unknown, field: string): boolean {
 function cutFile(value: unknown, host: VentureHostKind): string | null {
   if (value === undefined || value === null) return null;
   check(host !== 'hosted-web', 'INVALID_VENTURE_REQUEST', "The hosted server can't read a file on your computer. Name the cut in the desktop app.");
-  const problem = localPathProblem(value);
+  const problem = localPathProblem(value, process.platform);
   check(!problem, 'INVALID_VENTURE_REQUEST', `The cut: ${problem}`);
   check(typeof value === 'string' && VIDEO.test(value), 'INVALID_VENTURE_REQUEST', 'Name the cut as a full path to an MP4, MOV, M4V, MKV or WEBM file on this computer.');
   return value as string;

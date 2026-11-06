@@ -82,7 +82,10 @@ function workerEnv(env) {
 function workerFlags(deps, path) {
   const flags = deps.nodeFlags ?? process.allowedNodeEnvironmentFlags;
   const permission = !!flags && typeof flags.has === 'function' && flags.has('--permission') && !path.includes(',');
-  return ['--experimental-strip-types', ...(permission ? ['--permission', `--allow-fs-read=${deps.runtimeRoot ?? resolve(deps.workerPath, '..', '..', '..')}`, `--allow-fs-read=${path}`] : [])];
+  const runtime = deps.runtimeRoot ?? resolve(deps.workerPath, '..', '..', '..');
+  // Source workers also read the adjacent pure helpers. Bundled workers need only their bundle folder.
+  const shared = deps.workerPath.endsWith('.ts') ? [`--allow-fs-read=${resolve(runtime, '..', 'shared')}`] : [];
+  return ['--experimental-strip-types', ...(permission ? ['--permission', `--allow-fs-read=${runtime}`, ...shared, `--allow-fs-read=${path}`] : [])];
 }
 
 /** Forks the worker for one file and waits for its one reply; kills it after the timeout. */

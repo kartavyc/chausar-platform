@@ -2,8 +2,8 @@
 // session (the desktop shell's permission handler checks it); mono 16 kHz PCM is gathered while the button is held, up
 // to twenty seconds, and handed back once as a canonical WAV for the engine. Nothing is sent to a speech website from
 // here, nothing is stored in the browser, and the tracks stop the moment the button is let go.
-import { captionWav } from '../../../../../platform/runtime/venture/playbooks/translation-studio/caption-audio';
-import { TALK_SECONDS } from '../../../../../platform/runtime/venture/agents/talk-core';
+import { captionWav } from '../../../../../platform/shared/venture/playbooks/translation-studio/caption-audio.ts';
+import { TALK_SECONDS } from '../../../../../platform/shared/venture/agents/talk-core.ts';
 
 export type TalkMicrophone = { stop: () => Promise<string | null> };
 

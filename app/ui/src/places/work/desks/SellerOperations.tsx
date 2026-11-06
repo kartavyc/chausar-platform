@@ -10,7 +10,7 @@ import {Button} from '../../../parts/Button';
 import {Figure} from '../../../parts/Figure';
 import {Sheet} from '../../../parts/Sheet';
 import type {SellerStageBody} from '../../../../../../platform/runtime/venture/playbooks/online-seller/records';
-import type {SellerProduct} from '../../../../../../platform/runtime/venture/playbooks/online-seller/staging';
+import type { SellerProduct } from '../../../../../../platform/runtime/venture/playbooks/online-seller/staging.ts';
 import s from './OnlineSellerDesk.module.css';
 import {SellerReports} from './SellerReports';
 import {SellerRecords} from './SellerRecords';

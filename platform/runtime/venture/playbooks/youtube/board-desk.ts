@@ -35,7 +35,7 @@ export function boardEdit(state: State, ventureId: string, id: string, now: stri
   return { edit, order };
 }
 function sourcePath(path: unknown): string {
-  check(typeof path === 'string' && !localPathProblem(path), 'MEDIA_FILE_REQUIRED', 'Set the full local footage path on this order.');
+  check(typeof path === 'string' && !localPathProblem(path, process.platform), 'MEDIA_FILE_REQUIRED', 'Set the full local footage path on this order.');
   return path;
 }
 export function boardView(edit: YoutubeEditRecord) {

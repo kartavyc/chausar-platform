@@ -4,7 +4,7 @@
  * than two decimals of dollars, and the other currency beneath it at the owner's rate. The UI computes none of this.
  */
 
-import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
+import { formatMoney, formatUsd } from '../../../../platform/shared/owner-format.ts';
 import { EngineError, type CurrencyLead, type SpendLead } from './types';
 
 /** The owner's choices, as the engine's CURRENCY_LEADS; anything else is refused in the engine's words. */

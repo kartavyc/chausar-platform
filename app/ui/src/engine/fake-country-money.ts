@@ -1,8 +1,8 @@
-import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
-import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
-import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
-import { incomeTaxTable } from '../../../../platform/runtime/venture/playbooks/ca-firm/income-tax';
-import { rateTableFor } from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
+import { formatMoney, formatUsd } from '../../../../platform/shared/owner-format.ts';
+import { countryProfile } from '../../../../platform/shared/venture/core/countries.ts';
+import { COUNTRY_TIME_ZONES } from '../../../../platform/shared/venture/local-day-data.ts';
+import { incomeTaxTable } from '../../../../platform/shared/venture/playbooks/ca-firm/income-tax.ts';
+import { rateTableFor } from '../../../../platform/shared/venture/playbooks/ca-firm/rates.ts';
 import type { MoneyLedger } from './fake-money';
 import { EngineError, type BlueprintViewLite, type MoneyOverview, type MoneyOverviewLine, type ReceiptLite, type TaxWorking, type TaxWorkingLine, type VentureViewLite } from './types';
 

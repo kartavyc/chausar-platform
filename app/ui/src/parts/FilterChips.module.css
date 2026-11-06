@@ -36,7 +36,22 @@
   line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color var(--t-press) var(--ease), background-color var(--t-press) var(--ease);
+  opacity: 1;
+  transform: none;
+  transition: border-color var(--t-press) var(--ease), background-color var(--t-press) var(--ease), opacity var(--t-sheet) var(--ease), transform var(--t-sheet) var(--ease);
+}
+
+.chip[data-leaving] {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity var(--t-exit) var(--ease-exit), transform var(--t-exit) var(--ease-exit);
+}
+
+@starting-style {
+  .chip[data-arriving] {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 
 .chip:hover {

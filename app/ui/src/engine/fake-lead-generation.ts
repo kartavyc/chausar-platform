@@ -3,7 +3,8 @@ import { EngineError, type LeadView, type PersonView, type PeopleView, type Foll
 import type { FakePlaybookDesk } from './fake-playbooks';
 import type { W4DeskHost } from './fake-w4';
 import metadata from './fixtures-lead-generation.json';
-import { communityReport, CommunityError, type CommunityInput } from '../../../../platform/runtime/venture/playbooks/lead-generation/community-core';
+import { communityReport, CommunityError } from '../../../../platform/shared/venture/playbooks/lead-generation/community-core.ts';
+import type { CommunityInput } from '../../../../platform/runtime/venture/playbooks/lead-generation/community-core.ts';
 export const LEADGEN_INTAKE_FIELDS = metadata.intakeFields as NonNullable<OfferIntakeLite['kit']>;
 export const LEADGEN_OFFERS = metadata.offers;
 export const LEADGEN_REGISTRATION = metadata.registration;

@@ -5,7 +5,8 @@
  * ranking and snippets are find-core.ts, the engine's own, so both answer and refuse field for field the same.
  */
 
-import { findIn, parseFindRequest, wordsOf, type FindSources } from '../../../../platform/runtime/venture/views/find-core';
+import { findIn, parseFindRequest, wordsOf } from '../../../../platform/shared/venture/views/find-core.ts';
+import type { FindSources } from '../../../../platform/runtime/venture/views/find-core.ts';
 import { EngineError, type ClientLite, type FindView, type InvoiceLite, type OrderLite, type RunSummary } from './types';
 
 export interface FindHost {

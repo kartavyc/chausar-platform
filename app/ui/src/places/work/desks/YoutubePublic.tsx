@@ -2,7 +2,7 @@ import {ExternalLink} from '../../connections/external';
 // Explicit public-source requests. Each owner approval is for one page; no key reaches stored UI state.
 import {useEffect,useRef,useState} from 'react';
 import {useEngine,useResource} from '../../../engine/context';import {EngineError} from '../../../engine/types';import {useT,type T} from '../../../text';import {Button} from '../../../parts/Button';import {Field} from '../../../parts/Field';import {Tile,TileHead} from '../../../parts/Tile';
-import type {YoutubePublicRead} from '../../../../../../platform/runtime/venture/playbooks/youtube/public-state';
+import type { YoutubePublicRead } from '../../../../../../platform/runtime/venture/playbooks/youtube/public-state.ts';
 import s from './YoutubeResearch.module.css';
 import { Fold } from '../../../parts/Fold';
 import { Select } from '../../../parts/Select';

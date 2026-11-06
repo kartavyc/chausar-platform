@@ -3,7 +3,7 @@ import {fakeYoutubeRights} from './fake-youtube-rights';
 import {fakeYoutubePublic} from './fake-youtube-public';
 import {fakeYoutubeResearch} from './fake-youtube-research';
 import { fakeYoutubeBoard, fakeYoutubeStyle } from './fake-youtube-board';
-import type { YoutubeBoardBody } from '../../../../platform/runtime/venture/playbooks/youtube/board-core';
+import type { YoutubeBoardBody } from '../../../../platform/runtime/venture/playbooks/youtube/board-core.ts';
 import { bindFakeWordSource, requireFakeWordSource, type WordSourceBinding } from './fake-youtube-source';
 import { EngineError, type OrderLite } from './types';
 import type { W4DeskHost } from './fake-w4';

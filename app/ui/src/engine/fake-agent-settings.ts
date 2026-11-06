@@ -1,7 +1,9 @@
-import { AI_SETTING_BOUNDARIES, aiModelChoices, defaultAiSettings, validateAiSettings, type AiSettings, type AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
+import { AI_SETTING_BOUNDARIES, aiModelChoices, defaultAiSettings, validateAiSettings } from '../../../../platform/shared/venture/agent-runtime/settings.ts';
+import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings.ts';
 import { EngineError } from './types';
-import { validateExternalCredentialScope } from '../../../../platform/runtime/venture/agent-runtime/external-config';
-import { listCuratedMcpServers, type CuratedMcpView } from '../../../../platform/runtime/venture/agent-runtime/mcp-registry';
+import { validateExternalCredentialScope } from '../../../../platform/shared/venture/agent-runtime/external-config.ts';
+import { listCuratedMcpServers } from '../../../../platform/shared/venture/agent-runtime/mcp-registry.ts';
+import type { CuratedMcpView } from '../../../../platform/runtime/venture/agent-runtime/mcp-registry.ts';
 
 type Host = { current(): string; exists(): boolean; agents(): { id: string; name: string }[]; changed(): void };
 export class FakeAgentSettings {

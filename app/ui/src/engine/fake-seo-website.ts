@@ -3,7 +3,7 @@ import { EngineError } from './types';
 import type { FakeDeskKind } from './fake-playbooks';
 import type { W4DeskHost } from './fake-w4';
 import type { SeoWebsiteItem } from '../../../../platform/runtime/venture/playbooks/seo-visibility/records';
-import { parseWebsiteReport } from '../../../../platform/runtime/venture/playbooks/seo-visibility/site-report-core';
+import { parseWebsiteReport } from '../../../../platform/shared/venture/playbooks/seo-visibility/site-report-core.ts';
 const need = (ok: unknown, code: string, words: string) => {
     if (!ok)
         throw new EngineError(code, words);

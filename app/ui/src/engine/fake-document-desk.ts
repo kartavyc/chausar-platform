@@ -1,10 +1,10 @@
 // Browser rehearsal of the document desk (wave 6, 6E4). Every rule is the engine's own pure code (document-desk/core.ts)
 // with the engine desk's exact request grammar, codes and words; the fake keeps its records per business.
-import {check,digest} from '../../../../platform/runtime/portable';
-import {exactTender as exact} from '../../../../platform/runtime/venture/playbooks/tender-desk/sources-core';
-import {approveBrief,approveDocument,briefApproved,documentApproved,documentExportParts,draftLines,figureLines,newDocument,rebindSources,setFigures,setOutline,setSection,sourceDigestOf,takeDraft,unreceiptedAmounts} from '../../../../platform/runtime/venture/playbooks/document-desk/core';
-import type {DocumentBody} from '../../../../platform/runtime/venture/playbooks/document-desk/records';
-import {storedZipBytes} from '../../../../platform/runtime/venture/playbooks/kit/ooxml/browser';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { exactTender as exact } from '../../../../platform/shared/venture/playbooks/tender-desk/sources-core.ts';
+import { approveBrief, approveDocument, briefApproved, documentApproved, documentExportParts, draftLines, figureLines, newDocument, rebindSources, setFigures, setOutline, setSection, sourceDigestOf, takeDraft, unreceiptedAmounts } from '../../../../platform/shared/venture/playbooks/document-desk/core.ts';
+import type { DocumentBody } from '../../../../platform/runtime/venture/playbooks/document-desk/records.ts';
+import { storedZipBytes } from '../../../../platform/shared/venture/playbooks/kit/ooxml/browser.ts';
 import {roomGuard} from './fake-client-room';
 import type {FakePlaybookDesk} from './fake-playbooks';
 import type {W4DeskHost} from './fake-w4';

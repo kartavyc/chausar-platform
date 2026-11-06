@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import type { AiNetwork, AiProvider, AiProviderSettings, AiSettings, AiTask, AiTaskSettings } from '../../../../../platform/runtime/venture/agent-runtime/settings';
+import type { AiNetwork, AiProvider, AiProviderSettings, AiSettings, AiTask, AiTaskSettings } from '../../../../../platform/runtime/venture/agent-runtime/settings.ts';
 import { useEngine, useResource } from '../../engine/context';
 import { useT } from '../../text';
 import { Button } from '../../parts/Button';

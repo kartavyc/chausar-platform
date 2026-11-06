@@ -28,7 +28,7 @@ export const SEO_MONITOR_DESK: DeskHandlers = { monitor: {
                     const p = exactPayload(payload.payload, ['url', 'root', 'cycles', 'intervalSeconds'], ['url', 'root', 'cycles', 'intervalSeconds']);
                     check(typeof p.url === 'string' && p.url.length <= 2000, 'MONITOR_INVALID', 'Give the client public site URL.');
                     const url = checkFetchPolicy(p.url).href;
-                    check(typeof p.root === 'string' && p.root.length <= 1000 && !localPathProblem(p.root), 'MONITOR_INVALID', 'Choose a full local evidence folder path.');
+                    check(typeof p.root === 'string' && p.root.length <= 1000 && !localPathProblem(p.root, process.platform), 'MONITOR_INVALID', 'Choose a full local evidence folder path.');
                     const plan = monitorPlan({ cycles: p.cycles, intervalSeconds: p.intervalSeconds });
                     check(Date.parse(tx.now) + plan.intervalSeconds * 1000 <= 8640000000000000, 'MONITOR_INVALID', 'Choose an interval within the supported calendar.');
                     record = tx.put<SeoFindingRecord>({ ...tx.base('venture-seo-finding'), sourceUrl: url, ruleId: 'bounded-monitor', evidenceDigest: '', state: 'open', monitor: { url, root: resolve(p.root), ...plan, state: 'draft', approvedDigest: null, completed: 0, lastAt: null, nextAt: null, error: null, evidence: [] } });

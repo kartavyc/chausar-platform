@@ -1,9 +1,9 @@
-import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
-import { exportFileName } from '../../../../platform/runtime/workspace-custody-contracts';
-import { currencyMinorDigits, decimalMinor } from '../../../../platform/runtime/currency';
-import { formatMoney } from '../../../../platform/runtime/owner-format';
+import { countryProfile } from '../../../../platform/shared/venture/core/countries.ts';
+import { exportFileName } from '../../../../platform/shared/workspace-custody-contracts.ts';
+import { currencyMinorDigits, decimalMinor } from '../../../../platform/shared/currency.ts';
+import { formatMoney } from '../../../../platform/shared/owner-format.ts';
 import { resetCountry } from './fake-country-plan';
-import {youtubeService} from '../../../../platform/runtime/venture/playbooks/youtube/offers2';
+import { youtubeService } from '../../../../platform/shared/venture/playbooks/youtube/offers2.ts';
 import {fakeYoutubeServiceIntake} from './fake-youtube-plan';
 import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 import { withPriceGuide } from './fake-price-ranges';
@@ -26,7 +26,7 @@ import {
 const clone = <T>(value: T): T => structuredClone(value);
 
 export interface DeskHost {
-  quote?(quote: import('./fake-pipeline').HeldPipelineQuote): void;
+  quote?(quote: import('./fake-pipeline.ts').HeldPipelineQuote): void;
   country?(id: string): { code: string; currency: string };
   acceptCountry?(id: string, code: string): void;
   current(): string;

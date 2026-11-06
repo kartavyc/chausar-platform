@@ -17,13 +17,324 @@ import type * as ExternalContract7 from "@modelcontextprotocol/sdk/shared/auth.j
 
 import type * as ExternalContract8 from "node:fs/promises";
 
-declare namespace ContractModule57 {
-export type Json = null | boolean | number | string | Json[] | {
-    [key: string]: Json;
+declare namespace ContractModule2 {
+export type AgentDriverSettings = {
+    model: string;
+    effort: 'low' | 'medium' | 'high' | 'max';
+    autoReview: boolean;
+    webSearch: boolean;
+    network: boolean;
+    shell: boolean;
+    fallbackModel?: string;
+    connectors?: boolean;
 };
 }
 
-declare namespace ContractModule75 {
+declare namespace ContractModule3 {
+export type CountryCode = string;
+export type CountryProfile = {
+    code: CountryCode;
+    name: string;
+    currency: string;
+    minorDigits: number;
+    region: 'india' | 'global';
+    tax: {
+        mode: TaxMode;
+        label: string;
+        standardRateBps: string;
+        registrationNote: string;
+        idLabel: string;
+        idPattern: string | null;
+        invoiceKind: 'tax-invoice' | 'invoice';
+        checkedOn: string;
+    };
+    paymentRails: string[];
+    dateOrder: DateOrder;
+    complianceNotes: string[];
+};
+export type TaxMode = 'gst' | 'vat' | 'sales-tax' | 'none';
+export type DateOrder = 'day-month-year' | 'month-day-year' | 'year-month-day';
+}
+
+declare namespace ContractModule4 {
+export type FamilyId = 'money-tax' | 'teaching' | 'creative' | 'writing' | 'local-services' | 'documents' | 'research' | 'people' | 'shop-office' | 'tech' | 'licensed';
+export type FamilyOffer = {
+    name: string;
+    line: string;
+};
+export type NeedConnect = {
+    kind: 'sign-in' | 'key' | 'guide' | 'none';
+    connectorId: string | null;
+    place: 'connections' | 'connections/ai' | null;
+};
+export type NeedLabel = 'write' | 'read' | 'handoff' | 'planned';
+export type NeedView = {
+    id: string;
+    name: string;
+    why: string;
+    label: NeedLabel;
+    connect: NeedConnect;
+    waitsOn: string | null;
+    meanwhile: string | null;
+    required: false;
+};
+export type NeedsList = {
+    family: {
+        id: FamilyId;
+        label: string;
+    } | null;
+    needs: NeedView[];
+};
+}
+
+declare namespace ContractModule5 {
+export type BankDetails = {
+    accountName: string;
+    accountNumber: string;
+    ifsc: string | null;
+    swift: string | null;
+    bankName: string | null;
+};
+export type BillingSettings = {
+    dueInDays: number;
+    terms: string | null;
+    reminderDays: number[];
+    upiId: string | null;
+    payeeName: string | null;
+    bank: BankDetails | null;
+    razorpay: RazorpayAccount | null;
+};
+export type RazorpayAccount = {
+    mode: 'test' | 'live';
+    keyHint: string;
+    savedAt: string;
+};
+export type QrMatrix = {
+    version: number;
+    size: number;
+    rows: string[];
+};
+export type InvoicePart = {
+    kind: 'advance' | 'milestone' | 'partial' | 'final';
+    label: string;
+    shareBps: string | null;
+    basisReceiptId: string;
+    orderTotalMinor: MinorText;
+    earlierMinor: MinorText;
+};
+export type MinorText = string;
+}
+
+declare namespace ContractModule6 {
+export type PriceStep = {
+    op: 'multiply' | 'discount' | 'tax' | 'tax-split' | 'add';
+    inputs: string[];
+    resultMinor: MinorString;
+    rule: string;
+};
+export type MinorString = string;
+export type TaxTreatment = 'none' | 'single' | 'cgst-sgst' | 'igst' | 'zero-rated-lut';
+}
+
+declare namespace ContractModule8 {
+export type KeyedPeopleServiceId = Exclude<PeopleServiceId, 'tofler'>;
+export type PeopleServiceId = 'happenstance' | 'probe42' | 'tofler';
+export type PeopleSearchView = {
+    services: PeopleServiceView[];
+    line: string;
+};
+export type PeopleServiceView = {
+    id: PeopleServiceId;
+    name: string;
+    covers: string;
+    label: 'fixture-tested' | 'planned';
+    needs: string;
+    docs: string;
+    saved: {
+        keyHint: string;
+        savedAt: string;
+    } | null;
+    planned: {
+        waitsOn: string;
+        meanwhile: string;
+    } | null;
+};
+export type SavedPeopleKeys = Partial<Record<KeyedPeopleServiceId, {
+    keyHint: string;
+    savedAt: string;
+}>>;
+}
+
+declare namespace ContractModule17 {
+export type IsoDate = string;
+}
+
+declare namespace ContractModule27 {
+export type PanelSpec = {
+    questions: {
+        id: string;
+        text: string;
+    }[];
+    engines: string[];
+    timepoints: {
+        id: string;
+        from: string;
+        to: string;
+    }[];
+    repeats: number;
+    minimumFilled: number;
+};
+export type SeoObservationBody = {
+    panelId: string;
+    panelDigest: string;
+    questionId: string;
+    engine: string;
+    timepointId: string;
+    repeat: number;
+    capturedAt: string;
+    method: 'owner-capture' | 'api';
+    screenshotFileId: string | null;
+    answer: string;
+    mentioned: boolean;
+    fixture: boolean;
+    slot: string;
+};
+export type SeoPanelBody = {
+    spec: PanelSpec;
+    state: 'draft' | 'approved';
+    approvedDigest: string | null;
+    orderId: string | null;
+};
+export type WebsiteCheckData = {
+    url: string;
+    receipt: string;
+    findings: {
+        what: string;
+        selector: string;
+        measured: string;
+        expected: string;
+        fix: string;
+        repeats: number;
+        unresolved: boolean;
+    }[];
+    approved: boolean;
+    previousReceipt: string | null;
+    checkedFrames: number;
+    limits: string;
+};
+}
+
+declare namespace ContractModule29 {
+export type CrossPostPlan = {
+    video: {
+        id: string;
+        digest: string;
+        kind: 'client';
+    };
+    posts: {
+        platform: string;
+        text: string;
+        ownerApproved: boolean;
+        clientApproved: boolean;
+    }[];
+    capability: 'handoff';
+    upload: 'planned';
+};
+}
+
+declare namespace ContractModule31 {
+import BrokerId = ContractModule1935.BrokerId;
+import TradeRow = ContractModule1932.TradeRow;
+import OpeningLot = ContractModule1934.OpeningLot;
+import TaxPack = ContractModule1937.TaxPack;
+export type TradeJournalEntry = {
+    kind: 'import';
+    broker: BrokerId;
+    name: string;
+    sourceDigest: string;
+    formatChecked: boolean;
+    trades: TradeRow[];
+    receiptId: string;
+} | {
+    kind: 'opening';
+    lot: OpeningLot;
+    receiptId: string;
+} | {
+    kind: 'pack';
+    yearId: TaxPack['yearId'];
+    pack: TaxPack;
+    sourceDigest: string;
+    receiptId: string;
+};
+}
+
+declare namespace ContractModule34 {
+export type EditWord = {
+    id: string;
+    text: string;
+    startMs: number;
+    endMs: number;
+};
+export type EditDocument = {
+    durationMs: number;
+    words: EditWord[];
+    cuts: (WordRange & {
+        startMs: number;
+        endMs: number;
+        manual?: boolean;
+    })[];
+    settings: {
+        title?: string;
+        layout?: string;
+        captions?: string;
+        hook?: WordRange;
+        clips?: WordRange[];
+        zooms?: (WordRange & {
+            scale: number;
+        })[];
+    };
+};
+export type WordRange = {
+    from: string;
+    to: string;
+};
+}
+
+declare namespace ContractModule35 {
+export type AiNetworkSetting = 'off' | 'research' | 'on';
+export type SavedSearchKey = {
+    provider: SearchProviderId;
+    keyHint: string;
+    savedAt: string;
+    consentDigest: string;
+};
+export type SearchProviderId = 'brave' | 'exa' | 'tavily';
+export type WebSearchView = {
+    builtIn: {
+        codex: AiNetworkSetting;
+        claude: AiNetworkSetting;
+        line: string;
+    };
+    key: {
+        provider: SearchProviderId;
+        name: string;
+        keyHint: string;
+        savedAt: string;
+        label: 'fixture-tested';
+    } | null;
+    providers: {
+        id: SearchProviderId;
+        name: string;
+        label: 'fixture-tested';
+        keyPage: string;
+        consent: string;
+        consentDigest: string;
+    }[];
+    line: string;
+};
+}
+
+declare namespace ContractModule111 {
 export type AgentJobScope = {
     jobId: string;
     runId: string;
@@ -36,16 +347,6 @@ export type AgentJobScope = {
     consentId: string;
     consentRevision: number;
     generation: number;
-};
-export type AgentDriverSettings = {
-    model: string;
-    effort: 'low' | 'medium' | 'high' | 'max';
-    autoReview: boolean;
-    webSearch: boolean;
-    network: boolean;
-    shell: boolean;
-    fallbackModel?: string;
-    connectors?: boolean;
 };
 export type AgentUsage = {
     inputTokens: number;
@@ -68,26 +369,7 @@ export type AgentApprovalRequest = {
 };
 }
 
-declare namespace ContractModule77 {
-type Identity = {
-    id: string;
-    name: string;
-    credentialRef?: string;
-    credentialRevision?: string;
-};
-export type ExternalMcpServer = Identity & ({
-    transport: 'stdio';
-    command: string;
-    args: string[];
-    tokenEnv?: string;
-} | {
-    transport: 'http';
-    url: string;
-    oauth?: true;
-});
-}
-
-declare namespace ContractModule84 {
+declare namespace ContractModule120 {
 export type JobProposal = {
     kind: 'send-handoff';
     transport: 'copy' | 'email-handoff';
@@ -100,102 +382,31 @@ export type JobProposal = {
 };
 }
 
-declare namespace ContractModule90 {
-import ExternalMcpServer = ContractModule77.ExternalMcpServer;
-export type CuratedMcpServer = {
-    id: string;
-    name: string;
-    about: string;
-    registryName: string;
-    registryVersion: string;
-    checkedOn: string;
-    signIn: 'none' | 'oauth' | 'key';
-    access: 'read' | 'write';
-    server: ExternalMcpServer;
-};
-export type CuratedMcpView = {
-    source: 'https://registry.modelcontextprotocol.io';
-    checkedOn: string;
-    servers: CuratedMcpServer[];
-};
+declare namespace ContractModule126 {
+export import CuratedMcpView = ContractModule1646.CuratedMcpView;
 }
 
-declare namespace ContractModule102 {
-import AgentDriverSettings = ContractModule75.AgentDriverSettings;
-import ExternalMcpServer = ContractModule77.ExternalMcpServer;
-export type AiProvider = 'codex' | 'claude';
-export type AiNetwork = 'off' | 'research' | 'on';
-export type AiTaskSettings = {
-    model: string;
-    effort: AgentDriverSettings['effort'];
-};
-export type AiProviderSettings = {
-    quick: AiTaskSettings;
-    main: AiTaskSettings;
-    network: AiNetwork;
-    webSearch: AiNetwork;
-    shell: false;
-    fallbackModel?: string;
-    connectors?: boolean;
-};
-export type AiSettings = {
-    codex: AiProviderSettings;
-    claude: AiProviderSettings;
-    autoReview: boolean;
-    agentAutoReview: Record<string, boolean>;
-    mcpServers: ExternalMcpServer[];
-    planPause?: number | null;
-    offerWays?: boolean;
-};
-export type AiSettingsView = {
-    settings: AiSettings;
-    boundaries: {
-        jobFolderOnly: true;
-        windowsSandbox: 'unelevated';
-        shell: 'unavailable';
-        mcp: 'chausar-proxy';
-        externalMcp: 'approval-required';
-    };
-    agents: {
-        id: string;
-        name: string;
-    }[];
-    models: {
-        codex: string[] | null;
-    };
-    modelChoices: Record<AiProvider, {
-        faster: string;
-        smarter: string;
-    }>;
-};
+declare namespace ContractModule138 {
+export import AiSettings = ContractModule1647.AiSettings;
+export import AiSettingsView = ContractModule1647.AiSettingsView;
 }
 
-declare namespace ContractModule111 {
-export const HIRE_READS: readonly [
-    "clients",
-    "orders",
-    "runs",
-    "money",
-    "plan",
-    "journal",
-    "notes",
-    "trackers"
-];
-export type HireRead = typeof HIRE_READS[number];
+declare namespace ContractModule147 {
+export import HireRead = ContractModule1648.HireRead;
 }
 
-declare namespace ContractModule112 {
-export import HireRead = ContractModule111.HireRead;
+declare namespace ContractModule148 {
+export import HireRead = ContractModule147.HireRead;
 }
 
-declare namespace ContractModule113 {
-import DepartmentId = ContractModule266.DepartmentId;
-import IsoTime = ContractModule266.IsoTime;
-import PersonaFields = ContractModule266.PersonaFields;
-import RecordBase = ContractModule266.RecordBase;
+declare namespace ContractModule149 {
+import DepartmentId = ContractModule302.DepartmentId;
+import IsoTime = ContractModule302.IsoTime;
+import PersonaFields = ContractModule302.PersonaFields;
+import RecordBase = ContractModule302.RecordBase;
 export type HirePhase = 'role' | 'reads' | 'voice' | 'review';
 export type HireReadChoice = {
-    read: ContractModule112.HireRead;
+    read: ContractModule148.HireRead;
     why: string;
 };
 export type HireRecord = RecordBase<'venture-agent-hire'> & {
@@ -215,13 +426,13 @@ export type HireRecord = RecordBase<'venture-agent-hire'> & {
 };
 }
 
-declare namespace ContractModule114 {
-import DepartmentId = ContractModule266.DepartmentId;
-import PersonaFields = ContractModule266.PersonaFields;
-import HireRead = ContractModule112.HireRead;
-import HirePhase = ContractModule113.HirePhase;
-import HireReadChoice = ContractModule113.HireReadChoice;
-import HireRecord = ContractModule113.HireRecord;
+declare namespace ContractModule150 {
+import DepartmentId = ContractModule302.DepartmentId;
+import PersonaFields = ContractModule302.PersonaFields;
+import HireRead = ContractModule148.HireRead;
+import HirePhase = ContractModule149.HirePhase;
+import HireReadChoice = ContractModule149.HireReadChoice;
+import HireRecord = ContractModule149.HireRecord;
 export type HireCard = {
     does: string[];
     reads: HireReadChoice[];
@@ -244,8 +455,8 @@ export type HireView = {
 };
 }
 
-declare namespace ContractModule133 {
-import ModelPresetId = ContractModule266.ModelPresetId;
+declare namespace ContractModule169 {
+import ModelPresetId = ContractModule302.ModelPresetId;
 export type BackupChoice = {
     presetId: ModelPresetId;
     label: string;
@@ -260,116 +471,29 @@ export type BackupView = {
 };
 }
 
-declare namespace ContractModule141 {
-export type TalkView = {
-    desktop: boolean;
-    consent: {
-        given: boolean;
-        stale: boolean;
-        text: string;
-        digest: string;
-        at: string | null;
-        keepAudio: boolean;
-    };
-    listen: 'whisper-local' | 'sarvam';
-    whisper: {
-        ready: boolean;
-        line: string;
-    };
-    sarvam: {
-        label: 'fixture-tested';
-        connected: boolean;
-        price: {
-            paisePerMinute: string;
-            checkedOn: string;
-            source: string;
-        };
-        rateDigest: string;
-        capMinor: string;
-        cap: string;
-        spentMinor: string;
-        spent: string;
-        line: string;
-    };
-    speak: {
-        label: 'write' | 'planned: write';
-        line: string;
-    };
-    session: {
-        id: string;
-        expiresAt: string;
-    } | null;
-    recordings: number;
-    line: string;
-};
-export type TalkStarted = {
-    sessionId: string;
-    expiresAt: string;
-    seconds: number;
-    provider: 'whisper-local' | 'sarvam';
-};
-export type TalkHeard = {
-    text: string;
-    provider: 'whisper-local' | 'sarvam';
-    kept: boolean;
-    cost: {
-        minor: string;
-        figure: string;
-    } | null;
-    line: string;
-};
-export type TalkSaid = {
-    spoken: string;
-    quote: {
-        chars: number;
-        figure: string;
-        checkedOn: string;
-        textDigest: string;
-        rateDigest: string;
-    } | null;
-    audioBase64: string | null;
-    line: string;
-};
-export type TalkConsentInput = {
-    digest: string;
-    keepAudio: boolean;
-} | {
-    withdraw: true;
-};
-export type TalkSetupInput = {
-    listen: 'whisper-local';
-} | {
-    listen: 'sarvam';
-    key?: string;
-    capMinor: string;
-    rateDigest: string;
-} | {
-    clearSarvam: true;
-};
+declare namespace ContractModule177 {
+export import TalkView = ContractModule1652.TalkView;
+export import TalkStarted = ContractModule1652.TalkStarted;
+export import TalkHeard = ContractModule1652.TalkHeard;
+export import TalkSaid = ContractModule1652.TalkSaid;
+export import TalkConsentInput = ContractModule1652.TalkConsentInput;
+export import TalkSetupInput = ContractModule1652.TalkSetupInput;
 }
 
-declare namespace ContractModule149 {
-export const APP_PERMISSIONS: readonly [
-    "clients",
-    "orders",
-    "invoices",
-    "notes",
-    "calculator",
-    "propose"
-];
-export type AppPermission = typeof APP_PERMISSIONS[number];
+declare namespace ContractModule185 {
+export import AppPermission = ContractModule1654.AppPermission;
 }
 
-declare namespace ContractModule158 {
+declare namespace ContractModule194 {
 export type AndroidScreenFile = {
     serial: string;
     path: string;
 };
 }
 
-declare namespace ContractModule162 {
-import IsoDate = ContractModule266.IsoDate;
-import MinorString = ContractModule266.MinorString;
+declare namespace ContractModule198 {
+import IsoDate = ContractModule302.IsoDate;
+import MinorString = ContractModule302.MinorString;
 export type BankAlertRule = {
     kind: 'balance-below';
     minor: MinorString;
@@ -401,17 +525,17 @@ export type BankAlertRuleInput = {
 };
 }
 
-declare namespace ContractModule196 {
+declare namespace ContractModule232 {
 export type EventSource = 'razorpay' | 'cal-com';
 export type EventKind = 'payment' | 'booking' | 'booking-cancelled';
 export type EventState = 'new' | 'confirmed' | 'refused' | 'drafted' | 'missed';
 }
 
-declare namespace ContractModule197 {
-import IsoTime = ContractModule266.IsoTime;
-import EventKind = ContractModule196.EventKind;
-import EventSource = ContractModule196.EventSource;
-import EventState = ContractModule196.EventState;
+declare namespace ContractModule233 {
+import IsoTime = ContractModule302.IsoTime;
+import EventKind = ContractModule232.EventKind;
+import EventSource = ContractModule232.EventSource;
+import EventState = ContractModule232.EventState;
 export type RelayEventView = {
     id: string;
     source: EventSource;
@@ -431,10 +555,10 @@ export type EventsView = {
 };
 }
 
-declare namespace ContractModule213 {
-import Json = ContractModule266.Json;
-import OpenAccountView = ContractModule214.OpenAccountView;
-export import OpenAccountView = ContractModule214.OpenAccountView;
+declare namespace ContractModule249 {
+import Json = ContractModule302.Json;
+import OpenAccountView = ContractModule250.OpenAccountView;
+export import OpenAccountView = ContractModule250.OpenAccountView;
 export type OpenPostingDeskTypes = {
     'open-posting': {
         filter: null;
@@ -448,30 +572,15 @@ export type OpenPostingDeskTypes = {
 };
 }
 
-declare namespace ContractModule214 {
-export type OpenPlatform = 'bluesky' | 'mastodon' | 'telegram' | 'discord';
-export type OpenPostingAccount = {
-    platform: OpenPlatform;
-    server: string;
-    accountId: string;
-    destinationId: string;
-    label: string;
-    maxChars: number;
-};
-export type OpenAccountView = {
-    id: OpenPlatform;
-    account: OpenPostingAccount | null;
-    digest: string;
-    connected: boolean;
-    revision: number;
-};
+declare namespace ContractModule250 {
+export import OpenAccountView = ContractModule1658.OpenAccountView;
 }
 
-declare namespace ContractModule226 {
-import Display = ContractModule266.Display;
-import IsoDate = ContractModule266.IsoDate;
-import IsoTime = ContractModule266.IsoTime;
-import MicroString = ContractModule266.MicroString;
+declare namespace ContractModule262 {
+import Display = ContractModule302.Display;
+import IsoDate = ContractModule302.IsoDate;
+import IsoTime = ContractModule302.IsoTime;
+import MicroString = ContractModule302.MicroString;
 export type MonitorKind = 'change' | 'contains' | 'price-below';
 export type MonitorAlert = {
     at: IsoTime;
@@ -604,73 +713,16 @@ export type SpeechProvidersView = {
 };
 }
 
-declare namespace ContractModule231 {
-import SellerCaps = ContractModule1100.SellerCaps;
-import SellerChange = ContractModule1100.SellerChange;
-export type ShopifyProduct = {
-    variantId: string;
-    productId: string;
-    inventoryItemId: string;
-    locationId: string;
-    sku: string | null;
-    title: string;
-    priceMinor: string;
-    currency: string;
-    stock: string;
-};
-export type ShopifyCatalogueRow = Pick<ShopifyProduct, 'variantId' | 'productId' | 'sku' | 'title' | 'priceMinor' | 'currency'>;
-export function shopifyChange(context: {
-    product: ShopifyProduct;
-    breakEvenMinor: string | null;
-    caps: SellerCaps;
-    today: string;
-    operationId: string;
-    ownerSku?: string;
-}, change: SellerChange): {
-    proposal: ContractModule1100.SellerStaged;
-    query: string;
-    variables: Record<string, unknown>;
-    expected: string;
-    field: "price" | "title" | "stock";
-};
+declare namespace ContractModule267 {
+export import ShopifyCatalogueRow = ContractModule1659.ShopifyCatalogueRow;
 }
 
-declare namespace ContractModule238 {
-export type StorefrontProduct = {
-    variantId: string;
-    productId: string;
-    title: string;
-    variantTitle: string;
-    available: boolean;
-    currency: string;
-    priceMinor: string;
-};
-export type StorefrontCatalogue = {
-    rows: StorefrontProduct[];
-    truncated: boolean;
-    total: number | null;
-    reason: 'page-limit' | 'variants-limited' | 'read-failed' | 'rows-changed' | 'cursor-repeated' | null;
-};
+declare namespace ContractModule296 {
+export import ClientAiContextBinding = ContractModule1663.ClientAiContextBinding;
+export import ClientAiDefaultView = ContractModule1663.ClientAiDefaultView;
 }
 
-declare namespace ContractModule260 {
-export type ClientAiContextBinding = {
-    ventureId: string;
-    orderId: string;
-    clientId: string;
-    consentId: string;
-    consentRevision: number;
-};
-export type ClientAiDefaultView = {
-    on: boolean;
-    disclosure: string;
-    digest: string;
-    setAt: string | null;
-    line: string;
-};
-}
-
-declare namespace ContractModule265 {
+declare namespace ContractModule301 {
 export const SERVICE_TYPES: readonly [
     "agency",
     "studio",
@@ -1262,883 +1314,328 @@ export const OUTREACH_KINDS: readonly [
 ];
 }
 
-declare namespace ContractModule266 {
-import SERVICE_TYPES = ContractModule265.SERVICE_TYPES;
-import LAUNCH_STAGES = ContractModule265.LAUNCH_STAGES;
-import VENTURE_RECORD_KINDS = ContractModule265.VENTURE_RECORD_KINDS;
-import MODEL_PRESET_IDS = ContractModule265.MODEL_PRESET_IDS;
-import MODEL_PURPOSES = ContractModule265.MODEL_PURPOSES;
-import BUILDER_IDS = ContractModule265.BUILDER_IDS;
-import CONNECTOR_CATEGORIES = ContractModule265.CONNECTOR_CATEGORIES;
-import CHECK_IDS = ContractModule265.CHECK_IDS;
-import JUDGE_QUESTIONS = ContractModule265.JUDGE_QUESTIONS;
-import DELIVERY_REASONS = ContractModule265.DELIVERY_REASONS;
-import TOOL_NAMES = ContractModule265.TOOL_NAMES;
-import ATTRIBUTION_LEVELS = ContractModule265.ATTRIBUTION_LEVELS;
-import PLAYBOOK_PATCH_OPS = ContractModule265.PLAYBOOK_PATCH_OPS;
-import DELEGATE_CLIS = ContractModule265.DELEGATE_CLIS;
-import VENTURE_EVENTS = ContractModule265.VENTURE_EVENTS;
-import DEPARTMENT_IDS = ContractModule265.DEPARTMENT_IDS;
-import PROPOSAL_KINDS = ContractModule265.PROPOSAL_KINDS;
-import NETWORK_IMPORT_KINDS = ContractModule265.NETWORK_IMPORT_KINDS;
-import TIE_BANDS = ContractModule265.TIE_BANDS;
-import PIPELINE_STAGES = ContractModule265.PIPELINE_STAGES;
-import LOST_REASONS = ContractModule265.LOST_REASONS;
-import OUTREACH_KINDS = ContractModule265.OUTREACH_KINDS;
-import AccountantView = ContractModule521.AccountantView;
-import CaPackScheduleView = ContractModule531.CaPackScheduleView;
-import TelegramFound = ContractModule644.TelegramFound;
-import ClientAiDefaultView = ContractModule260.ClientAiDefaultView;
-import PlaybookOrigin = ContractModule652.PlaybookOrigin;
-import ApprovalBlockId = ContractModule646.ApprovalBlockId;
-import ComposeAttachmentNote = ContractModule646.ComposeAttachmentNote;
-import ComposedNote = ContractModule646.ComposedNote;
-import ComposedPage = ContractModule646.ComposedPage;
-import OfferBlockId = ContractModule646.OfferBlockId;
-import OnboardingPayloads = ContractModule646.OnboardingPayloads;
-import OnboardingResults = ContractModule646.OnboardingResults;
-import PlanKind = ContractModule646.PlanKind;
-import StepBlockId = ContractModule646.StepBlockId;
-import ToolBlockId = ContractModule646.ToolBlockId;
-import ViewSelection = ContractModule646.ViewSelection;
-import FootageRights = ContractModule446.FootageRights;
-import RightsBasis = ContractModule446.RightsBasis;
-import BankAlertRule = ContractModule162.BankAlertRule;
-import BankAlertRuleInput = ContractModule162.BankAlertRuleInput;
-import FamilyId = ContractModule285.FamilyId;
-import NeedsList = ContractModule285.NeedsList;
-import SectionRef = ContractModule766.SectionRef;
-import TableStamp = ContractModule766.TableStamp;
-import CaEngine = ContractModule767.CaEngine;
-import CaReceiptStep = ContractModule767.CaReceiptStep;
-import SocialChannel = ContractModule1254.SocialChannel;
-import PriceGuideView = ContractModule303.PriceGuideView;
-import LayoutPlace = ContractModule1577.LayoutPlace;
-import LayoutRequest = ContractModule1577.LayoutRequest;
-import LayoutChangeResult = ContractModule1578.LayoutChangeResult;
-import LayoutView = ContractModule1578.LayoutView;
-import FindRequest = ContractModule1572.FindRequest;
-import FindView = ContractModule1572.FindView;
-import ReportReceipt = ContractModule1308.ReportReceipt;
-export import IntakeValue = ContractModule901.IntakeValue;
-import KitIntakeField = ContractModule901.KitIntakeField;
-import OrderChainView = ContractModule933.OrderChainView;
-import GoNoGoCardView = ContractModule937.GoNoGoCardView;
-import GoNoGoInputs = ContractModule937.GoNoGoInputs;
-import GoNoGoListView = ContractModule937.GoNoGoListView;
-import SalesPilotTerms = ContractModule937.SalesPilotTerms;
-import SalesProposalView = ContractModule937.SalesProposalView;
-export import SharePrice = ContractModule937.SharePrice;
-import IdeaAddedView = ContractModule936.IdeaAddedView;
-import IdeaGrade = ContractModule936.IdeaGrade;
-import IdeaGradedView = ContractModule936.IdeaGradedView;
-import IdeaMovedView = ContractModule936.IdeaMovedView;
-import IdeaStage = ContractModule936.IdeaStage;
-import PipelineIdeaView = ContractModule936.PipelineIdeaView;
-import AssetRerunView = ContractModule934.AssetRerunView;
-import AssetReuseView = ContractModule934.AssetReuseView;
-import AssetsView = ContractModule934.AssetsView;
-import BrandKitInput = ContractModule934.BrandKitInput;
-import BrandKitView = ContractModule934.BrandKitView;
-import VoiceConsentsView = ContractModule934.VoiceConsentsView;
-import VoiceConsentView = ContractModule934.VoiceConsentView;
-import ReportFormat = ContractModule935.ReportFormat;
-import ReportListView = ContractModule935.ReportListView;
-import ReportShareView = ContractModule935.ReportShareView;
-import ReportView = ContractModule935.ReportView;
-import LocalAppsView = ContractModule226.LocalAppsView;
-import MailImportView = ContractModule226.MailImportView;
-import MailThreadsView = ContractModule226.MailThreadsView;
-import MonitorInput = ContractModule226.MonitorInput;
-import MonitorsView = ContractModule226.MonitorsView;
-import MonitorView = ContractModule226.MonitorView;
-import SpeechProvidersView = ContractModule226.SpeechProvidersView;
-import WebhookView = ContractModule226.WebhookView;
-import WebhookSendView = ContractModule226.WebhookSendView;
-import YoutubeEditBody = ContractModule1507.YoutubeEditBody;
-import YoutubeStyleBody = ContractModule1507.YoutubeStyleBody;
-import CitationsConfirmView = ContractModule769.CitationsConfirmView;
-import DataPackExportView = ContractModule769.DataPackExportView;
-import DifferentialAddView = ContractModule769.DifferentialAddView;
-import SignoffCheckView = ContractModule769.SignoffCheckView;
-import SellerSkuBody = ContractModule1088.SellerSkuBody;
-import SupportMessageBody = ContractModule1344.SupportMessageBody;
-import SupportRatingBody = ContractModule1344.SupportRatingBody;
-import SupportRequestBody = ContractModule1344.SupportRequestBody;
-import SupportTicketBody = ContractModule1344.SupportTicketBody;
-import RoomBriefBody = ContractModule1426.RoomBriefBody;
-import DeskActPayload = ContractModule805.DeskActPayload;
-import DeskActView = ContractModule805.DeskActView;
-import DeskGetPayload = ContractModule805.DeskGetPayload;
-import DeskItemView = ContractModule805.DeskItemView;
-import DeskListPayload = ContractModule805.DeskListPayload;
-import DeskListView = ContractModule805.DeskListView;
-export type Json = null | boolean | number | string | Json[] | {
-    [key: string]: Json;
-};
-export type IsoDate = string;
-export type IsoTime = string;
-export type MinorString = string;
-export type BpsString = string;
-export type MicroString = string;
-export type LineLabel = 'told-by-you' | 'assumption' | 'computed';
-export type LineAuthor = 'owner' | 'model' | 'template' | 'engine';
-export type Labelled<T> = {
-    value: T;
-    label: LineLabel;
-    by: LineAuthor;
-    estimate?: true;
-};
-import CountryCode = ContractModule279.CountryCode;
-import TaxMode = ContractModule279.TaxMode;
-import CountryProfile = ContractModule279.CountryProfile;
-export import CountryCode = ContractModule279.CountryCode;
-export import TaxMode = ContractModule279.TaxMode;
-export import CountryProfile = ContractModule279.CountryProfile;
-export type ServiceType = typeof SERVICE_TYPES[number];
-export type LaunchStage = typeof LAUNCH_STAGES[number];
-export type VentureStatus = 'interview' | 'blueprint' | 'build' | 'rehearsal' | 'live';
-export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
-export type RecordBase<K extends VentureRecordKind> = {
-    id: string;
-    kind: K;
-    ventureId: string;
-    memberId: string;
-    epoch: number;
-    at: IsoTime;
-};
-export type VentureRecord = RecordBase<'venture-record'> & {
-    aiSettings?: ContractModule102.AiSettings;
-    routineBackup?: {
-        on: boolean;
-        order: ModelPresetId[];
-        at: IsoTime;
-    };
-    eventRelay?: {
-        host: string | null;
-        calKey: boolean;
-        since: IsoTime;
-        lastRead?: IsoTime;
-    };
-    aiNetworkRevision?: Partial<Record<'codex' | 'claude', number>>;
-    idea: string;
-    ideaDigest: string;
-    workingName: string;
-    country: CountryProfile;
-    originalCountry?: CountryProfile;
-    serviceType: ServiceType | null;
-    status: VentureStatus;
-    launchStage: LaunchStage;
-    liveSince?: IsoTime | null;
-    blueprintId: string | null;
-    acceptedBlueprintId: string | null;
-    formsSignInErasure?: string[];
-    appTestErasure?: ContractModule678.AppTestErasure[];
-    appTestScreenErasure?: ContractModule158.AndroidScreenFile[];
-    demoDesktopErasure?: ContractModule665.DemoSession[];
-    playbookId: string | null;
-    youtubePublicQuota?: ContractModule1505.YoutubeQuotaUse[];
-    invoiceSequence: number;
-    updatedAt: IsoTime;
-    journalHead?: {
-        seq: number;
-        digest: string;
-        mac?: string;
-    };
-    signingSince?: {
-        at: IsoTime;
-        mac?: string;
-    };
-    billing?: Partial<ContractModule527.BillingSettings>;
-    webSearchKey?: ContractModule1602.SavedSearchKey | null;
-    peopleKeys?: ContractModule650.SavedPeopleKeys;
-};
-export type TermLifecycle = 'proposed' | 'active' | 'retired';
-export type TermRecord = RecordBase<'venture-term'> & {
-    key: 'client' | 'offer' | 'order' | 'deliverable' | 'revision-round' | 'invoice' | 'payment' | 'retainer-period';
-    name: string;
-    meaning: string;
-    lifecycle: TermLifecycle;
-    evidence: {
-        recordId: string;
-        kind: VentureRecordKind;
-        at: IsoTime;
-    }[];
-};
-export type ChecklistItemId = 'idea' | 'ai' | 'questions' | 'plan' | 'prices' | 'brief' | 'builder' | 'repo' | 'rehearsal' | 'first-client' | 'first-invoice' | 'first-payment';
-export type ChecklistItem = {
-    id: ChecklistItemId;
-    label: string;
-    done: boolean;
-    place: LaunchPlace;
-    link: string;
-};
-export type LaunchPlace = 'today' | 'business' | 'build' | 'clients' | 'agents' | 'money' | 'connections';
-export type NextStep = {
-    item: ChecklistItemId;
-    label: string;
-    place: LaunchPlace;
-} | null;
-export type VentureView = {
-    venture: VentureRecord;
-    checklist: ChecklistItem[];
-    done: number;
-    total: number;
-    next: NextStep;
-    terms: TermRecord[];
-    playbook?: PlaybookPick;
-    paused?: {
-        since: IsoTime;
-        line: Display;
-    };
-};
-export type PlaybookPick = {
-    id: string;
-    label: string;
-};
-export type InterviewQuestionKind = 'choice' | 'text' | 'money' | 'yesno' | 'rate';
-export type InterviewField = 'customer' | 'first-offer' | 'channel' | 'pricing-model' | 'price' | 'tax-registered' | 'tax-rate' | 'other';
-export type InterviewQuestion = {
-    id: string;
-    kind: InterviewQuestionKind;
-    field: InterviewField;
-    text: string;
-    choices: {
-        id: string;
-        label: string;
-    }[];
-    by: 'model' | 'template' | 'engine';
-    required: boolean;
-    prefill: string | null;
-};
-export type InterviewAnswer = {
-    choiceId?: string;
-    text?: string;
-    amount?: string;
-    yes?: boolean;
-    rate?: string;
-    skipped?: true;
-    assumed?: true;
-};
-export type InterviewRecord = RecordBase<'venture-interview'> & {
-    serviceType: Labelled<ServiceType>;
-    questions: (InterviewQuestion & {
-        answer: InterviewAnswer | null;
-        answerMinor: MinorString | null;
-        answerBps: BpsString | null;
-        answeredAt: IsoTime | null;
-    })[];
-    modelCallIds: string[];
-    source: 'model' | 'template';
-};
-export type InterviewView = {
-    interview: InterviewRecord;
-    next: InterviewQuestion | null;
-    done: boolean;
-    asked: number;
-    limit: number;
-};
-export type PricingModel = 'monthly' | 'project' | 'hourly';
-export type Offer = {
-    id: string;
-    block?: OfferBlockId;
-    playbookOffer?: string;
-    addedByOwner?: true;
-    contract?: 'required';
-    name: Labelled<string>;
-    description: Labelled<string>;
-    pricing: {
-        model: PricingModel;
-        quantityUnit: 'month' | 'project' | 'hour';
-        unitPriceMinor: MinorString | null;
-        unitPriceLabel: 'told-by-you' | 'not-set';
-        defaultQuantity: string;
-        share?: SharePrice;
-    };
-};
-export type PlanFlagshipStep = {
-    id: string;
-    title: Labelled<string>;
-    doneBy: 'you' | 'agent' | 'code' | 'person';
-    who: string;
-};
-export type OfferIntakeAsk = {
-    rights: RightsBasis[];
-    fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile' | 'calendar' | 'clientRules')[];
-    kit?: KitIntakeField[];
-};
-export type StepCapability = 'drafts-now' | 'planned' | 'yours';
-export type BlueprintStep = {
-    id: string;
-    block?: StepBlockId;
-    title: Labelled<string>;
-    doneBy: 'agent' | 'you' | 'agent-then-you';
-    capability: StepCapability;
-    note: string;
-};
-export type BackOffice = {
-    currency: string;
-    taxMode: TaxMode;
-    taxLabel: string;
-    taxRegistered: Labelled<boolean>;
-    taxRateBps: BpsString;
-    taxRateBy: 'country-table' | 'told-by-you' | 'not-registered';
-    taxId: string | null;
-    taxState: string | null;
-    sacCode: string | null;
-    lutConfirmed: boolean;
-    invoiceKind: 'tax-invoice' | 'invoice';
-    taxInvoiceReady: boolean;
-    taxInvoiceMissing: string[];
-    paymentRail: string;
-    invoicePrefix: string;
-};
-export type BlueprintRecord = RecordBase<'venture-blueprint'> & {
-    country?: CountryProfile;
-    version: number;
-    status: 'draft' | 'accepted';
-    source: 'model' | 'template' | 'owner';
-    structureHash: string;
-    digest: string;
-    modelCallIds: string[];
-    serviceType: ServiceType;
-    name: Labelled<string>;
-    oneLiner: Labelled<string>;
-    customer: Labelled<string>;
-    offers: Offer[];
-    deliverySteps: BlueprintStep[];
-    approvals: Labelled<string>[];
-    backOffice: BackOffice;
-    starterConnectorIds: string[];
-    composition?: {
-        id: string;
-        composeId: string;
-        kind: PlanKind;
-        views: ViewSelection[];
-    } | null;
-    approvalBlocks?: ApprovalBlockId[];
-    pages?: ComposedPage[];
-    tools?: {
-        block: ToolBlockId;
-        reason: Labelled<string>;
-    }[];
-    notes?: ComposedNote[];
-    flagshipSteps?: PlanFlagshipStep[];
-};
-export type BlueprintPatch = {
-    countryCode?: CountryCode;
-    name?: string;
-    oneLiner?: string;
-    customer?: string;
-    taxRegistered?: boolean;
-    taxRate?: string;
-    taxId?: string | null;
-    taxState?: string | null;
-    sacCode?: string | null;
-    lutConfirmed?: boolean;
-    offers?: {
-        id: string;
-        name?: string;
-        description?: string;
-        unitPrice?: string | null;
-        pricingModel?: PricingModel;
-        share?: {
-            percent: string;
-        } | null;
-    }[];
-    addOffer?: {
-        name: string;
-        description: string;
-        pricingModel: PricingModel;
-    } | {
-        youtubeService: string;
-    };
-    removeOffer?: {
-        id: string;
-    };
-};
-export type BlueprintView = {
-    blueprint: BlueprintRecord;
-    offerReceipts: Record<string, PriceReceiptRecord | null>;
-    playbook?: PlaybookPick;
-    intake?: Record<string, OfferIntakeAsk>;
-    priceGuide?: PriceGuideView;
-    decided?: {
-        line: string;
-        undoRowId: string;
-    };
-};
-export import PriceGuideView = ContractModule303.PriceGuideView;
-export import PriceRangeView = ContractModule303.PriceRangeView;
-export import PriceSourceView = ContractModule303.PriceSourceView;
-export type PlanPreview = {
-    idea: string;
-    country: CountryProfile;
-    serviceType: Labelled<ServiceType>;
-    serviceLabel: string;
-    oneLiner: Labelled<string>;
-    customer: Labelled<string>;
-    offers: Offer[];
-    deliverySteps: BlueprintStep[];
-    approvals: Labelled<string>[];
-    backOffice: BackOffice;
-    questions: InterviewQuestion[];
-    by: 'template';
-    saved: false;
-    playbook?: PlaybookPick;
-    flagshipSteps?: PlanFlagshipStep[];
-};
-export type ModelPresetId = typeof MODEL_PRESET_IDS[number];
-export type ModelRouteKind = 'anthropic-messages' | 'openai-responses' | 'claude-cli' | 'codex-cli' | 'template';
-export type ModelTier = 'fast' | 'main';
-export type ModelPurpose = typeof MODEL_PURPOSES[number];
-export type ModelPriceTable = {
-    currency: 'USD';
-    inputMicrosPerMillion: MicroString;
-    outputMicrosPerMillion: MicroString;
-    cacheReadMicrosPerMillion?: MicroString;
-    cacheWriteMicrosPerMillion?: MicroString;
-    source: string;
-    checkedOn: IsoDate;
-    confirmed: boolean;
-};
-export type ModelAvailability = 'ready' | 'unverified' | 'needs-setup' | 'unavailable';
-export type ModelPreset = {
-    id: ModelPresetId;
-    label: string;
-    kind: ModelRouteKind;
-    model: string | null;
-    modelEditable: boolean;
-    tiers: ModelTier[];
-    needsKey: boolean;
-    keyHint: string | null;
-    runsOn: 'provider-api' | 'this-computer' | 'chausar-engine';
-    priceTable: ModelPriceTable | null;
-    consentText: string;
-    consentDigest: string;
-    verification: 'not-live-verified' | 'built-in';
-    verificationNote?: string | null;
-    availability: ModelAvailability;
-    availabilityReason: string;
-};
-export type ModelConnectionRecord = RecordBase<'venture-model-connection'> & {
-    presetId: ModelPresetId;
-    routeKind: ModelRouteKind;
-    model: string | null;
-    endpoint: string;
-    tiers: ModelTier[];
-    consentDigest: string;
-    consentedAt: IsoTime;
-    monthlyCapMicros: MicroString;
-    status: 'connected' | 'disconnected';
-};
-export type ModelVerificationView = {
-    verification?: ModelPreset['verification'];
-    verificationNote?: string | null;
-};
-export type ModelConnectionView = ModelConnectionRecord & ModelVerificationView & {
-    keyLoaded: boolean;
-    usable: boolean;
-    reason: string;
-};
-export type ModelStatusView = {
-    connections: ModelConnectionView[];
-    tiers: Record<ModelTier, ModelVerificationView & {
-        presetId: ModelPresetId;
-        model: string | null;
-        usable: boolean;
-        reason: string;
-    }>;
-    spentThisMonthMicros: MicroString;
-    spentThisMonthDisplay: string;
-    estimate: boolean;
-    sendPolicy: 'nothing' | 'shape' | 'samples';
-    replay: {
-        active: boolean;
-        label: 'synthetic recording' | null;
-    };
-    payerLine?: string;
-};
-export type ModelCallRecord = RecordBase<'venture-model-call'> & {
-    purpose: ModelPurpose;
-    agentId?: string;
-    agentJobId?: string;
-    routineId?: string;
-    routineRunId?: string;
-    tier: ModelTier;
-    presetId: ModelPresetId;
-    connectionId: string | null;
-    routeKind: ModelRouteKind;
-    model: string | null;
-    consent: 'standing' | 'approved-preview' | 'standing-judge' | 'owner-file-drop' | 'client-ai';
-    endpoint: string;
-    payloadText: string;
-    payloadDigest: string;
-    payloadTruncated: boolean;
-    containsClientData: boolean;
-    status: 'preview' | 'dispatching' | 'completed' | 'failed' | 'expired';
-    approvedDigest: string | null;
-    approvedAt: IsoTime | null;
-    approvedBy: string | null;
-    estimatedMaxCostMicros: MicroString;
-    priceConfirmed: boolean;
-    usage: {
-        inputTokens: number;
-        outputTokens: number;
-        cachedInputTokens?: number;
-        cacheWriteTokens?: number;
-    } | null;
-    costMicros: MicroString | null;
-    outputDigest: string | null;
-    error: {
-        code: string;
-        message: string;
-        cause?: string;
-    } | null;
-    replay: boolean;
-    answeredBy?: string;
-    erasedAt?: IsoTime;
-    kept?: Json;
-};
-export type ModelPreview = {
-    clientAi?: ContractModule260.ClientAiContextBinding;
-    callId: string;
-    payloadText: string;
-    digest: string;
-    presetId: ModelPresetId;
-    model: string | null;
-    endpoint: string;
-    estimatedMaxCostMicros: MicroString;
-    estimatedMaxCostDisplay: string;
-    payer?: string;
-};
-export type DateRef = string;
-export import TaxTreatment = ContractModule566.TaxTreatment;
-export import PriceStep = ContractModule566.PriceStep;
-import TaxTreatment = ContractModule566.TaxTreatment;
-import PriceStep = ContractModule566.PriceStep;
-export type PriceFigure = {
-    key: 'unit' | 'subtotal' | 'discount' | 'taxable' | 'tax' | 'cgst' | 'sgst' | 'igst' | 'total' | 'paid' | 'balance' | 'credited';
-    label: string;
-    minor: MinorString;
-    display: string;
-    currency: string;
-};
-export type PriceReceiptRecord = RecordBase<'venture-price-receipt'> & {
-    subject: {
-        type: 'offer';
-        offerId: string;
-    } | {
-        type: 'order';
-        orderId: string;
-    } | {
-        type: 'invoice';
-        invoiceId: string;
-    };
-    operation: 'venture.price';
-    currency: string;
-    minorDigits: number;
-    inputs: {
-        unitPriceMinor: MinorString;
-        quantity: string;
-        discountBps: BpsString;
-        taxMode: TaxMode;
-        taxRateBps: BpsString;
-        taxTreatment: TaxTreatment;
-        unitPriceBy: 'told-by-you';
-        taxRateBy: 'country-table' | 'told-by-you' | 'not-registered';
-        blueprintDigest: string;
-        taxInclusive?: true;
-        part?: {
-            kind: 'advance' | 'milestone' | 'partial' | 'final';
-            shareBps: BpsString | null;
-            basisReceiptId: string;
-            earlierMinor: MinorString;
-        };
-        currencyBy?: 'order';
-    };
-    steps: PriceStep[];
-    figures: PriceFigure[];
-    totalMinor: MinorString;
-    allowedNumbers: string[];
-    explanation: string;
-    digest: string;
-    stale: boolean;
-};
-export type ClientAiConsent = {
-    id: string;
-    revision: number;
-    disclosureDigest: string;
-    grantedAt: IsoTime;
-    grantedBy: string;
-    withdrawnAt: IsoTime | null;
-};
-export type ClientAiConsentView = {
-    clientId: string;
-    clientName: string;
-    status: 'required' | 'agreed' | 'withdrawn';
-    disclosure: string;
-    disclosureDigest: string;
-    consent: ClientAiConsent | null;
-};
-export type ClientRecord = RecordBase<'venture-client'> & {
-    aiConsent?: ClientAiConsent;
-    self?: true;
-    name: string;
-    email: string | null;
-    countryCode: CountryCode | null;
-    taxId: string | null;
-    stateCode: string | null;
-    note: string | null;
-    timelineClearedAt?: IsoTime;
-    phone?: string | null;
-    whatsapp?: string | null;
-};
-export type OrderRecord = RecordBase<'venture-order'> & {
-    sellerShopify?: ContractModule1095.SellerShopifyBody;
-    sellerStorefront?: ContractModule1105.SellerStorefrontBody;
-    youtubePublic?: ContractModule1505.YoutubePublicRead;
-    youtubeResearch?: ContractModule1515.YoutubeResearchBody;
-    narrationFetched?: {
-        fileId: string;
-        url: string;
-        finalUrl: string;
-        digest: string;
-    };
-    socialPostHistory?: ContractModule1327.SocialHookHistory[];
-    socialGhostwriting?: ContractModule1244.GhostwritingState;
-    socialProduction?: ContractModule1301.SocialProduction;
-    internal?: true;
-    clientId: string;
-    offerId: string;
-    quantity: string;
-    request: string;
-    status: 'open' | 'invoiced' | 'delivered' | 'cancelled';
-    priceReceiptId: string;
-    deliveredOn: IsoDate | null;
-    saleFactId: string | null;
-    intake?: OrderIntake;
-    taxInclusive?: boolean;
-    socialChain?: ContractModule1252.SocialChainPin;
-    chainStage?: number;
-    chainState?: 'running' | 'waiting' | 'stopped' | 'done';
-    chainSince?: IsoTime;
-    outOfScope?: {
-        rest: string[];
-        reply: string;
-    };
-    dueDate?: IsoDate;
-    foreignPrice?: ContractModule527.ForeignPrice;
-};
-export type OrderIntake = {
-    rights: FootageRights | null;
-    format: 'long' | 'short';
-    aiVoice: boolean;
-    aiPresenter: boolean;
-    paidPromotion: boolean;
-    cutFile: string | null;
-    calendar?: {
-        month: string;
-        channels: SocialChannel[];
-        postsPerChannel: number;
-        weekdays: number[];
-    };
-    clientRules?: {
-        bannedWords: string[];
-        bannedTopics: string[];
-        competitors: string[];
-        protectedPhrases: string[];
-    };
-    fields?: Record<string, IntakeValue>;
-};
-export type OrderStageId = 'agreed' | 'price' | 'episode' | 'publish' | 'files-in' | 'books' | 'gst' | 'calendar' | 'drafts' | 'client-ok' | 'posts' | 'report' | 'draft' | 'sent' | 'invoice' | 'paid';
-export type OrderStageState = 'done' | 'waits' | 'not-yet' | 'always-asks' | 'unknown';
-export type OrderStageReason = 'new-price' | 'ready' | 'question' | 'approval' | 'brief' | 'failed' | 'stopped' | 'rejected' | 'working' | 'practice' | 'send-unknown' | 'post-unknown' | 'issue-unknown' | 'ca-signed' | 'ca-returned' | 'with-ca' | 'send-to-ca' | 'no-ca' | 'client-approved' | 'client-changes' | 'with-client' | 'link-ended' | 'posts-waiting' | 'posting' | 'planned' | 'to-issue' | 'issued' | 'due' | 'part-paid';
-export interface OrderStageView {
-    id: OrderStageId;
-    label: Display;
-    state: OrderStageState;
-    detail: Display;
-    line: Display;
-    waitsOn?: 'you' | 'ca' | 'client';
-    due?: IsoDate;
-    reason?: OrderStageReason;
+declare namespace ContractModule302 {
+export import Json = ContractModule304.Json;
+export import IsoDate = ContractModule304.IsoDate;
+export import IsoTime = ContractModule304.IsoTime;
+export import MinorString = ContractModule304.MinorString;
+export import BpsString = ContractModule304.BpsString;
+export import MicroString = ContractModule304.MicroString;
+export import LineLabel = ContractModule304.LineLabel;
+export import Labelled = ContractModule304.Labelled;
+export import CountryCode = ContractModule304.CountryCode;
+export import CountryProfile = ContractModule304.CountryProfile;
+export import ServiceType = ContractModule304.ServiceType;
+export import RecordBase = ContractModule304.RecordBase;
+export import PlaybookPick = ContractModule304.PlaybookPick;
+export import InterviewQuestion = ContractModule304.InterviewQuestion;
+export import InterviewAnswer = ContractModule304.InterviewAnswer;
+export import PricingModel = ContractModule304.PricingModel;
+export import Offer = ContractModule304.Offer;
+export import PlanFlagshipStep = ContractModule304.PlanFlagshipStep;
+export import BlueprintStep = ContractModule304.BlueprintStep;
+export import BackOffice = ContractModule304.BackOffice;
+export import PriceGuideView = ContractModule304.PriceGuideView;
+export import PriceRangeView = ContractModule304.PriceRangeView;
+export import PriceSourceView = ContractModule304.PriceSourceView;
+export import ModelPresetId = ContractModule308.ModelPresetId;
+export import ModelTier = ContractModule308.ModelTier;
+export import ModelAvailability = ContractModule308.ModelAvailability;
+export import ModelPreset = ContractModule308.ModelPreset;
+export import ModelStatusView = ContractModule308.ModelStatusView;
+export import ModelCallRecord = ContractModule308.ModelCallRecord;
+export import OrderStageId = ContractModule309.OrderStageId;
+export import OrderStageReason = ContractModule309.OrderStageReason;
+export import OrderStageView = ContractModule309.OrderStageView;
+export import OrderWaitsOnYou = ContractModule309.OrderWaitsOnYou;
+export import PaymentMethod = ContractModule309.PaymentMethod;
+export import InvoiceNext = ContractModule309.InvoiceNext;
+export import InvoiceTimelineEntry = ContractModule309.InvoiceTimelineEntry;
+export import BooksPeriodKey = ContractModule309.BooksPeriodKey;
+export import BuilderId = ContractModule303.BuilderId;
+export import BuildStatusWord = ContractModule303.BuildStatusWord;
+export import ConnectorModeName = ContractModule303.ConnectorModeName;
+export import ConnectorLadder = ContractModule303.ConnectorLadder;
+export import ConnectorCard = ContractModule303.ConnectorCard;
+export import PostingStepId = ContractModule303.PostingStepId;
+export import SiteEditState = ContractModule303.SiteEditState;
+export import BankImportResult = ContractModule303.BankImportResult;
+export import BankConsentView = ContractModule303.BankConsentView;
+export import LeadEmailCheck = ContractModule303.LeadEmailCheck;
+export import OutreachDraftView = ContractModule303.OutreachDraftView;
+export import LeadSendView = ContractModule303.LeadSendView;
+export import LeadMoveView = ContractModule303.LeadMoveView;
+export import LeadView = ContractModule303.LeadView;
+export import QuestionOption = ContractModule305.QuestionOption;
+export import QuestionItem = ContractModule305.QuestionItem;
+export import QuestionCard = ContractModule305.QuestionCard;
+export import RunFailureKind = ContractModule305.RunFailureKind;
+export import FixKind = ContractModule305.FixKind;
+export import DelegateCli = ContractModule305.DelegateCli;
+export import Display = ContractModule313.Display;
+export import SpendRateUnit = ContractModule313.SpendRateUnit;
+export import CurrencyLead = ContractModule313.CurrencyLead;
+export import SpendLead = ContractModule313.SpendLead;
+export import SpendRow = ContractModule313.SpendRow;
+export import SpendRateInput = ContractModule313.SpendRateInput;
+export import SpendPolicyView = ContractModule313.SpendPolicyView;
+export import SpendMeterView = ContractModule313.SpendMeterView;
+export import LimitReachedView = ContractModule313.LimitReachedView;
+export import SpendMeterRowView = ContractModule313.SpendMeterRowView;
+export import SpendMetersView = ContractModule313.SpendMetersView;
+export import ModelReceiptView = ContractModule313.ModelReceiptView;
+export import AgentCapView = ContractModule313.AgentCapView;
+export import WriteCapView = ContractModule313.WriteCapView;
+export import RateCardLine = ContractModule313.RateCardLine;
+export import QueueActionId = ContractModule311.QueueActionId;
+export import QueueAction = ContractModule311.QueueAction;
+export import QueueChange = ContractModule311.QueueChange;
+export import QueueKind = ContractModule311.QueueKind;
+export import QueueRow = ContractModule311.QueueRow;
+export import QueueSendsTo = ContractModule311.QueueSendsTo;
+export import QueueAmount = ContractModule311.QueueAmount;
+export import QueueRowMeta = ContractModule311.QueueRowMeta;
+export import QueueCount = ContractModule311.QueueCount;
+export import QueuePreview = ContractModule311.QueuePreview;
+export import PreviewFigure = ContractModule311.PreviewFigure;
+export import PreviewReceiptKind = ContractModule311.PreviewReceiptKind;
+export import PreviewWords = ContractModule311.PreviewWords;
+export import PreviewLength = ContractModule311.PreviewLength;
+export import QueueList = ContractModule311.QueueList;
+export import QueueDecision = ContractModule311.QueueDecision;
+export import RunState = ContractModule311.RunState;
+export import RunStep = ContractModule311.RunStep;
+export import CoverageView = ContractModule311.CoverageView;
+export import ReportItem = ContractModule311.ReportItem;
+export import DeliverableReport = ContractModule311.DeliverableReport;
+export import RunToolLine = ContractModule311.RunToolLine;
+export import RunSummary = ContractModule311.RunSummary;
+export import RunDetail = ContractModule311.RunDetail;
+export import DeliveredView = ContractModule311.DeliveredView;
+export import DeliveredFile = ContractModule311.DeliveredFile;
+export import RunScopeView = ContractModule311.RunScopeView;
+export import Posture = ContractModule311.Posture;
+export import AgentView = ContractModule311.AgentView;
+export import VentureRunEventType = ContractModule311.VentureRunEventType;
+export import VentureRunEvent = ContractModule311.VentureRunEvent;
+export import JournalEntry = ContractModule311.JournalEntry;
+export import EvidenceItem = ContractModule311.EvidenceItem;
+export import QueueItemView = ContractModule311.QueueItemView;
+export import MoneyOverviewLine = ContractModule314.MoneyOverviewLine;
+export import MoneyOverview = ContractModule314.MoneyOverview;
+export import TaxWorkingLine = ContractModule314.TaxWorkingLine;
+export import TaxWorkingSection = ContractModule314.TaxWorkingSection;
+export import CaPendingRate = ContractModule314.CaPendingRate;
+export import CaLatestPapers = ContractModule314.CaLatestPapers;
+export import ShareLinkView = ContractModule314.ShareLinkView;
+export import PostingProposal = ContractModule314.PostingProposal;
+export import PostingStepsView = ContractModule314.PostingStepsView;
+export import PostingLimitsView = ContractModule314.PostingLimitsView;
+export import SocialCalendarFile = ContractModule314.SocialCalendarFile;
+export import BankRowClass = ContractModule314.BankRowClass;
+export import BankLedgerRow = ContractModule314.BankLedgerRow;
+export import BankLedgerView = ContractModule314.BankLedgerView;
+export import BankApplyResult = ContractModule314.BankApplyResult;
+export import BankAlertsView = ContractModule314.BankAlertsView;
+export import CaDiffExplanation = ContractModule314.CaDiffExplanation;
+export import CaReceiptView = ContractModule314.CaReceiptView;
+export import PlatformRuleView = ContractModule314.PlatformRuleView;
+export import RecipeView = ContractModule314.RecipeView;
+export import BoundaryView = ContractModule314.BoundaryView;
+export import RulesListView = ContractModule314.RulesListView;
+export import JudgeAutoView = ContractModule314.JudgeAutoView;
+export import TranscriptionSetupView = ContractModule314.TranscriptionSetupView;
+export import SeriesPoint = ContractModule314.SeriesPoint;
+export import AgentHealthStatus = ContractModule314.AgentHealthStatus;
+export import AgentHealth = ContractModule314.AgentHealth;
+export import DepartmentSpend = ContractModule314.DepartmentSpend;
+export import DepartmentView = ContractModule314.DepartmentView;
+export import KeeperJobView = ContractModule314.KeeperJobView;
+export import KeeperView = ContractModule314.KeeperView;
+export import TeamListView = ContractModule314.TeamListView;
+export import RetiredAgentView = ContractModule314.RetiredAgentView;
+export import RetireInFlight = ContractModule314.RetireInFlight;
+export import RetireCheckView = ContractModule314.RetireCheckView;
+export import MiniAppMessage = ContractModule314.MiniAppMessage;
+export import MiniAppCard = ContractModule314.MiniAppCard;
+export import MiniAppView = ContractModule314.MiniAppView;
+export import MiniAppCallResult = ContractModule314.MiniAppCallResult;
+export import ChatConsentView = ContractModule314.ChatConsentView;
+export import AgentMessageView = ContractModule314.AgentMessageView;
+export import AgentProposalView = ContractModule314.AgentProposalView;
+export import AgentRunItem = ContractModule314.AgentRunItem;
+export import AgentThreadItem = ContractModule314.AgentThreadItem;
+export import AgentThreadView = ContractModule314.AgentThreadView;
+export import AgentSendResult = ContractModule314.AgentSendResult;
+export import StandingOrderView = ContractModule314.StandingOrderView;
+export import StandingPlaybookView = ContractModule314.StandingPlaybookView;
+export import StandingStepView = ContractModule314.StandingStepView;
+export import StandingUndoView = ContractModule314.StandingUndoView;
+export import StandingOrdersView = ContractModule314.StandingOrdersView;
+export import AgentNoteView = ContractModule314.AgentNoteView;
+export import NoteChangeView = ContractModule314.NoteChangeView;
+export import AgentNotesView = ContractModule314.AgentNotesView;
+export import AgentNoteChange = ContractModule314.AgentNoteChange;
+export import ChiefLineAmount = ContractModule314.ChiefLineAmount;
+export import ChiefThreadSummary = ContractModule314.ChiefThreadSummary;
+export import ChiefThreadState = ContractModule314.ChiefThreadState;
+export import ChiefSnoozePreset = ContractModule314.ChiefSnoozePreset;
+export import ChiefSnoozeOption = ContractModule314.ChiefSnoozeOption;
+export import ChiefThreadStateInput = ContractModule314.ChiefThreadStateInput;
+export import ChiefThreadStateResult = ContractModule314.ChiefThreadStateResult;
+export import ChiefSettleResult = ContractModule314.ChiefSettleResult;
+export import ChiefThreadsView = ContractModule314.ChiefThreadsView;
+export import ProposalView = ContractModule314.ProposalView;
+export import ChiefMessageView = ContractModule314.ChiefMessageView;
+export import ChiefThreadView = ContractModule314.ChiefThreadView;
+export import ChiefSendResult = ContractModule314.ChiefSendResult;
+export import ChiefFit = ContractModule314.ChiefFit;
+export import PersonSummary = ContractModule314.PersonSummary;
+export import PeopleView = ContractModule314.PeopleView;
+export import WarmPathView = ContractModule314.WarmPathView;
+export import PersonView = ContractModule314.PersonView;
+export import NetworkBandCounts = ContractModule314.NetworkBandCounts;
+export import NetworkSourcesView = ContractModule314.NetworkSourcesView;
+export import NetworkImportView = ContractModule314.NetworkImportView;
+export import NetworkImportResult = ContractModule314.NetworkImportResult;
+export import SearchResultView = ContractModule314.SearchResultView;
+export import SearchWebState = ContractModule314.SearchWebState;
+export import NetworkSearchView = ContractModule314.NetworkSearchView;
+export import PipelineCardView = ContractModule314.PipelineCardView;
+export import StatTileView = ContractModule314.StatTileView;
+export import PipelineView = ContractModule314.PipelineView;
+export import PipelineQuoteView = ContractModule314.PipelineQuoteView;
+export import FollowupView = ContractModule314.FollowupView;
+export import PipelineSettingsView = ContractModule314.PipelineSettingsView;
+export import OutreachView = ContractModule314.OutreachView;
+export import OutreachHandoff = ContractModule314.OutreachHandoff;
+export import MailboxView = ContractModule314.MailboxView;
+export import InboundView = ContractModule314.InboundView;
+export import CalendarFeedView = ContractModule314.CalendarFeedView;
+export import RunControlResult = ContractModule314.RunControlResult;
+export import AwayView = ContractModule314.AwayView;
+export import WriteCapKind = ContractModule314.WriteCapKind;
+export import NotificationView = ContractModule314.NotificationView;
+export import NotifyDigestView = ContractModule314.NotifyDigestView;
+export import NotifySettingsView = ContractModule314.NotifySettingsView;
+export import PushSubscriptionInput = ContractModule314.PushSubscriptionInput;
+export import TelegramView = ContractModule314.TelegramView;
+export import PhoneAccessView = ContractModule314.PhoneAccessView;
+export import CliStatusView = ContractModule314.CliStatusView;
+export import RoleModelView = ContractModule314.RoleModelView;
+export import NextBestStep = ContractModule314.NextBestStep;
+export import GoalView = ContractModule314.GoalView;
+export import GoalSuggestion = ContractModule314.GoalSuggestion;
+export import DecisionView = ContractModule314.DecisionView;
+export import DecisionOpens = ContractModule314.DecisionOpens;
+export import QueueSetPreview = ContractModule314.QueueSetPreview;
+export import TriagePreview = ContractModule314.TriagePreview;
+export import DraftChangeView = ContractModule314.DraftChangeView;
+export import DraftChangesView = ContractModule314.DraftChangesView;
+export import SettingsDraftView = ContractModule314.SettingsDraftView;
+export import FigureKind = ContractModule314.FigureKind;
+export import FigureSource = ContractModule314.FigureSource;
+export import TotalBasis = ContractModule314.TotalBasis;
+export import KindedFigure = ContractModule314.KindedFigure;
+export import AgingBucketId = ContractModule314.AgingBucketId;
+export import AgingView = ContractModule314.AgingView;
+export import FlowView = ContractModule314.FlowView;
+export import CashIssueView = ContractModule314.CashIssueView;
+export import CashView = ContractModule314.CashView;
+export import MarginsView = ContractModule314.MarginsView;
+export import MoneyExportFile = ContractModule314.MoneyExportFile;
+export import SignedReceiptsFile = ContractModule314.SignedReceiptsFile;
+export import BillView = ContractModule314.BillView;
+export import CreditNoteView = ContractModule314.CreditNoteView;
+export import RecurringInvoiceView = ContractModule314.RecurringInvoiceView;
+export import BusinessSnapshotView = ContractModule314.BusinessSnapshotView;
+export import AcrossLineKey = ContractModule314.AcrossLineKey;
+export import AcrossLeftOut = ContractModule314.AcrossLeftOut;
+export import AcrossMoneyView = ContractModule314.AcrossMoneyView;
+export import AcrossRunsView = ContractModule314.AcrossRunsView;
+export import ConnectorCheckRow = ContractModule314.ConnectorCheckRow;
+export import ConnectorChecksView = ContractModule314.ConnectorChecksView;
+export import FileRequestView = ContractModule314.FileRequestView;
+export import WayCategory = ContractModule314.WayCategory;
+export import WayNeeds = ContractModule314.WayNeeds;
+export import WayView = ContractModule314.WayView;
+export import WaysView = ContractModule314.WaysView;
+export import PlanChangeView = ContractModule314.PlanChangeView;
+export import PlanSuggestionView = ContractModule314.PlanSuggestionView;
+export import OwnerView = ContractModule314.OwnerView;
+export import ReceiptVerifyView = ContractModule314.ReceiptVerifyView;
+export import JournalChainView = ContractModule314.JournalChainView;
+export import OrderContractView = ContractModule314.OrderContractView;
+export import RoutineView = ContractModule314.RoutineView;
+export import RoutineSuggestion = ContractModule314.RoutineSuggestion;
+export import RoutineInput = ContractModule314.RoutineInput;
+export import RankedOptionView = ContractModule314.RankedOptionView;
+export import DrillRunView = ContractModule314.DrillRunView;
+export import AutoReadinessView = ContractModule314.AutoReadinessView;
+export import ShadowSummaryView = ContractModule314.ShadowSummaryView;
+export import GuidanceLineView = ContractModule314.GuidanceLineView;
+export import FixTheRuleView = ContractModule314.FixTheRuleView;
+export import VoiceView = ContractModule314.VoiceView;
+export import VoiceInput = ContractModule314.VoiceInput;
+export import PersonaView = ContractModule314.PersonaView;
+export import KnowledgeSourceInput = ContractModule314.KnowledgeSourceInput;
+export import KnowledgeSourceView = ContractModule314.KnowledgeSourceView;
+export import IdeaView = ContractModule314.IdeaView;
+export import CapabilityItemView = ContractModule314.CapabilityItemView;
+export import CapabilityPageView = ContractModule314.CapabilityPageView;
+export import DepartmentId = ContractModule312.DepartmentId;
+export import KeeperJobId = ContractModule312.KeeperJobId;
+export import ChatPart = ContractModule312.ChatPart;
+export import AgentSuggestion = ContractModule312.AgentSuggestion;
+export import DiffLine = ContractModule312.DiffLine;
+export import AgentNoteLoad = ContractModule312.AgentNoteLoad;
+export import AgentNoteScope = ContractModule312.AgentNoteScope;
+export import ChiefCounted = ContractModule312.ChiefCounted;
+export import ProposalKind = ContractModule312.ProposalKind;
+export import ProposalStatus = ContractModule312.ProposalStatus;
+export import NetworkImportKind = ContractModule312.NetworkImportKind;
+export import TieBand = ContractModule312.TieBand;
+export import RowFigure = ContractModule312.RowFigure;
+export import RowFigureReceipt = ContractModule312.RowFigureReceipt;
+export import PipelineStage = ContractModule312.PipelineStage;
+export import LostReason = ContractModule312.LostReason;
+export import LawfulBasis = ContractModule312.LawfulBasis;
+export import ScoreRule = ContractModule312.ScoreRule;
+export import OutreachLane = ContractModule312.OutreachLane;
+export import PipelineCaps = ContractModule312.PipelineCaps;
+export import OutreachKind = ContractModule312.OutreachKind;
+export import OutreachChannel = ContractModule312.OutreachChannel;
+export import OutreachSentChannel = ContractModule312.OutreachSentChannel;
+export import OutreachLanguage = ContractModule312.OutreachLanguage;
+export import InboundTriage = ContractModule312.InboundTriage;
+export import TriageField = ContractModule312.TriageField;
+export import TriageRule = ContractModule312.TriageRule;
+export import BillLineInput = ContractModule312.BillLineInput;
+export import OrderContract = ContractModule312.OrderContract;
+export import RoutineSchedule = ContractModule312.RoutineSchedule;
+export import RoutineRunState = ContractModule312.RoutineRunState;
+export import VoiceSections = ContractModule312.VoiceSections;
+export import PersonaFields = ContractModule312.PersonaFields;
+export import SharePrice = ContractModule310.SharePrice;
+export import YoutubeEditRecord = ContractModule310.YoutubeEditRecord;
+export import YoutubeStyleRecord = ContractModule310.YoutubeStyleRecord;
+export import SellerSkuRecord = ContractModule310.SellerSkuRecord;
+export import SupportTicketRecord = ContractModule310.SupportTicketRecord;
+export import SupportMessageRecord = ContractModule310.SupportMessageRecord;
+export import SupportRequestRecord = ContractModule310.SupportRequestRecord;
+export import SupportRatingRecord = ContractModule310.SupportRatingRecord;
+export import RoomBriefRecord = ContractModule310.RoomBriefRecord;
+export import VenturePayloads = ContractModule307.VenturePayloads;
+export import VentureResults = ContractModule307.VentureResults;
 }
-export interface OrderWaitsOnYou {
-    count: number;
-    items: {
-        stage: OrderStageId;
-        what: Display;
-    }[];
-    line: Display;
-}
-export type OrderListRow = OrderRecord & {
-    stages: OrderStageView[];
-    waitsOnYou: OrderWaitsOnYou | null;
-    price: OrderPrice | null;
-};
-export interface OrderPrice {
-    display: Display;
-    receiptId: string;
-}
-export type InvoiceLine = {
-    description: string;
-    quantity: string;
-    unitMinor: MinorString;
-    amountMinor: MinorString;
-    taxRateBps?: BpsString;
-};
-export type InvoiceRecord = RecordBase<'venture-invoice'> & {
-    number: string | null;
-    documentTitle: 'TAX INVOICE' | 'INVOICE' | 'INVOICE (not a tax invoice)';
-    orderId: string;
-    clientId: string;
-    currency: string;
-    issueDate: IsoDate | null;
-    dueDate: IsoDate | null;
-    dueInDays: number;
-    lines: InvoiceLine[];
-    subtotalMinor: MinorString;
-    discountMinor: MinorString;
-    taxMinor: MinorString;
-    totalMinor: MinorString;
-    taxLabel: string;
-    taxRateBps: BpsString;
-    taxTreatment: TaxTreatment;
-    taxLines: {
-        label: string;
-        rateBps: BpsString;
-        minor: MinorString;
-    }[];
-    supplierTaxId: string | null;
-    clientTaxId: string | null;
-    placeOfSupply: string | null;
-    sacCode: string | null;
-    priceReceiptId: string;
-    status: 'draft' | 'issued' | 'part-paid' | 'paid' | 'void';
-    digest: string;
-    issuedAt: IsoTime | null;
-    factIds: string[];
-    booksReceiptId: string | null;
-    booksNote: string | null;
-    paidMinor: MinorString;
-    balanceMinor: MinorString;
-    part?: ContractModule527.InvoicePart;
-    terms?: string;
-    reminderDays?: number[];
-    payLink?: ContractModule527.PayLinkState;
-};
-export type PaymentMethod = 'bank-transfer' | 'upi' | 'card' | 'cash' | 'payment-link' | 'other' | 'cheque';
-export type PaymentRecord = RecordBase<'venture-payment'> & {
-    invoiceId: string;
-    amountMinor: MinorString;
-    currency: string;
-    receivedOn: IsoDate;
-    method: PaymentMethod;
-    factId: string | null;
-    booksReceiptId: string | null;
-    booksNote: string | null;
-    bankTransactionId?: string;
-    state?: 'pending' | 'cleared';
-    chequeOn?: IsoDate;
-    clearedBy?: string;
-    clearedAt?: IsoTime;
-    split?: {
-        groupId: string;
-        totalMinor: MinorString;
-    };
-    tds?: {
-        section: string;
-        amountMinor: MinorString;
-    };
-};
-export type InvoiceNext = {
-    action: 'issue' | 'wait' | 'remind' | 'clear' | 'none';
-    line: Display;
-    draftId?: string;
-};
-export type InvoiceTimelineEntry = {
-    what: 'issued' | 'viewed' | 'paid' | 'cheque' | 'credited' | 'reminder' | 'reminded' | 'awaiting' | 'settled' | 'shared' | 'marked';
-    on: IsoDate;
-    line: Display;
-    how?: Exclude<InvoiceShareHow, 'marked'>;
-};
-export type InvoiceView = {
-    country?: CountryProfile;
-    invoice: InvoiceRecord;
-    client: ClientRecord;
-    receipt: PriceReceiptRecord;
-    payments: PaymentRecord[];
-    documentText: string;
-    figures: PriceFigure[];
-    notes: string[];
-    next?: InvoiceNext;
-    timeline?: InvoiceTimelineEntry[];
-    rateChange?: {
-        charged: BpsString;
-        now: BpsString;
-        line: Display;
-    };
-    credits?: CreditNoteView[];
-    late?: {
-        days: number;
-        line: Display;
-    };
-    billed?: ContractModule527.OrderBilledView;
-    howToPay?: ContractModule527.HowToPayView;
-    sent: boolean;
-    paymentDefaults?: {
-        method: PaymentMethod;
-    };
-    paidInFull?: boolean;
-};
-export type BooksFigure = {
-    operation: 'billed' | 'received' | 'earned';
-    label: string;
-    receiptId: string;
-    minor: MinorString;
-    display: string;
-    stale: boolean;
-    zero?: true;
-};
-export type BooksPeriodKey = 'all' | 'this-month' | 'last-month' | 'this-year';
-export type BooksPeriodChoice = {
-    key: BooksPeriodKey;
-    label: string;
-    from: IsoDate;
-    to: IsoDate;
-};
-export type BooksSummary = {
-    period: {
-        from: IsoDate;
-        to: IsoDate;
-    };
-    periodKey?: BooksPeriodKey | 'custom';
-    periods?: BooksPeriodChoice[];
-    today?: IsoDate;
-    timeZone?: string;
-    currency: string;
-    figures: BooksFigure[];
-    openInvoices: {
-        invoiceId: string;
-        number: string;
-        clientName: string;
-        balanceMinor: MinorString;
-        balanceDisplay: string;
-        dueDate: IsoDate;
-    }[];
-    notes: string[];
-    month?: string;
-    previous?: {
-        month: string;
-        label: Display;
-        period: {
-            from: IsoDate;
-            to: IsoDate;
-        };
-        figures: BooksFigure[];
-    } | null;
-};
+
+declare namespace ContractModule303 {
+import BUILDER_IDS = ContractModule301.BUILDER_IDS;
+import CONNECTOR_CATEGORIES = ContractModule301.CONNECTOR_CATEGORIES;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import RecordBase = ContractModule304.RecordBase;
+import Display = ContractModule313.Display;
 export type BuilderId = typeof BUILDER_IDS[number];
 export type BriefLintRule = 'required-section' | 'required-text' | 'too-long' | 'em-dash' | 'banned-word' | 'contact-detail' | 'price-mismatch' | 'brief-id' | 'first-line';
 export type BriefLint = {
@@ -2416,6 +1913,377 @@ export type LeadView = {
     addedBy: string;
     addedAt: IsoTime;
 };
+}
+
+declare namespace ContractModule304 {
+import SERVICE_TYPES = ContractModule301.SERVICE_TYPES;
+import LAUNCH_STAGES = ContractModule301.LAUNCH_STAGES;
+import VENTURE_RECORD_KINDS = ContractModule301.VENTURE_RECORD_KINDS;
+import ApprovalBlockId = ContractModule692.ApprovalBlockId;
+import ComposedNote = ContractModule692.ComposedNote;
+import ComposedPage = ContractModule692.ComposedPage;
+import OfferBlockId = ContractModule692.OfferBlockId;
+import PlanKind = ContractModule692.PlanKind;
+import StepBlockId = ContractModule692.StepBlockId;
+import ToolBlockId = ContractModule692.ToolBlockId;
+import ViewSelection = ContractModule692.ViewSelection;
+import RightsBasis = ContractModule493.RightsBasis;
+import PriceGuideView = ContractModule350.PriceGuideView;
+import KitIntakeField = ContractModule945.KitIntakeField;
+import SharePrice = ContractModule978.SharePrice;
+import CountryCode = ContractModule327.CountryCode;
+import TaxMode = ContractModule327.TaxMode;
+import CountryProfile = ContractModule327.CountryProfile;
+import ModelPresetId = ContractModule308.ModelPresetId;
+import Display = ContractModule313.Display;
+import PriceReceiptRecord = ContractModule309.PriceReceiptRecord;
+export type Json = null | boolean | number | string | Json[] | {
+    [key: string]: Json;
+};
+export type IsoDate = string;
+export type IsoTime = string;
+export type MinorString = string;
+export type BpsString = string;
+export type MicroString = string;
+export type LineLabel = 'told-by-you' | 'assumption' | 'computed';
+export type LineAuthor = 'owner' | 'model' | 'template' | 'engine';
+export type Labelled<T> = {
+    value: T;
+    label: LineLabel;
+    by: LineAuthor;
+    estimate?: true;
+};
+export import CountryCode = ContractModule327.CountryCode;
+export import TaxMode = ContractModule327.TaxMode;
+export import CountryProfile = ContractModule327.CountryProfile;
+export type ServiceType = typeof SERVICE_TYPES[number];
+export type LaunchStage = typeof LAUNCH_STAGES[number];
+export type VentureStatus = 'interview' | 'blueprint' | 'build' | 'rehearsal' | 'live';
+export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
+export type RecordBase<K extends VentureRecordKind> = {
+    id: string;
+    kind: K;
+    ventureId: string;
+    memberId: string;
+    epoch: number;
+    at: IsoTime;
+};
+export type VentureRecord = RecordBase<'venture-record'> & {
+    aiSettings?: ContractModule138.AiSettings;
+    routineBackup?: {
+        on: boolean;
+        order: ModelPresetId[];
+        at: IsoTime;
+    };
+    eventRelay?: {
+        host: string | null;
+        calKey: boolean;
+        since: IsoTime;
+        lastRead?: IsoTime;
+    };
+    aiNetworkRevision?: Partial<Record<'codex' | 'claude', number>>;
+    idea: string;
+    ideaDigest: string;
+    workingName: string;
+    country: CountryProfile;
+    originalCountry?: CountryProfile;
+    serviceType: ServiceType | null;
+    status: VentureStatus;
+    launchStage: LaunchStage;
+    liveSince?: IsoTime | null;
+    blueprintId: string | null;
+    acceptedBlueprintId: string | null;
+    formsSignInErasure?: string[];
+    appTestErasure?: ContractModule724.AppTestErasure[];
+    appTestScreenErasure?: ContractModule194.AndroidScreenFile[];
+    demoDesktopErasure?: ContractModule711.DemoSession[];
+    playbookId: string | null;
+    youtubePublicQuota?: ContractModule1535.YoutubeQuotaUse[];
+    invoiceSequence: number;
+    updatedAt: IsoTime;
+    journalHead?: {
+        seq: number;
+        digest: string;
+        mac?: string;
+    };
+    signingSince?: {
+        at: IsoTime;
+        mac?: string;
+    };
+    billing?: Partial<ContractModule574.BillingSettings>;
+    webSearchKey?: ContractModule1631.SavedSearchKey | null;
+    peopleKeys?: ContractModule696.SavedPeopleKeys;
+};
+export type TermLifecycle = 'proposed' | 'active' | 'retired';
+export type TermRecord = RecordBase<'venture-term'> & {
+    key: 'client' | 'offer' | 'order' | 'deliverable' | 'revision-round' | 'invoice' | 'payment' | 'retainer-period';
+    name: string;
+    meaning: string;
+    lifecycle: TermLifecycle;
+    evidence: {
+        recordId: string;
+        kind: VentureRecordKind;
+        at: IsoTime;
+    }[];
+};
+export type ChecklistItemId = 'idea' | 'ai' | 'questions' | 'plan' | 'prices' | 'brief' | 'builder' | 'repo' | 'rehearsal' | 'first-client' | 'first-invoice' | 'first-payment';
+export type ChecklistItem = {
+    id: ChecklistItemId;
+    label: string;
+    done: boolean;
+    place: LaunchPlace;
+    link: string;
+};
+export type LaunchPlace = 'today' | 'business' | 'build' | 'clients' | 'agents' | 'money' | 'connections';
+export type NextStep = {
+    item: ChecklistItemId;
+    label: string;
+    place: LaunchPlace;
+} | null;
+export type VentureView = {
+    venture: VentureRecord;
+    checklist: ChecklistItem[];
+    done: number;
+    total: number;
+    next: NextStep;
+    terms: TermRecord[];
+    playbook?: PlaybookPick;
+    paused?: {
+        since: IsoTime;
+        line: Display;
+    };
+};
+export type PlaybookPick = {
+    id: string;
+    label: string;
+};
+export type InterviewQuestionKind = 'choice' | 'text' | 'money' | 'yesno' | 'rate';
+export type InterviewField = 'customer' | 'first-offer' | 'channel' | 'pricing-model' | 'price' | 'tax-registered' | 'tax-rate' | 'other';
+export type InterviewQuestion = {
+    id: string;
+    kind: InterviewQuestionKind;
+    field: InterviewField;
+    text: string;
+    choices: {
+        id: string;
+        label: string;
+    }[];
+    by: 'model' | 'template' | 'engine';
+    required: boolean;
+    prefill: string | null;
+};
+export type InterviewAnswer = {
+    choiceId?: string;
+    text?: string;
+    amount?: string;
+    yes?: boolean;
+    rate?: string;
+    skipped?: true;
+    assumed?: true;
+};
+export type InterviewRecord = RecordBase<'venture-interview'> & {
+    serviceType: Labelled<ServiceType>;
+    questions: (InterviewQuestion & {
+        answer: InterviewAnswer | null;
+        answerMinor: MinorString | null;
+        answerBps: BpsString | null;
+        answeredAt: IsoTime | null;
+    })[];
+    modelCallIds: string[];
+    source: 'model' | 'template';
+};
+export type InterviewView = {
+    interview: InterviewRecord;
+    next: InterviewQuestion | null;
+    done: boolean;
+    asked: number;
+    limit: number;
+};
+export type PricingModel = 'monthly' | 'project' | 'hourly';
+export type Offer = {
+    id: string;
+    block?: OfferBlockId;
+    playbookOffer?: string;
+    addedByOwner?: true;
+    contract?: 'required';
+    name: Labelled<string>;
+    description: Labelled<string>;
+    pricing: {
+        model: PricingModel;
+        quantityUnit: 'month' | 'project' | 'hour';
+        unitPriceMinor: MinorString | null;
+        unitPriceLabel: 'told-by-you' | 'not-set';
+        defaultQuantity: string;
+        share?: SharePrice;
+    };
+};
+export type PlanFlagshipStep = {
+    id: string;
+    title: Labelled<string>;
+    doneBy: 'you' | 'agent' | 'code' | 'person';
+    who: string;
+};
+export type OfferIntakeAsk = {
+    rights: RightsBasis[];
+    fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile' | 'calendar' | 'clientRules')[];
+    kit?: KitIntakeField[];
+};
+export type StepCapability = 'drafts-now' | 'planned' | 'yours';
+export type BlueprintStep = {
+    id: string;
+    block?: StepBlockId;
+    title: Labelled<string>;
+    doneBy: 'agent' | 'you' | 'agent-then-you';
+    capability: StepCapability;
+    note: string;
+};
+export type BackOffice = {
+    currency: string;
+    taxMode: TaxMode;
+    taxLabel: string;
+    taxRegistered: Labelled<boolean>;
+    taxRateBps: BpsString;
+    taxRateBy: 'country-table' | 'told-by-you' | 'not-registered';
+    taxId: string | null;
+    taxState: string | null;
+    sacCode: string | null;
+    lutConfirmed: boolean;
+    invoiceKind: 'tax-invoice' | 'invoice';
+    taxInvoiceReady: boolean;
+    taxInvoiceMissing: string[];
+    paymentRail: string;
+    invoicePrefix: string;
+};
+export type BlueprintRecord = RecordBase<'venture-blueprint'> & {
+    country?: CountryProfile;
+    version: number;
+    status: 'draft' | 'accepted';
+    source: 'model' | 'template' | 'owner';
+    structureHash: string;
+    digest: string;
+    modelCallIds: string[];
+    serviceType: ServiceType;
+    name: Labelled<string>;
+    oneLiner: Labelled<string>;
+    customer: Labelled<string>;
+    offers: Offer[];
+    deliverySteps: BlueprintStep[];
+    approvals: Labelled<string>[];
+    backOffice: BackOffice;
+    starterConnectorIds: string[];
+    composition?: {
+        id: string;
+        composeId: string;
+        kind: PlanKind;
+        views: ViewSelection[];
+    } | null;
+    approvalBlocks?: ApprovalBlockId[];
+    pages?: ComposedPage[];
+    tools?: {
+        block: ToolBlockId;
+        reason: Labelled<string>;
+    }[];
+    notes?: ComposedNote[];
+    flagshipSteps?: PlanFlagshipStep[];
+};
+export type BlueprintPatch = {
+    countryCode?: CountryCode;
+    name?: string;
+    oneLiner?: string;
+    customer?: string;
+    taxRegistered?: boolean;
+    taxRate?: string;
+    taxId?: string | null;
+    taxState?: string | null;
+    sacCode?: string | null;
+    lutConfirmed?: boolean;
+    offers?: {
+        id: string;
+        name?: string;
+        description?: string;
+        unitPrice?: string | null;
+        pricingModel?: PricingModel;
+        share?: {
+            percent: string;
+        } | null;
+    }[];
+    addOffer?: {
+        name: string;
+        description: string;
+        pricingModel: PricingModel;
+    } | {
+        youtubeService: string;
+    };
+    removeOffer?: {
+        id: string;
+    };
+};
+export type BlueprintView = {
+    blueprint: BlueprintRecord;
+    offerReceipts: Record<string, PriceReceiptRecord | null>;
+    playbook?: PlaybookPick;
+    intake?: Record<string, OfferIntakeAsk>;
+    priceGuide?: PriceGuideView;
+    decided?: {
+        line: string;
+        undoRowId: string;
+    };
+};
+export import PriceGuideView = ContractModule350.PriceGuideView;
+export import PriceRangeView = ContractModule350.PriceRangeView;
+export import PriceSourceView = ContractModule350.PriceSourceView;
+export type PlanPreview = {
+    idea: string;
+    country: CountryProfile;
+    serviceType: Labelled<ServiceType>;
+    serviceLabel: string;
+    oneLiner: Labelled<string>;
+    customer: Labelled<string>;
+    offers: Offer[];
+    deliverySteps: BlueprintStep[];
+    approvals: Labelled<string>[];
+    backOffice: BackOffice;
+    questions: InterviewQuestion[];
+    by: 'template';
+    saved: false;
+    playbook?: PlaybookPick;
+    flagshipSteps?: PlanFlagshipStep[];
+};
+}
+
+declare namespace ContractModule305 {
+import CHECK_IDS = ContractModule301.CHECK_IDS;
+import JUDGE_QUESTIONS = ContractModule301.JUDGE_QUESTIONS;
+import DELIVERY_REASONS = ContractModule301.DELIVERY_REASONS;
+import TOOL_NAMES = ContractModule301.TOOL_NAMES;
+import ATTRIBUTION_LEVELS = ContractModule301.ATTRIBUTION_LEVELS;
+import PLAYBOOK_PATCH_OPS = ContractModule301.PLAYBOOK_PATCH_OPS;
+import DELEGATE_CLIS = ContractModule301.DELEGATE_CLIS;
+import PlaybookOrigin = ContractModule698.PlaybookOrigin;
+import SectionRef = ContractModule810.SectionRef;
+import TableStamp = ContractModule810.TableStamp;
+import CaEngine = ContractModule811.CaEngine;
+import CaReceiptStep = ContractModule811.CaReceiptStep;
+import ReportReceipt = ContractModule1343.ReportReceipt;
+import DateRef = ContractModule308.DateRef;
+import ModelPresetId = ContractModule308.ModelPresetId;
+import ModelPreview = ContractModule308.ModelPreview;
+import ModelTier = ContractModule308.ModelTier;
+import ConnectorModeName = ContractModule303.ConnectorModeName;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import Json = ContractModule304.Json;
+import MicroString = ContractModule304.MicroString;
+import MinorString = ContractModule304.MinorString;
+import RecordBase = ContractModule304.RecordBase;
+import ServiceType = ContractModule304.ServiceType;
+import PriceFigure = ContractModule309.PriceFigure;
+import JudgeRuleResult = ContractModule311.JudgeRuleResult;
+import Posture = ContractModule311.Posture;
+import DraftFix = ContractModule312.DraftFix;
+import DraftMerge = ContractModule312.DraftMerge;
+import DraftRevision = ContractModule312.DraftRevision;
+import Display = ContractModule313.Display;
 export type StepKind = 'gather' | 'question' | 'work' | 'compute' | 'write' | 'verify' | 'approve' | 'operator';
 export type ExecutionTier = 'code' | 'actor' | 'wasm-lite' | 'wasm' | 'container' | 'owner-cli' | 'hosted';
 export type CheckId = typeof CHECK_IDS[number];
@@ -2617,14 +2485,14 @@ export type DeliveryWorkflow = {
 };
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
     agentJob?: {
-        scope: ContractModule75.AgentJobScope;
+        scope: ContractModule111.AgentJobScope;
         sourceDigest: string;
         draftDigest: string | null;
         reviewReady?: boolean;
         quiet?: boolean;
         overtime?: boolean;
         unavailableSites?: string[];
-        failure?: ContractModule341.FailureWords;
+        failure?: ContractModule388.FailureWords;
         recalled?: string[];
         sourcesRead?: {
             id: string;
@@ -2634,7 +2502,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
             tool: string;
             note: ScreenNote;
         }[];
-        proposal: ContractModule84.JobProposal | null;
+        proposal: ContractModule120.JobProposal | null;
         proposalAt?: string;
         messages: {
             id: string;
@@ -2650,7 +2518,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
         calculations?: ToolCallRecord[];
         pendingFacts?: {
             digest: string;
-            missing: ContractModule758.MissingFact[];
+            missing: ContractModule802.MissingFact[];
             question: string;
             callId: string;
             at: string;
@@ -2669,7 +2537,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
             status: 'running' | 'done' | 'failed';
         }[];
         model?: string;
-        usage?: ContractModule75.AgentUsage;
+        usage?: ContractModule111.AgentUsage;
         cost?: {
             display: string;
             state: 'priced' | 'unknown';
@@ -2682,7 +2550,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
             tier: ModelTier;
         };
         pendingApproval?: {
-            request: ContractModule75.AgentApprovalRequest;
+            request: ContractModule111.AgentApprovalRequest;
             digest: string;
         };
     };
@@ -2694,7 +2562,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
     appTestingBinding?: string;
     vaBriefBinding?: string;
     formsSourceBinding?: string;
-    socialGhostwriting?: ContractModule1244.GhostwritingState;
+    socialGhostwriting?: ContractModule1280.GhostwritingState;
     workflow?: DeliveryWorkflow;
     orderId: string;
     chainStage?: number;
@@ -3405,198 +3273,2942 @@ export type DelegateRunRecord = RecordBase<'venture-delegate-run'> & {
     uncheckedNumbers: number;
     untrusted: true;
 };
-export type Display = string;
-export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
-export type SpendRate = {
-    model?: string;
-    item: string;
-    unit: SpendRateUnit;
-    inputMicrosPerMillion: MicroString | null;
-    outputMicrosPerMillion: MicroString | null;
-    microsPerCall: MicroString | null;
+}
+
+declare namespace ContractModule307 {
+import AccountantView = ContractModule568.AccountantView;
+import CaPackScheduleView = ContractModule578.CaPackScheduleView;
+import TelegramFound = ContractModule690.TelegramFound;
+import ClientAiDefaultView = ContractModule296.ClientAiDefaultView;
+import OnboardingPayloads = ContractModule692.OnboardingPayloads;
+import OnboardingResults = ContractModule692.OnboardingResults;
+import BankAlertRuleInput = ContractModule198.BankAlertRuleInput;
+import FamilyId = ContractModule333.FamilyId;
+import NeedsList = ContractModule333.NeedsList;
+import LayoutPlace = ContractModule1606.LayoutPlace;
+import LayoutRequest = ContractModule1606.LayoutRequest;
+import LayoutChangeResult = ContractModule1607.LayoutChangeResult;
+import LayoutView = ContractModule1607.LayoutView;
+import FindRequest = ContractModule1601.FindRequest;
+import FindView = ContractModule1601.FindView;
+import IntakeValue = ContractModule945.IntakeValue;
+import OrderChainView = ContractModule974.OrderChainView;
+import GoNoGoCardView = ContractModule978.GoNoGoCardView;
+import GoNoGoInputs = ContractModule978.GoNoGoInputs;
+import GoNoGoListView = ContractModule978.GoNoGoListView;
+import SalesPilotTerms = ContractModule978.SalesPilotTerms;
+import SalesProposalView = ContractModule978.SalesProposalView;
+import IdeaAddedView = ContractModule977.IdeaAddedView;
+import IdeaGrade = ContractModule977.IdeaGrade;
+import IdeaGradedView = ContractModule977.IdeaGradedView;
+import IdeaMovedView = ContractModule977.IdeaMovedView;
+import IdeaStage = ContractModule977.IdeaStage;
+import AssetRerunView = ContractModule975.AssetRerunView;
+import AssetReuseView = ContractModule975.AssetReuseView;
+import AssetsView = ContractModule975.AssetsView;
+import BrandKitInput = ContractModule975.BrandKitInput;
+import BrandKitView = ContractModule975.BrandKitView;
+import VoiceConsentsView = ContractModule975.VoiceConsentsView;
+import VoiceConsentView = ContractModule975.VoiceConsentView;
+import ReportFormat = ContractModule976.ReportFormat;
+import ReportListView = ContractModule976.ReportListView;
+import ReportShareView = ContractModule976.ReportShareView;
+import ReportView = ContractModule976.ReportView;
+import LocalAppsView = ContractModule262.LocalAppsView;
+import MailImportView = ContractModule262.MailImportView;
+import MailThreadsView = ContractModule262.MailThreadsView;
+import MonitorInput = ContractModule262.MonitorInput;
+import MonitorsView = ContractModule262.MonitorsView;
+import MonitorView = ContractModule262.MonitorView;
+import SpeechProvidersView = ContractModule262.SpeechProvidersView;
+import WebhookView = ContractModule262.WebhookView;
+import WebhookSendView = ContractModule262.WebhookSendView;
+import CitationsConfirmView = ContractModule813.CitationsConfirmView;
+import DataPackExportView = ContractModule813.DataPackExportView;
+import DifferentialAddView = ContractModule813.DifferentialAddView;
+import SignoffCheckView = ContractModule813.SignoffCheckView;
+import DeskActPayload = ContractModule849.DeskActPayload;
+import DeskActView = ContractModule849.DeskActView;
+import DeskGetPayload = ContractModule849.DeskGetPayload;
+import DeskItemView = ContractModule849.DeskItemView;
+import DeskListPayload = ContractModule849.DeskListPayload;
+import DeskListView = ContractModule849.DeskListView;
+import CountryCode = ContractModule327.CountryCode;
+import CountryProfile = ContractModule327.CountryProfile;
+import TalkConsentInput = ContractModule177.TalkConsentInput;
+import TalkHeard = ContractModule177.TalkHeard;
+import TalkSaid = ContractModule177.TalkSaid;
+import TalkSetupInput = ContractModule177.TalkSetupInput;
+import TalkStarted = ContractModule177.TalkStarted;
+import TalkView = ContractModule177.TalkView;
+import FeedbackAnswerInput = ContractModule331.FeedbackAnswerInput;
+import FeedbackConsentInput = ContractModule331.FeedbackConsentInput;
+import FeedbackCrashInput = ContractModule331.FeedbackCrashInput;
+import FeedbackCrashKept = ContractModule331.FeedbackCrashKept;
+import FeedbackView = ContractModule331.FeedbackView;
+import BlueprintPatch = ContractModule304.BlueprintPatch;
+import BlueprintView = ContractModule304.BlueprintView;
+import InterviewAnswer = ContractModule304.InterviewAnswer;
+import InterviewView = ContractModule304.InterviewView;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import Json = ContractModule304.Json;
+import MicroString = ContractModule304.MicroString;
+import MinorString = ContractModule304.MinorString;
+import PlanPreview = ContractModule304.PlanPreview;
+import PricingModel = ContractModule304.PricingModel;
+import VentureView = ContractModule304.VentureView;
+import ModelCallRecord = ContractModule308.ModelCallRecord;
+import ModelPreset = ContractModule308.ModelPreset;
+import ModelPresetId = ContractModule308.ModelPresetId;
+import ModelPurpose = ContractModule308.ModelPurpose;
+import ModelStatusView = ContractModule308.ModelStatusView;
+import ModelTier = ContractModule308.ModelTier;
+import BooksPeriodKey = ContractModule309.BooksPeriodKey;
+import BooksSummary = ContractModule309.BooksSummary;
+import ClientAiConsentView = ContractModule309.ClientAiConsentView;
+import ClientRecord = ContractModule309.ClientRecord;
+import InvoiceView = ContractModule309.InvoiceView;
+import OrderIntake = ContractModule309.OrderIntake;
+import OrderListRow = ContractModule309.OrderListRow;
+import OrderRecord = ContractModule309.OrderRecord;
+import PaymentMethod = ContractModule309.PaymentMethod;
+import PriceReceiptRecord = ContractModule309.PriceReceiptRecord;
+import CurrencyLead = ContractModule313.CurrencyLead;
+import Display = ContractModule313.Display;
+import SpendLead = ContractModule313.SpendLead;
+import SpendPolicyView = ContractModule313.SpendPolicyView;
+import SpendRateInput = ContractModule313.SpendRateInput;
+import SpendRow = ContractModule313.SpendRow;
+import AcrossMoneyView = ContractModule314.AcrossMoneyView;
+import AcrossRunsView = ContractModule314.AcrossRunsView;
+import AgentExportFile = ContractModule314.AgentExportFile;
+import AgentHealth = ContractModule314.AgentHealth;
+import AgentNoteChange = ContractModule314.AgentNoteChange;
+import AgentNotesView = ContractModule314.AgentNotesView;
+import AgentProposalDecision = ContractModule314.AgentProposalDecision;
+import AgentProposalView = ContractModule314.AgentProposalView;
+import AgentRestored = ContractModule314.AgentRestored;
+import AgentRetired = ContractModule314.AgentRetired;
+import AgentSendResult = ContractModule314.AgentSendResult;
+import AgentThreadView = ContractModule314.AgentThreadView;
+import AgentVersionUndo = ContractModule314.AgentVersionUndo;
+import AgingView = ContractModule314.AgingView;
+import AllowSessionView = ContractModule314.AllowSessionView;
+import AllowWritesView = ContractModule314.AllowWritesView;
+import AutoReadinessView = ContractModule314.AutoReadinessView;
+import AwayView = ContractModule314.AwayView;
+import BankAlertsView = ContractModule314.BankAlertsView;
+import BankApplyResult = ContractModule314.BankApplyResult;
+import BankLedgerView = ContractModule314.BankLedgerView;
+import BillResult = ContractModule314.BillResult;
+import BillsView = ContractModule314.BillsView;
+import CaDiffExplanation = ContractModule314.CaDiffExplanation;
+import CaFirmView = ContractModule314.CaFirmView;
+import CaReceiptView = ContractModule314.CaReceiptView;
+import CaRequestView = ContractModule314.CaRequestView;
+import CalendarFeedView = ContractModule314.CalendarFeedView;
+import CapabilityPageView = ContractModule314.CapabilityPageView;
+import CashView = ContractModule314.CashView;
+import ChatConsentView = ContractModule314.ChatConsentView;
+import ChiefFit = ContractModule314.ChiefFit;
+import ChiefSendResult = ContractModule314.ChiefSendResult;
+import ChiefSettleResult = ContractModule314.ChiefSettleResult;
+import ChiefThreadStateInput = ContractModule314.ChiefThreadStateInput;
+import ChiefThreadStateResult = ContractModule314.ChiefThreadStateResult;
+import ChiefThreadSummary = ContractModule314.ChiefThreadSummary;
+import ChiefThreadView = ContractModule314.ChiefThreadView;
+import ChiefThreadsView = ContractModule314.ChiefThreadsView;
+import CliStatusList = ContractModule314.CliStatusList;
+import ClientListRow = ContractModule314.ClientListRow;
+import ComplianceView = ContractModule314.ComplianceView;
+import ConnectorChecksView = ContractModule314.ConnectorChecksView;
+import CreditNoteView = ContractModule314.CreditNoteView;
+import DecisionsView = ContractModule314.DecisionsView;
+import DeliveryJudgePreview = ContractModule314.DeliveryJudgePreview;
+import DraftChangesView = ContractModule314.DraftChangesView;
+import DraftPostView = ContractModule314.DraftPostView;
+import DrillRunView = ContractModule314.DrillRunView;
+import DrillRunsView = ContractModule314.DrillRunsView;
+import FileRequestView = ContractModule314.FileRequestView;
+import FlowView = ContractModule314.FlowView;
+import FollowupsView = ContractModule314.FollowupsView;
+import GoalSuggestion = ContractModule314.GoalSuggestion;
+import GoalView = ContractModule314.GoalView;
+import GuidanceView = ContractModule314.GuidanceView;
+import IdeaStarted = ContractModule314.IdeaStarted;
+import IdeasView = ContractModule314.IdeasView;
+import InboundListView = ContractModule314.InboundListView;
+import InboundView = ContractModule314.InboundView;
+import InvoiceListRow = ContractModule314.InvoiceListRow;
+import JournalChainView = ContractModule314.JournalChainView;
+import JudgeAutoView = ContractModule314.JudgeAutoView;
+import KeeperView = ContractModule314.KeeperView;
+import KnowledgeSourceInput = ContractModule314.KnowledgeSourceInput;
+import KnowledgeSourceView = ContractModule314.KnowledgeSourceView;
+import KnowledgeTestView = ContractModule314.KnowledgeTestView;
+import KnowledgeView = ContractModule314.KnowledgeView;
+import MailboxSync = ContractModule314.MailboxSync;
+import MailboxView = ContractModule314.MailboxView;
+import MarginsView = ContractModule314.MarginsView;
+import MeetingDigestView = ContractModule314.MeetingDigestView;
+import MiniAppCallResult = ContractModule314.MiniAppCallResult;
+import MiniAppCard = ContractModule314.MiniAppCard;
+import MiniAppView = ContractModule314.MiniAppView;
+import MoneyExportFile = ContractModule314.MoneyExportFile;
+import MoneyOverview = ContractModule314.MoneyOverview;
+import NetworkForgotten = ContractModule314.NetworkForgotten;
+import NetworkImportResult = ContractModule314.NetworkImportResult;
+import NetworkImportUndo = ContractModule314.NetworkImportUndo;
+import NetworkRecompute = ContractModule314.NetworkRecompute;
+import NetworkSearchView = ContractModule314.NetworkSearchView;
+import NetworkSourcesView = ContractModule314.NetworkSourcesView;
+import NotifyListView = ContractModule314.NotifyListView;
+import NotifySettingsView = ContractModule314.NotifySettingsView;
+import OrderContractView = ContractModule314.OrderContractView;
+import OutreachHandoff = ContractModule314.OutreachHandoff;
+import OutreachRestriction = ContractModule314.OutreachRestriction;
+import OutreachSentResult = ContractModule314.OutreachSentResult;
+import OutreachView = ContractModule314.OutreachView;
+import OwnerPostingLimitsView = ContractModule314.OwnerPostingLimitsView;
+import OwnerView = ContractModule314.OwnerView;
+import PauseView = ContractModule314.PauseView;
+import PeopleView = ContractModule314.PeopleView;
+import PersonResearch = ContractModule314.PersonResearch;
+import PersonSplit = ContractModule314.PersonSplit;
+import PersonSummary = ContractModule314.PersonSummary;
+import PersonView = ContractModule314.PersonView;
+import PersonaTestView = ContractModule314.PersonaTestView;
+import PersonaView = ContractModule314.PersonaView;
+import PhoneAccessView = ContractModule314.PhoneAccessView;
+import PipelineCardResult = ContractModule314.PipelineCardResult;
+import PipelineEvidenceInput = ContractModule314.PipelineEvidenceInput;
+import PipelineSettingsView = ContractModule314.PipelineSettingsView;
+import PipelineView = ContractModule314.PipelineView;
+import PlanSuggestionView = ContractModule314.PlanSuggestionView;
+import PostingLimitsView = ContractModule314.PostingLimitsView;
+import PostingProposal = ContractModule314.PostingProposal;
+import PostingStepsView = ContractModule314.PostingStepsView;
+import ProposalRaised = ContractModule314.ProposalRaised;
+import ProposalView = ContractModule314.ProposalView;
+import PushKeyView = ContractModule314.PushKeyView;
+import PushStateView = ContractModule314.PushStateView;
+import PushSubscriptionInput = ContractModule314.PushSubscriptionInput;
+import QueueSetPreview = ContractModule314.QueueSetPreview;
+import QueueSetResult = ContractModule314.QueueSetResult;
+import QueueUndoResult = ContractModule314.QueueUndoResult;
+import ReceiptVerifyView = ContractModule314.ReceiptVerifyView;
+import RecurringInvoiceView = ContractModule314.RecurringInvoiceView;
+import RecurringInvoicesView = ContractModule314.RecurringInvoicesView;
+import RelayView = ContractModule314.RelayView;
+import RerankView = ContractModule314.RerankView;
+import RetireCheckView = ContractModule314.RetireCheckView;
+import RoleModelsView = ContractModule314.RoleModelsView;
+import RoutineInput = ContractModule314.RoutineInput;
+import RoutineRunsView = ContractModule314.RoutineRunsView;
+import RoutineSuggestionsView = ContractModule314.RoutineSuggestionsView;
+import RoutineView = ContractModule314.RoutineView;
+import RoutinesView = ContractModule314.RoutinesView;
+import RuleLocksView = ContractModule314.RuleLocksView;
+import RulesListView = ContractModule314.RulesListView;
+import RunControlResult = ContractModule314.RunControlResult;
+import SavedSearchView = ContractModule314.SavedSearchView;
+import SettingsDraftSaved = ContractModule314.SettingsDraftSaved;
+import SettingsDraftsView = ContractModule314.SettingsDraftsView;
+import ShadowSummaryView = ContractModule314.ShadowSummaryView;
+import ShareAnswerView = ContractModule314.ShareAnswerView;
+import ShareKind = ContractModule314.ShareKind;
+import ShareLinkView = ContractModule314.ShareLinkView;
+import SocialCalendarFile = ContractModule314.SocialCalendarFile;
+import StandingOrdersView = ContractModule314.StandingOrdersView;
+import SumReceiptRecord = ContractModule314.SumReceiptRecord;
+import TaxWorkingView = ContractModule314.TaxWorkingView;
+import TeamListView = ContractModule314.TeamListView;
+import TelegramView = ContractModule314.TelegramView;
+import TranscriptionSetupView = ContractModule314.TranscriptionSetupView;
+import TriagePreview = ContractModule314.TriagePreview;
+import TriageRuleView = ContractModule314.TriageRuleView;
+import VoiceInput = ContractModule314.VoiceInput;
+import VoiceView = ContractModule314.VoiceView;
+import WaysView = ContractModule314.WaysView;
+import WriteCapKind = ContractModule314.WriteCapKind;
+import BankConsentView = ContractModule303.BankConsentView;
+import BankImportResult = ContractModule303.BankImportResult;
+import BriefFilePlan = ContractModule303.BriefFilePlan;
+import BriefRecord = ContractModule303.BriefRecord;
+import BuildFollowRecord = ContractModule303.BuildFollowRecord;
+import BuildStatus = ContractModule303.BuildStatus;
+import BuilderId = ContractModule303.BuilderId;
+import ConnectorCard = ContractModule303.ConnectorCard;
+import ConnectorCategory = ContractModule303.ConnectorCategory;
+import HandoffPlan = ContractModule303.HandoffPlan;
+import HandoffRecord = ContractModule303.HandoffRecord;
+import LeadView = ContractModule303.LeadView;
+import OutreachDraftView = ContractModule303.OutreachDraftView;
+import SiteEditRecord = ContractModule303.SiteEditRecord;
+import CapabilityStatus = ContractModule305.CapabilityStatus;
+import DelegateRunRecord = ContractModule305.DelegateRunRecord;
+import DeliveryReason = ContractModule305.DeliveryReason;
+import DeliveryRunView = ContractModule305.DeliveryRunView;
+import ImprovementRunRecord = ContractModule305.ImprovementRunRecord;
+import ImprovementStatus = ContractModule305.ImprovementStatus;
+import LaunchStatus = ContractModule305.LaunchStatus;
+import PlaybookRecord = ContractModule305.PlaybookRecord;
+import Scenario = ContractModule305.Scenario;
+import SimulationRunRecord = ContractModule305.SimulationRunRecord;
+import UploadView = ContractModule305.UploadView;
+import WorkReceiptRecord = ContractModule305.WorkReceiptRecord;
+import AgentView = ContractModule311.AgentView;
+import CoverageView = ContractModule311.CoverageView;
+import EvidenceItem = ContractModule311.EvidenceItem;
+import JournalEntry = ContractModule311.JournalEntry;
+import Posture = ContractModule311.Posture;
+import QueueActionId = ContractModule311.QueueActionId;
+import QueueDecision = ContractModule311.QueueDecision;
+import QueueItemView = ContractModule311.QueueItemView;
+import QueueList = ContractModule311.QueueList;
+import RunDetail = ContractModule311.RunDetail;
+import RunSummary = ContractModule311.RunSummary;
+import VentureEventRecord = ContractModule311.VentureEventRecord;
+import VentureRunEvent = ContractModule311.VentureRunEvent;
+import BillLineInput = ContractModule312.BillLineInput;
+import CardVote = ContractModule312.CardVote;
+import InvoiceShareHow = ContractModule312.InvoiceShareHow;
+import LawfulBasis = ContractModule312.LawfulBasis;
+import LostReason = ContractModule312.LostReason;
+import NetworkImportKind = ContractModule312.NetworkImportKind;
+import OpportunityTrigger = ContractModule312.OpportunityTrigger;
+import OrderContract = ContractModule312.OrderContract;
+import OutreachChannel = ContractModule312.OutreachChannel;
+import OutreachKind = ContractModule312.OutreachKind;
+import OutreachLane = ContractModule312.OutreachLane;
+import OutreachLanguage = ContractModule312.OutreachLanguage;
+import OutreachSentChannel = ContractModule312.OutreachSentChannel;
+import PersonaFields = ContractModule312.PersonaFields;
+import PipelineStage = ContractModule312.PipelineStage;
+import ReceiptSignature = ContractModule312.ReceiptSignature;
+import RowFigureReceipt = ContractModule312.RowFigureReceipt;
+import ScoreRule = ContractModule312.ScoreRule;
+import TieReceipt = ContractModule312.TieReceipt;
+import TriageRule = ContractModule312.TriageRule;
+import TypedAmount = ContractModule312.TypedAmount;
+type Empty = Record<string, never>;
+export type VenturePayloads = {
+    'venture.countries': Empty;
+    'venture.preview': {
+        idea: string;
+        countryCode: CountryCode;
+        pricingModel?: PricingModel;
+    };
+    'venture.create': {
+        idea: string;
+        countryCode: CountryCode;
+        workingName?: string;
+        composeId?: string;
+        composedDigest?: string;
+        reuseAi?: true;
+    };
+    'venture.get': Empty;
+    'venture.events': {
+        afterSeq?: number;
+        limit?: number;
+    };
+    'venture.interview.next': {
+        useTemplate?: boolean;
+    };
+    'venture.interview.answer': {
+        questionId: string;
+        answer: InterviewAnswer;
+    };
+    'venture.blueprint.draft': {
+        useTemplate?: boolean;
+        shown?: {
+            name: string;
+            by: 'model' | 'template';
+            callId?: string;
+            offers: {
+                name: string;
+                line: string;
+            }[];
+        };
+    };
+    'venture.blueprint.get': Empty;
+    'venture.blueprint.update': {
+        patch: BlueprintPatch;
+        basedOn?: {
+            blueprintId: string;
+            digest: string;
+        };
+        ownerSave?: true;
+    };
+    'venture.blueprint.accept': {
+        digest: string;
+    };
+    'venture.models.presets': Empty;
+    'venture.models.connect': {
+        presetId: ModelPresetId;
+        consentDigest: string;
+        apiKey?: string;
+        model?: string;
+        tiers?: ModelTier[];
+        monthlyCapUsd?: string;
+    };
+    'venture.models.disconnect': {
+        connectionId: string;
+    };
+    'venture.models.status': Empty;
+    'venture.models.calls': {
+        limit?: number;
+        purpose?: ModelPurpose;
+    };
+    'venture.price.quote': {
+        offerId: string;
+        quantity?: string;
+    };
+    'venture.receipt.get': {
+        id: string;
+    };
+    'venture.client.add': {
+        name: string;
+        email?: string;
+        countryCode?: CountryCode;
+        taxId?: string;
+        stateCode?: string;
+        note?: string;
+    };
+    'venture.client.aiConsent.get': {
+        clientId: string;
+    };
+    'venture.agentSettings.get': Empty;
+    'venture.agentSettings.set': {
+        settings: ContractModule138.AiSettings;
+        approveMcpConfiguration?: true;
+    };
+    'venture.mcpCredential.set': {
+        serverId: string;
+        token: string | null;
+    };
+    'venture.mcpRegistry.list': Record<string, never>;
+    'venture.mcpOAuth.start': {
+        serverId: string;
+    };
+    'venture.packs.list': Record<string, never>;
+    'venture.packs.add': {
+        pack: unknown;
+        digest?: string;
+    };
+    'venture.packs.remove': {
+        packId: string;
+    };
+    'venture.client.aiConsent.agree': {
+        clientId: string;
+        disclosureDigest: string;
+    };
+    'venture.client.aiConsent.withdraw': {
+        clientId: string;
+    };
+    'venture.billing.get': Empty;
+    'venture.billing.set': Partial<Omit<ContractModule574.BillingSettings, 'razorpay' | 'bank' | 'dueInDays' | 'reminderDays'>> & {
+        dueInDays?: number | string;
+        reminderDays?: (number | string)[];
+        bank?: (Pick<ContractModule574.BankDetails, 'accountName' | 'accountNumber'> & Partial<Omit<ContractModule574.BankDetails, 'accountName' | 'accountNumber'>>) | null;
+        razorpayKeys?: {
+            keyId: string;
+            keySecret: string;
+        } | null;
+    };
+    'venture.invoice.pdf': {
+        invoiceId: string;
+    };
+    'venture.payment.receipt': {
+        paymentId: string;
+    };
+    'venture.invoice.payLink': {
+        invoiceId: string;
+        action: 'create';
+        digest: string;
+    } | {
+        invoiceId: string;
+        action: 'check';
+    };
+    'venture.client.list': Empty;
+    'venture.order.create': {
+        clientId?: string;
+        offerId: string;
+        quantity?: string;
+        request: string;
+        newClient?: VenturePayloads['venture.client.add'];
+        dueDate?: IsoDate;
+        currency?: string;
+        unitPrice?: string;
+        intakeFiles?: Record<string, {
+            name: string;
+            contentBase64: string;
+        }>;
+        intake?: {
+            calendar?: {
+                month: string;
+                channels: string[];
+                postsPerChannel: number;
+                weekdays: number[];
+            };
+            clientRules?: Partial<NonNullable<OrderIntake['clientRules']>>;
+            rights?: unknown;
+            format?: 'long' | 'short';
+            aiVoice?: boolean;
+            aiPresenter?: boolean;
+            paidPromotion?: boolean;
+            cutFile?: string;
+            fields?: Record<string, IntakeValue>;
+            moneyAmounts?: Record<string, string>;
+        };
+        taxInclusive?: boolean;
+    };
+    'venture.order.list': Empty;
+    'venture.order.deliver': {
+        orderId: string;
+        deliveredOn: IsoDate;
+    };
+    'venture.invoice.prepare': {
+        orderId: string;
+        dueInDays?: number;
+        issueDate?: IsoDate;
+        reminderDays?: number[];
+        part?: {
+            kind: 'advance' | 'milestone' | 'partial' | 'final';
+            label?: string;
+            percent?: string;
+            amount?: string;
+        };
+    };
+    'venture.invoice.issue': {
+        invoiceId: string;
+        digest: string;
+    };
+    'venture.invoice.get': {
+        invoiceId: string;
+    };
+    'venture.invoice.list': Empty;
+    'venture.payment.record': {
+        invoiceId?: string;
+        amount: string;
+        receivedOn: IsoDate;
+        method: PaymentMethod;
+        allocations?: {
+            invoiceId: string;
+            amount: string;
+        }[];
+        tds?: {
+            section: string;
+            amount: string;
+        };
+    };
+    'venture.books.summary': {
+        period?: BooksPeriodKey | string;
+        from?: IsoDate;
+        to?: IsoDate;
+    };
+    'venture.spend.list': Empty;
+    'venture.spend.policy.get': Empty;
+    'venture.spend.policy.set': {
+        useReference?: true;
+        capUsd?: string | null;
+        askFirstUsd?: string | null;
+        cap?: MicroString | null;
+        askFirst?: MicroString | null;
+        rates?: SpendRateInput[];
+        inrPerUsd?: string | null;
+        routineCaps?: {
+            routine: string;
+            capUsd: string;
+        }[];
+        dailyCapUsd?: string | null;
+        dailyCap?: MicroString | null;
+        alertPermille?: number;
+        agentCaps?: {
+            agent: string;
+            capUsd: string;
+        }[];
+        writeCaps?: Partial<Record<WriteCapKind, number>>;
+        currencyLead?: CurrencyLead;
+    };
+    'venture.build.brief': {
+        useTemplate?: boolean;
+    };
+    'venture.build.handoff': {
+        builder: BuilderId;
+    };
+    'venture.build.handoffOpened': {
+        handoffId: string;
+    };
+    'venture.build.link': {
+        repo: string;
+        token?: string;
+    };
+    'venture.build.sync': Empty;
+    'venture.build.status': Empty;
+    'venture.connectors.list': {
+        category?: ConnectorCategory;
+        starterOnly?: boolean;
+    };
+    'venture.delivery.playbook': Empty;
+    'venture.simulation.scenarios': Empty;
+    'venture.simulation.run': {
+        scenarioIds?: string[];
+        episodes?: number;
+        useTemplate?: boolean;
+    };
+    'venture.simulation.get': {
+        runId: string;
+    };
+    'venture.simulation.fromSignal': {
+        signalId: string;
+    };
+    'venture.launch.status': Empty;
+    'venture.launch.advance': {
+        to: 'practice' | 'live';
+    };
+    'venture.delivery.run': {
+        orderId: string;
+        useTemplate?: boolean;
+    };
+    'venture.agentApproval.decide': {
+        runId: string;
+        digest: string;
+        decision: 'approve' | 'deny';
+        content?: Record<string, unknown>;
+    };
+    'venture.delivery.review': {
+        runId: string;
+        verdict: 'accepted' | 'edited' | 'rejected';
+        reason?: DeliveryReason;
+        editedText?: string;
+    };
+    'venture.delivery.list': Empty;
+    'venture.capabilities': Empty;
+    'venture.files.add': {
+        orderId: string;
+        name: string;
+        contentBase64: string;
+    };
+    'venture.files.list': {
+        orderId?: string;
+    };
+    'venture.delegate.get': {
+        id: string;
+    };
+    'venture.work.get': {
+        id: string;
+    };
+    'venture.improve.status': Empty;
+    'venture.improve.run': {
+        maxRounds?: number;
+        useTemplate?: boolean;
+        budgetMicros?: MicroString;
+    };
+    'venture.improve.get': {
+        runId: string;
+    };
+    'venture.improve.adopt': {
+        runId: string;
+        digest: string;
+    };
+    'venture.queue.list': {
+        scope?: 'current' | 'all';
+    };
+    'venture.queue.decide': {
+        id: string;
+        digest: string;
+        action: QueueActionId;
+        answer?: string;
+        viewed?: boolean;
+    };
+    'venture.runs.list': {
+        state?: 'active' | 'done' | 'all';
+    };
+    'venture.runs.get': {
+        runId: string;
+    };
+    'venture.team.list': Empty;
+    'venture.team.gate': {
+        agentId: string;
+        stepId: string;
+        gate: 'auto' | 'hold';
+    };
+    'venture.evidence.list': {
+        subject?: string;
+    };
+    'venture.evidence.apply': {
+        id: string;
+    };
+    'venture.journal.list': {
+        limit?: number;
+    };
+    'venture.journal.resolve': {
+        entryId: string;
+        outcome: 'sent' | 'not-sent';
+        note?: string;
+    };
+    'venture.untrusted.mode': {
+        mode: 'observe' | 'enforce';
+    };
+    'venture.untrusted.release': {
+        digest: string;
+    };
+    'venture.bank.import': {
+        csv: string;
+        account: string;
+    };
+    'venture.bank.consent': {
+        account: string;
+        days?: number;
+        revoke?: boolean;
+    };
+    'venture.site.stage': {
+        path: string;
+        after: string;
+        summary: string;
+    };
+    'venture.site.apply': {
+        editId: string;
+        reviewedHash: string;
+    };
+    'venture.site.revert': {
+        editId: string;
+        reviewedHash: string;
+    };
+    'venture.leads.add': {
+        name: string;
+        company?: string;
+        email?: string;
+        sourceUrl: string;
+    };
+    'venture.leads.list': Empty;
+    'venture.leads.draft': {
+        leadId: string;
+        subject: string;
+        body: string;
+        postalAddress?: string;
+    };
+    'venture.leads.recordSend': {
+        leadId: string;
+        draftId: string;
+        sentAt: IsoTime;
+    };
+    'venture.queue.view': {
+        id: string;
+        kind?: 'draft' | 'file' | 'run' | 'plan';
+        opened?: true;
+    };
+    'venture.team.posture': {
+        agentId: string;
+        posture: Posture;
+    };
+    'venture.evidence.dismiss': {
+        id: string;
+    };
+    'venture.money.overview': Empty;
+    'venture.tax.working': {
+        period?: string;
+    };
+    'venture.ca.get': Empty;
+    'venture.ca.setOfRecord': {
+        name: string;
+        membershipNo: string;
+    };
+    'venture.ca.recordSignoff': {
+        requestId: string;
+        membershipNo: string;
+        note?: string;
+    };
+    'venture.ca.confirmRates': {
+        tableIds: string[];
+        membershipNo: string;
+    };
+    'venture.leads.block': {
+        value: string;
+    };
+    'venture.share.create': {
+        deliveryId?: string;
+        kind?: ShareKind;
+        orderId?: string;
+        clientId?: string;
+        month?: string;
+        expiresInHours?: number;
+    };
+    'venture.share.list': {
+        deliveryId?: string;
+    };
+    'venture.share.revoke': {
+        id: string;
+    };
+    'venture.delivery.judge': {
+        runId: string;
+    };
+    'venture.delivery.judgeSend': {
+        runId: string;
+        digest: string;
+    };
+    'venture.improve.rollback': {
+        playbookId: string;
+        digest: string;
+    };
+    'venture.files.transcribe': {
+        orderId: string;
+    };
+    'venture.posting.propose': {
+        draftId: string;
+        account?: string;
+    };
+    'venture.posting.signIn': {
+        connectorId: string;
+    };
+    'venture.posting.checkSteps': {
+        connectorId: string;
+    };
+    'venture.share.recordAnswer': {
+        draftId: string;
+        answer: 'approved' | 'changes';
+        comment?: string;
+    };
+    'venture.social.calendar': {
+        runId: string;
+    };
+    'venture.bank.ledger': {
+        account?: string;
+        month?: string;
+    };
+    'venture.bank.apply': {
+        transactionId: string;
+        as: 'payment' | 'cost' | 'skip';
+        invoiceId?: string;
+    };
+    'venture.bank.alerts.get': Empty;
+    'venture.bank.alerts.set': {
+        account: string;
+        rules: BankAlertRuleInput[];
+        alertAddress?: string | null;
+    };
+    'venture.ca.receipt': {
+        id: string;
+    };
+    'venture.ca.explainDiff': {
+        receiptId: string;
+        key: string;
+        note: string;
+        membershipNo: string;
+    };
+    'venture.rules.list': Empty;
+    'venture.rules.locks': Empty;
+    'venture.rules.attest': {
+        ruleId: string;
+        attest: boolean;
+        digest?: string;
+    };
+    'venture.compliance.get': {
+        profession?: string;
+        size?: {
+            turnover?: string;
+            headcount?: string;
+        };
+    };
+    'venture.compliance.set': {
+        profession: string;
+        sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure';
+        digest: string;
+        size?: {
+            turnover?: string;
+            headcount?: string;
+        };
+    } | {
+        size: {
+            turnover?: string;
+            headcount?: string;
+        };
+    };
+    'venture.judge.auto.get': Empty;
+    'venture.judge.auto.set': {
+        auto: boolean;
+    };
+    'venture.posting.limits.get': Empty;
+    'venture.posting.limits.set': {
+        connectorId: string;
+        limits: Partial<OwnerPostingLimitsView>;
+    };
+    'venture.transcription.get': Empty;
+    'venture.transcription.set': {
+        command: string;
+        model: string;
+    } | {
+        clear: true;
+    };
+    'venture.team.keeper': Empty;
+    'venture.team.clearQuarantine': {
+        agentId: string;
+        digest: string;
+    };
+    'venture.agents.thread.list': {
+        agent: string;
+        before?: string;
+    };
+    'venture.agents.thread.send': {
+        agent: string;
+        text: string;
+    };
+    'venture.agents.proposal.decide': {
+        id: string;
+        digest: string;
+        decision: 'accept' | 'reject';
+    };
+    'venture.agents.version.undo': {
+        agent: string;
+        digest: string;
+    };
+    'venture.agents.orders.list': {
+        agent: string;
+    };
+    'venture.chats.consent': {
+        digest: string;
+    };
+    'venture.agents.notes.list': {
+        agent: string;
+    };
+    'venture.agents.notes.edit': {
+        agent: string;
+        noteId?: string;
+        text: string;
+        basedOn?: string;
+    };
+    'venture.agents.notes.forget': {
+        agent: string;
+        noteId: string;
+    };
+    'venture.agents.notes.undo': {
+        agent: string;
+        changeId: string;
+    };
+    'venture.chief.threads': Empty;
+    'venture.chief.thread.list': {
+        threadId: string;
+        before?: string;
+    };
+    'venture.chief.thread.send': {
+        threadId?: string;
+        text: string;
+    };
+    'venture.chief.thread.pin': {
+        threadId: string;
+        pinned: boolean;
+    };
+    'venture.chief.fit': Empty;
+    'venture.proposals.raise': {
+        id: string;
+    };
+    'venture.proposals.dismiss': {
+        id: string;
+    };
+    'venture.network.import': {
+        kind: NetworkImportKind;
+        name: string;
+        text: string;
+        check?: boolean;
+    };
+    'venture.network.importUndo': {
+        importId: string;
+        preview?: boolean;
+    };
+    'venture.network.merge': {
+        a: string;
+        b: string;
+    };
+    'venture.network.split': {
+        personId: string;
+        sourceIds: string[];
+    };
+    'venture.network.forget': {
+        id: string;
+    };
+    'venture.network.hide': {
+        personId: string;
+        hidden: boolean;
+    };
+    'venture.network.people': {
+        query?: string;
+        hidden?: boolean;
+        suggestions?: boolean;
+        limit?: number;
+    };
+    'venture.network.person': {
+        id: string;
+    };
+    'venture.network.sources': Empty;
+    'venture.network.recompute': Empty;
+    'venture.network.know': {
+        personId: string;
+        how: 'well' | 'met';
+        note?: string;
+    };
+    'venture.network.link': {
+        a: string;
+        b: string;
+        note: string;
+    };
+    'venture.network.search': {
+        text: string;
+        web?: boolean;
+    };
+    'venture.network.searchMore': {
+        searchId: string;
+    };
+    'venture.network.saveSearch': {
+        searchId: string;
+        name: string;
+    };
+    'venture.network.research': {
+        personId: string;
+    };
+    'venture.pipeline.list': {
+        filter?: 'due' | 'draft';
+    };
+    'venture.pipeline.followups': Empty;
+    'venture.pipeline.add': {
+        personId: string;
+        trigger: {
+            kind: OpportunityTrigger['kind'];
+            ref?: string;
+        };
+        votes?: CardVote[];
+    };
+    'venture.pipeline.setNext': {
+        id: string;
+        text: string;
+        due: IsoDate;
+    };
+    'venture.pipeline.move': {
+        id: string;
+        stage: PipelineStage;
+        reason?: LostReason;
+        evidence?: PipelineEvidenceInput;
+    };
+    'venture.pipeline.settings': {
+        weekdays?: number[];
+        sendTime?: string;
+        caps?: {
+            newPerDay?: number;
+            perWeek?: number;
+            channels?: Partial<Record<OutreachLane, number>>;
+            channelWeeks?: Partial<Record<OutreachLane, number | null>>;
+            warmupPercent?: number[];
+        };
+        scoreRules?: ScoreRule[];
+    };
+    'venture.outreach.draft': {
+        opportunityId: string;
+        kind: OutreachKind;
+        channel: OutreachChannel;
+        basis?: LawfulBasis;
+        limit?: 200 | 300;
+        introduce?: string;
+        about?: string;
+        language?: OutreachLanguage;
+        postalAddress?: string;
+    };
+    'venture.outreach.open': {
+        draftId: string;
+    };
+    'venture.outreach.sent': {
+        draftId: string;
+        at: IsoTime;
+        channel: OutreachSentChannel;
+    };
+    'venture.outreach.restricted': {
+        channel: OutreachChannel;
+    };
+    'venture.mailbox.connect': {
+        host: string;
+        port: number;
+        user: string;
+        appPassword: string;
+    };
+    'venture.mailbox.disconnect': Empty;
+    'venture.mailbox.sync': Empty;
+    'venture.inbound.list': Empty;
+    'venture.inbound.confirm': {
+        id: string;
+        opportunityId: string;
+    };
+    'venture.network.calendar': {
+        url: string;
+    };
+    'venture.meeting.digest': {
+        eventId?: string;
+        notes: string;
+    };
+    'venture.runs.stop': {
+        runId: string;
+        force?: boolean;
+    };
+    'venture.runs.resume': {
+        runId: string;
+    };
+    'venture.runs.roundGate': {
+        runId: string;
+        on: boolean;
+        every?: 1 | 2 | 3 | 5;
+    };
+    'venture.runs.steer': {
+        runId: string;
+        text: string;
+    };
+    'venture.business.pause': {
+        paused: boolean;
+        stopRunning?: boolean;
+    };
+    'venture.away.set': {
+        from: IsoDate;
+        to: IsoDate;
+    } | {
+        clear: true;
+    };
+    'venture.away.get': Empty;
+    'venture.runs.allowWrites': {
+        kind: WriteCapKind;
+    };
+    'venture.notify.list': Empty;
+    'venture.notify.read': {
+        ids?: string[];
+        all?: boolean;
+    };
+    'venture.notify.settings': {
+        pausedUntil?: IsoTime | null;
+        quietHours?: {
+            from: string;
+            to: string;
+        } | null;
+        digest?: {
+            hour: number;
+        } | null;
+        push?: boolean;
+        tray?: boolean;
+    };
+    'venture.notify.push.key': Empty;
+    'venture.notify.push.subscribe': {
+        subscription: PushSubscriptionInput;
+    };
+    'venture.notify.push.unsubscribe': {
+        endpoint: string;
+    };
+    'venture.notify.relay': {
+        url: string | null;
+    };
+    'venture.notify.telegram': {
+        bot?: {
+            token: string;
+            chatId: string;
+        } | null;
+        details?: boolean;
+        test?: true;
+    };
+    'venture.phone.access': {
+        action?: 'link' | 'stop';
+        via?: 'wifi' | 'tailscale';
+        hours?: number;
+    };
+    'venture.web.search': {
+        provider?: ContractModule1631.SearchProviderId | null;
+        key?: string;
+        consentDigest?: string;
+    };
+    'venture.web.read': {
+        url: string;
+    };
+    'venture.chief.thread.state': ChiefThreadStateInput;
+    'venture.chief.settle.set': {
+        days: number;
+    };
+    'venture.agents.retire.check': {
+        agent: string;
+    };
+    'venture.agents.retire': {
+        agent: string;
+        to: string;
+        digest: string;
+    };
+    'venture.agents.restore': {
+        agent: string;
+    };
+    'venture.apps.list': Empty;
+    'venture.apps.get': {
+        app: string;
+    };
+    'venture.apps.make': {
+        ask: string;
+        app?: string;
+    };
+    'venture.apps.grant': {
+        app: string;
+        digest: string;
+    };
+    'venture.apps.revoke': {
+        app: string;
+    };
+    'venture.apps.restore': {
+        app: string;
+        version: number;
+    };
+    'venture.apps.pin': {
+        app: string;
+        pinned: boolean;
+    };
+    'venture.apps.export': {
+        app: string;
+    };
+    'venture.apps.call': {
+        app: string;
+        tool: string;
+        arguments: Record<string, Json>;
+        sample?: true;
+    };
+    'venture.apps.remove': {
+        app: string;
+    };
+    'venture.layout.get': {
+        place: LayoutPlace;
+    };
+    'venture.diagnostics.today': Empty;
+    'venture.build.briefFile': {
+        builder: BuilderId;
+    };
+    'venture.accountant.pack.done': {
+        month: string;
+    };
+    'venture.accountant.schedule.set': {
+        on: boolean;
+    };
+    'venture.accountant.schedule.get': Empty;
+    'venture.accountant.set': {
+        email?: string | null;
+        whatsapp?: string | null;
+    };
+    'venture.accountant.get': Empty;
+    'venture.notify.telegram.findChat': {
+        token: string;
+    };
+    'venture.client.aiDefault.set': {
+        on: boolean;
+        digest: string;
+    };
+    'venture.client.aiDefault.get': Empty;
+    'venture.away.preview': {
+        from: IsoDate;
+        to: IsoDate;
+    };
+    'venture.team.introduced': {
+        agentIds: string[];
+    };
+    'venture.layout.change': LayoutRequest;
+    'venture.find': FindRequest;
+    'venture.talk.get': Empty;
+    'venture.talk.consent': TalkConsentInput;
+    'venture.talk.setup': TalkSetupInput;
+    'venture.talk.start': Empty;
+    'venture.talk.hear': {
+        sessionId: string;
+        audioBase64: string;
+    };
+    'venture.talk.say': {
+        threadId: string;
+        messageId: string;
+        quoted?: string;
+        approvedRateDigest?: string;
+    };
+    'venture.feedback.get': Empty;
+    'venture.feedback.consent': FeedbackConsentInput;
+    'venture.feedback.send': {
+        digest: string;
+    };
+    'venture.feedback.answer': FeedbackAnswerInput;
+    'venture.feedback.crash': FeedbackCrashInput;
+    'venture.feedback.delete': Empty;
+    'venture.people.services': {
+        service?: 'happenstance' | 'probe42';
+        key?: string | null;
+    };
+    'venture.people.lookup': {
+        service: 'happenstance' | 'probe42';
+        query?: string;
+        clientId?: string;
+        digest?: string;
+        searchId?: string;
+    };
+    'venture.crm.client': {
+        clientId: string;
+    };
+    'venture.crm.client.edit': {
+        clientId: string;
+        field: 'name' | 'email' | 'note' | 'phone';
+        value: string;
+    };
+    'venture.crm.companies': Empty;
+    'venture.crm.company': {
+        companyId: string;
+    };
+    'venture.crm.company.save': {
+        companyId?: string;
+        name?: string;
+        domain?: string | null;
+        note?: string | null;
+    };
+    'venture.crm.link': {
+        companyId: string | null;
+        member: string;
+    };
+    'venture.crm.log': {
+        clientId: string;
+        kind: ContractModule366.CrmEntryKind;
+        on: IsoDate;
+        text: string;
+    };
+    'venture.crm.lists': Empty;
+    'venture.crm.list': {
+        listId: string;
+    };
+    'venture.crm.list.save': {
+        listId?: string;
+        name: string;
+        stages: string[];
+    };
+    'venture.crm.list.place': {
+        listId: string;
+        member: string;
+        stage: string | null;
+    };
+    'venture.memory.list': {
+        subject?: string;
+    };
+    'venture.memory.add': {
+        subject: string;
+        topic: string;
+        text: string;
+        since?: IsoDate;
+        visibility?: ContractModule529.FactVisibility;
+    };
+    'venture.memory.replace': {
+        factId: string;
+        text: string;
+        since?: IsoDate;
+    };
+    'venture.memory.visibility': {
+        factId: string;
+        visibility: ContractModule529.FactVisibility;
+    };
+    'venture.memory.forget': {
+        factId: string;
+    };
+    'venture.models.cli.status': {
+        fresh?: boolean;
+    };
+    'venture.models.roles': Empty;
+    'venture.goals.get': {
+        month?: string;
+    };
+    'venture.goals.set': {
+        month: string;
+        amount: string;
+        amountMinor?: never;
+    } | {
+        month: string;
+        amountMinor: MinorString;
+        amount?: never;
+    };
+    'venture.goals.suggest': {
+        month: string;
+    };
+    'venture.decisions.list': Empty;
+    'venture.policy.allowSession': {
+        stepId: string;
+    };
+    'venture.queue.sendBack': {
+        rowId: string;
+        digest: string;
+        text: string;
+    };
+    'venture.queue.edit': {
+        rowId: string;
+        digest: string;
+        text: string;
+    };
+    'venture.queue.undo': {
+        rowId: string;
+    };
+    'venture.queue.set': {
+        rowIds: string[];
+        digest: string;
+        secondAsk?: true;
+    };
+    'venture.queue.setPreview': {
+        rowIds: string[];
+    };
+    'venture.delivery.copy': {
+        runId: string;
+    };
+    'venture.triage.set': {
+        rule: TriageRule;
+        digest: string;
+    };
+    'venture.triage.preview': {
+        text: string;
+    };
+    'venture.delivery.fix': {
+        runId: string;
+        checks: 'all' | string[];
+    };
+    'venture.delivery.decideChange': {
+        runId: string;
+        changeId: string;
+        accept: boolean;
+    };
+    'venture.delivery.changes': {
+        runId: string;
+    };
+    'venture.settings.draft': {
+        form: string;
+        values: Json;
+    };
+    'venture.settings.drafts': Empty;
+    'venture.files.poster': {
+        orderId: string;
+    };
+    'venture.money.aging': {
+        asOf?: IsoDate;
+    };
+    'venture.money.flow': {
+        months?: number;
+    };
+    'venture.money.cash': Empty;
+    'venture.money.margins': {
+        month: string;
+    };
+    'venture.money.export': {
+        month: string;
+        format?: 'csv' | 'tally-xml' | 'gstr1-csv';
+    };
+    'venture.bills.add': {
+        vendor: string;
+        lines: BillLineInput[];
+        billDate: IsoDate;
+        dueDate?: IsoDate;
+        recurring?: 'monthly' | 'quarterly' | null;
+    };
+    'venture.bills.pay': {
+        billId: string;
+        paidOn: IsoDate;
+        method: PaymentMethod;
+    } & TypedAmount;
+    'venture.bills.list': Empty;
+    'venture.credit.issue': {
+        invoiceId: string;
+        reason: string;
+        digest: string;
+    } & TypedAmount;
+    'venture.invoice.recurring': {
+        clientId: string;
+        offerId: string;
+        frequency: 'monthly' | 'quarterly';
+        startOn: IsoDate;
+        end?: IsoDate;
+        reminderDays?: number[];
+        taxInclusive?: boolean;
+    };
+    'venture.invoice.recurringList': Empty;
+    'venture.invoice.remind': {
+        invoiceId: string;
+    };
+    'venture.payment.clear': {
+        paymentId: string;
+    };
+    'venture.bills.stop': {
+        billId: string;
+    };
+    'venture.money.across': Empty;
+    'venture.runs.across': Empty;
+    'venture.connectors.check': {
+        last?: true;
+    };
+    'venture.share.request': {
+        orderId: string;
+        note?: string;
+    };
+    'venture.playbooks.list': Empty;
+    'venture.blueprint.suggest': {
+        text: string;
+        attachment?: {
+            name: string;
+            text: string;
+        };
+    };
+    'venture.owner.get': Empty;
+    'venture.owner.set': {
+        firstName?: string | null;
+        excludedServices?: string[];
+        familyId?: FamilyId | null;
+    };
+    'venture.receipt.verify': {
+        id: string;
+    };
+    'venture.journal.chain': Empty;
+    'venture.journal.acceptBreak': {
+        digest: string;
+    };
+    'venture.order.contract': {
+        orderId: string;
+    };
+    'venture.order.contract.propose': {
+        orderId: string;
+        contract: OrderContract;
+    };
+    'venture.order.contract.sign': {
+        orderId: string;
+        digest: string;
+    };
+    'venture.routines.list': Empty;
+    'venture.routines.runs': {
+        id: string;
+    };
+    'venture.routines.set': {
+        routine: RoutineInput;
+    };
+    'venture.routines.remove': {
+        id: string;
+    };
+    'venture.options.rerank': {
+        questionId: string;
+        weights: Record<string, number>;
+    };
+    'venture.drills.run': Empty;
+    'venture.drills.list': Empty;
+    'venture.auto.readiness': {
+        agent: string;
+    };
+    'venture.shadow.summary': {
+        agent: string;
+    };
+    'venture.playbook.guidance': Empty;
+    'venture.voice.get': Empty;
+    'venture.voice.set': {
+        voice: VoiceInput;
+    };
+    'venture.voice.learn': {
+        samples: string[];
+    };
+    'venture.persona.get': {
+        agent: string;
+    };
+    'venture.persona.set': {
+        agent: string;
+        persona: PersonaFields;
+    };
+    'venture.persona.test': {
+        agent: string;
+        persona: PersonaFields;
+    };
+    'venture.agents.export': {
+        agent: string;
+    };
+    'venture.agents.import': {
+        text: string;
+    };
+    'venture.knowledge.list': Empty;
+    'venture.knowledge.add': {
+        source: KnowledgeSourceInput;
+    };
+    'venture.knowledge.remove': {
+        id: string;
+    };
+    'venture.knowledge.test': {
+        question: string;
+    };
+    'venture.ideas.list': Empty;
+    'venture.ideas.start': {
+        id: string;
+    };
+    'venture.ideas.dismiss': {
+        id: string;
+    };
+    'venture.agents.capabilities': {
+        agent: string;
+    };
+    'venture.order.chain': {
+        orderId: string;
+    };
+    'venture.salesProposal.draft': ({
+        clientId: string;
+        personId?: never;
+    } | {
+        personId: string;
+        clientId?: never;
+    }) & {
+        offerId: string;
+        pilot?: boolean | SalesPilotTerms;
+    };
+    'venture.salesProposal.get': {
+        id: string;
+    } | {
+        clientId: string;
+    } | {
+        personId: string;
+    };
+    'venture.goNoGo.card': {
+        playbook: string;
+        subject: string;
+        inputs: GoNoGoInputs;
+    };
+    'venture.goNoGo.list': Empty;
+    'venture.goNoGo.remove': {
+        cardId: string;
+    };
+    'venture.ideas.add': {
+        text: string;
+        source: string;
+    };
+    'venture.ideas.move': {
+        id: string;
+        stage: IdeaStage;
+        reason?: string;
+    };
+    'venture.ideas.grade': {
+        id: string;
+        grade: IdeaGrade;
+    };
+    'venture.brandKit.get': {
+        clientId: string;
+    };
+    'venture.brandKit.set': {
+        clientId: string;
+        kit: BrandKitInput;
+    };
+    'venture.assets.list': {
+        orderId?: string;
+        clientId?: string;
+    };
+    'venture.assets.rerun': {
+        id: string;
+    };
+    'venture.assets.reuse': {
+        id: string;
+        orderId: string;
+    };
+    'venture.voiceConsent.record': {
+        speaker: string;
+        recordingFileId: string;
+        transcript: string;
+        statement: string;
+        scope: string;
+        until: IsoDate | null;
+    };
+    'venture.voiceConsent.revoke': {
+        id: string;
+    };
+    'venture.voiceConsent.list': Empty;
+    'venture.report.render': {
+        runId: string;
+        formats?: ReportFormat[];
+    };
+    'venture.report.share': {
+        reportId: string;
+        from: IsoDate;
+        to: IsoDate;
+        channels?: string[];
+    };
+    'venture.report.shareRotate': {
+        shareId: string;
+    };
+    'venture.report.shareDisable': {
+        shareId: string;
+    };
+    'venture.report.list': {
+        orderId?: string;
+        runId?: string;
+    };
+    'venture.monitors.list': Empty;
+    'venture.monitors.add': MonitorInput;
+    'venture.monitors.remove': {
+        id: string;
+    };
+    'venture.mail.import': {
+        name: string;
+        contentBase64: string;
+    };
+    'venture.mail.threads': {
+        clientId?: string;
+    };
+    'venture.localApps.list': Empty;
+    'venture.webhook.set': {
+        kind: 'n8n' | 'make';
+        url: string | null;
+        secret?: string;
+        test?: boolean;
+    };
+    'venture.webhook.send': {
+        kind: 'n8n' | 'make';
+        subject: string;
+        payload: unknown;
+        digest?: string;
+    };
+    'venture.speechOut.providers': Empty;
+    'venture.ca.confirmCitations': {
+        version: number;
+        membershipNo: string;
+    };
+    'venture.ca.signoff.get': {
+        id: string;
+    };
+    'venture.ca.differential.add': {
+        name: string;
+        inputs: Json;
+        outputs: Json;
+        capturedBy: string;
+    };
+    'venture.ca.dataPack.export': ContractModule804.PackSelection & {
+        approvalDigest: string;
+    };
+    'venture.desk.list': DeskListPayload;
+    'venture.desk.get': DeskGetPayload;
+    'venture.desk.act': DeskActPayload;
+    'venture.flows.list': Empty;
+    'venture.flows.act': ContractModule513.FlowsActPayload;
+    'venture.ai.options': OnboardingPayloads['venture.ai.options'];
+    'venture.ai.connect': OnboardingPayloads['venture.ai.connect'];
+    'venture.ai.disconnect': OnboardingPayloads['venture.ai.disconnect'];
+    'venture.ai.status': OnboardingPayloads['venture.ai.status'];
+    'venture.ai.calls': OnboardingPayloads['venture.ai.calls'];
+    'venture.country.suggest': OnboardingPayloads['venture.country.suggest'];
+    'venture.ai.tools': OnboardingPayloads['venture.ai.tools'];
+    'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
+    'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
+    'venture.ai.setup.trust': {
+        cli: 'codex';
+        sha256: string;
+    };
+    'venture.ai.claude.install': Record<string, never>;
+    'venture.ai.claude.progress': Record<string, never>;
+    'venture.work.list': Record<string, never>;
+    'venture.invoice.shared': {
+        invoiceId: string;
+        how: InvoiceShareHow;
+    };
+    'venture.routines.suggestions': Empty;
+    'venture.agents.hire.duties': {
+        agent: string;
+        duties: string[];
+    };
+    'venture.events.calKey.set': {
+        key: string | null;
+    };
+    'venture.events.relay.set': {
+        address: string | null;
+    };
+    'venture.events.get': Record<string, never>;
+    'venture.agents.hire.cancel': {
+        hireId: string;
+    };
+    'venture.agents.hire.confirm': {
+        hireId: string;
+        digest: string;
+    };
+    'venture.agents.hire.answer': {
+        hireId: string;
+        phase: string;
+        edits?: Record<string, unknown>;
+    };
+    'venture.agents.hire.start': {
+        sentence: string;
+    };
+    'venture.trackers.rows.undo': {
+        rowId: string;
+    };
+    'venture.trackers.rows.remove': {
+        rowId: string;
+    };
+    'venture.trackers.rows.edit': {
+        rowId: string;
+        cells: Record<string, unknown>;
+    };
+    'venture.trackers.rows.add': {
+        trackerId: string;
+        cells: Record<string, unknown>;
+    };
+    'venture.trackers.remove': {
+        id: string;
+    };
+    'venture.trackers.set': {
+        tracker: {
+            id?: string;
+            name: string;
+            columns: unknown[];
+            boardBy?: string | null;
+            keptBy?: string[];
+        };
+    };
+    'venture.trackers.get': {
+        id: string;
+    };
+    'venture.trackers.list': Record<string, never>;
+    'venture.routines.backup.set': {
+        on: boolean;
+        order: ModelPresetId[];
+        digests?: string[];
+    };
+    'venture.routines.backup.get': Record<string, never>;
+    'venture.models.plan': {
+        fresh?: boolean;
+    };
+    'venture.about.read': OnboardingPayloads['venture.about.read'];
+    'venture.about.pick': OnboardingPayloads['venture.about.pick'];
+    'venture.about.families': OnboardingPayloads['venture.about.families'];
+    'venture.needs.list': Record<string, never>;
+    'venture.compose.decide': OnboardingPayloads['venture.compose.decide'];
+    'venture.compose.fill': OnboardingPayloads['venture.compose.fill'];
+    'venture.compose.get': OnboardingPayloads['venture.compose.get'];
+    'venture.compose.update': OnboardingPayloads['venture.compose.update'];
+};
+export type VentureResults = {
+    'venture.countries': CountryProfile[];
+    'venture.preview': PlanPreview;
+    'venture.create': VentureView;
+    'venture.get': VentureView | null;
+    'venture.events': {
+        events: VentureEventRecord[];
+        lastSeq: number;
+        firstSeq: number;
+        frames: VentureRunEvent[];
+    };
+    'venture.interview.next': InterviewView;
+    'venture.interview.answer': InterviewView;
+    'venture.blueprint.draft': BlueprintView;
+    'venture.blueprint.get': BlueprintView | null;
+    'venture.blueprint.update': BlueprintView;
+    'venture.blueprint.accept': BlueprintView;
+    'venture.models.presets': ModelPreset[];
+    'venture.models.connect': ModelStatusView;
+    'venture.models.disconnect': ModelStatusView;
+    'venture.models.status': ModelStatusView;
+    'venture.models.calls': ModelCallRecord[];
+    'venture.price.quote': PriceReceiptRecord;
+    'venture.receipt.get': (PriceReceiptRecord | SumReceiptRecord | TieReceipt | RowFigureReceipt) & {
+        signature?: ReceiptSignature;
+    };
+    'venture.client.add': ClientRecord;
+    'venture.client.aiConsent.get': ClientAiConsentView;
+    'venture.agentSettings.get': ContractModule138.AiSettingsView;
+    'venture.agentSettings.set': ContractModule138.AiSettingsView;
+    'venture.mcpCredential.set': {
+        serverId: string;
+        saved: boolean;
+    };
+    'venture.mcpRegistry.list': ContractModule126.CuratedMcpView;
+    'venture.mcpOAuth.start': {
+        serverId: string;
+        authorizationUrl: string;
+    };
+    'venture.packs.list': {
+        packs: ContractModule693.PackView[];
+    };
+    'venture.packs.add': {
+        added: boolean;
+        digest: string;
+        pack: ContractModule693.PackView;
+    };
+    'venture.packs.remove': {
+        removed: boolean;
+    };
+    'venture.client.aiConsent.agree': ClientAiConsentView;
+    'venture.client.aiConsent.withdraw': ClientAiConsentView;
+    'venture.billing.get': ContractModule574.BillingView;
+    'venture.billing.set': ContractModule574.BillingView;
+    'venture.invoice.pdf': ContractModule597.InvoicePdfView;
+    'venture.payment.receipt': ContractModule610.PaymentReceiptView;
+    'venture.invoice.payLink': InvoiceView;
+    'venture.client.list': ClientListRow[];
+    'venture.order.create': OrderRecord;
+    'venture.order.list': OrderListRow[];
+    'venture.order.deliver': OrderRecord;
+    'venture.invoice.prepare': InvoiceView;
+    'venture.invoice.issue': InvoiceView;
+    'venture.invoice.get': InvoiceView;
+    'venture.invoice.list': InvoiceListRow[];
+    'venture.payment.record': InvoiceView;
+    'venture.books.summary': BooksSummary;
+    'venture.spend.list': {
+        rows: SpendRow[];
+        total: Display;
+        totalRupees?: Display;
+        totalLead?: SpendLead;
+        needsRate?: boolean;
+    };
+    'venture.spend.policy.get': SpendPolicyView;
+    'venture.spend.policy.set': SpendPolicyView;
+    'venture.build.brief': BriefRecord;
+    'venture.build.handoff': HandoffPlan;
+    'venture.build.handoffOpened': HandoffRecord;
+    'venture.build.link': BuildFollowRecord;
+    'venture.build.sync': BuildStatus;
+    'venture.build.status': {
+        follow: BuildFollowRecord | null;
+        brief: BriefRecord | null;
+        handoffs: HandoffRecord[];
+        tokenLink: string;
+        linkFits: {
+            lovable: boolean;
+            replit: boolean;
+        } | null;
+    };
+    'venture.connectors.list': ConnectorCard[];
+    'venture.delivery.playbook': PlaybookRecord;
+    'venture.simulation.scenarios': Scenario[];
+    'venture.simulation.run': SimulationRunRecord;
+    'venture.simulation.get': SimulationRunRecord;
+    'venture.simulation.fromSignal': Scenario;
+    'venture.launch.status': LaunchStatus;
+    'venture.launch.advance': LaunchStatus;
+    'venture.delivery.run': DeliveryRunView;
+    'venture.agentApproval.decide': {
+        runId: string;
+        decision: 'approve' | 'deny';
+    };
+    'venture.delivery.review': DeliveryRunView;
+    'venture.delivery.list': DeliveryRunView[];
+    'venture.capabilities': CapabilityStatus[];
+    'venture.files.add': UploadView;
+    'venture.files.list': UploadView[];
+    'venture.delegate.get': DelegateRunRecord;
+    'venture.work.get': WorkReceiptRecord & {
+        coverage?: CoverageView;
+    };
+    'venture.improve.status': ImprovementStatus;
+    'venture.improve.run': ImprovementRunRecord;
+    'venture.improve.get': ImprovementRunRecord;
+    'venture.improve.adopt': PlaybookRecord;
+    'venture.queue.list': QueueList;
+    'venture.queue.decide': QueueDecision;
+    'venture.runs.list': {
+        runs: RunSummary[];
+    };
+    'venture.runs.get': RunDetail;
+    'venture.team.list': TeamListView;
+    'venture.team.gate': {
+        agent: AgentView;
+    };
+    'venture.evidence.list': {
+        items: EvidenceItem[];
+    };
+    'venture.evidence.apply': {
+        item: EvidenceItem;
+    };
+    'venture.journal.list': {
+        entries: JournalEntry[];
+    };
+    'venture.journal.resolve': {
+        entry: JournalEntry;
+    };
+    'venture.untrusted.mode': {
+        mode: 'observe' | 'enforce';
+    };
+    'venture.untrusted.release': {
+        digest: string;
+        released: true;
+    };
+    'venture.bank.import': BankImportResult;
+    'venture.bank.consent': BankConsentView;
+    'venture.site.stage': SiteEditRecord;
+    'venture.site.apply': SiteEditRecord;
+    'venture.site.revert': SiteEditRecord;
+    'venture.leads.add': LeadView;
+    'venture.leads.list': {
+        leads: LeadView[];
+    };
+    'venture.leads.draft': {
+        lead: LeadView;
+        draft: OutreachDraftView;
+    };
+    'venture.leads.recordSend': LeadView;
+    'venture.queue.view': QueueItemView;
+    'venture.team.posture': {
+        agent: AgentView;
+    };
+    'venture.evidence.dismiss': {
+        item: EvidenceItem;
+    };
+    'venture.money.overview': MoneyOverview;
+    'venture.tax.working': TaxWorkingView;
+    'venture.ca.get': CaFirmView;
+    'venture.ca.setOfRecord': CaFirmView;
+    'venture.ca.recordSignoff': {
+        request: CaRequestView;
+    };
+    'venture.ca.confirmRates': CaFirmView;
+    'venture.leads.block': {
+        blocked: string[];
+    };
+    'venture.share.create': ShareLinkView;
+    'venture.share.list': {
+        links: ShareLinkView[];
+        shares: ShareLinkView[];
+        posts?: DraftPostView[];
+        clientApproval?: boolean;
+        answer?: ShareAnswerView | null;
+    };
+    'venture.share.revoke': ShareLinkView;
+    'venture.delivery.judge': DeliveryJudgePreview;
+    'venture.delivery.judgeSend': DeliveryRunView;
+    'venture.improve.rollback': PlaybookRecord;
+    'venture.files.transcribe': UploadView;
+    'venture.posting.propose': PostingProposal;
+    'venture.posting.signIn': {
+        opened: true;
+        line: Display;
+    };
+    'venture.posting.checkSteps': PostingStepsView;
+    'venture.share.recordAnswer': {
+        answer: ShareAnswerView;
+    };
+    'venture.social.calendar': SocialCalendarFile;
+    'venture.bank.ledger': BankLedgerView;
+    'venture.bank.apply': BankApplyResult;
+    'venture.bank.alerts.get': BankAlertsView;
+    'venture.bank.alerts.set': BankAlertsView;
+    'venture.ca.receipt': CaReceiptView;
+    'venture.ca.explainDiff': {
+        explanation: CaDiffExplanation;
+    };
+    'venture.rules.list': RulesListView;
+    'venture.rules.locks': RuleLocksView;
+    'venture.rules.attest': RuleLocksView;
+    'venture.compliance.get': ComplianceView;
+    'venture.compliance.set': ComplianceView;
+    'venture.judge.auto.get': JudgeAutoView;
+    'venture.judge.auto.set': JudgeAutoView;
+    'venture.posting.limits.get': PostingLimitsView;
+    'venture.posting.limits.set': PostingLimitsView;
+    'venture.transcription.get': TranscriptionSetupView;
+    'venture.transcription.set': TranscriptionSetupView;
+    'venture.team.keeper': KeeperView;
+    'venture.team.clearQuarantine': {
+        agent: AgentView | null;
+        teamHealth: AgentHealth;
+    };
+    'venture.agents.thread.list': AgentThreadView;
+    'venture.agents.thread.send': AgentSendResult;
+    'venture.agents.proposal.decide': AgentProposalDecision;
+    'venture.agents.version.undo': AgentVersionUndo;
+    'venture.agents.orders.list': StandingOrdersView;
+    'venture.chats.consent': ChatConsentView;
+    'venture.agents.notes.list': AgentNotesView;
+    'venture.agents.notes.edit': AgentNoteChange;
+    'venture.agents.notes.forget': AgentNoteChange;
+    'venture.agents.notes.undo': AgentNoteChange;
+    'venture.chief.threads': ChiefThreadsView;
+    'venture.chief.thread.list': ChiefThreadView;
+    'venture.chief.thread.send': ChiefSendResult;
+    'venture.chief.thread.pin': {
+        thread: ChiefThreadSummary;
+    };
+    'venture.chief.fit': ChiefFit | null;
+    'venture.proposals.raise': ProposalRaised;
+    'venture.proposals.dismiss': {
+        proposal: ProposalView;
+    };
+    'venture.network.import': NetworkImportResult;
+    'venture.network.importUndo': NetworkImportUndo;
+    'venture.network.merge': PersonView;
+    'venture.network.split': PersonSplit;
+    'venture.network.forget': NetworkForgotten;
+    'venture.network.hide': {
+        person: PersonSummary;
+    };
+    'venture.network.people': PeopleView;
+    'venture.network.person': PersonView;
+    'venture.network.sources': NetworkSourcesView;
+    'venture.network.recompute': NetworkRecompute;
+    'venture.network.know': PersonView;
+    'venture.network.link': {
+        line: Display;
+    };
+    'venture.network.search': NetworkSearchView;
+    'venture.network.searchMore': NetworkSearchView;
+    'venture.network.saveSearch': {
+        search: SavedSearchView;
+    };
+    'venture.network.research': PersonResearch;
+    'venture.pipeline.list': PipelineView;
+    'venture.pipeline.followups': FollowupsView;
+    'venture.pipeline.add': PipelineCardResult;
+    'venture.pipeline.setNext': PipelineCardResult;
+    'venture.pipeline.move': PipelineCardResult;
+    'venture.pipeline.settings': PipelineSettingsView;
+    'venture.outreach.draft': {
+        draft: OutreachView;
+        line: Display;
+    };
+    'venture.outreach.open': OutreachHandoff;
+    'venture.outreach.sent': OutreachSentResult;
+    'venture.outreach.restricted': OutreachRestriction;
+    'venture.mailbox.connect': MailboxView;
+    'venture.mailbox.disconnect': MailboxView;
+    'venture.mailbox.sync': MailboxSync;
+    'venture.inbound.list': InboundListView;
+    'venture.inbound.confirm': {
+        item: InboundView;
+    };
+    'venture.network.calendar': CalendarFeedView;
+    'venture.meeting.digest': MeetingDigestView;
+    'venture.runs.stop': RunControlResult;
+    'venture.runs.resume': RunControlResult;
+    'venture.runs.roundGate': RunControlResult;
+    'venture.runs.steer': RunControlResult;
+    'venture.business.pause': PauseView;
+    'venture.away.set': AwayView;
+    'venture.away.get': AwayView;
+    'venture.runs.allowWrites': AllowWritesView;
+    'venture.notify.list': NotifyListView;
+    'venture.notify.read': {
+        unread: number;
+    };
+    'venture.notify.settings': NotifySettingsView;
+    'venture.notify.push.key': PushKeyView;
+    'venture.notify.push.subscribe': PushStateView;
+    'venture.notify.push.unsubscribe': PushStateView;
+    'venture.notify.relay': RelayView;
+    'venture.notify.telegram': TelegramView;
+    'venture.phone.access': PhoneAccessView;
+    'venture.web.search': ContractModule1631.WebSearchView;
+    'venture.web.read': ContractModule1631.WebReadView;
+    'venture.chief.thread.state': ChiefThreadStateResult;
+    'venture.chief.settle.set': ChiefSettleResult;
+    'venture.agents.retire.check': RetireCheckView;
+    'venture.agents.retire': AgentRetired;
+    'venture.agents.restore': AgentRestored;
+    'venture.apps.list': {
+        apps: MiniAppCard[];
+        ideas: {
+            label: Display;
+            preview: Display;
+        }[];
+        never: Display;
+    };
+    'venture.apps.get': {
+        app: MiniAppView;
+    };
+    'venture.apps.make': {
+        app: MiniAppView;
+        line: Display;
+    };
+    'venture.apps.grant': {
+        app: MiniAppView;
+        line: Display;
+    };
+    'venture.apps.revoke': {
+        app: MiniAppView;
+        line: Display;
+    };
+    'venture.apps.restore': {
+        app: MiniAppView;
+        undo: {
+            version: number;
+        };
+        line: Display;
+    };
+    'venture.apps.pin': {
+        app: MiniAppView;
+        undo: {
+            pinned: boolean;
+        };
+        line: Display;
+    };
+    'venture.apps.export': {
+        fileName: string;
+        document: string;
+        mediaType: 'text/html';
+    };
+    'venture.apps.call': MiniAppCallResult;
+    'venture.apps.remove': {
+        removed: true;
+        line: Display;
+    };
+    'venture.layout.get': LayoutView;
+    'venture.diagnostics.today': ContractModule1598.DiagnosticsTodayView;
+    'venture.build.briefFile': BriefFilePlan;
+    'venture.accountant.pack.done': {
+        done: boolean;
+    };
+    'venture.accountant.schedule.set': CaPackScheduleView;
+    'venture.accountant.schedule.get': CaPackScheduleView;
+    'venture.accountant.set': AccountantView;
+    'venture.accountant.get': AccountantView;
+    'venture.notify.telegram.findChat': TelegramFound;
+    'venture.client.aiDefault.set': ClientAiDefaultView;
+    'venture.client.aiDefault.get': ClientAiDefaultView;
+    'venture.away.preview': {
+        from: IsoDate;
+        to: IsoDate;
+        items: AwayView['promises'];
+    };
+    'venture.team.introduced': {
+        met: string[];
+    };
+    'venture.layout.change': LayoutChangeResult;
+    'venture.find': FindView;
+    'venture.talk.get': TalkView;
+    'venture.talk.consent': TalkView;
+    'venture.talk.setup': TalkView;
+    'venture.talk.start': TalkStarted;
+    'venture.talk.hear': TalkHeard;
+    'venture.talk.say': TalkSaid;
+    'venture.feedback.get': FeedbackView;
+    'venture.feedback.consent': FeedbackView;
+    'venture.feedback.send': FeedbackView;
+    'venture.feedback.answer': FeedbackView;
+    'venture.feedback.crash': FeedbackCrashKept;
+    'venture.feedback.delete': FeedbackView;
+    'venture.people.services': ContractModule696.PeopleSearchView;
+    'venture.people.lookup': ContractModule696.PeopleLookupView;
+    'venture.crm.client': ContractModule366.ClientCrmView;
+    'venture.crm.client.edit': ContractModule366.ClientCrmView;
+    'venture.crm.companies': ContractModule366.CompanyRow[];
+    'venture.crm.company': ContractModule366.CompanyView;
+    'venture.crm.company.save': ContractModule366.CompanyView;
+    'venture.crm.link': ContractModule366.CrmMemberView;
+    'venture.crm.log': ContractModule366.ClientCrmView;
+    'venture.crm.lists': ContractModule366.CrmListRow[];
+    'venture.crm.list': ContractModule366.CrmListView;
+    'venture.crm.list.save': ContractModule366.CrmListView;
+    'venture.crm.list.place': ContractModule366.CrmListView;
+    'venture.memory.list': ContractModule529.MemoryView;
+    'venture.memory.add': ContractModule529.MemoryChange;
+    'venture.memory.replace': ContractModule529.MemoryChange;
+    'venture.memory.visibility': ContractModule529.MemoryChange;
+    'venture.memory.forget': ContractModule529.MemoryChange;
+    'venture.models.cli.status': CliStatusList;
+    'venture.models.roles': RoleModelsView;
+    'venture.goals.get': GoalView;
+    'venture.goals.set': GoalView;
+    'venture.goals.suggest': GoalSuggestion | null;
+    'venture.decisions.list': DecisionsView;
+    'venture.policy.allowSession': AllowSessionView;
+    'venture.queue.sendBack': QueueDecision;
+    'venture.queue.edit': QueueDecision;
+    'venture.queue.undo': QueueUndoResult;
+    'venture.queue.set': QueueSetResult;
+    'venture.queue.setPreview': QueueSetPreview;
+    'venture.delivery.copy': DeliveryRunView;
+    'venture.triage.set': TriageRuleView;
+    'venture.triage.preview': TriagePreview;
+    'venture.delivery.fix': DeliveryRunView;
+    'venture.delivery.decideChange': DraftChangesView;
+    'venture.delivery.changes': DraftChangesView;
+    'venture.settings.draft': SettingsDraftSaved;
+    'venture.settings.drafts': SettingsDraftsView;
+    'venture.files.poster': UploadView;
+    'venture.money.aging': AgingView;
+    'venture.money.flow': FlowView;
+    'venture.money.cash': CashView;
+    'venture.money.margins': MarginsView;
+    'venture.money.export': MoneyExportFile;
+    'venture.bills.add': BillResult;
+    'venture.bills.pay': BillResult;
+    'venture.bills.list': BillsView;
+    'venture.credit.issue': {
+        creditNote: CreditNoteView;
+    };
+    'venture.invoice.recurring': {
+        recurring: RecurringInvoiceView;
+    };
+    'venture.invoice.recurringList': RecurringInvoicesView;
+    'venture.invoice.remind': {
+        draft: OutreachView;
+        receiptId?: string;
+    };
+    'venture.payment.clear': InvoiceView;
+    'venture.bills.stop': BillsView;
+    'venture.money.across': AcrossMoneyView;
+    'venture.runs.across': AcrossRunsView;
+    'venture.connectors.check': ConnectorChecksView | null;
+    'venture.share.request': FileRequestView;
+    'venture.playbooks.list': WaysView;
+    'venture.blueprint.suggest': PlanSuggestionView;
+    'venture.owner.get': OwnerView;
+    'venture.owner.set': OwnerView;
+    'venture.receipt.verify': ReceiptVerifyView;
+    'venture.journal.chain': JournalChainView;
+    'venture.journal.acceptBreak': JournalChainView;
+    'venture.order.contract': OrderContractView | null;
+    'venture.order.contract.propose': OrderContractView;
+    'venture.order.contract.sign': OrderContractView;
+    'venture.routines.list': RoutinesView;
+    'venture.routines.runs': RoutineRunsView;
+    'venture.routines.set': {
+        routine: RoutineView;
+    };
+    'venture.routines.remove': {
+        removed: true;
+        line: Display;
+    };
+    'venture.options.rerank': RerankView;
+    'venture.drills.run': {
+        run: DrillRunView;
+    };
+    'venture.drills.list': DrillRunsView;
+    'venture.auto.readiness': AutoReadinessView;
+    'venture.shadow.summary': ShadowSummaryView;
+    'venture.playbook.guidance': GuidanceView;
+    'venture.voice.get': VoiceView;
+    'venture.voice.set': VoiceView;
+    'venture.voice.learn': VoiceView;
+    'venture.persona.get': PersonaView;
+    'venture.persona.set': PersonaView;
+    'venture.persona.test': PersonaTestView;
+    'venture.agents.export': AgentExportFile;
+    'venture.agents.import': {
+        proposal: AgentProposalView;
+    };
+    'venture.knowledge.list': KnowledgeView;
+    'venture.knowledge.add': {
+        source: KnowledgeSourceView;
+    };
+    'venture.knowledge.remove': {
+        removed: true;
+        line: Display;
+    };
+    'venture.knowledge.test': KnowledgeTestView;
+    'venture.ideas.list': IdeasView;
+    'venture.ideas.start': IdeaStarted;
+    'venture.ideas.dismiss': {
+        dismissed: true;
+        line: Display;
+    };
+    'venture.agents.capabilities': CapabilityPageView;
+    'venture.order.chain': OrderChainView;
+    'venture.salesProposal.draft': SalesProposalView;
+    'venture.salesProposal.get': SalesProposalView;
+    'venture.goNoGo.card': GoNoGoCardView;
+    'venture.goNoGo.list': GoNoGoListView;
+    'venture.goNoGo.remove': {
+        removed: true;
+        line: Display;
+    };
+    'venture.ideas.add': IdeaAddedView;
+    'venture.ideas.move': IdeaMovedView;
+    'venture.ideas.grade': IdeaGradedView;
+    'venture.brandKit.get': BrandKitView;
+    'venture.brandKit.set': BrandKitView;
+    'venture.assets.list': AssetsView;
+    'venture.assets.rerun': AssetRerunView;
+    'venture.assets.reuse': AssetReuseView;
+    'venture.voiceConsent.record': VoiceConsentView;
+    'venture.voiceConsent.revoke': VoiceConsentView;
+    'venture.voiceConsent.list': VoiceConsentsView;
+    'venture.report.render': ReportView;
+    'venture.report.share': ReportShareView;
+    'venture.report.shareRotate': ReportShareView;
+    'venture.report.shareDisable': ReportShareView;
+    'venture.report.list': ReportListView;
+    'venture.monitors.list': MonitorsView;
+    'venture.monitors.add': MonitorView;
+    'venture.monitors.remove': MonitorView;
+    'venture.mail.import': MailImportView;
+    'venture.mail.threads': MailThreadsView;
+    'venture.localApps.list': LocalAppsView;
+    'venture.webhook.set': WebhookView;
+    'venture.webhook.send': WebhookSendView;
+    'venture.speechOut.providers': SpeechProvidersView;
+    'venture.ca.confirmCitations': CitationsConfirmView;
+    'venture.ca.signoff.get': SignoffCheckView;
+    'venture.ca.differential.add': DifferentialAddView;
+    'venture.ca.dataPack.export': DataPackExportView;
+    'venture.desk.list': DeskListView;
+    'venture.desk.get': DeskItemView;
+    'venture.desk.act': DeskActView;
+    'venture.flows.list': ContractModule513.FlowsListView;
+    'venture.flows.act': ContractModule513.FlowsActView;
+    'venture.ai.options': OnboardingResults['venture.ai.options'];
+    'venture.ai.connect': OnboardingResults['venture.ai.connect'];
+    'venture.ai.disconnect': OnboardingResults['venture.ai.disconnect'];
+    'venture.ai.status': OnboardingResults['venture.ai.status'];
+    'venture.ai.calls': OnboardingResults['venture.ai.calls'];
+    'venture.country.suggest': OnboardingResults['venture.country.suggest'];
+    'venture.ai.tools': OnboardingResults['venture.ai.tools'];
+    'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
+    'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
+    'venture.ai.setup.trust': {
+        setup: ContractModule333.CodexSetupView;
+    };
+    'venture.ai.claude.install': ContractModule536.ClaudeInstallResult;
+    'venture.ai.claude.progress': ContractModule536.ClaudeInstallView;
+    'venture.work.list': {
+        work: ContractModule1633.WorkJobView[];
+    };
+    'venture.invoice.shared': InvoiceView;
+    'venture.routines.suggestions': RoutineSuggestionsView;
+    'venture.agents.hire.duties': ContractModule150.HireView;
+    'venture.events.calKey.set': ContractModule233.EventsView;
+    'venture.events.relay.set': ContractModule233.EventsView;
+    'venture.events.get': ContractModule233.EventsView;
+    'venture.agents.hire.cancel': {
+        cancelled: true;
+    };
+    'venture.agents.hire.confirm': ContractModule150.HireView;
+    'venture.agents.hire.answer': ContractModule150.HireView;
+    'venture.agents.hire.start': ContractModule150.HireView;
+    'venture.trackers.rows.undo': {
+        undone: true;
+    };
+    'venture.trackers.rows.remove': {
+        removed: true;
+    };
+    'venture.trackers.rows.edit': {
+        row: ContractModule1595.TrackerRowView;
+    };
+    'venture.trackers.rows.add': {
+        row: ContractModule1595.TrackerRowView;
+    };
+    'venture.trackers.remove': {
+        removed: true;
+    };
+    'venture.trackers.set': {
+        tracker: ContractModule1595.TrackerView;
+    };
+    'venture.trackers.get': ContractModule1595.TrackerDetail;
+    'venture.trackers.list': ContractModule1595.TrackersView;
+    'venture.routines.backup.set': ContractModule169.BackupView;
+    'venture.routines.backup.get': ContractModule169.BackupView;
+    'venture.models.plan': ContractModule557.PlanView;
+    'venture.about.read': OnboardingResults['venture.about.read'];
+    'venture.about.pick': OnboardingResults['venture.about.pick'];
+    'venture.about.families': OnboardingResults['venture.about.families'];
+    'venture.needs.list': NeedsList;
+    'venture.compose.decide': OnboardingResults['venture.compose.decide'];
+    'venture.compose.fill': OnboardingResults['venture.compose.fill'];
+    'venture.compose.get': OnboardingResults['venture.compose.get'];
+    'venture.compose.update': OnboardingResults['venture.compose.update'];
+};
+}
+
+declare namespace ContractModule308 {
+import MODEL_PRESET_IDS = ContractModule301.MODEL_PRESET_IDS;
+import MODEL_PURPOSES = ContractModule301.MODEL_PURPOSES;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import Json = ContractModule304.Json;
+import MicroString = ContractModule304.MicroString;
+import RecordBase = ContractModule304.RecordBase;
+export type ModelPresetId = typeof MODEL_PRESET_IDS[number];
+export type ModelRouteKind = 'anthropic-messages' | 'openai-responses' | 'claude-cli' | 'codex-cli' | 'template';
+export type ModelTier = 'fast' | 'main';
+export type ModelPurpose = typeof MODEL_PURPOSES[number];
+export type ModelPriceTable = {
+    currency: 'USD';
+    inputMicrosPerMillion: MicroString;
+    outputMicrosPerMillion: MicroString;
+    cacheReadMicrosPerMillion?: MicroString;
+    cacheWriteMicrosPerMillion?: MicroString;
     source: string;
     checkedOn: IsoDate;
     confirmed: boolean;
-    by: 'list' | 'owner';
-    cacheReadMicrosPerMillion?: MicroString | null;
-    cacheWriteMicrosPerMillion?: MicroString | null;
 };
-export type CurrencyLead = 'auto' | 'inr' | 'usd';
-export interface SpendLead {
-    currency: 'INR' | 'USD';
-    figure: Display;
-    beside?: Display;
-    other?: Display;
-}
-export interface SpendRow {
-    id: string;
-    agent?: string;
-    connector?: string;
+export type ModelAvailability = 'ready' | 'unverified' | 'needs-setup' | 'unavailable';
+export type ModelPreset = {
+    id: ModelPresetId;
     label: string;
-    reserved: Display;
-    settled?: Display;
-    kind: 'estimate' | 'billed' | 'refused';
-    receiptId?: string;
-    reason?: Display;
-    reservedRupees?: Display;
-    settledRupees?: Display;
-    by?: Display;
-    reservedLead?: SpendLead;
-    settledLead?: SpendLead;
-    basis?: Display;
-    priced?: Display;
-    payer?: Display;
-}
-export type SpendRateInput = {
-    model?: string;
-    item: string;
-    unit: SpendRateUnit;
-    inputMicrosPerMillion?: MicroString | null;
-    outputMicrosPerMillion?: MicroString | null;
-    microsPerCall?: MicroString | null;
-    inputUsdPerMillion?: string | null;
-    outputUsdPerMillion?: string | null;
-    usdPerCall?: string | null;
-    source: string;
-    checkedOn: IsoDate;
-    cacheReadUsdPerMillion?: string | null;
-    cacheWriteUsdPerMillion?: string | null;
-    cacheReadMicrosPerMillion?: MicroString | null;
-    cacheWriteMicrosPerMillion?: MicroString | null;
+    kind: ModelRouteKind;
+    model: string | null;
+    modelEditable: boolean;
+    tiers: ModelTier[];
+    needsKey: boolean;
+    keyHint: string | null;
+    runsOn: 'provider-api' | 'this-computer' | 'chausar-engine';
+    priceTable: ModelPriceTable | null;
+    consentText: string;
+    consentDigest: string;
+    verification: 'not-live-verified' | 'built-in';
+    verificationNote?: string | null;
+    availability: ModelAvailability;
+    availabilityReason: string;
 };
-export type SpendRateUsd = {
-    inputUsdPerMillion: string | null;
-    outputUsdPerMillion: string | null;
-    usdPerCall: string | null;
-    cacheReadUsdPerMillion?: string | null;
-    cacheWriteUsdPerMillion?: string | null;
+export type ModelConnectionRecord = RecordBase<'venture-model-connection'> & {
+    presetId: ModelPresetId;
+    routeKind: ModelRouteKind;
+    model: string | null;
+    endpoint: string;
+    tiers: ModelTier[];
+    consentDigest: string;
+    consentedAt: IsoTime;
+    monthlyCapMicros: MicroString;
+    status: 'connected' | 'disconnected';
 };
-export interface SpendPolicyView {
-    reference?: {
-        perUsd: string;
-        on: IsoDate;
-        line: Display;
-        source: Display;
-        url: string;
+export type ModelVerificationView = {
+    verification?: ModelPreset['verification'];
+    verificationNote?: string | null;
+};
+export type ModelConnectionView = ModelConnectionRecord & ModelVerificationView & {
+    keyLoaded: boolean;
+    usable: boolean;
+    reason: string;
+};
+export type ModelStatusView = {
+    connections: ModelConnectionView[];
+    tiers: Record<ModelTier, ModelVerificationView & {
+        presetId: ModelPresetId;
+        model: string | null;
+        usable: boolean;
+        reason: string;
+    }>;
+    spentThisMonthMicros: MicroString;
+    spentThisMonthDisplay: string;
+    estimate: boolean;
+    sendPolicy: 'nothing' | 'shape' | 'samples';
+    replay: {
+        active: boolean;
+        label: 'synthetic recording' | null;
     };
-    capMicros: MicroString | null;
-    askFirstMicros: MicroString | null;
-    capUsd: string | null;
-    askFirstUsd: string | null;
-    cap: Display;
-    askFirst: Display;
-    rates: (SpendRate & SpendRateUsd & {
-        price: Display;
-    })[];
-    setAt: IsoTime | null;
-    inrPerUsd: string | null;
-    rupeeRate: Display | null;
-    capRupees?: Display;
-    askFirstRupees?: Display;
-    dailyCapMicros?: MicroString | null;
-    dailyCapUsd?: string | null;
-    dailyCap?: Display;
-    dailyCapRupees?: Display;
-    alertPermille?: number;
-    alert?: Display;
-    meter?: SpendMeterView | null;
-    limitReached?: LimitReachedView;
-    keyLimits?: LimitReachedView[];
-    agentCaps?: AgentCapView[];
-    writeCaps?: WriteCapView[];
-    card?: RateCardLine[];
-    meters?: SpendMetersView;
-    currencyLead?: CurrencyLead;
-    leads?: 'INR' | 'USD';
-    capLead?: SpendLead;
-    askFirstLead?: SpendLead;
+    payerLine?: string;
+};
+export type ModelCallRecord = RecordBase<'venture-model-call'> & {
+    purpose: ModelPurpose;
+    agentId?: string;
+    agentJobId?: string;
+    routineId?: string;
+    routineRunId?: string;
+    tier: ModelTier;
+    presetId: ModelPresetId;
+    connectionId: string | null;
+    routeKind: ModelRouteKind;
+    model: string | null;
+    consent: 'standing' | 'approved-preview' | 'standing-judge' | 'owner-file-drop' | 'client-ai';
+    endpoint: string;
+    payloadText: string;
+    payloadDigest: string;
+    payloadTruncated: boolean;
+    containsClientData: boolean;
+    status: 'preview' | 'dispatching' | 'completed' | 'failed' | 'expired';
+    approvedDigest: string | null;
+    approvedAt: IsoTime | null;
+    approvedBy: string | null;
+    estimatedMaxCostMicros: MicroString;
+    priceConfirmed: boolean;
+    usage: {
+        inputTokens: number;
+        outputTokens: number;
+        cachedInputTokens?: number;
+        cacheWriteTokens?: number;
+    } | null;
+    costMicros: MicroString | null;
+    outputDigest: string | null;
+    error: {
+        code: string;
+        message: string;
+        cause?: string;
+    } | null;
+    replay: boolean;
+    answeredBy?: string;
+    erasedAt?: IsoTime;
+    kept?: Json;
+};
+export type ModelPreview = {
+    clientAi?: ContractModule296.ClientAiContextBinding;
+    callId: string;
+    payloadText: string;
+    digest: string;
+    presetId: ModelPresetId;
+    model: string | null;
+    endpoint: string;
+    estimatedMaxCostMicros: MicroString;
+    estimatedMaxCostDisplay: string;
+    payer?: string;
+};
+export type DateRef = string;
 }
-export interface SpendMeterView {
-    usedPermille: number;
-    line: Display;
-    near: boolean;
-    over: boolean;
-    receiptId: string;
-    resetOn: IsoDate;
-    reset: Display;
-    projection?: {
-        line: Display;
-        label: Display;
-        runIds: string[];
-        left: Display;
-        leftRupees?: Display;
+
+declare namespace ContractModule309 {
+import FootageRights = ContractModule493.FootageRights;
+import SocialChannel = ContractModule1290.SocialChannel;
+import IntakeValue = ContractModule945.IntakeValue;
+import CountryCode = ContractModule327.CountryCode;
+import TaxMode = ContractModule327.TaxMode;
+import CountryProfile = ContractModule327.CountryProfile;
+import TaxTreatment = ContractModule613.TaxTreatment;
+import PriceStep = ContractModule613.PriceStep;
+import BpsString = ContractModule304.BpsString;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import MinorString = ContractModule304.MinorString;
+import RecordBase = ContractModule304.RecordBase;
+import Display = ContractModule313.Display;
+import InvoiceShareHow = ContractModule312.InvoiceShareHow;
+import CreditNoteView = ContractModule314.CreditNoteView;
+export import TaxTreatment = ContractModule613.TaxTreatment;
+export import PriceStep = ContractModule613.PriceStep;
+export type PriceFigure = {
+    key: 'unit' | 'subtotal' | 'discount' | 'taxable' | 'tax' | 'cgst' | 'sgst' | 'igst' | 'total' | 'paid' | 'balance' | 'credited';
+    label: string;
+    minor: MinorString;
+    display: string;
+    currency: string;
+};
+export type PriceReceiptRecord = RecordBase<'venture-price-receipt'> & {
+    subject: {
+        type: 'offer';
+        offerId: string;
+    } | {
+        type: 'order';
+        orderId: string;
+    } | {
+        type: 'invoice';
+        invoiceId: string;
     };
-}
-export interface LimitReachedView {
-    scope: 'business' | 'key';
-    presetId?: string;
-    line: Display;
-    options: {
-        id: 'raise' | 'connect' | 'wait';
-        label: Display;
-    }[];
-}
-export interface SpendMeterRowView {
-    scope: 'agent' | 'routine';
+    operation: 'venture.price';
+    currency: string;
+    minorDigits: number;
+    inputs: {
+        unitPriceMinor: MinorString;
+        quantity: string;
+        discountBps: BpsString;
+        taxMode: TaxMode;
+        taxRateBps: BpsString;
+        taxTreatment: TaxTreatment;
+        unitPriceBy: 'told-by-you';
+        taxRateBy: 'country-table' | 'told-by-you' | 'not-registered';
+        blueprintDigest: string;
+        taxInclusive?: true;
+        part?: {
+            kind: 'advance' | 'milestone' | 'partial' | 'final';
+            shareBps: BpsString | null;
+            basisReceiptId: string;
+            earlierMinor: MinorString;
+        };
+        currencyBy?: 'order';
+    };
+    steps: PriceStep[];
+    figures: PriceFigure[];
+    totalMinor: MinorString;
+    allowedNumbers: string[];
+    explanation: string;
+    digest: string;
+    stale: boolean;
+};
+export type ClientAiConsent = {
     id: string;
-    name: Display;
-    used: Display;
-    usedLead: SpendLead;
-    receiptId: string;
-    plan: Display | null;
-    media?: Display;
-    cap: Display | null;
-    capUsd: string | null;
-    capRupees?: Display;
-    usedPermille: number | null;
-    paused: boolean;
-    line: Display;
-}
-export interface SpendMetersView {
-    month: string;
-    agents: SpendMeterRowView[];
-    routines: SpendMeterRowView[];
-}
-export interface ModelReceiptView {
-    tool: Display;
-    model: Display;
-    tier: Display;
-    usage: Display;
-    cost: Display;
-    state: 'plan' | 'priced' | 'estimate' | 'unknown' | 'none';
-    receiptId?: string;
-    costLead?: SpendLead;
-    agent?: Display;
-    line: Display;
-}
-export interface AgentCapView {
-    agent: string;
-    name: Display;
-    capMicros: MicroString;
-    capUsd: string;
-    cap: Display;
-    used: Display;
-    paused: boolean;
-    capRupees?: Display;
-    usedRupees?: Display;
-}
-export interface WriteCapView {
-    kind: WriteCapKind;
-    configuredCap: number;
-    cap: number;
-    used: number;
-    raised: boolean;
-    line: Display;
-}
-export interface RateCardLine {
-    item: string;
+    revision: number;
+    disclosureDigest: string;
+    grantedAt: IsoTime;
+    grantedBy: string;
+    withdrawnAt: IsoTime | null;
+};
+export type ClientAiConsentView = {
+    clientId: string;
+    clientName: string;
+    status: 'required' | 'agreed' | 'withdrawn';
+    disclosure: string;
+    disclosureDigest: string;
+    consent: ClientAiConsent | null;
+};
+export type ClientRecord = RecordBase<'venture-client'> & {
+    aiConsent?: ClientAiConsent;
+    self?: true;
+    name: string;
+    email: string | null;
+    countryCode: CountryCode | null;
+    taxId: string | null;
+    stateCode: string | null;
+    note: string | null;
+    timelineClearedAt?: IsoTime;
+    phone?: string | null;
+    whatsapp?: string | null;
+};
+export type OrderRecord = RecordBase<'venture-order'> & {
+    sellerShopify?: ContractModule1133.SellerShopifyBody;
+    sellerStorefront?: ContractModule1143.SellerStorefrontBody;
+    youtubePublic?: ContractModule1535.YoutubePublicRead;
+    youtubeResearch?: ContractModule1545.YoutubeResearchBody;
+    narrationFetched?: {
+        fileId: string;
+        url: string;
+        finalUrl: string;
+        digest: string;
+    };
+    socialPostHistory?: ContractModule1362.SocialHookHistory[];
+    socialGhostwriting?: ContractModule1280.GhostwritingState;
+    socialProduction?: ContractModule1337.SocialProduction;
+    internal?: true;
+    clientId: string;
+    offerId: string;
+    quantity: string;
+    request: string;
+    status: 'open' | 'invoiced' | 'delivered' | 'cancelled';
+    priceReceiptId: string;
+    deliveredOn: IsoDate | null;
+    saleFactId: string | null;
+    intake?: OrderIntake;
+    taxInclusive?: boolean;
+    socialChain?: ContractModule1288.SocialChainPin;
+    chainStage?: number;
+    chainState?: 'running' | 'waiting' | 'stopped' | 'done';
+    chainSince?: IsoTime;
+    outOfScope?: {
+        rest: string[];
+        reply: string;
+    };
+    dueDate?: IsoDate;
+    foreignPrice?: ContractModule574.ForeignPrice;
+};
+export type OrderIntake = {
+    rights: FootageRights | null;
+    format: 'long' | 'short';
+    aiVoice: boolean;
+    aiPresenter: boolean;
+    paidPromotion: boolean;
+    cutFile: string | null;
+    calendar?: {
+        month: string;
+        channels: SocialChannel[];
+        postsPerChannel: number;
+        weekdays: number[];
+    };
+    clientRules?: {
+        bannedWords: string[];
+        bannedTopics: string[];
+        competitors: string[];
+        protectedPhrases: string[];
+    };
+    fields?: Record<string, IntakeValue>;
+};
+export type OrderStageId = 'agreed' | 'price' | 'episode' | 'publish' | 'files-in' | 'books' | 'gst' | 'calendar' | 'drafts' | 'client-ok' | 'posts' | 'report' | 'draft' | 'sent' | 'invoice' | 'paid';
+export type OrderStageState = 'done' | 'waits' | 'not-yet' | 'always-asks' | 'unknown';
+export type OrderStageReason = 'new-price' | 'ready' | 'question' | 'approval' | 'brief' | 'failed' | 'stopped' | 'rejected' | 'working' | 'practice' | 'send-unknown' | 'post-unknown' | 'issue-unknown' | 'ca-signed' | 'ca-returned' | 'with-ca' | 'send-to-ca' | 'no-ca' | 'client-approved' | 'client-changes' | 'with-client' | 'link-ended' | 'posts-waiting' | 'posting' | 'planned' | 'to-issue' | 'issued' | 'due' | 'part-paid';
+export interface OrderStageView {
+    id: OrderStageId;
     label: Display;
-    state: 'confirmed' | 'list';
-    price: Display;
-    checked: Display;
-    source: string;
-    unconfirmed?: boolean;
+    state: OrderStageState;
+    detail: Display;
+    line: Display;
+    waitsOn?: 'you' | 'ca' | 'client';
+    due?: IsoDate;
+    reason?: OrderStageReason;
 }
+export interface OrderWaitsOnYou {
+    count: number;
+    items: {
+        stage: OrderStageId;
+        what: Display;
+    }[];
+    line: Display;
+}
+export type OrderListRow = OrderRecord & {
+    stages: OrderStageView[];
+    waitsOnYou: OrderWaitsOnYou | null;
+    price: OrderPrice | null;
+};
+export interface OrderPrice {
+    display: Display;
+    receiptId: string;
+}
+export type InvoiceLine = {
+    description: string;
+    quantity: string;
+    unitMinor: MinorString;
+    amountMinor: MinorString;
+    taxRateBps?: BpsString;
+};
+export type InvoiceRecord = RecordBase<'venture-invoice'> & {
+    number: string | null;
+    documentTitle: 'TAX INVOICE' | 'INVOICE' | 'INVOICE (not a tax invoice)';
+    orderId: string;
+    clientId: string;
+    currency: string;
+    issueDate: IsoDate | null;
+    dueDate: IsoDate | null;
+    dueInDays: number;
+    lines: InvoiceLine[];
+    subtotalMinor: MinorString;
+    discountMinor: MinorString;
+    taxMinor: MinorString;
+    totalMinor: MinorString;
+    taxLabel: string;
+    taxRateBps: BpsString;
+    taxTreatment: TaxTreatment;
+    taxLines: {
+        label: string;
+        rateBps: BpsString;
+        minor: MinorString;
+    }[];
+    supplierTaxId: string | null;
+    clientTaxId: string | null;
+    placeOfSupply: string | null;
+    sacCode: string | null;
+    priceReceiptId: string;
+    status: 'draft' | 'issued' | 'part-paid' | 'paid' | 'void';
+    digest: string;
+    issuedAt: IsoTime | null;
+    factIds: string[];
+    booksReceiptId: string | null;
+    booksNote: string | null;
+    paidMinor: MinorString;
+    balanceMinor: MinorString;
+    part?: ContractModule574.InvoicePart;
+    terms?: string;
+    reminderDays?: number[];
+    payLink?: ContractModule574.PayLinkState;
+};
+export type PaymentMethod = 'bank-transfer' | 'upi' | 'card' | 'cash' | 'payment-link' | 'other' | 'cheque';
+export type PaymentRecord = RecordBase<'venture-payment'> & {
+    invoiceId: string;
+    amountMinor: MinorString;
+    currency: string;
+    receivedOn: IsoDate;
+    method: PaymentMethod;
+    factId: string | null;
+    booksReceiptId: string | null;
+    booksNote: string | null;
+    bankTransactionId?: string;
+    state?: 'pending' | 'cleared';
+    chequeOn?: IsoDate;
+    clearedBy?: string;
+    clearedAt?: IsoTime;
+    split?: {
+        groupId: string;
+        totalMinor: MinorString;
+    };
+    tds?: {
+        section: string;
+        amountMinor: MinorString;
+    };
+};
+export type InvoiceNext = {
+    action: 'issue' | 'wait' | 'remind' | 'clear' | 'none';
+    line: Display;
+    draftId?: string;
+};
+export type InvoiceTimelineEntry = {
+    what: 'issued' | 'viewed' | 'paid' | 'cheque' | 'credited' | 'reminder' | 'reminded' | 'awaiting' | 'settled' | 'shared' | 'marked';
+    on: IsoDate;
+    line: Display;
+    how?: Exclude<InvoiceShareHow, 'marked'>;
+};
+export type InvoiceView = {
+    country?: CountryProfile;
+    invoice: InvoiceRecord;
+    client: ClientRecord;
+    receipt: PriceReceiptRecord;
+    payments: PaymentRecord[];
+    documentText: string;
+    figures: PriceFigure[];
+    notes: string[];
+    next?: InvoiceNext;
+    timeline?: InvoiceTimelineEntry[];
+    rateChange?: {
+        charged: BpsString;
+        now: BpsString;
+        line: Display;
+    };
+    credits?: CreditNoteView[];
+    late?: {
+        days: number;
+        line: Display;
+    };
+    billed?: ContractModule574.OrderBilledView;
+    howToPay?: ContractModule574.HowToPayView;
+    sent: boolean;
+    paymentDefaults?: {
+        method: PaymentMethod;
+    };
+    paidInFull?: boolean;
+};
+export type BooksFigure = {
+    operation: 'billed' | 'received' | 'earned';
+    label: string;
+    receiptId: string;
+    minor: MinorString;
+    display: string;
+    stale: boolean;
+    zero?: true;
+};
+export type BooksPeriodKey = 'all' | 'this-month' | 'last-month' | 'this-year';
+export type BooksPeriodChoice = {
+    key: BooksPeriodKey;
+    label: string;
+    from: IsoDate;
+    to: IsoDate;
+};
+export type BooksSummary = {
+    period: {
+        from: IsoDate;
+        to: IsoDate;
+    };
+    periodKey?: BooksPeriodKey | 'custom';
+    periods?: BooksPeriodChoice[];
+    today?: IsoDate;
+    timeZone?: string;
+    currency: string;
+    figures: BooksFigure[];
+    openInvoices: {
+        invoiceId: string;
+        number: string;
+        clientName: string;
+        balanceMinor: MinorString;
+        balanceDisplay: string;
+        dueDate: IsoDate;
+    }[];
+    notes: string[];
+    month?: string;
+    previous?: {
+        month: string;
+        label: Display;
+        period: {
+            from: IsoDate;
+            to: IsoDate;
+        };
+        figures: BooksFigure[];
+    } | null;
+};
+}
+
+declare namespace ContractModule310 {
+export import SharePrice = ContractModule978.SharePrice;
+import YoutubeEditBody = ContractModule1537.YoutubeEditBody;
+import YoutubeStyleBody = ContractModule1537.YoutubeStyleBody;
+import SellerSkuBody = ContractModule1126.SellerSkuBody;
+import SupportMessageBody = ContractModule1379.SupportMessageBody;
+import SupportRatingBody = ContractModule1379.SupportRatingBody;
+import SupportRequestBody = ContractModule1379.SupportRequestBody;
+import SupportTicketBody = ContractModule1379.SupportTicketBody;
+import RoomBriefBody = ContractModule1460.RoomBriefBody;
+import RecordBase = ContractModule304.RecordBase;
+export type YoutubeEditRecord = RecordBase<'venture-youtube-edit'> & YoutubeEditBody;
+export type YoutubeStyleRecord = RecordBase<'venture-youtube-style'> & YoutubeStyleBody;
+export type SellerSkuRecord = RecordBase<'venture-seller-sku'> & SellerSkuBody;
+export type SupportTicketRecord = RecordBase<'venture-support-ticket'> & SupportTicketBody;
+export type SupportMessageRecord = RecordBase<'venture-support-message'> & SupportMessageBody;
+export type SupportRequestRecord = RecordBase<'venture-support-request'> & SupportRequestBody;
+export type SupportRatingRecord = RecordBase<'venture-support-rating'> & SupportRatingBody;
+export type RoomBriefRecord = RecordBase<'venture-room-brief'> & RoomBriefBody;
+}
+
+declare namespace ContractModule311 {
+import VENTURE_EVENTS = ContractModule301.VENTURE_EVENTS;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import Json = ContractModule304.Json;
+import RecordBase = ContractModule304.RecordBase;
+import Display = ContractModule313.Display;
+import ModelReceiptView = ContractModule313.ModelReceiptView;
+import DepartmentId = ContractModule312.DepartmentId;
+import InboundTopic = ContractModule312.InboundTopic;
+import OutreachChannel = ContractModule312.OutreachChannel;
+import FixKind = ContractModule305.FixKind;
+import QuestionCard = ContractModule305.QuestionCard;
+import RoundGateReason = ContractModule305.RoundGateReason;
+import RunFailureKind = ContractModule305.RunFailureKind;
+import RunStepState = ContractModule305.RunStepState;
+import AgentHealth = ContractModule314.AgentHealth;
 export type VentureEventName = typeof VENTURE_EVENTS[number];
 export type VentureEventRecord = RecordBase<'venture-event'> & {
     seq: number;
@@ -3964,7 +6576,7 @@ export interface RunDetail extends RunSummary {
         model?: string;
         unavailableSites?: string[];
         pendingApproval?: {
-            request: ContractModule75.AgentApprovalRequest;
+            request: ContractModule111.AgentApprovalRequest;
             digest: string;
         };
     };
@@ -4144,6 +6756,593 @@ export interface QueueItemView {
         estimate?: true;
     }[];
 }
+}
+
+declare namespace ContractModule312 {
+import DEPARTMENT_IDS = ContractModule301.DEPARTMENT_IDS;
+import PROPOSAL_KINDS = ContractModule301.PROPOSAL_KINDS;
+import NETWORK_IMPORT_KINDS = ContractModule301.NETWORK_IMPORT_KINDS;
+import TIE_BANDS = ContractModule301.TIE_BANDS;
+import PIPELINE_STAGES = ContractModule301.PIPELINE_STAGES;
+import LOST_REASONS = ContractModule301.LOST_REASONS;
+import OUTREACH_KINDS = ContractModule301.OUTREACH_KINDS;
+import BpsString = ContractModule304.BpsString;
+import IsoTime = ContractModule304.IsoTime;
+import MinorString = ContractModule304.MinorString;
+import RecordBase = ContractModule304.RecordBase;
+import Display = ContractModule313.Display;
+import DeliveryRunStatus = ContractModule305.DeliveryRunStatus;
+import HarnessState = ContractModule305.HarnessState;
+import ScreenNote = ContractModule305.ScreenNote;
+import PriceFigure = ContractModule309.PriceFigure;
+export type DepartmentId = typeof DEPARTMENT_IDS[number];
+export type KeeperJobId = 'backups' | 'journal-sweep' | 'connection-checks' | 'rule-freshness' | 'rate-tables' | 'posting-steps' | 'network-strength' | 'probes' | 'calendar-feed' | 'monitors';
+export type KeeperOutcome = 'ok' | 'warn' | 'failed';
+export type AgentMessageFrom = 'owner' | 'agent' | 'chausar';
+export type ChatPart = {
+    kind: 'text';
+    text: string;
+} | {
+    kind: 'figure';
+    receiptId: string;
+    key: string;
+    display: Display;
+} | {
+    kind: 'estimate';
+    text: string;
+} | {
+    kind: 'guide';
+    anchor: string;
+    title: string;
+    text: string;
+    link: string;
+};
+export type AgentSuggestion = {
+    kind: 'order';
+    offerId: string | null;
+    request: string;
+} | {
+    kind: 'connect-ai';
+};
+export type AgentProposalKind = 'instruction' | 'note' | 'import';
+export type AgentProposalStatus = 'drafted' | 'accepted' | 'rejected';
+export type DiffLine = {
+    op: 'same' | 'add' | 'remove';
+    text: string;
+};
+export type AgentNoteLoad = 'always' | 'topic';
+export type AgentNoteScope = 'agent' | `client:${string}`;
+export type ChiefCounted = {
+    entities: {
+        kind: string;
+        count: number;
+    }[];
+    months: {
+        month: string;
+        count: number;
+    }[];
+};
+export type ProposalKind = typeof PROPOSAL_KINDS[number];
+export type ProposalStatus = 'drafted' | 'raised' | 'approved' | 'dismissed' | 'refused';
+export type NetworkImportKind = typeof NETWORK_IMPORT_KINDS[number];
+export type TieBand = typeof TIE_BANDS[number];
+export type TieStep = {
+    op: 'multiply' | 'cap' | 'fade' | 'add' | 'band';
+    inputs: string[];
+    result: string;
+    rule: string;
+};
+export type TieReceipt = {
+    id: string;
+    kind: 'venture-tie';
+    ventureId: string;
+    at: IsoTime;
+    personId: string;
+    operation: 'venture.tie';
+    unit: 'bp';
+    lines: Display[];
+    steps: TieStep[];
+    figures: PriceFigure[];
+    totalBp: string;
+    band: TieBand;
+    allowedNumbers: string[];
+    explanation: Display;
+    digest: string;
+    stale: boolean;
+};
+export type RowFigure = {
+    key: string;
+    label: string;
+    amount: string;
+    unit: 'micros' | 'minor' | 'rate';
+    currency: string;
+    display: Display;
+};
+export type RowFigureReceipt = {
+    id: string;
+    kind: 'row-figure';
+    ventureId: string;
+    at: IsoTime;
+    operation: 'venture.row-figure';
+    subject: {
+        type: 'call-cost' | 'judge-cost' | 'cap-room' | 'spend-quote' | 'plan-price' | 'month-spend' | 'week-total' | 'week-average' | 'scope-cap' | 'go-no-go';
+        recordId: string;
+    };
+    figures: RowFigure[];
+    allowedNumbers: string[];
+    explanation: Display;
+    digest: string;
+    stale: boolean;
+};
+export type PipelineStage = typeof PIPELINE_STAGES[number];
+export type LostReason = typeof LOST_REASONS[number];
+export type LawfulBasis = 'they-wrote-first' | 'existing-contact' | 'public-business-contact';
+export type OpportunityTrigger = {
+    kind: 'import' | 'search' | 'saved-search' | 'owner' | 'lead';
+    ref: string | null;
+    line: string;
+};
+export type ScoreRule = {
+    field: string;
+    operator: 'is' | 'contains' | 'at-least' | 'at-most';
+    value: string;
+    points: number;
+};
+export type CardVote = {
+    factor: string;
+    points: number;
+    evidence: string;
+};
+export type OutreachLane = 'linkedin-note' | 'linkedin-message' | 'whatsapp' | 'email';
+export type PipelineCaps = {
+    newPerDay: number;
+    perWeek: number;
+    channels?: Partial<Record<OutreachLane, number>>;
+    channelWeeks?: Partial<Record<OutreachLane, number | null>>;
+    warmupPercent?: number[];
+};
+export type OutreachKind = typeof OUTREACH_KINDS[number];
+export type OutreachChannel = 'email' | 'linkedin' | 'whatsapp';
+export type OutreachSentChannel = 'own-mailbox' | 'linkedin' | 'whatsapp' | 'phone';
+export type OutreachLanguage = 'en' | 'hi';
+export type InboundTriage = 'opt-out' | 'auto-reply' | 'thanks' | 'bounce' | 'owner-reply' | 'bot-question' | 'talking' | 'unmatched';
+export type InboundTopic = 'price' | 'contract' | 'meeting' | 'buying';
+export type DraftRevision = {
+    socialPost?: {
+        postId: string;
+        n: number;
+        posts: {
+            channel: string;
+            text: string;
+        }[];
+        prior: ContractModule1280.GhostwritingState;
+    };
+    by: 'send-back' | 'fix';
+    words: string;
+    rowId: string | null;
+    at: IsoTime;
+    callId: string;
+    base: string;
+    previous?: string;
+    prior: {
+        callId: string | null;
+        phase: HarnessState['phase'] | null;
+        status?: DeliveryRunStatus;
+    };
+    checks?: string[];
+};
+export type DraftMergePart = {
+    kind: 'same';
+    text: string[];
+} | {
+    kind: 'change';
+    id: string;
+    owner: string[];
+    agent: string[];
+    by: 'agent' | 'both';
+    status: 'open' | 'taken' | 'dropped';
+};
+export type DraftMerge = {
+    at: IsoTime;
+    edited: boolean;
+    owner: string;
+    parts: DraftMergePart[];
+    replacement: 'confirmed' | 'kept' | null;
+};
+export type DraftFix = {
+    checks: string[];
+    status: 'fixed' | 'partially-fixed' | 'not-fixed' | 'unverified';
+    at: IsoTime;
+};
+export type TriageField = 'due' | 'client' | 'kind' | 'money' | 'business';
+export type TriageRule = {
+    keys: {
+        field: TriageField;
+        order: 'asc' | 'desc';
+    }[];
+    words: string;
+};
+export type BillLineInput = {
+    description: string;
+    taxName: string;
+} & ({
+    amount: string;
+    amountMinor?: never;
+} | {
+    amountMinor: MinorString;
+    amount?: never;
+}) & ({
+    taxRate: string;
+    taxRateBps?: never;
+} | {
+    taxRateBps: BpsString;
+    taxRate?: never;
+});
+export type TypedAmount = {
+    amount: string;
+    amountMinor?: never;
+} | {
+    amountMinor: MinorString;
+    amount?: never;
+};
+export type InvoiceShareHow = 'whatsapp' | 'email' | 'file' | 'marked';
+export type ReceiptSignatureRecord = RecordBase<'venture-receipt-signature'> & {
+    receiptId: string;
+    receiptKind: 'venture-price-receipt' | 'venture-sum-receipt' | 'venture-work-receipt' | 'venture-tie';
+    keyId: string;
+    signature: string;
+};
+export type ReceiptSignature = {
+    algorithm: 'ed25519';
+    publicKey: string;
+    signature: string;
+    signedAt: IsoTime;
+    signed: string;
+};
+export type OrderContract = {
+    goal: string;
+    scope: string[];
+    constraints: string[];
+    protected: {
+        kind: 'phrase' | 'file';
+        value: string;
+    }[];
+    deliverables: {
+        id: string;
+        what: string;
+        stage: string;
+        doneWhen: string;
+    }[];
+    checks: {
+        id: string;
+        what: string;
+    }[];
+};
+export type RoutineSchedule = {
+    kind: 'once';
+    at: IsoTime;
+} | {
+    kind: 'interval';
+    everyMinutes: number;
+    from: IsoTime;
+} | {
+    kind: 'calendar';
+    weekdays: number[];
+    time: string;
+    timeZone: string;
+} | {
+    kind: 'monthly';
+    day: number;
+    time: string;
+    timeZone: string;
+} | {
+    kind: 'event';
+    source: 'razorpay' | 'cal-com';
+    event: 'payment' | 'booking' | 'booking-cancelled';
+};
+export type RoutineRunState = 'queued' | 'running' | 'needs-input' | 'completed' | 'failed' | 'missed' | 'skipped' | 'interrupted';
+export type VoiceSections = {
+    audience: string[];
+    howITalk: string[];
+    neverUse: string[];
+    wordsIUse: string[];
+    willNotClaim: string[];
+    format: string[];
+};
+export type PersonaFields = {
+    tone: string | null;
+    replyLength: 'short' | 'medium' | 'long' | null;
+    greeting: string | null;
+    handOffLine: string | null;
+    blockedTopics: string[];
+    signOff: string | null;
+};
+export type KnowledgeRecord = RecordBase<'venture-knowledge'> & {
+    sourceKind: 'text' | 'link' | 'file' | 'past-work';
+    title: string;
+    text: string;
+    url: string | null;
+    uploadId: string | null;
+    runId: string | null;
+    screen: ScreenNote | null;
+    removedAt: IsoTime | null;
+};
+}
+
+declare namespace ContractModule313 {
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import MicroString = ContractModule304.MicroString;
+import WriteCapKind = ContractModule314.WriteCapKind;
+export type Display = string;
+export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
+export type SpendRate = {
+    model?: string;
+    item: string;
+    unit: SpendRateUnit;
+    inputMicrosPerMillion: MicroString | null;
+    outputMicrosPerMillion: MicroString | null;
+    microsPerCall: MicroString | null;
+    source: string;
+    checkedOn: IsoDate;
+    confirmed: boolean;
+    by: 'list' | 'owner';
+    cacheReadMicrosPerMillion?: MicroString | null;
+    cacheWriteMicrosPerMillion?: MicroString | null;
+};
+export type CurrencyLead = 'auto' | 'inr' | 'usd';
+export interface SpendLead {
+    currency: 'INR' | 'USD';
+    figure: Display;
+    beside?: Display;
+    other?: Display;
+}
+export interface SpendRow {
+    id: string;
+    agent?: string;
+    connector?: string;
+    label: string;
+    reserved: Display;
+    settled?: Display;
+    kind: 'estimate' | 'billed' | 'refused';
+    receiptId?: string;
+    reason?: Display;
+    reservedRupees?: Display;
+    settledRupees?: Display;
+    by?: Display;
+    reservedLead?: SpendLead;
+    settledLead?: SpendLead;
+    basis?: Display;
+    priced?: Display;
+    payer?: Display;
+}
+export type SpendRateInput = {
+    model?: string;
+    item: string;
+    unit: SpendRateUnit;
+    inputMicrosPerMillion?: MicroString | null;
+    outputMicrosPerMillion?: MicroString | null;
+    microsPerCall?: MicroString | null;
+    inputUsdPerMillion?: string | null;
+    outputUsdPerMillion?: string | null;
+    usdPerCall?: string | null;
+    source: string;
+    checkedOn: IsoDate;
+    cacheReadUsdPerMillion?: string | null;
+    cacheWriteUsdPerMillion?: string | null;
+    cacheReadMicrosPerMillion?: MicroString | null;
+    cacheWriteMicrosPerMillion?: MicroString | null;
+};
+export type SpendRateUsd = {
+    inputUsdPerMillion: string | null;
+    outputUsdPerMillion: string | null;
+    usdPerCall: string | null;
+    cacheReadUsdPerMillion?: string | null;
+    cacheWriteUsdPerMillion?: string | null;
+};
+export interface SpendPolicyView {
+    reference?: {
+        perUsd: string;
+        on: IsoDate;
+        line: Display;
+        source: Display;
+        url: string;
+    };
+    capMicros: MicroString | null;
+    askFirstMicros: MicroString | null;
+    capUsd: string | null;
+    askFirstUsd: string | null;
+    cap: Display;
+    askFirst: Display;
+    rates: (SpendRate & SpendRateUsd & {
+        price: Display;
+    })[];
+    setAt: IsoTime | null;
+    inrPerUsd: string | null;
+    rupeeRate: Display | null;
+    capRupees?: Display;
+    askFirstRupees?: Display;
+    dailyCapMicros?: MicroString | null;
+    dailyCapUsd?: string | null;
+    dailyCap?: Display;
+    dailyCapRupees?: Display;
+    alertPermille?: number;
+    alert?: Display;
+    meter?: SpendMeterView | null;
+    limitReached?: LimitReachedView;
+    keyLimits?: LimitReachedView[];
+    agentCaps?: AgentCapView[];
+    writeCaps?: WriteCapView[];
+    card?: RateCardLine[];
+    meters?: SpendMetersView;
+    currencyLead?: CurrencyLead;
+    leads?: 'INR' | 'USD';
+    capLead?: SpendLead;
+    askFirstLead?: SpendLead;
+}
+export interface SpendMeterView {
+    usedPermille: number;
+    line: Display;
+    near: boolean;
+    over: boolean;
+    receiptId: string;
+    resetOn: IsoDate;
+    reset: Display;
+    projection?: {
+        line: Display;
+        label: Display;
+        runIds: string[];
+        left: Display;
+        leftRupees?: Display;
+    };
+}
+export interface LimitReachedView {
+    scope: 'business' | 'key';
+    presetId?: string;
+    line: Display;
+    options: {
+        id: 'raise' | 'connect' | 'wait';
+        label: Display;
+    }[];
+}
+export interface SpendMeterRowView {
+    scope: 'agent' | 'routine';
+    id: string;
+    name: Display;
+    used: Display;
+    usedLead: SpendLead;
+    receiptId: string;
+    plan: Display | null;
+    media?: Display;
+    cap: Display | null;
+    capUsd: string | null;
+    capRupees?: Display;
+    usedPermille: number | null;
+    paused: boolean;
+    line: Display;
+}
+export interface SpendMetersView {
+    month: string;
+    agents: SpendMeterRowView[];
+    routines: SpendMeterRowView[];
+}
+export interface ModelReceiptView {
+    tool: Display;
+    model: Display;
+    tier: Display;
+    usage: Display;
+    cost: Display;
+    state: 'plan' | 'priced' | 'estimate' | 'unknown' | 'none';
+    receiptId?: string;
+    costLead?: SpendLead;
+    agent?: Display;
+    line: Display;
+}
+export interface AgentCapView {
+    agent: string;
+    name: Display;
+    capMicros: MicroString;
+    capUsd: string;
+    cap: Display;
+    used: Display;
+    paused: boolean;
+    capRupees?: Display;
+    usedRupees?: Display;
+}
+export interface WriteCapView {
+    kind: WriteCapKind;
+    configuredCap: number;
+    cap: number;
+    used: number;
+    raised: boolean;
+    line: Display;
+}
+export interface RateCardLine {
+    item: string;
+    label: Display;
+    state: 'confirmed' | 'list';
+    price: Display;
+    checked: Display;
+    source: string;
+    unconfirmed?: boolean;
+}
+}
+
+declare namespace ContractModule314 {
+import PlaybookOrigin = ContractModule698.PlaybookOrigin;
+import ComposeAttachmentNote = ContractModule692.ComposeAttachmentNote;
+import BankAlertRule = ContractModule198.BankAlertRule;
+import FamilyId = ContractModule333.FamilyId;
+import TableStamp = ContractModule810.TableStamp;
+import CaEngine = ContractModule811.CaEngine;
+import PriceGuideView = ContractModule350.PriceGuideView;
+import PipelineIdeaView = ContractModule977.PipelineIdeaView;
+import PriceStep = ContractModule613.PriceStep;
+import AppPermission = ContractModule185.AppPermission;
+import Display = ContractModule313.Display;
+import ModelReceiptView = ContractModule313.ModelReceiptView;
+import SpendLead = ContractModule313.SpendLead;
+import BlueprintPatch = ContractModule304.BlueprintPatch;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import Json = ContractModule304.Json;
+import MicroString = ContractModule304.MicroString;
+import MinorString = ContractModule304.MinorString;
+import RecordBase = ContractModule304.RecordBase;
+import ClientRecord = ContractModule309.ClientRecord;
+import InvoiceNext = ContractModule309.InvoiceNext;
+import InvoiceRecord = ContractModule309.InvoiceRecord;
+import PriceFigure = ContractModule309.PriceFigure;
+import AgentMessageFrom = ContractModule312.AgentMessageFrom;
+import AgentNoteLoad = ContractModule312.AgentNoteLoad;
+import AgentNoteScope = ContractModule312.AgentNoteScope;
+import AgentProposalKind = ContractModule312.AgentProposalKind;
+import AgentProposalStatus = ContractModule312.AgentProposalStatus;
+import AgentSuggestion = ContractModule312.AgentSuggestion;
+import ChatPart = ContractModule312.ChatPart;
+import ChiefCounted = ContractModule312.ChiefCounted;
+import DepartmentId = ContractModule312.DepartmentId;
+import DiffLine = ContractModule312.DiffLine;
+import InboundTriage = ContractModule312.InboundTriage;
+import KeeperJobId = ContractModule312.KeeperJobId;
+import KeeperOutcome = ContractModule312.KeeperOutcome;
+import KnowledgeRecord = ContractModule312.KnowledgeRecord;
+import LawfulBasis = ContractModule312.LawfulBasis;
+import NetworkImportKind = ContractModule312.NetworkImportKind;
+import OrderContract = ContractModule312.OrderContract;
+import OutreachChannel = ContractModule312.OutreachChannel;
+import OutreachKind = ContractModule312.OutreachKind;
+import OutreachLanguage = ContractModule312.OutreachLanguage;
+import OutreachSentChannel = ContractModule312.OutreachSentChannel;
+import PersonaFields = ContractModule312.PersonaFields;
+import PipelineCaps = ContractModule312.PipelineCaps;
+import PipelineStage = ContractModule312.PipelineStage;
+import ProposalKind = ContractModule312.ProposalKind;
+import ProposalStatus = ContractModule312.ProposalStatus;
+import ReceiptSignatureRecord = ContractModule312.ReceiptSignatureRecord;
+import RoutineRunState = ContractModule312.RoutineRunState;
+import RoutineSchedule = ContractModule312.RoutineSchedule;
+import ScoreRule = ContractModule312.ScoreRule;
+import TieBand = ContractModule312.TieBand;
+import TriageRule = ContractModule312.TriageRule;
+import VoiceSections = ContractModule312.VoiceSections;
+import BankConsentView = ContractModule303.BankConsentView;
+import BankMatchRecord = ContractModule303.BankMatchRecord;
+import ConnectorPostState = ContractModule303.ConnectorPostState;
+import PostingCandidate = ContractModule303.PostingCandidate;
+import PostingStepId = ContractModule303.PostingStepId;
+import AgentView = ContractModule311.AgentView;
+import QueueDecision = ContractModule311.QueueDecision;
+import QueueKind = ContractModule311.QueueKind;
+import QueueRow = ContractModule311.QueueRow;
+import RunDetail = ContractModule311.RunDetail;
+import RunState = ContractModule311.RunState;
+import RunStep = ContractModule311.RunStep;
+import CheckId = ContractModule305.CheckId;
+import DelegateCli = ContractModule305.DelegateCli;
+import ModelAvailability = ContractModule308.ModelAvailability;
+import ModelPresetId = ContractModule308.ModelPresetId;
+import ModelTier = ContractModule308.ModelTier;
 export interface MoneyOverviewLine {
     id: 'owed' | 'received' | 'spent';
     label: Display;
@@ -4204,7 +7403,7 @@ export interface CaLatestPapers {
     receiptIds: string[];
 }
 export interface CaFirmView {
-    citations?: ContractModule769.CaCitationsView;
+    citations?: ContractModule813.CaCitationsView;
     ca: {
         name: string;
         membershipNo: string;
@@ -4647,7 +7846,7 @@ export type ComplianceView = {
         sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure';
         acknowledgedOn: IsoDate;
     } | null;
-    size: ContractModule271.SizeAsk | null;
+    size: ContractModule319.SizeAsk | null;
 };
 export interface RulesListView {
     playbook: {
@@ -4666,28 +7865,6 @@ export interface JudgeAutoView {
     consentAt: IsoTime | null;
     line: Display;
 }
-export import TalkConsentInput = ContractModule141.TalkConsentInput;
-export import TalkHeard = ContractModule141.TalkHeard;
-export import TalkSaid = ContractModule141.TalkSaid;
-export import TalkSetupInput = ContractModule141.TalkSetupInput;
-export import TalkStarted = ContractModule141.TalkStarted;
-export import TalkView = ContractModule141.TalkView;
-import TalkConsentInput = ContractModule141.TalkConsentInput;
-import TalkHeard = ContractModule141.TalkHeard;
-import TalkSaid = ContractModule141.TalkSaid;
-import TalkSetupInput = ContractModule141.TalkSetupInput;
-import TalkStarted = ContractModule141.TalkStarted;
-import TalkView = ContractModule141.TalkView;
-export import FeedbackAnswerInput = ContractModule283.FeedbackAnswerInput;
-export import FeedbackConsentInput = ContractModule283.FeedbackConsentInput;
-export import FeedbackCrashInput = ContractModule283.FeedbackCrashInput;
-export import FeedbackCrashKept = ContractModule283.FeedbackCrashKept;
-export import FeedbackView = ContractModule283.FeedbackView;
-import FeedbackAnswerInput = ContractModule283.FeedbackAnswerInput;
-import FeedbackConsentInput = ContractModule283.FeedbackConsentInput;
-import FeedbackCrashInput = ContractModule283.FeedbackCrashInput;
-import FeedbackCrashKept = ContractModule283.FeedbackCrashKept;
-import FeedbackView = ContractModule283.FeedbackView;
 export interface TranscriptionSetupView {
     status: 'set-up' | 'not-set-up' | 'files-missing';
     command: string | null;
@@ -4695,298 +7872,6 @@ export interface TranscriptionSetupView {
     ffmpeg: boolean;
     line: Display;
 }
-export type DepartmentId = typeof DEPARTMENT_IDS[number];
-export type KeeperJobId = 'backups' | 'journal-sweep' | 'connection-checks' | 'rule-freshness' | 'rate-tables' | 'posting-steps' | 'network-strength' | 'probes' | 'calendar-feed' | 'monitors';
-export type KeeperOutcome = 'ok' | 'warn' | 'failed';
-export type AgentMessageFrom = 'owner' | 'agent' | 'chausar';
-export type ChatPart = {
-    kind: 'text';
-    text: string;
-} | {
-    kind: 'figure';
-    receiptId: string;
-    key: string;
-    display: Display;
-} | {
-    kind: 'estimate';
-    text: string;
-} | {
-    kind: 'guide';
-    anchor: string;
-    title: string;
-    text: string;
-    link: string;
-};
-export type AgentSuggestion = {
-    kind: 'order';
-    offerId: string | null;
-    request: string;
-} | {
-    kind: 'connect-ai';
-};
-export type AgentProposalKind = 'instruction' | 'note' | 'import';
-export type AgentProposalStatus = 'drafted' | 'accepted' | 'rejected';
-export type DiffLine = {
-    op: 'same' | 'add' | 'remove';
-    text: string;
-};
-export type AgentNoteLoad = 'always' | 'topic';
-export type AgentNoteScope = 'agent' | `client:${string}`;
-export type ChiefCounted = {
-    entities: {
-        kind: string;
-        count: number;
-    }[];
-    months: {
-        month: string;
-        count: number;
-    }[];
-};
-export type ProposalKind = typeof PROPOSAL_KINDS[number];
-export type ProposalStatus = 'drafted' | 'raised' | 'approved' | 'dismissed' | 'refused';
-export type NetworkImportKind = typeof NETWORK_IMPORT_KINDS[number];
-export type TieBand = typeof TIE_BANDS[number];
-export type TieStep = {
-    op: 'multiply' | 'cap' | 'fade' | 'add' | 'band';
-    inputs: string[];
-    result: string;
-    rule: string;
-};
-export type TieReceipt = {
-    id: string;
-    kind: 'venture-tie';
-    ventureId: string;
-    at: IsoTime;
-    personId: string;
-    operation: 'venture.tie';
-    unit: 'bp';
-    lines: Display[];
-    steps: TieStep[];
-    figures: PriceFigure[];
-    totalBp: string;
-    band: TieBand;
-    allowedNumbers: string[];
-    explanation: Display;
-    digest: string;
-    stale: boolean;
-};
-export type RowFigure = {
-    key: string;
-    label: string;
-    amount: string;
-    unit: 'micros' | 'minor' | 'rate';
-    currency: string;
-    display: Display;
-};
-export type RowFigureReceipt = {
-    id: string;
-    kind: 'row-figure';
-    ventureId: string;
-    at: IsoTime;
-    operation: 'venture.row-figure';
-    subject: {
-        type: 'call-cost' | 'judge-cost' | 'cap-room' | 'spend-quote' | 'plan-price' | 'month-spend' | 'week-total' | 'week-average' | 'scope-cap' | 'go-no-go';
-        recordId: string;
-    };
-    figures: RowFigure[];
-    allowedNumbers: string[];
-    explanation: Display;
-    digest: string;
-    stale: boolean;
-};
-export type PipelineStage = typeof PIPELINE_STAGES[number];
-export type LostReason = typeof LOST_REASONS[number];
-export type LawfulBasis = 'they-wrote-first' | 'existing-contact' | 'public-business-contact';
-export type OpportunityTrigger = {
-    kind: 'import' | 'search' | 'saved-search' | 'owner' | 'lead';
-    ref: string | null;
-    line: string;
-};
-export type ScoreRule = {
-    field: string;
-    operator: 'is' | 'contains' | 'at-least' | 'at-most';
-    value: string;
-    points: number;
-};
-export type CardVote = {
-    factor: string;
-    points: number;
-    evidence: string;
-};
-export type OutreachLane = 'linkedin-note' | 'linkedin-message' | 'whatsapp' | 'email';
-export type PipelineCaps = {
-    newPerDay: number;
-    perWeek: number;
-    channels?: Partial<Record<OutreachLane, number>>;
-    channelWeeks?: Partial<Record<OutreachLane, number | null>>;
-    warmupPercent?: number[];
-};
-export type OutreachKind = typeof OUTREACH_KINDS[number];
-export type OutreachChannel = 'email' | 'linkedin' | 'whatsapp';
-export type OutreachSentChannel = 'own-mailbox' | 'linkedin' | 'whatsapp' | 'phone';
-export type OutreachLanguage = 'en' | 'hi';
-export type InboundTriage = 'opt-out' | 'auto-reply' | 'thanks' | 'bounce' | 'owner-reply' | 'bot-question' | 'talking' | 'unmatched';
-export type InboundTopic = 'price' | 'contract' | 'meeting' | 'buying';
-export type DraftRevision = {
-    socialPost?: {
-        postId: string;
-        n: number;
-        posts: {
-            channel: string;
-            text: string;
-        }[];
-        prior: ContractModule1244.GhostwritingState;
-    };
-    by: 'send-back' | 'fix';
-    words: string;
-    rowId: string | null;
-    at: IsoTime;
-    callId: string;
-    base: string;
-    previous?: string;
-    prior: {
-        callId: string | null;
-        phase: HarnessState['phase'] | null;
-        status?: DeliveryRunStatus;
-    };
-    checks?: string[];
-};
-export type DraftMergePart = {
-    kind: 'same';
-    text: string[];
-} | {
-    kind: 'change';
-    id: string;
-    owner: string[];
-    agent: string[];
-    by: 'agent' | 'both';
-    status: 'open' | 'taken' | 'dropped';
-};
-export type DraftMerge = {
-    at: IsoTime;
-    edited: boolean;
-    owner: string;
-    parts: DraftMergePart[];
-    replacement: 'confirmed' | 'kept' | null;
-};
-export type DraftFix = {
-    checks: string[];
-    status: 'fixed' | 'partially-fixed' | 'not-fixed' | 'unverified';
-    at: IsoTime;
-};
-export type TriageField = 'due' | 'client' | 'kind' | 'money' | 'business';
-export type TriageRule = {
-    keys: {
-        field: TriageField;
-        order: 'asc' | 'desc';
-    }[];
-    words: string;
-};
-export type BillLineInput = {
-    description: string;
-    taxName: string;
-} & ({
-    amount: string;
-    amountMinor?: never;
-} | {
-    amountMinor: MinorString;
-    amount?: never;
-}) & ({
-    taxRate: string;
-    taxRateBps?: never;
-} | {
-    taxRateBps: BpsString;
-    taxRate?: never;
-});
-export type TypedAmount = {
-    amount: string;
-    amountMinor?: never;
-} | {
-    amountMinor: MinorString;
-    amount?: never;
-};
-export type InvoiceShareHow = 'whatsapp' | 'email' | 'file' | 'marked';
-export type ReceiptSignatureRecord = RecordBase<'venture-receipt-signature'> & {
-    receiptId: string;
-    receiptKind: 'venture-price-receipt' | 'venture-sum-receipt' | 'venture-work-receipt' | 'venture-tie';
-    keyId: string;
-    signature: string;
-};
-export type ReceiptSignature = {
-    algorithm: 'ed25519';
-    publicKey: string;
-    signature: string;
-    signedAt: IsoTime;
-    signed: string;
-};
-export type OrderContract = {
-    goal: string;
-    scope: string[];
-    constraints: string[];
-    protected: {
-        kind: 'phrase' | 'file';
-        value: string;
-    }[];
-    deliverables: {
-        id: string;
-        what: string;
-        stage: string;
-        doneWhen: string;
-    }[];
-    checks: {
-        id: string;
-        what: string;
-    }[];
-};
-export type RoutineSchedule = {
-    kind: 'once';
-    at: IsoTime;
-} | {
-    kind: 'interval';
-    everyMinutes: number;
-    from: IsoTime;
-} | {
-    kind: 'calendar';
-    weekdays: number[];
-    time: string;
-    timeZone: string;
-} | {
-    kind: 'monthly';
-    day: number;
-    time: string;
-    timeZone: string;
-} | {
-    kind: 'event';
-    source: 'razorpay' | 'cal-com';
-    event: 'payment' | 'booking' | 'booking-cancelled';
-};
-export type RoutineRunState = 'queued' | 'running' | 'needs-input' | 'completed' | 'failed' | 'missed' | 'skipped' | 'interrupted';
-export type VoiceSections = {
-    audience: string[];
-    howITalk: string[];
-    neverUse: string[];
-    wordsIUse: string[];
-    willNotClaim: string[];
-    format: string[];
-};
-export type PersonaFields = {
-    tone: string | null;
-    replyLength: 'short' | 'medium' | 'long' | null;
-    greeting: string | null;
-    handOffLine: string | null;
-    blockedTopics: string[];
-    signOff: string | null;
-};
-export type KnowledgeRecord = RecordBase<'venture-knowledge'> & {
-    sourceKind: 'text' | 'link' | 'file' | 'past-work';
-    title: string;
-    text: string;
-    url: string | null;
-    uploadId: string | null;
-    runId: string | null;
-    screen: ScreenNote | null;
-    removedAt: IsoTime | null;
-};
 export type MoneyFigureView = {
     display: Display;
     receiptId: string;
@@ -5111,8 +7996,7 @@ export interface RetireCheckView {
     blocked: Display | null;
     digest: string;
 }
-export import AppPermission = ContractModule149.AppPermission;
-import AppPermission = ContractModule149.AppPermission;
+export import AppPermission = ContractModule185.AppPermission;
 export type MiniAppMessage = {
     at: IsoTime;
     from: 'owner' | 'chausar';
@@ -5997,8 +8881,8 @@ export type CliStatusView = {
     state: ModelAvailability;
     line: Display;
     fix: Display | null;
-    setup?: ContractModule285.CodexSetupView;
-    provider?: ContractModule285.ProviderTrouble;
+    setup?: ContractModule333.CodexSetupView;
+    provider?: ContractModule333.ProviderTrouble;
     kept?: true;
     checkedAt?: IsoTime;
 };
@@ -6829,2294 +9713,32 @@ export interface CapabilityPageView {
     items: CapabilityItemView[];
     line: Display;
 }
-export type YoutubeEditRecord = RecordBase<'venture-youtube-edit'> & YoutubeEditBody;
-export type YoutubeStyleRecord = RecordBase<'venture-youtube-style'> & YoutubeStyleBody;
-export type SellerSkuRecord = RecordBase<'venture-seller-sku'> & SellerSkuBody;
-export type SupportTicketRecord = RecordBase<'venture-support-ticket'> & SupportTicketBody;
-export type SupportMessageRecord = RecordBase<'venture-support-message'> & SupportMessageBody;
-export type SupportRequestRecord = RecordBase<'venture-support-request'> & SupportRequestBody;
-export type SupportRatingRecord = RecordBase<'venture-support-rating'> & SupportRatingBody;
-export type RoomBriefRecord = RecordBase<'venture-room-brief'> & RoomBriefBody;
-type Empty = Record<string, never>;
-export type VenturePayloads = {
-    'venture.countries': Empty;
-    'venture.preview': {
-        idea: string;
-        countryCode: CountryCode;
-        pricingModel?: PricingModel;
-    };
-    'venture.create': {
-        idea: string;
-        countryCode: CountryCode;
-        workingName?: string;
-        composeId?: string;
-        composedDigest?: string;
-        reuseAi?: true;
-    };
-    'venture.get': Empty;
-    'venture.events': {
-        afterSeq?: number;
-        limit?: number;
-    };
-    'venture.interview.next': {
-        useTemplate?: boolean;
-    };
-    'venture.interview.answer': {
-        questionId: string;
-        answer: InterviewAnswer;
-    };
-    'venture.blueprint.draft': {
-        useTemplate?: boolean;
-        shown?: {
-            name: string;
-            by: 'model' | 'template';
-            callId?: string;
-            offers: {
-                name: string;
-                line: string;
-            }[];
-        };
-    };
-    'venture.blueprint.get': Empty;
-    'venture.blueprint.update': {
-        patch: BlueprintPatch;
-        basedOn?: {
-            blueprintId: string;
-            digest: string;
-        };
-        ownerSave?: true;
-    };
-    'venture.blueprint.accept': {
-        digest: string;
-    };
-    'venture.models.presets': Empty;
-    'venture.models.connect': {
-        presetId: ModelPresetId;
-        consentDigest: string;
-        apiKey?: string;
-        model?: string;
-        tiers?: ModelTier[];
-        monthlyCapUsd?: string;
-    };
-    'venture.models.disconnect': {
-        connectionId: string;
-    };
-    'venture.models.status': Empty;
-    'venture.models.calls': {
-        limit?: number;
-        purpose?: ModelPurpose;
-    };
-    'venture.price.quote': {
-        offerId: string;
-        quantity?: string;
-    };
-    'venture.receipt.get': {
-        id: string;
-    };
-    'venture.client.add': {
-        name: string;
-        email?: string;
-        countryCode?: CountryCode;
-        taxId?: string;
-        stateCode?: string;
-        note?: string;
-    };
-    'venture.client.aiConsent.get': {
-        clientId: string;
-    };
-    'venture.agentSettings.get': Empty;
-    'venture.agentSettings.set': {
-        settings: ContractModule102.AiSettings;
-        approveMcpConfiguration?: true;
-    };
-    'venture.mcpCredential.set': {
-        serverId: string;
-        token: string | null;
-    };
-    'venture.mcpRegistry.list': Record<string, never>;
-    'venture.mcpOAuth.start': {
-        serverId: string;
-    };
-    'venture.packs.list': Record<string, never>;
-    'venture.packs.add': {
-        pack: unknown;
-        digest?: string;
-    };
-    'venture.packs.remove': {
-        packId: string;
-    };
-    'venture.client.aiConsent.agree': {
-        clientId: string;
-        disclosureDigest: string;
-    };
-    'venture.client.aiConsent.withdraw': {
-        clientId: string;
-    };
-    'venture.billing.get': Empty;
-    'venture.billing.set': Partial<Omit<ContractModule527.BillingSettings, 'razorpay' | 'bank' | 'dueInDays' | 'reminderDays'>> & {
-        dueInDays?: number | string;
-        reminderDays?: (number | string)[];
-        bank?: (Pick<ContractModule527.BankDetails, 'accountName' | 'accountNumber'> & Partial<Omit<ContractModule527.BankDetails, 'accountName' | 'accountNumber'>>) | null;
-        razorpayKeys?: {
-            keyId: string;
-            keySecret: string;
-        } | null;
-    };
-    'venture.invoice.pdf': {
-        invoiceId: string;
-    };
-    'venture.payment.receipt': {
-        paymentId: string;
-    };
-    'venture.invoice.payLink': {
-        invoiceId: string;
-        action: 'create';
-        digest: string;
-    } | {
-        invoiceId: string;
-        action: 'check';
-    };
-    'venture.client.list': Empty;
-    'venture.order.create': {
-        clientId?: string;
-        offerId: string;
-        quantity?: string;
-        request: string;
-        newClient?: VenturePayloads['venture.client.add'];
-        dueDate?: IsoDate;
-        currency?: string;
-        unitPrice?: string;
-        intakeFiles?: Record<string, {
-            name: string;
-            contentBase64: string;
-        }>;
-        intake?: {
-            calendar?: {
-                month: string;
-                channels: string[];
-                postsPerChannel: number;
-                weekdays: number[];
-            };
-            clientRules?: Partial<NonNullable<OrderIntake['clientRules']>>;
-            rights?: unknown;
-            format?: 'long' | 'short';
-            aiVoice?: boolean;
-            aiPresenter?: boolean;
-            paidPromotion?: boolean;
-            cutFile?: string;
-            fields?: Record<string, IntakeValue>;
-            moneyAmounts?: Record<string, string>;
-        };
-        taxInclusive?: boolean;
-    };
-    'venture.order.list': Empty;
-    'venture.order.deliver': {
-        orderId: string;
-        deliveredOn: IsoDate;
-    };
-    'venture.invoice.prepare': {
-        orderId: string;
-        dueInDays?: number;
-        issueDate?: IsoDate;
-        reminderDays?: number[];
-        part?: {
-            kind: 'advance' | 'milestone' | 'partial' | 'final';
-            label?: string;
-            percent?: string;
-            amount?: string;
-        };
-    };
-    'venture.invoice.issue': {
-        invoiceId: string;
-        digest: string;
-    };
-    'venture.invoice.get': {
-        invoiceId: string;
-    };
-    'venture.invoice.list': Empty;
-    'venture.payment.record': {
-        invoiceId?: string;
-        amount: string;
-        receivedOn: IsoDate;
-        method: PaymentMethod;
-        allocations?: {
-            invoiceId: string;
-            amount: string;
-        }[];
-        tds?: {
-            section: string;
-            amount: string;
-        };
-    };
-    'venture.books.summary': {
-        period?: BooksPeriodKey | string;
-        from?: IsoDate;
-        to?: IsoDate;
-    };
-    'venture.spend.list': Empty;
-    'venture.spend.policy.get': Empty;
-    'venture.spend.policy.set': {
-        useReference?: true;
-        capUsd?: string | null;
-        askFirstUsd?: string | null;
-        cap?: MicroString | null;
-        askFirst?: MicroString | null;
-        rates?: SpendRateInput[];
-        inrPerUsd?: string | null;
-        routineCaps?: {
-            routine: string;
-            capUsd: string;
-        }[];
-        dailyCapUsd?: string | null;
-        dailyCap?: MicroString | null;
-        alertPermille?: number;
-        agentCaps?: {
-            agent: string;
-            capUsd: string;
-        }[];
-        writeCaps?: Partial<Record<WriteCapKind, number>>;
-        currencyLead?: CurrencyLead;
-    };
-    'venture.build.brief': {
-        useTemplate?: boolean;
-    };
-    'venture.build.handoff': {
-        builder: BuilderId;
-    };
-    'venture.build.handoffOpened': {
-        handoffId: string;
-    };
-    'venture.build.link': {
-        repo: string;
-        token?: string;
-    };
-    'venture.build.sync': Empty;
-    'venture.build.status': Empty;
-    'venture.connectors.list': {
-        category?: ConnectorCategory;
-        starterOnly?: boolean;
-    };
-    'venture.delivery.playbook': Empty;
-    'venture.simulation.scenarios': Empty;
-    'venture.simulation.run': {
-        scenarioIds?: string[];
-        episodes?: number;
-        useTemplate?: boolean;
-    };
-    'venture.simulation.get': {
-        runId: string;
-    };
-    'venture.simulation.fromSignal': {
-        signalId: string;
-    };
-    'venture.launch.status': Empty;
-    'venture.launch.advance': {
-        to: 'practice' | 'live';
-    };
-    'venture.delivery.run': {
-        orderId: string;
-        useTemplate?: boolean;
-    };
-    'venture.agentApproval.decide': {
-        runId: string;
-        digest: string;
-        decision: 'approve' | 'deny';
-        content?: Record<string, unknown>;
-    };
-    'venture.delivery.review': {
-        runId: string;
-        verdict: 'accepted' | 'edited' | 'rejected';
-        reason?: DeliveryReason;
-        editedText?: string;
-    };
-    'venture.delivery.list': Empty;
-    'venture.capabilities': Empty;
-    'venture.files.add': {
-        orderId: string;
-        name: string;
-        contentBase64: string;
-    };
-    'venture.files.list': {
-        orderId?: string;
-    };
-    'venture.delegate.get': {
-        id: string;
-    };
-    'venture.work.get': {
-        id: string;
-    };
-    'venture.improve.status': Empty;
-    'venture.improve.run': {
-        maxRounds?: number;
-        useTemplate?: boolean;
-        budgetMicros?: MicroString;
-    };
-    'venture.improve.get': {
-        runId: string;
-    };
-    'venture.improve.adopt': {
-        runId: string;
-        digest: string;
-    };
-    'venture.queue.list': {
-        scope?: 'current' | 'all';
-    };
-    'venture.queue.decide': {
-        id: string;
-        digest: string;
-        action: QueueActionId;
-        answer?: string;
-        viewed?: boolean;
-    };
-    'venture.runs.list': {
-        state?: 'active' | 'done' | 'all';
-    };
-    'venture.runs.get': {
-        runId: string;
-    };
-    'venture.team.list': Empty;
-    'venture.team.gate': {
-        agentId: string;
-        stepId: string;
-        gate: 'auto' | 'hold';
-    };
-    'venture.evidence.list': {
-        subject?: string;
-    };
-    'venture.evidence.apply': {
-        id: string;
-    };
-    'venture.journal.list': {
-        limit?: number;
-    };
-    'venture.journal.resolve': {
-        entryId: string;
-        outcome: 'sent' | 'not-sent';
-        note?: string;
-    };
-    'venture.untrusted.mode': {
-        mode: 'observe' | 'enforce';
-    };
-    'venture.untrusted.release': {
-        digest: string;
-    };
-    'venture.bank.import': {
-        csv: string;
-        account: string;
-    };
-    'venture.bank.consent': {
-        account: string;
-        days?: number;
-        revoke?: boolean;
-    };
-    'venture.site.stage': {
-        path: string;
-        after: string;
-        summary: string;
-    };
-    'venture.site.apply': {
-        editId: string;
-        reviewedHash: string;
-    };
-    'venture.site.revert': {
-        editId: string;
-        reviewedHash: string;
-    };
-    'venture.leads.add': {
-        name: string;
-        company?: string;
-        email?: string;
-        sourceUrl: string;
-    };
-    'venture.leads.list': Empty;
-    'venture.leads.draft': {
-        leadId: string;
-        subject: string;
-        body: string;
-        postalAddress?: string;
-    };
-    'venture.leads.recordSend': {
-        leadId: string;
-        draftId: string;
-        sentAt: IsoTime;
-    };
-    'venture.queue.view': {
-        id: string;
-        kind?: 'draft' | 'file' | 'run' | 'plan';
-        opened?: true;
-    };
-    'venture.team.posture': {
-        agentId: string;
-        posture: Posture;
-    };
-    'venture.evidence.dismiss': {
-        id: string;
-    };
-    'venture.money.overview': Empty;
-    'venture.tax.working': {
-        period?: string;
-    };
-    'venture.ca.get': Empty;
-    'venture.ca.setOfRecord': {
-        name: string;
-        membershipNo: string;
-    };
-    'venture.ca.recordSignoff': {
-        requestId: string;
-        membershipNo: string;
-        note?: string;
-    };
-    'venture.ca.confirmRates': {
-        tableIds: string[];
-        membershipNo: string;
-    };
-    'venture.leads.block': {
-        value: string;
-    };
-    'venture.share.create': {
-        deliveryId?: string;
-        kind?: ShareKind;
-        orderId?: string;
-        clientId?: string;
-        month?: string;
-        expiresInHours?: number;
-    };
-    'venture.share.list': {
-        deliveryId?: string;
-    };
-    'venture.share.revoke': {
-        id: string;
-    };
-    'venture.delivery.judge': {
-        runId: string;
-    };
-    'venture.delivery.judgeSend': {
-        runId: string;
-        digest: string;
-    };
-    'venture.improve.rollback': {
-        playbookId: string;
-        digest: string;
-    };
-    'venture.files.transcribe': {
-        orderId: string;
-    };
-    'venture.posting.propose': {
-        draftId: string;
-        account?: string;
-    };
-    'venture.posting.signIn': {
-        connectorId: string;
-    };
-    'venture.posting.checkSteps': {
-        connectorId: string;
-    };
-    'venture.share.recordAnswer': {
-        draftId: string;
-        answer: 'approved' | 'changes';
-        comment?: string;
-    };
-    'venture.social.calendar': {
-        runId: string;
-    };
-    'venture.bank.ledger': {
-        account?: string;
-        month?: string;
-    };
-    'venture.bank.apply': {
-        transactionId: string;
-        as: 'payment' | 'cost' | 'skip';
-        invoiceId?: string;
-    };
-    'venture.bank.alerts.get': Empty;
-    'venture.bank.alerts.set': {
-        account: string;
-        rules: BankAlertRuleInput[];
-        alertAddress?: string | null;
-    };
-    'venture.ca.receipt': {
-        id: string;
-    };
-    'venture.ca.explainDiff': {
-        receiptId: string;
-        key: string;
-        note: string;
-        membershipNo: string;
-    };
-    'venture.rules.list': Empty;
-    'venture.rules.locks': Empty;
-    'venture.rules.attest': {
-        ruleId: string;
-        attest: boolean;
-        digest?: string;
-    };
-    'venture.compliance.get': {
-        profession?: string;
-        size?: {
-            turnover?: string;
-            headcount?: string;
-        };
-    };
-    'venture.compliance.set': {
-        profession: string;
-        sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure';
-        digest: string;
-        size?: {
-            turnover?: string;
-            headcount?: string;
-        };
-    } | {
-        size: {
-            turnover?: string;
-            headcount?: string;
-        };
-    };
-    'venture.judge.auto.get': Empty;
-    'venture.judge.auto.set': {
-        auto: boolean;
-    };
-    'venture.posting.limits.get': Empty;
-    'venture.posting.limits.set': {
-        connectorId: string;
-        limits: Partial<OwnerPostingLimitsView>;
-    };
-    'venture.transcription.get': Empty;
-    'venture.transcription.set': {
-        command: string;
-        model: string;
-    } | {
-        clear: true;
-    };
-    'venture.team.keeper': Empty;
-    'venture.team.clearQuarantine': {
-        agentId: string;
-        digest: string;
-    };
-    'venture.agents.thread.list': {
-        agent: string;
-        before?: string;
-    };
-    'venture.agents.thread.send': {
-        agent: string;
-        text: string;
-    };
-    'venture.agents.proposal.decide': {
-        id: string;
-        digest: string;
-        decision: 'accept' | 'reject';
-    };
-    'venture.agents.version.undo': {
-        agent: string;
-        digest: string;
-    };
-    'venture.agents.orders.list': {
-        agent: string;
-    };
-    'venture.chats.consent': {
-        digest: string;
-    };
-    'venture.agents.notes.list': {
-        agent: string;
-    };
-    'venture.agents.notes.edit': {
-        agent: string;
-        noteId?: string;
-        text: string;
-        basedOn?: string;
-    };
-    'venture.agents.notes.forget': {
-        agent: string;
-        noteId: string;
-    };
-    'venture.agents.notes.undo': {
-        agent: string;
-        changeId: string;
-    };
-    'venture.chief.threads': Empty;
-    'venture.chief.thread.list': {
-        threadId: string;
-        before?: string;
-    };
-    'venture.chief.thread.send': {
-        threadId?: string;
-        text: string;
-    };
-    'venture.chief.thread.pin': {
-        threadId: string;
-        pinned: boolean;
-    };
-    'venture.chief.fit': Empty;
-    'venture.proposals.raise': {
-        id: string;
-    };
-    'venture.proposals.dismiss': {
-        id: string;
-    };
-    'venture.network.import': {
-        kind: NetworkImportKind;
-        name: string;
-        text: string;
-        check?: boolean;
-    };
-    'venture.network.importUndo': {
-        importId: string;
-        preview?: boolean;
-    };
-    'venture.network.merge': {
-        a: string;
-        b: string;
-    };
-    'venture.network.split': {
-        personId: string;
-        sourceIds: string[];
-    };
-    'venture.network.forget': {
-        id: string;
-    };
-    'venture.network.hide': {
-        personId: string;
-        hidden: boolean;
-    };
-    'venture.network.people': {
-        query?: string;
-        hidden?: boolean;
-        suggestions?: boolean;
-        limit?: number;
-    };
-    'venture.network.person': {
-        id: string;
-    };
-    'venture.network.sources': Empty;
-    'venture.network.recompute': Empty;
-    'venture.network.know': {
-        personId: string;
-        how: 'well' | 'met';
-        note?: string;
-    };
-    'venture.network.link': {
-        a: string;
-        b: string;
-        note: string;
-    };
-    'venture.network.search': {
-        text: string;
-        web?: boolean;
-    };
-    'venture.network.searchMore': {
-        searchId: string;
-    };
-    'venture.network.saveSearch': {
-        searchId: string;
-        name: string;
-    };
-    'venture.network.research': {
-        personId: string;
-    };
-    'venture.pipeline.list': {
-        filter?: 'due' | 'draft';
-    };
-    'venture.pipeline.followups': Empty;
-    'venture.pipeline.add': {
-        personId: string;
-        trigger: {
-            kind: OpportunityTrigger['kind'];
-            ref?: string;
-        };
-        votes?: CardVote[];
-    };
-    'venture.pipeline.setNext': {
-        id: string;
-        text: string;
-        due: IsoDate;
-    };
-    'venture.pipeline.move': {
-        id: string;
-        stage: PipelineStage;
-        reason?: LostReason;
-        evidence?: PipelineEvidenceInput;
-    };
-    'venture.pipeline.settings': {
-        weekdays?: number[];
-        sendTime?: string;
-        caps?: {
-            newPerDay?: number;
-            perWeek?: number;
-            channels?: Partial<Record<OutreachLane, number>>;
-            channelWeeks?: Partial<Record<OutreachLane, number | null>>;
-            warmupPercent?: number[];
-        };
-        scoreRules?: ScoreRule[];
-    };
-    'venture.outreach.draft': {
-        opportunityId: string;
-        kind: OutreachKind;
-        channel: OutreachChannel;
-        basis?: LawfulBasis;
-        limit?: 200 | 300;
-        introduce?: string;
-        about?: string;
-        language?: OutreachLanguage;
-        postalAddress?: string;
-    };
-    'venture.outreach.open': {
-        draftId: string;
-    };
-    'venture.outreach.sent': {
-        draftId: string;
-        at: IsoTime;
-        channel: OutreachSentChannel;
-    };
-    'venture.outreach.restricted': {
-        channel: OutreachChannel;
-    };
-    'venture.mailbox.connect': {
-        host: string;
-        port: number;
-        user: string;
-        appPassword: string;
-    };
-    'venture.mailbox.disconnect': Empty;
-    'venture.mailbox.sync': Empty;
-    'venture.inbound.list': Empty;
-    'venture.inbound.confirm': {
-        id: string;
-        opportunityId: string;
-    };
-    'venture.network.calendar': {
-        url: string;
-    };
-    'venture.meeting.digest': {
-        eventId?: string;
-        notes: string;
-    };
-    'venture.runs.stop': {
-        runId: string;
-        force?: boolean;
-    };
-    'venture.runs.resume': {
-        runId: string;
-    };
-    'venture.runs.roundGate': {
-        runId: string;
-        on: boolean;
-        every?: 1 | 2 | 3 | 5;
-    };
-    'venture.runs.steer': {
-        runId: string;
-        text: string;
-    };
-    'venture.business.pause': {
-        paused: boolean;
-        stopRunning?: boolean;
-    };
-    'venture.away.set': {
-        from: IsoDate;
-        to: IsoDate;
-    } | {
-        clear: true;
-    };
-    'venture.away.get': Empty;
-    'venture.runs.allowWrites': {
-        kind: WriteCapKind;
-    };
-    'venture.notify.list': Empty;
-    'venture.notify.read': {
-        ids?: string[];
-        all?: boolean;
-    };
-    'venture.notify.settings': {
-        pausedUntil?: IsoTime | null;
-        quietHours?: {
-            from: string;
-            to: string;
-        } | null;
-        digest?: {
-            hour: number;
-        } | null;
-        push?: boolean;
-        tray?: boolean;
-    };
-    'venture.notify.push.key': Empty;
-    'venture.notify.push.subscribe': {
-        subscription: PushSubscriptionInput;
-    };
-    'venture.notify.push.unsubscribe': {
-        endpoint: string;
-    };
-    'venture.notify.relay': {
-        url: string | null;
-    };
-    'venture.notify.telegram': {
-        bot?: {
-            token: string;
-            chatId: string;
-        } | null;
-        details?: boolean;
-        test?: true;
-    };
-    'venture.phone.access': {
-        action?: 'link' | 'stop';
-        via?: 'wifi' | 'tailscale';
-        hours?: number;
-    };
-    'venture.web.search': {
-        provider?: ContractModule1602.SearchProviderId | null;
-        key?: string;
-        consentDigest?: string;
-    };
-    'venture.web.read': {
-        url: string;
-    };
-    'venture.chief.thread.state': ChiefThreadStateInput;
-    'venture.chief.settle.set': {
-        days: number;
-    };
-    'venture.agents.retire.check': {
-        agent: string;
-    };
-    'venture.agents.retire': {
-        agent: string;
-        to: string;
-        digest: string;
-    };
-    'venture.agents.restore': {
-        agent: string;
-    };
-    'venture.apps.list': Empty;
-    'venture.apps.get': {
-        app: string;
-    };
-    'venture.apps.make': {
-        ask: string;
-        app?: string;
-    };
-    'venture.apps.grant': {
-        app: string;
-        digest: string;
-    };
-    'venture.apps.revoke': {
-        app: string;
-    };
-    'venture.apps.restore': {
-        app: string;
-        version: number;
-    };
-    'venture.apps.pin': {
-        app: string;
-        pinned: boolean;
-    };
-    'venture.apps.export': {
-        app: string;
-    };
-    'venture.apps.call': {
-        app: string;
-        tool: string;
-        arguments: Record<string, Json>;
-        sample?: true;
-    };
-    'venture.apps.remove': {
-        app: string;
-    };
-    'venture.layout.get': {
-        place: LayoutPlace;
-    };
-    'venture.diagnostics.today': Empty;
-    'venture.build.briefFile': {
-        builder: BuilderId;
-    };
-    'venture.accountant.pack.done': {
-        month: string;
-    };
-    'venture.accountant.schedule.set': {
-        on: boolean;
-    };
-    'venture.accountant.schedule.get': Empty;
-    'venture.accountant.set': {
-        email?: string | null;
-        whatsapp?: string | null;
-    };
-    'venture.accountant.get': Empty;
-    'venture.notify.telegram.findChat': {
-        token: string;
-    };
-    'venture.client.aiDefault.set': {
-        on: boolean;
-        digest: string;
-    };
-    'venture.client.aiDefault.get': Empty;
-    'venture.away.preview': {
-        from: IsoDate;
-        to: IsoDate;
-    };
-    'venture.team.introduced': {
-        agentIds: string[];
-    };
-    'venture.layout.change': LayoutRequest;
-    'venture.find': FindRequest;
-    'venture.talk.get': Empty;
-    'venture.talk.consent': TalkConsentInput;
-    'venture.talk.setup': TalkSetupInput;
-    'venture.talk.start': Empty;
-    'venture.talk.hear': {
-        sessionId: string;
-        audioBase64: string;
-    };
-    'venture.talk.say': {
-        threadId: string;
-        messageId: string;
-        quoted?: string;
-        approvedRateDigest?: string;
-    };
-    'venture.feedback.get': Empty;
-    'venture.feedback.consent': FeedbackConsentInput;
-    'venture.feedback.send': {
-        digest: string;
-    };
-    'venture.feedback.answer': FeedbackAnswerInput;
-    'venture.feedback.crash': FeedbackCrashInput;
-    'venture.feedback.delete': Empty;
-    'venture.people.services': {
-        service?: 'happenstance' | 'probe42';
-        key?: string | null;
-    };
-    'venture.people.lookup': {
-        service: 'happenstance' | 'probe42';
-        query?: string;
-        clientId?: string;
-        digest?: string;
-        searchId?: string;
-    };
-    'venture.crm.client': {
-        clientId: string;
-    };
-    'venture.crm.client.edit': {
-        clientId: string;
-        field: 'name' | 'email' | 'note' | 'phone';
-        value: string;
-    };
-    'venture.crm.companies': Empty;
-    'venture.crm.company': {
-        companyId: string;
-    };
-    'venture.crm.company.save': {
-        companyId?: string;
-        name?: string;
-        domain?: string | null;
-        note?: string | null;
-    };
-    'venture.crm.link': {
-        companyId: string | null;
-        member: string;
-    };
-    'venture.crm.log': {
-        clientId: string;
-        kind: ContractModule319.CrmEntryKind;
-        on: IsoDate;
-        text: string;
-    };
-    'venture.crm.lists': Empty;
-    'venture.crm.list': {
-        listId: string;
-    };
-    'venture.crm.list.save': {
-        listId?: string;
-        name: string;
-        stages: string[];
-    };
-    'venture.crm.list.place': {
-        listId: string;
-        member: string;
-        stage: string | null;
-    };
-    'venture.memory.list': {
-        subject?: string;
-    };
-    'venture.memory.add': {
-        subject: string;
-        topic: string;
-        text: string;
-        since?: IsoDate;
-        visibility?: ContractModule482.FactVisibility;
-    };
-    'venture.memory.replace': {
-        factId: string;
-        text: string;
-        since?: IsoDate;
-    };
-    'venture.memory.visibility': {
-        factId: string;
-        visibility: ContractModule482.FactVisibility;
-    };
-    'venture.memory.forget': {
-        factId: string;
-    };
-    'venture.models.cli.status': {
-        fresh?: boolean;
-    };
-    'venture.models.roles': Empty;
-    'venture.goals.get': {
-        month?: string;
-    };
-    'venture.goals.set': {
-        month: string;
-        amount: string;
-        amountMinor?: never;
-    } | {
-        month: string;
-        amountMinor: MinorString;
-        amount?: never;
-    };
-    'venture.goals.suggest': {
-        month: string;
-    };
-    'venture.decisions.list': Empty;
-    'venture.policy.allowSession': {
-        stepId: string;
-    };
-    'venture.queue.sendBack': {
-        rowId: string;
-        digest: string;
-        text: string;
-    };
-    'venture.queue.edit': {
-        rowId: string;
-        digest: string;
-        text: string;
-    };
-    'venture.queue.undo': {
-        rowId: string;
-    };
-    'venture.queue.set': {
-        rowIds: string[];
-        digest: string;
-        secondAsk?: true;
-    };
-    'venture.queue.setPreview': {
-        rowIds: string[];
-    };
-    'venture.delivery.copy': {
-        runId: string;
-    };
-    'venture.triage.set': {
-        rule: TriageRule;
-        digest: string;
-    };
-    'venture.triage.preview': {
-        text: string;
-    };
-    'venture.delivery.fix': {
-        runId: string;
-        checks: 'all' | string[];
-    };
-    'venture.delivery.decideChange': {
-        runId: string;
-        changeId: string;
-        accept: boolean;
-    };
-    'venture.delivery.changes': {
-        runId: string;
-    };
-    'venture.settings.draft': {
-        form: string;
-        values: Json;
-    };
-    'venture.settings.drafts': Empty;
-    'venture.files.poster': {
-        orderId: string;
-    };
-    'venture.money.aging': {
-        asOf?: IsoDate;
-    };
-    'venture.money.flow': {
-        months?: number;
-    };
-    'venture.money.cash': Empty;
-    'venture.money.margins': {
-        month: string;
-    };
-    'venture.money.export': {
-        month: string;
-        format?: 'csv' | 'tally-xml' | 'gstr1-csv';
-    };
-    'venture.bills.add': {
-        vendor: string;
-        lines: BillLineInput[];
-        billDate: IsoDate;
-        dueDate?: IsoDate;
-        recurring?: 'monthly' | 'quarterly' | null;
-    };
-    'venture.bills.pay': {
-        billId: string;
-        paidOn: IsoDate;
-        method: PaymentMethod;
-    } & TypedAmount;
-    'venture.bills.list': Empty;
-    'venture.credit.issue': {
-        invoiceId: string;
-        reason: string;
-        digest: string;
-    } & TypedAmount;
-    'venture.invoice.recurring': {
-        clientId: string;
-        offerId: string;
-        frequency: 'monthly' | 'quarterly';
-        startOn: IsoDate;
-        end?: IsoDate;
-        reminderDays?: number[];
-        taxInclusive?: boolean;
-    };
-    'venture.invoice.recurringList': Empty;
-    'venture.invoice.remind': {
-        invoiceId: string;
-    };
-    'venture.payment.clear': {
-        paymentId: string;
-    };
-    'venture.bills.stop': {
-        billId: string;
-    };
-    'venture.money.across': Empty;
-    'venture.runs.across': Empty;
-    'venture.connectors.check': {
-        last?: true;
-    };
-    'venture.share.request': {
-        orderId: string;
-        note?: string;
-    };
-    'venture.playbooks.list': Empty;
-    'venture.blueprint.suggest': {
-        text: string;
-        attachment?: {
-            name: string;
-            text: string;
-        };
-    };
-    'venture.owner.get': Empty;
-    'venture.owner.set': {
-        firstName?: string | null;
-        excludedServices?: string[];
-        familyId?: FamilyId | null;
-    };
-    'venture.receipt.verify': {
-        id: string;
-    };
-    'venture.journal.chain': Empty;
-    'venture.journal.acceptBreak': {
-        digest: string;
-    };
-    'venture.order.contract': {
-        orderId: string;
-    };
-    'venture.order.contract.propose': {
-        orderId: string;
-        contract: OrderContract;
-    };
-    'venture.order.contract.sign': {
-        orderId: string;
-        digest: string;
-    };
-    'venture.routines.list': Empty;
-    'venture.routines.runs': {
-        id: string;
-    };
-    'venture.routines.set': {
-        routine: RoutineInput;
-    };
-    'venture.routines.remove': {
-        id: string;
-    };
-    'venture.options.rerank': {
-        questionId: string;
-        weights: Record<string, number>;
-    };
-    'venture.drills.run': Empty;
-    'venture.drills.list': Empty;
-    'venture.auto.readiness': {
-        agent: string;
-    };
-    'venture.shadow.summary': {
-        agent: string;
-    };
-    'venture.playbook.guidance': Empty;
-    'venture.voice.get': Empty;
-    'venture.voice.set': {
-        voice: VoiceInput;
-    };
-    'venture.voice.learn': {
-        samples: string[];
-    };
-    'venture.persona.get': {
-        agent: string;
-    };
-    'venture.persona.set': {
-        agent: string;
-        persona: PersonaFields;
-    };
-    'venture.persona.test': {
-        agent: string;
-        persona: PersonaFields;
-    };
-    'venture.agents.export': {
-        agent: string;
-    };
-    'venture.agents.import': {
-        text: string;
-    };
-    'venture.knowledge.list': Empty;
-    'venture.knowledge.add': {
-        source: KnowledgeSourceInput;
-    };
-    'venture.knowledge.remove': {
-        id: string;
-    };
-    'venture.knowledge.test': {
-        question: string;
-    };
-    'venture.ideas.list': Empty;
-    'venture.ideas.start': {
-        id: string;
-    };
-    'venture.ideas.dismiss': {
-        id: string;
-    };
-    'venture.agents.capabilities': {
-        agent: string;
-    };
-    'venture.order.chain': {
-        orderId: string;
-    };
-    'venture.salesProposal.draft': ({
-        clientId: string;
-        personId?: never;
-    } | {
-        personId: string;
-        clientId?: never;
-    }) & {
-        offerId: string;
-        pilot?: boolean | SalesPilotTerms;
-    };
-    'venture.salesProposal.get': {
-        id: string;
-    } | {
-        clientId: string;
-    } | {
-        personId: string;
-    };
-    'venture.goNoGo.card': {
-        playbook: string;
-        subject: string;
-        inputs: GoNoGoInputs;
-    };
-    'venture.goNoGo.list': Empty;
-    'venture.goNoGo.remove': {
-        cardId: string;
-    };
-    'venture.ideas.add': {
-        text: string;
-        source: string;
-    };
-    'venture.ideas.move': {
-        id: string;
-        stage: IdeaStage;
-        reason?: string;
-    };
-    'venture.ideas.grade': {
-        id: string;
-        grade: IdeaGrade;
-    };
-    'venture.brandKit.get': {
-        clientId: string;
-    };
-    'venture.brandKit.set': {
-        clientId: string;
-        kit: BrandKitInput;
-    };
-    'venture.assets.list': {
-        orderId?: string;
-        clientId?: string;
-    };
-    'venture.assets.rerun': {
-        id: string;
-    };
-    'venture.assets.reuse': {
-        id: string;
-        orderId: string;
-    };
-    'venture.voiceConsent.record': {
-        speaker: string;
-        recordingFileId: string;
-        transcript: string;
-        statement: string;
-        scope: string;
-        until: IsoDate | null;
-    };
-    'venture.voiceConsent.revoke': {
-        id: string;
-    };
-    'venture.voiceConsent.list': Empty;
-    'venture.report.render': {
-        runId: string;
-        formats?: ReportFormat[];
-    };
-    'venture.report.share': {
-        reportId: string;
-        from: IsoDate;
-        to: IsoDate;
-        channels?: string[];
-    };
-    'venture.report.shareRotate': {
-        shareId: string;
-    };
-    'venture.report.shareDisable': {
-        shareId: string;
-    };
-    'venture.report.list': {
-        orderId?: string;
-        runId?: string;
-    };
-    'venture.monitors.list': Empty;
-    'venture.monitors.add': MonitorInput;
-    'venture.monitors.remove': {
-        id: string;
-    };
-    'venture.mail.import': {
-        name: string;
-        contentBase64: string;
-    };
-    'venture.mail.threads': {
-        clientId?: string;
-    };
-    'venture.localApps.list': Empty;
-    'venture.webhook.set': {
-        kind: 'n8n' | 'make';
-        url: string | null;
-        secret?: string;
-        test?: boolean;
-    };
-    'venture.webhook.send': {
-        kind: 'n8n' | 'make';
-        subject: string;
-        payload: unknown;
-        digest?: string;
-    };
-    'venture.speechOut.providers': Empty;
-    'venture.ca.confirmCitations': {
-        version: number;
-        membershipNo: string;
-    };
-    'venture.ca.signoff.get': {
-        id: string;
-    };
-    'venture.ca.differential.add': {
-        name: string;
-        inputs: Json;
-        outputs: Json;
-        capturedBy: string;
-    };
-    'venture.ca.dataPack.export': ContractModule760.PackSelection & {
-        approvalDigest: string;
-    };
-    'venture.desk.list': DeskListPayload;
-    'venture.desk.get': DeskGetPayload;
-    'venture.desk.act': DeskActPayload;
-    'venture.flows.list': Empty;
-    'venture.flows.act': ContractModule466.FlowsActPayload;
-    'venture.ai.options': OnboardingPayloads['venture.ai.options'];
-    'venture.ai.connect': OnboardingPayloads['venture.ai.connect'];
-    'venture.ai.disconnect': OnboardingPayloads['venture.ai.disconnect'];
-    'venture.ai.status': OnboardingPayloads['venture.ai.status'];
-    'venture.ai.calls': OnboardingPayloads['venture.ai.calls'];
-    'venture.country.suggest': OnboardingPayloads['venture.country.suggest'];
-    'venture.ai.tools': OnboardingPayloads['venture.ai.tools'];
-    'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
-    'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
-    'venture.ai.setup.trust': {
-        cli: 'codex';
-        sha256: string;
-    };
-    'venture.ai.claude.install': Record<string, never>;
-    'venture.ai.claude.progress': Record<string, never>;
-    'venture.work.list': Record<string, never>;
-    'venture.invoice.shared': {
-        invoiceId: string;
-        how: InvoiceShareHow;
-    };
-    'venture.routines.suggestions': Empty;
-    'venture.agents.hire.duties': {
-        agent: string;
-        duties: string[];
-    };
-    'venture.events.calKey.set': {
-        key: string | null;
-    };
-    'venture.events.relay.set': {
-        address: string | null;
-    };
-    'venture.events.get': Record<string, never>;
-    'venture.agents.hire.cancel': {
-        hireId: string;
-    };
-    'venture.agents.hire.confirm': {
-        hireId: string;
-        digest: string;
-    };
-    'venture.agents.hire.answer': {
-        hireId: string;
-        phase: string;
-        edits?: Record<string, unknown>;
-    };
-    'venture.agents.hire.start': {
-        sentence: string;
-    };
-    'venture.trackers.rows.undo': {
-        rowId: string;
-    };
-    'venture.trackers.rows.remove': {
-        rowId: string;
-    };
-    'venture.trackers.rows.edit': {
-        rowId: string;
-        cells: Record<string, unknown>;
-    };
-    'venture.trackers.rows.add': {
-        trackerId: string;
-        cells: Record<string, unknown>;
-    };
-    'venture.trackers.remove': {
-        id: string;
-    };
-    'venture.trackers.set': {
-        tracker: {
-            id?: string;
-            name: string;
-            columns: unknown[];
-            boardBy?: string | null;
-            keptBy?: string[];
-        };
-    };
-    'venture.trackers.get': {
-        id: string;
-    };
-    'venture.trackers.list': Record<string, never>;
-    'venture.routines.backup.set': {
-        on: boolean;
-        order: ModelPresetId[];
-        digests?: string[];
-    };
-    'venture.routines.backup.get': Record<string, never>;
-    'venture.models.plan': {
-        fresh?: boolean;
-    };
-    'venture.about.read': OnboardingPayloads['venture.about.read'];
-    'venture.about.pick': OnboardingPayloads['venture.about.pick'];
-    'venture.about.families': OnboardingPayloads['venture.about.families'];
-    'venture.needs.list': Record<string, never>;
-    'venture.compose.decide': OnboardingPayloads['venture.compose.decide'];
-    'venture.compose.fill': OnboardingPayloads['venture.compose.fill'];
-    'venture.compose.get': OnboardingPayloads['venture.compose.get'];
-    'venture.compose.update': OnboardingPayloads['venture.compose.update'];
-};
-export type VentureResults = {
-    'venture.countries': CountryProfile[];
-    'venture.preview': PlanPreview;
-    'venture.create': VentureView;
-    'venture.get': VentureView | null;
-    'venture.events': {
-        events: VentureEventRecord[];
-        lastSeq: number;
-        firstSeq: number;
-        frames: VentureRunEvent[];
-    };
-    'venture.interview.next': InterviewView;
-    'venture.interview.answer': InterviewView;
-    'venture.blueprint.draft': BlueprintView;
-    'venture.blueprint.get': BlueprintView | null;
-    'venture.blueprint.update': BlueprintView;
-    'venture.blueprint.accept': BlueprintView;
-    'venture.models.presets': ModelPreset[];
-    'venture.models.connect': ModelStatusView;
-    'venture.models.disconnect': ModelStatusView;
-    'venture.models.status': ModelStatusView;
-    'venture.models.calls': ModelCallRecord[];
-    'venture.price.quote': PriceReceiptRecord;
-    'venture.receipt.get': (PriceReceiptRecord | SumReceiptRecord | TieReceipt | RowFigureReceipt) & {
-        signature?: ReceiptSignature;
-    };
-    'venture.client.add': ClientRecord;
-    'venture.client.aiConsent.get': ClientAiConsentView;
-    'venture.agentSettings.get': ContractModule102.AiSettingsView;
-    'venture.agentSettings.set': ContractModule102.AiSettingsView;
-    'venture.mcpCredential.set': {
-        serverId: string;
-        saved: boolean;
-    };
-    'venture.mcpRegistry.list': ContractModule90.CuratedMcpView;
-    'venture.mcpOAuth.start': {
-        serverId: string;
-        authorizationUrl: string;
-    };
-    'venture.packs.list': {
-        packs: ContractModule647.PackView[];
-    };
-    'venture.packs.add': {
-        added: boolean;
-        digest: string;
-        pack: ContractModule647.PackView;
-    };
-    'venture.packs.remove': {
-        removed: boolean;
-    };
-    'venture.client.aiConsent.agree': ClientAiConsentView;
-    'venture.client.aiConsent.withdraw': ClientAiConsentView;
-    'venture.billing.get': ContractModule527.BillingView;
-    'venture.billing.set': ContractModule527.BillingView;
-    'venture.invoice.pdf': ContractModule550.InvoicePdfView;
-    'venture.payment.receipt': ContractModule563.PaymentReceiptView;
-    'venture.invoice.payLink': InvoiceView;
-    'venture.client.list': ClientListRow[];
-    'venture.order.create': OrderRecord;
-    'venture.order.list': OrderListRow[];
-    'venture.order.deliver': OrderRecord;
-    'venture.invoice.prepare': InvoiceView;
-    'venture.invoice.issue': InvoiceView;
-    'venture.invoice.get': InvoiceView;
-    'venture.invoice.list': InvoiceListRow[];
-    'venture.payment.record': InvoiceView;
-    'venture.books.summary': BooksSummary;
-    'venture.spend.list': {
-        rows: SpendRow[];
-        total: Display;
-        totalRupees?: Display;
-        totalLead?: SpendLead;
-        needsRate?: boolean;
-    };
-    'venture.spend.policy.get': SpendPolicyView;
-    'venture.spend.policy.set': SpendPolicyView;
-    'venture.build.brief': BriefRecord;
-    'venture.build.handoff': HandoffPlan;
-    'venture.build.handoffOpened': HandoffRecord;
-    'venture.build.link': BuildFollowRecord;
-    'venture.build.sync': BuildStatus;
-    'venture.build.status': {
-        follow: BuildFollowRecord | null;
-        brief: BriefRecord | null;
-        handoffs: HandoffRecord[];
-        tokenLink: string;
-        linkFits: {
-            lovable: boolean;
-            replit: boolean;
-        } | null;
-    };
-    'venture.connectors.list': ConnectorCard[];
-    'venture.delivery.playbook': PlaybookRecord;
-    'venture.simulation.scenarios': Scenario[];
-    'venture.simulation.run': SimulationRunRecord;
-    'venture.simulation.get': SimulationRunRecord;
-    'venture.simulation.fromSignal': Scenario;
-    'venture.launch.status': LaunchStatus;
-    'venture.launch.advance': LaunchStatus;
-    'venture.delivery.run': DeliveryRunView;
-    'venture.agentApproval.decide': {
-        runId: string;
-        decision: 'approve' | 'deny';
-    };
-    'venture.delivery.review': DeliveryRunView;
-    'venture.delivery.list': DeliveryRunView[];
-    'venture.capabilities': CapabilityStatus[];
-    'venture.files.add': UploadView;
-    'venture.files.list': UploadView[];
-    'venture.delegate.get': DelegateRunRecord;
-    'venture.work.get': WorkReceiptRecord & {
-        coverage?: CoverageView;
-    };
-    'venture.improve.status': ImprovementStatus;
-    'venture.improve.run': ImprovementRunRecord;
-    'venture.improve.get': ImprovementRunRecord;
-    'venture.improve.adopt': PlaybookRecord;
-    'venture.queue.list': QueueList;
-    'venture.queue.decide': QueueDecision;
-    'venture.runs.list': {
-        runs: RunSummary[];
-    };
-    'venture.runs.get': RunDetail;
-    'venture.team.list': TeamListView;
-    'venture.team.gate': {
-        agent: AgentView;
-    };
-    'venture.evidence.list': {
-        items: EvidenceItem[];
-    };
-    'venture.evidence.apply': {
-        item: EvidenceItem;
-    };
-    'venture.journal.list': {
-        entries: JournalEntry[];
-    };
-    'venture.journal.resolve': {
-        entry: JournalEntry;
-    };
-    'venture.untrusted.mode': {
-        mode: 'observe' | 'enforce';
-    };
-    'venture.untrusted.release': {
-        digest: string;
-        released: true;
-    };
-    'venture.bank.import': BankImportResult;
-    'venture.bank.consent': BankConsentView;
-    'venture.site.stage': SiteEditRecord;
-    'venture.site.apply': SiteEditRecord;
-    'venture.site.revert': SiteEditRecord;
-    'venture.leads.add': LeadView;
-    'venture.leads.list': {
-        leads: LeadView[];
-    };
-    'venture.leads.draft': {
-        lead: LeadView;
-        draft: OutreachDraftView;
-    };
-    'venture.leads.recordSend': LeadView;
-    'venture.queue.view': QueueItemView;
-    'venture.team.posture': {
-        agent: AgentView;
-    };
-    'venture.evidence.dismiss': {
-        item: EvidenceItem;
-    };
-    'venture.money.overview': MoneyOverview;
-    'venture.tax.working': TaxWorkingView;
-    'venture.ca.get': CaFirmView;
-    'venture.ca.setOfRecord': CaFirmView;
-    'venture.ca.recordSignoff': {
-        request: CaRequestView;
-    };
-    'venture.ca.confirmRates': CaFirmView;
-    'venture.leads.block': {
-        blocked: string[];
-    };
-    'venture.share.create': ShareLinkView;
-    'venture.share.list': {
-        links: ShareLinkView[];
-        shares: ShareLinkView[];
-        posts?: DraftPostView[];
-        clientApproval?: boolean;
-        answer?: ShareAnswerView | null;
-    };
-    'venture.share.revoke': ShareLinkView;
-    'venture.delivery.judge': DeliveryJudgePreview;
-    'venture.delivery.judgeSend': DeliveryRunView;
-    'venture.improve.rollback': PlaybookRecord;
-    'venture.files.transcribe': UploadView;
-    'venture.posting.propose': PostingProposal;
-    'venture.posting.signIn': {
-        opened: true;
-        line: Display;
-    };
-    'venture.posting.checkSteps': PostingStepsView;
-    'venture.share.recordAnswer': {
-        answer: ShareAnswerView;
-    };
-    'venture.social.calendar': SocialCalendarFile;
-    'venture.bank.ledger': BankLedgerView;
-    'venture.bank.apply': BankApplyResult;
-    'venture.bank.alerts.get': BankAlertsView;
-    'venture.bank.alerts.set': BankAlertsView;
-    'venture.ca.receipt': CaReceiptView;
-    'venture.ca.explainDiff': {
-        explanation: CaDiffExplanation;
-    };
-    'venture.rules.list': RulesListView;
-    'venture.rules.locks': RuleLocksView;
-    'venture.rules.attest': RuleLocksView;
-    'venture.compliance.get': ComplianceView;
-    'venture.compliance.set': ComplianceView;
-    'venture.judge.auto.get': JudgeAutoView;
-    'venture.judge.auto.set': JudgeAutoView;
-    'venture.posting.limits.get': PostingLimitsView;
-    'venture.posting.limits.set': PostingLimitsView;
-    'venture.transcription.get': TranscriptionSetupView;
-    'venture.transcription.set': TranscriptionSetupView;
-    'venture.team.keeper': KeeperView;
-    'venture.team.clearQuarantine': {
-        agent: AgentView | null;
-        teamHealth: AgentHealth;
-    };
-    'venture.agents.thread.list': AgentThreadView;
-    'venture.agents.thread.send': AgentSendResult;
-    'venture.agents.proposal.decide': AgentProposalDecision;
-    'venture.agents.version.undo': AgentVersionUndo;
-    'venture.agents.orders.list': StandingOrdersView;
-    'venture.chats.consent': ChatConsentView;
-    'venture.agents.notes.list': AgentNotesView;
-    'venture.agents.notes.edit': AgentNoteChange;
-    'venture.agents.notes.forget': AgentNoteChange;
-    'venture.agents.notes.undo': AgentNoteChange;
-    'venture.chief.threads': ChiefThreadsView;
-    'venture.chief.thread.list': ChiefThreadView;
-    'venture.chief.thread.send': ChiefSendResult;
-    'venture.chief.thread.pin': {
-        thread: ChiefThreadSummary;
-    };
-    'venture.chief.fit': ChiefFit | null;
-    'venture.proposals.raise': ProposalRaised;
-    'venture.proposals.dismiss': {
-        proposal: ProposalView;
-    };
-    'venture.network.import': NetworkImportResult;
-    'venture.network.importUndo': NetworkImportUndo;
-    'venture.network.merge': PersonView;
-    'venture.network.split': PersonSplit;
-    'venture.network.forget': NetworkForgotten;
-    'venture.network.hide': {
-        person: PersonSummary;
-    };
-    'venture.network.people': PeopleView;
-    'venture.network.person': PersonView;
-    'venture.network.sources': NetworkSourcesView;
-    'venture.network.recompute': NetworkRecompute;
-    'venture.network.know': PersonView;
-    'venture.network.link': {
-        line: Display;
-    };
-    'venture.network.search': NetworkSearchView;
-    'venture.network.searchMore': NetworkSearchView;
-    'venture.network.saveSearch': {
-        search: SavedSearchView;
-    };
-    'venture.network.research': PersonResearch;
-    'venture.pipeline.list': PipelineView;
-    'venture.pipeline.followups': FollowupsView;
-    'venture.pipeline.add': PipelineCardResult;
-    'venture.pipeline.setNext': PipelineCardResult;
-    'venture.pipeline.move': PipelineCardResult;
-    'venture.pipeline.settings': PipelineSettingsView;
-    'venture.outreach.draft': {
-        draft: OutreachView;
-        line: Display;
-    };
-    'venture.outreach.open': OutreachHandoff;
-    'venture.outreach.sent': OutreachSentResult;
-    'venture.outreach.restricted': OutreachRestriction;
-    'venture.mailbox.connect': MailboxView;
-    'venture.mailbox.disconnect': MailboxView;
-    'venture.mailbox.sync': MailboxSync;
-    'venture.inbound.list': InboundListView;
-    'venture.inbound.confirm': {
-        item: InboundView;
-    };
-    'venture.network.calendar': CalendarFeedView;
-    'venture.meeting.digest': MeetingDigestView;
-    'venture.runs.stop': RunControlResult;
-    'venture.runs.resume': RunControlResult;
-    'venture.runs.roundGate': RunControlResult;
-    'venture.runs.steer': RunControlResult;
-    'venture.business.pause': PauseView;
-    'venture.away.set': AwayView;
-    'venture.away.get': AwayView;
-    'venture.runs.allowWrites': AllowWritesView;
-    'venture.notify.list': NotifyListView;
-    'venture.notify.read': {
-        unread: number;
-    };
-    'venture.notify.settings': NotifySettingsView;
-    'venture.notify.push.key': PushKeyView;
-    'venture.notify.push.subscribe': PushStateView;
-    'venture.notify.push.unsubscribe': PushStateView;
-    'venture.notify.relay': RelayView;
-    'venture.notify.telegram': TelegramView;
-    'venture.phone.access': PhoneAccessView;
-    'venture.web.search': ContractModule1602.WebSearchView;
-    'venture.web.read': ContractModule1602.WebReadView;
-    'venture.chief.thread.state': ChiefThreadStateResult;
-    'venture.chief.settle.set': ChiefSettleResult;
-    'venture.agents.retire.check': RetireCheckView;
-    'venture.agents.retire': AgentRetired;
-    'venture.agents.restore': AgentRestored;
-    'venture.apps.list': {
-        apps: MiniAppCard[];
-        ideas: {
-            label: Display;
-            preview: Display;
-        }[];
-        never: Display;
-    };
-    'venture.apps.get': {
-        app: MiniAppView;
-    };
-    'venture.apps.make': {
-        app: MiniAppView;
-        line: Display;
-    };
-    'venture.apps.grant': {
-        app: MiniAppView;
-        line: Display;
-    };
-    'venture.apps.revoke': {
-        app: MiniAppView;
-        line: Display;
-    };
-    'venture.apps.restore': {
-        app: MiniAppView;
-        undo: {
-            version: number;
-        };
-        line: Display;
-    };
-    'venture.apps.pin': {
-        app: MiniAppView;
-        undo: {
-            pinned: boolean;
-        };
-        line: Display;
-    };
-    'venture.apps.export': {
-        fileName: string;
-        document: string;
-        mediaType: 'text/html';
-    };
-    'venture.apps.call': MiniAppCallResult;
-    'venture.apps.remove': {
-        removed: true;
-        line: Display;
-    };
-    'venture.layout.get': LayoutView;
-    'venture.diagnostics.today': ContractModule1569.DiagnosticsTodayView;
-    'venture.build.briefFile': BriefFilePlan;
-    'venture.accountant.pack.done': {
-        done: boolean;
-    };
-    'venture.accountant.schedule.set': CaPackScheduleView;
-    'venture.accountant.schedule.get': CaPackScheduleView;
-    'venture.accountant.set': AccountantView;
-    'venture.accountant.get': AccountantView;
-    'venture.notify.telegram.findChat': TelegramFound;
-    'venture.client.aiDefault.set': ClientAiDefaultView;
-    'venture.client.aiDefault.get': ClientAiDefaultView;
-    'venture.away.preview': {
-        from: IsoDate;
-        to: IsoDate;
-        items: AwayView['promises'];
-    };
-    'venture.team.introduced': {
-        met: string[];
-    };
-    'venture.layout.change': LayoutChangeResult;
-    'venture.find': FindView;
-    'venture.talk.get': TalkView;
-    'venture.talk.consent': TalkView;
-    'venture.talk.setup': TalkView;
-    'venture.talk.start': TalkStarted;
-    'venture.talk.hear': TalkHeard;
-    'venture.talk.say': TalkSaid;
-    'venture.feedback.get': FeedbackView;
-    'venture.feedback.consent': FeedbackView;
-    'venture.feedback.send': FeedbackView;
-    'venture.feedback.answer': FeedbackView;
-    'venture.feedback.crash': FeedbackCrashKept;
-    'venture.feedback.delete': FeedbackView;
-    'venture.people.services': ContractModule650.PeopleSearchView;
-    'venture.people.lookup': ContractModule650.PeopleLookupView;
-    'venture.crm.client': ContractModule319.ClientCrmView;
-    'venture.crm.client.edit': ContractModule319.ClientCrmView;
-    'venture.crm.companies': ContractModule319.CompanyRow[];
-    'venture.crm.company': ContractModule319.CompanyView;
-    'venture.crm.company.save': ContractModule319.CompanyView;
-    'venture.crm.link': ContractModule319.CrmMemberView;
-    'venture.crm.log': ContractModule319.ClientCrmView;
-    'venture.crm.lists': ContractModule319.CrmListRow[];
-    'venture.crm.list': ContractModule319.CrmListView;
-    'venture.crm.list.save': ContractModule319.CrmListView;
-    'venture.crm.list.place': ContractModule319.CrmListView;
-    'venture.memory.list': ContractModule482.MemoryView;
-    'venture.memory.add': ContractModule482.MemoryChange;
-    'venture.memory.replace': ContractModule482.MemoryChange;
-    'venture.memory.visibility': ContractModule482.MemoryChange;
-    'venture.memory.forget': ContractModule482.MemoryChange;
-    'venture.models.cli.status': CliStatusList;
-    'venture.models.roles': RoleModelsView;
-    'venture.goals.get': GoalView;
-    'venture.goals.set': GoalView;
-    'venture.goals.suggest': GoalSuggestion | null;
-    'venture.decisions.list': DecisionsView;
-    'venture.policy.allowSession': AllowSessionView;
-    'venture.queue.sendBack': QueueDecision;
-    'venture.queue.edit': QueueDecision;
-    'venture.queue.undo': QueueUndoResult;
-    'venture.queue.set': QueueSetResult;
-    'venture.queue.setPreview': QueueSetPreview;
-    'venture.delivery.copy': DeliveryRunView;
-    'venture.triage.set': TriageRuleView;
-    'venture.triage.preview': TriagePreview;
-    'venture.delivery.fix': DeliveryRunView;
-    'venture.delivery.decideChange': DraftChangesView;
-    'venture.delivery.changes': DraftChangesView;
-    'venture.settings.draft': SettingsDraftSaved;
-    'venture.settings.drafts': SettingsDraftsView;
-    'venture.files.poster': UploadView;
-    'venture.money.aging': AgingView;
-    'venture.money.flow': FlowView;
-    'venture.money.cash': CashView;
-    'venture.money.margins': MarginsView;
-    'venture.money.export': MoneyExportFile;
-    'venture.bills.add': BillResult;
-    'venture.bills.pay': BillResult;
-    'venture.bills.list': BillsView;
-    'venture.credit.issue': {
-        creditNote: CreditNoteView;
-    };
-    'venture.invoice.recurring': {
-        recurring: RecurringInvoiceView;
-    };
-    'venture.invoice.recurringList': RecurringInvoicesView;
-    'venture.invoice.remind': {
-        draft: OutreachView;
-        receiptId?: string;
-    };
-    'venture.payment.clear': InvoiceView;
-    'venture.bills.stop': BillsView;
-    'venture.money.across': AcrossMoneyView;
-    'venture.runs.across': AcrossRunsView;
-    'venture.connectors.check': ConnectorChecksView | null;
-    'venture.share.request': FileRequestView;
-    'venture.playbooks.list': WaysView;
-    'venture.blueprint.suggest': PlanSuggestionView;
-    'venture.owner.get': OwnerView;
-    'venture.owner.set': OwnerView;
-    'venture.receipt.verify': ReceiptVerifyView;
-    'venture.journal.chain': JournalChainView;
-    'venture.journal.acceptBreak': JournalChainView;
-    'venture.order.contract': OrderContractView | null;
-    'venture.order.contract.propose': OrderContractView;
-    'venture.order.contract.sign': OrderContractView;
-    'venture.routines.list': RoutinesView;
-    'venture.routines.runs': RoutineRunsView;
-    'venture.routines.set': {
-        routine: RoutineView;
-    };
-    'venture.routines.remove': {
-        removed: true;
-        line: Display;
-    };
-    'venture.options.rerank': RerankView;
-    'venture.drills.run': {
-        run: DrillRunView;
-    };
-    'venture.drills.list': DrillRunsView;
-    'venture.auto.readiness': AutoReadinessView;
-    'venture.shadow.summary': ShadowSummaryView;
-    'venture.playbook.guidance': GuidanceView;
-    'venture.voice.get': VoiceView;
-    'venture.voice.set': VoiceView;
-    'venture.voice.learn': VoiceView;
-    'venture.persona.get': PersonaView;
-    'venture.persona.set': PersonaView;
-    'venture.persona.test': PersonaTestView;
-    'venture.agents.export': AgentExportFile;
-    'venture.agents.import': {
-        proposal: AgentProposalView;
-    };
-    'venture.knowledge.list': KnowledgeView;
-    'venture.knowledge.add': {
-        source: KnowledgeSourceView;
-    };
-    'venture.knowledge.remove': {
-        removed: true;
-        line: Display;
-    };
-    'venture.knowledge.test': KnowledgeTestView;
-    'venture.ideas.list': IdeasView;
-    'venture.ideas.start': IdeaStarted;
-    'venture.ideas.dismiss': {
-        dismissed: true;
-        line: Display;
-    };
-    'venture.agents.capabilities': CapabilityPageView;
-    'venture.order.chain': OrderChainView;
-    'venture.salesProposal.draft': SalesProposalView;
-    'venture.salesProposal.get': SalesProposalView;
-    'venture.goNoGo.card': GoNoGoCardView;
-    'venture.goNoGo.list': GoNoGoListView;
-    'venture.goNoGo.remove': {
-        removed: true;
-        line: Display;
-    };
-    'venture.ideas.add': IdeaAddedView;
-    'venture.ideas.move': IdeaMovedView;
-    'venture.ideas.grade': IdeaGradedView;
-    'venture.brandKit.get': BrandKitView;
-    'venture.brandKit.set': BrandKitView;
-    'venture.assets.list': AssetsView;
-    'venture.assets.rerun': AssetRerunView;
-    'venture.assets.reuse': AssetReuseView;
-    'venture.voiceConsent.record': VoiceConsentView;
-    'venture.voiceConsent.revoke': VoiceConsentView;
-    'venture.voiceConsent.list': VoiceConsentsView;
-    'venture.report.render': ReportView;
-    'venture.report.share': ReportShareView;
-    'venture.report.shareRotate': ReportShareView;
-    'venture.report.shareDisable': ReportShareView;
-    'venture.report.list': ReportListView;
-    'venture.monitors.list': MonitorsView;
-    'venture.monitors.add': MonitorView;
-    'venture.monitors.remove': MonitorView;
-    'venture.mail.import': MailImportView;
-    'venture.mail.threads': MailThreadsView;
-    'venture.localApps.list': LocalAppsView;
-    'venture.webhook.set': WebhookView;
-    'venture.webhook.send': WebhookSendView;
-    'venture.speechOut.providers': SpeechProvidersView;
-    'venture.ca.confirmCitations': CitationsConfirmView;
-    'venture.ca.signoff.get': SignoffCheckView;
-    'venture.ca.differential.add': DifferentialAddView;
-    'venture.ca.dataPack.export': DataPackExportView;
-    'venture.desk.list': DeskListView;
-    'venture.desk.get': DeskItemView;
-    'venture.desk.act': DeskActView;
-    'venture.flows.list': ContractModule466.FlowsListView;
-    'venture.flows.act': ContractModule466.FlowsActView;
-    'venture.ai.options': OnboardingResults['venture.ai.options'];
-    'venture.ai.connect': OnboardingResults['venture.ai.connect'];
-    'venture.ai.disconnect': OnboardingResults['venture.ai.disconnect'];
-    'venture.ai.status': OnboardingResults['venture.ai.status'];
-    'venture.ai.calls': OnboardingResults['venture.ai.calls'];
-    'venture.country.suggest': OnboardingResults['venture.country.suggest'];
-    'venture.ai.tools': OnboardingResults['venture.ai.tools'];
-    'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
-    'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
-    'venture.ai.setup.trust': {
-        setup: ContractModule285.CodexSetupView;
-    };
-    'venture.ai.claude.install': ContractModule489.ClaudeInstallResult;
-    'venture.ai.claude.progress': ContractModule489.ClaudeInstallView;
-    'venture.work.list': {
-        work: ContractModule1604.WorkJobView[];
-    };
-    'venture.invoice.shared': InvoiceView;
-    'venture.routines.suggestions': RoutineSuggestionsView;
-    'venture.agents.hire.duties': ContractModule114.HireView;
-    'venture.events.calKey.set': ContractModule197.EventsView;
-    'venture.events.relay.set': ContractModule197.EventsView;
-    'venture.events.get': ContractModule197.EventsView;
-    'venture.agents.hire.cancel': {
-        cancelled: true;
-    };
-    'venture.agents.hire.confirm': ContractModule114.HireView;
-    'venture.agents.hire.answer': ContractModule114.HireView;
-    'venture.agents.hire.start': ContractModule114.HireView;
-    'venture.trackers.rows.undo': {
-        undone: true;
-    };
-    'venture.trackers.rows.remove': {
-        removed: true;
-    };
-    'venture.trackers.rows.edit': {
-        row: ContractModule1566.TrackerRowView;
-    };
-    'venture.trackers.rows.add': {
-        row: ContractModule1566.TrackerRowView;
-    };
-    'venture.trackers.remove': {
-        removed: true;
-    };
-    'venture.trackers.set': {
-        tracker: ContractModule1566.TrackerView;
-    };
-    'venture.trackers.get': ContractModule1566.TrackerDetail;
-    'venture.trackers.list': ContractModule1566.TrackersView;
-    'venture.routines.backup.set': ContractModule133.BackupView;
-    'venture.routines.backup.get': ContractModule133.BackupView;
-    'venture.models.plan': ContractModule510.PlanView;
-    'venture.about.read': OnboardingResults['venture.about.read'];
-    'venture.about.pick': OnboardingResults['venture.about.pick'];
-    'venture.about.families': OnboardingResults['venture.about.families'];
-    'venture.needs.list': NeedsList;
-    'venture.compose.decide': OnboardingResults['venture.compose.decide'];
-    'venture.compose.fill': OnboardingResults['venture.compose.fill'];
-    'venture.compose.get': OnboardingResults['venture.compose.get'];
-    'venture.compose.update': OnboardingResults['venture.compose.update'];
-};
 }
 
-declare namespace ContractModule271 {
-export const ASKED_MEASURES: readonly [
-    "turnover",
-    "headcount"
-];
-export type AskedMeasure = (typeof ASKED_MEASURES)[number];
-export type SizeChoice = {
-    id: string;
-    label: string;
-};
-export type SizeQuestion = {
-    measure: AskedMeasure;
-    question: string;
-    choices: SizeChoice[];
-    answer: string | null;
-};
-export type SizeAsk = {
-    measures: AskedMeasure[];
-    line: string;
-    questions: SizeQuestion[];
-};
+declare namespace ContractModule319 {
+export import SizeAsk = ContractModule1665.SizeAsk;
 }
 
-declare namespace ContractModule279 {
-export type CountryCode = string;
-export type TaxMode = 'gst' | 'vat' | 'sales-tax' | 'none';
-export type DateOrder = 'day-month-year' | 'month-day-year' | 'year-month-day';
-export type CountryProfile = {
-    code: CountryCode;
-    name: string;
-    currency: string;
-    minorDigits: number;
-    region: 'india' | 'global';
-    tax: {
-        mode: TaxMode;
-        label: string;
-        standardRateBps: string;
-        registrationNote: string;
-        idLabel: string;
-        idPattern: string | null;
-        invoiceKind: 'tax-invoice' | 'invoice';
-        checkedOn: string;
-    };
-    paymentRails: string[];
-    dateOrder: DateOrder;
-    complianceNotes: string[];
-};
+declare namespace ContractModule327 {
+export import CountryCode = ContractModule3.CountryCode;
+export import CountryProfile = ContractModule3.CountryProfile;
+export import TaxMode = ContractModule3.TaxMode;
 }
 
-declare namespace ContractModule283 {
-import ReportAnswer = ContractModule314.ReportAnswer;
-export const QUESTION_MILESTONES: readonly [
-    "ai_connected",
-    "first_job_done",
-    "first_invoice",
-    "first_payment"
-];
-export type QuestionMilestone = typeof QUESTION_MILESTONES[number];
-export const CRASH_SOURCES: readonly [
-    "window",
-    "engine",
-    "desktop"
-];
-export type CrashSource = typeof CRASH_SOURCES[number];
-export type ReportEvent = {
-    event: string;
-    distinct_id: string;
-    properties: Record<string, string | number | boolean>;
-};
-export type CrashFrame = {
-    function: string;
-    filename: string;
-    lineno: number;
-    colno: number;
-    in_app: true;
-};
-export type SentryEvent = {
-    event_id: string;
-    platform: 'node';
-    level: 'error';
-    release: string;
-    environment: string;
-    tags: Record<string, string>;
-    user: {
-        id: string;
-    };
-    exception: {
-        values: {
-            type: string;
-            value: string;
-            stacktrace: {
-                frames: CrashFrame[];
-            };
-        }[];
-    };
-};
-export type FeedbackPreview = {
-    digest: string;
-    posthog: {
-        to: string;
-        events: ReportEvent[];
-    } | null;
-    sentry: {
-        to: string;
-        events: SentryEvent[];
-    } | null;
-};
-export type FeedbackSend = {
-    at: string;
-    posthog: number | null;
-    sentry: number | null;
-    accepted: boolean;
-    line: string;
-};
-export type FeedbackView = {
-    host: string;
-    notice: {
-        text: string;
-        digest: string;
-    };
-    consent: {
-        given: boolean;
-        stale: boolean;
-        usage: boolean;
-        crashes: boolean;
-        at: string | null;
-    };
-    setUp: {
-        posthog: boolean;
-        sentry: boolean;
-        line: string;
-    };
-    reportId: string | null;
-    preview: FeedbackPreview | null;
-    question: {
-        id: QuestionMilestone;
-        text: string;
-        choices: {
-            id: ReportAnswer;
-            label: string;
-        }[];
-    } | null;
-    lastSend: FeedbackSend | null;
-    deletion: {
-        at: string;
-        reportId: string;
-        line: string;
-    } | null;
-    line: string;
-};
-export type FeedbackCrashKept = {
-    kept: boolean;
-    line: string;
-};
-export type FeedbackConsentInput = {
-    digest: string;
-    usage: boolean;
-    crashes: boolean;
-} | {
-    withdraw: true;
-};
-export type FeedbackCrashInput = {
-    source: CrashSource;
-    name: string;
-    message: string;
-    stack?: string;
-};
-export type FeedbackAnswerInput = {
-    questionId: QuestionMilestone;
-    answer: ReportAnswer | 'skip';
-};
+declare namespace ContractModule331 {
+export import FeedbackView = ContractModule1669.FeedbackView;
+export import FeedbackCrashKept = ContractModule1669.FeedbackCrashKept;
+export import FeedbackConsentInput = ContractModule1669.FeedbackConsentInput;
+export import FeedbackCrashInput = ContractModule1669.FeedbackCrashInput;
+export import FeedbackAnswerInput = ContractModule1669.FeedbackAnswerInput;
 }
 
-declare namespace ContractModule285 {
-export type FamilyId = 'money-tax' | 'teaching' | 'creative' | 'writing' | 'local-services' | 'documents' | 'research' | 'people' | 'shop-office' | 'tech' | 'licensed';
-export type FamilyOffer = {
-    name: string;
-    line: string;
-};
+declare namespace ContractModule333 {
+import FamilyId = ContractModule4.FamilyId;
+import FamilyOffer = ContractModule4.FamilyOffer;
+export import FamilyId = ContractModule4.FamilyId;
+export import FamilyOffer = ContractModule4.FamilyOffer;
+export import NeedsList = ContractModule4.NeedsList;
 export type AboutFile = {
     name: string;
     included: boolean;
@@ -9153,29 +9775,6 @@ export type FamilyTile = {
         id: string;
         label: string;
     }[];
-};
-export type NeedLabel = 'write' | 'read' | 'handoff' | 'planned';
-export type NeedConnect = {
-    kind: 'sign-in' | 'key' | 'guide' | 'none';
-    connectorId: string | null;
-    place: 'connections' | 'connections/ai' | null;
-};
-export type NeedView = {
-    id: string;
-    name: string;
-    why: string;
-    label: NeedLabel;
-    connect: NeedConnect;
-    waitsOn: string | null;
-    meanwhile: string | null;
-    required: false;
-};
-export type NeedsList = {
-    family: {
-        id: FamilyId;
-        label: string;
-    } | null;
-    needs: NeedView[];
 };
 export type LoginState = 'idle' | 'starting' | 'waiting' | 'signed-in' | 'failed' | 'cancelled';
 export type ToolLogin = {
@@ -9214,136 +9813,26 @@ export type ToolsView = {
 };
 }
 
-declare namespace ContractModule303 {
-export type PriceSourceView = {
-    url: string;
-    publisher: string;
-    title: string;
-    published: string | null;
-};
-export type PriceRangeView = {
-    id: string;
-    label: string;
-    currency: string;
-    lowMinor: string;
-    highMinor: string;
-    kind: 'range' | 'minimums' | 'cap';
-    text: string;
-    per: string;
-    city: string | null;
-    sources: PriceSourceView[];
-    checkedOn: string;
-    checked: string;
-    note: string;
-};
-export type PriceGuideView = {
-    profession: string;
-    label: string;
-    family: string;
-    status: 'sourced' | 'no-reliable-data';
-    ranges: PriceRangeView[];
-    line: string | null;
-    reason: string | null;
-    checkedOn: string;
-    checked: string;
-};
+declare namespace ContractModule350 {
+export import PriceSourceView = ContractModule1675.PriceSourceView;
+export import PriceRangeView = ContractModule1675.PriceRangeView;
+export import PriceGuideView = ContractModule1675.PriceGuideView;
 }
 
-declare namespace ContractModule314 {
-export const REPORT_ANSWERS: readonly [
-    "easy",
-    "okay",
-    "hard"
-];
-export type ReportAnswer = typeof REPORT_ANSWERS[number];
+declare namespace ContractModule366 {
+export import CrmEntryKind = ContractModule1682.CrmEntryKind;
+export import ClientCrmView = ContractModule1682.ClientCrmView;
+export import CrmMemberView = ContractModule1682.CrmMemberView;
+export import CompanyRow = ContractModule1682.CompanyRow;
+export import CompanyView = ContractModule1682.CompanyView;
+export import CrmListRow = ContractModule1682.CrmListRow;
+export import CrmListView = ContractModule1682.CrmListView;
 }
 
-declare namespace ContractModule319 {
-export type CrmEntryKind = 'call' | 'whatsapp' | 'meeting' | 'note';
-export type FieldChangeView = {
-    id: string;
-    subject: string;
-    field: string;
-    label: string;
-    who: string;
-    at: string;
-    line: string;
-    before: string | null;
-    after: string | null;
-};
-export type TimelineKind = CrmEntryKind | 'sent' | 'reply' | 'invoice' | 'order' | 'draft';
-export type TimelineEntryView = {
-    id: string;
-    kind: TimelineKind;
-    on: string;
-    at: string;
-    line: string;
-    text: string | null;
-    clientId: string;
-};
-export type CrmRef = {
-    id: string;
-    name: string;
-};
-export type ClientCrmView = {
-    clientId: string;
-    company: CrmRef | null;
-    history: FieldChangeView[];
-    timeline: TimelineEntryView[];
-    lists: {
-        listId: string;
-        name: string;
-        stage: string;
-    }[];
-};
-export type CrmMemberView = {
-    member: string;
-    company: CrmRef | null;
-    history: FieldChangeView[];
-};
-export type CompanyRow = {
-    id: string;
-    name: string;
-    domain: string | null;
-    clients: number;
-    people: number;
-};
-export type CompanyView = {
-    company: CompanyRow & {
-        note: string | null;
-    };
-    clients: CrmRef[];
-    people: CrmRef[];
-    history: FieldChangeView[];
-    timeline: TimelineEntryView[];
-};
-export type CrmListRow = {
-    id: string;
-    name: string;
-    stages: string[];
-    count: number;
-};
-export type CrmListEntry = {
-    member: string;
-    kind: 'client' | 'person' | 'company';
-    name: string;
-    at: string;
-};
-export type CrmListView = {
-    list: CrmListRow;
-    groups: {
-        stage: string;
-        entries: CrmListEntry[];
-    }[];
-    history: FieldChangeView[];
-    line: string;
-};
-}
-
-declare namespace ContractModule341 {
-import Display = ContractModule266.Display;
-import FixKind = ContractModule266.FixKind;
-import RunFailureKind = ContractModule266.RunFailureKind;
+declare namespace ContractModule388 {
+import Display = ContractModule302.Display;
+import FixKind = ContractModule302.FixKind;
+import RunFailureKind = ContractModule302.RunFailureKind;
 export type FailureKind = RunFailureKind;
 export type FailureWords = {
     kind: FailureKind;
@@ -9354,9 +9843,9 @@ export type FailureWords = {
 };
 }
 
-declare namespace ContractModule446 {
-import IsoDate = ContractModule266.IsoDate;
-import IsoTime = ContractModule266.IsoTime;
+declare namespace ContractModule493 {
+import IsoDate = ContractModule302.IsoDate;
+import IsoTime = ContractModule302.IsoTime;
 export const RIGHTS_BASES: readonly [
     "own-footage",
     "licence",
@@ -9374,7 +9863,7 @@ export type FootageRights = {
 };
 }
 
-declare namespace ContractModule462 {
+declare namespace ContractModule509 {
 export type FlowCandidate = {
     kind: 'id' | 'name' | 'test-id' | 'aria-label' | 'label';
     value: string;
@@ -9514,45 +10003,19 @@ export type FlowsActPayload = {
 };
 }
 
-declare namespace ContractModule466 {
-export import FlowsActPayload = ContractModule462.FlowsActPayload;
-export import FlowsActView = ContractModule462.FlowsActView;
-export import FlowsListView = ContractModule462.FlowsListView;
+declare namespace ContractModule513 {
+export import FlowsActPayload = ContractModule509.FlowsActPayload;
+export import FlowsActView = ContractModule509.FlowsActView;
+export import FlowsListView = ContractModule509.FlowsListView;
 }
 
-declare namespace ContractModule482 {
-export type FactVisibility = 'ai' | 'owner';
-export type FactSourceKind = 'owner' | 'ai';
-export type FactView = {
-    id: string;
-    subject: string;
-    topic: string;
-    text: string;
-    since: string;
-    at: string;
-    source: FactSourceKind;
-    sourceLine: string;
-    visibility: FactVisibility;
-    visibilityLine: string;
-    current: boolean;
-    replaces: string | null;
-    replacedBy: string | null;
-    replacedAt: string | null;
-    erased: boolean;
-};
-export type MemoryView = {
-    facts: FactView[];
-    earlier: FactView[];
-    line: string;
-};
-export type MemoryChange = {
-    fact: FactView | null;
-    replaced: FactView | null;
-    line: string;
-};
+declare namespace ContractModule529 {
+export import FactVisibility = ContractModule1688.FactVisibility;
+export import MemoryView = ContractModule1688.MemoryView;
+export import MemoryChange = ContractModule1688.MemoryChange;
 }
 
-declare namespace ContractModule489 {
+declare namespace ContractModule536 {
 export type ClaudeInstallStep = 'downloading' | 'installing' | 'checking' | 'done' | 'failed';
 export type ClaudeInstallView = {
     step: ClaudeInstallStep | 'idle';
@@ -9569,16 +10032,16 @@ export type ClaudeInstallResult = {
 };
 }
 
-declare namespace ContractModule508 {
+declare namespace ContractModule555 {
 export type PlanWindowKind = 'five-hour' | 'week';
 export type PlanState = 'ok' | 'near' | 'used-up' | 'unknown';
 }
 
-declare namespace ContractModule510 {
-import DelegateCli = ContractModule266.DelegateCli;
-import IsoTime = ContractModule266.IsoTime;
-import PlanState = ContractModule508.PlanState;
-import PlanWindowKind = ContractModule508.PlanWindowKind;
+declare namespace ContractModule557 {
+import DelegateCli = ContractModule302.DelegateCli;
+import IsoTime = ContractModule302.IsoTime;
+import PlanState = ContractModule555.PlanState;
+import PlanWindowKind = ContractModule555.PlanWindowKind;
 export type PlanWindowView = {
     kind: PlanWindowKind;
     usedPercent: number | null;
@@ -9600,7 +10063,7 @@ export type PlanView = {
 };
 }
 
-declare namespace ContractModule521 {
+declare namespace ContractModule568 {
 export type AccountantView = {
     email: string | null;
     whatsapp: string | null;
@@ -9608,29 +10071,16 @@ export type AccountantView = {
 };
 }
 
-declare namespace ContractModule527 {
-export type MinorText = string;
-export type BankDetails = {
-    accountName: string;
-    accountNumber: string;
-    ifsc: string | null;
-    swift: string | null;
-    bankName: string | null;
-};
-export type RazorpayAccount = {
-    mode: 'test' | 'live';
-    keyHint: string;
-    savedAt: string;
-};
-export type BillingSettings = {
-    dueInDays: number;
-    terms: string | null;
-    reminderDays: number[];
-    upiId: string | null;
-    payeeName: string | null;
-    bank: BankDetails | null;
-    razorpay: RazorpayAccount | null;
-};
+declare namespace ContractModule574 {
+import BankDetails = ContractModule5.BankDetails;
+import BillingSettings = ContractModule5.BillingSettings;
+import QrMatrix = ContractModule5.QrMatrix;
+import MinorText = ContractModule5.MinorText;
+export import BankDetails = ContractModule5.BankDetails;
+export import BillingSettings = ContractModule5.BillingSettings;
+export import QrMatrix = ContractModule5.QrMatrix;
+export import InvoicePart = ContractModule5.InvoicePart;
+export import MinorText = ContractModule5.MinorText;
 export type BillingView = {
     settings: BillingSettings;
     defaults: {
@@ -9638,14 +10088,6 @@ export type BillingView = {
         reminderDays: number[];
     };
     razorpayLabel: 'fixture-tested';
-};
-export type InvoicePart = {
-    kind: 'advance' | 'milestone' | 'partial' | 'final';
-    label: string;
-    shareBps: string | null;
-    basisReceiptId: string;
-    orderTotalMinor: MinorText;
-    earlierMinor: MinorText;
 };
 export type OrderBilledView = {
     orderTotalMinor: MinorText;
@@ -9655,11 +10097,6 @@ export type OrderBilledView = {
     billed: string;
     left: string;
     invoices: number;
-};
-export type QrMatrix = {
-    version: number;
-    size: number;
-    rows: string[];
 };
 export type PayLinkState = {
     id: string;
@@ -9702,7 +10139,7 @@ export type ForeignPrice = {
 };
 }
 
-declare namespace ContractModule531 {
+declare namespace ContractModule578 {
 export type CaPackScheduleView = {
     on: boolean;
     at: string | null;
@@ -9710,7 +10147,7 @@ export type CaPackScheduleView = {
 };
 }
 
-declare namespace ContractModule550 {
+declare namespace ContractModule597 {
 export type InvoicePdfView = {
     fileName: string;
     format: 'pdf' | 'html';
@@ -9726,23 +10163,17 @@ export type InvoicePdfView = {
 };
 }
 
-declare namespace ContractModule563 {
-import InvoicePdfView = ContractModule550.InvoicePdfView;
+declare namespace ContractModule610 {
+import InvoicePdfView = ContractModule597.InvoicePdfView;
 export type PaymentReceiptView = InvoicePdfView;
 }
 
-declare namespace ContractModule566 {
-export type MinorString = string;
-export type TaxTreatment = 'none' | 'single' | 'cgst-sgst' | 'igst' | 'zero-rated-lut';
-export type PriceStep = {
-    op: 'multiply' | 'discount' | 'tax' | 'tax-split' | 'add';
-    inputs: string[];
-    resultMinor: MinorString;
-    rule: string;
-};
+declare namespace ContractModule613 {
+export import PriceStep = ContractModule6.PriceStep;
+export import TaxTreatment = ContractModule6.TaxTreatment;
 }
 
-declare namespace ContractModule644 {
+declare namespace ContractModule690 {
 export type TelegramFound = {
     found: {
         chatId: string;
@@ -9752,30 +10183,30 @@ export type TelegramFound = {
 };
 }
 
-declare namespace ContractModule646 {
-import BackOffice = ContractModule266.BackOffice;
-import BlueprintStep = ContractModule266.BlueprintStep;
-import ConnectorCard = ContractModule266.ConnectorCard;
-import CountryCode = ContractModule266.CountryCode;
-import CountryProfile = ContractModule266.CountryProfile;
-import InterviewAnswer = ContractModule266.InterviewAnswer;
-import InterviewQuestion = ContractModule266.InterviewQuestion;
-import IsoTime = ContractModule266.IsoTime;
-import Labelled = ContractModule266.Labelled;
-import ModelCallRecord = ContractModule266.ModelCallRecord;
-import ModelPreset = ContractModule266.ModelPreset;
-import ModelPresetId = ContractModule266.ModelPresetId;
-import ModelStatusView = ContractModule266.ModelStatusView;
-import ModelTier = ContractModule266.ModelTier;
-import Offer = ContractModule266.Offer;
-import PlanFlagshipStep = ContractModule266.PlanFlagshipStep;
-import PricingModel = ContractModule266.PricingModel;
-import ServiceType = ContractModule266.ServiceType;
-import AboutRead = ContractModule285.AboutRead;
-import FamilyId = ContractModule285.FamilyId;
-import FamilyTile = ContractModule285.FamilyTile;
-import ToolView = ContractModule285.ToolView;
-import ToolsView = ContractModule285.ToolsView;
+declare namespace ContractModule692 {
+import BackOffice = ContractModule302.BackOffice;
+import BlueprintStep = ContractModule302.BlueprintStep;
+import ConnectorCard = ContractModule302.ConnectorCard;
+import CountryCode = ContractModule302.CountryCode;
+import CountryProfile = ContractModule302.CountryProfile;
+import InterviewAnswer = ContractModule302.InterviewAnswer;
+import InterviewQuestion = ContractModule302.InterviewQuestion;
+import IsoTime = ContractModule302.IsoTime;
+import Labelled = ContractModule302.Labelled;
+import ModelCallRecord = ContractModule302.ModelCallRecord;
+import ModelPreset = ContractModule302.ModelPreset;
+import ModelPresetId = ContractModule302.ModelPresetId;
+import ModelStatusView = ContractModule302.ModelStatusView;
+import ModelTier = ContractModule302.ModelTier;
+import Offer = ContractModule302.Offer;
+import PlanFlagshipStep = ContractModule302.PlanFlagshipStep;
+import PricingModel = ContractModule302.PricingModel;
+import ServiceType = ContractModule302.ServiceType;
+import AboutRead = ContractModule333.AboutRead;
+import FamilyId = ContractModule333.FamilyId;
+import FamilyTile = ContractModule333.FamilyTile;
+import ToolView = ContractModule333.ToolView;
+import ToolsView = ContractModule333.ToolsView;
 export const OPEN_BOX_KINDS: readonly [
     "idea",
     "skill",
@@ -10149,68 +10580,15 @@ export type OnboardingResults = {
 };
 }
 
-declare namespace ContractModule647 {
-import ExternalMcpServer = ContractModule77.ExternalMcpServer;
-export type PackUnit = 'money' | 'count' | 'bps';
-export type PackInput = {
-    name: string;
-    label: string;
-    unit: PackUnit;
-};
-export type PackCalculatorView = {
-    id: string;
-    name: string;
-    about: string;
-    inputs: PackInput[];
-    output: {
-        label: string;
-        unit: PackUnit;
-    };
-    moduleDigest: string;
-};
-export type PackView = {
-    id: string;
-    name: string;
-    version: string;
-    about: string;
-    digest: string;
-    skills: {
-        id: string;
-        title: string;
-        words: number;
-    }[];
-    mcpServers: ExternalMcpServer[];
-    calculators: PackCalculatorView[];
-};
+declare namespace ContractModule693 {
+export import PackView = ContractModule1705.PackView;
 }
 
-declare namespace ContractModule650 {
-export type PeopleServiceId = 'happenstance' | 'probe42' | 'tofler';
-export type KeyedPeopleServiceId = Exclude<PeopleServiceId, 'tofler'>;
-export type SavedPeopleKeys = Partial<Record<KeyedPeopleServiceId, {
-    keyHint: string;
-    savedAt: string;
-}>>;
-export type PeopleServiceView = {
-    id: PeopleServiceId;
-    name: string;
-    covers: string;
-    label: 'fixture-tested' | 'planned';
-    needs: string;
-    docs: string;
-    saved: {
-        keyHint: string;
-        savedAt: string;
-    } | null;
-    planned: {
-        waitsOn: string;
-        meanwhile: string;
-    } | null;
-};
-export type PeopleSearchView = {
-    services: PeopleServiceView[];
-    line: string;
-};
+declare namespace ContractModule696 {
+import KeyedPeopleServiceId = ContractModule8.KeyedPeopleServiceId;
+export import KeyedPeopleServiceId = ContractModule8.KeyedPeopleServiceId;
+export import PeopleSearchView = ContractModule8.PeopleSearchView;
+export import SavedPeopleKeys = ContractModule8.SavedPeopleKeys;
 export type PersonFound = {
     name: string;
     title: string | null;
@@ -10244,16 +10622,11 @@ export type PeopleLookupView = {
 };
 }
 
-declare namespace ContractModule652 {
-export const PLAYBOOK_ORIGINS: readonly [
-    "plan",
-    "improvement",
-    "owner"
-];
-export type PlaybookOrigin = (typeof PLAYBOOK_ORIGINS)[number];
+declare namespace ContractModule698 {
+export import PlaybookOrigin = ContractModule1707.PlaybookOrigin;
 }
 
-declare namespace ContractModule665 {
+declare namespace ContractModule711 {
 export type DemoSession = {
     runId: string;
     imageId: string;
@@ -10261,8 +10634,8 @@ export type DemoSession = {
 };
 }
 
-declare namespace ContractModule672 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule718 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type AppTestingDeskTypes = {
     test: DeskKindTypes;
     demo: DeskKindTypes;
@@ -10270,7 +10643,7 @@ export type AppTestingDeskTypes = {
 };
 }
 
-declare namespace ContractModule678 {
+declare namespace ContractModule724 {
 export type AppTestErasure = {
     serial: string;
     packageName: string;
@@ -10278,15 +10651,15 @@ export type AppTestErasure = {
 };
 }
 
-declare namespace ContractModule690 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule736 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type BookingDeskDeskTypes = {
     slot: DeskKindTypes;
     booking: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule703 {
+declare namespace ContractModule749 {
 export type CollectionsInvoiceRow = {
     id: string;
     clientId: string;
@@ -10300,7 +10673,7 @@ export type CollectionsInvoiceRow = {
 };
 }
 
-declare namespace ContractModule704 {
+declare namespace ContractModule750 {
 export type CollectionStage = {
     id: string;
     fromDay: number;
@@ -10315,15 +10688,15 @@ export function reminderDraft(clientId: string, invoiceId: string, text: string,
 };
 }
 
-declare namespace ContractModule708 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
-import CollectionsInvoiceRow = ContractModule703.CollectionsInvoiceRow;
-import reminderDraft = ContractModule704.reminderDraft;
-import CollectionStage = ContractModule704.CollectionStage;
-import FinanceDeskTypes = ContractModule709.FinanceDeskTypes;
-import BooksPostingDeskTypes = ContractModule713.BooksPostingDeskTypes;
-import SettlementDeskTypes = ContractModule723.SettlementDeskTypes;
-import SetupDeskTypes = ContractModule726.SetupDeskTypes;
+declare namespace ContractModule754 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
+import CollectionsInvoiceRow = ContractModule749.CollectionsInvoiceRow;
+import reminderDraft = ContractModule750.reminderDraft;
+import CollectionStage = ContractModule750.CollectionStage;
+import FinanceDeskTypes = ContractModule755.FinanceDeskTypes;
+import BooksPostingDeskTypes = ContractModule759.BooksPostingDeskTypes;
+import SettlementDeskTypes = ContractModule769.SettlementDeskTypes;
+import SetupDeskTypes = ContractModule772.SetupDeskTypes;
 export type PromiseRow = {
     id: string;
     clientId: string;
@@ -10387,7 +10760,7 @@ export type BookkeepingCfoDeskTypes = FinanceDeskTypes & BooksPostingDeskTypes &
 };
 }
 
-declare namespace ContractModule709 {
+declare namespace ContractModule755 {
 export type FinanceDeskTypes = {
     finance: {
         filter: any;
@@ -10401,7 +10774,7 @@ export type FinanceDeskTypes = {
 };
 }
 
-declare namespace ContractModule713 {
+declare namespace ContractModule759 {
 export type BooksPostingDeskTypes = {
     posting: {
         filter: any;
@@ -10415,7 +10788,7 @@ export type BooksPostingDeskTypes = {
 };
 }
 
-declare namespace ContractModule723 {
+declare namespace ContractModule769 {
 export type SettlementDeskTypes = {
     settlement: {
         filter: any;
@@ -10429,7 +10802,7 @@ export type SettlementDeskTypes = {
 };
 }
 
-declare namespace ContractModule726 {
+declare namespace ContractModule772 {
 export type SetupDeskTypes = {
     setup: {
         filter: any;
@@ -10443,7 +10816,7 @@ export type SetupDeskTypes = {
 };
 }
 
-declare namespace ContractModule737 {
+declare namespace ContractModule783 {
 export type CitationRow = {
     id: string;
     act: '1961' | '2025';
@@ -10462,99 +10835,37 @@ export type CitationConfirmation = {
 };
 }
 
-declare namespace ContractModule741 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule787 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type CaFirmDeskTypes = {
     'data-pack': DeskKindTypes;
     working: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule757 {
-export type IsoDate = string;
+declare namespace ContractModule802 {
+export import MissingFact = ContractModule1735.MissingFact;
 }
 
-declare namespace ContractModule758 {
-export const FACT_FIELDS: readonly [
-    "regime",
-    "residency",
-    "ageBand",
-    "income",
-    "filedOn",
-    "gstin",
-    "period",
-    "payeeKind",
-    "paymentDate",
-    "entity",
-    "houseProperties",
-    "presumptive",
-    "capitalGains",
-    "agriculture",
-    "formExclusions",
-    "regimeHistory",
-    "totalIncome",
-    "taxEstimate",
-    "taxCredits",
-    "businessIncome"
-];
-export type FactField = typeof FACT_FIELDS[number];
-export type MissingFact = {
-    field: FactField;
-    about?: string;
-};
+declare namespace ContractModule804 {
+export import PackSelection = ContractModule1737.PackSelection;
 }
 
-declare namespace ContractModule760 {
-export type PackSelection = {
-    packId: string;
-    digest: string;
-    fields: string[];
-    unmask: string[];
-    requestedBy: string;
-    purpose: string;
-};
+declare namespace ContractModule810 {
+export import SectionRef = ContractModule1738.SectionRef;
+export import TableStamp = ContractModule1738.TableStamp;
 }
 
-declare namespace ContractModule766 {
-import IsoDate = ContractModule757.IsoDate;
-export type SectionRef = {
-    key: string;
-    act: string;
-    section: string;
-    title: string;
-    needsCaConfirmation: true;
-};
-export type TableStamp = {
-    id: string;
-    version: number;
-    hash: string;
-    title: string;
-    validFrom: IsoDate;
-    validTo: IsoDate | null;
-    confirmed: boolean;
-    confirmedBy: string | null;
-    needsCaConfirmation: true;
-};
+declare namespace ContractModule811 {
+export import CaEngine = ContractModule1739.CaEngine;
+export import CaReceiptStep = ContractModule1739.CaReceiptStep;
 }
 
-declare namespace ContractModule767 {
-export type CaEngine = 'advance-tax' | 'income-tax' | 'interest-234' | 'gst-working' | 'tds-working' | 'reconcile' | 'books-close' | 'portal-diff' | 'what-if' | 'doc-entry' | 'books-health' | 'data-pack';
-export type CaFigure = {
-    key: string;
-    label: string;
-    minor: string;
-    display: string;
-};
-export type CaReceiptStep = CaFigure & {
-    section: string | null;
-};
-}
-
-declare namespace ContractModule769 {
+declare namespace ContractModule813 {
 export type CaCitationsView = {
     version: number;
     tableHash: string;
-    rows: ContractModule737.CitationRow[];
+    rows: ContractModule783.CitationRow[];
     rules: {
         id: string;
         title: string;
@@ -10564,7 +10875,7 @@ export type CaCitationsView = {
         verification: string;
         source: string;
     }[];
-    confirmedBy: ContractModule737.CitationConfirmation | null;
+    confirmedBy: ContractModule783.CitationConfirmation | null;
 };
 export type CaCitationsBody = {
     version: number;
@@ -10616,45 +10927,45 @@ export type DataPackExportView = {
 };
 }
 
-declare namespace ContractModule791 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule835 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type DataEntryDeskDeskTypes = {
     entries: DeskKindTypes;
     browser: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule805 {
-import Display = ContractModule266.Display;
-import Json = ContractModule266.Json;
-import YoutubeDeskTypes = ContractModule1487.YoutubeDeskTypes;
-import CaFirmDeskTypes = ContractModule741.CaFirmDeskTypes;
-import SocialAgencyDeskTypes = ContractModule1270.SocialAgencyDeskTypes;
-import SeoVisibilityDeskTypes = ContractModule1196.SeoVisibilityDeskTypes;
-import OnlineSellerDeskTypes = ContractModule1068.OnlineSellerDeskTypes;
-import SupportDeskDeskTypes = ContractModule1335.SupportDeskDeskTypes;
-import RecruitingDeskDeskTypes = ContractModule1164.RecruitingDeskDeskTypes;
-import JobSearchDeskDeskTypes = ContractModule865.JobSearchDeskDeskTypes;
-import TranslationStudioDeskTypes = ContractModule1396.TranslationStudioDeskTypes;
-import BookkeepingCfoDeskTypes = ContractModule708.BookkeepingCfoDeskTypes;
-import PodcastToArticleDeskTypes = ContractModule1135.PodcastToArticleDeskTypes;
-import LeadGenerationDeskTypes = ContractModule960.LeadGenerationDeskTypes;
-import NewsletterStudioDeskTypes = ContractModule1043.NewsletterStudioDeskTypes;
-import TenderDeskDeskTypes = ContractModule1359.TenderDeskDeskTypes;
-import WebsiteStudioDeskTypes = ContractModule1443.WebsiteStudioDeskTypes;
-import NarrationStudioDeskTypes = ContractModule1005.NarrationStudioDeskTypes;
-import VirtualAssistantDeskTypes = ContractModule1424.VirtualAssistantDeskTypes;
-import DataEntryDeskDeskTypes = ContractModule791.DataEntryDeskDeskTypes;
-import AppTestingDeskTypes = ContractModule672.AppTestingDeskTypes;
-import DevAgencyDeskTypes = ContractModule814.DevAgencyDeskTypes;
-import MonitoredDataDeskTypes = ContractModule983.MonitoredDataDeskTypes;
-import ItTriageDeskTypes = ContractModule848.ItTriageDeskTypes;
-import PhoneReceptionistDeskTypes = ContractModule1113.PhoneReceptionistDeskTypes;
-import TradingJournalDeskTypes = ContractModule1380.TradingJournalDeskTypes;
-import LessonDeskDeskTypes = ContractModule972.LessonDeskDeskTypes;
-import BookingDeskDeskTypes = ContractModule690.BookingDeskDeskTypes;
-import SignoffDeskDeskTypes = ContractModule1234.SignoffDeskDeskTypes;
-import DocumentDeskDeskTypes = ContractModule836.DocumentDeskDeskTypes;
+declare namespace ContractModule849 {
+import Display = ContractModule302.Display;
+import Json = ContractModule302.Json;
+import YoutubeDeskTypes = ContractModule1519.YoutubeDeskTypes;
+import CaFirmDeskTypes = ContractModule787.CaFirmDeskTypes;
+import SocialAgencyDeskTypes = ContractModule1306.SocialAgencyDeskTypes;
+import SeoVisibilityDeskTypes = ContractModule1232.SeoVisibilityDeskTypes;
+import OnlineSellerDeskTypes = ContractModule1107.OnlineSellerDeskTypes;
+import SupportDeskDeskTypes = ContractModule1370.SupportDeskDeskTypes;
+import RecruitingDeskDeskTypes = ContractModule1200.RecruitingDeskDeskTypes;
+import JobSearchDeskDeskTypes = ContractModule909.JobSearchDeskDeskTypes;
+import TranslationStudioDeskTypes = ContractModule1431.TranslationStudioDeskTypes;
+import BookkeepingCfoDeskTypes = ContractModule754.BookkeepingCfoDeskTypes;
+import PodcastToArticleDeskTypes = ContractModule1172.PodcastToArticleDeskTypes;
+import LeadGenerationDeskTypes = ContractModule1000.LeadGenerationDeskTypes;
+import NewsletterStudioDeskTypes = ContractModule1083.NewsletterStudioDeskTypes;
+import TenderDeskDeskTypes = ContractModule1394.TenderDeskDeskTypes;
+import WebsiteStudioDeskTypes = ContractModule1477.WebsiteStudioDeskTypes;
+import NarrationStudioDeskTypes = ContractModule1045.NarrationStudioDeskTypes;
+import VirtualAssistantDeskTypes = ContractModule1458.VirtualAssistantDeskTypes;
+import DataEntryDeskDeskTypes = ContractModule835.DataEntryDeskDeskTypes;
+import AppTestingDeskTypes = ContractModule718.AppTestingDeskTypes;
+import DevAgencyDeskTypes = ContractModule858.DevAgencyDeskTypes;
+import MonitoredDataDeskTypes = ContractModule1023.MonitoredDataDeskTypes;
+import ItTriageDeskTypes = ContractModule892.ItTriageDeskTypes;
+import PhoneReceptionistDeskTypes = ContractModule1151.PhoneReceptionistDeskTypes;
+import TradingJournalDeskTypes = ContractModule1415.TradingJournalDeskTypes;
+import LessonDeskDeskTypes = ContractModule1012.LessonDeskDeskTypes;
+import BookingDeskDeskTypes = ContractModule736.BookingDeskDeskTypes;
+import SignoffDeskDeskTypes = ContractModule1270.SignoffDeskDeskTypes;
+import DocumentDeskDeskTypes = ContractModule880.DocumentDeskDeskTypes;
 export type DeskKindTypes = {
     filter: Json;
     row: unknown;
@@ -10750,30 +11061,30 @@ export type DeskActView = {
 };
 }
 
-declare namespace ContractModule814 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule858 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type DevAgencyDeskTypes = {
     project: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule836 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule880 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type DocumentDeskDeskTypes = {
     document: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule848 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule892 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type ItTriageDeskTypes = {
     channel: DeskKindTypes;
     orders: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule865 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule909 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type JobSearchDeskDeskTypes = {
     fact: DeskKindTypes;
     listing: DeskKindTypes;
@@ -10782,60 +11093,19 @@ export type JobSearchDeskDeskTypes = {
 };
 }
 
-declare namespace ContractModule893 {
-export type TimedWord = {
-    text: string;
-    startMs: number;
-    endMs: number;
-};
-export type CaptionCue = {
-    id: string;
-    startMs: number;
-    endMs: number;
-    lines: string[];
-    words: TimedWord[] | null;
-};
-export type CaptionProfileId = 'web' | 'broadcast' | 'vertical';
+declare namespace ContractModule937 {
+export import CaptionCue = ContractModule1769.CaptionCue;
+export import CaptionProfileId = ContractModule1769.CaptionProfileId;
 }
 
-declare namespace ContractModule896 {
-export type RoomPrice = {
-    offerId: string;
-    minor: string;
-    currency: string;
-    receiptId: string;
-    priceDigest: string;
-    display: string;
-};
-export type RoomFields = {
-    scope: string;
-    deliverable: string;
-    deadline: string;
-};
-export type RoomInput = {
-    orderId: string;
-    clientId: string;
-    request: string;
-    via: 'owner-recorded' | 'client-page';
-    fields: RoomFields;
-    price: RoomPrice;
-};
-export type ApprovedRoomBrief = RoomInput & {
-    version: number;
-    digest: string;
-    by: string;
-    at: string;
-};
-export type RoomBrief = RoomInput & {
-    version: number;
-    digest: string;
-    approved: ApprovedRoomBrief | null;
-};
+declare namespace ContractModule940 {
+export import RoomPrice = ContractModule1770.RoomPrice;
+export import RoomBrief = ContractModule1770.RoomBrief;
 }
 
-declare namespace ContractModule898 {
-import RoomBriefRecord = ContractModule266.RoomBriefRecord;
-import RoomPrice = ContractModule896.RoomPrice;
+declare namespace ContractModule942 {
+import RoomBriefRecord = ContractModule302.RoomBriefRecord;
+import RoomPrice = ContractModule940.RoomPrice;
 export function roomOwnerView(row: RoomBriefRecord, served: boolean): {
     client: {
         brief: {
@@ -10854,16 +11124,16 @@ export function roomOwnerView(row: RoomBriefRecord, served: boolean): {
     ventureId: string;
     memberId: string;
     epoch: number;
-    at: ContractModule266.IsoTime;
+    at: ContractModule302.IsoTime;
     orderId: string;
     clientId: string;
     playbook: string;
-    requests: ContractModule1426.RoomRequest[];
-    brief: ContractModule896.RoomBrief | null;
+    requests: ContractModule1460.RoomRequest[];
+    brief: ContractModule940.RoomBrief | null;
 };
 }
 
-declare namespace ContractModule901 {
+declare namespace ContractModule945 {
 export type IntakePerson = {
     name: string;
     consentId: string | null;
@@ -10880,7 +11150,7 @@ export type KitIntakeField = {
 };
 }
 
-declare namespace ContractModule915 {
+declare namespace ContractModule957 {
 export type ManualPathView = {
     step: string;
     connector: string;
@@ -10889,9 +11159,9 @@ export type ManualPathView = {
 };
 }
 
-declare namespace ContractModule933 {
-import IsoTime = ContractModule266.IsoTime;
-import ManualPathView = ContractModule915.ManualPathView;
+declare namespace ContractModule974 {
+import IsoTime = ContractModule302.IsoTime;
+import ManualPathView = ContractModule957.ManualPathView;
 export type ChainStageState = 'done' | 'now' | 'waiting' | 'not-started' | 'stopped';
 export type ChainStageView = {
     n: number;
@@ -10925,9 +11195,9 @@ export type OrderChainView = {
 };
 }
 
-declare namespace ContractModule934 {
-import IsoDate = ContractModule266.IsoDate;
-import IsoTime = ContractModule266.IsoTime;
+declare namespace ContractModule975 {
+import IsoDate = ContractModule302.IsoDate;
+import IsoTime = ContractModule302.IsoTime;
 export type KitClaim = {
     claim: string;
     proofFileId: string;
@@ -11079,9 +11349,9 @@ export type VoiceConsentsView = {
 };
 }
 
-declare namespace ContractModule935 {
+declare namespace ContractModule976 {
+import IsoDate = ContractModule17.IsoDate;
 export type Display = string;
-type IsoDate = string;
 type IsoTime = string;
 export type ReportFormat = 'html' | 'pdf' | 'docx' | 'xlsx';
 export type ReportFile = {
@@ -11150,9 +11420,9 @@ export type ReportListView = {
 };
 }
 
-declare namespace ContractModule936 {
-import Display = ContractModule266.Display;
-import IsoDate = ContractModule266.IsoDate;
+declare namespace ContractModule977 {
+import Display = ContractModule302.Display;
+import IsoDate = ContractModule302.IsoDate;
 export type IdeaStage = 'inbox' | 'triage' | 'drafted' | 'made' | 'published' | 'dropped';
 export type IdeaGrade = 'worked' | 'so-so' | 'did-not';
 export type PipelineIdeaView = {
@@ -11187,13 +11457,13 @@ export type IdeaGradedView = {
 };
 }
 
-declare namespace ContractModule937 {
-import BpsString = ContractModule266.BpsString;
-import Display = ContractModule266.Display;
-import IsoDate = ContractModule266.IsoDate;
-import IsoTime = ContractModule266.IsoTime;
-import MinorString = ContractModule266.MinorString;
-import OutreachHandoff = ContractModule266.OutreachHandoff;
+declare namespace ContractModule978 {
+import BpsString = ContractModule302.BpsString;
+import Display = ContractModule302.Display;
+import IsoDate = ContractModule302.IsoDate;
+import IsoTime = ContractModule302.IsoTime;
+import MinorString = ContractModule302.MinorString;
+import OutreachHandoff = ContractModule302.OutreachHandoff;
 export type SharePrice = {
     kind: 'share';
     bps: BpsString;
@@ -11302,55 +11572,22 @@ export type SalesProposalView = {
 };
 }
 
-declare namespace ContractModule955 {
-export type CommunityVote = {
-    dimension: string;
-    score: number;
-    quote: string;
-};
-export type CommunityPost = {
-    id: string;
-    url: string;
-    community: string;
-    rulesUrl: string;
-    rulesCheckedOn: string;
-    readingAllowed: boolean;
-    on: string;
-    removed: boolean;
-    text: string;
-    votes: CommunityVote[];
-};
-export type CommunityInput = {
-    product: string;
-    confirmed: boolean;
-    problem: string;
-    categories: string[];
-    painWords: string[];
-    days: number;
-    posts: CommunityPost[];
-};
-export function communityReport(input: CommunityInput): {
-    product: string;
-    problem: string;
-    categories: string[];
-    painWords: string[];
-    posts: CommunityPost[];
-    coverage: string;
-    actions: never[];
-};
+declare namespace ContractModule995 {
+export import communityReport = ContractModule1786.communityReport;
+export import CommunityInput = ContractModule1786.CommunityInput;
 }
 
-declare namespace ContractModule956 {
-import report = ContractModule955.communityReport;
-import CommunityInput = ContractModule955.CommunityInput;
-export import CommunityInput = ContractModule955.CommunityInput;
+declare namespace ContractModule996 {
+import report = ContractModule995.communityReport;
+import CommunityInput = ContractModule995.CommunityInput;
+export import CommunityInput = ContractModule995.CommunityInput;
 export function communityReport(input: CommunityInput): ReturnType<typeof report>;
 }
 
-declare namespace ContractModule960 {
-import Json = ContractModule266.Json;
-import communityReport = ContractModule956.communityReport;
-import LeadDeskRow = ContractModule965.LeadDeskRow;
+declare namespace ContractModule1000 {
+import Json = ContractModule302.Json;
+import communityReport = ContractModule996.communityReport;
+import LeadDeskRow = ContractModule1005.LeadDeskRow;
 export type LeadGenerationDeskTypes = {
     source: {
         filter: Json;
@@ -11366,7 +11603,7 @@ export type LeadGenerationDeskTypes = {
 };
 }
 
-declare namespace ContractModule965 {
+declare namespace ContractModule1005 {
 export type LeadDeskRow = {
     id: string;
     type: 'lead' | 'followup' | 'community';
@@ -11380,45 +11617,45 @@ export type LeadDeskRow = {
 };
 }
 
-declare namespace ContractModule972 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1012 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type LessonDeskDeskTypes = {
     batch: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule983 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1023 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type MonitoredDataDeskTypes = {
     source: DeskKindTypes;
     orders: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1005 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1045 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type NarrationStudioDeskTypes = {
     job: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1043 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1083 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type NewsletterStudioDeskTypes = {
     issues: DeskKindTypes;
     contacts: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1068 {
-import SellerOperationsDeskTypes = ContractModule1076.SellerOperationsDeskTypes;
-import SellerShopifyDeskTypes = ContractModule1093.SellerShopifyDeskTypes;
-import SellerStorefrontDeskTypes = ContractModule1102.SellerStorefrontDeskTypes;
-import DeskKindTypes = ContractModule805.DeskKindTypes;
-import Json = ContractModule266.Json;
-import SellerSkuRecord = ContractModule266.SellerSkuRecord;
-import SellerSkuBody = ContractModule1088.SellerSkuBody;
-import SellerMode = ContractModule1099.SellerMode;
+declare namespace ContractModule1107 {
+import SellerOperationsDeskTypes = ContractModule1114.SellerOperationsDeskTypes;
+import SellerShopifyDeskTypes = ContractModule1131.SellerShopifyDeskTypes;
+import SellerStorefrontDeskTypes = ContractModule1140.SellerStorefrontDeskTypes;
+import DeskKindTypes = ContractModule849.DeskKindTypes;
+import Json = ContractModule302.Json;
+import SellerSkuRecord = ContractModule302.SellerSkuRecord;
+import SellerSkuBody = ContractModule1126.SellerSkuBody;
+import SellerMode = ContractModule1137.SellerMode;
 export type SellerDeskRow = {
     id: string;
     orderId: string;
@@ -11441,15 +11678,15 @@ export type OnlineSellerDeskTypes = SellerOperationsDeskTypes & SellerShopifyDes
 };
 }
 
-declare namespace ContractModule1076 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1114 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type SellerOperationsDeskTypes = {
     operations: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1088 {
-import SellerMode = ContractModule1099.SellerMode;
+declare namespace ContractModule1126 {
+import SellerMode = ContractModule1137.SellerMode;
 export type SellerSkuBody = {
     orderId: string;
     mode: SellerMode;
@@ -11469,18 +11706,18 @@ export type SellerSkuBody = {
 };
 }
 
-declare namespace ContractModule1093 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1131 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type SellerShopifyDeskTypes = {
     shopify: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1095 {
-import SellerCaps = ContractModule1100.SellerCaps;
-import ShopifyRead = ContractModule1097.ShopifyRead;
-import ShopifyWrite = ContractModule1097.ShopifyWrite;
-import ShopifyCatalogueRow = ContractModule231.ShopifyCatalogueRow;
+declare namespace ContractModule1133 {
+import SellerCaps = ContractModule1138.SellerCaps;
+import ShopifyRead = ContractModule1135.ShopifyRead;
+import ShopifyWrite = ContractModule1135.ShopifyWrite;
+import ShopifyCatalogueRow = ContractModule267.ShopifyCatalogueRow;
 export type SellerShopifyBody = {
     connection: {
         domain: string;
@@ -11507,118 +11744,47 @@ export type SellerShopifyBody = {
 };
 }
 
-declare namespace ContractModule1097 {
-import shopifyChange = ContractModule231.shopifyChange;
-import ShopifyProduct = ContractModule231.ShopifyProduct;
-export type ShopifyRead = {
-    id: string;
-    orderId: string;
-    clientId: string;
-    domain: string;
-    storeId: string;
-    connectionDigest: string;
-    sessionId: string;
-    memberId: string;
-    epoch: number;
-    at: string;
-    product: ShopifyProduct;
-};
-export type ShopifyWrite = {
-    id: string;
-    read: ShopifyRead;
-    request: ReturnType<typeof shopifyChange>;
-    createdAt: string;
-    expiresAt: string;
-    phase: 'staged' | 'sending' | 'applied' | 'rejected' | 'unknown';
-    claimedAt: string | null;
-    finishedAt: string | null;
-    liveVerified: string | null;
-};
+declare namespace ContractModule1135 {
+export import ShopifyRead = ContractModule1833.ShopifyRead;
+export import ShopifyWrite = ContractModule1833.ShopifyWrite;
 }
 
-declare namespace ContractModule1099 {
-export type SellerMode = 'economics' | 'ads' | 'settlement' | 'listing';
+declare namespace ContractModule1137 {
+export import SellerMode = ContractModule1834.SellerMode;
 }
 
-declare namespace ContractModule1100 {
-export type SellerProduct = {
-    sku: string;
-    channel: string;
-    priceMinor: string;
-    breakEvenMinor: string | null;
-    stock: string;
-    title: string;
-    currency: string;
-};
-export type SellerCaps = {
-    priceChangeBps: string;
-    promotionBps: string;
-};
-export type SellerChange = {
-    field: string;
-    value: string;
-    clearance?: boolean;
-    scope?: string;
-    depthBps?: string;
-    endsOn?: string;
-};
-export type SellerStaged = {
-    product: SellerProduct;
-    change: SellerChange;
-    dryRun: true;
-    descriptionComplete: boolean;
-    missing: string[];
-    clearance: boolean;
-    confirmName: string | null;
-    money: boolean;
-    caps: SellerCaps;
-    capability: 'handoff';
-};
+declare namespace ContractModule1138 {
+export import SellerCaps = ContractModule1835.SellerCaps;
 }
 
-declare namespace ContractModule1102 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1140 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type SellerStorefrontDeskTypes = {
     storefront: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1105 {
-import StorefrontCatalogue = ContractModule238.StorefrontCatalogue;
-export type SellerStorefrontBody = {
-    domain: string;
-    modelConnectionId: string;
-    maxPages: number;
-    language: 'en' | 'hi';
-    notice: string;
-    publicTokenDigest: string;
-    catalogue: StorefrontCatalogue;
-    readAt: string;
-    active: boolean;
-    link: {
-        tokenHash: string;
-        expiresAt: string;
-    } | null;
-};
+declare namespace ContractModule1143 {
+export import SellerStorefrontBody = ContractModule1837.SellerStorefrontBody;
 }
 
-declare namespace ContractModule1113 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1151 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type PhoneReceptionistDeskTypes = {
     calls: DeskKindTypes;
     orders: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1135 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1172 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type PodcastToArticleDeskTypes = {
     ledger: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1164 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1200 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type RecruitingDeskDeskTypes = {
     role: DeskKindTypes;
     candidate: DeskKindTypes;
@@ -11627,16 +11793,16 @@ export type RecruitingDeskDeskTypes = {
 };
 }
 
-declare namespace ContractModule1196 {
-import panelMetrics = ContractModule1210.panelMetrics;
-import SeoPanelBody = ContractModule1212.SeoPanelBody;
-import SeoObservationBody = ContractModule1212.SeoObservationBody;
-import SeoWebsiteItem = ContractModule1212.SeoWebsiteItem;
-import SeoWorkDeskTypes = ContractModule1228.SeoWorkDeskTypes;
-import SeoPublishingDeskTypes = ContractModule1211.SeoPublishingDeskTypes;
-import SeoStrategyDeskTypes = ContractModule1220.SeoStrategyDeskTypes;
-import SeoEdgeDeskTypes = ContractModule1198.SeoEdgeDeskTypes;
-import SeoMonitorItem = ContractModule1205.SeoMonitorItem;
+declare namespace ContractModule1232 {
+import panelMetrics = ContractModule1246.panelMetrics;
+import SeoPanelBody = ContractModule1248.SeoPanelBody;
+import SeoObservationBody = ContractModule1248.SeoObservationBody;
+import SeoWebsiteItem = ContractModule1248.SeoWebsiteItem;
+import SeoWorkDeskTypes = ContractModule1264.SeoWorkDeskTypes;
+import SeoPublishingDeskTypes = ContractModule1247.SeoPublishingDeskTypes;
+import SeoStrategyDeskTypes = ContractModule1256.SeoStrategyDeskTypes;
+import SeoEdgeDeskTypes = ContractModule1234.SeoEdgeDeskTypes;
+import SeoMonitorItem = ContractModule1241.SeoMonitorItem;
 export type SeoPanelRow = {
     id: string;
     state: 'draft' | 'approved';
@@ -11683,7 +11849,7 @@ export type SeoVisibilityDeskTypes = SeoWorkDeskTypes & SeoPublishingDeskTypes &
 };
 }
 
-declare namespace ContractModule1198 {
+declare namespace ContractModule1234 {
 export type SeoEdgeDeskTypes = {
     edge: {
         filter: null;
@@ -11697,33 +11863,13 @@ export type SeoEdgeDeskTypes = {
 };
 }
 
-declare namespace ContractModule1205 {
-export type SeoMonitorBody = {
-    url: string;
-    root: string;
-    cycles: number;
-    intervalSeconds: number;
-    state: 'draft' | 'active' | 'collecting' | 'complete' | 'stopped' | 'held';
-    approvedDigest: string | null;
-    completed: number;
-    lastAt: string | null;
-    nextAt: string | null;
-    error: string | null;
-    evidence: {
-        index: number;
-        folder: string;
-        receipt: string;
-        at: string;
-    }[];
-};
-export type SeoMonitorItem = SeoMonitorBody & {
-    id: string;
-};
+declare namespace ContractModule1241 {
+export import SeoMonitorItem = ContractModule1878.SeoMonitorItem;
 }
 
-declare namespace ContractModule1210 {
-import SeoObservationBody = ContractModule1212.SeoObservationBody;
-import SeoPanelBody = ContractModule1212.SeoPanelBody;
+declare namespace ContractModule1246 {
+import SeoObservationBody = ContractModule1248.SeoObservationBody;
+import SeoPanelBody = ContractModule1248.SeoPanelBody;
 export function panelMetrics(panel: SeoPanelBody, observations: readonly SeoObservationBody[]): {
     mentions: {
         numerator: number;
@@ -11739,7 +11885,7 @@ export function panelMetrics(panel: SeoPanelBody, observations: readonly SeoObse
 };
 }
 
-declare namespace ContractModule1211 {
+declare namespace ContractModule1247 {
 export type SeoPublishingDeskTypes = {
     publishing: {
         filter: null;
@@ -11753,59 +11899,11 @@ export type SeoPublishingDeskTypes = {
 };
 }
 
-declare namespace ContractModule1212 {
-export type PanelSpec = {
-    questions: {
-        id: string;
-        text: string;
-    }[];
-    engines: string[];
-    timepoints: {
-        id: string;
-        from: string;
-        to: string;
-    }[];
-    repeats: number;
-    minimumFilled: number;
-};
-export type SeoPanelBody = {
-    spec: PanelSpec;
-    state: 'draft' | 'approved';
-    approvedDigest: string | null;
-    orderId: string | null;
-};
-export type SeoObservationBody = {
-    panelId: string;
-    panelDigest: string;
-    questionId: string;
-    engine: string;
-    timepointId: string;
-    repeat: number;
-    capturedAt: string;
-    method: 'owner-capture' | 'api';
-    screenshotFileId: string | null;
-    answer: string;
-    mentioned: boolean;
-    fixture: boolean;
-    slot: string;
-};
-export type WebsiteCheckData = {
-    url: string;
-    receipt: string;
-    findings: {
-        what: string;
-        selector: string;
-        measured: string;
-        expected: string;
-        fix: string;
-        repeats: number;
-        unresolved: boolean;
-    }[];
-    approved: boolean;
-    previousReceipt: string | null;
-    checkedFrames: number;
-    limits: string;
-};
+declare namespace ContractModule1248 {
+import WebsiteCheckData = ContractModule27.WebsiteCheckData;
+export import SeoObservationBody = ContractModule27.SeoObservationBody;
+export import SeoPanelBody = ContractModule27.SeoPanelBody;
+export import WebsiteCheckData = ContractModule27.WebsiteCheckData;
 export type SeoWebsiteItem = {
     id: string;
     report: WebsiteCheckData;
@@ -11822,7 +11920,7 @@ export type WebsiteRecheck = {
 };
 }
 
-declare namespace ContractModule1220 {
+declare namespace ContractModule1256 {
 export type SeoStrategyDeskTypes = {
     strategy: {
         filter: null;
@@ -11836,40 +11934,12 @@ export type SeoStrategyDeskTypes = {
 };
 }
 
-declare namespace ContractModule1227 {
-export const SEO_WORK_OPERATIONS: readonly [
-    "content",
-    "meta",
-    "impact",
-    "refresh",
-    "local",
-    "strategy"
-];
-export type SeoWorkOperation = typeof SEO_WORK_OPERATIONS[number];
-export type SeoWorkBody = {
-    orderId: string;
-    clientId: string;
-    operation: SeoWorkOperation;
-    uploadId: string;
-    sourceDigest: string;
-    result: any;
-    receipt: string;
-    checkedAt: string;
-    state: 'checked' | 'approved' | 'muted' | 'resolved';
-    appliedEditId: string | null;
-    acceptance: {
-        checkedOn: string;
-        receipt: string;
-    } | null;
-};
-export type SeoWorkItem = SeoWorkBody & {
-    id: string;
-    stale: boolean;
-};
+declare namespace ContractModule1263 {
+export import SeoWorkItem = ContractModule1883.SeoWorkItem;
 }
 
-declare namespace ContractModule1228 {
-import SeoWorkItem = ContractModule1227.SeoWorkItem;
+declare namespace ContractModule1264 {
+import SeoWorkItem = ContractModule1263.SeoWorkItem;
 export type SeoWorkDeskTypes = {
     work: {
         filter: null;
@@ -11883,22 +11953,22 @@ export type SeoWorkDeskTypes = {
 };
 }
 
-declare namespace ContractModule1234 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1270 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type SignoffDeskDeskTypes = {
     professional: DeskKindTypes;
     paper: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1244 {
-export import GhostwritingState = ContractModule1315.GhostwritingState;
-import GhostwritingState = ContractModule1315.GhostwritingState;
+declare namespace ContractModule1280 {
+export import GhostwritingState = ContractModule1350.GhostwritingState;
+import GhostwritingState = ContractModule1350.GhostwritingState;
 }
 
-declare namespace ContractModule1249 {
-import Json = ContractModule266.Json;
-import SocialCanvasView = ContractModule1250.SocialCanvasView;
+declare namespace ContractModule1285 {
+import Json = ContractModule302.Json;
+import SocialCanvasView = ContractModule1286.SocialCanvasView;
 export type SocialCanvasDeskTypes = {
     canvas: {
         filter: Json;
@@ -11909,32 +11979,11 @@ export type SocialCanvasDeskTypes = {
 };
 }
 
-declare namespace ContractModule1250 {
-import SocialChannel = ContractModule1253.SocialChannel;
-import SocialFormat = ContractModule1274.SocialFormat;
-import SourceInventory = ContractModule1289.SourceInventory;
-import PostPlan = ContractModule1299.PostPlan;
-export type CanvasPost = {
-    id: string;
-    runId: string;
-    text: string;
-    channel: SocialChannel;
-    plan: Omit<PostPlan, 'postId'> | null;
-};
-export type SocialCanvasView = {
-    id: string;
-    orderId: string;
-    request: string;
-    runId: string | null;
-    inventory: SourceInventory | null;
-    sourceProblem: string | null;
-    cards: (SocialFormat & {
-        posts: CanvasPost[];
-    })[];
-};
+declare namespace ContractModule1286 {
+export import SocialCanvasView = ContractModule1889.SocialCanvasView;
 }
 
-declare namespace ContractModule1252 {
+declare namespace ContractModule1288 {
 export type SocialVoicePin = {
     runId: string;
     digest: string;
@@ -11948,112 +11997,30 @@ export type SocialChainPin = {
 };
 }
 
-declare namespace ContractModule1253 {
-export const SOCIAL_CHANNELS: readonly [
-    "instagram",
-    "facebook",
-    "linkedin",
-    "x",
-    "threads",
-    "tiktok",
-    "youtube-shorts",
-    "bluesky",
-    "mastodon",
-    "telegram",
-    "discord"
-];
-export type SocialChannel = typeof SOCIAL_CHANNELS[number];
+declare namespace ContractModule1289 {
+export import SocialChannel = ContractModule1890.SocialChannel;
 }
 
-declare namespace ContractModule1254 {
-import SocialChannel = ContractModule1253.SocialChannel;
-export import SocialChannel = ContractModule1253.SocialChannel;
+declare namespace ContractModule1290 {
+import SocialChannel = ContractModule1289.SocialChannel;
+export import SocialChannel = ContractModule1289.SocialChannel;
 }
 
-declare namespace ContractModule1259 {
-export type CrossPostPlan = {
-    video: {
-        id: string;
-        digest: string;
-        kind: 'client';
-    };
-    posts: {
-        platform: string;
-        text: string;
-        ownerApproved: boolean;
-        clientApproved: boolean;
-    }[];
-    capability: 'handoff';
-    upload: 'planned';
-};
-}
-
-declare namespace ContractModule1270 {
-import OpenPostingDeskTypes = ContractModule213.OpenPostingDeskTypes;
-import SocialCanvasDeskTypes = ContractModule1249.SocialCanvasDeskTypes;
-import SocialRevisionDeskTypes = ContractModule1311.SocialRevisionDeskTypes;
-import ScheduledDeskTypes = ContractModule1321.ScheduledDeskTypes;
-import SocialInboxDeskTypes = ContractModule1279.SocialInboxDeskTypes;
-import SocialProductionDeskTypes = ContractModule1300.SocialProductionDeskTypes;
-import SocialInfluencerDeskTypes = ContractModule1283.SocialInfluencerDeskTypes;
+declare namespace ContractModule1306 {
+import OpenPostingDeskTypes = ContractModule249.OpenPostingDeskTypes;
+import SocialCanvasDeskTypes = ContractModule1285.SocialCanvasDeskTypes;
+import SocialRevisionDeskTypes = ContractModule1346.SocialRevisionDeskTypes;
+import ScheduledDeskTypes = ContractModule1356.ScheduledDeskTypes;
+import SocialInboxDeskTypes = ContractModule1315.SocialInboxDeskTypes;
+import SocialProductionDeskTypes = ContractModule1336.SocialProductionDeskTypes;
+import SocialInfluencerDeskTypes = ContractModule1319.SocialInfluencerDeskTypes;
 export type SocialAgencyDeskTypes = OpenPostingDeskTypes & SocialCanvasDeskTypes & SocialRevisionDeskTypes & ScheduledDeskTypes & SocialInboxDeskTypes & SocialProductionDeskTypes & SocialInfluencerDeskTypes;
 }
 
-declare namespace ContractModule1273 {
-export type InfluencerCoefficient = {
-    basisPoints: number;
-    source: 'owner' | 'default' | 'agent-judgement';
-    reason: string;
-};
-export type InfluencerPost = {
-    id: string;
-    publishedAt: string;
-    views: string;
-    comparable: boolean;
-    sourceUrl: string;
-    reason: string;
-};
-export function influencerFairPrice(raw: unknown): {
-    sampleCount: number;
-    coverage: string;
-    medianViews: string;
-    amountMinor: string;
-    display: string;
-    label: string;
-    actualRevenueMinor: null;
-    receipt: {
-        digest: string;
-        kind: "code";
-        formula: string;
-        rounding: string;
-        postIds: string[];
-        posts: InfluencerPost[];
-        coefficients: Record<"clickRate" | "signupRate" | "fit" | "competition", InfluencerCoefficient>;
-        inputs: {
-            asOf: string;
-            medianViews: string;
-            targetCpaMinor: string;
-            capMinor: string;
-        };
-        outputMinor: string;
-    };
-};
-}
-
-declare namespace ContractModule1274 {
-import SocialChannel = ContractModule1253.SocialChannel;
-export type SocialFormat = {
-    channel: SocialChannel;
-    format: 'text' | 'thread' | 'image' | 'image-brief' | 'video' | 'video-brief';
-    ready: boolean;
-    trace: string[];
-};
-}
-
-declare namespace ContractModule1279 {
-import Json = ContractModule266.Json;
-import replyHandoff = ContractModule1280.replyHandoff;
-import InboxView = ContractModule1280.InboxView;
+declare namespace ContractModule1315 {
+import Json = ContractModule302.Json;
+import replyHandoff = ContractModule1316.replyHandoff;
+import InboxView = ContractModule1316.InboxView;
 export type SocialInboxDeskTypes = {
     inbox: {
         filter: {
@@ -12069,107 +12036,19 @@ export type SocialInboxDeskTypes = {
 };
 }
 
-declare namespace ContractModule1280 {
-import ReplyBucket = ContractModule1305.ReplyBucket;
-export type InboxItem = {
-    orderId: string;
-    channel: string;
-    externalId: string;
-    author: string;
-    text: string;
-    source: 'paste' | 'export';
-    syncedAt: string;
-    bucket: ReplyBucket;
-    priority: number;
-    state: 'needs-reply' | 'handled' | 'ignored';
-    assignee: string | null;
-    reply: string;
-    ownerApproved: boolean;
-    clientApproved: boolean;
-    optedOut: boolean;
-};
-export type InboxView = InboxItem & {
-    id: string;
-    digest: string;
-};
-export function replyHandoff(row: InboxItem): {
-    capability: "handoff";
-    sent: boolean;
-    text: string;
-    channel: string;
-    to: string;
-};
+declare namespace ContractModule1316 {
+export import replyHandoff = ContractModule1901.replyHandoff;
+export import InboxView = ContractModule1901.InboxView;
 }
 
-declare namespace ContractModule1281 {
-import InfluencerCreator = ContractModule1287.InfluencerCreator;
-import InfluencerKeywords = ContractModule1287.InfluencerKeywords;
-import influencerFairPrice = ContractModule1273.influencerFairPrice;
-export type InfluencerActual = {
-    views: string;
-    signups: string;
-    spendMinor: string;
-    revenueMinor: string;
-    spendDisplay: string;
-    revenueDisplay: string;
-    sourceUrl: string;
-    observedAt: string;
-    note: string;
-    receipt: {
-        kind: 'code';
-        inputs: Record<string, string>;
-        output: {
-            spendMinor: string;
-            revenueMinor: string;
-        };
-        digest: string;
-    };
-};
-export type InfluencerFee = {
-    minor: string;
-    display: string;
-    receipt: {
-        kind: 'code';
-        inputs: {
-            priceRupees: string;
-        };
-        output: {
-            minor: string;
-        };
-        digest: string;
-    };
-};
-export type InfluencerCaseCreator = InfluencerCreator & {
-    priceCheckFee: InfluencerFee | null;
-    estimate: ReturnType<typeof influencerFairPrice> | null;
-    brief: {
-        objective: string;
-        deliverables: string;
-        disclosure: string;
-        platformLabel: 'Paid partnership';
-    } | null;
-    actual: InfluencerActual | null;
-    outreach: {
-        leadId: string;
-        draftId: string;
-    } | null;
-};
-export type InfluencerCase = {
-    orderId: string;
-    keywords: InfluencerKeywords;
-    creators: InfluencerCaseCreator[];
-    updatedAt: string;
-};
-export type InfluencerView = InfluencerCase & {
-    id: string;
-    digest: string;
-};
+declare namespace ContractModule1317 {
+export import InfluencerView = ContractModule1902.InfluencerView;
 }
 
-declare namespace ContractModule1283 {
-import CampaignPacket = ContractModule1285.CampaignPacket;
-import Json = ContractModule266.Json;
-import InfluencerView = ContractModule1281.InfluencerView;
+declare namespace ContractModule1319 {
+import CampaignPacket = ContractModule1321.CampaignPacket;
+import Json = ContractModule302.Json;
+import InfluencerView = ContractModule1317.InfluencerView;
 export type SocialInfluencerDeskTypes = {
     influencer: {
         filter: {
@@ -12185,78 +12064,13 @@ export type SocialInfluencerDeskTypes = {
 };
 }
 
-declare namespace ContractModule1285 {
-export type CampaignPacket = {
-    sourceDigest: string;
-    language: 'en' | 'hi';
-    title: string;
-    sections: {
-        heading: string;
-        lines: string[];
-        figures: {
-            label: string;
-            value: string;
-            receiptId: string;
-            estimate: boolean;
-        }[];
-    }[];
-    receipts: unknown[];
-    content: string;
-    filename: string;
-    digest: string;
-};
+declare namespace ContractModule1321 {
+export import CampaignPacket = ContractModule1905.CampaignPacket;
 }
 
-declare namespace ContractModule1287 {
-export const INFLUENCER_GROUPS: readonly [
-    "product",
-    "pain",
-    "scenario",
-    "creator",
-    "tags",
-    "competitors",
-    "negative"
-];
-export type InfluencerKeywords = Record<typeof INFLUENCER_GROUPS[number], string[]>;
-export type InfluencerCreator = {
-    id: string;
-    name: string;
-    channel: string;
-    channelUrl: string;
-    businessEmail: string | null;
-    businessEmailSource: string | null;
-    publicBusinessEmail: boolean;
-};
-}
-
-declare namespace ContractModule1289 {
-export type InventoryKind = 'claims' | 'numbers' | 'stories' | 'mistakes' | 'quotes';
-export type InventoryItem = {
-    kind: InventoryKind;
-    text: string;
-    from: number;
-    to: number;
-    numbers: string[];
-};
-export type SourceInventory = {
-    items: InventoryItem[];
-    counts: Record<InventoryKind | 'total', number>;
-};
-}
-
-declare namespace ContractModule1299 {
-export type PostPlan = {
-    postId: string;
-    kind: 'value' | 'sell';
-    goals: string[];
-    actions: string[];
-    hookFormula: string;
-};
-}
-
-declare namespace ContractModule1300 {
-import Json = ContractModule266.Json;
-import SocialProductionView = ContractModule1301.SocialProductionView;
+declare namespace ContractModule1336 {
+import Json = ContractModule302.Json;
+import SocialProductionView = ContractModule1337.SocialProductionView;
 export type SocialProductionDeskTypes = {
     production: {
         filter: {
@@ -12272,127 +12086,25 @@ export type SocialProductionDeskTypes = {
 };
 }
 
-declare namespace ContractModule1301 {
-import CrossPostPlan = ContractModule1259.CrossPostPlan;
-export type ReelPlan = {
-    cuts: {
-        clipId: string;
-        startMs: number;
-        durationMs: number;
-        timelineMs: number;
-    }[];
-    captions: string;
-    durationMs: number;
-    endCard: {
-        contact: string;
-        durationMs: number;
-    };
-    hook: string;
-    capability: 'desktop';
-};
-export type ReelJob = {
-    sources: {
-        id: string;
-        digest: string;
-        durationMs: number;
-        hasAudio: boolean;
-    }[];
-    plan: ReelPlan;
-    output: string;
-    approvedDigest: string | null;
-    rendered: {
-        path: string;
-        digest: string;
-    } | null;
-};
-export type SocialAdPlan = {
-    photo: {
-        id: string;
-        digest: string;
-        kind: 'client';
-    };
-    category: string;
-    style: string;
-    stills: {
-        id: string;
-        digest: string;
-    }[];
-    boardDigest: string;
-    approvedDigest: string | null;
-    quote: {
-        units: number;
-        totalMinor: string;
-        display: string;
-        receiptId: string;
-        disclosure: string | null;
-        formula: string;
-        capability: 'handoff';
-        providerCalled: false;
-    } | null;
-};
-export type SocialProduction = {
-    cross: CrossPostPlan | null;
-    reel: ReelJob | null;
-    ad: SocialAdPlan | null;
-};
-export type SocialProductionView = {
-    id: string;
-    request: string;
-    digest: string;
-    production: SocialProduction;
-    capability: 'handoff';
-    videoUpload: 'planned';
-};
+declare namespace ContractModule1337 {
+export import SocialProduction = ContractModule1912.SocialProduction;
+export import SocialProductionView = ContractModule1912.SocialProductionView;
 }
 
-declare namespace ContractModule1305 {
-export const REPLY_BUCKETS: readonly [
-    "complaint",
-    "lead",
-    "question",
-    "request",
-    "praise",
-    "noise"
-];
-export type ReplyBucket = typeof REPLY_BUCKETS[number];
+declare namespace ContractModule1341 {
+export import ReportReceipt = ContractModule1914.ReportReceipt;
 }
 
-declare namespace ContractModule1306 {
-export type ExportPlatform = 'instagram' | 'linkedin';
-export type ReportFigureKey = 'posts' | 'views' | 'reach' | 'impressions' | 'engagements' | 'engagement-rate' | 'follows' | 'top-post';
-export type ReportReceipt = {
-    id: string;
-    platform: ExportPlatform;
-    month: string;
-    key: ReportFigureKey;
-    label: string;
-    value: string;
-    display: string;
-    unit: 'count' | 'percent' | 'post';
-    formula: string;
-    inputs: {
-        fileId: string;
-        fileName: string;
-        fileDigest: string;
-        columns: string[];
-        rows: number[];
-    };
-    numerator?: string;
-    denominator?: string;
-    digest: string;
-};
+declare namespace ContractModule1343 {
+export import ReportReceipt = ContractModule1341.ReportReceipt;
+import ReportReceipt = ContractModule1341.ReportReceipt;
 }
 
-declare namespace ContractModule1308 {
-export import ReportReceipt = ContractModule1306.ReportReceipt;
-import ReportReceipt = ContractModule1306.ReportReceipt;
-}
-
-declare namespace ContractModule1311 {
-import RevisionQuote = ContractModule1315.RevisionQuote;
-import SocialRevisionRow = ContractModule1315.SocialRevisionRow;
-export import RevisionQuote = ContractModule1315.RevisionQuote;
-export import SocialRevisionRow = ContractModule1315.SocialRevisionRow;
+declare namespace ContractModule1346 {
+import RevisionQuote = ContractModule1350.RevisionQuote;
+import SocialRevisionRow = ContractModule1350.SocialRevisionRow;
+export import RevisionQuote = ContractModule1350.RevisionQuote;
+export import SocialRevisionRow = ContractModule1350.SocialRevisionRow;
 export type SocialRevisionDeskTypes = {
     revision: {
         filter: {
@@ -12436,7 +12148,7 @@ export type SocialRevisionDeskTypes = {
 };
 }
 
-declare namespace ContractModule1315 {
+declare namespace ContractModule1350 {
 export type RevisionQuote = {
     round: number;
     amountMinor: string;
@@ -12478,31 +12190,12 @@ export type GhostwritingState = {
 };
 }
 
-declare namespace ContractModule1320 {
-export type SocialScheduledBody = {
-    postId: string | null;
-    connectorId: string;
-    text: string;
-    account: string | null;
-    mode: string | null;
-    dueAt: string;
-    deadlineAt: string;
-    postDigest: string | null;
-    filesDigest: string | null;
-    approvedDigest: string | null;
-    approvedAt: string | null;
-    approvedBy: string | null;
-    nothingReadyAt: string | null;
-    state: 'draft' | 'scheduled' | 'waiting' | 'posted' | 'missed' | 'blocked' | 'unknown' | 'cancelled';
-    reason: string;
-};
-export type SocialScheduledItem = SocialScheduledBody & {
-    id: string;
-};
+declare namespace ContractModule1355 {
+export import SocialScheduledItem = ContractModule1918.SocialScheduledItem;
 }
 
-declare namespace ContractModule1321 {
-import SocialScheduledItem = ContractModule1320.SocialScheduledItem;
+declare namespace ContractModule1356 {
+import SocialScheduledItem = ContractModule1355.SocialScheduledItem;
 export type ScheduledDeskTypes = {
     scheduled: {
         filter: null;
@@ -12530,27 +12223,21 @@ export type ScheduledDeskTypes = {
 };
 }
 
-declare namespace ContractModule1326 {
-export type SocialHookHistory = {
-    runId: string;
-    postId: string;
-    textDigest: string;
-    hookFormula: string;
-    approvedAt: string;
-};
+declare namespace ContractModule1361 {
+export import SocialHookHistory = ContractModule1920.SocialHookHistory;
 }
 
-declare namespace ContractModule1327 {
-export import SocialHookHistory = ContractModule1326.SocialHookHistory;
+declare namespace ContractModule1362 {
+export import SocialHookHistory = ContractModule1361.SocialHookHistory;
 }
 
-declare namespace ContractModule1335 {
-import Json = ContractModule266.Json;
-import SupportTicketRecord = ContractModule266.SupportTicketRecord;
-import SupportMessageRecord = ContractModule266.SupportMessageRecord;
-import SupportRequestRecord = ContractModule266.SupportRequestRecord;
-import SupportRatingRecord = ContractModule266.SupportRatingRecord;
-import TicketStatus = ContractModule1344.TicketStatus;
+declare namespace ContractModule1370 {
+import Json = ContractModule302.Json;
+import SupportTicketRecord = ContractModule302.SupportTicketRecord;
+import SupportMessageRecord = ContractModule302.SupportMessageRecord;
+import SupportRequestRecord = ContractModule302.SupportRequestRecord;
+import SupportRatingRecord = ContractModule302.SupportRatingRecord;
+import TicketStatus = ContractModule1379.TicketStatus;
 export type SupportTicketRow = {
     id: string;
     thread: string;
@@ -12589,7 +12276,7 @@ export type SupportDeskDeskTypes = {
 };
 }
 
-declare namespace ContractModule1339 {
+declare namespace ContractModule1374 {
 export type ShopCustomerMatch = {
     matchedId: string | null;
     needsConfirmation: boolean;
@@ -12606,8 +12293,8 @@ export type ShopCustomerMatch = {
 };
 }
 
-declare namespace ContractModule1344 {
-import ShopCustomerMatch = ContractModule1339.ShopCustomerMatch;
+declare namespace ContractModule1379 {
+import ShopCustomerMatch = ContractModule1374.ShopCustomerMatch;
 export type TicketStatus = 'open' | 'in-progress' | 'waiting-customer' | 'resolved' | 'closed';
 export type SupportDraft = {
     original: string;
@@ -12683,93 +12370,22 @@ export type SupportRatingBody = {
 };
 }
 
-declare namespace ContractModule1359 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1394 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type TenderDeskDeskTypes = {
     bid: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1375 {
-import BrokerId = ContractModule1382.BrokerId;
-import Exchange = ContractModule1382.Exchange;
-export type Instrument = 'equity' | 'future' | 'option';
-export type TradeRow = {
-    broker: BrokerId;
-    line: number;
-    tradeId: string;
-    orderId: string;
-    date: string;
-    time: string | null;
-    symbol: string;
-    isin: string | null;
-    exchange: Exchange;
-    instrument: Instrument;
-    side: 'buy' | 'sell';
-    quantity: string;
-    value4: string;
-    expiry: string | null;
-};
+declare namespace ContractModule1414 {
+export import JournalListRow = ContractModule1933.JournalListRow;
+export import JournalItem = ContractModule1933.JournalItem;
 }
 
-declare namespace ContractModule1379 {
-import Journal = ContractModule1381.Journal;
-import OpeningLot = ContractModule1381.OpeningLot;
-import BrokerId = ContractModule1382.BrokerId;
-import TaxPack = ContractModule1387.TaxPack;
-import TradeJournalEntry = ContractModule1384.TradeJournalEntry;
-export type JournalListRow = {
-    id: string;
-    kind: TradeJournalEntry['kind'];
-    label: string;
-    at: string;
-    receiptId: string;
-};
-export type JournalItem = {
-    imports: {
-        id: string;
-        broker: BrokerId;
-        brokerName: string;
-        name: string;
-        trades: number;
-        formatChecked: boolean;
-        receiptId: string;
-    }[];
-    openings: (OpeningLot & {
-        entryId: string;
-    })[];
-    packs: {
-        id: string;
-        yearId: TaxPack['yearId'];
-        year: string;
-        act: string;
-        line: string;
-        receiptId: string;
-        stale: boolean;
-        figures: {
-            key: string;
-            label: string;
-            display: string;
-            section: string;
-        }[];
-    }[];
-    journal: Journal | null;
-    sourceDigest: string | null;
-    summary: {
-        receiptId: string;
-        figures: {
-            key: string;
-            label: string;
-            display: string;
-        }[];
-    } | null;
-};
-}
-
-declare namespace ContractModule1380 {
-import Json = ContractModule266.Json;
-import JournalItem = ContractModule1379.JournalItem;
-import JournalListRow = ContractModule1379.JournalListRow;
+declare namespace ContractModule1415 {
+import Json = ContractModule302.Json;
+import JournalItem = ContractModule1414.JournalItem;
+import JournalListRow = ContractModule1414.JournalListRow;
 export type TradingJournalDeskTypes = {
     journal: {
         filter: Json;
@@ -12796,7 +12412,7 @@ export type TradingJournalDeskTypes = {
                 result: {
                     id: string;
                     receiptId: string;
-                    pack: ContractModule1387.TaxPack;
+                    pack: ContractModule1422.TaxPack;
                 };
             };
         };
@@ -12804,176 +12420,12 @@ export type TradingJournalDeskTypes = {
 };
 }
 
-declare namespace ContractModule1381 {
-import BrokerId = ContractModule1382.BrokerId;
-import Exchange = ContractModule1382.Exchange;
-import LegKind = ContractModule1382.LegKind;
-export type OpeningLot = {
-    id: string;
-    symbol: string;
-    isin: string | null;
-    boughtOn: string;
-    quantity: string;
-    costMinor: string;
-    fmvMinor: string | null;
-};
-export type ChargeLine = {
-    brokerage: string;
-    stt: string;
-    exchange: string;
-    sebi: string;
-    ipft: string;
-    stamp: string;
-    dp: string;
-    gst: string;
-    total: string;
-};
-export type ContractNote = {
-    broker: BrokerId;
-    date: string;
-    exchange: Exchange;
-    kind: LegKind;
-    buyMinor: string;
-    sellMinor: string;
-    orders: number;
-    dpScrips: number;
-    charges: ChargeLine;
-};
-export type RealisedLot = {
-    kind: 'intraday' | 'fno' | 'capital';
-    symbol: string;
-    isin: string | null;
-    quantity: string;
-    openedOn: string;
-    closedOn: string;
-    costMinor: string;
-    saleMinor: string;
-    pnlMinor: string;
-    closedBy: 'trade' | 'expiry';
-    longTerm: boolean;
-    grandfathered: {
-        fmvMinor: string;
-        costUsedMinor: string;
-    } | null;
-    needsFmv: boolean;
-};
-export type OpenPosition = {
-    symbol: string;
-    kind: 'equity' | 'fno';
-    quantity: string;
-    side: 'long' | 'short';
-    openedOn: string;
-};
-export type Unmatched = {
-    symbol: string;
-    date: string;
-    quantity: string;
-    line: string;
-};
-export type Journal = {
-    legs: number;
-    notes: ContractNote[];
-    realised: RealisedLot[];
-    open: OpenPosition[];
-    unmatched: Unmatched[];
-    totals: ChargeLine;
-    brokers: BrokerId[];
-};
+declare namespace ContractModule1422 {
+export import TaxPack = ContractModule1937.TaxPack;
 }
 
-declare namespace ContractModule1382 {
-export type LegKind = 'intraday' | 'delivery' | 'futures' | 'options';
-export type Exchange = 'NSE' | 'BSE';
-export type BrokerId = 'zerodha' | 'groww' | 'upstox' | 'dhan';
-}
-
-declare namespace ContractModule1384 {
-import TradeRow = ContractModule1375.TradeRow;
-import OpeningLot = ContractModule1381.OpeningLot;
-import TaxPack = ContractModule1387.TaxPack;
-import BrokerId = ContractModule1382.BrokerId;
-export type TradeJournalEntry = {
-    kind: 'import';
-    broker: BrokerId;
-    name: string;
-    sourceDigest: string;
-    formatChecked: boolean;
-    trades: TradeRow[];
-    receiptId: string;
-} | {
-    kind: 'opening';
-    lot: OpeningLot;
-    receiptId: string;
-} | {
-    kind: 'pack';
-    yearId: TaxPack['yearId'];
-    pack: TaxPack;
-    sourceDigest: string;
-    receiptId: string;
-};
-}
-
-declare namespace ContractModule1387 {
-import TaxRule = ContractModule1388.TaxRule;
-import TaxYearRules = ContractModule1388.TaxYearRules;
-export type TaxFigure = {
-    key: string;
-    label: string;
-    minor: string;
-    display: string;
-    unit: 'money' | 'percent' | 'count';
-    how: string;
-    rule: TaxRule;
-    act: string;
-    year: string;
-};
-export type TaxPack = {
-    yearId: TaxYearRules['id'];
-    year: string;
-    act: string;
-    figures: TaxFigure[];
-    needsFmv: number;
-    unmatched: number;
-    openPositions: number;
-    line: string;
-};
-}
-
-declare namespace ContractModule1388 {
-export type RuleRead = 'official' | 'secondary' | 'unchecked';
-export type TaxRule = {
-    section: string;
-    words: string;
-    source: string;
-    read: RuleRead;
-};
-export type TaxYearRules = {
-    id: 'fy-2025-26' | 'ty-2026-27';
-    label: string;
-    act: string;
-    from: string;
-    to: string;
-    speculative: TaxRule;
-    nonSpeculative: TaxRule;
-    holding: TaxRule & {
-        months: number;
-    };
-    stcg: TaxRule & {
-        rateBps: number;
-    };
-    ltcg: TaxRule & {
-        rateBps: number;
-        exemptionMinor: string;
-    };
-    grandfather: TaxRule & {
-        fmvDay: string;
-    };
-    turnover: TaxRule;
-};
-}
-
-declare namespace ContractModule1396 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1431 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type TranslationStudioDeskTypes = {
     job: DeskKindTypes;
     dub: DeskKindTypes;
@@ -12981,12 +12433,12 @@ export type TranslationStudioDeskTypes = {
 };
 }
 
-declare namespace ContractModule1424 {
-import RoomBriefRecord = ContractModule266.RoomBriefRecord;
-import ShareLinkView = ContractModule266.ShareLinkView;
-import Json = ContractModule266.Json;
-import roomOwnerView = ContractModule898.roomOwnerView;
-import purchaseHandoff = ContractModule1425.purchaseHandoff;
+declare namespace ContractModule1458 {
+import RoomBriefRecord = ContractModule302.RoomBriefRecord;
+import ShareLinkView = ContractModule302.ShareLinkView;
+import Json = ContractModule302.Json;
+import roomOwnerView = ContractModule942.roomOwnerView;
+import purchaseHandoff = ContractModule1459.purchaseHandoff;
 type Purchase = ReturnType<typeof purchaseHandoff>;
 export type VirtualAssistantDeskTypes = {
     room: {
@@ -13023,32 +12475,11 @@ export type VirtualAssistantDeskTypes = {
 };
 }
 
-declare namespace ContractModule1425 {
-export function purchaseHandoff(input: {
-    item: string;
-    quantity: string;
-    unitMinor: string;
-    currency: string;
-}): {
-    totalMinor: string;
-    display: string;
-    receipt: {
-        operation: "multiply";
-        inputs: string[];
-        result: string;
-        unit: "minor";
-    };
-    receiptId: string;
-    purchased: false;
-    line: string;
-    item: string;
-    quantity: string;
-    unitMinor: string;
-    currency: string;
-};
+declare namespace ContractModule1459 {
+export import purchaseHandoff = ContractModule1952.purchaseHandoff;
 }
 
-declare namespace ContractModule1426 {
+declare namespace ContractModule1460 {
 export type RoomRequest = {
     id: string;
     text: string;
@@ -13060,176 +12491,33 @@ export type RoomBriefBody = {
     clientId: string;
     playbook: string;
     requests: RoomRequest[];
-    brief: ContractModule896.RoomBrief | null;
+    brief: ContractModule940.RoomBrief | null;
 };
 }
 
-declare namespace ContractModule1443 {
-import DeskKindTypes = ContractModule805.DeskKindTypes;
+declare namespace ContractModule1477 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type WebsiteStudioDeskTypes = {
     projects: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1471 {
-export type Finding = {
-    id: string;
-    outcome: 'pass' | 'fail' | 'not-run';
-    detail: string;
-};
+declare namespace ContractModule1506 {
+export import YoutubeBoardBody = ContractModule1971.YoutubeBoardBody;
 }
 
-declare namespace ContractModule1473 {
-export function timedBeats(lines: string[], loopBack: string, wordsPerMinute: number, bucketSeconds: 4 | 6 | 8): {
-    beats: {
-        line: string;
-        startMs: number;
-        endMs: number;
-        bucketSeconds: 4 | 6 | 8;
-    }[];
-    findings: {
-        code: string;
-        beat: number | null;
-    }[];
-    durationMs: number;
-    passed: boolean;
-};
-}
-
-declare namespace ContractModule1474 {
-import CutTimeline = ContractModule1494.CutTimeline;
-import publishingText = ContractModule1506.publishingText;
-import planBroll = ContractModule1477.planBroll;
-import timedBeats = ContractModule1473.timedBeats;
-import Finding = ContractModule1471.Finding;
-export type BoardOutput = {
-    id: string;
-    kind: 'interchange' | 'publishing' | 'captions' | 'instructions' | 'page';
-    path: string;
-    text: string;
-    decision: 'pending' | 'approved' | 'discarded';
-    request: string | null;
-    publishing?: ReturnType<typeof publishingText>;
-};
-export type YoutubeBoardBody = {
-    editVersion: string;
-    editorCommand?: {
-        app: string;
-        args: string[];
-        line: string;
-    } | null;
-    grids?: Record<string, {
-        digest: string;
-        assetId: string;
-        sourceDigest: string;
-        contentBase64: string;
-    }>;
-    reviews?: Record<string, {
-        passed: boolean;
-        gridDigest: string;
-        answers: {
-            burnedCaptions: boolean;
-            lowerThirds: boolean;
-            watermarks: boolean;
-        };
-    }>;
-    timeline: CutTimeline;
-    outputs: BoardOutput[];
-    broll?: ReturnType<typeof planBroll>;
-    removedBroll?: string[];
-    brollReview?: {
-        passed: boolean;
-        answers: {
-            burnedCaptions: boolean;
-            lowerThirds: boolean;
-            watermarks: boolean;
-        };
-        gridDigest: string;
-    };
-    grid?: {
-        digest: string;
-        assetId: string;
-        sourceDigest: string;
-    };
-    beats?: ReturnType<typeof timedBeats>;
-    finishing?: Finding[];
-    finishingBinding?: {
-        sourceFile: string;
-        sourceDigest: string;
-        file: string;
-        fileDigest: string;
-    };
-    clips?: {
-        passed: boolean;
-        rows: {
-            index: number;
-            startMs: number;
-            endMs: number;
-            durationMs: number;
-            problems: string[];
-        }[];
-    };
-};
-}
-
-declare namespace ContractModule1475 {
-import YoutubeEditRecord = ContractModule266.YoutubeEditRecord;
+declare namespace ContractModule1507 {
+import YoutubeEditRecord = ContractModule302.YoutubeEditRecord;
 export function boardView(edit: YoutubeEditRecord): {
     id: string;
     orderId: string;
     digest: string;
-    board: ContractModule1474.YoutubeBoardBody | null;
+    board: ContractModule1506.YoutubeBoardBody | null;
 };
 }
 
-declare namespace ContractModule1477 {
-import EditWord = ContractModule1489.EditWord;
-export type BrollBeat = {
-    id: string;
-    wordId: string;
-    assetId: string | null;
-    kind: 'receipt' | 'entity' | 'concept' | 'meme';
-    delayMs: number;
-    durationMs: number;
-};
-export type BrollAsset = {
-    id: string;
-    source: {
-        kind: string;
-        licenceId?: string;
-        uploadId?: string | null;
-    };
-    licence: string | null;
-    state: string;
-    fileDigest: string | null;
-    supersededBy: string | null;
-};
-export function planBroll(words: readonly EditWord[], beats: BrollBeat[], assets: BrollAsset[], removed: string[]): {
-    digest: string;
-    approvedDigest: string | null;
-    beats: BrollBeat[];
-    windows: {
-        ids: string[];
-        assetId: string | null;
-        startMs: number;
-        endMs: number;
-    }[];
-    removed: string[];
-    assetBindings: {
-        id: string;
-        fileDigest: string | null;
-        licence: string | null;
-        source: {
-            kind: string;
-            licenceId?: string;
-            uploadId?: string | null;
-        };
-    }[];
-};
-}
-
-declare namespace ContractModule1481 {
-import EditDocument = ContractModule1489.EditDocument;
+declare namespace ContractModule1513 {
+import EditDocument = ContractModule1521.EditDocument;
 export type QuietSpan = {
     startMs: number;
     endMs: number;
@@ -13250,11 +12538,11 @@ export type CleanupInput = {
 };
 }
 
-declare namespace ContractModule1487 {
-import styleView = ContractModule1528.styleView;
-import boardView = ContractModule1475.boardView;
-import Json = ContractModule266.Json;
-import YoutubeEditView = ContractModule1507.YoutubeEditView;
+declare namespace ContractModule1519 {
+import styleView = ContractModule1558.styleView;
+import boardView = ContractModule1507.boardView;
+import Json = ContractModule302.Json;
+import YoutubeEditView = ContractModule1537.YoutubeEditView;
 export type YoutubeDeskTypes = {
     public: {
         filter: Json;
@@ -13335,17 +12623,11 @@ export type YoutubeDeskTypes = {
 };
 }
 
-declare namespace ContractModule1489 {
-export type EditWord = {
-    id: string;
-    text: string;
-    startMs: number;
-    endMs: number;
-};
-export type WordRange = {
-    from: string;
-    to: string;
-};
+declare namespace ContractModule1521 {
+import EditDocument = ContractModule34.EditDocument;
+import WordRange = ContractModule34.WordRange;
+export import EditDocument = ContractModule34.EditDocument;
+export import WordRange = ContractModule34.WordRange;
 export type EditOp = ({
     kind: 'cut' | 'restore' | 'clip' | 'hook';
 } & WordRange) | ({
@@ -13360,25 +12642,6 @@ export type EditOp = ({
 } | {
     kind: 'title';
     text: string;
-};
-export type EditDocument = {
-    durationMs: number;
-    words: EditWord[];
-    cuts: (WordRange & {
-        startMs: number;
-        endMs: number;
-        manual?: boolean;
-    })[];
-    settings: {
-        title?: string;
-        layout?: string;
-        captions?: string;
-        hook?: WordRange;
-        clips?: WordRange[];
-        zooms?: (WordRange & {
-            scale: number;
-        })[];
-    };
 };
 export type EditResult = {
     document: EditDocument;
@@ -13402,115 +12665,21 @@ export type EditResult = {
 };
 }
 
-declare namespace ContractModule1494 {
-export type FrameRate = 25 | 30 | '29.97df';
-export type FrameRange = {
-    source: string;
-    startFrame: number;
-    endFrame: number;
-};
-export type CutTimeline = {
-    rate: FrameRate;
-    ranges: FrameRange[];
-};
+declare namespace ContractModule1535 {
+export import YoutubeQuotaUse = ContractModule1981.YoutubeQuotaUse;
+export import YoutubePublicRead = ContractModule1981.YoutubePublicRead;
 }
 
-declare namespace ContractModule1505 {
-import Json = ContractModule57.Json;
-export type YoutubePublicRequest = {
-    kind: 'videos' | 'channels';
-    ids: string[];
-} | {
-    kind: 'search';
-    query: string;
-    pageToken?: string;
-};
-export type YoutubeQuotaUse = {
-    project: string;
-    day: string;
-    shared: number;
-    search: number;
-};
-export type YoutubePublicRead = {
-    id: string;
-    project: string;
-    connection: string;
-    request: YoutubePublicRequest;
-    orderDigest: string;
-    state: 'prepared' | 'running' | 'completed' | 'failed';
-    preparedAt: string;
-    attemptedAt: string | null;
-    result: Json | null;
-    error: string | null;
-    receiptId: string | null;
-    uploadId: string | null;
-    uploadDigest: string | null;
-};
-}
-
-declare namespace ContractModule1506 {
-export const PUBLISH_LIMITS: {
-    youtube: {
-        limit: number;
-        unit: string;
-        checkedOn: string;
-        source: string;
-    };
-    instagram: {
-        verification: string;
-        limit: number;
-        unit: string;
-        checkedOn: string;
-        source: string;
-    };
-    tiktok: {
-        limit: number;
-        unit: string;
-        checkedOn: string;
-        source: string;
-    };
-};
-export function publishingText(platform: keyof typeof PUBLISH_LIMITS, text: string): {
-    passed: boolean;
-    limit: number;
-    unit: string;
-    checkedOn: string;
-    source: string;
-    platform: "youtube" | "tiktok" | "instagram";
-    text: string;
-    count: number;
-} | {
-    passed: boolean;
-    verification: string;
-    limit: number;
-    unit: string;
-    checkedOn: string;
-    source: string;
-    platform: "youtube" | "tiktok" | "instagram";
-    text: string;
-    count: number;
-} | {
-    passed: boolean;
-    limit: number;
-    unit: string;
-    checkedOn: string;
-    source: string;
-    platform: "youtube" | "tiktok" | "instagram";
-    text: string;
-    count: number;
-};
-}
-
-declare namespace ContractModule1507 {
-import YoutubeBoardBody = ContractModule1474.YoutubeBoardBody;
-import styleCard = ContractModule1529.styleCard;
-import SourceRef = ContractModule934.SourceRef;
-import EditDocument = ContractModule1489.EditDocument;
-import EditOp = ContractModule1489.EditOp;
-import EditResult = ContractModule1489.EditResult;
-import CleanupInput = ContractModule1481.CleanupInput;
-import CaptionCue = ContractModule893.CaptionCue;
-import CaptionProfileId = ContractModule893.CaptionProfileId;
+declare namespace ContractModule1537 {
+import YoutubeBoardBody = ContractModule1506.YoutubeBoardBody;
+import styleCard = ContractModule1559.styleCard;
+import SourceRef = ContractModule975.SourceRef;
+import EditDocument = ContractModule1521.EditDocument;
+import EditOp = ContractModule1521.EditOp;
+import EditResult = ContractModule1521.EditResult;
+import CleanupInput = ContractModule1513.CleanupInput;
+import CaptionCue = ContractModule937.CaptionCue;
+import CaptionProfileId = ContractModule937.CaptionProfileId;
 export type YoutubeWordSource = Omit<CleanupInput, 'document'> & {
     label: string;
     document: EditDocument;
@@ -13565,28 +12734,12 @@ export type YoutubeEditView = YoutubeEditBody & {
 };
 }
 
-declare namespace ContractModule1515 {
-import Json = ContractModule57.Json;
-export type ResearchMode = 'after-publish' | 'outliers' | 'niche' | 'comments' | 'script' | 'archive';
-export type YoutubeResearchBody = {
-    mode: ResearchMode;
-    source: {
-        id: string;
-        name: string;
-        digest: string;
-    };
-    orderDigest: string;
-    mapping: Record<string, string>;
-    options: Record<string, Json>;
-    sourceConsent: true;
-    result: Json;
-    receiptId: string;
-    approval: string | null;
-};
+declare namespace ContractModule1545 {
+export import YoutubeResearchBody = ContractModule1986.YoutubeResearchBody;
 }
 
-declare namespace ContractModule1528 {
-import YoutubeStyleRecord = ContractModule266.YoutubeStyleRecord;
+declare namespace ContractModule1558 {
+import YoutubeStyleRecord = ContractModule302.YoutubeStyleRecord;
 export const styleView: (record: YoutubeStyleRecord) => {
     id: string;
     digest: string;
@@ -13598,14 +12751,14 @@ export const styleView: (record: YoutubeStyleRecord) => {
     }[];
     card: {
         count: number;
-        metrics: ContractModule1529.StyleMeasure;
+        metrics: ContractModule1559.StyleMeasure;
         line: string;
         faceLine: string;
     };
 };
 }
 
-declare namespace ContractModule1529 {
+declare namespace ContractModule1559 {
 export type StyleSample = {
     durationMs: number;
     sceneTimesMs: number[];
@@ -13633,7 +12786,7 @@ export function styleCard(samples: StyleSample[]): {
 };
 }
 
-declare namespace ContractModule1564 {
+declare namespace ContractModule1593 {
 export const COLUMN_KINDS: readonly [
     "text",
     "date",
@@ -13661,9 +12814,9 @@ export type CellView = {
 };
 }
 
-declare namespace ContractModule1566 {
-import CellView = ContractModule1564.CellView;
-import TrackerColumn = ContractModule1564.TrackerColumn;
+declare namespace ContractModule1595 {
+import CellView = ContractModule1593.CellView;
+import TrackerColumn = ContractModule1593.TrackerColumn;
 export type TrackerView = {
     id: string;
     name: string;
@@ -13696,7 +12849,1959 @@ export type TrackerDetail = {
 };
 }
 
-declare namespace ContractModule1569 {
+declare namespace ContractModule1598 {
+export import DiagnosticsTodayView = ContractModule1996.DiagnosticsTodayView;
+}
+
+declare namespace ContractModule1601 {
+export import FindRequest = ContractModule1997.FindRequest;
+export import FindView = ContractModule1997.FindView;
+}
+
+declare namespace ContractModule1606 {
+export import LayoutPlace = ContractModule1998.LayoutPlace;
+export import LayoutRequest = ContractModule1998.LayoutRequest;
+export import LayoutBlockView = ContractModule1998.LayoutBlockView;
+}
+
+declare namespace ContractModule1607 {
+import LayoutBlockView = ContractModule1606.LayoutBlockView;
+import LayoutPlace = ContractModule1606.LayoutPlace;
+import LayoutRequest = ContractModule1606.LayoutRequest;
+export type LayoutView = {
+    place: LayoutPlace;
+    title: string;
+    href: string;
+    blocks: LayoutBlockView[];
+    views: {
+        id: string;
+        name: string;
+    }[];
+    custom: boolean;
+    ai: {
+        count: number;
+        lines: string[];
+        undo: LayoutRequest;
+    } | null;
+    go: {
+        id: string;
+        href: string;
+        title: string;
+        at: string;
+    } | null;
+};
+export type LayoutChangeResult = {
+    layout: LayoutView;
+    undo: LayoutRequest;
+    line: string;
+};
+}
+
+declare namespace ContractModule1627 {
+export import WorkKind = ContractModule1999.WorkKind;
+}
+
+declare namespace ContractModule1631 {
+export import SavedSearchKey = ContractModule35.SavedSearchKey;
+export import SearchProviderId = ContractModule35.SearchProviderId;
+export import WebSearchView = ContractModule35.WebSearchView;
+export type WebReadView = {
+    url: string;
+    title: string | null;
+    siteName: string | null;
+    text: string;
+    words: number;
+    more: boolean;
+    via: 'page' | 'javascript';
+    label: string;
+    line: string;
+};
+}
+
+declare namespace ContractModule1633 {
+import WorkKind = ContractModule1627.WorkKind;
+export type WorkStepState = 'waiting' | 'current' | 'done' | 'failed';
+export type WorkJobView = {
+    workId: string;
+    kind: WorkKind;
+    startedAt: string;
+    steps: {
+        id: string;
+        state: WorkStepState;
+        passed?: boolean;
+    }[];
+};
+}
+
+declare namespace ContractModule1644 {
+export type Json = null | boolean | number | string | Json[] | {
+    [key: string]: Json;
+};
+}
+
+declare namespace ContractModule1645 {
+type Identity = {
+    id: string;
+    name: string;
+    credentialRef?: string;
+    credentialRevision?: string;
+};
+export type ExternalMcpServer = Identity & ({
+    transport: 'stdio';
+    command: string;
+    args: string[];
+    tokenEnv?: string;
+} | {
+    transport: 'http';
+    url: string;
+    oauth?: true;
+});
+}
+
+declare namespace ContractModule1646 {
+import ExternalMcpServer = ContractModule1645.ExternalMcpServer;
+export type CuratedMcpServer = {
+    id: string;
+    name: string;
+    about: string;
+    registryName: string;
+    registryVersion: string;
+    checkedOn: string;
+    signIn: 'none' | 'oauth' | 'key';
+    access: 'read' | 'write';
+    server: ExternalMcpServer;
+};
+export type CuratedMcpView = {
+    source: 'https://registry.modelcontextprotocol.io';
+    checkedOn: string;
+    servers: CuratedMcpServer[];
+};
+}
+
+declare namespace ContractModule1647 {
+import AgentDriverSettings = ContractModule2.AgentDriverSettings;
+import ExternalMcpServer = ContractModule1645.ExternalMcpServer;
+export type AiProvider = 'codex' | 'claude';
+export type AiNetwork = 'off' | 'research' | 'on';
+export type AiTaskSettings = {
+    model: string;
+    effort: AgentDriverSettings['effort'];
+};
+export type AiProviderSettings = {
+    quick: AiTaskSettings;
+    main: AiTaskSettings;
+    network: AiNetwork;
+    webSearch: AiNetwork;
+    shell: false;
+    fallbackModel?: string;
+    connectors?: boolean;
+};
+export type AiSettings = {
+    codex: AiProviderSettings;
+    claude: AiProviderSettings;
+    autoReview: boolean;
+    agentAutoReview: Record<string, boolean>;
+    mcpServers: ExternalMcpServer[];
+    planPause?: number | null;
+    offerWays?: boolean;
+};
+export type AiSettingsView = {
+    settings: AiSettings;
+    boundaries: {
+        jobFolderOnly: true;
+        windowsSandbox: 'unelevated';
+        shell: 'unavailable';
+        mcp: 'chausar-proxy';
+        externalMcp: 'approval-required';
+    };
+    agents: {
+        id: string;
+        name: string;
+    }[];
+    models: {
+        codex: string[] | null;
+    };
+    modelChoices: Record<AiProvider, {
+        faster: string;
+        smarter: string;
+    }>;
+};
+}
+
+declare namespace ContractModule1648 {
+export const HIRE_READS: readonly [
+    "clients",
+    "orders",
+    "runs",
+    "money",
+    "plan",
+    "journal",
+    "notes",
+    "trackers"
+];
+export type HireRead = typeof HIRE_READS[number];
+}
+
+declare namespace ContractModule1652 {
+export type TalkView = {
+    desktop: boolean;
+    consent: {
+        given: boolean;
+        stale: boolean;
+        text: string;
+        digest: string;
+        at: string | null;
+        keepAudio: boolean;
+    };
+    listen: 'whisper-local' | 'sarvam';
+    whisper: {
+        ready: boolean;
+        line: string;
+    };
+    sarvam: {
+        label: 'fixture-tested';
+        connected: boolean;
+        price: {
+            paisePerMinute: string;
+            checkedOn: string;
+            source: string;
+        };
+        rateDigest: string;
+        capMinor: string;
+        cap: string;
+        spentMinor: string;
+        spent: string;
+        line: string;
+    };
+    speak: {
+        label: 'write' | 'planned: write';
+        line: string;
+    };
+    session: {
+        id: string;
+        expiresAt: string;
+    } | null;
+    recordings: number;
+    line: string;
+};
+export type TalkStarted = {
+    sessionId: string;
+    expiresAt: string;
+    seconds: number;
+    provider: 'whisper-local' | 'sarvam';
+};
+export type TalkHeard = {
+    text: string;
+    provider: 'whisper-local' | 'sarvam';
+    kept: boolean;
+    cost: {
+        minor: string;
+        figure: string;
+    } | null;
+    line: string;
+};
+export type TalkSaid = {
+    spoken: string;
+    quote: {
+        chars: number;
+        figure: string;
+        checkedOn: string;
+        textDigest: string;
+        rateDigest: string;
+    } | null;
+    audioBase64: string | null;
+    line: string;
+};
+export type TalkConsentInput = {
+    digest: string;
+    keepAudio: boolean;
+} | {
+    withdraw: true;
+};
+export type TalkSetupInput = {
+    listen: 'whisper-local';
+} | {
+    listen: 'sarvam';
+    key?: string;
+    capMinor: string;
+    rateDigest: string;
+} | {
+    clearSarvam: true;
+};
+}
+
+declare namespace ContractModule1654 {
+export const APP_PERMISSIONS: readonly [
+    "clients",
+    "orders",
+    "invoices",
+    "notes",
+    "calculator",
+    "propose"
+];
+export type AppPermission = typeof APP_PERMISSIONS[number];
+}
+
+declare namespace ContractModule1658 {
+export type OpenPlatform = 'bluesky' | 'mastodon' | 'telegram' | 'discord';
+export type OpenPostingAccount = {
+    platform: OpenPlatform;
+    server: string;
+    accountId: string;
+    destinationId: string;
+    label: string;
+    maxChars: number;
+};
+export type OpenAccountView = {
+    id: OpenPlatform;
+    account: OpenPostingAccount | null;
+    digest: string;
+    connected: boolean;
+    revision: number;
+};
+}
+
+declare namespace ContractModule1659 {
+import SellerCaps = ContractModule1835.SellerCaps;
+import SellerChange = ContractModule1835.SellerChange;
+export type ShopifyProduct = {
+    variantId: string;
+    productId: string;
+    inventoryItemId: string;
+    locationId: string;
+    sku: string | null;
+    title: string;
+    priceMinor: string;
+    currency: string;
+    stock: string;
+};
+export type ShopifyCatalogueRow = Pick<ShopifyProduct, 'variantId' | 'productId' | 'sku' | 'title' | 'priceMinor' | 'currency'>;
+export function shopifyChange(context: {
+    product: ShopifyProduct;
+    breakEvenMinor: string | null;
+    caps: SellerCaps;
+    today: string;
+    operationId: string;
+    ownerSku?: string;
+}, change: SellerChange): {
+    proposal: ContractModule1835.SellerStaged;
+    query: string;
+    variables: Record<string, unknown>;
+    expected: string;
+    field: "price" | "title" | "stock";
+};
+}
+
+declare namespace ContractModule1661 {
+export type StorefrontProduct = {
+    variantId: string;
+    productId: string;
+    title: string;
+    variantTitle: string;
+    available: boolean;
+    currency: string;
+    priceMinor: string;
+};
+export type StorefrontCatalogue = {
+    rows: StorefrontProduct[];
+    truncated: boolean;
+    total: number | null;
+    reason: 'page-limit' | 'variants-limited' | 'read-failed' | 'rows-changed' | 'cursor-repeated' | null;
+};
+}
+
+declare namespace ContractModule1663 {
+export type ClientAiContextBinding = {
+    ventureId: string;
+    orderId: string;
+    clientId: string;
+    consentId: string;
+    consentRevision: number;
+};
+export type ClientAiDefaultView = {
+    on: boolean;
+    disclosure: string;
+    digest: string;
+    setAt: string | null;
+    line: string;
+};
+}
+
+declare namespace ContractModule1665 {
+export const ASKED_MEASURES: readonly [
+    "turnover",
+    "headcount"
+];
+export type AskedMeasure = (typeof ASKED_MEASURES)[number];
+export type SizeChoice = {
+    id: string;
+    label: string;
+};
+export type SizeQuestion = {
+    measure: AskedMeasure;
+    question: string;
+    choices: SizeChoice[];
+    answer: string | null;
+};
+export type SizeAsk = {
+    measures: AskedMeasure[];
+    line: string;
+    questions: SizeQuestion[];
+};
+}
+
+declare namespace ContractModule1669 {
+import ReportAnswer = ContractModule1681.ReportAnswer;
+export const QUESTION_MILESTONES: readonly [
+    "ai_connected",
+    "first_job_done",
+    "first_invoice",
+    "first_payment"
+];
+export type QuestionMilestone = typeof QUESTION_MILESTONES[number];
+export const CRASH_SOURCES: readonly [
+    "window",
+    "engine",
+    "desktop"
+];
+export type CrashSource = typeof CRASH_SOURCES[number];
+export type ReportEvent = {
+    event: string;
+    distinct_id: string;
+    properties: Record<string, string | number | boolean>;
+};
+export type CrashFrame = {
+    function: string;
+    filename: string;
+    lineno: number;
+    colno: number;
+    in_app: true;
+};
+export type SentryEvent = {
+    event_id: string;
+    platform: 'node';
+    level: 'error';
+    release: string;
+    environment: string;
+    tags: Record<string, string>;
+    user: {
+        id: string;
+    };
+    exception: {
+        values: {
+            type: string;
+            value: string;
+            stacktrace: {
+                frames: CrashFrame[];
+            };
+        }[];
+    };
+};
+export type FeedbackPreview = {
+    digest: string;
+    posthog: {
+        to: string;
+        events: ReportEvent[];
+    } | null;
+    sentry: {
+        to: string;
+        events: SentryEvent[];
+    } | null;
+};
+export type FeedbackSend = {
+    at: string;
+    posthog: number | null;
+    sentry: number | null;
+    accepted: boolean;
+    line: string;
+};
+export type FeedbackView = {
+    host: string;
+    notice: {
+        text: string;
+        digest: string;
+    };
+    consent: {
+        given: boolean;
+        stale: boolean;
+        usage: boolean;
+        crashes: boolean;
+        at: string | null;
+    };
+    setUp: {
+        posthog: boolean;
+        sentry: boolean;
+        line: string;
+    };
+    reportId: string | null;
+    preview: FeedbackPreview | null;
+    question: {
+        id: QuestionMilestone;
+        text: string;
+        choices: {
+            id: ReportAnswer;
+            label: string;
+        }[];
+    } | null;
+    lastSend: FeedbackSend | null;
+    deletion: {
+        at: string;
+        reportId: string;
+        line: string;
+    } | null;
+    line: string;
+};
+export type FeedbackCrashKept = {
+    kept: boolean;
+    line: string;
+};
+export type FeedbackConsentInput = {
+    digest: string;
+    usage: boolean;
+    crashes: boolean;
+} | {
+    withdraw: true;
+};
+export type FeedbackCrashInput = {
+    source: CrashSource;
+    name: string;
+    message: string;
+    stack?: string;
+};
+export type FeedbackAnswerInput = {
+    questionId: QuestionMilestone;
+    answer: ReportAnswer | 'skip';
+};
+}
+
+declare namespace ContractModule1675 {
+export type PriceSourceView = {
+    url: string;
+    publisher: string;
+    title: string;
+    published: string | null;
+};
+export type PriceRangeView = {
+    id: string;
+    label: string;
+    currency: string;
+    lowMinor: string;
+    highMinor: string;
+    kind: 'range' | 'minimums' | 'cap';
+    text: string;
+    per: string;
+    city: string | null;
+    sources: PriceSourceView[];
+    checkedOn: string;
+    checked: string;
+    note: string;
+};
+export type PriceGuideView = {
+    profession: string;
+    label: string;
+    family: string;
+    status: 'sourced' | 'no-reliable-data';
+    ranges: PriceRangeView[];
+    line: string | null;
+    reason: string | null;
+    checkedOn: string;
+    checked: string;
+};
+}
+
+declare namespace ContractModule1681 {
+export const REPORT_ANSWERS: readonly [
+    "easy",
+    "okay",
+    "hard"
+];
+export type ReportAnswer = typeof REPORT_ANSWERS[number];
+}
+
+declare namespace ContractModule1682 {
+export type CrmEntryKind = 'call' | 'whatsapp' | 'meeting' | 'note';
+export type FieldChangeView = {
+    id: string;
+    subject: string;
+    field: string;
+    label: string;
+    who: string;
+    at: string;
+    line: string;
+    before: string | null;
+    after: string | null;
+};
+export type TimelineKind = CrmEntryKind | 'sent' | 'reply' | 'invoice' | 'order' | 'draft';
+export type TimelineEntryView = {
+    id: string;
+    kind: TimelineKind;
+    on: string;
+    at: string;
+    line: string;
+    text: string | null;
+    clientId: string;
+};
+export type CrmRef = {
+    id: string;
+    name: string;
+};
+export type ClientCrmView = {
+    clientId: string;
+    company: CrmRef | null;
+    history: FieldChangeView[];
+    timeline: TimelineEntryView[];
+    lists: {
+        listId: string;
+        name: string;
+        stage: string;
+    }[];
+};
+export type CrmMemberView = {
+    member: string;
+    company: CrmRef | null;
+    history: FieldChangeView[];
+};
+export type CompanyRow = {
+    id: string;
+    name: string;
+    domain: string | null;
+    clients: number;
+    people: number;
+};
+export type CompanyView = {
+    company: CompanyRow & {
+        note: string | null;
+    };
+    clients: CrmRef[];
+    people: CrmRef[];
+    history: FieldChangeView[];
+    timeline: TimelineEntryView[];
+};
+export type CrmListRow = {
+    id: string;
+    name: string;
+    stages: string[];
+    count: number;
+};
+export type CrmListEntry = {
+    member: string;
+    kind: 'client' | 'person' | 'company';
+    name: string;
+    at: string;
+};
+export type CrmListView = {
+    list: CrmListRow;
+    groups: {
+        stage: string;
+        entries: CrmListEntry[];
+    }[];
+    history: FieldChangeView[];
+    line: string;
+};
+}
+
+declare namespace ContractModule1688 {
+export type FactVisibility = 'ai' | 'owner';
+export type FactSourceKind = 'owner' | 'ai';
+export type FactView = {
+    id: string;
+    subject: string;
+    topic: string;
+    text: string;
+    since: string;
+    at: string;
+    source: FactSourceKind;
+    sourceLine: string;
+    visibility: FactVisibility;
+    visibilityLine: string;
+    current: boolean;
+    replaces: string | null;
+    replacedBy: string | null;
+    replacedAt: string | null;
+    erased: boolean;
+};
+export type MemoryView = {
+    facts: FactView[];
+    earlier: FactView[];
+    line: string;
+};
+export type MemoryChange = {
+    fact: FactView | null;
+    replaced: FactView | null;
+    line: string;
+};
+}
+
+declare namespace ContractModule1705 {
+import ExternalMcpServer = ContractModule1645.ExternalMcpServer;
+export type PackUnit = 'money' | 'count' | 'bps';
+export type PackInput = {
+    name: string;
+    label: string;
+    unit: PackUnit;
+};
+export type PackCalculatorView = {
+    id: string;
+    name: string;
+    about: string;
+    inputs: PackInput[];
+    output: {
+        label: string;
+        unit: PackUnit;
+    };
+    moduleDigest: string;
+};
+export type PackView = {
+    id: string;
+    name: string;
+    version: string;
+    about: string;
+    digest: string;
+    skills: {
+        id: string;
+        title: string;
+        words: number;
+    }[];
+    mcpServers: ExternalMcpServer[];
+    calculators: PackCalculatorView[];
+};
+}
+
+declare namespace ContractModule1707 {
+export const PLAYBOOK_ORIGINS: readonly [
+    "plan",
+    "improvement",
+    "owner"
+];
+export type PlaybookOrigin = (typeof PLAYBOOK_ORIGINS)[number];
+}
+
+declare namespace ContractModule1734 {
+export type IsoDate = string;
+}
+
+declare namespace ContractModule1735 {
+export const FACT_FIELDS: readonly [
+    "regime",
+    "residency",
+    "ageBand",
+    "income",
+    "filedOn",
+    "gstin",
+    "period",
+    "payeeKind",
+    "paymentDate",
+    "entity",
+    "houseProperties",
+    "presumptive",
+    "capitalGains",
+    "agriculture",
+    "formExclusions",
+    "regimeHistory",
+    "totalIncome",
+    "taxEstimate",
+    "taxCredits",
+    "businessIncome"
+];
+export type FactField = typeof FACT_FIELDS[number];
+export type MissingFact = {
+    field: FactField;
+    about?: string;
+};
+}
+
+declare namespace ContractModule1737 {
+export type PackSelection = {
+    packId: string;
+    digest: string;
+    fields: string[];
+    unmask: string[];
+    requestedBy: string;
+    purpose: string;
+};
+}
+
+declare namespace ContractModule1738 {
+import IsoDate = ContractModule1734.IsoDate;
+export type SectionRef = {
+    key: string;
+    act: string;
+    section: string;
+    title: string;
+    needsCaConfirmation: true;
+};
+export type TableStamp = {
+    id: string;
+    version: number;
+    hash: string;
+    title: string;
+    validFrom: IsoDate;
+    validTo: IsoDate | null;
+    confirmed: boolean;
+    confirmedBy: string | null;
+    needsCaConfirmation: true;
+};
+}
+
+declare namespace ContractModule1739 {
+export type CaEngine = 'advance-tax' | 'income-tax' | 'interest-234' | 'gst-working' | 'tds-working' | 'reconcile' | 'books-close' | 'portal-diff' | 'what-if' | 'doc-entry' | 'books-health' | 'data-pack';
+export type CaFigure = {
+    key: string;
+    label: string;
+    minor: string;
+    display: string;
+};
+export type CaReceiptStep = CaFigure & {
+    section: string | null;
+};
+}
+
+declare namespace ContractModule1769 {
+export type TimedWord = {
+    text: string;
+    startMs: number;
+    endMs: number;
+};
+export type CaptionCue = {
+    id: string;
+    startMs: number;
+    endMs: number;
+    lines: string[];
+    words: TimedWord[] | null;
+};
+export type CaptionProfileId = 'web' | 'broadcast' | 'vertical';
+}
+
+declare namespace ContractModule1770 {
+export type RoomPrice = {
+    offerId: string;
+    minor: string;
+    currency: string;
+    receiptId: string;
+    priceDigest: string;
+    display: string;
+};
+export type RoomFields = {
+    scope: string;
+    deliverable: string;
+    deadline: string;
+};
+export type RoomInput = {
+    orderId: string;
+    clientId: string;
+    request: string;
+    via: 'owner-recorded' | 'client-page';
+    fields: RoomFields;
+    price: RoomPrice;
+};
+export type ApprovedRoomBrief = RoomInput & {
+    version: number;
+    digest: string;
+    by: string;
+    at: string;
+};
+export type RoomBrief = RoomInput & {
+    version: number;
+    digest: string;
+    approved: ApprovedRoomBrief | null;
+};
+}
+
+declare namespace ContractModule1786 {
+export type CommunityVote = {
+    dimension: string;
+    score: number;
+    quote: string;
+};
+export type CommunityPost = {
+    id: string;
+    url: string;
+    community: string;
+    rulesUrl: string;
+    rulesCheckedOn: string;
+    readingAllowed: boolean;
+    on: string;
+    removed: boolean;
+    text: string;
+    votes: CommunityVote[];
+};
+export type CommunityInput = {
+    product: string;
+    confirmed: boolean;
+    problem: string;
+    categories: string[];
+    painWords: string[];
+    days: number;
+    posts: CommunityPost[];
+};
+export function communityReport(input: CommunityInput): {
+    product: string;
+    problem: string;
+    categories: string[];
+    painWords: string[];
+    posts: CommunityPost[];
+    coverage: string;
+    actions: never[];
+};
+}
+
+declare namespace ContractModule1833 {
+import shopifyChange = ContractModule1659.shopifyChange;
+import ShopifyProduct = ContractModule1659.ShopifyProduct;
+export type ShopifyRead = {
+    id: string;
+    orderId: string;
+    clientId: string;
+    domain: string;
+    storeId: string;
+    connectionDigest: string;
+    sessionId: string;
+    memberId: string;
+    epoch: number;
+    at: string;
+    product: ShopifyProduct;
+};
+export type ShopifyWrite = {
+    id: string;
+    read: ShopifyRead;
+    request: ReturnType<typeof shopifyChange>;
+    createdAt: string;
+    expiresAt: string;
+    phase: 'staged' | 'sending' | 'applied' | 'rejected' | 'unknown';
+    claimedAt: string | null;
+    finishedAt: string | null;
+    liveVerified: string | null;
+};
+}
+
+declare namespace ContractModule1834 {
+export type SellerMode = 'economics' | 'ads' | 'settlement' | 'listing';
+}
+
+declare namespace ContractModule1835 {
+export type SellerProduct = {
+    sku: string;
+    channel: string;
+    priceMinor: string;
+    breakEvenMinor: string | null;
+    stock: string;
+    title: string;
+    currency: string;
+};
+export type SellerCaps = {
+    priceChangeBps: string;
+    promotionBps: string;
+};
+export type SellerChange = {
+    field: string;
+    value: string;
+    clearance?: boolean;
+    scope?: string;
+    depthBps?: string;
+    endsOn?: string;
+};
+export type SellerStaged = {
+    product: SellerProduct;
+    change: SellerChange;
+    dryRun: true;
+    descriptionComplete: boolean;
+    missing: string[];
+    clearance: boolean;
+    confirmName: string | null;
+    money: boolean;
+    caps: SellerCaps;
+    capability: 'handoff';
+};
+}
+
+declare namespace ContractModule1837 {
+import StorefrontCatalogue = ContractModule1661.StorefrontCatalogue;
+export type SellerStorefrontBody = {
+    domain: string;
+    modelConnectionId: string;
+    maxPages: number;
+    language: 'en' | 'hi';
+    notice: string;
+    publicTokenDigest: string;
+    catalogue: StorefrontCatalogue;
+    readAt: string;
+    active: boolean;
+    link: {
+        tokenHash: string;
+        expiresAt: string;
+    } | null;
+};
+}
+
+declare namespace ContractModule1878 {
+export type SeoMonitorBody = {
+    url: string;
+    root: string;
+    cycles: number;
+    intervalSeconds: number;
+    state: 'draft' | 'active' | 'collecting' | 'complete' | 'stopped' | 'held';
+    approvedDigest: string | null;
+    completed: number;
+    lastAt: string | null;
+    nextAt: string | null;
+    error: string | null;
+    evidence: {
+        index: number;
+        folder: string;
+        receipt: string;
+        at: string;
+    }[];
+};
+export type SeoMonitorItem = SeoMonitorBody & {
+    id: string;
+};
+}
+
+declare namespace ContractModule1883 {
+export const SEO_WORK_OPERATIONS: readonly [
+    "content",
+    "meta",
+    "impact",
+    "refresh",
+    "local",
+    "strategy"
+];
+export type SeoWorkOperation = typeof SEO_WORK_OPERATIONS[number];
+export type SeoWorkBody = {
+    orderId: string;
+    clientId: string;
+    operation: SeoWorkOperation;
+    uploadId: string;
+    sourceDigest: string;
+    result: any;
+    receipt: string;
+    checkedAt: string;
+    state: 'checked' | 'approved' | 'muted' | 'resolved';
+    appliedEditId: string | null;
+    acceptance: {
+        checkedOn: string;
+        receipt: string;
+    } | null;
+};
+export type SeoWorkItem = SeoWorkBody & {
+    id: string;
+    stale: boolean;
+};
+}
+
+declare namespace ContractModule1889 {
+import SocialChannel = ContractModule1890.SocialChannel;
+import SocialFormat = ContractModule1897.SocialFormat;
+import SourceInventory = ContractModule1907.SourceInventory;
+import PostPlan = ContractModule1911.PostPlan;
+export type CanvasPost = {
+    id: string;
+    runId: string;
+    text: string;
+    channel: SocialChannel;
+    plan: Omit<PostPlan, 'postId'> | null;
+};
+export type SocialCanvasView = {
+    id: string;
+    orderId: string;
+    request: string;
+    runId: string | null;
+    inventory: SourceInventory | null;
+    sourceProblem: string | null;
+    cards: (SocialFormat & {
+        posts: CanvasPost[];
+    })[];
+};
+}
+
+declare namespace ContractModule1890 {
+export const SOCIAL_CHANNELS: readonly [
+    "instagram",
+    "facebook",
+    "linkedin",
+    "x",
+    "threads",
+    "tiktok",
+    "youtube-shorts",
+    "bluesky",
+    "mastodon",
+    "telegram",
+    "discord"
+];
+export type SocialChannel = typeof SOCIAL_CHANNELS[number];
+}
+
+declare namespace ContractModule1896 {
+export type InfluencerCoefficient = {
+    basisPoints: number;
+    source: 'owner' | 'default' | 'agent-judgement';
+    reason: string;
+};
+export type InfluencerPost = {
+    id: string;
+    publishedAt: string;
+    views: string;
+    comparable: boolean;
+    sourceUrl: string;
+    reason: string;
+};
+export function influencerFairPrice(raw: unknown): {
+    sampleCount: number;
+    coverage: string;
+    medianViews: string;
+    amountMinor: string;
+    display: string;
+    label: string;
+    actualRevenueMinor: null;
+    receipt: {
+        digest: string;
+        kind: "code";
+        formula: string;
+        rounding: string;
+        postIds: string[];
+        posts: InfluencerPost[];
+        coefficients: Record<"clickRate" | "signupRate" | "fit" | "competition", InfluencerCoefficient>;
+        inputs: {
+            asOf: string;
+            medianViews: string;
+            targetCpaMinor: string;
+            capMinor: string;
+        };
+        outputMinor: string;
+    };
+};
+}
+
+declare namespace ContractModule1897 {
+import SocialChannel = ContractModule1890.SocialChannel;
+export type SocialFormat = {
+    channel: SocialChannel;
+    format: 'text' | 'thread' | 'image' | 'image-brief' | 'video' | 'video-brief';
+    ready: boolean;
+    trace: string[];
+};
+}
+
+declare namespace ContractModule1901 {
+import ReplyBucket = ContractModule1913.ReplyBucket;
+export type InboxItem = {
+    orderId: string;
+    channel: string;
+    externalId: string;
+    author: string;
+    text: string;
+    source: 'paste' | 'export';
+    syncedAt: string;
+    bucket: ReplyBucket;
+    priority: number;
+    state: 'needs-reply' | 'handled' | 'ignored';
+    assignee: string | null;
+    reply: string;
+    ownerApproved: boolean;
+    clientApproved: boolean;
+    optedOut: boolean;
+};
+export type InboxView = InboxItem & {
+    id: string;
+    digest: string;
+};
+export function replyHandoff(row: InboxItem): {
+    capability: "handoff";
+    sent: boolean;
+    text: string;
+    channel: string;
+    to: string;
+};
+}
+
+declare namespace ContractModule1902 {
+import InfluencerCreator = ContractModule1906.InfluencerCreator;
+import InfluencerKeywords = ContractModule1906.InfluencerKeywords;
+import influencerFairPrice = ContractModule1896.influencerFairPrice;
+export type InfluencerActual = {
+    views: string;
+    signups: string;
+    spendMinor: string;
+    revenueMinor: string;
+    spendDisplay: string;
+    revenueDisplay: string;
+    sourceUrl: string;
+    observedAt: string;
+    note: string;
+    receipt: {
+        kind: 'code';
+        inputs: Record<string, string>;
+        output: {
+            spendMinor: string;
+            revenueMinor: string;
+        };
+        digest: string;
+    };
+};
+export type InfluencerFee = {
+    minor: string;
+    display: string;
+    receipt: {
+        kind: 'code';
+        inputs: {
+            priceRupees: string;
+        };
+        output: {
+            minor: string;
+        };
+        digest: string;
+    };
+};
+export type InfluencerCaseCreator = InfluencerCreator & {
+    priceCheckFee: InfluencerFee | null;
+    estimate: ReturnType<typeof influencerFairPrice> | null;
+    brief: {
+        objective: string;
+        deliverables: string;
+        disclosure: string;
+        platformLabel: 'Paid partnership';
+    } | null;
+    actual: InfluencerActual | null;
+    outreach: {
+        leadId: string;
+        draftId: string;
+    } | null;
+};
+export type InfluencerCase = {
+    orderId: string;
+    keywords: InfluencerKeywords;
+    creators: InfluencerCaseCreator[];
+    updatedAt: string;
+};
+export type InfluencerView = InfluencerCase & {
+    id: string;
+    digest: string;
+};
+}
+
+declare namespace ContractModule1905 {
+export type CampaignPacket = {
+    sourceDigest: string;
+    language: 'en' | 'hi';
+    title: string;
+    sections: {
+        heading: string;
+        lines: string[];
+        figures: {
+            label: string;
+            value: string;
+            receiptId: string;
+            estimate: boolean;
+        }[];
+    }[];
+    receipts: unknown[];
+    content: string;
+    filename: string;
+    digest: string;
+};
+}
+
+declare namespace ContractModule1906 {
+export const INFLUENCER_GROUPS: readonly [
+    "product",
+    "pain",
+    "scenario",
+    "creator",
+    "tags",
+    "competitors",
+    "negative"
+];
+export type InfluencerKeywords = Record<typeof INFLUENCER_GROUPS[number], string[]>;
+export type InfluencerCreator = {
+    id: string;
+    name: string;
+    channel: string;
+    channelUrl: string;
+    businessEmail: string | null;
+    businessEmailSource: string | null;
+    publicBusinessEmail: boolean;
+};
+}
+
+declare namespace ContractModule1907 {
+export type InventoryKind = 'claims' | 'numbers' | 'stories' | 'mistakes' | 'quotes';
+export type InventoryItem = {
+    kind: InventoryKind;
+    text: string;
+    from: number;
+    to: number;
+    numbers: string[];
+};
+export type SourceInventory = {
+    items: InventoryItem[];
+    counts: Record<InventoryKind | 'total', number>;
+};
+}
+
+declare namespace ContractModule1911 {
+export type PostPlan = {
+    postId: string;
+    kind: 'value' | 'sell';
+    goals: string[];
+    actions: string[];
+    hookFormula: string;
+};
+}
+
+declare namespace ContractModule1912 {
+import CrossPostPlan = ContractModule29.CrossPostPlan;
+export type ReelPlan = {
+    cuts: {
+        clipId: string;
+        startMs: number;
+        durationMs: number;
+        timelineMs: number;
+    }[];
+    captions: string;
+    durationMs: number;
+    endCard: {
+        contact: string;
+        durationMs: number;
+    };
+    hook: string;
+    capability: 'desktop';
+};
+export type ReelJob = {
+    sources: {
+        id: string;
+        digest: string;
+        durationMs: number;
+        hasAudio: boolean;
+    }[];
+    plan: ReelPlan;
+    output: string;
+    approvedDigest: string | null;
+    rendered: {
+        path: string;
+        digest: string;
+    } | null;
+};
+export type SocialAdPlan = {
+    photo: {
+        id: string;
+        digest: string;
+        kind: 'client';
+    };
+    category: string;
+    style: string;
+    stills: {
+        id: string;
+        digest: string;
+    }[];
+    boardDigest: string;
+    approvedDigest: string | null;
+    quote: {
+        units: number;
+        totalMinor: string;
+        display: string;
+        receiptId: string;
+        disclosure: string | null;
+        formula: string;
+        capability: 'handoff';
+        providerCalled: false;
+    } | null;
+};
+export type SocialProduction = {
+    cross: CrossPostPlan | null;
+    reel: ReelJob | null;
+    ad: SocialAdPlan | null;
+};
+export type SocialProductionView = {
+    id: string;
+    request: string;
+    digest: string;
+    production: SocialProduction;
+    capability: 'handoff';
+    videoUpload: 'planned';
+};
+}
+
+declare namespace ContractModule1913 {
+export const REPLY_BUCKETS: readonly [
+    "complaint",
+    "lead",
+    "question",
+    "request",
+    "praise",
+    "noise"
+];
+export type ReplyBucket = typeof REPLY_BUCKETS[number];
+}
+
+declare namespace ContractModule1914 {
+export type ExportPlatform = 'instagram' | 'linkedin';
+export type ReportFigureKey = 'posts' | 'views' | 'reach' | 'impressions' | 'engagements' | 'engagement-rate' | 'follows' | 'top-post';
+export type ReportReceipt = {
+    id: string;
+    platform: ExportPlatform;
+    month: string;
+    key: ReportFigureKey;
+    label: string;
+    value: string;
+    display: string;
+    unit: 'count' | 'percent' | 'post';
+    formula: string;
+    inputs: {
+        fileId: string;
+        fileName: string;
+        fileDigest: string;
+        columns: string[];
+        rows: number[];
+    };
+    numerator?: string;
+    denominator?: string;
+    digest: string;
+};
+}
+
+declare namespace ContractModule1918 {
+export type SocialScheduledBody = {
+    postId: string | null;
+    connectorId: string;
+    text: string;
+    account: string | null;
+    mode: string | null;
+    dueAt: string;
+    deadlineAt: string;
+    postDigest: string | null;
+    filesDigest: string | null;
+    approvedDigest: string | null;
+    approvedAt: string | null;
+    approvedBy: string | null;
+    nothingReadyAt: string | null;
+    state: 'draft' | 'scheduled' | 'waiting' | 'posted' | 'missed' | 'blocked' | 'unknown' | 'cancelled';
+    reason: string;
+};
+export type SocialScheduledItem = SocialScheduledBody & {
+    id: string;
+};
+}
+
+declare namespace ContractModule1920 {
+export type SocialHookHistory = {
+    runId: string;
+    postId: string;
+    textDigest: string;
+    hookFormula: string;
+    approvedAt: string;
+};
+}
+
+declare namespace ContractModule1932 {
+import BrokerId = ContractModule1935.BrokerId;
+import Exchange = ContractModule1935.Exchange;
+export type Instrument = 'equity' | 'future' | 'option';
+export type TradeRow = {
+    broker: BrokerId;
+    line: number;
+    tradeId: string;
+    orderId: string;
+    date: string;
+    time: string | null;
+    symbol: string;
+    isin: string | null;
+    exchange: Exchange;
+    instrument: Instrument;
+    side: 'buy' | 'sell';
+    quantity: string;
+    value4: string;
+    expiry: string | null;
+};
+}
+
+declare namespace ContractModule1933 {
+import Journal = ContractModule1934.Journal;
+import OpeningLot = ContractModule1934.OpeningLot;
+import BrokerId = ContractModule1935.BrokerId;
+import TaxPack = ContractModule1937.TaxPack;
+import TradeJournalEntry = ContractModule31.TradeJournalEntry;
+export type JournalListRow = {
+    id: string;
+    kind: TradeJournalEntry['kind'];
+    label: string;
+    at: string;
+    receiptId: string;
+};
+export type JournalItem = {
+    imports: {
+        id: string;
+        broker: BrokerId;
+        brokerName: string;
+        name: string;
+        trades: number;
+        formatChecked: boolean;
+        receiptId: string;
+    }[];
+    openings: (OpeningLot & {
+        entryId: string;
+    })[];
+    packs: {
+        id: string;
+        yearId: TaxPack['yearId'];
+        year: string;
+        act: string;
+        line: string;
+        receiptId: string;
+        stale: boolean;
+        figures: {
+            key: string;
+            label: string;
+            display: string;
+            section: string;
+        }[];
+    }[];
+    journal: Journal | null;
+    sourceDigest: string | null;
+    summary: {
+        receiptId: string;
+        figures: {
+            key: string;
+            label: string;
+            display: string;
+        }[];
+    } | null;
+};
+}
+
+declare namespace ContractModule1934 {
+import BrokerId = ContractModule1935.BrokerId;
+import Exchange = ContractModule1935.Exchange;
+import LegKind = ContractModule1935.LegKind;
+export type OpeningLot = {
+    id: string;
+    symbol: string;
+    isin: string | null;
+    boughtOn: string;
+    quantity: string;
+    costMinor: string;
+    fmvMinor: string | null;
+};
+export type ChargeLine = {
+    brokerage: string;
+    stt: string;
+    exchange: string;
+    sebi: string;
+    ipft: string;
+    stamp: string;
+    dp: string;
+    gst: string;
+    total: string;
+};
+export type ContractNote = {
+    broker: BrokerId;
+    date: string;
+    exchange: Exchange;
+    kind: LegKind;
+    buyMinor: string;
+    sellMinor: string;
+    orders: number;
+    dpScrips: number;
+    charges: ChargeLine;
+};
+export type RealisedLot = {
+    kind: 'intraday' | 'fno' | 'capital';
+    symbol: string;
+    isin: string | null;
+    quantity: string;
+    openedOn: string;
+    closedOn: string;
+    costMinor: string;
+    saleMinor: string;
+    pnlMinor: string;
+    closedBy: 'trade' | 'expiry';
+    longTerm: boolean;
+    grandfathered: {
+        fmvMinor: string;
+        costUsedMinor: string;
+    } | null;
+    needsFmv: boolean;
+};
+export type OpenPosition = {
+    symbol: string;
+    kind: 'equity' | 'fno';
+    quantity: string;
+    side: 'long' | 'short';
+    openedOn: string;
+};
+export type Unmatched = {
+    symbol: string;
+    date: string;
+    quantity: string;
+    line: string;
+};
+export type Journal = {
+    legs: number;
+    notes: ContractNote[];
+    realised: RealisedLot[];
+    open: OpenPosition[];
+    unmatched: Unmatched[];
+    totals: ChargeLine;
+    brokers: BrokerId[];
+};
+}
+
+declare namespace ContractModule1935 {
+export type LegKind = 'intraday' | 'delivery' | 'futures' | 'options';
+export type Exchange = 'NSE' | 'BSE';
+export type BrokerId = 'zerodha' | 'groww' | 'upstox' | 'dhan';
+}
+
+declare namespace ContractModule1937 {
+import TaxRule = ContractModule1938.TaxRule;
+import TaxYearRules = ContractModule1938.TaxYearRules;
+export type TaxFigure = {
+    key: string;
+    label: string;
+    minor: string;
+    display: string;
+    unit: 'money' | 'percent' | 'count';
+    how: string;
+    rule: TaxRule;
+    act: string;
+    year: string;
+};
+export type TaxPack = {
+    yearId: TaxYearRules['id'];
+    year: string;
+    act: string;
+    figures: TaxFigure[];
+    needsFmv: number;
+    unmatched: number;
+    openPositions: number;
+    line: string;
+};
+}
+
+declare namespace ContractModule1938 {
+export type RuleRead = 'official' | 'secondary' | 'unchecked';
+export type TaxRule = {
+    section: string;
+    words: string;
+    source: string;
+    read: RuleRead;
+};
+export type TaxYearRules = {
+    id: 'fy-2025-26' | 'ty-2026-27';
+    label: string;
+    act: string;
+    from: string;
+    to: string;
+    speculative: TaxRule;
+    nonSpeculative: TaxRule;
+    holding: TaxRule & {
+        months: number;
+    };
+    stcg: TaxRule & {
+        rateBps: number;
+    };
+    ltcg: TaxRule & {
+        rateBps: number;
+        exemptionMinor: string;
+    };
+    grandfather: TaxRule & {
+        fmvDay: string;
+    };
+    turnover: TaxRule;
+};
+}
+
+declare namespace ContractModule1952 {
+export function purchaseHandoff(input: {
+    item: string;
+    quantity: string;
+    unitMinor: string;
+    currency: string;
+}): {
+    totalMinor: string;
+    display: string;
+    receipt: {
+        operation: "multiply";
+        inputs: string[];
+        result: string;
+        unit: "minor";
+    };
+    receiptId: string;
+    purchased: false;
+    line: string;
+    item: string;
+    quantity: string;
+    unitMinor: string;
+    currency: string;
+};
+}
+
+declare namespace ContractModule1968 {
+export type Finding = {
+    id: string;
+    outcome: 'pass' | 'fail' | 'not-run';
+    detail: string;
+};
+}
+
+declare namespace ContractModule1970 {
+export function timedBeats(lines: string[], loopBack: string, wordsPerMinute: number, bucketSeconds: 4 | 6 | 8): {
+    beats: {
+        line: string;
+        startMs: number;
+        endMs: number;
+        bucketSeconds: 4 | 6 | 8;
+    }[];
+    findings: {
+        code: string;
+        beat: number | null;
+    }[];
+    durationMs: number;
+    passed: boolean;
+};
+}
+
+declare namespace ContractModule1971 {
+import CutTimeline = ContractModule1977.CutTimeline;
+import publishingText = ContractModule1982.publishingText;
+import planBroll = ContractModule1972.planBroll;
+import timedBeats = ContractModule1970.timedBeats;
+import Finding = ContractModule1968.Finding;
+export type BoardOutput = {
+    id: string;
+    kind: 'interchange' | 'publishing' | 'captions' | 'instructions' | 'page';
+    path: string;
+    text: string;
+    decision: 'pending' | 'approved' | 'discarded';
+    request: string | null;
+    publishing?: ReturnType<typeof publishingText>;
+};
+export type YoutubeBoardBody = {
+    editVersion: string;
+    editorCommand?: {
+        app: string;
+        args: string[];
+        line: string;
+    } | null;
+    grids?: Record<string, {
+        digest: string;
+        assetId: string;
+        sourceDigest: string;
+        contentBase64: string;
+    }>;
+    reviews?: Record<string, {
+        passed: boolean;
+        gridDigest: string;
+        answers: {
+            burnedCaptions: boolean;
+            lowerThirds: boolean;
+            watermarks: boolean;
+        };
+    }>;
+    timeline: CutTimeline;
+    outputs: BoardOutput[];
+    broll?: ReturnType<typeof planBroll>;
+    removedBroll?: string[];
+    brollReview?: {
+        passed: boolean;
+        answers: {
+            burnedCaptions: boolean;
+            lowerThirds: boolean;
+            watermarks: boolean;
+        };
+        gridDigest: string;
+    };
+    grid?: {
+        digest: string;
+        assetId: string;
+        sourceDigest: string;
+    };
+    beats?: ReturnType<typeof timedBeats>;
+    finishing?: Finding[];
+    finishingBinding?: {
+        sourceFile: string;
+        sourceDigest: string;
+        file: string;
+        fileDigest: string;
+    };
+    clips?: {
+        passed: boolean;
+        rows: {
+            index: number;
+            startMs: number;
+            endMs: number;
+            durationMs: number;
+            problems: string[];
+        }[];
+    };
+};
+}
+
+declare namespace ContractModule1972 {
+import EditWord = ContractModule34.EditWord;
+export type BrollBeat = {
+    id: string;
+    wordId: string;
+    assetId: string | null;
+    kind: 'receipt' | 'entity' | 'concept' | 'meme';
+    delayMs: number;
+    durationMs: number;
+};
+export type BrollAsset = {
+    id: string;
+    source: {
+        kind: string;
+        licenceId?: string;
+        uploadId?: string | null;
+    };
+    licence: string | null;
+    state: string;
+    fileDigest: string | null;
+    supersededBy: string | null;
+};
+export function planBroll(words: readonly EditWord[], beats: BrollBeat[], assets: BrollAsset[], removed: string[]): {
+    digest: string;
+    approvedDigest: string | null;
+    beats: BrollBeat[];
+    windows: {
+        ids: string[];
+        assetId: string | null;
+        startMs: number;
+        endMs: number;
+    }[];
+    removed: string[];
+    assetBindings: {
+        id: string;
+        fileDigest: string | null;
+        licence: string | null;
+        source: {
+            kind: string;
+            licenceId?: string;
+            uploadId?: string | null;
+        };
+    }[];
+};
+}
+
+declare namespace ContractModule1977 {
+export type FrameRate = 25 | 30 | '29.97df';
+export type FrameRange = {
+    source: string;
+    startFrame: number;
+    endFrame: number;
+};
+export type CutTimeline = {
+    rate: FrameRate;
+    ranges: FrameRange[];
+};
+}
+
+declare namespace ContractModule1981 {
+import Json = ContractModule1644.Json;
+export type YoutubePublicRequest = {
+    kind: 'videos' | 'channels';
+    ids: string[];
+} | {
+    kind: 'search';
+    query: string;
+    pageToken?: string;
+};
+export type YoutubeQuotaUse = {
+    project: string;
+    day: string;
+    shared: number;
+    search: number;
+};
+export type YoutubePublicRead = {
+    id: string;
+    project: string;
+    connection: string;
+    request: YoutubePublicRequest;
+    orderDigest: string;
+    state: 'prepared' | 'running' | 'completed' | 'failed';
+    preparedAt: string;
+    attemptedAt: string | null;
+    result: Json | null;
+    error: string | null;
+    receiptId: string | null;
+    uploadId: string | null;
+    uploadDigest: string | null;
+};
+}
+
+declare namespace ContractModule1982 {
+export const PUBLISH_LIMITS: {
+    youtube: {
+        limit: number;
+        unit: string;
+        checkedOn: string;
+        source: string;
+    };
+    instagram: {
+        verification: string;
+        limit: number;
+        unit: string;
+        checkedOn: string;
+        source: string;
+    };
+    tiktok: {
+        limit: number;
+        unit: string;
+        checkedOn: string;
+        source: string;
+    };
+};
+export function publishingText(platform: keyof typeof PUBLISH_LIMITS, text: string): {
+    passed: boolean;
+    limit: number;
+    unit: string;
+    checkedOn: string;
+    source: string;
+    platform: "instagram" | "youtube" | "tiktok";
+    text: string;
+    count: number;
+} | {
+    passed: boolean;
+    verification: string;
+    limit: number;
+    unit: string;
+    checkedOn: string;
+    source: string;
+    platform: "instagram" | "youtube" | "tiktok";
+    text: string;
+    count: number;
+} | {
+    passed: boolean;
+    limit: number;
+    unit: string;
+    checkedOn: string;
+    source: string;
+    platform: "instagram" | "youtube" | "tiktok";
+    text: string;
+    count: number;
+};
+}
+
+declare namespace ContractModule1986 {
+import Json = ContractModule1644.Json;
+export type ResearchMode = 'after-publish' | 'outliers' | 'niche' | 'comments' | 'script' | 'archive';
+export type YoutubeResearchBody = {
+    mode: ResearchMode;
+    source: {
+        id: string;
+        name: string;
+        digest: string;
+    };
+    orderDigest: string;
+    mapping: Record<string, string>;
+    options: Record<string, Json>;
+    sourceConsent: true;
+    result: Json;
+    receiptId: string;
+    approval: string | null;
+};
+}
+
+declare namespace ContractModule1996 {
 export type DiagnosticsRow = {
     key: string;
     label: string;
@@ -13719,7 +14824,7 @@ export type DiagnosticsTodayView = {
 };
 }
 
-declare namespace ContractModule1572 {
+declare namespace ContractModule1997 {
 type IsoTime = string;
 type ChiefLineAmount = {
     text: string;
@@ -13803,7 +14908,7 @@ export type FindView = {
 };
 }
 
-declare namespace ContractModule1577 {
+declare namespace ContractModule1998 {
 export const LAYOUT_PLACES: readonly [
     "today",
     "money"
@@ -13852,659 +14957,566 @@ export type LayoutBlockView = {
 };
 }
 
-declare namespace ContractModule1578 {
-import LayoutBlockView = ContractModule1577.LayoutBlockView;
-import LayoutPlace = ContractModule1577.LayoutPlace;
-import LayoutRequest = ContractModule1577.LayoutRequest;
-export type LayoutView = {
-    place: LayoutPlace;
-    title: string;
-    href: string;
-    blocks: LayoutBlockView[];
-    views: {
-        id: string;
-        name: string;
-    }[];
-    custom: boolean;
-    ai: {
-        count: number;
-        lines: string[];
-        undo: LayoutRequest;
-    } | null;
-    go: {
-        id: string;
-        href: string;
-        title: string;
-        at: string;
-    } | null;
-};
-export type LayoutChangeResult = {
-    layout: LayoutView;
-    undo: LayoutRequest;
-    line: string;
-};
-}
-
-declare namespace ContractModule1598 {
+declare namespace ContractModule1999 {
 export type WorkKind = 'about' | 'ai-tools' | 'rehearse' | 'improve' | 'brief' | 'goal-suggest' | 'drills' | 'restore' | 'move-in' | 'import';
 }
 
-declare namespace ContractModule1602 {
-export type SearchProviderId = 'brave' | 'exa' | 'tavily';
-export type AiNetworkSetting = 'off' | 'research' | 'on';
-export type SavedSearchKey = {
-    provider: SearchProviderId;
-    keyHint: string;
-    savedAt: string;
-    consentDigest: string;
-};
-export type WebSearchView = {
-    builtIn: {
-        codex: AiNetworkSetting;
-        claude: AiNetworkSetting;
-        line: string;
-    };
-    key: {
-        provider: SearchProviderId;
-        name: string;
-        keyHint: string;
-        savedAt: string;
-        label: 'fixture-tested';
-    } | null;
-    providers: {
-        id: SearchProviderId;
-        name: string;
-        label: 'fixture-tested';
-        keyPage: string;
-        consent: string;
-        consentDigest: string;
-    }[];
-    line: string;
-};
-export type WebReadView = {
-    url: string;
-    title: string | null;
-    siteName: string | null;
-    text: string;
-    words: number;
-    more: boolean;
-    via: 'page' | 'javascript';
-    label: string;
-    line: string;
-};
-}
+export type AcrossLeftOut = ContractModule302.AcrossLeftOut;
 
-declare namespace ContractModule1604 {
-import WorkKind = ContractModule1598.WorkKind;
-export type WorkStepState = 'waiting' | 'current' | 'done' | 'failed';
-export type WorkJobView = {
-    workId: string;
-    kind: WorkKind;
-    startedAt: string;
-    steps: {
-        id: string;
-        state: WorkStepState;
-        passed?: boolean;
-    }[];
-};
-}
+export type AcrossLineKey = ContractModule302.AcrossLineKey;
 
-export type AcrossLeftOut = ContractModule266.AcrossLeftOut;
+export type AcrossMoneyView = ContractModule302.AcrossMoneyView;
 
-export type AcrossLineKey = ContractModule266.AcrossLineKey;
+export type AcrossRunsView = ContractModule302.AcrossRunsView;
 
-export type AcrossMoneyView = ContractModule266.AcrossMoneyView;
+export type AgentCapView = ContractModule302.AgentCapView;
 
-export type AcrossRunsView = ContractModule266.AcrossRunsView;
+export type AgentHealth = ContractModule302.AgentHealth;
 
-export type AgentCapView = ContractModule266.AgentCapView;
+export type AgentHealthStatus = ContractModule302.AgentHealthStatus;
 
-export type AgentHealth = ContractModule266.AgentHealth;
+export type AgentMessageView = ContractModule302.AgentMessageView;
 
-export type AgentHealthStatus = ContractModule266.AgentHealthStatus;
+export type AgentNoteChange = ContractModule302.AgentNoteChange;
 
-export type AgentMessageView = ContractModule266.AgentMessageView;
+export type AgentNoteLoad = ContractModule302.AgentNoteLoad;
 
-export type AgentNoteChange = ContractModule266.AgentNoteChange;
+export type AgentNoteScope = ContractModule302.AgentNoteScope;
 
-export type AgentNoteLoad = ContractModule266.AgentNoteLoad;
+export type AgentNoteView = ContractModule302.AgentNoteView;
 
-export type AgentNoteScope = ContractModule266.AgentNoteScope;
+export type AgentNotesView = ContractModule302.AgentNotesView;
 
-export type AgentNoteView = ContractModule266.AgentNoteView;
+export type AgentProposalView = ContractModule302.AgentProposalView;
 
-export type AgentNotesView = ContractModule266.AgentNotesView;
+export type AgentRunItem = ContractModule302.AgentRunItem;
 
-export type AgentProposalView = ContractModule266.AgentProposalView;
+export type AgentSendResult = ContractModule302.AgentSendResult;
 
-export type AgentRunItem = ContractModule266.AgentRunItem;
+export type AgentSuggestion = ContractModule302.AgentSuggestion;
 
-export type AgentSendResult = ContractModule266.AgentSendResult;
+export type AgentThreadItem = ContractModule302.AgentThreadItem;
 
-export type AgentSuggestion = ContractModule266.AgentSuggestion;
+export type AgentThreadView = ContractModule302.AgentThreadView;
 
-export type AgentThreadItem = ContractModule266.AgentThreadItem;
+export type AgentView = ContractModule302.AgentView;
 
-export type AgentThreadView = ContractModule266.AgentThreadView;
+export type AgingBucketId = ContractModule302.AgingBucketId;
 
-export type AgentView = ContractModule266.AgentView;
+export type AgingView = ContractModule302.AgingView;
 
-export type AgingBucketId = ContractModule266.AgingBucketId;
+export type AutoReadinessView = ContractModule302.AutoReadinessView;
 
-export type AgingView = ContractModule266.AgingView;
+export type AwayView = ContractModule302.AwayView;
 
-export type AutoReadinessView = ContractModule266.AutoReadinessView;
+export type BankAlertsView = ContractModule302.BankAlertsView;
 
-export type AwayView = ContractModule266.AwayView;
+export type BankApplyResult = ContractModule302.BankApplyResult;
 
-export type BankAlertsView = ContractModule266.BankAlertsView;
+export type BankConsentView = ContractModule302.BankConsentView;
 
-export type BankApplyResult = ContractModule266.BankApplyResult;
+export type BankImportResult = ContractModule302.BankImportResult;
 
-export type BankConsentView = ContractModule266.BankConsentView;
+export type BankLedgerRow = ContractModule302.BankLedgerRow;
 
-export type BankImportResult = ContractModule266.BankImportResult;
+export type BankLedgerView = ContractModule302.BankLedgerView;
 
-export type BankLedgerRow = ContractModule266.BankLedgerRow;
+export type BankRowClass = ContractModule302.BankRowClass;
 
-export type BankLedgerView = ContractModule266.BankLedgerView;
+export type BillLineInput = ContractModule302.BillLineInput;
 
-export type BankRowClass = ContractModule266.BankRowClass;
+export type BillView = ContractModule302.BillView;
 
-export type BillLineInput = ContractModule266.BillLineInput;
+export type BooksPeriodKey = ContractModule302.BooksPeriodKey;
 
-export type BillView = ContractModule266.BillView;
+export type BoundaryView = ContractModule302.BoundaryView;
 
-export type BooksPeriodKey = ContractModule266.BooksPeriodKey;
+export type BuildStatusWord = ContractModule302.BuildStatusWord;
 
-export type BoundaryView = ContractModule266.BoundaryView;
+export type BuilderId = ContractModule302.BuilderId;
 
-export type BuildStatusWord = ContractModule266.BuildStatusWord;
+export type BusinessSnapshotView = ContractModule302.BusinessSnapshotView;
 
-export type BuilderId = ContractModule266.BuilderId;
+export type CaDiffExplanation = ContractModule302.CaDiffExplanation;
 
-export type BusinessSnapshotView = ContractModule266.BusinessSnapshotView;
+export type CaLatestPapers = ContractModule302.CaLatestPapers;
 
-export type CaDiffExplanation = ContractModule266.CaDiffExplanation;
+export type CaPendingRate = ContractModule302.CaPendingRate;
 
-export type CaLatestPapers = ContractModule266.CaLatestPapers;
+export type CaReceiptView = ContractModule302.CaReceiptView;
 
-export type CaPendingRate = ContractModule266.CaPendingRate;
+export type CalendarFeedView = ContractModule302.CalendarFeedView;
 
-export type CaReceiptView = ContractModule266.CaReceiptView;
+export type CapabilityItemView = ContractModule302.CapabilityItemView;
 
-export type CalendarFeedView = ContractModule266.CalendarFeedView;
+export type CapabilityPageView = ContractModule302.CapabilityPageView;
 
-export type CapabilityItemView = ContractModule266.CapabilityItemView;
+export type CashIssueView = ContractModule302.CashIssueView;
 
-export type CapabilityPageView = ContractModule266.CapabilityPageView;
+export type CashView = ContractModule302.CashView;
 
-export type CashIssueView = ContractModule266.CashIssueView;
+export type ChatConsentView = ContractModule302.ChatConsentView;
 
-export type CashView = ContractModule266.CashView;
+export type ChatPart = ContractModule302.ChatPart;
 
-export type ChatConsentView = ContractModule266.ChatConsentView;
+export type ChiefCounted = ContractModule302.ChiefCounted;
 
-export type ChatPart = ContractModule266.ChatPart;
+export type ChiefFit = ContractModule302.ChiefFit;
 
-export type ChiefCounted = ContractModule266.ChiefCounted;
+export type ChiefLineAmount = ContractModule302.ChiefLineAmount;
 
-export type ChiefFit = ContractModule266.ChiefFit;
+export type ChiefMessageView = ContractModule302.ChiefMessageView;
 
-export type ChiefLineAmount = ContractModule266.ChiefLineAmount;
+export type ChiefSendResult = ContractModule302.ChiefSendResult;
 
-export type ChiefMessageView = ContractModule266.ChiefMessageView;
+export type ChiefSettleResult = ContractModule302.ChiefSettleResult;
 
-export type ChiefSendResult = ContractModule266.ChiefSendResult;
+export type ChiefSnoozeOption = ContractModule302.ChiefSnoozeOption;
 
-export type ChiefSettleResult = ContractModule266.ChiefSettleResult;
+export type ChiefSnoozePreset = ContractModule302.ChiefSnoozePreset;
 
-export type ChiefSnoozeOption = ContractModule266.ChiefSnoozeOption;
+export type ChiefThreadState = ContractModule302.ChiefThreadState;
 
-export type ChiefSnoozePreset = ContractModule266.ChiefSnoozePreset;
+export type ChiefThreadStateInput = ContractModule302.ChiefThreadStateInput;
 
-export type ChiefThreadState = ContractModule266.ChiefThreadState;
+export type ChiefThreadStateResult = ContractModule302.ChiefThreadStateResult;
 
-export type ChiefThreadStateInput = ContractModule266.ChiefThreadStateInput;
+export type ChiefThreadSummary = ContractModule302.ChiefThreadSummary;
 
-export type ChiefThreadStateResult = ContractModule266.ChiefThreadStateResult;
+export type ChiefThreadView = ContractModule302.ChiefThreadView;
 
-export type ChiefThreadSummary = ContractModule266.ChiefThreadSummary;
+export type ChiefThreadsView = ContractModule302.ChiefThreadsView;
 
-export type ChiefThreadView = ContractModule266.ChiefThreadView;
+export type CliStatusView = ContractModule302.CliStatusView;
 
-export type ChiefThreadsView = ContractModule266.ChiefThreadsView;
+export type ConnectorCheckRow = ContractModule302.ConnectorCheckRow;
 
-export type CliStatusView = ContractModule266.CliStatusView;
+export type ConnectorChecksView = ContractModule302.ConnectorChecksView;
 
-export type ConnectorCheckRow = ContractModule266.ConnectorCheckRow;
+export type ConnectorLadder = ContractModule302.ConnectorLadder;
 
-export type ConnectorChecksView = ContractModule266.ConnectorChecksView;
+export type ConnectorModeName = ContractModule302.ConnectorModeName;
 
-export type ConnectorLadder = ContractModule266.ConnectorLadder;
+export type CoverageView = ContractModule302.CoverageView;
 
-export type ConnectorModeName = ContractModule266.ConnectorModeName;
+export type CreditNoteView = ContractModule302.CreditNoteView;
 
-export type CoverageView = ContractModule266.CoverageView;
+export type CurrencyLead = ContractModule302.CurrencyLead;
 
-export type CreditNoteView = ContractModule266.CreditNoteView;
+export type DecisionOpens = ContractModule302.DecisionOpens;
 
-export type CurrencyLead = ContractModule266.CurrencyLead;
+export type DecisionView = ContractModule302.DecisionView;
 
-export type DecisionOpens = ContractModule266.DecisionOpens;
+export type DeliverableReport = ContractModule302.DeliverableReport;
 
-export type DecisionView = ContractModule266.DecisionView;
+export type DeliveredFile = ContractModule302.DeliveredFile;
 
-export type DeliverableReport = ContractModule266.DeliverableReport;
+export type DeliveredView = ContractModule302.DeliveredView;
 
-export type DeliveredFile = ContractModule266.DeliveredFile;
+export type DepartmentId = ContractModule302.DepartmentId;
 
-export type DeliveredView = ContractModule266.DeliveredView;
+export type DepartmentSpend = ContractModule302.DepartmentSpend;
 
-export type DepartmentId = ContractModule266.DepartmentId;
+export type DepartmentView = ContractModule302.DepartmentView;
 
-export type DepartmentSpend = ContractModule266.DepartmentSpend;
+export type DiffLine = ContractModule302.DiffLine;
 
-export type DepartmentView = ContractModule266.DepartmentView;
+export type Display = ContractModule302.Display;
 
-export type DiffLine = ContractModule266.DiffLine;
+export type DraftChangeView = ContractModule302.DraftChangeView;
 
-export type Display = ContractModule266.Display;
+export type DraftChangesView = ContractModule302.DraftChangesView;
 
-export type DraftChangeView = ContractModule266.DraftChangeView;
+export type DrillRunView = ContractModule302.DrillRunView;
 
-export type DraftChangesView = ContractModule266.DraftChangesView;
+export type EvidenceItem = ContractModule302.EvidenceItem;
 
-export type DrillRunView = ContractModule266.DrillRunView;
+export type FigureKind = ContractModule302.FigureKind;
 
-export type EvidenceItem = ContractModule266.EvidenceItem;
+export type FigureSource = ContractModule302.FigureSource;
 
-export type FigureKind = ContractModule266.FigureKind;
+export type FileRequestView = ContractModule302.FileRequestView;
 
-export type FigureSource = ContractModule266.FigureSource;
+export type FixTheRuleView = ContractModule302.FixTheRuleView;
 
-export type FileRequestView = ContractModule266.FileRequestView;
+export type FlowView = ContractModule302.FlowView;
 
-export type FixTheRuleView = ContractModule266.FixTheRuleView;
+export type FollowupView = ContractModule302.FollowupView;
 
-export type FlowView = ContractModule266.FlowView;
+export type GoalSuggestion = ContractModule302.GoalSuggestion;
 
-export type FollowupView = ContractModule266.FollowupView;
+export type GoalView = ContractModule302.GoalView;
 
-export type GoalSuggestion = ContractModule266.GoalSuggestion;
+export type GuidanceLineView = ContractModule302.GuidanceLineView;
 
-export type GoalView = ContractModule266.GoalView;
+export type IdeaView = ContractModule302.IdeaView;
 
-export type GuidanceLineView = ContractModule266.GuidanceLineView;
+export type InboundTriage = ContractModule302.InboundTriage;
 
-export type IdeaView = ContractModule266.IdeaView;
+export type InboundView = ContractModule302.InboundView;
 
-export type InboundTriage = ContractModule266.InboundTriage;
+export type InterviewAnswer = ContractModule302.InterviewAnswer;
 
-export type InboundView = ContractModule266.InboundView;
+export type InvoiceNext = ContractModule302.InvoiceNext;
 
-export type InterviewAnswer = ContractModule266.InterviewAnswer;
+export type InvoiceTimelineEntry = ContractModule302.InvoiceTimelineEntry;
 
-export type InvoiceNext = ContractModule266.InvoiceNext;
+export type JournalChainView = ContractModule302.JournalChainView;
 
-export type InvoiceTimelineEntry = ContractModule266.InvoiceTimelineEntry;
+export type JournalEntry = ContractModule302.JournalEntry;
 
-export type JournalChainView = ContractModule266.JournalChainView;
+export type JudgeAutoView = ContractModule302.JudgeAutoView;
 
-export type JournalEntry = ContractModule266.JournalEntry;
+export type KeeperJobId = ContractModule302.KeeperJobId;
 
-export type JudgeAutoView = ContractModule266.JudgeAutoView;
+export type KeeperJobView = ContractModule302.KeeperJobView;
 
-export type KeeperJobId = ContractModule266.KeeperJobId;
+export type KeeperView = ContractModule302.KeeperView;
 
-export type KeeperJobView = ContractModule266.KeeperJobView;
+export type KindedFigure = ContractModule302.KindedFigure;
 
-export type KeeperView = ContractModule266.KeeperView;
+export type KnowledgeSourceInput = ContractModule302.KnowledgeSourceInput;
 
-export type KindedFigure = ContractModule266.KindedFigure;
+export type KnowledgeSourceView = ContractModule302.KnowledgeSourceView;
 
-export type KnowledgeSourceInput = ContractModule266.KnowledgeSourceInput;
+export type LawfulBasis = ContractModule302.LawfulBasis;
 
-export type KnowledgeSourceView = ContractModule266.KnowledgeSourceView;
+export type LeadEmailCheck = ContractModule302.LeadEmailCheck;
 
-export type LawfulBasis = ContractModule266.LawfulBasis;
+export type LeadMoveView = ContractModule302.LeadMoveView;
 
-export type LeadEmailCheck = ContractModule266.LeadEmailCheck;
+export type LeadSendView = ContractModule302.LeadSendView;
 
-export type LeadMoveView = ContractModule266.LeadMoveView;
+export type LeadView = ContractModule302.LeadView;
 
-export type LeadSendView = ContractModule266.LeadSendView;
+export type LimitReachedView = ContractModule302.LimitReachedView;
 
-export type LeadView = ContractModule266.LeadView;
+export type LineLabel = ContractModule302.LineLabel;
 
-export type LimitReachedView = ContractModule266.LimitReachedView;
+export type LostReason = ContractModule302.LostReason;
 
-export type LineLabel = ContractModule266.LineLabel;
+export type MailboxView = ContractModule302.MailboxView;
 
-export type LostReason = ContractModule266.LostReason;
+export type MarginsView = ContractModule302.MarginsView;
 
-export type MailboxView = ContractModule266.MailboxView;
+export type MiniAppCallResult = ContractModule302.MiniAppCallResult;
 
-export type MarginsView = ContractModule266.MarginsView;
+export type MiniAppCard = ContractModule302.MiniAppCard;
 
-export type MiniAppCallResult = ContractModule266.MiniAppCallResult;
+export type MiniAppMessage = ContractModule302.MiniAppMessage;
 
-export type MiniAppCard = ContractModule266.MiniAppCard;
+export type MiniAppView = ContractModule302.MiniAppView;
 
-export type MiniAppMessage = ContractModule266.MiniAppMessage;
+export type ModelAvailability = ContractModule302.ModelAvailability;
 
-export type MiniAppView = ContractModule266.MiniAppView;
+export type ModelReceiptView = ContractModule302.ModelReceiptView;
 
-export type ModelAvailability = ContractModule266.ModelAvailability;
+export type ModelTier = ContractModule302.ModelTier;
 
-export type ModelReceiptView = ContractModule266.ModelReceiptView;
+export type MoneyExportFile = ContractModule302.MoneyExportFile;
 
-export type ModelTier = ContractModule266.ModelTier;
+export type MoneyOverview = ContractModule302.MoneyOverview;
 
-export type MoneyExportFile = ContractModule266.MoneyExportFile;
+export type MoneyOverviewLine = ContractModule302.MoneyOverviewLine;
 
-export type MoneyOverview = ContractModule266.MoneyOverview;
+export type NetworkBandCounts = ContractModule302.NetworkBandCounts;
 
-export type MoneyOverviewLine = ContractModule266.MoneyOverviewLine;
+export type NetworkImportKind = ContractModule302.NetworkImportKind;
 
-export type NetworkBandCounts = ContractModule266.NetworkBandCounts;
+export type NetworkImportResult = ContractModule302.NetworkImportResult;
 
-export type NetworkImportKind = ContractModule266.NetworkImportKind;
+export type NetworkImportView = ContractModule302.NetworkImportView;
 
-export type NetworkImportResult = ContractModule266.NetworkImportResult;
+export type NetworkSearchView = ContractModule302.NetworkSearchView;
 
-export type NetworkImportView = ContractModule266.NetworkImportView;
+export type NetworkSourcesView = ContractModule302.NetworkSourcesView;
 
-export type NetworkSearchView = ContractModule266.NetworkSearchView;
+export type NextBestStep = ContractModule302.NextBestStep;
 
-export type NetworkSourcesView = ContractModule266.NetworkSourcesView;
+export type NoteChangeView = ContractModule302.NoteChangeView;
 
-export type NextBestStep = ContractModule266.NextBestStep;
+export type NotificationView = ContractModule302.NotificationView;
 
-export type NoteChangeView = ContractModule266.NoteChangeView;
+export type NotifyDigestView = ContractModule302.NotifyDigestView;
 
-export type NotificationView = ContractModule266.NotificationView;
+export type NotifySettingsView = ContractModule302.NotifySettingsView;
 
-export type NotifyDigestView = ContractModule266.NotifyDigestView;
+export type OrderContract = ContractModule302.OrderContract;
 
-export type NotifySettingsView = ContractModule266.NotifySettingsView;
+export type OrderContractView = ContractModule302.OrderContractView;
 
-export type OrderContract = ContractModule266.OrderContract;
+export type OrderStageId = ContractModule302.OrderStageId;
 
-export type OrderContractView = ContractModule266.OrderContractView;
+export type OrderStageReason = ContractModule302.OrderStageReason;
 
-export type OrderStageId = ContractModule266.OrderStageId;
+export type OrderStageView = ContractModule302.OrderStageView;
 
-export type OrderStageReason = ContractModule266.OrderStageReason;
+export type OrderWaitsOnYou = ContractModule302.OrderWaitsOnYou;
 
-export type OrderStageView = ContractModule266.OrderStageView;
+export type OutreachChannel = ContractModule302.OutreachChannel;
 
-export type OrderWaitsOnYou = ContractModule266.OrderWaitsOnYou;
+export type OutreachDraftView = ContractModule302.OutreachDraftView;
 
-export type OutreachChannel = ContractModule266.OutreachChannel;
+export type OutreachHandoff = ContractModule302.OutreachHandoff;
 
-export type OutreachDraftView = ContractModule266.OutreachDraftView;
+export type OutreachKind = ContractModule302.OutreachKind;
 
-export type OutreachHandoff = ContractModule266.OutreachHandoff;
+export type OutreachLane = ContractModule302.OutreachLane;
 
-export type OutreachKind = ContractModule266.OutreachKind;
+export type OutreachLanguage = ContractModule302.OutreachLanguage;
 
-export type OutreachLane = ContractModule266.OutreachLane;
+export type OutreachSentChannel = ContractModule302.OutreachSentChannel;
 
-export type OutreachLanguage = ContractModule266.OutreachLanguage;
+export type OutreachView = ContractModule302.OutreachView;
 
-export type OutreachSentChannel = ContractModule266.OutreachSentChannel;
+export type OwnerView = ContractModule302.OwnerView;
 
-export type OutreachView = ContractModule266.OutreachView;
+export type PaymentMethod = ContractModule302.PaymentMethod;
 
-export type OwnerView = ContractModule266.OwnerView;
+export type PeopleView = ContractModule302.PeopleView;
 
-export type PaymentMethod = ContractModule266.PaymentMethod;
+export type PersonSummary = ContractModule302.PersonSummary;
 
-export type PeopleView = ContractModule266.PeopleView;
+export type PersonView = ContractModule302.PersonView;
 
-export type PersonSummary = ContractModule266.PersonSummary;
+export type PersonaFields = ContractModule302.PersonaFields;
 
-export type PersonView = ContractModule266.PersonView;
+export type PersonaView = ContractModule302.PersonaView;
 
-export type PersonaFields = ContractModule266.PersonaFields;
+export type PhoneAccessView = ContractModule302.PhoneAccessView;
 
-export type PersonaView = ContractModule266.PersonaView;
+export type PipelineCaps = ContractModule302.PipelineCaps;
 
-export type PhoneAccessView = ContractModule266.PhoneAccessView;
+export type PipelineCardView = ContractModule302.PipelineCardView;
 
-export type PipelineCaps = ContractModule266.PipelineCaps;
+export type PipelineQuoteView = ContractModule302.PipelineQuoteView;
 
-export type PipelineCardView = ContractModule266.PipelineCardView;
+export type PipelineSettingsView = ContractModule302.PipelineSettingsView;
 
-export type PipelineQuoteView = ContractModule266.PipelineQuoteView;
+export type PipelineStage = ContractModule302.PipelineStage;
 
-export type PipelineSettingsView = ContractModule266.PipelineSettingsView;
+export type PipelineView = ContractModule302.PipelineView;
 
-export type PipelineStage = ContractModule266.PipelineStage;
+export type PlanChangeView = ContractModule302.PlanChangeView;
 
-export type PipelineView = ContractModule266.PipelineView;
+export type PlanSuggestionView = ContractModule302.PlanSuggestionView;
 
-export type PlanChangeView = ContractModule266.PlanChangeView;
+export type PlatformRuleView = ContractModule302.PlatformRuleView;
 
-export type PlanSuggestionView = ContractModule266.PlanSuggestionView;
+export type PlaybookPick = ContractModule302.PlaybookPick;
 
-export type PlatformRuleView = ContractModule266.PlatformRuleView;
+export type PostingLimitsView = ContractModule302.PostingLimitsView;
 
-export type PlaybookPick = ContractModule266.PlaybookPick;
+export type PostingProposal = ContractModule302.PostingProposal;
 
-export type PostingLimitsView = ContractModule266.PostingLimitsView;
+export type PostingStepId = ContractModule302.PostingStepId;
 
-export type PostingProposal = ContractModule266.PostingProposal;
+export type PostingStepsView = ContractModule302.PostingStepsView;
 
-export type PostingStepId = ContractModule266.PostingStepId;
+export type Posture = ContractModule302.Posture;
 
-export type PostingStepsView = ContractModule266.PostingStepsView;
+export type PreviewFigure = ContractModule302.PreviewFigure;
 
-export type Posture = ContractModule266.Posture;
+export type PreviewLength = ContractModule302.PreviewLength;
 
-export type PreviewFigure = ContractModule266.PreviewFigure;
+export type PreviewReceiptKind = ContractModule302.PreviewReceiptKind;
 
-export type PreviewLength = ContractModule266.PreviewLength;
+export type PreviewWords = ContractModule302.PreviewWords;
 
-export type PreviewReceiptKind = ContractModule266.PreviewReceiptKind;
+export type PriceGuideView = ContractModule302.PriceGuideView;
 
-export type PreviewWords = ContractModule266.PreviewWords;
+export type PriceRangeView = ContractModule302.PriceRangeView;
 
-export type PriceGuideView = ContractModule266.PriceGuideView;
+export type PriceSourceView = ContractModule302.PriceSourceView;
 
-export type PriceRangeView = ContractModule266.PriceRangeView;
+export type PricingModel = ContractModule302.PricingModel;
 
-export type PriceSourceView = ContractModule266.PriceSourceView;
+export type ProposalKind = ContractModule302.ProposalKind;
 
-export type PricingModel = ContractModule266.PricingModel;
+export type ProposalStatus = ContractModule302.ProposalStatus;
 
-export type ProposalKind = ContractModule266.ProposalKind;
+export type ProposalView = ContractModule302.ProposalView;
 
-export type ProposalStatus = ContractModule266.ProposalStatus;
+export type PushSubscriptionInput = ContractModule302.PushSubscriptionInput;
 
-export type ProposalView = ContractModule266.ProposalView;
+export type QuestionCard = ContractModule302.QuestionCard;
 
-export type PushSubscriptionInput = ContractModule266.PushSubscriptionInput;
+export type QuestionItem = ContractModule302.QuestionItem;
 
-export type QuestionCard = ContractModule266.QuestionCard;
+export type QuestionOption = ContractModule302.QuestionOption;
 
-export type QuestionItem = ContractModule266.QuestionItem;
+export type QueueAction = ContractModule302.QueueAction;
 
-export type QuestionOption = ContractModule266.QuestionOption;
+export type QueueActionId = ContractModule302.QueueActionId;
 
-export type QueueAction = ContractModule266.QueueAction;
+export type QueueAmount = ContractModule302.QueueAmount;
 
-export type QueueActionId = ContractModule266.QueueActionId;
+export type QueueChange = ContractModule302.QueueChange;
 
-export type QueueAmount = ContractModule266.QueueAmount;
+export type QueueCount = ContractModule302.QueueCount;
 
-export type QueueChange = ContractModule266.QueueChange;
+export type QueueDecision = ContractModule302.QueueDecision;
 
-export type QueueCount = ContractModule266.QueueCount;
+export type QueueItemView = ContractModule302.QueueItemView;
 
-export type QueueDecision = ContractModule266.QueueDecision;
+export type QueueKind = ContractModule302.QueueKind;
 
-export type QueueItemView = ContractModule266.QueueItemView;
+export type QueueList = ContractModule302.QueueList;
 
-export type QueueKind = ContractModule266.QueueKind;
+export type QueuePreview = ContractModule302.QueuePreview;
 
-export type QueueList = ContractModule266.QueueList;
+export type QueueRow = ContractModule302.QueueRow;
 
-export type QueuePreview = ContractModule266.QueuePreview;
+export type QueueRowMeta = ContractModule302.QueueRowMeta;
 
-export type QueueRow = ContractModule266.QueueRow;
+export type QueueSendsTo = ContractModule302.QueueSendsTo;
 
-export type QueueRowMeta = ContractModule266.QueueRowMeta;
+export type QueueSetPreview = ContractModule302.QueueSetPreview;
 
-export type QueueSendsTo = ContractModule266.QueueSendsTo;
+export type RankedOptionView = ContractModule302.RankedOptionView;
 
-export type QueueSetPreview = ContractModule266.QueueSetPreview;
+export type RateCardLine = ContractModule302.RateCardLine;
 
-export type RankedOptionView = ContractModule266.RankedOptionView;
+export type ReceiptVerifyView = ContractModule302.ReceiptVerifyView;
 
-export type RateCardLine = ContractModule266.RateCardLine;
+export type RecipeView = ContractModule302.RecipeView;
 
-export type ReceiptVerifyView = ContractModule266.ReceiptVerifyView;
+export type RecurringInvoiceView = ContractModule302.RecurringInvoiceView;
 
-export type RecipeView = ContractModule266.RecipeView;
+export type ReportItem = ContractModule302.ReportItem;
 
-export type RecurringInvoiceView = ContractModule266.RecurringInvoiceView;
+export type RetireCheckView = ContractModule302.RetireCheckView;
 
-export type ReportItem = ContractModule266.ReportItem;
+export type RetireInFlight = ContractModule302.RetireInFlight;
 
-export type RetireCheckView = ContractModule266.RetireCheckView;
+export type RetiredAgentView = ContractModule302.RetiredAgentView;
 
-export type RetireInFlight = ContractModule266.RetireInFlight;
+export type RoleModelView = ContractModule302.RoleModelView;
 
-export type RetiredAgentView = ContractModule266.RetiredAgentView;
+export type RoutineInput = ContractModule302.RoutineInput;
 
-export type RoleModelView = ContractModule266.RoleModelView;
+export type RoutineRunState = ContractModule302.RoutineRunState;
 
-export type RoutineInput = ContractModule266.RoutineInput;
+export type RoutineSchedule = ContractModule302.RoutineSchedule;
 
-export type RoutineRunState = ContractModule266.RoutineRunState;
+export type RoutineSuggestion = ContractModule302.RoutineSuggestion;
 
-export type RoutineSchedule = ContractModule266.RoutineSchedule;
+export type RoutineView = ContractModule302.RoutineView;
 
-export type RoutineSuggestion = ContractModule266.RoutineSuggestion;
+export type RowFigure = ContractModule302.RowFigure;
 
-export type RoutineView = ContractModule266.RoutineView;
+export type RowFigureReceipt = ContractModule302.RowFigureReceipt;
 
-export type RowFigure = ContractModule266.RowFigure;
+export type RulesListView = ContractModule302.RulesListView;
 
-export type RowFigureReceipt = ContractModule266.RowFigureReceipt;
+export type RunControlResult = ContractModule302.RunControlResult;
 
-export type RulesListView = ContractModule266.RulesListView;
+export type RunDetail = ContractModule302.RunDetail;
 
-export type RunControlResult = ContractModule266.RunControlResult;
+export type RunScopeView = ContractModule302.RunScopeView;
 
-export type RunDetail = ContractModule266.RunDetail;
+export type RunState = ContractModule302.RunState;
 
-export type RunScopeView = ContractModule266.RunScopeView;
+export type RunStep = ContractModule302.RunStep;
 
-export type RunState = ContractModule266.RunState;
+export type RunSummary = ContractModule302.RunSummary;
 
-export type RunStep = ContractModule266.RunStep;
+export type RunToolLine = ContractModule302.RunToolLine;
 
-export type RunSummary = ContractModule266.RunSummary;
+export type ScoreRule = ContractModule302.ScoreRule;
 
-export type RunToolLine = ContractModule266.RunToolLine;
+export type SearchResultView = ContractModule302.SearchResultView;
 
-export type ScoreRule = ContractModule266.ScoreRule;
+export type SearchWebState = ContractModule302.SearchWebState;
 
-export type SearchResultView = ContractModule266.SearchResultView;
+export type SeriesPoint = ContractModule302.SeriesPoint;
 
-export type SearchWebState = ContractModule266.SearchWebState;
+export type ServiceType = ContractModule302.ServiceType;
 
-export type SeriesPoint = ContractModule266.SeriesPoint;
+export type SettingsDraftView = ContractModule302.SettingsDraftView;
 
-export type ServiceType = ContractModule266.ServiceType;
+export type ShadowSummaryView = ContractModule302.ShadowSummaryView;
 
-export type SettingsDraftView = ContractModule266.SettingsDraftView;
+export type SharePrice = ContractModule302.SharePrice;
 
-export type ShadowSummaryView = ContractModule266.ShadowSummaryView;
+export type SignedReceiptsFile = ContractModule302.SignedReceiptsFile;
 
-export type SharePrice = ContractModule266.SharePrice;
+export type SiteEditState = ContractModule302.SiteEditState;
 
-export type SignedReceiptsFile = ContractModule266.SignedReceiptsFile;
+export type SocialCalendarFile = ContractModule302.SocialCalendarFile;
 
-export type SiteEditState = ContractModule266.SiteEditState;
+export type SpendLead = ContractModule302.SpendLead;
 
-export type SocialCalendarFile = ContractModule266.SocialCalendarFile;
+export type SpendMeterRowView = ContractModule302.SpendMeterRowView;
 
-export type SpendLead = ContractModule266.SpendLead;
+export type SpendMeterView = ContractModule302.SpendMeterView;
 
-export type SpendMeterRowView = ContractModule266.SpendMeterRowView;
+export type SpendMetersView = ContractModule302.SpendMetersView;
 
-export type SpendMeterView = ContractModule266.SpendMeterView;
+export type SpendPolicyView = ContractModule302.SpendPolicyView;
 
-export type SpendMetersView = ContractModule266.SpendMetersView;
+export type SpendRateInput = ContractModule302.SpendRateInput;
 
-export type SpendPolicyView = ContractModule266.SpendPolicyView;
+export type SpendRateUnit = ContractModule302.SpendRateUnit;
 
-export type SpendRateInput = ContractModule266.SpendRateInput;
+export type SpendRow = ContractModule302.SpendRow;
 
-export type SpendRateUnit = ContractModule266.SpendRateUnit;
+export type StandingOrderView = ContractModule302.StandingOrderView;
 
-export type SpendRow = ContractModule266.SpendRow;
+export type StandingOrdersView = ContractModule302.StandingOrdersView;
 
-export type StandingOrderView = ContractModule266.StandingOrderView;
+export type StandingPlaybookView = ContractModule302.StandingPlaybookView;
 
-export type StandingOrdersView = ContractModule266.StandingOrdersView;
+export type StandingStepView = ContractModule302.StandingStepView;
 
-export type StandingPlaybookView = ContractModule266.StandingPlaybookView;
+export type StandingUndoView = ContractModule302.StandingUndoView;
 
-export type StandingStepView = ContractModule266.StandingStepView;
+export type StatTileView = ContractModule302.StatTileView;
 
-export type StandingUndoView = ContractModule266.StandingUndoView;
+export type TaxWorkingLine = ContractModule302.TaxWorkingLine;
 
-export type StatTileView = ContractModule266.StatTileView;
+export type TaxWorkingSection = ContractModule302.TaxWorkingSection;
 
-export type TaxWorkingLine = ContractModule266.TaxWorkingLine;
+export type TeamListView = ContractModule302.TeamListView;
 
-export type TaxWorkingSection = ContractModule266.TaxWorkingSection;
+export type TelegramView = ContractModule302.TelegramView;
 
-export type TeamListView = ContractModule266.TeamListView;
+export type TieBand = ContractModule302.TieBand;
 
-export type TelegramView = ContractModule266.TelegramView;
+export type TotalBasis = ContractModule302.TotalBasis;
 
-export type TieBand = ContractModule266.TieBand;
+export type TranscriptionSetupView = ContractModule302.TranscriptionSetupView;
 
-export type TotalBasis = ContractModule266.TotalBasis;
+export type TriageField = ContractModule302.TriageField;
 
-export type TranscriptionSetupView = ContractModule266.TranscriptionSetupView;
+export type TriagePreview = ContractModule302.TriagePreview;
 
-export type TriageField = ContractModule266.TriageField;
+export type TriageRule = ContractModule302.TriageRule;
 
-export type TriagePreview = ContractModule266.TriagePreview;
+export type VenturePayloads = ContractModule302.VenturePayloads;
 
-export type TriageRule = ContractModule266.TriageRule;
+export type VentureResults = ContractModule302.VentureResults;
 
-export type VenturePayloads = ContractModule266.VenturePayloads;
+export type VentureRunEvent = ContractModule302.VentureRunEvent;
 
-export type VentureResults = ContractModule266.VentureResults;
+export type VentureRunEventType = ContractModule302.VentureRunEventType;
 
-export type VentureRunEvent = ContractModule266.VentureRunEvent;
+export type VoiceInput = ContractModule302.VoiceInput;
 
-export type VentureRunEventType = ContractModule266.VentureRunEventType;
+export type VoiceSections = ContractModule302.VoiceSections;
 
-export type VoiceInput = ContractModule266.VoiceInput;
+export type VoiceView = ContractModule302.VoiceView;
 
-export type VoiceSections = ContractModule266.VoiceSections;
+export type WarmPathView = ContractModule302.WarmPathView;
 
-export type VoiceView = ContractModule266.VoiceView;
+export type WayCategory = ContractModule302.WayCategory;
 
-export type WarmPathView = ContractModule266.WarmPathView;
+export type WayNeeds = ContractModule302.WayNeeds;
 
-export type WayCategory = ContractModule266.WayCategory;
+export type WayView = ContractModule302.WayView;
 
-export type WayNeeds = ContractModule266.WayNeeds;
+export type WaysView = ContractModule302.WaysView;
 
-export type WayView = ContractModule266.WayView;
+export type WriteCapKind = ContractModule302.WriteCapKind;
 
-export type WaysView = ContractModule266.WaysView;
-
-export type WriteCapKind = ContractModule266.WriteCapKind;
-
-export type WriteCapView = ContractModule266.WriteCapView;
+export type WriteCapView = ContractModule302.WriteCapView;

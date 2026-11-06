@@ -1,8 +1,9 @@
 // C2 demo pack approvals use the real pure validators and workbook XML, with browser ZIP storage.
-import {ownerPack} from '../../../../platform/runtime/venture/playbooks/ca-firm/owner-input';
-import {digest} from '../../../../platform/runtime/portable';
-import {packReceipt,packFacts,packSelection,maskedPack,packRows,type PackFacts,type PackSelection} from '../../../../platform/runtime/venture/playbooks/ca-firm/pack-core';
-import {xlsxParts} from '../../../../platform/runtime/venture/playbooks/kit/ooxml/xlsx-parts';
+import { ownerPack } from '../../../../platform/shared/venture/playbooks/ca-firm/owner-input.ts';
+import { digest } from '../../../../platform/shared/portable.ts';
+import { packReceipt, packFacts, packSelection, maskedPack, packRows } from '../../../../platform/shared/venture/playbooks/ca-firm/pack-core.ts';
+import type { PackFacts, PackSelection } from '../../../../platform/runtime/venture/playbooks/ca-firm/pack-core.ts';
+import { xlsxParts } from '../../../../platform/shared/venture/playbooks/kit/ooxml/xlsx-parts.ts';
 import {storedZip} from './fake-kit-report';
 import type {W4DeskHost} from './fake-w4';import type {FakeDeskKind,FakeForgottenPerson} from './fake-playbooks';
 import type {ClientLite} from './types';import {caCheck as check,caExact as exact,caCall as call} from './fake-ca-core';

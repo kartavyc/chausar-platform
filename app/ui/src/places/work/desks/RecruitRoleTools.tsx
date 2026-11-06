@@ -7,7 +7,7 @@ import {Field} from '../../../parts/Field';
 import {Count} from '../../../parts/Figure';
 import {Tile,TileHead} from '../../../parts/Tile';
 import type {RecruitRoleView,RecruitTouchView,RecruitAct} from './recruiting-types';
-import type {recruitReportView,recruitBatch} from '../../../../../../platform/runtime/venture/playbooks/recruiting-desk/round-core';
+import type { recruitReportView, recruitBatch } from '../../../../../../platform/runtime/venture/playbooks/recruiting-desk/round-core.ts';
 import s from './RecruitingDesk.module.css';
 import { Fold } from '../../../parts/Fold';
 import { Select } from '../../../parts/Select';

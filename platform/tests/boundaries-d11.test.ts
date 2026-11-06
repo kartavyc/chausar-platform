@@ -1,7 +1,7 @@
 // D11a task 1: scripts/check-boundaries.mjs. platform/shared and platform/contract import no node: module and nothing
 // from platform/runtime; app/ui/src value-imports from platform/ only through platform/shared or platform/contract
 // (`import type` from platform/runtime stays allowed: it is erased). The script is copied into a temp tree with one
-// good and one bad file each way. The real tree is checked in report mode until D11a task 2 moves the helpers.
+// good and one bad file each way. The real tree is checked strictly after D11a task 2 moves the helpers.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -71,13 +71,21 @@ test('--report prints the same crossings and does not fail', async t => {
   assert.equal(run('--unknown').status, 2);
 });
 
-test('the real tree runs in report mode (the UI value imports go in D11a task 2)', () => {
-  const result = spawnSync(process.execPath, [fileURLToPath(SCRIPT), '--report'], { encoding: 'utf8', windowsHide: true, timeout: 60_000 });
+test('the real tree has no browser boundary crossings', () => {
+  const result = spawnSync(process.execPath, [fileURLToPath(SCRIPT)], { encoding: 'utf8', windowsHide: true, timeout: 60_000 });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /boundary crossings|No boundary crossings/);
+  assert.match(result.stdout, /No boundary crossings/);
 });
 
-test('the CI lint job runs the boundary check in report mode', async () => {
+test('the CI lint job refuses browser boundary crossings', async () => {
   const workflow = (await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
-  assert.match(workflow, /^ {8}run: node scripts\/check-boundaries\.mjs --report$/m);
+  assert.match(workflow, /^ {8}run: node scripts\/check-boundaries\.mjs$/m);
+});
+
+
+
+test('the shared path checker requires an explicit platform and no Node globals', async () => {
+  const source = await readFile(new URL('../shared/local-paths.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /\bprocess\.platform\b/);
+  assert.match(source, /platform: string\)/);
 });

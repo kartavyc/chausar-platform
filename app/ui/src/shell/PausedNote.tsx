@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useEngine, useResource } from '../engine/context';
 import { useT } from '../text';
 import { Button } from '../parts/Button';
 import { Icon } from '../parts/Icon';
 import { refusalWords } from '../parts/custody';
+import { Reveal } from '../parts/RevealBlock';
 import s from './StorageNotice.module.css';
 
 /**
@@ -21,6 +22,8 @@ export function PausedNote() {
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ line: string; problem: boolean } | null>(null);
   const paused = venture.data?.paused;
+  const lastLine = useRef('');
+  if (paused) lastLine.current = paused.line;
 
   async function unpause() {
     if (busy) return;
@@ -38,14 +41,15 @@ export function PausedNote() {
   }
 
   const result = said && <p className={s.notice} role={said.problem ? 'alert' : 'status'}>{said.line}</p>;
-  if (!paused) return result || null;
   return (
     <>
+      <Reveal open={Boolean(paused)}>
       <p className={s.notice} role="note" data-paused="">
         <Icon name="clock" size={16} className={s.icon} />
-        <span>{paused.line}</span>
-        <Button size="sm" disabled={busy} onClick={() => void unpause()}>{t('business.unpause')}</Button>
+        <span>{lastLine.current}</span>
+        <Button size="sm" disabled={busy || !paused} onClick={() => void unpause()}>{t('business.unpause')}</Button>
       </p>
+      </Reveal>
       {result}
     </>
   );

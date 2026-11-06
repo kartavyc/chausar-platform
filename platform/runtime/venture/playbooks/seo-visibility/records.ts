@@ -1,39 +1,9 @@
+import type { PanelSpec, SeoObservationBody, SeoPanelBody, WebsiteCheckData } from '../../../../contract/venture/playbooks/seo-visibility/records.ts';
+export type { PanelSpec, SeoObservationBody, SeoPanelBody, WebsiteCheckData } from '../../../../contract/venture/playbooks/seo-visibility/records.ts';
 // Chausar SEO panel records. GEOHub (AGPL, ideas only); independent schema, no copied source.
-export type PanelSpec = {
-    questions: {
-        id: string;
-        text: string;
-    }[];
-    engines: string[];
-    timepoints: {
-        id: string;
-        from: string;
-        to: string;
-    }[];
-    repeats: number;
-    minimumFilled: number;
-};
-export type SeoPanelBody = {
-    spec: PanelSpec;
-    state: 'draft' | 'approved';
-    approvedDigest: string | null;
-    orderId: string | null;
-};
-export type SeoObservationBody = {
-    panelId: string;
-    panelDigest: string;
-    questionId: string;
-    engine: string;
-    timepointId: string;
-    repeat: number;
-    capturedAt: string;
-    method: 'owner-capture' | 'api';
-    screenshotFileId: string | null;
-    answer: string;
-    mentioned: boolean;
-    fixture: boolean;
-    slot: string;
-};
+
+
+
 /** Findings remain a separate type for the refresh package; they never imply applied fixes. */
 export type SeoFindingBody = {
     publication?: SeoPublication;
@@ -52,23 +22,7 @@ export type SeoPublication={runId:string;orderId:string;draftDigest:string;conne
 export type SeoEdgeBinding={editId:string;runId:string;orderId:string;draftDigest:string;connectionDigest:string};
 export type SeoStrategy={workId:string;panelId:string;orderId:string;candidateDigest:string;fidelityDigest:string;experimentDigest:string;panelDigest:string;publicationId:string|null;publicationDigest:string|null;receiptDigest:string|null;state:'candidate'|'held'|'remembered'|'stopped';measurementReceipt:string|null;checkedAt:string|null;line:string};
 /** A website report stored without the original large JSON bundle. */
-export type WebsiteCheckData = {
-    url: string;
-    receipt: string;
-    findings: {
-        what: string;
-        selector: string;
-        measured: string;
-        expected: string;
-        fix: string;
-        repeats: number;
-        unresolved: boolean;
-    }[];
-    approved: boolean;
-    previousReceipt: string | null;
-    checkedFrames: number;
-    limits: string;
-};
+
 export type SeoWebsiteItem = {
     id: string;
     report: WebsiteCheckData;

@@ -1,11 +1,12 @@
 // Original source-bound question ledger, preserving unsaved answers while another row is saved.
 import {useEffect,useState} from 'react';
-import type {Json} from '../../../../../../platform/runtime/portable';
-import {TENDER_KINDS,TENDER_TONES,type TenderKind} from '../../../../../../platform/runtime/venture/playbooks/tender-desk/questions';
+import type { Json } from '../../../../../../platform/runtime/portable.ts';
+import { TENDER_KINDS, TENDER_TONES } from '../../../../../../platform/shared/venture/playbooks/tender-desk/questions.ts';
+import type { TenderKind } from '../../../../../../platform/runtime/venture/playbooks/tender-desk/questions.ts';
 import type {TenderQuestionBody} from '../../../../../../platform/runtime/venture/playbooks/tender-desk/records';
-import type {groundTenderAnswer,aggregateTenderGaps} from '../../../../../../platform/runtime/venture/playbooks/tender-desk/ground';
-import {tenderApproved} from '../../../../../../platform/runtime/venture/playbooks/tender-desk/state';
-import type {TenderMoneyReceipt} from '../../../../../../platform/runtime/venture/playbooks/tender-desk/money';
+import type { groundTenderAnswer, aggregateTenderGaps } from '../../../../../../platform/runtime/venture/playbooks/tender-desk/ground.ts';
+import { tenderApproved } from '../../../../../../platform/shared/venture/playbooks/tender-desk/state.ts';
+import type { TenderMoneyReceipt } from '../../../../../../platform/runtime/venture/playbooks/tender-desk/money.ts';
 import {Sheet} from '../../../parts/Sheet';
 import {useT} from '../../../text';
 import {Tile,TileHead} from '../../../parts/Tile';

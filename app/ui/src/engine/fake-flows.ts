@@ -6,7 +6,7 @@
  */
 
 import { EngineError } from './types';
-import { FLOW_WORDS, originProblem } from '../../../../platform/runtime/venture/flows/flow-words';
+import { FLOW_WORDS, originProblem } from '../../../../platform/shared/venture/flows/flow-words.ts';
 
 const METHODS = new Set(['venture.flows.list', 'venture.flows.act']);
 const ACTIONS = ['record', 'dry-run', 'approve', 'run', 'continue', 'repair', 'stop'];

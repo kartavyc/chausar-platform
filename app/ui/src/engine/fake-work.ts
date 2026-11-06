@@ -3,24 +3,25 @@ import {FakePhoneDelivery} from './fake-phone-delivery';
 import {FakeDevDelivery} from './fake-dev-delivery';
 import {FakeCareerDelivery} from './fake-career-delivery';
 import {FakeVaDelivery} from './fake-va-delivery';
-import {taxDecision} from '../../../../platform/runtime/venture/money/tax-decision';
-import {computeInclusivePrice,splitsInclusive} from '../../../../platform/runtime/venture/money/price-inclusive';
-import {computePrice} from '../../../../platform/runtime/venture/money/price';
-import {currencyMinorDigits,decimalMinor,formatMinor} from '../../../../platform/runtime/currency';
-import {formatMoney} from '../../../../platform/runtime/owner-format';
-import {countryProfile} from '../../../../platform/runtime/venture/core/countries';
-import {digest as priceDigest} from '../../../../platform/runtime/portable';
-import type {RoomPrice} from '../../../../platform/runtime/venture/playbooks/kit/client-room-core';
+import { taxDecision } from '../../../../platform/shared/venture/money/tax-decision.ts';
+import { computeInclusivePrice, splitsInclusive } from '../../../../platform/shared/venture/money/price-inclusive.ts';
+import { computePrice } from '../../../../platform/shared/venture/money/price.ts';
+import { currencyMinorDigits, decimalMinor, formatMinor } from '../../../../platform/shared/currency.ts';
+import { formatMoney } from '../../../../platform/shared/owner-format.ts';
+import { countryProfile } from '../../../../platform/shared/venture/core/countries.ts';
+import { digest as priceDigest } from '../../../../platform/shared/portable.ts';
+import type { RoomPrice } from '../../../../platform/runtime/venture/playbooks/kit/client-room-core.ts';
 import type {QueueItemView,ReceiptLite} from './types';
 import {FakeYoutubeServiceRun} from './fake-youtube-service-run';
 import {fakeYoutubeMediaIntake} from './fake-youtube-intake';
-import {isYoutubeService,validateYoutubeServiceIntake} from '../../../../platform/runtime/venture/playbooks/youtube/service-fields';
+import { isYoutubeService, validateYoutubeServiceIntake } from '../../../../platform/shared/venture/playbooks/youtube/service-fields.ts';
 import {hasDocx,checkFakeDocx} from './fake-manuscript-upload';
-import {SITE_FORM_RULE} from '../../../../platform/runtime/venture/playbooks/website-studio/legal-core';
-import {NEWSLETTER_PRIVACY_RULE} from '../../../../platform/runtime/venture/playbooks/newsletter-studio/legal-core';
+import { SITE_FORM_RULE } from '../../../../platform/shared/venture/playbooks/website-studio/legal-core.ts';
+import { NEWSLETTER_PRIVACY_RULE } from '../../../../platform/shared/venture/playbooks/newsletter-studio/legal-core.ts';
 import {fakeSellerPreflight} from './fake-seller-preflight';
 import {fakeRecruitPreflight} from './fake-recruiting-preflight';
-import {figureWords,templateOutline,TEMPLATE_OUTLINE_LINE,type TemplateOutline} from '../../../../platform/runtime/venture/delivery/template-outline';
+import { figureWords, templateOutline, TEMPLATE_OUTLINE_LINE } from '../../../../platform/shared/venture/delivery/template-outline.ts';
+import type { TemplateOutline } from '../../../../platform/runtime/venture/delivery/template-outline.ts';
 import {reviewTemplate} from './fake-template-review';
 /**
  * Orders, delivery runs and client files for the fake engine (the Work place), kept per business. It keeps
@@ -39,9 +40,9 @@ import { fakeSocialIntake, fakeSocialPreflight } from './fake-social-intake';
 import { fakeSocialOfferIntake } from './fake-social-plan';
 import { fakeKitOfferIntake } from './fake-kit-plans';
 import { withFakeOrderSteps } from './fake-previews';
-import { isLiveStage } from '../../../../platform/runtime/venture/core/launch-stage';
-import { ruleCleared } from '../../../../platform/runtime/venture/playbooks/kit/attestation';
-import { FORMS_ACCESS_RULE } from '../../../../platform/runtime/venture/playbooks/data-entry-desk/rules';
+import { isLiveStage } from '../../../../platform/shared/venture/core/launch-stage.ts';
+import { ruleCleared } from '../../../../platform/shared/venture/playbooks/kit/attestation.ts';
+import { FORMS_ACCESS_RULE } from '../../../../platform/shared/venture/playbooks/data-entry-desk/rules.ts';
 import { fakeAttested } from './fake-rules-attest';
 import { EngineError, type BlueprintViewLite, type ClientLite, type DeliveryLite, type InvoiceLite, type OfferIntakeLite, type OrderLite, type RunDetail, type UploadLite, type UiRunEvent } from './types';
 
@@ -55,18 +56,18 @@ const FORMAT_OF: Readonly<Record<string, UploadLite['format']>> = { csv: 'csv', 
 const RIGHTS_WORDS: Readonly<Record<string, string>> = { 'own-footage': "the client's own footage", licence: 'a licence from the rights holder', 'creator-clip-programme': "the creator's clip programme" };
 
 export interface WorkHost {
-  r5Report?(orderId:string):import('../../../../platform/runtime/venture/playbooks/monitored-data/report').WatchReport|import('../../../../platform/runtime/venture/playbooks/it-triage/report').TriageReport;
-  phoneReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/phone-receptionist/report').PhoneReport;
+  r5Report?(orderId:string):import('../../../../platform/shared/venture/playbooks/monitored-data/report.ts').WatchReport|import('../../../../platform/shared/venture/playbooks/it-triage/report.ts').TriageReport;
+  phoneReport?(orderId:string):import('../../../../platform/shared/venture/playbooks/phone-receptionist/report.ts').PhoneReport;
   formsSource?(orderId:string):void;
   testingSource?(orderId:string):void;
-  careerSource?(orderId:string):import('./fake-career-source').CareerDeliverySource;
-  devReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/dev-agency/report').DevReport;
-  vaBrief?(orderId:string,expected?:string):import('../../../../platform/runtime/venture/playbooks/kit/client-room-core').RoomBrief;
+  careerSource?(orderId:string):import('./fake-career-source.ts').CareerDeliverySource;
+  devReport?(orderId:string):import('../../../../platform/shared/venture/playbooks/dev-agency/report.ts').DevReport;
+  vaBrief?(orderId:string,expected?:string):import('../../../../platform/shared/venture/playbooks/kit/client-room-core.ts').RoomBrief;
   /** W6 6E5: the sign-off gate on Accept (the engine's kit/signoff-gate.ts). */
   signoffBlock?(run:DeliveryLite):string|null;
   recruitDigest?(value:unknown):string;
-  rows?(): import('./types').QueueRow[];
-  setRows?(rows:import('./types').QueueRow[]):void;
+  rows?(): import('./types.ts').QueueRow[];
+  setRows?(rows:import('./types.ts').QueueRow[]):void;
   hosted?(): boolean;
   current(): string;
   now(): string;
@@ -372,7 +373,7 @@ export class FakeWorkDesk {
       }
       rawIntake = { ...body, fields };
     }
-    const keptIntake = ask?.kit && plan.playbook?.id==='youtube' && offer.playbookOffer==='screencast-tutorial' ? fakeYoutubeMediaIntake(rawIntake,ask,{currency:this.host.country().currency,by:'owner',at:this.host.now(),today:new Date(Date.parse(this.host.now())+19800000).toISOString().slice(0,10),hosted:this.host.hosted?.()},()=>this.host.ask?.('venture.voiceConsent.list',{}) as import('./types').VoiceConsentsView??{consents:[],line:''}) : ask?.kit && plan.playbook?.id === 'social-agency' ? fakeSocialIntake(rawIntake, ask, offer.playbookOffer!, { currency: this.host.country().currency, by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10), hosted: this.host.hosted?.() }, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? {consents:[],line:''}) : ask?.kit ? fakeKitIntake(rawIntake, ask, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types').VoiceConsentsView ?? { consents: [], line: '' }, { currency: this.host.country().currency, by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10) }) : rawIntake;
+    const keptIntake = ask?.kit && plan.playbook?.id==='youtube' && offer.playbookOffer==='screencast-tutorial' ? fakeYoutubeMediaIntake(rawIntake,ask,{currency:this.host.country().currency,by:'owner',at:this.host.now(),today:new Date(Date.parse(this.host.now())+19800000).toISOString().slice(0,10),hosted:this.host.hosted?.()},()=>this.host.ask?.('venture.voiceConsent.list',{}) as import('./types.ts').VoiceConsentsView??{consents:[],line:''}) : ask?.kit && plan.playbook?.id === 'social-agency' ? fakeSocialIntake(rawIntake, ask, offer.playbookOffer!, { currency: this.host.country().currency, by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10), hosted: this.host.hosted?.() }, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types.ts').VoiceConsentsView ?? {consents:[],line:''}) : ask?.kit ? fakeKitIntake(rawIntake, ask, () => this.host.ask?.('venture.voiceConsent.list', {}) as import('./types.ts').VoiceConsentsView ?? { consents: [], line: '' }, { currency: this.host.country().currency, by: 'owner', at: this.host.now(), today: new Date(Date.parse(this.host.now()) + 19800000).toISOString().slice(0, 10) }) : rawIntake;
     if(plan.playbook?.id==='youtube'&&isYoutubeService(offer.playbookOffer))validateYoutubeServiceIntake((keptIntake as OrderLite['intake'])?.fields,offer.playbookOffer!);
     if (ask?.kit && keptIntake && typeof keptIntake === 'object') {
       const values = (keptIntake as NonNullable<OrderLite['intake']>).fields;
@@ -470,7 +471,7 @@ export class FakeWorkDesk {
     if(this.host.current()!==biz)throw new EngineError('APPROVAL_STALE','The business changed. Read the current draft.');
     const runs = this.host.runs();
     const runId = String(Math.max(0, ...runs.map((r) => Number(r.runId)).filter((n) => Number.isInteger(n))) + 1);
-    const status=this.host.ask?.('venture.models.status',{}) as import('./types').ModelStatusLite|undefined;
+    const status=this.host.ask?.('venture.models.status',{}) as import('./types.ts').ModelStatusLite|undefined;
     const template=p.useTemplate===true || status?.tiers.main.presetId==='built-in-templates' || ['dev-agency','job-search-desk','phone-receptionist','app-testing','monitored-data','it-triage'].includes(this.host.plan()?.playbook?.id??'');
     if(!template) {
       const client=this.host.clients().find(client=>client.id===order.clientId);

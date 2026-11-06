@@ -3,9 +3,9 @@ import {fakeAttested} from './fake-rules-attest';
 import {fakeTestingVoice} from './fake-app-testing-voice';
 import {setFakeSpeechAccount} from './fake-speech-account';
 // Original browser demo preparation. Native SDK, Docker and paid providers are never simulated.
-import {check,digest} from '../../../../platform/runtime/portable';
-import {demoPlan} from '../../../../platform/runtime/venture/playbooks/app-testing/demo';
-import {requireAppTestingClientRule} from '../../../../platform/runtime/venture/playbooks/app-testing/rules';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { demoPlan } from '../../../../platform/shared/venture/playbooks/app-testing/demo.ts';
+import { requireAppTestingClientRule } from '../../../../platform/shared/venture/playbooks/app-testing/rules.ts';
 import type {DemoProjectBody} from '../../../../platform/runtime/venture/playbooks/app-testing/demo-records';
 import {EngineError,type OrderLite} from './types';
 import type {FakePlaybookDesk,FakeDeskKind} from './fake-playbooks';import type {W4DeskHost} from './fake-w4';

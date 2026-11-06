@@ -1,8 +1,8 @@
 // Original browser delivery source bridge. It reads only the desk's current saved evidence and real file bytes.
-import {check,digest} from '../../../../platform/runtime/portable';
-import {careerFileBinding} from '../../../../platform/runtime/venture/playbooks/job-search-desk/thread-state';
-import {careerPackBinding} from '../../../../platform/runtime/venture/playbooks/job-search-desk/pack';
-import type {CareerDraftEvidence} from '../../../../platform/runtime/venture/playbooks/job-search-desk/draft-check';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { careerFileBinding } from '../../../../platform/shared/venture/playbooks/job-search-desk/thread-state.ts';
+import { careerPackBinding } from '../../../../platform/shared/venture/playbooks/job-search-desk/pack.ts';
+import type { CareerDraftEvidence } from '../../../../platform/runtime/venture/playbooks/job-search-desk/draft-check.ts';
 import {fakeCareerFilesValid} from './fake-job-search-desk-files';
 import type {CareerFakeState} from './fake-job-search-desk-core';
 export type CareerDeliverySource=CareerDraftEvidence&{sourceBinding:string};

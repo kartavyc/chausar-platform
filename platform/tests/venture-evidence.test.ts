@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+import { ENGINE_HANDLERS } from '../runtime/engine/dispatch.ts';
 // P2-evidence tests: the evidence ledger (fixed weights, strength bands, only verified overwrites, claims checked
 // against the run's real tool results), venture.evidence.list and venture.evidence.apply, the hooks where owners and
 // agents write client and business fields, and the number guard's new rule: a model number is a labelled estimate.
@@ -216,13 +218,13 @@ test('the two evidence methods are registered everywhere a venture method must b
   assert.equal(APP_ONLY_METHODS.includes('venture.evidence.list'), false);
   for (const error of ['EVIDENCE_WEAK', 'EVIDENCE_NOT_FOUND']) assert.ok((VENTURE_ERRORS as readonly string[]).includes(error), error);
   assert.ok((VENTURE_RECORD_KINDS as readonly string[]).includes('venture-evidence'));
-  const ipc = await readFile(new URL('../../app/desktop/ipc-contract.cjs', import.meta.url), 'utf8');
+  const { METHODS: ipc } = createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs');
   const types = await readFile(new URL('../../app/desktop/ipc-contract.d.cts', import.meta.url), 'utf8');
-  const engine = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
+
   for (const method of ['venture.evidence.list', 'venture.evidence.apply']) {
-    assert.ok(ipc.includes(`'${method}'`), `ipc allowlist: ${method}`);
+    assert.ok(ipc.includes(method), `ipc allowlist: ${method}`);
     assert.ok(types.includes(`"${method}"`), `ipc types: ${method}`);
-    assert.ok(engine.includes(`case '${method}':`), `engine routing: ${method}`);
+    assert.equal(typeof ENGINE_HANDLERS[method], 'function', `engine routing: ${method}`);
   }
 });
 

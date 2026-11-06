@@ -1,6 +1,6 @@
-import {COUNTRY_TIME_ZONES} from '../../../../platform/runtime/venture/local-day-data';
+import { COUNTRY_TIME_ZONES } from '../../../../platform/shared/venture/local-day-data.ts';
 // Monthly social reminders are derived from the same due rule as the live queue.
-import { socialRevisionDue } from '../../../../platform/runtime/venture/playbooks/social/revision-due-core';
+import { socialRevisionDue } from '../../../../platform/shared/venture/playbooks/social/revision-due-core.ts';
 import type { OfferLite, OrderLite, QueueRow } from './types';
 
 export function fakeSocialRevisionDueRows(input: {

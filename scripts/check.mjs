@@ -89,7 +89,7 @@ async function main() {
   const guide = await readFile(join(root, 'docs', 'beta-guide.md'), 'utf8').catch(() => null);
   if (guide !== null && await readFile(guideScript, 'utf8').then(() => true, () => false)) {
     const { guideData } = await import(pathToFileURL(guideScript).href);
-    const kept = await readFile(join(root, 'platform', 'runtime', 'venture', 'core', 'guide-data.json'), 'utf8').catch(() => '');
+    const kept = await readFile(join(root, 'platform', 'shared', 'venture', 'core', 'guide-data.json'), 'utf8').catch(() => '');
     if (kept.replace(/\r\n/g, '\n') !== guideData(guide)) { process.stderr.write('guide-data.json is out of date with the guide. Run: node scripts/guide-index.mjs\n'); process.exit(1); }
   }
   const { checkGenerated } = await import('./gen-contract.mjs');

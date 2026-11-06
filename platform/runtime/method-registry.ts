@@ -245,5 +245,3 @@ export const RENDERER_METHODS: readonly string[] = Object.freeze([...CORE_METHOD
 
 /** These trusted local routes are not part of the renderer contract. */
 export const LEGACY_METHODS: readonly string[] = Object.freeze(CORE_METHODS.filter(row => 'legacy' in row && row.legacy).map(row => row.name));
-const legacyMethods: ReadonlySet<string> = new Set(LEGACY_METHODS);
-export const isLegacyMethod = (method: string): boolean => legacyMethods.has(method);

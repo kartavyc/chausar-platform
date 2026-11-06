@@ -149,10 +149,13 @@ describe('7. Chats on a phone: no empty block above the first message', () => {
 });
 
 describe('8. Today: the folds, the stack and the card words', () => {
-  it('the waiting fold is not empty: it lists its line, and its summary shows it opens', async () => {
+  it('the other-business waiting fold is not empty: it lists its cards, and its summary shows it opens', async () => {
     start('#/today');
-    const fold = await waitFor(() => { const found = document.querySelector<HTMLDetailsElement>('[data-today-fold="waiting"]'); expect(found).not.toBeNull(); return found!; });
-    expect(fold.querySelectorAll('li').length).toBeGreaterThan(0);
+    const summary = await screen.findByText(/^Other businesses: \d+ waiting$/, { selector: 'summary' });
+    const fold = summary.closest('details')!;
+    await act(async () => { fireEvent.click(summary); });
+    expect(fold.open).toBe(true);
+    expect(fold.querySelectorAll('[data-row]').length).toBeGreaterThan(0);
     expect(fold.querySelector('summary [data-fold-mark]')).not.toBeNull();
   });
 

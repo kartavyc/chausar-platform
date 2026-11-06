@@ -1,7 +1,7 @@
 import { useEffect, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 import { useT, type T } from '../text';
 import { useOwnerZone } from '../shell/clock';
-import { formatTime } from '../../../../platform/runtime/owner-format';
+import { formatTime } from '../../../../platform/shared/owner-format.ts';
 import { Avatar, ChausarAvatar, type AvatarState, type DeptId } from './Avatar';
 import { Button, type ButtonSize } from './Button';
 import { Change } from './Change';

@@ -2,7 +2,7 @@
 import registry from './fixtures-playbook-picks.json';
 import metadata from './fixtures-social-plan.json';
 import type { BlueprintViewLite, OfferIntakeLite } from './types';
-import {SOCIAL_D2_KEYS} from '../../../../platform/runtime/venture/playbooks/social/d2-core';
+import { SOCIAL_D2_KEYS } from '../../../../platform/shared/venture/playbooks/social/d2-core.ts';
 const CLIPS=['reel-from-clips','hook-variations','local-instagram','cross-posting'];
 const KEYS = ['content-calendar', 'community-replies', 'ugc-ads', 'monthly-report', 'repurpose-pack', 'linkedin-ghostwriting',...SOCIAL_D2_KEYS,'influencer-campaign'];
 export function fakeSocialForIdea(idea: string): boolean {
