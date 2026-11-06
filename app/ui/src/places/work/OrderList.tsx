@@ -76,7 +76,7 @@ const ACTION_FAILED: Record<OrderAction, string> = { start: 'work.failed.start',
  * or approved says "Read draft", which opens it here (DraftSheet.tsx); one that waits on Today for anything else says
  * "Open on Today". The steps from Agreed to Paid wait for the engine's order steps (W4 4J).
  */
-function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boolean; onChanged: () => void }) {
+function OrderCard({ view, canOpen, onChanged, primary }: { view: OrderView; canOpen: boolean; onChanged: () => void; primary: boolean }) {
   const t = useT();
   const client = useEngine();
   const now = useClock();
@@ -184,10 +184,10 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
         {(waitsOnYou(view) || readable || (action && phase !== 'confirm' && !needsConsent)) && (
           <div className={s.orderActs}>
             {readable
-              ? <Button onClick={(event) => openSheet('draft', readable.id, event.currentTarget)}>{t('work.readDraft')}</Button>
+              ? <Button variant={primary ? 'primary' : 'secondary'} onClick={(event) => openSheet('draft', readable.id, event.currentTarget)}>{t('work.readDraft')}</Button>
               : waitsOnYou(view) && <a className={s.linkButton} href="#/today">{t('work.order.onToday')}</a>}
             {action && phase !== 'confirm' && !needsConsent && (
-              <Button variant="primary" data-key="primary" disabled={phase === 'busy'} onClick={() => (action === 'deliver' ? setPhase('confirm') : void act(action))}>
+              <Button variant={primary && !readable ? 'primary' : 'secondary'} data-key="primary" disabled={phase === 'busy'} onClick={() => (action === 'deliver' ? setPhase('confirm') : void act(action))}>
                 {t(ACTION_LABEL[action])}
               </Button>
             )}
@@ -221,11 +221,12 @@ interface ClientOrdersProps {
   views: OrderView[];
   runIds: ReadonlySet<string>;
   onChanged: () => void;
+  primaryId?: string | undefined;
 }
 
 /** D's client group (`.cg`): the client's initials, name (it opens the client sheet), since when, how many orders, and
  *  what they owe with its receipt; then each of their orders as a card. */
-function ClientOrders({ clientId, client, clientsRead, views, runIds, onChanged }: ClientOrdersProps) {
+function ClientOrders({ clientId, client, clientsRead, views, runIds, onChanged, primaryId }: ClientOrdersProps) {
   const t = useT();
   // One-shot C3 task 13: an order that moves within its client's list slides to its new place.
   const cards = useFlip<HTMLUListElement>(views.map((view) => view.order.id).join(' '));
@@ -236,7 +237,7 @@ function ClientOrders({ clientId, client, clientsRead, views, runIds, onChanged 
   const sub = [client ? t('work.client.since', { date: day(client.at) }) : null, t('work.client.orders', { count: views.length })].filter(Boolean).join(' · ');
   const owed = client?.owed && proofOf(client.owed) ? client.owed : undefined;
   return (
-    <Tile as="article" labelledBy={nameId} className={cx(s.clientTile, wide && s.clientTileWide)}>
+    <Tile as="article" plain labelledBy={nameId} className={cx(s.clientTile, wide && s.clientTileWide)}>
       <header className={s.clientHead}>
         <Avatar name={name} size={40} />
         <div className={s.clientWho}>
@@ -255,7 +256,7 @@ function ClientOrders({ clientId, client, clientsRead, views, runIds, onChanged 
         )}
       </header>
       <ul ref={cards} className={cx(s.orderCards, wide && s.orderCardsTwo)}>
-        {views.map((view) => <OrderCard key={view.order.id} view={view} canOpen={!!view.run && runIds.has(view.run.id)} onChanged={onChanged} />)}
+        {views.map((view) => <OrderCard key={view.order.id} view={view} canOpen={!!view.run && runIds.has(view.run.id)} onChanged={onChanged} primary={view.order.id === primaryId} />)}
       </ul>
     </Tile>
   );
@@ -267,6 +268,7 @@ export interface OrderListProps {
   /** Runs the engine lists: an order opens its newest run in the run sheet only when the engine can show it. */
   runIds: ReadonlySet<string>;
   onChanged: () => void;
+  primaryId?: string | undefined;
   /** One order on its own (the order focus): its client's tile takes the full width. */
   full?: boolean | undefined;
 }
@@ -275,7 +277,7 @@ export interface OrderListProps {
  * Orders grouped by client (D's `.orders`), each client in the order of their newest order and each client's orders
  * newest first, as the views come. A client with two or more orders takes the full width with the cards side by side.
  */
-export function OrderList({ views, clients, runIds, onChanged, full = false }: OrderListProps) {
+export function OrderList({ views, clients, runIds, onChanged, full = false, primaryId = views.find(view => view.action || view.state === 'draft-ready')?.order.id }: OrderListProps) {
   const groups = new Map<string, OrderView[]>();
   for (const view of views) groups.set(view.order.clientId, [...(groups.get(view.order.clientId) ?? []), view]);
   return (
@@ -283,7 +285,7 @@ export function OrderList({ views, clients, runIds, onChanged, full = false }: O
       {[...groups].map(([clientId, mine]) => (
         <ClientOrders
           key={clientId} clientId={clientId} client={clients?.find((c) => c.id === clientId)} clientsRead={!!clients}
-          views={mine} runIds={runIds} onChanged={onChanged}
+          views={mine} runIds={runIds} onChanged={onChanged} primaryId={primaryId}
         />
       ))}
     </div>

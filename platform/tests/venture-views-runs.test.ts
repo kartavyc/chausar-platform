@@ -141,7 +141,7 @@ test('runs: a failed run shows the engine error; rehearsals are listed; unknown 
   assert.deepEqual(all.map(run => run.runId), [rehearsal.id, failed.id], 'newest first');
   assert.deepEqual({ ...all[0] }, {
     runId: rehearsal.id, businessId: 'main', agent: 'Bookkeeping agent', purpose: 'Rehearse with practice clients', state: 'done',
-    startedAt: '2026-10-15T10:01:00.000Z', elapsed: '1 min 30 s', result: '1 of 2 practice clients passed.',
+    startedAt: '2026-10-15T10:01:00.000Z', finishedAt: '2026-10-15T10:02:30.000Z', practice: true, elapsed: '1 min 30 s', result: '1 of 2 practice clients passed.',
   });
   const steps = (await get(env, rehearsal.id)).steps;
   assert.deepEqual(steps.map(step => [step.purpose, step.state, step.error ?? null]), [

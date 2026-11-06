@@ -51,6 +51,9 @@
   align-items: start;
 }
 
+.board[data-ideas-layout='list'] { grid-template-columns: minmax(0, 1fr); }
+.board[data-ideas-layout='list'] .column { padding: 0; border: 0; background: none; box-shadow: none; }
+
 @container (max-width: 759px) {
   .board {
     grid-template-columns: minmax(0, 1fr);

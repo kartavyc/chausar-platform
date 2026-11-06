@@ -97,7 +97,7 @@
 /* Running now: four tiles across at full width, fewer as the page narrows, one on a phone. */
 .runs {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 216px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 288px), 1fr));
   gap: var(--gap-grid);
   margin: 0;
   padding: 0;
@@ -326,6 +326,7 @@
 }
 
 .finished {
+  align-self: start;
   min-width: 0;
 }
 
@@ -453,7 +454,7 @@
   margin: 0;
   font-size: var(--text-row);
   line-height: 20px;
-  font-weight: var(--weight-strong);
+  font-weight: var(--weight-regular);
   color: var(--fg);
 }
 

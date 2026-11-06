@@ -2,7 +2,6 @@ import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { stateText } from '../../parts/states';
 import type { GuidanceLineView } from '../../engine/types';
-import { TileSection } from './shared';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 
@@ -19,11 +18,10 @@ export function GuidanceReport() {
   if (lines.length === 0) return null;
   const count = (state: GuidanceLineView['state']) => lines.filter((line) => line.state === state).length;
   return (
-    <TileSection title={t('business.practice.guidance')}>
+    <Fold summary={t('business.practice.guidance')} data-fold="guidance">
       <p className={s.line} data-guidance-summary="">
         {t('business.practice.guidance.summary', { measured: count('measured'), dark: count('dark'), unmeasured: count('unmeasured') })}
       </p>
-      <Fold summary={t('business.practice.guidance.each')} className={s.fold} data-fold="guidance">
         <ul className={s.log}>
           {lines.map((line, i) => (
             <li key={`${line.stepId}:${i}`}>
@@ -32,7 +30,6 @@ export function GuidanceReport() {
             </li>
           ))}
         </ul>
-      </Fold>
-    </TileSection>
+    </Fold>
   );
 }

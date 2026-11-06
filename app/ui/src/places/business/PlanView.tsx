@@ -3,21 +3,19 @@ import { useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
-import { cx } from '../../parts/cx';
 import { EmptyState } from '../../parts/EmptyState';
 import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
 import { ProgressBar } from '../../parts/ProgressBar';
 import { Tile } from '../../parts/Tile';
-import { SERVICE_TYPES, type BlueprintLite, type BlueprintPatchLite, type BlueprintViewLite, type ChecklistItemLite } from '../../engine/types';
+import { SERVICE_TYPES, type BlueprintLite, type BlueprintPatchLite, type BlueprintViewLite } from '../../engine/types';
 import { LabelTag, PendingPlanRows, TileSection, messageOf, quoteAgain, totalOf, usePlan } from './shared';
 import { RulesSection } from './RulesSection';
 import { Recipes } from './Recipes';
 import s from './Business.module.css';
 import fields from '../../parts/Field.module.css';
 import { Fold } from '../../parts/Fold';
-import { Select } from '../../parts/Select';
 import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
@@ -49,19 +47,22 @@ export function PlanView() {
 
   return (
     <div className={s.page}>
-      <PendingPlanRows onDecided={plan.reload} />
       <div className={s.split} data-ratio="8-4">
         <Tile as="section" labelledBy="business-plan-name">
           <div className={s.body}>
             <p className={s.kind}>{kind} · {version}{bp.source === 'template' ? ` · ${t('business.fromTemplates')}` : ''}</p>
             <h2 id="business-plan-name" tabIndex={-1} className={s.name}>{bp.name.value}<LabelTag line={bp.name} /></h2>
-            <p className={s.lead}>{bp.oneLiner.value}<LabelTag line={bp.oneLiner} /></p>
-            <p className={s.line}>{t('business.for', { customer: bp.customer.value })}<LabelTag line={bp.customer} /></p>
             {changing ? (
               <ChangeForm plan={bp} onDone={() => { setChanging(false); plan.reload(); }} onCancel={() => setChanging(false)} />
             ) : (
-              <div className={s.buttons}><Button size="sm" onClick={() => setChanging(true)}>{t('business.change')}</Button></div>
+              <>
+                <p className={s.lead}>{bp.oneLiner.value}<LabelTag line={bp.oneLiner} /></p>
+                <p className={s.line}>{t('business.for', { customer: bp.customer.value })}<LabelTag line={bp.customer} /></p>
+                <div className={s.buttons}><Button size="sm" onClick={() => setChanging(true)}>{t('business.change')}</Button></div>
+              </>
             )}
+            <PendingPlanRows onDecided={plan.reload} />
+            <BackOffice plan={bp} />
           </div>
         </Tile>
         <Setup />
@@ -105,7 +106,6 @@ export function PlanView() {
               ))}
             </ul>
           </TileSection>
-          <BackOffice plan={bp} />
         </div>
       </div>
       <RulesSection />
@@ -124,45 +124,7 @@ function Setup() {
   return (
     <TileSection title={t('business.setup.title')} more={done ? undefined : { href: '#/today?show=setup', label: t('business.setup.left') }}>
       <ProgressBar progress={{ done: data.done, total: data.total }} tone="working" />
-      {/* W4 4J21: with the steps listed by name, "each step that is left waits on Today" goes; the links say it. */}
-      {(done || !data.checklist?.length) && <p className={s.note}>{t(done ? 'business.setup.done' : 'business.setup.line')}</p>}
-      {data.checklist && data.checklist.length > 0 && <Checklist items={data.checklist} />}
     </TileSection>
-  );
-}
-
-/** How many of the steps left show at rest; every step is one fold away. */
-const NEXT_STEPS = 3;
-
-/**
- * The setup steps by name (W4 4J21, from 4J8's checklistFor): the next steps left, each linking where it is done, and
- * every step, done or not, one fold away. Names and links are the engine's.
- */
-function Checklist({ items }: { items: ChecklistItemLite[] }) {
-  const t = useT();
-  const nextId = useId();
-  const left = items.filter((item) => !item.done).slice(0, NEXT_STEPS);
-  return (
-    <>
-      {left.length > 0 && (
-        <>
-          <p id={nextId} className="sr-only">{t('business.owner.nextSteps')}</p>
-          <ul className={s.list} aria-labelledby={nextId} data-setup-next="">
-            {left.map((item) => <li key={item.id}><a className={s.link} href={item.link}>{item.label}</a></li>)}
-          </ul>
-        </>
-      )}
-      <Fold summary={t('business.owner.allSteps', { count: String(items.length) })} className={s.fold}>
-        <ul className={cx(s.foldBody, s.list)}>
-          {items.map((item) => (
-            <li key={item.id} className={cx(s.line, s.checkItem)}>
-              {item.done && <span data-done="" className={s.tick}><Icon name="check" size={14} /><span className="sr-only">{t('business.owner.stepDone')}</span></span>}
-              <a className={s.link} href={item.link}>{item.label}</a>
-            </li>
-          ))}
-        </ul>
-      </Fold>
-    </>
   );
 }
 
@@ -174,7 +136,7 @@ function BackOffice({ plan }: { plan: BlueprintLite }) {
   const t = useT();
   const office = plan.backOffice;
   return (
-    <TileSection title={t('business.backOffice')}>
+    <Fold summary={t('business.backOffice')}>
       <p className={s.line}>{t('business.invoicesIn', { currency: office.currency })}</p>
       {office.taxRegistered.value && (
         <Fold summary={t('business.taxDetails')} className={s.fold}>
@@ -186,7 +148,7 @@ function BackOffice({ plan }: { plan: BlueprintLite }) {
           </div>
         </Fold>
       )}
-    </TileSection>
+    </Fold>
   );
 }
 
@@ -238,12 +200,6 @@ function OfferCard({ view, offerId }: { view: BlueprintViewLite; offerId: string
 function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: () => void; onCancel: () => void }) {
   const t = useT();
   const client = useEngine();
-  const business = useResource('venture.get', {});
-  const countries = useResource('venture.countries', {});
-  const initialCountry = plan.country?.code ?? business.data?.venture.country?.code ?? '';
-  const [countryChoice, setCountryChoice] = useState<string | null>(null);
-  const countryCode = countryChoice ?? initialCountry;
-  const countryId = useId();
   const [name, setName] = useState(plan.name.value);
   const [oneLiner, setOneLiner] = useState(plan.oneLiner.value);
   const [customer, setCustomer] = useState(plan.customer.value);
@@ -256,7 +212,6 @@ function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: (
   async function save(event: FormEvent) {
     event.preventDefault();
     const patch: BlueprintPatchLite = {};
-    if (countryCode && countryCode !== initialCountry) patch.countryCode = countryCode;
     if (name.trim() && name.trim() !== plan.name.value) patch.name = name.trim();
     if (oneLiner.trim() && oneLiner.trim() !== plan.oneLiner.value) patch.oneLiner = oneLiner.trim();
     if (customer.trim() && customer.trim() !== plan.customer.value) patch.customer = customer.trim();
@@ -280,9 +235,6 @@ function ChangeForm({ plan, onDone, onCancel }: { plan: BlueprintLite; onDone: (
 
   return (
     <form className={s.form} onSubmit={(event) => void save(event)}>
-      <Select label={t('business.country')} id={countryId} value={countryCode} onChange={event => setCountryChoice(event.currentTarget.value)} hint={countryCode !== initialCountry ? t('business.countryChange') : undefined}>
-          {(countries.data ?? []).map(country => <option key={country.code} value={country.code}>{country.name}</option>)}
-      </Select>
       <Field label={t('business.fieldName')} value={name} maxLength={60} onChange={(event) => setName(event.currentTarget.value)} />
       <Field label={t('business.fieldOneLiner')} value={oneLiner} maxLength={160} onChange={(event) => setOneLiner(event.currentTarget.value)} />
       <Field multiline label={t('business.fieldCustomer')} value={customer} maxLength={200} rows={2} onChange={(event) => setCustomer(event.currentTarget.value)} />

@@ -147,6 +147,8 @@
   "run.workedSoFar": "Worked {elapsed}",
   "run.waitingFor": "Waiting {elapsed}",
   "steps.waitedBefore": "waited for you {waited}",
+  "run.checkPassed": "1 check passed",
+  "run.checksPassed": "{count} checks passed",
   "run.evidence": "Evidence",
   "run.question": "The job asks",
   "run.answerLabel": "Your answer",

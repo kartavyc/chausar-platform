@@ -1,0 +1,35 @@
+name: B4 Business qualification
+on:
+  push:
+    branches: ['b2c/os-b4-business-*']
+permissions:
+  contents: read
+jobs:
+  business:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck:ui
+      - name: Launch tests
+        if: '!cancelled()'
+        run: node --test platform/tests/venture-delivery.test.ts platform/tests/venture-auto-gate.test.ts platform/tests/venture-views-queue.test.ts
+      - name: Business tests
+        if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/places/business-quiet-b4.test.tsx app/ui/tests/places/business.test.tsx app/ui/tests/places/kit-sales.test.tsx app/ui/tests/one-primary-view-b4.test.tsx --maxWorkers=1 --reporter=default --reporter=json --outputFile=$RUNNER_TEMP/business-ui.json
+      - name: Business budgets
+        if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/budgets.test.tsx --maxWorkers=1 -t 'business/(plan|prices|goals|build|practice) stays'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: business-ui
+          path: ${{ runner.temp }}/business-ui.json
+          retention-days: 7

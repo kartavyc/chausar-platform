@@ -59,6 +59,7 @@ export function computeLaunchStatus(state: State, venture: VentureRecord, now: D
   const deliveries = listRecords(state, 'venture-delivery-run', venture.id);
   return {
     stage,
+    liveSince: stage === 'live' ? venture.liveSince ?? null : null,
     stages: [
       { stage: 'practice', allowed: true, reason: PRACTICE_LINE, current: stage === 'practice' },
       { stage: 'live', allowed: open, reason: open ? LIVE_LINE : blocked!, current: stage === 'live' },
@@ -95,7 +96,7 @@ export async function launchAdvanceHandler(deps: VentureDeps, ctx: Context, payl
       check(blocked === null, 'LAUNCH_STAGE_BLOCKED', blocked ?? '');
     }
     const status = to === 'live' ? 'live' : venture.status === 'live' ? 'rehearsal' : venture.status;
-    const updated = tx.touch({ launchStage: STORED_STAGE[to], status });
+    const updated = tx.touch({ launchStage: STORED_STAGE[to], status, liveSince: to === 'live' ? tx.now : null });
     tx.emit('launch-stage-changed', { from: venture.launchStage, to: STORED_STAGE[to] });
     return computeLaunchStatus(tx.state, updated, now, connected);
   });
