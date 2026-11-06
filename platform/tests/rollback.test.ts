@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ReleaseUpdater, canonicalReleaseManifest, type ReleaseManifest, type PrepareRollbackOptions, type RollbackRestoreRequest, type RollbackRestoreResult } from '../runtime/updater.ts';
 import { Vault } from '../runtime/vault.ts';
+import { CURRENT_SCHEMA } from '../runtime/migrations/ladder.ts';
 import { noNet } from './helpers/no-net.ts';
 
 test.beforeEach(t => noNet(t));
@@ -15,7 +16,7 @@ const keys=generateKeyPairSync('ed25519'),artifact=Buffer.from('An inert previou
 const hash=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 const code=(expected:string)=>(error:any)=>error.code===expected;
 function release(version:string):ReleaseManifest {
-  return {schemaVersion:1,version,publishedAt:'2026-09-01T00:00:00.000Z',platform:process.platform as ReleaseManifest['platform'],architecture:process.arch as ReleaseManifest['architecture'],url:'https://downloads.example.com/chausar.pkg',sha256:hash(artifact),size:artifact.length,minEngineVersion:'1.0.0',dataSchemaVersion:1,rollback:{supported:true,requiresBackup:true}};
+  return {schemaVersion:1,version,publishedAt:'2026-09-01T00:00:00.000Z',platform:process.platform as ReleaseManifest['platform'],architecture:process.arch as ReleaseManifest['architecture'],url:'https://downloads.example.com/chausar.pkg',sha256:hash(artifact),size:artifact.length,minEngineVersion:'1.0.0',dataSchemaVersion:CURRENT_SCHEMA,rollback:{supported:true,requiresBackup:true}};
 }
 const signature=(value:ReleaseManifest)=>sign(null,Buffer.from(canonicalReleaseManifest(value)),keys.privateKey).toString('base64url');
 function result(request:RollbackRestoreRequest):RollbackRestoreResult {

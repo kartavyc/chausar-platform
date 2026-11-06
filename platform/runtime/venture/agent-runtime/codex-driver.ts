@@ -1,3 +1,4 @@
+import { runCodexSpawn } from '../replay/driver-hooks.ts';
 import { spawnTree } from '../../process-tree.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -130,7 +131,7 @@ export class CodexDriver implements AgentDriver {
     const config = codexConfig(input, profile, platform), program = executable(this.options);
     const env = cliEnv('codex-cli'); if (input.credentials) env.CHAUSAR_AGENT_API_KEY = input.credentials.apiKey;
     const launch: Launch = { command: program.command, args: [...program.prefix, 'app-server', '--listen', 'stdio://', '--strict-config', ...Object.entries(config).flatMap(([key, value]) => ['--config', `${key}=${toml(value)}`])], cwd: input.jobRoot, env };
-    const child = (this.options.spawn ?? defaultSpawn)(launch);
+    const child = runCodexSpawn(() => (this.options.spawn ?? defaultSpawn)(launch), { jobRoot: input.jobRoot, mcp: { command: input.mcp.command, args: [...input.mcp.args] } });
     let threadId = '', closed = false, active: Active | undefined;
     let threadUsage: Record<string, number> = {};
     const emit = (event: AgentDriverEvent) => { input.guard(); input.onEvent(event); };
