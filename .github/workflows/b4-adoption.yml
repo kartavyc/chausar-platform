@@ -1,0 +1,26 @@
+name: C3 Work focus snapshot green
+on:
+  push:
+    branches: ['b2c/os-b4-c3-*']
+permissions:
+  contents: read
+jobs:
+  red:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck:ui
+      - run: npx vitest run --config app/ui/vitest.config.ts app/ui/tests/places/work-moving-run-c3.test.tsx app/ui/tests/places/work.test.tsx app/ui/tests/places/work-w4.test.tsx app/ui/tests/places/work-orders.test.tsx app/ui/tests/places/work-quiet-b4.test.tsx app/ui/tests/parts/row.test.tsx app/ui/tests/one-primary-view-b4.test.tsx app/ui/tests/a11y/places.test.tsx --maxWorkers=1 --reporter=default --reporter=json --outputFile=$RUNNER_TEMP/settings.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: settings
+          path: ${{ runner.temp }}/settings.json

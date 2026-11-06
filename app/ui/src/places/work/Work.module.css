@@ -104,6 +104,9 @@
   list-style: none;
 }
 
+.runGroups { display: contents; }
+.runContainer { min-width: 0; list-style: none; }
+
 .runTile {
   display: flex;
   flex-direction: column;
