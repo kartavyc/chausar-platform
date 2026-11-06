@@ -98,8 +98,26 @@ jobs:
           dir="$RUNNER_TEMP/codex"
           mkdir -p "$dir/codex/node_modules/@openai/codex-$target"
           (cd "$dir" && npm pack --silent @openai/codex@0.166.0 "@openai/codex@0.166.0-$target")
-          tar -xzf "$dir/openai-codex-0.166.0.tgz" -C "$dir/codex" --strip-components=1
-          tar -xzf "$dir/openai-codex-0.166.0-$target.tgz" -C "$dir/codex/node_modules/@openai/codex-$target" --strip-components=1
+          export CODEX_STAGE_ROOT="$dir"
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { createReadStream } from 'node:fs';
+          import { join } from 'node:path';
+          import { execFileSync } from 'node:child_process';
+          import { x } from 'tar';
+          const dir = process.env.CODEX_STAGE_ROOT;
+          const target = process.platform + '-' + process.arch;
+          for (const version of ['0.166.0', '0.166.0-' + target]) {
+            const file = join(dir, 'openai-codex-' + version + '.tgz');
+            const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+            const expected = execFileSync(npm, ['view', '@openai/codex@' + version, 'dist.integrity'], { encoding: 'utf8', shell: process.platform === 'win32' }).trim();
+            const hash = createHash('sha512');
+            for await (const bytes of createReadStream(file)) hash.update(bytes);
+            if ('sha512-' + hash.digest('base64') !== expected) throw new Error('Codex tarball integrity differs: ' + version);
+            const cwd = version === '0.166.0' ? join(dir, 'codex') : join(dir, 'codex', 'node_modules', '@openai', 'codex-' + target);
+            await x({ file, cwd, strip: 1, strict: true });
+          }
+          NODE
           node scripts/codex-bundle.mjs --from "$dir/codex" --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
       - name: Is there a Windows signing certificate?
         if: runner.os == 'Windows'

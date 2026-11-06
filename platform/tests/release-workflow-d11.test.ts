@@ -65,3 +65,11 @@ test('checksums, an SBOM, the notices check, the signed feed and a draft release
   assert.match(release, /CHAUSAR_RELEASE_KEY: \$\{\{ secrets\.CHAUSAR_RELEASE_KEY \}\}/);
   assert.doesNotMatch(workflow, /--draft=false|gh release edit|--latest/, 'never published here');
 });
+
+test('pinned Codex archives use verified native Node extraction on both build hosts', () => {
+  const build = job('build');
+  assert.match(build, /dist.integrity/);
+  assert.match(build, /createHash\('sha512'\)/);
+  assert.match(build, /await x\(\{ file, cwd, strip: 1, strict: true \}\)/);
+  assert.doesNotMatch(build, /tar -xzf/);
+});
