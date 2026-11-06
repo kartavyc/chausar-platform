@@ -224,15 +224,15 @@ test('Windows: the private copy is made with an exclusive create, so it never wr
 });
 
 
-test('cleanup: Windows uses an exact certificate thumbprint, not the shared thumbprint name', async t => {
+test('cleanup: Windows uses an exact certificate thumbprint, not the shared publisher name', async t => {
   const root = await folder(t), release = await staged(root, 'win32');
   let runs = 0;
   const expected = 'A'.repeat(40);
   const options = { staged: release, publicKey, platform: 'win32', windowsCertificateThumbprint: expected,
     isBusy: neverBusy, spawnInstaller: () => { runs++; } };
-  assert.equal((await updates.installOnQuit({ ...options, signatureOf: async () => ({ status: 'Valid', thumbprint: 'Same name', thumbprint: 'B'.repeat(40) }) })).state, 'publisher-mismatch');
+  assert.equal((await updates.installOnQuit({ ...options, signatureOf: async () => ({ status: 'Valid', publisher: 'Same name', thumbprint: 'B'.repeat(40) }) })).state, 'publisher-mismatch');
   assert.equal(runs, 0);
-  assert.equal((await updates.installOnQuit({ ...options, signatureOf: async () => ({ status: 'Valid', thumbprint: 'Any name', thumbprint: expected.toLowerCase() }) })).state, 'installer-started');
+  assert.equal((await updates.installOnQuit({ ...options, signatureOf: async () => ({ status: 'Valid', publisher: 'Any name', thumbprint: expected.toLowerCase() }) })).state, 'installer-started');
   assert.equal(runs, 1);
 });
 
