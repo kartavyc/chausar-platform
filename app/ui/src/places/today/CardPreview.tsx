@@ -72,7 +72,7 @@ const sourceOf = (figure: PreviewFigure): 'ca' | 'work' | undefined => (figure.r
 function ChecksLine({ checks }: { checks: { passed: number; run: number; notRun: number } }) {
   const t = useT();
   if (checks.run === 0 && checks.notRun === 0) return null;
-  const all = checks.passed === checks.run;
+  const all = checks.passed === checks.run && checks.notRun === 0;
   return (
     <p className={s.checks} data-checks="" data-tone={all ? 'done' : 'wait'}>
       <Icon name={all ? 'check' : 'triangle-alert'} size={14} />

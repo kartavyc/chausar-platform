@@ -6,6 +6,7 @@ import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { DELIVERIES, QUEUE } from '../../src/engine/fixtures';
 import { EngineError, type DeliveryLite, type DraftChangesView, type QueueRow } from '../../src/engine/types';
 import { assertInkRules, assertOnePrimary } from '../helpers/ink-rules';
+import { rule } from '../helpers/css';
 
 /*
  * W4 4J19 on Today: the engine's previews on the big cards (4J3), Send back with the owner's words and the fix after
@@ -18,6 +19,12 @@ import { assertInkRules, assertOnePrimary } from '../helpers/ink-rules';
 type Seed = Omit<QueueRow, 'digest'>;
 type Fake = ReturnType<typeof createFakeClient>;
 const NOW = '2026-10-21T12:00:00.000Z';
+
+it('the draft editor grows into the sheet body instead of a short fixed-height box', () => {
+  expect(rule('Sheet.module.css', '.body:has([data-draft-editor])')).toMatch(/flex:\s*1/);
+  expect(rule('../places/today/TodayActions.module.css', '.draftEditor')).toMatch(/flex:\s*1/);
+  expect(rule('../places/today/TodayActions.module.css', '.draftEditor [data-draft-fields] > div:has(textarea)')).toMatch(/flex:\s*1/);
+});
 
 function start(options: { queue?: Seed[]; stub?: (method: string, params: unknown) => unknown; now?: string } = {}) {
   window.location.hash = '#/today';
@@ -49,6 +56,12 @@ const cardTitled = async (title: string | RegExp) => {
 afterEach(() => { window.location.hash = ''; });
 
 describe('Today: the engine\'s previews on the cards (4J3)', () => {
+  it('does not mark all checks done when a check did not run', async () => {
+    const draft = QUEUE.find(row => row.id === 'run:d-ep14:review-1')!;
+    start({ queue: [{ ...draft, preview: { kind: 'video', title: { text: 'Episode 14' }, format: 'long', checks: { passed: 3, run: 3, notRun: 1 } } }] });
+    const card = await cardTitled('Episode 14 is cut');
+    expect(card.querySelector('[data-checks]')?.getAttribute('data-tone')).toBe('wait');
+  });
   it('the video ground shows duration, chapters and "3 checks passed", and no still the engine did not take', async () => {
     start();
     const card = await cardTitled('Episode 14 is cut');
@@ -299,6 +312,10 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     // The fake's own draft passed its checks, so the list and the fix answer here as the engine would for a failing one.
     const { spy } = start({ queue: [row], stub: (method) => (method === 'venture.delivery.list' ? failing(real) : method === 'venture.delivery.fix' ? { ...failing(real)[0], status: 'waiting-for-you' } : undefined) });
     const card = await cardTitled('Sponsor script for episode 14');
+    expect(await within(card).findByText('The draft is 40 words over the limit.')).toBeTruthy();
+    const checks = within(card).getByText('Checks', { selector: 'summary' }).closest('details')!;
+    expect(checks.open).toBe(false);
+    expect(within(checks).getByText('Two long dashes.')).toBeTruthy();
     await press(within(card).getByRole('button', { name: 'More' }));
     await press(within(card).getByRole('button', { name: 'Send back' }));
     await waitFor(() => expect(card.querySelector('[data-fix]')).not.toBeNull());
@@ -323,6 +340,7 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     await press(within(card).getByRole('button', { name: 'Edit' }));
     const sheet = await screen.findByRole('dialog', { name: /Sponsor script for episode 14/ }).catch(() => document.querySelector<HTMLElement>('[data-sheet]')!);
     const text = await within(sheet).findByRole('textbox', { name: 'Your version' }) as HTMLTextAreaElement;
+    expect(text.closest('form')?.hasAttribute('data-draft-editor')).toBe(true);
     expect(text.value).toBe('This episode is brought to you by Boat Audio.\n\nWe tested five budget mics in one room, and the one that won costs less than you think.');
     expect(text.closest('[data-content]') ?? text).toBeTruthy();
     // B4: Save my version says why it waits.

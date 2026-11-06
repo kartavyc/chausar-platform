@@ -86,7 +86,7 @@ export function Instructions({ agent, standing, onPlaybookChanged }: Instruction
                 <li key={`${order.stepId}-${order.text}`} className={c.order}>
                   <p className={c.orderText} data-content="">{order.text}</p>
                   <p className={c.orderMeta}>
-                    <span data-code="" className="mono">{t('team.instructions.since', { version: order.since })}</span>
+                    <span>{t('team.instructions.since', { version: order.since })}</span>
                     {' · '}
                     {order.step}
                   </p>

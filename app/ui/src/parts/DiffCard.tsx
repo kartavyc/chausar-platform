@@ -121,7 +121,7 @@ export function DiffCard({
         {lines.map((line, index) => (
           // The lines quote the agent's instructions, so an amount in them is quoted words, not a figure Chausar states.
           <p key={index} className={s.line} data-line={line.kind} data-content="">
-            <span data-code="" className={cx(s.sign, 'mono')} aria-hidden="true">
+            <span className={s.sign} aria-hidden="true">
               {line.kind === 'added' ? '+' : line.kind === 'removed' ? '−' : ''}
             </span>
             {line.kind === 'same' ? (
@@ -140,8 +140,8 @@ export function DiffCard({
           <Icon name="history" size={14} />
           <span>
             {rich(t, 'diff.version', {}, {
-              from: <span data-code="" className="mono">{fromVersion}</span>,
-              to: <span data-code="" className="mono">{toVersion}</span>,
+              from: <span>{fromVersion}</span>,
+              to: <span>{toVersion}</span>,
             })}
           </span>
         </p>
