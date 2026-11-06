@@ -49,6 +49,7 @@ export function BankImportForm({ onImported }: { onImported?: () => void }) {
   const client = useEngine();
   const [account, setAccount] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [fileRound, setFileRound] = useState(0);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<BankImportResult | null>(null);
@@ -56,6 +57,7 @@ export function BankImportForm({ onImported }: { onImported?: () => void }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (busy || !account.trim()) return;
     if (!file) { setProblem(t('connections.bank.fileFirst')); return; }
     setBusy(true);
     setProblem(null);
@@ -63,6 +65,9 @@ export function BankImportForm({ onImported }: { onImported?: () => void }) {
     try {
       const csv = await textOf(file);
       setResult(await client.request('venture.bank.import', { csv, account: account.trim() }));
+      setAccount('');
+      setFile(null);
+      setFileRound(round => round + 1);
       onImported?.();
     } catch (error) {
       setProblem(messageOf(error));
@@ -79,7 +84,7 @@ export function BankImportForm({ onImported }: { onImported?: () => void }) {
           <a href={SAMPLE_STATEMENT_PATH} download="sample-bank-statement.csv">{t('connections.bank.sample')}</a>
         </p>
         <Field label={t('connections.bank.account')} hint={t('connections.bank.accountHint')} value={account} maxLength={60} autoComplete="off" onChange={(event) => setAccount(event.currentTarget.value)} />
-        <FilePick label={t('connections.bank.file')} accept=".csv,text/csv" onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setResult(null); }} />
+        <FilePick key={fileRound} label={t('connections.bank.file')} accept=".csv,text/csv" onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setResult(null); }} />
         {problem && <p className={s.problem} role="alert">{problem}</p>}
         <div className={s.buttons}><Button variant="primary" type="submit" disabled={busy} disabledReason={missing}>{t('connections.bank.import')}</Button></div>
       </form>

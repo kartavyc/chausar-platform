@@ -15,6 +15,7 @@
 import { useId, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
+import { EmptyState } from '../../parts/EmptyState';
 import { useRoute } from '../../shell/navigation';
 import { BarChart, hasBars } from '../../parts/charts/BarChart';
 import { CashLine } from '../../parts/charts/CashLine';
@@ -67,8 +68,14 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
   const billed = books.data?.figures.find((figure) => figure.operation === 'billed');
   const open = books.data ? byDue(books.data.openInvoices) : undefined;
   const { flow, cash } = views;
+  const goals = useResource('venture.goals.get', month === thisMonth ? {} : { month }, { refreshOn: GOAL_EVENTS });
   const cashView = views.engine?.cash;
   const ahead = cash !== undefined || cashView !== undefined;
+  const hasFlow = flow !== undefined && hasBars(...flow.series);
+  const hasDue = cashView ? cashView.nextWeeks.length > 0 || cashView.usualCosts !== null : Boolean(open?.length);
+  const monthFlow = views.engine?.flow?.months.find(row => row.month === month);
+  const noSpend = views.split !== undefined && views.split.parts.every(part => part.permille === 0);
+  const emptyMonth = goals.data?.invoiced.receiptId === null && goals.data.receivedSoFar.receiptId === null && monthFlow?.in === null && monthFlow.out === null && noSpend && views.engine?.aging?.invoices.length === 0 && cashView?.bank === null;
 
   // Due next is the three weeks ahead once the engine sends them (4J4), else the open invoices due from today on.
   const next = (span: TileSpan) => (cashView
@@ -81,8 +88,8 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
   const drawn = drawnBlocks('money', layout.data);
   const foldTitle = (id: string, own: string) => drawn.find((block) => block.id === id)?.name ?? own;
   const folds: Readonly<Record<string, () => ReactNode>> = {
-    flow: () => (flow ? <MoneyFold title={foldTitle('flow', t('money.fold.flow'))}><Bento><InOutTile flow={flow} notes={views.engine?.flow} span={12} /></Bento></MoneyFold> : null),
-    weeks: () => (ahead ? <MoneyFold title={foldTitle('weeks', cashView ? t('money.fold.weeks') : t('money.next.title'))}><Bento>{next(12)}</Bento></MoneyFold> : null),
+    flow: () => (hasFlow && flow ? <MoneyFold title={foldTitle('flow', t('money.fold.flow'))}><Bento><InOutTile flow={flow} notes={views.engine?.flow} span={12} /></Bento></MoneyFold> : null),
+    weeks: () => (hasDue ? <MoneyFold title={foldTitle('weeks', cashView ? t('money.fold.weeks') : t('money.next.title'))}><Bento>{next(12)}</Bento></MoneyFold> : null),
   };
   const slot = (index: number, content: () => ReactNode) => {
     const block = drawn[index];
@@ -90,7 +97,7 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
     return <div key={block.id} className={ls.block} data-block={block.id}>{content()}</div>;
   };
   const fold = (index: number) => slot(index, () => folds[drawn[index]!.id]?.());
-  const anyFold = [2, 3].some((index) => drawn[index]?.shown && (drawn[index]!.id === 'flow' ? Boolean(flow) : ahead));
+  const anyFold = [2, 3].some((index) => drawn[index]?.shown && (drawn[index]!.id === 'flow' ? hasFlow : hasDue));
 
   return (
     <section className={`${s.overview} ${v.page}`} aria-label={t('money.sub.overview')}>
@@ -99,6 +106,8 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
       {books.error && <Failed error={books.error} />}
       {views.failed && <Failed error={views.failed} />}
       <LoadingPlace shape="tiles" loading={!overview.data && !books.data && !overview.error && !books.error} />
+      {emptyMonth && <EmptyState title={t('money.empty')} actions={[{ label: t('money.firstInvoice'), href: '#/money/invoices' }]} />}
+      {!emptyMonth && <>
       {slot(0, () => (
         <Bento className={`${s.glance} ${v.glanceRow}`}>
           <InvoicedTile billed={billed} goal={views.goal} month={month === thisMonth ? null : month} />
@@ -125,6 +134,7 @@ export function Overview({ views: given }: { views?: MoneyViews | undefined }) {
           {fold(3)}
         </>
       )}
+      </>}
     </section>
   );
 }
@@ -150,7 +160,7 @@ function InvoicedTile({ billed, goal, month }: { billed: BooksFigureLite | undef
   const pastBy = view?.past && view.pastBy ? view.pastBy : null;
   return (
     <MoneyTile
-      label={month ? t('money.tile.invoicedIn', { month: monthWords(month) }) : t('money.tile.invoiced')} icon="target" span={5}
+      label={t('money.tile.invoiced')} icon="target" span={5}
       aside={target && !month ? <span className={s.tilePill} data-pill="">{target.daysLeft}</span> : undefined}
     >
       {data?.invoiced && (
@@ -159,7 +169,8 @@ function InvoicedTile({ billed, goal, month }: { billed: BooksFigureLite | undef
         </div>
       )}
       {/* One-shot B1 (bug 14): an empty invoiced sum (zero, no receipt) says so; the tile is never blank. */}
-      {data && !data.invoiced && data.invoicedNone && <p className={s.tileSub}>{month ? t('money.tile.invoicedNoneIn', { month: monthWords(month) }) : t('money.tile.invoicedNone')}</p>}
+      {data && !data.invoiced && data.invoicedNone && <><p className={s.tileSub}>{month ? t('money.tile.invoicedNoneIn', { month: monthWords(month) }) : t('money.tile.invoicedNone')}</p><a className={s.more} href="#/money/invoices">{t('money.sub.invoices')}</a></>}
+      <p className={s.tileSub}>{month ? monthWords(month) : t('money.tile.thisMonth')}</p>
       {books && (
         <>
           <div className={s.tileValue}>
@@ -218,7 +229,7 @@ function ReceivedTile({ line, books, chosen }: { line: MoneyOverviewLine | undef
         </div>
       )}
       <p className={s.tileSub}>{chosen ? monthWords(chosen) : t('money.tile.thisMonth')}</p>
-      {before && books?.previous && (
+      {before && books?.previous && before.display !== (received?.display ?? line?.value) && (
         <p className={v.before} data-previous="">
           <span>{monthWords(books.previous.month)}</span>
           <ProvedFigure value={before.display} proof={{ receiptId: before.receiptId }} />
@@ -241,18 +252,20 @@ function SpendTile({ line, split }: { line: MoneyOverviewLine | undefined; split
   const shown = line && (line.lead?.figure ?? line.value);
   // Words after an amount are the Figure's own (splitFigure); only words with no amount at all are a phrase.
   const phrase = shown !== undefined && isPhrase(splitFigure(shown).amount);
+  const empty = split !== undefined && split.parts.every(part => part.permille === 0);
   return (
     <MoneyTile label={t('money.tile.spent')} icon="bot" span={4}>
-      {line && proof && (
+      {empty && <p className={s.tileSub}>{t('money.noSpend')}</p>}
+      {!empty && line && proof && (
         <div className={s.tileValue} data-phrase={phrase ? '' : undefined}>
           <ProvedFigure value={shown!} proof={proof} size={phrase ? 'tile' : 'stat'} />
         </div>
       )}
       {/* The split by department (W4 4A2) only under the very figure it splits: the same receipt, whose sum its parts make. */}
-      {split && line?.receiptId && split.proof.receiptId === line.receiptId && <div className={s.tileChart}><SplitBar data={split} /></div>}
+      {!empty && split && line?.receiptId && split.proof.receiptId === line.receiptId && <div className={s.tileChart}><SplitBar data={split} /></div>}
       <p className={s.tileFoot}>
         <a className={s.more} href="#/money/spend">{t('money.spentEach')}</a>
-        {line?.needsRate && <a className={s.more} href={SET_RATE_HREF}>{t('money.setRupeeRate')}</a>}
+        {!empty && line?.needsRate && <a className={s.more} href={SET_RATE_HREF}>{t('money.setRupeeRate')}</a>}
       </p>
     </MoneyTile>
   );

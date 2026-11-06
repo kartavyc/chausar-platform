@@ -78,5 +78,6 @@
   "money-pay.settings.keySecret": "Key Secret",
   "money-pay.settings.saveKeys": "Save keys",
   "money-pay.settings.forget": "Forget keys",
-  "money-pay.settings.connected": "Keys saved for your {mode} account, ending {hint}."
+  "money-pay.settings.connected": "Keys saved for your {mode} account, ending {hint}.",
+  "money-pay.send": "Send it"
 }
