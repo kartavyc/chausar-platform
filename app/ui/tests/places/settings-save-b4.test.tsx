@@ -37,3 +37,39 @@ it('a queued save from a closed page never starts in a later business', async ()
   await refused;
   expect(work).not.toHaveBeenCalled();
 });
+
+
+it('a queued save refuses a different business on the same mounted client', async () => {
+  const engine = new FakeEngine({ latencyMs: 0 });
+  const client = createFakeClient(engine);
+  const first = renderHook(() => useSettingsSave(client));
+  const second = renderHook(() => useSettingsSave(client));
+  let release!: () => void;
+  const gate = new Promise<void>(done => { release = done; });
+  const held = first.result.current(async () => gate);
+  const write = vi.fn(async () => 'should not write');
+  const queued = second.result.current(write);
+  const refused = expect(queued).rejects.toThrow(/business changed|Open these settings again/);
+  await client.request('workspace.open', { folder: 'ledgerline' });
+  release();
+  await held;
+  await refused;
+  expect(write).not.toHaveBeenCalled();
+});
+
+it('changing the client without unmounting invalidates an already queued save', async () => {
+  const client = createFakeClient(new FakeEngine({ latencyMs: 0 }));
+  const first = renderHook(() => useSettingsSave(client));
+  const second = renderHook(({ active }) => useSettingsSave(active), { initialProps: { active: client } });
+  let release!: () => void;
+  const gate = new Promise<void>(done => { release = done; });
+  const held = first.result.current(async () => gate);
+  const write = vi.fn(async () => 'should not write');
+  const queued = second.result.current(write);
+  const refused = expect(queued).rejects.toThrow(/Open these settings again/);
+  second.rerender({ active: createFakeClient(new FakeEngine({ latencyMs: 0 })) });
+  release();
+  await held;
+  await refused;
+  expect(write).not.toHaveBeenCalled();
+});
