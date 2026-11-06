@@ -143,6 +143,8 @@ const BEFORE_VAULT = new Set([
   'workspace.status', 'workspace.list', 'workspace.open', 'workspace.create', 'workspace.lock', 'venture.countries', 'venture.preview',
   'venture.country.suggest',
   'workspace.recover', 'workspace.restore', 'workspace.transfer.import', 'workspace.backups.list',
+  // One-shot C4 task 38: a move file's name and day, read with its code before moving it here.
+  'workspace.transfer.peek',
   // Ink v2 wave 4 (4J8): the Start gallery's ways to earn, a pre-vault method on the engine too.
   'venture.playbooks.list',
   // W6 6C6: the profession's rules, shown when onboarding picks it, before any vault exists.
@@ -747,7 +749,7 @@ export class FakeEngine {
     const size = p.size === undefined ? undefined : sizeOf(item, p.size);
     if (p.digest !== pure.digest) throw new EngineError('APPROVAL_STALE', 'The rules for this profession changed. Read them again.');
     if (!this.ventures.get(this.current)) throw new EngineError('VENTURE_NOT_FOUND', 'Start a business first.');
-    const next = { professionId: item.id, sideWork: p.sideWork as 'allowed' | 'not-allowed' | 'not-sure', acknowledgedOn: localDayAt(this.now(), { code: this.ventures.get(this.current)?.countryCode ?? 'IN' }) };
+    const next = { professionId: item.id, sideWork: p.sideWork as 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure', acknowledgedOn: localDayAt(this.now(), { code: this.ventures.get(this.current)?.countryCode ?? 'IN' }) };
     // Left out, the size answer already saved for this profession is kept.
     const kept = size ?? (recorded?.professionId === item.id ? saved : null);
     this.complianceRecords.set(this.current, next);
@@ -829,6 +831,8 @@ export class FakeEngine {
     if (method === 'venture.client.add') return this.addClient(p);
     // 4J2: a set approval decides each item as Today does (fake-4j2.ts).
     if (method === 'venture.queue.decide') return this.decide(p as ParamsOf<'venture.queue.decide'>);
+    // C4 task 33: the Undo of the owner's own price (core/owner-price.ts) belongs to the plan's desk.
+    if (method === 'venture.queue.undo' && typeof p.rowId === 'string' && p.rowId.startsWith('price-set:')) return this.desk.undoOwnerPrice(p.rowId);
     if (this.network.handles(method)) return this.networkAnswer(method, p);
     for (const desk of [this.desk, this.work, this.extras, this.posting, this.practice, this.bank, this.wiring, this.agentsDesk, this.chief, this.network, this.notify, this.w4, ...(this.w5 ?? [])]) {
       if (desk.handles(method)) return desk.request(method, p);
@@ -882,6 +886,13 @@ export class FakeEngine {
         this.rows.push({...row,digest:digestOf(row)});
       }
     }
+    // C4 (T22): a bill due today or overdue in the open business, as a notice whose only action is Open.
+    this.rows = this.rows.filter((row) => !row.id.startsWith('bill-due:'));
+    const openBusiness = this.open ? this.businesses.find((b) => b.id === this.current) : undefined;
+    if (openBusiness) for (const due of this.money.billDueRows()) {
+      const row = { id: `${due.subject}:${due.version}`, businessId: openBusiness.id, businessName: openBusiness.name, kind: 'notice' as const, createdAt: due.createdAt, title: due.title, actions: [{ id: 'open' as const, label: 'Open', primary: true }], notice: { probe: 'bill' as const, severity: 'medium' as const, link: due.link } };
+      this.rows.push({ ...row, digest: digestOf(row) });
+    }
     // A vault may be locked while its source files are read asynchronously.
     this.rows=this.rows.filter(row=>!row.id.startsWith('tender-gap:')||this.businesses.some(b=>b.id===row.businessId&&(b.opens==='with-this-computer'||this.open&&b.id===this.current)));
     const rows =this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort(queueOrder);
@@ -908,6 +919,7 @@ export class FakeEngine {
     if (row.needs?.answer === 'day' && action.id === 'approve' && !/^\d{4}-\d{2}-\d{2}$/.test(p.answer?.trim() ?? '')) return { outcome: 'refused', line: 'Pick the day for this step first.', reason: 'INVALID_VENTURE_REQUEST' };
     if (row.id.startsWith('social-revision:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the social revisions.'};
     if (row.id.startsWith('tender-gap:') && action.id === 'open') return {outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Work to review the tender sources.'};
+    if (row.id.startsWith('bill-due:') && action.id === 'open') return { outcome: 'refused', reason: 'NOT_A_DECISION', line: 'Open Money, then Bills.' };
     if(row.id.startsWith('narration-stage:')&&action.id==='approve')return this.work.narrationChain.decide(row,action.id).then(line=>{this.decided.add(row.id);return {outcome:'done' as const,line:line??'Done'};});
     const va=this.w4.quality.decideVa(row,action.id);if(va){this.decided.add(row.id);this.emit({type:'queue.changed',businessId:row.businessId,at:this.now()});return {outcome:'done',line:va};}
     const social=this.work.r5Delivery.decide(row,action.id)??this.work.phoneDelivery.decide(row,action.id)??this.work.devDelivery.decide(row,action.id)??this.work.careerDelivery.decide(row,action.id)??this.work.vaDelivery.decide(row,action.id)??this.work.youtubeServices.decide(row,action.id)??this.work.articleChain.decide(row,action.id)??this.work.socialChain.decide(row,action.id);
@@ -1124,6 +1136,7 @@ export class FakeEngine {
       case 'workspace.recover': return this.recover(p);
       case 'workspace.restore': return this.restoreAsNew(p);
       case 'workspace.transfer.import': return this.moveHere(p);
+      case 'workspace.transfer.peek': return this.movePeek(p);
       case 'workspace.delete': return this.deleteBusiness(p);
       case 'venture.countries': return clone(COUNTRIES);
       case 'venture.country.suggest': return fakeCountrySuggestion(p, this.desk.request(this.open && this.ventures.has(this.current) ? 'venture.models.status' : 'venture.ai.status', {}) as ModelStatusLite, this.hosted, COUNTRIES);
@@ -1291,6 +1304,18 @@ export class FakeEngine {
     return { ...this.openHere(restored), folder: id };
   }
 
+  /** C4 task 38, as the engine: the name and day inside a move file with the right code; a wrong code as import says it. Nothing written. */
+  private movePeek(p: Record<string, unknown>) {
+    if (Object.keys(p).some((key) => key !== 'fileText' && key !== 'transferCode')) throw new EngineError('INVALID_REQUEST', 'Send the move file and its code.');
+    const text = typeof p.fileText === 'string' ? p.fileText : '';
+    if (text.length > MOVE_MAX_CHARS) throw new EngineError('TRANSFER_TOO_LARGE', CUSTODY_ERROR_WORDS.TRANSFER_TOO_LARGE);
+    let file: { backupFormat?: unknown; business?: unknown; name?: unknown; madeAt?: unknown };
+    try { file = JSON.parse(text) as typeof file; } catch { file = {}; }
+    if (file.backupFormat !== SAMPLE_MOVE_FORMAT || typeof file.business !== 'string' || typeof file.name !== 'string') throw new EngineError('TRANSFER_INVALID', CUSTODY_ERROR_WORDS.TRANSFER_INVALID);
+    if (p.transferCode !== SAMPLE_MOVE_CODE) throw new EngineError('TRANSFER_CODE_WRONG', CUSTODY_ERROR_WORDS.TRANSFER_CODE_WRONG);
+    return { name: file.name, movedOutAt: typeof file.madeAt === 'string' ? file.madeAt : null };
+  }
+
   /** workspace.transfer.import: the move file and its code. A business already here is opened from the list instead. */
   private moveHere(p: Record<string, unknown>) {
     this.notWhileOpen();
@@ -1318,11 +1343,13 @@ export class FakeEngine {
     this.ventures.delete(business.id);
     this.desk.forgetAiSetup(business.id);
     const exportsKept = this.desk.exportsOf(business.id);
+    // C4 task 37, as the engine: the name and how many backups went.
+    const backupsRemoved = (this.desk.request('workspace.backups.list', {}) as { backups: { name: string | null }[] }).backups.filter((b) => b.name === business.name).length;
     this.desk.dropBackups(business.id);
     this.rows = this.rows.filter((r) => r.businessId !== business.id);
     this.open = false;
     this.current = '';
-    return { deleted: true, copiesRemoved: [], exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+    return { deleted: true, name: business.name, backupsRemoved, copiesRemoved: [], exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
   }
 
   private templateInterview(countryCode: string): InterviewQuestionLite[] {

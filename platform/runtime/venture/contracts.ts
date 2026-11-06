@@ -289,6 +289,8 @@ export const VENTURE_RECORD_KINDS = [
   'venture-flow', 'venture-flow-run',
   // Wave 6 (6J2, D47): the owner's report choices (newest wins) and each crash or answer waiting for Send report (core/feedback.ts).
   'venture-feedback-setting', 'venture-feedback-item',
+  // One-shot C4 (T20): one share of an invoice the owner made (the desktop share, Save file) or "Mark as sent".
+  'venture-invoice-share',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -557,6 +559,11 @@ export type BlueprintView = {
    * reliable data". Information only: it never sets or changes a price. Absent when the plan maps to no beta profession.
    */
   priceGuide?: PriceGuideView;
+  /**
+   * One-shot C4 task 33: present only on the answer to the owner's own price saved in the app, which applied at once: the
+   * decided line and the row id venture.queue.undo takes to put back the version before. Not part of the record.
+   */
+  decided?: { line: string; undoRowId: string };
 };
 
 /** W6 6C3 (D17): the price range views, defined beside their code (core/price-ranges.ts) so the app's fake engine can use them. */
@@ -1102,7 +1109,9 @@ export interface OrderStageView { id: OrderStageId; label: Display; state: Order
 /** What waits on the owner in one order (4J3): "2 wait on you: the new price and the episode draft." */
 export interface OrderWaitsOnYou { count: number; items: { stage: OrderStageId; what: Display }[]; line: Display }
 /** venture.order.list's row (4J3): the order as stored, with its stage steps and what waits on the owner, or null. */
-export type OrderListRow = OrderRecord & { stages: OrderStageView[]; waitsOnYou: OrderWaitsOnYou | null };
+export type OrderListRow = OrderRecord & { stages: OrderStageView[]; waitsOnYou: OrderWaitsOnYou | null; price: OrderPrice | null };
+/** One-shot C4 task 11: an order's price as its receipt's Total figure says it, with that receipt's id. */
+export interface OrderPrice { display: Display; receiptId: string }
 /** taxRateBps (4J5, M15): the rate charged on this line when it was drafted; absent on invoices drafted before. */
 export type InvoiceLine = { description: string; quantity: string; unitMinor: MinorString; amountMinor: MinorString; taxRateBps?: BpsString };
 export type InvoiceRecord = RecordBase<'venture-invoice'> & {
@@ -1172,9 +1181,11 @@ export type PaymentRecord = RecordBase<'venture-payment'> & {
 export type InvoiceNext = { action: 'issue' | 'wait' | 'remind' | 'clear' | 'none'; line: Display; draftId?: string };
 /** One line of an invoice's short timeline (4J5, M12): events by date, then where it stands now. */
 export type InvoiceTimelineEntry = {
-  what: 'issued' | 'viewed' | 'paid' | 'cheque' | 'credited' | 'reminder' | 'reminded' | 'awaiting' | 'settled';
+  what: 'issued' | 'viewed' | 'paid' | 'cheque' | 'credited' | 'reminder' | 'reminded' | 'awaiting' | 'settled' | 'shared' | 'marked';
   on: IsoDate;
   line: Display;
+  /** One-shot C4 (T20): on a 'shared' line, how the owner shared it. */
+  how?: Exclude<InvoiceShareHow, 'marked'>;
 };
 export type InvoiceView = {
   /** Profile saved with this invoice's price, even if the owner later moves. */
@@ -1197,6 +1208,8 @@ export type InvoiceView = {
   billed?: import('./money/billing-types.ts').OrderBilledView;
   /** Wave 6 (6D2, 6D3): how the client pays this invoice, built by code from its balance. */
   howToPay?: import('./money/billing-types.ts').HowToPayView;
+  /** One-shot C4 (T20): true only once the owner marked it sent; a share that opened their own app is not sending. */
+  sent: boolean;
 };
 export type BooksFigure = { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; minor: MinorString; display: string; stale: boolean };
 /** A books period the Money place can choose; the engine works out its dates on the owner's local calendar. */
@@ -2922,7 +2935,7 @@ export interface QueueRow {
  * The needs-you probes (4G2, O10): failed posts, a broken connection, drafts waiting, a calendar gap, a sharp move, a
  * stalled client. 'idea' (Ink v2 wave 5, 5A3): a published idea whose seven days are over, waiting for its grade.
  */
-export type NoticeProbe = 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea';
+export type NoticeProbe = 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea' | 'bill';
 /**
  * A probe's notice (4G2): which probe made it, how much it matters, the screen Open goes to (an app address such as
  * #/connections), and each amount its line states, written exactly as there, with the receipt behind it, in the order
@@ -3055,6 +3068,15 @@ export interface RunSummary {
   poster?: { uploadId: string; src: string | null } | null;
   /** 4H2 (U17): which engine wrote the run's draft, the line DeliveryRunView.writtenBy carries; absent before an answer. */
   writtenBy?: Display;
+  /**
+   * One-shot C4 task 12 (views/runs.ts runTimes): elapsed is the time the run worked, without its waits on the owner;
+   * waited is those waits together, absent when the run's events show none; waitingSince is when the current wait on
+   * the owner began, on a run waiting now.
+   */
+  waited?: Display;
+  waitingSince?: IsoTime;
+  /** One-shot C4 task 12: the client a delivery run worked for (never the own shop), for a link to the client sheet. */
+  client?: { id: string; name: string };
 }
 /**
  * screen: one line saying what the untrusted screen noted in the run's outside content, never the words (W1 H9).
@@ -3261,7 +3283,7 @@ export type ClientListRow = ClientRecord & { owed?: { display: Display; receiptI
 /** venture.invoice.list rows: the invoice total, formatted, and the price receipt behind it. */
 /** next (4J5, M12): the invoice's one next step by its state, the same as its view's. */
 /** late (4J4, M9): on an open invoice past its due day, the days on the owner's calendar ("71 days late"). */
-export type InvoiceListRow = InvoiceRecord & { total?: Display; receiptId?: string; next?: InvoiceNext; late?: { days: number; line: Display } };
+export type InvoiceListRow = InvoiceRecord & { total?: Display; receiptId?: string; next?: InvoiceNext; late?: { days: number; line: Display }; /** One-shot C4 (T20): as InvoiceView.sent. */ sent?: boolean };
 
 /**
  * A receipt for a sum code made from venture records: what clients owe on open invoices, what came in this month, what
@@ -3521,6 +3543,8 @@ export type RuleLocksView = {
 export type ComplianceView = {
   profession: { id: string; label: string; family: string | null };
   question: string; responsibility: string;
+  /** One-shot C4 task 3: the line shown when the owner has no day job. */
+  noDayJob: string;
   /**
    * W6 6E6: a checked statute carries the official page read and the day; an unchecked one has nulls. W6 (3 November
    * 2026): verdict is the line at the owner's size for a statute with a size threshold, else null.
@@ -3529,7 +3553,7 @@ export type ComplianceView = {
   switchedOff: { tool: string; line: string }[];
   hardStops: { id: string; line: string }[];
   digest: string;
-  recorded: { professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate } | null;
+  recorded: { professionId: string; sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate } | null;
   /** W6 (3 November 2026): the size question (core/business-size.ts), or null when no rule of the profession counts size. */
   size: import('./core/business-size.ts').SizeAsk | null;
 };
@@ -4297,6 +4321,12 @@ export type BillRecord = RecordBase<'venture-bill'> & {
   /** Whether its GST was left out of the costs as claimable, kept from its first payment so later ones agree. */
   taxClaimed?: boolean;
 };
+/**
+ * One-shot C4 (T20): one share of an issued invoice. 'whatsapp' and 'email': the owner's own app opened with it; 'file':
+ * the file was saved; 'marked': the owner said it was sent. Only 'marked' makes the invoice sent: opening an app is not sending.
+ */
+export type InvoiceShareHow = 'whatsapp' | 'email' | 'file' | 'marked';
+export type InvoiceShareRecord = RecordBase<'venture-invoice-share'> & { invoiceId: string; how: InvoiceShareHow };
 /** A credit note against one invoice (4J5): on the always-ask floor, so it waits on Today until issued. */
 export type CreditNoteRecord = RecordBase<'venture-credit-note'> & {
   invoiceId: string;
@@ -4446,7 +4476,9 @@ export type AgentRelayRecord = RecordBase<'venture-agent-relay'> & {
 export type RoutineSchedule =
   | { kind: 'once'; at: IsoTime }
   | { kind: 'interval'; everyMinutes: number; from: IsoTime }
-  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string };
+  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string }
+  /** C4 task 32: one day of the month (1 to 28) at a time in a named zone ("On the 1st of each month, 9:00 am"). */
+  | { kind: 'monthly'; day: number; time: string; timeZone: string };
 /** A routine (4J13): a standalone prompt on a schedule, for an agent or the chief. It never approves anything. */
 export type RoutineRecord = RecordBase<'venture-routine'> & {
   recordReport?: 'va-morning'|'va-weekly';
@@ -4959,7 +4991,8 @@ export type WriteCapKind = 'drafts' | 'books-lines' | 'messages';
 export interface AllowWritesView { kind: WriteCapKind; line: Display }
 
 /** 4G1. title: the row's title, for the in-app centre only. */
-export type NotificationView = { id: string; rowId: string; kind: QueueKind; title: Display; at: IsoTime; read: boolean };
+/** ended (one-shot C4 task 7): present once the item no longer waits on the owner; the centre shows it as plain text. */
+export type NotificationView = { id: string; rowId: string; kind: QueueKind; title: Display; at: IsoTime; read: boolean; ended?: true };
 /**
  * 4G1. digest: the newest daily digest, for the centre only: its line, the items it listed for the first time, how many
  * earlier ones still wait, and the sum receipts behind its money figures. Null before the first digest.
@@ -5187,9 +5220,17 @@ export type BillView = {
   state: 'draft' | 'posted' | 'partial' | 'paid' | 'overdue'; recurring: 'monthly' | 'quarterly' | null;
   /** 4J20 (bills.list): the receipt of this bill's balance (its lines and tax less what was paid). */
   receiptId?: string;
+  /** One-shot C4 (T22): a posted bill with money left on it, due on the owner's own day today. */
+  dueToday: boolean;
+  /** One-shot C4 (T22): what it is for, from its lines ("Printer paper, and 1 more"); null when a line only names the vendor. */
+  purpose: string | null;
 };
-/** owed: what open bills add up to, with its receipt; null when nothing is owed. */
-export interface BillsView { bills: BillView[]; owed?: MoneyFigureView | null }
+/**
+ * owed: what open bills add up to, with its receipt; null when nothing is owed. One-shot C4 (T22): terms, each vendor's
+ * days from bill date to due date on its newest bill, and defaultDueDays for a vendor with none, which bills.add uses
+ * when no due date is given.
+ */
+export interface BillsView { bills: BillView[]; owed?: MoneyFigureView | null; terms?: { vendor: string; days: number }[]; defaultDueDays?: number }
 export interface BillResult { bill: BillView; receiptId?: string }
 export type CreditNoteView = { id: string; invoiceId: string; amount: Display; reason: string; state: 'waiting' | 'issued' | 'cancelled'; number: string | null; rowId: string | null; line: Display;
   /** 4J20: the receipt that names the note's amount (the invoice's balance with it), while waiting or issued; null once cancelled. */
@@ -5323,6 +5364,12 @@ export type OrderContractItem = { id: string; kind: 'deliverable' | 'check'; sta
  * for a role that may change routines (owner, cofounder). */
 export type RoutineView = { id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
 export interface RoutinesView { routines: RoutineView[] }
+/**
+ * One-shot C4 task 32: a ready routine the plan already names, for the owner to add through the form (nothing stored).
+ * step: the plan's step it comes from; when: the schedule in words.
+ */
+export type RoutineSuggestion = { name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; when: Display; step: string };
+export interface RoutineSuggestionsView { suggestions: RoutineSuggestion[] }
 /** receipt (W6 6G5): the model receipt of a run that asked an AI; absent before it ran. */
 export type RoutineRunView = { id: string; dueAt: IsoTime; state: RoutineRunState; line: Display; receipt?: ModelReceiptView };
 export interface RoutineRunsView { runs: RoutineRunView[] }
@@ -5550,7 +5597,7 @@ export type PackRecord = RecordBase<'venture-pack'> & import('./packs/packs.ts')
 /** Wave 6 (6F9): one Sunra generation, its code-computed rupee quote and rights record (media/sunra.ts). */
 export type MediaGenerationRecord = RecordBase<'venture-media-generation'> & import('./media/sunra.ts').MediaGenerationBody;
 export type ComplianceRecord = RecordBase<'venture-compliance'> & {
-  professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate; digest: string; switchedOff: string[]; memberId: string;
+  professionId: string; sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: IsoDate; digest: string; switchedOff: string[]; memberId: string;
   /** W6 (3 November 2026): the owner's size ranges, by measure; null or left out (records before it) when none. */
   size?: import('./core/business-size.ts').SizeAnswers | null;
 };
@@ -5630,7 +5677,8 @@ export type AnyVentureRecord =
   | CrmChangeRecord | CompanyRecord | CrmLinkRecord | CrmEntryRecord | CrmListRecord | CrmListItemRecord | MemoryFactRecord
   | AgentRetirementRecord
   | MiniAppRecord
-  | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord;
+  | import('./flows/records.ts').FlowRecord | import('./flows/records.ts').FlowRunRecord
+  | InvoiceShareRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -5864,6 +5912,10 @@ export const VENTURE_METHODS = [
   'venture.needs.list',
   // A2: the owner chooses the Codex found on this computer (codex-trust.ts), answered by the engine with or without a vault.
   'venture.ai.setup.trust',
+  // One-shot C4 (T20): a share of an invoice the owner made, or their "Mark as sent" (money/invoice-share.ts).
+  'venture.invoice.shared',
+  // One-shot C4 (T32): the ready routines the plan already names, for the owner to add (agents/routines.ts).
+  'venture.routines.suggestions',
 ] as const;
 export type VentureMethod = typeof VENTURE_METHODS[number];
 /**
@@ -6019,6 +6071,8 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.about.read': 'core', 'venture.about.pick': 'core', 'venture.about.families': 'core',
   'venture.needs.list': 'core',
   'venture.ai.setup.trust': 'models',
+  'venture.invoice.shared': 'money',
+  'venture.routines.suggestions': 'agents',
 });
 /** Methods that need a deliberate owner click inside the app (ctx.channel 'desktop', not source-tainted). */
 export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -6098,6 +6152,8 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.monitors.add', 'venture.monitors.remove', 'venture.mail.import', 'venture.webhook.set', 'venture.webhook.send',
   'venture.ca.confirmCitations', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
   'venture.desk.act',
+  // One-shot C4 (T20): the owner's own share or mark, from the invoice sheet.
+  'venture.invoice.shared',
 ] as const);
 /** The permission a method's handler authorizes at (records.ts authorize and ventureAction). */
 export type MethodLevel = 'read' | 'prepare' | 'approve';
@@ -6344,7 +6400,7 @@ export type VenturePayloads = {
   /** size: picked ranges to judge the verdicts by, kept nowhere. */
   'venture.compliance.get': { profession?: string; size?: { turnover?: string; headcount?: string } };
   /** size alone changes only the size answer (Business settings); with the side-work answer, left out keeps the saved one. */
-  'venture.compliance.set': { profession: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; digest: string; size?: { turnover?: string; headcount?: string } } | { size: { turnover?: string; headcount?: string } };
+  'venture.compliance.set': { profession: string; sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure'; digest: string; size?: { turnover?: string; headcount?: string } } | { size: { turnover?: string; headcount?: string } };
   'venture.judge.auto.get': Empty;
   /** auto: true runs the judge on its own on every ready draft for a client or the public, and records the consent. */
   'venture.judge.auto.set': { auto: boolean };
@@ -6428,7 +6484,8 @@ export type VenturePayloads = {
   'venture.runs.roundGate': { runId: string; on: boolean; every?: 1 | 2 | 3 | 5 };
   'venture.runs.steer': { runId: string; text: string };
   'venture.business.pause': { paused: boolean; stopRunning?: boolean };
-  'venture.away.set': { from: IsoDate; to: IsoDate };
+  /** C4 task 40: { clear: true } clears the days away now. */
+  'venture.away.set': { from: IsoDate; to: IsoDate } | { clear: true };
   'venture.away.get': Empty;
   'venture.runs.allowWrites': { kind: WriteCapKind };
   'venture.notify.list': Empty;
@@ -6636,6 +6693,8 @@ export type VenturePayloads = {
   'venture.ai.login.start': OnboardingPayloads['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingPayloads['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { cli: 'codex'; sha256: string };
+  'venture.invoice.shared': { invoiceId: string; how: InvoiceShareHow };
+  'venture.routines.suggestions': Empty;
   'venture.about.read': OnboardingPayloads['venture.about.read'];
   'venture.about.pick': OnboardingPayloads['venture.about.pick'];
   'venture.about.families': OnboardingPayloads['venture.about.families'];
@@ -7030,6 +7089,8 @@ export type VentureResults = {
   'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
   'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
   'venture.ai.setup.trust': { setup: import('./core/first-run-types.ts').CodexSetupView };
+  'venture.invoice.shared': InvoiceView;
+  'venture.routines.suggestions': RoutineSuggestionsView;
   'venture.about.read': OnboardingResults['venture.about.read'];
   'venture.about.pick': OnboardingResults['venture.about.pick'];
   'venture.about.families': OnboardingResults['venture.about.families'];

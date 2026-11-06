@@ -2,6 +2,7 @@
   "compliance.title": "Day job and rules",
   "compliance.loading": "Loading",
   "compliance.failed": "Couldn't load or save this: {message}",
+  "compliance.answer.no-day-job": "I don't have a day job",
   "compliance.answer.allowed": "Yes, it allows side work",
   "compliance.answer.not-allowed": "No, it does not",
   "compliance.answer.not-sure": "I am not sure",

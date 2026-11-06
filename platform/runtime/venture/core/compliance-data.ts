@@ -15,7 +15,10 @@ import { readSizeAnswers, sizeAskOf, sizeVerdict, type SizeAnswers, type SizeAsk
 
 export const SIDE_WORK_QUESTION = 'Does your employment contract allow side work? This is your responsibility.';
 export const SIDE_WORK_RESPONSIBILITY = 'Chausar does not read your contract. You decide, and you are responsible for it.';
-export const SIDE_WORK_ANSWERS = ['allowed', 'not-allowed', 'not-sure'] as const;
+/** One-shot C4 task 3: the line for an owner with no day job; the contract question does not apply to them. */
+export const NO_DAY_JOB_LINE = "You don't have a day job, so no contract limits this business.";
+/** C4 task 3: no-day-job first, as the screen lists it. */
+export const SIDE_WORK_ANSWERS = ['no-day-job', 'allowed', 'not-allowed', 'not-sure'] as const;
 export type SideWorkAnswer = typeof SIDE_WORK_ANSWERS[number];
 
 /** What a regulator can switch off in a business. Each is refused in the engine where it happens (core/compliance.ts). */
@@ -89,6 +92,8 @@ function fnv(text: string): string {
 export type CompliancePure = {
   profession: { id: string; label: string; family: string | null };
   question: string; responsibility: string;
+  /** C4 task 3: the line shown when the owner has no day job. */
+  noDayJob: string;
   rules: ProfessionRule[];
   switchedOff: { tool: RegulatorTool; line: string }[];
   hardStops: HardStop[];
@@ -100,7 +105,7 @@ export function complianceOf(item: ProfessionCompliance): CompliancePure {
   const own = new Set(item.hardStops);
   const hardStops = HARD_STOPS.filter(stop => own.has(stop.id)).map(stop => ({ ...stop }));
   const body = {
-    profession: { id: item.id, label: item.label, family: item.family }, question: SIDE_WORK_QUESTION, responsibility: SIDE_WORK_RESPONSIBILITY,
+    profession: { id: item.id, label: item.label, family: item.family }, question: SIDE_WORK_QUESTION, responsibility: SIDE_WORK_RESPONSIBILITY, noDayJob: NO_DAY_JOB_LINE,
     rules: item.rules.map(entry => ({ ...entry })), switchedOff: item.switchedOff.map(entry => ({ ...entry })), hardStops,
   };
   return { ...body, digest: 'compliance-' + fnv(JSON.stringify(body)) };

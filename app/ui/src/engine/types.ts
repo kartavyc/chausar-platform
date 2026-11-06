@@ -52,7 +52,7 @@ export interface QueueRow {
    * 4G2: a needs-you probe's notice: which probe, how much it matters, the screen Open goes to (an address such as
    * #/connections), and each amount its line states, exactly as written there, with its receipt, in order.
    */
-  notice?: { probe: 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea'; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[] };
+  notice?: { probe: 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea' | 'bill'; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[] };
 }
 /**
  * The row kinds Ink v2 wave 4 adds on the engine (4C1 proposal, 4E1 followup, 4E3 reply, 4G2 notice). W3's states.ts
@@ -603,7 +603,7 @@ export interface CalendarIntakeLite { month: string; channels: string[]; postsPe
 /** `OrderIntake.clientRules`: the client's own word lists; a missing list is empty. */
 export interface ClientRulesLite { bannedWords?: string[]; bannedTopics?: string[]; competitors?: string[]; protectedPhrases?: string[] }
 /** intake: by offer id, worked out by the engine; absent when no offer asks anything at intake. */
-export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite>; /** W6 6C3: the profession's sourced ranges, information only. */ priceGuide?: PriceGuideView }
+export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite>; /** W6 6C3: the profession's sourced ranges, information only. */ priceGuide?: PriceGuideView; /** C4 task 33: the owner's own price applied on Save, with its Undo row. */ decided?: { line: string; undoRowId: string } }
 export interface BlueprintPatchLite {
   countryCode?: string;
   name?: string; oneLiner?: string; customer?: string;
@@ -649,6 +649,12 @@ export interface CustodyViewLite {
   business: {
     folder: string; unlock: UnlockMode; recovery: 'made' | 'not-made' | 'unknown'; storage: 'experimental-file' | 'postgres';
     backups: { auto: boolean; count: number; newestAt: string | null; nextDueAt: string | null; lastError: string | null };
+    /** C4 task 36: the name the save dialog offers for an export. */
+    exportName?: string;
+    /** C4 task 37: the exports in Chausar's own folder, which Delete keeps. */
+    exportsHere?: number;
+    /** C4 task 38: when a move file was made, until the owner dismisses the line. */
+    moveMadeAt?: string | null;
   } | null;
 }
 export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean }
@@ -661,7 +667,7 @@ export interface WorkspaceLite { id?: string; name: string }
 export interface MoveFile { fileName: string; text: string; transferCode: string; bytes: number }
 /** `workspace.delete`: what the engine removed, and its words for the copies it cannot reach. */
 /** exportsKept (one-shot A1, row 1): the copies the owner exported, which Delete leaves where they are. */
-export interface Deleted { deleted: true; copiesRemoved?: unknown; exportsKept?: string[]; externalCopies: string }
+export interface Deleted { deleted: true; copiesRemoved?: unknown; exportsKept?: string[]; externalCopies: string; /** C4 task 37 */ name?: string; backupsRemoved?: number }
 
 /**
  * `venture.client.list` and `venture.client.add` (ClientRecord), trimmed. Client details are client data. `owed` is
@@ -728,6 +734,8 @@ export interface OrderLite {
   /** 4J3: the order's stage steps from the records, and what waits on the owner ("2 wait on you: ..."), or null. */
   stages?: OrderStageView[];
   waitsOnYou?: OrderWaitsOnYou | null;
+  /** C4 task 11: the order's price as its receipt's Total figure says it, with the receipt id; null without a receipt. */
+  price?: { display: string; receiptId: string } | null;
 }
 /**
  * 4J3: one stage of an order (the engine's playbooks/order-stages.ts lists them per playbook). id and state are codes
@@ -817,6 +825,8 @@ export interface InvoiceLite {
   late?: { days: number; line: Display };
   /** Wave 6 (6D1): the part of its order a list row bills, when it bills a part. */
   part?: { kind: 'advance' | 'milestone' | 'partial' | 'final'; label: string };
+  /** One-shot C4 (T20): true only once the owner marked it sent; opening their own app with it is not sending. */
+  sent?: boolean;
 }
 /**
  * `venture.invoice.get`, `.prepare`, `.issue` and `venture.payment.record` (InvoiceView), trimmed. Amounts reach the UI
@@ -838,7 +848,9 @@ export interface PaymentLite {
 export interface InvoiceNext { action: 'issue' | 'wait' | 'remind' | 'clear' | 'none'; line: Display; draftId?: string }
 /** 4J5 (M12): one line of an invoice's short timeline, events by date, then where it stands now. */
 export interface InvoiceTimelineEntry {
-  what: 'issued' | 'viewed' | 'paid' | 'cheque' | 'credited' | 'reminder' | 'reminded' | 'awaiting' | 'settled'; on: string; line: Display;
+  what: 'issued' | 'viewed' | 'paid' | 'cheque' | 'credited' | 'reminder' | 'reminded' | 'awaiting' | 'settled' | 'shared' | 'marked'; on: string; line: Display;
+  /** One-shot C4 (T20): on a 'shared' line, how the owner shared it. */
+  how?: 'whatsapp' | 'email' | 'file';
 }
 export interface InvoiceViewLite {
   country?: CountryLite;
@@ -867,6 +879,8 @@ export interface InvoiceViewLite {
   billed?: { orderTotal: Display; billed: Display; left: Display; invoices: number };
   /** Wave 6 (6D2, 6D3): how the client pays, built by the engine from the balance. */
   howToPay?: HowToPayLite;
+  /** One-shot C4 (T20): true only once the owner marked it sent. */
+  sent?: boolean;
 }
 
 /** Wave 6 (6D2, 6D3): an invoice's ways to pay, as text and a QR code the engine drew; no amount the UI could add up. */
@@ -1120,10 +1134,12 @@ export interface RuleLocksLite { playbook: { id: string; label: string } | null;
 /** W6 6C6: `venture.compliance.get` and `.set`: the side-work question, the profession's rules and regulator switches. */
 export interface ComplianceLite {
   profession: { id: string; label: Display; family: string | null }; question: Display; responsibility: Display;
+  /** One-shot C4 task 3: the engine's line for an owner with no day job. */
+  noDayJob: Display;
   /** verdict (W6, 3 November 2026): the engine's line at the owner's size for a statute with a size threshold, else null. */
   rules: { id: string; title: Display; line: Display; checked: boolean; source: { url: string; publisher: string; title: string } | null; checkedOn: string | null; checkedDay: Display | null; size: Display | null; verdict: Display | null }[]; switchedOff: { tool: string; line: Display }[];
   hardStops: { id: string; line: Display }[]; digest: string;
-  recorded: { professionId: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: string } | null;
+  recorded: { professionId: string; sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure'; acknowledgedOn: string } | null;
   /** W6 (3 November 2026): the size question, asked only when a rule counts size (core/business-size.ts), else null. */
   size: SizeAskLite | null;
 }
@@ -1421,7 +1437,8 @@ export interface AwayView { away: { from: string; to: string } | null; promises:
 export type WriteCapKind = 'drafts' | 'books-lines' | 'messages';
 
 /** 4G1 and 4G3 notifications and push. */
-export interface NotificationView { id: string; rowId: string; kind: QueueKind | QueueKindW4; title: Display; at: string; read: boolean }
+/** ended (one-shot C4 task 7): the item no longer waits on the owner. */
+export interface NotificationView { id: string; rowId: string; kind: QueueKind | QueueKindW4; title: Display; at: string; read: boolean; ended?: true }
 /** W6 6F6 (notify/telegram.ts). said: what a test alert did, only on a test. */
 export interface TelegramView { connected: boolean; details: boolean; line: Display; said?: Display }
 /** W6 6F7 (notify/phone.ts): the phone listener's state; a one-time pairing link and its QR code when one was asked for. */
@@ -1542,7 +1559,8 @@ export interface SignedReceiptsFile { format: string; business: string; algorith
 export type BillLineInput = { description: string; taxName: string }
   & ({ amount: string; amountMinor?: never } | { amountMinor: string; amount?: never })
   & ({ taxRate: string; taxRateBps?: never } | { taxRateBps: string; taxRate?: never });
-export interface BillView { id: string; vendor: string; billDate: string; dueDate: string; total: Display; paid: Display; balance: Display; state: 'draft' | 'posted' | 'partial' | 'paid' | 'overdue'; recurring: 'monthly' | 'quarterly' | null; receiptId?: string }
+/** C4 (T22): dueToday, a posted bill with money left due on the owner's day today; purpose, what it is for (from its lines). */
+export interface BillView { id: string; vendor: string; billDate: string; dueDate: string; total: Display; paid: Display; balance: Display; state: 'draft' | 'posted' | 'partial' | 'paid' | 'overdue'; recurring: 'monthly' | 'quarterly' | null; receiptId?: string; dueToday?: boolean; purpose?: string | null }
 export interface CreditNoteView { id: string; invoiceId: string; amount: Display; reason: string; state: 'waiting' | 'issued' | 'cancelled'; number: string | null; rowId: string | null; line: Display; receiptId?: string | null }
 export interface RecurringInvoiceView { id: string; clientId: string; offerId: string; frequency: 'monthly' | 'quarterly'; startOn: string; end: string | null; nextOn: string | null; line: Display }
 /** 4J6: what a row's line says (`AcrossLineKey` in the engine's contracts), so a screen can word it in Hindi. */
@@ -1695,11 +1713,15 @@ export interface OrderContractView {
 export type RoutineSchedule =
   | { kind: 'once'; at: string }
   | { kind: 'interval'; everyMinutes: number; from: string }
-  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string };
+  | { kind: 'calendar'; weekdays: number[]; time: string; timeZone: string }
+  /** C4 task 32: one day of the month (1 to 28) at a time in a named zone. */
+  | { kind: 'monthly'; day: number; time: string; timeZone: string };
 export type RoutineRunState = 'queued' | 'running' | 'needs-input' | 'completed' | 'failed' | 'missed' | 'skipped' | 'interrupted';
 /** prompt (4J22a): the routine's own words, sent back with venture.routines.set to turn it off, on or change it; only for
  * a role that may change routines. */
 export interface RoutineView { recordReport?:'va-morning'|'va-weekly'; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: string | null; line: Display }
+/** C4 task 32: a ready routine from the plan (agents/routines.ts routineSuggestions). */
+export interface RoutineSuggestion { name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; when: Display; step: string }
 export interface RoutineInput { recordReport?:'va-morning'|'va-weekly'; id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
 export interface RankedOptionView { id: string; label: Display; text: Display; score: number; estimate: Display | null; failed: boolean }
 export interface DrillRunView { id: string; at: string; playbookHash: string; version: number | null; passed: boolean; results: { drill: Display; stopped: boolean; twinPassed: boolean; line: Display }[] }
@@ -2027,7 +2049,10 @@ export interface EngineMethods {
   /** The open business goes back to the backup. The engine writes a safety copy of how it is now first. */
   'workspace.backups.restore': { params: { file: string; confirmed: true }; result: { workspace: WorkspaceLite; restoredFrom: BackupLite; safety: BackupLite } };
   /** Needs the passphrase when the business is locked with one (PASSPHRASE_WRONG otherwise). */
-  'workspace.transfer.export': { params: { passphrase?: string }; result: MoveFile };
+  /** dismiss (C4 task 38): takes the "Move file made" line away. */
+  'workspace.transfer.export': { params: { passphrase?: string } | { dismiss: true }; result: MoveFile | { dismissed: true } };
+  /** C4 task 38: the business name and the time inside a move file, read with its code; nothing is written. */
+  'workspace.transfer.peek': { params: { fileText: string; transferCode: string }; result: { name: string; movedOutAt: string | null } };
   /** With no business open: the move file's text and its code. A new passphrase only after DEVICE_KEYS_UNAVAILABLE. */
   'workspace.transfer.import': { params: { fileText: string; transferCode: string; passphrase?: string }; result: { workspace: WorkspaceLite; folder: string; unlock: UnlockMode } };
   /** With no business open: the recovery code opens it. A new passphrase only after DEVICE_KEYS_UNAVAILABLE. */
@@ -2039,7 +2064,7 @@ export interface EngineMethods {
    */
   'workspace.restore': { params: { backupFile: string; folder?: string | null; passphrase?: string; recoveryCode?: string }; result: { workspace: WorkspaceLite; folder?: string } };
   /** A copy in Chausar's exports folder. `confirmed` is sent only after the owner chose; plaintext only after a second ask. */
-  'workspace.export': { params: { confirmed: true; plaintext: boolean }; result: { path: string; encrypted: boolean } };
+  'workspace.export': { params: { confirmed: true; plaintext: boolean }; result: { path: string; name?: string; encrypted: boolean } };
   /** `confirmation` is the business name exactly as the vault holds it (workspace.status). */
   'workspace.delete': { params: { confirmation: string }; result: Deleted };
   /**
@@ -2142,7 +2167,7 @@ export interface EngineMethods {
   'venture.rules.locks': { params: Record<string, never>; result: RuleLocksLite };
   'venture.rules.attest': { params: { ruleId: string; attest: boolean; digest?: string }; result: RuleLocksLite };
   'venture.compliance.get': { params: { profession?: string; size?: SizeAnswersLite }; result: ComplianceLite };
-  'venture.compliance.set': { params: { profession: string; sideWork: 'allowed' | 'not-allowed' | 'not-sure'; digest: string; size?: SizeAnswersLite } | { size: SizeAnswersLite }; result: ComplianceLite };
+  'venture.compliance.set': { params: { profession: string; sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure'; digest: string; size?: SizeAnswersLite } | { size: SizeAnswersLite }; result: ComplianceLite };
   'venture.judge.auto.get': { params: Record<string, never>; result: JudgeAutoView };
   /** The owner's, inside the app. auto: true records the standing consent for the judge's calls. */
   'venture.judge.auto.set': { params: { auto: boolean }; result: JudgeAutoView };
@@ -2262,7 +2287,7 @@ export interface EngineMethods {
   'venture.runs.roundGate': { params: { runId: string; on: boolean; every?: 1 | 2 | 3 | 5 }; result: RunControlResult };
   'venture.runs.steer': { params: { runId: string; text: string }; result: RunControlResult };
   'venture.business.pause': { params: { paused: boolean; stopRunning?: boolean }; result: { paused: boolean; stopped: number; line: Display } };
-  'venture.away.set': { params: { from: string; to: string }; result: AwayView };
+  'venture.away.set': { params: { from: string; to: string } | { clear: true }; result: AwayView };
   'venture.away.get': { params: Record<string, never>; result: AwayView };
   'venture.runs.allowWrites': { params: { kind: WriteCapKind }; result: { kind: WriteCapKind; line: Display } };
   // 4G1 and 4G3 notifications and push.
@@ -2335,9 +2360,10 @@ export interface EngineMethods {
   'venture.money.cash': { params: Record<string, never>; result: CashView };
   'venture.money.margins': { params: { month: string }; result: MarginsView };
   'venture.money.export': { params: { month: string }; result: MoneyExportFile };
-  'venture.bills.add': { params: { vendor: string; lines: BillLineInput[]; billDate: string; dueDate: string; recurring?: 'monthly' | 'quarterly' | null }; result: { bill: BillView; receiptId?: string } };
+  // C4 (T22): with no dueDate the engine takes the vendor's last terms, else defaultDueDays after the bill date.
+  'venture.bills.add': { params: { vendor: string; lines: BillLineInput[]; billDate: string; dueDate?: string; recurring?: 'monthly' | 'quarterly' | null }; result: { bill: BillView; receiptId?: string } };
   'venture.bills.pay': { params: { billId: string; paidOn: string; method: PaymentMethod } & ({ amount: string; amountMinor?: never } | { amountMinor: string; amount?: never }); result: { bill: BillView; receiptId?: string } };
-  'venture.bills.list': { params: Record<string, never>; result: { bills: BillView[]; owed?: MoneyFigure | null } };
+  'venture.bills.list': { params: Record<string, never>; result: { bills: BillView[]; owed?: MoneyFigure | null; terms?: { vendor: string; days: number }[]; defaultDueDays?: number } };
   'venture.credit.issue': { params: { invoiceId: string; reason: string; digest: string } & ({ amount: string; amountMinor?: never } | { amountMinor: string; amount?: never }); result: { creditNote: CreditNoteView } };
   'venture.invoice.recurring': {
     params: { clientId: string; offerId: string; frequency: 'monthly' | 'quarterly'; startOn: string; end?: string; reminderDays?: number[]; taxInclusive?: boolean };
@@ -2386,6 +2412,8 @@ export interface EngineMethods {
   'venture.ai.login.cancel': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
   // A2: the owner's yes to the Codex found on this computer, with or without a business.
   'venture.ai.setup.trust': { params: { cli: 'codex'; sha256: string }; result: { setup: CodexSetupLite } };
+  // One-shot C4 (T20): a share the owner made, or their "Mark as sent", recorded on the invoice.
+  'venture.invoice.shared': { params: { invoiceId: string; how: 'whatsapp' | 'email' | 'file' | 'marked' }; result: InvoiceViewLite };
   'venture.about.read': { params: { text?: string; attachment?: { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string } }; result: AboutReadLite };
   'venture.about.pick': { params: { familyId: string; text?: string }; result: AboutReadLite };
   'venture.about.families': { params: Record<string, never>; result: { families: FamilyTileLite[] } };
@@ -2399,6 +2427,8 @@ export interface EngineMethods {
   'venture.order.contract.propose': { params: { orderId: string; contract: OrderContract }; result: OrderContractView };
   'venture.order.contract.sign': { params: { orderId: string; digest: string }; result: OrderContractView };
   'venture.routines.list': { params: Record<string, never>; result: { routines: RoutineView[] } };
+  /** C4 task 32: at most two ready routines the plan already names; nothing stored. */
+  'venture.routines.suggestions': { params: Record<string, never>; result: { suggestions: RoutineSuggestion[] } };
   'venture.routines.runs': { params: { id: string }; result: { runs: { id: string; dueAt: string; state: RoutineRunState; line: Display; receipt?: ModelReceiptView }[] } };
   'venture.routines.set': { params: { routine: RoutineInput }; result: { routine: RoutineView } };
   'venture.routines.remove': { params: { id: string }; result: { removed: true; line: Display } };
@@ -2519,6 +2549,13 @@ export interface EngineClient {
    * shows only a file of Chausar's exports folder). EXPORT_NOT_FOUND when it is gone. Absent on the web and the fake.
    */
   showExport?(name: string): Promise<void>;
+  /**
+   * Desktop only (one-shot C4 task 36): saves a copy of the whole business where the owner picks in the desktop's own
+   * save dialog (Documents first, named with the business and the day). The window gets the file's name and an id for
+   * Show in folder, never the path. Null when the owner cancelled (nothing written). Absent on the web and the fake.
+   */
+  saveBusinessExport?(plaintext: boolean): Promise<{ name: string; encrypted: boolean; id: string } | null>;
+  showSavedExport?(id: string): Promise<void>;
   /**
    * Desktop only (one-shot A6): Email it or Share on WhatsApp on an issued invoice. The desktop asks the engine for the
    * file (venture.invoice.pdf), keeps it in Chausar's share folder and opens the owner's own app; it answers what opened.

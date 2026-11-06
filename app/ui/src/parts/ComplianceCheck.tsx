@@ -6,14 +6,15 @@ import { SizePicker, savedSize } from './SizePicker';
 import type { ComplianceLite, SizeAnswersLite } from '../engine/types';
 import s from './ComplianceCheck.module.css';
 
-export type SideWorkAnswer = 'allowed' | 'not-allowed' | 'not-sure';
+export type SideWorkAnswer = 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure';
 /**
  * What the check hands back: the profession, the owner's answer, the digest of the words shown, whether it was recorded,
  * and the size ranges the owner picked (left out when the engine asked none, or none was picked).
  */
 export type ComplianceAnswer = { profession: string; sideWork: SideWorkAnswer; digest: string; recorded: boolean; size?: SizeAnswersLite };
 
-const ANSWERS: readonly SideWorkAnswer[] = ['allowed', 'not-allowed', 'not-sure'];
+/** C4 task 3: "I don't have a day job" first. */
+const ANSWERS: readonly SideWorkAnswer[] = ['no-day-job', 'allowed', 'not-allowed', 'not-sure'];
 
 /**
  * The day-job and compliance check (wave 6, 6C6 / D5, D21), for onboarding to mount when the profession is picked.
@@ -78,7 +79,8 @@ export function ComplianceCheck({ profession, record = true, onDone, headingLeve
           </label>
         ))}
       </fieldset>
-      <p className={s.note}>{data.responsibility}</p>
+      {/* C4 task 3: with no day job, the contract's responsibility line folds away for the engine's own line. */}
+      <p className={s.note}>{answer === 'no-day-job' ? data.noDayJob : data.responsibility}</p>
       {data.size && <SizePicker ask={data.size} value={picked ?? savedSize(data.size)} disabled={busy} onChange={setPicked} />}
       {data.rules.length > 0 && (
         <ul className={s.list} aria-label={t('compliance.rules')}>
