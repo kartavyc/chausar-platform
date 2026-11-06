@@ -64,7 +64,7 @@ export function fromCodexLimits(raw: unknown, readAt: IsoTime): PlanReading {
 export function fromClaudeLimit(info: unknown, readAt: IsoTime): PlanReading {
   const windows: PlanWindow[] = [];
   if (plain(info) && typeof info.rateLimitType === 'string' && CLAUDE_WINDOW[info.rateLimitType] && ['allowed', 'allowed_warning', 'rejected'].includes(info.status as string)) {
-    const kind = CLAUDE_WINDOW[info.rateLimitType], resetsAt = resetTime(info.resetsAt);
+    const kind = CLAUDE_WINDOW[info.rateLimitType]!, resetsAt = resetTime(info.resetsAt);
     const used = info.utilization === undefined || info.utilization === null ? null : percent(info.utilization);
     const unreadable = resetsAt === null || (info.utilization !== undefined && info.utilization !== null && used === null);
     if (unreadable) windows.push(unknownWindow(kind));

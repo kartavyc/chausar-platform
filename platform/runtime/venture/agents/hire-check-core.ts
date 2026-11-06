@@ -81,7 +81,7 @@ function insideAct(words: readonly string[]): boolean {
   if (act === null) return true;
   if (!INTERNAL_VERBS.has(act)) return false;
   const shared = WITH_OTHERS_OF[act];
-  return !shared || !WITH_OTHERS[shared].test(words.slice(words.indexOf(act) + 1).join(' '));
+  return !shared || !WITH_OTHERS[shared]!.test(words.slice(words.indexOf(act) + 1).join(' '));
 }
 
 /**
@@ -96,10 +96,10 @@ function actsWithoutOwner(words: string, floorActs: ReadonlySet<string>, allowLi
     const words = clause.split(/[^a-z0-9]+/).filter(Boolean);
     if (allowList && !insideAct(words)) return true;
     return words.some((word, index) => {
-      if (index > 0 && !VERB_PLACE.has(words[index - 1])) return false;
+      if (index > 0 && !VERB_PLACE.has(words[index - 1]!)) return false;
       if (FLOOR_VERBS.has(word)) return true;
-      if (WITH_OTHERS_OF[word] && WITH_OTHERS[WITH_OTHERS_OF[word]].test(words.slice(index + 1).join(' '))) return true;
-      if (OUTWARD_VERBS.has(word) && words[index + 1] !== undefined && !['me', 'myself'].includes(words[index + 1])) return true;
+      if (WITH_OTHERS_OF[word] && WITH_OTHERS[WITH_OTHERS_OF[word]!]!.test(words.slice(index + 1).join(' '))) return true;
+      if (OUTWARD_VERBS.has(word) && words[index + 1] !== undefined && !['me', 'myself'].includes(words[index + 1]!)) return true;
       return PRICE_VERBS.has(word) && words.slice(index + 1, index + 4).some(next => PRICE_WORDS.has(next));
     });
   });
