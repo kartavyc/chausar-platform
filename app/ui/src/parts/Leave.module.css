@@ -6,6 +6,7 @@
 .row {
   display: grid;
   grid-template-rows: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .row,
@@ -16,6 +17,7 @@
 }
 
 .inner {
+  min-width: 0;
   min-height: 0;
   overflow: clip;
   overflow-clip-margin: var(--sp-1);
