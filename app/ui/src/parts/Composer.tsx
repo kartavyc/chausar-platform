@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useRef, useState, type ReactNode, type KeyboardEvent } from 'react';
 import { useT } from '../text';
 import { Button } from './Button';
 import { cx } from './cx';
@@ -10,6 +10,10 @@ import { WaitLine } from './Progress';
 export interface ComposerProps {
   /** The box's name, said by screen readers and shown as the placeholder ("Message Editor", "Ask Chausar"). */
   label: string;
+  /** Optional input action, such as push-to-talk, beside Send. */
+  accessory?: ReactNode;
+  /** An accessory may ask for consent before the owner sends. */
+  sendDisabled?: boolean | undefined;
   /** A longer placeholder, when the name alone is too short ("Ask Chausar about your businesses"). */
   placeholder?: string | undefined;
   /** Stores the message. The text is cleared only once this resolves; if it rejects the text stays. */
@@ -18,6 +22,8 @@ export interface ComposerProps {
   suggestions?: readonly (string | { label: string; preview: string })[] | undefined;
   /** The suggestions' name for screen readers, when not plain suggestions. */
   suggestionsLabel?: string | undefined;
+  /** Apps: an idea is a complete request, so its next stop is Send. */
+  focusSendOnSuggestion?: boolean | undefined;
   /** One-shot C3 task 11: while a send is on its way, one still line with its elapsed time ("Writing, 8 s"), never dots. */
   waitLabel?: string | undefined;
   /** One quiet line under the box, such as what the agent does without asking. */
@@ -46,10 +52,11 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  * red line, then the long reason in the normal colour, whole (B4 task 4). A send starts once however fast Enter is
  * pressed. Nothing goes to browser storage.
  */
-export function Composer({ label, placeholder, onSend, suggestions, suggestionsLabel, hint, initial, describeFailure, className, waitLabel }: ComposerProps) {
+export function Composer({ label, placeholder, onSend, suggestions, suggestionsLabel, hint, initial, describeFailure, className, waitLabel, focusSendOnSuggestion = false, accessory, sendDisabled = false }: ComposerProps) {
   const t = useT();
   const id = useId();
   const box = useRef<HTMLTextAreaElement>(null);
+  const sendButton = useRef<HTMLButtonElement>(null);
   const composing = useRef(false);
   /** Set the moment a send starts, before React re-renders, so a second Enter or submit can never send twice. */
   const inFlight = useRef(false);
@@ -59,7 +66,7 @@ export function Composer({ label, placeholder, onSend, suggestions, suggestionsL
   const empty = text.trim() === '';
 
   async function send() {
-    if (inFlight.current || empty) return;
+    if (inFlight.current || empty || sendDisabled) return;
     inFlight.current = true;
     setSending(true);
     setError(null);
@@ -107,7 +114,8 @@ export function Composer({ label, placeholder, onSend, suggestions, suggestionsL
                 type="button"
                 className={typeof suggestion === 'string' ? s.suggestion : s.idea}
                 disabled={sending}
-                onClick={() => { write(words); box.current?.focus(); }}
+                aria-pressed={focusSendOnSuggestion ? text === words : undefined}
+                onClick={() => { write(words); if (focusSendOnSuggestion) queueMicrotask(() => sendButton.current?.focus()); else box.current?.focus(); }}
               >
                 {words}
                 {typeof suggestion !== 'string' && <span className={s.ideaPreview}>{suggestion.preview}</span>}
@@ -132,7 +140,8 @@ export function Composer({ label, placeholder, onSend, suggestions, suggestionsL
           onCompositionStart={() => { composing.current = true; }}
           onCompositionEnd={() => { composing.current = false; }}
         />
-        <Button variant="primary" type="submit" className={s.send} aria-label={t('composer.send')} disabled={sending || empty}>
+        {accessory}
+        <Button ref={sendButton} variant="primary" type="submit" className={s.send} aria-label={t('composer.send')} disabled={sending || empty || sendDisabled}>
           <Icon name="send" size={18} />
         </Button>
       </div>

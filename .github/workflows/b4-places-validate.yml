@@ -1,0 +1,18 @@
+name: B4 places validation
+on:
+  push:
+    branches: ['b2c/os-b4-places-check-*']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+      - run: node scripts/ui-shots/mini-app-size.mjs

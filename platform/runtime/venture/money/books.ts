@@ -67,7 +67,7 @@ async function booksFigures(deps: VentureDeps, ctx: Context, venture: VentureRec
     check(receipt.currency === venture.country.currency, 'CURRENCY_CONFLICT', 'The books receipt must use this business currency.');
     const currency = receipt.currency;
     if (receipt.exclusions?.some((row: { reason: string }) => row.reason.includes('currency scope'))) notes.add(`Totals are in ${currency}. Other currencies are excluded; no conversion was made.`);
-    figures.push({ operation, label, receiptId: receipt.id, minor: receipt.totalMinor, display: formatMoney(receipt.totalMinor, currency), stale: receipt.stale === true });
+    figures.push({ operation, label, receiptId: receipt.id, minor: receipt.totalMinor, display: formatMoney(receipt.totalMinor, currency), stale: receipt.stale === true, ...(BigInt(receipt.totalMinor) === 0n ? { zero: true as const } : {}) });
   }
   return figures;
 }
