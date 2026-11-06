@@ -168,7 +168,7 @@ function ImportSteps({ id, onClose, returnFocus }: SheetComponentProps) {
               {step.check.dropped.length > 0 && (
                 <>
                   <p className={s.label}>{t('clients.import.dropped')}</p>
-                  <ul className={s.lines}>{step.check.dropped.map((item) => <li key={item.what}>{item.what} <Count value={item.count} /></li>)}</ul>
+                  <ul className={s.lines}>{step.check.dropped.map((item) => <li className={s.droppedRow} key={item.what}><span>{item.what}</span><Count value={item.count} /></li>)}</ul>
                 </>
               )}
               <div className={s.actions}>

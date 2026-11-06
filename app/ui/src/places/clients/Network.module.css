@@ -685,3 +685,5 @@
   contain-intrinsic-size: auto var(--target);
   overflow-clip-margin: var(--sp-1);
 }
+
+.droppedRow { display: flex; justify-content: space-between; gap: var(--gap-grid); }

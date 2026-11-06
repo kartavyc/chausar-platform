@@ -82,7 +82,7 @@ export function Fields({ client, items, hidden, problems, onDismiss, foldTax = f
   const view = (m: FieldModel) => (
     <FieldView key={m.field} model={m} label={RECORD_FIELDS.has(m.field) ? t(`clients.field.${m.field}`) : m.field} problems={problems} onDismiss={onDismiss} />
   );
-  const models = fieldModels(client, items, hidden);
+  const models = fieldModels(client, items, hidden).filter(model => model.stored || model.suggestion || model.ask);
   const folded = foldTax ? models.filter((m) => TAX_FIELDS.has(m.field)) : [];
   return (
     <div className={s.fields}>

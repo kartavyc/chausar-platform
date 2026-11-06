@@ -16,24 +16,31 @@ import { useDay, useLocalToday } from '../money/words';
 import { CrmFold, messageOf } from './CrmParts';
 import s from './Crm.module.css';
 import { Select } from '../../parts/Select';
+import { useClientsChanged } from './signals';
 
 /** The facts with their heading, for a sheet. */
-export function FactsSection({ subject }: { subject: string }) {
+export function FactsSection({ subject, quiet = false }: { subject: string; quiet?: boolean }) {
   const t = useT();
   const id = useId();
+  const engine = useEngine();
+  const view = useResource('venture.memory.list', { subject });
+  useClientsChanged(engine, view.reload);
+  if (quiet && !view.error && !view.data?.facts.length && !view.data?.earlier.length) return null;
   return (
     <section aria-labelledby={id} data-facts={subject}>
       <h3 id={id} className={s.heading}>{t('crm.facts')}</h3>
-      <FactsBody subject={subject} />
+      <FactsBody subject={subject} quiet={quiet} />
     </section>
   );
 }
 
 /** The facts without a heading, for a page that gives its own (Business > What the AI knows). */
-export function FactsBody({ subject }: { subject: string }) {
+export function FactsBody({ subject, quiet = false }: { subject: string; quiet?: boolean }) {
   const t = useT();
   const day = useDay();
   const view = useResource('venture.memory.list', { subject });
+  const engine = useEngine();
+  useClientsChanged(engine, view.reload);
   const [said, setSaid] = useState<{ line: string; problem: boolean } | null>(null);
   const done = (line: string) => { setSaid({ line, problem: false }); view.reload(); };
   const failed = (error: unknown) => setSaid({ line: messageOf(error), problem: true });
@@ -43,14 +50,14 @@ export function FactsBody({ subject }: { subject: string }) {
   const { facts, earlier } = view.data;
   return (
     <>
-      <p className={s.quiet}>{view.data.line}</p>
+      {!quiet && <p className={s.quiet}>{view.data.line}</p>}
       {said && <p className={said.problem ? s.failed : s.said} role={said.problem ? 'alert' : 'status'}>{said.line}</p>}
       {facts.length === 0 ? <p className={s.quiet}>{t('crm.facts.none')}</p> : (
         <ul className={s.items}>
           {facts.map((fact) => <FactRow key={fact.id} fact={fact} onDone={done} onFailed={failed} />)}
         </ul>
       )}
-      <CrmFold summary={t('crm.facts.add')}><AddFact subject={subject} onDone={done} onFailed={failed} /></CrmFold>
+      {!quiet && <CrmFold summary={t('crm.facts.add')}><AddFact subject={subject} onDone={done} onFailed={failed} /></CrmFold>}
       {earlier.length > 0 && (
         <CrmFold summary={t('crm.facts.earlier')}>
           <ul className={s.items} data-earlier="">
@@ -133,7 +140,7 @@ function FactRow({ fact, onDone, onFailed }: { fact: FactView; onDone: (line: st
   );
 }
 
-function AddFact({ subject, onDone, onFailed }: { subject: string; onDone: (line: string) => void; onFailed: (error: unknown) => void }) {
+export function AddFact({ subject, onDone, onFailed, textLabel }: { subject: string; onDone: (line: string) => void; onFailed: (error: unknown) => void; textLabel?: string }) {
   const t = useT();
   const engine = useEngine();
   const ids = useId();
@@ -158,7 +165,7 @@ function AddFact({ subject, onDone, onFailed }: { subject: string; onDone: (line
   return (
     <form className={s.form} onSubmit={(event) => void submit(event)}>
       <Field label={t('crm.facts.topic')} value={topic} maxLength={60} autoComplete="off" onChange={(event) => setTopic(event.currentTarget.value)} />
-      <Field multiline label={t('crm.facts.text')} value={text} maxLength={600} onChange={(event) => setText(event.currentTarget.value)} />
+      <Field multiline label={textLabel ?? t('crm.facts.text')} value={text} maxLength={600} onChange={(event) => setText(event.currentTarget.value)} />
       <Field label={t('crm.facts.sinceLabel')} type="date" value={since} max={localToday()} onChange={(event) => setSince(event.currentTarget.value)} />
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-who`}>{t('crm.facts.who')}</label>
