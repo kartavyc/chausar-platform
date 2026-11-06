@@ -11,6 +11,7 @@
  * The fake reads plain words with a small table instead of the owner's AI: it is a sample, never a model.
  */
 
+import { networkChips } from '../../../../platform/runtime/venture/network/chips';
 import { formatCount } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type ChatConsentView, type NetworkImportKind, type NetworkImportResult, type NetworkImportView, type NetworkSearchView, type NetworkSourcesView, type PeopleView,
@@ -333,7 +334,10 @@ export class FakePeopleDesk {
       .filter((person) => person.hidden === hidden)
       .filter((person) => !query || fold(person.name).includes(query) || fold(person.company).includes(query) || fold(person.title).includes(query) || person.emails.some((email) => email.includes(query)))
       .sort((a, b) => (fold(a.name) < fold(b.name) ? -1 : fold(a.name) > fold(b.name) ? 1 : 0));
-    return { people: matched.slice(0, limit).map((person) => this.summary(person)), suggestions: [], total: matched.length, consent: this.consentNeeded() };
+    // C5 task 10: the chips from the network, as network/chips.ts builds them; never from hidden people.
+    const clients = (() => { try { return (this.host.ask('venture.client.list', {}) as unknown[]).length > 0; } catch { return false; } })();
+    const chips = networkChips(this.network().people.map((person) => ({ hidden: person.hidden, company: person.company, title: person.title })), clients);
+    return { people: matched.slice(0, limit).map((person) => this.summary(person)), suggestions: [], total: matched.length, consent: this.consentNeeded(), chips };
   }
 
   private personView(person: Person): PersonView {

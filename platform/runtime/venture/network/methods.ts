@@ -2,6 +2,7 @@
 // "Same person?" suggestions, one person's sheet, the source cards, and the owner's merge, split and hide. The import
 // and its undo live in import.ts, Forget in forget.ts. Later packages add their own methods here (4D2 recompute, know
 // and link, at the end, and the bands on the source cards; 4D3 search).
+import { networkChips } from './chips.ts';
 import { check, type Context } from '../../contracts.ts';
 import { NETWORK_IMPORT_KINDS } from '../contracts.ts';
 import type {
@@ -55,6 +56,7 @@ export async function networkPeople(deps: VentureDeps, ctx: Context, payload: un
     suggestions: body.suggestions === true ? mergeSuggestions(everyone) : [],
     total: matched.length,
     consent: consent.state === 'needed' || consent.state === 'stale' ? consent : null,
+    chips: networkChips(everyone.map(person => ({ hidden: person.hidden, company: person.role?.company, title: person.role?.title })), listRecords(state, 'venture-client', venture.id).length > 0),
   };
 }
 
