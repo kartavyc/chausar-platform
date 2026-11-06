@@ -1,0 +1,65 @@
+name: Dispatch snapshot checks
+on:
+  push:
+    branches: ['b2c/os-dispatch-check-*']
+permissions:
+  contents: read
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: --max-old-space-size=3072
+      CHAUSAR_RUN_ROOT: /tmp/dispatch-receipts
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Measure imports
+        run: |
+          mkdir -p /tmp/dispatch-receipts
+          node .github/dispatch-measure.mjs /tmp/dispatch-receipts/imports.json
+      - name: Lazy and tier regressions
+        run: |
+          set -o pipefail
+          timeout 180s node --test --test-concurrency=2 platform/tests/engine-legacy-lazy-d10.test.ts platform/tests/method-registry-d8.test.ts platform/tests/benchmark-sharding.test.ts platform/tests/engine-bundle-rules-d7.test.ts platform/tests/test-isolation-d2.test.ts 2>&1 | tee /tmp/dispatch-receipts/tests.log
+      - name: Focused receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-focused-receipts
+          path: /tmp/dispatch-receipts
+      - name: Engine types
+        if: always()
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee /tmp/dispatch-receipts/types.log
+      - name: UI types
+        if: always()
+        run: npm run typecheck:ui 2>&1 | tee /tmp/dispatch-receipts/ui-types.log
+      - name: Source checks
+        if: always()
+        run: node scripts/check.mjs 2>&1 | tee /tmp/dispatch-receipts/checks.log
+      - name: Legacy parity
+        if: always()
+        run: |
+          set -o pipefail
+          timeout 900s node scripts/bench.mjs --tier=legacy --workers=2 --output=/tmp/dispatch-receipts/legacy.json 2>&1 | tee /tmp/dispatch-receipts/legacy.log
+      - name: Desktop phone hosted and worker boundaries
+        if: always()
+        run: |
+          set -o pipefail
+          timeout 600s node --test --test-concurrency=2 platform/tests/phone*.test.ts platform/tests/desktop*.test.ts platform/tests/worker.test.ts platform/tests/server-auth.test.ts platform/tests/hosted*.test.ts platform/tests/engine-bundle*.test.ts 2>&1 | tee /tmp/dispatch-receipts/boundaries.log
+      - name: Retain receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-snapshot-receipts
+          path: /tmp/dispatch-receipts
+
+
