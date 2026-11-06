@@ -100,7 +100,8 @@ export const TEMPLATE_TITLE = 'Reply outline';
 export function figureWords(label: string, amount: string): string {
   if (/^total$/i.test(label)) return `${amount} in total`;
   const per = /^Price per ([\p{L}]+)(, .+)?$/u.exec(label);
-  if (per) return `${amount} ${/^(?:hour|[aeiou])/i.test(per[1]) ? 'an' : 'a'} ${per[1]}${per[2] ?? ''}`;
+  const unit = per?.[1];
+  if (unit) return `${amount} ${/^(?:hour|[aeiou])/i.test(unit) ? 'an' : 'a'} ${unit}${per?.[2] ?? ''}`;
   return `${label}: ${amount}`;
 }
 

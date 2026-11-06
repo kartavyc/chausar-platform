@@ -142,6 +142,13 @@ export interface RunSummary {
   runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
   progress?: { done: number; total: number } | 'indeterminate'; result?: Display; receiptId?: string; estimate?: boolean;
   usually?: Display; stop?: { state: 'stopping' | 'stopped'; line: Display; trigger?: 'same-error' | 'same-action' | 'failures-in-row' };
+  /** C4 task 12: elapsed is the time it worked; waited is its waits on the owner, when its events show any; waitingSince is when the current wait began. */
+  waited?: Display;
+  waitingSince?: string;
+  /** C4 task 12: the client a delivery run worked for, for a link to the client sheet. */
+  client?: { id: string; name: string };
+  /** C4 task 17: on an improvement run, its kept version still waits to be adopted. */
+  adoptReady?: true;
   /**
    * 4J3: on a YouTube run only, the still kept from its order's cut (a small JPEG data address), or null when none is.
    * The run list carries src once per order, on its newest run, and src null on the others; venture.runs.get carries it.

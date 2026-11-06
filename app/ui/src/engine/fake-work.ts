@@ -20,7 +20,7 @@ import {SITE_FORM_RULE} from '../../../../platform/runtime/venture/playbooks/web
 import {NEWSLETTER_PRIVACY_RULE} from '../../../../platform/runtime/venture/playbooks/newsletter-studio/legal-core';
 import {fakeSellerPreflight} from './fake-seller-preflight';
 import {fakeRecruitPreflight} from './fake-recruiting-preflight';
-import {figureWords,templateOutline,TEMPLATE_OUTLINE_LINE} from '../../../../platform/runtime/venture/delivery/template-outline';
+import {figureWords,templateOutline,TEMPLATE_OUTLINE_LINE,type TemplateOutline} from '../../../../platform/runtime/venture/delivery/template-outline';
 import {reviewTemplate} from './fake-template-review';
 /**
  * Orders, delivery runs and client files for the fake engine (the Work place), kept per business. It keeps
@@ -141,7 +141,7 @@ export class FakeWorkDesk {
       if(line.startsWith('## ')){if(current.heading||current.lines.length)sections.push(current);current={heading:line.slice(3),lines:[]};}else current.lines.push(line);
     }
     if(current.heading||current.lines.length)sections.push(current);
-    const amounts=(run.deliverable?.sections??[]).flatMap(section=>section.parts).flatMap(part=>{
+    const amounts=((run.deliverable as unknown as TemplateOutline|null)?.sections??[]).flatMap(section=>section.parts).flatMap(part=>{
       if(part.kind!=='figure')return [];
       const receipt=this.host.receipt?.(part.receiptId)??[...this.orderPrices.values()].find(value=>value.receipt.id===part.receiptId)?.receipt;
       const figure=receipt?.figures.find(item=>item.key===part.figureKey);

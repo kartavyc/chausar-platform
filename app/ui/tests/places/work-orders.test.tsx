@@ -407,7 +407,7 @@ describe('C4 task 12: a Finished row names its client and its day', () => {
   it('the client is a link to the client sheet and the row has the date of the run', async () => {
     window.location.hash = '#/work';
     const fake = new FakeEngine();
-    render(<App client={createFakeClient(fake)} />);
+    render(<App client={createFakeClient(fake)} language="en" />);
     const finished = await screen.findByRole('region', { name: 'Finished' });
     const title = await within(finished).findByRole('button', { name: 'Matched September bank lines to invoices' });
     const row = title.closest('[data-row]') as HTMLElement;
