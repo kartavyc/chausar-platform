@@ -1,3 +1,4 @@
+import type { Language } from '../../text';
 import type { GalleryWay } from '../../parts/Gallery';
 import type { DeptId } from '../../parts/Avatar';
 import type { IconName } from '../../parts/icons';
@@ -49,7 +50,7 @@ const CATEGORY_ICON: Readonly<Record<WayCategory, IconName>> = {
 };
 
 /** One engine way as an English tile, preserving every engine-computed figure. */
-export function wayData(way: WayView, language: 'en', categories: WaysView['categories']): WayData {
+export function wayData(way: WayView, language: Language, categories: WaysView['categories']): WayData {
   const category = categories.find((item) => item.id === way.category);
   return {
     id: way.id,
@@ -77,7 +78,7 @@ export function wayData(way: WayView, language: 'en', categories: WaysView['cate
 }
 
 /** The engine's list as the gallery's slot (without what a tile's Start does, which the page adds). */
-export function waysSlotOf(view: WaysView, language: 'en', featured: string | null): Omit<WaysSlot, 'onStart'> {
+export function waysSlotOf(view: WaysView, language: Language, featured: string | null): Omit<WaysSlot, 'onStart'> {
   return {
     ways: view.ways.map((way) => wayData(way, language, view.categories)),
     featured: featured ?? undefined,
@@ -95,7 +96,7 @@ export const WAY_SORTS: readonly WaySort[] = ['best-fit', 'fewest-hours', 'name'
  * first and keeps the rest as given; fewest hours goes by the most hours a week, then the fewest, then the name; name
  * goes by the shown English name.
  */
-export function orderWays(ways: readonly WayData[], by: WaySort, fitWayId: string | undefined, language: 'en'): WayData[] {
+export function orderWays(ways: readonly WayData[], by: WaySort, fitWayId: string | undefined, language: Language): WayData[] {
   const locale = 'en-IN';
   const byName = (a: WayData, b: WayData) => a.name.localeCompare(b.name, locale);
   const list = [...ways];

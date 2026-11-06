@@ -144,7 +144,7 @@ describe('the Hindi catalogue', () => {
 
   it('no em dash', () => {
     for (const [key, message] of Object.entries(hi)) {
-      expect(JSON.stringify(message), key).not.toContain('—');
+      expect(JSON.stringify(message), key).not.toContain('\u2014');
     }
   });
 

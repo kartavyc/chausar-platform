@@ -650,7 +650,7 @@ export interface BuildStatusLite {
   syncConflictBranch: string | null; cannotSay: string[];
 }
 export interface BuildFollowLite { id: string; repo: { owner: string; name: string }; tokenState: 'none' | 'in-memory'; linkedAt: string; lastStatus: BuildStatusLite | null }
-export interface BuildStatusView { follow: BuildFollowLite | null; brief: BriefLite | null; handoffs: HandoffLite[]; tokenLink: string; linkFits: { lovable: boolean; replit: boolean } | null }
+export interface BuildStatusView { follow: BuildFollowLite | null; brief: BriefLite | null; handoffs: HandoffLite[]; tokenLink: string; linkFits?: { lovable: boolean; replit: boolean } | null }
 
 /**
  * `workspace.custody.*` and `workspace.backups.*` (platform/runtime/workspace-custody-contracts.ts), trimmed. A recovery
