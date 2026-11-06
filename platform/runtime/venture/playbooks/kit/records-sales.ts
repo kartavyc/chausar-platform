@@ -93,6 +93,8 @@ export type GoNoGoCardView = {
   limit: { minor: MinorString; display: Display } | null;
   /** On a GO card only: "GO spends nothing: each spend still asks you." */
   spendsNothing: Display | null;
+  /** C4 (T25): how the most the owner could lose was reached, from the steps its receipt holds; null with no loss worked out. */
+  working: Display | null;
 };
 export type GoNoGoListView = { cards: GoNoGoCardView[] };
 

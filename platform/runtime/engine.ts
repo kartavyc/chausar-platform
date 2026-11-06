@@ -2093,6 +2093,7 @@ export class Engine {
       case 'venture.salesProposal.get':
       case 'venture.goNoGo.card':
       case 'venture.goNoGo.list':
+      case 'venture.goNoGo.remove':
       case 'venture.ideas.add':
       case 'venture.ideas.move':
       case 'venture.ideas.grade':

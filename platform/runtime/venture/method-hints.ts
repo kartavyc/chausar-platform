@@ -167,7 +167,7 @@ const W4_FLAGS: Readonly<Record<W4Method, Flags>> = Object.freeze({
  */
 const W5_FLAGS: Readonly<Record<W5Method, Flags>> = Object.freeze({
   'venture.order.chain': 'rui',
-  'venture.salesProposal.draft': 'uo', 'venture.salesProposal.get': 'rui', 'venture.goNoGo.card': 'u', 'venture.goNoGo.list': 'rui',
+  'venture.salesProposal.draft': 'uo', 'venture.salesProposal.get': 'rui', 'venture.goNoGo.card': 'u', 'venture.goNoGo.list': 'rui', 'venture.goNoGo.remove': '',
   'venture.ideas.add': 'u', 'venture.ideas.move': '', 'venture.ideas.grade': '',
   'venture.brandKit.get': 'rui', 'venture.brandKit.set': 'ui', 'venture.assets.list': 'rui', 'venture.assets.rerun': 'o', 'venture.assets.reuse': 'u',
   'venture.voiceConsent.record': '', 'venture.voiceConsent.revoke': 'i', 'venture.voiceConsent.list': 'rui',

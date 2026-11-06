@@ -1978,6 +1978,11 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   renderedText: string | null;
   checks: CheckResult[];
   verdict: { choice: 'accepted' | 'edited' | 'rejected'; reason: DeliveryReason | null; at: IsoTime } | null;
+  /**
+   * One-shot C4 task 15: what a reject changed, so Undo puts it back exactly. Left out when the reject moved the order on
+   * as well (a chain's stage), which Undo can't take back: only a reject with this can be undone.
+   */
+  rejectedFrom?: { verdict: DeliveryRunRecord['verdict']; editedText: string | null; practice: boolean } | null;
   editedText: string | null;
   /** The agent loop, for an order with files. Each model turn waits for the owner's approval of its exact text. */
   harness?: HarnessState | null;
@@ -2097,6 +2102,8 @@ export type SignalRecord = RecordBase<'venture-signal'> & {
   /** Also the id of the first rule the rules judge failed a real draft on (a JudgeRule id, judge-run.ts). */
   reason: DeliveryReason | CheckId | (string & {}) | null;
   scenarioId: string | null; // set once turned into a rehearsal case
+  /** One-shot C4 task 15: the owner took back the reject this came from. Nothing reads it from then on (liveSignals). */
+  withdrawnAt?: IsoTime | null;
 };
 export type ImprovementReadiness = {
   judged: number;
@@ -5505,7 +5512,7 @@ export type BusinessSnapshotRead = VentureBusinessRef & { read: 'saved' | 'none'
 export type Department = DepartmentId;
 export type { IntakeValue, SharePrice, StartTile };
 // The kit (5A2, 5A4, 5A5, 5A6)
-export type GoNoGoRecord = RecordBase<'venture-go-no-go'> & GoNoGoBody;
+export type GoNoGoRecord = RecordBase<'venture-go-no-go'> & GoNoGoBody & { /** C4 (T25): the owner took the card off the list. */ removedAt?: IsoTime };
 /** 5A2: a sales proposal drafted for a client or a pipeline person (playbooks/kit/records-sales.ts SalesProposalBody). */
 export type SalesProposalRecord = RecordBase<'venture-sales-proposal'> & SalesProposalBody;
 export type BrandKitRecord = RecordBase<'venture-brand-kit'> & BrandKitBody;
@@ -5792,7 +5799,7 @@ export const W5_METHODS = [
   // 5A1 the chain of an order's stages, from a kit offer's stages
   'venture.order.chain',
   // 5A2 the sales proposal and the GO, HOLD or NO-GO card (5A2 added goNoGo.list, so Business lists the stored cards)
-  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list',
+  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list', 'venture.goNoGo.remove',
   // 5A3 the idea pipeline, beside 4J18's venture.ideas.list, .start and .dismiss
   'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
   // 5A4 brand kits, asset records and voice consent
@@ -6055,7 +6062,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.ideas.list': 'agents', 'venture.ideas.start': 'agents', 'venture.ideas.dismiss': 'agents', 'venture.agents.capabilities': 'agents',
   // Ink v2 wave 5 (named by package 5-0)
   'venture.order.chain': 'playbooks',
-  'venture.salesProposal.draft': 'playbooks', 'venture.salesProposal.get': 'playbooks', 'venture.goNoGo.card': 'playbooks', 'venture.goNoGo.list': 'playbooks',
+  'venture.salesProposal.draft': 'playbooks', 'venture.salesProposal.get': 'playbooks', 'venture.goNoGo.card': 'playbooks', 'venture.goNoGo.list': 'playbooks', 'venture.goNoGo.remove': 'playbooks',
   'venture.ideas.add': 'playbooks', 'venture.ideas.move': 'playbooks', 'venture.ideas.grade': 'playbooks',
   'venture.brandKit.get': 'playbooks', 'venture.brandKit.set': 'playbooks', 'venture.assets.list': 'playbooks', 'venture.assets.rerun': 'playbooks', 'venture.assets.reuse': 'playbooks',
   'venture.voiceConsent.record': 'playbooks', 'venture.voiceConsent.revoke': 'playbooks', 'venture.voiceConsent.list': 'playbooks',
@@ -6210,7 +6217,7 @@ export const W4_METHOD_LEVELS: Readonly<Record<W4Method, MethodLevel>> = Object.
  */
 export const W5_METHOD_LEVELS: Readonly<Record<W5Method, MethodLevel>> = Object.freeze({
   'venture.order.chain': 'read',
-  'venture.salesProposal.draft': 'prepare', 'venture.salesProposal.get': 'read', 'venture.goNoGo.card': 'prepare', 'venture.goNoGo.list': 'read',
+  'venture.salesProposal.draft': 'prepare', 'venture.salesProposal.get': 'read', 'venture.goNoGo.card': 'prepare', 'venture.goNoGo.list': 'read', 'venture.goNoGo.remove': 'prepare',
   'venture.ideas.add': 'prepare', 'venture.ideas.move': 'prepare', 'venture.ideas.grade': 'prepare',
   'venture.brandKit.get': 'read', 'venture.brandKit.set': 'approve', 'venture.assets.list': 'read', 'venture.assets.rerun': 'prepare', 'venture.assets.reuse': 'prepare',
   'venture.voiceConsent.record': 'approve', 'venture.voiceConsent.revoke': 'approve', 'venture.voiceConsent.list': 'read',
@@ -6645,6 +6652,7 @@ export type VenturePayloads = {
   /** inputs: typed by the owner; money as rupee text the engine reads like a price (5A2 records-sales.ts GoNoGoInputs). */
   'venture.goNoGo.card': { playbook: string; subject: string; inputs: GoNoGoInputs };
   'venture.goNoGo.list': Empty;
+  'venture.goNoGo.remove': { cardId: string };
   'venture.ideas.add': { text: string; source: string };
   /** reason: one sentence, required when the stage is 'dropped'. */
   'venture.ideas.move': { id: string; stage: IdeaStage; reason?: string };
@@ -7047,6 +7055,7 @@ export type VentureResults = {
   'venture.salesProposal.get': SalesProposalView;
   'venture.goNoGo.card': GoNoGoCardView;
   'venture.goNoGo.list': GoNoGoListView;
+  'venture.goNoGo.remove': { removed: true; line: Display };
   'venture.ideas.add': IdeaAddedView;
   'venture.ideas.move': IdeaMovedView;
   'venture.ideas.grade': IdeaGradedView;

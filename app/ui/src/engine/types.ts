@@ -1792,6 +1792,8 @@ export interface GoNoGoCardView {
   maxLoss: { minor: string; display: Display; receiptId: string } | null;
   limit: { minor: string; display: Display } | null;
   spendsNothing: Display | null;
+  /** C4 (T25): how the most the owner could lose was reached ("₹5,000 to start + 6 months × ₹1,000"), from the receipt's steps. */
+  working?: Display | null;
 }
 export interface GoNoGoListView { cards: GoNoGoCardView[] }
 /** 5A2: a price that is a share of an amount the client confirms later (basis points the owner set). */
@@ -2464,6 +2466,7 @@ export interface EngineMethods {
   'venture.salesProposal.get': { params: { id: string } | { clientId: string } | { personId: string }; result: SalesProposalView };
   'venture.goNoGo.card': { params: { playbook: string; subject: string; inputs: GoNoGoInputs }; result: GoNoGoCardView };
   'venture.goNoGo.list': { params: Record<string, never>; result: GoNoGoListView };
+  'venture.goNoGo.remove': { params: { cardId: string }; result: { removed: true; line: Display } };
   'venture.ideas.add': { params: { text: string; source: string }; result: IdeaAddedView };
   'venture.ideas.move': { params: { id: string; stage: IdeaStage; reason?: string }; result: IdeaMovedView };
   'venture.ideas.grade': { params: { id: string; grade: IdeaGrade }; result: IdeaGradedView };

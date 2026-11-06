@@ -97,3 +97,42 @@ test('each card is stored and listed, newest first; inputs are checked before an
   await assert.rejects(card(env, { playbook: 'general', subject: 'x', inputs: INPUTS, extra: true }), code('INVALID_VENTURE_REQUEST'));
   assert.equal(listRecords(env.store.read(), 'venture-go-no-go').length, 2, 'a refused card stores nothing');
 });
+
+// One-shot C4 task 25 (114.x1, 114.x2): how the number was reached, and Remove.
+const remove = (env: Env, payload: unknown) => (playbooks as Record<string, Handler>)['venture.goNoGo.remove'](env.deps, owner, payload);
+
+test('C4: the card says how the number was reached, rebuilt from the steps its receipt holds', async () => {
+  const env = await setup();
+  const made = await card(env, { playbook: 'general', subject: 'A reels pack for gyms', inputs: { upfront: '5,000', monthly: '1,000', months: '6', limit: '50000' } });
+  assert.equal(made.working, '₹5,000 to start + 6 months × ₹1,000');
+  const proof = await receipt(env, made.id);
+  assert.deepEqual(proof.figures.map(figure => figure.display).slice(0, 2), ['₹5,000', '₹1,000']);
+  // One month reads as one month; a Hold with amounts missing has no working.
+  const one = await card(env, { playbook: 'general', subject: 'One month', inputs: { upfront: '5,000', monthly: '1,000', months: '1', limit: '50000' } });
+  assert.equal(one.working, '₹5,000 to start + 1 month × ₹1,000');
+  const hold = await card(env, { playbook: 'general', subject: 'Not known yet', inputs: { upfront: '5,000', monthly: null, months: null, limit: null } });
+  assert.equal(hold.working, null);
+});
+
+test('C4: Remove takes away only that card, says so as a decision, and refuses another business\'s card', async () => {
+  const env = await setup();
+  const kept = await card(env, { playbook: 'general', subject: 'Kept idea', inputs: INPUTS });
+  const gone = await card(env, { playbook: 'general', subject: 'weekend photo shoot packs', inputs: INPUTS });
+  const answer = await remove(env, { cardId: gone.id });
+  assert.deepEqual(answer, { removed: true, line: 'You removed the card for weekend photo shoot packs.' });
+  assert.deepEqual((await list(env)).cards.map(item => item.id), [kept.id]);
+  const decisions = listRecords(env.store.read(), 'venture-decision');
+  const said = decisions.find(item => item.subject === `go-no-go:${gone.id}`)!;
+  assert.equal(said.reason, 'You removed the card for weekend photo shoot packs.');
+  assert.equal(said.action, 'remove-card');
+  // Its receipt no longer opens, and a second Remove finds nothing.
+  await assert.rejects(receipt(env, gone.id), code('RECEIPT_NOT_FOUND'));
+  await assert.rejects(remove(env, { cardId: gone.id }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(remove(env, { cardId: 'gonogo_nothing' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(remove(env, { cardId: kept.id, extra: true }), code('INVALID_VENTURE_REQUEST'));
+  // A card of another business.
+  const records = env.store.read().conversations.filter(item => item.kind === 'venture-go-no-go' && item.id === kept.id) as { ventureId: string }[];
+  await env.store.update(state => { const row = state.conversations.find(item => item.id === kept.id) as unknown as { ventureId: string }; row.ventureId = 'venture_other'; });
+  assert.equal(records.length, 1);
+  await assert.rejects(remove(env, { cardId: kept.id }), code('INVALID_VENTURE_REQUEST'));
+});

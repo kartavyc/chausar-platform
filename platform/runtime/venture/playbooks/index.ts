@@ -20,6 +20,7 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.salesProposal.get': async (deps, ctx, payload) => (await import('./kit/sales-methods.ts')).salesProposalGetHandler(deps, ctx, payload),
   'venture.goNoGo.card': async (deps, ctx, payload) => (await import('./kit/sales-methods.ts')).goNoGoCardHandler(deps, ctx, payload),
   'venture.goNoGo.list': async (deps, ctx, payload) => (await import('./kit/sales-methods.ts')).goNoGoListHandler(deps, ctx, payload),
+  'venture.goNoGo.remove': async (deps, ctx, payload) => (await import('./kit/sales-methods.ts')).goNoGoRemoveHandler(deps, ctx, payload),
   // 5A3 the idea pipeline
   'venture.ideas.add': async (deps, ctx, payload) => (await import('./kit/ideas.ts')).ideasAddHandler(deps, ctx, payload),
   'venture.ideas.move': async (deps, ctx, payload) => (await import('./kit/ideas.ts')).ideasMoveHandler(deps, ctx, payload),

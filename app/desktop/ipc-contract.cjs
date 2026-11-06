@@ -154,7 +154,7 @@ const METHODS = Object.freeze([
   'venture.ideas.list', 'venture.ideas.start', 'venture.ideas.dismiss', 'venture.agents.capabilities',
   // Ink v2 wave 5 (W5_METHODS in platform/runtime/venture/contracts.ts, same order)
   'venture.order.chain',
-  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list',
+  'venture.salesProposal.draft', 'venture.salesProposal.get', 'venture.goNoGo.card', 'venture.goNoGo.list', 'venture.goNoGo.remove',
   'venture.ideas.add', 'venture.ideas.move', 'venture.ideas.grade',
   'venture.brandKit.get', 'venture.brandKit.set', 'venture.assets.list', 'venture.assets.rerun', 'venture.assets.reuse',
   'venture.voiceConsent.record', 'venture.voiceConsent.revoke', 'venture.voiceConsent.list',

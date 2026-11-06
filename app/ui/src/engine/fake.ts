@@ -370,6 +370,7 @@ export class FakeEngine {
     }, { fresh });
     // The wave 2 desks share one host: Today's rows, and other desks' answers for the records they read.
     const waveHost = {
+      noteDecision: (subject: string, action: string, reason: string) => this.w4.noteDecision(subject, action, reason),
       // A2 review: the Codex setup Your AI shows, from the first run's Codex (fake-first-run.ts).
       codexSetup: () => this.firstRun.connectionsSetup(),
       nativeCanResume:(run:RunDetail)=>this.work.nativeCanResume(run),
@@ -911,7 +912,8 @@ export class FakeEngine {
     if (!row) return { outcome: 'refused', line: 'This is no longer here.', reason: 'RESOLVED_ELSEWHERE' };
     if (this.decided.has(row.id)) return { outcome: 'refused', line: 'You decided this already.', reason: 'ALREADY_DECIDED' };
     if (p.digest !== row.digest) return { outcome: 'stale', line: 'This click did not run anything. Here is the new version.', latest: clone(row) };
-    const action = row.actions.find((a) => a.id === p.action);
+    // C4 task 13: as views/queue.ts: a draft waiting for review takes a Reject also when its row lists Read and Approve only.
+    const action = row.actions.find((a) => a.id === p.action) ?? (p.action === 'deny' && row.kind === 'draft' && row.viewRef?.kind === 'draft' ? { id: 'deny' as const, label: 'Reject', primary: false } : undefined);
     if (!action) return { outcome: 'refused', line: 'That is not a choice for this row.', reason: 'INVALID_ACTION' };
     if (action.requiresView && p.viewed !== true) return { outcome: 'refused', line: 'Open it and read it first.', reason: 'VIEW_FIRST' };
     if (row.kind === 'locked') return { outcome: 'refused', line: 'This business opens with its passphrase.', reason: 'PASSPHRASE_REQUIRED' };
@@ -968,7 +970,17 @@ export class FakeEngine {
     // C4 task 13: a draft's Approve or Reject moves its run, as the engine's review does (views/queue.ts). A sample row whose draft isn't listed moves nothing.
     if (row.kind === 'draft' && row.viewRef?.kind === 'draft' && (action.id === 'approve' || action.id === 'deny')) {
       const verdict = action.id === 'deny' ? 'rejected' : 'accepted';
-      try { this.reviseDelivery(row.viewRef.id, (run) => ({ ...run, status: verdict === 'accepted' && run.editedText ? 'edited' : verdict, awaitingYou: false, canAccept: false })); } catch { /* not listed */ }
+      const runId = row.viewRef.id;
+      try {
+        let prior: DeliveryLite | undefined;
+        this.reviseDelivery(runId, (run) => { prior = clone(run); return { ...run, status: verdict === 'accepted' && run.editedText ? 'edited' : verdict, awaitingYou: false, canAccept: false, ...(verdict === 'rejected' ? { editedText: null } : {}) }; });
+        // C4 task 15: a reject can be taken back, in the engine's words.
+        if (verdict === 'rejected' && prior) {
+          this.w4.noteReject(row, runId, prior);
+          this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
+          return { outcome: 'done', line: 'Draft rejected. The agent learns from it.' };
+        }
+      } catch { /* not listed */ }
     }
     const receiptId = RECEIPTED.has(row.kind) && (action.id === 'approve' || action.id === 'issue') ? `R-0${this.receiptSeq++}` : undefined;
     if (action.id === 'run-again' && row.viewRef?.kind === 'run') this.restart(row.viewRef.id);
