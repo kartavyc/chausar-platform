@@ -35,6 +35,7 @@ The files at this level are the older engine surface (calculations, forecasts, i
 - `venture/build/`: building the business: the website brief, browser sign-ins, posting, share links, site edits.
 - `venture/chief/`: the chief's answer: what needs the owner now.
 - `venture/clients/`: clients and their consent.
+- `venture/contracts/`: canonical type declarations grouped by area; `venture/contracts.ts` reexports them.
 - `venture/core/`: About you, the plan, countries, onboarding.
 - `venture/crm/`: CRM shapes, request checks and views.
 - `venture/customers/`: the customer engine's lead rules.
@@ -58,7 +59,7 @@ The files at this level are the older engine surface (calculations, forecasts, i
 - `venture/views/`: views across businesses (runs, money).
 - `venture/web/`: the web methods.
 
-`venture/contracts.ts` holds the venture records and method types; `venture/host.ts` routes `venture.*` methods; `venture/records.ts` keeps records in State.
+`venture/contracts.ts` reexports the canonical venture record and method types from `venture/contracts/`; `venture/host.ts` routes `venture.*` methods; `venture/records.ts` keeps records in State.
 
 ## Boundaries
 

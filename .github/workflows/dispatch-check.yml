@@ -1,0 +1,91 @@
+name: Dispatch snapshot checks
+on:
+  push:
+    branches: ['b2c/os-dispatch-check-*']
+permissions:
+  contents: read
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: --max-old-space-size=3072
+      CHAUSAR_RUN_ROOT: /tmp/dispatch-receipts
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Lazy and tier regressions
+        run: |
+          mkdir -p /tmp/dispatch-receipts
+          set -o pipefail
+          timeout 120s node --test platform/tests/engine-dispatch-d11.test.ts platform/tests/engine-legacy-lazy-d10.test.ts platform/tests/method-registry-d8.test.ts platform/tests/desktop-harness.test.ts platform/tests/desktop-ipc-methods.test.ts platform/tests/runtime-map-d11.test.ts platform/tests/contracts-areas-d11.test.ts platform/tests/check-script-d1.test.ts platform/tests/venture-service-types-w6.test.ts platform/tests/venture-views-events.test.ts 2>&1 | tee /tmp/dispatch-receipts/tests.log
+      - name: Focused receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-focused-receipts
+          path: /tmp/dispatch-receipts
+      - name: Engine types
+        if: always()
+        run: |
+          mkdir -p /tmp/dispatch-receipts
+          set -o pipefail
+          npm run typecheck 2>&1 | tee /tmp/dispatch-receipts/types.log
+      - name: UI types
+        if: always()
+        run: |
+          mkdir -p /tmp/dispatch-receipts
+          set -o pipefail
+          npm run typecheck:ui 2>&1 | tee /tmp/dispatch-receipts/ui-types.log
+      - name: Source checks
+        if: always()
+        run: |
+          mkdir -p /tmp/dispatch-receipts
+          set -o pipefail
+          node scripts/check.mjs 2>&1 | tee /tmp/dispatch-receipts/checks.log
+      - name: Retain receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-snapshot-receipts
+          path: /tmp/dispatch-receipts
+  parity:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        shard: [1, 2, 3]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --max-old-space-size=3072
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Complete engine parity
+        shell: bash
+        run: |
+          set -o pipefail
+          export CHAUSAR_RUN_ROOT="$RUNNER_TEMP/dispatch-parity"
+          mkdir -p "$CHAUSAR_RUN_ROOT"
+          node scripts/bench.mjs --shard=${{ matrix.shard }}/3 --workers=3 2>&1 | tee "$CHAUSAR_RUN_ROOT/bench.log"
+      - name: Retain complete engine receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-parity-${{ matrix.os }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/dispatch-parity
+
