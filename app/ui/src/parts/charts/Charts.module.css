@@ -130,7 +130,9 @@
 }
 
 .goalGround { fill: var(--goal-track); }
-.goalFill { fill: var(--accent); }
+/* One-shot C3 task 14: a fill moves from its old length to its new one, through a transition on its own geometry: the
+   engine's numbers stay attributes and nothing is sized in code. A first draw has nothing to move from. */
+.goalFill { fill: var(--accent); transition: width var(--t-settle) var(--ease), x var(--t-settle) var(--ease); }
 .goalStripe { fill: var(--goal-bg); fill-opacity: 0.55; }
 .paceGround { stroke: var(--goal-bg); }
 .paceMark { stroke: var(--goal-fg); }
@@ -233,6 +235,8 @@
 
 /* Only the data end is rounded, 4 px. The bars stand in a flipped group scaled 0.16, so their top on screen is the
    bottom of their box, and 4 px there is 25 of its units. */
+.bar { transition: height var(--t-settle) var(--ease); }
+.miniBar { transition: height var(--t-settle) var(--ease); }
 .bar { fill: var(--chart-rest); clip-path: inset(0 round 0 0 4px 4px / 0 0 25px 25px); }
 .bar[data-current] { fill: var(--chart-ink); }
 .chart[data-paired] .bar[data-series='0'] { fill: var(--chart-ink); }
