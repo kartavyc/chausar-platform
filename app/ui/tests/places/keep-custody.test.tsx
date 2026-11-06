@@ -157,6 +157,39 @@ describe('Keep this business: moving to another computer', () => {
     expect(within(move).getByRole('group', { name: 'Move code' })).toBeTruthy();
     expect(document.body.textContent).not.toContain(SAMPLE_PASSPHRASE);
   });
+
+  // C4 task 38 (219.x1): the line stays after Done, with its local time, until the owner takes it away.
+  it('a made file leaves a lasting line with its time; Dismiss takes it away', async () => {
+    const { calls } = start('#/business/keep');
+    const move = await fold('Move to another computer');
+    expect(screen.queryByText(/^Move file made /)).toBeNull();
+    await press(within(move).getByRole('button', { name: 'Make the file' }));
+    await waitFor(() => expect(screen.getByText(/^Move file made .+. Delete it once the move is done.$/)).toBeTruthy());
+    expect(within(move).getByRole('group', { name: 'Move code' })).toBeTruthy();
+    await press(within(move).getByRole('button', { name: 'Done' }));
+    expect(screen.getByText(/^Move file made /)).toBeTruthy();
+    await press(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(sent(calls, 'workspace.transfer.export').at(-1)).toEqual({ dismiss: true });
+    await waitFor(() => expect(screen.queryByText(/^Move file made /)).toBeNull());
+  });
+
+  // C4 task 38 (217.x1): no recovery code yet: the fold says to make one first, with its button.
+  it('with no recovery code the fold says to make one first, and its button shows the code', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    await engine.request('workspace.create', { name: 'Kite Studio', pack: 'services' });
+    const { calls } = start('#/business/keep', engine);
+    const move = await fold('Move to another computer');
+    expect(within(move).getByText('Make a recovery code first, in case the move goes wrong.')).toBeTruthy();
+    await press(within(move).getByRole('button', { name: 'Make a recovery code' }));
+    expect(sent(calls, 'workspace.custody.recoveryCode')).toHaveLength(1);
+    expect(await screen.findByRole('group', { name: 'Recovery code' })).toBeTruthy();
+  });
+
+  it('with a recovery code the fold does not ask for one', async () => {
+    start('#/business/keep');
+    const move = await fold('Move to another computer');
+    expect(within(move).queryByText('Make a recovery code first, in case the move goes wrong.')).toBeNull();
+  });
 });
 
 describe('Keep this business: closing and locking', () => {
@@ -276,10 +309,10 @@ describe('Keep this business: delete this business', () => {
   it('review of A1 row 1: after Delete it lists the exported copies it kept, says which is readable, and shows one in its folder', async () => {
     const engine = new FakeEngine({ only: ['lumen', 'ledgerline'] });
     const shown: string[] = [];
-    start('#/business/keep', engine, undefined, { showExport: async (name: string) => { shown.push(name); } });
     const client = createFakeClient(engine);
     const sealed = (await client.request('workspace.export', { confirmed: true, plaintext: false })) as { path: string };
     const readable = (await client.request('workspace.export', { confirmed: true, plaintext: true })) as { path: string };
+    start('#/business/keep', engine, undefined, { showExport: async (name: string) => { shown.push(name); } });
     const box = await fold('Delete this business');
     // C4 task 37: the two exports made above stay, and the line says so.
     await waitFor(() => expect(box.querySelector('[data-delete-counts]')?.textContent).toBe('This removes 3 backups. Your 2 exports stay.'));

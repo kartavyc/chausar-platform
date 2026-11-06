@@ -15,7 +15,8 @@ import s from './Business.module.css';
  * The rest of Keep this business: what the old app's "Your workspace" menu and its Trust & access panel offered for
  * the open business (app/renderer/app.js showWorkspace, launch.js paintCustody), in Ink's look:
  *   AllBackups      every backup, each with a restore that asks first (workspace.backups.restore, confirmed)
- *   MoveAway        one move file and one code for another computer (workspace.transfer.export)
+ *   MoveAway        one move file and one code for another computer (workspace.transfer.export), the lasting
+ *                   "Move file made" line until dismissed, and a recovery code first when there is none (C4 task 38)
  *   CloseBusiness   close it, or lock it when a passphrase opens it (workspace.lock)
  *   ExportCopy      a copy in the exports folder: encrypted, or readable after a second ask (workspace.export)
  *   DeleteBusiness  delete it, with its name typed as the vault holds it (workspace.delete)
@@ -90,9 +91,12 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
 /**
  * Move to another computer: one file and one code, both from the engine. The code shows once in groups of four;
  * Save the file hands over the engine's text unchanged under the engine's name; Done forgets both.
+ * C4 task 38: madeAt keeps a line on the page until the owner dismisses it (this computer can't see the move finish, so
+ * Dismiss is what ends it); with no recovery code the fold says to make one first (onMakeCode is Keep's own flow).
  */
-export function MoveAway({ locked }: { locked: boolean }) {
+export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { locked: boolean; madeAt: string | null; noCode: boolean; onChanged: () => void; onMakeCode: (passphrase: string | null) => Promise<void> }) {
   const t = useT();
+  const zone = useOwnerZone();
   const client = useEngine();
   const [passphrase, setPassphrase] = useState('');
   const [busy, setBusy] = useState(false);
@@ -108,12 +112,35 @@ export function MoveAway({ locked }: { locked: boolean }) {
     setBusy(true);
     setProblem(null);
     try {
-      setMade(await client.request('workspace.transfer.export', locked ? { passphrase: typed } : {}));
+      setMade(await client.request('workspace.transfer.export', locked ? { passphrase: typed } : {}) as MoveFile);
+      onChanged();
     } catch (error) {
       setProblem(failed(t, error));
     } finally {
       setBusy(false);
     }
+  }
+
+  async function dismiss() {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await client.request('workspace.transfer.export', { dismiss: true });
+      onChanged();
+    } catch (error) {
+      setProblem(failed(t, error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** The nudge's button: a locked business takes the passphrase typed in this fold, as Make the file does. */
+  function makeCode() {
+    if (locked && !passphrase) { setProblem(t('custody.enterPassphrase')); return; }
+    const typed = passphrase;
+    setPassphrase('');
+    setProblem(null);
+    void onMakeCode(locked ? typed : null);
   }
 
   function copy(code: string) {
@@ -130,6 +157,13 @@ export function MoveAway({ locked }: { locked: boolean }) {
   }
 
   return (
+    <>
+    {madeAt && (
+      <p className={s.line} data-move-made="">
+        <span>{t('business.moveMadeLine', { when: momentOf(madeAt, zone) })}</span>{' '}
+        <Button variant="quiet" size="sm" disabled={busy} onClick={() => void dismiss()}>{t('business.moveMadeDismiss')}</Button>
+      </p>
+    )}
     <details className={s.fold}>
       <summary>{t('business.move')}</summary>
       {made ? (
@@ -150,11 +184,18 @@ export function MoveAway({ locked }: { locked: boolean }) {
         <form className={s.form} onSubmit={(event) => void make(event)}>
           <p className={s.line}>{t('business.moveLine')}</p>
           {locked && <Field label={t('business.yourPassphrase')} type="password" autoComplete="current-password" spellCheck={false} value={passphrase} onChange={(event) => setPassphrase(event.currentTarget.value)} />}
+          {noCode && (
+            <>
+              <p className={s.warn}>{t('business.moveCodeFirst')}</p>
+              <div className={s.buttons}><Button disabled={busy} onClick={makeCode}>{t('business.makeCode')}</Button></div>
+            </>
+          )}
           {problem && <p className={s.problem} role="alert">{problem}</p>}
           <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.moveMake')}</Button></div>
         </form>
       )}
     </details>
+    </>
   );
 }
 

@@ -73,6 +73,11 @@ export function KeepView() {
     try { await action(); } catch (error) { setProblem(t('business.actionFailed', { message: messageOf(error) })); } finally { setBusy(false); }
   }
 
+  const makeCode = (passphrase: string | null) => run(async () => {
+    const result = await client.request('workspace.custody.recoveryCode', passphrase ? { passphrase } : {});
+    setCode(result.recoveryCode);
+  });
+
   if (code) return <CodeOnce code={code} folder={business.folder} onDone={() => { setCode(null); refresh(); }} />;
 
   const loss = !locked && computer.loss ? `${computer.loss} ${made ? t('business.lossTail') : t('business.lossNoCode')}` : null;
@@ -94,10 +99,7 @@ export function KeepView() {
         <TileSection title={t('business.recovery')}>
           <p className={s.line}>{t(made ? 'business.recoveryMade' : business.recovery === 'not-made' ? 'business.recoveryNotMade' : 'business.recoveryUnknown')}</p>
           {made && <p className={s.note}>{t('business.oldCodeStops')}</p>}
-          <RecoveryForm locked={locked} made={made} busy={busy} onMake={(passphrase) => run(async () => {
-            const result = await client.request('workspace.custody.recoveryCode', passphrase ? { passphrase } : {});
-            setCode(result.recoveryCode);
-          })} />
+          <RecoveryForm locked={locked} made={made} busy={busy} onMake={makeCode} />
         </TileSection>
         <TileSection title={t('business.backups')}>
           <p className={s.line}>{t(business.backups.auto ? 'business.backupsAuto' : 'business.backupsManual')}</p>
@@ -116,7 +118,7 @@ export function KeepView() {
       {problem && <p className={s.problem} role="alert">{problem}</p>}
       <TileSection title={t('business.keepMore')}>
         <div className={s.more}>
-          {!hosted && <MoveAway locked={locked} />}
+          {!hosted && <MoveAway locked={locked} madeAt={business.moveMadeAt ?? null} noCode={!made} onChanged={refresh} onMakeCode={makeCode} />}
           <PassphraseFold custody={custody.data} onCode={setCode} onChanged={refresh} />
           {leave(business.unlock)}
         </div>
