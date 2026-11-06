@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { useT } from '../../text';
-import { BarChart } from '../../parts/charts/BarChart';
+import { BarChart, hasBars } from '../../parts/charts/BarChart';
 import type { BarPoint } from '../../parts/charts/types';
 import { Tile, TileHead, type TileSpan } from '../../parts/Tile';
 import type { DepartmentData } from './departments';
@@ -22,7 +22,7 @@ export function JobsTile({ departments, total, span }: { departments: readonly D
       valuePermille: department.jobsPermille ?? null,
       dept: department.dept,
     }));
-  if (points.length === 0) return null;
+  if (!hasBars({ points })) return null;
   return (
     <Tile as="section" span={span} labelledBy={headId}>
       <TileHead id={headId} title={t('team.jobs.title')} meta={t('team.jobs.all', { count: total })} more={{ href: '#/work', label: t('team.dept.openWork') }} />

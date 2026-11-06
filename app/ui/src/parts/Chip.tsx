@@ -138,8 +138,9 @@ export interface CountChipProps {
   className?: string | undefined;
 }
 
-/** D's `.count`: a count in DM Mono on a small pill. A count is never money, so it carries no proof. */
+/** D's `.count`: a count in DM Mono on a small pill. A count is never money, so it carries no proof. Zero draws nothing. */
 export function CountChip({ value, tone = 'wait', label, className }: CountChipProps) {
+  if (Number(value) === 0) return null;
   return (
     <span className={cx(s.count, className)} data-tone={tone}>
       {label ? (

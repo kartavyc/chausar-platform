@@ -18,6 +18,9 @@ export interface AgingBarProps {
   legend?: 'all' | 'held' | undefined;
 }
 
+/** Whether the bar says anything (B4 task 6): money in two ages or more. One segment is only a full bar. */
+export const agingHasBars = (data: AgingData): boolean => data.buckets.filter((bucket) => bucket.permille > 0).length >= 2;
+
 /**
  * Who owes you, by age (D's `.aging` and `.ag-l`): one thin bar in five ages, not due in chart ink and each later age
  * in its own chart colour (`--age-30` to `--age-over`, amber into red); the legend says each age in words with its
@@ -28,6 +31,7 @@ export function AgingBar({ data, onReceipt, legend = 'all' }: AgingBarProps) {
   const t = useT();
   const buckets = AGE_ORDER.flatMap((id) => data.buckets.filter((bucket) => bucket.id === id));
   const { proof } = data;
+  if (!agingHasBars(data)) return null;
   return (
     <div className={s.chart} {...chartRoot(proof)}>
       <Stack

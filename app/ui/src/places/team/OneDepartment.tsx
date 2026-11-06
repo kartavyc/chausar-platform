@@ -4,7 +4,7 @@ import type { RunSummary } from '../../engine/types';
 import { openSheet } from '../../shell/navigation';
 import { formatDay } from '../../../../../platform/runtime/owner-format';
 import { Inner, Lift } from '../../parts/Card';
-import { BarChart } from '../../parts/charts/BarChart';
+import { BarChart, hasBars } from '../../parts/charts/BarChart';
 import { Chip, StateChip } from '../../parts/Chip';
 import { cx } from '../../parts/cx';
 import { EmptyState } from '../../parts/EmptyState';
@@ -51,7 +51,8 @@ export function OneDepartment({ data, onChanged }: OneDepartmentProps) {
   const proof = data.spend ? proofOf({ receiptId: data.spend.receiptId }) : null;
   const recent = (data.runs ?? []).slice(0, MOST_RECENT);
   // A chart only with a week that has jobs: weeks with none carry no value (null, never 0), so all-empty draws nothing.
-  const chart = data.jobsByWeek && data.jobsByWeek.some((point) => point.valuePermille !== null) ? weeksOf(data) : null;
+  const weeks = data.jobsByWeek && data.jobsByWeek.some((point) => point.valuePermille !== null) ? weeksOf(data) : null;
+  const chart = weeks && hasBars(weeks) ? weeks : null;
   const { counts } = data;
 
   return (

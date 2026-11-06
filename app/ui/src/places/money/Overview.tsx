@@ -16,7 +16,7 @@ import { useId, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { useRoute } from '../../shell/navigation';
-import { BarChart } from '../../parts/charts/BarChart';
+import { BarChart, hasBars } from '../../parts/charts/BarChart';
 import { CashLine } from '../../parts/charts/CashLine';
 import { GoalBar } from '../../parts/charts/GoalBar';
 import { SplitBar } from '../../parts/charts/SplitBar';
@@ -261,6 +261,8 @@ function InOutTile({ flow, notes, span }: { flow: FlowData; notes: FlowView | un
   const first = months[0]?.month;
   const last = months[months.length - 1]?.month;
   const left = notes?.basis.notCounted?.line ?? [...new Set(months.map((row) => row.note).filter((note): note is string => Boolean(note)))].join(' ');
+  // B4 task 6: no month with money in or out, or a single month, is nothing to compare: no tile at all.
+  if (!hasBars(...flow.series)) return null;
   return (
     <Tile as="section" labelledBy={id} span={span}>
       <TileHead id={id} title={t('money.flow.title')} meta={first && last ? t('money.flow.meta', { from: monthWords(first), to: monthWords(last) }) : undefined} />

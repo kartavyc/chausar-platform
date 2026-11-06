@@ -201,7 +201,16 @@ export function Place() {
     ? headerLine(t, going.length, failedOpen.length, counted.length, new Set(counted.map((v) => v.order.clientId)).size, stoppedRuns.length)
     : undefined;
 
-  const chips: FilterOption[] = CHIPS.map((id) => ({ id, label: t(id === 'ideas' ? 'kit-rules.chip' : `work.filter.${id}`) }));
+  // B4 task 6: a chip with nothing behind it goes (Failed only when something failed). These numbers decide; the line
+  // under the title says them. Until the lists are read every chip stays, so the row does not change as they arrive.
+  const known = Boolean(runs.data) && ordersReady;
+  const chipCount: Partial<Record<(typeof CHIPS)[number], number>> = known ? {
+    waiting: waiting.length + stoppedRuns.length + (ordersHere ? current.filter(waitsOnYou).length : 0),
+    active: going.length,
+    failed: failed.length,
+    done: done.length,
+  } : {};
+  const chips: FilterOption[] = CHIPS.map((id) => ({ id, label: t(id === 'ideas' ? 'kit-rules.chip' : `work.filter.${id}`), count: chipCount[id] }));
   const businessChips: FilterOption[] = offerBusinesses
     ? businessIds.map((id) => ({ id, label: names.get(id)!, business: true }))
     : [];
@@ -214,10 +223,13 @@ export function Place() {
       <PausedNote />
       <div className={s.toolbar}>
         <div className={s.chips}>
-          <FilterChips
-            label={t('work.filter')} options={chips} value={focus === undefined ? filter : ''} className={s.chipGroup}
-            onChange={(id) => navigate(routeFor(route, id as WorkFilter, business))}
-          />
+          {/* A new business has nothing to filter; a filter in the address keeps the row, as the way back. */}
+          {!(empty && filter === 'all' && focus === undefined) && (
+            <FilterChips
+              label={t('work.filter')} options={chips} value={focus === undefined ? filter : ''} drawCounts={false} className={s.chipGroup}
+              onChange={(id) => navigate(routeFor(route, id as WorkFilter, business))}
+            />
+          )}
           {businessChips.length > 0 && (
             <FilterChips
               label={t('work.filter.business')} options={businessChips} value={business ?? ''} className={s.chipGroup}

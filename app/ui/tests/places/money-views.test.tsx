@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from '../../src/shell/App';
 import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import type { CashView, EngineClient } from '../../src/engine/types';
+import type { AgingView, CashView, EngineClient } from '../../src/engine/types';
 import { assertFiguresProved, assertInkRules, assertOnePrimary, receiptMark } from '../helpers/ink-rules';
 import { cssOf } from '../helpers/css';
 
@@ -50,18 +50,25 @@ const tile = (name: string | RegExp) => screen.findByRole('region', { name });
 
 afterEach(() => { vi.restoreAllMocks(); });
 
+/** The sample's one open invoice split across two ages, as an engine with two open invoices answers. */
+const twoAges: Override = async (params, request) => {
+  const view = await request('venture.money.aging', params) as AgingView;
+  const part = (permille: number, display: string) => ({ count: 1, permille, countLine: '1 invoice', amount: { ...view.total, display } });
+  return { ...view, buckets: view.buckets.map((bucket) => (bucket.id === 'not-due' ? { ...bucket, ...part(240, '₹6,200') } : bucket.id === '1-30' ? { ...bucket, ...part(760, '₹20,000') } : bucket)) };
+};
+
 describe('Money w4: owed by age and reminders', () => {
   it('the owed tile draws the five ages at rest as the bar, each age in words in its name and its table, all under the one aging receipt', async () => {
-    const { calls } = start('#/money', { now: NOV_10 });
+    const { calls } = start('#/money', { now: NOV_10, override: { 'venture.money.aging': twoAges } });
     const owed = await tile('Owed to you');
     const bar = await within(owed).findByRole('img', { name: /^Owed by age, ₹26,200 in all/ });
     const chart = bar.closest('[data-chart]') as HTMLElement;
     // At rest the legend names the ages that hold money, with count and amount, so colour never carries the meaning alone.
-    expect([...chart.querySelectorAll('li[data-bucket]')].map((row) => row.textContent)).toEqual(['1 to 30 days late1 invoice₹26,200']);
-    expect(bar.getAttribute('aria-label')).toBe('Owed by age, ₹26,200 in all: 1 to 30 days late ₹26,200');
+    expect([...chart.querySelectorAll('li[data-bucket]')].map((row) => row.textContent)).toEqual(['Not due yet1 invoice₹6,200', '1 to 30 days late1 invoice₹20,000']);
+    expect(bar.getAttribute('aria-label')).toBe('Owed by age, ₹26,200 in all: Not due yet ₹6,200, 1 to 30 days late ₹20,000');
     const rows = [...chart.querySelectorAll('tbody tr')].map((row) => row.textContent);
     expect(rows).toEqual([
-      'Not due yetNone₹0', '1 to 30 days late1 invoice₹26,200', '31 to 60 days lateNone₹0', '61 to 90 days lateNone₹0', 'Over 90 days lateNone₹0',
+      'Not due yet1 invoice₹6,200', '1 to 30 days late1 invoice₹20,000', '31 to 60 days lateNone₹0', '61 to 90 days lateNone₹0', 'Over 90 days lateNone₹0',
     ]);
     // One receipt: the figure's and the chart's are the same aging sum.
     const figure = owed.querySelector('[data-figure] [data-receipt]')!.getAttribute('data-receipt');
@@ -92,10 +99,20 @@ describe('Money w4: owed by age and reminders', () => {
     expect(within(owed).queryByRole('button', { name: /^Draft/ })).toBeNull();
   });
 
+  it('money in one age only draws no bar: one segment says nothing, and the figure keeps its own receipt (B4 task 6)', async () => {
+    start('#/money', { now: NOV_10 });
+    const owed = await tile('Owed to you');
+    await waitFor(() => expect(owed.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200'));
+    await waitFor(() => expect(owed.querySelector('[data-late-figure]')).not.toBeNull());
+    expect(within(owed).queryByRole('img', { name: /^Owed by age/ })).toBeNull();
+    expect(owed.querySelector('[data-figure] [data-receipt]')).not.toBeNull();
+    assertFiguresProved();
+  });
+
   it('with nothing late, there is no reminder to draft', async () => {
     start('#/money');
     const owed = await tile('Owed to you');
-    await within(owed).findByRole('img', { name: /^Owed by age/ });
+    await waitFor(() => expect(owed.querySelector('[data-figure] [data-receipt]')).not.toBeNull());
     expect(within(owed).queryByText('Billing drafts, you send')).toBeNull();
     expect(within(owed).queryByRole('button', { name: /reminder/ })).toBeNull();
   });

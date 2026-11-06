@@ -44,7 +44,7 @@ function Inside({ option }: { option: SegmentOption }) {
     <>
       {option.dept ? <DeptDot dept={option.dept} /> : option.icon ? <Icon name={option.icon} size={16} /> : null}
       <span>{option.label}</span>
-      {option.count !== undefined && (
+      {option.count !== undefined && Number(option.count) !== 0 && (
         <>
           {' '}
           <Count value={option.count} className={s.count} />

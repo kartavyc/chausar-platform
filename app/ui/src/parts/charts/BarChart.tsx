@@ -24,10 +24,18 @@ export type BarChartProps = ChartValues & {
 };
 
 /**
+ * Whether a chart has anything to compare (B4 task 6): two buckets or more, and a bar in at least one. A place that
+ * holds a chart in a titled tile asks this first, so a hidden chart does not leave an empty tile.
+ */
+export function hasBars(...series: readonly Pick<BarSeries, 'points'>[]): boolean {
+  return (series[0]?.points.length ?? 0) >= 2 && series.some((one) => one.points.some((point) => (point.valuePermille ?? 0) > 0));
+}
+
+/**
  * Bar charts (D's in and out by month, the department's spend and jobs, Team's jobs by department). Bars are drawn at
  * their per mille heights and the values written over them are the engine's own strings. A point with no value draws
- * no bar: in a series it shows nothing, in ranked bars it says N/A, never 0. An empty series renders nothing at all,
- * and the caller says why in words. A chart that writes money is one `data-figure-group` proved by its receipt or
+ * no bar: in a series it shows nothing, in ranked bars it says N/A, never 0. An empty series, a single bucket and all
+ * zeros render nothing at all, and the caller says why in words. A chart that writes money is one `data-figure-group` proved by its receipt or
  * "model estimate"; a count chart carries no proof unless it writes a money note beside the counts.
  *
  * Columns: each column is its own pixel-wide SVG. The bars are placed by percentages of the column (so twelve months
@@ -38,7 +46,7 @@ export function BarChart(props: BarChartProps) {
   const t = useT();
   const { series, label, layout = 'series', kind, proof, onReceipt, noteLabel, dept, ticks = [] } = props;
   const [first, second] = series;
-  if (first.points.length === 0) return null;
+  if (!hasBars(...series)) return null;
   const money = kind === 'money';
   const none = t('chart.none');
   const valueOf = (point: BarPoint | undefined) => (point && point.valuePermille !== null ? point.value : null);

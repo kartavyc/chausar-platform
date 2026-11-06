@@ -43,9 +43,9 @@ describe('Money overview', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Money' })).toBeTruthy();
     const owed = await tileOf('Owed to you');
     await waitFor(() => expect(owed.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200'));
-    // W4 4J20: the engine's aging total, under the aging receipt that also proves the five ages drawn under it.
+    // W4 4J20: the engine's aging total, under the aging receipt. B4 task 6: the sample's money sits in one age, so no bar.
     expect(owed.querySelector('[data-figure] [data-receipt]')).not.toBeNull();
-    expect(within(owed).getByRole('img', { name: /^Owed by age/ })).toBeTruthy();
+    expect(within(owed).queryByRole('img', { name: /^Owed by age/ })).toBeNull();
     const received = await tileOf('Received');
     expect(await within(received).findByText('₹86,200')).toBeTruthy();
     expect(within(received).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
