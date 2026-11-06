@@ -6,7 +6,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { FilterChips, type FilterOption } from '../../src/parts/FilterChips';
 import { CountChip } from '../../src/parts/Chip';
-import { Segmented } from '../../src/parts/Segmented';
+import { Tabs } from '../../src/parts/Tabs';
 import { BarChart, hasBars } from '../../src/parts/charts/BarChart';
 import { MiniBars } from '../../src/parts/charts/MiniBars';
 import { AgingBar, agingHasBars } from '../../src/parts/charts/AgingBar';
@@ -82,8 +82,8 @@ describe('counts', () => {
     expect(render(<CountChip value={3} />).container.textContent).toBe('3');
   });
 
-  it('Segmented draws no zero count on a tab', () => {
-    render(<Segmented mode="buttons" label="Tabs" value="runs" onChange={() => {}} options={[{ id: 'runs', label: 'Runs', count: 0 }, { id: 'notes', label: 'Notes', count: 2 }]} />);
+  it('Tabs draw no zero count on a tab', () => {
+    draw(<Tabs mode="buttons" label="Tabs" value="runs" onChange={() => {}} items={[{ id: 'runs', label: 'Runs', count: 0 }, { id: 'notes', label: 'Notes', count: 2 }]} />);
     expect(screen.getByRole('button', { name: 'Runs' }).textContent).toBe('Runs');
     expect(screen.getByRole('button', { name: 'Notes 2' })).toBeTruthy();
   });

@@ -13,7 +13,7 @@ import { openSheet, useRoute } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import { PageTitle } from '../../parts/PageTitle';
-import { Segmented } from '../../parts/Segmented';
+import { Tabs } from '../../parts/Tabs';
 import type { VentureRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
 import { ClientSheet } from './ClientSheet';
@@ -62,6 +62,16 @@ function Clients({ tab }: { tab: Tab }) {
     : tab === 'clients' ? t('clients.count', { count: String(count) })
       : tab === 'pipeline' ? t('clients.pipeline.line', { count: String(count) }) : t('clients.network.line', { count: String(count) });
 
+  // C1 task 4: Pipeline and Network wait for a client. A tab shows when it has something of its own, once there is a
+  // client, or while it is the page (a link to #/clients/network still lands); with only Clients left, no tab row.
+  // While the clients load the row stays, as most owners have clients; it only leaves once the engine says there are none.
+  const anyClient = clientCount === undefined || clientCount > 0;
+  const tabs = [
+    { id: 'clients', label: t('clients.sub.clients'), href: '#/clients', count: clientCount },
+    { id: 'pipeline', label: t('clients.sub.pipeline'), href: '#/clients/pipeline', count: leadCount },
+    { id: 'network', label: t('clients.sub.network'), href: '#/clients/network', count: peopleCount },
+  ].filter((item) => item.id === 'clients' || item.id === tab || anyClient || (item.count ?? 0) > 0);
+
   // The add button sits beside the tabs once there is a list; an empty list offers it as its one way forward instead.
   let tool = null;
   if (tab === 'clients' && clientCount) {
@@ -83,16 +93,7 @@ function Clients({ tab }: { tab: Tab }) {
     <>
       <PageTitle title={t('place.clients')} line={line} count={count ? String(count) : undefined} />
       <div className={s.toolbar}>
-        <Segmented
-          mode="links"
-          label={t('clients.nav')}
-          value={tab}
-          options={[
-            { id: 'clients', label: t('clients.sub.clients'), icon: 'contact', href: '#/clients', count: clientCount },
-            { id: 'pipeline', label: t('clients.sub.pipeline'), icon: 'layout-grid', href: '#/clients/pipeline', count: leadCount },
-            { id: 'network', label: t('clients.sub.network'), icon: 'users', href: '#/clients/network', count: peopleCount },
-          ]}
-        />
+        {tabs.length > 1 && <Tabs mode="links" label={t('clients.nav')} value={tab} items={tabs} />}
         {tool && <div className={s.tools}>{tool}</div>}
       </div>
       {tab === 'pipeline' && <SendingLimits />}

@@ -57,10 +57,34 @@ const calls = (spy: { mock: { calls: unknown[][] } }, method: string) => spy.moc
 const column = (name: string) => screen.getByRole('region', { name: new RegExp(`^${name}`) });
 const card = (text: string) => screen.getByRole('article', { name: text });
 
+describe('Work > Ideas is its own page (C1 task 5)', () => {
+  it('Work filters hold no Ideas; a quiet Ideas link in the toolbar opens #/work/ideas, with the list and a way back', async () => {
+    start({ hash: '#/work' });
+    const chips = await screen.findByRole('group', { name: 'Show' });
+    expect(within(chips).queryByRole('button', { name: 'Ideas' })).toBeNull();
+    const link = within(screen.getByRole('main')).getByRole('link', { name: 'Ideas' });
+    expect(link.getAttribute('href')).toBe('#/work/ideas');
+    await act(async () => { window.location.hash = '#/work/ideas'; });
+    await settle();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ideas' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Ideas' })).toBeTruthy();
+    expect(column('Inbox')).toBeTruthy();
+    expect(document.querySelector('main [data-back]')!.textContent).toBe('Work');
+    expect(document.querySelector('main [data-back]')!.getAttribute('href')).toBe('#/work');
+  });
+
+  it('#/work?state=ideas, where the engine notices lead, shows the same page', async () => {
+    start({ hash: '#/work?state=ideas' });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ideas' })).toBeTruthy();
+    await settle();
+    expect(column('Inbox')).toBeTruthy();
+  });
+});
+
 describe('Work > Ideas (5A3, P13)', () => {
   it('shows the pipeline one column per stage, each idea with where it came from and one next step', async () => {
     start();
-    expect(await screen.findByRole('heading', { level: 2, name: 'Ideas' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Ideas' })).toBeTruthy();
     for (const stage of ['Inbox', 'Triage', 'Drafted', 'Made', 'Published']) expect(column(stage)).toBeTruthy();
     const inbox = card('A behind-the-scenes short of a recording day');
     expect(within(column('Inbox')).getByRole('article')).toBe(inbox);
@@ -75,14 +99,17 @@ describe('Work > Ideas (5A3, P13)', () => {
     expect(published.textContent).toContain('Grade it from 27 Oct 2026.');
     expect(within(published).queryByRole('group', { name: 'How did it do?' })).toBeNull();
     expect(within(column('Drafted')).getByText('Nothing here.')).toBeTruthy();
-    const chips = screen.getByRole('group', { name: 'Show' });
-    expect(within(chips).getByRole('button', { name: 'Ideas' }).getAttribute('aria-pressed')).toBe('true');
+    // C1 task 5: Ideas is its own page, with a way back to Work, not a filter.
+    expect(screen.getByRole('heading', { level: 1, name: 'Ideas' })).toBeTruthy();
+    expect(document.querySelector('main [data-back]')!.textContent).toBe('Work');
+    expect(document.querySelector('main [data-back]')!.getAttribute('href')).toBe('#/work');
+    expect(screen.queryByRole('group', { name: 'Show' })).toBeNull();
     assertInkRules();
   });
 
   it('moves an idea forward with its one primary, and further or to Dropped one step away', async () => {
     const { spy } = start();
-    await screen.findByRole('heading', { level: 2, name: 'Ideas' });
+    await screen.findByRole('region', { name: 'Ideas' });
     const inbox = card('A behind-the-scenes short of a recording day');
     await press(within(inbox).getByRole('button', { name: 'Move to Triage' }));
     expect(calls(spy, 'venture.ideas.move')[0]).toEqual({ id: 'idea_sample_3', stage: 'triage' });
@@ -97,7 +124,7 @@ describe('Work > Ideas (5A3, P13)', () => {
 
   it('a drop asks why in one sentence; two sentences are refused in the screen\'s words, one drops it to the fold', async () => {
     const { spy } = start();
-    await screen.findByRole('heading', { level: 2, name: 'Ideas' });
+    await screen.findByRole('region', { name: 'Ideas' });
     const idea = card('Three mistakes new channels make with thumbnails');
     idea.querySelector('details')!.open = true;
     const form = within(idea).getByRole('form', { name: 'Drop' });
@@ -114,7 +141,7 @@ describe('Work > Ideas (5A3, P13)', () => {
 
   it('adds an idea to Inbox from the form', async () => {
     const { spy } = start();
-    await screen.findByRole('heading', { level: 2, name: 'Ideas' });
+    await screen.findByRole('region', { name: 'Ideas' });
     await press(screen.getByRole('button', { name: 'Add an idea' }));
     const form = screen.getByRole('form', { name: 'Add an idea' });
     fireEvent.change(within(form).getByLabelText('The idea'), { target: { value: 'A short on our editing desk' } });

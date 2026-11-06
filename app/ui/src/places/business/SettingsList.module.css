@@ -1,0 +1,86 @@
+/* Settings' list (C1 task 7): the search box, then each group as a plain heading and its links. No boxes; the page on
+   screen has the same quiet grey fill as a selected tab. Beside a page it sticks to the top of the page's scroll and
+   scrolls on its own when it is taller than the window. */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-width: 0;
+}
+
+.search {
+  width: 100%;
+  min-height: var(--control);
+  padding: 0 var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.search::placeholder {
+  color: var(--mute);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.heading {
+  margin: 0;
+  padding: 0 var(--sp-3);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.pages {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--sp-1) / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  min-height: var(--control);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-button-sm);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+  text-decoration: none;
+}
+
+.link:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.link[aria-current='page'] {
+  background: var(--line);
+  color: var(--fg);
+}
+
+.none {
+  margin: 0;
+  padding: 0 var(--sp-3);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+/* A phone (3H1): each row is a full 44 px touch target. */
+@media (max-width: 759px) {
+  .search,
+  .link {
+    min-height: var(--target);
+  }
+}

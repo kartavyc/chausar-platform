@@ -1,5 +1,8 @@
 /**
- * The business pages behind the rail's business menu, one per address, as a segmented nav in the D look (w3 3G1):
+ * Settings (C1 task 7): the business's settings pages, one per address, listed in four groups with a search
+ * (shell/settings.ts, SettingsList.tsx). From 760 px the list sits on the left and the page on the right; on a phone
+ * `#/business` is the list alone and `#/business/<sub>` the page alone with a way back to Settings. A wide window
+ * opens How the work is done at `#/business`. The pages:
  *   #/business/plan    plan and playbook (Team's empty state links here)
  *   #/business/prices  prices with receipts (Today's "Set prices")
  *   #/business/goals   the monthly goal, money invoiced before tax (W4 4I2; Today's goal card opens it)
@@ -16,17 +19,18 @@
  *   #/business/owner   about you: the owner's first name and the services the business does not sell (W4 4J21)
  *   #/business/voice   the business's voice: six sections per language and channel, versions, learn from writing (W4 4J22b)
  *   #/business/knowledge  what the AI knows: sources, the test search, files the agents need (W4 4J22b)
- * Any other address shows the plan. The pages follow the business menu's order. Switching business and starting a new
- * one live in the menu itself. The experimental storage note shows under the header on every page but Keep, which
- * says it in its own words (3A2).
+ * Any other address shows the plan (beside the list) or the list (a phone). Switching business and starting a new one
+ * live in the business menu. The experimental storage note shows under the header on every page but Keep, which says
+ * it in its own words (3A2).
  */
 
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { useRoute } from '../../shell/navigation';
+import { SETTINGS_HREF, settingsFor } from '../../shell/settings';
+import { useNarrow } from '../../shell/useNarrow';
 import { StorageNotice } from '../../shell/StorageNotice';
 import { PageTitle } from '../../parts/PageTitle';
-import { Segmented } from '../../parts/Segmented';
 import { AwayView } from './AwayView';
 import { BuildView } from './BuildView';
 // W4 4J19: who decided what, on what rule (catalogue O17).
@@ -50,6 +54,7 @@ import { YourRules } from './YourRules';
 import { SettledChats } from '../chats/SettledChats';
 // W6 6J2: reports, the opt-in Send report with its preview and Delete my reports.
 import { ReportsView } from './ReportsView';
+import { SettingsList } from './SettingsList';
 import s from './Business.module.css';
 
 const PAGES = [
@@ -83,32 +88,33 @@ const PAGES = [
   { sub: 'reports', title: 'feedback.page', View: ReportsView },
 ] as const;
 
-/** The flagship playbook whose businesses have a CA of record. */
-const CA_FIRM = 'ca-firm';
-
 export function Place() {
   const t = useT();
   const route = useRoute();
+  const narrow = useNarrow();
   const venture = useResource('venture.get', {}, { refreshOn: (event) => event.type === 'queue.changed' });
-  const page = PAGES.find((p) => p.sub === route.sub) ?? PAGES[0];
+  const groups = settingsFor(venture.data);
+  const asked = PAGES.find((p) => p.sub === route.sub);
+  // A phone: Settings with no page named is the list alone.
+  if (narrow && !asked) {
+    return (
+      <>
+        <PageTitle title={t('place.business')} line={venture.data?.venture.workingName} />
+        <SettingsList groups={groups} current={null} />
+      </>
+    );
+  }
+  const page = asked ?? PAGES[0];
   const { View } = page;
-  const caFirm = venture.data?.playbook?.id === CA_FIRM;
-  // W5 5A2: Go or no go opens from the business menu, and joins the pages only while it is the page (simple first).
-  const listed = PAGES.filter((p) => (p.sub !== 'ca' || caFirm) && (p.sub !== 'go-no-go' || page.sub === 'go-no-go') && (p.sub !== 'rules' || page.sub === 'rules') && (p.sub !== 'chats' || page.sub === 'chats') && (p.sub !== 'reports' || page.sub === 'reports'));
   return (
-    <>
-      <PageTitle title={t(page.title)} line={venture.data?.venture.workingName} />
-      {page.sub !== 'keep' && <StorageNotice />}
-      <Segmented
-        // Your CA joins the pages once the engine names the playbook: a new row, so it brings the current page into view.
-        key={listed.length}
-        mode="links"
-        className={s.nav}
-        label={t('business.pages')}
-        value={page.sub}
-        options={listed.map((p) => ({ id: p.sub, label: t(p.title), href: `#/business/${p.sub}` }))}
-      />
-      <View key={page.sub} />
-    </>
+    <div className={s.settings} data-settings="">
+      {!narrow && <div className={s.settingsList}><SettingsList groups={groups} current={page.sub} /></div>}
+      <div className={s.settingsPage}>
+        {narrow && <a className={s.settingsBack} href={SETTINGS_HREF} data-settings-back="">{t('business.settings.back')}</a>}
+        <PageTitle title={t(page.title)} line={venture.data?.venture.workingName} />
+        {page.sub !== 'keep' && <StorageNotice />}
+        <View key={page.sub} />
+      </div>
+    </div>
   );
 }

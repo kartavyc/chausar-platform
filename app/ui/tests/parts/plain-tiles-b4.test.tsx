@@ -61,7 +61,7 @@ describe('plain tiles (B4 task 1)', () => {
   });
 
   it('the tabs have no outer frame', () => {
-    const seg = rule('Segmented.module.css', '.seg');
+    const seg = rule('Tabs.module.css', '.tabs');
     expect(seg).not.toMatch(/border:\s*var\(--hair\)/);
     expect(seg).not.toMatch(/box-shadow:\s*var/);
     expect(seg).not.toMatch(/background:\s*var\(--surface\)/);

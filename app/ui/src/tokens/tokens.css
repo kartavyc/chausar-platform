@@ -198,6 +198,8 @@
   --radius: 6px;
   --hair: 1px;
   --rail: 232px;
+  /* C1 task 8: the rail folded to its icons (760 to 959 px): the 44 px place plus the rail's own padding. */
+  --rail-compact: 64px;
   --sheet-min: 360px;
   --sheet-max: 480px;
   --control: 36px;

@@ -80,28 +80,32 @@ describe('the phone frame', () => {
     expect(screen.queryByRole('button', { name: /account/i })).toBeNull();
     // One navigation named Places: the bottom tabs, after the page.
     expect(screen.getAllByRole('navigation', { name: 'Places' })).toHaveLength(1);
-    expect(within(tabs()).queryByRole('link', { name: 'Money' })).toBeNull();
+    expect(within(tabs()).queryByRole('link', { name: 'Team' })).toBeNull();
     expect(appRoot(container).hasAttribute('data-phone')).toBe(true);
     const main = screen.getByRole('main');
     expect(main.compareDocumentPosition(tabs()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   }, 15_000);
 
-  it('the bottom tabs are Today with its count, Chats, Team, Work and More (W4 4C2: Clients moved into More)', async () => {
+  // C1 task 10 (founder, 5 Nov): Money takes Team's tab; Team moves under More.
+  it('the bottom tabs are Today with its count, Chats, Work, Money and More', async () => {
     stubWidth(true);
     start();
     const links = within(tabs()).getAllByRole('link');
-    expect(links.map((a) => a.textContent?.replace(/\d+, \d+ needs? you$/, ''))).toEqual(['Today', 'Chats', 'Team', 'Work', 'More']);
-    expect(links.slice(0, 4).map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work']);
+    expect(links.map((a) => a.textContent?.replace(/\d+, \d+ needs? you$/, ''))).toEqual(['Today', 'Chats', 'Work', 'Money', 'More']);
+    expect(links.slice(0, 4).map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/work', '#/money']);
     const today = links[0]!;
     await waitFor(() => expect(today.querySelector('[data-badge]')?.textContent).toBe('12'));
     expect(today.querySelector('[data-badge]')?.getAttribute('aria-hidden')).toBe('true');
+    // 136.f4: the badge is pinned inside the icon's holder, on its corner, so a two-figure count never covers it.
+    expect(today.querySelector('[data-badge]')?.parentElement?.hasAttribute('data-tab-icon')).toBe(true);
+    expect(today.querySelector('[data-tab-icon] svg')).toBeTruthy();
     expect(within(today).getByText(', 12 need you').className).toBe('sr-only');
     expect(today.getAttribute('aria-current')).toBe('page');
   });
 
   it.each([
-    ['#/chats', 'Chats'], ['#/team', 'Team'], ['#/work?state=failed', 'Work'], ['#/clients', 'More'], ['#/clients/pipeline', 'More'],
-    ['#/money', 'More'], ['#/money/invoices', 'More'], ['#/connections', 'More'], ['#/business/plan', 'More'], ['#/onboarding', 'More'],
+    ['#/chats', 'Chats'], ['#/team', 'More'], ['#/work?state=failed', 'Work'], ['#/clients', 'More'], ['#/clients/pipeline', 'More'],
+    ['#/money', 'Money'], ['#/money/invoices', 'Money'], ['#/connections', 'More'], ['#/business/plan', 'More'], ['#/onboarding', 'More'],
   ])('at %s the current tab is %s', async (hash, tab) => {
     stubWidth(true);
     start(hash);
@@ -110,7 +114,7 @@ describe('the phone frame', () => {
     expect(current[0]!.hasAttribute('data-current')).toBe(true);
   });
 
-  it('More opens a sheet "More" with Clients, Money, Apps (W6 6H1), Connections, Business and Start a new business; a link closes it', async () => {
+  it('More opens a sheet "More" with Team, Clients, Apps (W6 6H1), Connections, Settings and Start a new business; a link closes it', async () => {
     stubWidth(true);
     start('#/team');
     const more = within(tabs()).getByRole('link', { name: 'More' });
@@ -122,10 +126,10 @@ describe('the phone frame', () => {
     const list = within(sheet).getByRole('navigation', { name: 'More places' });
     const links = within(list).getAllByRole('link');
     expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
-      ['Clients', '#/clients'], ['Money', '#/money'], ['Apps', '#/apps'], ['Connections', '#/connections'], ['Business', '#/business/plan'], ['Start a new business', '#/onboarding'],
+      ['Team', '#/team'], ['Clients', '#/clients'], ['Apps', '#/apps'], ['Connections', '#/connections'], ['Settings', '#/business'], ['Start a new business', '#/onboarding'],
     ]);
     for (const link of links) expect(link.querySelectorAll('svg[aria-hidden="true"]').length).toBeGreaterThan(0);
-    await act(async () => { fireEvent.click(links[1]!); window.location.hash = '#/money'; });
+    await act(async () => { fireEvent.click(links[1]!); window.location.hash = '#/clients'; });
     await hashChanged();
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'More' })).toBeNull());
     expect(within(tabs()).getByRole('link', { name: 'More' }).getAttribute('aria-current')).toBe('page');
@@ -138,7 +142,7 @@ describe('the phone frame', () => {
     start('#/connections?sheet=more:places');
     const sheet = await screen.findByRole('complementary', { name: 'More' });
     expect(within(sheet).getByRole('link', { name: 'Connections' }).getAttribute('aria-current')).toBe('page');
-    expect(within(sheet).getByRole('link', { name: 'Money' }).hasAttribute('aria-current')).toBe(false);
+    expect(within(sheet).getByRole('link', { name: 'Clients' }).hasAttribute('aria-current')).toBe(false);
     await act(async () => { fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' }); });
     await hashChanged();
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'More' })).toBeNull());
@@ -218,25 +222,20 @@ function withDepartments(): EngineClient {
 }
 
 describe('Team on a phone', () => {
-  it('the department toggle is a row of filter chips that wraps (4Z2: no chip starts cut off), with the same choices, held in the address', async () => {
-    stubWidth(true);
-    start('#/team', withDepartments());
-    const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    expect(toggle.hasAttribute('data-scroll')).toBe(false);
-    // Each chip carries how many agents it holds (D-Phone-Team, W4 4A2); Keeper sits in no department in this engine view.
-    expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments 5', 'Sales and clients 1', 'Marketing 2', 'Production 1', 'Money 0', 'Operations 0']);
-    await act(async () => { fireEvent.click(within(toggle).getByRole('button', { name: /^Production/ })); });
-    await hashChanged();
-    expect(window.location.hash).toBe('#/team?dept=prod');
-    expect(within(screen.getByRole('group', { name: 'Show departments' })).getByRole('button', { name: /^Production/ }).getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('a wide window keeps the segmented toggle', async () => {
-    stubWidth(false);
-    start('#/team', withDepartments());
-    const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    expect(toggle.hasAttribute('data-scroll')).toBe(false);
-  });
+  // C1 task 2: one Tabs row of departments at every width, with the counts; zero counts are not drawn.
+  for (const narrow of [true, false]) {
+    it(`the department row is the same Tabs ${narrow ? 'on a phone' : 'in a wide window'}, with the counts, held in the address`, async () => {
+      stubWidth(narrow);
+      start('#/team', withDepartments());
+      const toggle = await screen.findByRole('group', { name: 'Show departments' });
+      expect(toggle.hasAttribute('data-tabs')).toBe(true);
+      expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments 5', 'Sales and clients 1', 'Marketing 2', 'Production 1', 'Money', 'Operations']);
+      await act(async () => { fireEvent.click(within(toggle).getByRole('button', { name: /^Production/ })); });
+      await hashChanged();
+      expect(window.location.hash).toBe('#/team?dept=prod');
+      expect(within(screen.getByRole('group', { name: 'Show departments' })).getByRole('button', { name: /^Production/ }).getAttribute('aria-pressed')).toBe('true');
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------------------------------------------

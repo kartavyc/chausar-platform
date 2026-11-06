@@ -19,6 +19,9 @@ export type AiSettingsView = {
   settings: AiSettings;
   boundaries: { jobFolderOnly: true; windowsSandbox: 'unelevated'; shell: 'unavailable'; mcp: 'chausar-proxy'; externalMcp: 'approval-required' };
   agents: { id: string; name: string }[];
+  /** C1 task 13: the models Codex itself lists, in its order; null when there is no list (no Codex, a failed read, or
+   *  the fixed fallback ids, which are never shown as if Codex listed them). Claude has no list to read. */
+  models: { codex: string[] | null };
 };
 export const AI_SETTING_BOUNDARIES: AiSettingsView['boundaries'] = Object.freeze({ jobFolderOnly: true, windowsSandbox: 'unelevated', shell: 'unavailable', mcp: 'chausar-proxy', externalMcp: 'approval-required' });
 

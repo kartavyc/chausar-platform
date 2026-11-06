@@ -39,6 +39,8 @@ const BOARD_ICONS = ['shield-check', 'upload', 'search', 'sliders-horizontal', '
 // W4 packages add the names they need here, one line each.
 // 4I2: behind today's pace, beside trending-up for ahead.
 BOARD_ICONS.push('trending-down');
+// C1: the rail's and More's Settings.
+BOARD_ICONS.push('settings');
 
 describe('Icon', () => {
   it('is a quiet svg by default: hidden from screen readers, not focusable, the D stroke', () => {

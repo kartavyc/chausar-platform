@@ -56,7 +56,7 @@ export function DeptChip({ dept, className }: { dept: DeptId; className?: string
 }
 
 /** D's `.sdot`: a department's small solid dot before its name in a toggle or filter row. Hidden: the name says it.
- *  The one place the department dot colours live (Segmented and FilterChips both draw this). */
+ *  The one place the department dot colours live (Tabs and FilterChips both draw this). */
 export function DeptDot({ dept, className }: { dept: DeptId; className?: string | undefined }) {
   return <span className={cx(s.deptDot, className)} data-dept={dept} aria-hidden="true" />;
 }

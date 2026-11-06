@@ -38,7 +38,7 @@ describe('Business > Routines (4J22a)', () => {
   it('lists each routine with its schedule and time zone, who it asks, and the next run in the engine words', async () => {
     start();
     expect(await screen.findByRole('heading', { level: 1, name: 'Routines' })).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'Routines' }).getAttribute('aria-current')).toBe('page');
     const item = await screen.findByRole('article', { name: 'Weekly review' });
     expect(item.querySelector('[data-when]')!.textContent).toBe('Every Monday 9:00 am, Asia/Kolkata');

@@ -53,7 +53,7 @@ describe('Clients: the sales proposal (5A2, P2 and P3)', () => {
     expect(within(drafted).getByText('Waiting on you')).toBeTruthy();
     expect(within(drafted).getByText('Written by Chausar')).toBeTruthy();
     const investment = within(drafted).getByRole('region', { name: 'Investment' });
-    const receiptButton = within(investment).getByRole('button', { name: /^Receipt/ });
+    const receiptButton = within(investment).getByRole('button', { name: /^Open receipt/ });
     expect(receiptButton).toBeTruthy();
     expect(within(drafted).getByText('Please tell us [the day you would like to start].')).toBeTruthy();
     expect(within(drafted).queryByRole('button', { name: 'Open in mail' })).toBeNull();
@@ -158,7 +158,8 @@ describe('Business > Prices: a share is the advanced option, one step away (foun
     const queue = await request('venture.queue.list', {}) as QueueList;
     const price = queue.rows.find((row) => row.kind === 'price' && row.change?.after.includes('%'))!;
     expect(price.change).toEqual({ label: 'Sponsor slot', before: expect.any(String), after: '8.33% of the amount your client confirms' });
-    expect(price.actions.find((action) => action.id === 'approve')?.secondAsk).toBe(true);
+    // B4 task 7: a new price (or share) on one offer accepts on one press, with an Undo.
+    expect(price.actions.find((action) => action.id === 'approve')?.secondAsk).toBeUndefined();
     // The pending change above the cards, and the offer's card at rest, both say the share as the owner set it.
     await waitFor(() => expect(screen.getAllByText('8.33% of the amount your client confirms').length).toBe(2));
     // The offer's own card keeps the Ink rules (the pending change above it is Today's row, drawn as Today draws it).

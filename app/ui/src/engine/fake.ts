@@ -268,6 +268,8 @@ export class FakeEngine {
   timeStop(runId: string): void { this.w4.timeStop(runId); }
   /** Tests (A3, S3): the owner's AI call in Chats fails from now on (null turns it off), as chief/answer.ts meets it. */
   chatAiFails(failure: { reason: string | null } | null): void { this.chief.failAi(failure); }
+  /** C1 task 13: what Codex lists as its models here (`codex debug models`), or null for no list. */
+  codexModels(list: string[] | null): void { this.agentSettings.setCodexModels(list); }
   /** Tests (A3, S2): one of the open business's drafts as a run left it (a failed check, for one). */
   reviseDelivery(runId: string, change: (run: DeliveryLite) => DeliveryLite): DeliveryLite { return this.work.reviseRun(this.current, runId, change); }
   /**

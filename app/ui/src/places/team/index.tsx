@@ -2,11 +2,9 @@ import { useId, useMemo } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { setQuery, useRoute } from '../../shell/navigation';
-import { useNarrow } from '../../shell/useNarrow';
 import { EmptyState } from '../../parts/EmptyState';
-import { FilterChips } from '../../parts/FilterChips';
 import { PageTitle } from '../../parts/PageTitle';
-import { Segmented, departmentChoices } from '../../parts/Segmented';
+import { Tabs, departmentChoices } from '../../parts/Tabs';
 import { Icon } from '../../parts/Icon';
 import { Bento, Tile, TileHead, type TileSpan, PlaceTiles } from '../../parts/Tile';
 import { AgentList } from './AgentCard';
@@ -38,7 +36,6 @@ export function Place() {
 function PlaceBody() {
   const t = useT();
   const route = useRoute();
-  const narrow = useNarrow();
   // B3: Waiting on you counts what Today counts for this business (shell/needsYou.ts), the engine's number.
   const needs = useNeedsYou('current');
   const team = useResource('venture.team.list', {}, { refreshOn });
@@ -78,11 +75,8 @@ function PlaceBody() {
         <div className={s.page}>
           {split && (
             <div className={s.toolbar}>
-              {/* A phone: the same choice as filter chips (D-STYLE "Segmented toggle"); 4Z2: they wrap, so no chip starts cut
-                  off at the edge as the row scrolled to the chosen one. */}
-              {narrow
-                ? <FilterChips label={t('dept.show')} options={withCounts(departmentChoices(t), members, split.departments)} value={chosen} onChange={show} />
-                : <Segmented mode="buttons" label={t('dept.show')} options={departmentChoices(t)} value={chosen} onChange={show} />}
+              {/* C1: one row of departments at every width, with their counts; what does not fit goes under More. */}
+              <Tabs mode="buttons" label={t('dept.show')} items={withCounts(departmentChoices(t), members, split.departments)} value={chosen} onChange={show} />
               {/* An agent joins with a way to earn: its playbook brings the team that works it (spec 5.1). */}
               <a className={s.addAgent} href="#/onboarding"><Icon name="plus" size={16} />{t('team.addAgent')}</a>
             </div>

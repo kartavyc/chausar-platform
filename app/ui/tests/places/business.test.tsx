@@ -57,7 +57,7 @@ describe('Business: plan and playbook', () => {
     expect(screen.getByText('Draft the sponsor script')).toBeTruthy();
     expect(screen.getByText('Anything posted in your name')).toBeTruthy();
     expect(screen.getAllByText('assumption').length).toBeGreaterThan(0);
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'How the work is done' }).getAttribute('aria-current')).toBe('page');
   });
 
@@ -383,7 +383,7 @@ describe('Business: the addresses other places link to', () => {
     it(`${hash} opens ${title}`, async () => {
       start(hash);
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeTruthy();
-      const nav = screen.getByRole('navigation', { name: 'Business pages' });
+      const nav = screen.getByRole('navigation', { name: 'Settings' });
       expect(within(nav).getByRole('link', { name: title }).getAttribute('aria-current')).toBe('page');
     });
   }
@@ -532,15 +532,14 @@ describe('Business menu', () => {
     await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', { name: /Ledgerline/ })).toBeTruthy());
   });
 
-  it('leads to plan and playbook, prices, goals, website build, practice, notifications and a new business', async () => {
+  // C1 task 9: one short menu; the settings pages live in Settings.
+  it('leads to Settings, a new business, Away and the accountant invite', async () => {
     start('#/today');
     fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ }));
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     const hrefs = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
     // W4 4J20: last, after Away, "Invite your accountant" opens Money's accountant sheet (a read-only month of books).
-    // W5 5A2: Go or no go, after Goals.
-    expect(hrefs).toEqual([['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Notifications', '#/business/notifications'], ['Old chats', '#/business/chats'], ['Reports', '#/business/reports'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
-    expect(hrefs).toHaveLength(13);
+    expect(hrefs).toEqual([['Settings', '#/business'], ['New business', '#/onboarding'], ['Away', '#/business/away'], ['Invite your accountant', '#/money?sheet=accountant:books']]);
     expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
   });
 
@@ -551,7 +550,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     start('#/business/ca', await ledgerline());
     expect(await screen.findByRole('heading', { level: 1, name: 'Your CA' })).toBeTruthy();
     expect(await screen.findByText('Meera Joshi')).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     await waitFor(() => expect(within(nav).getByRole('link', { name: 'Your CA' }).getAttribute('aria-current')).toBe('page'));
     expect(screen.getByText('412345')).toBeTruthy();
     expect(screen.getByText(/Agents never file or sign/)).toBeTruthy();
@@ -676,19 +675,17 @@ describe('Business: your CA (CA firm playbook)', () => {
   it('a business that is not a CA firm says so in one line, and its pages have no CA', async () => {
     start('#/business/ca');
     expect(await screen.findByText('Only a CA firm has a CA of record.')).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).queryByRole('link', { name: 'Your CA' })).toBeNull();
   });
 
-  it('the business menu of a CA firm leads to Your CA', async () => {
-    start('#/today', await ledgerline());
+  it('a CA firm reaches Your CA through Settings (C1: the business menu keeps one Settings link)', async () => {
+    start('#/business', await ledgerline());
+    const nav = await screen.findByRole('navigation', { name: 'Settings' });
+    await waitFor(() => expect(within(nav).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
     fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Ledgerline/ }));
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Ledgerline' });
-    await waitFor(() => expect(within(menu).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
-    const hrefs = within(menu).getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/goals', '#/business/go-no-go', '#/business/build', '#/business/practice', '#/business/ca', '#/business/notifications', '#/business/chats', '#/business/reports', '#/business/keep', '#/onboarding', '#/business/away', '#/money?sheet=accountant:books']);
-    expect(hrefs).toHaveLength(14);
-    expect(within(menu).getByRole('link', { name: 'Invite your accountant' }).getAttribute('href')).toBe('#/money?sheet=accountant:books');
+    expect(within(menu).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['#/business', '#/onboarding', '#/business/away', '#/money?sheet=accountant:books']);
   });
 });
 

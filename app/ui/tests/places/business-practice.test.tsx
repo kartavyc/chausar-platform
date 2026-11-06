@@ -42,7 +42,7 @@ describe('Business: practice clients', () => {
   it('lists the practice clients; Rehearse now runs them and shows how many passed, each failure and the cost as the engine wrote it', async () => {
     const { calls } = start();
     expect(await screen.findByRole('heading', { level: 1, name: 'Practice and improve' })).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'Practice and improve' }).getAttribute('aria-current')).toBe('page');
     const practice = await region('Practice clients');
     expect(await within(practice).findByText('A clear request')).toBeTruthy();
@@ -85,12 +85,12 @@ describe('Business: practice clients', () => {
     expect(await within(practice).findByText('2 of 3 passed')).toBeTruthy();
   });
 
-  it('the business menu leads here', async () => {
+  it('the business menu leads to Settings, which leads here', async () => {
     window.location.hash = '#/today';
     render(<App client={createFakeClient(new FakeEngine({ now: () => NOW }))} language="en" />);
     fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ }));
     const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
-    expect(within(menu).getByRole('link', { name: 'Practice and improve' }).getAttribute('href')).toBe('#/business/practice');
+    expect(within(menu).getByRole('link', { name: 'Settings' }).getAttribute('href')).toBe('#/business');
   });
 
   it("a refusal to rehearse is said in the engine's words", async () => {

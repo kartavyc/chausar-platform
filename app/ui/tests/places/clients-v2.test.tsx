@@ -72,8 +72,8 @@ describe('Clients: the tabs', () => {
     await waitFor(() => expect(clients.querySelector('[data-count]')?.textContent).toBe('2'));
     await waitFor(() => expect(pipeline.querySelector('[data-count]')?.textContent).toBe('9'));
     expect(within(nav).getByRole('link', { name: /^Network/ }).getAttribute('aria-current')).toBeNull();
-    // An icon sits before each word, hidden from screen readers.
-    for (const link of links) expect(link.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    // C1: one quiet look, no icons in tabs.
+    for (const link of links) expect(link.querySelector('svg')).toBeNull();
     assertInkRules();
   });
 
@@ -97,6 +97,46 @@ describe('Clients: the tabs', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/clients/pipeline'));
     await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
     expect(await board()).toBeTruthy();
+  });
+});
+
+/** A new business: no client, nobody on the pipeline, nobody in the network. */
+function emptyBusiness(client: Fake) {
+  const base = client.request.bind(client);
+  client.request = (async (m: string, params?: unknown) => {
+    if (m === 'venture.client.list') return [];
+    if (m === 'venture.network.people') return { ...(await base(m as never, params as never) as object), total: 0, people: [] };
+    if (m === 'venture.pipeline.list') {
+      const board = await base(m as never, params as never) as { columns: { count: number; cards: unknown[] }[] };
+      return { ...board, columns: board.columns.map((column) => ({ ...column, count: 0, cards: [] })) };
+    }
+    if (m === 'venture.leads.list') return { leads: [] };
+    return base(m as never, params as never);
+  }) as EngineClient['request'];
+}
+
+describe('Clients: Pipeline and Network wait for a client (C1 task 4)', () => {
+  it('a new business has no Clients tab row; its title stays', async () => {
+    await start('#/clients', { override: emptyBusiness });
+    await settle();
+    await settle();
+    expect(screen.getByRole('heading', { level: 1, name: 'Clients' })).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: 'Clients views' })).toBeNull();
+  });
+
+  it('with one client it has Clients, Pipeline and Network', async () => {
+    await start('#/clients');
+    await screen.findByRole('list', { name: 'Clients' });
+    await waitFor(() => expect(within(tabs()).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['#/clients', '#/clients/pipeline', '#/clients/network']));
+  });
+
+  it('a link to #/clients/network on a new business lands, with the row and Network current', async () => {
+    await start('#/clients/network', { override: emptyBusiness });
+    await settle();
+    await settle();
+    const links = within(tabs()).getAllByRole('link');
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['#/clients', '#/clients/network']);
+    expect(within(tabs()).getByRole('link', { name: /^Network/ }).getAttribute('aria-current')).toBe('page');
   });
 });
 

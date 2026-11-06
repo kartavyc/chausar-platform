@@ -54,7 +54,7 @@ describe('the rail', () => {
 
   it('lists Today, Chats, Team, Work, Clients, Money, Apps and Connections, each with its icon and word (W4 4C2 added Chats, W6 6H1 Apps)', async () => {
     const rail = start('#/team');
-    const places = within(within(rail).getByRole('list')).getAllByRole('link');
+    const places = within(within(rail).getAllByRole('list')[0]!).getAllByRole('link');
     expect(places.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/apps', '#/connections']);
     const icons = places.map((a) => {
       const svg = a.querySelector('svg')!;
@@ -82,6 +82,55 @@ describe('the rail', () => {
     expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')!.hasAttribute('data-tone')).toBe(false);
   });
 
+});
+
+describe('the rail: Settings has a home, and the rail folds to icons (C1 task 8)', () => {
+  const cssOf = (file: string) => readFileSync(join(import.meta.dirname, '../../src/shell', file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  /** Every block of the folded-rail rule in a stylesheet, joined. */
+  const media = (css: string) => {
+    const head = '@media (min-width: 760px) and (max-width: 959px)';
+    expect(css.indexOf(head), 'the compact rule').toBeGreaterThanOrEqual(0);
+    let out = '';
+    for (let at = css.indexOf(head); at >= 0; at = css.indexOf(head, at + 1)) {
+      let depth = 0;
+      for (let i = css.indexOf('{', at); i < css.length; i += 1) {
+        if (css[i] === '{') depth += 1;
+        else if (css[i] === '}') { depth -= 1; if (depth === 0) { out += css.slice(at, i + 1); break; } }
+      }
+    }
+    return out;
+  };
+
+  it('the places list is unchanged, and a second list holds one link, Settings, to #/business, current on Settings pages only', async () => {
+    const rail = start('#/business/goals');
+    const [places, foot] = within(rail).getAllByRole('list');
+    expect(within(places!).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/apps', '#/connections']);
+    const links = within(foot!).getAllByRole('link');
+    expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Settings', '#/business']]);
+    expect(links[0]!.getAttribute('aria-current')).toBe('page');
+    expect(within(places!).getAllByRole('link').filter((a) => a.hasAttribute('aria-current'))).toEqual([]);
+    await go('#/today');
+    expect(within(rail).getByRole('link', { name: 'Settings' }).hasAttribute('aria-current')).toBe(false);
+  });
+
+  it('every place link keeps its name and has a title', () => {
+    const rail = start('#/today');
+    for (const name of ['Chats', 'Team', 'Work', 'Clients', 'Money', 'Apps', 'Connections', 'Settings']) {
+      const link = within(rail).getByRole('link', { name: new RegExp(`^${name}`) });
+      expect(link.getAttribute('title')).toBe(name);
+    }
+  });
+
+  it('from 760 to 959 px the grid column is --rail-compact and the words are hidden visually, never with display: none', () => {
+    expect(media(cssOf('App.module.css'))).toMatch(/grid-template-columns:\s*var\(--rail-compact\)\s+minmax\(0, 1fr\)/);
+    const rail = media(cssOf('Rail.module.css'));
+    expect(rail).toMatch(/\.label\s*\{[^}]*clip-path:\s*inset\(50%\)/);
+    expect(rail).not.toMatch(/\.label\s*\{[^}]*display:\s*none/);
+    const menu = media(cssOf('BusinessMenu.module.css'));
+    expect(menu).toMatch(/\.words[\s\S]*clip-path:\s*inset\(50%\)/);
+    const tokens = readFileSync(join(import.meta.dirname, '../../src/tokens/tokens.css'), 'utf8');
+    expect(tokens).toMatch(/--rail-compact:\s*64px;/);
+  });
 });
 
 describe('one count (B3)', () => {

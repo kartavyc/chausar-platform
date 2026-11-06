@@ -7,7 +7,11 @@ type Host = { current(): string; exists(): boolean; agents(): { id: string; name
 export class FakeAgentSettings {
   private saved = new Map<string, AiSettings>();
   private host: Host;
+  /** C1 task 13: Codex's own model list, as the engine reads it; null (no list) unless a test sets one. */
+  private codexModels: string[] | null = null;
   constructor(host: Host) { this.host = host; }
+  /** Test hook: what `codex debug models` would list here, in its order, or null for no list. */
+  setCodexModels(list: string[] | null): void { this.codexModels = list ? [...list] : null; }
   request(method: string, raw: unknown): AiSettingsView {
     if (!this.host.exists()) throw new EngineError('VENTURE_NOT_FOUND', 'Start a business first.');
     const keys = method === 'venture.agentSettings.set' ? ['settings', 'approveMcpConfiguration'] : [];
@@ -25,7 +29,7 @@ export class FakeAgentSettings {
       if (JSON.stringify(current.mcpServers) !== JSON.stringify(settings.mcpServers) && p.approveMcpConfiguration !== true) throw new EngineError('MCP_CONFIGURATION_APPROVAL_REQUIRED', 'Review and approve this exact external tool configuration before saving.');
       this.saved.set(this.host.current(), settings); this.host.changed();
     }
-    return structuredClone({ settings: this.saved.get(this.host.current()) ?? defaultAiSettings(), boundaries: AI_SETTING_BOUNDARIES, agents });
+    return structuredClone({ settings: this.saved.get(this.host.current()) ?? defaultAiSettings(), boundaries: AI_SETTING_BOUNDARIES, agents, models: { codex: this.codexModels } });
   }
   credential(raw: unknown): { serverId: string; saved: boolean } {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || ![Object.prototype,null].includes(Object.getPrototypeOf(raw))) throw new EngineError('INVALID_VENTURE_REQUEST','Send one request object.');

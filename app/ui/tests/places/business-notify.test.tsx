@@ -66,7 +66,7 @@ describe('Business > Notifications on this computer', () => {
   it('is a business page that says what the engine says, and that phone alerts need the hosted app', async () => {
     start();
     expect(await screen.findByRole('heading', { level: 1, name: 'Notifications' })).toBeTruthy();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(nav).getByRole('link', { name: 'Notifications' }).getAttribute('aria-current')).toBe('page');
     await screen.findByText('The tray shows how many things need you. Quiet hours: 10:00 pm to 7:00 am. Daily summary at 8:00 am.');
     const reach = await region('How alerts reach you');

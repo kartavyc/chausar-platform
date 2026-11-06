@@ -5,7 +5,7 @@ import { Button } from '../../parts/Button';
 import { ComplianceCheck, type ComplianceAnswer } from '../../parts/ComplianceCheck';
 import { Icon } from '../../parts/Icon';
 import { Logo } from '../../parts/Logo';
-import { AboutYou, type KeptPlan } from './AboutYou';
+import { AboutYou, type AboutMode, type KeptPlan } from './AboutYou';
 import { BusinessNeeds } from './BusinessNeeds';
 import { ConnectAi } from './ConnectAi';
 import { ProfessionPick } from './ProfessionPick';
@@ -36,6 +36,7 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
   const client = useEngine();
   const [step, setStep] = useState<Step>('ai');
   const [connected, setConnected] = useState<string | null>(null);
+  const [aboutMode, setAboutMode] = useState<AboutMode>('a');
   const [plan, setPlan] = useState<KeptPlan | null>(null);
   /** A5: the profession the owner confirmed (or the field's id for "None of these"), which the rules step reads. */
   const [profession, setProfession] = useState<string | null>(null);
@@ -89,6 +90,9 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
   const past = (target: Step) => ORDER.indexOf(step) > ORDER.indexOf(target);
   const mark = (n: number, done: boolean) => <span className={f.stepMark} aria-hidden="true">{done ? <Icon name="check" size={12} /> : n}</span>;
   const away = !begun && (step === 'ai' || step === 'about' || step === 'who' || step === 'check');
+  // C1 task 11: step 2, "Your work", is About you before the plan card; step 3 runs from the plan card to the end.
+  const work = step === 'about' && aboutMode !== 'plan';
+  const business = (step === 'about' && aboutMode === 'plan') || step === 'who' || step === 'check' || step === 'keep' || step === 'needs';
   return (
     <div className={f.page}>
       <div>{status}</div>
@@ -97,15 +101,23 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
           <span aria-hidden="true"><Logo wordmark size={22} /></span>
           <span className="sr-only">{t('app.name')}</span>
           <ol className={f.steps} aria-label={t('first-run.steps')}>
-            <li className={f.step} aria-current={step === 'ai' ? 'step' : undefined} data-done={past('ai') ? '' : undefined}>
-              {mark(1, past('ai'))}{step === 'ai' ? t('first-run.step.ai') : connected ? t('first-run.step.connected', { name: connected }) : t('first-run.step.templates')}
-            </li>
-            <li className={f.step} aria-current={step === 'about' || step === 'who' || step === 'check' ? 'step' : undefined} data-done={past('check') ? '' : undefined}>{mark(2, past('check'))}{t('first-run.step.about')}</li>
-            <li className={f.step} aria-current={step === 'keep' || step === 'needs' ? 'step' : undefined}>{mark(3, false)}{t('first-run.step.business')}</li>
+            {/* C1 task 11: step 1 keeps one short label; after a connect, what was connected is its title and is said to
+                screen readers, so the row never grows. */}
+            {step !== 'ai' && connected ? (
+              <li className={f.step} data-done="" title={t('first-run.step.connected', { name: connected })}>
+                {mark(1, true)}<span aria-hidden="true" data-step-word="">{t('first-run.step.aiDone')}</span><span className="sr-only">{t('first-run.step.connected', { name: connected })}</span>
+              </li>
+            ) : (
+              <li className={f.step} aria-current={step === 'ai' ? 'step' : undefined} data-done={past('ai') ? '' : undefined}>
+                {mark(1, past('ai'))}{step === 'ai' ? t('first-run.step.ai') : t('first-run.step.templates')}
+              </li>
+            )}
+            <li className={f.step} aria-current={work ? 'step' : undefined} data-done={!work && step !== 'ai' ? '' : undefined}>{mark(2, !work && step !== 'ai')}{t('first-run.step.about')}</li>
+            <li className={f.step} aria-current={business ? 'step' : undefined}>{mark(3, false)}{t('first-run.step.business')}</li>
           </ol>
         </div>
         {step === 'ai' && <ConnectAi onDone={(name) => { setConnected(name); setStep('about'); }} onSkip={() => { setConnected(null); setStep('about'); }} />}
-        {step === 'about' && <AboutYou connected={connected !== null} onKeep={(next) => { setPlan(next); setProfession(null); setStep('who'); }} />}
+        {step === 'about' && <AboutYou connected={connected !== null} onMode={setAboutMode} onKeep={(next) => { setPlan(next); setProfession(null); setStep('who'); }} />}
         {step === 'who' && plan && <ProfessionPick family={plan.read.family} picked={plan.read.profession} onDone={(id) => { setProfession(id); setStep('check'); }} />}
         {step === 'check' && plan && (
           <div className={f.wrap}>

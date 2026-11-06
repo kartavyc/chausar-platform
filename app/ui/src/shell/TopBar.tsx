@@ -33,11 +33,11 @@ export function TopBar() {
   );
 }
 
-/** The places that have a tab of their own; every other place is under More. W4 4C2 put Chats second, and Clients
- *  moved under More (spec 4.3, D-Phone-Today). */
-const TAB_PLACES = ['today', 'chats', 'team', 'work'] as const satisfies readonly PlaceId[];
+/** The places that have a tab of their own; every other place is under More. W4 4C2 put Chats second; C1 task 10 gave
+ *  Money a tab and moved Team under More (founder, 5 Nov: Work holds what is running, Team is visited less). */
+const TAB_PLACES = ['today', 'chats', 'work', 'money'] as const satisfies readonly PlaceId[];
 type TabPlace = (typeof TAB_PLACES)[number];
-const TAB_ICONS: Readonly<Record<TabPlace | 'more', IconName>> = { today: 'sun', chats: 'messages-square', team: 'users', work: 'briefcase', more: 'layout-grid' };
+const TAB_ICONS: Readonly<Record<TabPlace | 'more', IconName>> = { today: 'sun', chats: 'messages-square', work: 'briefcase', money: 'wallet', more: 'layout-grid' };
 const isTab = (place: PlaceId): place is TabPlace => (TAB_PLACES as readonly PlaceId[]).includes(place);
 
 /** The sheet More opens: the rest of the places (sheets.tsx, `more`). */
@@ -45,7 +45,7 @@ export const MORE_SHEET = { kind: 'more', id: 'places' } as const;
 
 /**
  * The phone's bottom tabs (D-Phone-Today `nav.tabs`): Today with what needs the owner across every business, Chats,
- * Team, Work, and More, which opens a sheet with Clients, Money, Connections, Business and a new business. More is the
+ * Work, Money, and More, which opens a sheet with Team, Clients, Apps, Connections, Settings and a new business. More is the
  * current tab on those places. More is a real link to this page with its sheet, so Back closes it; pressed here it
  * goes through openSheet, so closing the sheet puts focus back on the tab.
  */

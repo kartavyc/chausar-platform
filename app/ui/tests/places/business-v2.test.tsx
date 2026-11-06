@@ -75,20 +75,17 @@ function taxFields(root: Element): string[] {
 }
 
 describe('Business in the Ink v2 look', () => {
-  it('the pages are a segmented nav with the current page marked, Your CA only on a CA firm', async () => {
+  // C1 task 7: the pages are the Settings list, in four groups, every page listed (Your CA only on a CA firm).
+  it('the pages are the Settings list with the current page marked, Your CA only on a CA firm', async () => {
     start('#/business/prices');
-    const nav = await screen.findByRole('navigation', { name: 'Business pages' });
+    const nav = await screen.findByRole('navigation', { name: 'Settings' });
     expect(within(nav).getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
-      ['How the work is done', '#/business/plan'], ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Website build', '#/business/build'],
-      ['Practice and improve', '#/business/practice'],
-      // W4 4J22a: routines on a schedule, after Practice.
-      ['Routines', '#/business/routines'],
-      ['Notifications', '#/business/notifications'], ['Keep this business', '#/business/keep'],
-      // W4 4J21: About you, the owner's first name and the services the business does not sell.
-      // W4 4J19: Decisions, who decided each thing and on what rule.
-      ['Away', '#/business/away'], ['Decisions', '#/business/decisions'], ['About you', '#/business/owner'],
-      // W4 4J22b: the business's voice, and what the AI knows.
-      ['Voice', '#/business/voice'], ['What AI knows', '#/business/knowledge'],
+      ['How the work is done', '#/business/plan'], ['About you', '#/business/owner'], ['Voice', '#/business/voice'], ['What AI knows', '#/business/knowledge'],
+      ['Website build', '#/business/build'],
+      ['Practice and improve', '#/business/practice'], ['Routines', '#/business/routines'], ['Notifications', '#/business/notifications'], ['Away', '#/business/away'],
+      ['Old chats', '#/business/chats'],
+      ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'],
+      ['Keep this business', '#/business/keep'], ['Decisions', '#/business/decisions'], ['Your rules', '#/business/rules'], ['Reports', '#/business/reports'],
     ]);
     expect(within(nav).getByRole('link', { name: 'Prices' }).getAttribute('aria-current')).toBe('page');
   });

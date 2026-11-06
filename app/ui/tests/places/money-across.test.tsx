@@ -5,6 +5,7 @@ import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import type { EngineClient } from '../../src/engine/types';
 import { assertFiguresProved, assertInkRules, receiptMark } from '../helpers/ink-rules';
+import { moreLinks } from '../helpers/tabs';
 
 /*
  * Money across the businesses on this computer (W4 4J6, shown by 4J20): the business chips over the overview, "All
@@ -34,8 +35,9 @@ describe('Money w4: money across businesses, on its own page', () => {
     start('#/money');
     await screen.findByRole('region', { name: 'Owed to you' });
     const nav = screen.getByRole('navigation', { name: 'Money' });
-    expect(await within(nav).findByRole('link', { name: 'Businesses' })).toBeTruthy();
     const row = await chips();
+    // C1 task 3: Businesses sits under Money's More.
+    expect((await moreLinks(nav)).map(([words]) => words)).toContain('Businesses');
     expect(row.getAttribute('data-scroll')).toBe('');
     expect(within(row).getByRole('button', { name: /Lumen Studio/ }).getAttribute('aria-pressed')).toBe('true');
     await click(within(row).getByRole('button', { name: /Ledgerline/ }));
@@ -104,7 +106,8 @@ describe('Money w4: money across businesses, on its own page', () => {
   it('on the hosted app there is one business, so no Businesses page is offered', async () => {
     start('#/money', { hosted: true });
     await screen.findByRole('region', { name: 'Owed to you' });
-    await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Money' })).queryByRole('link', { name: 'Businesses' })).toBeNull());
+    await act(async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect((await moreLinks(screen.getByRole('navigation', { name: 'Money' }))).map(([words]) => words)).not.toContain('Businesses');
   });
 
 

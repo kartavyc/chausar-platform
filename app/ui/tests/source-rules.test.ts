@@ -95,6 +95,10 @@ describe('rules the UI keeps (spec section 6)', () => {
   it('colours come from tokens: no hex colours outside tokens.css', () => {
     for (const { f, text } of code.filter((c) => c.f.endsWith('.css') && !c.f.endsWith('tokens.css'))) expect(text, f).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
+  it('one tab part (C1): nothing imports parts/Segmented, and only parts/Tabs.tsx draws a tablist', () => {
+    expect(code.filter(({ text }) => /parts\/Segmented['"]/.test(text)).map(({ f }) => f)).toEqual([]);
+    expect(code.filter(({ text }) => /role=["']tablist["']/.test(text)).map(({ f }) => f)).toEqual(['parts/Tabs.tsx']);
+  });
 });
 
 /* Ink v2 rules (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold"), package 3A1. */

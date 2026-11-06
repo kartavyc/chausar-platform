@@ -13,7 +13,7 @@ import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
-import { Segmented } from '../../parts/Segmented';
+import { Tabs } from '../../parts/Tabs';
 import { Tile } from '../../parts/Tile';
 import type { OfferLite } from '../../engine/types';
 import { salesWords } from '../clients/Proposal';
@@ -64,7 +64,7 @@ export function ShareFold({ offers, onChanged }: { offers: readonly OfferLite[];
         <div className={s.foldBody}>
           <p className={s.note}>{t('kit-sales.share.line')}</p>
           {offers.length > 1 && (
-            <Segmented mode="buttons" label={t('kit-sales.share.offer')} value={offer.id} options={offers.map((item) => ({ id: item.id, label: item.name.value }))} onChange={setOfferId} />
+            <Tabs mode="buttons" label={t('kit-sales.share.offer')} value={offer.id} items={offers.map((item) => ({ id: item.id, label: item.name.value }))} onChange={setOfferId} />
           )}
           <form className={s.priceForm} onSubmit={save}>
             <Field

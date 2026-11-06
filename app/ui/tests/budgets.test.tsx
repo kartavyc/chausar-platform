@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { App } from '../src/shell/App';
 import { FakeEngine, createFakeClient } from '../src/engine/fake';
 import { CARDS, PLACES, RECEIPTED, SHEETS } from './helpers/places';
+import { NARROW } from '../src/shell/useNarrow';
 
 /**
  * Word budgets (w3 3I; catalogue U14). Direction D carries far more on each screen than the Ink v1 desk's "35 to 45
@@ -27,8 +28,15 @@ const BASELINE = JSON.parse(readFileSync(join(import.meta.dirname, 'baselines/wo
 const LOADING = /^Loading$/;
 const flush = async () => { for (let i = 0; i < 4; i++) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); };
 
-async function open(place: { hash: string; receipted?: boolean }) {
+async function open(place: { hash: string; receipted?: boolean; narrow?: boolean }) {
   window.location.hash = place.hash;
+  if (place.narrow) {
+    const media = vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: query === NARROW, media: query, onchange: null,
+      addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
+    }) as unknown as MediaQueryList);
+    onTestFinished(() => { media.mockRestore(); });
+  }
   const client = createFakeClient(new FakeEngine({ now: () => '2026-10-23T13:35:00.000Z' }));
   if (place.receipted) {
     const request = client.request.bind(client);
@@ -63,6 +71,8 @@ function words(root: Element): string[] {
     const parent = node.parentElement;
     // 4J20: a chart's hover tip (an SVG title) and a closed list's other choices are not seen at rest either.
     if (!parent || parent.closest('.sr-only, [hidden], script, style, title')) continue;
+    // C1 task 7: Settings' list beside a settings page is counted once, as the `business` entry, not on every page.
+    if (parent.closest('[data-settings] [data-settings-list]')) continue;
     const option = parent.closest('option');
     if (option && !option.selected) continue;
     if (closedAround(parent)) continue;

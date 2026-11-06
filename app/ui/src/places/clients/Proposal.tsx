@@ -15,7 +15,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
 import { Figure } from '../../parts/Figure';
-import { Segmented } from '../../parts/Segmented';
+import { Tabs } from '../../parts/Tabs';
 import { Sheet } from '../../parts/Sheet';
 import { EngineError, type OutreachHandoff, type SalesProposalView, type VentureRunEvent } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
@@ -103,9 +103,9 @@ function DraftForm({ who, intro, onDrafted, onCancel }: {
     <form className={s.form} onSubmit={(event) => void submit(event)} noValidate>
       {intro && <p className={s.note}>{intro}</p>}
       {offers.length > 0 && chosen && (
-        <Segmented
+        <Tabs
           mode="buttons" label={t('kit-sales.proposal.offer')} value={chosen}
-          options={offers.map((offer) => ({ id: offer.id, label: offer.name.value }))} onChange={setOfferId}
+          items={offers.map((offer) => ({ id: offer.id, label: offer.name.value }))} onChange={setOfferId}
         />
       )}
       <label className={s.check} htmlFor={pilotId}>

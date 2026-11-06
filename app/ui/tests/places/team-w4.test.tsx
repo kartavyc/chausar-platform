@@ -69,7 +69,8 @@ describe('Team w4: the department toggle and panels from the engine', () => {
   it('shows the toggle and five tinted panels in the engine order; a head has its jobs and its spend in dollars with the rupees beside, under one receipt', async () => {
     start();
     const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Money', 'Operations']);
+    // C1 task 2: the row carries its counts at every width.
+    expect(within(toggle).getAllByRole('button').map((b) => b.textContent?.replace(/ \d+$/, ''))).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Money', 'Operations']);
     await panel('Production');
     const panels = within(main()).getAllByRole('article').filter((a) => a.hasAttribute('data-dept'));
     expect(panels.map((p) => p.getAttribute('data-dept'))).toEqual(['sales', 'mkt', 'prod', 'money', 'ops']);
@@ -121,21 +122,21 @@ describe('Team w4: the department toggle and panels from the engine', () => {
   it('the toggle holds one department in the address, and the address opens on it', async () => {
     start();
     const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    await click(within(toggle).getByRole('button', { name: 'Marketing' }));
+    await click(within(toggle).getByRole('button', { name: /^Marketing/ }));
     expect(window.location.hash).toBe('#/team?dept=mkt');
     expect(await within(main()).findByRole('region', { name: 'Marketing' })).toBeTruthy();
     expect(within(main()).queryByRole('article', { name: 'Production' })).toBeNull();
-    await click(within(toggle).getByRole('button', { name: 'All departments' }));
+    await click(within(toggle).getByRole('button', { name: /^All departments/ }));
     expect(window.location.hash).toBe('#/team');
   });
 
-  it('on a phone the toggle is filter chips, each with how many agents it holds; a department with none has no chip', async () => {
+  it('on a phone the row of departments says how many agents each holds; a zero count is not drawn', async () => {
     phone();
     start();
     const chips = await screen.findByRole('group', { name: 'Show departments' });
     await waitFor(() => expect(within(chips).getByRole('button', { name: /^Marketing/ }).querySelector('[data-count]')?.textContent).toBe('2'));
     expect(within(chips).getByRole('button', { name: /^All departments/ }).querySelector('[data-count]')?.textContent).toBe('5');
-    expect(within(chips).queryByRole('button', { name: /^Money/ })).toBeNull();
+    expect(within(chips).getByRole('button', { name: /^Money/ }).querySelector('[data-count]')).toBeNull();
   });
 
   it('"Add an agent" leads to the ways to earn, where a way brings its team', async () => {

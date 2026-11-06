@@ -44,7 +44,7 @@ const tile = (name: string) => screen.findByRole('region', { name });
 describe('Business > Goals', () => {
   it('is a page of its own in the business pages, after Prices', async () => {
     await start();
-    const nav = screen.getByRole('navigation', { name: 'Business pages' });
+    const nav = screen.getByRole('navigation', { name: 'Settings' });
     const links = within(nav).getAllByRole('link').map((link) => link.textContent);
     expect(links.indexOf('Goals')).toBe(links.indexOf('Prices') + 1);
     expect(within(nav).getByRole('link', { name: 'Goals' }).getAttribute('aria-current')).toBe('page');

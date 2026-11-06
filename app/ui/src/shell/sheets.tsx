@@ -113,13 +113,14 @@ function CaReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
 }
 
 /** The places under the phone's More tab, in the rail's order, then a new business (Start). W4 4C2 moved Clients here,
- *  since Chats took its tab. */
+ *  since Chats took its tab; C1 task 10 moved Team here, since Money took its tab. */
 const MORE_LINKS: readonly { place: PlaceId; href: string; icon: IconName; key: string }[] = [
+  { place: 'team', href: '#/team', icon: 'users', key: 'place.team' },
   { place: 'clients', href: '#/clients', icon: 'contact', key: 'place.clients' },
-  { place: 'money', href: '#/money', icon: 'wallet', key: 'place.money' },
   { place: 'apps', href: '#/apps', icon: 'layout-grid', key: 'place.apps' },
   { place: 'connections', href: '#/connections', icon: 'plug', key: 'place.connections' },
-  { place: 'business', href: '#/business/plan', icon: 'sliders-horizontal', key: 'place.business' },
+  // C1 task 7: Settings, its list on a phone.
+  { place: 'business', href: '#/business', icon: 'settings', key: 'place.business' },
   { place: 'onboarding', href: '#/onboarding', icon: 'plus', key: 'more.start' },
 ];
 

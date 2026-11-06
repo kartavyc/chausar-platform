@@ -8,6 +8,8 @@ export interface PlaceAtRest {
   hash: string;
   /** Money at a glance answers as the real engine does (RECEIPTED). */
   receipted?: boolean;
+  /** Measured as a phone shows it. */
+  narrow?: boolean;
 }
 
 /** Money at a glance as the real engine sends it (platform/runtime/venture/money/overview.ts), as money.test.tsx has it. */
@@ -94,4 +96,8 @@ export const PLACES: PlaceAtRest[] = [
   // W4 4J22a: Practice with drills, what the loop tried and the guidance report; Routines (numbers set at integration).
   { id: 'business/practice', hash: '#/business/practice' },
   { id: 'business/routines', hash: '#/business/routines' },
+  // C1 task 7: Settings' list is measured once, alone, as a phone shows it at #/business; beside a page it is not counted.
+  { id: 'business', hash: '#/business', narrow: true },
+  // C1 task 5: Work's Ideas, a page of its own.
+  { id: 'work/ideas', hash: '#/work/ideas' },
 ];

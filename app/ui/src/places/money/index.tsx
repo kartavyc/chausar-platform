@@ -1,6 +1,6 @@
 /**
  * Money (D-Money): an overview, invoices, bills, books, margins, spend and the journal, each one address (#/money,
- * #/money/invoices, ...), as a segmented row of links. Every figure here is text the engine formatted, through the
+ * #/money/invoices, ...), as a row of tabs (Overview, Invoices, Bills, and More). Every figure here is text the engine formatted, through the
  * Figure part with its receipt, or labelled a model estimate. The screen never adds, parses or rounds an amount.
  *
  * Simple first: the overview is plain money in and out; tax detail sits one step away under Books, and a business not
@@ -21,7 +21,9 @@ import { PageTitle } from '../../parts/PageTitle';
 import { PlaceTiles } from '../../parts/Tile';
 // W6 6H3 (D40): the overview's layout is the owner's; the Arrange sheet opens from the page tools.
 import { ArrangeButton } from '../../parts/layout/ArrangeButton';
-import { Segmented, type SegmentLink } from '../../parts/Segmented';
+import { Tabs, type TabLink } from '../../parts/Tabs';
+import { MONEY_PRIMARY } from '../../shell/nav';
+import { Icon } from '../../parts/Icon';
 import type { IconName } from '../../parts/icons';
 import type { SheetComponent } from '../../shell/sheets';
 import { AccountantSheet } from './AccountantSheet';
@@ -48,16 +50,6 @@ const SUBS = ['invoices', 'bills', 'books', 'margins', 'spend', 'journal', 'busi
 type Sub = (typeof SUBS)[number];
 const isSub = (value: string | undefined): value is Sub => SUBS.includes(value as Sub);
 
-const ICONS: Readonly<Record<Sub | 'overview', IconName>> = {
-  overview: 'layout-grid',
-  invoices: 'receipt-text',
-  bills: 'file-pen',
-  books: 'file-text',
-  margins: 'trending-up',
-  spend: 'bot',
-  journal: 'history',
-  businesses: 'layout-grid',
-};
 
 
 export function Place() {
@@ -71,10 +63,10 @@ function PlaceBody() {
   const sub = isSub(route.sub) ? route.sub : undefined;
   const { month } = useChosenMonth(route.query);
   const { across, chosen, error } = useAcrossChoice();
-  const links: SegmentLink[] = [
-    { id: 'overview', label: t('money.sub.overview'), icon: ICONS.overview, href: '#/money' },
+  const links: TabLink[] = [
+    { id: 'overview', label: t('money.sub.overview'), href: '#/money' },
     // Money across businesses (4J6) is its own page, offered only when this computer has more than one business.
-    ...SUBS.filter((id) => id !== 'businesses' || (across?.businesses.length ?? 0) > 1).map((id) => ({ id, label: t(`money.sub.${id}`), icon: ICONS[id], href: `#/money/${id}` })),
+    ...SUBS.filter((id) => id !== 'businesses' || (across?.businesses.length ?? 0) > 1).map((id) => ({ id, label: t(`money.sub.${id}`), href: `#/money/${id}` })),
   ];
   const monthly = sub === undefined || sub === 'margins';
 
@@ -83,7 +75,9 @@ function PlaceBody() {
       <PageTitle title={t('place.money')} line={sub === undefined ? t('money.line') : undefined} tools={sub === undefined ? <ArrangeButton place="money" /> : undefined} />
       <StorageNotice />
       <div className={s.toolbar}>
-        <Segmented mode="links" label={t('money.nav')} value={sub ?? 'overview'} options={links} />
+        {/* C1 task 3: Overview, Invoices and Bills in the row; Books, Margins, Spend, Journal (and Businesses) under More at
+            every width, so no tab appears or leaves as data arrives. The page on screen is always in the row. */}
+        <Tabs mode="links" label={t('money.nav')} value={sub ?? 'overview'} items={links} primary={MONEY_PRIMARY} />
       </div>
       {monthly && (
         <div className={v.bar}>

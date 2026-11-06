@@ -9,6 +9,7 @@ import { Overview } from '../../src/places/money/Overview';
 import { Amount } from '../../src/places/money/parts';
 import type { MoneyViews } from '../../src/places/money/views';
 import { assertInkRules, receiptMark } from '../helpers/ink-rules';
+import { moreLinks, rowLinks } from '../helpers/tabs';
 
 /*
  * Money in the direction D look (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, package 3F). Every figure is
@@ -76,21 +77,22 @@ const ledgerline = async () => {
 };
 
 describe('Money v2: the sub-pages', () => {
-  it('are a segmented row of links named Money, each with its icon, the current one marked', async () => {
+  // C1 task 3: Overview, Invoices and Bills in the row, the rest under More at every width; the page on screen is in the row.
+  it('are a row of tabs named Money, no icons: Overview, Invoices, Bills and More; More holds the rest', async () => {
     start('#/money');
     const nav = screen.getByRole('navigation', { name: 'Money' });
     // Businesses (W4 4J20) joins once the engine says this computer has more than one business.
-    await within(nav).findByRole('link', { name: 'Businesses' });
-    const links = within(nav).getAllByRole('link');
-    expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
-      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['Books', '#/money/books'], ['Margins', '#/money/margins'],
-      ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses'],
-    ]);
-    for (const link of links) expect(link.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
-    expect(links[0]!.getAttribute('aria-current')).toBe('page');
+    await screen.findByRole('group', { name: 'Businesses' });
+    expect(rowLinks(nav)).toEqual([['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills']]);
+    expect(within(nav).getByRole('button', { name: 'More' })).toBeTruthy();
+    expect(await moreLinks(nav)).toEqual([['Books', '#/money/books'], ['Margins', '#/money/margins'], ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses']]);
+    expect(nav.querySelector('svg')).toBeNull();
+    expect(within(nav).getByRole('link', { name: 'Overview' }).getAttribute('aria-current')).toBe('page');
     await go('#/money/books');
+    expect(rowLinks(nav)).toEqual([['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['Books', '#/money/books']]);
     expect(within(nav).getByRole('link', { name: 'Books' }).getAttribute('aria-current')).toBe('page');
     expect(within(nav).getByRole('link', { name: 'Overview' }).getAttribute('aria-current')).toBeNull();
+    expect(await moreLinks(nav)).toEqual([['Margins', '#/money/margins'], ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses']]);
   });
 });
 
