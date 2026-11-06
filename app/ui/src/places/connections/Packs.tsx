@@ -7,6 +7,9 @@ import s from './AgentSettings.module.css';
 import connections from './Connections.module.css';
 import { Fold } from '../../parts/Fold';
 import { FilePick } from '../../parts/FilePick';
+import { useArrivals } from '../../parts/useArrivals';
+import { cx } from '../../parts/cx';
+import leave from '../../parts/Leave.module.css';
 
 /**
  * W6 6F2 (D31): playbook packs. A pack adds markdown skills, MCP server suggestions and pure calculators, never code
@@ -17,6 +20,7 @@ export function Packs() {
   const t = useT(), engine = useEngine();
   const [open, setOpen] = useState(false);
   const list = useResource('venture.packs.list', {}, { skip: !open, refreshOn: event => event.type === 'queue.changed' });
+  const arriving = useArrivals(list.data?.packs.map(pack => pack.id));
   const [preview, setPreview] = useState<{ pack: unknown; view: PackView; digest: string } | null>(null);
   const [busy, setBusy] = useState(false), [said, setSaid] = useState<{ error: boolean; text: string } | null>(null);
   async function act(work: () => Promise<void>) {
@@ -36,7 +40,7 @@ export function Packs() {
     <div className={s.group}>
       <p className={connections.note}>{t('connections.packs.note')}</p>
       {list.error && <p role="alert">{list.error.message}</p>}
-      {list.data && (list.data.packs.length ? <ul className={s.group}>{list.data.packs.map(pack => <li key={pack.id} className={s.group}>
+      {list.data && (list.data.packs.length ? <ul className={s.group}>{list.data.packs.map(pack => <li key={pack.id} className={cx(s.group, arriving.has(pack.id) && leave.arrive)} data-arriving={arriving.has(pack.id) ? '' : undefined}>
         <PackSummary pack={pack} />
         <div className={s.actions}><Button type="button" locked={busy} onClick={() => void act(async () => { await engine.request('venture.packs.remove', { packId: pack.id }); list.reload(); })}>{t('connections.packs.remove')}</Button></div>
       </li>)}</ul> : null)}
