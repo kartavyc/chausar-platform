@@ -1,3 +1,5 @@
+import type { QueueRow, QueueRowMeta, QueueCount, QueueItemView, QueuePreview, QueueSetPreview, QuestionCard, QuestionItem, QuestionOption, PreviewFigure, PreviewLength, PreviewWords, NextBestStep, PlanChangeView, RowFigure, RowFigureReceipt, KindedFigure, RankedOptionView, DiffLine } from './contract.gen';
+export type { QueueRow, QueueRowMeta, QueueCount, QueueItemView, QueuePreview, QueueSetPreview, QuestionCard, QuestionItem, QuestionOption, PreviewFigure, PreviewLength, PreviewWords, NextBestStep, PlanChangeView, RowFigure, RowFigureReceipt, KindedFigure, RankedOptionView, DiffLine } from './contract.gen';
 import type { AcrossLineKey, AcrossRunsView, AgentHealthStatus, AgentNoteChange, AgentNoteLoad, AgentNoteScope, AgentNotesView, AgentSendResult, AgentSuggestion, AgentThreadItem, AgingBucketId, AutoReadinessView, BankApplyResult, BankLedgerView, BankRowClass, BooksPeriodKey, BoundaryView, BuildStatusWord, CaLatestPapers, CaPendingRate, CapabilityItemView, CapabilityPageView, ChatPart, ChiefSendResult, ChiefSettleResult, ChiefSnoozePreset, ChiefThreadState, ChiefThreadStateResult, ChiefThreadView, ConnectorLadder, ConnectorModeName, CurrencyLead, DecisionOpens, DeliveredView, Display, DraftChangesView, EvidenceItem, FigureKind, FigureSource, InboundTriage, InterviewAnswer, JournalChainView, JournalEntry, KeeperJobId, KeeperView, KnowledgeSourceInput, LawfulBasis, LimitReachedView, LineLabel, ModelAvailability, ModelReceiptView, ModelTier, MoneyOverviewLine, NetworkImportResult, NetworkSearchView, OrderStageId, OrderStageReason, OrderWaitsOnYou, OutreachChannel, OutreachHandoff, OutreachLane, OutreachLanguage, OutreachSentChannel, PaymentMethod, PipelineSettingsView, PostingStepId, Posture, PreviewReceiptKind, PricingModel, ProposalStatus, QueueAction, QueueActionId, QueueAmount, QueueChange, QueueDecision, QueueKind, QueueList, QueueSendsTo, RateCardLine, RecipeView, RetireCheckView, RoutineRunState, RunControlResult, RunScopeView, RunState, RunStep, SearchWebState, ShadowSummaryView, SiteEditState, SocialCalendarFile, SpendLead, SpendMeterRowView, SpendMetersView, SpendRateUnit, SpendRow, StandingOrdersView, StandingUndoView, TaxWorkingLine, TaxWorkingSection, TelegramView, TranscriptionSetupView, TriageField, TriagePreview, VentureRunEventType, WayCategory, WriteCapKind, WriteCapView } from './contract.gen';
 export type { AcrossLineKey, AcrossRunsView, AgentHealthStatus, AgentNoteChange, AgentNoteLoad, AgentNoteScope, AgentNotesView, AgentSendResult, AgentSuggestion, AgentThreadItem, AgingBucketId, AutoReadinessView, BankApplyResult, BankLedgerView, BankRowClass, BooksPeriodKey, BoundaryView, BuildStatusWord, CaLatestPapers, CaPendingRate, CapabilityItemView, CapabilityPageView, ChatPart, ChiefSendResult, ChiefSettleResult, ChiefSnoozePreset, ChiefThreadState, ChiefThreadStateResult, ChiefThreadView, ConnectorLadder, ConnectorModeName, CurrencyLead, DecisionOpens, DeliveredView, Display, DraftChangesView, EvidenceItem, FigureKind, FigureSource, InboundTriage, InterviewAnswer, JournalChainView, JournalEntry, KeeperJobId, KeeperView, KnowledgeSourceInput, LawfulBasis, LimitReachedView, LineLabel, ModelAvailability, ModelReceiptView, ModelTier, MoneyOverviewLine, NetworkImportResult, NetworkSearchView, OrderStageId, OrderStageReason, OrderWaitsOnYou, OutreachChannel, OutreachHandoff, OutreachLane, OutreachLanguage, OutreachSentChannel, PaymentMethod, PipelineSettingsView, PostingStepId, Posture, PreviewReceiptKind, PricingModel, ProposalStatus, QueueAction, QueueActionId, QueueAmount, QueueChange, QueueDecision, QueueKind, QueueList, QueueSendsTo, RateCardLine, RecipeView, RetireCheckView, RoutineRunState, RunControlResult, RunScopeView, RunState, RunStep, SearchWebState, ShadowSummaryView, SiteEditState, SocialCalendarFile, SpendLead, SpendMeterRowView, SpendMetersView, SpendRateUnit, SpendRow, StandingOrdersView, StandingUndoView, TaxWorkingLine, TaxWorkingSection, TelegramView, TranscriptionSetupView, TriageField, TriagePreview, VentureRunEventType, WayCategory, WriteCapKind, WriteCapView } from './contract.gen';
 import type { RendererMethod } from './methods.gen';
@@ -18,39 +20,7 @@ import type { RendererMethod } from './methods.gen';
 
 
 
-export interface QueueRow {
-  id: string; businessId: string; businessName: string; agent?: string; kind: QueueKind;
-  title: string; line?: string; change?: QueueChange; digest: string; createdAt: string;
-  actions: QueueAction[]; // one or two; exactly one primary
-  viewRef?: { kind: 'draft' | 'file' | 'run' | 'plan'; id: string };
-  /** Only on rows that propose an outside action (W1 H21): false when part of what it will send is not shown. */
-  descriptionComplete?: boolean;
-  // Ink v2 wave 4 (4J1 meta, 4J3 previews): each absent until the engine has something real to say.
-  meta?: QueueRowMeta;
-  sendsTo?: QueueSendsTo;
-  attempt?: { n: number; lastError: Display | null };
-  counts?: QueueCount[];
-  price?: { display: Display; receiptId: string; line: Display; free?: Display };
-  changeCount?: { line: Display; details: Display[]; coverage: Display };
-  preview?: QueuePreview;
-  /** 4J1: each amount the line, change, price or change details state, exactly as written there, with its proof. */
-  amounts?: QueueAmount[];
-  /** 4E1: a follow-up row's parts, for the screen's own words. */
-  followup?: { cardId: string; name: string; company: string | null; due: string; daysLate: number; channel: 'email' | 'linkedin' | 'whatsapp' | null; draftId: string | null };
-  /** 4E3: a reply row's parts (and a meeting-notes notice's): why it waits, who, the card, the topics, and for a handoff the address and subject. */
-  reply?: {
-    inboundId: string | null; reason: 'confirm' | 'talking' | 'owner-reply' | 'bot-question' | 'meeting-notes' | 'opt-out' | 'bounce-domain';
-    name: string; company: string | null; opportunityId: string | null; eventId: string | null; topics: ('price' | 'contract' | 'meeting' | 'buying')[];
-    from: string | null; subject: string | null; draft: string | null;
-  };
-  /** 4E3: what Approve needs as its answer: the day, for a next step drafted from notes that wrote none. */
-  needs?: { answer: 'day'; line: Display };
-  /**
-   * 4G2: a needs-you probe's notice: which probe, how much it matters, the screen Open goes to (an address such as
-   * #/connections), and each amount its line states, exactly as written there, with its receipt, in order.
-   */
-  notice?: { probe: 'post' | 'connection' | 'drafts' | 'calendar' | 'moved' | 'stalled' | 'idea' | 'bill' | 'ca-pack' | 'readable-copy'; severity: 'high' | 'medium' | 'low'; link: string; figures?: { text: Display; receiptId: string }[]; file?: string };
-}
+
 /**
  * The row kinds Ink v2 wave 4 adds on the engine (4C1 proposal, 4E1 followup, 4E3 reply, 4G2 notice). W3's states.ts
  * keys a Record on QueueKind, so the U package that first shows a kind folds it into QueueKind together with its words
@@ -60,8 +30,8 @@ export type QueueKindW4 = 'proposal' | 'followup' | 'reply' | 'notice';
 /** 4J1: where an approved row's action goes. */
 
 /** 4J1: client, business and time; expiresAt only from a real expiry; waitingLong after a day; staleDraft after 14 days. */
-export interface QueueRowMeta { client: string | null; business: string; at: string; expiresAt?: string; waitingLong?: Display; staleDraft?: Display; quoteFixes?: Display[] }
-export interface QueueCount { label: Display; count: number; limit: number }
+
+
 /**
  * 4J1: one amount a row states, each occurrence its own: text is field.slice(start, start + length) in its field (the
  * line, change.before, change.after, the price, or changeCount.details[index]), in UTF-16 code units. Its proof is a
@@ -75,23 +45,18 @@ export interface QueueCount { label: Display; count: number; limit: number }
  * when estimate is set. video.poster.src is a small JPEG data address from the cut; paper 'invoice' has no tax lines
  * for a business not registered for tax; a choice's estimate is only ever a model estimate.
  */
-export type QueuePreview =
-  | { kind: 'video'; title: PreviewWords; format: 'long' | 'short'; duration?: PreviewLength; chapters?: number; checks: { passed: number; run: number; notRun: number }; poster?: { uploadId: string; src: string } }
-  | { kind: 'paper'; paper: 'invoice'; title: Display; from: Display; to: Display; lines: (PreviewFigure & { quantity: string; unit: Display })[]; subtotal: PreviewFigure; discount?: PreviewFigure; taxLines: PreviewFigure[]; total: PreviewFigure; due?: { days: number; date: string | null; display: Display } }
-  | { kind: 'paper'; paper: 'working'; title: Display; client: Display | null; working: PreviewFigure[]; more: number; signer: { name: Display; state: 'to-send' | 'with-ca' } | null }
-  | { kind: 'post'; connectorId: string; platform: Display; account: Display | null; mode: 'api' | 'owner-browser-session'; text: string; textEstimate?: true; counts: QueueCount[]; short?: { title: PreviewWords; length?: PreviewLength } }
-  | { kind: 'choice'; question: PreviewWords; options: { label: Display; text: PreviewWords; estimate?: { label: Display; value: Display }; gains?: Display; costs?: Display; recommended?: boolean }[]; card?: QuestionCard };
+
 /**
  * 4J3: an engine-formatted amount and the receipt it comes from. receiptKind names the method that opens it: price and
  * sum through venture.receipt.get, ca through venture.ca.receipt, work through venture.work.get. A post's textEstimate:
  * a model wrote it and it holds a number or an amount with no receipt; its text stays exact.
  */
-export interface PreviewFigure { label: Display; value: Display; receiptId: string; receiptKind: PreviewReceiptKind }
+
 
 /** 4J3: words a preview shows; estimate: a model wrote a number in them that no receipt backs. */
-export interface PreviewWords { text: Display; estimate?: true }
+
 /** 4J3: a length worked out by code: whole seconds, "11 min 42 s", "11:42", and what it was measured from. */
-export interface PreviewLength { seconds: number; display: Display; clock: Display; from: 'edit-list' | 'transcript' }
+
 
 
 
@@ -442,13 +407,8 @@ export interface WorkReceiptLite {
  * 4J1: the receipt behind a figure a Today row states (`fig:<kind>:...` ids), worked out again from its record on each
  * read. A ReceiptLite too, so the receipt sheet shows it as it is. Each figure's amount is in its own unit.
  */
-export interface RowFigure { key: string; label: string; amount: string; unit: 'micros' | 'minor' | 'rate'; currency: string; display: Display }
-export interface RowFigureReceipt {
-  id: string; kind: 'row-figure'; ventureId: string; at: string; operation: 'venture.row-figure';
-  // 4F3: 'scope-cap', a run's spend cap as its scope froze it when it started.
-  subject: { type: 'call-cost' | 'judge-cost' | 'cap-room' | 'spend-quote' | 'plan-price' | 'month-spend' | 'week-total' | 'week-average' | 'scope-cap' | 'go-no-go'; recordId: string };
-  figures: RowFigure[]; allowedNumbers: string[]; explanation: Display; digest: string; stale: boolean;
-}
+
+
 
 /** `venture.books.summary` (BooksSummary), trimmed. */
 export interface BooksFigureLite { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; display: Display; stale: boolean; zero?: true }
@@ -985,13 +945,7 @@ export interface InterviewViewLite { interview: { questions: InterviewQuestionLi
  */
 /** C4 task 16: an amount in a draft's words, as the engine matched it. */
 export type DraftAmount = { display: Display; receiptId?: string; receiptKind?: 'work'; estimate?: true };
-export interface QueueItemView {
-  kind: 'draft' | 'file' | 'plan'; id: string; businessName: string; agent?: string;
-  /** C4 task 16: on a draft, each amount its text holds, with its receipt or as a model estimate. */
-  amounts?: DraftAmount[];
-  title: string; line?: Display;
-  sections: { heading?: string; lines: Display[] }[];
-}
+
 
 // ---------------------------------------------------------------------------------------------------------------
 // Ink v2 wave 2: the views of the newly wired engine pieces (contracts.ts section 9d), trimmed to what screens read.
@@ -1240,7 +1194,7 @@ export interface RetireInFlight { id: string; kind: 'run' | 'question' | 'propos
 export interface ChatConsentView { state: 'needed' | 'given' | 'stale' | 'not-needed'; text: Display | null; digest: string | null; at: string | null }
 
 
-export interface DiffLine { op: 'same' | 'add' | 'remove'; text: string }
+
 /** proposalId (4B3): on the reply to a request on the floor, the proposal it raised to Today (row subject proposal:<id>). */
 export interface AgentMessageView { id: string; at: string; from: 'owner' | 'agent' | 'chausar'; parts: ChatPart[]; suggestion?: AgentSuggestion; answered?: { runId: string }; proposalId?: string }
 export interface AgentProposalView {
@@ -1517,7 +1471,7 @@ export interface CodexSetupLite {
 export interface RoleModelView { agent: string; name: string; tiers: { tier: ModelTier; presetId: string; model: string | null; price: Display; usable: boolean }[] }
 
 /** 4I1 goals and the next best step. */
-export interface NextBestStep { rowId: string; title: Display; agent: string | null; line: Display; figure: MoneyFigure | null; goalAfter: Display | null; goalAfterPercent: number | null }
+
 /** A sum on the goal card: receiptId null when nothing was added up (a zero, no receipt). */
 export interface GoalFigure { display: Display; receiptId: string | null }
 /** elapsedDays counts today as gone; lastDay: say "Last day", not "0 days left". */
@@ -1555,13 +1509,7 @@ export interface DraftChangeView { id: string; paragraph: number; before: string
 
 export interface SettingsDraftView { form: string; values: unknown; at: string }
 /** 4J2 review: a set as the engine works it out; queue.set takes its digest, and secondAsk: true when it asks twice. */
-export interface QueueSetPreview {
-  digest: string;
-  items: { rowId: string; title: Display; kind: QueueRow['kind']; cost: Display }[];
-  total: { display: Display; receiptId: string };
-  secondAsk: boolean;
-  refusals: { rowId: string; reason: string; line: Display }[];
-}
+
 
 /** 4J4 to 4J6 money views, bills and businesses side by side. */
 /**
@@ -1572,7 +1520,7 @@ export interface QueueSetPreview {
 
 
 export interface TotalBasis { filters: Display[]; truncated: boolean; notCounted: { count: number; line: Display } | null }
-export interface KindedFigure extends MoneyFigure { kind: FigureKind; source: FigureSource; uses?: Display[]; projected?: true; estimate?: true; basis?: TotalBasis }
+
 
 export interface AgingView {
   asOf: string; buckets: { id: AgingBucketId; label: Display; count: number; countLine: Display; amount: KindedFigure; permille: number }[]; total: KindedFigure;
@@ -1681,10 +1629,7 @@ export interface WaysView {
 /** `ComposeAttachmentNote` (onboarding-contracts.ts): a dropped file's name, whether it was used, and why not, never its text. */
 export interface AttachmentNote { name: string; used: boolean; line: string | null; reason: 'injection' | 'hidden' | 'error' | null }
 /** `PlanChangeView` (4J8): one change a plan suggestion makes; estimate is always false (its words hold no number). */
-export interface PlanChangeView {
-  field: 'oneLiner' | 'customer' | 'offer-name' | 'offer-description' | 'offer-added'; offerId: string | null;
-  before: Display; after: Display; line: Display; estimate: boolean;
-}
+
 /**
  * `PlanSuggestionView` (4J8, "Add this to {business}"): patch is exactly what venture.blueprint.update takes, or null when
  * nothing changes; the owner applies it there with basedOn, then accepts. Words and at most one new offer, never a price.
@@ -1777,7 +1722,7 @@ export interface RoutineView { /** C7: a trigger's facts: what each event sends,
 /** C4 task 32: a ready routine from the plan (agents/routines.ts routineSuggestions). */
 export interface RoutineSuggestion { name: string; agent: string | null; prompt: string; schedule: RoutineSchedule; when: Display; step: string }
 export interface RoutineInput { recordReport?:'va-morning'|'va-weekly'; id?: string; name: string; agent?: string | null; prompt: string; schedule: RoutineSchedule; on: boolean }
-export interface RankedOptionView { id: string; label: Display; text: Display; score: number; estimate: Display | null; failed: boolean }
+
 export interface DrillRunView { id: string; at: string; playbookHash: string; version: number | null; passed: boolean; results: { drill: Display; stopped: boolean; twinPassed: boolean; line: Display }[] }
 
 
@@ -1790,9 +1735,9 @@ export interface VoiceInput { language: 'en' | 'hi'; channel?: string | null; on
  * 4J17 (A14): a question card: one question with answers to pick from, or a round of two to eight, each with the
  * agent's best guess; answers list the pick first with what each gains and costs; free text is always open, with escape.
  */
-export interface QuestionOption { label: string; text: string; gains: string; costs: string; recommended: boolean }
-export interface QuestionItem { number: number; text: string; guess: string; options: QuestionOption[] }
-export interface QuestionCard { round: number; lead: string; items: QuestionItem[]; freeText: true; escape: string; example: string }
+
+
+
 /** 4J17: version in use and undo (the voice to set to go back one version); draft: what learn worked out, unsaved. */
 export interface VoiceView {
   voices: { language: 'en' | 'hi'; channel: string | null; on: boolean; sections: VoiceSections; validated: boolean; version?: number; undo?: VoiceInput | null }[];
