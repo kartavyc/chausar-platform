@@ -36,6 +36,22 @@ const centre = () => document.querySelector<HTMLElement>('[data-centre]')?.close
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('the bell', () => {
+  it('clears its dot when the centre opens, without marking unread items read', async () => {
+    const { calls } = start('#/work');
+    const bell = await within(tools()).findByRole('button', { name: 'Notifications, 2 new' });
+    expect(bell.querySelector('[data-dot]')).not.toBeNull();
+    await act(async () => { fireEvent.click(bell); });
+    await waitFor(() => expect(centre()).not.toBeNull());
+    expect(bell.querySelector('[data-dot]')).toBeNull();
+    expect(calls.filter(([method]) => method === 'venture.notify.read')).toEqual([]);
+    expect(centre()!.querySelector('[data-unread]')).toBeTruthy();
+    expect(centre()!.querySelector('[data-kind]')).toBeNull();
+    expect(within(centre()!).getByRole('button', { name: 'Mark all read' }).closest('header')).toBeTruthy();
+    await act(async () => { fireEvent.click(within(centre()!).getByRole('button', { name: 'Close Notifications' })); });
+    await settle();
+    expect(within(tools()).getByRole('button', { name: /^Notifications/ }).querySelector('[data-dot]')).toBeNull();
+  });
+
   it('sits in the page header\'s tools on every place, says how many are new in its name, and shows a dot, never a number', async () => {
     start('#/work');
     const bell = await within(tools()).findByRole('button', { name: 'Notifications, 2 new' });
@@ -179,8 +195,8 @@ describe('the bell', () => {
     // C4 task 7: one list per day; these all sit under one day or the next, in order.
     await within(centre()!).findAllByRole('listitem');
     const items = within(centre()!).getAllByRole('list').flatMap((list) => within(list).getAllByRole('listitem'));
-    expect(items.map((item) => item.querySelector('[data-kind]')?.textContent)).toEqual(['Follow-up', 'Reply', 'Notice', 'Proposal']);
-    expect(items[0]!.querySelector('[data-sep]')?.getAttribute('aria-hidden')).toBe('true');
+    expect(items.map((item) => item.querySelector('[data-kind]'))).toEqual([null, null, null, null]);
+    expect(items.map(item => item.querySelector('a')?.textContent)).toEqual([expect.stringContaining('Item 0'), expect.stringContaining('Item 1'), expect.stringContaining('Item 2'), expect.stringContaining('Item 3')]);
     // One read serves the bell and the centre together.
     lists = 0;
     await act(async () => { engine.emit({ type: 'notify.new', businessId: 'lumen', at: NOW() }); });

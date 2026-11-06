@@ -6,6 +6,7 @@ import { RAIL_PLACES, type Route } from './routes';
 import { cx } from '../parts/cx';
 import { Icon } from '../parts/Icon';
 import { Logo } from '../parts/Logo';
+import { CountChip } from '../parts/Chip';
 import type { IconName } from '../parts/icons';
 import { SETTINGS_HREF } from './settings';
 import s from './Rail.module.css';
@@ -57,10 +58,7 @@ export function Rail({ route }: { route: Route }) {
                 <Icon name={PLACE_ICONS[place]} className={s.icon} />
                 <span className={s.label}>{t(`place.${place}`)}</span>
                 {place === 'today' && needsYou > 0 && (
-                  <>
-                    <span className={s.count} data-num="" aria-hidden="true" data-tone={here ? undefined : 'wait'}>{needsYou}</span>
-                    <span className="sr-only">, {t('rail.needsYou', { count: needsYou })}</span>
-                  </>
+                  <CountChip className={s.count} value={needsYou} label={`, ${t('rail.needsYou', { count: needsYou })}`} />
                 )}
                 {place === 'chats' && firstChat && (
                   <>

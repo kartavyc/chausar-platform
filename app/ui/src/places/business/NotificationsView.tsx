@@ -19,7 +19,7 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
-import { useLocalToday } from '../../parts/when';
+import { useDay, useLocalToday } from '../../parts/when';
 import { dayKeyPlus, formatClock } from '../../../../../platform/runtime/owner-format';
 import { useBrowserPush, type PushPermission } from '../../shell/push';
 import { EngineError, type BackgroundStateLite, type NotifySettingsView, type ParamsOf } from '../../engine/types';
@@ -30,6 +30,7 @@ import s from './Business.module.css';
 import n from './Notifications.module.css';
 import { Select } from '../../parts/Select';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { Fold } from '../../parts/Fold';
 
 type Change = ParamsOf<'venture.notify.settings'>;
 
@@ -55,7 +56,6 @@ export function NotificationsView() {
   if (!shown) return <LoadingPlace shape="settings" />;
   return (
     <div className={s.page}>
-      <p className={n.said} data-settings-line="">{shown.line}</p>
       <div className={s.split} data-ratio="even">
         <Reach settings={shown} change={change} reread={() => { setView(null); settings.reload(); }} />
         <QuietTimes settings={shown} change={change} />
@@ -83,7 +83,7 @@ function Reach({ settings, change, reread }: { settings: NotifySettingsView; cha
       {relay.data && (
         <>
           <Tray on={settings.tray} change={change} />
-          <Relay view={relay.data} />
+          <Fold summary={t('business.notify.advanced')}><Relay view={relay.data} /></Fold>
           {/* W6 6F6 and 6F7: Telegram alerts and phone access, each in a closed fold. */}
           <PhoneReach />
         </>
@@ -255,6 +255,7 @@ function Relay({ view }: { view: { relay: string | null; line: string } }) {
 /** Quiet hours and the digest hour (saved together), then the pause. */
 function QuietTimes({ settings, change }: { settings: NotifySettingsView; change: (params: Change) => Promise<void> }) {
   const t = useT();
+  const day = useDay();
   const localToday = useLocalToday();
   const ids = useId();
   const [quiet, setQuiet] = useState(settings.quietHours !== null);
@@ -340,7 +341,10 @@ function QuietTimes({ settings, change }: { settings: NotifySettingsView; change
       </form>
       <div className={n.pause}>
         {settings.pausedUntil ? (
-          <div className={s.buttons}><Button variant="secondary" disabled={busy} onClick={() => void run({ pausedUntil: null })}>{t('business.notify.resume')}</Button></div>
+          <>
+            <p className={s.note} role="status">{t('business.notify.pausedUntil', { day: day(settings.pausedUntil) })}</p>
+            <div className={s.buttons}><Button variant="secondary" disabled={busy} onClick={() => void run({ pausedUntil: null })}>{t('business.notify.resume')}</Button></div>
+          </>
         ) : (
           <>
             <Field

@@ -36,7 +36,7 @@ function ReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const receipt = useResource('venture.receipt.get', { id });
   return (
-    <Sheet label={t('sheet.receipt')} title={<span data-code="" className="mono">{id}</span>} onClose={onClose} returnFocus={returnFocus} receipt>
+    <Sheet label="" title={<span data-num="">{receipt.data?.figures[0]?.display ?? t('sheet.receipt')}</span>} line={<span data-code="" className="mono">{id}</span>} onClose={onClose} returnFocus={returnFocus} receipt>
       {receipt.error && <p className={s.failed}>{t('sheet.failed', { message: receipt.error.message })}</p>}
       {!receipt.data && !receipt.error && <LoadingPlace shape="sheet" />}
       {receipt.data && (
@@ -74,8 +74,8 @@ function CaReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const view = receipt.data;
   return (
     <Sheet
-      label={t('sheet.receipt')} title={<span data-code="" className="mono">{id}</span>}
-      line={view ? t(`business.ca.engine.${view.engine}`) : undefined}
+      label="" title={<span data-num="">{view?.figures[0]?.display ?? t('sheet.receipt')}</span>}
+      line={<><span data-code="" className="mono">{id}</span>{view && <span>{' · '}{t(`business.ca.engine.${view.engine}`)}</span>}</>}
       onClose={onClose} returnFocus={returnFocus} receipt
     >
       {receipt.error && <p className={s.failed}>{t('sheet.failed', { message: receipt.error.message })}</p>}

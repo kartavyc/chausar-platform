@@ -1,4 +1,6 @@
 {
+  "business.pauseAll.hint": "Finish the current step, then wait. No new work starts.",
+  "business.stopAll.hint": "End running jobs now. Finished steps are kept.",
   "progress.keepWorking": "Keep working",
   "progress.stopWaiting": "Stop waiting",
   "progress.failed": "Failed",

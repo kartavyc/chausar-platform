@@ -300,6 +300,7 @@ function RoutineForm({ agents, zone, initial, prefill, onSaved, onCancel }: { ag
   const toggleDay = (day: number) => setDays((now) => (now.includes(day) ? now.filter((d) => d !== day) : [...now, day]));
   return (
     <form aria-label={initial ? t('business.routines.changeOf', { name: initial.name }) : t('business.routines.add')} className={r.form} onSubmit={submit}>
+      {!initial && <h3 className={s.groupTitle}>{t('business.routines.add')}</h3>}
       <Field label={t('business.routines.name')} value={name} maxLength={80} onChange={(event) => setName(event.currentTarget.value)} />
       <Select label={t('business.routines.who')} value={agent} onChange={(event) => setAgent(event.currentTarget.value)}>
           <option value="">{t('business.routines.chausar')}</option>

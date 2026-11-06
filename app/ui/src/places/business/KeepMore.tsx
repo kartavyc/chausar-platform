@@ -63,13 +63,15 @@ function changeWords(t: T, since: BackupInspectLite['since'], country: string): 
 /**
  * One-shot C6 (SCREENS 213.x1): what a backup holds, read by the engine in memory once the owner opens the fold.
  */
-function BackupContents({ file }: { file: string }) {
+function BackupContents({ backup }: { backup: BackupLite }) {
   const t = useT();
   const country = useOwnerCountry() ?? 'IN';
   const [open, setOpen] = useState(false);
   return (
     <Fold summary={t('business.backupContents')} className={s.fold} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      {open && <ContentsLine file={file} country={country} />}
+      <p className={s.quiet}>{`${t(`custody.kind.${backup.kind}`)}. ${t(backup.opensNow ? 'custody.opensNow' : 'custody.opensOlder')}`}</p>
+      {backup.after && <p className={s.quiet} data-content="">{t('custody.after', { what: backup.after })}</p>}
+      {open && <ContentsLine file={backup.file} country={country} />}
     </Fold>
   );
 }
@@ -124,21 +126,17 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
     }
   }
 
-  return (
-    <Fold summary={t('business.allBackups', { count: String(backups.length) })} className={s.fold}>
+  const list = (items: BackupLite[]) => (
       <ul className={s.list}>
-        {backups.map((backup) => (
+        {items.map((backup) => (
           <li key={backup.file} className={s.backupRow}>
             <div className={s.backupLine}>
               <span className={s.strong}>{momentOf(backup.at, zone)}</span>
-              {/* C5 task 20: what came just before it, in the engine's words. */}
-              {backup.after && <span className={s.quiet} data-content="">{t('custody.after', { what: backup.after })}</span>}
-              <span className={s.quiet}>{`${t(`custody.kind.${backup.kind}`)}. ${t(backup.needsNewer ? 'custody.needsNewer' : backup.opensNow ? 'custody.opensNow' : 'custody.opensOlder')}`}</span>
               {/* C4 task 36 (203.x1): each copy's size. Seam: C5 task 20 labels the copies, C6 tasks 1 and 2 their contents. */}
               <span className={s.quiet} data-bytes="">{formatBytes(backup.bytes)}</span>
               {asking !== backup.file && <Button variant="quiet" onClick={() => { setAsking(backup.file); setProblem(null); }}>{t('business.restore')}</Button>}
             </div>
-            <BackupContents file={backup.file} />
+            <BackupContents backup={backup} />
             {/* B4 (208.f1): the ask's buttons stay on the right, like every row's action. */}
             <Reveal open={asking === backup.file}>
               <Confirm action={t('business.restoreGo')} cancelLabel={t('business.restoreKeep')} busy={busy} onCancel={() => setAsking(null)} onConfirm={() => void restore(backup)}>
@@ -150,8 +148,11 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
           </li>
         ))}
       </ul>
-    </Fold>
   );
+  return <>
+    {list(backups.slice(0, 3))}
+    {backups.length > 3 && <Fold summary={t('business.olderBackups', { count: backups.length - 3 })} className={s.fold}>{list(backups.slice(3))}</Fold>}
+  </>;
 }
 
 /**
@@ -160,7 +161,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
  * C4 task 38: madeAt keeps a line on the page until the owner dismisses it (this computer can't see the move finish, so
  * Dismiss is what ends it); with no recovery code the fold says to make one first (onMakeCode is Keep's own flow).
  */
-export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { locked: boolean; madeAt: string | null; noCode: boolean; onChanged: () => void; onMakeCode: (passphrase: string | null) => Promise<void> }) {
+export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode, open, onOpenChange }: { locked: boolean; madeAt: string | null; noCode: boolean; onChanged: () => void; onMakeCode: (passphrase: string | null) => Promise<void>; open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useT();
   const zone = useOwnerZone();
   const client = useEngine();
@@ -169,6 +170,8 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
   const [problem, setProblem] = useState<string | null>(null);
   const [made, setMade] = useState<MoveFile | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const fold = useRef<HTMLDetailsElement>(null);
+  useEffect(() => { if (!open) setPassphrase(''); }, [open]);
 
   async function make(event: FormEvent) {
     event.preventDefault();
@@ -220,6 +223,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
     setMade(null);
     setCopied(null);
     setProblem(null);
+    fold.current?.querySelector('summary')?.focus();
   }
 
   return (
@@ -230,16 +234,17 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
         <Button variant="quiet" size="sm" disabled={busy} onClick={() => void dismiss()}>{t('business.moveMadeDismiss')}</Button>
       </p>
     )}
-    <Fold summary={t('business.move')} className={s.fold}>
-      {made ? (
+    <Fold ref={fold} name="keep-action" open={open} summary={t('business.move')} className={s.fold}
+      onToggle={event => onOpenChange(event.currentTarget.open)}>
+      {open && (made ? (
         <div>
           <p className={s.line}>{t('business.moveCodeOnce')}</p>
-          <CodeGroups code={made.transferCode} label={t('business.moveCode')} />
           <div className={s.buttons}>
-            <Button variant="primary" onClick={() => { if (!saveTextFile(made.fileName, made.text, 'application/json')) setProblem(t('business.moveCantSave')); }}>{t('business.moveSave')}</Button>
+            <CodeGroups code={made.transferCode} label={t('business.moveCode')} />
             <Button variant="quiet" onClick={() => copy(made.transferCode)}>{t('business.copy')}</Button>
             {copied && <span className={s.note} role="status">{copied}</span>}
           </div>
+          <div className={s.buttons}><Button variant="primary" onClick={() => { if (!saveTextFile(made.fileName, made.text, 'application/json')) setProblem(t('business.moveCantSave')); }}>{t('business.moveSave')}</Button></div>
           <p className={s.warn}>{t('business.moveWarnApart')}</p>
           <p className={s.note}>{t('business.moveWarnBoth')}</p>
           {problem && <p className={s.problem} role="alert">{problem}</p>}
@@ -258,7 +263,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
           {problem && <p className={s.problem} role="alert">{problem}</p>}
           <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.moveMake')}</Button></div>
         </form>
-      )}
+      ))}
     </Fold>
     </>
   );
@@ -289,11 +294,11 @@ export function CloseBusiness({ unlock }: { unlock: UnlockMode | null }) {
   }
 
   return (
-    <section className={s.moreRow} aria-label={t(locked ? 'business.lock' : 'business.close')}>
+    <Fold name="keep-action" summary={t(locked ? 'business.lock' : 'business.close')} className={s.fold}>
       <div className={s.buttons}><Button variant="quiet" disabled={busy} onClick={() => void close()}>{t(locked ? 'business.lock' : 'business.close')}</Button></div>
       {unlock && <p className={s.note}>{t(locked ? 'business.lockLine' : 'business.closeLine')}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
-    </section>
+    </Fold>
   );
 }
 
