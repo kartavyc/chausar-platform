@@ -366,7 +366,7 @@ export type BlueprintPatch = {
   /** share (5A2): a share of an amount the client confirms later, as percent text ('8.33'), in place of a fixed price; null takes it away. */
   offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel; share?: { percent: string } | null }[];
   /** Ink v2 wave 4 (4J8): a new offer of the owner's, with no price yet (Set your prices then names it). */
-  addOffer?: { name: string; description: string; pricingModel: PricingModel };
+  addOffer?: { name: string; description: string; pricingModel: PricingModel } | { youtubeService: string };
   /** Ink v2 wave 4 (4J8): takes out an offer the owner added. A playbook's or the plan's own offers stay. */
   removeOffer?: { id: string };
 };
@@ -5047,7 +5047,7 @@ export type OrderContractItem = { id: string; kind: 'deliverable' | 'check'; sta
 
 /** 4J13. when: the schedule in words with its time zone. prompt (4J22a): sent back to turn it off, on or change it; only
  * for a role that may change routines (owner, cofounder). */
-export type RoutineView = { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; id: string; name: string; agent: string | null; prompt?: string; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
+export type RoutineView = { /** C7: a trigger's facts: what each event sends, in words. */ facts?: Display[]; id: string; name: string; agent: string | null; prompt?: string; recordReport?: 'va-morning' | 'va-weekly'; schedule: RoutineSchedule; when: Display; on: boolean; next: IsoTime | null; line: Display };
 export interface RoutinesView { routines: RoutineView[] }
 /**
  * One-shot C4 task 32: a ready routine the plan already names, for the owner to add through the form (nothing stored).
@@ -5414,7 +5414,7 @@ export type VenturePayloads = {
   'venture.countries': Empty;
   'venture.preview': { idea: string; countryCode: CountryCode; pricingModel?: PricingModel };
   /** composeId and composedDigest are sent together or not at all; the engine holds the plan itself. */
-  'venture.create': { idea: string; countryCode: CountryCode; workingName?: string; composeId?: string; composedDigest?: string };
+  'venture.create': { idea: string; countryCode: CountryCode; workingName?: string; composeId?: string; composedDigest?: string; reuseAi?: true };
   'venture.get': Empty;
   'venture.events': { afterSeq?: number; limit?: number };
   'venture.interview.next': { useTemplate?: boolean };
@@ -5445,7 +5445,7 @@ export type VenturePayloads = {
   'venture.client.aiConsent.agree': { clientId: string; disclosureDigest: string };
   'venture.client.aiConsent.withdraw': { clientId: string };
   'venture.billing.get': Empty;
-  'venture.billing.set': Partial<Omit<import('./money/billing-types.ts').BillingSettings, 'razorpay'>> & { razorpayKeys?: { keyId: string; keySecret: string } | null };
+  'venture.billing.set': Partial<Omit<import('./money/billing-types.ts').BillingSettings, 'razorpay' | 'bank' | 'dueInDays' | 'reminderDays'>> & { dueInDays?: number | string; reminderDays?: (number | string)[]; bank?: Pick<import('./money/billing-types.ts').BankDetails, 'accountName' | 'accountNumber'> & Partial<Omit<import('./money/billing-types.ts').BankDetails, 'accountName' | 'accountNumber'>> | null; razorpayKeys?: { keyId: string; keySecret: string } | null };
   'venture.invoice.pdf': { invoiceId: string };
   'venture.payment.receipt': { paymentId: string };
   'venture.invoice.payLink': { invoiceId: string; action: 'create'; digest: string } | { invoiceId: string; action: 'check' };
@@ -5458,7 +5458,7 @@ export type VenturePayloads = {
     /** Wave 6: when the whole order is due (6D1); a client abroad's currency and the owner's price in it (6D4). */
     dueDate?: IsoDate; currency?: string; unitPrice?: string;
     intakeFiles?: Record<string, { name: string; contentBase64: string }>;
-    intake?: { rights?: unknown; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string; fields?: Record<string, IntakeValue>; moneyAmounts?: Record<string, string> };
+    intake?: { calendar?: { month: string; channels: string[]; postsPerChannel: number; weekdays: number[] }; clientRules?: Partial<NonNullable<OrderIntake['clientRules']>>; rights?: unknown; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string; fields?: Record<string, IntakeValue>; moneyAmounts?: Record<string, string> };
     /** 4J5 (M15): the price includes the tax. */
     taxInclusive?: boolean;
   };
@@ -5726,7 +5726,7 @@ export type VenturePayloads = {
   'venture.people.lookup': { service: 'happenstance' | 'probe42'; query?: string; clientId?: string; digest?: string; searchId?: string };
   /** W6 6G3 (D44): one client's company, field history, timeline and list places; edits go through the evidence ledger. */
   'venture.crm.client': { clientId: string };
-  'venture.crm.client.edit': { clientId: string; field: 'name' | 'email' | 'note'; value: string };
+  'venture.crm.client.edit': { clientId: string; field: 'name' | 'email' | 'note' | 'phone'; value: string };
   'venture.crm.companies': Empty;
   'venture.crm.company': { companyId: string };
   /** Without companyId a new company (name needed); with it, the fields to change (null clears domain or note). */
@@ -5777,7 +5777,7 @@ export type VenturePayloads = {
   'venture.money.margins': { month: string };
   'venture.money.export': { month: string; format?: 'csv' | 'tally-xml' | 'gstr1-csv' };
   /** recurring: left out, a bill taking an expected one's place keeps its repeat; null says it does not repeat. */
-  'venture.bills.add': { vendor: string; lines: BillLineInput[]; billDate: IsoDate; dueDate: IsoDate; recurring?: 'monthly' | 'quarterly' | null };
+  'venture.bills.add': { vendor: string; lines: BillLineInput[]; billDate: IsoDate; dueDate?: IsoDate; recurring?: 'monthly' | 'quarterly' | null };
   'venture.bills.pay': { billId: string; paidOn: IsoDate; method: PaymentMethod } & TypedAmount;
   'venture.bills.list': Empty;
   'venture.credit.issue': { invoiceId: string; reason: string; digest: string } & TypedAmount;
@@ -5979,7 +5979,7 @@ export type VentureResults = {
   'venture.invoice.list': InvoiceListRow[];
   'venture.payment.record': InvoiceView;
   'venture.books.summary': BooksSummary;
-  'venture.spend.list': { rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead?: SpendLead };
+  'venture.spend.list': { rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead?: SpendLead; needsRate?: boolean };
   'venture.spend.policy.get': SpendPolicyView;
   'venture.spend.policy.set': SpendPolicyView;
   'venture.build.brief': BriefRecord;
