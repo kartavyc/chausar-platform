@@ -11,14 +11,14 @@ import type { EngineClient, EngineStatus } from '../../src/engine/types';
 function withStatus(first: EngineStatus) {
   const client = createFakeClient(new FakeEngine());
   let now = first;
-  const listeners = new Set<() => void>();
+  const listeners = new Set<(status: EngineStatus) => void>();
   const shown: EngineClient = {
     ...client,
     transport: 'web',
     status: () => now,
     onStatus: (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
   };
-  const change = (next: EngineStatus) => act(() => { now = next; for (const listener of listeners) listener(); });
+  const change = (next: EngineStatus) => act(() => { now = next; for (const listener of listeners) listener(next); });
   return { client: shown, change };
 }
 
