@@ -339,6 +339,11 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
   // After Delete (review of A1, row 1): a kept export, shown in the file manager; only a file of the engine's exports folder.
   ipcMain.handle('chausar:exports:show', (event, input) => require('./export-folder.cjs').showExport(event, input, { window, shell, assertTrustedSender, publicError, exportsFolder: join(app.getPath('userData'), 'vaults', 'exports') }));
+  // C5 tasks 21, 23: an exported copy and a backup folder, picked here so the window never names a path.
+  const keepDeps = () => ({ dialog, window, assertTrustedSender, publicError, engine, documents: app.getPath('documents') });
+  ipcMain.handle('chausar:copy:pick', (event, input) => require('./keep-files.cjs').pickCopy(event, input, keepDeps()));
+  ipcMain.handle('chausar:copy:import', (event, input) => require('./keep-files.cjs').importCopy(event, input, keepDeps()));
+  ipcMain.handle('chausar:backups:folder', (event, input) => require('./keep-files.cjs').setBackupFolder(event, input, keepDeps()));
   // One-shot A5: start at login and keep running, asked in onboarding and changed in Settings. Previews and development
   // runs answer that they are not here (no login item ever), and refuse a change.
   const contract = require('./ipc-contract.cjs');

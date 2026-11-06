@@ -19,8 +19,8 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     throw Object.assign(new Error(reply?.error?.message || 'The file could not be read.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
   // Export for your CA (4J4): saves one month's CSV where the owner picks; the system dialog asks before replacing a file. Null when cancelled.
-  saveMoneyExport: async month => {
-    const reply = await ipcRenderer.invoke('chausar:money:saveExport', { month: String(month) });
+  saveMoneyExport: async (month, format) => {
+    const reply = await ipcRenderer.invoke('chausar:money:saveExport', format === undefined ? { month: String(month) } : { month: String(month), format: String(format) });
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The file could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
@@ -60,6 +60,22 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     const reply = await ipcRenderer.invoke('chausar:exports:show', { name: String(name) });
     if (reply?.ok === true) return;
     throw Object.assign(new Error(reply?.error?.message || 'The copy could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
+  // C5 tasks 21, 23: an exported copy and a backup folder. Main does the picking; no path reaches this window.
+  pickCopy: async () => {
+    const reply = await ipcRenderer.invoke('chausar:copy:pick', {});
+    if (reply?.ok) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The copy could not be chosen.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  importCopy: async input => {
+    const reply = await ipcRenderer.invoke('chausar:copy:import', input);
+    if (reply?.ok) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The copy could not be opened.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
+  },
+  setBackupFolder: async action => {
+    const reply = await ipcRenderer.invoke('chausar:backups:folder', { action: String(action) });
+    if (reply?.ok) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The folder could not be set.'), { code: reply?.error?.code || 'REQUEST_FAILED' });
   },
   // C5 task 16: Send to my CA; only the month and how go to main, which makes the file and opens the owner's app.
   sharePack: async (month, how) => {

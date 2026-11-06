@@ -10,9 +10,10 @@ import type { Deleted } from '../../engine/types';
 import { DeletedNote } from '../business/KeepMore';
 import { Brand } from './Start';
 import { ByFolder, MoveHere, Recover, RestoreBackup } from './WelcomeWays';
+import { OpenCopy } from './CopyImport';
 import s from './Onboarding.module.css';
 
-type Way = { kind: 'list' } | { kind: 'recover'; folder?: string | undefined } | { kind: 'restore' } | { kind: 'move' } | { kind: 'folder' };
+type Way = { kind: 'list' } | { kind: 'recover'; folder?: string | undefined } | { kind: 'restore' } | { kind: 'move' } | { kind: 'folder' } | { kind: 'copy' };
 
 /**
  * Welcome back: no business is open. A quiet list of the businesses on this computer, each opened the way it opens:
@@ -30,6 +31,7 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
   deleted?: Deleted | null;
 }) {
   const t = useT();
+  const client = useEngine();
   const { businesses, complete, ask } = found;
   const [way, setWay] = useState<Way>(ask?.with === 'recovery-code' ? { kind: 'recover', folder: ask.folder } : { kind: 'list' });
   const [asking, setAsking] = useState<string | null>(ask?.with === 'passphrase' ? ask.folder : null);
@@ -52,6 +54,7 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
         {way.kind === 'restore' && <RestoreBackup {...shared} />}
         {way.kind === 'move' && <MoveHere {...shared} />}
         {way.kind === 'folder' && <ByFolder {...shared} />}
+        {way.kind === 'copy' && <OpenCopy {...shared} />}
       </Shell>
     );
   }
@@ -93,6 +96,7 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
           <div className={s.actions}>
             <Button variant="quiet" onClick={() => setWay({ kind: 'restore' })}>{t('onboarding.welcome.restore')}</Button>
             <Button variant="quiet" onClick={() => setWay({ kind: 'recover' })}>{t('onboarding.welcome.useCode')}</Button>
+            {client.pickCopy && client.importCopy && <Button variant="quiet" onClick={() => setWay({ kind: 'copy' })}>{t('onboarding.copy.title')}</Button>}
             {(!complete || empty) && <Button variant="quiet" onClick={() => setWay({ kind: 'folder' })}>{t('onboarding.welcome.byFolder')}</Button>}
           </div>
         </details>

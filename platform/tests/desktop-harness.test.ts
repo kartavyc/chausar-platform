@@ -49,7 +49,9 @@ test('desktop accepts only explicit engine methods and bounded plain JSON payloa
   const implemented = [...source.matchAll(/(?:case\s+|method === )'([a-z]+(?:\.[a-zA-Z][a-zA-Z0-9]*)+)'/g)].map(match => match[1]);
   assert.ok(implemented.includes('jobs.calendar.configure'), 'Nested calendar methods must be included in the contract comparison.');
   assert.ok(implemented.includes('workspace.backup.v2.restoreInert'), 'Versioned archive methods must be included in the contract comparison.');
-  assert.deepEqual([...METHODS].sort(), [...new Set(implemented)].sort(), 'Engine additions need an explicit desktop contract decision.');
+  // C5 tasks 21, 23: these two name a path, so only main asks them, after its own pick (keep-files.cjs): the decision is no.
+  const mainOnly = ['workspace.import', 'workspace.backups.copyTo'];
+  assert.deepEqual([...METHODS].sort(), [...new Set(implemented)].filter(method => !mainOnly.includes(method)).sort(), 'Engine additions need an explicit desktop contract decision.');
 });
 
 test('headless desktop worker joins exact owner phone methods to its actual synthetic Vault', async t => {
