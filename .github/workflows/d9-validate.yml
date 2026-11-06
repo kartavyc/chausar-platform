@@ -1,0 +1,113 @@
+name: D9 chunks validation
+on:
+  push:
+    branches: ['b2c/os-d9-check-*']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
+      - if: '!cancelled()'
+        run: npm run typecheck:ui
+      - if: '!cancelled()'
+        run: node --test platform/tests/ui-chunks-d9.test.ts platform/tests/text-owners-d9.test.ts platform/tests/ui-ink-hosting.test.ts platform/tests/package-contents-d5.test.ts
+      - if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts lazy-places-d9 sheet-owners-d9 text-groups-d9 text-keys languages tests/shell/app.test.tsx welcome-custody source-rules --maxWorkers=1
+      - if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts tests/a11y/forms.test.tsx --maxWorkers=1 -t 'Connections, connecting an AI'
+      - if: '!cancelled()'
+        run: node scripts/check.mjs
+      - if: '!cancelled()'
+        run: node scripts/third-party-notices.mjs --check
+      - if: '!cancelled()'
+        run: npm run build:ui
+      - if: '!cancelled()'
+        run: node scripts/ui-chunks.mjs --json > "$RUNNER_TEMP/chunks.json"
+      - if: '!cancelled()'
+        run: node scripts/ui-chunks.mjs --check
+      - if: '!cancelled()'
+        run: npx vite build --config app/ui/vite.config.ts --mode fake --manifest --outDir "$RUNNER_TEMP/d9-fake"
+      - if: '!cancelled()'
+        env:
+          CHAUSAR_RUN_ROOT: ${{ runner.temp }}/chausar
+        run: node scripts/ui-shots/chunks.mjs "$RUNNER_TEMP/d9-fake"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chunks-report
+          path: |
+            ${{ runner.temp }}/chunks.json
+            ${{ runner.temp }}/chausar/ui-chunks/*.json
+            ${{ runner.temp }}/d9-fake/.vite/manifest.json
+
+  full-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config app/ui/vitest.config.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/d9-ui.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-ui
+          path: ${{ runner.temp }}/d9-ui.json
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            folder: win-unpacked
+          - os: ubuntu-latest
+            platform: linux
+            folder: linux-unpacked
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
+      - run: node node_modules/electron/install.js
+      - name: Stage pinned Codex without executing it
+        run: |
+          target="${{ matrix.platform }}-x64"
+          dir="$RUNNER_TEMP/codex"
+          mkdir -p "$dir/codex/node_modules/@openai/codex-$target"
+          (cd "$dir" && npm pack --silent @openai/codex@0.166.0 "@openai/codex@0.166.0-$target")
+          tar -xzf "$dir/openai-codex-0.166.0.tgz" -C "$dir/codex" --strip-components=1
+          tar -xzf "$dir/openai-codex-0.166.0-$target.tgz" -C "$dir/codex/node_modules/@openai/codex-$target" --strip-components=1
+          node scripts/codex-bundle.mjs --from "$dir/codex" --platform ${{ matrix.platform }} --arch x64
+      - run: node scripts/desktop-package.mjs --mode beta --platform ${{ matrix.platform }} --arch x64 --dir --output "$RUNNER_TEMP/d9-package"
+      - run: node scripts/package-contents.mjs "$RUNNER_TEMP/d9-package/${{ matrix.folder }}" --json > "$RUNNER_TEMP/package-contents.json"
+      - run: node scripts/desktop-electron-smoke.mjs --packaged "$RUNNER_TEMP/d9-package/${{ matrix.folder }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/package-contents.json
+            ${{ runner.temp }}/d9-package/*.json
