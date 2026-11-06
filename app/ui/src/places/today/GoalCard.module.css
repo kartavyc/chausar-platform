@@ -200,6 +200,16 @@
   gap: var(--sp-2);
 }
 
+/* Quiet actions on D's dark goal card use its own readable link and focus colours. */
+.goal:not([data-plain]) .askActs > [data-variant='quiet']:not(:disabled):not([data-locked]) {
+  color: var(--goal-link);
+  outline-color: var(--goal-link);
+}
+
+.goal:not([data-plain]) .askActs > [data-variant='quiet']:not(:disabled):not([data-locked]):hover {
+  color: var(--goal-link-hover);
+}
+
 /* The engine's words with a suggestion, or why there is none. */
 .suggestLine {
   font-size: var(--text-label);

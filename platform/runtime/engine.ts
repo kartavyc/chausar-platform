@@ -257,7 +257,7 @@ export class Engine {
   // Run events for the Ink frontend: the desktop worker forwards them over IPC, the local server streams them at /api/events.
   #ventureEventListeners = new Set<(event: VentureFrame) => void>();
   /** One-shot C3 task 9: which step long work is on. Its frames go to the same listeners and are never written anywhere. */
-  #work = new WorkProgress(event => this.#publishVentureEvents([event]));
+  #work = new WorkProgress(event => this.#publishVentureEvents([event]), () => this.options.venture?.clock?.() ?? new Date());
   /** Trusted host hook: hears each run event a venture action committed, and each step of long work. Returns the unsubscribe function. */
   onVentureEvent(listener: (event: VentureFrame) => void): () => void {
     this.#ventureEventListeners.add(listener);
