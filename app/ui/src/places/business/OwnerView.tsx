@@ -87,7 +87,8 @@ export function OwnerView() {
 
   return (
     <div className={b.page}>
-      <TileSection title={t('business.owner.title')}>
+      <form className={s.form} onSubmit={save} noValidate>
+        <TileSection title={t('business.owner.title')}>
         {offer && (
           <DraftRecover
             offer={offer}
@@ -96,9 +97,11 @@ export function OwnerView() {
           />
         )}
         {owner.error && <p className={b.problem} role="alert">{messageOf(owner.error)}</p>}
-        <form className={s.form} onSubmit={save} noValidate>
           <Field label={t('business.owner.name')} hint={t('business.owner.nameHint')} value={name} maxLength={80} autoComplete="given-name" onChange={(event) => { const next = event.currentTarget.value; edit(() => setName(next)); }} />
+        </TileSection>
+        <TileSection title={t('business.owner.services')}>
           <Field multiline label={t('business.owner.services')} hint={t('business.owner.servicesHint')} rows={4} value={services} onChange={(event) => { const next = event.currentTarget.value; edit(() => setServices(next)); }} />
+        </TileSection>
           <ResultLine tone={problem ? 'problem' : 'done'}>{problem ?? said?.map((line) => <span key={line}>{line} </span>)}</ResultLine>
           <div className={s.end}>
             <span className={b.buttons}>
@@ -107,8 +110,7 @@ export function OwnerView() {
             </span>
             <DraftWord saved={draft.saved} refused={draft.refused} shown={touched} />
           </div>
-        </form>
-      </TileSection>
+      </form>
       <ProfessionSetting onChanged={() => setRound((was) => was + 1)} />
       {/* W6 (3 November 2026): the business's size, only when a rule of its profession counts it. */}
       <SizeSetting key={round} />

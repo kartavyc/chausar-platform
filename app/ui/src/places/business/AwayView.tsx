@@ -128,9 +128,9 @@ export function AwayView() {
           </div>
           {problem && <p className={s.problem} role="status">{problem}</p>}
         </form>
-      </TileSection>
       {view.away && (
-        <TileSection title={t('business.away.due')}>
+        <div>
+          <h3 className={s.groupTitle}>{t('business.away.due')}</h3>
           {view.promises.length === 0 ? <p className={s.line}>{t('business.away.noneDue')}</p> : (
             <ul className={a.list}>
               {view.promises.map((promise, i) => (
@@ -141,17 +141,19 @@ export function AwayView() {
               ))}
             </ul>
           )}
-        </TileSection>
+        </div>
       )}
       {view.keepsRunning.length > 0 && (
-        <TileSection title={t('business.away.running')}>
+        <div>
+          <h3 className={s.groupTitle}>{t('business.away.running')}</h3>
           {/* The engine's rule while away, in the screen's words: nothing new starts on its own; routines wait on Today. */}
           <p className={s.line}>{t('business.away.rule')}</p>
           <ul className={a.list}>{view.keepsRunning.map((line, i) => <li key={i} className={a.item}>{line}</li>)}</ul>
-        </TileSection>
+        </div>
       )}
       {view.autoReply && (
-        <TileSection title={t('business.away.reply')}>
+        <div>
+          <h3 className={s.groupTitle}>{t('business.away.reply')}</h3>
           <p className={s.line}>{t('business.away.replyLine')}</p>
           {/* The reply is for the owner's own mail app: its words are quoted content, never a message Chausar sends. */}
           <p className={a.reply} data-content="">{view.autoReply}</p>
@@ -159,8 +161,9 @@ export function AwayView() {
             <Button onClick={() => void copy(view.autoReply!)}>{t('business.copy')}</Button>
           </div>
           {copied && <p className={copied === 'yes' ? s.line : s.problem} role="status">{t(copied === 'yes' ? 'business.away.copied' : 'business.away.copyFailed')}</p>}
-        </TileSection>
+        </div>
       )}
+      </TileSection>
     </div>
   );
 }
