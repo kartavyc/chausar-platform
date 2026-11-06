@@ -5,7 +5,7 @@ import { useEngine, useResource } from '../../engine/context';
 import type { BackupInspectLite, BackupLite, Deleted, MoveFile, UnlockMode } from '../../engine/types';
 import { formatCount } from '../../../../../platform/runtime/owner-format';
 import { Button } from '../../parts/Button';
-import { Confirm } from '../../parts/Confirm';
+import { Confirm, ConfirmSlot } from '../../parts/Confirm';
 import { Field } from '../../parts/Field';
 import { PassphraseField } from '../../parts/PassphraseField';
 import { CodeGroups } from '../../parts/Secret';
@@ -135,6 +135,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
       <ul className={s.list}>
         {items.map((backup) => (
           <li key={backup.file} className={`${s.backupRow} ${motion.arrive}`} data-backup={backup.file} data-flip-id={backup.file} data-arriving={arrivals.has(backup.file) ? '' : undefined}>
+            <ConfirmSlot asking={asking === backup.file}>
             <div className={s.backupLine}>
               <span className={s.strong}>{momentOf(backup.at, zone)}</span>
               {/* C4 task 36 (203.x1): each copy's size. Seam: C5 task 20 labels the copies, C6 tasks 1 and 2 their contents. */}
@@ -148,6 +149,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
                 {asking === backup.file && <RestoreChange backup={backup} />}
               </Confirm>
             </Reveal>
+            </ConfirmSlot>
             {asking === backup.file && <Progress kind="restore" active={busy} />}
             {problem?.file === backup.file && <p className={s.problem} role="alert">{problem.text}</p>}
           </li>

@@ -9,15 +9,19 @@ import s from './AgentSettings.module.css';
 import connections from './Connections.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
+import { useArrivals } from '../../parts/useArrivals';
+import { cx } from '../../parts/cx';
+import leave from '../../parts/Leave.module.css';
 
 export function McpServers({ servers, onChange, busy, saved, onCredentialSaved }: { servers: ExternalMcpServer[]; onChange(value: ExternalMcpServer[]): void; busy: boolean; saved: boolean; onCredentialSaved(): void }) {
   const t = useT();
+  const arriving = useArrivals(servers.map(server => server.id));
   const replace = (id: string, next: ExternalMcpServer) => onChange(servers.map(server => server.id === id ? next : server));
   function add() { let n = 1; while (servers.some(server => server.id === `server${n}`)) n++; onChange([...servers, { id: `server${n}`, name: '', transport: 'http', url: '' }]); }
   return <fieldset className={s.group} disabled={busy}>
     {servers.length > 0 && <legend className={connections.subheading}>{t('connections.mcp.title')}</legend>}
     {servers.length > 0 && <p className={connections.note}>{t('connections.mcp.warning')}</p>}
-    {servers.map(server => <div className={s.group} key={server.id}>
+    {servers.map(server => <div className={cx(s.group, arriving.has(server.id) && leave.arrive)} key={server.id} data-server-id={server.id} data-arriving={arriving.has(server.id) ? '' : undefined}>
       <Field label={t('connections.mcp.name')} value={server.name} onChange={event => replace(server.id, { ...server, name: event.currentTarget.value })} />
       <label className={s.label}>{t('connections.mcp.connection')}<Select className={s.select} value={server.transport} onChange={event => replace(server.id, event.currentTarget.value === 'stdio'
         ? { id: server.id, name: server.name, transport: 'stdio', command: '', args: [] }
