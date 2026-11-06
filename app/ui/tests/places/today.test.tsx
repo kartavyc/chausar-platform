@@ -176,7 +176,7 @@ describe('Today: deciding', () => {
     const row = await rowOf('Episode 14 is cut');
     const approve = within(row).getByRole('button', { name: 'Approve' }) as HTMLButtonElement;
     expect(locked(approve)).toBe(true);
-    fireEvent.click(within(row).getByRole('button', { name: 'Watch' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Open draft' }));
     await settleHash();
     expect(window.location.hash).toBe('#/today?sheet=view%3Adraft%3Adraft-ep14');
     const sheet = await screen.findByRole('complementary', { name: 'Episode 14' });
@@ -210,7 +210,7 @@ describe('Today: deciding', () => {
   it('a draft that does not load stays locked', async () => {
     start({ engine: new FakeEngine({ queue: [missingDraft] }) });
     const row = await rowOf('Episode 12 recut');
-    fireEvent.click(within(row).getByRole('button', { name: 'Watch' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Open draft' }));
     await settleHash();
     const sheet = await screen.findByRole('complementary');
     await waitFor(() => expect(sheet.textContent).toContain("Couldn't load this"));
@@ -240,7 +240,7 @@ describe('Today: deciding', () => {
     const engine = new FakeEngine();
     start({ engine, client: quiet(engine) });
     const row = await rowOf('Episode 14 is cut');
-    fireEvent.click(within(row).getByRole('button', { name: 'Watch' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Open draft' }));
     await settleHash();
     await screen.findByRole('complementary', { name: 'Episode 14' });
     const approve = () => within(row).getByRole('button', { name: 'Approve' }) as HTMLButtonElement;
@@ -250,7 +250,7 @@ describe('Today: deciding', () => {
     // A card says the click ran nothing, the new version in place (Ink v2, 3B5a; W4 4J19 in 4J1's words).
     expect(row.textContent).toContain('This click did not run anything. Here is the new version.');
     expect(locked(approve())).toBe(true);
-    fireEvent.click(within(row).getByRole('button', { name: 'Watch' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Open draft' }));
     await waitFor(() => expect(locked(approve())).toBe(false));
   });
 
@@ -360,8 +360,7 @@ describe('Today: deciding', () => {
     const count = String(listed.needsYou);
     expect(count).toBe(String(listed.rows.filter((row) => row.kind !== 'locked').length));
     await waitFor(() => expect(rowIds().length).toBeGreaterThan(0));
-    const head = needsYou().querySelector('h2')!.parentElement!;
-    await waitFor(() => expect(head.querySelector('[aria-hidden="true"]')?.textContent).toBe(count));
+    await waitFor(() => expect(needsYou().querySelector('h2')!.parentElement!.querySelector('[data-count]')?.textContent).toBe(count));
     expect(within(needsYou()).getByRole('button', { name: /^All/ }).textContent?.replace(/\s/g, '')).toBe('All');
     const rail = screen.getByRole('navigation', { name: 'Places' });
     expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('[data-num]')?.textContent).toBe(count);

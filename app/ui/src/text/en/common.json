@@ -82,6 +82,7 @@
   "approval.unlock": "{action} unlocks after you open it.",
   "approval.sending": "Sending",
   "approval.failed": "Couldn't send: {message}",
+  "approval.openDraft": "Open draft",
   "approval.afterWait": "Went through after a delay, or was settled elsewhere",
   "approval.notYet": "Chausar hasn't recorded this yet. Wait a minute before you decide again.",
   "approval.answerLabel": "Your answer",
