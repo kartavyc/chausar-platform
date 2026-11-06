@@ -28,7 +28,7 @@ describe('Today w4: the team at work by department', () => {
     expect(dept(/^Producer/)).toBe('sales');
     expect(dept(/^Researcher/)).toBe('mkt');
     expect(dept(/^Keeper/)).toBe('ops');
-    expect(within(stories).getByRole('button', { name: /^Editor/ }).querySelector('[data-badge][data-dept="prod"]')).not.toBeNull();
+    expect(within(stories).getByRole('button', { name: /^Editor/ }).querySelector('[data-badge]')).toBeNull();
 
     await waitFor(() => expect(within(team).getAllByRole('article')).toHaveLength(3));
     const [editor, researcher, producer] = within(team).getAllByRole('article');

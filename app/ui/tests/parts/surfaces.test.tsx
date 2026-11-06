@@ -462,9 +462,9 @@ describe('Segmented', () => {
     expect(screen.getByRole('link', { name: 'Pipeline 19' })).toBe(pipeline);
   });
 
-  it('the selected segment uses the selected tokens, in both modes', () => {
-    expect(rule('Segmented.module.css', ".item[aria-pressed='true']")).toMatch(/background:\s*var\(--selected\)[\s\S]*color:\s*var\(--on-selected\)/);
-    expect(rule('Segmented.module.css', ".item[aria-current='page']")).toMatch(/background:\s*var\(--selected\)[\s\S]*color:\s*var\(--on-selected\)/);
+  it('the selected segment is a quiet grey fill with dark words, in both modes (B4 task 10)', () => {
+    expect(rule('Segmented.module.css', ".item[aria-pressed='true']")).toMatch(/background:\s*var\(--nav-on\)[\s\S]*color:\s*var\(--nav-on-fg\)/);
+    expect(rule('Segmented.module.css', ".item[aria-current='page']")).toMatch(/background:\s*var\(--nav-on\)[\s\S]*color:\s*var\(--nav-on-fg\)/);
   });
 
   it('counts read at 4.5:1 on the hover wash too: --mute, never --dim (4.34 to 4.47 on --wash)', () => {

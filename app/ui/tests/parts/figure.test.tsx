@@ -23,7 +23,7 @@ describe('Figure', () => {
     expect(number.textContent).toBe('₹18,880');
     expect(number.classList.contains('mono')).toBe(false); // B2: the body font with tabular figures
     // 4Z3: a small receipt mark named for the amount it proves; the code is not printed beside it.
-    const mark = screen.getByRole('button', { name: 'Receipt for ₹18,880' });
+    const mark = screen.getByRole('button', { name: 'Open receipt for ₹18,880' });
     expect(figure.contains(mark)).toBe(true);
     expect(mark.dataset.receipt).toBe('R-0419');
     expect(figure.textContent).not.toContain('R-0419');
@@ -32,7 +32,7 @@ describe('Figure', () => {
 
   it('names the mark for the amount only, not the engine words after it', () => {
     render(<Figure value="₹60.10, includes estimates" receiptId="R-0431" />);
-    expect(screen.getByRole('button', { name: 'Receipt for ₹60.10' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open receipt for ₹60.10' })).toBeTruthy();
   });
 
   it('words after the amount that start with a comma sit right against it, with no space before the comma (4A2 review)', () => {
@@ -47,7 +47,7 @@ describe('Figure', () => {
   it('opens the receipt through the handler it is given', () => {
     const onReceipt = vi.fn();
     render(<Figure value="₹18,880" receiptId="R-0419" onReceipt={onReceipt} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Receipt for ₹18,880' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open receipt for ₹18,880' }));
     expect(onReceipt).toHaveBeenCalledWith('R-0419');
   });
 

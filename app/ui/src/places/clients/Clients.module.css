@@ -302,7 +302,6 @@
   flex: none;
   font-size: var(--text-label);
   color: var(--mute);
-  text-transform: uppercase;
 }
 
 /* A lead: what is known, its drafts as written, the owner's own send, the block */

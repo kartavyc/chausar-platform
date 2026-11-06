@@ -50,8 +50,8 @@
 
 .item[aria-pressed='true'],
 .item[aria-current='page'] {
-  background: var(--selected);
-  color: var(--on-selected);
+  background: var(--nav-on);
+  color: var(--nav-on-fg);
 }
 
 .count {
@@ -61,8 +61,7 @@
 
 .item[aria-pressed='true'] .count,
 .item[aria-current='page'] .count {
-  color: var(--on-selected);
-  opacity: 0.8;
+  color: var(--nav-on-fg);
 }
 
 /* A phone (3H1): each segment is a full 44 px touch target. */

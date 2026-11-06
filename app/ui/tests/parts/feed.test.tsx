@@ -86,7 +86,7 @@ describe('StoriesRow', () => {
     expect(avatar('Producer').dataset.dept).toBe('none');
     expect(avatar('Producer').querySelector('[data-badge]')).toBeNull();
     expect(avatar('Billing').dataset.dept).toBe('money');
-    expect(avatar('Billing').querySelector('[data-badge]')).not.toBeNull();
+    expect(avatar('Billing').querySelector('[data-badge]')).toBeNull();
   });
 
   it('calls onOpen with the agent id', () => {

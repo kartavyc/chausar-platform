@@ -146,7 +146,7 @@ describe('Change', () => {
     expect(old.className).not.toContain('mono');
     expect(screen.getByText('₹30,000').className).not.toContain('mono');
     expect(container.textContent).toContain('was');
-    fireEvent.click(screen.getByRole('button', { name: 'Receipt for ₹30,000' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open receipt for ₹30,000' }));
     expect(onReceipt).toHaveBeenCalledWith('R-0415');
   });
 
@@ -160,7 +160,7 @@ describe('Change', () => {
 describe('Receipt', () => {
   it('is a small receipt mark (4Z3) that opens the receipt sheet; it never prints its code, which the sheet shows', () => {
     render(<Receipt id="R-0419" amount="₹1,12,400" />);
-    const button = screen.getByRole('button', { name: 'Receipt for ₹1,12,400' });
+    const button = screen.getByRole('button', { name: 'Open receipt for ₹1,12,400' });
     expect(button.textContent).toBe('');
     expect(button).toBe(screen.getByRole('button', { name: receiptMark('R-0419') }));
     fireEvent.click(button);
@@ -186,7 +186,7 @@ describe('Receipt', () => {
 
   it('on the dark goal card it is the same mark in the goal card\'s light link colour, with no code', () => {
     render(<Receipt id="R-0421" tone="dark" amount="₹18,880" onOpen={() => {}} />);
-    const button = screen.getByRole('button', { name: 'Receipt for ₹18,880' });
+    const button = screen.getByRole('button', { name: 'Open receipt for ₹18,880' });
     expect(button.dataset.tone).toBe('dark');
     expect(button.textContent).toBe('');
     expect(button.querySelector('svg.lucide-receipt-text')).not.toBeNull();
@@ -274,12 +274,12 @@ describe('EmptyState (Ink v2): one sentence, then actions, never a control that 
 });
 
 describe('Field (Ink v2): the D input box', () => {
-  it('has the button-line border and the button radius, the ink border on focus, and the fail border when invalid', () => {
+  it('has the button-line border and the button radius, one ring on focus, and the fail border when invalid', () => {
     render(<Field label="Your answer" value="" onChange={() => {}} />);
     const name = v2Class(screen.getByLabelText('Your answer'))!;
     const css = v2Css('Field.module.css');
     expect(css).toMatch(new RegExp(`\\.${name}\\s*\\{[^}]*border:\\s*var\\(--hair\\) solid var\\(--btn-line\\)[^}]*border-radius:\\s*var\\(--r-button\\)`));
-    expect(css).toMatch(new RegExp(`\\.${name}:focus-visible\\s*\\{[^}]*border-color:\\s*var\\(--fg\\)`));
+    expect(css).toMatch(new RegExp(`\\.${name}:focus-visible\\s*\\{[^}]*outline:\\s*var\\(--focus\\) solid var\\(--link\\)`));
     expect(css).toMatch(new RegExp(`\\.${name}\\[aria-invalid='true'\\]\\s*\\{[^}]*border-color:\\s*var\\(--fail\\)`));
   });
 

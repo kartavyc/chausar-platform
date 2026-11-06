@@ -7,6 +7,8 @@ import { Icon } from '../../src/parts/Icon';
 import { DEPT_ICONS, DEPT_IDS, ICONS, type IconName } from '../../src/parts/icons';
 import { Logo } from '../../src/parts/Logo';
 import { Avatar, ChausarAvatar, initialsOf } from '../../src/parts/Avatar';
+import { StoriesRow } from '../../src/parts/StoriesRow';
+import { TextProvider } from '../../src/text';
 
 const parts = join(import.meta.dirname, '../../src/parts');
 
@@ -210,6 +212,22 @@ describe('Avatar', () => {
     unmount();
     const plain = render(<Avatar name="Editor" badge />);
     expect(plain.container.querySelector('[data-badge]')).toBeNull();
+  });
+
+  it('on the team strip a 20-character name is whole: it wraps, with no cut, and the avatar carries no bare badge (B4)', () => {
+    const name = 'Bookings and quotes!';
+    expect(name).toHaveLength(20);
+    const { container } = render(<TextProvider language="en"><StoriesRow stories={[{ id: 'a', name, dept: 'ops', state: 'idle' }]} onOpen={() => {}} /></TextProvider>);
+    expect(screen.getByText(name).textContent).toBe(name);
+    expect(container.querySelector('[data-badge]')).toBeNull();
+    for (const [file, cls] of [['StoriesRow.module.css', moduleClass(screen.getByText(name))]] as const) {
+      const css = ruleOf(file, cls);
+      expect(css).not.toMatch(/text-overflow|nowrap|line-clamp/);
+      expect(css).toContain('overflow-wrap: anywhere');
+    }
+    const today = (file: string) => readFileSync(join(parts, '../places/today', file), 'utf8');
+    expect(today('ChausarStory.module.css')).not.toMatch(/text-overflow/);
+    expect(today('TeamAtWork.module.css').split('.name {')[1]!.split('}')[0]).not.toMatch(/text-overflow|nowrap/);
   });
 
   it('takes the D sizes', () => {

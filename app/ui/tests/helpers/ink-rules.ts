@@ -22,7 +22,7 @@ import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
  *   [data-figure-words]  the engine's words after a figure's amount ("includes estimates"), in the body face; they
  *                        never hold an amount of their own
  *   [data-receipt="id"]  a Receipt control (src/parts/Receipt.tsx): a button or link with a non-empty receipt id. 4Z3:
- *                        it is a small receipt mark, named "Receipt for <amount>" (or "Receipt"); its code never shows
+ *                        it is a small receipt mark, named "Open receipt for <amount>" (or "Receipt"); its code never shows
  *                        on the page, only inside the receipt sheet it opens. Find one with `receiptMark(id)`.
  *   [data-estimate]      the "model estimate" chip, or a model-written value with its chip (src/parts/ModelEstimate.tsx)
  *   [data-figure-group]  a block whose amounts are proved together by the one receipt control or estimate chip inside
@@ -117,12 +117,12 @@ function estimatesIn(scope: Element): Element[] {
 
 /**
  * 4Z3: a receipt mark by its receipt id, as the `name` of a role query: `getByRole('button', { name: receiptMark('R-0419') })`.
- * The mark carries the id in `data-receipt` and is named for what it proves ("Receipt for ₹1,12,400", or "Receipt"),
+ * The mark carries the id in `data-receipt` and is named for what it proves ("Open receipt for ₹1,12,400", or "Receipt"),
  * never by its code, so a test finds it by the id it opens and checks the name says it is a receipt.
  */
 export function receiptMark(id: string | RegExp): (name: string, element: Element) => boolean {
   const opens = (receipt: string) => (typeof id === 'string' ? receipt === id : id.test(receipt));
-  return (name, element) => opens(element.getAttribute('data-receipt') ?? '') && /^Receipt(?:\s|$)|रसीद/u.test(name);
+  return (name, element) => opens(element.getAttribute('data-receipt') ?? '') && /^Open receipt(?:\s|$)/u.test(name);
 }
 
 /**
@@ -135,7 +135,7 @@ function markProblems(root: Root): string[] {
     const id = (mark.getAttribute('data-receipt') ?? '').trim();
     if (!id) continue;
     if ((mark.textContent ?? '').includes(id)) problems.push(`receipt mark "${id}" prints its code: show the mark only; the code belongs inside the receipt sheet`);
-    if (!(mark.getAttribute('aria-label') ?? '').trim()) problems.push(`receipt mark "${id}" has no name: name it for what it proves ("Receipt for ₹1,12,400")`);
+    if (!(mark.getAttribute('aria-label') ?? '').trim()) problems.push(`receipt mark "${id}" has no name: name it for what it proves ("Open receipt for ₹1,12,400")`);
   }
   return problems;
 }

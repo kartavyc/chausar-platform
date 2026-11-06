@@ -249,6 +249,13 @@ describe('one fold (B4 task 8)', () => {
   });
 });
 
+describe('sentence case (B4 task 10)', () => {
+  it('no text-transform: uppercase in any stylesheet', () => {
+    const found = sheets.filter(({ css }) => declarations(css, /^text-transform$/).some(([, value]) => /uppercase/i.test(value))).map(({ f }) => f);
+    expect(found).toEqual([]);
+  });
+});
+
 describe('one set of controls (B4 task 9)', () => {
   it('no raw <select or file input outside the parts that draw them', () => {
     const OWNERS = ['parts/Select.tsx', 'parts/FilePick.tsx'];

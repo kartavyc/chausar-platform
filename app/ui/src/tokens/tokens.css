@@ -45,6 +45,10 @@
   --selected: #16181b;
   --on-selected: #ffffff;
   --count-on-selected: #3b3d3f;
+  --nav-on: #eceef0;
+  --nav-on-fg: #16181b;
+  --nav-count: #ffffff;
+  --nav-count-fg: #16181b;
 
   /* Accent: Jade, the founder's pick of 23 October (D's {{accent}}, {{accentInk}} and {{accentSoft}} holes). Green
      words on a light ground are --accent-text; --accent-line is the next-step eyebrow border. */
@@ -266,6 +270,10 @@
     --selected: #eceef0;
     --on-selected: #111214;
     --count-on-selected: #c9cbcd;
+    --nav-on: #eceef0;
+    --nav-on-fg: #111214;
+    --nav-count: #c9cbcd;
+    --nav-count-fg: #111214;
     --accent-soft: #1b312a;
     --accent-text: #2fb67c;
     --accent-line: #1f4f3c;
@@ -338,6 +346,10 @@
   --selected: #eceef0;
   --on-selected: #111214;
   --count-on-selected: #c9cbcd;
+  --nav-on: #eceef0;
+  --nav-on-fg: #111214;
+  --nav-count: #c9cbcd;
+  --nav-count-fg: #111214;
   --accent-soft: #1b312a;
   --accent-text: #2fb67c;
   --accent-line: #1f4f3c;

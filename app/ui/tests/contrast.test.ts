@@ -92,6 +92,12 @@ const TEXT_PAIRS: [string, string][] = [
   ['goal-fg2', 'goal-chip'],
   // Money's "changed since" on the dark goal card (3C).
   ['wait-ring', 'goal-bg'],
+  // B4 task 10: a red error on a card (193.f1), the stale orange line on a card (267.f1), the selected rail item and
+  // tab, and its count, in both themes.
+  ['fail', 'inner'],
+  ['wait', 'inner'],
+  ['nav-on-fg', 'nav-on'],
+  ['nav-count-fg', 'nav-count'],
 ];
 /** [mark, ground]: shapes whose meaning is also in words, so 3:1 (WCAG 1.4.11). */
 const NON_TEXT_PAIRS: [string, string][] = [
@@ -103,6 +109,11 @@ const NON_TEXT_PAIRS: [string, string][] = [
   ['chart-rest', 'surface'],
   ['chart-rest', 'inner'],
   ...(['age-30', 'age-60', 'age-90', 'age-over'] as const).map((a): [string, string] => [a, 'surface']),
+  // B4 task 10: the receipt mark on a white card and on the dark goal card, the send icon filled and waiting (185.f2).
+  ['mute', 'surface'],
+  ['goal-link', 'goal-bg'],
+  ['accent-ink', 'accent'],
+  ['mute', 'wash'],
 ];
 /**
  * The one mark allowed under 3:1, by theme. --age-30 (the 1 to 30 days bucket, amber like the waiting ring) reads 2.00:1

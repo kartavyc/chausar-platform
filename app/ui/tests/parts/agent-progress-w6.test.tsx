@@ -77,9 +77,9 @@ it('resuming a checked checkpoint opens the new native session run',async()=>{
 });
 it('AI cost is visible with its receipt, while unknown cost has no invented receipt',()=>{
  const view=render(<TextProvider language="en"><AgentProgress progress={{messages:[],tools:[],cost:{display:'USD 0.0020',state:'priced',spendId:'spend_sample',receiptId:'cost_sample'}} as any}/></TextProvider>);
- expect(screen.getByText('USD 0.0020').closest('[data-figure]')).toBeTruthy();expect(screen.getByRole('button',{name:'Receipt for USD 0.0020'})).toBeTruthy();
+ expect(screen.getByText('USD 0.0020').closest('[data-figure]')).toBeTruthy();expect(screen.getByRole('button',{name:'Open receipt for USD 0.0020'})).toBeTruthy();
  view.rerender(<TextProvider language="en"><AgentProgress progress={{messages:[],tools:[],cost:{display:'Final cost is not known. The allowance stays held.',state:'unknown',spendId:'spend_sample'}} as any}/></TextProvider>);
- expect(screen.getByText('Final cost is not known. The allowance stays held.')).toBeTruthy();expect(screen.queryByRole('button',{name:/Receipt for/})).toBeNull();
+ expect(screen.getByText('Final cost is not known. The allowance stays held.')).toBeTruthy();expect(screen.queryByRole('button',{name:/Open receipt for/})).toBeNull();
 });
 
 it('A2 review: a job the watchdog stopped says it went quiet, never "Stopped by you"',async()=>{

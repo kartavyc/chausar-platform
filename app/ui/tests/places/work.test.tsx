@@ -70,7 +70,7 @@ describe('Work: runs', () => {
     expect(within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]')).toBeTruthy();
     expect(within(reach).getByText('model estimate')).toBeTruthy();
     expect(within(reach).getByText('Worked for 2 min')).toBeTruthy();
-    expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
+    expect(within(reach).queryByRole('button', { name: /receipt/i })).toBeNull();
   });
 
   it('shows a failed run with its real error, and runs it again through the engine', async () => {
