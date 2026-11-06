@@ -1,17 +1,20 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useLanguage, useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
+import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
+import { Receipt } from '../../parts/Receipt';
 import type { CaLatestPapers, CaOfRecord, CaPendingRate, CaReceiptView, CaSignoffRequest } from '../../engine/types';
-import { dayOf, messageOf } from './shared';
+import { TileSection, dayOf, messageOf } from './shared';
 import s from './Business.module.css';
 
 /**
- * Your CA (venture.ca.*), for a business on the CA firm playbook: the CA of record, the rate tables waiting for that
- * CA to confirm, the papers sent to the CA for sign-off, and the newest regulated papers' receipts worked again by the
- * engine. The CA signs and confirms with their own ICAI membership number, typed here; agents never file or sign. Each write is followed by a fresh read, so the page shows the
- * engine's own state, never a guess.
+ * Your CA (venture.ca.*), for a business on the CA firm playbook, as tiles: the CA of record (initials drawn here,
+ * nothing fetched), the rate tables waiting for that CA to confirm with their sources one fold away, the papers sent to
+ * the CA for sign-off, and the newest regulated papers' receipts worked again by the engine. The CA signs and confirms
+ * with their own ICAI membership number, typed here; agents never file or sign. Each write is followed by a fresh
+ * read, so the page shows the engine's own state, never a guess.
  */
 export function YourCa() {
   const t = useT();
@@ -23,26 +26,27 @@ export function YourCa() {
   if (!ca.data) return <p className={s.note}>{t('business.loading')}</p>;
   const { ca: of, pendingRates, requests, latestPapers } = ca.data;
   return (
-    <>
+    <div className={s.page}>
       <p className={s.lead}>{t('business.ca.lead')}</p>
-      <OfRecord ca={of} onSaved={ca.reload} />
-      {of && <RateTables rates={pendingRates} onConfirmed={ca.reload} />}
+      <div className={s.split} data-ratio={of ? '5-7' : '8-4'}>
+        <OfRecord ca={of} onSaved={ca.reload} />
+        {of && <RateTables rates={pendingRates} onConfirmed={ca.reload} />}
+      </div>
       <Requests requests={requests} onRecorded={ca.reload} />
       <Receipts papers={latestPapers ?? null} />
-    </>
+    </div>
   );
 }
 
 /**
  * The receipts of the newest regulated papers (Ink v2 2A2), each worked again by the engine from its stored inputs on
- * the rate tables it stamped (venture.ca.receipt): "same", or the engine's line for what came out otherwise.
+ * the rate tables it stamped (venture.ca.receipt): "same", or the engine's line for what came out otherwise. Each line
+ * sits with its paper's receipt chip, which opens that calculator receipt in the receipt sheet (Receipt source="ca").
  */
 function Receipts({ papers }: { papers: CaLatestPapers | null }) {
   const t = useT();
-  const headingId = useId();
   return (
-    <section className={s.section} aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('business.ca.receipts')}</h2>
+    <TileSection title={t('business.ca.receipts')}>
       {!papers ? (
         <p className={s.line}>{t('business.ca.receiptsNone')}</p>
       ) : (
@@ -53,7 +57,7 @@ function Receipts({ papers }: { papers: CaLatestPapers | null }) {
           </ul>
         </>
       )}
-    </section>
+    </TileSection>
   );
 }
 
@@ -64,9 +68,13 @@ function ReceiptLine({ id }: { id: string }) {
   if (!receipt.data) return <li className={s.step}><span className={s.stepWho}>{t('business.loading')}</span></li>;
   const { engine, rederived, differs, portalDifferences } = receipt.data;
   return (
-    <li className={s.step} data-receipt={id}>
+    <li className={s.step} data-ca-receipt={id}>
       <span>{t(`business.ca.engine.${engine}`)}</span>
-      <span className={s.stepWho}>{rederived === 'same' ? t('business.ca.recomputed.same') : t(`business.ca.recomputed.${rederived}`, { line: differs?.line ?? '' })}</span>
+      {/* What came out when the engine worked the paper again, with the paper's own receipt beside it. */}
+      <span className={s.stepWho} data-figure-group="">
+        <span>{rederived === 'same' ? t('business.ca.recomputed.same') : t(`business.ca.recomputed.${rederived}`, { line: differs?.line ?? '' })}</span>
+        {' '}<Receipt id={id} source="ca" />
+      </span>
       {portalDifferences && portalDifferences.length > 0 && (
         <ul className={s.steps}>
           {portalDifferences.map((row) => <DiffLine key={row.key} receiptId={id} row={row} onExplained={receipt.reload} />)}
@@ -109,9 +117,14 @@ function DiffLine({ receiptId, row, onExplained }: { receiptId: string; row: Por
 
   return (
     <li className={s.step} data-difference={row.key}>
-      <span>{t(`business.ca.diff.${row.state}`, { label: row.label, ours: row.ours ?? '', portal: row.portal ?? '' })}</span>
+      {/* Ours against the portal's, proved by the paper's receipt. */}
+      <span data-figure-group="">
+        <span>{t(`business.ca.diff.${row.state}`, { label: row.label, ours: row.ours ?? '', portal: row.portal ?? '' })}</span>
+        {' '}<Receipt id={receiptId} source="ca" />
+      </span>
       {row.explanation !== null ? (
-        <span className={s.stepWho}>{t('business.ca.diff.explained', { note: row.explanation })}</span>
+        // The CA's own words, quoted as they wrote them.
+        <span className={s.stepWho} data-content="">{t('business.ca.diff.explained', { note: row.explanation })}</span>
       ) : open ? (
         <form className={s.form} onSubmit={(event) => void submit(event)}>
           <Field label={t('business.ca.diff.note')} value={note} maxLength={400} onChange={(event) => setNote(event.currentTarget.value)} />
@@ -132,7 +145,6 @@ function DiffLine({ receiptId, row, onExplained }: { receiptId: string; row: Por
 function OfRecord({ ca, onSaved }: { ca: CaOfRecord | null; onSaved: () => void }) {
   const t = useT();
   const client = useEngine();
-  const headingId = useId();
   const [changing, setChanging] = useState(false);
   const [name, setName] = useState(ca?.name ?? '');
   const [number, setNumber] = useState(ca?.membershipNo ?? '');
@@ -167,8 +179,7 @@ function OfRecord({ ca, onSaved }: { ca: CaOfRecord | null; onSaved: () => void 
   );
 
   return (
-    <section className={s.section} aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('business.ca.ofRecord')}</h2>
+    <TileSection title={t('business.ca.ofRecord')}>
       {!ca ? (
         <>
           <p className={s.line}>{t('business.ca.none')}</p>
@@ -176,14 +187,19 @@ function OfRecord({ ca, onSaved }: { ca: CaOfRecord | null; onSaved: () => void 
         </>
       ) : changing ? form : (
         <>
-          <p className={s.strong}>{ca.name}</p>
-          <p className={s.line}>{t('business.ca.membership')} <span className="mono">{ca.membershipNo}</span></p>
+          <div className={s.who}>
+            <Avatar name={ca.name} size={40} />
+            <div>
+              <p className={s.strong}>{ca.name}</p>
+              <p className={s.line}>{t('business.ca.membership')} <span className="mono">{ca.membershipNo}</span></p>
+            </div>
+          </div>
           <div className={s.buttons}>
-            <Button variant="quiet" onClick={() => { setName(ca.name); setNumber(ca.membershipNo); setChanging(true); }}>{t('business.ca.change')}</Button>
+            <Button size="sm" variant="quiet" onClick={() => { setName(ca.name); setNumber(ca.membershipNo); setChanging(true); }}>{t('business.ca.change')}</Button>
           </div>
         </>
       )}
-    </section>
+    </TileSection>
   );
 }
 
@@ -198,7 +214,6 @@ function RateTables({ rates, onConfirmed }: { rates: CaPendingRate[]; onConfirme
   const t = useT();
   const language = useLanguage();
   const client = useEngine();
-  const headingId = useId();
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [number, setNumber] = useState('');
   const [busy, setBusy] = useState(false);
@@ -234,12 +249,11 @@ function RateTables({ rates, onConfirmed }: { rates: CaPendingRate[]; onConfirme
   }
 
   return (
-    <section className={s.section} aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('business.ca.rates')}</h2>
+    <TileSection title={t('business.ca.rates')}>
       {rates.length === 0 ? (
         <p className={s.line}>{t('business.ca.ratesNone')}</p>
       ) : (
-        <form onSubmit={(event) => void submit(event)}>
+        <form className={s.foldBody} onSubmit={(event) => void submit(event)}>
           <ul className={s.steps}>
             {rates.map((rate) => (
               <li key={rate.tableId} className={s.step} data-rate={rate.tableId}>
@@ -248,7 +262,15 @@ function RateTables({ rates, onConfirmed }: { rates: CaPendingRate[]; onConfirme
                   <span>{rate.title}</span>
                 </label>
                 <span className={s.stepWho}>{t('business.ca.version', { version: rate.version })} · {validity(rate, t, language)}</span>
-                {rate.citations.map((citation) => <span key={citation} className={s.stepWho}>{citation}</span>)}
+                {/* Where each table comes from, one fold away (simple first: rate tables' detail is for the CA). */}
+                {rate.citations.length > 0 && (
+                  <details className={s.fold}>
+                    <summary>{t('business.ca.sources')}</summary>
+                    <ul className={s.plain}>
+                      {rate.citations.map((citation) => <li key={citation}>{citation}</li>)}
+                    </ul>
+                  </details>
+                )}
               </li>
             ))}
           </ul>
@@ -260,16 +282,14 @@ function RateTables({ rates, onConfirmed }: { rates: CaPendingRate[]; onConfirme
         </form>
       )}
       {said && <p className={s.said} role="status">{said}</p>}
-    </section>
+    </TileSection>
   );
 }
 
 function Requests({ requests, onRecorded }: { requests: CaSignoffRequest[]; onRecorded: () => void }) {
   const t = useT();
-  const headingId = useId();
   return (
-    <section className={s.section} aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('business.ca.requests')}</h2>
+    <TileSection title={t('business.ca.requests')}>
       {requests.length === 0 ? (
         <p className={s.line}>{t('business.ca.requestsNone')}</p>
       ) : (
@@ -277,7 +297,7 @@ function Requests({ requests, onRecorded }: { requests: CaSignoffRequest[]; onRe
           {requests.map((request) => <RequestLine key={request.id} request={request} onRecorded={onRecorded} />)}
         </ul>
       )}
-    </section>
+    </TileSection>
   );
 }
 

@@ -1,16 +1,56 @@
+/* PageTitle: D's `header.phead`, `.eyebrow`, `.h1`, `.sub` and `.tools` (D-Today.dc.html). */
+
 .header {
-  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+
+.text {
+  min-width: 0;
+}
+
+.eyebrow {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+  color: var(--mute);
 }
 
 .title {
   font-size: var(--text-title);
   font-weight: var(--weight-strong);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
+.eyebrow + .title {
+  margin-top: var(--sp-1);
+}
+
 .line {
-  margin-top: 6px;
+  margin-top: var(--sp-1);
   font-size: var(--text-body);
-  color: var(--mute);
+  color: var(--fg2);
+}
+
+.line b {
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 759px) {
+  .header {
+    flex-wrap: wrap;
+    margin-bottom: var(--sp-5);
+  }
 }

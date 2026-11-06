@@ -1,0 +1,59 @@
+/* ProgressBar: D's `.pbar` (6 px, the line track) with its label: one segment per step up to 12, past that one svg
+   stretched to the bar. The unknown-length bar is one still segment with a soft band of colour in the middle (D's
+   gradient), and never moves. */
+
+.bar {
+  --bar-colour: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.bar[data-tone='waiting'] { --bar-colour: var(--wait-ring); }
+.bar[data-tone='failed'] { --bar-colour: var(--fail-ring); }
+
+.track {
+  display: flex;
+  flex: 1 1 88px;
+  gap: calc(var(--sp-1) / 2);
+  min-width: 40px;
+  height: 6px;
+}
+
+.segment {
+  flex: 1 1 0;
+  height: 6px;
+  border-radius: var(--r-chip);
+  background: var(--line);
+}
+
+.bar[data-tone='working'] .segment[data-filled] { background: var(--accent); }
+.bar[data-tone='waiting'] .segment[data-filled] { background: var(--wait-ring); }
+.bar[data-tone='failed'] .segment[data-filled] { background: var(--fail-ring); }
+
+.segment[data-still] {
+  background: linear-gradient(90deg, var(--line) 30%, var(--bar-colour) 46%, var(--bar-colour) 54%, var(--line) 70%);
+}
+
+/* Many steps: one svg, its viewBox the step total, stretched to the bar's width and rounded at the ends. */
+.long {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 6px;
+  border-radius: var(--r-chip);
+  overflow: hidden;
+}
+
+.rest { fill: var(--line); }
+.bar[data-tone='working'] .fill { fill: var(--accent); }
+.bar[data-tone='waiting'] .fill { fill: var(--wait-ring); }
+.bar[data-tone='failed'] .fill { fill: var(--fail-ring); }
+
+.count {
+  flex: none;
+  color: var(--fg2);
+  font-size: var(--text-label);
+  white-space: nowrap;
+}

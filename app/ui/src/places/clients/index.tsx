@@ -1,102 +1,76 @@
 /**
- * Clients (spec section 4): one row per client with their last order in one sentence and what they owe (engine
- * figure, with its receipt). Opening a row shows the client sheet beside the list. Rows keep the shell keys
- * (J/K/Enter). The place follows the open business: switching business reloads it. Leads, the people the owner may
- * write to, are one address away (#/clients/leads, Leads.tsx).
+ * Clients (spec sections 4.3 and 5.5; the direction D board D-Clients): the people who pay you and the people you may
+ * write to, as tabs held in the address. Clients (#/clients) lists each client with their last order and what they
+ * owe; Pipeline (#/clients/pipeline, and the old #/clients/leads) shows the leads as a board of the engine's own
+ * stages. The Network tab arrives with W4 4D, and the full pipeline (its stages, strength, warm paths, follow-ups and
+ * handoffs) with W4 4E: until then nothing stands in for them. The place follows the open business: switching
+ * business reloads it.
  */
 
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet, useRoute } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
-import { EmptyState } from '../../parts/EmptyState';
+import { Icon } from '../../parts/Icon';
 import { PageTitle } from '../../parts/PageTitle';
-import { Row } from '../../parts/Row';
-import type { ClientLite, OrderLite, VentureRunEvent } from '../../engine/types';
+import { Segmented } from '../../parts/Segmented';
+import type { VentureRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
-import { ClientSheet, Owed } from './ClientSheet';
-import { AddLead, LeadSheet, Leads } from './Leads';
+import { ClientSheet } from './ClientSheet';
+import { ClientsTab } from './ClientsTab';
+import { LeadSheet } from './Leads';
+import { PipelineTab } from './PipelineTab';
 import { useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
 const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
 
+type Tab = 'clients' | 'pipeline';
+
 export function Place() {
-  return useRoute().sub === 'leads' ? <LeadsPage /> : <ClientsPage />;
+  const { sub } = useRoute();
+  return <Clients tab={sub === 'pipeline' || sub === 'leads' ? 'pipeline' : 'clients'} />;
 }
 
-/** Clients and Leads, side by side under the title. */
-function SubNav({ here }: { here: 'clients' | 'leads' }) {
-  const t = useT();
-  return (
-    <nav aria-label={t('clients.nav')} className={s.subnav}>
-      <a href="#/clients" aria-current={here === 'clients' ? 'page' : undefined}>{t('clients.sub.clients')}</a>
-      <a href="#/clients/leads" aria-current={here === 'leads' ? 'page' : undefined}>{t('clients.sub.leads')}</a>
-    </nav>
-  );
-}
-
-function LeadsPage() {
-  const t = useT();
-  return (
-    <>
-      <div className={s.head}>
-        <PageTitle title={t('place.clients')} />
-        <AddLead />
-      </div>
-      <SubNav here="leads" />
-      <Leads />
-    </>
-  );
-}
-
-function ClientsPage() {
+function Clients({ tab }: { tab: Tab }) {
   const t = useT();
   const engine = useEngine();
   const clients = useResource('venture.client.list', {}, { refreshOn });
-  const orders = useResource('venture.order.list', {}, { refreshOn });
-  useClientsChanged(engine, () => { clients.reload(); orders.reload(); });
+  const leads = useResource('venture.leads.list', {});
+  useClientsChanged(engine, () => { clients.reload(); leads.reload(); });
 
-  const list = clients.data ?? [];
-  // The engine lists orders newest first, so the first one for a client is their last order.
-  const lastOrder = new Map<string, OrderLite>();
-  for (const order of orders.data ?? []) if (!lastOrder.has(order.clientId)) lastOrder.set(order.clientId, order);
+  const clientCount = clients.data?.length;
+  const leadCount = leads.data?.leads.length;
+  // The header line counts what the tab lists; PageTitle sets that count in bold (D's `.sub b`).
+  const count = tab === 'clients' ? clientCount : leadCount;
+  const line = !count ? undefined
+    : tab === 'clients' ? t('clients.count', { count: String(count) }) : t('clients.pipeline.line', { count: String(count) });
+
+  // The add button sits beside the tabs once there is a list; an empty list offers it as its one way forward instead.
+  let tool = null;
+  if (tab === 'clients' && clientCount) {
+    tool = <Button data-add-client="" onClick={(event) => openSheet('client', 'new', event.currentTarget)}><Icon name="plus" size={16} />{t('clients.add')}</Button>;
+  } else if (tab === 'pipeline' && leadCount) {
+    tool = <Button data-add-lead="" onClick={(event) => openSheet('lead', 'new', event.currentTarget)}><Icon name="plus" size={16} />{t('clients.leads.add')}</Button>;
+  }
 
   return (
     <>
-      <div className={s.head}>
-        <PageTitle title={t('place.clients')} line={list.length > 0 ? t('clients.count', { count: String(list.length) }) : undefined} />
-        {list.length > 0 && (
-          <Button data-add-client="" onClick={(event) => openSheet('client', 'new', event.currentTarget)}>{t('clients.add')}</Button>
-        )}
-      </div>
-      <SubNav here="clients" />
-      {clients.error && <p className={s.failed} role="alert">{t('sheet.failed', { message: clients.error.message })}</p>}
-      {clients.data && list.length === 0 && (
-        <EmptyState
-          title={t('clients.empty')}
-          action={<Button variant="primary" data-add-client="" onClick={(event) => openSheet('client', 'new', event.currentTarget)}>{t('clients.add')}</Button>}
+      <PageTitle title={t('place.clients')} line={line} count={count ? String(count) : undefined} />
+      <div className={s.toolbar}>
+        <Segmented
+          mode="links"
+          label={t('clients.nav')}
+          value={tab}
+          options={[
+            { id: 'clients', label: t('clients.sub.clients'), icon: 'contact', href: '#/clients', count: clientCount },
+            { id: 'pipeline', label: t('clients.sub.pipeline'), icon: 'layout-grid', href: '#/clients/pipeline', count: leadCount },
+          ]}
         />
-      )}
-      {list.length > 0 && (
-        <ul className={s.list} aria-label={t('place.clients')}>
-          {list.map((client) => <ClientRow key={client.id} client={client} last={lastOrder.get(client.id)} />)}
-        </ul>
-      )}
+        {tool && <div className={s.tools}>{tool}</div>}
+      </div>
+      {tab === 'clients' ? <ClientsTab clients={clients} /> : <PipelineTab leads={leads} />}
     </>
-  );
-}
-
-function ClientRow({ client, last }: { client: ClientLite; last: OrderLite | undefined }) {
-  const t = useT();
-  return (
-    <Row
-      id={client.id}
-      title={client.name}
-      onOpen={(origin) => openSheet('client', client.id, origin)}
-      line={<span className={s.lineText}>{last ? t(`clients.order.${last.status}`, { request: last.request }) : t('clients.order.none')}</span>}
-      actions={client.owed ? <Owed owed={client.owed} /> : undefined}
-    />
   );
 }
 

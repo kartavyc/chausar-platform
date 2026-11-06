@@ -2,17 +2,22 @@ import { Fragment, useState } from 'react';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
 import { openSheet } from '../shell/navigation';
+import { Avatar, type AvatarState } from './Avatar';
 import { Button } from './Button';
 import { Field } from './Field';
+import { Icon } from './Icon';
 import { ModelEstimate } from './ModelEstimate';
 import { Receipt } from './Receipt';
 import { Sheet } from './Sheet';
 import { Steps } from './Steps';
 import { evidenceLabel } from './evidence';
-import type { QueueActionId, QueueRow, RunDetail, RunStep } from '../engine/types';
+import type { QueueActionId, QueueRow, RunDetail, RunState, RunStep } from '../engine/types';
 import s from './RunSheet.module.css';
 
 type Evidence = NonNullable<RunStep['evidence']>[number];
+
+/** The ring on the agent's avatar in the head, from the run's state; a finished run draws none. */
+const RING: Record<RunState, AvatarState> = { active: 'working', waiting: 'waiting', failed: 'failed', done: 'idle' };
 
 export interface RunSheetViewProps {
   run: RunDetail;
@@ -26,7 +31,11 @@ export interface RunSheetViewProps {
   onRunAgain?: (() => void) | undefined;
 }
 
-/** "Watch it work": one run, opened from Today, Team or Work. */
+/**
+ * "Watch it work": one run, opened from Today, Team or Work. The agent's avatar carries the run's ring; the steps sit
+ * on the inner grey (D-TeamDept `.run`); a stopped run says what went wrong in its own box, in the engine's words
+ * (D-Work `.why`), with Run again under it.
+ */
 export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, onRunAgain }: RunSheetViewProps) {
   const t = useT();
   const [answer, setAnswer] = useState('');
@@ -56,6 +65,8 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
       label={t('sheet.run')}
       eyebrow={t('run.header', { agent: run.agent, id: run.runId })}
       title={run.purpose}
+      avatar={<Avatar name={run.agent} state={RING[run.state] ?? 'idle'} size={40} />}
+      name={run.agent}
       line={finished ? undefined : (
         <>
           <span>{t('run.started', { elapsed: run.elapsed })}</span>
@@ -74,13 +85,28 @@ export function RunSheetView({ run, onClose, returnFocus, onEvidence, onAnswer, 
           {result}
         </div>
       ) : (
-        <Steps steps={run.steps} progress={run.progress} showTools />
+        <div className={s.run}>
+          <Steps steps={run.steps} progress={run.progress} showTools />
+        </div>
       )}
 
       {run.state === 'failed' && (
-        <div className={s.failure}>
-          <p>{t('run.stopped')} {run.error}</p>
-          {onRunAgain && <div><Button variant="primary" onClick={onRunAgain}>{t('run.again')}</Button></div>}
+        <div className={s.stopped}>
+          <div className={s.failure} data-failure="">
+            <p className={s.wrongHead}>
+              <Icon name="triangle-alert" size={14} />
+              {t('sheet.wrong')}
+            </p>
+            <p className={s.wrongText}>{run.error ?? t('run.stopped')}</p>
+          </div>
+          {onRunAgain && (
+            <div className={s.again}>
+              <Button variant="primary" size="lg" onClick={onRunAgain}>
+                <Icon name="rotate-ccw" size={16} />
+                {t('run.again')}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

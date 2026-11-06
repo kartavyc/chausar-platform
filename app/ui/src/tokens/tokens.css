@@ -2,7 +2,11 @@
    (docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md). Every colour, size and time in app/ui is one of
    these names. One extra colour, --edge, is the outline of a quiet button, taken from the approved mockup A.
    One value moved from the spec: light --dim is #6e737a, not #71767d, because #71767d on --bg is 4.42:1 and struck
-   values must read at 4.5:1 (tests/contrast.test.ts). The shift is too small to see. */
+   values must read at 4.5:1 (tests/contrast.test.ts). The shift is too small to see.
+   Ink v2 adds the tokens of the w3 plan's table (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "Tokens"),
+   taken from direction D (docs/superpowers/designs/ink-v2-direction-d/D-STYLE.md sections 3 and 4). Where the table
+   and the boards differ, the table wins: it was checked for contrast, and tests/contrast.test.ts checks it again.
+   --dim reads only on --bg and --surface; plain --wait never sits on a department tint (use --wait-strong). */
 
 :root {
   color-scheme: light dark;
@@ -21,6 +25,105 @@
   --edge: #c9cdd2;
   --shadow: rgb(0 0 0 / 0.12);
 
+  /* Grounds and lines: D's row divider in tiles, chip and hover wash (.kchip, .pos), inner card (.inner), paper desk
+     (.pv-desk), button border (.btn), dashed edge (.st-add, .est), receipt chip border (.rc) and link hover. */
+  --line-soft: #eceef0;
+  --wash: #f3f4f5;
+  --inner: #f6f7f8;
+  --desk: #f3f4f2;
+  --btn-line: #d5d8dc;
+  --dash: #b9bec4;
+  --receipt-line: #dbe2f3;
+  --link-hover: #1f45b0;
+
+  /* Selected: D's rail item, filter chip, toggle and gate (.nav a.on, .fchip.on, .seg button.on, .gate button.on),
+     the Chausar avatar square (.av-cz), and Today's count on the selected rail item (.nav a.on .ct). */
+  --selected: #16181b;
+  --on-selected: #ffffff;
+  --count-on-selected: #3b3d3f;
+
+  /* Accent: Jade, the founder's pick of 23 October (D's {{accent}}, {{accentInk}} and {{accentSoft}} holes). Green
+     words on a light ground are --accent-text; --accent-line is the next-step eyebrow border. */
+  --accent: #2fb67c;
+  --accent-ink: #0b0d0e;
+  --accent-soft: #e6f6ef;
+  --accent-text: #0b7a45;
+  --accent-line: #cee4da;
+
+  /* Waiting and failed: D's rings and bars (.ring-wait, .ring-fail), chip grounds (.chip.wait, .chip.fail), amber
+     words on department tints (.dp-line .w) and the border of a stopped card. Rings stay aria-hidden: the words say it. */
+  --wait-ring: #f2a93b;
+  --wait-soft: #fdf1e3;
+  --wait-strong: #a84d08;
+  --fail-ring: #f04438;
+  --fail-soft: #feecea;
+  --fail-line: #f4c7c1;
+
+  /* The dark goal card (D's section.goal): ground, bar track, figures, words, labels, pill, divider, receipt links and
+     their hover (.rc-d, .rc-d:hover). Solid where D used white at 8 and 10 percent, so every pair can be checked. */
+  --goal-bg: #111214;
+  --goal-track: #2a2d31;
+  --goal-fg: #ffffff;
+  --goal-fg2: #d6d9dc;
+  --goal-mute: #9aa0a6;
+  --goal-chip: #242527;
+  --goal-line: #292a2c;
+  --goal-link: #8fb4ff;
+  --goal-link-hover: #b5ccff;
+
+  /* Departments: D's ink and solid, tint (avatar, chip, icon box) and panel border per department (.d-x, .s-x, .p-x).
+     --dept-on is the icon on a solid department badge (.st-badge). */
+  --sales: #2f5bd3;
+  --sales-tint: #e8eefc;
+  --sales-line: #d5e0fa;
+  --mkt: #7c3aed;
+  --mkt-tint: #f1eafe;
+  --mkt-line: #e4d6fc;
+  --prod: #0f766e;
+  --prod-tint: #e3f4f2;
+  --prod-line: #cbe8e4;
+  --money: #0b7a45;
+  --money-tint: #e6f6ec;
+  --money-line: #cdebd8;
+  --ops: #475467;
+  --ops-tint: #eef0f3;
+  --ops-line: #dde1e7;
+  --dept-on: #ffffff;
+
+  /* Charts: D's single series (ink for the current bar, the rest lighter) and the dashed forecast line. Data never
+     uses the accent (D-STYLE "Charts"). */
+  --chart-ink: #16181b;
+  --chart-rest: #d5d8dc;
+  --chart-forecast: #9aa0a6;
+
+  /* Aging buckets (1 to 30, 31 to 60, 61 to 90, over 90 days; the 3B2 charts review): chart-only, the same in both
+     themes, so the ring and text tokens stay as they are. Each reads 3:1 on --surface in both themes except --age-30 on
+     light (2.00:1), which the chart's legend words and data table carry (tests/contrast.test.ts). */
+  --age-30: #f2a93b;
+  --age-60: #b45309;
+  --age-90: #ff5065;
+  --age-over: #bd3b26;
+
+  /* Preview art: D's video frame ground (.pv-video) and the scrims, play button and second line over it (.v-tag,
+     .v-dur, .v-play, .v-title span). The same in both themes. */
+  --pv-video-1: #25433f;
+  --pv-video-2: #132523;
+  --pv-video-3: #0a1213;
+  --pv-scrim: rgb(0 0 0 / 0.45);
+  --pv-scrim-strong: rgb(0 0 0 / 0.72);
+  --pv-play: rgb(255 255 255 / 0.95);
+  --pv-text-2: rgb(255 255 255 / 0.6);
+
+  /* Shadows: D's three (tile, lifted card on a tint, goal card), the swiped phone card and the paper preview. */
+  --shadow-tile: 0 1px 2px rgb(16 24 40 / 0.06);
+  --shadow-lift: 0 1px 2px rgb(16 24 40 / 0.07), 0 0 0 1px rgb(16 24 40 / 0.04);
+  --shadow-goal: 0 1px 2px rgb(16 24 40 / 0.10), 0 12px 28px -12px rgb(16 24 40 / 0.45);
+  --shadow-swipe: -12px 0 28px rgb(16 24 40 / 0.18);
+  --shadow-paper: 0 1px 2px rgb(16 24 40 / 0.08), 0 10px 24px -8px rgb(16 24 40 / 0.22);
+
+  /* The ground under a status ring (D's first box-shadow on .av). Tiles, inner cards and panels set their own. */
+  --ring-ground: var(--surface);
+
   /* Faces. Instrument Sans and DM Mono have no Devanagari and no rupee sign; Noto Sans Devanagari supplies both. */
   --font: 'Instrument Sans', 'Noto Sans Devanagari', system-ui, 'Segoe UI', sans-serif;
   --font-mono: 'DM Mono', 'Noto Sans Devanagari', ui-monospace, 'Cascadia Mono', Consolas, monospace;
@@ -36,6 +139,22 @@
   --weight-medium: 500;
   --weight-strong: 600;
 
+  /* Ink v2 type: D's phone greeting (.hello), section head (.h2) and tile and card title (.h3, .qc-title). D's 11.5,
+     11, 10.5 and 9.5 px become 12 px; its half sizes snap to the scale (13.5 to 14, 12.5 to 13, 14.5 to 15). */
+  --text-hello: 24px;
+  --text-section: 19px;
+  --text-tile: 16px;
+
+  /* Figures in DM Mono: D's goal (.g-amt, phone 30), goal percent (.g-pct), stat (.s-val, .ow-v), hero stat, tile
+     figure (.n-val, .cs-v, .s-pct) and department stat (.dp-s b). */
+  --fig-goal: 40px;
+  --fig-goal-phone: 30px;
+  --fig-pct: 32px;
+  --fig-stat: 30px;
+  --fig-hero: 24px;
+  --fig-tile: 20px;
+  --fig-dept: 17px;
+
   /* Spacing on a 4 px scale. */
   --sp-1: 4px;
   --sp-2: 8px;
@@ -49,15 +168,51 @@
   --sp-10: 40px;
   --sp-12: 48px;
 
+  /* Ink v2 spacing: D's bento gap, gap between inner cards and between sections (D-STYLE "Spacing"); tile, compact
+     tile, department panel and inner card padding; page gutters on desktop and phone. */
+  --gap-grid: 16px;
+  --gap-cards: 12px;
+  --gap-section: 32px;
+  --pad-tile: 20px;
+  --pad-tile-compact: 16px;
+  --pad-panel: 18px;
+  --pad-card: 14px;
+  --gutter: 32px;
+  --gutter-phone: 16px;
+
   /* Frame. */
   --radius: 6px;
   --hair: 1px;
-  --rail: 220px;
+  --rail: 232px;
   --sheet-min: 360px;
   --sheet-max: 480px;
   --control: 36px;
   --target: 44px;
   --focus: 2px;
+
+  /* Ink v2 shape and frame: D's tile, inner card and chip radius (spec 4.1); button radius and height by size
+     (.btn.sm, .btn, .btn.lg, .btn.xl); avatar sizes (.av24 to .av52, .st-av), whose radius is calc(var(--av) * 0.3);
+     page width (.wrap), the agent panel beside Team, the phone's top bar (.top) and bottom tabs (.tabs). */
+  --r-tile: 16px;
+  --r-card: 12px;
+  --r-chip: 999px;
+  --r-button-sm: 9px;
+  --r-button: 10px;
+  --r-button-lg: 12px;
+  --r-button-xl: 14px;
+  --control-sm: 30px;
+  --control-xl: 48px;
+  --av-24: 24px;
+  --av-28: 28px;
+  --av-32: 32px;
+  --av-36: 36px;
+  --av-40: 40px;
+  --av-52: 52px;
+  --av-60: 60px;
+  --page-max: 984px;
+  --panel: 440px;
+  --top-bar: 56px;
+  --tabs: 56px;
 
   /* Times. Motion runs once and never past 400 ms; motion.css sets every one to 0 under reduced motion. */
   --t-press: 120ms;
@@ -66,6 +221,10 @@
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
+/* Dark: the same names, for the computer's dark setting and for data-theme=dark (public/theme.js sets it before the
+   first paint). Both blocks hold the same values; tests/tokens.test.ts checks they match. The accent, its ink, the
+   rings and the preview art are the same in both themes, so they are set once, above. In dark the goal card is lifted
+   (#1f2124) so it does not vanish into the page; its place adds a --line border. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
@@ -82,6 +241,58 @@
     --fail: #f97066;
     --edge: #3a3e43;
     --shadow: rgb(0 0 0 / 0.5);
+
+    --line-soft: #222427;
+    --wash: #232528;
+    --inner: #1d1f21;
+    --desk: #1d1f1e;
+    --btn-line: #3a3e43;
+    --dash: #5f646b;
+    --receipt-line: #2c3a5c;
+    --link-hover: #b5ccff;
+    --selected: #eceef0;
+    --on-selected: #111214;
+    --count-on-selected: #c9cbcd;
+    --accent-soft: #1b312a;
+    --accent-text: #2fb67c;
+    --accent-line: #1f4f3c;
+    --wait-soft: #362c1f;
+    --wait-strong: #e5a54b;
+    --fail-soft: #3a1f1f;
+    --fail-line: #6e2a26;
+    --goal-bg: #1f2124;
+    --goal-track: #363a3f;
+    --goal-fg: #ffffff;
+    --goal-fg2: #d6d9dc;
+    --goal-mute: #a3a9af;
+    --goal-chip: #313336;
+    --goal-line: #35373a;
+    --goal-link: #8fb4ff;
+    --goal-link-hover: #b5ccff;
+    --sales: #8aa8f5;
+    --sales-tint: #1b2337;
+    --sales-line: #2a3756;
+    --mkt: #b99af7;
+    --mkt-tint: #251c37;
+    --mkt-line: #3a2d57;
+    --prod: #5fcdbf;
+    --prod-tint: #14282a;
+    --prod-line: #214043;
+    --money: #5fcf94;
+    --money-tint: #152a20;
+    --money-line: #224232;
+    --ops: #848e9d;
+    --ops-tint: #1f2329;
+    --ops-line: #30363f;
+    --dept-on: #111214;
+    --chart-ink: #eceef0;
+    --chart-rest: #4a4f56;
+    --chart-forecast: #7d838a;
+    --shadow-tile: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-lift: 0 0 0 1px #2a2d31;
+    --shadow-goal: 0 0 0 1px #2a2d31;
+    --shadow-swipe: -12px 0 28px rgb(0 0 0 / 0.5);
+    --shadow-paper: 0 0 0 1px #2a2d31;
   }
 }
 
@@ -100,6 +311,58 @@
   --fail: #f97066;
   --edge: #3a3e43;
   --shadow: rgb(0 0 0 / 0.5);
+
+  --line-soft: #222427;
+  --wash: #232528;
+  --inner: #1d1f21;
+  --desk: #1d1f1e;
+  --btn-line: #3a3e43;
+  --dash: #5f646b;
+  --receipt-line: #2c3a5c;
+  --link-hover: #b5ccff;
+  --selected: #eceef0;
+  --on-selected: #111214;
+  --count-on-selected: #c9cbcd;
+  --accent-soft: #1b312a;
+  --accent-text: #2fb67c;
+  --accent-line: #1f4f3c;
+  --wait-soft: #362c1f;
+  --wait-strong: #e5a54b;
+  --fail-soft: #3a1f1f;
+  --fail-line: #6e2a26;
+  --goal-bg: #1f2124;
+  --goal-track: #363a3f;
+  --goal-fg: #ffffff;
+  --goal-fg2: #d6d9dc;
+  --goal-mute: #a3a9af;
+  --goal-chip: #313336;
+  --goal-line: #35373a;
+  --goal-link: #8fb4ff;
+  --goal-link-hover: #b5ccff;
+  --sales: #8aa8f5;
+  --sales-tint: #1b2337;
+  --sales-line: #2a3756;
+  --mkt: #b99af7;
+  --mkt-tint: #251c37;
+  --mkt-line: #3a2d57;
+  --prod: #5fcdbf;
+  --prod-tint: #14282a;
+  --prod-line: #214043;
+  --money: #5fcf94;
+  --money-tint: #152a20;
+  --money-line: #224232;
+  --ops: #848e9d;
+  --ops-tint: #1f2329;
+  --ops-line: #30363f;
+  --dept-on: #111214;
+  --chart-ink: #eceef0;
+  --chart-rest: #4a4f56;
+  --chart-forecast: #7d838a;
+  --shadow-tile: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-lift: 0 0 0 1px #2a2d31;
+  --shadow-goal: 0 0 0 1px #2a2d31;
+  --shadow-swipe: -12px 0 28px rgb(0 0 0 / 0.5);
+  --shadow-paper: 0 0 0 1px #2a2d31;
 }
 
 :root[data-theme="light"] {

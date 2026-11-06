@@ -51,9 +51,9 @@ export function StepsCheck({ card }: { card: ConnectorCardLite }) {
   }
 
   return (
-    <span className={s.note} data-posting-steps="">
-      <span>{dateLine}</span>{' '}
-      <Button disabled={busy} onClick={() => void check()}>
+    <span className={s.toolRow} data-posting-steps="">
+      <span className={s.quiet}>{dateLine}</span>{' '}
+      <Button size="sm" disabled={busy} onClick={() => void check()}>
         <span aria-hidden="true">{busy ? t('connections.steps.checking') : t('connections.steps.check')}</span>
         <span className="sr-only">{t('connections.steps.checkName', { name: card.name })}</span>
       </Button>

@@ -1,3 +1,7 @@
+/* Change: a value changing. `inline` sits in a line of text (v1); `pill` is D's before-and-after `.chg` on an approval
+   card (`.chg .old`, `.arr`, `.now`); `mini` is D's `.mchg` on a compact card. D's 18 and 26 px values snap to the
+   sheet title (18) and the hero figure (24); the arrow circle is neutral until departments arrive (W4 4A). */
+
 .change {
   display: inline-flex;
   flex-wrap: wrap;
@@ -14,8 +18,82 @@
 .old {
   color: var(--dim);
   text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
 }
 
 .now {
   color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.arrow {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  color: var(--dim);
+}
+
+.proof {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The pill: a white capsule with the old value struck, an arrow in a circle and the new value large. */
+.pill {
+  align-items: center;
+  row-gap: var(--sp-2);
+}
+
+.pill .label {
+  flex-basis: 100%;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+}
+
+.pillBody {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 52px;
+  padding: 0 var(--sp-5);
+  border: var(--hair) solid var(--receipt-line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.pill .old {
+  font-size: var(--text-sheet);
+  text-decoration-thickness: 1.5px;
+}
+
+.pill .arrow {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-chip);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.pill .now {
+  font-size: var(--fig-hero);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.03em;
+}
+
+/* The small one, on one line: old, arrow, new, and the receipt pushed to the end of the line. */
+.mini {
+  align-items: center;
+  column-gap: var(--sp-2);
+  width: 100%;
+}
+
+.mini .proof {
+  margin-left: auto;
+}
+
+/* The small one's label sits on its own line above the values, at the label size. */
+.mini .label {
+  flex-basis: 100%;
+  font-size: var(--text-label);
 }

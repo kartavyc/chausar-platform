@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Tile, TileHead } from '../../parts/Tile';
 import { saveTextFile } from '../../parts/custody';
 import type { DeliveryLite, SocialCalendarFile } from '../../engine/types';
 import s from './Work.module.css';
@@ -58,8 +59,8 @@ function DraftCalendar({ draft }: { draft: DeliveryLite }) {
 
   const failure = !shown && file.error ? t('work.calendar.failed', { message: file.error.message }) : null;
   return (
-    <section aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('work.calendar.heading')}</h2>
+    <Tile as="section" labelledBy={headingId}>
+      <TileHead id={headingId} title={t('work.calendar.heading')} />
       {shown && (
         <>
           <p className={s.note}>
@@ -94,6 +95,6 @@ function DraftCalendar({ draft }: { draft: DeliveryLite }) {
         </>
       )}
       {(problem ?? failure) && <p className={s.problem} role="alert">{problem ?? failure}</p>}
-    </section>
+    </Tile>
   );
 }

@@ -32,4 +32,6 @@ export default defineConfig({
     target: 'es2022',
   },
   server: { port: 5178 },
+  // Prebundle the icon set up front, so a fresh dev server does not reload the page on its first visit.
+  optimizeDeps: { include: ['lucide-react'] },
 });

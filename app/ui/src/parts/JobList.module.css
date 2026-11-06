@@ -1,107 +1,127 @@
+/* JobList: D's `.tile.lt` and `.tile.fin` (a tile with a head and a list of `.lrow`s) and `.lr-p` (a 170 px
+   progress cell: D's `.pbar` and its words). Every bar is still: no animation, no transition, nothing loops. */
+
 .lists {
   display: grid;
-  gap: var(--sp-9);
+  gap: var(--gap-grid);
+}
+
+.tile {
+  min-width: 0;
+  padding: var(--pad-tile);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
 }
 
 .heading {
-  margin: 0 0 6px;
-  font-size: var(--text-read);
-  font-weight: var(--weight-medium);
-  color: var(--mute);
+  margin: 0;
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+  line-height: 1.375;
+  letter-spacing: -0.005em;
+  color: var(--fg);
 }
 
 .list {
-  margin: 0;
+  margin: var(--sp-2) 0 0;
   padding: 0;
   list-style: none;
 }
 
-.job {
+.progress {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
-  align-items: baseline;
-  padding: 10px 0;
-  font-size: var(--text-read);
+  align-items: center;
+  gap: var(--sp-2);
+  width: 170px;
+  max-width: 100%;
+  font-size: var(--text-label);
+  line-height: 1.35;
   color: var(--fg2);
 }
 
-.job:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 4px;
+/* The words beside the bar wrap to a second line rather than being cut off (Hindi runs longer). */
+.progress > :last-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.agent {
-  flex: none;
-  width: 110px;
-}
-
-.purpose {
-  flex: 1;
-  min-width: 12em;
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
-  font-size: var(--text-read);
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.purpose:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.stage {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  color: var(--mute);
-}
-
+/* D's `.pbar`: a 6 px rounded track, the done part in the state's colour. */
 .bar {
-  width: 72px;
-  height: 4px;
+  flex: 1 1 0;
+  min-width: 40px;
+  height: 6px;
   appearance: none;
   border: 0;
-  border-radius: 2px;
+  border-radius: var(--r-chip);
   background: var(--line);
   overflow: hidden;
 }
 
 .bar::-webkit-progress-bar {
+  border-radius: var(--r-chip);
   background: var(--line);
 }
 
-.bar::-webkit-progress-value {
-  background: var(--fg);
+.bar[data-tone='working']::-webkit-progress-value {
+  border-radius: var(--r-chip);
+  background: var(--accent);
 }
 
-.bar::-moz-progress-bar {
-  background: var(--fg);
+.bar[data-tone='wait']::-webkit-progress-value {
+  border-radius: var(--r-chip);
+  background: var(--wait-ring);
+}
+
+.bar[data-tone='working']::-moz-progress-bar {
+  border-radius: var(--r-chip);
+  background: var(--accent);
+}
+
+.bar[data-tone='wait']::-moz-progress-bar {
+  border-radius: var(--r-chip);
+  background: var(--wait-ring);
+}
+
+/* No step count yet: one still segment in the middle of the track, a shape and not a spinner. */
+.track {
+  position: relative;
+  display: block;
+  flex: 1 1 0;
+  min-width: 40px;
+  height: 6px;
+  border-radius: var(--r-chip);
+  background: var(--line);
+  overflow: hidden;
+}
+
+.still {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 30%;
+  width: 40%;
+  border-radius: var(--r-chip);
+  background: var(--accent);
+}
+
+.still[data-tone='wait'] {
+  background: var(--wait-ring);
 }
 
 .wait {
+  font-weight: var(--weight-medium);
   color: var(--wait);
-}
-
-.elapsed {
-  flex: none;
-  color: var(--mute);
-}
-
-.result {
-  color: var(--fg2);
-}
-
-.failed {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
 }
 
 .failure {
   color: var(--fail);
+}
+
+@media (max-width: 759px) {
+  .tile {
+    padding: var(--pad-tile-compact);
+  }
 }

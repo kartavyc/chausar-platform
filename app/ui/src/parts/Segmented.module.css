@@ -1,0 +1,77 @@
+/* Segmented: D's `.seg` (buttons, `.on`) and its count `.sc`. The same look serves the department toggle (buttons)
+   and sub-pages held in the address (links). The department dot is Chip's DeptDot. The count is --mute, not D's
+   lighter grey: on the hover wash that grey reads below 4.5:1. The pill's own padding keeps room for the focus ring
+   when it scrolls. */
+
+.seg {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--sp-1) / 2);
+  max-width: 100%;
+  overflow-x: auto;
+  padding: var(--sp-1);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+  scrollbar-width: none;
+}
+
+.list {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp-1) / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 34px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-button-sm);
+  background: none;
+  color: var(--fg2);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--t-press) var(--ease), color var(--t-press) var(--ease);
+}
+
+.item:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.item[aria-pressed='true'],
+.item[aria-current='page'] {
+  background: var(--selected);
+  color: var(--on-selected);
+}
+
+.count {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.item[aria-pressed='true'] .count,
+.item[aria-current='page'] .count {
+  color: var(--on-selected);
+  opacity: 0.8;
+}
+
+/* A phone (3H1): each segment is a full 44 px touch target. */
+@media (max-width: 759px) {
+  .item {
+    min-height: var(--target);
+  }
+}

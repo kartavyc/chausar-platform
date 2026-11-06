@@ -1,92 +1,684 @@
-/* Team: rows of agents and the agent sheet. Hairlines and type only; colour marks waiting and failure. */
+/* Team in direction D (D-Team, D-TeamDept, and D-TeamChat's panel): the stats tiles, agent cards (`.acard`, `.a-*`),
+   the tinted department panels (`.dp`, `.dp-*`), one department (`.hero`, `.hs`, `.flow`, `.step`, `.recent`) and
+   the agent panel (`.cp-tabs`). D's 12.5 px words snap to 13, 11 to 12 and 13.5 to 14. Amber words on a department
+   tint use --wait-strong; plain --wait sits only on white and the inner grey. */
 
-.list {
-  margin: var(--sp-7) 0 0;
-  padding: 0;
-}
-
-.facts {
-  margin: var(--sp-2) 0 0;
+/* Team measures its own width, not the window's: with the agent panel open beside it the page is narrow, so the
+   tiles stack as D-TeamChat's left column does (stats two to a row, one department panel per row). */
+.page {
   display: grid;
-  gap: 2px;
-  font-size: var(--text-read);
+  gap: var(--gap-grid);
+  container: team / inline-size;
 }
 
-.fact {
+@container team (max-width: 759px) {
+  .page .depts > [data-span],
+  .page .split > [data-span] {
+    grid-column: 1 / -1;
+  }
+
+  .page .stats > [data-span] {
+    grid-column: span 6;
+  }
+
+  /* The two counts share a row; the spend, a figure that may be long, takes a row of its own. */
+  .page .stats > .spendTile {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A phone-wide page: every stat tile, and every stat box of one department, on its own row, so a long figure is
+   never cut or spilled (3B1b's rule). */
+@container team (max-width: 439px) {
+  .page .stats > [data-span] {
+    grid-column: 1 / -1;
+  }
+
+  .one .heroStat {
+    flex: 1 1 100%;
+  }
+}
+
+.toolbar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--sp-3);
-  align-items: baseline;
-}
-
-.fact dt {
-  flex: none;
-  width: 40px;
-  font-size: var(--text-label);
-  color: var(--mute);
-}
-
-.fact dd {
-  margin: 0;
   min-width: 0;
-  color: var(--fg2);
-  overflow-wrap: anywhere;
-}
-
-.now,
-.runOpen {
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.now:hover,
-.runOpen:hover {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-}
-
-.now.waiting,
-.waiting {
-  color: var(--wait);
-}
-
-.none,
-.quiet {
-  color: var(--mute);
-}
-
-.failed,
-.failure,
-.problem {
-  color: var(--fail);
 }
 
 .failed {
   margin-top: var(--sp-4);
   font-size: var(--text-read);
+  color: var(--fail);
 }
 
-.link {
+/* Stats: D's `.stack`, avatars overlapping with a ring of the tile's white between them. */
+
+.stack {
+  display: inline-flex;
+}
+
+.stack > * {
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* A light overlap (D's 8 px hid the second letter of the initials under the next avatar: "ED" read "EI"; w3 3I). */
+.stack > * + * {
+  margin-left: calc(var(--sp-1) * -1);
+}
+
+/* The spend tile: StatTile's look (`.stat`, `.s-lab`, `.s-val`), drawn here so the figure can go through Money's
+   ProvedFigure with its rupees. A figure never breaks inside itself; when the engine writes words beside the amount
+   ("₹60.10, includes estimates") it is set at the tile figure size and may wrap at its spaces. */
+.spendTile {
+  display: flex;
+  flex-direction: column;
+}
+
+.statLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 18px;
+  color: var(--mute);
   font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 18px;
 }
 
-/* The agent sheet. */
+.statValue {
+  margin-top: calc(var(--sp-1) * 1.5);
+  font-size: var(--fig-stat);
+  line-height: 36px;
+  letter-spacing: -0.03em;
+}
+
+.statValue.worded {
+  font-size: var(--fig-tile);
+  line-height: 26px;
+}
+
+.worded [data-ui-number] {
+  white-space: normal;
+}
+
+/* Agent cards: D's `.agents` and `.acard`. One column in a narrow panel, two or three in a wide one. */
+
+.agents {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: var(--gap-cards);
+  margin: var(--sp-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent {
+  display: flex;
+  min-width: 0;
+  border-radius: var(--r-card);
+}
+
+.agent:focus-visible,
+.run:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--av-40);
+}
+
+.id {
+  flex: 1;
+  min-width: 0;
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.name {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.nowOpen {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.name,
+.nowOpen,
+.runOpen,
+.workOpen {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.name:hover,
+.nowOpen:hover,
+.runOpen:hover,
+.workOpen:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.name {
+  display: block;
+  max-width: 100%;
+  color: var(--fg);
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+  line-height: 20px;
+}
+
+.role {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.now {
+  margin-top: var(--sp-3);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: 20px;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.nowOpen {
+  color: inherit;
+  font: inherit;
+}
+
+.nowOpen[data-waiting] {
+  color: var(--wait);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin-top: var(--sp-2);
+}
+
+.bar {
+  flex: 0 1 140px;
+}
+
+.elapsed {
+  flex: none;
+  color: var(--mute);
+  font-size: var(--text-label);
+}
+
+.last {
+  margin-top: var(--sp-2);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.lastLabel {
+  color: var(--mute);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+}
+
+.none {
+  color: var(--mute);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding-top: var(--sp-3);
+}
+
+.fold {
+  margin-top: var(--sp-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* Department panels: D's `.dp-head`, `.dp-ic`, `.dp-t`, `.dp-name`, `.dp-line`, `.dp-stats` and `.dp-s`. */
+
+.deptHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--target);
+}
+
+.deptIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--av-40);
+  height: var(--av-40);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+  color: var(--fg2);
+}
+
+.deptIcon[data-large] {
+  width: var(--av-52);
+  height: var(--av-52);
+  border-radius: var(--r-tile);
+}
+
+.deptIcon[data-dept='sales'] { color: var(--sales); }
+.deptIcon[data-dept='mkt'] { color: var(--mkt); }
+.deptIcon[data-dept='prod'] { color: var(--prod); }
+.deptIcon[data-dept='money'] { color: var(--money); }
+.deptIcon[data-dept='ops'] { color: var(--ops); }
+
+/* The name and counts keep room for one line each; the figures drop under them when the panel is narrow. */
+.deptTitle {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.deptName {
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+  line-height: 22px;
+}
+
+.counts {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.counts [data-tone='wait'] {
+  color: var(--wait-strong);
+  font-weight: var(--weight-medium);
+}
+
+.counts [data-tone='fail'] {
+  color: var(--fail);
+  font-weight: var(--weight-medium);
+}
+
+.deptStats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2) var(--sp-4);
+  margin-left: auto;
+}
+
+.deptStat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.deptCount {
+  font-size: var(--fig-dept);
+  font-weight: var(--weight-medium);
+  line-height: 22px;
+  letter-spacing: -0.02em;
+}
+
+.deptLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--fg2);
+  white-space: nowrap;
+}
+
+/* One department: D-TeamDept's hero row, agents, the flow with gates, recent work and the jobs chart. */
+
+.one {
+  display: grid;
+  gap: var(--gap-grid);
+}
+
+.one .hero {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4) var(--sp-5);
+  padding: var(--sp-6);
+}
+
+.heroText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.heroName {
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+  line-height: 26px;
+  letter-spacing: -0.01em;
+}
+
+.heroLine {
+  margin-top: var(--sp-1);
+  font-size: var(--text-body);
+  line-height: 20px;
+  color: var(--fg2);
+}
+
+.heroChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.heroStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+/* A stat box is as wide as its figure and never shrinks below it; the row wraps instead. */
+.heroStat {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 120px;
+  min-height: 76px;
+}
+
+.heroCount {
+  font-size: var(--fig-hero);
+  font-weight: var(--weight-medium);
+  line-height: 30px;
+  letter-spacing: -0.03em;
+}
+
+.heroLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.flowSub {
+  margin-top: var(--sp-2);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.flow {
+  display: grid;
+  gap: var(--sp-3);
+  margin: var(--sp-4) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flowStep {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  min-height: 68px;
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+/* The short line that joins one step to the next, under the step numbers. */
+.flowStep + .flowStep::before {
+  content: '';
+  position: absolute;
+  left: 25px;
+  top: -13px;
+  width: 2px;
+  height: 14px;
+  background: var(--btn-line);
+}
+
+.stepNo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--fg2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+}
+
+.stepIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--av-32);
+  height: var(--av-32);
+  border-radius: var(--r-button);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.stepIcon[data-dept='sales'] { background: var(--sales-tint); color: var(--sales); }
+.stepIcon[data-dept='mkt'] { background: var(--mkt-tint); color: var(--mkt); }
+.stepIcon[data-dept='prod'] { background: var(--prod-tint); color: var(--prod); }
+.stepIcon[data-dept='money'] { background: var(--money-tint); color: var(--money); }
+.stepIcon[data-dept='ops'] { background: var(--ops-tint); color: var(--ops); }
+
+.stepText {
+  display: grid;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.stepTitle {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 19px;
+  color: var(--fg);
+}
+
+.stepSub {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.flowFoot {
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.recent {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: var(--gap-cards);
+  margin: var(--sp-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recentItem {
+  display: flex;
+  min-width: 0;
+}
+
+.work {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.workKind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.workTitle {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 19px;
+}
+
+.workOpen {
+  color: var(--fg);
+  font: inherit;
+}
+
+.workLine,
+.result {
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.workBar {
+  margin-top: auto;
+}
+
+.failure,
+.problem {
+  font-size: var(--text-read);
+  color: var(--fail);
+  overflow-wrap: anywhere;
+}
+
+.quiet {
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+/* The agent panel: the state in its head line, D's `.cp-tabs` segmented tabs, and the two tabs' contents. */
+
+.panelState {
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.panelState[data-tone='working'] { color: var(--accent-text); }
+.panelState[data-tone='waiting'] { color: var(--wait); }
+.panelState[data-tone='failed'] { color: var(--fail); }
+
+.tabs {
+  display: flex;
+  gap: calc(var(--sp-1) / 2);
+  padding: var(--sp-1);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+}
+
+.tab {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-button-sm);
+  background: none;
+  color: var(--fg2);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: background-color var(--t-press) var(--ease), color var(--t-press) var(--ease);
+}
+
+.tab:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.tab[aria-selected='true'] {
+  background: var(--selected);
+  color: var(--on-selected);
+}
+
+.tab:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.tabPanel {
+  display: grid;
+  gap: var(--sp-6);
+}
 
 .section {
   display: grid;
-  gap: var(--sp-1);
+  gap: var(--sp-2);
 }
 
 .small {
-  margin-bottom: var(--sp-1);
   font-size: var(--text-label);
   font-weight: var(--weight-medium);
   color: var(--mute);
 }
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.link {
+  composes: hit from '../../parts/touch.module.css';
+}
+
+.link {
+  justify-self: start;
+  font-size: var(--text-read);
+}
+
+/* The posture: four radio cards, each with what it means. The word is the radio's label; the whole card picks it. */
 
 .posture {
   font-size: var(--text-row);
@@ -94,15 +686,15 @@
   color: var(--fg);
 }
 
-/* The posture: four words to choose from, no frame. The chosen one reads in ink, the rest in grey. */
 .postures {
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
-  min-width: 0;
 }
 
 .postures legend {
+  margin-bottom: var(--sp-2);
   padding: 0;
 }
 
@@ -111,44 +703,66 @@
 }
 
 .choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-4);
+  display: grid;
+  gap: var(--sp-2);
 }
 
 .choice {
-  display: inline-flex;
-  gap: var(--sp-2);
-  align-items: center;
-  min-height: var(--control);
-  font-size: var(--text-read);
-  color: var(--mute);
-  cursor: pointer;
+  position: relative;
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  transition: border-color var(--t-press) var(--ease), box-shadow var(--t-press) var(--ease);
 }
 
-.choice input {
-  margin: 0;
-  accent-color: var(--fg);
+.choice:hover {
+  border-color: var(--edge);
 }
 
-.choice input:focus-visible {
+.choice[data-chosen] {
+  border-color: var(--selected);
+  box-shadow: 0 0 0 1px var(--selected);
+}
+
+.choice:has(input:focus-visible) {
   outline: var(--focus) solid var(--link);
   outline-offset: 2px;
 }
 
-.choice:has(input:checked) {
+.choiceLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   color: var(--fg);
+  font-size: var(--text-body);
   font-weight: var(--weight-medium);
+  cursor: pointer;
 }
 
-.postures:disabled .choice {
+/* The label covers the card, so a click anywhere on it picks the posture. */
+.choiceLabel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-card);
+}
+
+.choiceLabel input {
+  margin: 0;
+  accent-color: var(--selected);
+}
+
+.postures:disabled .choiceLabel {
   cursor: default;
 }
 
-.means,
-.spend {
+.means {
+  margin-top: var(--sp-1);
+  padding-left: calc(var(--sp-4) + var(--sp-1));
   font-size: var(--text-read);
-  color: var(--fg2);
+  line-height: 18px;
+  color: var(--mute);
 }
 
 .steps,
@@ -161,10 +775,10 @@
 .step {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--sp-3);
   align-items: center;
-  min-height: var(--control);
-  border-top: var(--hair) solid var(--line);
+  gap: var(--sp-2) var(--sp-3);
+  min-height: var(--target);
+  border-top: var(--hair) solid var(--line-soft);
   font-size: var(--text-read);
   color: var(--fg2);
 }
@@ -174,42 +788,73 @@
   min-width: 0;
 }
 
-.problem {
+.step .problem,
+.flowStep .problem {
   flex-basis: 100%;
   padding-bottom: var(--sp-2);
-  font-size: var(--text-read);
 }
 
 .run {
-  display: grid;
-  gap: 2px;
-  padding: var(--sp-2) 0;
-  border-top: var(--hair) solid var(--line);
-  font-size: var(--text-read);
-  color: var(--fg2);
-}
-
-.run:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 4px;
-}
-
-.runTop {
   display: flex;
+  align-items: flex-start;
   gap: var(--sp-3);
-  align-items: baseline;
+  padding: var(--sp-3) 0;
+  border-top: var(--hair) solid var(--line-soft);
 }
 
-.runOpen {
+.runRing {
+  flex: none;
+  width: var(--av-40);
+}
+
+.runBody {
+  display: grid;
   flex: 1;
+  gap: var(--sp-1);
   min-width: 0;
 }
 
-.elapsed {
-  flex: none;
-  color: var(--mute);
+.runOpen {
+  color: var(--fg);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
 }
 
-.result {
-  color: var(--fg2);
+.runMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 759px) {
+  .deptStats {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .deptStat {
+    align-items: flex-start;
+  }
+
+  .one .hero {
+    padding: var(--pad-panel);
+  }
+
+  .heroStats {
+    width: 100%;
+  }
+
+  /* StatTile's phone size, for the spend tile drawn here. */
+  .statValue {
+    font-size: var(--fig-hero);
+    line-height: 30px;
+  }
+}
+
+/* A phone (3H1): the panel's tabs are full 44 px touch targets. */
+@media (max-width: 759px) {
+  .tab {
+    min-height: var(--target);
+  }
 }

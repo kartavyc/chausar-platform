@@ -72,7 +72,9 @@ describe('Work: the calendar file', () => {
   it("saves the CSV the engine built, under the engine's name, and lists the posts it left out in the engine's words", async () => {
     const saved = catchSaves();
     const { calls } = start('#/work?order=o-boat-14', { intercept: social(() => FILE) });
-    const region = await screen.findByRole('region', { name: 'Calendar file' });
+    // The first render of the whole order (Ink v2 Work) can pass findBy's 1 s default on a loaded machine, so this
+    // first wait allows 5 s; the later ones find a page already drawn.
+    const region = await screen.findByRole('region', { name: 'Calendar file' }, { timeout: 5000 });
     expect(within(region).getByText('2 posts in the file, each on its date from the plan.')).toBeTruthy();
     const left = await within(region).findByRole('list', { name: 'Left out of the file' });
     // The left-out post's channel and words come from the engine's answer, never from another list.

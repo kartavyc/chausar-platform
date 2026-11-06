@@ -55,9 +55,47 @@ The owner makes a link inside the app for one draft that is ready (every check p
 
 Only the hosted web tier serves the link, at `/share/<token>`, and only when `CHAUSAR_PUBLIC_URL` is set to the server's own origin (`CHAUSAR_HOSTED_ORIGIN`). The page is plain HTML with no script and no cookie, a strict content security policy, and a small same-origin form with Approve and Ask for changes. The answer goes through the social playbook's approvals: once per draft, on the exact text shown, before the link ends. To find the business that owns a token without the owner's session, the hosted directory keeps an index of token hash, account, business, link id and end time; revoking a link or deleting the business removes its entries. Unknown, revoked and ended links all get the same page that says nothing is there. The local server answers 404 for `/share/`, and on the desktop a new link comes back with no address and the reason.
 
+## Ink v2, wave 3: the look (26 October)
+
+Wave 3 gave every place the direction D look the founder chose on 23 October (B's bento and department panels with C's greeting, dark goal card, stories and preview cards, made cohesive; the Jade accent #2FB67C; the theme follows the computer): the tokens, the new parts, every place, the phone layout and Hindi for every new string. The plan is `docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md`; the boards, the board-by-board walk (`WALK.md`) and the founder's side-by-side page (`side-by-side.html`) are in `docs/superpowers/designs/ink-v2-direction-d/`.
+
+### The walk and the real-browser checks
+
+- `node scripts/ui-shots/walk.mjs` opens every place, its main states, its sheets and the forms and second asks inside them on the fake engine, at 1280 and 390 px, light and dark, and in Hindi at 390. It takes a full-height shot of each into `app/ui/.shots/` (not committed), runs axe-core on the whole page with colour contrast on, presses through the focus plan (J and K, the second ask, a sheet, the business menu), and checks what jsdom cannot: no sideways scroll, no text key on screen, no em dash, no console error, and Hindi counts in the body face. It exits 1 on anything not listed, with its reason, in `scripts/ui-shots/accepted.mjs`. `--base=http://localhost:<port>` uses a running `npm run dev:ui` (otherwise it starts its own on 5179); `--cdp=9481 --workers=4` gives each headless Chrome its own debugging port, with its profile inside the output folder; `--only=today,team` walks some cases; `--publish` copies the shots that match a board (1280 and 390, light) into the designs folder and rewrites `side-by-side.html` and `WALK.md` from `scripts/ui-shots/boards.mjs`.
+- It drives headless Chrome, not Electron as the plan first said: the same Chromium engine, on the debugging ports and profiles every wave 3 package already used.
+- The parts page, `app/ui/parts.html` with `app/ui/specimens/` (outside `src/`, on the dev server only, never built), draws the app on other fake starts (nothing waiting, the department views W4 4A1 sends) and the parts W4 feeds with sample props, so the boards with no place yet (one department, Network, Chats) and the charts have a picture. It says "sample props, not engine data" at the top.
+- Word budgets: `app/ui/tests/budgets.test.tsx` holds each place at rest to its baseline in `app/ui/tests/baselines/words.json` (measured on 26 October, rounded up to the next 10; they may only shrink), a page's sub line to 20 words and an approval card's own copy to 12. Direction D carries far more than Ink v1's 35 to 45 words (Today 660, Connections 740); the founder confirms the baselines in the wave 3 PR.
+- The last walk (256 checks, none failed, nothing accepted): no axe violation and no colour-contrast violation in either theme, every focus check passing, and twelve faults it found fixed with a test each, among them receipt sheets marked as the proof, Hindi step counts in the body face, the phone's covering sheet as a modal dialog, the business menu as a labelled dialog, the invoices table stacking when its column is narrow, and cards keeping to 12 words of their own. `WALK.md` has the list and the numbers.
+
+### Known limits of wave 3
+
+- **Listed, not fixed** (each in `WALK.md` with its reason): the sign-off paper preview shows only the two title lines the engine's view sends; a connector with one writing and one planned mode shows both labels on one card; some engine and fixture words still say "stopped" beside a Failed chip (W4 4F words).
+- **Engine words stay English in Hindi.** Today's summary, row lines, action labels and the spend line are written by the engine; the fake engine writes English, so a Hindi page mixes them. Every Hindi string in the UI is machine-drafted and listed for a native reviewer in `app/ui/src/text/hi-review.json`.
+- **Amounts in sentences.** `[data-engine-line]` lets an engine sentence carry an amount without its own receipt (Today's row lines, some Money lines) until W4 4J1 gives those amounts receipted row meta and removes the marker. Receipt sheets carry `[data-receipt-sheet]` for good: the sheet is the proof.
+- **Choices the founder may change** (plan, "Choices made here"): type never below 12 px, nothing loops (no slow pulse, no cycling examples), measured word baselines, only real data on screen, the dark goal card lifted to #1f2124 with a border.
+- **Phone install.** The local server and Electron do not serve the web manifest yet (a harmless 404); the hosted app serves `/app/manifest.webmanifest`. The desktop tray icon is still the old "C" mark, since wave 3 does not touch `app/desktop/`.
+
+### What waits for wave 4
+
+Where a board shows data the engine does not send yet, the place draws what is real and leaves the rest out; nothing is faked. The parts for that data are built and tested, so W4 wires data rather than drawing screens.
+
+| Place | Waits for | W4 package |
+|---|---|---|
+| Rail and header | Chats in the rail, the Ask Chausar box and Ctrl K, the bell with its count; there is no account button | 4C, 4G |
+| Today | goal progress, pace, days left, ready to issue and the next best step (the goal card shows what was invoiced until then); departments on agents (tints, badges, chips); the Chausar story and Add agent; card previews (frames, durations, chapters, invoice lines, post text, title choices, check counts); row meta (client, expiry, "Sends to the client"); Stop on running rows; the owner's first name in the greeting | 4I; 4A; 4C; 4J queue previews; 4J approvals; 4F; 4J owner profile |
+| Team | departments and their summaries, the toggle and `?dept=`, the one-department view, the six-week chart, Done this week, Add an agent, Keeper, held spend; the Chat button and tab, the instructions version, standing orders, "set by" lines | 4A; 4B |
+| Work | Stop, Force stop, Resume, the breaker's words, "Run again keeps step 1", How to fix it; order stage steps and the price on an order; frames on run tiles; runs across a locked business | 4F; 4J order steps; 4J queue previews; 4J |
+| Clients | the Network tab with search, imports and warm paths; the pipeline stages Found to Not now, strength, follow-ups, drafts and handoffs, the stat tiles; cards that move | 4D; 4E |
+| Money | the goal on Invoiced; aging in five buckets, in and out by month, 13-week cash, costs ahead, lateness, comparisons, money across businesses, the month picker, Export for your CA; spend by department and held spend; reminder drafts | 4I; 4J money views; 4A; 4E |
+| Connections | the CLI found on this computer and its status; least-privilege setup guides and "Sends: nothing"; network sources | 4H; 4J connectors; 4D |
+| Business | Goals; Notifications; the setup checklist's item names; the accountant invite | 4I; 4G; 4J |
+| Start | the ways to earn (tiles per playbook in W5); "Good fit for you"; Ask Chausar; the business picker and file drop | 4J; 4C; 4J |
+| Phone | the Chats tab (Clients moves into More); the bell; the business name in the hosted manifest | 4C; 4G; 4J |
+| Parts built, waiting for data | GoalCard with a goal, NextStep, Gallery, PathLine, StrengthDots, the Board in W4's stages, NotificationBell, Composer, ChatThread, DiffCard, AgingBar, BarChart, CashLine, SplitBar; PreviewFrame's text view takes a `proof` the file and plan views do not send yet | 4I, 4J, 4D, 4E, 4G, 4C, 4B |
+
 ## Known limits
 
-- **The walk.** Ink was checked with its own tests (vitest and jsdom) and the engine tests. The full walk in light and dark at 1280 and 390 px and the axe checks on every place are still to do.
+- **The walk.** Done in wave 3: see "Ink v2, wave 3" above and `docs/superpowers/designs/ink-v2-direction-d/WALK.md`. Run `node scripts/ui-shots/walk.mjs` again after any change to a place.
 - **Other businesses are locked rows.** Each business is its own encrypted vault and the engine keeps one open, so Today shows other businesses as locked rows until a read-only vault open exists.
 - **Auto with spot checks is not open.** The spot-check decision is now recorded when a run's write finishes at that posture, but the launch ladder keeps the stage planned, `venture.launch.advance` refuses it, the delivery runs allow only shadow and approve each, and every model turn on a real order still waits for the owner to approve its exact text. Opening it needs the ladder step, a stage the runs accept, and a decision on unattended turns for client data.
 - **The hosted tick.** The hosted server sweeps the journal when a business opens, but does not run the engine's five-minute tick.

@@ -1,33 +1,49 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
-import { Button } from '../../parts/Button';
+import { Avatar, type AvatarState } from '../../parts/Avatar';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import { Receipt } from '../../parts/Receipt';
-import type { DeliveryLite, QueueRow, RunSummary } from '../../engine/types';
+import { Row } from '../../parts/Row';
+import { Tile, TileHead } from '../../parts/Tile';
+import type { DeliveryLite, QueueRow, RunDetail, RunState, RunSummary } from '../../engine/types';
 import { newestRun, previousFailure } from './orders';
+import { againRow, useRunAgain } from './RunAgain';
 import s from './Work.module.css';
 
 const SEP = ' · ';
 export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-/** The engine's own error for each failed run. A run that stopped stays stopped, so each is read once. */
-function useRunErrors(runIds: readonly string[]): Record<string, string> {
+/** The ring each run's state draws around its agent: working, waiting on you, stopped; a finished run has none. */
+export const RINGS: Readonly<Record<RunState, AvatarState>> = { active: 'working', waiting: 'waiting', failed: 'failed', done: 'idle' };
+
+/**
+ * Each run's own detail from the engine (venture.runs.get): its steps, its question, its error. Read again whenever
+ * the run's summary moves (state, progress or time), so the current step stays the engine's; a run that stopped stays
+ * stopped, so it is read once. A run the engine cannot show keeps only its summary.
+ */
+export function useRunDetails(runs: readonly RunSummary[]): Readonly<Record<string, RunDetail>> {
   const client = useEngine();
-  const key = runIds.join('\n');
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const key = JSON.stringify(runs.map((run) => [run.runId, run.state, run.progress ?? null, run.elapsed]));
+  const [details, setDetails] = useState<Record<string, RunDetail>>({});
   useEffect(() => {
     let live = true;
-    for (const runId of key ? key.split('\n') : []) {
+    for (const [runId] of JSON.parse(key) as [string][]) {
       client.request('venture.runs.get', { runId }).then(
-        (run) => { if (live && run.error) setErrors((e) => (e[runId] === run.error ? e : { ...e, [runId]: run.error! })); },
-        () => { /* the summary line stays */ },
+        (run) => { if (live) setDetails((known) => ({ ...known, [runId]: run })); },
+        () => { /* the summary still says what it can */ },
       );
     }
     return () => { live = false; };
   }, [client, key]);
-  return errors;
+  return details;
+}
+
+/** A delivery run that a newer run of the same order replaced: it was already run again. */
+export function superseded(runId: string, deliveries: readonly DeliveryLite[] | undefined): boolean {
+  const delivery = deliveries?.find((d) => d.id === runId);
+  return !!delivery && newestRun(delivery.orderId, deliveries ?? [])?.id !== runId;
 }
 
 export interface PreviousRunsProps {
@@ -39,76 +55,86 @@ export interface PreviousRunsProps {
   onChanged: () => void;
 }
 
-/**
- * Runs, one line each (Previous, and an order's runs when it is focused). Done: "Worked for 4m · result · receipt"
- * (a model number says so and has no receipt). Failed: the engine's error in plain words, then Run again when the
- * engine offers it, or a line saying it can't be run again from here. Still going: started, or waiting on you.
- */
-export function PreviousRuns({ runs, deliveries, queue, onChanged }: PreviousRunsProps) {
+interface RunRowProps {
+  run: RunSummary;
+  detail: RunDetail | undefined;
+  row: QueueRow | undefined;
+  /** Say plainly that a failed run cannot be run again from here. */
+  noRetry: boolean;
+  onChanged: () => void;
+}
+
+function RunRow({ run, detail, row, noRetry, onChanged }: RunRowProps) {
   const t = useT();
-  const client = useEngine();
-  const errors = useRunErrors(runs.filter((r) => r.state === 'failed').map((r) => r.runId));
-  const [busy, setBusy] = useState<string | null>(null);
-  const [problems, setProblems] = useState<Record<string, string>>({});
-
-  const againRow = (runId: string) => queue?.find((row) => row.viewRef?.kind === 'run' && row.viewRef.id === runId && row.actions.some((a) => a.id === 'run-again'));
-  const superseded = (runId: string) => {
-    const delivery = deliveries?.find((d) => d.id === runId);
-    return !!delivery && newestRun(delivery.orderId, deliveries ?? [])?.id !== runId;
-  };
-
-  async function runAgain(run: RunSummary, row: QueueRow) {
-    setBusy(run.runId);
-    setProblems(({ [run.runId]: _gone, ...rest }) => rest);
-    try {
-      const decision = await client.request('venture.queue.decide', { id: row.id, digest: row.digest, action: 'run-again' });
-      if (decision.outcome !== 'done') setProblems((p) => ({ ...p, [run.runId]: t('work.failed.again', { message: decision.line }) }));
-      onChanged();
-    } catch (error) {
-      setProblems((p) => ({ ...p, [run.runId]: t('work.failed.again', { message: messageOf(error) }) }));
-    } finally {
-      setBusy(null);
+  const again = useRunAgain(row, onChanged);
+  let line: ReactNode;
+  let aside: ReactNode;
+  if (run.state === 'failed') {
+    line = <>{run.agent}{SEP}<span className={s.failure}>{previousFailure(run, detail?.error) ?? t('work.failedRun.noReason')}</span></>;
+    if (!again.action && noRetry) aside = <span className={s.quiet}>{t('work.noRetry')}</span>;
+  } else if (run.state === 'waiting') {
+    line = <>{run.agent}{SEP}<span className={s.wait}>{t('run.waiting')}</span></>;
+  } else if (run.state === 'active') {
+    line = <>{run.agent}{SEP}{t('run.started', { elapsed: run.elapsed })}</>;
+  } else {
+    // How long it worked sits in the line, in words, so a narrow Finished tile keeps its titles wide.
+    const took = <span>{t('work.finished.took', { elapsed: run.elapsed })}</span>;
+    if (run.result === undefined) {
+      line = <>{run.agent}{SEP}{took}</>;
+    } else if (run.estimate) {
+      // A model-written result is the estimate itself, labelled where it stands, and never carries a receipt.
+      line = <>{run.agent}{SEP}{took}{SEP}<ModelEstimate value={run.result} /></>;
+    } else {
+      line = <>{run.agent}{SEP}{took}{SEP}{run.result}</>;
+      if (run.receiptId) aside = <Receipt id={run.receiptId} />;
     }
   }
-
   return (
-    <ul className={s.list}>
-      {runs.map((run) => {
-        const row = run.state === 'failed' ? againRow(run.runId) : undefined;
-        return (
-          <li key={run.runId} className={s.item} data-row="" data-row-id={`run-${run.runId}`} tabIndex={-1}>
-            <span className={s.who}>{run.agent}</span>
-            <button type="button" className={`${s.what} ${s.open}`} data-open="" onClick={(event) => openSheet('run', run.runId, event.currentTarget)}>
-              {run.purpose}
-            </button>
-            <div className={s.tail}>
-              {run.state === 'failed' ? (
-                <>
-                  <span className={s.failure}>{previousFailure(run, errors[run.runId]) ?? t('run.stopped')}</span>
-                  {row ? (
-                    <span className={s.act}>
-                      <Button data-key="primary" disabled={busy === run.runId} onClick={() => void runAgain(run, row)}>{t('run.again')}</Button>
-                    </span>
-                  ) : queue && !superseded(run.runId) ? (
-                    <span className={s.quiet}>{t('work.noRetry')}</span>
-                  ) : null}
-                </>
-              ) : run.state === 'waiting' ? (
-                <span className={`${s.outcome} ${s.wait}`}>{t('run.waiting')}</span>
-              ) : run.state === 'active' ? (
-                <span className={s.outcome}>{t('run.started', { elapsed: run.elapsed })}</span>
-              ) : (
-                <span className={s.outcome}>
-                  {t('run.workedFor', { elapsed: run.elapsed })}
-                  {run.result !== undefined && <>{SEP}{run.estimate ? <ModelEstimate value={run.result} /> : run.result}</>}
-                  {run.receiptId && !run.estimate && <>{SEP}<Receipt id={run.receiptId} /></>}
-                </span>
-              )}
-            </div>
-            {problems[run.runId] && <p className={s.problem} role="status">{problems[run.runId]}</p>}
-          </li>
-        );
-      })}
+    <Row
+      id={`run-${run.runId}`} dense mark={<Avatar name={run.agent} state={RINGS[run.state]} size={32} />}
+      title={run.purpose} line={line} aside={aside} actions={again.controls} secondAsk={Boolean(again.action?.secondAsk)}
+      onOpen={(origin) => { again.opened(); openSheet('run', run.runId, origin); }}
+    >
+      {again.ask}
+      {again.problem}
+    </Row>
+  );
+}
+
+/**
+ * Runs as D's list rows (an order's runs when it is focused, and Finished): the agent's initials ringed by the run's
+ * state, the purpose (which opens the run sheet), then what came of it. Done: how long it worked, then the result with
+ * its receipt, or the result as a "model estimate" with no receipt. Failed: the engine's error in fail words, then
+ * Run again as the engine's action asks, or a line saying it can't be run again from here. Still going: started, or
+ * waiting on you.
+ */
+export function PreviousRuns({ runs, deliveries, queue, onChanged }: PreviousRunsProps) {
+  const details = useRunDetails(runs.filter((r) => r.state === 'failed'));
+  return (
+    <ul className={s.rows}>
+      {runs.map((run) => (
+        <RunRow
+          key={run.runId} run={run} detail={details[run.runId]} row={run.state === 'failed' ? againRow(queue, run.runId) : undefined}
+          noRetry={!!queue && !superseded(run.runId, deliveries)} onChanged={onChanged}
+        />
+      ))}
     </ul>
+  );
+}
+
+/** How many finished runs the All view lists before "All finished runs" leads to the Done filter. */
+const FINISHED_AT_REST = 5;
+
+/** D's Finished tile: done runs as rows. In the All view the newest few, with a link to the rest. */
+export function Finished({ runs, moreHref, onChanged }: { runs: RunSummary[]; moreHref?: string | undefined; onChanged: () => void }) {
+  const t = useT();
+  const id = useId();
+  const shown = moreHref ? runs.slice(0, FINISHED_AT_REST) : runs;
+  const more = moreHref && runs.length > shown.length ? { href: moreHref, label: t('work.finished.more') } : undefined;
+  return (
+    <Tile as="section" labelledBy={id} className={s.finished}>
+      <TileHead id={id} title={t('work.finished')} more={more} />
+      <PreviousRuns runs={shown} deliveries={undefined} queue={undefined} onChanged={onChanged} />
+    </Tile>
   );
 }

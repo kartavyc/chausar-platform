@@ -1,6 +1,7 @@
 /**
  * What Today remembers for the rest of the session, in memory only (never browser storage): the rows decided here
- * (each shrunk to its receipt line), which drafts the owner has actually seen, and the locked rows already opened.
+ * (each shrunk to its receipt line), which drafts the owner has actually seen, the locked rows already opened, and on
+ * a phone the cards swiped to the end and whether the swipe tip was hidden.
  * A session is one engine client: a new pairing or a reload starts empty, which is when decided lines leave.
  */
 
@@ -24,6 +25,10 @@ export class TodaySession {
   private busy = new Set<string>();
   /** Each row's place in the engine's order when it first appeared, so decided lines stay where they were. */
   private places = new Map<string, number>();
+  /** Cards swiped left that have no Later: they go to the end of the list, in the order they were swiped. */
+  private deferred = new Map<string, number>();
+  private deferrals = 0;
+  private tip = true;
   private version = 0;
   private listeners = new Set<() => void>();
 
@@ -71,6 +76,20 @@ export class TodaySession {
     for (const key of [...this.viewed]) if (key.startsWith(`${id}@`)) this.viewed.delete(key);
     this.changed();
   }
+
+  /** A card swiped left with no Later to press: it moves to the end of the list for the session, with no engine call.
+   *  Swiped again, it goes to the end again. */
+  defer(id: string) {
+    this.deferred.delete(id);
+    this.deferred.set(id, (this.deferrals += 1));
+    this.changed();
+  }
+  /** Where a swiped card stands among the ones swiped to the end (1 first), or 0 when it was not swiped. */
+  deferredRank(id: string): number { return this.deferred.get(id) ?? 0; }
+
+  /** The swipe tip on a phone: shown until the owner hides it, then hidden for the rest of the session. */
+  showsTip() { return this.tip; }
+  hideTip() { this.tip = false; this.changed(); }
 
   /** A row that left because of something done here, not decided (a locked business opened). */
   hide(id: string) { this.hidden.add(id); this.changed(); }

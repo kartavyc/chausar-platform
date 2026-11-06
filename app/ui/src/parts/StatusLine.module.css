@@ -1,23 +1,35 @@
+/* StatusLine: one thin line at the top. A problem sits on the failed ground (D's stopped colours), a wait on the
+   waiting ground, each with an icon beside its words; the sample-data note stays a quiet grey line. */
+
 .line {
-  padding: 6px var(--sp-6);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control-sm);
+  padding: var(--sp-1) var(--sp-6);
   border-bottom: var(--hair) solid var(--line);
   background: var(--bg);
   font-size: var(--text-read);
+  line-height: 1.4;
   color: var(--fg);
 }
 
 .line[data-state='offline'],
 .line[data-state='session-ended'],
 .line[data-state='error'] {
+  border-bottom-color: var(--fail-line);
+  background: var(--fail-soft);
   color: var(--fail);
 }
 
 .line[data-state='unpaired'],
 .line[data-state='starting'] {
+  background: var(--wait-soft);
   color: var(--wait);
 }
 
 .line[data-state='fake'] {
+  background: var(--bg);
   color: var(--mute);
   font-size: var(--text-label);
 }

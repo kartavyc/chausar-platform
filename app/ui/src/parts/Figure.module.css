@@ -1,0 +1,47 @@
+/* Figure: an engine figure in DM Mono 500 with its receipt or "model estimate" chip beside it. The value never
+   truncates: in a narrow place (or a longer Hindi line) the proof wraps under it instead. */
+
+.figure {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.value {
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.figure[data-size='goal'] .value { font-size: var(--fig-goal); letter-spacing: -0.035em; }
+.figure[data-size='goal-phone'] .value { font-size: var(--fig-goal-phone); letter-spacing: -0.035em; }
+.figure[data-size='pct'] .value { font-size: var(--fig-pct); letter-spacing: -0.03em; }
+.figure[data-size='stat'] .value { font-size: var(--fig-stat); letter-spacing: -0.03em; }
+.figure[data-size='hero'] .value { font-size: var(--fig-hero); letter-spacing: -0.02em; }
+.figure[data-size='tile'] .value { font-size: var(--fig-tile); letter-spacing: -0.02em; }
+.figure[data-size='dept'] .value { font-size: var(--fig-dept); letter-spacing: -0.02em; }
+
+/* Words the engine wrote after the amount ("includes estimates"): the body face, at the reading size, beside the
+   figure (w3 3I). */
+.words {
+  margin-left: calc(var(--hair) * 3 - var(--sp-2));
+  font-family: var(--font);
+  font-size: var(--text-read);
+  font-weight: var(--weight-regular);
+  letter-spacing: normal;
+  color: var(--mute);
+}
+
+.figure[data-tone='dark'] .words {
+  color: var(--goal-fg2);
+}
+
+.figure[data-tone='dark'] .value {
+  color: var(--goal-fg);
+}
+
+.count {
+  white-space: nowrap;
+}

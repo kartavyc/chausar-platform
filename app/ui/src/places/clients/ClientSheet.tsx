@@ -9,13 +9,15 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { formatHash } from '../../shell/routes';
+import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
+import { Figure } from '../../parts/Figure';
 import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import { EngineError, type ClientAddParams, type ClientLite, type VentureRunEvent } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { Fields } from './Fields';
+import { Fields, MoreDetails } from './Fields';
 import { clientsChanged, useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
@@ -25,14 +27,20 @@ export function ClientSheet(props: SheetComponentProps) {
   return props.id === 'new' ? <NewClientSheet {...props} /> : <ExistingClientSheet {...props} />;
 }
 
-/** What a client owes, as the engine formatted it, with the receipt behind it. */
+/** Whether this business is registered for GST: only the plan's plain "yes" counts, so while the plan loads, or
+ *  when it cannot be read, the tax fields stay folded (simple first). */
+function useTaxRegistered(): boolean {
+  const plan = useResource('venture.blueprint.get', {});
+  return plan.data?.blueprint.backOffice.taxRegistered.value === true;
+}
+
+/** What a client owes, as the engine formatted it, through Figure with the receipt behind it. */
 export function Owed({ owed }: { owed: NonNullable<ClientLite['owed']> }) {
   const t = useT();
   return (
     <span className={s.owed}>
       <span className={s.owesWord}>{t('clients.owes')}</span>{' '}
-      <span className="mono">{owed.display}</span>{' '}
-      <Receipt id={owed.receiptId} />
+      <Figure value={owed.display} receiptId={owed.receiptId} />
     </span>
   );
 }
@@ -48,6 +56,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const orders = useResource('venture.order.list', {}, { refreshOn });
   const drafts = useResource('venture.delivery.list', {}, { refreshOn });
   const files = useResource('venture.files.list', {}, { refreshOn });
+  const registered = useTaxRegistered();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [problems, setProblems] = useState<ReadonlyMap<string, string>>(new Map());
   useClientsChanged(engine, () => { clients.reload(); evidence.reload(); });
@@ -77,10 +86,17 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const theirFiles = (files.data ?? []).filter((f) => f.scope.kind === 'order' && orderIds.has(f.scope.orderId));
 
   return (
-    <Sheet label={t('clients.sheet')} title={title} line={client?.owed ? <Owed owed={client.owed} /> : undefined} onClose={onClose} returnFocus={returnFocus}>
+    <Sheet
+      label={t('clients.sheet')}
+      title={title}
+      line={client?.owed ? <Owed owed={client.owed} /> : undefined}
+      avatar={client ? <Avatar name={client.name} size={40} /> : undefined}
+      onClose={onClose}
+      returnFocus={returnFocus}
+    >
       {client && (
         <>
-          <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} />
+          <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} foldTax={!registered} />
 
           <section aria-labelledby={ordersId}>
             <h3 id={ordersId} className={s.heading}>{t('clients.orders')}</h3>
@@ -134,13 +150,17 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
 type Draft = { name: string; email: string; taxId: string; note: string };
 type Problem = { field?: 'taxId'; message: string };
 
-/** Add client: venture.client.add with only what was typed. The engine checks every field and says what is wrong. */
+/** Add client: venture.client.add with only what was typed. The engine checks every field and says what is wrong.
+ *  A business not registered for GST finds the tax number under "More details", opened for it when the engine
+ *  refuses the number there. */
 function NewClientSheet({ onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const engine = useEngine();
+  const registered = useTaxRegistered();
   const [draft, setDraft] = useState<Draft>({ name: '', email: '', taxId: '', note: '' });
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
+  const [more, setMore] = useState(false);
   const set = (key: keyof Draft) => (event: { target: { value: string } }) => setDraft((d) => ({ ...d, [key]: event.target.value }));
 
   async function submit(event: FormEvent) {
@@ -160,17 +180,23 @@ function NewClientSheet({ onClose, returnFocus }: SheetComponentProps) {
       const code = error instanceof EngineError ? error.code : 'REQUEST_FAILED';
       const message = error instanceof Error ? error.message : String(error);
       setProblem(code === 'INVALID_TAX_ID' ? { field: 'taxId', message } : { message });
+      if (code === 'INVALID_TAX_ID') setMore(true);
       setBusy(false);
     }
   }
+
+  const taxField = (
+    <Field label={t('clients.new.taxId')} value={draft.taxId} onChange={set('taxId')} autoComplete="off" maxLength={60} error={problem?.field === 'taxId' ? problem.message : undefined} />
+  );
 
   return (
     <Sheet label={t('clients.sheet')} title={t('clients.new.title')} line={t('clients.new.line')} onClose={onClose} returnFocus={returnFocus}>
       <form className={s.form} onSubmit={(event) => void submit(event)} noValidate>
         <Field label={t('clients.new.name')} value={draft.name} onChange={set('name')} autoComplete="off" required maxLength={120} />
         <Field label={t('clients.new.email')} type="email" value={draft.email} onChange={set('email')} autoComplete="off" maxLength={200} />
-        <Field label={t('clients.new.taxId')} value={draft.taxId} onChange={set('taxId')} autoComplete="off" maxLength={60} error={problem?.field === 'taxId' ? problem.message : undefined} />
+        {registered && taxField}
         <Field multiline label={t('clients.new.note')} value={draft.note} onChange={set('note')} maxLength={500} />
+        {!registered && <MoreDetails open={more} onOpenChange={setMore}>{taxField}</MoreDetails>}
         {problem && !problem.field && <p className={s.failed} role="alert">{t('clients.new.failed', { message: problem.message })}</p>}
         <div className={s.formActions}>
           <Button onClick={onClose}>{t('clients.new.cancel')}</Button>

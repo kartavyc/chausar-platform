@@ -1,0 +1,86 @@
+/* StoriesRow: D's `.stories`, `.story`, `.st-av` (the Avatar part at 60), `.st-add`, `.st-name` and `.st-st`, and the
+   phone's `.hscroll`. D's 18 px gap snaps to --sp-4; its 6 px top room for the ring to --sp-2. */
+
+.stories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  margin: 0;
+  padding: var(--sp-2) 0 0;
+  list-style: none;
+}
+
+/* The phone's row: one line that scrolls sideways and runs off the right edge of the page. The room above and below
+   keeps the rings inside the scroller, which clips what overflows it. */
+.stories[data-scroll] {
+  flex-wrap: nowrap;
+  gap: var(--sp-3);
+  margin-right: calc(var(--gutter-phone) * -1);
+  padding: var(--sp-2) var(--gutter-phone) var(--sp-2) 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.item {
+  flex: none;
+}
+
+.story {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 76px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-card);
+  background: none;
+  color: var(--fg);
+  text-align: center;
+  cursor: pointer;
+}
+
+.name {
+  max-width: 100%;
+  margin-top: var(--sp-3);
+  overflow: hidden;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  font-size: var(--text-label);
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--mute);
+}
+
+.status[data-tone='wait'] {
+  color: var(--wait);
+  font-weight: var(--weight-medium);
+}
+
+.status[data-tone='working'] {
+  color: var(--accent-text);
+  font-weight: var(--weight-medium);
+}
+
+.status[data-tone='fail'] {
+  color: var(--fail);
+  font-weight: var(--weight-medium);
+}
+
+/* "Add agent": a dashed square the size of a story avatar. */
+.add {
+  display: grid;
+  place-items: center;
+  width: var(--av-60);
+  height: var(--av-60);
+  border: 1.5px dashed var(--dash);
+  border-radius: calc(var(--av-60) * 0.3);
+  background: var(--surface);
+  color: var(--mute);
+}

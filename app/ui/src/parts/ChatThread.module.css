@@ -1,0 +1,215 @@
+/* ChatThread: D's `.cp-body`, `.day`, `.mine`, `.tm`, `.from`, `.fb`, `.bub`, `.fold`, `.fold-t` and `.tick`
+   (D-TeamChat). The owner's bubble is on the selected ground; the agent's is white with a line. Few messages sit at
+   the bottom, as in a chat; more scroll. */
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--sp-7) / 2);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--pad-tile);
+  background: var(--bg);
+}
+
+.thread > :first-child {
+  margin-top: auto;
+}
+
+.empty {
+  align-self: center;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.day {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp-5) / 2);
+  flex: none;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: 1.35;
+  color: var(--dim);
+}
+
+.day::before,
+.day::after {
+  content: '';
+  flex: 1;
+  height: var(--hair);
+  background: var(--line);
+}
+
+/* The owner's message. */
+.mine {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-1);
+  flex: none;
+}
+
+.mineText {
+  max-width: min(320px, 85%);
+  padding: calc(var(--sp-5) / 2) var(--pad-card);
+  border-radius: var(--r-tile) var(--r-tile) var(--radius) var(--r-tile);
+  background: var(--selected);
+  color: var(--on-selected);
+  font-size: var(--text-body);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.time {
+  font-size: var(--text-label);
+  line-height: 1.35;
+  color: var(--dim);
+}
+
+/* The agent's side: one avatar, then its messages, runs and cards. */
+.from {
+  --ring-ground: var(--bg);
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--sp-5) / 2);
+  flex: none;
+}
+
+.fromBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.theirs {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+
+.bubble {
+  max-width: min(340px, 100%);
+  padding: calc(var(--sp-5) / 2) var(--pad-card);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--radius) var(--r-tile) var(--r-tile) var(--r-tile);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: var(--text-body);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.card {
+  min-width: 0;
+}
+
+/* A run folded to one row. */
+.foldWrap {
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.fold {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp-5) / 2);
+  width: 100%;
+  min-height: var(--target);
+  padding: var(--sp-2) calc(var(--sp-5) / 2) var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--fg2);
+  text-align: left;
+}
+
+.foldWrap .fold {
+  border: 0;
+  border-radius: 0;
+}
+
+.foldButton {
+  cursor: pointer;
+  transition: background-color var(--t-press) var(--ease);
+}
+
+.foldButton:hover {
+  background: var(--wash);
+}
+
+.foldText {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.foldTitle {
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.duration {
+  flex: none;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.chevron {
+  color: var(--mute);
+}
+
+.foldButton[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.tick {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--sp-5);
+  height: var(--sp-5);
+  border-radius: var(--r-chip);
+}
+
+.tick[data-state='done'] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.tick[data-state='failed'] {
+  background: var(--fail-soft);
+  color: var(--fail);
+}
+
+/* Still shapes, never turning: an arc for a run that is working, an amber ring for one waiting on the owner. */
+.tick[data-state='active'] {
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+}
+
+.tick[data-state='waiting'] {
+  border: 2px solid var(--wait-ring);
+}
+
+.steps {
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+}

@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Tile, TileHead } from '../../parts/Tile';
 import { cx } from '../../parts/cx';
 import type { CheckLite, DeliveryLite, JudgePreview } from '../../engine/types';
 import s from './Work.module.css';
@@ -44,12 +45,12 @@ export function JudgeLine({ drafts, onChanged }: { drafts: DeliveryLite[]; onCha
   const shown = drafts.filter(judgeShows);
   if (shown.length === 0) return null;
   return (
-    <section aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('work.judge.heading')}</h2>
+    <Tile as="section" labelledBy={headingId}>
+      <TileHead id={headingId} title={t('work.judge.heading')} />
       <ul className={s.list}>
         {shown.map((draft) => <DraftJudge key={draft.id} draft={draft} onChanged={onChanged} />)}
       </ul>
-    </section>
+    </Tile>
   );
 }
 

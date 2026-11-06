@@ -1,39 +1,72 @@
+/* Field: D's input box (`.d-box`, `.sort select`): the button-line border, the button radius, white ground, the ink
+   border on focus. The label is D's `.f-k` (13 px medium); the hint is D's `.hint`. */
+
 .field {
   display: grid;
-  gap: var(--sp-1);
+  gap: calc(var(--sp-1) * 1.5);
 }
 
 .label {
-  font-size: var(--text-label);
-  color: var(--mute);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+  color: var(--fg2);
 }
 
 .input {
   width: 100%;
   min-height: var(--control);
   padding: var(--sp-2) var(--sp-3);
-  border: var(--hair) solid var(--edge);
-  border-radius: var(--radius);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
   background: var(--surface);
   color: var(--fg);
   font-size: var(--text-body);
+  line-height: 1.4;
+  transition: border-color var(--t-press) var(--ease);
+}
+
+.input:hover {
+  border-color: var(--edge);
 }
 
 .input:focus-visible {
+  border-color: var(--fg);
   outline: var(--focus) solid var(--link);
-  outline-offset: 0;
+  outline-offset: 1px;
 }
 
 .input[aria-invalid='true'] {
   border-color: var(--fail);
 }
 
+.input:disabled {
+  background: var(--inner);
+  color: var(--mute);
+}
+
 .hint {
-  font-size: var(--text-label);
+  font-size: var(--text-read);
+  line-height: 1.4;
   color: var(--mute);
 }
 
 .error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
   font-size: var(--text-read);
+  line-height: 1.4;
   color: var(--fail);
+}
+
+.error > svg {
+  margin-top: calc(var(--sp-1) / 2);
+}
+
+/* A phone (3H1): a field is a full 44 px touch target. */
+@media (max-width: 759px) {
+  .input {
+    min-height: var(--target);
+  }
 }

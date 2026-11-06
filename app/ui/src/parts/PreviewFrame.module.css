@@ -1,0 +1,463 @@
+/* PreviewFrame: D's `.pv` and its kinds. The video frame `.pv-video`, `.v-tag`, `.v-title`, `.v-play`, `.v-ch`, `.v-dur`;
+   the paper sheet `.pv-desk`, `.paper`, `.pp-*`; the before and after `.chg` (the Change part) with `.bx` and `.op`;
+   the choice `.ab`, `.opt*`, `.radio`; the post `.post*`. W3 draws no frame art, no scrub and no thumbnails (they need
+   W4 data), and D's 7.5 to 11.5 px paper and chip type rises to the 12 px floor. */
+
+.frame {
+  position: relative;
+  flex: none;
+  min-height: 188px;
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+/* Pictures with parts pinned to their edges keep D's fixed height, so cards in a grid line up. A paper sheet grows
+   to show every line the engine sends (at the 12 px floor D's sheet no longer fits 188 px), and a choice is as tall
+   as its options. */
+.frame[data-preview='video'],
+.frame[data-preview='text'],
+.frame[data-preview='post'] {
+  height: 188px;
+}
+
+.frame[data-preview='choice'] {
+  min-height: 0;
+}
+
+/* ---- Video ---------------------------------------------------------------------------------------------------- */
+
+.frame[data-preview='video'] {
+  background: radial-gradient(120% 95% at 78% 25%, var(--pv-video-1) 0%, var(--pv-video-2) 48%, var(--pv-video-3) 100%);
+  color: var(--pv-play);
+}
+
+.tag {
+  position: absolute;
+  top: var(--sp-3);
+  left: var(--sp-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 24px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-chip);
+  background: var(--pv-scrim);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.videoTitle {
+  position: absolute;
+  top: var(--sp-12);
+  left: var(--sp-4);
+  max-width: calc(50% - var(--sp-12));
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+  line-height: 24px;
+  letter-spacing: -0.02em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0 0 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--pv-play);
+  color: var(--accent-ink);
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+
+.play:focus-visible {
+  outline-color: var(--pv-play);
+  outline-offset: 3px;
+}
+
+.chapters,
+.duration {
+  position: absolute;
+  bottom: var(--sp-4);
+  min-height: 22px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius);
+  font-size: var(--text-label);
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.chapters {
+  left: var(--sp-3);
+  background: var(--pv-scrim);
+}
+
+.duration {
+  right: var(--sp-3);
+  background: var(--pv-scrim-strong);
+}
+
+/* ---- Paper (documents and invoices on the desk) --------------------------------------------------------------- */
+
+.frame[data-preview='paper'],
+.frame[data-preview='text'] {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--desk);
+}
+
+.paper {
+  display: flex;
+  flex-direction: column;
+  max-width: 300px;
+  padding: var(--sp-3) var(--pad-card);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-paper);
+  color: var(--fg);
+  overflow: hidden;
+}
+
+/* A paper laid on the desk, slightly askew. It is still: nothing moves. */
+.paper[data-tilt] {
+  transform: rotate(-1.2deg);
+}
+
+/* A view's text keeps the frame's height and fades out at the foot rather than cutting a line in half; Read opens
+   all of it. The mask only takes the colour's opacity. */
+.paper[data-sheet] {
+  height: 100%;
+  mask-image: linear-gradient(to bottom, var(--fg) calc(100% - var(--sp-8)), transparent);
+}
+
+/* The view's proof, when the caller has one, sits on the desk below the fade, so it is never faded out. */
+.textGroup {
+  position: relative;
+  height: 100%;
+}
+
+.proof {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+
+.paperHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 20px;
+}
+
+.paperLogo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius);
+  background: var(--selected);
+  color: var(--on-selected);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.02em;
+}
+
+.paperBusiness {
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+}
+
+.paperRef {
+  margin-left: auto;
+  font-size: var(--text-label);
+}
+
+.paperTitle {
+  margin-top: var(--sp-2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  line-height: 18px;
+}
+
+.paper[data-sheet] > .paperTitle:first-child,
+[role='img'] > .paperTitle:first-child {
+  margin-top: 0;
+}
+
+.paperSub {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.paperLines {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.paperLine {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--text-label);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.paperLine > .mono {
+  flex: none;
+  color: var(--fg);
+}
+
+.paperTotal {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-2);
+  margin-top: var(--sp-1);
+  padding-top: var(--sp-1);
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+}
+
+/* A view's text, as the engine wrote it, on the same sheet. */
+.section {
+  margin-top: var(--sp-2);
+}
+
+.sectionHeading {
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.sectionLine {
+  font-size: var(--text-label);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+/* ---- Change ------------------------------------------------------------------------------------------------- */
+
+.frame[data-preview='change'] {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--sp-4) var(--pad-panel);
+  background: var(--inner);
+}
+
+.changeGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.pill {
+  display: inline-flex;
+  max-width: 100%;
+}
+
+.breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 50px;
+  padding: var(--sp-1) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  font-size: var(--text-body);
+  line-height: 20px;
+}
+
+.boxLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.op {
+  font-size: var(--text-row);
+  color: var(--mute);
+}
+
+/* ---- Choice ------------------------------------------------------------------------------------------------- */
+
+.frame[data-preview='choice'] {
+  padding: var(--sp-3);
+  background: var(--inner);
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--sp-3);
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.option:hover,
+.option[data-checked] {
+  border-color: var(--edge);
+}
+
+.option:has(:focus-visible) {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.optionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 18px;
+}
+
+.radio {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--edge);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+}
+
+.option[data-checked] .radio {
+  border: 5px solid var(--selected);
+}
+
+.optionKey {
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--mute);
+}
+
+.optionLine {
+  display: -webkit-box;
+  margin-top: var(--sp-1);
+  overflow: hidden;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 18px;
+  color: var(--fg);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+
+/* ---- Post --------------------------------------------------------------------------------------------------- */
+
+.frame[data-preview='post'] {
+  padding: var(--sp-3);
+  background: var(--desk);
+}
+
+.post {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-paper);
+  overflow: hidden;
+}
+
+.postHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.postAvatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--av-32);
+  height: var(--av-32);
+  border-radius: var(--r-chip);
+  background: var(--selected);
+  color: var(--on-selected);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+}
+
+.postWho {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.postName {
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  line-height: 16px;
+}
+
+.postWhere {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.postLine {
+  display: -webkit-box;
+  margin-top: var(--sp-2);
+  overflow: hidden;
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+}
+
+/* The phone's cards are a little shorter (D's `.phone .pv`). */
+@media (max-width: 759px) {
+  .frame { min-height: 180px; }
+  .frame[data-preview='choice'] { min-height: 0; }
+  .frame[data-preview='video'],
+  .frame[data-preview='text'],
+  .frame[data-preview='post'] { height: 180px; }
+  .videoTitle { left: var(--sp-3); top: var(--sp-10); }
+}

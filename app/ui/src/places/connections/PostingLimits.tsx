@@ -1,5 +1,5 @@
 /**
- * The owner's own, stricter posting limits for one channel (Ink v2 wave 2, K5), folded under its connector card:
+ * The owner's own, stricter posting limits for one channel (Ink v2 wave 2, K5), folded under its connector tile:
  * posts a day, minutes between posts, warm-up days, the near-duplicate percent and the link streak. The numbers in use
  * come from the engine (venture.posting.limits.get), each with Chausar's own as the hint. Save sends them as typed
  * (venture.posting.limits.set); the engine refuses any looser than Chausar's own, and that refusal is shown in its
@@ -10,6 +10,7 @@ import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { Inner } from '../../parts/Card';
 import { Field } from '../../parts/Field';
 import type { ConnectorCardLite, OwnerPostingLimits } from '../../engine/types';
 import s from './Connections.module.css';
@@ -62,33 +63,35 @@ export function PostingLimits({ card }: { card: ConnectorCardLite }) {
 
   return (
     <>
-      <Button className={own.toggle} variant="quiet" aria-expanded={open} aria-controls={formId} onClick={() => setOpen((value) => !value)}>
+      <Button className={own.toggle} size="sm" variant="quiet" aria-expanded={open} aria-controls={formId} onClick={() => setOpen((value) => !value)}>
         <span aria-hidden="true">{t('connections.posting.limits.toggle')}</span>
         <span className="sr-only">{t('connections.posting.limits.toggleName', { name: card.name })}</span>
       </Button>
       {open && (
-        <div id={formId} className={own.form} role="group" aria-label={t('connections.posting.limits.label', { name: card.name })}>
-          <p className={s.note}>{t('connections.posting.limits.line')}</p>
-          {limits.error && <p className={s.problem} role="alert">{t('connections.posting.limits.failed', { message: limits.error.message })}</p>}
-          {!typed && !limits.error && <p className={s.note}>{t('connections.posting.limits.loading')}</p>}
-          {typed && channel && (
-            <>
-              <div className={own.fields}>
-                {KEYS.map((key) => (
-                  <Field
-                    key={key} label={t(`connections.posting.limits.${key}`)} inputMode="numeric" value={typed[key]}
-                    hint={t('connections.posting.limits.house', { value: String(channel.house[key]) })}
-                    onChange={(event) => { const value = event.currentTarget.value; setTyped((now) => (now ? { ...now, [key]: value } : now)); }}
-                  />
-                ))}
-              </div>
-              <div className={own.actions}>
-                <Button disabled={busy} onClick={() => void save()}>{busy ? t('connections.posting.limits.saving') : t('connections.posting.limits.save')}</Button>
-                {said && <span className={said.problem ? s.problem : s.said} role={said.problem ? 'alert' : 'status'}>{said.text}</span>}
-              </div>
-            </>
-          )}
-        </div>
+        <Inner card={false}>
+          <div id={formId} className={own.form} role="group" aria-label={t('connections.posting.limits.label', { name: card.name })}>
+            <p className={s.note}>{t('connections.posting.limits.line')}</p>
+            {limits.error && <p className={s.problem} role="alert">{t('connections.posting.limits.failed', { message: limits.error.message })}</p>}
+            {!typed && !limits.error && <p className={s.note}>{t('connections.posting.limits.loading')}</p>}
+            {typed && channel && (
+              <>
+                <div className={own.fields}>
+                  {KEYS.map((key) => (
+                    <Field
+                      key={key} label={t(`connections.posting.limits.${key}`)} inputMode="numeric" value={typed[key]}
+                      hint={t('connections.posting.limits.house', { value: String(channel.house[key]) })}
+                      onChange={(event) => { const value = event.currentTarget.value; setTyped((now) => (now ? { ...now, [key]: value } : now)); }}
+                    />
+                  ))}
+                </div>
+                <div className={own.actions}>
+                  <Button size="sm" disabled={busy} onClick={() => void save()}>{busy ? t('connections.posting.limits.saving') : t('connections.posting.limits.save')}</Button>
+                  {said && <span className={said.problem ? s.problem : s.said} role={said.problem ? 'alert' : 'status'}>{said.text}</span>}
+                </div>
+              </>
+            )}
+          </div>
+        </Inner>
       )}
     </>
   );

@@ -1,10 +1,22 @@
-/* Clients: hairlines, no boxes. Only failure earns a hue; links are links. */
+/* Clients (D-Clients): the tabs and the add button on one toolbar (D's `.toolbar`, `.tb-r`), the clients as rows in a
+   tile, the pipeline as a board of lifted cards (D's `.pc-*`, `.drc`). Colour only for state: the email check's words
+   carry its state, the icon repeats it. */
 
-.head {
+.toolbar {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
+  min-height: var(--target);
+  margin-bottom: var(--sp-4);
+}
+
+.tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
 }
 
 .list {
@@ -13,46 +25,63 @@
   list-style: none;
 }
 
-/* Clients and Leads: two quiet words under the title, the current one underlined in ink. */
-.subnav {
+/* The Show chips above the board (D's `.frow`). */
+.filters {
+  margin-bottom: var(--sp-4);
+}
+
+/* A pipeline card's email check: the engine's words, with an icon that repeats the state. */
+.check {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-5);
-  margin: -12px 0 var(--sp-7);
-  font-size: var(--text-read);
+  align-items: flex-start;
+  gap: var(--sp-2);
+  color: var(--fg2);
 }
 
-.subnav a {
-  padding: 6px 0;
-  border-bottom: var(--hair) solid transparent;
+.check > svg {
+  flex: none;
+  margin-top: calc(var(--sp-1) / 2);
+}
+
+.check[data-check='verified'] > svg {
+  color: var(--accent-text);
+}
+
+.check[data-check='unverified'] > svg {
   color: var(--mute);
-  text-decoration: none;
 }
 
-.subnav a:hover {
-  color: var(--fg);
+.check[data-check='failed'] > svg {
+  color: var(--fail);
 }
 
-.subnav a[aria-current='page'] {
-  color: var(--fg);
-  border-bottom-color: var(--fg);
+/* The latest draft or send: D's `.drc` chip, `.drc.sent` with a line, and `.drc.none` as plain words. */
+.latest {
+  display: flex;
+  align-items: center;
 }
 
-.subnav a:focus-visible {
-  outline: var(--focus) solid var(--link);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-
-/* A lead's source page, as text: where they were found. */
-.source {
-  display: block;
-  margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.draftChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--sp-6);
+  padding: 0 var(--sp-2);
+  border: var(--hair) solid transparent;
+  border-radius: var(--r-chip);
+  background: var(--wash);
+  color: var(--fg2);
   font-size: var(--text-label);
-  color: var(--dim);
+  font-weight: var(--weight-medium);
+}
+
+.draftChip[data-sent] {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.noDraft {
+  color: var(--mute);
 }
 
 .lineText {
@@ -92,10 +121,58 @@
   display: grid;
 }
 
+/* "More details": the tax fields of a business not registered for GST, one step away. The chevron turns when open. */
+.more {
+  border-top: var(--hair) solid var(--line);
+}
+
+.form .more {
+  border-top: 0;
+}
+
+.moreSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--target);
+  list-style: none;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.moreSummary::-webkit-details-marker {
+  display: none;
+}
+
+.moreSummary > svg {
+  flex: none;
+  color: var(--mute);
+  transition: transform var(--t-press) var(--ease);
+}
+
+.more[open] > .moreSummary > svg {
+  transform: rotate(90deg);
+}
+
+.moreSummary:hover {
+  color: var(--fg);
+}
+
+.moreBody {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.fields .moreBody {
+  gap: 0;
+}
+
 .field {
   display: grid;
-  gap: 2px;
-  padding: 10px 0;
+  gap: calc(var(--sp-1) / 2);
+  padding: calc(var(--sp-5) / 2) 0;
   border-top: var(--hair) solid var(--line);
 }
 
@@ -136,7 +213,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: var(--sp-3);
-  row-gap: 2px;
+  row-gap: calc(var(--sp-1) / 2);
   align-items: baseline;
   margin-top: var(--sp-1);
   padding: var(--sp-1) 0 var(--sp-1) var(--sp-3);
@@ -192,7 +269,7 @@
 /* Orders, drafts and files */
 
 .heading {
-  margin: 0 0 6px;
+  margin: 0 0 calc(var(--sp-3) / 2);
   font-size: var(--text-read);
   font-weight: var(--weight-medium);
   color: var(--mute);
@@ -211,6 +288,11 @@
   padding: var(--sp-2) 0;
   border-top: var(--hair) solid var(--line);
   font-size: var(--text-read);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.link {
+  composes: hit from '../../parts/touch.module.css';
 }
 
 .itemText,
@@ -258,8 +340,8 @@
 
 .fact {
   display: grid;
-  gap: 2px;
-  padding: 10px 0;
+  gap: calc(var(--sp-1) / 2);
+  padding: calc(var(--sp-5) / 2) 0;
   border-top: var(--hair) solid var(--line);
   font-size: var(--text-read);
 }
@@ -360,15 +442,4 @@
   display: flex;
   gap: var(--sp-2);
   justify-content: flex-end;
-}
-
-@media (max-width: 759px) {
-  .head {
-    flex-direction: column;
-    gap: 0;
-  }
-
-  .head > button {
-    margin-bottom: var(--sp-6);
-  }
 }

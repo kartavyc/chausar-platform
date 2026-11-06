@@ -321,6 +321,8 @@ export const AGENTS: Record<string, AgentView[]> = {
 };
 
 export const RECEIPTS: ReceiptLite[] = [
+  { id: 'R-0430', at: '2026-10-21T10:30:00.000Z', explanation: 'The open balance of every issued invoice, added up.', stale: false, figures: [{ key: 'total', label: 'Clients owe you', display: 'Sum of open balances' }] },
+  { id: 'R-0431', at: '2026-10-21T10:31:00.000Z', explanation: 'AI and tool calls this month: settled calls at their cost, running calls at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI and tools this month', display: '₹60.10' }] },
   { id: 'R-0412', at: '2026-10-21T07:34:00.000Z', explanation: 'Bank lines matched to issued invoices by amount, date and reference.', stale: false, figures: [{ key: 'total', label: 'Lines matched', display: '212 of 214' }] },
   {
     id: 'R-0415', at: '2026-10-21T10:04:00.000Z', explanation: 'Two mentions at ₹15,000 each, no discount, priced before tax.', stale: false,

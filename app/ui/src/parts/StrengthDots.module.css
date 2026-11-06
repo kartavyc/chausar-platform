@@ -1,0 +1,46 @@
+/* StrengthDots: D's `.str` and `.dots`. Five 7 px dots, the filled ones in ink, then the word. */
+
+.strength {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--sp-2);
+  min-height: var(--sp-6);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: 1.2;
+  color: var(--fg2);
+  text-align: left;
+}
+
+.open {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.open:hover {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The dots stay on one line; the word beside them may wrap (Hindi "no signals yet" is long). */
+.dots {
+  display: inline-flex;
+  flex: none;
+  gap: calc(var(--sp-1) * 0.75);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-chip);
+  background: var(--btn-line);
+}
+
+.dot[data-filled] {
+  background: var(--fg);
+}

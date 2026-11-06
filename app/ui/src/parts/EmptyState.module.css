@@ -1,17 +1,47 @@
+/* EmptyState: one plain sentence, an optional second line, then its ways forward as rows in D's `.more` look
+   (words and a chevron). No box and no art. */
+
 .empty {
-  padding: 18px 0;
-  border-top: var(--hair) solid var(--line);
+  padding: var(--sp-4) 0;
 }
 
 .title {
   font-size: var(--text-body);
+  line-height: 1.45;
   color: var(--fg2);
 }
 
 .line {
   margin-top: var(--sp-1);
   font-size: var(--text-read);
+  line-height: 1.4;
   color: var(--mute);
+}
+
+.actions {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.way {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--control-sm);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.way:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .action {

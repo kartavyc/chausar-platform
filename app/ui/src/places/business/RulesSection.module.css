@@ -1,8 +1,19 @@
-/* The dated platform rules on Plan and playbook (RulesSection.tsx). Long source titles and addresses wrap. */
+/* The dated platform rules on Plan and playbook (RulesSection.tsx), a tile. Long source titles and addresses wrap. */
+
+.subheading {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--wait);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.source {
+  composes: hit from '../../parts/touch.module.css';
+}
 
 .source {
   display: inline-block;
-  margin-top: 2px;
   font-size: var(--text-read);
   color: var(--link);
   text-decoration: none;
@@ -10,12 +21,13 @@
 }
 
 .source:hover {
+  color: var(--link-hover);
   text-decoration: underline;
 }
 
 .address {
   display: block;
-  margin-top: 2px;
+  margin-top: var(--sp-1);
   font-size: var(--text-read);
   color: var(--mute);
   overflow-wrap: anywhere;

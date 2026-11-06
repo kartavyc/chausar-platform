@@ -88,8 +88,8 @@ describe('Business: practice clients', () => {
   it('the business menu leads here', async () => {
     window.location.hash = '#/today';
     render(<App client={createFakeClient(new FakeEngine({ now: () => NOW }))} language="en" />);
-    fireEvent.click(await screen.findByRole('button', { name: /Lumen Studio/ }));
-    const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
+    fireEvent.click(await within(await screen.findByRole('navigation', { name: 'Places' })).findByRole('button', { name: /Lumen Studio/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Business menu for Lumen Studio' });
     expect(within(menu).getByRole('link', { name: 'Practice and improve' }).getAttribute('href')).toBe('#/business/practice');
   });
 

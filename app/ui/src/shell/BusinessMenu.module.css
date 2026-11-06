@@ -1,37 +1,94 @@
+/* The business button: D's `.biz`, `.biz-sq`, `.biz-txt`, `.biz-name`, `.biz-kind` (D-Today.dc.html). D's 34 px
+   initials square is the 36 px avatar size; its 10 px gap snaps to --sp-2. */
 .holder {
   position: relative;
 }
 
 .business {
-  display: grid;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   width: 100%;
   min-height: var(--target);
-  margin-bottom: var(--sp-4);
-  padding: var(--sp-2) 10px;
-  border: 0;
-  border-radius: var(--radius);
-  background: none;
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-2);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
   text-align: left;
   cursor: pointer;
 }
 
 .business:hover {
-  background: var(--hover);
+  background: var(--bg);
+}
+
+.square {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-36);
+  height: var(--av-36);
+  border-radius: var(--r-button);
+  background: var(--selected);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.03em;
+  color: var(--on-selected);
+}
+
+.words {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .name {
+  overflow: hidden;
   font-size: var(--text-body);
   font-weight: var(--weight-strong);
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--fg);
 }
 
 .kind {
   font-size: var(--text-label);
+  line-height: 1.35;
   color: var(--mute);
 }
 
-/* A popover on the body, above the page and its sheet, so the 220 px rail and the phone top bar never clip it.
-   BusinessMenu.tsx sets top and left under the button. It stays inside a narrow window. */
+.chevrons {
+  color: var(--mute);
+}
+
+/* On the phone's top bar: D's `.bizb`, the 28 px initials square and the name on one line with a chevron down. D's
+   40 px button grows to the 44 px touch target; a long name is cut, the button never pushes the bar wider. */
+.business[data-variant='bar'] {
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  margin-bottom: 0;
+  padding: 0 var(--sp-2);
+  box-shadow: none;
+}
+
+.business[data-variant='bar'] .square {
+  width: var(--av-28);
+  height: var(--av-28);
+  border-radius: var(--r-button-sm);
+}
+
+.business[data-variant='bar'] .name {
+  font-size: var(--text-row);
+}
+
+/* A popover on the body, above the page and its sheet, so neither the rail nor the phone top bar clips it.
+   BusinessMenu.tsx sets top and left under the button, and a max height of the window left below it. It stays
+   inside a narrow window. */
 .menu {
   position: fixed;
   top: 0;
@@ -39,13 +96,14 @@
   z-index: 20;
   box-sizing: border-box;
   width: 260px;
-  max-width: calc(100vw - 16px);
-  max-height: calc(100vh - 96px);
+  max-width: calc(100vw - var(--sp-4));
+  max-height: calc(100vh - var(--sp-4));
   overflow-y: auto;
   padding: var(--sp-2);
   border: var(--hair) solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--r-card);
   background: var(--surface);
+  box-shadow: var(--shadow-paper);
 }
 
 .heading {
@@ -73,7 +131,7 @@
   width: 100%;
   padding: var(--sp-2);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--r-button);
   background: none;
   font-size: var(--text-body);
   color: var(--fg);
@@ -83,7 +141,7 @@
 }
 
 .item:hover:not(:disabled) {
-  background: var(--hover);
+  background: var(--wash);
 }
 
 .item:disabled {
@@ -124,4 +182,12 @@
   width: auto;
   margin-left: calc(var(--sp-2) * -1);
   color: var(--link);
+}
+
+/* A phone (3H1): each item in the menu is a full 44 px touch target. */
+@media (max-width: 759px) {
+  .item {
+    align-items: center;
+    min-height: var(--target);
+  }
 }

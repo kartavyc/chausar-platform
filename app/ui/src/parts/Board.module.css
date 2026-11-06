@@ -1,0 +1,211 @@
+/* Board: D's `.board`, `.col`, `.colh`, `.col-n`, `.col-c`, `.col-hint`, `.cc`, `.colx`, `.colx-n` and the card
+   `.lift.pc`, `.pc-top`, `.pc-id`, `.pc-name`, `.pc-co` (D-Clients). Open columns share the width; a folded column
+   is a 44 px strip. On a phone the board scrolls sideways and each column keeps a readable width. */
+
+.board {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-cards);
+  overflow-x: auto;
+  padding-bottom: var(--sp-1);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 156px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--sp-7);
+  padding: 0 calc(var(--sp-1) / 2);
+}
+
+.title {
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 1.4;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  min-height: var(--sp-5);
+  padding: 0 calc(var(--sp-2) - var(--hair));
+  border-radius: var(--r-chip);
+  background: var(--hover);
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
+.hide {
+  display: grid;
+  place-items: center;
+  width: var(--sp-7);
+  height: var(--sp-7);
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.hide:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.hint {
+  margin-top: calc(var(--sp-1) / 2);
+  padding: 0 calc(var(--sp-1) / 2);
+  font-size: var(--text-label);
+  line-height: 1.35;
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border: var(--hair) dashed var(--btn-line);
+  border-radius: var(--r-card);
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--sp-5) / 2);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.more {
+  width: 100%;
+}
+
+/* A card "Show N more" revealed takes focus, so its outline follows the card's corners. */
+.cardItem {
+  border-radius: var(--r-card);
+}
+
+/* A folded column: the strip with the count and the stage written downwards. */
+.folded {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: stretch;
+  gap: calc(var(--sp-5) / 2);
+  flex: none;
+  width: var(--target);
+  min-height: 200px;
+  padding: var(--pad-card) 0;
+  border: var(--hair) dashed var(--btn-line);
+  border-radius: var(--r-card);
+  background: var(--wash);
+  color: var(--fg2);
+  cursor: pointer;
+  transition: background-color var(--t-press) var(--ease);
+}
+
+.folded:hover {
+  background: var(--hover);
+}
+
+.foldedCount {
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.foldedName {
+  writing-mode: vertical-rl;
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+}
+
+/* One card. */
+.card {
+  --ring-ground: var(--surface);
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+  min-width: 0;
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 34px;
+}
+
+.cardId {
+  flex: 1;
+  min-width: 0;
+}
+
+.cardName {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.cardOpen {
+  composes: hit from './touch.module.css';
+}
+
+.cardOpen {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cardOpen:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cardSub {
+  font-size: var(--text-label);
+  line-height: 1.35;
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--sp-5) / 2);
+  margin-top: calc(var(--sp-5) / 2);
+  font-size: var(--text-label);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .column {
+    flex: none;
+    width: 248px;
+  }
+}

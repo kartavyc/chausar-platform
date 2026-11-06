@@ -1,0 +1,24 @@
+/* Card: D's `.inner` (grey inner card on a white tile) and `.lift` (white card on a department tint). Each sets
+   --ring-ground to its own ground, so a status ring's gap matches what is under it. */
+
+.inner {
+  --ring-ground: var(--inner);
+  min-width: 0;
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.lift {
+  --ring-ground: var(--surface);
+  min-width: 0;
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+}
+
+.inner[data-pad='none'],
+.lift[data-pad='none'] {
+  padding: 0;
+}

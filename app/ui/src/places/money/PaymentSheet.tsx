@@ -14,7 +14,7 @@ import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import { PAYMENT_METHODS, type InvoiceViewLite, type PaymentMethod } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { invoiceTitle, localToday, messageOf, statusOf, useDay } from './words';
+import { invoiceTitle, messageOf, statusOf, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 
 type Phase = 'form' | 'confirm' | 'sending' | 'done';
@@ -24,9 +24,10 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const day = useDay();
   const engine = useEngine();
   const methodId = useId();
+  const today = useLocalToday();
   const view = useResource('venture.invoice.get', { invoiceId: id });
   const [amount, setAmount] = useState('');
-  const [receivedOn, setReceivedOn] = useState(localToday);
+  const [receivedOn, setReceivedOn] = useState(today);
   const [method, setMethod] = useState<PaymentMethod>('bank-transfer');
   const [phase, setPhase] = useState<Phase>('form');
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -56,9 +57,20 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     }
   }
 
+  // What is still owed, with the receipts that explain it: the one that priced the invoice and each payment's books
+  // receipt (one data-figure-group, as in the invoice sheet).
+  const owed = current && balance && (
+    <span className={s.owedLine} data-figure-group="">
+      <span>{t('money.payment.owed')}</span>
+      <span className="mono">{balance.display}</span>
+      <Receipt id={current.invoice.priceReceiptId} />
+      {current.payments.map((payment) => payment.booksReceiptId && <Receipt key={payment.id} id={payment.booksReceiptId} />)}
+    </span>
+  );
+
   let body;
   if (!current) {
-    body = view.error ? <p className={s.failed} role="status">{t('money.failed', { message: view.error.message })}</p> : <p className={s.quiet}>{t('money.loading')}</p>;
+    body = view.error ? <p className={s.failed} role="status" data-engine-line="">{t('money.failed', { message: view.error.message })}</p> : <p className={s.quietLine}>{t('money.loading')}</p>;
   } else if (phase === 'done' && recorded) {
     body = (
       <>
@@ -66,14 +78,14 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           <span>{t('money.payment.done')}</span>
           {recorded.receiptId && <Receipt id={recorded.receiptId} />}
         </p>
-        {recorded.note && <p className={s.quiet}>{recorded.note}</p>}
+        {recorded.note && <p className={s.quietLine} data-engine-line="">{recorded.note}</p>}
         <p className={s.sheetLine}>
           <Button variant="quiet" onClick={(event) => openSheet('invoice', id, event.currentTarget)}>{t('money.payment.back')}</Button>
         </p>
       </>
     );
   } else if (!takesPayment) {
-    body = <p className={s.quiet}>{t('money.payment.notOpen')}</p>;
+    body = <p className={s.quietLine}>{t('money.payment.notOpen')}</p>;
   } else {
     const currency = current.invoice.currency;
     body = (
@@ -105,7 +117,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
             </div>
           </div>
         )}
-        {refusal && <p className={s.refusal} role="status">{refusal}</p>}
+        {refusal && <p className={s.refusal} role="status" data-engine-line="">{refusal}</p>}
       </>
     );
   }
@@ -115,7 +127,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       label={t('money.payment.label')}
       eyebrow={current ? invoiceTitle(t, current.invoice, current.client.name) : undefined}
       title={t('money.payment.title')}
-      line={current && !takesPayment && phase !== 'done' ? statusOf(t, day, current.invoice) : balance ? t('money.payment.owed', { balance: balance.display }) : undefined}
+      line={current && !takesPayment && phase !== 'done' ? statusOf(t, day, current.invoice) : owed || undefined}
       onClose={onClose}
       returnFocus={returnFocus}
     >

@@ -7,7 +7,7 @@ import { ModelEstimate } from '../../parts/ModelEstimate';
 import { EngineError, type BuildStatusView, type BuilderId } from '../../engine/types';
 import { ExternalLink, openProblem } from '../connections/external';
 import { BUILDER_NAMES, handOff } from './handoff';
-import { messageOf } from './shared';
+import { TileSection, messageOf } from './shared';
 import { SiteEdits } from './SiteEdits';
 import s from './Business.module.css';
 
@@ -18,6 +18,7 @@ const SYNTHETIC = /synthetic recording/i;
  * the engine's own link (the owner presses send there), and the repo followed read-only on GitHub, its state in plain
  * words. A deployment address is shown as text, never as a link. The read-only key is sent once and never shown.
  * Under them, edits to the site itself: staged, reviewed as a diff, applied with the reviewed hash, reversible.
+ * In the D look each part is a tile: the brief and the builders side by side, then GitHub, then the site edits.
  */
 export function BuildView() {
   const t = useT();
@@ -43,35 +44,42 @@ export function BuildView() {
   if (!build.data) return <p className={s.note}>{t('business.loading')}</p>;
   const { brief } = build.data;
 
+  const briefTile = (
+    <TileSection title={t('business.briefTitle')}>
+      {!brief ? (
+        <>
+          <p className={s.line}>{t('business.noBrief')}</p>
+          <div className={s.buttons}><Button variant="primary" disabled={busy} onClick={() => void writeBrief()}>{t('business.writeBrief')}</Button></div>
+        </>
+      ) : (
+        <>
+          <p className={s.line}>
+            {brief.lint.ok ? t('business.briefChecks', { chars: brief.chars }) : t('business.briefNotReady', { finding: brief.lint.findings[0]?.message ?? '' })}
+            {brief.estimate && <> <ModelEstimate /></>}
+          </p>
+          {brief.wordsBy === 'template' && <p className={s.note}>{t('business.fromTemplates')}</p>}
+          <details className={s.fold}>
+            <summary>{t('business.readBrief')}</summary>
+            <pre className={s.pre}>{brief.markdown}</pre>
+          </details>
+          <div className={s.buttons}><Button size="sm" variant="quiet" disabled={busy} onClick={() => void writeBrief()}>{t('business.writeAgain')}</Button></div>
+        </>
+      )}
+      {problem && <p className={s.problem} role="alert">{problem}</p>}
+    </TileSection>
+  );
+
   return (
-    <>
-      <section className={s.section} aria-label={t('business.briefTitle')}>
-        <h2 className={s.heading}>{t('business.briefTitle')}</h2>
-        {!brief ? (
-          <>
-            <p className={s.line}>{t('business.noBrief')}</p>
-            <div className={s.buttons}><Button variant="primary" disabled={busy} onClick={() => void writeBrief()}>{t('business.writeBrief')}</Button></div>
-          </>
-        ) : (
-          <>
-            <p className={s.line}>
-              {brief.lint.ok ? t('business.briefChecks', { chars: brief.chars }) : t('business.briefNotReady', { finding: brief.lint.findings[0]?.message ?? '' })}
-              {brief.estimate && <> <ModelEstimate /></>}
-            </p>
-            {brief.wordsBy === 'template' && <p className={s.note}>{t('business.fromTemplates')}</p>}
-            <details className={s.fold}>
-              <summary>{t('business.readBrief')}</summary>
-              <pre className={s.pre}>{brief.markdown}</pre>
-            </details>
-            <div className={s.buttons}><Button variant="quiet" disabled={busy} onClick={() => void writeBrief()}>{t('business.writeAgain')}</Button></div>
-          </>
-        )}
-        {problem && <p className={s.problem} role="alert">{problem}</p>}
-      </section>
-      {brief && <Builders status={build.data} ready={brief.lint.ok} onOpened={build.reload} />}
+    <div className={s.page}>
+      {brief ? (
+        <div className={s.split}>
+          {briefTile}
+          <Builders status={build.data} ready={brief.lint.ok} onOpened={build.reload} />
+        </div>
+      ) : briefTile}
       <GitHub status={build.data} onChanged={build.reload} />
       <SiteEdits />
-    </>
+    </div>
   );
 }
 
@@ -100,11 +108,10 @@ function Builders({ status, ready, onOpened }: { status: BuildStatusView; ready:
   }
 
   return (
-    <section className={s.section} aria-label={t('business.builders')}>
-      <h2 className={s.heading}>{t('business.builders')}</h2>
+    <TileSection title={t('business.builders')}>
       <div className={s.buttons}>
-        <Button variant="primary" disabled={busy || !ready} onClick={() => void open('lovable')}>{t('business.openLovable')}</Button>
         <Button disabled={busy || !ready} onClick={() => void open('replit')}>{t('business.openReplit')}</Button>
+        <Button variant="primary" disabled={busy || !ready} onClick={() => void open('lovable')}>{t('business.openLovable')}</Button>
       </div>
       <p className={s.note}>{t('business.replitNote')}</p>
       {said?.lines.map((line) => <p key={line} className={s.said} role="status">{line}</p>)}
@@ -119,7 +126,7 @@ function Builders({ status, ready, onOpened }: { status: BuildStatusView; ready:
           </ul>
         </details>
       )}
-    </section>
+    </TileSection>
   );
 }
 
@@ -147,16 +154,14 @@ function GitHub({ status, onChanged }: { status: BuildStatusView; onChanged: () 
 
   if (!follow || changing) {
     return (
-      <section className={s.section} aria-label={t('business.followTitle')}>
-        <h2 className={s.heading}>{t('business.followTitle')}</h2>
+      <TileSection title={t('business.followTitle')}>
         <FollowForm tokenLink={status.tokenLink} initial={follow ? `${follow.repo.owner}/${follow.repo.name}` : ''} onDone={() => { setChanging(false); onChanged(); }} />
-      </section>
+      </TileSection>
     );
   }
   const repoName = `${follow.repo.owner}/${follow.repo.name}`;
   return (
-    <section className={s.section} aria-label={t('business.github')}>
-      <h2 className={s.heading}>{t('business.github')}</h2>
+    <TileSection title={t('business.github')}>
       {!current ? (
         <p className={s.line}>{t('business.notRead', { repo: repoName })}</p>
       ) : (
@@ -185,11 +190,11 @@ function GitHub({ status, onChanged }: { status: BuildStatusView; onChanged: () 
         </>
       )}
       <div className={s.buttons}>
-        <Button disabled={busy} onClick={() => void check()}>{t('business.check')}</Button>
-        <Button variant="quiet" onClick={() => setChanging(true)}>{t('business.changeRepo')}</Button>
+        <Button size="sm" disabled={busy} onClick={() => void check()}>{t('business.check')}</Button>
+        <Button size="sm" variant="quiet" onClick={() => setChanging(true)}>{t('business.changeRepo')}</Button>
       </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
-    </section>
+    </TileSection>
   );
 }
 

@@ -1,24 +1,47 @@
+/* ConnectorLabel: the honest label as a chip (D's `.chip`), its posting mode and its risk line under it.
+   A label that works is solid on the wash; planned is open and dashed, like every other "not real yet" mark. */
+
 .connector {
-  display: inline-grid;
-  gap: 2px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  vertical-align: middle;
 }
 
 .word {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--sp-1) * 1.5);
+  min-height: 24px;
+  padding: 0 var(--sp-2);
+  border: var(--hair) solid transparent;
+  border-radius: var(--r-chip);
+  background: var(--wash);
+  color: var(--fg2);
   font-size: var(--text-label);
   font-weight: var(--weight-medium);
-  color: var(--fg2);
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .connector[data-label='planned'] .word {
+  background: none;
+  border: var(--hair) dashed var(--dash);
   color: var(--mute);
 }
 
 .mode {
   font-size: var(--text-label);
+  line-height: 1.4;
   color: var(--mute);
 }
 
 .risk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
   font-size: var(--text-label);
+  line-height: 1.4;
   color: var(--wait);
 }

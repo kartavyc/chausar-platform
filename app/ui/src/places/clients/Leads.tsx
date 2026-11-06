@@ -1,8 +1,9 @@
 /**
- * Leads (#/clients/leads, spec section 7.9): people the owner may write to. A lead needs the page it was found on;
- * an email counts once a mail server answered for it; agents only draft, and the owner sends from his own mailbox,
- * then says so here. Every draft carries the business name, the owner's postal address and an unsubscribe line,
- * added by the engine and shown as it wrote them. A blocked address is never drafted to again.
+ * Leads (spec section 7.9): people the owner may write to, shown on the Pipeline tab (PipelineTab.tsx). A lead needs
+ * the page it was found on; an email counts once a mail server answered for it; agents only draft, and the owner
+ * sends from his own mailbox, then says so here. Every draft carries the business name, the owner's postal address
+ * and an unsubscribe line, added by the engine and shown as it wrote them. A blocked address is never drafted to
+ * again.
  *
  * Sheets: `lead:new` adds a lead, `lead:<id>` shows one with its drafts, sends and the block.
  */
@@ -11,65 +12,20 @@ import { useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
+import { useClock } from '../../shell/clock';
+import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
-import { EmptyState } from '../../parts/EmptyState';
 import { Field } from '../../parts/Field';
-import { Row } from '../../parts/Row';
 import { Sheet } from '../../parts/Sheet';
+import { stateText } from '../../parts/states';
 import { EngineError, type LeadView, type OutreachDraftView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
+import { useMoment } from '../money/words';
 import { clientsChanged, useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const codeOf = (error: unknown) => (error instanceof EngineError ? error.code : 'REQUEST_FAILED');
-
-/** The leads list. The list is what the engine sends, newest first. */
-export function Leads() {
-  const t = useT();
-  const engine = useEngine();
-  const leads = useResource('venture.leads.list', {});
-  useClientsChanged(engine, () => leads.reload());
-  const list = leads.data?.leads ?? [];
-
-  return (
-    <section aria-label={t('clients.sub.leads')}>
-      {leads.error && <p className={s.failed} role="alert">{t('sheet.failed', { message: leads.error.message })}</p>}
-      {leads.data && list.length === 0 && <EmptyState title={t('clients.leads.empty')} />}
-      {list.length > 0 && (
-        <ul className={s.list} aria-label={t('clients.sub.leads')}>
-          {list.map((lead) => <LeadRow key={lead.id} lead={lead} />)}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-/** The add button for the page head. */
-export function AddLead() {
-  const t = useT();
-  return <Button data-add-lead="" onClick={(event) => openSheet('lead', 'new', event.currentTarget)}>{t('clients.leads.add')}</Button>;
-}
-
-function LeadRow({ lead }: { lead: LeadView }) {
-  const t = useT();
-  return (
-    <Row
-      id={lead.id}
-      eyebrow={lead.company ?? undefined}
-      title={lead.name}
-      onOpen={(origin) => openSheet('lead', lead.id, origin)}
-      line={
-        <span className={s.lineText}>
-          {lead.email ? <>{lead.email} · {t(`clients.leads.check.${lead.emailCheck.status}`)}</> : t('clients.leads.noEmail')}
-        </span>
-      }
-      actions={<span className={s.state}>{t(`clients.leads.status.${lead.status}`)}</span>}
-    >
-      <span className={`${s.source} mono`}>{lead.sourceUrl}</span>
-    </Row>
-  );
-}
 
 export function LeadSheet(props: SheetComponentProps) {
   return props.id === 'new' ? <NewLeadSheet {...props} /> : <ExistingLeadSheet {...props} />;
@@ -137,7 +93,14 @@ function ExistingLeadSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       : lead ? lead.name : t('clients.leads.notFound');
 
   return (
-    <Sheet label={t('clients.leads.sheet')} title={title} line={lead?.company ?? undefined} onClose={onClose} returnFocus={returnFocus}>
+    <Sheet
+      label={t('clients.leads.sheet')}
+      title={title}
+      line={lead?.company ?? undefined}
+      avatar={lead ? <Avatar name={lead.name} size={40} /> : undefined}
+      onClose={onClose}
+      returnFocus={returnFocus}
+    >
       {lead && (
         <>
           <dl className={s.facts}>
@@ -154,7 +117,7 @@ function ExistingLeadSheet({ id, onClose, returnFocus }: SheetComponentProps) {
             </div>
             <div className={s.fact}>
               <dt>{t('clients.leads.state')}</dt>
-              <dd>{t(`clients.leads.status.${lead.status}`)}</dd>
+              <dd>{stateText(t, 'lead', lead.status)}</dd>
             </div>
           </dl>
 
@@ -178,25 +141,26 @@ function ExistingLeadSheet({ id, onClose, returnFocus }: SheetComponentProps) {
 /** One draft as the engine wrote it, with the lines it adds at the foot, and the owner's own send. */
 function DraftItem({ lead, draft }: { lead: LeadView; draft: OutreachDraftView }) {
   const t = useT();
+  const moment = useMoment();
   const sent = lead.sends.find((send) => send.draftId === draft.id);
   return (
     <li className={s.draft}>
       <span className={s.draftTo}>{t('clients.leads.to', { to: draft.to })}</span>
-      <span className={s.draftSubject}>{draft.subject}</span>
-      <span className={s.draftText}>{draft.text}</span>
+      {/* The draft's own words, as written: quoted, not Chausar stating anything. */}
+      <span className={s.draftSubject} data-content="">{draft.subject}</span>
+      <span className={s.draftText} data-content="">{draft.text}</span>
       <span className={s.footer}>
         <span>{draft.footer.businessName}</span>
         <span>{draft.footer.postalAddress}</span>
         <span>{draft.footer.unsubscribe}</span>
       </span>
-      {sent ? <span className={s.state}>{t('clients.leads.sentOn', { when: sent.sentAt.slice(0, 16).replace('T', ' ') })}</span> : <RecordSend lead={lead} draft={draft} />}
+      {sent ? <span className={s.state}>{t('clients.leads.sentOn', { when: moment(sent.sentAt) })}</span> : <RecordSend lead={lead} draft={draft} />}
     </li>
   );
 }
 
-/** "Now" for a datetime-local field, in this computer's time. Text work only. */
-function nowLocal(): string {
-  const now = new Date();
+/** A time as a datetime-local field's value, in this computer's time. Text work only. */
+function localOf(now: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
@@ -205,8 +169,10 @@ function nowLocal(): string {
 function RecordSend({ lead, draft }: { lead: LeadView; draft: OutreachDraftView }) {
   const t = useT();
   const engine = useEngine();
+  const clock = useClock();
   const [open, setOpen] = useState(false);
-  const [when, setWhen] = useState(nowLocal);
+  // "Now" from the app's one clock, so a test (or the parts page) can fix it.
+  const [when, setWhen] = useState(() => localOf(clock()));
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 

@@ -36,3 +36,78 @@
   font-size: var(--text-read);
   color: var(--fail);
 }
+
+/* A CA calculator receipt's steps: a heading, then each step as a figure row. */
+.part {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+}
+
+.section {
+  color: var(--mute);
+}
+
+/* More, the phone's fifth tab: one row per place, each a full-width 48 px link (near D's `.lrow`) with its icon in a
+   soft square, its word and a chevron; the place on screen in the selected ink. */
+.more {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.moreLink {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--sp-12);
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-card);
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.moreLink:hover {
+  background: var(--wash);
+}
+
+.moreIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--av-36);
+  height: var(--av-36);
+  border-radius: var(--r-button);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.moreLink[aria-current='page'] .moreIcon {
+  background: var(--selected);
+  color: var(--on-selected);
+}
+
+.moreWord {
+  flex: 1;
+  min-width: 0;
+}
+
+.moreChevron {
+  color: var(--mute);
+}

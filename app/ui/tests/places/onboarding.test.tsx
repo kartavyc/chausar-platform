@@ -207,10 +207,11 @@ describe('onboarding: what the engine forces before a vault', () => {
       { name: 'Bookkeeping studio', pack: 'services', folder: null, passphrase: 'correct horse battery' },
     ]);
     expect(flow().some(([m]) => m === 'venture.create')).toBe(false);
+    // Locked (aria-disabled, still reachable and saying why) until the owner ticks that the code is saved.
     const go = screen.getByRole('button', { name: 'Continue' }) as HTMLButtonElement;
-    expect(go.disabled).toBe(true);
+    expect(go.getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(screen.getByRole('checkbox', { name: 'I saved it somewhere safe' }));
-    expect(go.disabled).toBe(false);
+    expect(go.hasAttribute('aria-disabled')).toBe(false);
     await press('Continue');
     await screen.findByRole('navigation', { name: 'Places' });
     await screen.findByText('Your plan is ready. Read it.');
@@ -237,12 +238,14 @@ describe('onboarding: New business from the business menu', () => {
     expect(await box()).toBeTruthy();
     expect(screen.getByRole('navigation', { name: 'Places' })).toBeTruthy();
     await type(IDEA);
-    await press('Start');
+    // Inside the app the box's button says what it does (w3 3G2, D-Start); the first run keeps "Start".
+    await press('Make my plan');
     await waitFor(() => expect(window.location.hash).toBe('#/today'));
     expect(flow().map(([m]) => m).slice(0, 4)).toEqual(['venture.preview', 'workspace.status', 'workspace.lock', 'workspace.create']);
     // Ledgerline's plan waits too; the queue spans every business, oldest first.
     await waitFor(() => expect(screen.getAllByText('Your plan is ready. Read it.')).toHaveLength(2));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio/ })).toBeTruthy());
+    // The business switcher, not Today's filter chip for the same business (Today shows one per business, w3 3C).
+    await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio.*Switch business/ })).toBeTruthy());
   });
 });
 

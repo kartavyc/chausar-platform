@@ -335,7 +335,7 @@ export class FakeBusinessDesk {
       figures: sample ? clone(sample.figures) : [{ key: 'unit', label: offer.name.value, display }, { key: 'total', label: taxed ? 'Total before GST' : 'Total', display }],
       explanation: sample ? sample.explanation : taxed
         ? `${offer.name.value} at ${display}. The sample engine does not work out GST; the real one does, with each step on this receipt.`
-        : `${offer.name.value} at ${display}, no discount. Not registered for GST, so no tax.`,
+        : `${offer.name.value} at ${display}, no discount, no tax added, because tax is not turned on for this price.`,
     };
     this.receipts.push(receipt);
     view.offerReceipts[offer.id] = receipt;

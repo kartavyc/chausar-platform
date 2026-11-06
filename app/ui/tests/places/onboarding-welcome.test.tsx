@@ -38,7 +38,8 @@ describe('Welcome back: businesses on this computer, none open', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ledgerline' })); });
     await screen.findByRole('navigation', { name: 'Places' });
     expect(opened(calls)).toEqual([{ folder: 'ledgerline' }]);
-    await waitFor(() => expect(screen.getByRole('button', { name: /Ledgerline/ }).textContent).toContain('AI-native CA firm'));
+    // The business switcher, not Today's filter chip for the same business (Today shows one per business, w3 3C).
+    await waitFor(() => expect(screen.getByRole('button', { name: /Ledgerline.*Switch business/ }).textContent).toContain('AI-native CA firm'));
   });
 
   it('a business that opens with its passphrase asks for it under its own row, and sends nothing until it is typed', async () => {

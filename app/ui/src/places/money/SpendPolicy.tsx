@@ -17,9 +17,10 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
+import { Icon } from '../../parts/Icon';
 import type { SpendPolicyView, SpendRateInput, SpendRateLine, SpendRateUnit } from '../../engine/types';
-import { Failed, Figure, Rupees, Section } from './parts';
-import { localToday, messageOf, useDay } from './words';
+import { EngineWords, Failed, Rupees, Section } from './parts';
+import { messageOf, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 
 const UNITS: readonly SpendRateUnit[] = ['per-million-tokens', 'per-call', 'per-run-cap'];
@@ -46,6 +47,7 @@ const figureOrNull = (typed: string): string | null => (typed.trim() === '' ? nu
 export function SpendPolicy() {
   const t = useT();
   const day = useDay();
+  const today = useLocalToday();
   const engine = useEngine();
   const policy = useResource('venture.spend.policy.get', {}, { refreshOn: () => false });
   // The engine's answer to a save, shown until the settings are read again.
@@ -107,28 +109,41 @@ export function SpendPolicy() {
       {policy.error && !view && <Failed error={policy.error} />}
       {view && !editing && (
         <>
-          <p className={s.figures}>
-            <Figure>{view.cap}</Figure><Rupees text={view.capRupees} />
-            <span className={s.dot} aria-hidden="true">·</span>
-            <Figure>{view.askFirst}</Figure><Rupees text={view.askFirstRupees} />
-          </p>
-          {view.rupeeRate && (
-            <p className={s.quiet}><span>{t('money.policy.inrPerUsd')}</span>{' '}<span>{view.rupeeRate}</span></p>
-          )}
+          <ul className={s.policyLines}>
+            {/* The owner's own limits, said back in the engine's sentences ("USD 20.0000 a month"): engine words, in the
+                body face, with no receipt of their own. */}
+            <li className={s.policyLine}>
+              <Icon name="wallet" size={16} />
+              <span className={s.policyText}><EngineWords>{view.cap}</EngineWords><Rupees text={view.capRupees} /></span>
+            </li>
+            <li className={s.policyLine}>
+              <Icon name="shield-check" size={16} />
+              <span className={s.policyText}><EngineWords>{view.askFirst}</EngineWords><Rupees text={view.askFirstRupees} /></span>
+            </li>
+            {view.rupeeRate && (
+              <li className={s.policyLine}>
+                <Icon name="indian-rupee" size={16} />
+                <span className={s.policyText}><span className={s.figureLabel}>{t('money.policy.inrPerUsd')}</span>{' '}<EngineWords>{view.rupeeRate}</EngineWords></span>
+              </li>
+            )}
+          </ul>
           {view.rates.length > 0 && (
-            <ul className={s.lines}>
-              {view.rates.map((rate) => (
-                <li key={rate.item} className={s.line}>
-                  <span className={`${s.label} mono`}>{rate.item}</span>
-                  <span className={s.value}>
-                    <Figure>{rate.price}</Figure>
-                    <span className={s.note}>{t('money.policy.rateSource', { source: rate.source, date: day(rate.checkedOn) })}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <h3 className={s.blockTitle}>{t('money.policy.rates')}</h3>
+              <ul className={s.lines}>
+                {view.rates.map((rate) => (
+                  <li key={rate.item} className={s.line}>
+                    <span className={`${s.label} mono`}>{rate.item}</span>
+                    <span className={s.value}>
+                      <EngineWords>{rate.price}</EngineWords>
+                      <span className={s.note}>{t('money.policy.rateSource', { source: rate.source, date: day(rate.checkedOn) })}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
-          {done && <p className={s.quiet} role="status">{t('money.policy.saved')}</p>}
+          {done && <p className={s.quietLine} role="status">{t('money.policy.saved')}</p>}
           <p className={s.sheetLine}>
             <Button variant="quiet" onClick={() => edit(view)}>{t('money.policy.change')}</Button>
           </p>
@@ -160,13 +175,13 @@ export function SpendPolicy() {
             <p className={s.sheetLine}>
               <Button
                 variant="quiet" disabled={sending}
-                onClick={() => setRates((lines) => [...lines, { key: `new:${Date.now()}:${lines.length}`, item: '', unit: 'per-million-tokens', input: '', output: '', perCall: '', source: '', checkedOn: localToday() }])}
+                onClick={() => setRates((lines) => [...lines, { key: `new:${Date.now()}:${lines.length}`, item: '', unit: 'per-million-tokens', input: '', output: '', perCall: '', source: '', checkedOn: today() }])}
               >
                 {t('money.policy.addRate')}
               </Button>
             </p>
           </div>
-          {problem && <p className={s.refusal} role="alert">{problem}</p>}
+          {problem && <p className={s.refusal} role="alert" data-engine-line="">{problem}</p>}
           {asking ? (
             <div className={s.ask} data-second-ask="">
               <p>{t('money.policy.ask')}</p>

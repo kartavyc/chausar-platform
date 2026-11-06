@@ -1,0 +1,229 @@
+/* The goal card: D-Today's `.goal`, `.g-top`, `.g-ic`, `.g-lbl`, `.g-sub`, `.g-pill`, `.g-edit`, `.g-fig`, `.g-amt`,
+   `.g-of`, `.g-pct`, `.g-bar` (the GoalBar part), `.g-legend` (GoalBarKey) and `.g-foot`, `.gf-k`, `.gf-v`. Its colours
+   are the --goal-* tokens; in the dark theme --shadow-goal draws the line that lifts it off the page. D's 10, 18 and 6
+   px gaps snap to the 4 px steps; its 12.5 px type to 13. */
+
+.goal {
+  --ring-ground: var(--goal-bg);
+  min-width: 0;
+  padding: var(--sp-6);
+  border-radius: var(--r-tile);
+  background: var(--goal-bg);
+  box-shadow: var(--shadow-goal);
+  color: var(--goal-fg2);
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  min-height: 28px;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-button-sm);
+  background: var(--goal-chip);
+  color: var(--accent);
+}
+
+.label {
+  font-size: var(--text-body);
+  line-height: 20px;
+  font-weight: var(--weight-strong);
+  color: var(--goal-fg);
+}
+
+.sub {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--goal-mute);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 28px;
+  margin-left: auto;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-chip);
+  background: var(--goal-chip);
+  color: var(--goal-fg2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.edit {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: none;
+  color: var(--goal-mute);
+  cursor: pointer;
+  transition: background-color var(--t-press) var(--ease), color var(--t-press) var(--ease);
+}
+
+.edit:hover {
+  background: var(--goal-chip);
+  color: var(--goal-fg);
+}
+
+.edit:focus-visible {
+  outline-color: var(--goal-link);
+}
+
+/* The invoiced figure, "of" the goal and the percent, on one baseline; they wrap rather than shrink. */
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-3);
+  min-height: 48px;
+  margin-top: var(--sp-5);
+}
+
+.amount {
+  line-height: 48px;
+}
+
+/* Money's "changed since": the books changed after the receipt was written. The waiting amber, in its ring shade, which
+   reads on the dark card (tests/contrast.test.ts). */
+.stale {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--wait-ring);
+}
+
+.figures + .stale {
+  margin-top: var(--sp-1);
+}
+
+.of {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--text-tile);
+  color: var(--goal-mute);
+}
+
+/* The accent may be words on the dark card (D-STYLE section 2). */
+.percent {
+  margin-left: auto;
+  font-size: var(--fig-pct);
+  line-height: 48px;
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.03em;
+  color: var(--accent);
+}
+
+.bar {
+  margin-top: var(--sp-4);
+}
+
+.key {
+  margin-top: var(--sp-3);
+}
+
+/* No goal for the month yet: the ask, the suggested figure and the one button. */
+.ask {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: var(--hair) solid var(--goal-line);
+}
+
+.askLine {
+  font-size: var(--text-body);
+  line-height: 20px;
+  color: var(--goal-fg);
+}
+
+.suggest {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--goal-mute);
+}
+
+/* The foot: the small figures under a divider, three across. */
+.foot {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin: var(--sp-5) 0 0;
+  padding-top: var(--sp-4);
+  border-top: var(--hair) solid var(--goal-line);
+}
+
+.footItem {
+  min-width: 0;
+}
+
+.footLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--goal-mute);
+}
+
+.footValue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-row);
+  line-height: 22px;
+  font-weight: var(--weight-medium);
+  color: var(--goal-fg);
+}
+
+.trend {
+  color: var(--accent);
+}
+
+/* A phone (D-Phone-Today `.phone .goal`): 18 px padding, the figure at its phone size, the foot one figure per line
+   under the bar and its key, the edit button a full 44 px target (its pencil stays 16 px), and the pill on its line. */
+@media (max-width: 759px) {
+  .goal {
+    padding: var(--pad-panel);
+  }
+
+  .goal .figures [data-size='goal'] [data-ui-number] {
+    font-size: var(--fig-goal-phone);
+  }
+
+  .foot {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-3);
+  }
+
+  .edit {
+    width: var(--target);
+    height: var(--target);
+  }
+
+  /* The month pill stays on the heading's line (D's `.g-top`); "before tax" takes the line under the heading, lined
+     up with its words past the 28 px icon. */
+  .sub {
+    order: 1;
+    flex-basis: 100%;
+    padding-left: calc(var(--sp-7) + var(--sp-3));
+  }
+}

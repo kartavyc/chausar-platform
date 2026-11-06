@@ -202,7 +202,7 @@ export const PLAYBOOKS: Record<string, PlaybookPick> = {
 };
 
 export const OFFER_RECEIPTS: ReceiptLite[] = [
-  { id: 'R-0408', at: '2026-10-14T10:00:00.000Z', explanation: 'One mention at ₹15,000.00, no discount. Not registered for GST, so no tax.', stale: false, figures: [{ key: 'unit', label: 'Per mention', display: '₹15,000.00' }, { key: 'total', label: 'Total', display: '₹15,000.00' }] },
+  { id: 'R-0408', at: '2026-10-14T10:00:00.000Z', explanation: 'One mention at ₹15,000.00, no discount, no tax added, because tax is not turned on for this price.', stale: false, figures: [{ key: 'unit', label: 'Per mention', display: '₹15,000.00' }, { key: 'total', label: 'Total', display: '₹15,000.00' }] },
   { id: 'R-0409', at: '2026-10-21T08:05:00.000Z', explanation: 'Monthly books at ₹16,000.00, GST at 18% split as CGST and SGST.', stale: false, figures: [{ key: 'subtotal', label: 'Monthly books', display: '₹16,000.00' }, { key: 'cgst', label: 'CGST at 9%', display: '₹1,440.00' }, { key: 'sgst', label: 'SGST at 9%', display: '₹1,440.00' }, { key: 'total', label: 'Total', display: '₹18,880.00' }] },
 ];
 

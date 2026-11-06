@@ -1,40 +1,58 @@
-import { useId, useState } from 'react';
 import { useT } from '../text';
 import { useResource } from '../engine/context';
 import { BusinessMenu } from './BusinessMenu';
 import { RAIL_PLACES, type Route } from './routes';
 import { cx } from '../parts/cx';
+import { Icon } from '../parts/Icon';
+import { Logo } from '../parts/Logo';
+import type { IconName } from '../parts/icons';
 import s from './Rail.module.css';
 
+type RailPlace = (typeof RAIL_PLACES)[number];
+
 /**
- * The rail (220 px): the business menu, then the six places. Today carries the count of what needs the owner,
- * across every business on this computer. Below 760 px it becomes a top bar with a place menu.
+ * Each rail place's icon (D-STYLE.md section 4, "Rail"). The map is keyed by RAIL_PLACES, so the place W4 4C adds
+ * (Chats, with messages-square, second in the list) cannot land without its icon; until then nothing is drawn for it.
+ */
+const PLACE_ICONS: Readonly<Record<RailPlace, IconName>> = {
+  today: 'sun',
+  team: 'users',
+  work: 'briefcase',
+  clients: 'contact',
+  money: 'wallet',
+  connections: 'plug',
+};
+
+/**
+ * The rail (D's `.rail`, 232 px): the brand, which goes home to Today; the business button and its menu; then the
+ * six places with their icons. Today carries the count of what needs the owner across every business on this
+ * computer, amber while the owner is elsewhere. A phone never draws it: under 760 px the shell shows the top bar and
+ * the bottom tabs instead (TopBar.tsx).
  */
 export function Rail({ route }: { route: Route }) {
   const t = useT();
-  const listId = useId();
-  const [menuOpen, setMenuOpen] = useState(false);
   const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: (event) => event.type === 'queue.changed' });
   const needsYou = queue.data?.needsYou ?? 0;
 
   return (
-    <nav className={s.rail} aria-label={t('shell.places')} data-menu-open={menuOpen ? '' : undefined}>
+    <nav className={s.rail} aria-label={t('shell.places')}>
       <div className={s.top}>
-        <BusinessMenu onNavigate={() => setMenuOpen(false)} />
-        <button type="button" className={s.menuButton} aria-expanded={menuOpen} aria-controls={listId} onClick={() => setMenuOpen((o) => !o)}>
-          {menuOpen ? t('shell.menuClose') : t('shell.menu')}
-        </button>
+        <a className={s.brand} href="#/today" aria-label={t('rail.brand')}>
+          <Logo wordmark className={s.logo} />
+        </a>
+        <BusinessMenu />
       </div>
-      <ul id={listId} className={s.places}>
+      <ul className={s.places}>
         {RAIL_PLACES.map((place) => {
           const here = route.place === place;
           return (
             <li key={place}>
-              <a className={cx(s.place, here && s.on)} href={`#/${place}`} aria-current={here ? 'page' : undefined} onClick={() => setMenuOpen(false)}>
+              <a className={cx(s.place, here && s.on)} href={`#/${place}`} aria-current={here ? 'page' : undefined}>
+                <Icon name={PLACE_ICONS[place]} className={s.icon} />
                 <span>{t(`place.${place}`)}</span>
                 {place === 'today' && needsYou > 0 && (
                   <>
-                    <span className={`${s.count} mono`} aria-hidden="true">{needsYou}</span>
+                    <span className={cx(s.count, 'mono')} aria-hidden="true" data-tone={here ? undefined : 'wait'}>{needsYou}</span>
                     <span className="sr-only">, {t('rail.needsYou', { count: needsYou })}</span>
                   </>
                 )}

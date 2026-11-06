@@ -1,0 +1,79 @@
+/* Avatar: D's `.av`, `.av24` to `.av52`, `.st-av` (60), `.d-x` tints, `.ring-*` and `.st-badge`.
+   Size, ring and ground are custom properties set by data attributes, so nothing is inline. Type never goes below
+   12 px, so D's 9.5 to 11.5 px initials on the small sizes become 12. */
+
+.avatar {
+  --av: var(--av-36);
+  --ring-gap: 2px;
+  --ring-width: 4px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--av);
+  height: var(--av);
+  border-radius: calc(var(--av) * 0.3);
+  background: var(--wash);
+  color: var(--fg2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.03em;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.avatar[data-size='24'] { --av: var(--av-24); font-size: var(--text-label); }
+.avatar[data-size='28'] { --av: var(--av-28); font-size: var(--text-label); }
+.avatar[data-size='32'] { --av: var(--av-32); font-size: var(--text-label); }
+.avatar[data-size='36'] { --av: var(--av-36); font-size: var(--text-read); }
+.avatar[data-size='40'] { --av: var(--av-40); font-size: var(--text-body); }
+.avatar[data-size='52'] { --av: var(--av-52); --ring-gap: 2.5px; --ring-width: 5px; font-size: var(--text-tile); }
+.avatar[data-size='60'] { --av: var(--av-60); --ring-gap: 3px; --ring-width: 5.5px; font-size: var(--text-sheet); }
+
+/* Department tints with their ink (the dark theme has its own pairs in tokens.css). */
+.avatar[data-dept='sales'] { background: var(--sales-tint); color: var(--sales); }
+.avatar[data-dept='mkt'] { background: var(--mkt-tint); color: var(--mkt); }
+.avatar[data-dept='prod'] { background: var(--prod-tint); color: var(--prod); }
+.avatar[data-dept='money'] { background: var(--money-tint); color: var(--money); }
+.avatar[data-dept='ops'] { background: var(--ops-tint); color: var(--ops); }
+
+/* Rings: the gap is the ground under the avatar (set by the container), then the state's colour. */
+.avatar[data-state] {
+  box-shadow: 0 0 0 var(--ring-gap) var(--ring-ground, var(--surface)), 0 0 0 var(--ring-width) var(--ring-colour);
+}
+.avatar[data-state='working'] { --ring-colour: var(--accent); }
+.avatar[data-state='waiting'] { --ring-colour: var(--wait-ring); }
+.avatar[data-state='failed'] { --ring-colour: var(--fail-ring); }
+
+/* The department badge on a story avatar: the department's solid with its icon. D's 22 px square with a 7 px
+   corner, which is the avatar corner rule (0.3 of the side) applied to the badge. */
+.badge {
+  --badge: 22px;
+  position: absolute;
+  right: calc(-1.5 * var(--sp-1));
+  bottom: calc(-1.5 * var(--sp-1));
+  display: grid;
+  place-items: center;
+  width: var(--badge);
+  height: var(--badge);
+  border: 2.5px solid var(--ring-ground, var(--surface));
+  border-radius: calc(var(--badge) * 0.3);
+  color: var(--dept-on);
+}
+.badge[data-dept='sales'] { background: var(--sales); }
+.badge[data-dept='mkt'] { background: var(--mkt); }
+.badge[data-dept='prod'] { background: var(--prod); }
+.badge[data-dept='money'] { background: var(--money); }
+.badge[data-dept='ops'] { background: var(--ops); }
+
+/* Chausar itself: the mark on the selected ground, half the avatar's side. */
+.chausar {
+  background: var(--selected);
+  color: var(--on-selected);
+}
+
+.chausar svg {
+  width: 50%;
+  height: 50%;
+}

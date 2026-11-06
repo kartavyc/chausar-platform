@@ -17,7 +17,17 @@ function start(engine = new FakeEngine(), options: { hosted?: boolean } = {}) {
   render(<App client={options.hosted ? { ...client, transport: 'hosted' } : client} language="en" />);
   return engine;
 }
-const part = () => screen.findByRole('group', { name: TITLE });
+// Wait for each step of the page in turn (Your AI, the engine's AI status, then the tile) with cheap text queries; a
+// role query over the whole page is slow in jsdom. The tile is the group its legend names: the legend is found by its
+// words, and checked to be the fieldset's own, which gives the group that name.
+const part = async () => {
+  await screen.findByText('Your AI', { selector: 'h2' });
+  await screen.findByText(/^This month:/);
+  const legend = await screen.findByText(TITLE, { selector: 'legend' });
+  const group = legend.closest('fieldset') as HTMLElement;
+  expect(group.querySelector('legend')).toBe(legend);
+  return group;
+};
 const sets = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.filter((call) => call[0] === 'venture.transcription.set').map((call) => call[1]);
 
 describe('Connections > Your AI: transcription on this computer', () => {
@@ -60,7 +70,8 @@ describe('Connections > Your AI: transcription on this computer', () => {
 
   it('is not shown on the hosted server, which reads no file on your computer', async () => {
     start(new FakeEngine({ hosted: true }), { hosted: true });
-    const section = await screen.findByRole('region', { name: 'Your AI' });
+    await screen.findByText('Your AI', { selector: 'h2' });
+    const section = screen.getByRole('region', { name: 'Your AI' });
     await waitFor(() => expect(section.textContent).toContain('USD 0.0000'));
     expect(screen.queryByRole('group', { name: TITLE })).toBeNull();
   });

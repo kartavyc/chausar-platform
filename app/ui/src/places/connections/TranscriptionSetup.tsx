@@ -3,6 +3,7 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
+import { Tile } from '../../parts/Tile';
 import type { TranscriptionSetupView } from '../../engine/types';
 import s from './Connections.module.css';
 
@@ -10,10 +11,10 @@ const never = () => false;
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
- * Transcription on this computer (Ink v2 wave 2, 2E2), under Your AI on the desktop: the full paths to the whisper-cli
- * program and the model file of a whisper.cpp already on this computer. The engine checks them, keeps them in the
- * vault and says the honest status in its own words (set up, not set up, or files missing). Chausar never installs
- * whisper.cpp or downloads a model. Save sends both paths; Remove clears the setup.
+ * Transcription on this computer (Ink v2 wave 2, 2E2), a tile beside Your AI on the desktop: the full paths to the
+ * whisper-cli program and the model file of a whisper.cpp already on this computer. The engine checks them, keeps them
+ * in the vault and says the honest status in its own words (set up, not set up, or files missing). Chausar never
+ * installs whisper.cpp or downloads a model. Save sends both paths; Remove clears the setup.
  */
 export function TranscriptionSetup() {
   const t = useT();
@@ -53,20 +54,22 @@ export function TranscriptionSetup() {
   }
 
   return (
-    <form className={s.form} onSubmit={save}>
-      <fieldset className={s.rule}>
-        <legend className={s.subheading}>{t('connections.transcribe.title')}</legend>
-        {shown && <p className={shown.status === 'set-up' ? s.line : s.note} role="status">{shown.line}</p>}
-        {setup.error && <p className={s.problem} role="alert">{t('connections.transcribe.loadFailed', { message: setup.error.message })}</p>}
-        <p className={s.note}>{t('connections.transcribe.hint')}</p>
-        <Field label={t('connections.transcribe.command')} hint={t('connections.transcribe.commandHint')} value={command} maxLength={500} autoComplete="off" spellCheck={false} onChange={(event) => setCommand(event.currentTarget.value)} />
-        <Field label={t('connections.transcribe.model')} hint={t('connections.transcribe.modelHint')} value={model} maxLength={500} autoComplete="off" spellCheck={false} onChange={(event) => setModel(event.currentTarget.value)} />
-        {problem && <p className={s.problem} role="alert">{problem}</p>}
-        <div className={s.buttons}>
-          <Button type="submit" disabled={busy || !command.trim() || !model.trim()}>{t('connections.transcribe.save')}</Button>
-          {shown?.command && <Button variant="quiet" disabled={busy} onClick={() => void send({ clear: true })}>{t('connections.transcribe.remove')}</Button>}
-        </div>
-      </fieldset>
-    </form>
+    <Tile pad="compact">
+      <form className={s.form} onSubmit={save}>
+        <fieldset className={s.rule}>
+          <legend className={s.title}>{t('connections.transcribe.title')}</legend>
+          {shown && <p className={shown.status === 'set-up' ? s.line : s.note} role="status">{shown.line}</p>}
+          {setup.error && <p className={s.problem} role="alert">{t('connections.transcribe.loadFailed', { message: setup.error.message })}</p>}
+          <p className={s.note}>{t('connections.transcribe.hint')}</p>
+          <Field label={t('connections.transcribe.command')} hint={t('connections.transcribe.commandHint')} value={command} maxLength={500} autoComplete="off" spellCheck={false} onChange={(event) => setCommand(event.currentTarget.value)} />
+          <Field label={t('connections.transcribe.model')} hint={t('connections.transcribe.modelHint')} value={model} maxLength={500} autoComplete="off" spellCheck={false} onChange={(event) => setModel(event.currentTarget.value)} />
+          {problem && <p className={s.problem} role="alert">{problem}</p>}
+          <div className={s.buttons}>
+            {shown?.command && <Button size="sm" variant="quiet" disabled={busy} onClick={() => void send({ clear: true })}>{t('connections.transcribe.remove')}</Button>}
+            <Button size="sm" type="submit" disabled={busy || !command.trim() || !model.trim()}>{t('connections.transcribe.save')}</Button>
+          </div>
+        </fieldset>
+      </form>
+    </Tile>
   );
 }

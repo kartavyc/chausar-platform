@@ -26,43 +26,55 @@ async function start(hash = '#/work', options: StartOptions = {}) {
 const go = async (hash: string) => { await act(async () => { window.location.hash = hash; window.dispatchEvent(new HashChangeEvent('hashchange')); }); };
 const rowOf = async (text: string, scope: HTMLElement = document.body) => (await within(scope).findByText(text)).closest('li')!;
 const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+/** Ink v2 (3E1): orders are grouped under their client's tile, so the client's name sits on the group, not the card. */
+const clientOf = (order: Element) => order.closest('article')!;
+const pressed = (group: HTMLElement) => within(group).getAllByRole('button').filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent);
 
 describe('Work: runs', () => {
   it('puts work in progress on top: per-stage progress, indeterminate in words, waiting in amber', async () => {
     await start();
     expect(screen.getByRole('heading', { level: 1, name: 'Work' })).toBeTruthy();
-    const working = await screen.findByRole('region', { name: 'Working now' });
-    expect((await rowOf('Cutting shorts from episode 13', working)).textContent).toContain('3 of 5');
-    expect((await rowOf('Checking titles against the last 30 videos', working)).textContent).toContain('indeterminate');
+    // Ink v2 (3E1): "Working now" is D's "Running now", a tile per run with a ring named by its steps.
+    const working = await screen.findByRole('region', { name: 'Running now' });
+    expect(within(await rowOf('Cutting shorts from episode 13', working)).getByRole('img', { name: '3 of 5 steps done' })).toBeTruthy();
+    expect(within(await rowOf('Checking titles against the last 30 videos', working)).getByRole('img', { name: 'Working, no step count yet' })).toBeTruthy();
     const waiting = await rowOf('Pricing the sponsor slot', working);
-    expect(within(waiting).getByText('Waiting on you').className).toMatch(/wait/);
-    expect(waiting.textContent).toContain('paused');
+    expect((await within(waiting).findByText('Step 3 of 3 waits on you')).className).toMatch(/wait/);
+    // D's order: running, then the stopped run beside Finished, then orders.
+    const finished = await screen.findByRole('region', { name: 'Finished' });
     const orders = await screen.findByRole('region', { name: 'Orders' });
-    const previous = await screen.findByRole('region', { name: 'Previous' });
-    expect(follows(working, orders)).toBe(true);
-    expect(follows(orders, previous)).toBe(true);
+    expect(follows(working, finished)).toBe(true);
+    expect(follows(finished, orders)).toBe(true);
   });
 
-  it('folds previous runs to one line: worked for, result, receipt; a model number is labelled and has no receipt', async () => {
+  it('folds previous runs to one line: agent, result, receipt, time; a model number is labelled and has no receipt', async () => {
     await start();
-    const previous = await screen.findByRole('region', { name: 'Previous' });
+    // Ink v2 (3E1): "Previous" is D's "Finished", one list row per run with its receipt chip and time at the end.
+    const previous = await screen.findByRole('region', { name: 'Finished' });
     const books = await rowOf('Matched September bank lines to invoices', previous);
-    expect(books.textContent).toContain('Worked for 4m · Matched 212 of 214 lines. 2 need your data. · R-0412');
+    // Each part on its own, so the test does not hang on how the row's pieces happen to sit side by side.
+    expect(books.textContent).toContain('Bookkeeper');
+    expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
     expect(within(books).getByRole('button', { name: 'Receipt R-0412' })).toBeTruthy();
+    expect(within(books).getByText('Worked for 4m')).toBeTruthy();
     const reach = await rowOf('Estimated reach for episode 14', previous);
-    expect(reach.textContent).toContain('Worked for 2m · About 18,000 views in 30 days model estimate');
+    expect(reach.textContent).toContain('Researcher');
+    expect(within(reach).getByText('About 18,000 views in 30 days').closest('[data-estimate]')).toBeTruthy();
+    expect(within(reach).getByText('model estimate')).toBeTruthy();
+    expect(within(reach).getByText('Worked for 2m')).toBeTruthy();
     expect(within(reach).queryByRole('button', { name: /Receipt/ })).toBeNull();
   });
 
   it('shows a failed run with its real error, and runs it again through the engine', async () => {
     const { calls } = await start();
-    const previous = await screen.findByRole('region', { name: 'Previous' });
+    // Ink v2 (3E1): the failed run is D's stopped tile, in a list of failed runs ("Stopped" is the owner's own Stop, W4 4F).
+    const previous = await screen.findByRole('region', { name: 'Failed' });
     const failed = await rowOf('Rendering the thumbnail set', previous);
     await waitFor(() => expect(failed.textContent).toContain('The renderer stopped: ffmpeg was not found on this computer. Install ffmpeg, or turn off the finishing check, then run again.'));
     const again = await within(failed).findByRole('button', { name: 'Run again' });
     await act(async () => { fireEvent.click(again); });
     expect(calls.find((c) => c.method === 'venture.queue.decide')?.params).toMatchObject({ id: 'q-run-again-thumbs', action: 'run-again' });
-    const working = screen.getByRole('region', { name: 'Working now' });
+    const working = screen.getByRole('region', { name: 'Running now' });
     await waitFor(() => expect(within(working).getByText('Rendering the thumbnail set')).toBeTruthy());
   });
 
@@ -86,7 +98,7 @@ describe('Work: runs', () => {
 
   it('refreshes on run events without being asked', async () => {
     const { engine } = await start();
-    const working = await screen.findByRole('region', { name: 'Working now' });
+    const working = await screen.findByRole('region', { name: 'Running now' });
     await rowOf('Cutting shorts from episode 13', working);
     await act(async () => { await engine.request('venture.delivery.run', { orderId: 'o-boat-14' }); });
     await waitFor(() => expect(within(working).getByText('Draft a reply for Boat Audio')).toBeTruthy());
@@ -96,17 +108,17 @@ describe('Work: runs', () => {
 });
 
 describe('Work: filter in the address', () => {
-  it('shows one state at a time, with counts, and the link for each', async () => {
+  it('shows one state at a time, and the chip for each', async () => {
+    // Ink v2 (3E1): the filter is D's chips (buttons held in the address), with no counts; the line under the title counts.
     await start('#/work?state=failed');
-    const nav = screen.getByRole('navigation', { name: 'Show' });
-    const failedLink = await within(nav).findByRole('link', { name: 'Failed 1' });
-    expect(failedLink.getAttribute('aria-current')).toBe('true');
-    expect(within(nav).getByRole('link', { name: 'All' }).getAttribute('href')).toBe('#/work');
-    expect(within(nav).getByRole('link', { name: /^Done/ }).getAttribute('href')).toBe('#/work?state=done');
-    await waitFor(() => expect(within(nav).getByRole('link', { name: 'Working 3' })).toBeTruthy());
+    const nav = screen.getByRole('group', { name: 'Show' });
+    expect(pressed(nav)).toEqual(['Failed']);
+    await act(async () => { fireEvent.click(within(nav).getByRole('button', { name: 'Done' })); });
+    expect(window.location.hash).toBe('#/work?state=done');
+    await go('#/work?state=failed');
     expect(await screen.findByText('Rendering the thumbnail set')).toBeTruthy();
     expect(screen.queryByText('Matched September bank lines to invoices')).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Working now' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Running now' })).toBeNull();
     expect(screen.queryByText('Two mentions in episode 14')).toBeNull();
 
     await go('#/work?state=done');
@@ -118,12 +130,12 @@ describe('Work: filter in the address', () => {
     expect(screen.queryByText('Matched September bank lines to invoices')).toBeNull();
 
     await go('#/work?state=active');
-    expect(await screen.findByRole('region', { name: 'Working now' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Running now' })).toBeTruthy();
     expect(screen.queryByText('Two mentions in episode 14')).toBeNull();
 
     await go('#/work?state=nonsense');
     expect(await screen.findByText('Two mentions in episode 14')).toBeTruthy();
-    expect(within(nav).getByRole('link', { name: 'All' }).getAttribute('aria-current')).toBe('true');
+    expect(pressed(screen.getByRole('group', { name: 'Show' }))).toEqual(['All']);
   });
 
   it('says plainly when a filter has nothing, and when there is no work at all', async () => {
@@ -141,7 +153,7 @@ describe('Work: orders', () => {
     const orders = await screen.findByRole('region', { name: 'Orders' });
     const ep14 = await rowOf('Two mentions in episode 14', orders);
     await waitFor(() => expect(ep14.textContent).toContain('Draft ready. Read it before it goes to the client.'));
-    expect(ep14.textContent).toContain('Boat Audio');
+    expect(clientOf(ep14).textContent).toContain('Boat Audio');
     const ep12 = await rowOf('Two mentions in episode 12', orders);
     await waitFor(() => expect(ep12.textContent).toContain('Invoiced as INV-0039. Waiting for payment.'));
   });
@@ -168,7 +180,7 @@ describe('Work: orders', () => {
   it('starts a received order through the engine; it then shows as working and opens its run', async () => {
     const { calls } = await start('#/work', { folder: 'ledgerline' });
     const iyer = await rowOf('Monthly books from October');
-    expect(iyer.textContent).toContain('Iyer & Co');
+    expect(clientOf(iyer).textContent).toContain('Iyer & Co');
     expect(iyer.textContent).toContain('Received. Not started yet.');
     await act(async () => { fireEvent.click(within(iyer).getByRole('button', { name: 'Start' })); });
     expect(calls.find((c) => c.method === 'venture.delivery.run')?.params).toEqual({ orderId: 'o-iyer-oct' });
@@ -193,17 +205,18 @@ describe('Work: one order from the address', () => {
     const order = await screen.findByRole('region', { name: 'Order' });
     const row = await rowOf('Two mentions in episode 14', order);
     await waitFor(() => expect(row.textContent).toContain('Draft ready. Read it before it goes to the client.'));
-    expect(row.textContent).toContain('Boat Audio');
+    expect(clientOf(row).textContent).toContain('Boat Audio');
     expect(within(order).getByRole('button', { name: 'Receipt R-0415' })).toBeTruthy();
     const runs = screen.getByRole('region', { name: 'Runs' });
     expect((await rowOf('Sponsor script for episode 14', runs)).textContent).toContain('Draft ready.');
     expect((await rowOf('Practice sponsor script', runs)).textContent).toContain('Practice draft only.');
     expect(screen.queryByText('Two mentions in episode 12')).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Working now' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Running now' })).toBeNull();
     expect(screen.getByRole('link', { name: 'All orders' }).getAttribute('href')).toBe('#/work?state=orders');
-    const nav = screen.getByRole('navigation', { name: 'Show' });
-    expect(within(nav).getByRole('link', { name: /^Done/ }).getAttribute('href')).toBe('#/work?state=done');
-    expect(within(nav).getByRole('link', { name: 'All' }).getAttribute('aria-current')).toBeNull();
+    const nav = screen.getByRole('group', { name: 'Show' });
+    expect(pressed(nav)).toEqual([]);
+    await act(async () => { fireEvent.click(within(nav).getByRole('button', { name: 'Done' })); });
+    expect(window.location.hash).toBe('#/work?state=done');
     await go('#/work?state=done');
     expect(await screen.findByText('Matched September bank lines to invoices')).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Runs' })).toBeNull();
@@ -309,7 +322,7 @@ describe('Work: new order', () => {
     const created = calls.find((c) => c.method === 'venture.order.create')?.params as { clientId: string };
     expect(created.clientId).not.toBe('+new');
     const row = await rowOf('One mention in her podcast');
-    await waitFor(() => expect(row.textContent).toContain('Kavya Rao'));
+    await waitFor(() => expect(clientOf(row).textContent).toContain('Kavya Rao'));
   });
 
   it('refuses a file the engine would refuse before sending anything', async () => {

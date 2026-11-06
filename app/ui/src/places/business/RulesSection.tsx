@@ -3,7 +3,7 @@ import { useLanguage, useT } from '../../text';
 import { useResource } from '../../engine/context';
 import type { PlatformRuleView } from '../../engine/types';
 import { onDesktop, safeUrl } from '../connections/external';
-import { dayOf } from './shared';
+import { TileSection, dayOf } from './shared';
 import s from './Business.module.css';
 import r from './RulesSection.module.css';
 
@@ -11,17 +11,16 @@ import r from './RulesSection.module.css';
 const RISKS = ['low', 'medium', 'high'];
 
 /**
- * Platform rules (venture.rules.list, Ink v2 wave 2 package 2H), on Plan and playbook: the dated rules the business's
- * playbook checks rest on. The engine's summary ("18 current, 2 to recheck."), the playbook's risk level and last
- * review, each rule past its recheck window with the engine's line and its source page, then the current rules with
- * what each does not cover. Every line is the engine's; nothing is counted or dated here. A business on no flagship
- * playbook shows nothing. On the desktop the source address is shown as text, because the desktop opens only its
- * listed partner sites.
+ * Platform rules (venture.rules.list, Ink v2 wave 2 package 2H), a tile on Plan and playbook: the dated rules the
+ * business's playbook checks rest on. The engine's summary ("18 current, 2 to recheck."), the playbook's risk level and
+ * last review, each rule past its recheck window with the engine's line and its source page, then, one fold away, the
+ * current rules with what each does not cover. Every line is the engine's; nothing is counted or dated here. A
+ * business on no flagship playbook shows nothing. On the desktop the source address is shown as text, because the
+ * desktop opens only its listed partner sites.
  */
 export function RulesSection() {
   const t = useT();
   const language = useLanguage();
-  const headingId = useId();
   const staleId = useId();
   const currentId = useId();
   const rules = useResource('venture.rules.list', {}, { refreshOn: (event) => event.type === 'queue.changed' });
@@ -32,13 +31,12 @@ export function RulesSection() {
   const stale = view?.rules.filter((rule) => rule.stale) ?? [];
   const current = view?.rules.filter((rule) => !rule.stale) ?? [];
   return (
-    <section className={s.section} aria-labelledby={headingId}>
-      <h2 id={headingId} className={s.heading}>{t('business.rules.heading')}</h2>
+    <TileSection title={t('business.rules.heading')}>
       {rules.error || !view?.playbook ? (
         <p className={s.problem} role="alert">{t('business.failed', { message: rules.error?.message ?? '' })}</p>
       ) : (
         <>
-          <p className={s.line}>{view.summary}</p>
+          <p className={s.strong}>{view.summary}</p>
           <p className={s.note}>
             {t('business.rules.review', {
               risk: RISKS.includes(view.playbook.riskLevel) ? t(`business.rules.risk.${view.playbook.riskLevel}`) : view.playbook.riskLevel,
@@ -46,8 +44,8 @@ export function RulesSection() {
             })}
           </p>
           {stale.length > 0 && (
-            <>
-              <h3 id={staleId} className={s.heading}>{t('business.rules.recheck')}</h3>
+            <div>
+              <h3 id={staleId} className={r.subheading}>{t('business.rules.recheck')}</h3>
               <ul className={s.steps} aria-labelledby={staleId}>
                 {stale.map((rule) => (
                   <li key={rule.id} className={s.step} data-rule={rule.id}>
@@ -56,7 +54,7 @@ export function RulesSection() {
                   </li>
                 ))}
               </ul>
-            </>
+            </div>
           )}
           {current.length > 0 && (
             <details className={s.fold}>
@@ -79,7 +77,7 @@ export function RulesSection() {
           )}
         </>
       )}
-    </section>
+    </TileSection>
   );
 }
 

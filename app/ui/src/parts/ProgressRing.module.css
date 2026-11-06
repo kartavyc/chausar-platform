@@ -1,0 +1,42 @@
+/* ProgressRing: D's `.pring` (40 px, r 16, stroke 4) and its middle label `b`. D's 10.5 px label becomes 12 px.
+   Colours are set here by data-tone; the arc's length is SVG attributes on the element (pathLength, dash). */
+
+.ring {
+  --ring-colour: var(--accent);
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+
+.ring[data-tone='working'] { --ring-colour: var(--accent); }
+.ring[data-tone='waiting'] { --ring-colour: var(--wait-ring); }
+.ring[data-tone='failed'] { --ring-colour: var(--fail-ring); }
+
+.ring svg {
+  display: block;
+}
+
+.track {
+  stroke: var(--line);
+}
+
+.arc {
+  stroke: var(--ring-colour);
+}
+
+.dot {
+  fill: var(--fg);
+}
+
+.label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--fg);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+}

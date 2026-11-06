@@ -1,0 +1,79 @@
+/* BottomTabs: D's `nav.tabs`, `.tab`, `.tab.on`, `.tab-line` and `.tab-badge`. D's 11 px tab words and 10.5 px badge
+   rise to the 12 px floor; the words are --mute rather than D's lighter grey, for contrast. */
+
+.tabs {
+  display: flex;
+  flex: none;
+  min-height: var(--tabs);
+  padding: 0 0 env(safe-area-inset-bottom, 0);
+  border-top: var(--hair) solid var(--line);
+  background: var(--surface);
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-width: var(--target);
+  min-height: var(--tabs);
+  color: var(--mute);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: 16px;
+  text-decoration: none;
+}
+
+.tab:hover {
+  color: var(--fg);
+}
+
+.tab:focus-visible {
+  outline-offset: -2px;
+}
+
+.tab[data-current] {
+  color: var(--fg);
+  font-weight: var(--weight-strong);
+}
+
+/* The accent line along the top edge of the current tab. */
+.line {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  width: 28px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+  transform: translateX(-50%);
+}
+
+.word {
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+/* Today's count: a dark pill on the icon's top right corner. The 22 px icon reaches 11 px right of the middle, so a
+   pill that starts 8 px right of it covers only the corner and the icon stays readable (w3 3I). */
+.badge {
+  position: absolute;
+  top: var(--sp-1);
+  left: 50%;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: var(--sp-2);
+  padding: 0 var(--sp-1);
+  border-radius: var(--r-chip);
+  background: var(--selected);
+  color: var(--on-selected);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--surface);
+}

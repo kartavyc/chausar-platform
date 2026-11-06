@@ -1,0 +1,20 @@
+{
+  "about": "Raw padding, margin and gap values (lengths written as numbers, not tokens) per stylesheet under app/ui/src, counted once by w3 package 3A1 from the wave 3 start (a71d0667, 54 in all). Each count must equal the file's real count and may only go down; a stylesheet not listed is allowed none. tests/source-rules.test.ts holds it.",
+  "counts": {
+    "parts/ApprovalRow.module.css": 0,
+    "parts/ConnectorLabel.module.css": 0,
+    "parts/EmptyState.module.css": 0,
+    "parts/JobList.module.css": 0,
+    "parts/StatusLine.module.css": 0,
+    "parts/Steps.module.css": 0,
+    "places/business/Business.module.css": 0,
+    "places/business/RulesSection.module.css": 0,
+    "places/clients/Clients.module.css": 0,
+    "places/connections/Connections.module.css": 0,
+    "places/money/Money.module.css": 0,
+    "places/onboarding/Onboarding.module.css": 1,
+    "places/team/Team.module.css": 0,
+    "places/today/Today.module.css": 0,
+    "places/work/Work.module.css": 0
+  }
+}

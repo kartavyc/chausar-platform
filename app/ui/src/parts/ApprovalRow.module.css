@@ -1,3 +1,11 @@
+/* ApprovalRow. The row layout (v1) sits on Row's look; the card layouts are D-Today's big preview card (`.qcard`,
+   `.qc-head`, `.qc-who`, `.qc-name`, `.qc-meta`, `.kchip`, `.qc-title`, `.qc-line`, `.pv`, `.qc-note`, `.qc-acts`)
+   and its compact card (`.qk`, `.qk-top`, `.k`, `.who`, `.qk-title`, `.qk-line`, `.qk-mini`, `.mchg`, `.qk-foot`).
+   D's 12.5, 13.5 and 14.5 px snap to the Ink scale (13, 14, 15); its 10, 11 and 14 px gaps to the 4 px steps. Rows of
+   a grid stretch, so a card's buttons sit at its foot whatever its preview holds. */
+
+/* ---- The row (v1) ---- */
+
 .change {
   margin-top: var(--sp-1);
 }
@@ -37,15 +45,308 @@
   opacity: 0.6;
 }
 
+/* A decided row or card shrinks to one receipt line and settles once. */
 .decided {
-  padding: 10px 0;
+  padding: var(--sp-3) 0;
   border-top: var(--hair) solid var(--line);
   list-style: none;
   font-size: var(--text-read);
   color: var(--mute);
-  animation: ink-settle var(--t-settle) var(--ease) 1;
+  animation: global(ink-settle) var(--t-settle) var(--ease) 1;
 }
 
 .decidedTitle {
   color: var(--fg2);
+}
+
+.decidedCard {
+  padding: var(--sp-3) var(--pad-tile);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+}
+
+/* ---- The card ---- */
+
+.card {
+  --ring-ground: var(--surface);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--pad-tile);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--surface);
+  box-shadow: var(--shadow-tile);
+  color: var(--fg);
+}
+
+/* A stopped run's card keeps D's red edge, without D's red wash (w3 plan, "What W3 changes from D"). */
+.card[data-tone='fail'] {
+  border-color: var(--fail-line);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--av-40);
+}
+
+.who {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-size: var(--text-body);
+  line-height: 20px;
+  font-weight: var(--weight-strong);
+}
+
+.nameText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+/* The kind chip at the right of the head; a stopped run says so in the fail tone. */
+.kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+  min-height: 28px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-chip);
+  background: var(--wash);
+  color: var(--fg2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.kind[data-tone='fail'] {
+  background: var(--fail-soft);
+  color: var(--fail);
+}
+
+/* Hindi words run longer: the chip may take two lines rather than push the name off the card. */
+.kind:lang(hi) {
+  white-space: normal;
+}
+
+.title {
+  margin: var(--sp-4) 0 0;
+  font-size: var(--text-tile);
+  line-height: 22px;
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.005em;
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.titleButton {
+  composes: hit from './touch.module.css';
+}
+
+.titleButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.titleButton:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The line is the engine's own words and is never cut: it carries safety words (the judge's notice and its cost, why
+   Accept waits, "The platform may restrict this account"), so it wraps to as many lines as it needs. */
+.line {
+  margin-top: var(--sp-1);
+  font-size: var(--text-body);
+  line-height: 20px;
+  color: var(--fg2);
+  overflow-wrap: break-word;
+}
+
+.preview {
+  margin-top: var(--sp-4);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+/* The change, large, on the inner grey (D's price preview). */
+.changeBox {
+  display: flex;
+  align-items: center;
+  min-height: 120px;
+  margin-top: var(--sp-4);
+  padding: var(--sp-5) var(--pad-panel);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.changeMini {
+  margin-top: var(--sp-3);
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
+/* Why the primary is locked, or that it asks once more, in words beside an icon. */
+.note {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 28px;
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.note svg {
+  color: var(--mute);
+}
+
+.card .notice,
+.card .refusal {
+  margin-top: var(--sp-3);
+}
+
+/* The second ask and the answer box open inside the card, on the inner grey. */
+.confirm {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.acts {
+  display: flex;
+  gap: var(--sp-3);
+}
+
+/* The buttons share the width and may shrink: a long label ("Approve and post", or Hindi) wraps inside its button
+   instead of running out of it. Busy buttons are native-disabled; locked ones stay in the Tab order (Button). */
+.acts > button {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-align: center;
+}
+
+.acts > button[data-size] {
+  padding-top: var(--sp-1);
+  padding-bottom: var(--sp-1);
+}
+
+.card > .acts {
+  margin-top: auto;
+  padding-top: var(--sp-4);
+}
+
+/* ---- The compact card ---- */
+
+.compact {
+  padding: var(--pad-tile-compact);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: var(--control);
+}
+
+.kindBox {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control);
+  height: var(--control);
+  border-radius: var(--r-card);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.kindBox[data-tone='wait'] {
+  background: var(--wait-soft);
+  color: var(--wait);
+}
+
+.kindBox[data-tone='fail'] {
+  background: var(--fail-soft);
+  color: var(--fail);
+}
+
+.whoSmall {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+}
+
+.compact .title {
+  margin-top: var(--sp-3);
+  font-size: var(--text-row);
+  line-height: 20px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.compact .line {
+  font-size: var(--text-read);
+  line-height: 18px;
+}
+
+/* The business and the time on a compact card, when the list holds more than one business. */
+.metaSmall {
+  margin-top: var(--sp-2);
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.compact .note {
+  min-height: 24px;
+  margin-top: var(--sp-2);
+  font-size: var(--text-label);
+  line-height: 16px;
+}
+
+.compact > .acts {
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+}
+
+/* On a compact card two buttons share the line while both labels fit; a longer pair ("Do not post", "Approve and
+   post") puts each on a line of its own at full width rather than wrapping a label to three lines (3C). */
+.compact > .acts > button {
+  min-width: fit-content;
 }

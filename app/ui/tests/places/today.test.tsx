@@ -1,16 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
+import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient, queueOrder } from '../../src/engine/fake';
 import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
 import { EngineError, type EngineClient, type QueueDecision, type QueueKind, type QueueRow } from '../../src/engine/types';
 
 type Seed = Omit<QueueRow, 'digest'>;
 
+/** Today's title is the greeting for the hour (Ink v2, 3C): these tests read the page at 10:00 on this computer's clock. */
+const MORNING = () => new Date(2026, 9, 23, 10, 0);
+
 function start({ engine = new FakeEngine(), client, hash = '#/today', language = 'en' }: { engine?: FakeEngine; client?: EngineClient; hash?: string; language?: 'en' | 'hi' } = {}) {
   window.location.hash = hash;
   const used = client ?? createFakeClient(engine);
-  const view = render(<App client={used} language={language} />);
+  const view = render(<ClockProvider now={MORNING}><App client={used} language={language} /></ClockProvider>);
   return { engine, client: used, ...view };
 }
 
@@ -23,16 +27,30 @@ function quiet(engine: FakeEngine): EngineClient {
 const settleHash = async () => { await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); }); };
 const go = async (hash: string) => { await act(async () => { window.location.hash = hash; window.dispatchEvent(new HashChangeEvent('hashchange')); }); };
 const needsYou = () => screen.getByRole('region', { name: 'Needs you' });
-const rowOf = async (title: string) => (await within(needsYou()).findByText(title)).closest('li')!;
 const rowIds = () => [...needsYou().querySelectorAll('[data-row]')].map((li) => li.getAttribute('data-row-id'));
 const press = (key: string, target: Element = document.activeElement ?? document.body) => fireEvent.keyDown(target, { key });
 const click = async (element: Element) => { await act(async () => { fireEvent.click(element); }); };
+/** The rows past the compact cards wait behind "Show N more" (Ink v2, 3C): show them. */
+async function unfold() {
+  const more = within(needsYou()).queryByRole('button', { name: /^Show \d+ more$/ });
+  if (more) await click(more);
+}
+/** A row is a card (Ink v2, 3C) named by its title; one folded away is shown first. */
+async function rowOf(title: string): Promise<HTMLElement> {
+  await waitFor(() => expect(rowIds().length).toBeGreaterThan(0));
+  if (!within(needsYou()).queryByRole('heading', { level: 3, name: title })) await unfold();
+  return (await within(needsYou()).findByRole('heading', { level: 3, name: title })).closest<HTMLElement>('[data-row]')!;
+}
+/** The header's line under the greeting (the engine's summary, then who is working). */
+const headerLine = () => screen.getByRole('heading', { level: 1 }).nextElementSibling?.textContent ?? '';
+/** A locked primary is Button's `locked`: aria-disabled, so it stays in the Tab order and says why (Ink v2, 3B1a, 3B5a). */
+const locked = (button: HTMLElement) => button.getAttribute('aria-disabled') === 'true' || (button as HTMLButtonElement).disabled;
 /** A sign-off row's Send to CA unlocks once its papers were read (the engine's requiresView). */
 async function readFirst(row: HTMLElement) {
   await click(within(row).getByRole('button', { name: 'Read' }));
   await settleHash();
   await screen.findByRole('complementary', { name: 'GST working for September' });
-  await waitFor(() => expect((within(row).getByRole('button', { name: 'Send to CA' }) as HTMLButtonElement).disabled).toBe(false));
+  await waitFor(() => expect(locked(within(row).getByRole('button', { name: 'Send to CA' }))).toBe(false));
 }
 
 const lockedLedgerline: Seed = {
@@ -46,18 +64,25 @@ const missingDraft: Seed = {
 };
 
 describe('Today: the header and the list', () => {
-  it('says Today and the engine summary line', async () => {
+  // Ink v2 (3C): the page title is the greeting for the hour, and the engine's summary leads the line under it.
+  it('greets the owner and says the engine summary line', async () => {
     start();
-    expect(screen.getByRole('heading', { level: 1, name: 'Today' })).toBeTruthy();
-    expect(await screen.findByText('12 need you, across 3 businesses')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Good morning' })).toBeTruthy();
+    await waitFor(() => expect(headerLine()).toBe('12 need you, across 3 businesses. 2 agents are working.'));
   });
 
   it('lists every row in the engine order, across businesses, each tagged with its business and agent', async () => {
     start();
     await rowOf('Connect your AI');
+    await unfold();
     expect(rowIds()).toEqual([...QUEUE].map((r) => ({ ...r, digest: '' })).sort(queueOrder).map((r) => r.id));
-    expect((await rowOf('Episode 14 is cut')).textContent).toContain('Lumen Studio · Editor');
-    expect((await rowOf('GST working for September')).textContent).toContain('Ledgerline · Bookkeeper');
+    // A card names its agent beside the avatar and its business in the meta line under it (Ink v2, 3B5a).
+    const draft = await rowOf('Episode 14 is cut');
+    expect(draft.querySelector('[data-meta]')!.textContent).toContain('Lumen Studio');
+    expect(draft.textContent).toContain('Editor');
+    const signoff = await rowOf('GST working for September');
+    expect(signoff.querySelector('[data-meta]')!.textContent).toContain('Ledgerline');
+    expect(signoff.textContent).toContain('Bookkeeper');
     expect((await rowOf('Your plan is ready. Read it.')).textContent).toContain('Ledgerline');
   });
 
@@ -77,6 +102,8 @@ describe('Today: the header and the list', () => {
     await rowOf('Connect your AI');
     expect(await rowOf('Set your prices')).toBeTruthy();
     expect(await rowOf('Keep this business')).toBeTruthy();
+    await unfold();
+    expect(rowIds()).toHaveLength(QUEUE.length + SETUP_ROWS.length);
     const kinds = new Set<QueueKind>([...QUEUE, ...SETUP_ROWS].map((r) => r.kind));
     expect(kinds.size).toBe(10);
     for (const li of needsYou().querySelectorAll<HTMLElement>('[data-row]')) {
@@ -103,11 +130,11 @@ describe('Today: deciding', () => {
   it('a licensed sign-off is read first, then goes to the CA and shrinks to one line', async () => {
     start();
     const row = await rowOf('GST working for September');
-    expect((within(row).getByRole('button', { name: 'Send to CA' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(locked(within(row).getByRole('button', { name: 'Send to CA' }))).toBe(true);
     await readFirst(row);
     await click(within(row).getByRole('button', { name: 'Send to CA' }));
     await waitFor(() => expect((needsYou().querySelector('[data-row-id="q-signoff-gst"]') as HTMLElement).textContent).toBe('GST working for September · Sent to your CA'));
-    expect(screen.getByText('11 need you, across 3 businesses')).toBeTruthy();
+    await waitFor(() => expect(headerLine()).toBe('11 need you, across 3 businesses. 2 agents are working.'));
   });
 
   it('a second ask confirms inside the row; the decided line carries the receipt', async () => {
@@ -145,13 +172,13 @@ describe('Today: deciding', () => {
     const spy = vi.spyOn(client, 'request');
     const row = await rowOf('Episode 14 is cut');
     const approve = within(row).getByRole('button', { name: 'Approve' }) as HTMLButtonElement;
-    expect(approve.disabled).toBe(true);
+    expect(locked(approve)).toBe(true);
     fireEvent.click(within(row).getByRole('button', { name: 'Watch' }));
     await settleHash();
     expect(window.location.hash).toBe('#/today?sheet=view%3Adraft%3Adraft-ep14');
     const sheet = await screen.findByRole('complementary', { name: 'Episode 14' });
     expect(sheet.textContent).toContain('Cold open');
-    await waitFor(() => expect(approve.disabled).toBe(false));
+    await waitFor(() => expect(locked(approve)).toBe(false));
     await click(approve);
     expect(spy.mock.calls.find(([m]) => m === 'venture.queue.decide')![1]).toMatchObject({ id: 'q-draft-ep14', action: 'approve', viewed: true });
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-draft-ep14"]')!.textContent).toBe('Episode 14 is cut · Approved'));
@@ -161,11 +188,11 @@ describe('Today: deciding', () => {
     start();
     const row = await rowOf('Your plan is ready. Read it.');
     const accept = within(row).getByRole('button', { name: 'Accept' }) as HTMLButtonElement;
-    expect(accept.disabled).toBe(true);
+    expect(locked(accept)).toBe(true);
     fireEvent.click(within(row).getByRole('button', { name: 'Read' }));
     await settleHash();
     expect((await screen.findByRole('complementary', { name: 'Ledgerline plan' })).textContent).toContain('GST working');
-    await waitFor(() => expect(accept.disabled).toBe(false));
+    await waitFor(() => expect(locked(accept)).toBe(false));
   });
 
   it('every draft, file and plan a sample row points at can be opened', async () => {
@@ -184,7 +211,7 @@ describe('Today: deciding', () => {
     await settleHash();
     const sheet = await screen.findByRole('complementary');
     await waitFor(() => expect(sheet.textContent).toContain("Couldn't load this"));
-    expect((within(row).getByRole('button', { name: 'Approve' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(locked(within(row).getByRole('button', { name: 'Approve' }))).toBe(true);
   });
 
   it('a stale row says it changed, shows the new version, and decides again with the new digest', async () => {
@@ -195,7 +222,8 @@ describe('Today: deciding', () => {
     const changed = engine.touch('q-quote-iyer');
     await click(within(row).getByRole('button', { name: 'Approve' }));
     await click(within(row).getByRole('button', { name: 'Approve' }));
-    expect(row.textContent).toContain('This changed since you opened it.');
+    // A card says it in its own words, the new version in place (Ink v2, 3B5a).
+    expect(row.textContent).toContain('This changed. Here is the new version.');
     expect(row.textContent).toContain('Updated after the client replied.');
     expect(row.textContent).toContain('₹12,000 (revised)');
     await click(within(row).getByRole('button', { name: 'Approve' }));
@@ -212,13 +240,14 @@ describe('Today: deciding', () => {
     await settleHash();
     await screen.findByRole('complementary', { name: 'Episode 14' });
     const approve = () => within(row).getByRole('button', { name: 'Approve' }) as HTMLButtonElement;
-    await waitFor(() => expect(approve().disabled).toBe(false));
+    await waitFor(() => expect(locked(approve())).toBe(false));
     engine.touch('q-draft-ep14');
     await click(approve());
-    expect(row.textContent).toContain('This changed since you opened it.');
-    expect(approve().disabled).toBe(true);
+    // A card says it in its own words, the new version in place (Ink v2, 3B5a).
+    expect(row.textContent).toContain('This changed. Here is the new version.');
+    expect(locked(approve())).toBe(true);
     fireEvent.click(within(row).getByRole('button', { name: 'Watch' }));
-    await waitFor(() => expect(approve().disabled).toBe(false));
+    await waitFor(() => expect(locked(approve())).toBe(false));
   });
 
   it('a refusal shows the reason in plain words and keeps the row', async () => {
@@ -330,16 +359,18 @@ describe('Today: working now', () => {
   const working = () => screen.getByRole('region', { name: 'Working now' });
   const line = (purpose: string) => within(working()).getByRole('button', { name: purpose }).closest('li')!;
 
+  // Ink v2 (3C): a row also shows the agent's ring, the step it is on and a bar, and a stopped run that can run again
+  // is listed too, in fail words (tests/places/today-v2.test.tsx has the rest).
   it('one line per active run: agent, purpose and elapsed; a waiting run says so in place of its timer', async () => {
     start();
     await within(await screen.findByRole('region', { name: 'Working now' })).findByRole('button', { name: 'Cutting shorts from episode 13' });
-    expect([...working().querySelectorAll('li')].map((li) => li.getAttribute('data-row-id'))).toEqual(['run-31', 'run-30', 'run-29']);
-    expect(line('Cutting shorts from episode 13').textContent).toBe('EditorCutting shorts from episode 134m');
+    expect([...working().querySelectorAll('li')].map((li) => li.getAttribute('data-row-id'))).toEqual(['run-31', 'run-30', 'run-29', 'run-28']);
+    await waitFor(() => expect(line('Cutting shorts from episode 13').textContent).toBe('EDCutting shorts from episode 13Editor · Rendering 3 of 63 of 54m'));
     const waiting = line('Pricing the sponsor slot');
     expect(waiting.textContent).toContain('Producer');
     expect(waiting.textContent).toContain('Waiting on you');
     expect(waiting.textContent).not.toContain('6m');
-    expect(working().textContent).not.toContain('Rendering the thumbnail set');
+    expect(line('Rendering the thumbnail set').textContent).toContain('Failed');
   });
 
   it('a line opens its run sheet', async () => {
@@ -365,12 +396,13 @@ describe('Today: working now', () => {
     expect(await screen.findByRole('button', { name: 'Cutting shorts from episode 13' })).toBeTruthy();
   });
 
-  it('refreshes on run events: a run started again joins the list', async () => {
+  it('refreshes on run events: a run started again is working again', async () => {
     start();
     const row = await rowOf('Thumbnail set stopped');
-    expect(within(working()).queryByRole('button', { name: 'Rendering the thumbnail set' })).toBeNull();
+    await waitFor(() => expect(line('Rendering the thumbnail set').textContent).toContain('Failed'));
     await click(within(row).getByRole('button', { name: 'Run again' }));
-    expect(await within(working()).findByRole('button', { name: 'Rendering the thumbnail set' })).toBeTruthy();
+    await waitFor(() => expect(line('Rendering the thumbnail set').textContent).not.toContain('Failed'));
+    expect(line('Rendering the thumbnail set').querySelector('[data-state]')?.getAttribute('data-state')).toBe('working');
     await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-run-again-thumbs"]')!.textContent).toBe('Thumbnail set stopped · Started again'));
   });
 });
@@ -418,7 +450,8 @@ describe('Today: keys', () => {
 describe('Today in Hindi', () => {
   it('speaks Hindi', async () => {
     start({ language: 'hi' });
-    expect(screen.getByRole('heading', { level: 1, name: 'आज' })).toBeTruthy();
+    // Ink v2 (3C): the page title is the greeting for the hour.
+    expect(screen.getByRole('heading', { level: 1, name: 'सुप्रभात' })).toBeTruthy();
     expect(await screen.findByRole('heading', { level: 2, name: 'अभी चल रहा है' })).toBeTruthy();
   });
 });

@@ -1,16 +1,45 @@
+/* Row: D's `.lrow`, `.lrow.ev`, `.lr-b`, `.lr-t`, `.lr-s`, `.lr-p`, `.lr-e` and the status circle `.sic`.
+   A row grows past its 60 px when its words wrap or it holds more (an inline confirm), so the height is a minimum. */
+
 .row {
+  /* The width of the leading mark, so what wraps under the words on a phone lines up with them. */
+  --lead: var(--av-32);
   display: flex;
-  gap: var(--sp-4);
-  align-items: flex-start;
-  padding: 18px 0;
-  border-top: var(--hair) solid var(--line);
+  gap: var(--sp-3);
+  align-items: center;
+  min-height: 60px;
+  padding: var(--sp-3) 0;
+  border-top: var(--hair) solid var(--line-soft);
   list-style: none;
+}
+
+.row:has(> .lead > .mark) {
+  --lead: var(--av-28);
+}
+
+.row:first-child {
+  border-top: 0;
+}
+
+.row[data-dense] {
+  min-height: 52px;
+  padding: var(--sp-2) 0;
+}
+
+/* A row with more under its words (a change, a notice, a confirm) keeps its mark and buttons at the top. */
+.row[data-tall] {
+  align-items: flex-start;
 }
 
 .row:focus-visible {
   outline: var(--focus) solid var(--link);
   outline-offset: 4px;
-  border-radius: 2px;
+  border-radius: var(--r-button-sm);
+}
+
+.lead {
+  display: inline-flex;
+  flex: none;
 }
 
 .body {
@@ -20,16 +49,26 @@
 
 .eyebrow {
   font-size: var(--text-label);
+  line-height: 1.4;
   color: var(--mute);
 }
 
 .title {
   display: block;
-  margin-top: 2px;
-  font-size: var(--text-row);
+  font-size: var(--text-body);
   font-weight: var(--weight-medium);
+  line-height: 1.4;
   color: var(--fg);
   overflow-wrap: anywhere;
+}
+
+.eyebrow + .title {
+  margin-top: calc(var(--sp-1) / 2);
+}
+
+/* On a phone it takes a tap over the 44 px touch area (touch.module.css, 3H1). */
+.titleButton {
+  composes: hit from './touch.module.css';
 }
 
 .titleButton {
@@ -47,8 +86,18 @@
 }
 
 .line {
-  margin-top: var(--sp-1);
+  margin-top: calc(var(--sp-1) / 2);
   font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--mute);
+}
+
+.aside {
+  display: flex;
+  flex: none;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--text-label);
   color: var(--fg2);
 }
 
@@ -59,9 +108,65 @@
   align-items: center;
 }
 
+.end {
+  flex: none;
+  min-width: 36px;
+  font-size: var(--text-label);
+  text-align: right;
+  color: var(--mute);
+}
+
+/* The status circle: shape and icon say the state, the colour only repeats it. */
+.mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--av-28);
+  height: var(--av-28);
+  border-radius: var(--r-chip);
+}
+
+.mark[data-tone='ok'] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.mark[data-tone='no'] {
+  background: var(--line-soft);
+  color: var(--mute);
+}
+
+.mark[data-tone='question'] {
+  background: var(--wait-soft);
+  color: var(--wait);
+}
+
+.mark[data-tone='estimate'] {
+  background: var(--mkt-tint);
+  color: var(--mkt);
+}
+
+.mark[data-tone='fail'] {
+  background: var(--fail-soft);
+  color: var(--fail);
+}
+
+/* Narrow: the words keep the first line with the mark and the end time; the aside and the buttons go under them. */
 @media (max-width: 759px) {
   .row {
-    flex-direction: column;
-    gap: var(--sp-3);
+    flex-wrap: wrap;
+    row-gap: var(--sp-2);
+  }
+
+  .aside,
+  .actions {
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+    order: 2;
+  }
+
+  .row:has(> .lead) > .aside,
+  .row:has(> .lead) > .actions {
+    padding-left: calc(var(--lead) + var(--sp-3));
   }
 }
