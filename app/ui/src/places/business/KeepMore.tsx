@@ -1,8 +1,9 @@
 import { useContext, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
-import { useOwnerZone } from '../../shell/clock';
+import { useOwnerCountry, useOwnerZone } from '../../shell/clock';
 import { useEngine, useResource } from '../../engine/context';
-import type { BackupLite, Deleted, MoveFile, UnlockMode } from '../../engine/types';
+import type { BackupInspectLite, BackupLite, Deleted, MoveFile, UnlockMode } from '../../engine/types';
+import { formatCount } from '../../../../../platform/runtime/owner-format';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { CodeGroups } from '../../parts/Secret';
@@ -23,6 +24,65 @@ import s from './Business.module.css';
  */
 
 const failed = (t: ReturnType<typeof useT>, error: unknown) => t('business.actionFailed', { message: refusalWords(error, t) });
+
+type T = ReturnType<typeof useT>;
+const KIND_KEYS = new Set(['clients', 'orders', 'drafts', 'invoices', 'payments', 'bills', 'decisions', 'notes', 'routines', 'apps', 'other']);
+/** "3 clients": the kind's own plural words, or the engine's words for a kind this catalogue does not know yet. */
+function kindWords(t: T, kind: string, words: string, count: number, country: string): string {
+  const digits = formatCount(count, country);
+  return KIND_KEYS.has(kind) ? t(`business.backupKind.${kind}`, { count: digits }) : `${digits} ${words}`;
+}
+const and = (items: string[]) => new Intl.ListFormat('en-IN', { type: 'conjunction' }).format(items);
+
+/** "2 orders and 1 invoice added, 1 client changed": what a restore would take back, in the engine's kind order. */
+function changeWords(t: T, since: BackupInspectLite['since'], country: string): string {
+  const part = (field: 'added' | 'changed' | 'removed', key: string) => {
+    const items = since.filter((row) => row[field] > 0).map((row) => kindWords(t, row.kind, row.words, row[field], country));
+    return items.length ? [t(key, { list: and(items) })] : [];
+  };
+  return [...part('added', 'business.backupAdded'), ...part('changed', 'business.backupChanged'), ...part('removed', 'business.backupRemoved')].join(', ');
+}
+
+/**
+ * One-shot C6 (SCREENS 213.x1): what a backup holds, read by the engine in memory once the owner opens the fold.
+ * Seam: a native fold until C3's Fold part lands; the integrator swaps it.
+ */
+function BackupContents({ file }: { file: string }) {
+  const t = useT();
+  const country = useOwnerCountry() ?? 'IN';
+  const [open, setOpen] = useState(false);
+  return (
+    <details className={s.fold} onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}>
+      <summary>{t('business.backupContents')}</summary>
+      {open && <ContentsLine file={file} country={country} />}
+    </details>
+  );
+}
+function ContentsLine({ file, country }: { file: string; country: string }) {
+  const t = useT();
+  const read = useResource('workspace.backups.inspect', { file }, { refreshOn: () => false });
+  if (read.error) return <p className={s.problem} role="alert">{failed(t, read.error)}</p>;
+  if (!read.data) return <p className={s.quiet} aria-busy="true">{t('business.backupReading')}</p>;
+  const counts = read.data.counts.map((row) => kindWords(t, row.kind, row.words, row.count, country));
+  return <p className={s.line}>{counts.length ? and(counts) : t('business.backupEmpty')}</p>;
+}
+
+/**
+ * One-shot C6 (SCREENS 208.x1, 204.f1): the restore ask leads with what restoring takes back. Should the read fail,
+ * the ask says what it always said. Seam: B4's Confirm wraps this when it lands.
+ */
+function RestoreChange({ backup }: { backup: BackupLite }) {
+  const t = useT();
+  const zone = useOwnerZone();
+  const country = useOwnerCountry() ?? 'IN';
+  const read = useResource('workspace.backups.inspect', { file: backup.file }, { refreshOn: () => false });
+  if (read.error) return <p className={s.line}>{t('business.restoreAsk')}</p>;
+  if (!read.data) return <p className={s.quiet} aria-busy="true">{t('business.backupReading')}</p>;
+  const lead = read.data.since.length
+    ? t('business.backupSince', { when: momentOf(backup.at, zone), changes: changeWords(t, read.data.since, country) })
+    : t('business.backupNothing');
+  return <p className={s.line}>{`${lead} ${t('business.restoreSafety')}`}</p>;
+}
 
 /** Every backup of this business, newest first. Restore says what happens and waits for a second press. */
 export function AllBackups({ backups }: { backups: BackupLite[] }) {
@@ -59,9 +119,10 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
               <span className={s.quiet}>{`${t(`custody.kind.${backup.kind}`)}. ${t(backup.opensNow ? 'custody.opensNow' : 'custody.opensOlder')}`}</span>
               {asking !== backup.file && <Button variant="quiet" onClick={() => { setAsking(backup.file); setProblem(null); }}>{t('business.restore')}</Button>}
             </div>
+            <BackupContents file={backup.file} />
             {asking === backup.file && (
               <>
-                <p className={s.line}>{t('business.restoreAsk')}</p>
+                <RestoreChange backup={backup} />
                 <div className={s.buttons}>
                   <Button variant="primary" disabled={busy} onClick={() => void restore(backup)}>{t('business.restoreGo')}</Button>
                   <Button variant="quiet" disabled={busy} onClick={() => setAsking(null)}>{t('business.restoreKeep')}</Button>

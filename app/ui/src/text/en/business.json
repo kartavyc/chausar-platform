@@ -366,6 +366,59 @@
   "business.restoreAsk": "Your business goes back to how it was then. Chausar saves a copy of how it is now first.",
   "business.restoreGo": "Restore this copy",
   "business.restoreKeep": "Keep it as it is",
+  "business.backupContents": "What's in it",
+  "business.backupReading": "Reading this backup",
+  "business.backupEmpty": "Nothing in it yet.",
+  "business.backupSince": "Since {when}: {changes}. Restoring takes these back.",
+  "business.backupNothing": "Nothing changed since then.",
+  "business.backupAdded": "{list} added",
+  "business.backupChanged": "{list} changed",
+  "business.backupRemoved": "{list} removed",
+  "business.restoreSafety": "How it is now is saved as a backup first.",
+  "business.backupKind.clients": {
+    "one": "{count} client",
+    "other": "{count} clients"
+  },
+  "business.backupKind.orders": {
+    "one": "{count} order",
+    "other": "{count} orders"
+  },
+  "business.backupKind.drafts": {
+    "one": "{count} draft",
+    "other": "{count} drafts"
+  },
+  "business.backupKind.invoices": {
+    "one": "{count} invoice",
+    "other": "{count} invoices"
+  },
+  "business.backupKind.payments": {
+    "one": "{count} payment",
+    "other": "{count} payments"
+  },
+  "business.backupKind.bills": {
+    "one": "{count} bill",
+    "other": "{count} bills"
+  },
+  "business.backupKind.decisions": {
+    "one": "{count} decision",
+    "other": "{count} decisions"
+  },
+  "business.backupKind.notes": {
+    "one": "{count} note",
+    "other": "{count} notes"
+  },
+  "business.backupKind.routines": {
+    "one": "{count} routine",
+    "other": "{count} routines"
+  },
+  "business.backupKind.apps": {
+    "one": "{count} app",
+    "other": "{count} apps"
+  },
+  "business.backupKind.other": {
+    "one": "{count} other record",
+    "other": "{count} other records"
+  },
   "business.move": "Move to another computer",
   "business.moveLine": "Chausar makes one file and one code. On the other computer, choose Move from another computer, then give it both.",
   "business.moveMake": "Make the file",
