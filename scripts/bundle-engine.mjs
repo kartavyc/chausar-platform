@@ -47,7 +47,7 @@ async function baselineFolders(folder = RUNTIME) {
 }
 
 // "Am I the entry": process.argv[1] compared with import.meta.url.
-const ENTRY_CHECK = /process\.argv\[1\][^\n]*import\.meta\.url|import\.meta\.url\s*===\s*pathToFileURL\(process\.argv\[1\]\)/;
+const ENTRY_CHECK = /process\.argv\[1\][^\n]*import\.meta\.url|import\.meta\.url[^\n]*process\.argv\[1\]/;
 
 /** A module id as its path under platform/runtime with forward slashes, or null for anything else. */
 function runtimeName(root, moduleId) {

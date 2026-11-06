@@ -143,3 +143,16 @@ test('the bundle plugin rewrites engine files whatever the path separator, and n
   }
   assert.equal(plugin.transform(code, String.raw`D:\work\chausar\node_modules\some\index.ts`), null);
 });
+
+
+test('cleanup: self-start checks are found in either comparison order', async t => {
+  const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const folder = await mkdtemp(join(tmpdir(), 'chausar-self-start-'));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  await mkdir(join(folder, 'platform/runtime'), { recursive: true });
+  await writeFile(join(folder, 'platform/runtime/backward.ts'), 'if (fileURLToPath(import.meta.url) === resolve(process.argv[1])) start();');
+  const script = '../../scripts/bundle-engine.mjs';
+  const { selfStartingModules } = await import(script);
+  assert.deepEqual(await selfStartingModules(folder), ['backward.ts']);
+});
