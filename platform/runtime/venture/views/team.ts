@@ -30,6 +30,7 @@ import { departmentViews } from './team-series.ts';
 import { teamFlagship } from './team-shape.ts';
 import { currentPlaybook, deliveryFlagship, playbookSteps } from '../delivery/playbook.ts';
 import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
+import { introductions } from '../agents/intro.ts';
 import { AGENT_ID, AGENT_PURPOSES, agentName, clientNameFor, lastEventAt, plain } from './shared.ts';
 import { pausedNow } from '../delivery/run-guards.ts';
 import { aiWaitLine } from '../models/roles.ts';
@@ -175,7 +176,9 @@ export async function teamListHandler(deps: VentureDeps, ctx: Context, payload: 
   const { agents, teamHealth } = teamNow(deps, state, venture, ledger, aiWaitFor(deps, ctx));
   // W6 6G2: the Retired shelf, sent only when someone is on it.
   const shelf = retiredShelf(state, venture.id, ledger.flagship);
-  return { agents, ...(await departmentViews(deps, ctx, state, venture, agents, ledger)), ...(teamHealth ? { teamHealth } : {}), ...(shelf.length ? { retired: shelf } : {}) };
+  // C5 task 1: the agents this member has not met yet, with their code-written lines.
+  const introduce = introductions(state, venture.id, ctx.memberId, agents);
+  return { agents, ...(await departmentViews(deps, ctx, state, venture, agents, ledger)), ...(teamHealth ? { teamHealth } : {}), ...(shelf.length ? { retired: shelf } : {}), introduce };
 }
 
 /**

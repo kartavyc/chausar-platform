@@ -1043,3 +1043,31 @@
   color: var(--fg2);
   overflow-wrap: anywhere;
 }
+
+/* C5 task 1: the quiet introduction lines above the team, plain text with one small button. */
+.intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-4);
+  margin-top: var(--sp-4);
+}
+
+.introLines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.introDone {
+  font: inherit;
+  font-size: var(--text-read);
+  color: var(--link);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}

@@ -19,6 +19,7 @@ import { JobsTile } from './JobsTile';
 import { OneDepartment } from './OneDepartment';
 import { membersOf, refreshOn } from './shared';
 import { TeamStats } from './TeamStats';
+import { TeamIntro } from './TeamIntro';
 import { useNeedsYou } from '../../shell/needsYou';
 import s from './Team.module.css';
 
@@ -69,6 +70,8 @@ export function Place() {
       {agents?.length === 0 && (
         <EmptyState title={t('team.empty')} actions={[{ label: t('team.emptyLink'), href: '#/business/plan' }]} />
       )}
+      {/* C5 task 1: each agent this member has not met yet, one quiet line each, until Got it. */}
+      {some && team.data?.introduce && team.data.introduce.length > 0 && <TeamIntro lines={team.data.introduce} onDone={team.reload} />}
       {some && (
         <div className={s.page}>
           {split && (
