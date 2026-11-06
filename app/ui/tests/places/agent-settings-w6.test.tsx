@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { GmailConnection } from '../../src/places/connections/GmailConnection';
+import type { EngineClient } from '../../src/engine/types';
 import { AgentSettings } from '../../src/places/connections/AgentSettings';
 import { EngineProvider } from '../../src/engine/context';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -159,4 +161,35 @@ it('saving AI models preserves a Gmail choice changed on its own connection whil
   const saved = (await engine.request('venture.agentSettings.get', {}) as AiSettingsView).settings;
   expect(saved.codex.connectors).toBe(true);
   expect(saved.codex.main.model).toBe('gpt-6-luna');
+});
+
+
+it.each(['models', 'gmail'] as const)('overlapping %s-first saves preserve both exact choices (B4 review)', async first => {
+  const engine = new FakeEngine({ latencyMs: 0 });
+  const base = createFakeClient(engine);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let sets = 0;
+  const client: EngineClient = { ...base, request: (async (method: string, params?: Record<string, unknown>) => {
+    if (method === 'venture.agentSettings.set' && ++sets === 1) await gate;
+    return base.request(method as never, params as never);
+  }) as EngineClient['request'] };
+  render(<EngineProvider client={client}><AgentSettings providers={['codex']} /><GmailConnection providers={['codex']} /></EngineProvider>);
+  for (const title of ['AI settings', 'Gmail']) {
+    const fold = (await screen.findByText(title, { selector: 'summary' })).closest('details')!;
+    await act(async () => { fold.open = true; fold.dispatchEvent(new Event('toggle')); });
+  }
+  fireEvent.change(await screen.findByRole('combobox', { name: 'Main jobs' }), { target: { value: 'faster' } });
+  fireEvent.click(await screen.findByLabelText('Let Codex use the Gmail you connected in ChatGPT. Every send still asks you.'));
+  fireEvent.click(screen.getByRole('button', { name: first === 'models' ? 'Save AI settings' : 'Save Gmail choice' }));
+  await waitFor(() => expect(sets).toBe(1));
+  fireEvent.click(screen.getByRole('button', { name: first === 'models' ? 'Save Gmail choice' : 'Save AI settings' }));
+  // Give the second transaction time to reach its read/write while the first write remains held.
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
+  await act(async () => { release(); });
+  await screen.findByText('AI settings saved.');
+  await screen.findByText('Gmail choice saved.');
+  const saved = (await engine.request('venture.agentSettings.get', {}) as AiSettingsView).settings;
+  expect(saved.codex.main.model).toBe('gpt-6-luna');
+  expect(saved.codex.connectors).toBe(true);
 });
