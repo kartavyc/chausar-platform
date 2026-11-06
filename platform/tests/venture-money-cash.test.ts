@@ -64,12 +64,9 @@ test('cash: 13 weeks from the bank balance, projected and labelled so, the lowes
   assert.deepEqual(view.points.map(point => minor(point.forecast?.display)), ON_TIME);
   assert.ok(view.points.slice(1).every(point => point.forecast?.projected === true && point.forecast.kind === 'calculated'));
   assert.ok(view.points.slice(1).every(point => point.forecast?.uses?.includes('Clients pay open invoices on their due dates.')));
-  // Per mille of the highest week, 15509500: 10100000 x 1000 / 15509500 = 651.2 -> 651; the lowest week 751.1 -> 751.
-  assert.deepEqual([view.points[0].actualPermille, view.points[0].forecastPermille, view.points[2].forecastPermille, view.points[13].forecastPermille], [651, 651, 1000, 751]);
-  // 4J20: level lines on round amounts, two or three of them, from the scale's floor (0) to its top (15509500): steps of
-  // 5000000 give 5000000, 10000000 and 15000000, at 322.3 -> 322, 644.7 -> 644 and 967.1 -> 967 per mille; no zero line
-  // while the scale stays above zero.
-  assert.deepEqual(view.ticks, [{ permille: 322, label: '₹50,000' }, { permille: 644, label: '₹1,00,000' }, { permille: 967, label: '₹1,50,000' }]);
+  // Round upper bound ₹2,00,000 leaves the highest projected week below the top labelled line.
+  assert.deepEqual([view.points[0].actualPermille, view.points[0].forecastPermille, view.points[2].forecastPermille, view.points[13].forecastPermille], [505, 505, 775, 582]);
+  assert.deepEqual(view.ticks, [{ permille: 250, label: '₹50,000' }, { permille: 500, label: '₹1,00,000' }, { permille: 750, label: '₹1,50,000' }, { permille: 1000, label: '₹2,00,000' }]);
 
   // 4Z2: the lowest week ahead (week 13, 11649500) stays above today's 10100000, so no lowest week is named for it.
   assert.equal(view.lowest.onTime, null);
@@ -138,13 +135,13 @@ test('a line that never falls says nothing about running out; one that falls bel
   const falling = await env.money<CashView>('venture.money.cash');
   assert.equal(falling.line, 'Projected, if clients pay on time: cash goes below zero in the week to 13 Nov 2026.');
   assert.equal(falling.lowest.onTime?.display, '-₹11,695');
-  // The scale runs from -1169500 to 2830500 (4000000): zero sits at 1169500 x 1000 / 4000000 = 292.3 -> 292.
-  // 4J20: with steps of 1000000 the levels are -1000000, 0, 1000000 and 2000000: (x + 1169500) x 1000 / 4000000 is 42.3,
-  // 292.3, 542.3 and 792.3 per mille; zero is among them.
+  // Rounded bounds -₹20,000 to ₹30,000 include zero and leave room beyond both extremes.
   assert.deepEqual(falling.ticks, [
-    { permille: 42, label: '-₹10,000' }, { permille: 292, label: '₹0' }, { permille: 542, label: '₹10,000' }, { permille: 792, label: '₹20,000' },
+    { permille: 0, label: '-₹20,000' }, { permille: 200, label: '-₹10,000' }, { permille: 400, label: '₹0' },
+    { permille: 600, label: '₹10,000' }, { permille: 800, label: '₹20,000' }, { permille: 1000, label: '₹30,000' },
   ]);
-  assert.equal(falling.points[3].forecastPermille, 0);
+  assert.equal(falling.points[3].forecastPermille, 166);
+
 });
 
 test('without a bank statement there is no line, only the import words; the next three weeks still list with receipts', async () => {
@@ -214,4 +211,15 @@ test('closingRow: the newest row of the latest day by its balances, the last lis
   const a = row('2026-10-18', '100', '5000'), b = row('2026-10-18', '200', '7000');
   assert.equal(closingRow([a, b]), b, 'two rows whose balances do not chain: the last listed');
   assert.equal(closingRow([]), null);
+});
+
+
+test('B4: the cash axis has a round level above the highest projected amount', async () => {
+  const env = await goalBusiness();
+  await bankCosts(env, ['2026-10-18,CLIENT DEPOSIT,51500.00,Someone,51500.00']);
+  const view = await env.money<CashView>('venture.money.cash');
+  const top = view.ticks.at(-1);
+  assert.equal(top?.label, '₹60,000');
+  assert.equal(top?.permille, 1000);
+  assert.ok(view.points.every(point => (point.forecastPermille ?? 0) < top!.permille));
 });
