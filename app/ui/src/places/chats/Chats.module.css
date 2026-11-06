@@ -289,6 +289,7 @@
 }
 
 .paneHead {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
@@ -651,7 +652,7 @@
   flex: none;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-1);
+  gap: var(--sp-3);
 }
 
 .snooze {
@@ -681,8 +682,10 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  width: var(--control-sm);
-  height: var(--control-sm);
+  gap: var(--sp-2);
+  min-height: var(--control-sm);
+  padding: var(--sp-2) var(--pad-tile);
+  justify-content: flex-start;
   border-radius: var(--r-button);
   color: var(--mute);
 }
@@ -757,3 +760,11 @@
   overflow-wrap: anywhere;
   color: var(--fg2);
 }
+
+.pane[data-empty] { min-height: 0; }
+.pane[data-empty] > .quiet.paneNote { flex: none; }
+
+.pane:has(.snoozePopup) { overflow: visible; }
+.snoozePopup { position: absolute; top: 100%; right: var(--sp-3); z-index: 2; display: grid; gap: var(--sp-3); max-width: calc(100% - var(--sp-6)); padding: var(--sp-3); border: var(--hair) solid var(--line); border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow-tile); }
+.snoozePopup .snooze { flex-direction: column; }
+.snoozePopup .snooze button { justify-content: space-between; }
