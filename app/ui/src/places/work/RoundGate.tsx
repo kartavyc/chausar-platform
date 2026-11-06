@@ -22,7 +22,7 @@ export function gateRow(queue: readonly QueueRow[] | undefined, runId: string): 
  * and the row's own Stop and Continue (or "Allow 2 more turns", as the engine labels it), decided through Today's row
  * with its digest so a changed row is never decided unseen. Nothing shows when the engine holds no gate here.
  */
-export function RoundGate({ detail, row, onChanged }: { detail: RunDetail | undefined; row: QueueRow | undefined; onChanged?: () => void }) {
+export function RoundGate({ detail, row, onChanged, primary = true }: { detail: RunDetail | undefined; row: QueueRow | undefined; onChanged?: () => void; primary?: boolean }) {
   const t = useT();
   const client = useEngine();
   const [note, setNote] = useState('');
@@ -58,7 +58,7 @@ export function RoundGate({ detail, row, onChanged }: { detail: RunDetail | unde
           <Field label={t('work.gate.note')} value={note} maxLength={MAX_NOTE} disabled={busy} onChange={(event) => setNote(event.currentTarget.value)} />
           <div className={s.gateActs}>
             {stop && <Button size="sm" disabled={busy} onClick={() => void decide(row, stop)}>{stop.label}</Button>}
-            <Button size="sm" variant="primary" disabled={busy} onClick={() => void decide(row, go)}>{go.label}</Button>
+            <Button size="sm" variant={primary ? 'primary' : 'secondary'} disabled={busy} onClick={() => void decide(row, go)}>{go.label}</Button>
           </div>
         </>
       )}
