@@ -409,12 +409,12 @@ const aging: AgingData = {
 };
 
 describe('AgingBar', () => {
-  it('draws the buckets in age order, not due first, and skips an empty one', () => {
+  it('draws buckets in age order and keeps an empty bucket at zero width', () => {
     render(<AgingBar data={aging} />);
     const bar = screen.getByRole('img', { name: aging.label });
     const segments = [...bar.querySelectorAll('rect[data-bucket]')];
-    expect(segments.map((s) => s.getAttribute('data-bucket'))).toEqual(['not-due', '1-30', '31-60', '61-90']);
-    expect(segments.map((s) => s.getAttribute('width'))).toEqual(['656', '197', '98', '49']);
+    expect(segments.map((s) => s.getAttribute('data-bucket'))).toEqual(['not-due', '1-30', '31-60', '61-90', 'over-90']);
+    expect(segments.map((s) => s.getAttribute('width'))).toEqual(['656', '197', '98', '49', '0']);
   });
 
   it('fills not due in chart ink and each later age in its own chart token, bar and legend alike', () => {
@@ -482,7 +482,7 @@ describe('SplitBar', () => {
     render(<SplitBar data={split} />);
     const bar = screen.getByRole('img', { name: split.label });
     const segments = [...bar.querySelectorAll('rect[data-dept]')];
-    expect(segments.map((s) => [s.getAttribute('data-dept'), s.getAttribute('width')])).toEqual([['sales', '250'], ['money', '300'], ['ops', '50'], ['prod', '400']]);
+    expect(segments.map((s) => [s.getAttribute('data-dept'), s.getAttribute('width')])).toEqual([['sales', '250'], ['money', '300'], ['ops', '50'], ['mkt', '0'], ['prod', '400']]);
     expect(rulesFor(".seg[data-dept='prod']")).toContain('var(--prod)');
   });
 
@@ -500,7 +500,7 @@ describe('SplitBar', () => {
   it('draws the part no single department can claim last, as "Shared by the team", in grey (W4 4A2)', () => {
     const { container } = render(<SplitBar data={{ ...split, parts: [{ dept: 'shared', amount: '₹10.00', permille: 100 }, ...split.parts] }} />);
     const bar = screen.getByRole('img', { name: split.label });
-    expect([...bar.querySelectorAll('rect[data-dept]')].map((s) => s.getAttribute('data-dept'))).toEqual(['sales', 'money', 'ops', 'prod', 'shared']);
+    expect([...bar.querySelectorAll('rect[data-dept]')].map((s) => s.getAttribute('data-dept'))).toEqual(['sales', 'money', 'ops', 'mkt', 'prod', 'shared']);
     const rows = [...container.querySelectorAll('li[data-dept]')];
     expect(rows.map((row) => row.textContent)).toEqual(['Sales and clients₹25.00', 'Money₹30.00', 'Operations₹5.00', 'Production₹40.00', 'Shared by the team₹10.00']);
     expect(rulesFor(".seg[data-dept='shared']")).toContain('var(--chart-rest)');

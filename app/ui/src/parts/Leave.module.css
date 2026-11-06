@@ -6,6 +6,10 @@
 .row {
   display: grid;
   grid-template-rows: 1fr;
+}
+
+.row,
+.arrive {
   opacity: 1;
   transform: none;
   transition: opacity var(--t-sheet) var(--ease), transform var(--t-sheet) var(--ease);
@@ -25,7 +29,8 @@
 }
 
 @starting-style {
-  .row[data-arriving] {
+  .row[data-arriving],
+  .arrive[data-arriving] {
     opacity: 0;
     transform: translateY(6px);
   }

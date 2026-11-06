@@ -24,7 +24,7 @@ describe('Invoiced this month at zero (B1)', () => {
       return method === 'venture.goals.get' ? { ...(answer as GoalView), invoiced: { display: '', receiptId: null } } : answer;
     }) as typeof client.request;
     render(<App client={client} language="en" />);
-    const invoiced = await screen.findByRole('region', { name: 'Invoiced this month' });
+    const invoiced = await screen.findByRole('region', { name: 'Invoiced' });
     expect(await within(invoiced).findByText(NONE)).toBeTruthy();
   });
 
