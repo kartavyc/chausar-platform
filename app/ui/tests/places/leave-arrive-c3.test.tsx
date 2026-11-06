@@ -8,6 +8,7 @@ import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { TextProvider } from '../../src/text';
 import type { QueueDecision, QueueRow } from '../../src/engine/types';
+import { cssOf } from '../helpers/css';
 
 /**
  * One-shot C3 task 13: a decided card leaves on the engine's answer and its line takes the same spot; the first cards of
@@ -72,7 +73,8 @@ describe('Today’s cards', () => {
     window.location.hash = '#/today';
     const { unmount } = render(<ClockProvider now={MORNING}><App client={client} language="en" /></ClockProvider>);
     await waitFor(() => expect(document.querySelector('[data-stagger]')).not.toBeNull());
-    expect(document.querySelector('[data-stagger] > [data-row]')).not.toBeNull();
+    expect(document.querySelector('[data-stagger] > div > [data-row]')).not.toBeNull();
+    expect(cssOf('../places/today/NeedsYou.module.css')).toContain('.cards[data-stagger] > .slot > *');
     unmount();
     render(<ClockProvider now={MORNING}><App client={client} language="en" /></ClockProvider>);
     await waitFor(() => expect(document.querySelector('[data-row]')).not.toBeNull());
