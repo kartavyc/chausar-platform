@@ -1,0 +1,83 @@
+name: D9 packaged assets validation
+on:
+  push:
+    branches: ['b2c/os-d9-check-*']
+permissions:
+  contents: read
+jobs:
+  scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
+      - run: node --test platform/tests/packaged-ink-smoke-d9.test.ts platform/tests/codex-bundle-w6.test.ts platform/tests/desktop-packaging.test.ts platform/tests/desktop-smoke-d5.test.ts
+      - run: node scripts/check.mjs
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            folder: win-unpacked
+          - os: ubuntu-latest
+            platform: linux
+            folder: linux-unpacked
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
+      - run: node node_modules/electron/install.js
+      - name: Stage pinned Codex without executing it
+        run: |
+          target="${{ matrix.platform }}-x64"
+          dir="$RUNNER_TEMP/codex"
+          mkdir -p "$dir/codex/node_modules/@openai/codex-$target"
+          (cd "$dir" && npm pack --silent @openai/codex@0.166.0 "@openai/codex@0.166.0-$target")
+          export CODEX_STAGE_ROOT="$dir"
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { createReadStream } from 'node:fs';
+          import { join } from 'node:path';
+          import { execFileSync } from 'node:child_process';
+          import { x } from 'tar';
+          const dir = process.env.CODEX_STAGE_ROOT;
+          const target = process.platform + '-x64';
+          for (const version of ['0.166.0', '0.166.0-' + target]) {
+            const file = join(dir, 'openai-codex-' + version + '.tgz');
+            const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+            const expected = execFileSync(npm, ['view', '@openai/codex@' + version, 'dist.integrity'], { encoding: 'utf8', shell: process.platform === 'win32' }).trim();
+            const hash = createHash('sha512');
+            for await (const bytes of createReadStream(file)) hash.update(bytes);
+            if ('sha512-' + hash.digest('base64') !== expected) throw new Error('Codex tarball integrity differs: ' + version);
+            const cwd = version === '0.166.0' ? join(dir, 'codex') : join(dir, 'codex', 'node_modules', '@openai', 'codex-' + target);
+            await x({ file, cwd, strip: 1, strict: true });
+          }
+          NODE
+          node scripts/codex-bundle.mjs --from "$dir/codex" --platform ${{ matrix.platform }} --arch x64
+      - run: node scripts/desktop-package.mjs --mode beta --platform ${{ matrix.platform }} --arch x64 --dir --output "$RUNNER_TEMP/d9-package"
+      - run: node scripts/package-contents.mjs "$RUNNER_TEMP/d9-package/${{ matrix.folder }}" --json > "$RUNNER_TEMP/package-contents.json"
+      - run: node scripts/desktop-electron-smoke.mjs --packaged "$RUNNER_TEMP/d9-package/${{ matrix.folder }}" > "$RUNNER_TEMP/packaged-smoke.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/packaged-smoke.json
+            ${{ runner.temp }}/package-contents.json
+            ${{ runner.temp }}/d9-package/*.json

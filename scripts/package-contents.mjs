@@ -17,8 +17,8 @@ const MAX_HEADER_BYTES = 64 * 1024 * 1024;
  * The file paths inside an asar archive, from its header: UInt32 4, UInt32 header size, then the header pickle
  * (UInt32 payload size, UInt32 string length, the JSON). Folders are walked; only files are listed.
  */
-export async function readAsarFileList(path) {
-  const handle = await open(path, 'r');
+export async function readAsarFileList(path, openArchive = open) {
+  const handle = await openArchive(path, 'r');
   try {
     const sizes = Buffer.alloc(8);
     const { bytesRead } = await handle.read(sizes, 0, 8, 0);

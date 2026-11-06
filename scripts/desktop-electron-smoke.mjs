@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { desktopLaunchPrerequisites } from './desktop-launch.mjs';
 import { packagedFolder } from './desktop-smoke.mjs';
 
-// Explicit CI qualification of Electron's Node embedding. No BrowserWindow or HTTP listener.
+// Explicit CI qualification of Electron's Node embedding. No BrowserWindow; packaged Ink uses a synthetic loopback listener.
 // D5 task 6: --packaged <unpacked dir> runs the packaged Chausar in Node mode (ELECTRON_RUN_AS_NODE) against the worker
 // inside that build; it never starts the program without that variable, so no window can open.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
