@@ -21,6 +21,7 @@
   "platform/tests/desktop-keep-files-c5.test.ts": 1,
   "platform/tests/desktop-money-export-c4.test.ts": 1,
   "platform/tests/desktop-pack-share-c5.test.ts": 1,
+  "platform/tests/desktop-rollback-d12.test.ts": 1,
   "platform/tests/desktop-smoke-d5.test.ts": 1,
   "platform/tests/desktop-trim-d5.test.ts": 2.5,
   "platform/tests/desktop-update-wiring-c5.test.ts": 1,

@@ -57,6 +57,7 @@ export function UpdatesView() {
     <div className={s.page}>
       <TileSection title={t('updates.title')}>
         <p className={s.line} role="status">{words}</p>
+        {view.rolledBack && <p className={s.note} data-rolled-back="">{t(`updates.rolledBack.${view.rolledBack.reason}`, { from: view.rolledBack.from, to: view.rolledBack.to })}</p>}
         {view.state === 'needs-signing' && <p className={s.note}>{t('updates.needsSigning', { version })}</p>}
         {problem && <p className={s.problem} role="alert" data-engine-line="">{problem}</p>}
         {BY_HAND.includes(view.state) && client.showUpdateInstaller && (

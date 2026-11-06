@@ -240,4 +240,4 @@ async function clearBoot(updatesFolder) {
   await fsp.unlink(file).catch(error => { if (error.code !== 'ENOENT') throw error; });
 }
 
-module.exports = { BOOT_FORMAT, UPDATE_STATES, installOnQuit, verifyStaged, windowsSignature, keepRelease, previousVersion, startBoot, clearBoot, onFailedBoot };
+module.exports = { BOOT_FORMAT, UPDATE_STATES, installOnQuit, verifyStaged, windowsSignature, runInstaller, keepRelease, previousVersion, startBoot, clearBoot, onFailedBoot };
