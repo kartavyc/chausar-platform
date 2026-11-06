@@ -268,7 +268,10 @@ export function validateTrim(config) {
   if (JSON.stringify(config.electronLanguages) !== JSON.stringify(TRIM.electronLanguages)) throw new Error(`the package carries exactly the Chromium languages ${TRIM.electronLanguages.join(', ')} (electronLanguages)`);
   const files = Array.isArray(config.files) ? config.files : [];
   const all = files.indexOf('node_modules/**/*'), cut = files.indexOf(TRIM.claudeBinaryExclusion);
-  const putBack = files.slice(cut + 1).some(entry => JSON.stringify(entry).includes('@anthropic-ai/claude-agent-sdk-'));
+  const putBack = files.slice(cut + 1).some(entry => {
+    const source = typeof entry === 'string' ? entry : entry?.from ?? '';
+    return !source.startsWith('!') && (source === 'node_modules' || source.startsWith('node_modules/*') || source.includes('@anthropic-ai/claude-agent-sdk-'));
+  });
   if (all < 0 || cut <= all || putBack) throw new Error(`the package carries no Claude Code program file: ${TRIM.claudeBinaryExclusion} after node_modules/**/*, and nothing puts one back`);
 }
 

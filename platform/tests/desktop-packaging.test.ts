@@ -569,3 +569,10 @@ test('cleanup: package output is outside the checkout and the builder receives t
   assert.ok(plan.builderArguments.includes(`-c.directories.output=${plan.output}`));
   assert.throws(() => createDesktopPackagePlan({ output: join(root, 'release') }), /outside/);
 });
+
+
+test('cleanup: a later node_modules inclusion cannot restore trimmed program files', () => {
+  for (const inclusion of ['node_modules/**/*', { from: 'node_modules', to: 'node_modules', filter: ['**/*'] }]) {
+    assert.throws(() => desktopPackage.validateTrim({ ...beta, files: [...beta.files, inclusion] }), /nothing puts one back/);
+  }
+});
