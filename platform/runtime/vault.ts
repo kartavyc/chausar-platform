@@ -348,6 +348,7 @@ function adapterFor(directory: string, storage: Storage): EncryptedSnapshotAdapt
 }
 async function closeTransferred(storage: Storage) { if (storage && typeof storage === 'object') await storage.close?.(); }
 
+type PendingUpdate = { apply(state: State, previous: State): unknown | Promise<unknown>; resolve(value: unknown): void; reject(error: unknown): void };
 export class Vault implements StateStore {
   #state: State;
   #key: Buffer;
@@ -355,11 +356,13 @@ export class Vault implements StateStore {
   #adapter: EncryptedSnapshotAdapter;
   #lock: Lock;
   #chain: Promise<unknown> = Promise.resolve();
+  #pendingUpdates?: PendingUpdate[];
   #closed = false;
   #closing = false;
   #shutdown?: Promise<void>;
   #transaction = new AsyncLocalStorage<boolean>();
   #snapshotScope = new AsyncLocalStorage<boolean>();
+  #updateRead = new AsyncLocalStorage<State>();
   #captureRestored = false;
   #keychain?: KeychainHook;
   #writerGuard?: VaultWriterGuard;
@@ -583,7 +586,7 @@ export class Vault implements StateStore {
     } catch (error) { key!.fill(0); await lock.release(); await adapter.close?.(); throw error; }
   }
   #ready() { if (this.#closed || this.#closing) fail('VAULT_CLOSED', 'The vault is closed.'); }
-  read(): State { this.#ready(); return structuredClone(this.#state); }
+  read(): State { this.#ready(); return structuredClone(this.#updateRead.getStore() ?? this.#state); }
   /** C5 task 19: how many bytes of the store's ceiling (STORE_LIMIT_BYTES) the open business takes now. */
   storeBytes(): number {
     this.#ready();
@@ -870,6 +873,8 @@ export class Vault implements StateStore {
   #enqueue<T>(work: () => Promise<T>): Promise<T> {
     if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.'));
     this.#ready();
+    // Every non-update operation is an ordering barrier for the next batch.
+    this.#pendingUpdates = undefined;
     const pending = this.#chain.then(work); this.#chain = pending.catch(() => {}); return pending;
   }
   /** Trusted developer replay only: a fresh marked sample vault, never an existing business or RPC route. */
@@ -890,18 +895,41 @@ export class Vault implements StateStore {
   }
   update<T>(change: (state: State) => T | Promise<T>): Promise<T> {
     if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault transactions are not supported.'));
-    return this.#enqueue(() => this.#transaction.run(true, () => this.guarded(async assertCurrent => {
-      const draft = structuredClone(this.#state), result = await change(draft);
-      if (draft.workspace.id !== this.#state.workspace.id) fail('INVALID_STATE', 'A transaction cannot change workspace identity.');
-      draft.revision = this.#state.revision + 1;
-      const envelope = encodeSnapshot(draft, { ...this.#envelope, revision: draft.revision }, this.#key);
-      assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
-      this.#state = structuredClone(draft); this.#envelope = envelope;
-      // close/delete mark the handle closing before draining already accepted updates.
-      // The committed authority remains available internally while public reads are shut.
-      return { result, committedState: structuredClone(this.#state) };
-    })));
+    this.#ready();
+    const context = AsyncLocalStorage.snapshot();
+    let accept!: (value: T) => void, reject!: (error: unknown) => void;
+    const result = new Promise<T>((resolve, refuse) => { accept = resolve; reject = refuse; });
+    const entry: PendingUpdate = { apply: (state, previous) => context(() => this.#updateRead.run(previous, () => this.#transaction.run(true, () => change(state)))), resolve: value => accept(value as T), reject };
+    if (this.#pendingUpdates) { this.#pendingUpdates.push(entry); return result; }
+    const batch = [entry];
+    // Start the first write immediately. Calls already queued, including those behind an in-flight
+    // write, share its next durable save without adding a timer to an otherwise solitary update.
+    void this.#enqueue(async () => {
+      if (this.#pendingUpdates === batch) this.#pendingUpdates = undefined;
+      const completed: { entry: PendingUpdate; value: unknown }[] = [];
+      await this.#transaction.run(true, () => this.guarded(async assertCurrent => {
+        let draft = this.#state;
+        for (const item of batch) {
+          const candidate = structuredClone(draft);
+          try {
+            const value = await item.apply(candidate, draft);
+            if (candidate.workspace.id !== this.#state.workspace.id) fail('INVALID_STATE', 'A transaction cannot change workspace identity.');
+            candidate.revision = draft.revision + 1; draft = candidate; completed.push({ entry: item, value });
+          } catch (error) { item.reject(error); }
+        }
+        if (completed.length) {
+          const envelope = encodeSnapshot(draft, { ...this.#envelope, revision: draft.revision }, this.#key);
+          assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
+          this.#state = structuredClone(draft); this.#envelope = envelope;
+        }
+        return { result: undefined, committedState: structuredClone(this.#state) };
+      }));
+      for (const item of completed) item.entry.resolve(item.value);
+    }).catch(error => { for (const item of batch) item.reject(error); });
+    this.#pendingUpdates = batch;
+    return result;
   }
+
   backup(target: string): Promise<string> {
     return this.#enqueue(async () => { await this.#assertSnapshotOnlyBackup(); await atomicWrite(target, JSON.stringify({ backupFormat: 'chausar.backup.v1', envelope: this.#envelope }), false); return target; });
   }
