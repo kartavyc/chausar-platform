@@ -34,6 +34,8 @@ What the app does and its known limits stays public, in this repository: `docs/v
 
 ## How work is done
 
+- A new engine method: add it to its list, its payload and result types and its level, change the one pinned count in `method-registry-d8.test.ts`, then run `node scripts/gen-contract.mjs`.
+
 - Test first: write the failing test, see it fail for the right reason, then implement.
 - Engine tests: `node --test platform/tests/<file>.test.ts`. UI tests: `npx vitest run --config app/ui/vitest.config.ts <path>`.
 - Before a commit: `npm ci` if a pull changed `package-lock.json`, then `npm run typecheck`, `npm run typecheck:ui`, `node scripts/check.mjs`, the tests near your change. Before a PR: `npm run test:ui`, `npm run build:ui`, the three engine shards (`node scripts/bench.mjs --shard=N/3`, one at a time; each receipt goes to the run root) and the screenshot walk (`node scripts/ui-shots/walk.mjs --cdp=9481 --workers=4`). For repo diet changes, review `npm run knip` findings before the PR.
