@@ -73,22 +73,9 @@
   color: var(--nav-on-fg);
 }
 
-/* Today's count. On the selected item it sits on the surface of the grey fill; elsewhere it is amber. */
+/* The shared count badge keeps one style on every place. */
 .count {
-  min-width: var(--sp-6);
   margin-left: auto;
-  padding: 0 var(--sp-2);
-  border-radius: var(--r-chip);
-  background: var(--nav-count);
-  font-size: var(--text-label);
-  line-height: var(--sp-5);
-  text-align: center;
-  color: var(--nav-count-fg);
-}
-
-.count[data-tone='wait'] {
-  background: var(--wait-soft);
-  color: var(--wait);
 }
 
 /* C1 task 8: Settings sits at the foot of the rail. */

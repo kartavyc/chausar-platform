@@ -17,7 +17,6 @@ import { Chip } from '../parts/Chip';
 import { EmptyState } from '../parts/EmptyState';
 import { Receipt } from '../parts/Receipt';
 import { Sheet } from '../parts/Sheet';
-import { stateText } from '../parts/states';
 import type { NotificationView } from '../engine/types';
 import { useNotifyList } from './Bell';
 import type { SheetComponentProps } from './sheets';
@@ -56,16 +55,12 @@ export function NotificationCentre({ onClose, returnFocus }: SheetComponentProps
 
   const line = data ? (data.unread > 0 ? t('centre.unread', { count: data.unread }) : t('centre.none')) : undefined;
   return (
-    <Sheet label="" title={title} name={title} line={line} onClose={onClose} returnFocus={returnFocus}>
+    <Sheet label="" title={title} name={title} line={line} onClose={onClose} returnFocus={returnFocus}
+      headerActions={data && data.unread > 0 && <Button variant="quiet" size="sm" onClick={() => void read({ all: true })}>{t('centre.markAll')}</Button>}>
       <div className={s.centre} data-centre="">
         {list.error && !data && <p className={s.problem}>{t('sheet.failed', { message: list.error.message })}</p>}
         {!data && !list.error && <LoadingPlace shape="sheet" />}
         {problem && <p className={s.problem} role="alert">{problem}</p>}
-        {data && data.unread > 0 && (
-          <div className={s.tools}>
-            <Button variant="secondary" size="sm" onClick={() => void read({ all: true })}>{t('centre.markAll')}</Button>
-          </div>
-        )}
         {data?.digest && (
           <section className={s.digest} aria-labelledby={digestId}>
             <h3 id={digestId} className={s.heading}>{t('centre.digest', { day: whenOf(data.digest.at, zone) })}</h3>
@@ -103,8 +98,6 @@ function Item({ item, zone, onFollow }: { item: NotificationView; zone: string; 
     <>
       <span className={s.title}>{item.title}</span>
       <span className={s.meta}>
-        <span data-kind="">{stateText(t, 'queue', item.kind)}</span>
-        <span aria-hidden="true" data-sep="">·</span>
         <time dateTime={item.at}>{whenOf(item.at, zone)}</time>
       </span>
     </>

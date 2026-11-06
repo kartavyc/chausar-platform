@@ -69,9 +69,11 @@ export function RunControlsMenu({ onLeave }: { onLeave: () => void }) {
           >
             {t(paused ? 'business.unpause' : 'business.pauseAll')}
           </button>
+          <p className={menu.notice}>{t('business.pauseAll.hint')}</p>
         </li>
         <li>
           <button ref={stopItem} type="button" className={menu.item} aria-expanded={ask === 'stop'} onClick={() => setAsk(ask === 'stop' ? null : 'stop')}>{t('business.stopAll')}</button>
+          <p className={menu.notice}>{t('business.stopAll.hint')}</p>
         </li>
         <li>
           {/* C1 task 9: Away's address comes from the one settings list. */}

@@ -120,6 +120,7 @@ describe('Business: Go or no go (5A2, M18)', () => {
     expect(within(card).getByText('The most you could lose is within your limit.')).toBeTruthy();
     expect(within(card).getByText('₹35,000')).toBeTruthy();
     expect(within(card).getByRole('button', { name: receiptMark(/gonogo_/) })).toBeTruthy();
+    expect(within(card).getByText('₹50,000').closest('dd')?.textContent).toContain('told by you');
     expect(within(card).getByText('Go spends nothing: each spend still asks you.')).toBeTruthy();
     assertInkRules();
   });
@@ -160,6 +161,8 @@ describe('Business: Go or no go (5A2, M18)', () => {
     const { spy } = start({ hash: '#/business/go-no-go' });
     expect(await screen.findByText('No go when the most you could lose is above your limit.')).toBeTruthy();
     const make = async (subject: string) => {
+      const another = screen.queryByRole('button', { name: 'Make another' });
+      if (another) await press(another);
       await type(screen.getByLabelText('What you are deciding'), subject);
       await type(screen.getByLabelText('What it costs to start, in rupees'), '5,000');
       await type(screen.getByLabelText('What it costs each month, in rupees'), '1000');
