@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import type { Deleted } from '../../engine/types';
+import type { Deleted } from '../engine/types';
 
 /**
  * What a place calls once a new business exists (or one was opened); the app provides it. It lives alone in this file

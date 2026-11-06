@@ -110,7 +110,7 @@ describe('Welcome back: the card holds still (B4 task 5)', () => {
     await welcome();
     const main = screen.getByRole('main');
     expect(main.hasAttribute('data-anchored')).toBe(true);
-    const css = readFileSync(join(import.meta.dirname, '../../src/places/onboarding/Onboarding.module.css'), 'utf8');
+    const css = readFileSync(join(import.meta.dirname, '../../src/parts/Entry.module.css'), 'utf8');
     expect(/\.firstMain\[data-anchored\] \{([^}]*)\}/.exec(css)![1]).toContain('align-content: start');
   });
 });
