@@ -6,7 +6,7 @@ import type { Context } from '../runtime/contracts.ts';
 import { code, fixture, PASSWORD, PERIOD, SOURCE } from './fixtures/alerts-public-acceptance.ts';
 
 // Independently authored public acceptance. All retained evidence comes from
-// Engine sources.import/calculation.run through actual preload and strict IPC.
+// Engine sources.import/calculation.run through actual trusted host and strict IPC.
 // No private state writes or fabricated reconciliations; experimental encrypted
 // files qualify only this local source path, not native PostgreSQL/live sources.
 test('public alerts sustain real receipt observations, deduplicate, preserve hysteresis and reopen after encrypted Engine restart', { concurrency: false }, async t => {

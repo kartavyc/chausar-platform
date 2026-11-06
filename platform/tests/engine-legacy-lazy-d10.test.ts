@@ -66,4 +66,3 @@ test('legacy parity files remain in full qualification and are excluded from the
   assert.equal(legacy.some((file: string) => fast.includes(file)), false);
   assert.equal(legacy.every((file: string) => all.includes(file)), true);
 });
-

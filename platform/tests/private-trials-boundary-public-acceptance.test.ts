@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { fixture, selectSavedAnswers, assertUnchangedAuthority, type Fixture } from './fixtures/private-trials-public-acceptance.ts';
 
 // Bind and run only after the parent imports the frozen public endpoint join.
-// Every request uses the fixture's actual preload and strict IPC boundary.
+// Every request uses the fixture's actual trusted host and strict IPC boundary.
 const typedRefusal = (error: unknown) => Boolean(error && typeof error === 'object'
   && typeof (error as { code?: unknown }).code === 'string'
   && typeof (error as { message?: unknown }).message === 'string');
