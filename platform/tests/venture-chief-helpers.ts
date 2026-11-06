@@ -97,5 +97,6 @@ export function createdCount(env: ChiefEnv): number {
 /** Prices the long-episode offer at amount (major units) and accepts the plan again. */
 export async function priceOffer(env: ChiefEnv, amount: string): Promise<void> {
   const updated = await env.call('venture.blueprint.update', { patch: { offers: [{ id: 'offer_1', unitPrice: amount }] } });
-  await env.call('venture.blueprint.accept', { digest: updated.blueprint.digest });
+  // C4 task 33: the owner's own price applies on Save, so a first price is accepted already; only a waiting one needs Accept.
+  if (updated.blueprint.status !== 'accepted') await env.call('venture.blueprint.accept', { digest: updated.blueprint.digest });
 }
