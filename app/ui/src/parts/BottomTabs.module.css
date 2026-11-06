@@ -57,11 +57,18 @@
   white-space: nowrap;
 }
 
-/* Today's count: a dark pill on the icon's top right corner. The 22 px icon reaches 11 px right of the middle, so a
-   pill that starts 8 px right of it covers only the corner and the icon stays readable (w3 3I). */
+/* The icon's holder: the badge is placed from its corner (C1 task 10). */
+.iconHolder {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+/* Today's count: a dark pill on the icon's top right corner. It starts at the icon's right edge and grows outwards,
+   so a two-figure count covers only the corner and the icon stays readable (w3 3I). */
 .badge {
   position: absolute;
-  top: var(--sp-1);
+  bottom: 50%;
   left: 50%;
   display: grid;
   place-items: center;
