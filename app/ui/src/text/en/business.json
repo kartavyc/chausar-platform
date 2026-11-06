@@ -18,6 +18,7 @@
   "business.notify.relayHint": "Optional. An https address of your own, like https://ntfy.sh/your-topic, gets each count.",
   "business.notify.relaySave": "Save relay",
   "business.notify.relayRemove": "Remove relay",
+  "business.notify.phoneGroup": "Get alerts on your phone",
   "business.notify.telegram": "Telegram alerts",
   "business.notify.botToken": "Bot token",
   "business.notify.botTokenHint": "Make a bot of your own with BotFather in Telegram. Chausar keeps the token in this computer's protected key storage.",

@@ -29,12 +29,11 @@ async function reach(): Promise<HTMLElement> {
   return heading.closest('section') as HTMLElement;
 }
 async function openFold(section: HTMLElement, name: string): Promise<HTMLElement> {
-  const summary = await within(section).findByText(name, { selector: 'summary' });
+  // C4 task 39: one fold holds both, open by default while nothing is set up.
+  const summary = await within(section).findByText('Get alerts on your phone', { selector: 'summary' });
   const fold = summary.closest('details') as HTMLDetailsElement;
-  expect(fold.open).toBe(false);
-  fold.open = true;
-  fireEvent(fold, new Event('toggle'));
-  return fold;
+  await waitFor(() => expect(fold.open).toBe(true));
+  return (await within(fold).findByRole('heading', { name })).closest('section') as HTMLElement;
 }
 
 describe('Telegram alerts and phone access on this computer', () => {

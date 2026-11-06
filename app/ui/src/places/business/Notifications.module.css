@@ -100,3 +100,11 @@
   gap: var(--sp-2);
   margin-bottom: var(--sp-3);
 }
+
+/* C4 task 39: a part of the phone group, under its fold. */
+.partTitle {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}

@@ -1,14 +1,15 @@
 /**
- * Business > Notifications, on this computer (wave 6, 6F6 and 6F7; D35). Two folds under "How alerts reach you":
+ * Business > Notifications, on this computer (wave 6, 6F6 and 6F7; D35). C4 task 39 (17.d2): one fold under "How alerts
+ * reach you", "Get alerts on your phone", which opens by itself while nothing is set up, holding in this order:
  *   - Telegram alerts: the owner's own bot token and chat id go to the engine, which keeps them in the computer's
  *     protected key storage; the page clears the token at once. Count only by default; titles are the owner's opt-in.
  *     A test alert sends the current count. Approvals stay in the app: Telegram only says how many things wait.
  *   - Phone access: a one-time pairing link (and its QR code, as the engine drew it) for a phone on this Wi-Fi, or
  *     through Tailscale when this computer has a Tailscale address; Stop ends phone access and every phone session.
- * Each fold asks the engine only once it is opened. Every state is the engine's answer, in its words.
+ * Every state is the engine's answer, in its words.
  */
 
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -18,24 +19,35 @@ import { messageOf } from './shared';
 import s from './Business.module.css';
 import n from './Notifications.module.css';
 
-/** A fold that renders its body only once opened, so a closed fold asks the engine nothing. */
-function Fold({ title, children }: { title: string; children: () => ReactNode }) {
-  const [opened, setOpened] = useState(false);
+/** One part of the group under its own heading. Seam: C3's Fold takes the details below once C3 lands. */
+function Part({ title, children }: { title: string; children: ReactNode }) {
+  const id = useId();
   return (
-    <details className={s.fold} onToggle={(event) => { if (event.currentTarget.open) setOpened(true); }}>
-      <summary>{title}</summary>
-      {opened && <div className={s.foldBody}>{children()}</div>}
-    </details>
+    <section className={s.foldBody} aria-labelledby={id}>
+      <h3 id={id} className={n.partTitle}>{title}</h3>
+      {children}
+    </section>
   );
 }
 
 export function PhoneReach() {
   const t = useT();
+  const telegram = useResource('venture.notify.telegram', {});
+  const phone = useResource('venture.phone.access', {});
+  // Nothing set up is the engine's answer: no bot and no phone access. Until the two answers come it stays closed.
+  const nothingSetUp = telegram.data?.connected === false && phone.data?.on === false;
+  const [pressed, setPressed] = useState<boolean | null>(null);
+  const open = pressed ?? nothingSetUp;
   return (
-    <>
-      <Fold title={t('business.notify.telegram')}>{() => <Telegram />}</Fold>
-      <Fold title={t('business.notify.phone')}>{() => <PhoneAccess />}</Fold>
-    </>
+    <details className={s.fold} open={open} onToggle={(event) => { if (event.currentTarget.open !== open) setPressed(event.currentTarget.open); }}>
+      <summary>{t('business.notify.phoneGroup')}</summary>
+      {open && (
+        <>
+          <Part title={t('business.notify.telegram')}><Telegram /></Part>
+          <Part title={t('business.notify.phone')}><PhoneAccess /></Part>
+        </>
+      )}
+    </details>
   );
 }
 
