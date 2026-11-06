@@ -8,10 +8,9 @@
 // --timings is a folder of bench receipts (searched below it); their fileTimings feed the slow-file check.
 // CHAUSAR_PERF_STAND_IN (read by this script only) names a JSON file of stand-in values, so its test runs no measure.
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { outputFile } from '../platform/runtime/run-root.mjs';
 import { receiptSeconds } from './receipt.mjs';
 
@@ -60,24 +59,11 @@ const MEASURES = {
   'vault-commit-ms-10k': async () => vaultCommit(10_000),
 };
 
-/** One commit of a state already holding `records` synthetic activity records, through vault.ts, in a fresh temp folder. */
+/** The same realistic one-field change and five-run median used by the store curve. */
 async function vaultCommit(records) {
-  const { Vault } = await import(pathToFileURL(join(root, 'platform/runtime/vault.ts')).href);
-  const directory = await mkdtemp(join(tmpdir(), 'chausar-perf-vault-'));
-  try {
-    const { vault } = await Vault.create({ directory, storage: 'experimental-file', passphrase: 'synthetic perf passphrase only', name: 'Perf budget' });
-    await vault.update(state => { for (let index = 0; index < records; index++) state.activity.push({ message: `synthetic record ${index} for the commit budget` }); });
-    const times = [];
-    for (let run = 0; run < 3; run++) {
-      const started = performance.now();
-      await vault.update(state => { state.activity.push({ message: `one more synthetic record ${run}` }); });
-      times.push(performance.now() - started);
-    }
-    await vault.close();
-    return { value: Math.round(median(times)) };
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
+  const { measureVaultCurve } = await import('./vault-budget.ts');
+  const curve = await measureVaultCurve([records]);
+  return { value: Math.round(curve.rows[0].median.commitMs) };
 }
 
 async function receiptsBelow(folder) {
