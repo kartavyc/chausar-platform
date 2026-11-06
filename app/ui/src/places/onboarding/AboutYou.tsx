@@ -6,6 +6,8 @@ import { Bento, Tile } from '../../parts/Tile';
 import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
 import { Icon } from '../../parts/Icon';
+// One-shot C3: off under the computer's reduce-motion setting or the owner's Animations off; then A becomes B with no motion.
+import { motionOff } from '../../parts/motion';
 import { cleanSentence, computerCountry, pickCountry, sentenceProblem, OPEN_BOX } from './flow';
 import { aboutFile, type AboutFile } from './linkedin';
 import { renameIn } from './rename';
@@ -17,11 +19,6 @@ type Bubble = { who: 'me' | 'them'; text: string };
 /** name (one-shot A1, row 3): the name the card shows, which the saved plan keeps with the card's offers. */
 export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string };
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
-/** True when the computer asks for reduced motion: then A becomes B with no motion at all. */
-export function prefersReducedMotion(): boolean {
-  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
-}
 
 /**
  * Step 2 of the first run, About you (W6 6C2, DECISIONS D16 and D16a; reference-ui/OnboardAB.dc.html). It opens as
@@ -46,7 +43,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
   const families = useResource('venture.about.families', {});
   const box = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<Mode>('a');
-  const [motion] = useState(() => (prefersReducedMotion() ? 'none' : 'once'));
+  const [motion] = useState(() => (motionOff() ? 'none' : 'once'));
   const [text, setText] = useState('');
   const [file, setFile] = useState<AboutFile | null>(null);
   const [said, setSaid] = useState('');

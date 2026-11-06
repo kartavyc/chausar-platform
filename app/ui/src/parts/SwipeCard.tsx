@@ -4,6 +4,7 @@ import type { PressResult } from './ApprovalRow';
 import { cx } from './cx';
 import { Icon } from './Icon';
 import s from './SwipeCard.module.css';
+import { motionOff } from './motion';
 
 /** Where a drag never starts a swipe: fields, and anything marked data-no-swipe (an open tool on a card, W4 4J19). */
 const NO_SWIPE = 'input, textarea, select, [contenteditable=""], [contenteditable="true"], [data-no-swipe]';
@@ -72,14 +73,6 @@ export interface SwipeCardProps {
   className?: string | undefined;
 }
 
-function reducedMotion(): boolean {
-  try {
-    return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-  } catch {
-    return false;
-  }
-}
-
 function now(): number {
   return typeof performance === 'undefined' ? Date.now() : performance.now();
 }
@@ -112,7 +105,7 @@ export function SwipeCard({
   /** Back to rest from `from` steps: once, over the settle time, or at once under reduced motion. */
   function settle(from: number) {
     setSteps(0);
-    if (from > 0 && !reducedMotion()) {
+    if (from > 0 && !motionOff()) {
       setSnap(from);
     } else {
       setSnap(0);
