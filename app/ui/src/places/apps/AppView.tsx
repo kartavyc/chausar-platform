@@ -11,6 +11,8 @@ import { Icon } from '../../parts/Icon';
 import { goTo } from '../../shell/navigation';
 import { MiniAppFrame } from './MiniAppFrame';
 import s from './Apps.module.css';
+import { PageTitle } from '../../parts/PageTitle';
+import { useMoment } from '../../parts/when';
 import { LoadingPlace } from '../../parts/Skeleton';
 
 const never = () => false;
@@ -38,6 +40,7 @@ function saveFile(fileName: string, document: string): void {
  */
 export function AppView({ id }: { id: string }) {
   const t = useT();
+  const moment = useMoment();
   const client = useEngine();
   const chatId = useId(), sideId = useId(), allowId = useId();
   const loaded = useResource('venture.apps.get', { app: id }, { refreshOn: never });
@@ -116,9 +119,14 @@ export function AppView({ id }: { id: string }) {
   }
 
   return (
+    <>
+      <a className={s.back} href="#/apps">{t('apps.view.back')}</a>
+      <PageTitle title={app.name} tools={<>
+        <Button size="sm" onClick={pin} disabled={busy || (Boolean(app.ask) && !app.pinned)} aria-describedby={app.ask && !app.pinned ? allowId : undefined}>{app.pinned ? t('apps.view.unpin') : t('apps.view.pin')}</Button>
+        <Button size="sm" onClick={() => void exportApp()} disabled={busy || Boolean(app.ask)} aria-describedby={app.ask ? allowId : undefined}>{t('apps.view.export')}</Button>
+      </>} />
     <Bento className={s.view}>
       <Tile as="section" span={7} labelledBy={chatId} className={s.chat}>
-        <a className={s.back} href="#/apps">{t('apps.view.back')}</a>
         <TileHead id={chatId} title={t('apps.view.chat')} />
         <ol className={s.thread}>
           {app.messages.map((message, index) => (
@@ -143,9 +151,6 @@ export function AppView({ id }: { id: string }) {
               )}
         </section>
         <div className={s.actions}>
-          {/* B4: an app waiting on Allow can't run, so it can't be pinned or exported yet. One line says why, for both. */}
-          <Button onClick={pin} disabled={busy || (Boolean(app.ask) && !app.pinned)} aria-describedby={app.ask && !app.pinned ? allowId : undefined}>{app.pinned ? t('apps.view.unpin') : t('apps.view.pin')}</Button>
-          <Button onClick={() => void exportApp()} disabled={busy || Boolean(app.ask)} aria-describedby={app.ask ? allowId : undefined}>{t('apps.view.export')}</Button>
           {showingSample
             ? <Button variant="quiet" onClick={() => setSample(false)}>{t('apps.preview.back')}</Button>
             : app.empty && !app.ask && !moved && <Button variant="quiet" onClick={() => setSample(true)}>{t('apps.preview.go')}</Button>}
@@ -175,7 +180,7 @@ export function AppView({ id }: { id: string }) {
             </ul>
             <div className={s.never}>
               <p className={s.neverTitle}>{t('apps.allow.never')}</p>
-              <p className={s.neverLine}>{app.never}</p>
+              <ul className={s.neverLine}><li>{app.never}</li></ul>
             </div>
             <div className={s.allowRow}>
               <Button variant="primary" size="lg" disabled={busy} onClick={() => void run(() => client.request('venture.apps.grant', { app: app.id, digest: app.ask!.digest }))}>{t('apps.allow.yes')}</Button>
@@ -194,10 +199,8 @@ export function AppView({ id }: { id: string }) {
             <ul className={s.versions}>
               {[...app.versions].reverse().map((item) => (
                 <li key={item.version} className={s.version}>
-                  <span className={s.grow}><span className={s.versionName}>{t('apps.versions.item', { version: item.version })}</span>{' · '}<span data-content="">{item.summary}</span></span>
-                  {item.current
-                    ? <span className={s.quiet}>{t('apps.versions.current')}</span>
-                    : <Button size="sm" variant="quiet" onClick={() => use(item.version)} disabled={busy}>{t('apps.versions.use', { version: item.version })}</Button>}
+                  <span className={s.grow}><span className={s.versionName}>{t('apps.versions.item', { version: item.version })}</span>{item.current && <span className={s.quiet}>{' '}{t('apps.versions.current')}</span>}{' · '}<span data-content="">{item.summary}</span><time className={s.quiet} dateTime={item.at}>{moment(item.at)}</time></span>
+                  {!item.current && <Button size="sm" variant="quiet" onClick={() => use(item.version)} disabled={busy}>{t('apps.versions.use', { version: item.version })}</Button>}
                 </li>
               ))}
             </ul>
@@ -214,5 +217,6 @@ export function AppView({ id }: { id: string }) {
         )}
       </Tile>
     </Bento>
+    </>
   );
 }
