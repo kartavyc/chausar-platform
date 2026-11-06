@@ -309,6 +309,17 @@ export class FakeChiefDesk {
     return this.settleDaysOf.get(this.host.current()) ?? SETTLE_DAYS;
   }
 
+  /**
+   * C2: the open business's chats for venture.find (chief/threads.ts searchableThreads), newest first, with their state
+   * now and their messages as kept. It never marks an answer read.
+   */
+  searchable(): { id: string; title: string; state: ChiefThreadState; lastAt: string; messages: { from: 'owner' | 'chief'; parts: ChatPart[] }[] }[] {
+    return [...this.mine().threads].sort((a, b) => b.lastAt.localeCompare(a.lastAt)).map((thread) => ({
+      id: thread.id, title: thread.title, state: stateOf(thread, this.waiting(thread), this.host.now(), this.settleDays()).state, lastAt: thread.lastAt,
+      messages: thread.messages.map((message) => ({ from: message.from, parts: message.parts })),
+    }));
+  }
+
   /** W6 6G1: a step in the chat waits for Start or approval, or the chief's question is the last word (chief/states.ts waitingOf). */
   private waiting(thread: HeldThread): boolean {
     const last = thread.messages.at(-1);
