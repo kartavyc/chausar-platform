@@ -1,4 +1,4 @@
-import { resolve, join, relative, isAbsolute } from 'node:path';
+import { resolve, join, relative, isAbsolute, basename } from 'node:path';
 import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -71,7 +71,7 @@ import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeySt
 import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
   normalizeTransferCode, parseBackupName, slugFolder, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
 import { aiSetupFile, forgetAiSetup } from './venture/models/ai-setup-file.ts';
-import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, moveFileName, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
+import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, exportFileName, moveFileName, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
 import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-snapshots.ts';
 
 /** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
@@ -136,6 +136,16 @@ function answerRecoveryRecordIntegrity(record: Omit<AnswerRecoveryRecord, 'integ
 function transferHint(parsed: any): RecoveryState {
   return parsed?.transfer?.format === 'chausar.transfer.v1' && ['made', 'not-made'].includes(parsed.transfer.recovery) ? parsed.transfer.recovery : 'unknown';
 }
+/** C4 task 38: when the newest move file was made, unless the owner dismissed the line after it. */
+function moveMadeOf(activity: readonly { at: string; event: string }[]): string | null {
+  let made: string | null = null;
+  for (const item of activity) {
+    if (item.event === 'custody.transfer-exported') made = item.at;
+    else if (item.event === 'custody.transfer-dismissed') made = null;
+  }
+  return made;
+}
+
 export class Engine {
   options: EngineOptions;
   readonly version: string;
@@ -1082,6 +1092,7 @@ export class Engine {
       case 'workspace.list': return this.custodyFiles().listBusinesses(this.storageKind());
       case 'workspace.backups.list': return this.backupList();
       case 'workspace.transfer.import': return this.transferImport(payload);
+      case 'workspace.transfer.peek': return this.transferPeek(payload);
     }
     if (method === 'workspace.create') {
       check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
@@ -1719,21 +1730,31 @@ export class Engine {
       }
       case 'workspace.export': {
         this.requireWorkspaceOwner(ctx); check(payload.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the export in the app.');
-        const folder = join(this.options.directory, 'exports'); await mkdir(folder, { recursive: true }); const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.${payload.plaintext ? 'json' : 'vault'}`);
-        await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
+        const tail = payload.plaintext ? 'json' : 'vault';
+        // C4 task 36 (206.x1): a path only the desktop's own save dialog chose (main.cjs, export-save.cjs; the window's
+        // requests can't carry one): absolute, with the export's own extension. Without one, Chausar's exports folder.
+        if (payload.path !== undefined) {
+          check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Export a copy from inside the app.');
+          check(typeof payload.path === 'string' && isAbsolute(payload.path) && payload.path.length <= 1024 && payload.path.toLowerCase().endsWith(`.${tail}`), 'INVALID_PATH', 'Choose where to save the copy in the save dialog.');
+          await store.export(payload.path, { plaintext: payload.plaintext === true });
+          return { path: payload.path, name: basename(payload.path), encrypted: payload.plaintext !== true };
+        }
+        const folder = join(this.options.directory, 'exports'); await mkdir(folder, { recursive: true }); const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.${tail}`);
+        await store.export(path, { plaintext: payload.plaintext === true }); return { path, name: basename(path), encrypted: payload.plaintext !== true };
       }
       case 'workspace.delete': {
         this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete it.');
         // One-shot A1 (row 1): its backups go; the copies the owner exported stay, and the answer names them.
         const removed = await this.purgeManagedCopies(['backups']), exportsKept = await this.managedExports();
-        const deletedVault = store.vaultId, deletedFolder = this.#openFolder, deletedWorkspace = store.read().workspace.id;
+        const deletedVault = store.vaultId, deletedFolder = this.#openFolder, deletedWorkspace = store.read().workspace.id, deletedName = store.read().workspace.name;
         await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault);
         // A4 review round 2 (M2): the AI setup it saved goes too, so no later business names it. Never fails the delete.
         const aiSetup = this.#aiSetup();
         if (aiSetup) await forgetAiSetup(aiSetup, deletedWorkspace).catch(() => {});
         // One-shot A4 (hands-on S10): the business's own folder goes too, only when nothing is left in it.
         await this.removeEmptyFolder(this.workspacePath(deletedFolder ?? undefined));
-        return { deleted: true, copiesRemoved: removed, exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+        // C4 task 37 (211.x1): the name and how many backups went, for Welcome's "Pune Frames is deleted. 7 backups removed."
+        return { deleted: true, name: deletedName, backupsRemoved: removed.filter(path => path.startsWith('backups/')).length, copiesRemoved: removed, exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       }
       case 'venture.create':
       case 'venture.country.suggest':
@@ -1770,6 +1791,7 @@ export class Engine {
       case 'venture.billing.set':
       case 'venture.invoice.pdf':
       case 'venture.invoice.payLink':
+      case 'venture.invoice.shared':
       case 'venture.order.create':
       case 'venture.order.list':
       case 'venture.order.deliver':
@@ -2039,6 +2061,7 @@ export class Engine {
       case 'venture.order.contract.propose':
       case 'venture.order.contract.sign':
       case 'venture.routines.list':
+      case 'venture.routines.suggestions':
       case 'venture.routines.runs':
       case 'venture.routines.set':
       case 'venture.routines.remove':
@@ -2761,7 +2784,13 @@ export class Engine {
     const backups = await files.backupFiles(vault.read().workspace.id), next = custody?.autoBackups ? nextBackupAt(this.#schedule, vault.read().revision, this.custodyNow()) : null;
     return { computer, business: { folder: this.#openFolder ?? '', unlock: this.#openUnlock ?? 'passphrase', recovery: card?.recovery ?? 'unknown', storage: vault.storageKind,
       backups: { auto: !!custody?.autoBackups, count: backups.length, newestAt: backups[0] ? new Date(backups[0].at).toISOString() : null,
-        nextDueAt: next === null ? null : new Date(next).toISOString(), lastError: this.#schedule.lastError } } };
+        nextDueAt: next === null ? null : new Date(next).toISOString(), lastError: this.#schedule.lastError },
+      // C4 task 36: the name the save dialog offers, by the day on this computer's own clock and zone.
+      exportName: exportFileName(vault.read().workspace.name, new Date(this.custodyNow()), Intl.DateTimeFormat().resolvedOptions().timeZone, false),
+      // C4 task 37 (210.x2): the copies in Chausar's own exports folder, which Delete keeps.
+      exportsHere: (await this.managedExports()).length,
+      // C4 task 38 (219.x1): the newest move file made, until the owner dismisses it.
+      moveMadeAt: moveMadeOf(vault.read().activity) } };
   }
   private async backupList() {
     const files = this.custodyFiles(), cards = await files.listCards();
@@ -2860,6 +2889,12 @@ export class Engine {
     return { workspace: this.store().read().workspace, restoredFrom, safety };
   }
   private async transferExport(payload: any) {
+    // C4 task 38 (219.x1): the owner takes away the "Move file made" line; nothing else changes.
+    if (payload && Object.hasOwn(payload, 'dismiss')) {
+      check(payload.dismiss === true && Object.keys(payload).length === 1, 'INVALID_REQUEST', 'Send dismiss: true to take the line away.');
+      await this.store().update(state => audit(state, 'custody.transfer-dismissed', {}));
+      return { dismissed: true };
+    }
     const vault = this.store(), card = this.custodyHost() && this.#openFolder ? await this.custodyFiles().readCard(this.#openFolder) : null;
     if ((card?.unlock ?? this.#openUnlock ?? 'passphrase') === 'passphrase')
       check(typeof payload.passphrase === 'string' && await vault.verifyPassphrase(payload.passphrase), 'PASSPHRASE_WRONG', CUSTODY_WORDS.errors.PASSPHRASE_WRONG);
@@ -2868,6 +2903,27 @@ export class Engine {
     check(text.length <= TRANSFER.maxTextChars, 'TRANSFER_TOO_LARGE', CUSTODY_WORDS.errors.TRANSFER_TOO_LARGE);
     await vault.update(state => audit(state, 'custody.transfer-exported', {}));
     return { fileName: moveFileName(new Date(madeAt)), text, transferCode, bytes: Buffer.byteLength(text) };
+  }
+  /**
+   * C4 task 38 (223.x1): the business name and the time a move file was made, read with its code before "Move it here".
+   * Vault-less and quiet: the file's header is opened in memory only and nothing is written. A wrong code gets exactly
+   * the refusal the import gives, so a peek never helps a guess.
+   */
+  private async transferPeek(payload: any) {
+    check(payload && typeof payload === 'object' && Object.keys(payload).every(key => key === 'fileText' || key === 'transferCode'), 'INVALID_REQUEST', 'Send the move file and its code.');
+    const text = payload.fileText;
+    check(typeof text === 'string', 'TRANSFER_INVALID', CUSTODY_WORDS.errors.TRANSFER_INVALID);
+    check(text.length <= TRANSFER.maxTextChars, 'TRANSFER_TOO_LARGE', CUSTODY_WORDS.errors.TRANSFER_TOO_LARGE);
+    let parsed: any;
+    try { parsed = JSON.parse(text); } catch { parsed = null; }
+    const envelope = parsed?.envelope;
+    check(parsed?.backupFormat === 'chausar.backup.v1' && envelope?.format === 'chausar.vault.v1' && typeof envelope.id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(envelope.id)
+      && [envelope.passphrase, envelope.recovery, envelope.snapshot].every(part => part && typeof part === 'object'), 'TRANSFER_INVALID', CUSTODY_WORDS.errors.TRANSFER_INVALID);
+    const code = normalizeTransferCode(payload.transferCode);
+    check(code, 'TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG);
+    const seen = await Vault.peekTransfer(text, code);
+    check(seen, 'TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG);
+    return { name: seen.name, movedOutAt: seen.madeAt };
   }
   private async transferImport(payload: any) {
     check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.');

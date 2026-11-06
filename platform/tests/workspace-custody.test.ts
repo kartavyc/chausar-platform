@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import { Vault, wrappersDigestOf } from '../runtime/vault.ts';
 import { memoryDeviceKeyStore, type DeviceKeyStore } from '../runtime/device-custody.ts';
-import { AUTO_BACKUP, CUSTODY_WORDS, TRANSFER } from '../runtime/workspace-custody-contracts.ts';
+import { AUTO_BACKUP, CUSTODY_WORDS, TRANSFER, exportFileName } from '../runtime/workspace-custody-contracts.ts';
 import { keepBackups, makeTransferCode, normalizeTransferCode, parseBackupName, slugFolder } from '../runtime/workspace-custody.ts';
 import { createReplayTransport } from '../runtime/venture/models/index.ts';
 import type { ModelPreset, ModelReplayFixture } from '../runtime/venture/contracts.ts';
@@ -289,7 +289,7 @@ test('moving to another computer: one file and one code; a wrong code is refused
   await a.ask('trust.update', { retentionDays: 77 });
   const exported = await a.ask('workspace.transfer.export');
   assert.match(exported.transferCode, /^CHT-[0-9ABCDEFGHJKMNPQRSTVWXYZ]{24}$/);
-  assert.match(exported.fileName, /^chausar-move-\d{4}-\d{2}-\d{2}\.backup$/);
+  assert.match(exported.fileName, /^chausar-move-\d{4}-\d{2}-\d{2}\.chausar-move$/);
   assert.equal(exported.bytes, Buffer.byteLength(exported.text));
   assert.ok(!exported.text.includes('Moving Shop') && !exported.text.includes(exported.transferCode));
   assert.deepEqual(JSON.parse(exported.text).transfer.recovery, 'made');
@@ -671,4 +671,75 @@ test('one-shot A1 row 8: moving a business in after deleting the original works,
   await ask('workspace.lock');
   await ask('workspace.open', { folder: moved.folder });
   assert.equal((await ask('workspace.status')).workspace.name, 'Moving Back Shop');
+});
+
+test('C4 task 36: an export goes where the desktop chose, named with the business and the local day; nothing lands in the exports folder', async t => {
+  const directory = await folder(t), away = await folder(t, 'chausar-chosen-');
+  const { ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Pune Frames', pack: 'services', folder: null });
+  const custody = await ask('workspace.custody.get');
+  assert.match(custody.business.exportName, /^Pune Frames, \d{1,2} [A-Z][a-z]{2} \d{4}\.vault$/);
+  const chosen = join(away, 'Pune Frames, 3 Nov 2026.vault');
+  const saved = await ask('workspace.export', { confirmed: true, plaintext: false, path: chosen });
+  assert.deepEqual([saved.name, saved.encrypted], ['Pune Frames, 3 Nov 2026.vault', true]);
+  assert.ok((await readFile(chosen)).length > 0, 'the copy is where the owner chose');
+  assert.deepEqual(await readdir(join(directory, 'exports')).catch(() => []), [], 'nothing in Chausar\'s exports folder');
+  const readable = join(away, 'Pune Frames readable.json');
+  assert.equal((await ask('workspace.export', { confirmed: true, plaintext: true, path: readable })).encrypted, false);
+  for (const path of ['relative.vault', join(away, 'wrong.json'), join(away, 'no-extension'), 42]) {
+    await assert.rejects(ask('workspace.export', { confirmed: true, plaintext: false, path }), code('INVALID_PATH'), String(path));
+  }
+  // Without a chosen path (the web, older callers): Chausar's own exports folder, as before, and the name comes back.
+  const managed = await ask('workspace.export', { confirmed: true, plaintext: false });
+  assert.match(managed.name, /^chausar-.+-\d+\.vault$/);
+  // The default name: the business name and the day where the owner is, at 00:30 IST already the next day.
+  assert.equal(exportFileName('Pune Frames', new Date('2026-11-02T19:00:00.000Z'), 'Asia/Kolkata', false), 'Pune Frames, 3 Nov 2026.vault');
+  assert.equal(exportFileName('A/B: C?', new Date('2026-11-02T19:00:00.000Z'), 'Asia/Kolkata', true), 'A B C, 3 Nov 2026.json');
+  assert.equal(exportFileName('   ', new Date('2026-11-02T19:00:00.000Z'), 'UTC', false), 'Chausar business, 2 Nov 2026.vault');
+});
+
+test('C4 task 37: the custody view counts the exports in Chausar\'s own folder; Delete names the business and how many backups went', async t => {
+  const directory = await folder(t), away = await folder(t, 'chausar-chosen-');
+  const { ask } = engineAt(t, directory);
+  await ask('workspace.create', { name: 'Count Shop', pack: 'services', folder: null });
+  assert.equal((await ask('workspace.custody.get')).business.exportsHere, 0);
+  await ask('workspace.export', { confirmed: true, plaintext: false });
+  await ask('workspace.export', { confirmed: true, plaintext: false, path: join(away, 'elsewhere.vault') });
+  await ask('workspace.backups.create');
+  const custody = await ask('workspace.custody.get');
+  assert.equal(custody.business.exportsHere, 1, 'a copy saved elsewhere is not counted here');
+  const removed = await ask('workspace.delete', { confirmation: 'Count Shop' });
+  assert.equal(removed.name, 'Count Shop');
+  assert.equal(removed.backupsRemoved, removed.copiesRemoved.filter((path: string) => path.startsWith('backups/')).length);
+  assert.ok(removed.backupsRemoved >= 1);
+});
+
+test('C4 task 38: a move file ends .chausar-move and an old .backup one still imports; peek names the business with the right code, refuses a wrong one as import does, and writes nothing; the made line stays until dismissed', async t => {
+  const here = await folder(t, 'chausar-move-a-'), there = await folder(t, 'chausar-move-b-');
+  const a = engineAt(t, here, { keys: memoryDeviceKeyStore() }), b = engineAt(t, there, { keys: memoryDeviceKeyStore() });
+  await a.ask('workspace.create', { name: 'Peek Shop', pack: 'services', folder: null });
+  assert.equal((await a.ask('workspace.custody.get')).business.moveMadeAt, null);
+  const exported = await a.ask('workspace.transfer.export');
+  assert.match(exported.fileName, /^chausar-move-\d{4}-\d{2}-\d{2}\.chausar-move$/);
+  const made = (await a.ask('workspace.custody.get')).business.moveMadeAt;
+  assert.match(made, /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepEqual(await a.ask('workspace.transfer.export', { dismiss: true }), { dismissed: true });
+  assert.equal((await a.ask('workspace.custody.get')).business.moveMadeAt, null);
+
+  const before = await files(there);
+  const peeked = await b.ask('workspace.transfer.peek', { fileText: exported.text, transferCode: exported.transferCode });
+  assert.deepEqual(Object.keys(peeked).sort(), ['movedOutAt', 'name']);
+  assert.equal(peeked.name, 'Peek Shop');
+  assert.match(peeked.movedOutAt, /^\d{4}-\d{2}-\d{2}T/);
+  const wrong = makeTransferCode();
+  const asImport = await b.ask('workspace.transfer.import', { fileText: exported.text, transferCode: wrong }).catch((error: any) => error);
+  const asPeek = await b.ask('workspace.transfer.peek', { fileText: exported.text, transferCode: wrong }).catch((error: any) => error);
+  assert.deepEqual([asPeek.code, asPeek.message], [asImport.code, asImport.message]);
+  assert.equal(asPeek.code, 'TRANSFER_CODE_WRONG');
+  await assert.rejects(b.ask('workspace.transfer.peek', { fileText: '{"not":"a move file"}', transferCode: exported.transferCode }), code('TRANSFER_INVALID'));
+  await assert.rejects(b.ask('workspace.transfer.peek', { fileText: exported.text, transferCode: exported.transferCode, extra: 1 }), code('INVALID_REQUEST'));
+  assert.deepEqual(await files(there), before, 'peek writes nothing');
+  // The text is the same whatever the file was called, so a move file named .backup by an older Chausar still imports.
+  const moved = await b.ask('workspace.transfer.import', { fileText: exported.text, transferCode: exported.transferCode });
+  assert.match(moved.folder, /^moved-/);
 });

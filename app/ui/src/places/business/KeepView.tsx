@@ -9,7 +9,7 @@ import { Icon } from '../../parts/Icon';
 import { Tile } from '../../parts/Tile';
 import { momentOf, saveTextFile } from '../../parts/custody';
 import type { CustodyViewLite, Deleted, UnlockMode } from '../../engine/types';
-import { AllBackups, CloseBusiness, DeleteBusiness, ExportCopy, MoveAway } from './KeepMore';
+import { AllBackups, CloseBusiness, DeleteBusiness, ExportCopy, MoveAway, takeRestoredLine } from './KeepMore';
 import { LeftContext } from '../onboarding/started';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
@@ -38,14 +38,18 @@ export function KeepView() {
   const [code, setCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // C4 task 36: "Backed up just now" after Back up now (203.x1); the line after a restore, once (209.x1).
+  const [backedUp, setBackedUp] = useState(false);
+  const [restored] = useState(() => takeRestoredLine());
   // B3: a delete goes straight to Welcome back, which says what was deleted and kept; nothing of this business stays.
   const left = useContext(LeftContext);
   const onDeleted = (deleted: Deleted) => left({ autoOpen: false, deleted });
+  const counts = custody.data?.business ? { backups: custody.data.business.backups.count, exports: custody.data.business.exportsHere ?? 0 } : null;
   const leave = (unlock: UnlockMode | null) => (
     <>
       {!hosted && <CloseBusiness unlock={unlock} />}
       {!hosted && <ExportCopy />}
-      <DeleteBusiness onDeleted={onDeleted} />
+      <DeleteBusiness onDeleted={onDeleted} counts={hosted ? null : counts} />
     </>
   );
   if (custody.error) {
@@ -101,8 +105,11 @@ export function KeepView() {
             ? <p className={s.problem} role="alert">{business.backups.lastError}</p>
             : <p className={s.note}>{newest ? t('business.lastBackup', { when: momentOf(newest, zone) }) : t('business.noBackup')}</p>}
           <div className={s.buttons}>
-            <Button disabled={busy} onClick={() => void run(async () => { await client.request('workspace.backups.create', {}); refresh(); })}>{t('business.backupNow')}</Button>
+            <Button disabled={busy} onClick={() => void run(async () => { setBackedUp(false); await client.request('workspace.backups.create', {}); setBackedUp(true); refresh(); })}>{t('business.backupNow')}</Button>
           </div>
+          {/* Seam: B4's ResultLine takes these two lines when B4 lands. */}
+          {backedUp && <p className={s.said} role="status">{t('business.backedUpNow')}</p>}
+          {restored && <p className={s.said} role="status">{restored}</p>}
           {!hosted && <AllBackups backups={backups.data?.backups ?? []} />}
         </TileSection>
       </div>

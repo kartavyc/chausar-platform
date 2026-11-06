@@ -448,6 +448,22 @@ export class Vault implements StateStore {
       return new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard);
     } catch { key?.fill(0); await lock.release(); await adapter.close?.(); return fail('UNLOCK_FAILED', 'Unable to unlock vault. Check your credential or restore a valid backup.'); }
   }
+  /**
+   * One-shot C4 task 38: the business name and the time a move file was made, read with its code in memory only;
+   * nothing is written and the key is wiped. Null when the code does not open it.
+   */
+  static async peekTransfer(text: string, code: string): Promise<{ name: string; madeAt: string | null } | null> {
+    let key: Buffer | undefined;
+    try {
+      const backup = JSON.parse(text);
+      if (backup.backupFormat !== 'chausar.backup.v1') return null;
+      const envelope: VaultEnvelope = backup.envelope; validateEnvelope(envelope);
+      key = await unwrap(code, envelope.passphrase, envelope.id, 'passphrase');
+      const state = decodeSnapshot(envelope, key);
+      const madeAt = typeof backup.transfer?.madeAt === 'string' ? backup.transfer.madeAt : null;
+      return { name: String(state.workspace.name), madeAt };
+    } catch { return null; } finally { key?.fill(0); }
+  }
   static async restore(options: RestoreVaultOptions): Promise<Vault> {
     let envelope: VaultEnvelope, state: State, key: Buffer | undefined;
     try {

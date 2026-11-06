@@ -32,7 +32,7 @@ const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
   'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.backup', 'workspace.export', 'workspace.delete',
-  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset',
+  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.transfer.peek',
   'workspace.backup.v2.create', 'workspace.backup.v2.read', 'workspace.backup.v2.restoreInert', 'workspace.backup.v2.readRestored', 'workspace.backup.v2.inspectRestored', 'workspace.backup.v2.diagnostics',
   'workspace.activation.target.create', 'workspace.activation.target.get', 'workspace.backup.activation.prepare', 'workspace.backup.activation.inspect', 'workspace.activation.review', 'workspace.activation.execute', 'workspace.activation.get',
   'workspace.interchange.export', 'workspace.interchange.prepare', 'workspace.interchange.review', 'workspace.interchange.discard', 'workspace.interchange.diagnostics',
@@ -163,6 +163,10 @@ const METHODS = Object.freeze([
   'venture.localApps.list', 'venture.webhook.set', 'venture.webhook.send', 'venture.speechOut.providers',
   'venture.ca.confirmCitations', 'venture.ca.signoff.get', 'venture.ca.differential.add', 'venture.ca.dataPack.export',
   'venture.desk.list', 'venture.desk.get', 'venture.desk.act',
+  // One-shot C4 (T20): a share of an invoice the owner made, or their "Mark as sent".
+  'venture.invoice.shared',
+  // One-shot C4 (T32): the ready routines from the plan.
+  'venture.routines.suggestions',
 ]);
 const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
@@ -240,6 +244,8 @@ function validateRequest(input) {
   if (!isRecord(input)) throw failure('INVALID_REQUEST', 'Use a named request with an object payload.');
   assertJson(input);
   if (Object.keys(input).some(name => !['method', 'payload'].includes(name)) || !allowedMethods.has(input.method) || (input.payload !== undefined && !isRecord(input.payload))) throw failure('INVALID_REQUEST', 'This desktop request is not supported.');
+  // One-shot C4 task 36: where an export goes is chosen in main's own save dialog (export-save.cjs), never by the window.
+  if (input.method === 'workspace.export' && input.payload && Object.hasOwn(input.payload, 'path')) throw failure('INVALID_REQUEST', 'Choose where to save the copy in the save dialog.');
   const canonical = JSON.stringify({ method: input.method, payload: input.payload ?? {} });
   if (Buffer.byteLength(canonical) > MAX_REQUEST_BYTES) throw failure('REQUEST_TOO_LARGE', 'The desktop request exceeds the size limit.');
   return JSON.parse(canonical);

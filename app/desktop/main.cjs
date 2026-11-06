@@ -336,6 +336,10 @@ if (singleInstance) app.whenReady().then(async () => {
   ipcMain.handle('chausar:social:saveProject', (event, input) => socialProjects.save(event, input, youtubeProjectDeps()));
   ipcMain.handle('chausar:social:openProject', (event, input) => socialProjects.open(event, input, youtubeProjectDeps()));
   // After Delete (review of A1, row 1): a kept export, shown in the file manager; only a file of the engine's exports folder.
+  // One-shot C4 task 36: Export asks where to save in main's save dialog; the window gets the name, and Show in folder an id.
+  { const exportSave = require('./export-save.cjs'); const exportDeps = () => ({ dialog, shell, window, engine, assertTrustedSender, publicError, documents: app.getPath('documents') });
+    ipcMain.handle(exportSave.SAVE_CHANNEL, (event, input) => exportSave.saveBusinessExport(event, input, exportDeps()));
+    ipcMain.handle(exportSave.SHOW_CHANNEL, (event, input) => exportSave.showSavedExport(event, input, exportDeps())); }
   ipcMain.handle('chausar:exports:show', (event, input) => require('./export-folder.cjs').showExport(event, input, { window, shell, assertTrustedSender, publicError, exportsFolder: join(app.getPath('userData'), 'vaults', 'exports') }));
   // One-shot A5: start at login and keep running, asked in onboarding and changed in Settings. Previews and development
   // runs answer that they are not here (no login item ever), and refuse a change.

@@ -98,6 +98,20 @@ export function formatCount(n: number | bigint, countryCode: string): string {
   return `${negative ? '-' : ''}${grouped(digits, countryCode === 'IN')}`;
 }
 
+/**
+ * One-shot C4 task 36: a file's size as the owner reads it, in steps of 1024: "512 bytes", "1 byte", "47 KB", "1.2 MB",
+ * "12 MB", "1.5 GB". One decimal below 10 of a unit (dropped when it is .0), whole above; never 0 KB for a small file.
+ */
+export function formatBytes(bytes: number): string {
+  const n = Number.isFinite(bytes) && bytes > 0 ? Math.floor(bytes) : 0;
+  if (n < 1024) return n === 1 ? '1 byte' : `${n} bytes`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = n / 1024, unit = 0;
+  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
+  const shown = unit === 0 || value >= 10 ? String(Math.max(1, Math.round(value))) : String(Math.round(value * 10) / 10);
+  return `${shown} ${units[unit]}`;
+}
+
 // Days, times and durations (one-shot B2 task 2). An instant reads in the zone given (the business's zone, from
 // ownerZone); a calendar day ('YYYY-MM-DD') is a day on every calendar and never shifts; nothing here reads the
 // computer's own zone, so the same instant reads the same on every machine.

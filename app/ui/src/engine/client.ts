@@ -31,6 +31,9 @@ export interface ChausarBridge {
   saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
   /** Desktop only (review of A1, row 1): shows a kept export in the file manager, by its file name. */
   showExport?(name: string): Promise<void>;
+  /** Desktop only (C4 task 36): a copy of the business saved where the owner picks; its name and an id, or null. */
+  saveBusinessExport?(plaintext: boolean): Promise<{ name: string; encrypted: boolean; id: string } | null>;
+  showSavedExport?(id: string): Promise<void>;
   /** Desktop only (one-shot A6): Email it or Share on WhatsApp on an invoice, and the kept file shown in its folder. */
   shareInvoice?(invoiceId: string, how: string): Promise<unknown>;
   showShared?(name: string): Promise<void>;
@@ -267,6 +270,9 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     ...(bridge?.saveMoneyExport ? { saveMoneyExport: (month: string) => bridge.saveMoneyExport!(month).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // Review of A1 (row 1): a kept export shown in the file manager, with its refusals as engine errors.
     ...(bridge?.showExport ? { showExport: (name: string) => bridge.showExport!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    // One-shot C4 task 36: Export asks where to save in the desktop's own dialog, and shows the saved copy by its id.
+    ...(bridge?.saveBusinessExport ? { saveBusinessExport: (plaintext: boolean) => bridge.saveBusinessExport!(plaintext).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.showSavedExport ? { showSavedExport: (id: string) => bridge.showSavedExport!(id).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // One-shot A6: an invoice shared through the owner's own apps, and its file shown, with the desktop's refusals as engine errors.
     ...(bridge?.shareInvoice ? { shareInvoice: (invoiceId: string, how: 'email' | 'whatsapp') => bridge.shareInvoice!(invoiceId, how).then(shareResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.showShared ? { showShared: (name: string) => bridge.showShared!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),

@@ -61,6 +61,18 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return;
     throw Object.assign(new Error(reply?.error?.message || 'The copy could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
+  // One-shot C4 task 36: save a copy of the whole business where the owner picks in the save dialog; null when cancelled.
+  saveBusinessExport: async plaintext => {
+    const reply = await ipcRenderer.invoke('chausar:export:saveAs', { plaintext: plaintext === true });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The copy could not be saved.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
+  // C4 task 36: show a copy saved above in the file manager, by its id only.
+  showSavedExport: async id => {
+    const reply = await ipcRenderer.invoke('chausar:export:showSaved', { id: String(id) });
+    if (reply?.ok === true) return;
+    throw Object.assign(new Error(reply?.error?.message || 'The copy could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
   // One-shot A6: Email it or Share on WhatsApp on an issued invoice; only the invoice and how go to main, which makes the file.
   shareInvoice: async (invoiceId, how) => {
     const reply = await ipcRenderer.invoke('chausar:invoice:share', { invoiceId: String(invoiceId), how: String(how) });
