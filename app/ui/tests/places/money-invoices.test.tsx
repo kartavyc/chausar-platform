@@ -112,7 +112,7 @@ describe('Money: invoices', () => {
     expect(sheet.textContent).toContain('The books receipt covers more than this invoice.');
     expect(sheet.textContent).toContain('20 Oct 2026 · Bank transfer');
     expect(within(sheet).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
-    expect(within(sheet).getByText('The invoice as written')).toBeTruthy();
+    expect(within(sheet).getByText('Preview invoice')).toBeTruthy();
     expect(sheet.querySelector('pre')?.textContent).toContain('INV-0038');
     expect(within(sheet).queryByRole('button', { name: 'Record payment' })).toBeNull();
   });
@@ -177,15 +177,15 @@ describe('Money: invoices', () => {
     fireEvent.change(date, { target: { value: '2026-10-21' } });
     fireEvent.change(within(sheet).getByLabelText('How it was paid'), { target: { value: 'upi' } });
     await click(within(sheet).getByRole('button', { name: 'Record payment' }));
-    expect(sheet.textContent).toContain("Record ₹26,200 received on 21 Oct 2026? This can't be undone.");
+    expect(sheet.textContent).toContain("Record ₹26,200 by UPI on 21 Oct 2026? You cannot undo this.");
     expect(called(calls, 'venture.payment.record')).toEqual([]);
     await click(within(sheet).getByRole('button', { name: 'Cancel' }));
     expect((within(sheet).getByLabelText('Amount received') as HTMLInputElement).value).toBe('26,200');
     await click(within(sheet).getByRole('button', { name: 'Record payment' }));
     await click(within(sheet).getByRole('button', { name: 'Record' }));
     expect(called(calls, 'venture.payment.record')).toEqual([['venture.payment.record', { invoiceId: 'inv-0039', amount: '26,200', receivedOn: '2026-10-21', method: 'upi' }]]);
-    await waitFor(() => expect(sheet.textContent).toContain('Payment recorded.'));
-    expect(within(within(sheet).getByText('Payment recorded.').closest('p')!).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
+    await waitFor(() => expect(sheet.textContent).toContain('Payment recorded'));
+    expect(within(within(sheet).getByText('Payment recorded').closest('p')!).getByRole('button', { name: receiptMark(/^R-/) })).toBeTruthy();
     await click(within(sheet).getByRole('button', { name: 'Back to the invoice' }));
     const back = await screen.findByRole('complementary', { name: 'INV-0039' });
     await waitFor(() => expect(figuresOf(back)).toContainEqual(['Balance', '₹0']));
@@ -205,7 +205,7 @@ describe('Money: invoices', () => {
     fireEvent.change(within(sheet).getByLabelText('How it was paid'), { target: { value: 'upi' } });
     await click(within(sheet).getByRole('button', { name: 'Record payment' }));
     await click(within(sheet).getByRole('button', { name: 'Record' }));
-    await waitFor(() => expect(sheet.textContent).toContain('Payment recorded.'));
+    await waitFor(() => expect(sheet.textContent).toContain('Payment recorded'));
     await waitFor(() => expect(row().textContent).toContain(common['state.invoice.paid']));
     expect(row().textContent).not.toContain(common['state.invoice.issued']);
     expect(within(row()).queryByRole('button', { name: 'Record payment' })).toBeNull();

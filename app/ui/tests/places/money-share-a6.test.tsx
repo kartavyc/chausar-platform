@@ -28,7 +28,7 @@ async function start(extra: Extra = {}) {
   const client: EngineClient = { ...base, ...extra, request: (async (method: string, params?: unknown) => { calls.push([method, params]); return request(method as never, params as never); }) as EngineClient['request'] };
   render(<ClockProvider now={() => new Date(NOW)}><App client={client} language="en" /></ClockProvider>);
   const panel = await screen.findByRole('complementary', { name: 'INV-0039' });
-  const pay = await within(panel).findByRole('region', { name: 'How clients pay' });
+  const pay = await within(panel).findByRole('region', { name: 'Send it' });
   return { calls, panel, pay };
 }
 const click = async (element: Element) => { await act(async () => { fireEvent.click(element); }); };
@@ -243,7 +243,7 @@ describe('C6: a thank-you receipt on a paid invoice', () => {
 
   it('is not offered on an invoice with money still to pay', async () => {
     const { panel } = await paid({}, 'inv-0039');
-    await within(panel).findByRole('region', { name: 'How clients pay' });
+    await within(panel).findByRole('region', { name: 'Send it' });
     expect(within(panel).queryByRole('button', { name: 'Send a thank-you receipt on WhatsApp' })).toBeNull();
     expect(within(panel).queryByRole('button', { name: 'Save the receipt' })).toBeNull();
   });

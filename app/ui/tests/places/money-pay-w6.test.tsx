@@ -62,11 +62,11 @@ describe('Money w6: how clients pay', () => {
     expect(qr.tagName.toLowerCase()).toBe('svg');
     expect(pay.textContent).toContain('lumen.studio@okaxis');
     expect(pay.querySelector('[data-figure-group]')?.textContent).toContain('₹26,200');
-    await click(within(pay).getByRole('button', { name: 'Save file' }));
+    await click(within(panel).getByRole('button', { name: 'Save file' }));
     await waitFor(() => expect(calls).toContainEqual(['venture.invoice.pdf', { invoiceId: 'inv-0039' }]));
     expect(await within(pay).findByText('A PDF needs the desktop app.')).toBeTruthy();
-    expect(within(pay).getByRole('button', { name: 'Share on WhatsApp' })).toBeTruthy();
-    expect(within(pay).getByRole('button', { name: 'Email it' })).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: 'Share on WhatsApp' })).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: 'Email it' })).toBeTruthy();
     assertInkRules(panel);
     assertOnePrimary(panel);
   });

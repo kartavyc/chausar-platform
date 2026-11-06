@@ -4,7 +4,6 @@
  * making chat and permission screen; each app card says what it reads and opens it; the last tile says what every app
  * can do, what asks first and what it never does. An app opens at #/apps?app=<id> (AppView.tsx).
  */
-import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { EngineError } from '../../engine/types';
@@ -12,6 +11,7 @@ import { goTo, useRoute } from '../../shell/navigation';
 import { Bento, Tile, TileHead } from '../../parts/Tile';
 import { Chip } from '../../parts/Chip';
 import { Composer } from '../../parts/Composer';
+import { Fold } from '../../parts/Fold';
 import { PageTitle } from '../../parts/PageTitle';
 import { AppView } from './AppView';
 import s from './Apps.module.css';
@@ -43,13 +43,12 @@ function AppsHome() {
   return (
     <>
       <PageTitle title={t('apps.title')} line={t('apps.line')} />
-      <Bento>
-        <Tile as="section" span={12} labelledBy="apps-make" className={s.make}>
+      <section aria-labelledby="apps-make" className={s.make}>
           <TileHead id="apps-make" title={t('apps.make.title')} />
-          <Composer label={t('apps.make.label')} placeholder={t('apps.make.placeholder')} onSend={make} describeFailure={noAi} suggestions={data?.ideas ?? []} suggestionsLabel={t('apps.make.ideas')} waitLabel={t('apps.make.busy')} />
-        </Tile>
+          <Composer label={t('apps.make.label')} placeholder={t('apps.make.placeholder')} onSend={make} focusSendOnSuggestion describeFailure={noAi} suggestions={data?.ideas ?? []} suggestionsLabel={t('apps.make.ideas')} waitLabel={t('apps.make.busy')} />
+      </section>
+      <Bento>
         {list.error && <p className={s.problem} role="alert">{t('apps.failed', { message: list.error.message })}</p>}
-        {data && data.apps.length === 0 && <p className={s.quiet}>{t('apps.empty')}</p>}
         {data?.apps.map((app) => (
           <Tile key={app.id} as="article" span={4} labelledBy={`app-${app.id}`} pad="compact" className={s.card}>
             <p className={s.summary} data-content="">{app.summary}</p>
@@ -62,14 +61,13 @@ function AppsHome() {
           </Tile>
         ))}
         {data && (
-          <Tile as="section" span={12} labelledBy="apps-rules" className={s.rules}>
-            <TileHead id="apps-rules" title={t('apps.rules.title')} />
+          <Fold summary={t('apps.rules.title')} className={s.rules}>
             <dl className={s.rulesGrid}>
               <div><dt>{t('apps.rules.can')}</dt><dd>{t('apps.rules.canLine')}</dd></div>
               <div><dt>{t('apps.rules.asks')}</dt><dd>{t('apps.rules.asksLine')}</dd></div>
               <div><dt>{t('apps.rules.never')}</dt><dd>{data.never}</dd></div>
             </dl>
-          </Tile>
+          </Fold>
         )}
       </Bento>
     </>
