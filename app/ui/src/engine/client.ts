@@ -29,6 +29,8 @@ export interface ChausarBridge {
    * text (what Chausar keeps) goes to venture.network.import { kind, name, text }. ownerAddresses: needed for mail.
    * ownerProfile: the owner's LinkedIn address, when a messages export cannot tell who they are. Null when cancelled.
    */
+  /** Desktop only: the owner chooses a transcription path; nothing runs until separately saved. */
+  pickTranscriptionFile?(kind: 'command' | 'model'): Promise<string | null>;
   pickNetworkFile?(kind: string, options?: { ownerAddresses?: string[]; ownerProfile?: string; timeZone?: string }): Promise<{
     kind: string; name: string; text: string; rows: number; people: number; dropped: [string, number][]; line: string;
   } | null>;
@@ -295,6 +297,7 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     status: () => status.get(),
     onStatus: (listener) => status.subscribe(listener),
     // 4D4: the desktop's file pick for the network import, with its refusals as engine errors.
+    ...(bridge?.pickTranscriptionFile ? { pickTranscriptionFile: (kind: 'command' | 'model') => bridge.pickTranscriptionFile!(kind).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.pickNetworkFile ? { pickNetworkFile: (kind, options) => bridge.pickNetworkFile!(kind, options).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // 4J21: the hosted server's `me` (trials switch, temporary business), read again with the session each time.
     ...(transport === 'hosted' ? { hostedMe: hostedSessionMe } : {}),
