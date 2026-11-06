@@ -80,6 +80,14 @@ The updater verifies a canonical publisher-signed manifest and the artifact size
 
 Before approving a final release, exercise this sequence on each supported target with disposable test data: create and reopen a vault on version N; take a verified encrypted backup; stage the authentic signed N+1 artifact; verify its native signature; close the engine and database; apply the platform installer through an operator-approved flow; reopen and check row counts, receipts and schema compatibility; then restore version N using the approved recovery plan and backup. Preserve the result and artifact hashes. A schema change that cannot restore the old data format must remain blocked until a compatible backup/restore path is proven. Keep the previous qualified installer and backup available; the runtime staging API does not implement automatic installer rollback.
 
+## The update feed (release checklist)
+
+Every tagged release signs a new update feed with `node scripts/release-feed.mjs` (the tag workflow runs it with the `CHAUSAR_RELEASE_KEY` secret). The feed is good for 90 days by default (`--valid-days`, 1 to 365); after that the app refuses it as expired, so a replayed old feed cannot hide a newer release for long.
+
+- Re-sign the feed before its 90 days run out, even when there is no new release: run `release-feed.mjs` again on the current release's installers with the same key and upload the new `feed.json` and `feed.json.sig` to that release. Put a reminder in the calendar for day 80.
+- If the feed runs out, every app says it couldn't check for updates until a newly signed feed is up. Nothing installs from an expired feed.
+- An app whose computer clock is far off can read a current feed as expired; its words say the clock may be wrong.
+
 ## Background execution boundary
 
 The desktop engine runs as a child process while Chausar is open. A normal last-window close quits Chausar and shuts down the engine and local database. An explicitly requested `--background` session retains the tray and engine after the last window closes; a second launch reopens the window, and Quit from the tray drains the engine before closing the bundled database. This lasts only for that running session. This package does not register a Windows service, macOS LaunchAgent, Linux systemd unit, login item or startup task.

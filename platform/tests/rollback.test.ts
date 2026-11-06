@@ -6,6 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ReleaseUpdater, canonicalReleaseManifest, type ReleaseManifest, type PrepareRollbackOptions, type RollbackRestoreRequest, type RollbackRestoreResult } from '../runtime/updater.ts';
 import { Vault } from '../runtime/vault.ts';
+import { noNet } from './helpers/no-net.ts';
+
+test.beforeEach(t => noNet(t));
 
 // Ephemeral synthetic signing keys and vault credentials only; no production release is created.
 const keys=generateKeyPairSync('ed25519'),artifact=Buffer.from('An inert previous-package fixture. Never execute this file.'),passphrase='synthetic rollback fixture passphrase';
