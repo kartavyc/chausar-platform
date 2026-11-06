@@ -256,6 +256,7 @@ describe('first run: the side-work question (6C6, DECISIONS D5)', () => {
     // A5: the field's professions come first; "None of these" keeps the field, which this test is about.
     await confirmProfession();
     const check = await screen.findByRole('region', { name: 'Day job and rules' }, { timeout: 4000 });
+    expect(check.closest('[data-card]')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Day job and rules' })).toBeTruthy();
     expect(within(check).getByRole('radiogroup', { name: 'Does your employment contract allow side work? This is your responsibility.' })).toBeTruthy();
     expect(within(check).getByText('Chausar does not read your contract. You decide, and you are responsible for it.')).toBeTruthy();
