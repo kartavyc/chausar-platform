@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { EmptyState } from '../../parts/EmptyState';
 import { Receipt } from '../../parts/Receipt';
@@ -8,6 +8,10 @@ import { OrderList, orderSentence } from './OrderList';
 import { runStateOf, type OrderView } from './orders';
 import { PreviousRuns } from './PreviousRuns';
 import { ShareLinks } from './ShareLinks';
+import { TranscribeButton } from './TranscribeButton';
+import { PostButtons } from './PostButtons';
+import { JudgeLine } from './JudgeLine';
+import { CalendarFile } from './CalendarFile';
 import s from './Work.module.css';
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
@@ -38,6 +42,8 @@ export interface OrderFocusProps {
  */
 export function OrderFocus({ view, clients, deliveries, runs, queue, backHref, onChanged }: OrderFocusProps) {
   const t = useT();
+  // Raised when the owner records a client's answer, so Post reads the engine again at once.
+  const [answered, setAnswered] = useState(0);
   const back = <a className={s.filter} href={backHref}>{t('work.focus.back')}</a>;
   if (!view) return <EmptyState title={t('work.focus.missing')} action={back} />;
 
@@ -52,6 +58,7 @@ export function OrderFocus({ view, clients, deliveries, runs, queue, backHref, o
       <Block title={t('work.focus.order')}>
         <OrderList views={[view]} clients={clients} runIds={runIds} onChanged={onChanged} />
         <p className={s.note}>{t('work.focus.price')} <Receipt id={view.order.priceReceiptId} /></p>
+        <TranscribeButton order={view.order} />
       </Block>
       <Block title={t('work.focus.runs')}>
         {mine.length === 0 ? <EmptyState title={t('work.focus.noRuns')} /> : (
@@ -76,7 +83,10 @@ export function OrderFocus({ view, clients, deliveries, runs, queue, backHref, o
           </>
         )}
       </Block>
-      {shareable.length > 0 && <Block title={t('work.share.heading')}><ShareLinks drafts={shareable} /></Block>}
+      <JudgeLine drafts={mine} onChanged={onChanged} />
+      {shareable.length > 0 && <Block title={t('work.share.heading')}><ShareLinks drafts={shareable} onAnswered={() => setAnswered((n) => n + 1)} /></Block>}
+      <PostButtons drafts={shareable} version={answered} />
+      <CalendarFile drafts={shareable} />
       <div>{back}</div>
     </>
   );

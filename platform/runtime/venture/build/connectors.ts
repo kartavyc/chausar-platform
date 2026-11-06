@@ -2,10 +2,16 @@
 // A mode is 'available' only where this build's code really does it. Everything else is 'planned'.
 import { authorize, check, type Context, type State } from '../../contracts.ts';
 import { CONNECTOR_CATEGORIES, STARTER_CONNECTORS } from '../contracts.ts';
-import type { ConnectorCard, ConnectorCategory, ConnectorMode, ConnectorModeName, VentureDeps, VentureRecord } from '../contracts.ts';
+import type { ConnectorCard, ConnectorCategory, ConnectorMode, ConnectorModeName, IsoDate, PostingOption, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, exactPayload, listRecords } from '../records.ts';
 import { CATEGORY_LABELS, CONNECTOR_CATALOGUE, type CatalogueEntry } from './catalogue.ts';
 import { NOT_PROBED, postingEnvironment, postingOptions, type PostingEnvironment } from './posting.ts';
+import { BROWSER_SCRIPTS } from './browser.ts';
+import { stepsDatesOf } from './posting-steps.ts';
+import { pickPlaybook } from '../playbooks/registry.ts';
+import { YOUTUBE_ID } from '../playbooks/youtube/registration.ts';
+import { youtubeConnectors } from '../playbooks/youtube/playbook.ts';
+import { localTranscription, transcriptionNote } from '../playbooks/youtube/transcribe.ts';
 
 const MODE_ORDER: readonly ConnectorModeName[] = Object.freeze(['handoff', 'read', 'write']);
 
@@ -70,10 +76,27 @@ export function connectorChips(modes: readonly ConnectorMode[]): string[] {
   return chips;
 }
 
-/** env says what this computer can do for posting; without it every posting mode is planned. */
-export function connectorCard(item: CatalogueEntry, starter: boolean, env: PostingEnvironment = NOT_PROBED): ConnectorCard {
+/** The sentence the browser mode carries until its steps are checked (build/posting.ts). */
+const NOT_CHECKED_WORDS = ' Not yet checked against the live site.';
+
+/**
+ * The browser mode of a text platform carries stepsCheckedOn and boxAndButtonCheckedOn (Ink v2 wave 2, 2B2): the oldest day across its posting
+ * steps on which one of the step's candidates last worked, or null. Once dated, the mode no longer says it is unchecked.
+ */
+type StepsDates = (connectorId: string) => { stepsCheckedOn: IsoDate | null; boxAndButtonCheckedOn: IsoDate | null };
+function withSteps(option: PostingOption, connectorId: string, stepsDates: StepsDates): PostingOption {
+  if (option.mode !== 'owner-browser-session' || !BROWSER_SCRIPTS[connectorId]) return option;
+  const { stepsCheckedOn: on, boxAndButtonCheckedOn } = stepsDates(connectorId);
+  return { ...option, stepsCheckedOn: on, boxAndButtonCheckedOn, ...(on ? { what: option.what.replace(NOT_CHECKED_WORDS, '') } : {}) };
+}
+
+/** env says what this computer can do for posting; without it every posting mode is planned. stepsDates: from the vault. */
+export function connectorCard(
+  item: CatalogueEntry, starter: boolean, env: PostingEnvironment = NOT_PROBED,
+  stepsDates: StepsDates = () => ({ stepsCheckedOn: null, boxAndButtonCheckedOn: null }),
+): ConnectorCard {
   const modes = connectorModes(item);
-  const options = postingOptions(item.id, env);
+  const options = postingOptions(item.id, env).map(option => withSteps(option, item.id, stepsDates));
   const posting = options.find(option => option.status === 'available') ?? options.find(option => option.mode === 'owner-browser-session');
   return {
     id: item.id, name: item.name, category: item.category, categoryLabel: CATEGORY_LABELS[item.category],
@@ -124,7 +147,24 @@ export async function listConnectors(deps: VentureDeps, ctx: Context, payload: u
   const env = await postingEnvironment(deps);
   const cards = CONNECTOR_CATALOGUE
     .filter(item => body.category === undefined || item.category === body.category)
-    .map(item => connectorCard(item, starters.has(item.id), env))
+    .map(item => connectorCard(item, starters.has(item.id), env, connectorId => stepsDatesOf(state, connectorId)))
     .filter(card => body.starterOnly !== true || card.starter);
+  // A YouTube business also sees the transcript made on this computer, with what this computer really has (2E2).
+  const venture = currentVenture(state);
+  if (venture && pickPlaybook(venture.idea)?.id === YOUTUBE_ID && body.starterOnly !== true && (body.category === undefined || body.category === 'docs-ops')) {
+    cards.push(transcriptionCard(deps));
+  }
   return orderCards(cards);
+}
+
+/** The transcription card: ffmpeg and the owner's whisper.cpp on this computer, available only when both are here. */
+export function transcriptionCard(deps: VentureDeps): ConnectorCard {
+  const here = localTranscription(deps);
+  const entry = youtubeConnectors({ ffmpeg: here.ffmpeg, speech: here.speech }).find(item => item.id === 'transcription')!;
+  const modes: ConnectorMode[] = entry.modes.map(mode => ({ mode: mode.mode, status: mode.status, qualification: mode.status === 'available' ? 'fixture-tested' : 'unqualified', what: mode.what }));
+  return {
+    id: entry.id, name: entry.name, category: 'docs-ops', categoryLabel: CATEGORY_LABELS['docs-ops'], modes, chips: connectorChips(modes),
+    regions: ['global'], regionNote: null, auth: 'Programs already on this computer. No account.', vendorUrl: null,
+    note: transcriptionNote(here, deps.host === 'hosted-web'), starter: false, postingOptions: [],
+  };
 }

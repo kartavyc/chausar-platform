@@ -8,9 +8,10 @@
  * a statement import never counts a line twice, and a preview link needs a public address.
  */
 
-import { CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
+import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
+import { dayMonthYear, NO_PROVIDER_LINE } from './fake-bank';
 import {
-  EngineError, type BankConsentView, type BankImportResult, type CaView, type LeadMoveView, type LeadView, type MoneyOverview, type OutreachDraftView,
+  EngineError, type BankConsentView, type BankImportResult, type CaReceiptView, type CaView, type LeadMoveView, type LeadView, type MoneyOverview, type OutreachDraftView,
   type PlaybookPick, type ShareLink, type SiteEditLite, type SpendPolicyView, type SpendRateInput, type VentureRunEvent,
 } from './types';
 
@@ -32,7 +33,7 @@ export interface ExtrasHost {
 
 const EXTRA_METHODS = new Set([
   'venture.money.overview', 'venture.tax.working', 'venture.spend.policy.get', 'venture.spend.policy.set',
-  'venture.ca.get', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates',
+  'venture.ca.get', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates', 'venture.ca.receipt', 'venture.ca.explainDiff',
   'venture.leads.add', 'venture.leads.list', 'venture.leads.draft', 'venture.leads.recordSend', 'venture.leads.block',
   'venture.bank.import', 'venture.bank.consent', 'venture.site.stage', 'venture.site.apply', 'venture.site.revert',
   'venture.share.create', 'venture.share.list', 'venture.share.revoke',
@@ -99,6 +100,7 @@ export class FakeExtrasDesk {
   private policies: Record<string, SpendPolicyView>;
   private rupees: Record<string, SampleRupeeRate | null> = {};
   private ca: Record<string, CaView>;
+  private caReceipts: Record<string, Record<string, CaReceiptView>>;
   private leads: Record<string, LeadView[]>;
   private postal: Record<string, string | null>;
   private blocked: Record<string, string[]> = {};
@@ -113,6 +115,7 @@ export class FakeExtrasDesk {
     this.host = host;
     this.policies = options.fresh ? {} : clone(SPEND_POLICIES);
     this.ca = options.fresh ? {} : clone(CA_VIEWS);
+    this.caReceipts = options.fresh ? {} : clone(CA_RECEIPTS);
     this.leads = options.fresh ? {} : clone(LEADS);
     this.postal = options.fresh ? {} : clone(POSTAL_ADDRESSES);
     this.site = options.fresh ? {} : clone(SITE_FILES);
@@ -133,6 +136,8 @@ export class FakeExtrasDesk {
       case 'venture.ca.setOfRecord': return this.setCa(biz, p);
       case 'venture.ca.recordSignoff': return this.signoff(biz, p);
       case 'venture.ca.confirmRates': return this.confirmRates(biz, p);
+      case 'venture.ca.receipt': return this.caReceipt(biz, p);
+      case 'venture.ca.explainDiff': return this.explainDiff(biz, p);
       case 'venture.leads.list': return { leads: clone(this.leads[biz] ?? []) };
       case 'venture.leads.add': return this.addLead(biz, p);
       case 'venture.leads.draft': return this.draft(biz, p);
@@ -283,6 +288,40 @@ export class FakeExtrasDesk {
     request.at = this.host.now();
     this.host.emit({ type: 'queue.changed', businessId: biz, at: request.at });
     return { request: clone(request) };
+  }
+
+  /** A stored CA receipt as the engine works it again (Ink v2 2A2): only this business's, else not found. */
+  private caReceipt(biz: string, p: Record<string, unknown>) {
+    return clone(this.storedReceipt(biz, p.id));
+  }
+
+  private storedReceipt(biz: string, id: unknown): CaReceiptView {
+    const found = this.host.playbook(biz)?.id === 'ca-firm' ? this.caReceipts[biz]?.[text(id)] : undefined;
+    if (!found) throw new EngineError('CA_RECEIPT_NOT_FOUND', "That receipt is not one of your CA firm's calculator receipts.");
+    return found;
+  }
+
+  /**
+   * The CA of record explains one portal difference (Ink v2 2A2), with the engine's rules: their own number, a key that
+   * differs on that comparison, and one explanation per difference.
+   */
+  private explainDiff(biz: string, p: Record<string, unknown>) {
+    const view = this.mustBeCaFirm(biz);
+    const receipt = this.storedReceipt(biz, p.receiptId);
+    if (receipt.engine !== 'portal-diff') throw new EngineError('CA_RECEIPT_NOT_FOUND', "That is not a comparison of the portal's figures with the receipts.");
+    if (!view.ca) throw new EngineError('CA_OF_RECORD_REQUIRED', 'Name your CA of record, with their ICAI membership number, first.');
+    const typed = text(p.membershipNo).replace(/\s+/g, '');
+    if (typed !== view.ca.membershipNo) throw new EngineError('CA_NOT_OF_RECORD', `That is not the ICAI membership number of ${view.ca.name}, your CA of record. Only they explain a difference.`);
+    const row = (receipt.portalDifferences ?? []).find((item) => item.key === p.key);
+    if (!row) throw new EngineError('CA_DIFF_KEY_UNKNOWN', `${text(p.key)} is not a difference on that comparison.`);
+    const note = text(p.note);
+    if (note.length < 3 || note.length > 400) throw invalid('An explanation is 3 to 400 characters, on one line.');
+    if (row.explanation) throw new EngineError('CA_DIFF_EXPLAINED', `${view.ca.name} explained ${row.key} already: "${row.explanation}" An explanation is not changed once it is recorded.`);
+    row.explanation = note;
+    const explanation = { receiptId: receipt.id, key: row.key, note, caName: view.ca.name, membershipNo: view.ca.membershipNo, at: this.host.now() };
+    receipt.explanations.push(explanation);
+    this.host.emit({ type: 'queue.changed', businessId: biz, at: explanation.at });
+    return { explanation: clone(explanation) };
   }
 
   private confirmRates(biz: string, p: Record<string, unknown>) {
@@ -436,17 +475,21 @@ export class FakeExtrasDesk {
       const held = this.consents[key];
       if (!held) throw new EngineError('CONSENT_NOT_FOUND', 'There is no consent for this account.');
       held.consent.revokedAt = now;
-      held.status = { state: 'revoked', daysLeft: 0, line: 'You withdrew this consent.' };
+      // The engine's words (build/bank.ts consentStatus).
+      held.status = { state: 'revoked', daysLeft: 0, line: `You stopped bank access on ${dayMonthYear(now)}.` };
       return clone(held);
     }
     const days = p.days === undefined ? 90 : p.days;
-    if (typeof days !== 'number' || !Number.isInteger(days) || days < 1 || days > 365) throw invalid('Consent lasts 1 to 365 days.');
+    if (typeof days !== 'number' || !Number.isInteger(days) || days < 1 || days > 365) throw invalid('Consent lasts one to 365 days.');
     const expiresAt = new Date(Date.parse(now) + days * DAY).toISOString();
+    const left = days === 1 ? 'in 1 day' : `in ${days} days`;
+    const status: BankConsentView['status'] = days <= 7
+      ? { state: 'expiring', daysLeft: days, line: `Bank access ends on ${dayMonthYear(expiresAt)}, ${left}. Renew it before then.` }
+      : { state: 'active', daysLeft: days, line: `Bank access ends on ${dayMonthYear(expiresAt)}, ${left}.` };
     const view: BankConsentView = {
       account, accountId: `bank-${biz}-${account.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
       consent: { id: `consent-${++this.seq}`, provider: null, accountLabel: account, scope: 'read-only', grantedAt: now, expiresAt, revokedAt: null },
-      status: { state: 'active', daysLeft: days, line: `Read only, until ${expiresAt.slice(0, 10)}.` },
-      provider: 'No bank provider is connected yet, so nothing reads the bank. Statements come in as files you import.',
+      status, provider: NO_PROVIDER_LINE,
     };
     this.consents[key] = view;
     return clone(view);
@@ -518,7 +561,8 @@ export class FakeExtrasDesk {
     const held: HeldShare = this.host.hosted()
       ? { id, businessId: biz, deliveryId, url: `https://share.chausar.test/s/${id}`, expiresAt }
       : { id, businessId: biz, deliveryId, url: null, reason: 'This computer has no public address, so a client cannot open a link from it. Send them the file instead.', expiresAt };
-    if (held.url) this.shares.unshift(held);
+    // Kept with or without an address, as the engine keeps a link it does not serve: the owner records the answer on it.
+    this.shares.unshift(held);
     return this.link(held);
   }
 

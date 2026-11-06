@@ -4,11 +4,14 @@
 // counts anything twice, consent with an end date the owner can see, a cap on unattended reads, and alerts that go only
 // to the address the owner set inside the app. The model can read a view without that address and can change none of it.
 // Money is BigInt minor units as decimal text; nothing here rounds, and an amount with too many decimals is refused.
-// Ideas from noskillish/bankmcp (MIT, Copyright (c) 2026 Nils Smed): the twin counter and the four-a-day polling limit.
+// Ideas from noskillish/bankmcp (MIT, Copyright (c) 2026 Nils Smed): the twin counter and the four-a-day polling limit,
+// and (Ink v2 wave 2, 2D) pairing transfers between the owner's own accounts (findOwnTransfers) and whole-word search for
+// an invoice number. These are rewrites in TypeScript on BigInt minor units, not copies.
 import { createHash } from 'node:crypto';
 import { check, type Context } from '../../contracts.ts';
+import { decimalMinor, formatMinor } from '../../currency.ts';
 import type { DateOrder, IsoDate, IsoTime, MinorString } from '../contracts.ts';
-import { formatVentureDate, isAppChannel } from '../records.ts';
+import { formatVentureDate, isAppChannel, isoDate, singleLine } from '../records.ts';
 import { validDate } from '../../memory.ts';
 import { checkUrl } from '../core/net-guard.ts';
 
@@ -343,9 +346,166 @@ export function modelBankView(settings: BankSettings): { consent: { accountLabel
   };
 }
 
-/** One delivery per alert, always to the stored address. There is no parameter for another one. */
-export function alertDeliveries(settings: BankSettings, alerts: readonly BankAlert[]): { url: string; body: { kind: BankAlertRule['kind']; line: string; transactionId: string | null } }[] {
+/**
+ * At most one delivery, always to the stored address, and it carries the number of alerts and nothing else (spec 5.7):
+ * no amount, no description, no transaction id. The owner reads the alerts themselves on Today, inside the app. There
+ * is no parameter for another address.
+ */
+export function alertDeliveries(settings: BankSettings, alerts: readonly BankAlert[]): { url: string; body: { count: number } }[] {
   const target = settings.alertWebhook;
-  if (!target) return [];
-  return alerts.map(alert => ({ url: target.url, body: { kind: alert.rule.kind, line: alert.line, transactionId: alert.transactionId } }));
+  if (!target || alerts.length === 0) return [];
+  return [{ url: target.url, body: { count: alerts.length } }];
+}
+
+/**
+ * The alerts one import raises. Rules about a row look only at the rows this import added, so a re-import never alerts
+ * twice; the balance rule looks at the newest balance once the import added anything; a missing payment alerts once,
+ * on the first import after its date that still shows it missing (`earlier` holds the alerts of the earlier imports).
+ */
+export function importAlerts(
+  rules: readonly BankAlertRule[], ledger: BankLedger, added: readonly BankTransaction[], earlier: readonly BankAlert[], today: IsoDate,
+): BankAlert[] {
+  if (rules.length === 0 || added.length === 0) return [];
+  const addedIds = new Set(added.map(t => t.id));
+  const balanceMinor = [...ledger.transactions].reverse().find(t => t.balanceAfterMinor !== null)?.balanceAfterMinor ?? null;
+  const same = (a: BankAlertRule, b: BankAlertRule) => JSON.stringify(a) === JSON.stringify(b);
+  return evaluateAlerts(rules, ledger, { today, balanceMinor }).filter(alert => {
+    if (alert.transactionId !== null) return addedIds.has(alert.transactionId);
+    if (alert.rule.kind === 'credit-missing-by') return !earlier.some(prior => same(prior.rule, alert.rule));
+    return true;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Alert rules as the owner gives them, and in words
+// ---------------------------------------------------------------------------
+
+/** A rule as the owner sends it: money as minor units (minor) or as the amount they typed (amount), never both. */
+export type BankAlertRuleInput =
+  | { kind: 'balance-below' | 'large-debit'; minor?: MinorString; amount?: string }
+  | { kind: 'credit-matching'; text: string }
+  | { kind: 'credit-missing-by'; text: string; minor?: MinorString; amount?: string; by: IsoDate };
+
+export const MAX_ALERT_RULES = 10;
+const RULE_FIELDS: Readonly<Record<BankAlertRule['kind'], readonly string[]>> = Object.freeze({
+  'balance-below': ['kind', 'minor', 'amount'],
+  'large-debit': ['kind', 'minor', 'amount'],
+  'credit-matching': ['kind', 'text'],
+  'credit-missing-by': ['kind', 'text', 'minor', 'amount', 'by'],
+});
+
+/** Exact minor units from either field; the typed amount is read in the account's currency and never rounded. */
+function ruleMinor(rule: Record<string, unknown>, currency: string): MinorString {
+  check((rule.minor === undefined) !== (rule.amount === undefined), 'INVALID_VENTURE_REQUEST', 'Give the amount for this alert once.');
+  let minor: string;
+  if (rule.minor !== undefined) {
+    check(typeof rule.minor === 'string' && /^\d{1,18}$/.test(rule.minor), 'INVALID_VENTURE_REQUEST', 'The amount for this alert must be whole minor units.');
+    minor = rule.minor;
+  } else {
+    const typed = typeof rule.amount === 'string' && rule.amount.length <= 40 ? rule.amount.replace(/[\s,]/g, '') : '';
+    check(/^\d+(?:\.\d+)?$/.test(typed), 'INVALID_VENTURE_REQUEST', 'Type the amount for this alert like 50000 or 50000.00.');
+    minor = decimalMinor(typed, currency);
+  }
+  check(BigInt(minor) > 0n, 'INVALID_VENTURE_REQUEST', 'The amount for this alert must be above zero.');
+  return BigInt(minor).toString();
+}
+
+/** The owner's rules, checked one by one, in the order given. At most ten; anything unknown is refused, never dropped. */
+export function readAlertRules(value: unknown, currency: string): BankAlertRule[] {
+  check(Array.isArray(value) && value.length <= MAX_ALERT_RULES, 'INVALID_VENTURE_REQUEST', `Send a list of at most ${MAX_ALERT_RULES} alert rules.`);
+  return value.map((item): BankAlertRule => {
+    check(item !== null && typeof item === 'object' && !Array.isArray(item), 'INVALID_VENTURE_REQUEST', 'Send each alert rule as one object.');
+    const rule = item as Record<string, unknown>;
+    check(typeof rule.kind === 'string' && Object.hasOwn(RULE_FIELDS, rule.kind), 'INVALID_VENTURE_REQUEST', 'Choose a kind of alert Chausar checks.');
+    const kind = rule.kind as BankAlertRule['kind'];
+    check(Object.keys(rule).every(key => RULE_FIELDS[kind].includes(key)), 'INVALID_VENTURE_REQUEST', 'Send each alert rule with its own fields only.');
+    if (kind === 'balance-below' || kind === 'large-debit') return { kind, minor: ruleMinor(rule, currency) };
+    const text = singleLine(rule.text, 'The words to look for', { min: 2, max: 80 });
+    if (kind === 'credit-matching') return { kind, text };
+    return { kind, text, minor: ruleMinor(rule, currency), by: isoDate(rule.by, 'The date it should arrive by') };
+  });
+}
+
+/** One rule in words, with its money as the engine formats it. */
+export function ruleLine(rule: BankAlertRule, currency: string, order: DateOrder): string {
+  if (rule.kind === 'large-debit') return `When ${formatMinor(rule.minor, currency)} or more goes out in one payment.`;
+  if (rule.kind === 'balance-below') return `When the balance falls below ${formatMinor(rule.minor, currency)}.`;
+  if (rule.kind === 'credit-matching') return `When money comes in that mentions ${rule.text}.`;
+  return `When no payment of ${formatMinor(rule.minor, currency)} or more that mentions ${rule.text} has come in by ${formatVentureDate(rule.by, order)}.`;
+}
+
+// ---------------------------------------------------------------------------
+// Statements into the books: own transfers and invoice payments
+// ---------------------------------------------------------------------------
+
+/** A row as pairing and matching read it. accountId is the owner's account; rows come in file order. */
+export type BookRow = Pick<BankTransaction, 'id' | 'date' | 'amountMinor' | 'currency' | 'counterparty' | 'description' | 'reference'> & { accountId: string };
+const dayOf = (date: IsoDate) => Date.parse(`${date}T00:00:00.000Z`) / DAY_MS;
+export const TRANSFER_DAYS = 2;
+
+/**
+ * Transfers between the owner's own accounts: opposite amounts in the same currency, in two different own accounts, at
+ * most two days apart. Each row pairs once; the nearest date wins, then the earlier row in file order. Returns each
+ * paired row's partner, both ways.
+ */
+export function pairOwnTransfers(rows: readonly BookRow[]): Map<string, string> {
+  const ordered = rows.map((row, index) => ({ row, index }))
+    .sort((a, b) => (a.row.date < b.row.date ? -1 : a.row.date > b.row.date ? 1 : a.index - b.index));
+  const pairs = new Map<string, string>();
+  for (const { row } of ordered) {
+    if (pairs.has(row.id)) continue;
+    const wanted = -BigInt(row.amountMinor);
+    let best: { id: string; gap: number; index: number } | null = null;
+    for (const other of ordered) {
+      const candidate = other.row;
+      if (candidate.id === row.id || pairs.has(candidate.id) || candidate.accountId === row.accountId || candidate.currency !== row.currency) continue;
+      if (BigInt(candidate.amountMinor) !== wanted) continue;
+      const gap = Math.abs(dayOf(candidate.date) - dayOf(row.date));
+      if (gap > TRANSFER_DAYS) continue;
+      if (!best || gap < best.gap || (gap === best.gap && other.index < best.index)) best = { id: candidate.id, gap, index: other.index };
+    }
+    if (best) { pairs.set(row.id, best.id); pairs.set(best.id, row.id); }
+  }
+  return pairs;
+}
+
+const escapeText = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** The word as a whole word (case ignored) in the row's description, counterparty or reference: INV-0007 is not INV-00071. */
+export function namesWord(row: Pick<BookRow, 'counterparty' | 'description' | 'reference'>, word: string): boolean {
+  const pattern = new RegExp(`(?<![A-Za-z0-9_])${escapeText(word)}(?![A-Za-z0-9_])`, 'i');
+  return [row.description, row.counterparty, row.reference].some(field => field !== null && pattern.test(field));
+}
+
+/**
+ * A row that names another own account by its label, in its counterparty: a transfer even with nothing to pair it with.
+ * A label of two words or more may appear inside the counterparty as whole words; a one-word label must be the whole
+ * counterparty, so an account called SBI never swallows a payment to SBI Cards.
+ */
+export function namesOwnAccount(row: BookRow, accounts: readonly { id: string; label: string }[]): boolean {
+  const counterparty = row.counterparty?.trim() ?? '';
+  if (!counterparty) return false;
+  return accounts.some(account => {
+    if (account.id === row.accountId) return false;
+    const label = account.label.trim();
+    if (label.split(/\s+/).length >= 2) return namesWord({ counterparty, description: null, reference: null }, label);
+    return counterparty.toLowerCase() === label.toLowerCase();
+  });
+}
+
+export type InvoiceToMatch = { id: string; number: string; currency: string; balanceMinor: MinorString };
+export type InvoiceMatch = { invoiceId: string; number: string; full: boolean; leftMinor: MinorString };
+
+/**
+ * The open invoice a money-in row looks like it pays: exactly one invoice in its currency, with a balance, named by
+ * whole word, and the row no more than that balance. Money out, no name, two names, or too much: no suggestion.
+ */
+export function matchInvoices(row: BookRow, invoices: readonly InvoiceToMatch[]): InvoiceMatch | null {
+  const amount = BigInt(row.amountMinor);
+  if (amount <= 0n) return null;
+  const named = invoices.filter(invoice => invoice.currency === row.currency && BigInt(invoice.balanceMinor) > 0n && namesWord(row, invoice.number));
+  if (named.length !== 1) return null;
+  const [invoice] = named;
+  const balance = BigInt(invoice.balanceMinor);
+  if (amount > balance) return null;
+  return { invoiceId: invoice.id, number: invoice.number, full: amount === balance, leftMinor: (balance - amount).toString() };
 }

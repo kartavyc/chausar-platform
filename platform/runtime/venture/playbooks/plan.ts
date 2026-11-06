@@ -109,8 +109,9 @@ const SOCIAL_PLAN = build(
   SOCIAL_APPROVALS.map(item => ({ key: item.id, words: item.when })),
   SOCIAL_CONNECTORS.map(item => item.id),
   {
-    // The monthly report comes with every monthly retainer, so the plan lists the three things a client buys.
-    offers: [{ key: 'content-calendar', block: 'retainer' }, { key: 'community-replies', block: 'retainer' }, { key: 'ugc-ads', block: 'package' }],
+    // The three things a client buys, then the monthly report as its own offer (Ink v2 wave 2), so an order for it runs
+    // the report steps on the exports the client uploads. Fourth, so the other offers keep their refs.
+    offers: [{ key: 'content-calendar', block: 'retainer' }, { key: 'community-replies', block: 'retainer' }, { key: 'ugc-ads', block: 'package' }, { key: 'monthly-report', block: 'retainer' }],
     approvals: [
       { key: 'every-draft', block: 'each-draft' }, { key: 'spend-before-generation', block: 'prices-invoices' },
       { key: 'every-post', block: 'posts-in-your-name' }, { key: 'report-and-invoice', block: 'prices-invoices' },

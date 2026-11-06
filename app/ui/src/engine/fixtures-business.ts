@@ -116,8 +116,8 @@ export const CONNECTORS: ConnectorCardLite[] = [
     id: 'youtube', name: 'YouTube', category: 'marketing', categoryLabel: 'Marketing and social',
     modes: [PLANNED_HANDOFF, plannedWrite('YouTube')],
     chips: ['planned: handoff', 'planned: write'], regions: GI, regionNote: null, auth: 'Google sign-in', vendorUrl: 'https://www.youtube.com/',
-    note: 'Your own channel. Google no longer locks API uploads from unverified apps to private (15 October 2026), but no upload client ships in this build, so the owner uploads and publishes.', starter: false,
-    ...posting(postingOptionsFor('YouTube', ['Google sign-in verification for the YouTube upload scope', 'A YouTube upload client, which this build does not ship'], true,'Copies the title and description and opens YouTube Studio. You upload and publish there.')),
+    note: 'Google no longer locks API uploads from unverified apps to private. You publish in YouTube Studio: it stays private until you choose; an AI voice or presenter needs the altered or synthetic setting.', starter: false,
+    ...posting(postingOptionsFor('YouTube', ['Google sign-in verification for the YouTube upload scope', 'A YouTube upload client, which this build does not ship'], true, 'Copies the title and description and opens YouTube Studio, where you publish. It stays private until you choose; tick the altered or synthetic content setting for an AI voice or presenter.')),
   },
   {
     id: 'bank-account', name: 'Bank account (read only)', category: 'books-tax', categoryLabel: 'Books, tax and invoicing',

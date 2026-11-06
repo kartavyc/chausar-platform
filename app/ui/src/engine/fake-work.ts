@@ -74,6 +74,20 @@ export class FakeWorkDesk {
     return WORK_METHODS.has(method);
   }
 
+  /** Another desk changes a delivery run it owns part of (fake-practice.ts: the judge's call and verdict). */
+  reviseRun(biz: string, runId: string, revise: (run: DeliveryLite) => DeliveryLite): DeliveryLite {
+    const list = this.deliveries[biz] ?? [];
+    const index = list.findIndex((run) => run.id === runId);
+    if (index < 0) throw new EngineError('DELIVERY_NOT_FOUND', 'That draft reply was not found.');
+    list[index] = clone(revise(clone(list[index]!)));
+    return clone(list[index]!);
+  }
+
+  /** Another desk keeps a transcript made "on this computer" with its origin (fake-wiring.ts); never a public method. */
+  keepMade(biz: string, p: Record<string, unknown>): UploadLite {
+    return this.addFile(biz, p, 'local-transcription');
+  }
+
   request(method: string, p: Record<string, unknown>): unknown {
     const biz = this.host.current();
     switch (method) {
@@ -109,6 +123,8 @@ export class FakeWorkDesk {
       id: `o-new-${++this.seq}`, at: this.host.now(), clientId: client.id, offerId: offer.id,
       quantity: text(p.quantity) || offer.pricing.defaultQuantity, request, status: 'open',
       priceReceiptId: plan.offerReceipts[offer.id]?.id ?? 'R-0415', deliveredOn: null,
+      // The engine keeps the intake on the order (OrderRecord.intake); a transcript made here reads its cutFile.
+      ...(p.intake && typeof p.intake === 'object' ? { intake: clone(p.intake) as OrderLite['intake'] } : {}),
     };
     (this.orders[biz] ??= []).unshift(order);
     this.host.emit({ type: 'queue.changed', businessId: biz, at: order.at });
@@ -148,7 +164,8 @@ export class FakeWorkDesk {
     return clone(run);
   }
 
-  private addFile(biz: string, p: Record<string, unknown>): UploadLite {
+  /** origin: only the fake's own transcript desk passes one, through keepMade. */
+  private addFile(biz: string, p: Record<string, unknown>, origin?: UploadLite['origin']): UploadLite {
     const order = this.order(biz, p.orderId);
     const name = text(p.name);
     const encoded = typeof p.contentBase64 === 'string' ? p.contentBase64 : '';
@@ -160,7 +177,7 @@ export class FakeWorkDesk {
     if (!name.includes('.') || !format) throw new EngineError('UNSUPPORTED_UPLOAD', 'Add a CSV, Excel or PDF file, or a transcript as SRT or VTT.');
     const list = (this.uploads[biz] ??= []);
     if (list.filter((u) => u.scope.kind === 'order' && u.scope.orderId === order.id).length >= MAX_UPLOADS_PER_ORDER) throw new EngineError('UPLOAD_LIMIT', 'An order holds at most ten files.');
-    const upload: UploadLite = { id: `u-new-${++this.seq}`, at: this.host.now(), name, format, bytes, scope: { kind: 'order', orderId: order.id }, clientData: true };
+    const upload: UploadLite = { id: `u-new-${++this.seq}`, at: this.host.now(), name, format, bytes, scope: { kind: 'order', orderId: order.id }, clientData: true, ...(origin ? { origin } : {}) };
     list.unshift(upload);
     return clone(upload);
   }

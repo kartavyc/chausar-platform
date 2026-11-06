@@ -1,6 +1,7 @@
 // Chausar delivery harness: made-up files for rehearsal. Chausar wrote them; no client sent them, so rehearsals stay
 // free of client data and run under standing consent. Bookkeeping has a clean month that balances and a messy one
-// (newest row first, two payments with no bill, one bill not paid). Other service types have no practice files yet.
+// (newest row first, two payments with no bill, one bill not paid); the clean month also has a sales register for a CA
+// firm's GST working. Other service types have no practice files yet.
 import { digest } from '../../records.ts';
 import type { Scenario } from '../../contracts.ts';
 import type { FileLike } from './files.ts';
@@ -44,9 +45,25 @@ const MESSY_BILLS = [
   '25 Sep 2026,Kiran Electricals,KE-118,"3,400.00"',
 ].join('\n');
 
+/**
+ * The clean client's sales register for the month, so a CA firm's rehearsal can work its GST (tax.gst): three sales to
+ * registered buyers, one of them in another state, and the month's counter sales to buyers with no GSTIN. Each line
+ * shows the seller's own GSTIN, which is how the GST tool knows the working is for this client.
+ */
+const CLEAN_SALES = [
+  'Invoice,Date,GSTIN,State,HSN,Taxable,Rate,Seller GSTIN',
+  'CAT-0901,2026-09-06,27AAAFS1234K1ZB,27,996334,"18,000.00",18%,27AAACL1234F1ZZ',
+  'CAT-0902,2026-09-19,29AAACB1234C1ZB,29,996334,"12,500.00",18%,27AAACL1234F1ZZ',
+  'CAT-0903,2026-09-24,27AAAFS1234K1ZB,27,996334,"6,400.00",18%,27AAACL1234F1ZZ',
+  'POS-SEP,2026-09-30,,27,996331,"80,050.00",5%,27AAACL1234F1ZZ',
+].join('\n');
+
 /** Practice files by template scenario id. Signal cases made from the messy client use the messy files. */
 export const PRACTICE_FILES: Readonly<Record<string, readonly PracticeFile[]>> = Object.freeze({
-  'bookkeeping-clean': [{ name: 'bank-statement-september.csv', content: CLEAN_BANK }, { name: 'bills-september.csv', content: CLEAN_BILLS }],
+  'bookkeeping-clean': [
+    { name: 'bank-statement-september.csv', content: CLEAN_BANK }, { name: 'bills-september.csv', content: CLEAN_BILLS },
+    { name: 'sales-register-september.csv', content: CLEAN_SALES },
+  ],
   'bookkeeping-messy': [{ name: 'bank-statement-messy.csv', content: MESSY_BANK }, { name: 'bills-messy.csv', content: MESSY_BILLS }],
 });
 

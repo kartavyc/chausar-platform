@@ -7,8 +7,7 @@
 // Ideas taken, code written here: postmill-ai/postmill-app (AGPL-3.0, so ideas only): approved before promoted,
 // refused with a reason per post; charlesdove977/UGC-Factory (MIT): confirm the brief before spending, fixed beats.
 import type { CheckId, PlaybookStep, ServiceType } from '../../contracts.ts';
-import type { SocialCheckId } from './checks.ts';
-import { SOCIAL_CHECK_IDS } from './checks.ts';
+import { SOCIAL_CHECK_IDS, type SocialCheckId } from './check-ids.ts';
 import { SOCIAL_AGENCY_REGISTRATION } from './registration.ts';
 
 export type SocialRoleId = 'intake' | 'strategist' | 'writer' | 'creative' | 'checker' | 'analyst' | 'owner' | 'client' | 'code';
@@ -41,7 +40,7 @@ export type SocialStep = PlaybookStep & {
   paidTool?: boolean;
 };
 
-const READ_TOOLS = ['files.list', 'files.read', 'handoff.client', 'handoff.owner'] as const;
+const READ_TOOLS = ['files.list', 'files.read', 'handoff.client', 'handoff.owner', 'evidence.record'] as const;
 const WRITE_CHECKS: CheckId[] = ['required-sections', 'house-style', 'length-bounds', 'no-done-claims'];
 const ALL_SOCIAL_CHECKS = [...SOCIAL_CHECK_IDS];
 
@@ -49,7 +48,8 @@ const ALL_SOCIAL_CHECKS = [...SOCIAL_CHECK_IDS];
 export const SOCIAL_STEPS: readonly SocialStep[] = Object.freeze([
   {
     id: 'intake', kind: 'gather', role: 'intake', title: "Read the client's onboarding form, brand files and proof files",
-    tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: [...READ_TOOLS], guidance: [],
+    tier: 'actor', model: 'fast', doneBy: 'agent', requiredSections: [], checks: [], tools: [...READ_TOOLS, 'social.report'],
+    guidance: ["When the client sent the month's platform exports, call social.report on them. The report cites the figure refs it returns, never a figure of its own."],
     produces: 'A list of channels, audience, competitors, banned words and topics, and the claims the client can prove with a file.',
   },
   {
@@ -70,7 +70,8 @@ export const SOCIAL_STEPS: readonly SocialStep[] = Object.freeze([
   },
   {
     id: 'calendar', kind: 'write', role: 'strategist', title: 'Fill topics and hooks into the calendar slots code made',
-    tier: 'actor', model: 'main', doneBy: 'agent', requiredSections: ['Calendar', 'Topics and hooks'], checks: [...WRITE_CHECKS], tools: [], guidance: [],
+    tier: 'actor', model: 'main', doneBy: 'agent', requiredSections: ['Calendar', 'Topics and hooks'], checks: [...WRITE_CHECKS], tools: [],
+    guidance: ['Give each slot code made one topic, one pillar and one hook. Never add, move or date a slot: code owns the dates.'],
     codeOwns: ['dates', 'channels', 'counts from the offer'],
     produces: 'A month of post slots, each with a topic, a pillar and a hook.',
   },
@@ -116,7 +117,8 @@ export const SOCIAL_STEPS: readonly SocialStep[] = Object.freeze([
   {
     id: 'report', kind: 'write', role: 'analyst', title: 'Write the report narrative from the receipts',
     tier: 'actor', model: 'main', doneBy: 'agent', requiredSections: ['Summary', 'What the figures show', 'What we will try next'],
-    checks: ['no-numeric-prose', 'figures-resolve', ...WRITE_CHECKS], tools: [], guidance: [],
+    checks: ['no-numeric-prose', 'figures-resolve', ...WRITE_CHECKS], tools: [],
+    guidance: ['Cite each figure as a figure part with its reference from social.report. Write no figure, rate or change of your own in the words.'],
     produces: 'A short narrative that cites receipts and never a figure of its own.',
   },
   {

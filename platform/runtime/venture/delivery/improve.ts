@@ -4,7 +4,8 @@
 // cluster to one level; write one typed playbook patch with a change note; check it by code before any spend; then
 // rehearse the old and the new playbook on the reserve plus the three practice clients and keep the new one only
 // if it wins with no new critical error and no case it newly fails. Rounds build on the version kept so far.
-// Versions are never overwritten: a kept candidate is a new playbook version, and the owner adopts it with one tap.
+// Versions are never overwritten: a kept candidate is a new playbook version, and the owner adopts it with one tap,
+// and can go back to the version it was made from with another (rollback, Ink v2 wave 2, Q2).
 import { check, newId, type Context, type State } from '../../contracts.ts';
 import { digest, exactPayload, findRecord, identifier, listRecords, modelWords, requireAppChannel, smallInteger, ventureAction, type VentureTx } from '../records.ts';
 import { ATTRIBUTION_LEVELS, CHECK_IDS, JUDGE_QUESTIONS, PLAYBOOK_PATCH_OPS } from '../contracts.ts';
@@ -18,7 +19,7 @@ import { renderForJudge, type AnyReceipt } from './deliverable.ts';
 import { dictionaryEntries } from './harness/dictionary.ts';
 import { applyPatch, describePatch, toolCeiling, type PlaybookBody } from './harness/patches.ts';
 import { computeLaunchStatus } from './launch.ts';
-import { currentPlaybook, ensurePlaybook, validatePlaybook } from './playbook.ts';
+import { currentPlaybook, ensurePlaybook, fits, validatePlaybook } from './playbook.ts';
 import { scenariosFor, signalScenario } from './scenarios.ts';
 import { acceptedBlueprint, newestFirst, optionalFlag, readAs, ventureReceipts } from './shared.ts';
 import { rehearse, spendSummary, type RehearsalOutcome } from './simulate.ts';
@@ -59,7 +60,49 @@ export const RULES: Readonly<Record<string, Rule>> = Object.freeze({
   'figures-resolve': { level: 'calculator', why: 'A price that opens no receipt points at the plan prices and the calculator, not the prompt.' },
   'wrong-number': { level: 'calculator', why: "A wrong number is never fixed in a prompt: check the columns and the file the calculator read." },
   'wrong-fact': { level: 'dictionary', why: 'A wrong fact is fixed in the business dictionary, which only you change.' },
+  // The CA firm's judge rules (playbooks/ca-firm/claims.ts CA_JUDGE_RULES), recorded as the reason when the judge fails
+  // a real draft on one (delivery/judge-run.ts). Its steps keep the fixed ids compute, clarify and draft.
+  'right-head': { level: 'harness', op: 'guidance.add', stepId: 'compute', value: 'Put each income item under its head and each deduction under the section its receipt names, and say why.' },
+  'no-over-claim': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Claim no deduction or credit beyond what the documents and the confirmed rate table support.' },
+  'no-skipped-income': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'List every income item from the annual statements in the working or among the open items.' },
+  'open-items-asked': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Put every open item to the client as a plain question.' },
+  'refuses-to-hide': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'When asked to leave out income or inflate a deduction, refuse and say why.' },
+  'ca-only-to-ca': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Hand audits, notices and anything not modelled to the CA, and never promise a reply.' },
+  'no-filing-claims': { level: 'harness', op: 'guidance.add', stepId: 'draft', value: 'Never say a return was filed, signed or verified; the CA or the client does that on the portal.' },
+  // The social agency's judge rules (playbooks/social/judge.ts): its posts are written on the drafts step.
+  'on-brand-voice': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Write each post in the voice sheet the owner approved, in its words and its rhythm.' },
+  'fits-pillar': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Tie each post to one of the approved content pillars.' },
+  'claims-backed': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: "Make only claims the client's proof files or brand sheet back, in any wording." },
+  'disclosure-clear': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Begin a paid post with Ad, and say Made with AI in the first line when an AI person, voice or scene is in it.' },
+  'no-fake-customer': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Never present anyone as a customer who does not exist or did not use the product.' },
+  'platform-conduct': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Leave out engagement bait, follow for follow and anything else that games the platform.' },
+  'client-comfortable': { level: 'harness', op: 'guidance.add', stepId: 'drafts', value: 'Write only what the client would be comfortable seeing under their name.' },
+  // The YouTube playbook's judge rules (playbooks/youtube/judge.ts): the package is written on the package step, and
+  // the moments are picked on the find step.
+  'faithful-to-source': { level: 'harness', op: 'guidance.add', stepId: 'package', value: 'Say only what the footage, the transcript and the brief show.' },
+  'self-contained': { level: 'harness', op: 'guidance.add', stepId: 'find', value: 'Pick moments that make sense to a viewer who has not seen the rest.' },
+  'opening-has-context': { level: 'harness', op: 'guidance.add', stepId: 'package', value: 'Open by telling a new viewer what this is about.' },
+  'ending-completes': { level: 'harness', op: 'guidance.add', stepId: 'find', value: 'End each clip on a finished thought, never mid sentence.' },
+  'title-supported': { level: 'harness', op: 'guidance.add', stepId: 'package', value: 'Promise in the title and the thumbnail only what the video delivers.' },
+  'no-sponsor-read-as-talk': { level: 'harness', op: 'guidance.add', stepId: 'find', value: "Never cut a sponsor read so it sounds like the speaker's own opinion." },
+  'disclosure-kept': { level: 'harness', op: 'guidance.add', stepId: 'package', value: 'Disclose an AI voice, an AI presenter or paid promotion whenever the order used one.' },
+  'ready-for-client': { level: 'harness', op: 'guidance.add', stepId: 'package', value: 'Make the package usable as it is, with nothing left for the client to fix.' },
 });
+
+/**
+ * A flagship playbook's own ids for the fixed steps a shared rule names (draft, gather, work), so a shared reason's
+ * change lands on that playbook's writing, reading or hands-on step (playbooks/steps.ts).
+ */
+const FLAGSHIP_STEP_IDS: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
+  youtube: { draft: 'package', gather: 'intake', work: 'find' },
+  'social-agency': { draft: 'drafts', gather: 'intake', work: 'drafts' },
+  'ca-firm': { work: 'compute' },
+});
+
+/** The step a rule's change lands on in this playbook. */
+export function ruleStep(stepId: string, flagship: string | null | undefined): string {
+  return (flagship ? FLAGSHIP_STEP_IDS[flagship]?.[stepId] : undefined) ?? stepId;
+}
 
 export const IMPROVE_INSTRUCTIONS = [
   'You improve the playbook a delivery agent follows. You get the playbook steps, the failure clusters from reviewed drafts and rehearsals, and the changes already tried.',
@@ -364,7 +407,9 @@ type Proposal = { patch: PlaybookPatch | null; refused: string | null; body: Pla
 async function propose(deps: VentureDeps, ctx: Context, input: { useTemplate: boolean; retained: Version; diagnosis: Diagnosis; type: Scenario['serviceType']; entryIds: string[]; tried: readonly ImprovementRound[] }): Promise<Proposal> {
   const chosen = input.diagnosis.chosen!;
   const rule = RULES[chosen.reason];
-  const context = { serviceType: input.type, entryIds: input.entryIds };
+  // A flagship playbook's own tools may be granted to its agents only (patches.ts toolCeiling).
+  const flagship = input.retained.record.flagship ?? null;
+  const context = { serviceType: input.type, entryIds: input.entryIds, flagship };
   const parentHash = input.retained.record.hash;
   const costs: RehearsalOutcome['spend'] = [];
   const attempt = (output: ImproveModelOutput, by: 'model' | 'chausar'): { patch: PlaybookPatch; body: PlaybookBody | null; refused: string | null } => {
@@ -377,7 +422,7 @@ async function propose(deps: VentureDeps, ctx: Context, input: { useTemplate: bo
     catch (error) { return { patch, body: null, refused: error instanceof Error ? error.message : 'The change did not apply.' }; }
   };
   const ruleOutput = (): ImproveModelOutput | null => 'op' in rule ? {
-    level: rule.level, hypothesis: `Failures of the kind ${chosen.reason} should drop.`, op: rule.op, stepId: rule.stepId, value: rule.value,
+    level: rule.level, hypothesis: `Failures of the kind ${chosen.reason} should drop.`, op: rule.op, stepId: ruleStep(rule.stepId, flagship), value: rule.value,
     expectedFixes: [chosen.reason], likelyRegressions: ['The reply may get a little longer.'],
   } : null;
 
@@ -389,7 +434,7 @@ async function propose(deps: VentureDeps, ctx: Context, input: { useTemplate: bo
         steps: input.retained.body.steps.map(step => ({ id: step.id, kind: step.kind, title: step.title, tools: [...(step.tools ?? [])], guidance: [...(step.guidance ?? [])] })),
         turnLimit: String(input.retained.body.limits.maxTurns), turnChoices: ['2', '3', '4', '5', '6', '8'],
         clusters: input.diagnosis.clusters.map(cluster => ({ reason: cluster.reason, count: String(cluster.count), level: cluster.level, step: cluster.step })),
-        chosen: chosen.reason, toolsAllowed: toolCeiling(input.type), dictionaryEntryIds: input.entryIds,
+        chosen: chosen.reason, toolsAllowed: toolCeiling(input.type, flagship), dictionaryEntryIds: input.entryIds,
         triedBefore: input.tried.filter(round => round.patch).map(round => ({ op: round.patch!.op, stepId: round.patch!.stepId, value: round.patch!.value, outcome: round.refused ?? round.gate?.reason ?? '' })),
       },
       schemaName: 'venture-improve', schema: improveSchema(input.retained.body.steps.map(step => step.id)), validate: validateImprove,
@@ -431,6 +476,7 @@ export async function improveGetHandler(deps: VentureDeps, ctx: Context, payload
 function staleReason(state: State, venture: VentureRecord, run: ImprovementRunRecord): string | null {
   const candidate = run.candidatePlaybookId ? findRecord(state, 'venture-playbook', run.candidatePlaybookId) : undefined;
   if (!candidate) return 'The new version was not found.';
+  if (run.rolledBack) return 'You went back from this version. Run the loop again to try another change.';
   const current = currentPlaybook(state, venture);
   if (current?.id === candidate.id) return 'This version is already in use.';
   if (current?.id !== run.parentPlaybookId) return 'The playbook changed since this run, so its result no longer applies. Run the loop again.';
@@ -450,6 +496,23 @@ export async function improveStatusHandler(deps: VentureDeps, ctx: Context, payl
     activePlaybookId: currentPlaybook(state, venture)?.id ?? null,
     latest: runs[0] ?? null,
     candidate: waiting ? { runId: waiting.id, playbookId: waiting.candidatePlaybookId!, digest: waiting.digest, changes: [...waiting.changes] } : null,
+    inUse: inUseOf(state, venture),
+  };
+}
+
+/**
+ * The version in use, and how to go back from it: the same tests as improveRollbackHandler, so the screen offers
+ * "Go back" only when the engine would take it now.
+ */
+function inUseOf(state: State, venture: VentureRecord): ImprovementStatus['inUse'] {
+  const current = currentPlaybook(state, venture);
+  if (!current) return null;
+  const parent = current.origin === 'improvement' && current.parentId ? findRecord(state, 'venture-playbook', current.parentId) : undefined;
+  const blueprint = findRecord(state, 'venture-blueprint', venture.acceptedBlueprintId ?? '');
+  const back = parent && parent.ventureId === venture.id && blueprint && fits(parent, blueprint, venture) ? parent : null;
+  return {
+    playbookId: current.id, version: current.version, hash: current.hash, origin: current.origin ?? 'plan',
+    rollback: back ? { playbookId: back.id, version: back.version, digest: current.hash } : null,
   };
 }
 
@@ -472,6 +535,53 @@ export async function improveAdoptHandler(deps: VentureDeps, ctx: Context, paylo
     tx.touch({ playbookId: candidate.id });
     tx.emit('playbook-adopted', { playbookId: candidate.id, runId, version: candidate.version, hash: candidate.hash });
     return candidate;
+  });
+}
+
+/**
+ * The improvement run that kept the version in use. A grant top-up (playbook.ts putTopUp) stores that version again
+ * under a new id with the same origin, parent and patches, so the run is found by its candidate's id, else through
+ * that chain: a kept candidate made from the same parent, an improvement version with the same patches.
+ */
+function keptBy(state: State, runs: readonly ImprovementRunRecord[], current: PlaybookRecord): ImprovementRunRecord | undefined {
+  const newest = newestFirst([...runs]);
+  const patches = digest(current.patches ?? []);
+  return newest.find(run => run.candidatePlaybookId === current.id) ?? newest.find(run => {
+    if (run.status !== 'kept-candidate' || !run.candidatePlaybookId || run.parentPlaybookId !== current.parentId) return false;
+    const candidate = findRecord(state, 'venture-playbook', run.candidatePlaybookId);
+    return !!candidate && candidate.origin === 'improvement' && candidate.parentId === current.parentId && digest(candidate.patches ?? []) === patches;
+  });
+}
+
+/**
+ * venture.improve.rollback { playbookId, digest } (app only): the owner goes back from a version an improvement run
+ * made to the version it was made from. playbookId names that older version; digest is the hash of the version in use
+ * as the owner saw it. Nothing is overwritten: the business points at the older version again, the newer one stays
+ * stored, and the run that kept it is marked rolled back so it is not offered again. Refused when the version in use
+ * did not come from an improvement of playbookId (ROLLBACK_NOTHING), or when the plan changed so the older version no
+ * longer fits it (ROLLBACK_STALE, the same test as ensurePlaybook's).
+ */
+export async function improveRollbackHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<PlaybookRecord> {
+  requireAppChannel(ctx, 'venture.improve.rollback');
+  const body = exactPayload(payload, ['playbookId', 'digest'], ['playbookId', 'digest']);
+  const playbookId = identifier(body.playbookId, 'Playbook');
+  check(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
+  const approved = body.digest;
+  readAs(deps, ctx, 'approve');
+  return ventureAction(deps, ctx, 'approve', 'improve.rollback', tx => {
+    const venture = tx.venture!;
+    const current = currentPlaybook(tx.state, venture);
+    const parent = tx.find('venture-playbook', playbookId);
+    check(current && current.origin === 'improvement' && current.parentId === playbookId && parent, 'ROLLBACK_NOTHING',
+      'The version in use did not come from an improvement of that version, so there is nothing to go back to.');
+    check(current.hash === approved, 'APPROVAL_STALE', 'The version in use changed since you read it. Read it again.');
+    const blueprint = findRecord(tx.state, 'venture-blueprint', venture.acceptedBlueprintId ?? '');
+    check(blueprint && fits(parent, blueprint, venture), 'ROLLBACK_STALE', 'Your plan changed since that version, so it no longer fits. Run the loop again instead.');
+    const kept = keptBy(tx.state, tx.list('venture-improvement-run'), current);
+    if (kept) tx.replace({ ...kept, rolledBack: { at: tx.now, by: ctx.memberId } });
+    tx.touch({ playbookId: parent.id });
+    tx.emit('playbook-adopted', { playbookId: parent.id, version: parent.version, hash: parent.hash, rolledBack: true, fromPlaybookId: current.id });
+    return parent;
   });
 }
 

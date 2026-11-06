@@ -69,7 +69,8 @@ class StubPort implements ModelPort {
   costs: Record<ModelPurpose, string> = { interview: '0', blueprint: '0', brief: '0', delivery: '2000', 'client-sim': '100', judge: '50', 'agent-turn': '30', improve: '500', decide: '0', compose: '0' };
   generated: ModelTask<any>[] = [];
   previewed: ModelTask<any>[] = [];
-  previews = new Map<string, { digest: string; used: boolean }>();
+  /** queue: which outputs answer the call once approved; the rules judge on a real order has its own (judge-run.ts). */
+  previews = new Map<string, { digest: string; used: boolean; queue: 'delivery' | 'judge-rules' }>();
   statusCalls = 0;
   sent = 0;
   /** The port's clock; setup points it at deps.clock so a test can let a preview expire. */
@@ -118,7 +119,7 @@ class StubPort implements ModelPort {
     const callId = `call_${this.#calls}`;
     const payloadText = JSON.stringify({ system: task.instructions, input: task.input });
     const payloadDigest = digest(payloadText);
-    this.previews.set(callId, { digest: payloadDigest, used: false });
+    this.previews.set(callId, { digest: payloadDigest, used: false, queue: task.schemaName === 'venture-judge-rules' ? 'judge-rules' : 'delivery' });
     if (this.recordCalls) await this.store.update(state => { state.conversations.push({ id: callId, kind: 'venture-model-call', status: 'preview' }); });
     return {
       callId, payloadText, digest: payloadDigest, presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages',
@@ -137,14 +138,14 @@ class StubPort implements ModelPort {
     this.sent += 1;
     let value: T;
     try {
-      value = validate(this.next('delivery'));
+      value = validate(this.next(held.queue));
       await setCall('completed');
     } catch (error) {
       await setCall('failed');
       throw error;
     }
-    if (this.afterSend) await this.afterSend();
-    return { value, by: 'model', callId, presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', costMicros: this.costs.delivery, priceConfirmed: this.confirmed };
+    if (this.afterSend && held.queue === 'delivery') await this.afterSend();
+    return { value, by: 'model', callId, presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', costMicros: this.costs[held.queue === 'judge-rules' ? 'judge' : 'delivery'], priceConfirmed: this.confirmed };
   }
 }
 
@@ -593,9 +594,10 @@ test('template words: every outline sentence and practice client is free of numb
       assert.equal(scenario.checks.includes('questions-raised'), scenario.id.endsWith('-messy'));
       // The base checks, prompt-leak and receipts included; a messy request also needs questions-raised.
       assert.deepEqual(scenario.checks, scenario.id.endsWith('-messy')
-        ? ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'prompt-leak', 'length-bounds', 'turn-limit', 'questions-raised', 'no-done-claims', 'claims-grounded', 'receipts']
-        : ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'prompt-leak', 'length-bounds', 'turn-limit', 'no-done-claims', 'claims-grounded', 'receipts'], scenario.id);
-      assert.ok(scenario.checks.includes('claims-grounded') && !scenario.checks.includes('rules-judge'));
+        ? ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'prompt-leak', 'length-bounds', 'turn-limit', 'questions-raised', 'no-done-claims', 'claims-grounded', 'receipts', 'rules-judge']
+        : ['no-numeric-prose', 'figures-resolve', 'required-sections', 'no-outside-writes', 'house-style', 'prompt-leak', 'length-bounds', 'turn-limit', 'no-done-claims', 'claims-grounded', 'receipts', 'rules-judge'], scenario.id);
+      // Every practice client asks the rules judge (Ink v2 wave 2, Q1), behind the code checks and only with an AI judge on.
+      assert.ok(scenario.checks.includes('claims-grounded') && scenario.checks.includes('rules-judge'));
       for (const text of [scenario.title, scenario.persona, scenario.brief, scenario.expectedOutcome]) {
         assert.doesNotThrow(() => assertNoNumbers(text, 'scenario'), text);
         assert.deepEqual(houseStyleFindings(text), [], text);
@@ -622,14 +624,16 @@ test('model rehearsal: one practice client per call, judged, with costs worked o
   assert.ok(episode.turns.every(turn => turn.callId));
   assert.deepEqual(episode.judge.map(answer => answer.answer), ['yes', 'yes', 'yes', 'yes']);
   assert.ok(episode.judge.every(answer => answer.callId));
-  // Calls: client 100 + draft 2000 + client 100 + draft 2000 + judge 50 = 4250 micros; (4250 + 50) / 100 = 43, so USD 0.0043.
-  assert.equal(run.costMicros, '4250');
-  assert.equal(episode.costMicros, '4250');
+  // Calls: client 100 + draft 2000 + client 100 + draft 2000 + rules judge 50 + judge 50 = 4300 micros, so USD 0.0043.
+  assert.equal(run.costMicros, '4300');
+  assert.equal(episode.costMicros, '4300');
+  assert.equal(episode.checks.find(result => result.check === 'rules-judge')?.passed, true, 'the practice client asked the rules judge');
   assert.equal(run.costDisplay, 'USD 0.0043');
   assert.equal(run.costDisplay, formatMicros(run.costMicros));
 
   const purposes = env.models.generated.map(task => task.purpose);
-  assert.deepEqual(purposes, ['client-sim', 'delivery', 'client-sim', 'delivery', 'judge']);
+  assert.deepEqual(purposes, ['client-sim', 'delivery', 'client-sim', 'delivery', 'judge', 'judge']);
+  assert.deepEqual(env.models.generated.slice(4).map(task => task.schemaName), ['venture-judge-rules', 'venture-judge']);
   assert.equal(env.models.previewed.length, 0);
   for (const task of env.models.generated) {
     assert.equal(task.containsClientData, false);
@@ -641,10 +645,11 @@ test('model rehearsal: one practice client per call, judged, with costs worked o
   assert.ok(JSON.stringify(deliveryInput).includes('offer_1.total'));
   for (const entry of [...deliveryInput.figures, ...deliveryInput.dates]) assert.doesNotMatch(entry.label, /\d/);
   assert.match((env.models.generated[3].input as any).clientRequest, /\n\nAnswers: /);
-  const judgeTask = env.models.generated[4];
-  const judgeText = JSON.stringify(judgeTask.input);
-  for (const leak of ['INR 2,948.82', '2,948.82', '294882', '249900', '449.82', '44982', '2026-10-15']) assert.ok(!judgeText.includes(leak), leak);
-  assert.ok(judgeText.includes('[price from Chausar]'));
+  for (const judgeTask of env.models.generated.slice(4)) {
+    const judgeText = JSON.stringify(judgeTask.input);
+    for (const leak of ['INR 2,948.82', '2,948.82', '294882', '249900', '449.82', '44982', '2026-10-15']) assert.ok(!judgeText.includes(leak), leak);
+    assert.ok(judgeText.includes('[price from Chausar]'));
+  }
   for (const schemaTask of env.models.generated) assertSchemaSafe(schemaTask.schema);
 
   // The estimate words appear when any outcome came from an unconfirmed price table.
@@ -1245,9 +1250,9 @@ test('capabilities on the hosted server: nothing checks for Docker, and the sand
 // 9. Handler table and schemas
 // ---------------------------------------------------------------------------
 
-test('handlers: exactly the twenty-two delivery methods', () => {
+test('handlers: exactly the thirty delivery methods', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'delivery');
-  assert.equal(owned.length, 22);
+  assert.equal(owned.length, 30);
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
 });
@@ -1275,11 +1280,12 @@ test('schemas: the draft, practice client and judge schemas are closed and have 
   await call(env, 'venture.simulation.run', { scenarioIds: ['bookkeeping-clean'] });
   const seen = new Set<string>();
   for (const task of env.models.generated) { assertSchemaSafe(task.schema); seen.add(task.schemaName); }
-  assert.deepEqual([...seen].sort(), ['venture-agent-turn', 'venture-client-sim', 'venture-delivery', 'venture-judge']);
+  assert.deepEqual([...seen].sort(), ['venture-agent-turn', 'venture-client-sim', 'venture-delivery', 'venture-judge', 'venture-judge-rules']);
   const deliverySchema = env.models.generated.find(task => task.purpose === 'delivery')!.schema as any;
   assert.deepEqual(deliverySchema.properties.sections.items.properties.heading.enum, [...REQUIRED_SECTIONS.bookkeeping]);
   assert.equal(env.models.generated.find(task => task.purpose === 'delivery')!.maxOutputTokens, 6144);
-  assert.equal(env.models.generated.find(task => task.purpose === 'judge')!.maxOutputTokens, 1024);
+  assert.equal(env.models.generated.find(task => task.schemaName === 'venture-judge')!.maxOutputTokens, 1024);
+  assert.equal(env.models.generated.find(task => task.schemaName === 'venture-judge-rules')!.maxOutputTokens, 2048);
   assert.equal(env.models.generated.find(task => task.purpose === 'client-sim')!.maxOutputTokens, 1024);
   assert.equal(env.models.generated.find(task => task.purpose === 'agent-turn')!.maxOutputTokens, 4096);
 });
@@ -1367,7 +1373,7 @@ test("real runs: the claim check runs on every draft; a name the client never ga
   assert.equal(grounded.passed, false);
   assert.match(grounded.detail, /HDFC Bank/);
   assert.doesNotMatch(grounded.detail, new RegExp(CLIENT_NAME), "the client's own name is never a claim");
-  assert.ok(!ready.checks.some(result => result.check === 'rules-judge'), "a real order's draft is never sent to the judge");
+  assert.ok(!ready.checks.some(result => result.check === 'rules-judge'), 'a draft that failed a code check is never sent to the judge');
   assert.equal(env.models.generated.length, 0);
   assert.equal(listRecords(env.store.read(), 'venture-signal').find(item => item.runId === run.id)!.reason, 'claims-grounded');
   await assert.rejects(call(env, 'venture.delivery.review', { runId: ready.id, verdict: 'accepted' }), (error: any) => error.code === 'INVALID_VENTURE_REQUEST' && /HDFC Bank/.test(error.message));

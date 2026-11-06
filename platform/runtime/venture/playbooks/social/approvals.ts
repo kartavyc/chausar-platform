@@ -168,17 +168,37 @@ export function promoteDrafts(items: { approval: DraftApproval; draft: DraftLike
   return { scheduled, blocked };
 }
 
+/**
+ * Whether a cell starts with a mark a spreadsheet reads as a formula (=, +, -, @, a tab or a carriage return). The
+ * calendar file puts an apostrophe before such a cell.
+ */
+export function startsLikeFormula(value: string): boolean {
+  return /^[=+\-@\t\r]/.test(value);
+}
+
 /** A CSV cell: quoted when it holds a comma, quote or new line; a leading formula character is defused. */
 function cell(value: string): string {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  const safe = startsLikeFormula(value) ? `'${value}` : value;
   return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+/**
+ * One calendar row's input. parts: the numbered thread parts code split the approved text into, written in the text
+ * cell in place of the text; they are not part of what was approved, so the gate still reads the draft as approved.
+ */
+export type CalendarItem = { approval: DraftApproval; draft: DraftLike; date: IsoDate; parts?: readonly string[] };
+
+/** The words a calendar row's text cell holds, before the cell is defused and quoted. */
+export function calendarText(item: CalendarItem): string {
+  if (item.parts?.length) return item.parts.join('\n\n');
+  return item.draft.thread?.length ? item.draft.thread.join('\n\n') : item.draft.text;
 }
 
 /**
  * The calendar file: one row per draft that passes the draft-before-schedule gate, in date order. The owner imports it
  * into their own scheduler or copies from it; nothing here posts.
  */
-export function calendarExport(items: { approval: DraftApproval; draft: DraftLike; date: IsoDate }[], options: GateOptions): string {
+export function calendarExport(items: CalendarItem[], options: GateOptions): string {
   const header = 'date,channel,text,alt_text,owner_approved_at,client_approved_at';
   const rows = items
     .filter(item => {
@@ -187,7 +207,7 @@ export function calendarExport(items: { approval: DraftApproval; draft: DraftLik
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
     .map(item => [
-      item.date, item.draft.channel, item.draft.thread?.length ? item.draft.thread.join('\n\n') : item.draft.text,
+      item.date, item.draft.channel, calendarText(item),
       (item.draft.media ?? []).map(media => media.altText ?? '').filter(Boolean).join(' | '),
       item.approval.owner.at ?? '', item.approval.client.at ?? '',
     ].map(value => cell(String(value))).join(','));

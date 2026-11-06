@@ -18,6 +18,8 @@
 // above the ask-first figure is a 'quote' row (money/spend.ts), a proposed post a 'connector' row decided through
 // build/posting.ts, and the evidence ledger's suggestions and asks are 'question' rows (evidence/ledger.ts). A run
 // whose next call would cross its spend cap is a 'quote' row asking for one more window (delivery/harness/loop.ts).
+// A bank statement row that looks like an invoice's payment, and what a statement's alert rules found, are 'bank' rows
+// (build/bank-methods.ts); away from the app an alert row carries its count only.
 import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import {
@@ -32,8 +34,9 @@ import { blueprintAccept } from '../core/blueprint.ts';
 import { issueInvoice } from '../money/invoices.ts';
 import { latestBlueprint } from '../money/shared.ts';
 import {
-  deliveryAnswerHandler, deliveryApproveHandler, deliveryDelegateHandler, deliveryReviewHandler, deliveryRunHandler, runView,
+  approveDelivery, deliveryAnswerHandler, deliveryDelegateHandler, deliveryReviewHandler, deliveryRunHandler, runView,
 } from '../delivery/runs.ts';
+import { judgeNotice, judgeStateLine } from '../delivery/judge-run.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { allowCapWindow, capWindow, openDelegation } from '../delivery/harness/loop.ts';
 import { acceptedBlueprintOrNull, previewShownWhole } from '../delivery/shared.ts';
@@ -44,6 +47,7 @@ import { sendRunToCa, waitsToGoToCa } from '../playbooks/ca-firm/delivery-signof
 import { approveSpendQuote, openSpendQuotes, quoteLive, rupeeFigure, rupeesBeside, rupeesOf, spendAgentOf, type Rupees } from '../money/spend.ts';
 import { connectorQueueRows, decideConnectorRow } from '../build/posting.ts';
 import { evidenceApply, evidenceQuestions, recordEvidence } from '../evidence/ledger.ts';
+import { bankQueueItems } from '../build/bank-methods.ts';
 import { AGENT_ID, agentName, businessOf, clientNameFor, lastEventAt, plain, short } from './shared.ts';
 import { agentWordsLabeller } from './agent-words.ts';
 
@@ -56,7 +60,7 @@ const NOT_A_DECISION: Partial<Record<QueueActionId, string>> = {
 const BUILDERS: Readonly<Record<string, string>> = { lovable: 'Lovable', replit: 'Replit', bolt: 'Bolt', v0: 'v0' };
 /** The plan and setup rows lead Today, in this order; other rows made at the same moment keep it too. */
 const LEAD: readonly QueueKind[] = ['plan', 'price', 'setup'];
-const RANK: Readonly<Record<QueueKind, number>> ={ plan: 0, price: 0, setup: 1, connector: 2, quote: 3, question: 3, draft: 3, signoff: 3, invoice: 4, locked: 9 };
+const RANK: Readonly<Record<QueueKind, number>> ={ plan: 0, price: 0, setup: 1, connector: 2, quote: 3, question: 3, draft: 3, signoff: 3, bank: 3, invoice: 4, locked: 9 };
 
 type Input = { answer: string | null };
 type Outcome = { line: Display; receiptId?: string };
@@ -229,7 +233,7 @@ export function runError(state: State, run: DeliveryRunRecord): string {
 const reviewReason = (answer: string | null): DeliveryReason =>
   answer !== null && (DELIVERY_REASONS as readonly string[]).includes(answer) ? answer as DeliveryReason : 'other';
 
-function runRows(deps: VentureDeps, state: State, venture: VentureRecord, business: Business): Pending[] {
+function runRows(deps: VentureDeps, state: State, venture: VentureRecord, business: Business, ctx: Context): Pending[] {
   const nowMs = deps.clock().getTime();
   const agent = agentName(state, venture);
   const rupees = rupeesOf(state, venture);
@@ -248,12 +252,16 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
     const newest = newestPerOrder.get(run.orderId)?.id === run.id && orders.get(run.orderId)?.status === 'open';
     if (run.status === 'waiting-for-you' && run.canApprove && run.preview) {
       const preview = run.preview;
+      const notice = judgeNotice(deps, ctx, state, venture, record)?.line;
       rows.push({
-        subject, perform: { approve: async (d, ctx) => { await deliveryApproveHandler(d, ctx, { runId: run.id, digest: preview.digest }); return { line: 'Sent to your AI.' }; } },
+        // This row's digest binds its line, the judge's notice included, so approving it here gives the judge's consent.
+        subject, perform: { approve: async (d, ctx) => { await approveDelivery(d, ctx, { runId: run.id, digest: preview.digest }, { judgeNoticeShown: notice ?? null }); return { line: 'Sent to your AI.' }; } },
         row: { ...base(business, 'quote', subject, `send-${run.callId ?? preview.callId}`, at), agent, title: `Send the next step for ${client} to your AI`,
           // The most it can cost is worked out by code from the price table, so it is not a model estimate; the display
           // itself says 'estimate, price unconfirmed' when the table is unconfirmed.
-          line: 'Read the exact text first. Nothing goes to the client.', change: { label: 'Most it can cost', after: preview.estimatedMaxCostDisplay },
+          // A write turn the judge then reads on its own, before its standing consent exists, says so (judge-run.ts).
+          line: `Read the exact text first. Nothing goes to the client.${notice ? ` ${notice}` : ''}`,
+          change: { label: 'Most it can cost', after: preview.estimatedMaxCostDisplay },
           viewRef: viewRun, actions: [action('read', 'Read', false), action('approve', 'Approve', true, { requiresView: true })],
           // A send to the owner's AI (W1 H21): complete only when the run's view shows the whole text.
           descriptionComplete: previewShownWhole(preview) },
@@ -321,7 +329,9 @@ function runRows(deps: VentureDeps, state: State, venture: VentureRecord, busine
       rows.push({
         subject, perform: run.canAccept ? { approve: review('accepted'), deny: review('rejected') } : blocked,
         row: run.canAccept
-          ? { ...base(business, 'draft', subject, 'review', at), agent, title: `Draft reply for ${client}`, line: 'Read it, then approve it. You send it yourself.', viewRef: viewDraft,
+          ? { ...base(business, 'draft', subject, 'review', at), agent, title: `Draft reply for ${client}`, viewRef: viewDraft,
+            // Where the judge stands, so a verdict that is not in never reads like a pass (judge-run.ts).
+            line: [`Read it, then approve it. You send it yourself.`, judgeStateLine(state, venture, record, nowMs)].filter(Boolean).join(' '),
             actions: [action('read', 'Read', false), action('approve', 'Approve', true, { requiresView: true })] }
           : { ...base(business, 'draft', subject, toCa ? 'review-to-ca' : 'review-blocked', at), agent, title: `Draft reply for ${client}`, line: short(run.acceptBlocked ?? 'Read it and tell the agent what to change.'), viewRef: viewDraft,
             actions: toCa
@@ -483,7 +493,8 @@ const FIELD_WORDS: Readonly<Record<string, string>> = {
 function fieldWords(field: string): string {
   const [head, ...rest] = field.split('.');
   const last = rest.length ? rest[rest.length - 1] : head;
-  const words = FIELD_WORDS[last] ?? last.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').toLowerCase();
+  // An own entry only: a name every object has (toString, constructor) is spelled out like any other field.
+  const words = Object.hasOwn(FIELD_WORDS, last) ? FIELD_WORDS[last] : last.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').toLowerCase();
   return rest.length && /^offer/i.test(head) ? `offer ${words}` : words;
 }
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -540,6 +551,17 @@ function evidenceRows(state: State, venture: VentureRecord, business: Business):
   });
 }
 
+/**
+ * Bank rows (build/bank-methods.ts, Ink v2 wave 2): a statement row that looks like an invoice's payment, to record
+ * through venture.bank.apply, and the alerts an import raised. Off the app channel an alert row is its count only.
+ */
+function bankRows(state: State, venture: VentureRecord, business: Business, ctx: Context): Pending[] {
+  return bankQueueItems(state, venture, ctx).map((item): Pending => ({
+    subject: item.subject, perform: item.perform,
+    row: { ...base(business, 'bank', item.subject, item.version, item.createdAt), title: item.title, ...(item.line ? { line: short(item.line, 300) } : {}), actions: item.actions },
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Other businesses
 // ---------------------------------------------------------------------------
@@ -585,9 +607,10 @@ async function buildRows(deps: VentureDeps, ctx: Context, scope: 'current' | 'al
   const pending: Pending[] = [];
   if (venture) {
     pending.push(...planRows(state, venture, business), ...await setupRows(deps, ctx, state, venture, business), ...connectorRows(state, venture, business));
-    pending.push(...runRows(deps, state, venture, business), ...spotRows(state, venture, business), ...invoiceRows(state, venture, business));
+    pending.push(...runRows(deps, state, venture, business, ctx), ...spotRows(state, venture, business), ...invoiceRows(state, venture, business));
     pending.push(...signoffRows(state, venture, business));
     pending.push(...quoteRows(deps, state, venture, business), ...postRows(state, business), ...evidenceRows(state, venture, business));
+    pending.push(...bankRows(state, venture, business, ctx));
   }
   if (scope === 'all' && deps.workspace) {
     let others: VentureBusinessRef[] = [];

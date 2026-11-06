@@ -81,7 +81,8 @@ describe('Connections', () => {
     expect(bank.querySelector('[data-connector-label] [data-label]')?.getAttribute('data-label')).toBe('planned');
     fireEvent.click(within(bank).getByRole('button', { name: 'Import a statement' }));
     await act(async () => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
-    const sheet = await screen.findByRole('complementary', { name: 'Import a statement' });
+    // The one import path opens the bank account sheet, with the import form inside it (Ink v2 wave 2, 2D).
+    const sheet = await screen.findByRole('complementary', { name: 'Bank account' });
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
     expect(within(sheet).getByRole('alert').textContent).toBe('Choose the statement file first.');
     const csv = 'Date,Amount,Description\n2026-10-01,-1200.00,Office rent\n2026-10-02,26200.00,Boat Audio\n2026-10-03,abc,Unknown\n';

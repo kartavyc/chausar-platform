@@ -17,6 +17,7 @@ import {
 import { BROWSER_SCRIPTS, LAUNCH_OPTIONS, playwrightBrowserPort } from '../runtime/venture/build/browser.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 import { seedPostDraft } from './venture-post-drafts.ts';
+import { X_PAGE, fakeBrowserPage, type FakePageModel } from './venture-fake-page.ts';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const agentCtx: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'mcp' };
@@ -221,7 +222,9 @@ test('each post is its own connector queue row; the owner denies one and approve
   assert.equal(approved.post.state, 'applied');
   assert.deepEqual(approved.post.journal.map(entry => entry.state), ['described', 'approved', 'applied']);
   assert.equal(browser.jobs.length, 1);
-  assert.deepEqual({ ...browser.jobs[0], timeoutMs: 0 }, { postId: first.id, connectorId: 'x', text: 'Post one', timeoutMs: 0 });
+  assert.deepEqual({ ...browser.jobs[0], timeoutMs: 0, clickBy: 0 }, { postId: first.id, connectorId: 'x', text: 'Post one', timeoutMs: 0, clickBy: 0 });
+  // The browser never presses post after its deadline, which comes before the whole post's time runs out (2B2).
+  assert.ok(typeof browser.jobs[0].clickBy === 'number' && browser.jobs[0].clickBy > Date.now() - 60000);
 
   await assert.rejects(decidePost(deps, owner, { postId: first.id, digest: first.digest, action: 'approve' }), code('POST_ALREADY_DECIDED'));
   const refused = await decideConnectorRow(deps, owner, { id: first.id, digest: first.digest, action: 'approve' });
@@ -282,36 +285,13 @@ test('the platform never reached: rejected by the platform with the reason; a cr
 // The real Playwright port, driven against a fake Playwright module
 // ---------------------------------------------------------------------------
 
+/** The shared fake page (venture-fake-page.ts): X's compose page as the shipped steps know it, in memory. */
 function fakePlaywright(options: { exePresent?: boolean; url?: string; failAt?: 'fill' | 'confirm' } = {}) {
-  const calls: string[] = [];
-  const launches: { dir: string; options: Record<string, unknown> }[] = [];
-  let closed = 0;
-  const locator = (selector: string) => ({
-    first() { return this; },
-    // What the page says the element is (W1 H19 gate): an ordinary editable box and a plain button, outside any form.
-    async evaluate() { return { tag: 'div', type: null, role: null, autocomplete: null, inForm: false, href: null, download: false, formAction: null, contentEditable: true }; },
-    async fill(text: string) { calls.push(`fill ${selector} ${text}`); if (options.failAt === 'fill') throw new Error('no textbox'); },
-    async click() { calls.push(`click ${selector}`); },
-    async waitFor() { calls.push(`wait ${selector}`); if (options.failAt === 'confirm') throw new Error('Timeout 30000ms exceeded'); },
-  });
-  const page = {
-    async goto(url: string) { calls.push(`goto ${url}`); },
-    url: () => options.url ?? 'https://x.com/compose/post',
-    locator,
+  const model: FakePageModel = {
+    ...X_PAGE, ...(options.url ? { url: options.url } : {}), ...(options.failAt === 'fill' ? { failFill: true } : {}), ...(options.failAt === 'confirm' ? { afterClick: {} } : {}),
   };
-  const module = {
-    chromium: {
-      executablePath: () => 'C:/fake/chromium/chrome.exe',
-      async launchPersistentContext(dir: string, launchOptions: Record<string, unknown>) {
-        launches.push({ dir, options: launchOptions });
-        return { pages: () => [page], newPage: async () => page, close: async () => { closed += 1; } };
-      },
-    },
-  };
-  const port = playwrightBrowserPort({
-    load: async () => module, exists: () => options.exePresent !== false, profileRoot: 'C:/profiles',
-  });
-  return { port, calls, launches, closedCount: () => closed };
+  const fake = fakeBrowserPage(model, { exePresent: options.exePresent });
+  return { port: fake.port, calls: fake.calls, launches: fake.launches, closedCount: fake.closedCount };
 }
 
 test('the Playwright port: probes without installing anything, and reports absent with a reason', async () => {
@@ -329,7 +309,8 @@ test('the Playwright port posts from the owner profile with plain launch options
   const result = await fake.port.post({ postId: 'post_1', connectorId: 'x', text: 'Hello', timeoutMs: 1000 });
   assert.equal(result.outcome, 'posted');
   const script = BROWSER_SCRIPTS.x;
-  assert.deepEqual(fake.calls, [`goto ${script.composeUrl}`, `fill ${script.textbox} Hello`, `click ${script.submit}`, `wait ${script.confirm}`]);
+  // Each step by its first candidate (Ink v2 wave 2, 2B2); the confirmation is read, never clicked.
+  assert.deepEqual(fake.calls, [`goto ${script.composeUrl}`, 'fill test-id:tweetTextarea_0 Hello', 'click test-id:tweetButton']);
   assert.equal(fake.launches.length, 1);
   assert.match(fake.launches[0].dir.replaceAll('\\', '/'), /^C:\/profiles\/x$/);
   assert.deepEqual(fake.launches[0].options, { ...LAUNCH_OPTIONS });
@@ -337,7 +318,9 @@ test('the Playwright port posts from the owner profile with plain launch options
     assert.ok(!(key in fake.launches[0].options), key);
   }
   assert.equal(fake.closedCount(), 1);
-  assert.equal(script.checkedOn, null, 'never checked against the live site; the label says so');
+  for (const step of ['textbox', 'submit', 'confirm'] as const) {
+    for (const candidate of script.steps[step]) assert.equal(candidate.checkedOn, null, 'never checked against the live site; the label says so');
+  }
 });
 
 test('the Playwright port: signed out or no textbox is not-sent; a missing confirmation after the click is unknown', async () => {

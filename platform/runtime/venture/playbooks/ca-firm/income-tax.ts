@@ -87,7 +87,7 @@ function presumptiveIncome(builder: ReceiptBuilder, table: RateTable<IncomeTaxPa
     const raised = cash * 10000n <= total * BigInt(rates['44AD'].cashShareMaxBps);
     const limit = BigInt(raised ? rates['44AD'].raisedLimitMinor : rates['44AD'].limitMinor);
     if (total > limit) notModelled(`Turnover of ${inr(total)} is above the 44AD limit of ${inr(limit)}. The business needs books and maybe a tax audit: your CA works this.`);
-    builder.step('turnover', 'Turnover under 44AD', total, sectionOf(table, 'presumptive-business'));
+    builder.step('turnover', 'Turnover of the small business, presumptive scheme', total, sectionOf(table, 'presumptive-business'));
     builder.step('presumptive-digital', 'Six percent of receipts by bank or digital means', applyBps(digital, BigInt(rates['44AD'].digitalBps)));
     builder.step('presumptive-other', 'Eight percent of other receipts', applyBps(cash, BigInt(rates['44AD'].otherBps)));
     return applyBps(digital, BigInt(rates['44AD'].digitalBps)) + applyBps(cash, BigInt(rates['44AD'].otherBps));
@@ -99,7 +99,7 @@ function presumptiveIncome(builder: ReceiptBuilder, table: RateTable<IncomeTaxPa
     const raised = cash * 10000n <= gross * BigInt(rates['44ADA'].cashShareMaxBps);
     const limit = BigInt(raised ? rates['44ADA'].raisedLimitMinor : rates['44ADA'].limitMinor);
     if (gross > limit) notModelled(`Gross receipts of ${inr(gross)} are above the 44ADA limit of ${inr(limit)}. The practice needs books and maybe a tax audit: your CA works this.`);
-    builder.step('gross-receipts', 'Gross receipts under 44ADA', gross, sectionOf(table, 'presumptive-profession'));
+    builder.step('gross-receipts', 'Gross receipts of the profession, presumptive scheme', gross, sectionOf(table, 'presumptive-profession'));
     return applyBps(gross, BigInt(rates['44ADA'].rateBps));
   }
   return invalid('The presumptive scheme is 44AD or 44ADA.');
@@ -124,14 +124,17 @@ function deductionsAllowed(builder: ReceiptBuilder, table: RateTable<IncomeTaxPa
     const section = deductionSection(table, code);
     let allowed: bigint;
     let label: string;
-    if (!rule) { allowed = 0n; label = `${code}: not allowed under the new regime`; }
-    else if (rule.seniorOnly && !senior) { allowed = 0n; label = `${code}: only for a senior citizen`; }
-    else if (rule.notForSenior && senior) { allowed = 0n; label = `${code}: not for a senior citizen, who claims under 80TTB instead`; }
+    // Labels name the deduction in words, never its section number: a client document quotes them, and section numbers
+    // wait for the CA's confirmation (claims.ts sections-flagged). The step's key and section keep the code.
+    const title = (rule ?? table.payload.regimes.old.deductions[code]).title;
+    if (!rule) { allowed = 0n; label = `${title}: not allowed under the new regime`; }
+    else if (rule.seniorOnly && !senior) { allowed = 0n; label = `${title}: only for a senior citizen`; }
+    else if (rule.notForSenior && senior) { allowed = 0n; label = `${title}: not for a senior citizen, who claims the deduction for deposit interest instead`; }
     else {
       const capText = rule.capByAge?.[input.ageBand] ?? rule.capMinor;
       const cap = capText === null ? null : BigInt(capText);
       allowed = cap === null ? claimed : minBig(claimed, cap);
-      label = allowed < claimed ? `${code}, ${rule.title.toLowerCase()}: claimed ${inr(claimed)}, capped at ${inr(cap!)}` : `${code}, ${rule.title.toLowerCase()}`;
+      label = allowed < claimed ? `${title}: claimed ${inr(claimed)}, capped at ${inr(cap!)}` : title;
     }
     builder.step(`deduction-${code}`, label, allowed, section);
     total += allowed;

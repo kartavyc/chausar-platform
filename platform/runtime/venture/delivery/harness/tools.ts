@@ -10,9 +10,11 @@ import { ChausarError, check, newId } from '../../../contracts.ts';
 import { digest, modelWords } from '../../records.ts';
 import { TOOL_NAMES } from '../../contracts.ts';
 import type {
-  ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, Json, MockEffect, PolicyHold, RecordBase, SandboxPorts, ToolCallRecord,
+  ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, Json, MockEffect, OrderIntake, PolicyHold, RecordBase, SandboxPorts, ToolCallRecord,
   ToolEffect, ToolEnvelope, ToolName, VentureDeps, VentureHostKind, VentureRecordKind, WorkReceiptRecord, WorkRunRef, WorkTableRecord, WorkTableRow,
 } from '../../contracts.ts';
+import type { RateUse } from '../../playbooks/ca-firm/rates.ts';
+import type { EvidenceType } from '../../evidence/types.ts';
 import type { Context } from '../../../contracts.ts';
 import { defaultPolicyContext, ladderPolicy, type HarnessPolicy } from '../../policy/ladder.ts';
 import { shadowAction } from '../../journal/simulation.ts';
@@ -31,6 +33,11 @@ import { labelFinding, runPythonTransform, runRowProgram, tierRefusal } from './
 import { parseRowProgram, ROW_LANGUAGE_GUIDE } from './sandbox-lang.ts';
 import { reconcileMonth, sumRows, totalsBy, type WorkEnv, type WorkReceiptDraft } from './work.ts';
 import type { Denial } from './recheck.ts';
+import { CA_TOOLS } from './tools-ca.ts';
+import { CA_CHECK_TOOLS } from './tools-ca-checks.ts';
+import { YOUTUBE_TOOLS } from './tools-youtube.ts';
+import { SOCIAL_TOOLS } from './tools-social.ts';
+import { EVIDENCE_TOOLS } from './tools-evidence.ts';
 
 export const MAX_INPUT_CHARS = 12000;
 /** Long enough for the slowest honest call: Docker checks and a 30 second container run, or a big table in chunks. */
@@ -80,7 +87,29 @@ export type ToolEnv = {
    * the run's cap, read from the vault then. A denial, or a check that throws, cancels the call. Real orders only.
    */
   recheck?: (action: { tool: ToolName; inputDigest: string }) => Denial | null | Promise<Denial | null>;
+  /** The order's intake (rights, format, calendar, the client's word lists); null or absent in rehearsals and for orders with none. */
+  intake?: OrderIntake | null;
+  /**
+   * How the CA firm's tax engines may use the rate tables (playbooks/ca-firm/rates.ts): a real order's work needs the
+   * CA's confirmation of each version; a rehearsal or an improvement run works on unconfirmed tables and says so.
+   * buildToolEnv always sets it; it is absent only where a test builds the environment by hand, and a tool then reads
+   * it as a real client's work with no confirmations.
+   */
+  rateUse?: RateUse;
+  /**
+   * The run's tool calls so far, this turn's earlier calls included (applyTurn hands over the run's own list), so a
+   * tool can find the call that backs a claim (evidence.record). Absent where a test builds the environment by hand.
+   */
+  calls?: readonly ToolCallRecord[];
+  /** Facts the agent noted this turn with evidence.record, in call order. A real order's caller stores them with the run. */
+  evidence?: EvidenceNote[];
 };
+
+/**
+ * One fact an agent noted (tools-evidence.ts), waiting until the run stores it in the same transaction as its tables
+ * and receipts (delivery/runs.ts). backedBy: the earlier call in this run that code found backs the claimed type.
+ */
+export type EvidenceNote = { subject: 'client' | 'business'; field: string; value: string; type: EvidenceType; backedBy: string | null; source: string | null };
 
 const OUTBOX_TARGETS: Readonly<Record<string, string>> = Object.freeze({ 'mail-app': 'Your mail app', 'payment-link': 'A payment link' });
 const SHADOW_NOTE = 'Shadow: nothing was sent and nothing waits for approval. This is what would have happened, and what Chausar could not know without sending it.';
@@ -103,13 +132,16 @@ async function shadowOutbox(env: ToolEnv, mock: MockEffect, summary: string): Pr
   };
 }
 
-type ToolResult = { result: unknown; tables?: WorkTableRecord[]; receipts?: WorkReceiptRecord[]; proofs?: { kind: ClaimProofKind; receiptId?: string; tableId?: string }[]; handoff?: { to: 'client' | 'owner'; question: string }; mock?: MockEffect; delegate?: DelegationDraft };
-type Field =
+// The shapes and helpers below are exported for the tool files (tools-ca.ts, tools-ca-checks.ts, tools-youtube.ts,
+// tools-social.ts, tools-evidence.ts). The helpers are function declarations, so a tool file may use them while it
+// loads, whichever of the files loads first.
+export type ToolResult = { result: unknown; tables?: WorkTableRecord[]; receipts?: WorkReceiptRecord[]; proofs?: { kind: ClaimProofKind; receiptId?: string; tableId?: string }[]; handoff?: { to: 'client' | 'owner'; question: string }; mock?: MockEffect; delegate?: DelegationDraft; evidence?: EvidenceNote[] };
+export type Field =
   | { type: 'text'; required: boolean; max: number; about: string }
   | { type: 'enum'; required: boolean; values: readonly string[]; about: string }
   | { type: 'list'; required: boolean; max: number; item: Field; about: string }
   | { type: 'object'; required: boolean; fields: Record<string, Field>; about: string };
-type Spec = {
+export type Spec = {
   name: ToolName;
   effect: ToolEffect;
   tier: ExecutionTier;
@@ -119,8 +151,10 @@ type Spec = {
   run(env: ToolEnv, input: Record<string, any>): Promise<ToolResult>;
 };
 
-const text = (about: string, max = 200, required = true): Field => ({ type: 'text', required, max, about });
-function fail(message: string): never {
+export function text(about: string, max = 200, required = true): Field {
+  return { type: 'text', required, max, about };
+}
+export function fail(message: string): never {
   throw new ChausarError('TOOL_FAILED', message);
 }
 
@@ -133,14 +167,14 @@ function tableAlias(env: ToolEnv, table: SourceTable): string {
 }
 export function receiptAlias(env: Pick<ToolEnv, 'receipts'>, receiptId: string): string { return `w${env.receipts.findIndex(item => item.id === receiptId) + 1}`; }
 
-function fileOf(env: ToolEnv, alias: unknown): FileLike {
+export function fileOf(env: ToolEnv, alias: unknown): FileLike {
   const match = typeof alias === 'string' ? /^f(\d{1,2})$/.exec(alias) : null;
   const file = match ? env.files[parseInt(match[1], 10) - 1] : undefined;
   if (!file) fail(`There is no file ${JSON.stringify(alias)}. The files are: ${env.files.map((_, i) => `f${i + 1}`).join(', ') || 'none'}.`);
   return file!;
 }
 
-function tableOf(env: ToolEnv, alias: unknown): SourceTable {
+export function tableOf(env: ToolEnv, alias: unknown): SourceTable {
   if (typeof alias === 'string') {
     const work = /^t(\d{1,2})$/.exec(alias);
     if (work) { const record = env.tables[parseInt(work[1], 10) - 1]; if (record) return tableOfRecord(record); }
@@ -157,22 +191,41 @@ function tableOf(env: ToolEnv, alias: unknown): SourceTable {
   return fail(`There is no table ${JSON.stringify(alias)}. Use files.list to see the tables.`);
 }
 
-function base<K extends VentureRecordKind>(env: ToolEnv, kind: K, prefix: string): RecordBase<K> {
+export function base<K extends VentureRecordKind>(env: ToolEnv, kind: K, prefix: string): RecordBase<K> {
   return { id: newId(prefix), kind, ventureId: env.ventureId, memberId: env.memberId, epoch: env.epoch, at: env.now() };
 }
 
 /** A new receipt and the short name it will have. It joins the run only when the call succeeds (see callTool). */
-function receiptOut(env: ToolEnv, draft: WorkReceiptDraft): { record: WorkReceiptRecord; alias: string; figures: Json } {
+export function receiptOut(env: ToolEnv, draft: WorkReceiptDraft): { record: WorkReceiptRecord; alias: string; figures: Json } {
   const record: WorkReceiptRecord = { ...base(env, 'venture-work-receipt', 'work'), ...draft };
   const alias = `w${env.receipts.length + 1}`;
   return { record, alias, figures: record.figures.map(figure => ({ ref: `${alias}.${figure.key}`, label: figure.label, value: figure.display })) };
 }
 
-function rowsOut(rows: readonly WorkTableRow[]): Json {
+export function rowsOut(rows: readonly WorkTableRow[]): Json {
   return rows.map(row => ({ id: row.id, ...row.cells }));
 }
 
-const TOOLS: Readonly<Record<ToolName, Spec>> = {
+/**
+ * A table code worked out from the client's files (a ranked list of hooks, an edit list), with the short name it will
+ * have and its rows as the agent reads them. Rows are numbered r1, r2, ... in the order given; a cell a row lacks is
+ * empty. Like a receipt, it joins the run only when the call succeeds (see callTool).
+ */
+export function computedTable(env: ToolEnv, name: string, columns: readonly string[], rows: readonly Readonly<Record<string, string>>[], tool: ToolName, uploadIds: readonly string[]): { record: WorkTableRecord; alias: string; rows: Json } {
+  const tableRows: WorkTableRow[] = rows.map((cells, index) => ({ id: `r${index + 1}`, cells: Object.fromEntries(columns.map(column => [column, cells[column] ?? ''])) }));
+  const record: WorkTableRecord = {
+    ...base(env, 'venture-work-table', 'worktable'), name: name.slice(0, 120), columns: [...columns], rows: tableRows,
+    source: { kind: 'computed', tool, uploadIds: [...new Set(uploadIds)] }, runRef: env.runRef, digest: digest(tableRows),
+  };
+  return { record, alias: `t${env.tables.length + 1}`, rows: rowsOut(tableRows) };
+}
+
+/** The tools any playbook's agents may be granted. A flagship playbook's own tools, and evidence.record, live in tools-*.ts. */
+type CoreToolName =
+  | 'files.list' | 'files.read' | 'dictionary.browse' | 'dictionary.resolve' | 'calc.sum' | 'calc.totals' | 'books.reconcile' | 'bills.pick'
+  | 'sandbox.transform' | 'sandbox.python' | 'handoff.client' | 'handoff.owner' | 'outbox.propose' | 'agent.delegate';
+
+const CORE_TOOLS: Readonly<Record<CoreToolName, Spec>> = {
   'files.list': {
     name: 'files.list', effect: 'read', tier: 'code', endsTurn: false, input: {},
     summary: 'Lists the files the client sent and the tables in them, with their columns, and the tables your tools made.',
@@ -406,6 +459,15 @@ const TOOLS: Readonly<Record<ToolName, Spec>> = {
   },
 };
 
+let allTools: Readonly<Record<ToolName, Spec>> | null = null;
+/**
+ * Every tool by name. Put together on first use, not while this file loads: the tool files import this file's
+ * helpers, so the table is built only once every one of them has loaded, whichever loaded first.
+ */
+function tools(): Readonly<Record<ToolName, Spec>> {
+  return allTools ??= Object.freeze({ ...CORE_TOOLS, ...CA_TOOLS, ...CA_CHECK_TOOLS, ...YOUTUBE_TOOLS, ...SOCIAL_TOOLS, ...EVIDENCE_TOOLS });
+}
+
 function madeTable(env: ToolEnv, source: SourceTable, columns: string[], rows: string[][], how: { tier: ExecutionTier; driver: string; programDigest: string; moduleDigest: string | null }): ToolResult {
   const tableRows: WorkTableRow[] = source.rows.map((row, index) => ({ id: row.id, cells: Object.fromEntries(columns.map((column, c) => [column, rows[index][c]])) }));
   const table: WorkTableRecord = {
@@ -428,7 +490,8 @@ function workEnv(env: ToolEnv): WorkEnv {
 }
 
 export function toolSpec(name: string): Spec | null {
-  return Object.hasOwn(TOOLS, name) ? TOOLS[name as ToolName] : null;
+  const all = tools();
+  return Object.hasOwn(all, name) ? all[name as ToolName] : null;
 }
 
 /**
@@ -439,7 +502,7 @@ export function toolSpec(name: string): Spec | null {
 export function hostRefusal(host: VentureHostKind | undefined, name: ToolName): string | null {
   if (host !== 'hosted-web') return null;
   if (name === 'bills.pick') return HOSTED_NO_PDF;
-  return tierRefusal(host, TOOLS[name].tier);
+  return tierRefusal(host, tools()[name].tier);
 }
 
 /** The granted tools this host can run: what the agent is offered. A playbook's grant is never changed by the host. */
@@ -450,7 +513,7 @@ export function offeredTools(grant: readonly ToolName[], host: VentureHostKind |
 /** The tool list a prompt carries for a grant: names, what each does and its input fields. Deny by default. */
 export function toolManifest(grant: readonly ToolName[]): Json {
   return TOOL_NAMES.filter(name => grant.includes(name)).map(name => {
-    const spec = TOOLS[name];
+    const spec = tools()[name];
     const describe = (field: Field): Json => field.type === 'object'
       ? { type: 'object', about: field.about, fields: Object.fromEntries(Object.entries(field.fields).map(([key, inner]) => [key, describe(inner)])) }
       : field.type === 'list' ? { type: 'list', about: field.about, max: field.max, item: describe(field.item) }
@@ -491,8 +554,26 @@ function check1(field: Field, item: unknown, path: string): any {
 
 const errorName = (code: string) => code.toLowerCase().split('_').map(part => part[0].toUpperCase() + part.slice(1)).join('');
 
-function failure(code: string, message: string): ToolEnvelope {
-  return { ok: false, error: { code, name: errorName(code), message: message.slice(0, 600) } };
+function failure(code: string, message: string, details?: Json): ToolEnvelope {
+  return { ok: false, error: { code, name: errorName(code), message: message.slice(0, 600), ...(details === undefined ? {} : { details }) } };
+}
+
+/**
+ * A refusal a tool marks for the agent, such as { retry: false } when asking again gives the same answer every time
+ * (the CA firm's calculator, tools-ca.ts). It rides on the error as details and reaches the envelope unchanged.
+ */
+export function refusal(code: string, message: string, details: Json): ChausarError {
+  return Object.assign(new ChausarError(code, message), { details });
+}
+const detailsOf = (error: unknown): Json | undefined => (error instanceof ChausarError ? (error as ChausarError & { details?: Json }).details : undefined);
+
+/** An earlier call refused with retry false, for good (no until), on this same input. */
+function repeatOf(earlier: ToolCallRecord, inputDigest: string, inputText: string): boolean {
+  if (earlier.envelope.ok) return false;
+  const details = earlier.envelope.error.details as { retry?: unknown; until?: unknown; answeredFrom?: unknown } | null | undefined;
+  if (!details || typeof details !== 'object' || details.retry !== false || details.until !== undefined || details.answeredFrom !== undefined) return false;
+  if (earlier.inputDigest === digest(inputText)) return true;
+  try { return earlier.input !== null && digest(earlier.input) === inputDigest; } catch { return false; }
 }
 
 /** A call the policy held for the owner: it did not run. */
@@ -563,9 +644,15 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
   try { input = validate(spec.input, parsed, 'input'); } catch (error) {
     return outcome(failure('TOOL_INPUT_INVALID', error instanceof Error ? error.message : 'The tool input does not fit.'), 'failed', parsed as Json);
   }
+  const inputDigest = inputDigestOf(input, inputText);
+  // The same call again after an answer marked retry false (the same answer every time) is answered from the run
+  // without running. A refusal that lasts only until something outside the run changes (details.until) runs again.
+  const answered = (env.calls ?? []).find(item => item.tool === spec.name && repeatOf(item, inputDigest, inputText));
+  if (answered && !answered.envelope.ok) {
+    return outcome({ ok: false, error: { ...answered.envelope.error, details: { ...(answered.envelope.error.details as Record<string, Json>), answeredFrom: answered.id } } }, 'failed', input as Json);
+  }
   // The policy, before anything starts. It fails closed: a check that throws or does not answer in time blocks the call.
   const policy = env.policy ?? { context: defaultPolicyContext(env.runRef) };
-  const inputDigest = inputDigestOf(input, inputText);
   const verdict = await evaluate([...(policy.policies ?? []), ladderPolicy], { phase: 'tool-call', name: spec.name, effect: spec.effect, inputDigest, input },
     { ...policy.context, grant, turn, holds, taint }, policy.timeoutMs === undefined ? {} : { timeoutMs: policy.timeoutMs });
   if (verdict.verdict === 'deny') return outcome(failure('POLICY_DENIED', verdict.reason), 'failed', input as Json, { verdict });
@@ -594,6 +681,8 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
     // later never adds a table or a receipt, so the short names stay stable.
     env.tables.push(...(result.tables ?? []));
     env.receipts.push(...(result.receipts ?? []));
+    // Facts noted with evidence.record wait here the same way, for the caller to store with the run.
+    if (result.evidence?.length) (env.evidence ??= []).push(...result.evidence);
     const delegate: DelegationRequest | null = result.delegate ? { ...result.delegate, toolCallId: id, turn } : null;
     return outcome({ ok: true, result: (screened ? screened.value : result.result) as Json }, 'succeeded', input as Json, { proofs, handoff: result.handoff ?? null, mock: result.mock ?? null, tables: result.tables ?? [], receipts: result.receipts ?? [], delegate, verdict, integrity, screen: screened?.note ?? null });
   } catch (error) {
@@ -605,7 +694,7 @@ export async function callTool(env: ToolEnv, grant: readonly ToolName[], turn: n
     const screened = integrity === 'untrusted' ? screenResult(env, spec.name, message) : null;
     if (screened?.status === 'quarantined') return outcome(failure('UNTRUSTED_HELD', screened.held), 'cancelled', input as Json, { verdict, integrity, screen: screened.note });
     const words = typeof screened?.value === 'string' ? screened.value : message;
-    return outcome(failure(code, words), code === 'TOOL_TIMEOUT' ? 'timedOut' : 'failed', input as Json, { verdict, integrity, screen: screened?.note ?? null });
+    return outcome(failure(code, words, detailsOf(error)), code === 'TOOL_TIMEOUT' ? 'timedOut' : 'failed', input as Json, { verdict, integrity, screen: screened?.note ?? null });
   } finally {
     clearTimeout(timer);
   }

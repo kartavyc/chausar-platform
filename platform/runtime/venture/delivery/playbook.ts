@@ -3,10 +3,10 @@
 // name the tools they may call (deny by default) and hold guidance the improvement loop can change with typed
 // patches. Playbook versions are never overwritten: every change is a new version, and the business points at one.
 import { check, type Context, type State } from '../../contracts.ts';
-import { digest, exactPayload, findRecord, listRecords, ventureAction } from '../records.ts';
+import { digest, exactPayload, findRecord, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import { CHECK_IDS, REQUIRED_SECTIONS, TOOL_NAMES } from '../contracts.ts';
 import type {
-  BlueprintRecord, CheckId, ExecutionTier, HarnessLimits, PlaybookPatch, PlaybookRecord, PlaybookStep, StepKind, ToolName, VentureDeps,
+  BlueprintRecord, CheckId, ExecutionTier, HarnessLimits, OrderIntake, PlaybookPatch, PlaybookRecord, PlaybookStep, StepKind, ToolName, VentureDeps,
   VentureRecord,
 } from '../contracts.ts';
 import { dictionaryEntries } from './harness/dictionary.ts';
@@ -32,8 +32,9 @@ const AGENT_KINDS: readonly StepKind[] = ['gather', 'question', 'work'];
 
 /** The verify and draft check lists live in check-lists.ts, so the flagship playbooks can name them without this file. */
 export { DRAFT_CHECKS, VERIFY_CHECKS };
-const READ_TOOLS: readonly ToolName[] = ['files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve', 'handoff.client', 'handoff.owner'];
-const WORK_TOOLS: readonly ToolName[] = ['files.read', 'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick', 'sandbox.transform', 'sandbox.python', 'handoff.client', 'handoff.owner', 'agent.delegate'];
+// evidence.record (Ink v2 wave 2): the agents that read the client's files may note where a fact came from.
+const READ_TOOLS: readonly ToolName[] = ['files.list', 'files.read', 'dictionary.browse', 'dictionary.resolve', 'handoff.client', 'handoff.owner', 'evidence.record'];
+const WORK_TOOLS: readonly ToolName[] = ['files.read', 'calc.sum', 'calc.totals', 'books.reconcile', 'bills.pick', 'sandbox.transform', 'sandbox.python', 'handoff.client', 'handoff.owner', 'agent.delegate', 'evidence.record'];
 
 export const GENERIC_WORK_TITLE = 'Do the hands-on work with tools';
 
@@ -146,9 +147,9 @@ export function currentPlaybook(state: State, venture: VentureRecord): PlaybookR
 
 /**
  * A playbook is current for a plan when it was built from that exact plan in the harness format, with the same
- * flagship playbook's steps (or none).
+ * flagship playbook's steps (or none). Going back a version (improve.ts rollback) asks the same of the older one.
  */
-function fits(playbook: PlaybookRecord | null, blueprint: BlueprintRecord, venture: VentureRecord): boolean {
+export function fits(playbook: PlaybookRecord | null, blueprint: BlueprintRecord, venture: VentureRecord): boolean {
   return !!playbook && playbook.blueprintDigest === blueprint.digest && playbook.format === 2 && (playbook.flagship ?? null) === deliveryFlagship(venture, blueprint);
 }
 
@@ -157,19 +158,73 @@ function fits(playbook: PlaybookRecord | null, blueprint: BlueprintRecord, ventu
  * order. A patch that no longer applies to the new plan is dropped and reported.
  */
 export function buildBody(state: State, venture: VentureRecord, blueprint: BlueprintRecord, patches: readonly PlaybookPatch[]): { body: PlaybookBody; applied: PlaybookPatch[]; dropped: PlaybookPatch[] } {
-  let body: PlaybookBody = { steps: playbookSteps(blueprint, deliveryFlagship(venture, blueprint)), limits: { ...DEFAULT_LIMITS }, aliases: {} };
+  const flagship = deliveryFlagship(venture, blueprint);
+  let body: PlaybookBody = { steps: playbookSteps(blueprint, flagship), limits: { ...DEFAULT_LIMITS }, aliases: {} };
   const entryIds = dictionaryEntries(state, venture).map(entry => entry.id);
   const applied: PlaybookPatch[] = [], dropped: PlaybookPatch[] = [];
   for (const patch of patches) {
-    try { body = applyPatch(body, patch, { serviceType: blueprint.serviceType, entryIds }); applied.push(patch); } catch { dropped.push(patch); }
+    try { body = applyPatch(body, patch, { serviceType: blueprint.serviceType, entryIds, flagship }); applied.push(patch); } catch { dropped.push(patch); }
   }
   return { body, applied, dropped };
 }
 
-/** The hash a playbook built now for this business would have: the current one when it fits the plan. */
+/**
+ * The steps of a stored playbook that fits its plan, with the tools this build grants its steps added (Ink v2 wave 2:
+ * evidence.record on the reading steps, a flagship playbook's own tools), or null when nothing would change. For each
+ * stored step whose id the build still makes: an agent step gains each tool the step built now holds that is within
+ * the ceiling, that it lacks and that no adopted patch took away from it; a code step the build now runs as an agent
+ * step (the CA firm's compute) takes the new step whole, when no adopted patch names it. Nothing is ever removed and
+ * guidance is never touched, so an adopted improvement is kept. A result that would not validate is no change.
+ */
+export function grantTopUp(playbook: Pick<PlaybookRecord, 'steps' | 'patches' | 'limits' | 'aliases'>, blueprint: BlueprintRecord, venture: Pick<VentureRecord, 'idea'>): PlaybookStep[] | null {
+  const flagship = deliveryFlagship(venture, blueprint);
+  let built: PlaybookStep[];
+  try { built = playbookSteps(blueprint, flagship); } catch { return null; }
+  const now = new Map(built.map(step => [step.id, step]));
+  const ceiling = toolCeiling(blueprint.serviceType, flagship);
+  const patches = playbook.patches ?? [];
+  const revoked = new Set(patches.filter(patch => patch.op === 'tools.revoke').map(patch => `${patch.stepId}|${patch.value}`));
+  let changed = false;
+  const steps = playbook.steps.map((step): PlaybookStep => {
+    const fresh = now.get(step.id);
+    if (!fresh || !AGENT_KINDS.includes(fresh.kind)) return step;
+    if (!AGENT_KINDS.includes(step.kind)) {
+      if (!CODE_ONLY_KINDS.includes(step.kind) || patches.some(patch => patch.stepId === step.id)) return step;
+      changed = true;
+      return { ...structuredClone(fresh), tools: (fresh.tools ?? []).filter(tool => ceiling.includes(tool)) };
+    }
+    const added = (fresh.tools ?? []).filter(tool => ceiling.includes(tool) && !(step.tools ?? []).includes(tool) && !revoked.has(`${step.id}|${tool}`));
+    if (!added.length) return step;
+    changed = true;
+    return { ...step, tools: [...(step.tools ?? []), ...added] };
+  });
+  if (!changed) return null;
+  try { validatePlaybook(steps, { limits: playbook.limits ?? { ...DEFAULT_LIMITS }, aliases: playbook.aliases ?? {} }); } catch { return null; }
+  return steps;
+}
+
+/**
+ * Stores a grant top-up as the next version. It keeps the version's place (its origin, parent and patches), so adopting
+ * an improvement and going back from one work as they did; the version it tops up stays stored, unchanged.
+ */
+function putTopUp(tx: VentureTx, existing: PlaybookRecord, steps: PlaybookStep[]): PlaybookRecord {
+  const limits = existing.limits ?? { ...DEFAULT_LIMITS }, aliases = existing.aliases ?? {};
+  const { hash, tierCeiling } = validatePlaybook(steps, { limits, aliases });
+  const versions = listRecords(tx.state, 'venture-playbook', existing.ventureId).map(record => record.version);
+  const record: PlaybookRecord = { ...existing, ...tx.base('venture-playbook'), version: Math.max(0, ...versions) + 1, hash, steps, tierCeiling, limits, aliases };
+  tx.put(record);
+  tx.touch({ playbookId: record.id });
+  tx.emit('playbook-ready', { playbookId: record.id, version: record.version, hash });
+  return record;
+}
+
+/** The hash a playbook built now for this business would have: the current one when it fits the plan, with any grant top-up. */
 export function expectedPlaybookHash(state: State, venture: VentureRecord, blueprint: BlueprintRecord): string {
   const current = currentPlaybook(state, venture);
-  if (current && fits(current, blueprint, venture)) return current.hash;
+  if (current && fits(current, blueprint, venture)) {
+    const topped = grantTopUp(current, blueprint, venture);
+    return topped ? playbookHash(topped, { limits: current.limits ?? { ...DEFAULT_LIMITS }, aliases: current.aliases ?? {} }) : current.hash;
+  }
   const { body } = buildBody(state, venture, blueprint, current?.patches ?? []);
   return playbookHash(body.steps, { limits: body.limits, aliases: body.aliases });
 }
@@ -182,12 +237,16 @@ export async function ensurePlaybook(deps: VentureDeps, ctx: Context): Promise<P
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const blueprint = acceptedBlueprint(state, venture);
   const current = currentPlaybook(state, venture);
-  if (current && fits(current, blueprint, venture)) return current;
+  if (current && fits(current, blueprint, venture) && !grantTopUp(current, blueprint, venture)) return current;
   return ventureAction(deps, ctx, 'prepare', 'delivery.playbook', tx => {
     const live = tx.venture!;
     const accepted = acceptedBlueprint(tx.state, live);
     const existing = currentPlaybook(tx.state, live);
-    if (existing && fits(existing, accepted, live)) return existing;
+    if (existing && fits(existing, accepted, live)) {
+      // A version stored before this build's step tools: the same steps with the new grants added, as the next version.
+      const topped = grantTopUp(existing, accepted, live);
+      return topped ? putTopUp(tx, existing, topped) : existing;
+    }
     const { body, applied } = buildBody(tx.state, live, accepted, existing?.patches ?? []);
     const { hash, tierCeiling } = validatePlaybook(body.steps, { limits: body.limits, aliases: body.aliases });
     const versions = listRecords(tx.state, 'venture-playbook', live.id).map(record => record.version);
@@ -222,13 +281,14 @@ export function playbookLimits(playbook: PlaybookRecord): HarnessLimits {
 
 /**
  * How a model draft for an order is laid out, when a flagship playbook says: its drafting step for the order's offer
- * (playbooks/steps.ts), with that step's headings and guidance. Null for the eight fixed steps, whose draft keeps the
- * service type's headings (or the report headings once tools proved work) and the writing step's guidance.
+ * (playbooks/steps.ts), with that step's headings and guidance, then the lines code makes for this order (a content
+ * calendar's slots, from intake). Null for the eight fixed steps, whose draft keeps the service type's headings (or
+ * the report headings once tools proved work) and the writing step's guidance.
  */
-export function flagshipDraft(playbook: Pick<PlaybookRecord, 'flagship' | 'steps'>, offerKey: string | null | undefined): { stepId: string; sections: string[]; guidance: string[] } | null {
+export function flagshipDraft(playbook: Pick<PlaybookRecord, 'flagship' | 'steps'>, offerKey: string | null | undefined, intake: OrderIntake | null = null): { stepId: string; sections: string[]; guidance: string[] } | null {
   const own = flagshipDelivery(playbook.flagship);
   if (!own) return null;
   const id = own.draftStep(offerKey);
   const step = playbook.steps.find(item => item.id === id && item.kind === 'write') ?? playbook.steps.find(item => item.kind === 'write');
-  return step && step.requiredSections.length ? { stepId: step.id, sections: [...step.requiredSections], guidance: [...(step.guidance ?? [])] } : null;
+  return step && step.requiredSections.length ? { stepId: step.id, sections: [...step.requiredSections], guidance: [...(step.guidance ?? []), ...own.orderGuidance(offerKey, intake)] } : null;
 }

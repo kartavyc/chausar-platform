@@ -37,6 +37,8 @@ const PLACES: Case[] = [
   { name: 'Business, website build', hash: '#/business/build' },
   { name: 'Business, keep', hash: '#/business/keep' },
   { name: 'Business, your CA', hash: '#/business/ca', before: ledgerline },
+  { name: 'Business, practice and improve', hash: '#/business/practice' },
+  { name: 'Work, an order the judge read on its own', hash: '#/work?order=o-mehta-sep', before: ledgerline },
   { name: 'New business', hash: '#/onboarding' },
   { name: 'First run', hash: '#/today', options: { fresh: true } },
   { name: 'Welcome back', hash: '#/today', options: { closed: true } },
@@ -60,6 +62,7 @@ const SHEETS: Case[] = [
   { name: 'payment', hash: '#/money/invoices?sheet=payment:inv-0039' },
   { name: 'connector', hash: '#/connections?sheet=connector:linkedin' },
   { name: 'bank statement import', hash: '#/connections?sheet=bank-import:bank-account' },
+  { name: 'bank account', hash: '#/connections?sheet=bank:bank-account' },
   { name: 'a sheet nobody provides', hash: '#/today?sheet=nothing:here' },
 ];
 
@@ -117,6 +120,11 @@ const OPENED: Case[] = [
   { name: 'Today, a second ask inside a row', hash: '#/today', press: ['Approve'] },
   { name: 'Money, spend limits being changed', hash: '#/money/spend', press: ['Change'] },
   { name: 'Business, staging a website edit', hash: '#/business/build', press: ['Stage an edit'] },
+  { name: 'Business, practice: rehearsed, a version kept and its second ask, the judge turned off then asked on', hash: '#/business/practice', press: ['Rehearse now', 'Run the improvement loop', 'Use this version', 'Turn off', 'Turn on'] },
+  {
+    name: 'Work, the judge asked about a ready draft', hash: '#/work?order=o-boat-14', press: ['Ask the judge'],
+    before: (engine) => engine.request('venture.models.connect', { presetId: 'anthropic-haiku-5-5', consentDigest: 'consent-anthropic', apiKey: 'a-test-key-for-the-fake' }),
+  },
   { name: 'Clients, blocking a lead', hash: '#/clients/leads?sheet=lead:lead-pocket', press: ['Block'] },
   { name: 'Business, keep with every fold open and a restore asked', hash: '#/business/keep', openFolds: true, press: ['Restore'] },
   { name: 'Business, keep, a move code shown', hash: '#/business/keep', openFolds: true, press: ['Make the file'] },

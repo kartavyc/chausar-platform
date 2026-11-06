@@ -31,6 +31,11 @@ This build does four things:
 | Accent | The neon #46F09B is too loud. The founder picked **Jade #2FB67C** from four calmer greens shown on the real Today screen; it fills the logo's second square too, with #0b0d0e text on it. Green text on light stays #0B7A45 for contrast |
 | Quality judge | Runs automatically on every draft that goes to a client or the public (a few model calls per order on the owner's key), switchable off per business; internal notes skip it |
 | Rupees | Spend limits stay in US dollars (what providers bill); the owner can set a rupees-per-dollar rate with its date, and spend then also shows in rupees, labelled with that rate |
+| Simple first | Self-employed people and retail owners must not find business, share and tax detail daunting. Every screen shows the simple path first (a fixed price, plain words) and keeps advanced detail (share prices, tax registration, GST fields, rate tables) one step away, shown only when the business needs it; a business not registered for GST never sees GST fields |
+| Share prices | Supported: a price can be a share of an amount the client confirms later (recruiting fee, refund audit), worked out by the calculator with a receipt; offered as an advanced option in the price editor |
+| Goal basis | The monthly goal counts money invoiced before tax |
+| Closed-business summaries | Kept, encrypted with this computer's key (no passphrase, no extra step), so "All businesses" and Chats can show closed businesses; passphrase-locked businesses show nothing until opened |
+| Phone receptionist | Built in wave 5 with live calls labelled planned until a calling provider is verified |
 | Today | Above the fold: goal progress (money invoiced this month toward a goal the owner sets), needs-you as visual cards, team at work. Not a money summary |
 | Team | Five fixed departments as tinted tiles: Sales and clients, Marketing, Production, Money, Operations. A toggle shows one department at a time |
 | Agent chat | Read every run as a conversation and talk to an agent. A "from now on" request becomes a proposed instruction change the owner accepts or rejects, versioned and undoable. The chat is not in your face: a quiet Chat button beside each agent on Team opens it |

@@ -468,7 +468,7 @@ test('tools on the hosted server: row programs, Python, containers and PDFs are 
   const helper = { async run(operation: 'pdf.extract') { helperCalls.push(operation); return { result: { pages: [{ page: 1, text: 'Total INR 4,500.00' }] }, receipt: {} }; } };
   const pdf: FileLike = { id: 'upload_pdf_hosted', name: 'bill.pdf', format: 'pdf', bytes: 10, digest: 'pdf-digest-hosted', contentBase64: Buffer.from('%PDF-1.7 synthetic').toString('base64'), clientData: true };
   const hostedDeps = { host: 'hosted-web', services: { helper } } as unknown as VentureDeps;
-  const env = toolEnv([...practice('clean'), pdf], { deps: hostedDeps, sandbox: { process: docker } });
+  const env = toolEnv([...practice('clean').slice(0, 2), pdf], { deps: hostedDeps, sandbox: { process: docker } });
   const refusal = (outcome: Awaited<ReturnType<typeof callTool>>) => outcome.record.envelope.ok ? null : outcome.record.envelope.error;
 
   const program = await call(env, ALL, 'sandbox.transform', { table: 'f2', program: 'out kind = "Supplies"' });
@@ -707,9 +707,10 @@ test('words only: hand-off questions and agent notes never carry an amount', asy
 
 test('practice files: made up by Chausar, not client data, and every practice month reads cleanly', () => {
   assert.deepEqual(Object.keys(PRACTICE_FILES), ['bookkeeping-clean', 'bookkeeping-messy']);
-  for (const kind of ['clean', 'messy'] as const) {
+  // The clean month also has a sales register, for a CA firm's GST working (W2 2A1).
+  for (const [kind, count] of [['clean', 3], ['messy', 2]] as const) {
     const files = practice(kind);
-    assert.equal(files.length, 2);
+    assert.equal(files.length, count);
     assert.ok(files.every(file => file.clientData === false && file.format === 'csv'));
     for (const file of files) assert.ok(table(file).rows.length >= 4);
   }

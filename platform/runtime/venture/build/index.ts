@@ -1,14 +1,19 @@
 // Chausar venture launcher, package P4: build brief, its lint, builder handoff links, the GitHub reader and the
 // connector catalogue. The host loads this file on first use of a method it owns.
+import { ChausarError } from '../../contracts.ts';
 import type { VentureHandler, VentureHandlerTable } from '../contracts.ts';
 import { writeBrief } from './brief.ts';
 import { listConnectors } from './connectors.ts';
 import { buildStatus, linkRepo, syncRepo } from './github.ts';
 import { markHandoffOpened, prepareHandoff } from './handoff.ts';
-import { bankConsent, bankImport } from './bank-methods.ts';
+import { bankAlertsGet, bankAlertsSet, bankApply, bankConsent, bankImport, bankLedger } from './bank-methods.ts';
 import { siteApply, siteRevert, siteStage } from './site-methods.ts';
 import { leadsAdd, leadsBlock, leadsDraft, leadsList, leadsRecordSend } from '../customers/lead-methods.ts';
-import { shareCreate, shareList, shareRevoke } from './share-links.ts';
+import { shareCreate, shareList, shareRecordAnswer, shareRevoke } from './share-links.ts';
+import { postingPropose, postingSignIn } from './posting.ts';
+import { postingCheckSteps } from './posting-steps.ts';
+import { postingLimitsGet, postingLimitsSet } from './posting-limits.ts';
+import { socialCalendarHandler } from '../playbooks/social/calendar-export.ts';
 
 const brief: VentureHandler<'venture.build.brief'> = writeBrief;
 const handoff: VentureHandler<'venture.build.handoff'> = prepareHandoff;
@@ -17,6 +22,8 @@ const link: VentureHandler<'venture.build.link'> = linkRepo;
 const sync: VentureHandler<'venture.build.sync'> = syncRepo;
 const status: VentureHandler<'venture.build.status'> = buildStatus;
 const connectors: VentureHandler<'venture.connectors.list'> = listConnectors;
+/** A wave 2 method whose package has not landed yet: listed, so the contract and the desktop see it, and refused. */
+const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = Object.freeze({
   'venture.build.brief': brief,
@@ -41,6 +48,19 @@ export const handlers: VentureHandlerTable = Object.freeze({
   'venture.share.create': shareCreate satisfies VentureHandler<'venture.share.create'>,
   'venture.share.list': shareList satisfies VentureHandler<'venture.share.list'>,
   'venture.share.revoke': shareRevoke satisfies VentureHandler<'venture.share.revoke'>,
+  // Ink v2 wave 2: posting from a checked draft (2B1, 2B2), the client's answer the owner records (2B1), the calendar
+  // file (2F2), and bank statements into the books with their alerts (2D).
+  'venture.posting.propose': postingPropose satisfies VentureHandler<'venture.posting.propose'>,
+  'venture.posting.signIn': postingSignIn satisfies VentureHandler<'venture.posting.signIn'>,
+  'venture.posting.limits.get': postingLimitsGet satisfies VentureHandler<'venture.posting.limits.get'>,
+  'venture.posting.limits.set': postingLimitsSet satisfies VentureHandler<'venture.posting.limits.set'>,
+  'venture.posting.checkSteps': postingCheckSteps satisfies VentureHandler<'venture.posting.checkSteps'>,
+  'venture.share.recordAnswer': shareRecordAnswer satisfies VentureHandler<'venture.share.recordAnswer'>,
+  'venture.social.calendar': socialCalendarHandler satisfies VentureHandler<'venture.social.calendar'>,
+  'venture.bank.ledger': bankLedger satisfies VentureHandler<'venture.bank.ledger'>,
+  'venture.bank.apply': bankApply satisfies VentureHandler<'venture.bank.apply'>,
+  'venture.bank.alerts.get': bankAlertsGet satisfies VentureHandler<'venture.bank.alerts.get'>,
+  'venture.bank.alerts.set': bankAlertsSet satisfies VentureHandler<'venture.bank.alerts.set'>,
 });
 
 export { defaultGitHubTransport, createFixtureGitHubTransport, TOKEN_LINK } from './github.ts';

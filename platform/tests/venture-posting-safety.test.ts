@@ -21,6 +21,7 @@ import { shareDecide, sharePage } from '../runtime/venture/build/share-links.ts'
 import { journalResolveHandler } from '../runtime/venture/journal/list.ts';
 import { code, owner, setup } from './venture-views-env.ts';
 import { clientDigest, seedClientAnswer, seedPostDraft, seedPostPlaybook } from './venture-post-drafts.ts';
+import { el as fakeElement, fakeBrowserPage, holdDisk, type FakePageModel } from './venture-fake-page.ts';
 
 const agent: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'mcp' };
 const PRESENT = { present: true, reason: 'Playwright with Chromium found on this computer.' };
@@ -256,67 +257,37 @@ test('the page check reads only what the platform owns: the address, the status,
 
 type PageModel = {
   url?: string; status?: number; title?: string; notice?: string; feed?: string;
-  elements?: Record<string, ElementFacts | 'unreadable'>;
+  elements?: Partial<Record<'textbox' | 'submit', ElementFacts | 'unreadable'>>;
   failConfirm?: boolean; afterClick?: { title?: string; notice?: string };
 };
 
-/** An in-memory stand-in for the hold files beside the profile folders, and a clock. */
-function holdDisk(start = Date.parse('2026-10-21T10:00:00.000Z')) {
-  const files = new Map<string, string>();
-  let now = start;
-  return {
-    files, advance: (ms: number) => { now += ms; },
-    options: { holdFiles: { read: (path: string) => files.get(path.replaceAll('\\', '/')) ?? null, write: (path: string, text: string) => { files.set(path.replaceAll('\\', '/'), text); } }, now: () => now },
-  };
-}
-
+/** X's compose page on the shared fake (venture-fake-page.ts): what the text box and the post button say they are. */
 function fakePage(model: PageModel = {}, disk: ReturnType<typeof holdDisk> = holdDisk()) {
-  const calls: string[] = [];
-  let clicked = false;
-  const script = BROWSER_SCRIPTS.x;
-  const elements: Record<string, ElementFacts | 'unreadable'> = {
-    [script.textbox]: el({ contentEditable: true, role: 'textbox' }), [script.submit]: el({ tag: 'button', type: 'button', role: 'button' }), ...model.elements,
-  };
-  const locator = (selector: string) => ({
-    first() { return this; },
-    async evaluate() { const facts = elements[selector]; if (!facts || facts === 'unreadable') throw new Error('detached'); return facts; },
-    async fill(text: string) { calls.push(`fill ${selector} ${text}`); },
-    async click() { calls.push(`click ${selector}`); clicked = true; },
-    async waitFor() { calls.push(`wait ${selector}`); if (model.failConfirm) throw new Error('Timeout 30000ms exceeded'); },
-  });
-  const page = {
-    async goto(url: string) { calls.push(`goto ${url}`); return { status: () => model.status ?? 200 }; },
-    url: () => model.url ?? PAGE,
-    async title() { return clicked && model.afterClick?.title !== undefined ? model.afterClick.title : model.title ?? 'Home / X'; },
-    // The platform's own notice element, by its selector; anything else the page holds is feed text.
-    async evaluate(_fn: unknown, selector?: unknown) {
-      if (selector !== script.noticeSelector) return model.feed ?? 'What is happening?!';
-      return clicked && model.afterClick?.notice !== undefined ? model.afterClick.notice : model.notice ?? '';
-    },
-    locator,
-  };
-  const module = {
-    chromium: {
-      executablePath: () => 'C:/fake/chromium/chrome.exe',
-      async launchPersistentContext() { launched += 1; return { pages: () => [page], newPage: async () => page, close: async () => {} }; },
+  const box = { ...fakeElement(), facts: model.elements?.textbox ?? el({ contentEditable: true, role: 'textbox' }) };
+  const button = { ...fakeElement(), text: 'Post', facts: model.elements?.submit ?? el({ tag: 'button', type: 'button', role: 'button' }) };
+  const shared: FakePageModel = {
+    url: model.url ?? PAGE, status: model.status, title: model.title ?? 'Home / X', notice: model.notice, feed: model.feed, lang: 'en',
+    elements: { 'test-id:tweetTextarea_0': [box], 'test-id:tweetButton': [button] },
+    afterClick: {
+      ...(model.failConfirm ? {} : { elements: { 'test-id:toast': [fakeElement({}, { text: 'Your post was sent.' })] } }),
+      ...(model.afterClick?.title !== undefined ? { title: model.afterClick.title } : {}), ...(model.afterClick?.notice !== undefined ? { notice: model.afterClick.notice } : {}),
     },
   };
-  let launched = 0;
-  const port = playwrightBrowserPort({ load: async () => module, exists: () => true, profileRoot: 'C:/profiles', ...disk.options });
-  return { port, calls, launched: () => launched, post: () => port.post({ postId: 'post_1', connectorId: 'x', text: 'Hello', timeoutMs: 1000 }) };
+  const fake = fakeBrowserPage(shared, { disk });
+  return { port: fake.port, calls: fake.calls, launched: fake.launched, post: () => fake.port.post({ postId: 'post_1', connectorId: 'x', text: 'Hello', timeoutMs: 300 }) };
 }
 
 test('the Playwright port: a clean compose page posts; a password field, a file input or another site is held before anything is sent', async () => {
   const clean = fakePage();
   assert.equal((await clean.post()).outcome, 'posted');
   const script = BROWSER_SCRIPTS.x;
-  assert.deepEqual(clean.calls, [`goto ${script.composeUrl}`, `fill ${script.textbox} Hello`, `click ${script.submit}`, `wait ${script.confirm}`]);
+  assert.deepEqual(clean.calls, [`goto ${script.composeUrl}`, 'fill test-id:tweetTextarea_0 Hello', 'click test-id:tweetButton']);
 
   for (const [elements, words] of [
-    [{ [script.textbox]: el({ tag: 'input', type: 'password' }) }, /type every password/],
-    [{ [script.submit]: el({ tag: 'input', type: 'file' }) }, /pick every file/],
-    [{ [script.submit]: el({ tag: 'a', href: 'https://elsewhere.example/post' }) }, /leave X/],
-    [{ [script.submit]: 'unreadable' as const }, /could not see/],
+    [{ textbox: el({ tag: 'input', type: 'password' }) }, /type every password/],
+    [{ submit: el({ tag: 'input', type: 'file' }) }, /pick every file/],
+    [{ submit: el({ tag: 'a', href: 'https://elsewhere.example/post' }) }, /leave X/],
+    [{ submit: 'unreadable' as const }, /could not see/],
   ] as const) {
     const fake = fakePage({ elements });
     const result = await fake.post();
@@ -456,12 +427,16 @@ test('a text post shows its whole exact text, so it is described completely; a p
 
 test('the same post is never proposed again while it may have gone out or after it went out; after "did not go out" it may be', async () => {
   const maybe: BrowserPostResult = { outcome: 'unknown', line: 'X did not confirm the post.' };
-  const { deps, browser } = await posting([maybe, { outcome: 'posted', line: 'Posted.', url: null }, maybe]);
+  const { env, deps, browser } = await posting([maybe, { outcome: 'posted', line: 'Posted.', url: null }, maybe]);
   const resolve = (entryId: string, outcome: 'sent' | 'not-sent') => journalResolveHandler(deps, owner, { entryId, outcome });
+  // A day between posts on X: Chausar's own posting limits (Ink v2 wave 2, playbooks/social/post-limits.ts) hold a
+  // second post on a new channel within the day, an unknown outcome counting as sent.
+  const nextDay = () => env.advance(25 * 3_600_000);
   const run = await seedPostDraft(deps, ['X: Fresh pastries at 8.', 'X: Filter coffee all day.']);
   const first = await proposePost(deps, agent, { connectorId: 'x', draftId: run.id, part: 1 });
   assert.equal((await decidePost(deps, owner, { postId: first.id, digest: first.digest, action: 'approve' })).post.state, 'outcome_unknown');
   await assert.rejects(proposePost(deps, agent, { connectorId: 'x', draftId: run.id, part: 1 }), code('JOURNAL_OUTCOME_UNKNOWN'));
+  nextDay();
   await proposePost(deps, agent, { connectorId: 'x', draftId: run.id, part: 2 }); // another post of the draft is its own
 
   // The owner looked: it did not go out, so it may be proposed and sent again.
@@ -479,6 +454,7 @@ test('the same post is never proposed again while it may have gone out or after 
   assert.equal(browser.jobs.length, 3);
 
   // Two proposals of one post, both waiting: once one goes out, the other is refused when approved and never runs.
+  nextDay();
   const twice = await seedPostDraft(deps, ['X: Sunday thali at noon.']);
   const a = await proposePost(deps, agent, { connectorId: 'x', draftId: twice.id });
   const b = await proposePost(deps, agent, { connectorId: 'x', draftId: twice.id });

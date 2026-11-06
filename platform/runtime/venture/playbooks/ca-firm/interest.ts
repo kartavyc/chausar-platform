@@ -9,7 +9,8 @@ import { rateTableFor, sectionOf, useRateTable, REHEARSAL, type InterestPayload,
 import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
 
 export type InterestInput = {
-  assessmentYear: '2026-27';
+  /** The years the income-tax tables cover; each has an interest table of its own (2027-28 from Ink v2 2A2). */
+  assessmentYear: '2026-27' | '2027-28';
   /** Tax on total income after rebate, with surcharge and cess: the income-tax receipt's tax liability. */
   taxOnTotalIncomeMinor: string;
   reliefMinor?: string;
@@ -17,8 +18,13 @@ export type InterestInput = {
   tcsMinor?: string;
   advanceTax: { date: IsoDate; amountMinor: string }[];
   filedOn: IsoDate;
-  /** The due date when the CBDT extended it; the table's date otherwise. */
+  /** The due date when the CBDT extended it, or the accounts need an audit; the table's date otherwise. */
   dueDate?: IsoDate;
+  /**
+   * Business or professional income whose accounts need no audit: the return is due on the table's business due date
+   * when it has one (31 August from assessment year 2026-27, under the Finance Act, 2026), else on its usual due date.
+   */
+  business?: boolean;
   /** Presumptive income under 44AD or 44ADA: one instalment by 15 March. */
   presumptive?: boolean;
   /** A resident senior citizen with no business income pays no advance tax. */
@@ -44,7 +50,9 @@ export function computeInterest234(input: InterestInput, use: RateUse = REHEARSA
   const stamp = useRateTable(table, use);
   const rates = table.payload;
   const filedOn = isoDate(input.filedOn, 'The filing date');
-  const dueDate = input.dueDate === undefined ? rates.dueDate : isoDate(input.dueDate, 'The due date');
+  // Business income with no audit has its own due date where the table keeps one (31 August from assessment year 2026-27).
+  const tableDue = input.business && rates.businessDueDate ? rates.businessDueDate : rates.dueDate;
+  const dueDate = input.dueDate === undefined ? tableDue : isoDate(input.dueDate, 'The due date');
   if (!Array.isArray(input.advanceTax)) invalid('Advance tax is a list of dated payments.');
   const advance = input.advanceTax.map((payment, index) => {
     const date = isoDate(payment?.date, `Advance tax payment ${index + 1}`);
@@ -56,7 +64,10 @@ export function computeInterest234(input: InterestInput, use: RateUse = REHEARSA
   const builder = new ReceiptBuilder('interest-234');
   builder.useTable(table, stamp);
   builder.assume('Self-assessment tax is taken as paid on the day the return is filed; tax paid earlier lowers 234A and 234B, and the CA adjusts for it.');
-  if (input.dueDate !== undefined && input.dueDate !== rates.dueDate) builder.assume(`The due date used is ${dueDate}, not the table's ${rates.dueDate}.`);
+  if (input.dueDate !== undefined && input.dueDate !== tableDue) builder.assume(`The due date used is ${dueDate}, not the table's ${tableDue}.`);
+  if (input.dueDate === undefined && tableDue !== rates.dueDate) {
+    builder.assume(`The return is due on ${tableDue}: the person has business or professional income and the accounts need no audit. With an audit it is due later, and the CA confirms which.`);
+  }
 
   const tax = paise(input.taxOnTotalIncomeMinor, 'Tax on total income');
   const credits = optionalPaise(input.reliefMinor, 'Relief') + optionalPaise(input.tdsMinor, 'TDS') + optionalPaise(input.tcsMinor, 'TCS');
@@ -88,7 +99,7 @@ export function computeInterest234(input: InterestInput, use: RateUse = REHEARSA
     builder.step(`interest-234c-${index + 1}`, `Interest for the instalment due ${step.by}`, interest, sectionOf(table, 'interest-234c'));
   });
   const c = builder.step('interest-234c', 'Interest for deferred advance tax', sumBig(instalments.map(item => BigInt(item.interestMinor))));
-  builder.step('interest-total', 'Interest under 234A, 234B and 234C', a + b + c);
+  builder.step('interest-total', 'Interest for the late return, short advance tax and deferred advance tax', a + b + c);
   if (liable) builder.cite(sectionOf(table, 'installments'));
   if (filedOn > dueDate) builder.cite(sectionOf(table, 'due-date'));
 

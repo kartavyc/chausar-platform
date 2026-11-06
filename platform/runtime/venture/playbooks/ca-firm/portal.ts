@@ -5,6 +5,7 @@
 // Idea taken, code written here: NidheeshJain/itr-prep-skill (MIT), which diffs the portal's generated JSON against
 // its data pack schedule by schedule before anyone files.
 import { invalid, signedPaise } from './money.ts';
+import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
 
 export type OurFigure = { key: string; label: string; minor: string; receiptId: string };
 export type PortalFigure = { key: string; minor: string };
@@ -39,6 +40,26 @@ export function diffAgainstPortal(input: { ours: OurFigure[]; portal: PortalFigu
   });
   const differences = rows.filter(row => row.state !== 'same').length;
   return { rows, clean: differences === 0, differences };
+}
+
+const STATE_WORDS: Readonly<Record<PortalRowState, string>> = {
+  same: 'the portal agrees', differs: 'the portal less ours', 'missing-on-portal': 'not on the portal', 'only-on-portal': 'only on the portal',
+};
+
+/**
+ * The diff as a CA receipt (Ink v2 2A2): one figure per key, the portal's figure less ours, so a stored diff can be
+ * worked again from its inputs and quoted by reference. The same inputs always give the same receipt.
+ */
+export function portalDiffReceipt(input: { ours: OurFigure[]; portal: PortalFigure[] }): CaReceipt<PortalDiff> {
+  const diff = diffAgainstPortal(input);
+  if (!diff.rows.length) invalid('There is nothing to compare: name our figures and the portal figures.');
+  const builder = new ReceiptBuilder('portal-diff');
+  for (const row of diff.rows) builder.step(row.key, `${row.label}: ${STATE_WORDS[row.state]}`, BigInt(row.deltaMinor));
+  builder.assume('Figures are compared by key, to the paisa. A key only one side has is a difference too.');
+  const open = diff.rows.filter(row => row.state !== 'same').map(row => row.key);
+  return builder.build(input, diff, open.length
+    ? `The portal's figures against the receipts: ${open.length} ${open.length === 1 ? 'difference' : 'differences'} (${open.join(', ')}) for the CA to accept or explain.`
+    : "The portal's figures agree with the receipts on every key.");
 }
 
 /** Ready to file only when every row that is not the same carries the CA's explanation. */

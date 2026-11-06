@@ -192,6 +192,8 @@ function script(env: HarnessEnv, turns: unknown[]) {
   let next = 0;
   env.models.respond['agent-turn'] = () => turns[Math.min(next++, turns.length - 1)];
   env.models.respond.delivery = () => REPORT;
+  // The ready report goes to the client, so the rules judge reads it on its own (judge-run.ts): one more journalled send.
+  env.models.respond.judge = task => ({ votes: (task.input as { rules: { id: string }[] }).rules.map(rule => ({ rule: rule.id, answer: 'yes', cites: ['draft'], quote: '', reason: 'Fine.' })) });
 }
 
 const quoteRow = async (deps: VentureDeps) => (await viewsCall<QueueList>(deps, 'venture.queue.list')).rows.find(row => row.kind === 'quote');
@@ -309,6 +311,8 @@ test('posting: a post is a journalled record; approve mints a bound token, the c
   assert.deepEqual(entries.map(entry => [entry.action, entry.target, entry.state]), [['Post', 'X', 'applied']]);
 
   // An agent proposal waits fifteen minutes; after that it is refused, the browser never starts, and the sweep closes it.
+  // A day later first: Chausar's own posting limits (Ink v2 wave 2) hold a second post on a new channel within the day.
+  advance(25 * 3_600_000);
   const late = await proposePost(deps, agentCtx, { connectorId: 'x', draftId: draft.id, part: 2 });
   advance(AGENT_WINDOW_MS + 1000);
   const refused = await decideConnectorRow(deps, owner, { id: late.id, digest: late.digest, action: 'approve' });

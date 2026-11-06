@@ -1,0 +1,26 @@
+/* The owner's own posting limits under a connector card: folded until opened, then a short grid of numbers. */
+
+.toggle {
+  margin-top: var(--sp-2);
+}
+
+.form {
+  display: grid;
+  gap: var(--sp-3);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14em, 1fr));
+  gap: var(--sp-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+}

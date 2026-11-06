@@ -7,13 +7,14 @@
 // - floor: the steps the playbook keeps in the always-ask floor, with its own reason;
 // - draftStep: the writing step that drafts an order's reply, by the order's offer.
 // Owner, client, CA and filer steps are people's work: they keep their gates but belong to no agent.
-import type { PlaybookStep } from '../contracts.ts';
+import type { OrderIntake, PlaybookStep } from '../contracts.ts';
 import { CA_STEPS, caFirmPlaybookSteps } from './ca-firm/playbook.ts';
 import { CA_FIRM_ID, CA_FIRM_LABEL } from './ca-firm/registration.ts';
 import { YOUTUBE_STEPS, youtubeEngineSteps } from './youtube/playbook.ts';
 import { YOUTUBE_ID, YOUTUBE_LABEL } from './youtube/registration.ts';
 import { SOCIAL_APPROVALS, SOCIAL_ROLES, SOCIAL_STEPS, socialPlaybookSteps, type SocialRoleId } from './social/playbook.ts';
 import { SOCIAL_AGENCY_ID, SOCIAL_AGENCY_LABEL } from './social/registration.ts';
+import { calendarGuidance, calendarSlotsOrNone } from './social/draft-posts.ts';
 
 export type FlagshipRole = { id: string; name: string; job: string; kind: 'agent' | 'code' };
 /**
@@ -36,6 +37,11 @@ export type FlagshipDelivery = {
   floor: Readonly<Record<string, string>>;
   /** The writing step that drafts an order's reply, by the playbook offer id (null: the playbook's usual one). */
   draftStep(offerKey: string | null | undefined): string;
+  /**
+   * Lines for one order's drafting task, from code, after the step's own guidance: the social agency's calendar slots
+   * (ids and dates planned from the order's intake). Empty for every other order.
+   */
+  orderGuidance(offerKey: string | null | undefined, intake: OrderIntake | null | undefined): string[];
 };
 
 /** How a YouTube package is laid out, so the hook, title, chapter and disclosure checks can read it (youtube/checks.ts). */
@@ -50,6 +56,7 @@ export const YOUTUBE_PACKAGE_GUIDANCE: readonly string[] = Object.freeze([
 export const SOCIAL_POST_GUIDANCE: readonly string[] = Object.freeze([
   'Under Drafts, give each post its own text part that begins with its channel and a colon, for example Instagram: then the post.',
   'Begin a paid post with Ad, and say Made with AI in the first line when an AI person, voice or realistic scene is in it.',
+  "When calendar slots follow, write one post under Drafts for each slot, in slot order for each channel, and no dates: code gives each post its slot's date.",
 ]);
 
 const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -94,6 +101,7 @@ function youtube(): FlagshipDelivery {
     id: YOUTUBE_ID, label: YOUTUBE_LABEL, steps, plan: planOf(steps, doers), roles, roleOf,
     floor: Object.fromEntries(YOUTUBE_STEPS.filter(step => step.floor).map(step => [step.id, step.floor!])),
     draftStep: () => 'package',
+    orderGuidance: () => [],
   };
 }
 
@@ -112,6 +120,7 @@ function caFirm(): FlagshipDelivery {
     id: CA_FIRM_ID, label: CA_FIRM_LABEL, steps, plan: planOf(steps, doers), roles, roleOf,
     floor: Object.fromEntries(CA_STEPS.filter(step => step.floor).map(step => [step.id, step.floor!])),
     draftStep: () => 'draft',
+    orderGuidance: () => [],
   };
 }
 
@@ -135,6 +144,9 @@ function socialAgency(): FlagshipDelivery {
   return {
     id: SOCIAL_AGENCY_ID, label: SOCIAL_AGENCY_LABEL, steps, plan: planOf(steps, doers), roles, roleOf, floor,
     draftStep: offerKey => SOCIAL_DRAFT_STEP[offerKey ?? ''] ?? 'drafts',
+    // A content calendar's slots, planned by code from the intake: the drafting task lists them, so dates never come from a
+    // model. A calendar that can no longer be planned adds nothing here; the calendar check says why.
+    orderGuidance: (offerKey, intake) => ((SOCIAL_DRAFT_STEP[offerKey ?? ''] ?? 'drafts') === 'drafts' ? calendarGuidance(calendarSlotsOrNone(intake)) : []),
   };
 }
 

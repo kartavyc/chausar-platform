@@ -135,7 +135,7 @@ export const QUEUE: RowSeed[] = [
     // The engine's connector row (posting.ts connectorQueueRows). LinkedIn, not Instagram: posting a picture or video
     // through the browser is not built, so the engine never proposes an Instagram post; a text post is.
     id: 'q-connector-linkedin', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Publisher', kind: 'connector', createdAt: '2026-10-21T10:02:00.000Z',
-    title: 'Post to LinkedIn', line: 'From your own browser on this computer. The platform may restrict this account.',
+    title: 'Post to LinkedIn', line: "Chausar will post in a browser window on this computer. Please don't type in that window until the post is done. The platform may restrict this account.",
     viewRef: { kind: 'draft', id: 'post-linkedin-ep13' },
     actions: [{ id: 'deny', label: 'Do not post', primary: false }, { id: 'approve', label: 'Approve and post', primary: true, secondAsk: true, requiresView: true }],
   },
@@ -444,12 +444,30 @@ export const UPLOADS: Record<string, UploadLite[]> = {
 /** Delivery drafts per business, newest first. Practice drafts are never shown as a client's. */
 export const DELIVERIES: Record<string, DeliveryLite[]> = {
   lumen: [
-    { id: 'd-ep14-script', at: '2026-10-21T08:30:00.000Z', orderId: 'o-boat-14', status: 'ready-for-review', practice: false, deliverable: { title: 'Sponsor script for episode 14' }, verdict: null },
+    // Ready, its code checks passed; Lumen has no AI, so the judge has not read it (Work offers "Ask the judge").
+    {
+      id: 'd-ep14-script', at: '2026-10-21T08:30:00.000Z', orderId: 'o-boat-14', status: 'ready-for-review', practice: false, deliverable: { title: 'Sponsor script for episode 14' }, verdict: null,
+      checks: [
+        { check: 'house-style', passed: true, detail: 'No long dashes and no words on the avoid list.' },
+        { check: 'length-bounds', passed: true, detail: 'The draft length is within bounds.' },
+      ],
+      servedBy: 'model', practiceNow: false, canAccept: true, acceptBlocked: null,
+    },
     { id: 'd-practice-1', at: '2026-10-15T09:10:00.000Z', orderId: 'o-boat-14', status: 'accepted', practice: true, deliverable: { title: 'Practice sponsor script' }, verdict: { choice: 'accepted', at: '2026-10-15T09:20:00.000Z' } },
     { id: 'd-ep12-script', at: '2026-10-03T10:00:00.000Z', orderId: 'o-boat-12', status: 'accepted', practice: false, deliverable: { title: 'Sponsor script for episode 12' }, verdict: { choice: 'accepted', at: '2026-10-03T12:00:00.000Z' } },
   ],
   ledgerline: [
-    { id: 'd-mehta-sep', at: '2026-10-05T10:00:00.000Z', orderId: 'o-mehta-sep', status: 'edited', practice: false, deliverable: { title: 'Books for September' }, verdict: { choice: 'edited', at: '2026-10-05T15:00:00.000Z' } },
+    // The judge read it on its own when it was ready (judgeAuto, on by default; Ledgerline has an AI), before the owner's
+    // edit; the edit set the judge's line to runs.ts JUDGE_EDIT_LINE, since the verdict is on the agent's words.
+    {
+      id: 'd-mehta-sep', at: '2026-10-05T10:00:00.000Z', orderId: 'o-mehta-sep', status: 'edited', practice: false, deliverable: { title: 'Books for September' }, verdict: { choice: 'edited', at: '2026-10-05T15:00:00.000Z' },
+      checks: [
+        { check: 'house-style', passed: true, detail: 'No long dashes and no words on the avoid list.' },
+        { check: 'rules-judge', passed: true, detail: 'Every rule passed its own floor. Each yes cited something code found in the run.' },
+      ],
+      servedBy: 'model', practiceNow: false, canAccept: false, acceptBlocked: null,
+      judge: { status: 'done', preview: null, auto: true, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: "Your edit is your own words, so the judge does not read it. Any verdict here is on the agent's draft." },
+    },
   ],
 };
 

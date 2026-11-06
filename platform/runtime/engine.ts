@@ -31,7 +31,7 @@ import { ConversationSynthesisHost } from './conversation-synthesis-host.ts';
 import { installedConversationSynthesisCodec } from './conversation-synthesis-codec.ts';
 import type { ConversationSynthesisCodec } from './conversation-synthesis-contract.ts';
 import { buildBusinessContext, assertBusinessContextCurrent, renderBusinessAnswer, BusinessProfileService, type BusinessContextHooks, type BusinessContextManifest } from './conversation-context.ts';
-import { SpeechService } from './speech.ts';
+import { SpeechService, type SpeechOptions } from './speech.ts';
 import { AuthService } from './auth.ts';
 import { PhoneSessionService } from './engine-phone-sessions.ts';
 import { EnginePhoneRuntime, type ReviewedPhoneConversationRequest } from './engine-phone-runtime.ts';
@@ -65,7 +65,7 @@ import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
-import type { SecretShelf, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
+import type { SecretShelf, VentureClosingPort, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
 import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
 import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
@@ -89,6 +89,8 @@ export type EngineBackupCustodyOptions = {
   withCompleteOwner?<T>(context: Context, historical: State, work: (assertCurrent: () => void) => Promise<T>): Promise<T>;
 };
 export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
+  /** Trusted local composition: how the speech service starts the local whisper.cpp (tests inject a stand-in). */
+  speech?: SpeechOptions;
   /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
   workspaceActivation?: EngineWorkspaceActivationOptions;
   workspaceAuthority?: {workspaceId: string; ownerId: string; vaultId?: string};
@@ -139,6 +141,19 @@ export class Engine {
   #closing = false;
   #companion: { store: Vault; sessions: PhoneSessionService; runtime: EnginePhoneRuntime } | undefined;
   #idleWaiters = new Set<() => void>();
+  /**
+   * Long local work a closing workspace stops (a transcript being made, Ink v2 wave 2 2E2): lock, close, switch and
+   * quit abort the signal, and wait (capped) for the requests to end instead of answering VAULT_BUSY.
+   */
+  #stopWork = new AbortController();
+  #stoppable = 0;
+  #closingPort: VentureClosingPort = (() => {
+    const engine = this;
+    return Object.freeze({
+      get signal() { return engine.#stopWork.signal; },
+      hold: () => { engine.#stoppable += 1; let released = false; return () => { if (!released) { released = true; engine.#stoppable -= 1; } }; },
+    });
+  })();
   #searchAdapter: Promise<PostgresInvestigationSearch> | null = null;
   #unknownAnswerRecoveries = new Set<string>();
   #answerRecoveryExecutions = new Map<string, Promise<void>>();
@@ -203,11 +218,12 @@ export class Engine {
     const pending = this.#venturePromise ??= this.#ventureModule().then(({ VentureHost }) => {
       check(this.vault === vault, 'VAULT_LOCKED', 'Open your workspace first.');
       const venture = this.options.venture ?? {};
-      const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper },
+      const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper, speech: this.services.speech },
         { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
           ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover }),
           workspace: venture.workspace ?? this.#ventureWorkspace,
-          notify: (events: VentureRunEvent[]) => { venture.notify?.(events); this.#publishVentureEvents(events); } });
+          notify: (events: VentureRunEvent[]) => { venture.notify?.(events); this.#publishVentureEvents(events); },
+          closing: this.#closingPort });
       this.#venture = host;
       return host;
     });
@@ -542,6 +558,8 @@ export class Engine {
   }
   private async attach(vault: Vault) {
     this.#venture?.close(); this.#venture = null; this.#venturePromise = null;
+    // A new workspace starts with long local work allowed again.
+    if (this.#stopWork.signal.aborted) this.#stopWork = new AbortController();
     // Vault paths are canonicalized when opened. Resolve the independently
     // configured root under the same no-symlink checks before comparing scope
     // (Windows may spell the same directory with a short-name alias).
@@ -691,7 +709,9 @@ export class Engine {
       conversationContinuation: (ctx, id, view, resolvedBy) => this.conversationContinuation(ctx, id, view, resolvedBy),
       conversationSynthesis: (ctx, id, view) => this.services.synthesisHost.resolve(ctx, id, view),
       synthesisCodec: this.options.synthesis ?? this.options.gateway?.synthesisCodec ?? installedConversationSynthesisCodec });
-    this.services.speech = new SpeechService(store);
+    this.services.speech = new SpeechService(store, this.options.speech);
+    // The whisper.cpp the owner set up in Connections > Your AI, kept in the vault; never on the hosted server.
+    if (this.options.venture?.host !== 'hosted-web') this.services.speech.restoreLocal(store.read());
     this.services.auth = new AuthService(store);
     this.services.sync = new SyncService(store, { ...this.options.sync, vault, requireWriterAdmission: true });
     this.services.actions = new ActionService(store, this.builtinActions(store));
@@ -757,6 +777,7 @@ export class Engine {
     return [{ id: 'local', title: 'Chausar local workspace', operations: { 'reminder-draft': draft } }];
   }
   async close() {
+    if (this.#activeRequests && !this.#transition) await this.stopLongWork();
     check(!this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Drain pending engine requests before closing its authority.');
     await this.closeVault();
   }
@@ -795,6 +816,8 @@ export class Engine {
   async shutdown(timeoutMs = 70000) {
     check(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded engine shutdown deadline.');
     this.#closing = true;
+    // Quitting stops a transcript being made: whisper.cpp and ffmpeg never outlive the engine, nor their temp folders.
+    this.#stopWork.abort();
     this.services.connectorRuntime?.close();
     this.services.jobRunner?.interruptActive();
     if (this.#activeRequests || this.#transition) await new Promise<void>((accept, reject) => {
@@ -844,6 +867,8 @@ export class Engine {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
     const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'workspace.transfer.import', 'workspace.backups.restore']);
     const transition = transitions.has(method);
+    // Lock, open, switch, delete and restore stop a transcript being made, and wait for it (capped), instead of VAULT_BUSY.
+    if (transition && !this.#transition && this.#activeRequests) await this.stopLongWork();
     check(!this.#transition && (!transition || this.#activeRequests === 0), 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
     if (transition) this.#transition = true; else this.#activeRequests++;
     try {
@@ -852,7 +877,24 @@ export class Engine {
       if (BACKUP_AFTER_METHODS.includes(method)) this.#schedule.due = true;
       return result;
     }
-    finally { if (transition) this.#transition = false; else this.#activeRequests--; this.notifyIdle(); }
+    finally {
+      if (transition) { this.#transition = false; if (this.#stopWork.signal.aborted) this.#stopWork = new AbortController(); } else this.#activeRequests--;
+      this.notifyIdle();
+    }
+  }
+  /**
+   * Stops long local work (a transcript being made: whisper.cpp and ffmpeg are killed, waited for and their folders
+   * removed) and waits for the requests to end, at most twenty seconds. Nothing else is stopped.
+   */
+  private async stopLongWork(): Promise<void> {
+    if (!this.#stoppable) return;
+    this.#stopWork.abort();
+    if (!this.#activeRequests && !this.#transition) return;
+    await new Promise<void>(accept => {
+      const finished = () => { clearTimeout(timer); this.#idleWaiters.delete(finished); accept(); };
+      const timer = setTimeout(finished, 20000);
+      this.#idleWaiters.add(finished);
+    });
   }
   private async handleRequest(method: string, payload: any = {}): Promise<any> {
     check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
@@ -1612,6 +1654,28 @@ export class Engine {
       case 'venture.share.create':
       case 'venture.share.list':
       case 'venture.share.revoke':
+      case 'venture.delivery.judge':
+      case 'venture.delivery.judgeSend':
+      case 'venture.improve.rollback':
+      case 'venture.files.transcribe':
+      case 'venture.posting.propose':
+      case 'venture.posting.signIn':
+      case 'venture.posting.checkSteps':
+      case 'venture.share.recordAnswer':
+      case 'venture.social.calendar':
+      case 'venture.bank.ledger':
+      case 'venture.bank.apply':
+      case 'venture.bank.alerts.get':
+      case 'venture.bank.alerts.set':
+      case 'venture.ca.receipt':
+      case 'venture.ca.explainDiff':
+      case 'venture.rules.list':
+      case 'venture.judge.auto.get':
+      case 'venture.judge.auto.set':
+      case 'venture.posting.limits.get':
+      case 'venture.posting.limits.set':
+      case 'venture.transcription.get':
+      case 'venture.transcription.set':
         return (await this.#ventureHost()).request(ctx, method, payload);
       default: throw new Error(`Unknown request: ${method}`);
     }

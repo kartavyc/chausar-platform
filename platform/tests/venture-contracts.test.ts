@@ -46,8 +46,8 @@ function clientRecord(tx: VentureTx, name: string): ClientRecord {
   return { ...tx.base('venture-client'), name, email: null, countryCode: null, taxId: null, stateCode: null, note: null };
 }
 
-test('VENTURE_METHODS: 104 unique valid names with owners and well-formed subsets', () => {
-  assert.equal(VENTURE_METHODS.length, 104);
+test('VENTURE_METHODS: 126 unique valid names with owners and well-formed subsets', () => {
+  assert.equal(VENTURE_METHODS.length, 126);
   assert.ok(unique(VENTURE_METHODS));
   for (const method of VENTURE_METHODS) { assert.match(method, METHOD_NAME); assert.ok(method.length <= 80); }
   assert.deepEqual(Object.keys(METHOD_OWNERS), [...VENTURE_METHODS]);

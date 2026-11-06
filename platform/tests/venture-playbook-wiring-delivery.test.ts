@@ -206,11 +206,12 @@ test('a YouTube draft is a package checked by the playbook: a failed check block
   const env = await business(YOUTUBE_IDEA);
   const order = await env.call('venture.order.create', { clientId: env.client.id, offerId: 'offer_1', request: PACKAGE_REQUEST, intake: { rights: OWN_FOOTAGE, format: 'long' } });
   const good = await deliver(env, order.id, PACKAGE);
-  const task = env.models.previewed.at(-1)!;
+  // The draft's own task: the judge's call on the ready package (judge-run.ts) is previewed after it.
+  const task = env.models.previewed.findLast(item => item.purpose === 'delivery')!;
   assert.deepEqual((task.input as any).requiredSections, [...PACKAGE_SECTIONS], 'the package step\'s headings, not the studio reply\'s');
   assert.ok(((task.input as any).guidance as string[]).some(line => /Hook/.test(line)));
   const results = Object.fromEntries((good.playbookChecks ?? []).map(item => [item.check, item]));
-  assert.deepEqual(Object.keys(results).sort(), ['ai-disclosure', 'chapters', 'finishing', 'hook-score', 'metadata-limits', 'paid-promotion', 'prompt-leak', 'retention-risk', 'rights-recorded', 'source-credit', 'title-thumbnail']);
+  assert.deepEqual(Object.keys(results).sort(), ['ai-disclosure', 'chapters', 'finishing', 'hook-score', 'metadata-limits', 'paid-promotion', 'prompt-leak', 'retention-risk', 'rights-recorded', 'rules-current', 'source-credit', 'title-thumbnail']);
   assert.equal(results['prompt-leak'].outcome, 'pass', results['prompt-leak'].detail);
   assert.ok(good.playbookChecks!.every(item => item.playbook === 'youtube'));
   for (const id of ['hook-score', 'title-thumbnail', 'metadata-limits', 'chapters', 'ai-disclosure', 'rights-recorded']) assert.equal(results[id].outcome, 'pass', `${id}: ${results[id].detail}`);

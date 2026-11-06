@@ -1,0 +1,33 @@
+/* The dated platform rules on Plan and playbook (RulesSection.tsx). Long source titles and addresses wrap. */
+
+.source {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: var(--text-read);
+  color: var(--link);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.source:hover {
+  text-decoration: underline;
+}
+
+.address {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-read);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.address span {
+  font-family: var(--font-mono);
+}
+
+.limits {
+  margin: var(--sp-1) 0 0;
+  padding-left: var(--sp-4);
+  font-size: var(--text-read);
+  color: var(--mute);
+}

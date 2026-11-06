@@ -8,6 +8,10 @@ Wave 3 changes the UI only. No engine file, no engine method and no field in `ap
 
 Inputs: the spec `docs/superpowers/designs/2026-10-23-chausar-ink-v2.md` (sections 3, 4, 8, 9), the master plan `docs/superpowers/plans/2026-10-23-chausar-ink-v2.md` ("How every wave runs"), the catalogue `docs/research/harvest/cards2/CATALOGUE.md` (rows tagged W3, section 2.8 most of all), and the direction D boards (copied into the repo by 3-0, below). Paths are relative to `app/ui/` unless they start with `docs/`, `scripts/`, `platform/` or the repo root.
 
+## Founder rule added 23 Oct: simple first
+
+Self-employed people and retail owners must not find business, share or tax detail daunting. Every place shows the simple path first (a fixed price, plain words, one clear next step) and keeps advanced detail (share prices, tax registration, GST fields, rate tables, receipts' inner workings) one step away, behind a "More" or "Details" control, shown only when the business needs it. A business not registered for GST never sees GST fields. Each place's tests assert the default view hides the advanced controls and that they open on request.
+
 ## Before the wave starts (package 3-0, the integrator, size S)
 
 1. Branch `b2c/ink-v2-w3` from `b2c/ink-v2-w2` once the wave 2 integrator has committed every W2 package. W3 restyles what W1 and W2 left: W1 1H's business menu popover (`shell/BusinessMenu.tsx`), 1B's journal Resolve (`places/money/Journal.tsx`), 1C's spend settings (`places/money/SpendPolicy.tsx`), and W2's new screens (`places/work/{PostButtons,JudgeLine,TranscribeButton,CalendarFile}.tsx`, `places/connections/{Posting,StepsCheck,BankSheet}.tsx`, `places/business/{PracticeView,RulesSection}.tsx`). Re-read each before restyling it.

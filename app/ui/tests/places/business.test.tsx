@@ -120,6 +120,71 @@ describe('Business: plan and playbook', () => {
   });
 });
 
+describe('Business: platform rules (2H)', () => {
+  it("the fake answers like the engine: a social agency's real rules, counted apart, with no empty list", async () => {
+    const { rulesListFor } = await import('../../src/engine/fixtures-rules');
+    const social = rulesListFor({ id: 'social-agency', label: 'Social media agency' }, '2026-10-23');
+    expect(social.playbook).toEqual({ id: 'social-agency', label: 'Social media agency', riskLevel: 'medium', lastReviewed: '2026-10-23' });
+    expect(social.rules.length).toBeGreaterThan(40);
+    expect(social.rules.find((rule) => rule.id === 'linkedin-3000')?.usedBy).toContain('publish');
+    expect(social.summary).toMatch(/^\d+ current, 0 to recheck, \d+ not confirmed against a source yet\.$/);
+    const later = rulesListFor({ id: 'social-agency', label: 'Social media agency' }, '2027-01-25');
+    expect(later.summary).toBe(`0 current, ${later.rules.length} to recheck.`);
+    expect(later.rules[0]!.line).toMatch(/was checked 96 days ago, on 2026-10-21/);
+    for (const id of ['social-agency', 'youtube']) expect(rulesListFor({ id, label: id }, '2026-10-23').summary).not.toMatch(/rests on no dated platform rules/);
+  });
+
+  it("shows the playbook's dated rules: how many to recheck, each stale rule's line and its source link", async () => {
+    start('#/business/plan', new FakeEngine({ now: () => '2027-01-25T09:00:00.000Z' }));
+    const rules = await screen.findByRole('region', { name: 'Platform rules' });
+    await waitFor(() => expect(within(rules).getByText('0 current, 8 to recheck.')).toBeTruthy());
+    expect(within(rules).getByText("Medium risk · Chausar's build last reviewed these rules on 23 Oct 2026")).toBeTruthy();
+    const stale = within(rules).getByRole('list', { name: 'To recheck' });
+    expect(within(stale).getAllByRole('listitem')).toHaveLength(8);
+    const chapters = within(stale).getByText(/^Video chapters added by hand was checked 96 days ago, on 2026-10-21\./).closest('li')!;
+    const link = within(chapters).getByRole('link', { name: 'Video Chapters, YouTube Help' });
+    expect(link.getAttribute('href')).toBe('https://support.google.com/youtube/answer/9884579');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+
+  it('inside the window every rule is current, with what it does not cover; a business with no playbook shows none', async () => {
+    start('#/business/plan', new FakeEngine({ now: () => '2026-10-23T09:00:00.000Z' }));
+    const rules = await screen.findByRole('region', { name: 'Platform rules' });
+    await waitFor(() => expect(within(rules).getByText('8 current, 0 to recheck.')).toBeTruthy());
+    expect(within(rules).queryByRole('list', { name: 'To recheck' })).toBeNull();
+    const current = within(rules).getByRole('list', { name: 'Current rules' });
+    const chapters = within(current).getByText(/^Video chapters added by hand: The first timestamp/).closest('li')!;
+    expect(within(chapters).getByText('The check reads the chapters written in the description; automatic chapters YouTube may add are not read.')).toBeTruthy();
+    expect(within(chapters).getByRole('link', { name: 'Video Chapters, YouTube Help' })).toBeTruthy();
+  });
+
+  it('a business with no flagship playbook shows no rules; a refusal shows the engine\'s words', async () => {
+    const engine = new FakeEngine();
+    const client = createFakeClient(engine);
+    const request = client.request.bind(client);
+    let asked = 0;
+    let answer: () => Promise<unknown> = () => Promise.resolve({ playbook: null, rules: [], summary: 'This business follows no playbook with dated platform rules.' });
+    client.request = ((method: string, params?: unknown) => {
+      if (method !== 'venture.rules.list') return request(method as never, params as never);
+      asked += 1;
+      return answer();
+    }) as typeof client.request;
+    window.location.hash = '#/business/plan';
+    const { unmount } = render(<App client={client} language="en" />);
+    await screen.findByRole('region', { name: 'Steps' });
+    await waitFor(() => expect(asked).toBeGreaterThan(0));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByRole('region', { name: 'Platform rules' })).toBeNull();
+    expect(screen.queryByText('This business follows no playbook with dated platform rules.')).toBeNull();
+    unmount();
+
+    answer = () => Promise.reject(new EngineError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'));
+    render(<App client={client} language="en" />);
+    const rules = await screen.findByRole('region', { name: 'Platform rules' });
+    expect((await within(rules).findByRole('alert')).textContent).toContain('This part of Chausar is not built yet.');
+  });
+});
+
 describe('Business: prices', () => {
   it('shows each figure of the receipt as the engine wrote it; Work out the price asks the engine for a new receipt', async () => {
     const engine = await ledgerline();
@@ -372,12 +437,12 @@ describe('Business menu', () => {
     await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', { name: /Ledgerline/ })).toBeTruthy());
   });
 
-  it('leads to plan and playbook, prices, website build and a new business', async () => {
+  it('leads to plan and playbook, prices, website build, practice and a new business', async () => {
     start('#/today');
     fireEvent.click(await screen.findByRole('button', { name: /Lumen Studio/ }));
     const menu = await screen.findByRole('group', { name: 'Business menu for Lumen Studio' });
     const hrefs = within(menu).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')]);
-    expect(hrefs).toEqual([['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Website build', '#/business/build'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding']]);
+    expect(hrefs).toEqual([['Plan and playbook', '#/business/plan'], ['Prices', '#/business/prices'], ['Website build', '#/business/build'], ['Practice and improve', '#/business/practice'], ['Keep this business', '#/business/keep'], ['New business', '#/onboarding']]);
   });
 
   it('speaks Hindi on the business pages', async () => {
@@ -464,6 +529,58 @@ describe('Business: your CA (CA firm playbook)', () => {
     await waitFor(() => expect(within(requests).getByText('GST working for September').closest('li')!.textContent).toContain('Signed'));
   });
 
+  it("lists the latest regulated papers' receipts, each worked again by the engine: same, or the line that differs (2A2)", async () => {
+    const engine = await ledgerline();
+    const spy = vi.spyOn(engine, 'request');
+    start('#/business/ca', engine);
+    const receipts = await screen.findByRole('region', { name: 'Receipts of the latest papers' });
+    expect(await within(receipts).findByText('GST working papers for Mehta Traders')).toBeTruthy();
+    const gst = (await within(receipts).findByText('GST working')).closest('li')!;
+    await waitFor(() => expect(gst.textContent).toContain('Recomputed: same'));
+    const portal = (await within(receipts).findByText("The portal's figures against the receipts")).closest('li')!;
+    // The engine's own words for a stored portal diff whose figure was changed after it was made.
+    await waitFor(() => expect(portal.textContent).toContain('Recomputed: differs. Net payable: the portal less ours: the stored receipt has INR 80.00; worked again it is INR 75.00.'));
+    expect(spy.mock.calls.filter(([method]) => method === 'venture.ca.receipt').map(([, params]) => params)).toEqual([{ id: 'w-gst-sep' }, { id: 'w-portal-sep' }]);
+  });
+
+  it("explains a portal difference with the CA's own number; the engine's refusal shows in its words, and the explanation then stands (2A2)", async () => {
+    const engine = await ledgerline();
+    start('#/business/ca', engine);
+    const receipts = await screen.findByRole('region', { name: 'Receipts of the latest papers' });
+    const row = (await within(receipts).findByText('Net payable: ours INR 2,825.00, the portal INR 2,900.00')).closest('li')!;
+    fireEvent.click(within(row).getByRole('button', { name: 'Explain' }));
+    const note = 'The portal rounds the payable; the CA accepts the portal figure.';
+    fireEvent.change(within(row).getByLabelText("Your CA's explanation"), { target: { value: note } });
+    fireEvent.change(within(row).getByLabelText("Your CA's membership number"), { target: { value: '999999' } });
+    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Record explanation' })); });
+    await waitFor(() => expect(within(row).getByRole('alert').textContent).toBe('That is not the ICAI membership number of Meera Joshi, your CA of record. Only they explain a difference.'));
+    fireEvent.change(within(row).getByLabelText("Your CA's membership number"), { target: { value: '412345' } });
+    const spy = vi.spyOn(engine, 'request');
+    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Record explanation' })); });
+    expect(spy.mock.calls.find(([method]) => method === 'venture.ca.explainDiff')![1]).toEqual({ receiptId: 'w-portal-sep', key: 'net-payable', note, membershipNo: '412345' });
+    await waitFor(() => expect(within(receipts).getByText(`Your CA's explanation: ${note}`)).toBeTruthy());
+    expect(within(receipts).queryByRole('button', { name: 'Explain' })).toBeNull();
+    // Recorded once: the engine refuses a second explanation of the same difference.
+    await expect(engine.request('venture.ca.explainDiff', { receiptId: 'w-portal-sep', key: 'net-payable', note: 'Another note.', membershipNo: '412345' })).rejects.toMatchObject({ code: 'CA_DIFF_EXPLAINED' });
+  });
+
+  it('explains in Hindi too', async () => {
+    start('#/business/ca', await ledgerline(), 'hi');
+    expect(await screen.findByRole('button', { name: 'समझाएं' })).toBeTruthy();
+  });
+
+  it('says so when no regulated papers carry calculator receipts yet', async () => {
+    const engine = await ledgerline();
+    const real = engine.request.bind(engine);
+    vi.spyOn(engine, 'request').mockImplementation(async (method: string, params?: unknown) => {
+      const answer = await real(method as never, params as never);
+      return method === 'venture.ca.get' ? { ...(answer as object), latestPapers: null } : answer;
+    });
+    start('#/business/ca', engine);
+    const receipts = await screen.findByRole('region', { name: 'Receipts of the latest papers' });
+    expect(await within(receipts).findByText('No regulated papers have receipts from the calculator yet.')).toBeTruthy();
+  });
+
   it('a business that is not a CA firm says so in one line, and its pages have no CA', async () => {
     start('#/business/ca');
     expect(await screen.findByText('Only a CA firm has a CA of record.')).toBeTruthy();
@@ -477,7 +594,7 @@ describe('Business: your CA (CA firm playbook)', () => {
     const menu = await screen.findByRole('group', { name: 'Business menu for Ledgerline' });
     await waitFor(() => expect(within(menu).getByRole('link', { name: 'Your CA' }).getAttribute('href')).toBe('#/business/ca'));
     const hrefs = within(menu).getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/build', '#/business/ca', '#/business/keep', '#/onboarding']);
+    expect(hrefs).toEqual(['#/business/plan', '#/business/prices', '#/business/build', '#/business/practice', '#/business/ca', '#/business/keep', '#/onboarding']);
   });
 });
 

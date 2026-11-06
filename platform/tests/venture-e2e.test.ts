@@ -385,7 +385,9 @@ test('the whole venture journey in India, with a model and GitHub answering from
     cursor = at + 1;
   }
 
-  // 29. What was sent: only recordings, no key or token, client data only in the two approved delivery calls.
+  // 29. What was sent: only recordings, no key or token, client data only in the two approved delivery calls. The judge's
+  // call on the draft made at approve each was prepared (prices as placeholders) and waits for the owner: the write
+  // turn was approved here, not on Today, so no standing consent was given and nothing went on its own.
   const sent = await calls();
   assert.ok(sent.length > 0);
   for (const call of sent) {
@@ -393,11 +395,11 @@ test('the whole venture journey in India, with a model and GitHub answering from
     for (const secret of [API_KEY, GITHUB_TOKEN, 'Cafe Aroma Demo', 'owner@aroma.example']) assert.equal(call.payloadText.includes(secret), false, `${call.purpose} ${call.id}`);
   }
   const withRequest = sent.filter(call => call.payloadText.includes(REQUEST));
-  assert.equal(withRequest.length, 2);
-  for (const call of withRequest) {
-    assert.equal(call.purpose, 'delivery');
-    assert.equal(call.consent, 'approved-preview');
-  }
+  assert.deepEqual(withRequest.map(call => call.purpose).sort(), ['delivery', 'delivery', 'judge']);
+  for (const call of withRequest.filter(item => item.purpose === 'delivery')) assert.equal(call.consent, 'approved-preview');
+  const judgeCall = withRequest.find(call => call.purpose === 'judge')!;
+  assert.equal(judgeCall.status, 'preview', 'the judge call was never sent');
+  assert.equal(judgeCall.approvedBy, null);
   for (const call of sent.filter(c => c.purpose === 'judge')) assert.equal(call.payloadText.includes('2,948.82'), false);
 
   // 30. The vault holds neither the key nor the token.

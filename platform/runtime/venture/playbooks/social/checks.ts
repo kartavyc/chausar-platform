@@ -20,12 +20,10 @@ import { checkClaims, type ClaimCheck, type SourceText } from '../../delivery/ju
 import { promptLeakLine, promptLeaks } from '../prompt-leak.ts';
 import { channelCapability, type MediaKind, type Ratio, type SocialChannel } from './channels.ts';
 import { platformRule } from './register.ts';
+import type { SocialCheckId } from './check-ids.ts';
 
-export const SOCIAL_CHECK_IDS = [
-  'channel-length', 'channel-hashtags', 'channel-media', 'alt-text', 'claims', 'disclosure-paid', 'disclosure-ai', 'synthetic-testimonial',
-  'banned-words', 'banned-topics', 'competitor-names', 'regulated-claims', 'engagement-bait', 'house-style', 'prompt-leak',
-] as const;
-export type SocialCheckId = typeof SOCIAL_CHECK_IDS[number];
+// The check ids live in a leaf module (check-ids.ts), so the rules register can name them without loading this file.
+export { SOCIAL_CHECK_IDS, type SocialCheckId } from './check-ids.ts';
 /** 'block': the draft does not reach the owner as ready. 'ask-owner': it does, with this line for the owner to decide. */
 export type Finding = { check: SocialCheckId; severity: 'block' | 'ask-owner'; line: string; ruleId: string | null };
 
@@ -53,6 +51,11 @@ export type ClientRules = {
   bannedWords?: string[];
   bannedTopics?: string[];
   competitors?: string[];
+  /**
+   * Competitors the client listed at intake (OrderIntake.clientRules): never named in any post, organic or ad. A name
+   * only in competitors is blocked in an ad and goes to the owner to decide in an organic post.
+   */
+  clientCompetitors?: string[];
   /** The client's own words that a filter must never touch, for example a brand name with a banned word in it. */
   protectedPhrases?: string[];
   proofFiles: SourceText[];
@@ -199,9 +202,12 @@ function checkMedia(draft: PostDraft, mode: PostingModeName | undefined): Findin
 // Claims against the client's proof files
 // ---------------------------------------------------------------------------
 
-/** The specifics in a post against the proof files and the brand sheet. Hashtags, handles and links are blanked first. */
+/**
+ * The specifics in a post against the proof files and the brand sheet. Hashtags, handles and links are blanked first.
+ * A thread is read as its whole text: the parts' numbering ("1/2") is code's, never a claim.
+ */
 export function checkDraftClaims(draft: PostDraft, client: ClientRules): { findings: Finding[]; claims: ClaimCheck } {
-  const text = partsOf(draft).join('\n');
+  const text = draft.text;
   const spans = [
     ...linksOf(text),
     ...[...blank(text, linksOf(text)).matchAll(HASHTAG)].map(match => ({ start: match.index!, end: match.index! + match[0].length })),
@@ -301,9 +307,12 @@ function withoutProtected(text: string, client: ClientRules): string {
   return out;
 }
 
-/** Banned words and topics, competitors, regulated words, engagement bait and house style. */
+/**
+ * Banned words and topics, competitors, regulated words, engagement bait and house style. A thread is read as its whole
+ * text, so a phrase the split puts across two parts is still found.
+ */
 export function checkWords(draft: PostDraft, client: ClientRules): Finding[] {
-  const raw = partsOf(draft).join('\n');
+  const raw = draft.text;
   const text = withoutProtected(raw, client);
   const who = client.businessName ? `${client.businessName}'s` : "your client's";
   const found: Finding[] = [];
@@ -314,11 +323,16 @@ export function checkWords(draft: PostDraft, client: ClientRules): Finding[] {
     if (topic.trim() && wholeWord(topic).test(text)) found.push(finding('banned-topics', `The post touches "${topic}", a topic ${who} brand stays away from.`, null));
   }
   const ad = !!draft.paid || draft.style === 'ugc-ad';
-  for (const name of client.competitors ?? []) {
+  const listed = (client.clientCompetitors ?? []).filter(name => name.trim());
+  const isListed = (name: string) => listed.some(item => item.trim().toLowerCase() === name.trim().toLowerCase());
+  for (const name of [...listed, ...(client.competitors ?? []).filter(name => !isListed(name))]) {
     if (!name.trim() || !wholeWord(name).test(text)) continue;
+    // A competitor the client listed is never named; another one is for the owner to decide, except in an ad.
     found.push(ad
       ? finding('competitor-names', `This ad names ${name}, a competitor. Ads never use another brand's name.`, null)
-      : finding('competitor-names', `The post names ${name}, a competitor. Check that your client is happy with it.`, null, 'ask-owner'));
+      : isListed(name)
+        ? finding('competitor-names', `The post names ${name}, a competitor your client asked you not to name.`, null)
+        : finding('competitor-names', `The post names ${name}, a competitor. Check that your client is happy with it.`, null, 'ask-owner'));
   }
   for (const term of REGULATED) {
     const match = wholeWord(term).exec(text);

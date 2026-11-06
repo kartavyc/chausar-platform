@@ -10,7 +10,7 @@
 // veedstudio/open-edit (Apache-2.0) cli/src/edl.ts: both edges move up to the next frame. Limits come from the dated
 // register (platform-rules.ts), never from memory.
 import { ChausarError } from '../../../contracts.ts';
-import type { IsoDate } from '../../contracts.ts';
+import type { IsoDate, WorkTableRecord } from '../../contracts.ts';
 import { requireRights, type FootageRights, type PlaybookIntake } from '../../delivery/rights.ts';
 import { platformRule } from './platform-rules.ts';
 import { offerAcceptsRights, YOUTUBE_STEPS, youtubeOffer, type YoutubeCheckId, type YoutubeOfferId } from './playbook.ts';
@@ -35,8 +35,13 @@ export type YoutubePackage = {
   thumbnailText: string | null;
   description: string;
   tags: string[];
-  /** Candidate opening lines; the first is the one chosen. */
+  /** Candidate opening lines; the first is the one chosen, unless the scorer kept hooks in this run (keptHooks). */
   hooks: string[];
+  /**
+   * The hooks the scorer kept in this run (youtube.hooks, keptHooksOf), or absent or null when none were scored. With
+   * them, every package hook must be a kept one, and the better scoring one is judged, not the first written.
+   */
+  keptHooks?: readonly string[] | null;
   pinnedComment: string | null;
   durationMs: number | null;
   uploadSettings: { aiUse: boolean; paidPromotion: boolean };
@@ -113,7 +118,30 @@ export function rankHooks(hooks: readonly string[], keep = hooks.length): HookSc
   return hooks.map((hook, index) => ({ score: hookScore(hook), index })).sort((a, b) => b.score.verdict - a.score.verdict || a.index - b.index).slice(0, keep).map(item => item.score);
 }
 
+/** Two hooks are the same when only spacing and case differ: the scorer's duplicate rule and the kept-hook check. */
+export function sameHook(a: string, b: string): boolean {
+  return a.replace(/\s+/g, ' ').trim().toLowerCase() === b.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/**
+ * With hooks the scorer kept: each package hook must be one of them, and the higher scoring of the package's hooks is
+ * the one judged (ties keep the order written). The detail names the hook Chausar kept and the other's score.
+ */
+function keptHookCheck(hooks: readonly string[], kept: readonly string[]): YoutubeCheckResult {
+  const written = hooks.filter(hook => hook.trim());
+  if (!written.length) return result('hook-score', 'fail', 'The package has no opening hook.');
+  const stray = written.find(hook => !kept.some(item => sameHook(item, hook)));
+  if (stray) return result('hook-score', 'fail', `"${stray.trim().slice(0, 120)}": This hook is not one the scorer kept. Use the kept hooks word for word.`);
+  const [best, ...others] = rankHooks(written);
+  const notes = others.map(other => `"${other.hook.slice(0, 120)}" scores ${other.verdict} (${other.band}).`);
+  if (best.verdict < HOOK_FLOOR) return result('hook-score', 'fail', `The better kept hook scores ${best.verdict}, which reads like a greeting or a summary. ${best.fix}`, notes);
+  const over = others.length ? `, over "${others[0].hook.slice(0, 120)}", which scores ${others[0].verdict} (${others[0].band})` : '';
+  const look = best.band === 'weak' ? ` It is weak on ${best.weakest}: ${best.fix}` : '';
+  return result('hook-score', 'pass', `Chausar kept "${best.hook.slice(0, 120)}", which scores ${best.verdict} (${best.band})${over}.${look} A score is lint, not a forecast.`, notes);
+}
+
 function hookCheck(pkg: YoutubePackage): YoutubeCheckResult {
+  if (pkg.keptHooks?.length) return keptHookCheck(pkg.hooks, pkg.keptHooks);
   const chosen = pkg.hooks[0];
   if (!chosen?.trim()) return result('hook-score', 'fail', 'The package has no opening hook.');
   const score = hookScore(chosen);
@@ -498,6 +526,36 @@ export function buildEditList(cues: readonly Cue[], picks: readonly { from: stri
     ranges.push({ from: pick.from, to: pick.to, startFrame, endFrame });
   }
   return { fps: options.fps, ranges, runtimeFrames: ranges.reduce((total, range) => total + range.endFrame - range.startFrame, 0) };
+}
+
+// ---------------------------------------------------------------------------
+// The tables the YouTube tools make in a run (delivery/harness/tools-youtube.ts)
+// ---------------------------------------------------------------------------
+
+/** Each YouTube tool's table: its name and columns. The checks and the write step read them by the tool that made them. */
+export const YOUTUBE_TABLES = Object.freeze({
+  hooks: Object.freeze({ tool: 'youtube.hooks', name: 'Hooks the scorer kept', columns: Object.freeze(['Hook', 'Score', 'Band', 'Weakest', 'Fix']) }),
+  editList: Object.freeze({ tool: 'youtube.editList', name: 'Edit list', columns: Object.freeze(['From', 'To', 'Start frame', 'End frame']) }),
+  chapters: Object.freeze({ tool: 'youtube.chapters', name: 'Chapters drafted from the pauses', columns: Object.freeze(['At', 'Label', 'Length']) }),
+  retention: Object.freeze({ tool: 'youtube.retention', name: 'Where viewers left', columns: Object.freeze(['From', 'To', 'Lost', 'At', 'Said']) }),
+} as const);
+
+type MadeTable = Pick<WorkTableRecord, 'source' | 'rows'>;
+/** The newest table a tool made in the run, or undefined. */
+function newestBy(tables: readonly MadeTable[], tool: string): MadeTable | undefined {
+  return [...tables].reverse().find(table => table.source.kind === 'computed' && table.source.tool === tool);
+}
+
+/** The hooks the scorer kept in a run: the Hook column of the newest hooks table, or null when no hooks were scored. */
+export function keptHooksOf(tables: readonly MadeTable[]): string[] | null {
+  const table = newestBy(tables, YOUTUBE_TABLES.hooks.tool);
+  return table ? table.rows.map(row => row.cells.Hook ?? '').filter(hook => hook.trim()) : null;
+}
+
+/** The chapter start times code drafted in a run (the At column of the newest chapters table), such as 0:00 and 1:35. */
+export function chapterTimesOf(tables: readonly MadeTable[]): string[] {
+  const table = newestBy(tables, YOUTUBE_TABLES.chapters.tool);
+  return table ? table.rows.map(row => row.cells.At ?? '').filter(at => /^\d{1,2}(?::\d{2}){1,2}$/.test(at)) : [];
 }
 
 // ---------------------------------------------------------------------------

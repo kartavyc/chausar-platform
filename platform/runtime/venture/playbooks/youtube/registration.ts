@@ -14,4 +14,7 @@ export const YOUTUBE_REGISTRATION: PlaybookRegistration = Object.freeze({
     'clip channel', 'clipping channel', 'clip programme', 'clip program', 'long video into shorts', 'shorts from long',
   ]),
   summary: 'Agents script, package and cut videos from footage the client owns or has licensed; the owner checks every draft and publishes it.',
+  // Published in the client's name, under platform rules and footage rights. Chausar's build audit of 23 October 2026 last reviewed its rules; no person has yet.
+  riskLevel: 'medium',
+  lastReviewed: '2026-10-23',
 });

@@ -8,17 +8,19 @@
 // Ported, with changes, from krakonjac300-pixel/podcast-shorts-factory (MIT, Copyright (c) 2026 Kosta Rakonjac),
 // factory/agents/finishing_editor.py: the detector settings, the severities, the PASS / FIX / FLAG ladder and the
 // caption band. Rewritten here with whole milliseconds and tenths of a decibel.
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
+import { runCapped } from '../../../capped-run.ts';
 import { platformRule } from './platform-rules.ts';
 import type { YoutubeCheckResult } from './checks.ts';
 
-export type FfmpegRun = { code: number | null; stderr: string; timedOut: boolean; startError: string | null };
+/** aborted: the workspace closed while it ran, so it was stopped (a transcript made here listens for that). */
+export type FfmpegRun = { code: number | null; stderr: string; timedOut: boolean; startError: string | null; aborted?: boolean };
 export type FfmpegPort = {
   /** The ffmpeg program to run, or null when it is not on this computer. Never installs anything. */
   locate(): string | null;
-  run(binary: string, args: readonly string[], timeoutMs: number): Promise<FfmpegRun>;
+  run(binary: string, args: readonly string[], timeoutMs: number, signal?: AbortSignal): Promise<FfmpegRun>;
 };
 
 /** A program on PATH by its name, with the host's extensions on Windows; null when it is not there. */
@@ -41,18 +43,32 @@ export function findOnPath(name: string, env: Record<string, string | undefined>
   return null;
 }
 
-/** The ffmpeg already on this computer, run without a shell. */
-export const systemFfmpeg: FfmpegPort = Object.freeze({
-  locate: () => findOnPath('ffmpeg'),
-  run: (binary: string, args: readonly string[], timeoutMs: number) => new Promise<FfmpegRun>(done => {
-    execFile(binary, [...args], { timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024, windowsHide: true, encoding: 'utf8' }, (error, _stdout, stderr) => {
-      const failure = error as (NodeJS.ErrnoException & { killed?: boolean; signal?: string | null; code?: number | string }) | null;
-      const startError = failure && typeof failure.code === 'string' ? failure.code : null;
-      const timedOut = !!failure && failure.killed === true && !!failure.signal;
-      done({ code: failure ? (typeof failure.code === 'number' ? failure.code : null) : 0, stderr: String(stderr ?? ''), timedOut, startError });
-    });
-  }),
-});
+/** ffmpeg writes its log to standard error; the finishing check reads it from the start, up to this much. */
+const LOG_LIMIT = 32 * 1024 * 1024;
+
+/**
+ * An ffmpeg run without a shell through the same capped runner as whisper.cpp (platform/runtime/capped-run.ts): past
+ * its time, or when the workspace closes (signal), it is stopped and waited for until it closes, for closeWaitMs at
+ * most. spawnChild and closeWaitMs are for tests.
+ */
+export function ffmpegPort(spawnChild: typeof spawn = spawn, options: { closeWaitMs?: number } = {}): FfmpegPort {
+  return Object.freeze({
+    locate: () => findOnPath('ffmpeg'),
+    run: async (binary: string, args: readonly string[], timeoutMs: number, signal?: AbortSignal): Promise<FfmpegRun> => {
+      const result = await runCapped({
+        command: binary, args, env: process.env, timeoutMs, stdoutLimit: LOG_LIMIT, stderrLimit: LOG_LIMIT, stderrKeep: 'head',
+        ...(signal ? { signal } : {}), ...(options.closeWaitMs !== undefined ? { closeWaitMs: options.closeWaitMs } : {}),
+      }, spawnChild);
+      return {
+        code: result.end === 'closed' ? result.exitCode : null, stderr: result.stderr, timedOut: result.end === 'timeout', startError: result.startError,
+        ...(result.end === 'aborted' ? { aborted: true } : {}),
+      };
+    },
+  });
+}
+
+/** The ffmpeg already on this computer. */
+export const systemFfmpeg: FfmpegPort = ffmpegPort();
 
 // ---------------------------------------------------------------------------
 // Reading ffmpeg's log

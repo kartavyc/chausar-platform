@@ -27,6 +27,9 @@ const b64 = (text: string) => Buffer.from(text, 'utf8').toString('base64');
  * A scripted model port: each preview or call costs at most `estimate` and bills `cost`. Never the network. Like the
  * real port, generate refuses a task whose remaining run cap is below the estimate before anything is sent.
  */
+/** The rules judge (delivery/judge/rules.ts) votes yes on every rule it is asked, citing the draft in the run's trace. */
+const rulesYes = (task: ModelTask<any>) => ({ votes: (task.input as { rules: { id: string }[] }).rules.map(rule => ({ rule: rule.id, answer: 'yes', cites: ['draft'], quote: '', reason: 'It reads right.' })) });
+
 export class ScriptPort implements ModelPort {
   store: VentureTestStore;
   estimate = '1000';
@@ -52,7 +55,8 @@ export class ScriptPort implements ModelPort {
     if (task.capLeftMicros !== undefined && BigInt(this.estimate) > BigInt(task.capLeftMicros)) throw new ChausarError('RUN_CAP_REACHED', 'Past what the run has left.');
     const raw = task.purpose === 'agent-turn' ? this.turns[Math.min(this.#turn++, this.turns.length - 1)]
       : task.purpose === 'client-sim' ? { message: 'It is the cafe current account.', asksForPerson: false }
-        : task.purpose === 'judge' ? { answers: JUDGE_QUESTIONS.map(question => ({ question, answer: 'yes', reason: 'It reads right.' })) } : undefined;
+        : task.schemaName === 'venture-judge-rules' ? rulesYes(task)
+          : task.purpose === 'judge' ? { answers: JUDGE_QUESTIONS.map(question => ({ question, answer: 'yes', reason: 'It reads right.' })) } : undefined;
     this.#calls += 1;
     const value = raw === undefined ? task.template!() : task.validate(structuredClone(raw));
     return { value, by: 'model', callId: `call_${this.#calls}`, presetId: 'anthropic-sonnet-5-5', model: 'stub', costMicros: this.cost, priceConfirmed: true };
@@ -76,7 +80,8 @@ export class ScriptPort implements ModelPort {
     if (!held || held.used || held.digest !== approved) throw new ChausarError('APPROVAL_STALE', 'Run it again; the approved text is no longer available.');
     held.used = true;
     this.sent += 1;
-    const raw = held.task.purpose === 'agent-turn' ? this.turns[Math.min(this.#turn++, this.turns.length - 1)] : this.report;
+    const raw = held.task.purpose === 'agent-turn' ? this.turns[Math.min(this.#turn++, this.turns.length - 1)]
+      : held.task.schemaName === 'venture-judge-rules' ? rulesYes(held.task) : this.report;
     return { value: validate(structuredClone(raw)), by: 'model', callId, presetId: 'anthropic-sonnet-5-5', model: 'stub', costMicros: this.cost, priceConfirmed: true };
   }
 }

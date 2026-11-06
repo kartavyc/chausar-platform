@@ -113,7 +113,7 @@ export const YOUTUBE_STEPS: readonly YoutubeStep[] = Object.freeze([
   {
     id: 'intake', kind: 'gather', title: "Read the order and the client's files, and record the rights to the footage",
     role: agent('Intake clerk', 'Reads the order, the footage notes, the transcript and the brief, and lists what is missing.'),
-    tier: 'actor', model: 'fast', tools: ['files.list', 'files.read', 'handoff.client', 'handoff.owner'], checks: none, youtubeChecks: ['rights-recorded'],
+    tier: 'actor', model: 'fast', tools: ['files.list', 'files.read', 'youtube.retention', 'handoff.client', 'handoff.owner', 'evidence.record'], checks: none, youtubeChecks: ['rights-recorded'],
     requiredSections: none, clipping: false, gate: 'rights-at-intake', floor: FLOOR.rights,
   },
   {
@@ -131,7 +131,7 @@ export const YOUTUBE_STEPS: readonly YoutubeStep[] = Object.freeze([
   {
     id: 'find', kind: 'work', title: 'Write the hooks, or pick the moments by transcript segment',
     role: agent('Story editor', 'Writes five opening hooks, or proposes clip moments only as transcript segment ids. Never invents speech or times.'),
-    tier: 'actor', model: 'main', tools: ['files.read', 'handoff.owner'], checks: none, youtubeChecks: none,
+    tier: 'actor', model: 'main', tools: ['files.read', 'youtube.hooks', 'youtube.editList', 'youtube.chapters', 'handoff.owner'], checks: none, youtubeChecks: none,
     requiredSections: none, clipping: false, gate: null, floor: null,
   },
   {
@@ -224,7 +224,8 @@ export const YOUTUBE_HARD_LINES: readonly string[] = Object.freeze([
 
 export type YoutubeConnectorMode = { mode: 'handoff' | 'read' | 'write'; status: 'available' | 'planned'; what: string; reason: string | null };
 export type YoutubeConnector = { id: string; name: string; modes: YoutubeConnectorMode[]; posting: PostingOption[] };
-export type YoutubeConnectorEnv = { ffmpeg: boolean; posting?: PostingEnvironment };
+/** speech: whether the owner's own whisper.cpp is set up here (playbooks/youtube/transcribe.ts localTranscription). Absent means no. */
+export type YoutubeConnectorEnv = { ffmpeg: boolean; speech?: boolean; posting?: PostingEnvironment };
 
 const planned = (mode: YoutubeConnectorMode['mode'], what: string, reason: string): YoutubeConnectorMode => ({ mode, status: 'planned', what, reason });
 const available = (mode: YoutubeConnectorMode['mode'], what: string): YoutubeConnectorMode => ({ mode, status: 'available', what, reason: null });
@@ -264,8 +265,14 @@ export function youtubeConnectors(env: YoutubeConnectorEnv): YoutubeConnector[] 
       modes: [planned('read', 'Reads retention for the channel review with read-only access the channel owner grants.', 'Not built. Until then the client uploads the Studio retention export, which the checks read.')],
     },
     {
-      id: 'transcription', name: 'Transcription with word timings', posting: [],
-      modes: [planned('read', 'Makes a transcript with word timings from the footage on this computer.', 'Not built. Until then the client sends an SRT or VTT file.')],
+      // Ink v2 wave 2 (2E2): the ffmpeg and whisper.cpp already on this computer, never installed or downloaded.
+      id: 'transcription', name: 'Transcription on this computer', posting: [],
+      modes: [env.ffmpeg && env.speech
+        ? available('read', 'Makes a transcript with timings from the footage on this computer.')
+        : planned('read', 'Makes a transcript with timings from the footage on this computer.', `${[
+          ...(env.ffmpeg ? [] : ['ffmpeg not found on this computer.']),
+          ...(env.speech ? [] : ['No whisper.cpp is set up on this computer.']),
+        ].join(' ')} Chausar never installs ${env.ffmpeg || env.speech ? 'it' : 'either'} and never downloads a model; until then the client sends an SRT or VTT file.`)],
     },
     {
       id: 'paid-generation', name: 'AI voice, presenter and video models', posting: [],

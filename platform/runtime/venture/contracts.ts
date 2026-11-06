@@ -8,6 +8,13 @@ import type {
   OfferBlockId, OnboardingPayloads, OnboardingResults, PlanKind, StepBlockId, ToolBlockId, ViewSelection,
 } from './onboarding-contracts.ts';
 import type { FootageRights, RightsBasis } from './delivery/rights.ts';
+import type { BankAlert, BankAlertRule, BankAlertRuleInput } from './build/bank.ts';
+import type { NetResolver, PinnedSender } from './core/net-guard.ts';
+import type { SectionRef, TableStamp } from './playbooks/ca-firm/rates.ts';
+import type { CaEngine, CaReceiptStep } from './playbooks/ca-firm/receipt.ts';
+import type { SocialChannel } from './playbooks/social/channels.ts';
+import type { ReportReceipt } from './playbooks/social/report.ts';
+import type { FfmpegPort } from './playbooks/youtube/finishing.ts';
 
 export const VENTURE_CONTRACT_VERSION = 'chausar.dev/venture/v1alpha1' as const;
 
@@ -125,6 +132,14 @@ export const VENTURE_RECORD_KINDS = [
   'venture-channel-hold',
   // The untrusted screen (W1 H9): the business's screen mode, and one record per held content the owner released.
   'venture-screen-setting', 'venture-untrusted-release',
+  // Ink v2 wave 2: the day each browser posting step's candidates last matched, and the owner's decision on a bank row.
+  'venture-posting-steps', 'venture-bank-match',
+  // Ink v2 wave 2 (2B1): the owner's stricter posting limits for one channel; the newest per channel is in use.
+  'venture-posting-limits',
+  // Ink v2 wave 2 (2C1): whether the judge runs on its own on drafts for a client or the public, and its standing consent.
+  'venture-judge-setting',
+  // Ink v2 wave 2 (2E2): the owner's whisper.cpp for transcripts made on this computer; the newest is in use.
+  'venture-transcription-setup',
 ] as const;
 export type VentureRecordKind = typeof VENTURE_RECORD_KINDS[number];
 
@@ -251,7 +266,7 @@ export type PlanFlagshipStep = { id: string; title: Labelled<string>; doneBy: 'y
  * rights: the rights to the footage this offer accepts, in order; empty when it cuts no footage. fields: the other
  * intake fields its checks read; 'cutFile' never on the hosted server, which reads no file on the owner's computer.
  */
-export type OfferIntakeAsk = { rights: RightsBasis[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile')[] };
+export type OfferIntakeAsk = { rights: RightsBasis[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile' | 'calendar' | 'clientRules')[] };
 /** 'yours': work only the owner does, with no agent planned (composed plans only). */
 export type StepCapability = 'drafts-now' | 'planned' | 'yours';
 export type BlueprintStep = {
@@ -473,7 +488,8 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
   connectionId: string | null;
   routeKind: ModelRouteKind; // `kind` is the record kind from RecordBase
   model: string | null;
-  consent: 'standing' | 'approved-preview';
+  /** 'standing-judge': the rules judge's call sent on its own under the business's judgeAuto consent (delivery/judge-run.ts). */
+  consent: 'standing' | 'approved-preview' | 'standing-judge';
   endpoint: string; // 'https://api.anthropic.com/v1/messages', 'cli://claude', 'cli://codex'
   payloadText: string; // exact request body or stdin sent; never a key
   payloadDigest: string;
@@ -537,8 +553,12 @@ export interface ModelPort {
   generate<T>(ctx: Context, task: ModelTask<T>): Promise<ModelOutcome<T>>;
   /** Per-call path. Records the exact payload; sends nothing. Returns null when only templates serve the tier. */
   preview<T>(ctx: Context, task: ModelTask<T>): Promise<ModelPreview | null>;
-  /** Sends exactly the previewed payload once, after the owner approved its digest; claims the call before any await. */
-  runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T): Promise<ModelOutcome<T>>;
+  /**
+   * Sends exactly the previewed payload once, after the owner approved its digest; claims the call before any await.
+   * options.consent 'standing-judge': the rules judge's call going on its own under the business's standing consent,
+   * recorded as that and never as the owner's approval of the call.
+   */
+  runPreview<T>(ctx: Context, callId: string, approvedDigest: string, validate: (raw: unknown) => T, options?: { consent?: 'standing-judge' }): Promise<ModelOutcome<T>>;
 }
 
 export type ModelHttpRequest = { url: string; method: 'POST'; headers: Record<string, string>; body: string; timeoutMs: number; purpose: ModelPurpose };
@@ -704,6 +724,14 @@ export type OrderIntake = {
   aiPresenter: boolean;
   paidPromotion: boolean;
   cutFile: string | null;
+  /**
+   * A social content calendar order (Ink v2 wave 2): the month, the channels, posts per channel and the weekdays it
+   * posts on (ISO numbers: 1 is Monday, 7 is Sunday). Code plans the slots and their dates (social/calendar.ts); a
+   * model never picks a date.
+   */
+  calendar?: { month: string; channels: SocialChannel[]; postsPerChannel: number; weekdays: number[] };
+  /** The client's own word lists the social checks read: banned words and topics, competitors, phrases never flagged. */
+  clientRules?: { bannedWords: string[]; bannedTopics: string[]; competitors: string[]; protectedPhrases: string[] };
 };
 export type InvoiceLine = { description: string; quantity: string; unitMinor: MinorString; amountMinor: MinorString };
 export type InvoiceRecord = RecordBase<'venture-invoice'> & {
@@ -748,6 +776,8 @@ export type PaymentRecord = RecordBase<'venture-payment'> & {
   factId: string;
   booksReceiptId: string | null; // calculator receipt for 'received', kept only when its total equals this payment
   booksNote: string | null; // e.g. 'The books receipt covers more than this payment.'
+  /** The bank statement row this payment was recorded from (venture.bank.apply); absent when the owner typed it. */
+  bankTransactionId?: string;
 };
 export type InvoiceView = {
   invoice: InvoiceRecord;
@@ -900,6 +930,13 @@ export type PostingOption = {
   risk: string | null; // shown beside the mode, for example 'The platform may restrict this account.'
   requires: string[]; // what has to be true first, for example 'Meta app review'
   reason: string | null; // why a planned option is planned; null when available
+  /**
+   * The browser mode of a text platform only (Ink v2 wave 2, 2B2): the oldest day across the three posting steps on
+   * which one of the step's candidates last matched exactly one visible element; null while any step has none.
+   */
+  stepsCheckedOn?: IsoDate | null;
+  /** The same mode: the oldest day the text box and the post button last worked, the steps a check can see; null when not checked. */
+  boxAndButtonCheckedOn?: IsoDate | null;
 };
 /** Each post is its own journal entry: described, then approved, then applied, rejected or outcome_unknown. Never resent. */
 export type ConnectorPostState = 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown';
@@ -928,6 +965,8 @@ export type ConnectorPostRecord = RecordBase<'venture-connector-post'> & {
   draftDigest?: string | null;
   /** Which of the draft's posts for this channel, from 1, when it holds several. */
   part?: number | null;
+  /** The pre-post risk gate's warnings when it was proposed (Ink v2 wave 2, K5), each naming its rule; absent when none. */
+  warnings?: string[];
 };
 /**
  * A security check or a platform block seen on one posting channel (W1 H19). 'challenge' (a check, verify or 403 page)
@@ -944,10 +983,35 @@ export type ChannelHoldRecord = RecordBase<'venture-channel-hold'> & {
   clearedAt: IsoTime | null;
   clearedBy: string | null;
 };
+/** The three steps a browser post takes (build/browser.ts): fill the text box, press post, see the post confirmed. */
+export type PostingStepId = 'textbox' | 'submit' | 'confirm';
+/** One way to find a step's element, in Playwright's public locator terms. name: a role's accessible name; lang: the UI language it is for. */
+export type PostingCandidate = { kind: 'test-id' | 'role' | 'aria-label' | 'xpath'; value: string; name?: string; lang?: string };
+/**
+ * One posting connector's browser steps as checked on this computer (venture.posting.checkSteps): the day each candidate
+ * last matched exactly one visible element, by step and candidate key, and the candidates the owner picked by clicking
+ * the element once in the window. Shipped candidates stay unchecked until a check run dates them.
+ */
+export type PostingStepsRecord = RecordBase<'venture-posting-steps'> & {
+  connectorId: string;
+  checked: { step: PostingStepId; key: string; checkedOn: IsoDate }[];
+  added: { step: PostingStepId; key: string; candidate: PostingCandidate; addedOn: IsoDate }[];
+};
 /** The business's untrusted screen (policy/untrusted.ts): observe until the owner turns on enforce; the newest record wins. */
 export type ScreenSettingRecord = RecordBase<'venture-screen-setting'> & { mode: 'observe' | 'enforce' };
 /** Held content the owner let through, bound to that exact content's digest; changed content is held again. */
 export type UntrustedReleaseRecord = RecordBase<'venture-untrusted-release'> & { digest: string };
+/**
+ * Whether the rules judge runs on its own on every ready draft that goes to a client or the public (judgeAuto), the
+ * newest record wins and none means on. consent: the standing consent for those judge calls, which carry the client's
+ * words to the owner's own AI, recorded once: when the owner turns it on ('set'), when the owner approves a write turn
+ * whose approval showed the judge's notice and cost ('default', entryId that approved journal entry), or when the owner
+ * sends a judge call that waited for want of it ('send', entryId that send's entry); null while off (delivery/judge-run.ts).
+ */
+export type JudgeSettingRecord = RecordBase<'venture-judge-setting'> & {
+  auto: boolean;
+  consent: { at: IsoTime; by: string; how: 'set' | 'default' | 'send'; entryId: string | null } | null;
+};
 /**
  * The action journal (P2-journal, venture/journal/). Every outside effect is one entry: described, then approved inside
  * the app, then applied, rejected or outcome_unknown. A connector post is its own journalled record with the same fields.
@@ -960,7 +1024,8 @@ export type JournalStep = { state: JournalState; at: IsoTime; by: string; line: 
  * What an approval leaves behind. The token itself reaches only the code that applies it, never a record, a log or a
  * model. usedAt and key are set by the claim, in its own commit, before the effect starts: one token, one apply.
  */
-export type ApprovalSeal = { tokenHash: string; approvedBy: string; at: IsoTime; expiresAt: IsoTime; usedAt: IsoTime | null; key: string | null };
+/** approvedBy: null when no person approved it: a send under a standing setting (the rules judge on its own). */
+export type ApprovalSeal = { tokenHash: string; approvedBy: string | null; at: IsoTime; expiresAt: IsoTime; usedAt: IsoTime | null; key: string | null };
 export type JournalRecord = RecordBase<'venture-journal-entry'> & {
   action: JournalActionId;
   subject: string; // the record it acts on, such as an invoice id, or a run and its call
@@ -982,20 +1047,54 @@ export type JournalRecord = RecordBase<'venture-journal-entry'> & {
   descriptionComplete?: boolean;
 };
 export type BrowserProbe = { present: boolean; reason: string };
-export type BrowserPostJob = { postId: string; connectorId: string; text: string; timeoutMs: number };
+/** added: the candidates the owner picked for this platform on this computer (venture-posting-steps), tried first. */
+/**
+ * clickBy: milliseconds since 1970 after which the browser never presses the post button (the journal may already have
+ * closed the post as unknown by then).
+ */
+export type BrowserPostJob = { postId: string; connectorId: string; text: string; timeoutMs: number; added?: PostingStepPick[]; clickBy?: number };
+/** One candidate the owner picked for a step by clicking the element once in the window (Ink v2 wave 2, 2B2). */
+export type PostingStepPick = { step: PostingStepId; candidate: PostingCandidate };
+/** venture.posting.checkSteps asks the browser to find each step's candidates on the compose page, without typing or clicking. */
+export type BrowserStepsJob = { connectorId: string; timeoutMs: number; added: PostingStepPick[] };
+/**
+ * 'checked': how many visible elements each candidate matched (only exactly one counts), and what the owner picked for
+ * a step none matched. 'signed-out': the owner signs in first. 'not-run': the reason, a hold the page showed, or
+ * refused when the script guard refused a page script. audit: the guard's lines, sha256 and counts only.
+ */
+export type BrowserStepsResult =
+  | { outcome: 'checked'; steps: { step: PostingStepId; key: string; visible: number }[]; picked: PostingStepPick[]; audit: string[] }
+  | { outcome: 'signed-out'; line: string; audit: string[] }
+  | { outcome: 'not-run'; line: string; hold?: BrowserSiteHold; refused?: boolean; audit: string[] };
 /** A security check or a platform block the browser saw on the site (W1 H19). The posting code keeps it as a channel hold. */
 export type BrowserSiteHold = { kind: 'challenge' | 'blocked'; site: string };
 /** 'not-sent': the platform was never reached, so nothing went out. 'unknown': it may have gone out; check before posting again. */
 export type BrowserPostResult =
-  | { outcome: 'posted'; line: string; url: string | null }
+  | { outcome: 'posted'; line: string; url: string | null; checked?: { step: PostingStepId; key: string }[] }
   | { outcome: 'not-sent'; line: string; hold?: BrowserSiteHold }
   | { outcome: 'unknown'; line: string; hold?: BrowserSiteHold };
 /**
  * Drives the owner's own browser on this computer. The real one needs Playwright with Chromium already installed.
  * clearHold: the owner cleared a platform's security check; the hold kept beside the profile folders ends (W1 H19).
+ * signIn: opens the platform's own sign-in page in the Chausar profile and settles when the owner closes the window
+ * (venture.posting.signIn does not wait for it, Ink v2 wave 2).
  */
-export type BrowserPort = { probe(): Promise<BrowserProbe>; post(job: BrowserPostJob): Promise<BrowserPostResult>; clearHold?(connectorId: string): Promise<void> };
+export type BrowserPort = {
+  probe(): Promise<BrowserProbe>; post(job: BrowserPostJob): Promise<BrowserPostResult>; clearHold?(connectorId: string): Promise<void>;
+  signIn?(connectorId: string): Promise<BrowserProbe>;
+  /** Finds each posting step's candidates on the compose page without typing or clicking (venture.posting.checkSteps). */
+  checkSteps?(job: BrowserStepsJob): Promise<BrowserStepsResult>;
+};
 export type ApiPostPort = { post(job: BrowserPostJob): Promise<BrowserPostResult> };
+/** A post's fingerprint (playbooks/social/risk-gate.ts postPrint): sha256 prefixes of its word groups and linked sites. */
+export type PostPrint = { shingles: string[]; domains: string[] };
+/** One post that went out, or may have, from any business on this computer: its fingerprint, never its words. */
+export type PostLogEntry = { id: string; connectorId: string; at: IsoTime; print: PostPrint };
+/**
+ * One posting history per computer (build/post-log.ts), kept beside the browser profiles, so two businesses signed in
+ * to the same account are counted together by the risk gate (Ink v2 wave 2, K5).
+ */
+export type PostLogPort = { read(connectorId: string): PostLogEntry[]; append(entry: PostLogEntry): void };
 export type ConnectorPorts = {
   browser?: BrowserPort;
   /** Connector ids whose API app review is recorded (the real host reads CHAUSAR_APP_REVIEWED). */
@@ -1003,6 +1102,8 @@ export type ConnectorPorts = {
   /** API posting clients by connector id. None ship in this build. */
   api?: Readonly<Record<string, ApiPostPort>>;
   postTimeoutMs?: number;
+  /** The per-computer post log; the real host leaves it out and gets the one on disk beside the browser profiles. */
+  postLog?: PostLogPort;
 };
 /** A staged edit to one website file: applied only with the exact plan digest the owner reviewed, verified, reversible. */
 export type SiteEditState = 'staged' | 'applying' | 'applied' | 'rolled-back' | 'rejected' | 'needs-inspection';
@@ -1027,15 +1128,26 @@ export type SiteEditRecord = RecordBase<'venture-site-edit'> & {
 export type BankConsentData = {
   id: string; provider: string | null; accountLabel: string; scope: 'read-only'; grantedAt: IsoTime; expiresAt: IsoTime; revokedAt: IsoTime | null;
 };
-export type BankAccountRecord = RecordBase<'venture-bank-account'> & { label: string; currency: string; consent: BankConsentData | null; polls: IsoTime[] };
+/**
+ * rules: the owner's alert rules for this account (build/bank.ts evaluateAlerts); alertAddress: where alerts go, set
+ * by the owner inside the app only. Both absent until the owner sets them (venture.bank.alerts.set).
+ */
+export type BankAccountRecord = RecordBase<'venture-bank-account'> & {
+  label: string; currency: string; consent: BankConsentData | null; polls: IsoTime[];
+  rules?: BankAlertRule[]; alertAddress?: { url: string; setBy: string; setAt: IsoTime } | null;
+};
 /** amountMinor is signed: money in positive, money out negative. id is stable, so a second import never counts a row twice. */
 export type BankTransactionData = {
   id: string; date: IsoDate; amountMinor: MinorString; currency: string; counterparty: string | null; description: string | null;
   reference: string | null; balanceAfterMinor: MinorString | null; source: 'statement-csv' | 'provider';
 };
-/** One statement import: only the transactions it added, with how many were already there and which lines were refused. */
+/**
+ * One statement import: only the transactions it added, with how many were already there and which lines were refused.
+ * alerts: what the owner's alert rules found in this import (2D), absent when none did; Today shows them in the app.
+ */
 export type BankImportRecord = RecordBase<'venture-bank-import'> & {
   accountId: string; fileDigest: string; transactions: BankTransactionData[]; duplicates: number; rejected: { line: number; reason: string }[]; line: string;
+  alerts?: BankAlert[];
 };
 export type BankImportResult = {
   account: string; accountId: string; added: number; duplicates: number; rejected: { line: number; reason: string }[]; line: Display; transactions: number;
@@ -1044,6 +1156,15 @@ export type BankConsentView = {
   account: string; accountId: string; consent: BankConsentData;
   status: { state: 'active' | 'expiring' | 'expired' | 'revoked'; daysLeft: number; line: Display };
   provider: Display; // why nothing reads the bank yet
+};
+/**
+ * The owner's decision on one bank statement row (venture.bank.apply): recorded as a payment of an invoice, written to
+ * the books as a cost, or skipped. One per row; the payment, the books fact or neither is named. transactionId is the
+ * ledger row id, '<account id>:<transaction id>', unique in the business even when two accounts hold the same file.
+ */
+export type BankMatchRecord = RecordBase<'venture-bank-match'> & {
+  transactionId: string; accountId: string; as: 'payment' | 'cost' | 'skip';
+  invoiceId: string | null; paymentId: string | null; factId: string | null;
 };
 
 /** Leads (customers/leads.ts): a lead needs its source page; an email counts once a mail server check found a server. */
@@ -1242,6 +1363,24 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
   uploadIds?: string[]; // the client files this run may read, fixed when the run starts
   /** A flagship playbook's own checks on the draft; a 'fail' blocks Accept. Absent for other playbooks. */
   playbookChecks?: PlaybookCheckResult[];
+  /**
+   * The rules judge on this real-order draft. Its call carries the client's words: it goes on its own only under the
+   * business's standing consent (judgeAuto, auto: true), else it waits for the owner to send it (venture.delivery.judge,
+   * then judgeSend). Its verdict is the rules-judge result in checks. Absent until the judge was asked.
+   * draftDigest: the draft it read (judged once per draft); estimatedMaxCostDisplay: the most the call could cost, as
+   * the model port wrote it; line: why it did not run or failed, in plain words, else null.
+   */
+  judge?: {
+    status: 'waiting' | 'done' | 'failed'; callId: string | null; preview: ModelPreview | null; at: IsoTime;
+    draftDigest?: string; auto?: boolean; estimatedMaxCostDisplay?: string | null; line?: string | null;
+  };
+  /**
+   * Set by the commit that makes a draft ready when its write turn's approval showed the judge's notice: the judge is
+   * due, so Accept waits until it was asked or until (delivery/runs.ts judgeReading). boundMicros: the most the judge's
+   * check could cost as shown (bound is its words), null when no price was known; the judge goes on its own only within
+   * it. Cleared once the judge was asked.
+   */
+  judgePending?: { boundMicros: string | null; bound: string; until: IsoTime } | null;
 };
 /**
  * A delivery run as the screens read it: the stored record plus what the engine would allow right now, at today's
@@ -1253,11 +1392,18 @@ export type DeliveryRunView = DeliveryRunRecord & {
   canApprove: boolean; // waiting for the owner, and the engine would send it if approved now
   canAccept: boolean; // ready for review, and the engine would take Accept now
   acceptBlocked: string | null; // why Accept is refused, in plain words; null when canAccept or the run is not ready
+  /**
+   * On a waiting write turn when the judge would then read the draft on its own and no standing consent is recorded:
+   * the setting's words and what the judge's check could cost, read before approving (delivery/judge-run.ts). Set by
+   * the delivery methods and Today; absent or null otherwise.
+   */
+  judgeNotice?: string | null;
 };
 export type SignalRecord = RecordBase<'venture-signal'> & {
   source: 'owner-rejected' | 'owner-edited' | 'check-failed';
   runId: string;
-  reason: DeliveryReason | CheckId | null;
+  /** Also the id of the first rule the rules judge failed a real draft on (a JudgeRule id, judge-run.ts). */
+  reason: DeliveryReason | CheckId | (string & {}) | null;
   scenarioId: string | null; // set once turned into a rehearsal case
 };
 export type ImprovementReadiness = {
@@ -1292,6 +1438,12 @@ export const TOOL_NAMES = [
   'sandbox.transform', 'sandbox.python',
   'handoff.client', 'handoff.owner', 'outbox.propose',
   'agent.delegate',
+  // Ink v2 wave 2: a flagship playbook's own tools (delivery/harness/patches.ts FLAGSHIP_TOOLS): the CA firm's tax
+  // engines, the YouTube pieces and the social report figures; and the note any agent makes of where a fact came from.
+  'tax.income', 'tax.interest', 'tax.gst', 'tax.tds', 'tax.statements', 'tax.portal',
+  'youtube.hooks', 'youtube.editList', 'youtube.chapters', 'youtube.retention',
+  'social.report',
+  'evidence.record',
 ] as const;
 export type ToolName = typeof TOOL_NAMES[number];
 /**
@@ -1430,6 +1582,8 @@ export type UploadRecord = RecordBase<'venture-upload'> & {
   contentBase64: string;
   scope: { kind: 'order'; orderId: string } | { kind: 'practice'; scenarioId: string };
   clientData: boolean;
+  /** Where it came from: the client, or a transcript made on this computer from the client's footage. Absent means the client. */
+  origin?: 'client' | 'local-transcription';
 };
 export type UploadView = Omit<UploadRecord, 'contentBase64'>;
 
@@ -1439,20 +1593,25 @@ export type WorkRunRef =
   | { kind: 'rehearsal'; scenarioId: string; episode: number }
   | { kind: 'improvement'; runId: string; scenarioId: string };
 export type WorkTableRow = { id: string; cells: Record<string, string> };
-/** A table a tool made: a sandbox program's output, or bills picked from PDFs. Tables read from files are not stored. */
+/**
+ * A table a tool made: a sandbox program's output, bills picked from PDFs, or a table code computed from the client's
+ * files (a ranked list of hooks, an edit list; tools.ts computedTable). Tables read from files are not stored.
+ */
 export type WorkTableRecord = RecordBase<'venture-work-table'> & {
   name: string;
   columns: string[];
   rows: WorkTableRow[];
   source:
     | { kind: 'transform'; fromTableId: string; tier: ExecutionTier; driver: string; programDigest: string; moduleDigest: string | null }
-    | { kind: 'picked'; uploadIds: string[] };
+    | { kind: 'picked'; uploadIds: string[] }
+    | { kind: 'computed'; tool: ToolName; uploadIds: string[] };
   runRef: WorkRunRef;
   digest: string;
 };
 /** 'total', 'opening', 'inflows', 'group-1' ... Each figure in a work receipt has a short key. */
 export type WorkFigureKey = string;
-export type WorkFigure = { key: WorkFigureKey; label: string; minor: MinorString; display: string; currency: string; unit: 'money' | 'count' };
+/** unit 'percent': minor holds hundredths of a percent ('1234' is 12.34%). unit 'post': minor is '0' and display is the post's id. */
+export type WorkFigure = { key: WorkFigureKey; label: string; minor: MinorString; display: string; currency: string; unit: 'money' | 'count' | 'percent' | 'post' };
 export type WorkStep = { op: 'add' | 'subtract' | 'count' | 'compare' | 'match'; inputs: string[]; result: string; rule: string };
 export type ReconciliationLine = { rowId: string; date: IsoDate | null; text: string; amountMinor: MinorString; display: string };
 export type Reconciliation = {
@@ -1464,8 +1623,12 @@ export type Reconciliation = {
   moneyIn: ReconciliationLine[];
 };
 /** The calculator's answer for agent work. Every money figure is BigInt arithmetic on amounts code read from the file. */
+/**
+ * 'ca.engine': one of the CA firm's tax engines worked it (delivery/harness/tools-ca.ts), and ca keeps its whole
+ * receipt. 'social.report': the report figures from a platform's exports (tools-social.ts), each kept in report.
+ */
 export type WorkReceiptRecord = RecordBase<'venture-work-receipt'> & {
-  operation: 'work.sum' | 'work.totals' | 'work.reconcile';
+  operation: 'work.sum' | 'work.totals' | 'work.reconcile' | 'ca.engine' | 'social.report';
   runRef: WorkRunRef;
   currency: string;
   inputs: { tables: { id: string; name: string; digest: string }[]; columns: Record<string, string>; rowIds: string[] };
@@ -1475,6 +1638,18 @@ export type WorkReceiptRecord = RecordBase<'venture-work-receipt'> & {
   allowedNumbers: string[];
   explanation: string; // built by code from the figures
   digest: string;
+  /**
+   * The CA engine's receipt, inputs included, so it can be worked again with the exact table versions it stamped
+   * (venture.ca.receipt). caReceiptId is the engine's own receipt digest. Only on operation 'ca.engine'.
+   */
+  ca?: {
+    engine: CaEngine | 'portal-diff'; inputs: Json; inputsDigest: string; caReceiptId: string;
+    table: TableStamp | null; tables: TableStamp[]; sections: SectionRef[]; assumptions: string[]; openQuestions: string[]; working: Json;
+    /** The engine's own steps (each figure with the section it rests on) and its explanation, so the stored receipt is whole. */
+    steps?: CaReceiptStep[]; explanation?: string;
+  };
+  /** Each report figure's platform, month, formula and the export file, columns and rows it came from. Only on 'social.report'. */
+  report?: Pick<ReportReceipt, 'platform' | 'month' | 'key' | 'formula' | 'inputs' | 'unit'>[];
 };
 
 /** Where a failure is fixed. A wrong number is never fixed in a prompt: it points at the calculator's inputs. */
@@ -1535,6 +1710,8 @@ export type ImprovementRunRecord = RecordBase<'venture-improvement-run'> & {
   digest: string; // what the owner approves to adopt the candidate
   /** When the run began; its record is written when it ends. Absent on runs made before the runs view listed them. */
   startedAt?: IsoTime;
+  /** The owner went back from this run's adopted version (venture.improve.rollback); it is not offered again. */
+  rolledBack?: { at: IsoTime; by: string };
 };
 export type ImprovementStatus = {
   readiness: ImprovementReadiness;
@@ -1542,6 +1719,14 @@ export type ImprovementStatus = {
   latest: ImprovementRunRecord | null;
   /** The newest kept candidate that is not adopted yet and still fits the current plan. */
   candidate: { runId: string; playbookId: string; digest: string; changes: string[] } | null;
+  /**
+   * The version in use (Ink v2 wave 2). rollback: what venture.improve.rollback takes to go back to the version it was
+   * made from, with that version's number; null unless it came from an improvement run and the older one still fits.
+   */
+  inUse?: {
+    playbookId: string; version: number; hash: string; origin: 'plan' | 'improvement';
+    rollback: { playbookId: string; version: number; digest: string } | null;
+  } | null;
 };
 
 /** The container tier's process port: Docker only, injected by tests. Nothing else runs through it. */
@@ -1719,6 +1904,10 @@ export const VENTURE_EVENTS = [
   'upload-added', 'delivery-needs-answer', 'improvement-finished', 'playbook-adopted',
   'delivery-brief-waiting', 'delegate-finished',
   'plan-composed',
+  // Ink v2 wave 2 (2B1): the sign-in window the owner asked for did not open or could not be used; the method never waits.
+  'posting-sign-in-failed',
+  // Ink v2 wave 2 (2B2): a check of the posting steps ran; its data holds counts and the guard's audit lines only.
+  'posting-steps-checked',
   // Ink frontend (P1-A): what the desktop pushes over IPC and the web sends over /api/events (VentureRunEvent).
   'run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
 ] as const;
@@ -1733,7 +1922,8 @@ export type VentureEventRecord = RecordBase<'venture-event'> & { seq: number; na
 export type QueueActionId = 'approve' | 'deny' | 'later' | 'watch' | 'read' | 'answer' | 'send-to-ca' | 'open' | 'connect' | 'set-prices' | 'keep' | 'issue' | 'run-again';
 export interface QueueAction { id: QueueActionId; label: string; primary: boolean; secondAsk?: boolean; requiresView?: boolean }
 export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean }
-export type QueueKind = 'draft' | 'price' | 'quote' | 'plan' | 'invoice' | 'signoff' | 'question' | 'setup' | 'locked' | 'connector';
+/** 'bank': a bank statement row to record as a payment, or a bank alert (Ink v2 wave 2). */
+export type QueueKind = 'draft' | 'price' | 'quote' | 'plan' | 'invoice' | 'signoff' | 'question' | 'setup' | 'locked' | 'connector' | 'bank';
 export interface QueueRow {
   id: string; businessId: string; businessName: string; agent?: string; kind: QueueKind;
   title: string; line?: string; change?: QueueChange; digest: string; createdAt: string;
@@ -1852,9 +2042,15 @@ export interface TaxWorkingView { period: Display; sections: TaxWorkingSection[]
 /** venture.ca.get (the AI-native CA firm playbook): the CA of record, rate tables waiting for the CA, and sign-off requests. */
 export interface CaPendingRate { tableId: string; title: Display; version: string; validFrom: string; validTo: string | null; citations: string[] }
 export interface CaRequestView { id: string; deliveryId: string; title: Display; state: 'sent' | 'signed' | 'returned'; at: string }
-export interface CaFirmView { ca: { name: string; membershipNo: string } | null; pendingRates: CaPendingRate[]; requests: CaRequestView[] }
-/** venture.share.*: a read-only preview link for a client. url is null when no public address is set; reason says why. */
-export interface ShareLinkView { id: string; url: string | null; reason?: Display; expiresAt: string }
+/** The newest regulated draft a run made with the calculator's receipts (Ink v2 2A2): its run, its title and those receipts. */
+export interface CaLatestPapers { deliveryId: string; title: Display; receiptIds: string[] }
+export interface CaFirmView { ca: { name: string; membershipNo: string } | null; pendingRates: CaPendingRate[]; requests: CaRequestView[]; latestPapers: CaLatestPapers | null }
+/**
+ * venture.share.*: a read-only preview link for a client. url is null when no public address is set; reason says why.
+ * answer: the client's answer on this link, given through it or recorded by the owner (Ink v2 wave 2); absent until one.
+ * revoked: the owner took the link back; only then present.
+ */
+export interface ShareLinkView { id: string; url: string | null; reason?: Display; expiresAt: string; answer?: ShareAnswerView; revoked?: true }
 /** venture.client.list rows: what the client owes on open invoices, summed in BigInt, with the sum's receipt. */
 export type ClientListRow = ClientRecord & { owed?: { display: Display; receiptId: string } };
 /** venture.invoice.list rows: the invoice total, formatted, and the price receipt behind it. */
@@ -1905,6 +2101,147 @@ export type ShareLinkStoredRecord = RecordBase<'venture-share-link'> & {
   decisions: { draftId: string; decision: 'approved' | 'changes'; comment: string | null; at: IsoTime; digest: string; via: 'share-link' | 'owner-recorded'; recordedBy: string | null }[];
 };
 
+// ---------------------------------------------------------------------------
+// 9d. Ink v2 wave 2: what the newly wired pieces answer. app/ui mirrors them in app/ui/src/engine/types.ts.
+// ---------------------------------------------------------------------------
+
+/**
+ * venture.delivery.judge: the rules judge's call on one ready real-order draft, previewed and waiting for the owner to
+ * send it (venture.delivery.judgeSend with this digest). It carries the client's words, so it never goes on its own.
+ */
+export interface DeliveryJudgePreview { runId: string; digest: string; estimatedMaxCostDisplay: Display; expiresAt: IsoTime; containsClientData: true }
+/** venture.posting.propose: the post waits on Today for the owner's approval. line says so; warnings are the risk gate's. */
+export interface PostingProposal { postId: string; connectorId: string; draftId: string; part: number | null; state: ConnectorPostState; line: Display; warnings: Display[] }
+/**
+ * venture.posting.checkSteps: each browser step's candidates with the day each last matched exactly one visible
+ * element, and stepsCheckedOn, the oldest such day across the three steps (null while any step has none). The confirm
+ * step also carries the platform's response rule, dated by a post the response confirmed. boxAndButtonCheckedOn: the
+ * oldest day across the text box and the post button, the steps a check can see.
+ */
+export interface PostingStepsView {
+  connectorId: string;
+  steps: {
+    step: PostingStepId;
+    candidates: (PostingCandidate & { key: string; checkedOn: IsoDate | null; addedBy: 'chausar' | 'owner' })[];
+    response?: { key: string; method: string; path: string; checkedOn: IsoDate | null };
+  }[];
+  stepsCheckedOn: IsoDate | null;
+  boxAndButtonCheckedOn: IsoDate | null;
+  line: Display;
+}
+/** A client's answer on a shared draft, given through the link or recorded by the owner (venture.share.recordAnswer). */
+export interface ShareAnswerView { draftId: string; decision: 'approved' | 'changes'; comment: string | null; at: IsoTime; via: 'share-link' | 'owner-recorded' }
+/**
+ * One post a draft holds: a line "Channel: text", numbered from 1 in text order over every channel, as
+ * '<delivery run id>.post-<n>' (playbooks/social/run-approvals.ts). connectorId is null for a channel with no posting
+ * connector in this build.
+ */
+export interface DraftPostView { draftId: string; channel: string; name: string; connectorId: string | null; text: string }
+/**
+ * The posting limits the owner may tighten for one channel, in the owner's units (playbooks/social/post-limits.ts):
+ * posts in 24 hours, minutes between posts, warm-up days, the near-duplicate threshold in whole percent, the link streak.
+ */
+export type OwnerPostingLimitsView = { capPer24h: number; minGapMinutes: number; warmUpDays: number; duplicatePercent: number; linkStreak: number };
+/** The owner's stricter limits for one channel (venture.posting.limits.set). An empty set means Chausar's own limits. */
+export type PostingLimitsRecord = RecordBase<'venture-posting-limits'> & { connectorId: string; limits: Partial<OwnerPostingLimitsView> };
+/** venture.posting.limits.*: per channel, Chausar's own limits, the owner's stricter ones, and the ones the risk gate uses. */
+export interface PostingLimitsView {
+  channels: { connectorId: string; name: string; house: OwnerPostingLimitsView; owner: Partial<OwnerPostingLimitsView>; inUse: OwnerPostingLimitsView }[];
+  line: Display;
+}
+/**
+ * venture.social.calendar: the calendar file the engine built (UTF-8 with a byte order mark), the name to save it under
+ * and its row count. blocked: each post it left out, with its channel's name, its words and why. defused: the posts
+ * whose cell starts with a mark spreadsheets read as a formula, so the file put an apostrophe first. threads: the posts
+ * written as the numbered thread parts code split them into, in one cell, to post by hand part by part. gaps: where the
+ * draft's posts and the plan's slots do not match, one line per channel.
+ */
+export interface SocialCalendarFile {
+  csv: string; fileName: string; rows: number; blocked: { draftId: string; name: string; text: string; line: Display }[];
+  defused: string[]; threads: string[]; gaps: Display[];
+}
+
+/**
+ * How a bank statement row reads against the books (venture.bank.ledger): a transfer between the owner's own accounts,
+ * money in that looks like an invoice's payment, plain money in or out, or a row the owner already decided.
+ */
+export type BankRowClass = 'own-transfer' | 'suggested-payment' | 'money-in' | 'money-out' | 'applied' | 'skipped';
+/**
+ * dateDisplay: the row's date as the owner's country writes it. description and counterparty are null off the app
+ * channel (phone, MCP, a tainted context). flag: the engine's words when something about the row needs the owner's eye
+ * (already recorded as a typed payment, or recorded in the books but paired as an own transfer), else null.
+ */
+export interface BankLedgerRow {
+  id: string; accountId: string; account: string; date: IsoDate; dateDisplay: Display; amount: Display; direction: 'in' | 'out';
+  description: string | null; counterparty: string | null; classification: BankRowClass; flag: Display | null;
+  /** The other own account's row an own transfer pairs with; null when unpaired. */
+  pairedWith: string | null;
+  /** The invoice a money-in row looks like it pays, with the engine's words ("pays it in full"); null when none matched. */
+  suggestion: { invoiceId: string; number: string; line: Display } | null;
+  /** What the owner decided on this row (venture.bank.apply), or null. */
+  decided: BankMatchRecord['as'] | null;
+}
+/** consent: the account's read-only bank access in words (consentStatus), null when never given; provider: why nothing reads the bank yet. */
+export interface BankLedgerView {
+  accounts: { id: string; label: string; currency: string; consent: BankConsentView['status'] | null }[]; rows: BankLedgerRow[]; line: Display; provider: Display;
+}
+/** venture.bank.apply: the row as it reads now, the engine's line, and the books receipt when a payment or a cost was recorded. */
+export interface BankApplyResult { row: BankLedgerRow; line: Display; receiptId?: string }
+/** venture.bank.alerts.*: each account's alert rules, each rule in the engine's words, and where alerts go, in words; never the address itself. */
+export interface BankAlertsView { accounts: { account: string; accountId: string; rules: BankAlertRule[]; ruleLines: Display[]; destination: Display }[] }
+
+/** An explanation the CA of record recorded for one portal difference on a stored CA receipt (venture.ca.explainDiff). */
+export interface CaDiffExplanation { receiptId: string; key: string; note: string; caName: string; membershipNo: string; at: IsoTime }
+/**
+ * venture.ca.receipt: a stored CA receipt as the CA reads it, worked again from its inputs with the exact table
+ * versions it stamped. 'differs' names the first key that came out differently; 'table-gone' when a stamped version no
+ * longer exists, which is never read as 'same'.
+ */
+export interface CaReceiptView {
+  id: string; runId: string | null; engine: CaEngine | 'portal-diff';
+  figures: { key: string; label: string; display: Display }[];
+  steps: { key: string; label: string; display: Display; section: string | null }[];
+  tables: TableStamp[]; assumptions: string[]; openQuestions: string[];
+  rederived: 'same' | 'differs' | 'table-gone'; differs: { key: string; line: Display } | null;
+  explanations: CaDiffExplanation[];
+  /** On a portal diff only: each key that is not the same, both sides as figures, and the CA's explanation or null (Ink v2 2A2). */
+  portalDifferences?: { key: string; label: string; state: 'differs' | 'missing-on-portal' | 'only-on-portal'; ours: Display | null; portal: Display | null; explanation: string | null }[];
+}
+
+/** One dated platform rule a flagship playbook's checks rest on (venture.rules.list), as the owner reads it. */
+export interface PlatformRuleView {
+  id: string; platform: string; rule: Display; checkedOn: IsoDate; stale: boolean;
+  /** The step or check ids of the playbook that use this rule. */
+  usedBy: string[];
+  limitations: string[];
+  source: { title: string; url: string } | null;
+  line: Display;
+}
+/** venture.rules.list: the playbook's rules with their freshness, its risk level and when it was last reviewed. Empty with no flagship. */
+export interface RulesListView {
+  playbook: { id: string; label: string; riskLevel: string; lastReviewed: IsoDate } | null;
+  rules: PlatformRuleView[];
+  summary: Display;
+}
+
+/**
+ * venture.judge.auto.get and .set: whether the judge runs on its own on every ready draft for a client or the public,
+ * when its standing consent was recorded (null until then, or while off), and the setting's sheet line in plain words.
+ */
+export interface JudgeAutoView { auto: boolean; consentAt: IsoTime | null; line: Display }
+
+/**
+ * The owner's whisper.cpp for transcripts made on this computer (venture.transcription.set): full paths to whisper-cli
+ * and to its model file, both null once cleared. The newest is in use; the engine puts it in place when the workspace
+ * opens (platform/runtime/speech.ts restoreLocal). Never on the hosted server.
+ */
+export type TranscriptionSetupRecord = RecordBase<'venture-transcription-setup'> & { command: string | null; model: string | null };
+/**
+ * venture.transcription.get and .set: the setup's honest status (set up, not set up, or its files are not where they
+ * were set up, checked on disk each time), its paths, whether ffmpeg is on this computer too, and a plain line.
+ */
+export interface TranscriptionSetupView { status: 'set-up' | 'not-set-up' | 'files-missing'; command: string | null; model: string | null; ffmpeg: boolean; line: Display }
+
 /** A business on this computer as the views see it. id is its workspace folder, the id workspace.list uses. */
 export type VentureBusinessRef = { id: string; name: string | null; opens: 'with-this-computer' | 'needs-passphrase' | 'key-missing'; openedAt: string | null };
 /**
@@ -1936,7 +2273,10 @@ export type AnyVentureRecord =
   | BankAccountRecord | BankImportRecord | LeadRecord | LeadSettingsRecord
   | SumReceiptRecord | ShareLinkStoredRecord
   | ChannelHoldRecord
-  | ScreenSettingRecord | UntrustedReleaseRecord;
+  | ScreenSettingRecord | UntrustedReleaseRecord
+  | PostingStepsRecord | BankMatchRecord | PostingLimitsRecord
+  | JudgeSettingRecord
+  | TranscriptionSetupRecord;
 export type RecordOf<K extends VentureRecordKind> = Extract<AnyVentureRecord, { kind: K }>;
 
 /**
@@ -1951,6 +2291,8 @@ export type CaFirmRecord = RecordBase<'venture-ca-firm'> & (
   | { entry: 'sent-to-ca'; itemKey: string; caName: string; membershipNumber: string; sentBy: string }
   | { entry: 'signoff'; requestId: string; decision: 'signed' | 'returned'; caName: string; membershipNumber: string; workingDigest: string; receiptIds: string[]; playbookHash: string | null; note: string | null; recordedBy: string }
   | { entry: 'rate-confirmation'; tableId: string; tableVersion: number; tableHash: string; caName: string; membershipNumber: string; recordedBy: string }
+  /** The CA of record's explanation of one portal difference on a stored portal-diff receipt (Ink v2 2A2); the newest per key wins. */
+  | { entry: 'diff-explanation'; receiptId: string; key: string; note: string; caName: string; membershipNumber: string; recordedBy: string }
 );
 
 // ---------------------------------------------------------------------------
@@ -2001,6 +2343,19 @@ export const VENTURE_METHODS = [
   'venture.queue.view', 'venture.team.posture', 'venture.evidence.dismiss', 'venture.money.overview', 'venture.tax.working',
   'venture.ca.get', 'venture.ca.setOfRecord', 'venture.ca.recordSignoff', 'venture.ca.confirmRates',
   'venture.leads.block', 'venture.share.create', 'venture.share.list', 'venture.share.revoke',
+  // Ink v2 wave 2: the judge on real orders, going back a playbook version, a transcript made on this computer, posting
+  // from a checked draft, the client's answer the owner records, the calendar file, bank statements into the books and
+  // their alerts, stored CA receipts and portal differences, and the dated platform rules
+  'venture.delivery.judge', 'venture.delivery.judgeSend', 'venture.improve.rollback', 'venture.files.transcribe',
+  'venture.posting.propose', 'venture.posting.signIn', 'venture.posting.checkSteps', 'venture.share.recordAnswer', 'venture.social.calendar',
+  'venture.bank.ledger', 'venture.bank.apply', 'venture.bank.alerts.get', 'venture.bank.alerts.set',
+  'venture.ca.receipt', 'venture.ca.explainDiff', 'venture.rules.list',
+  // Ink v2 wave 2 (2C1): whether the judge runs on its own on drafts for a client or the public (judgeAuto)
+  'venture.judge.auto.get', 'venture.judge.auto.set',
+  // Ink v2 wave 2 (2B1): the owner's stricter posting limits per channel, tighten only
+  'venture.posting.limits.get', 'venture.posting.limits.set',
+  // Ink v2 wave 2 (2E2): the owner's whisper.cpp for transcripts made on this computer
+  'venture.transcription.get', 'venture.transcription.set',
   // Onboarding v2: the draft desk, answered before the vault check (DRAFT_METHODS)
   'venture.ai.options', 'venture.ai.connect', 'venture.ai.disconnect', 'venture.ai.status', 'venture.ai.calls',
   'venture.compose.decide', 'venture.compose.fill', 'venture.compose.get', 'venture.compose.update',
@@ -2046,6 +2401,13 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.queue.view': 'views', 'venture.team.posture': 'views', 'venture.evidence.dismiss': 'core', 'venture.money.overview': 'money', 'venture.tax.working': 'money',
   'venture.ca.get': 'views', 'venture.ca.setOfRecord': 'views', 'venture.ca.recordSignoff': 'views', 'venture.ca.confirmRates': 'views',
   'venture.leads.block': 'build', 'venture.share.create': 'build', 'venture.share.list': 'build', 'venture.share.revoke': 'build',
+  'venture.delivery.judge': 'delivery', 'venture.delivery.judgeSend': 'delivery', 'venture.improve.rollback': 'delivery', 'venture.files.transcribe': 'delivery',
+  'venture.posting.propose': 'build', 'venture.posting.signIn': 'build', 'venture.posting.checkSteps': 'build', 'venture.share.recordAnswer': 'build', 'venture.social.calendar': 'build',
+  'venture.bank.ledger': 'build', 'venture.bank.apply': 'build', 'venture.bank.alerts.get': 'build', 'venture.bank.alerts.set': 'build',
+  'venture.ca.receipt': 'views', 'venture.ca.explainDiff': 'views', 'venture.rules.list': 'views',
+  'venture.judge.auto.get': 'delivery', 'venture.judge.auto.set': 'delivery',
+  'venture.posting.limits.get': 'build', 'venture.posting.limits.set': 'build',
+  'venture.transcription.get': 'delivery', 'venture.transcription.set': 'delivery',
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
   'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
   'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
@@ -2064,6 +2426,11 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.leads.block', 'venture.share.create', 'venture.share.revoke',
   'venture.journal.resolve',
   'venture.untrusted.mode', 'venture.untrusted.release',
+  'venture.delivery.judgeSend', 'venture.improve.rollback', 'venture.files.transcribe', 'venture.posting.signIn', 'venture.posting.checkSteps',
+  'venture.share.recordAnswer', 'venture.bank.apply', 'venture.bank.alerts.set', 'venture.ca.explainDiff',
+  'venture.judge.auto.set',
+  'venture.posting.limits.set',
+  'venture.transcription.set',
 ] as const);
 /** Methods whose success changes what saved answers may cite (the retired app/renderer cleared its cached answers on them). */
 export const EVIDENCE_METHODS: readonly VentureMethod[] = Object.freeze([
@@ -2176,6 +2543,38 @@ export type VenturePayloads = {
   'venture.share.create': { deliveryId: string; expiresInHours?: number };
   'venture.share.list': { deliveryId?: string };
   'venture.share.revoke': { id: string };
+  'venture.delivery.judge': { runId: string };
+  'venture.delivery.judgeSend': { runId: string; digest: string };
+  /** playbookId: the parent of the version in use; digest: the hash of the version in use, as the owner saw it. */
+  'venture.improve.rollback': { playbookId: string; digest: string };
+  'venture.files.transcribe': { orderId: string };
+  /** draftId: '<delivery run id>.post-<n>', one channel line of a social draft. The text always comes from the stored draft. */
+  'venture.posting.propose': { draftId: string; account?: string };
+  'venture.posting.signIn': { connectorId: string };
+  'venture.posting.checkSteps': { connectorId: string };
+  'venture.share.recordAnswer': { draftId: string; answer: 'approved' | 'changes'; comment?: string };
+  'venture.social.calendar': { runId: string };
+  /** account: the owner's label for one account, absent for all; month: 'YYYY-MM', absent for every month. */
+  'venture.bank.ledger': { account?: string; month?: string };
+  /** invoiceId: the invoice a payment pays; only with as 'payment'. */
+  'venture.bank.apply': { transactionId: string; as: 'payment' | 'cost' | 'skip'; invoiceId?: string };
+  'venture.bank.alerts.get': Empty;
+  /**
+   * alertAddress: where alerts go (checked by the network guard); null stops them; absent keeps the address set before.
+   * A rule's money is minor units (minor) or the amount the owner typed (amount), which the engine reads exactly.
+   */
+  'venture.bank.alerts.set': { account: string; rules: BankAlertRuleInput[]; alertAddress?: string | null };
+  'venture.ca.receipt': { id: string };
+  'venture.ca.explainDiff': { receiptId: string; key: string; note: string; membershipNo: string };
+  'venture.rules.list': Empty;
+  'venture.judge.auto.get': Empty;
+  /** auto: true runs the judge on its own on every ready draft for a client or the public, and records the consent. */
+  'venture.judge.auto.set': { auto: boolean };
+  'venture.posting.limits.get': Empty;
+  /** limits: only stricter numbers than Chausar's own (POSTING_LIMIT_LOOSER otherwise); a number left out is Chausar's own. */
+  'venture.posting.limits.set': { connectorId: string; limits: Partial<OwnerPostingLimitsView> };
+  'venture.transcription.get': Empty;
+  'venture.transcription.set': { command: string; model: string } | { clear: true };
   'venture.ai.options': OnboardingPayloads['venture.ai.options'];
   'venture.ai.connect': OnboardingPayloads['venture.ai.connect'];
   'venture.ai.disconnect': OnboardingPayloads['venture.ai.disconnect'];
@@ -2281,9 +2680,37 @@ export type VentureResults = {
   'venture.ca.confirmRates': CaFirmView;
   'venture.leads.block': { blocked: string[] };
   'venture.share.create': ShareLinkView;
-  /** links is the contract's name; shares is the same list under the name app/ui read first. */
-  'venture.share.list': { links: ShareLinkView[]; shares: ShareLinkView[] };
+  /**
+   * links is the contract's name; shares is the same list under the name app/ui read first. posts: with a deliveryId,
+   * the posts that draft holds now, each with the id venture.posting.propose takes (Ink v2 wave 2), and clientApproval:
+   * whether they go out only after the client approved the draft; answer: the client's answer the engine counts for the
+   * draft as it is now, or null (the one posting reads and recordAnswer refuses over).
+   */
+  'venture.share.list': { links: ShareLinkView[]; shares: ShareLinkView[]; posts?: DraftPostView[]; clientApproval?: boolean; answer?: ShareAnswerView | null };
   'venture.share.revoke': ShareLinkView;
+  'venture.delivery.judge': DeliveryJudgePreview;
+  'venture.delivery.judgeSend': DeliveryRunView;
+  'venture.improve.rollback': PlaybookRecord;
+  'venture.files.transcribe': UploadView;
+  'venture.posting.propose': PostingProposal;
+  /** The browser window opened; the method does not wait for it to close. */
+  'venture.posting.signIn': { opened: true; line: Display };
+  'venture.posting.checkSteps': PostingStepsView;
+  'venture.share.recordAnswer': { answer: ShareAnswerView };
+  'venture.social.calendar': SocialCalendarFile;
+  'venture.bank.ledger': BankLedgerView;
+  'venture.bank.apply': BankApplyResult;
+  'venture.bank.alerts.get': BankAlertsView;
+  'venture.bank.alerts.set': BankAlertsView;
+  'venture.ca.receipt': CaReceiptView;
+  'venture.ca.explainDiff': { explanation: CaDiffExplanation };
+  'venture.rules.list': RulesListView;
+  'venture.judge.auto.get': JudgeAutoView;
+  'venture.judge.auto.set': JudgeAutoView;
+  'venture.posting.limits.get': PostingLimitsView;
+  'venture.posting.limits.set': PostingLimitsView;
+  'venture.transcription.get': TranscriptionSetupView;
+  'venture.transcription.set': TranscriptionSetupView;
   'venture.ai.options': OnboardingResults['venture.ai.options'];
   'venture.ai.connect': OnboardingResults['venture.ai.connect'];
   'venture.ai.disconnect': OnboardingResults['venture.ai.disconnect'];
@@ -2333,6 +2760,8 @@ export const VENTURE_ERRORS = [
   'POST_NOT_FOUND', 'POST_ALREADY_DECIDED',
   'SITE_EDIT_NOT_FOUND', 'SITE_EDIT_UNCHANGED', 'SITE_CHANGED_SINCE_REVIEW', 'SITE_WRITE_NOT_GRANTED', 'SITE_PATH_INVALID',
   'BANK_CONSENT_EXPIRED', 'BANK_POLL_LIMIT', 'BANK_STATEMENT_INVALID',
+  // Bank statements into the books (Ink v2 wave 2, 2D): a row or account not found, decided once, transfers and directions
+  'BANK_TRANSACTION_NOT_FOUND', 'BANK_ACCOUNT_NOT_FOUND', 'BANK_ALREADY_APPLIED', 'BANK_OWN_TRANSFER', 'BANK_NOT_MONEY_IN', 'BANK_NOT_MONEY_OUT',
   'LEADS_SOURCE_REQUIRED', 'LEADS_EMAIL_UNVERIFIED', 'LEADS_BLOCKED', 'LEADS_ADDRESS_MISSING',
   'RIGHTS_REQUIRED',
   // Ink frontend views (P1-A): runs, agents and the always-ask floor on agent gates
@@ -2363,6 +2792,17 @@ export const VENTURE_ERRORS = [
   'RUN_CAP_REACHED', 'RUN_CAP_NOT_REACHED', 'ORDER_NOT_ACTIVE', 'CLIENT_NOT_ACTIVE', 'RECHECK_FAILED',
   // Posting safety (W1 H6, H19): a post only from a checked, approved, unchanged draft; a channel held by a check or a block
   'POST_DRAFT_UNCHECKED', 'POST_CLIENT_NOT_APPROVED', 'POST_DRAFT_CHANGED', 'CHANNEL_CHALLENGED', 'CHANNEL_FROZEN',
+  // The judge on real orders and going back a playbook version (Ink v2 wave 2, 2C1)
+  'JUDGE_NOT_READY', 'JUDGE_NOT_WAITING', 'JUDGE_ALREADY_SENT', 'ROLLBACK_NOTHING', 'ROLLBACK_STALE',
+  // Posting methods (Ink v2 wave 2, 2B1): a draft the owner has not approved, an id that names no post, a thread, the
+  // house risk gate, a client's answer recorded twice, and an owner's posting limit looser than Chausar's own
+  'POST_NOT_APPROVED', 'POST_NOT_A_POST', 'POST_THREAD_NOT_BUILT', 'POST_RISK_BLOCKED', 'ALREADY_DECIDED', 'POSTING_LIMIT_LOOSER',
+  // A transcript made on this computer (Ink v2 wave 2, 2E2): ffmpeg or whisper.cpp missing, one already there, a failed run
+  'TRANSCRIBE_NOT_AVAILABLE', 'TRANSCRIPT_EXISTS', 'SPEECH_FAILED', 'TRANSCRIBE_STOPPED',
+  // Honest browser steps (Ink v2 wave 2, 2B2): signed out for a check, a check that could not run, a refused page script
+  'POSTING_NOT_SIGNED_IN', 'POSTING_STEPS_NOT_CHECKED', 'PAGE_SCRIPT_REFUSED',
+  // The calendar file (Ink v2 wave 2, 2F2): a draft that is not a social one, an order with no calendar to plan slots from
+  'CALENDAR_NOT_A_SOCIAL_DRAFT', 'CALENDAR_NO_SLOTS',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 
@@ -2387,6 +2827,16 @@ export type VentureEngineServices = {
   trust: { updatePolicy(ctx: Context, patch: Record<string, unknown>): Promise<any> };
   /** The trusted Python helper (platform/runtime/helper.ts). Delivery agents use only its PDF text extraction, never on the hosted web server. */
   helper?: { run(operation: 'pdf.extract', input: { pdfBase64: string; maxPages?: number }): Promise<{ result: any; receipt: any }> };
+  /**
+   * The speech service (platform/runtime/speech.ts): a transcript made on this computer by the owner's own whisper.cpp,
+   * set up with full paths. It never installs, downloads a model or uploads. YouTube orders use it (Ink v2 wave 2, 2E2).
+   */
+  speech?: {
+    localTranscriber(): { ready: true; providerId: string } | { ready: false; reason: string };
+    transcribeFile(ctx: Context, input: { path: string; prompt?: string; timeoutMs?: number; signal?: AbortSignal }): Promise<{ srt: string; providerId: string }>;
+    /** Puts in place (or removes, with null) the whisper.cpp the owner set up in the app (venture.transcription.set). */
+    useLocal(setup: { command: string; model: string } | null): void;
+  };
 };
 
 export type VentureStorage = 'experimental-file' | 'postgres';
@@ -2425,6 +2875,12 @@ export type VentureDeps = {
   siteFolder?: string;
   /** The mail server lookup for lead emails. Absent means node:dns; tests inject a table. */
   mx?: (domain: string) => Promise<{ exchange: string; priority: number }[]>;
+  /** The ffmpeg that takes the sound out of a cut for a transcript made here. Absent means the one on PATH; never on hosted. */
+  ffmpeg?: FfmpegPort;
+  /** Trusted host composition: the engine stops long local work through it when the workspace closes (VentureClosingPort). */
+  closing?: VentureClosingPort;
+  /** The network guard's lookup and sender for requests the engine makes itself (bank alert counts). Absent means the real ones; tests inject stubs. */
+  net?: { resolve?: NetResolver; send?: PinnedSender };
   /** Called once with the events a venture action committed, after the commit. A listener's failure never undoes it. */
   publish?: (events: VentureEventRecord[]) => void;
   /**
@@ -2476,4 +2932,15 @@ export type VentureHostOptions = {
   notify?: (events: VentureRunEvent[]) => void;
   /** The hosted web server's public origin for client share links (CHAUSAR_PUBLIC_URL). Used only when host is 'hosted-web'. */
   publicUrl?: string;
+  /** Trusted host composition: the ffmpeg port for a transcript made here (tests inject a stand-in); never on hosted. */
+  ffmpeg?: FfmpegPort;
+  /** Trusted host composition from the engine: how a workspace closing stops long local work (VentureClosingPort). */
+  closing?: VentureClosingPort;
 };
+
+/**
+ * How the engine stops long local work (a transcript being made) when the workspace locks, closes, switches or the
+ * app quits. signal is aborted then; hold() says such work is running and returns its release, so the engine stops it
+ * and waits (capped) instead of answering VAULT_BUSY.
+ */
+export type VentureClosingPort = { readonly signal: AbortSignal; hold(): () => void };

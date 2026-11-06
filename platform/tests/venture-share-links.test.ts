@@ -103,7 +103,7 @@ test('on the hosted web server the address carries the token once; the vault kee
 
   // Revoking stops the page at once; revoking again changes nothing.
   const revoked = await call<ShareLinkView>(deps, 'venture.share.revoke', { id: made.id });
-  assert.deepEqual(revoked, { id: made.id, url: null, reason: SHARE_WORDS.revoked, expiresAt: made.expiresAt });
+  assert.deepEqual(revoked, { id: made.id, url: null, reason: SHARE_WORDS.revoked, expiresAt: made.expiresAt, revoked: true });
   assert.equal(await sharePage(deps, owner, token), null);
   assert.deepEqual(await call(deps, 'venture.share.revoke', { id: made.id }), revoked);
 });

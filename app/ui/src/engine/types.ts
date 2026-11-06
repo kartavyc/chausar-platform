@@ -14,7 +14,7 @@ export type Display = string; // engine-formatted text; the UI never computes it
 export type QueueActionId = 'approve' | 'deny' | 'later' | 'watch' | 'read' | 'answer' | 'send-to-ca' | 'open' | 'connect' | 'set-prices' | 'keep' | 'issue' | 'run-again';
 export interface QueueAction { id: QueueActionId; label: string; primary: boolean; secondAsk?: boolean; requiresView?: boolean }
 export interface QueueChange { label?: string; before?: Display; after: Display; receiptId?: string; estimate?: boolean }
-export type QueueKind = 'draft' | 'price' | 'quote' | 'plan' | 'invoice' | 'signoff' | 'question' | 'setup' | 'locked' | 'connector';
+export type QueueKind = 'draft' | 'price' | 'quote' | 'plan' | 'invoice' | 'signoff' | 'question' | 'setup' | 'locked' | 'connector' | 'bank';
 export interface QueueRow {
   id: string; businessId: string; businessName: string; agent?: string; kind: QueueKind;
   title: string; line?: string; change?: QueueChange; digest: string; createdAt: string;
@@ -98,7 +98,9 @@ export interface TaxWorking { period: Display; sections: TaxWorkingSection[]; ne
 export interface CaOfRecord { name: string; membershipNo: string }
 export interface CaPendingRate { tableId: string; title: Display; version: string; validFrom: string; validTo: string | null; citations: string[] }
 export interface CaSignoffRequest { id: string; deliveryId: string; title: Display; state: 'sent' | 'signed' | 'returned'; at: string }
-export interface CaView { ca: CaOfRecord | null; pendingRates: CaPendingRate[]; requests: CaSignoffRequest[] }
+/** The newest regulated draft with the calculator's receipts (Ink v2 2A2); Your CA works each receipt again. */
+export interface CaLatestPapers { deliveryId: string; title: Display; receiptIds: string[] }
+export interface CaView { ca: CaOfRecord | null; pendingRates: CaPendingRate[]; requests: CaSignoffRequest[]; latestPapers?: CaLatestPapers | null }
 
 /** Leads (platform/runtime/venture/contracts.ts LeadView): agents draft, the owner sends from his own mailbox. */
 export interface LeadEmailCheck { status: 'unverified' | 'verified' | 'failed'; at: string | null; line: string }
@@ -133,8 +135,12 @@ export interface SiteEditLite {
   log: { at: string; by: string; step: 'staged' | 'applied' | 'verified' | 'rolled-back' | 'rejected' | 'needs-inspection'; line: string }[];
 }
 
-/** A preview link for a client (venture.share.*). `url` is null when there is no public address; `reason` says why. */
-export interface ShareLink { id: string; url: string | null; reason?: Display; expiresAt: string }
+/**
+ * A preview link for a client (venture.share.*). `url` is null when there is no public address; `reason` says why.
+ * `answer`: the client's answer on this link, given through it or recorded by the owner (Ink v2 wave 2). `revoked`: the
+ * owner took the link back; only an answer on the newest link not taken back counts.
+ */
+export interface ShareLink { id: string; url: string | null; reason?: Display; expiresAt: string; answer?: ShareAnswer; revoked?: true }
 
 // ---------------------------------------------------------------------------------------------------------------
 // Mirrors of existing engine shapes (trimmed). Source: platform/runtime/workspace-custody-contracts.ts and
@@ -195,6 +201,10 @@ export type Qualification = 'built-in' | 'fixture-tested' | 'unqualified';
 export interface PostingOptionLite {
   mode: PostingMode; status: 'available' | 'planned'; qualification: Qualification; what: string;
   risk: string | null; requires: string[]; reason: string | null;
+  /** The browser mode of LinkedIn and X: the oldest day across the posting steps one of each step's candidates last worked, or null (2B2). */
+  stepsCheckedOn?: string | null;
+  /** The same mode: the oldest day the post box and the post button last worked, the steps a check can see (2B2). */
+  boxAndButtonCheckedOn?: string | null;
 }
 export interface ConnectorCardLite {
   id: string; name: string; category: string; categoryLabel: string;
@@ -262,8 +272,15 @@ export interface BlueprintLite {
 }
 /** `RightsBasis` in platform/runtime/venture/delivery/rights.ts. */
 export type RightsBasisLite = 'own-footage' | 'licence' | 'creator-clip-programme';
-/** `OfferIntakeAsk`: what an order for a flagship offer asks. rights: the bases it accepts (empty: no footage is cut). */
-export interface OfferIntakeLite { rights: RightsBasisLite[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile')[] }
+/**
+ * `OfferIntakeAsk`: what an order for a flagship offer asks. rights: the bases it accepts (empty: no footage is cut).
+ * calendar: a social content calendar's month, channels, posts per channel and weekdays; clientRules: the client's word lists.
+ */
+export interface OfferIntakeLite { rights: RightsBasisLite[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile' | 'calendar' | 'clientRules')[] }
+/** `OrderIntake.calendar`: weekdays are ISO numbers, 1 Monday to 7 Sunday. The engine plans the dated slots from it. */
+export interface CalendarIntakeLite { month: string; channels: string[]; postsPerChannel: number; weekdays: number[] }
+/** `OrderIntake.clientRules`: the client's own word lists; a missing list is empty. */
+export interface ClientRulesLite { bannedWords?: string[]; bannedTopics?: string[]; competitors?: string[]; protectedPhrases?: string[] }
 /** intake: by offer id, worked out by the engine; absent when no offer asks anything at intake. */
 export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite> }
 export interface BlueprintPatchLite {
@@ -334,12 +351,16 @@ export type OrderStatus = 'open' | 'invoiced' | 'delivered' | 'cancelled';
 export interface OrderLite {
   id: string; at: string; clientId: string; offerId: string; quantity: string; request: string; status: OrderStatus;
   priceReceiptId: string; deliveredOn: string | null;
+  /** OrderRecord.intake, trimmed (a flagship offer's intake). cutFile: the finished cut on this computer, desktop only. */
+  intake?: { format?: 'long' | 'short'; cutFile?: string | null };
 }
 /** `venture.files.list` (UploadView), trimmed: a file a client sent, kept in the vault. */
 export interface UploadLite {
   /** transcript: an SRT or VTT file of what was said, with timings. */
   id: string; at: string; name: string; format: 'csv' | 'xlsx' | 'pdf' | 'transcript'; bytes: number;
   scope: { kind: 'order'; orderId: string } | { kind: 'practice'; scenarioId: string }; clientData: boolean;
+  /** Where it came from: absent or 'client', or a transcript made on this computer from the cut (venture.files.transcribe). */
+  origin?: 'client' | 'local-transcription';
 }
 /** `venture.delivery.list` (DeliveryRunView), trimmed to what a client's sheet shows. */
 export type DeliveryStatus = 'waiting-for-you' | 'needs-answer' | 'brief-waiting' | 'ready-for-review' | 'accepted' | 'edited' | 'rejected' | 'failed';
@@ -348,6 +369,34 @@ export interface DeliveryLite {
   deliverable: { title: string } | null; verdict: { choice: 'accepted' | 'edited' | 'rejected'; at: string } | null;
   /** DeliveryRunView: the run waits on the owner (it is on Today). The engine always sends it. */
   awaitingYou?: boolean;
+  /**
+   * Ink v2 wave 2 (2C2), from DeliveryRunView: the code checks and the judge's verdict ('rules-judge') in the engine's
+   * words, a flagship playbook's own checks, whether the engine would take Accept now and why not, and the judge's
+   * call on this draft. The engine always sends them; samples and older tests may leave them out.
+   * servedBy 'template': an outline no AI wrote (the judge never reads one). practiceNow: a practice draft at today's
+   * launch stage, which `practice` alone does not say (a model draft before approve each is practice too).
+   */
+  servedBy?: 'model' | 'template';
+  practiceNow?: boolean;
+  checks?: CheckLite[];
+  playbookChecks?: PlaybookCheckLite[];
+  canAccept?: boolean;
+  acceptBlocked?: Display | null;
+  judge?: DeliveryJudgeLite;
+}
+/** CheckResult: notChecked (rules-judge only) is neither a pass nor a failure: no rule was settled with checked evidence. */
+export interface CheckLite { check: string; passed: boolean; detail: Display; notChecked?: true }
+/** PlaybookCheckResult: 'not-run' says why a check could not run; it is never a pass, and blocks nothing. */
+export interface PlaybookCheckLite { playbook: string; check: string; outcome: 'pass' | 'fail' | 'not-run'; detail: Display }
+/**
+ * DeliveryRunRecord.judge, trimmed: the judge's call on this draft. 'waiting' holds the preview "Send to the judge"
+ * sends (by its digest); auto: it went, or waits, under the business's judge setting; line: why it did not run or
+ * failed, in the engine's words. The verdict itself is the rules-judge result in `checks`.
+ */
+export interface DeliveryJudgeLite {
+  status: 'waiting' | 'done' | 'failed';
+  preview: { digest: string; estimatedMaxCostDisplay: Display; expiresAt: string } | null;
+  auto?: boolean; estimatedMaxCostDisplay?: Display | null; line?: Display | null; draftDigest?: string;
 }
 /**
  * `venture.invoice.list` (InvoiceRecord), trimmed to what an order's state needs. `number` is null until issued.
@@ -420,6 +469,149 @@ export interface QueueItemView {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Ink v2 wave 2: the views of the newly wired engine pieces (contracts.ts section 9d), trimmed to what screens read.
+// Every figure arrives as engine text; a file the engine built (the calendar CSV) is saved as it came.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** `venture.delivery.judge`: the judge's call on a ready draft, waiting for "Send to the judge" with this digest. */
+export interface JudgePreview { runId: string; digest: string; estimatedMaxCostDisplay: Display; expiresAt: string; containsClientData: true }
+/**
+ * `venture.judge.auto.get` and `.set`: whether the judge runs on its own on every ready draft for a client or the
+ * public (on by default), when its standing consent was recorded (null until then, or while off), and the engine's
+ * line for the setting's sheet, which says the client's words go to the owner's AI.
+ */
+export interface JudgeAutoView { auto: boolean; consentAt: string | null; line: Display }
+/**
+ * `venture.transcription.get` and `.set`: the owner's whisper.cpp (full paths to whisper-cli and its model file, null
+ * when not set up), its status checked on disk by the engine, whether ffmpeg is here too, and the engine's plain line.
+ */
+export interface TranscriptionSetupView { status: 'set-up' | 'not-set-up' | 'files-missing'; command: string | null; model: string | null; ffmpeg: boolean; line: Display }
+/**
+ * `venture.simulation.scenarios` (Scenario), trimmed: a made-up practice client. Its words hold no client data.
+ * source 'signal': a case made from a draft the owner rejected or edited, or one that failed a check.
+ */
+export interface ScenarioLite { id: string; serviceType: ServiceType; title: string; persona: string; source: 'template' | 'signal'; files?: string[] }
+/**
+ * `venture.simulation.run` (SimulationRunRecord), trimmed: one rehearsal. firstFailure is what failed first, as the
+ * engine names it (a check id, a judge question or a sentence); the checks hold each check's own words.
+ * costDisplay is the engine's text, marked when it is an estimate.
+ */
+export interface EpisodeLite { scenarioId: string; index: number; passed: boolean; firstFailure: string | null; checks: CheckLite[]; playbookChecks?: PlaybookCheckLite[] }
+export interface SimulationRunLite {
+  id: string; at: string; playbookId: string; scenarioIds: string[]; episodes: EpisodeLite[]; passed: boolean;
+  summary: { scenarios: number; passed: number; failed: number }; costDisplay: Display; modelMode: 'model' | 'template' | 'mixed';
+}
+/** ImprovementReadiness: reason is the engine's words; 'planned' means the loop is not in this build. */
+export interface ImprovementReadinessLite { judged: number; rejectedOrEdited: number; due: boolean; reason: Display; status: 'available' | 'planned' }
+/** `venture.improve.run` (ImprovementRunRecord), trimmed. changes: one plain line per change the kept version makes. */
+export interface ImprovementRunLite {
+  id: string; at: string; status: 'kept-candidate' | 'kept-parent' | 'incomplete'; parentPlaybookId: string; candidatePlaybookId: string | null;
+  changes: Display[]; costDisplay: Display; modelMode: 'model' | 'template' | 'mixed'; incompleteReason: Display | null; digest: string;
+  rolledBack?: { at: string; by: string };
+}
+/**
+ * `venture.improve.status` (ImprovementStatus): the readiness, the newest run, a kept version waiting to be used
+ * (adopted by its run id and digest), and the version in use with what going back takes (rollback null when the engine
+ * would refuse it now).
+ */
+export interface ImprovementStatusLite {
+  readiness: ImprovementReadinessLite; activePlaybookId: string | null; latest: ImprovementRunLite | null;
+  candidate: { runId: string; playbookId: string; digest: string; changes: Display[] } | null;
+  inUse?: { playbookId: string; version: number; hash: string; origin: 'plan' | 'improvement'; rollback: { playbookId: string; version: number; digest: string } | null } | null;
+}
+/** `venture.improve.rollback` (PlaybookRecord), trimmed: the version now in use. */
+export interface PlaybookLite { id: string; version: number; hash: string; origin?: 'plan' | 'improvement'; parentId?: string | null }
+/** `venture.posting.propose`: the post waits on Today. `warnings` are the risk gate's, in the engine's words. */
+export interface PostingProposal {
+  postId: string; connectorId: string; draftId: string; part: number | null;
+  state: 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown'; line: Display; warnings: Display[];
+}
+export type PostingStepId = 'textbox' | 'submit' | 'confirm';
+export interface PostingCandidateLite {
+  key: string; kind: 'test-id' | 'role' | 'aria-label' | 'xpath'; value: string; name?: string; lang?: string;
+  checkedOn: string | null; addedBy: 'chausar' | 'owner';
+}
+/** `venture.posting.checkSteps`: `stepsCheckedOn` is the oldest day across the three steps, or null while any has none. */
+export interface PostingStepsView {
+  connectorId: string;
+  steps: { step: PostingStepId; candidates: PostingCandidateLite[]; response?: { key: string; method: string; path: string; checkedOn: string | null } }[];
+  stepsCheckedOn: string | null;
+  /** The oldest day across the post box and the post button: what a check can date before the first post. */
+  boxAndButtonCheckedOn: string | null;
+  line: Display;
+}
+/** `venture.share.recordAnswer`: the client's answer, as the owner recorded it or the client gave it through the link. */
+export interface ShareAnswer { draftId: string; decision: 'approved' | 'changes'; comment: string | null; at: string; via: 'share-link' | 'owner-recorded' }
+/**
+ * `venture.share.list` with a draft's id: one post the draft holds, with the id `venture.posting.propose` takes
+ * ('<run id>.post-<n>'). `connectorId` is null when this build has no posting connector for the channel.
+ */
+export interface DraftPostLite { draftId: string; channel: string; name: string; connectorId: string | null; text: string }
+/** The posting limits the owner may only tighten, in the owner's units: posts a day, minutes, days, percent, posts. */
+export interface OwnerPostingLimits { capPer24h: number; minGapMinutes: number; warmUpDays: number; duplicatePercent: number; linkStreak: number }
+/** `venture.posting.limits.*`: per channel, Chausar's own limits, the owner's stricter ones and those the gate uses. */
+export interface PostingLimitsView {
+  channels: { connectorId: string; name: string; house: OwnerPostingLimits; owner: Partial<OwnerPostingLimits>; inUse: OwnerPostingLimits }[];
+  line: Display;
+}
+/**
+ * `venture.social.calendar`: the CSV the engine built, the name to save it under, its row count, the posts it left out
+ * (channel name, words, why), the posts whose cell got an apostrophe (defused), the posts written as threads, and the
+ * gaps between the draft's posts and the plan's slots, in the engine's words.
+ */
+export interface SocialCalendarFile {
+  csv: string; fileName: string; rows: number; blocked: { draftId: string; name: string; text: string; line: Display }[];
+  defused: string[]; threads: string[]; gaps: Display[];
+}
+/** `BankAlertRule` in platform/runtime/venture/build/bank.ts. Amounts are minor units as the engine keeps them, as text. */
+export type BankAlertRuleLite =
+  | { kind: 'balance-below'; minor: string }
+  | { kind: 'large-debit'; minor: string }
+  | { kind: 'credit-matching'; text: string }
+  | { kind: 'credit-missing-by'; text: string; minor: string; by: string };
+/**
+ * `BankAlertRuleInput`: a rule as Ink sends it. A new rule carries the amount the owner typed (amount), which the engine
+ * reads exactly; a kept rule goes back with the engine's own minor units. Ink never turns one into the other.
+ */
+export type BankAlertRuleInputLite =
+  | { kind: 'balance-below' | 'large-debit'; minor?: string; amount?: string }
+  | { kind: 'credit-matching'; text: string }
+  | { kind: 'credit-missing-by'; text: string; minor?: string; amount?: string; by: string };
+export type BankRowClass = 'own-transfer' | 'suggested-payment' | 'money-in' | 'money-out' | 'applied' | 'skipped';
+/** dateDisplay: the engine's date for the owner's country. flag: the engine's words when the row needs a second look, else null. */
+export interface BankLedgerRow {
+  id: string; accountId: string; account: string; date: string; dateDisplay: Display; amount: Display; direction: 'in' | 'out';
+  description: string | null; counterparty: string | null; classification: BankRowClass; flag: Display | null; pairedWith: string | null;
+  suggestion: { invoiceId: string; number: string; line: Display } | null; decided: 'payment' | 'cost' | 'skip' | null;
+}
+/** consent: the account's bank access in the engine's words, null when never given; provider: why nothing reads the bank yet. */
+export interface BankLedgerView {
+  accounts: { id: string; label: string; currency: string; consent: BankConsentView['status'] | null }[]; rows: BankLedgerRow[]; line: Display; provider: Display;
+}
+export interface BankApplyResult { row: BankLedgerRow; line: Display; receiptId?: string }
+/** `venture.bank.alerts.*`: each rule in the engine's words, and where alerts go in words only ("Alerts go to the address you set"), never the address. */
+export interface BankAlertsView { accounts: { account: string; accountId: string; rules: BankAlertRuleLite[]; ruleLines: Display[]; destination: Display }[] }
+/** `venture.ca.receipt`, trimmed: the stored CA receipt worked again from its inputs. */
+export interface CaDiffExplanation { receiptId: string; key: string; note: string; caName: string; membershipNo: string; at: string }
+export interface CaReceiptView {
+  id: string; runId: string | null; engine: string;
+  figures: { key: string; label: string; display: Display }[];
+  steps: { key: string; label: string; display: Display; section: string | null }[];
+  tables: { id: string; version: number; title: string; validFrom: string; validTo: string | null; confirmed: boolean; confirmedBy: string | null }[];
+  assumptions: string[]; openQuestions: string[];
+  rederived: 'same' | 'differs' | 'table-gone'; differs: { key: string; line: Display } | null;
+  explanations: CaDiffExplanation[];
+  /** On a portal diff only: each key that is not the same, both sides as the engine wrote them, and the CA's explanation or null. */
+  portalDifferences?: { key: string; label: string; state: 'differs' | 'missing-on-portal' | 'only-on-portal'; ours: Display | null; portal: Display | null; explanation: string | null }[];
+}
+/** `venture.rules.list`: the dated platform rules a flagship playbook's checks rest on. */
+export interface PlatformRuleView {
+  id: string; platform: string; rule: Display; checkedOn: string; stale: boolean; usedBy: string[]; limitations: string[];
+  source: { title: string; url: string } | null; line: Display;
+}
+export interface RulesListView { playbook: { id: string; label: string; riskLevel: string; lastReviewed: string } | null; rules: PlatformRuleView[]; summary: Display }
+
+// ---------------------------------------------------------------------------------------------------------------
 // The methods the UI calls, with their params and results.
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -461,8 +653,12 @@ export interface EngineMethods {
   'venture.site.apply': { params: { editId: string; reviewedHash: string }; result: SiteEditLite };
   'venture.site.revert': { params: { editId: string; reviewedHash: string }; result: SiteEditLite };
   'venture.share.create': { params: { deliveryId: string; expiresInHours?: number }; result: ShareLink };
-  /** `links` is the contract's name; the engine sends the same list as `shares` too. */
-  'venture.share.list': { params: { deliveryId?: string }; result: { links?: ShareLink[]; shares?: ShareLink[] } };
+  /**
+   * `links` is the contract's name; the engine sends the same list as `shares` too. `posts`: with a deliveryId, its posts;
+   * `clientApproval`: whether they go out only after the client approved the draft; `answer`: the client's answer the
+   * engine counts for the draft as it is now, or null (what Post and the record control read).
+   */
+  'venture.share.list': { params: { deliveryId?: string }; result: { links?: ShareLink[]; shares?: ShareLink[]; posts?: DraftPostLite[]; clientApproval?: boolean; answer?: ShareAnswer | null } };
   'venture.share.revoke': { params: { id: string }; result: ShareLink };
   'venture.events': { params: { afterSeq?: number; limit?: number }; result: VentureEventsResult };
   'venture.get': { params: Record<string, never>; result: VentureViewLite | null };
@@ -532,7 +728,10 @@ export interface EngineMethods {
   'venture.order.create': {
     params: {
       clientId: string; offerId: string; quantity?: string; request: string;
-      intake?: { rights?: { basis: string; holder: string; reference?: string; scope?: string; expiresOn?: string }; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string };
+      intake?: {
+        rights?: { basis: string; holder: string; reference?: string; scope?: string; expiresOn?: string }; format?: 'long' | 'short'; aiVoice?: boolean; aiPresenter?: boolean; paidPromotion?: boolean; cutFile?: string;
+        calendar?: CalendarIntakeLite; clientRules?: ClientRulesLite;
+      };
     };
     result: OrderLite;
   };
@@ -553,6 +752,44 @@ export interface EngineMethods {
   'venture.interview.next': { params: { useTemplate?: boolean }; result: InterviewViewLite };
   'venture.interview.answer': { params: { questionId: string; answer: InterviewAnswer }; result: InterviewViewLite };
   'venture.blueprint.draft': { params: { useTemplate?: boolean }; result: BlueprintViewLite };
+  // Ink v2 wave 2: the newly wired engine methods.
+  'venture.delivery.judge': { params: { runId: string }; result: JudgePreview };
+  'venture.delivery.judgeSend': { params: { runId: string; digest: string }; result: DeliveryLite };
+  'venture.improve.rollback': { params: { playbookId: string; digest: string }; result: PlaybookLite };
+  // Practice and improvement (2C2): the engine's existing methods, which Ink now calls.
+  'venture.simulation.scenarios': { params: Record<string, never>; result: ScenarioLite[] };
+  /** No scenarioIds: every template practice client. useTemplate: built-in templates, no AI and no judge. */
+  'venture.simulation.run': { params: { scenarioIds?: string[]; episodes?: number; useTemplate?: boolean }; result: SimulationRunLite };
+  'venture.improve.status': { params: Record<string, never>; result: ImprovementStatusLite };
+  'venture.improve.run': { params: { maxRounds?: number; useTemplate?: boolean }; result: ImprovementRunLite };
+  /** The owner's, inside the app: the kept version by its run and the digest the owner read (CANDIDATE_STALE otherwise). */
+  'venture.improve.adopt': { params: { runId: string; digest: string }; result: PlaybookLite };
+  /** Desktop only: a transcript made on this computer from the order's cut, listed then as an order file. */
+  'venture.files.transcribe': { params: { orderId: string }; result: UploadLite };
+  /** draftId: '<delivery run id>.post-<n>'. The text comes from the stored draft, never from the screen. */
+  'venture.posting.propose': { params: { draftId: string; account?: string }; result: PostingProposal };
+  'venture.posting.signIn': { params: { connectorId: string }; result: { opened: true; line: Display } };
+  'venture.posting.checkSteps': { params: { connectorId: string }; result: PostingStepsView };
+  'venture.share.recordAnswer': { params: { draftId: string; answer: 'approved' | 'changes'; comment?: string }; result: { answer: ShareAnswer } };
+  'venture.social.calendar': { params: { runId: string }; result: SocialCalendarFile };
+  'venture.bank.ledger': { params: { account?: string; month?: string }; result: BankLedgerView };
+  'venture.bank.apply': { params: { transactionId: string; as: 'payment' | 'cost' | 'skip'; invoiceId?: string }; result: BankApplyResult };
+  'venture.bank.alerts.get': { params: Record<string, never>; result: BankAlertsView };
+  'venture.bank.alerts.set': { params: { account: string; rules: BankAlertRuleInputLite[]; alertAddress?: string | null }; result: BankAlertsView };
+  'venture.ca.receipt': { params: { id: string }; result: CaReceiptView };
+  'venture.ca.explainDiff': { params: { receiptId: string; key: string; note: string; membershipNo: string }; result: { explanation: CaDiffExplanation } };
+  'venture.rules.list': { params: Record<string, never>; result: RulesListView };
+  'venture.judge.auto.get': { params: Record<string, never>; result: JudgeAutoView };
+  /** The owner's, inside the app. auto: true records the standing consent for the judge's calls. */
+  'venture.judge.auto.set': { params: { auto: boolean }; result: JudgeAutoView };
+  /** Per channel: Chausar's own posting limits, the owner's stricter ones and those in use (Ink v2 wave 2, 2B1). */
+  'venture.posting.limits.get': { params: Record<string, never>; result: PostingLimitsView };
+  /** The owner's, inside the app: only stricter numbers (POSTING_LIMIT_LOOSER otherwise); a number left out is Chausar's own. */
+  'venture.posting.limits.set': { params: { connectorId: string; limits: Partial<OwnerPostingLimits> }; result: PostingLimitsView };
+  /** The owner's whisper.cpp for transcripts made on this computer, with its honest status (Ink v2 wave 2, 2E2). */
+  'venture.transcription.get': { params: Record<string, never>; result: TranscriptionSetupView };
+  /** The owner's, inside the app, desktop only: full paths to whisper-cli and its model file, or { clear: true }. */
+  'venture.transcription.set': { params: { command: string; model: string } | { clear: true }; result: TranscriptionSetupView };
 }
 export type MethodName = keyof EngineMethods;
 export type ParamsOf<M extends MethodName> = EngineMethods[M]['params'];

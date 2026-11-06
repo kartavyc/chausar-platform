@@ -7,8 +7,8 @@ import { check, type Context, type State } from '../../contracts.ts';
 import { copiedTokens, digest, exactPayload, findRecord, formatMicros, identifier, modelWords, smallInteger, sumMicros, ventureAction } from '../records.ts';
 import type {
   BlueprintRecord, CheckResult, ClientSimModelOutput, CountryProfile, Deliverable, Episode, EpisodeTurn, HarnessState, Json, JudgeAnswer, MockEffect, ModelOutcome,
-  ModelTask, PlaybookCheckResult, PlaybookRecord, PriceReceiptRecord, Scenario, ServiceType, SimulationRunRecord, VentureDeps, VentureRecord, WorkReceiptRecord,
-  WorkTableRecord,
+  ModelTask, PlaybookCheckResult, PlaybookRecord, PriceReceiptRecord, Scenario, ServiceType, SimulationRunRecord, ToolCallRecord, VentureDeps, VentureRecord,
+  WorkReceiptRecord, WorkTableRecord,
 } from '../contracts.ts';
 import { correctDraft, firstFailedCheck, judgeDraftRules, knownNames, runChecks, withDraftChecks, type CheckInput, type DraftRulesInput } from './checks.ts';
 import { deliveryTask, draftAllowedTokens, rehearsalRefs, renderDeliverable, renderForJudge, type DraftRefs } from './deliverable.ts';
@@ -17,10 +17,12 @@ import { manifest } from './harness/dictionary.ts';
 import {
   actTask, answerHandoff, applyTurn, finishWrite, harnessRefs, newHarnessState, playbookGrant, provenSentences, REPORT_SECTIONS, runCapMicros, skipActs, writeGuidance, writeTask,
 } from './harness/loop.ts';
+import { youtubeWorked } from './harness/tools-youtube.ts';
 import { practiceFiles } from './harness/practice.ts';
 import { judgedAnswers, judgeTask, notJudged } from './judge.ts';
 import { ensurePlaybook, flagshipDraft, playbookLimits } from './playbook.ts';
 import { failedPlaybookCheck, flagshipJudgeRules, runFlagshipChecks } from '../playbooks/draft-checks.ts';
+import { refusalsOf } from '../playbooks/ca-firm/claims.ts';
 import type { FileLike } from './harness/files.ts';
 import { listScenarios, signalScenario } from './scenarios.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
@@ -120,25 +122,32 @@ async function ask<T>(env: RehearsalEnv, task: ModelTask<T>, spend: Spend[], met
  * The checks on a practice draft. The rules judge sits behind the code checks: it is asked only when the case names
  * rules-judge, an AI judge is on and every code check passed, a flagship playbook's own checks included, and then it
  * asks that playbook's own rules. With no judge it is left out, as the practice judge answers 'not-judged': never a
- * pass it did not get. Practice clients only, so no client data goes to the judge.
+ * pass it did not get. Practice clients only, so no client data goes to the judge. In an agent episode the judge's
+ * call carries what the run has left and counts against it (meter), like the practice judge's.
  */
-async function practiceChecks(env: RehearsalEnv, scenario: Scenario, input: CheckInput, judged: Omit<DraftRulesInput, 'context' | 'containsClientData'>, spend: Spend[], playbookChecks?: readonly PlaybookCheckResult[]): Promise<CheckResult[]> {
+async function practiceChecks(env: RehearsalEnv, scenario: Scenario, input: CheckInput, judged: Omit<DraftRulesInput, 'context' | 'containsClientData'>, spend: Spend[], playbookChecks?: readonly PlaybookCheckResult[], meter?: RunMeter): Promise<CheckResult[]> {
   const checks = runChecks(input);
   if (!input.checks.includes('rules-judge') || !env.judgeOn || !checks.every(result => result.passed) || failedPlaybookCheck(playbookChecks)) return checks;
-  const rules = await judgeDraftRules(task => ask(env, task, spend), {
+  const rules = await judgeDraftRules(task => ask(env, task, spend, meter), {
     ...judged, containsClientData: false, context: `The client: ${scenario.persona} The reply should be: ${scenario.expectedOutcome}`,
     rules: flagshipJudgeRules(env.playbook.flagship),
   });
   return runChecks({ ...input, rules });
 }
 
-/** A flagship playbook's own checks on a practice draft; undefined for the eight fixed steps. */
-async function practicePlaybookChecks(env: RehearsalEnv, deliverable: Deliverable, servedBy: 'model' | 'template', request: string, extras: { files?: readonly FileLike[]; receipts?: readonly WorkReceiptRecord[] } = {}): Promise<PlaybookCheckResult[] | undefined> {
+/**
+ * A flagship playbook's own checks on a practice draft; undefined for the eight fixed steps. The episode's tables and
+ * tool calls go with them, for the checks that read them.
+ */
+async function practicePlaybookChecks(env: RehearsalEnv, deliverable: Deliverable, servedBy: 'model' | 'template', request: string, extras: { files?: readonly FileLike[]; receipts?: readonly WorkReceiptRecord[]; tables?: readonly WorkTableRecord[]; toolCalls?: readonly ToolCallRecord[] } = {}): Promise<PlaybookCheckResult[] | undefined> {
   if (!env.playbook.flagship) return undefined;
   return runFlagshipChecks({
     flagship: env.playbook.flagship, offerKey: env.offerKey, servedBy, deliverable, request, intake: null, files: extras.files ?? [],
     receipts: [...env.receipts, ...(extras.receipts ?? [])], known: env.known, mode: 'rehearsal', today: todayIso(env.deps, env.venture), dateOrder: env.country.dateOrder,
     ...(env.deps.host === 'hosted-web' ? { finishing: null } : {}),
+    tables: extras.tables ?? [], toolCalls: extras.toolCalls ?? [],
+    // The CA firm calculator's refusals in this episode fail its working, do not retry, as on a real order.
+    refusals: refusalsOf(extras.toolCalls ?? []),
   });
 }
 
@@ -255,7 +264,7 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
   const answers: string[] = [];
   const toolEnv = buildToolEnv({
     deps: env.deps, ctx: env.ctx, state: env.state, venture: env.venture, playbook: env.playbook, runRef: { kind: 'rehearsal', scenarioId: scenario.id, episode: index }, files,
-    allowed: copiedTokens(request, env.venture.idea),
+    allowed: copiedTokens(request, env.venture.idea), intake: null,
   });
   let state: HarnessState = newHarnessState(playbookGrant(env.playbook), playbookLimits(env.playbook), files.map(file => file.id));
   // The run's cap held before each paid call (W1 H4): every call carries what the run has left. The turns and the
@@ -310,7 +319,8 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     step = 'draft';
     const allowed = copiedTokens(request, env.venture.idea, ...answers);
     const proven = provenSentences(state, toolEnv.receipts, namer(toolEnv));
-    const draft = await ask(env, writeTask({ ...loop, idea: env.venture.idea, allowed, priceRefs: env.refs, templateTotalRef: 'offer_1.total', proven }, state, toolEnv.receipts), spend, inLoop);
+    const worked = youtubeWorked(state.toolCalls, toolEnv.tables);
+    const draft = await ask(env, writeTask({ ...loop, idea: env.venture.idea, allowed, priceRefs: env.refs, templateTotalRef: 'offer_1.total', proven, worked }, state, toolEnv.receipts), spend, inLoop);
     state = finishWrite(state, { by: draft.by, callId: draft.callId, costMicros: draft.costMicros });
     const receipts = [...env.receipts, ...toolEnv.receipts];
     // The calculator's figure in place of each number it refutes (correctDraft), before the draft is rendered and checked.
@@ -324,15 +334,15 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     mocks.push({ connector: 'mail-app', operation: 'send-deliverable', payloadDigest: digest(renderedText), recordedAt: env.deps.clock().toISOString() });
     const handoffs = state.handoffs.length;
     step = 'judge';
-    const playbookChecks = await practicePlaybookChecks(env, deliverable, draft.by, request, { files, receipts: toolEnv.receipts });
+    const playbookChecks = await practicePlaybookChecks(env, deliverable, draft.by, request, { files, receipts: toolEnv.receipts, tables: toolEnv.tables, toolCalls: state.toolCalls });
     const checks = await practiceChecks(env, scenario, {
       checks: caseChecks, deliverable, renderedText: renderDeliverable(deliverable, receipts, env.country, { attachments: false }), serviceType: env.serviceType,
-      flagship: env.playbook.flagship ?? null, corrections: corrected.corrections,
+      flagship: env.playbook.flagship ?? null, corrections: corrected.corrections, times: worked.times,
       allowed, receipts, ventureId: env.venture.id, mocks: [...mocks, ...state.mocks], mockModes: scenario.mocks,
       agentTurns: 1 + handoffs, turnLimit: scenario.turnLimit, askedQuestions: deliverable.questionsForClient.length > 0 || handoffs > 0,
       sections: (env.draft && draft.by === 'model' ? env.draft.sections : null) ?? (state.sections === 'report' ? REPORT_SECTIONS : REQUIRED_SECTIONS[env.serviceType]), proofs: state.proofs,
       grounding,
-    }, { draft: renderForJudge(deliverable, receipts), clientRequest: request, harness: state, receipts: toolEnv.receipts }, spend, playbookChecks);
+    }, { draft: renderForJudge(deliverable, receipts), clientRequest: request, harness: state, receipts: toolEnv.receipts }, spend, playbookChecks, outside);
 
     let judge: JudgeAnswer[];
     if (env.judgeOn) {

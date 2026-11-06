@@ -14,7 +14,11 @@ import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
 import { FakeWorkDesk } from './fake-work';
 import { FakeMoney } from './fake-money';
 import { FakeExtrasDesk } from './fake-extras';
-import type { OrderLite } from './types';
+import { FakePostingDesk } from './fake-posting';
+import { FakePracticeDesk } from './fake-practice';
+import { FakeBankDesk } from './fake-bank';
+import { FakeWiringDesk } from './fake-wiring';
+import type { DeliveryLite, OrderLite } from './types';
 import { EngineError, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -124,6 +128,14 @@ export class FakeEngine {
   readonly money: FakeMoney;
   /** Money at a glance, tax working, spend settings, the CA page, leads, bank imports, site edits, links: fake-extras.ts. */
   private readonly extras: FakeExtrasDesk;
+  /**
+   * Ink v2 wave 2: posting and the client's answer (fake-posting.ts), practice and the judge (fake-practice.ts), bank
+   * statements in the books (fake-bank.ts), and transcripts, the calendar file and platform rules (fake-wiring.ts).
+   */
+  private readonly posting: FakePostingDesk;
+  private readonly practice: FakePracticeDesk;
+  private readonly bank: FakeBankDesk;
+  private readonly wiring: FakeWiringDesk;
 
   constructor(options: FakeOptions = {}) {
     // `npm run dev:ui` can show the first run: add ?fresh to the address (and ?no-keys for a computer without
@@ -165,6 +177,18 @@ export class FakeEngine {
       current: () => this.current, now: () => this.now(), businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
       playbook: (id) => this.desk.playbook(id), owed: () => this.money.owed(), hosted: () => this.hosted, emit: (event) => this.emit(event),
     }, { fresh });
+    // The wave 2 desks share one host: Today's rows, and other desks' answers for the records they read.
+    const waveHost = {
+      current: () => this.current, now: () => this.now(), emit: (event: VentureRunEvent) => this.emit(event), hosted: () => this.hosted,
+      rows: () => this.rows, setRows: (rows: QueueRow[]) => { this.rows = rows; }, digest: digestOf,
+      ask: (method: string, p: Record<string, unknown>) => this.answerNow(method, p),
+      reviseDelivery: (runId: string, revise: (run: DeliveryLite) => DeliveryLite) => this.work.reviseRun(this.current, runId, revise),
+      keepMadeTranscript: (p: Record<string, unknown>) => this.work.keepMade(this.current, p),
+    };
+    this.posting = new FakePostingDesk(waveHost, { fresh });
+    this.practice = new FakePracticeDesk(waveHost, { fresh });
+    this.bank = new FakeBankDesk(waveHost, { fresh });
+    this.wiring = new FakeWiringDesk(waveHost, { fresh });
     if (fresh) {
       this.rows = []; this.runs = []; this.agents = {}; this.clients = {}; this.evidence = [];
       this.businesses = []; this.ventures.clear(); this.open = false; this.current = '';
@@ -269,8 +293,22 @@ export class FakeEngine {
         if (this.desk.handles(method)) return this.desk.request(method, p);
         if (this.work.handles(method)) return this.work.request(method, p);
         if (this.extras.handles(method)) return this.extras.request(method, p);
+        if (this.posting.handles(method)) return this.posting.request(method, p);
+        if (this.practice.handles(method)) return this.practice.request(method, p);
+        if (this.bank.handles(method)) return this.bank.request(method, p);
+        if (this.wiring.handles(method)) return this.wiring.request(method, p);
         throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
+  }
+
+  /** Another desk's answer at once, with no latency: what the wave 2 desks read (orders, runs, files, invoices). */
+  private answerNow(method: string, p: Record<string, unknown>): unknown {
+    if (FakeMoney.answers(method)) return this.money.request(method, p);
+    if (method === 'venture.connectors.list') return clone(CONNECTORS);
+    for (const desk of [this.desk, this.work, this.extras, this.posting, this.practice, this.bank, this.wiring]) {
+      if (desk.handles(method)) return desk.request(method, p);
+    }
+    throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
   }
 
   private queueList(scope: 'current' | 'all') {

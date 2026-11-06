@@ -2,14 +2,18 @@
 // Files live in the vault as client data. CSV, XLSX and transcripts (SRT or VTT, read as timed lines with segment ids)
 // are read by code in this process; PDF text comes from the
 // trusted Python helper (pdf.extract). The shared hosted server never runs the Python helper, so there a PDF is refused
-// before it is stored. Practice files for rehearsal are made up by Chausar and never stored.
-import { check, ChausarError, type Context } from '../../../contracts.ts';
+// before it is stored. Practice files for rehearsal are made up by Chausar and never stored. On the desktop a YouTube
+// order's transcript can also be made on this computer from the cut named at intake (venture.files.transcribe).
+import { audit, check, ChausarError, type Context } from '../../../contracts.ts';
+import { localPathProblem } from '../../../speech.ts';
 import { readWorkbook } from '../../../workbook.ts';
-import { digest, exactPayload, identifier, listRecords, requireAppChannel, singleLine, ventureAction } from '../../records.ts';
+import { digest, exactPayload, findRecord, identifier, listRecords, requireAppChannel, singleLine, ventureAction } from '../../records.ts';
 import type { UploadFormat, UploadRecord, UploadView, VentureDeps, WorkTableRecord, WorkTableRow } from '../../contracts.ts';
 import { readAs } from '../shared.ts';
 import { csvRows } from './cells.ts';
+import { dictionaryEntries, ownerDefinitions } from './dictionary.ts';
 import { parseTranscript, type Cue } from '../../playbooks/youtube/transcript.ts';
+import { HOSTED_NO_TRANSCRIBE, makeLocalTranscript, transcriptName, transcriptPrompt } from '../../playbooks/youtube/transcribe.ts';
 
 /** Fits one desktop request (two million bytes) once encoded. */
 export const MAX_UPLOAD_BYTES = 1_450_000;
@@ -23,12 +27,13 @@ export const HOSTED_NO_PDF = "The shared hosted server can't read PDFs: that nee
 export type FileLike = Pick<UploadRecord, 'id' | 'name' | 'format' | 'bytes' | 'digest' | 'contentBase64' | 'clientData'>;
 /**
  * A table the agent can address by id: rows read from a file, or a table a tool made earlier in the run. origin says
- * where its cells came from: a client file, bills picked from PDFs (amounts chosen from what code read), or a
- * program (labels and keys only, never amounts). madeFrom is the table a program read.
+ * where its cells came from: a client file, bills picked from PDFs (amounts chosen from what code read), a program
+ * (labels and keys only, never amounts), or code that worked a table out from the client's files (a ranked list of
+ * hooks, an edit list). madeFrom is the table a program read.
  */
 export type SourceTable = {
   id: string; name: string; columns: string[]; rows: WorkTableRow[]; digest: string; kind: 'file' | 'work'; uploadId: string | null;
-  origin: 'file' | 'transform' | 'picked'; madeFrom: string | null;
+  origin: 'file' | 'transform' | 'picked' | 'computed'; madeFrom: string | null;
 };
 
 export function uploadView(record: UploadRecord): UploadView {
@@ -89,6 +94,53 @@ export async function filesAddHandler(deps: VentureDeps, ctx: Context, payload: 
     tx.put(record);
     // The event never carries the file name: it can hold a client's name.
     tx.emit('upload-added', { uploadId: record.id, orderId, format });
+    return uploadView(record);
+  });
+}
+
+/** One transcript per order, and room for it among the order's files. */
+function roomForTranscript(uploads: readonly UploadRecord[]): void {
+  check(!uploads.some(upload => upload.format === 'transcript'), 'TRANSCRIPT_EXISTS', 'This order already has a transcript.');
+  check(uploads.length < MAX_UPLOADS_PER_ORDER, 'UPLOAD_LIMIT', `An order holds at most ${MAX_UPLOADS_PER_ORDER} files.`);
+}
+
+/**
+ * venture.files.transcribe { orderId } (app only, desktop): the order's transcript made on this computer from the
+ * cut named at intake, by the ffmpeg and whisper.cpp already here (playbooks/youtube/transcribe.ts). It is kept as
+ * the order's transcript, client data, marked as made here. Refused plainly when either program is missing.
+ */
+export async function filesTranscribeHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<UploadView> {
+  requireAppChannel(ctx, 'venture.files.transcribe');
+  const body = exactPayload(payload, ['orderId'], ['orderId']);
+  const orderId = identifier(body.orderId, 'Order');
+  check(deps.host !== 'hosted-web', 'TIER_UNAVAILABLE', HOSTED_NO_TRANSCRIBE);
+  const { state, venture } = readAs(deps, ctx, 'prepare');
+  const order = findRecord(state, 'venture-order', orderId);
+  check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
+  const cutFile = order.intake?.cutFile ?? null;
+  check(cutFile, 'INVALID_VENTURE_REQUEST', 'This order names no finished cut on this computer. Add the transcript as an SRT or VTT file instead.');
+  const problem = localPathProblem(cutFile);
+  check(!problem, 'INVALID_VENTURE_REQUEST', `The cut: ${problem}`);
+  const ofOrder =(uploads: readonly UploadRecord[]) => uploads.filter(upload => upload.scope.kind === 'order' && upload.scope.orderId === orderId);
+  roomForTranscript(ofOrder(listRecords(state, 'venture-upload', venture.id)));
+  const prompt = transcriptPrompt(dictionaryEntries(state, venture, {}, ownerDefinitions(deps, ctx)));
+  const made = await makeLocalTranscript(deps, ctx, { cutFile, prompt });
+  const bytes = Buffer.byteLength(made.srt, 'utf8');
+  check(bytes <= MAX_UPLOAD_BYTES, 'UPLOAD_LIMIT', 'The transcript is larger than an order file can be, one and a half megabytes. Nothing was kept.');
+  const encoded = Buffer.from(made.srt, 'utf8').toString('base64');
+  const name = transcriptName(cutFile);
+  return ventureAction(deps, ctx, 'prepare', 'files.transcribe', tx => {
+    check(tx.find('venture-order', orderId), 'ORDER_NOT_FOUND', 'That order was not found.');
+    roomForTranscript(ofOrder(tx.list('venture-upload')));
+    const record: UploadRecord = {
+      ...tx.base('venture-upload'), name, format: 'transcript', bytes, digest: digest(encoded), contentBase64: encoded,
+      scope: { kind: 'order', orderId }, clientData: true, origin: 'local-transcription',
+    };
+    tx.put(record);
+    // The activity row goes in with the upload, so there is never one for a transcript that was not kept.
+    audit(tx.state, 'speech.file.transcribed', { uploadId: record.id, orderId, providerId: made.providerId, cues: made.cues });
+    // The event never carries the file name: it can hold a client's name.
+    tx.emit('upload-added', { uploadId: record.id, orderId, format: 'transcript' });
     return uploadView(record);
   });
 }
