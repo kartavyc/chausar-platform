@@ -1,5 +1,5 @@
-import { clientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
-import { EngineError, type ClientLite, type ClientAiConsentView } from './types';
+import { CLIENT_AI_DEFAULT_DISCLOSURE, clientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+import { EngineError, type ClientLite, type ClientAiConsentView, type ClientAiDefaultView } from './types';
 import type {W4DeskHost} from './fake-w4';
 
 type ClientAiBinding={ventureId:string;orderId:string;clientId:string;consentId:string;consentRevision:number};
@@ -39,4 +39,53 @@ export function fakeClientAiConsent(method:string,raw:unknown,host:{clients:Clie
     client.aiConsent={...client.aiConsent,revision:client.aiConsent.revision+1,withdrawnAt:host.now()};host.changed();
   }
   return structuredClone(view());
+}
+
+/**
+ * C5 task 7 clients/ai-default.ts: Allow AI for new clients, off by default, per business. The digest names the words
+ * and how many times the default changed; a new client added while it is on gets its own consent, by 'business-default'.
+ */
+export class FakeClientAiDefault {
+  private readonly held = new Map<string, { on: boolean; changes: number; digest: string; at: string | null }>();
+  private state(business: string) {
+    let found = this.held.get(business);
+    if (!found) { found = { on: false, changes: 0, digest: '', at: null }; this.held.set(business, found); }
+    return found;
+  }
+  private digestOf(business: string, changes: number): string {
+    let hash = 0;
+    for (const char of `${business}|${CLIENT_AI_DEFAULT_DISCLOSURE}|${changes}`) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+    return hash.toString(16).padStart(8, '0').repeat(8);
+  }
+  view(business: string): ClientAiDefaultView {
+    const held = this.state(business);
+    return {
+      on: held.on, disclosure: CLIENT_AI_DEFAULT_DISCLOSURE, digest: this.digestOf(business, held.changes), setAt: held.at,
+      line: held.on ? 'Every client you add gets your AI permission. Clients added before keep their own.' : 'Each new client asks for your AI permission on their own.',
+    };
+  }
+  request(method: string, raw: unknown, business: string, now: string): ClientAiDefaultView {
+    const p = (raw ?? {}) as Record<string, unknown>;
+    if (method === 'venture.client.aiDefault.get') {
+      if (Object.keys(p).length) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+      return this.view(business);
+    }
+    if (Object.keys(p).some((key) => key !== 'on' && key !== 'digest') || typeof p.on !== 'boolean') throw new EngineError('INVALID_VENTURE_REQUEST', 'Send on as true or false.');
+    if (typeof p.digest !== 'string') throw new EngineError('INVALID_VENTURE_REQUEST', 'Read the permission first.');
+    const current = this.view(business);
+    if (p.digest !== current.digest) throw new EngineError('CLIENT_AI_CONSENT_CHANGED', 'Read the current permission and confirm it again.');
+    if (current.on === p.on) return current;
+    const held = this.state(business);
+    held.digest = current.digest;
+    held.on = p.on;
+    held.changes += 1;
+    held.at = now;
+    return this.view(business);
+  }
+  /** The consent a new client gets while the default is on, else none. */
+  consentFor(business: string, clientId: string, now: string): ClientLite['aiConsent'] | undefined {
+    const held = this.state(business);
+    if (!held.on) return undefined;
+    return { id: `aiconsent_${business}_${clientId}_1`, revision: 1, disclosureDigest: held.digest, grantedAt: now, grantedBy: 'business-default', withdrawnAt: null };
+  }
 }
