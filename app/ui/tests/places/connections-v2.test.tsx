@@ -300,3 +300,17 @@ describe('Connections in the Ink v2 look', () => {
 
 
 });
+
+
+describe('Connections: one list of AI choices (B4 task 20)', () => {
+  it('lists each AI once, with one page check and no duplicate availability chip', async () => {
+    start();
+    const ai = await region('Your AI');
+    const choices = await within(ai).findByRole('list', { name: 'AI choices' });
+    expect([...choices.querySelectorAll(':scope > li [data-ai-name]')].map(node => node.textContent)).toEqual(['Claude Code', 'Codex', 'Anthropic key', 'OpenAI key']);
+    expect(within(ai).queryByText('Can connect')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Your AI apps' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Check connections' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
+  });
+});

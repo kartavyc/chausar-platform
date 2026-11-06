@@ -59,6 +59,32 @@ const BASE_STYLE = `:root{color-scheme:light dark;${colours('light')}}`
   + 'th{color:var(--mute);font-weight:500}button,input,select,textarea{font:inherit;color:inherit}'
   + 'button{background:transparent;border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer}';
 
+/** Content sizing ignores viewport minimums while measuring, then restores them before paint. Fixed minimums,
+ * borders, margins and positioned descendants keep their full box edges. All stylesheets are local by the CSP. */
+const FRAME_SIZE = String.raw`(function(){
+  var last=-1,resize,mutations;
+  var viewport=/[0-9.](?:dvh|svh|lvh|vh|vmin|vmax|vb)\b/i;
+  function size(){
+    var changed=[],body=document.body,height;
+    function relax(style){var value=style.getPropertyValue("min-height");if(viewport.test(value)){var priority=style.getPropertyPriority("min-height");changed.push([style,value,priority]);style.setProperty("min-height","0px",priority);}}
+    function rules(list){for(var rule of list){if(rule.style)relax(rule.style);if(rule.cssRules)rules(rule.cssRules);}}
+    try{
+      for(var sheet of document.styleSheets)rules(sheet.cssRules);
+      relax(body.style);for(var element of body.querySelectorAll("*"))relax(element.style);
+      var css=getComputedStyle(body),margin=Math.max(0,parseFloat(css.marginBottom)||0),padding=(parseFloat(css.paddingBottom)||0)+(parseFloat(css.borderBottomWidth)||0);
+      var bottom=body.getBoundingClientRect().bottom+margin;
+      for(var element of body.querySelectorAll("*")){var rect=element.getBoundingClientRect(),style=getComputedStyle(element);bottom=Math.max(bottom,rect.bottom+Math.max(0,parseFloat(style.marginBottom)||0)+padding+margin);}
+      height=Math.max(1,Math.ceil(bottom+scrollY));
+    }finally{
+      for(var change of changed)change[0].setProperty("min-height",change[1],change[2]);
+      if(mutations)mutations.takeRecords();
+    }
+    if(height!==last){last=height;parent.postMessage({jsonrpc:"2.0",method:"ui/notifications/size-changed",params:{width:document.documentElement.scrollWidth,height:height}},"*");}
+  }
+  function watch(){if(resize){resize.disconnect();resize.observe(document.body);for(var element of document.body.querySelectorAll("*"))resize.observe(element);}size();}
+  window.addEventListener("load",function(){if(window.ResizeObserver)resize=new ResizeObserver(size);if(window.MutationObserver){mutations=new MutationObserver(watch);mutations.observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});}watch();});
+})();`;
+
 /** The bridge inside the frame: an MCP Apps View client. No string in it closes a script tag. */
 const BRIDGE = '(function(){"use strict";var pending={},seq=0,done;var ready=new Promise(function(r){done=r;});'
   + 'function send(m){parent.postMessage(m,"*");}'
@@ -71,8 +97,7 @@ const BRIDGE = '(function(){"use strict";var pending={},seq=0,done;var ready=new
   + 'if(m.method==="ui/resource-teardown"&&m.id!=null){send({jsonrpc:"2.0",id:m.id,result:{}});return;}'
   + 'if(m.method==="ui/notifications/host-context-changed")theme(m.params);});'
   + `ask("ui/initialize",{protocolVersion:"${APP_PROTOCOL_VERSION}",appCapabilities:{},clientInfo:{name:"chausar-mini-app",version:"1"}}).then(function(r){theme(r&&r.hostContext);send({jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}});done(r);});`
-  + 'function size(){send({jsonrpc:"2.0",method:"ui/notifications/size-changed",params:{width:document.documentElement.scrollWidth,height:document.documentElement.scrollHeight}});}'
-  + 'if(window.ResizeObserver)new ResizeObserver(size).observe(document.documentElement);window.addEventListener("load",size);'
+  + FRAME_SIZE
   + 'window.chausar=Object.freeze({ready:ready,call:function(name,args){return ready.then(function(){return ask("tools/call",{name:String(name),arguments:args||{}});}).then(function(r){'
   + 'if(r&&r.isError)throw new Error(String(r.content&&r.content[0]&&r.content[0].text||"Chausar refused this."));return r?r.structuredContent:null;});}});})();';
 
