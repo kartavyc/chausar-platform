@@ -102,7 +102,17 @@ test('tiers.json isolated lists exactly the engine test files that change proces
   const found: string[] = [];
   for (const name of (await readdir(TESTS)).filter(name => name.endsWith('.test.ts')).sort()) {
     if (name === 'test-isolation-d2.test.ts') continue; // the pattern above is text here, not a change of state
-    if (SHARED_STATE.test(await readFile(join(TESTS, name), 'utf8'))) found.push(`platform/tests/${name}`);
+    const text = await readFile(join(TESTS, name), 'utf8');
+    if (name === 'recordings-d11.test.ts') {
+      // This bridge loads scenarios whose shared harness freezes Date. Prove that indirect state change rather than
+      // letting a source-only scan run those tests beside unrelated files in one process.
+      assert.match(text, /new URL\('\.\/recordings\//);
+      const scenarios = (await readdir(join(TESTS, 'recordings'))).filter(file => file.endsWith('.recording.test.ts'));
+      assert.ok(scenarios.length > 0);
+      for (const file of scenarios) assert.match(await readFile(join(TESTS, 'recordings', file), 'utf8'), /from '\.\.\/helpers\/recording-scenario\.ts'/);
+      assert.ok(SHARED_STATE.test(await readFile(join(TESTS, 'helpers/recording-scenario.ts'), 'utf8')));
+      found.push(`platform/tests/${name}`);
+    } else if (SHARED_STATE.test(text)) found.push(`platform/tests/${name}`);
   }
   assert.deepEqual([...tiers.isolated].sort(), found);
 });
