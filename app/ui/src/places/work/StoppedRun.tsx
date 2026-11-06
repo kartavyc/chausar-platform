@@ -56,16 +56,17 @@ interface StoppedRunProps {
   row: QueueRow | undefined;
   /** Say plainly that it cannot be run again from here (Today has loaded, and no newer run replaced it). */
   noRetry: boolean;
+  primary: boolean;
   onChanged: () => void;
 }
 
-function StoppedRun({ run, detail, business, row, noRetry, onChanged }: StoppedRunProps) {
+function StoppedRun({ run, detail, business, row, noRetry, onChanged, primary }: StoppedRunProps) {
   const t = useT();
   const client = useEngine();
   const titleId = useId();
   const fixId = useId();
   const stopped = isStopped(run);
-  const again = useRunAgain(row, onChanged, !stopped, stopped ? 'lg' : undefined);
+  const again = useRunAgain(row, onChanged, primary && !stopped, stopped ? 'lg' : undefined);
   const [fixOpen, setFixOpen] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [said, setSaid] = useState<{ line: string; problem: boolean } | null>(null);
@@ -178,9 +179,9 @@ function StoppedRun({ run, detail, business, row, noRetry, onChanged }: StoppedR
             </Button>
           )}
           {stopped && !asking && (paused ? (
-            <Button variant="primary" size="lg" disabled={resuming} onClick={() => void unpause()}>{t('work.stop.unpauseFirst')}</Button>
+            <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={resuming} onClick={() => void unpause()}>{t('work.stop.unpauseFirst')}</Button>
           ) : (
-            <Button variant="primary" size="lg" disabled={resuming} onClick={() => void resume()}>
+            <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={resuming} onClick={() => void resume()}>
               <Icon name="play" size={16} />
               {t('work.stop.resume')}
             </Button>
@@ -201,6 +202,7 @@ export interface StoppedRunsProps {
   onChanged: () => void;
   /** Which list this is: the failed runs (the default), or the stopped ones (W4 4F3). */
   kind?: 'failed' | 'stopped';
+  primaryId?: string | undefined;
 }
 
 /**
@@ -214,7 +216,7 @@ export interface StoppedRunsProps {
  * engine's words (a breaker names its trigger in the screen's words above them), How to fix it, Run again, and Resume
  * as the one primary. A stop is never a failure: the red line is kept for the breaker and for failed runs.
  */
-export function StoppedRuns({ runs, names, deliveries, queue, onChanged, kind = 'failed' }: StoppedRunsProps) {
+export function StoppedRuns({ runs, names, deliveries, queue, onChanged, kind = 'failed', primaryId }: StoppedRunsProps) {
   const t = useT();
   const id = useId();
   const details = useRunDetails(runs);
@@ -225,7 +227,7 @@ export function StoppedRuns({ runs, names, deliveries, queue, onChanged, kind = 
         {runs.map((run) => (
           <StoppedRun
             key={run.runId} run={run} detail={details[run.runId]} business={names.get(run.businessId)} row={againRow(queue, run.runId)}
-            noRetry={!!queue && !superseded(run.runId, deliveries)} onChanged={onChanged}
+            noRetry={!!queue && !superseded(run.runId, deliveries)} onChanged={onChanged} primary={run.runId === primaryId}
           />
         ))}
       </ul>

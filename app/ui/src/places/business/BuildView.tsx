@@ -83,8 +83,10 @@ export function BuildView() {
           <Builders status={build.data} ready={brief.lint.ok} onOpened={build.reload} />
         </div>
       ) : briefTile}
-      <GitHub status={build.data} onChanged={build.reload} />
-      <SiteEdits />
+      {brief && <>
+        <Fold summary={t('business.forDeveloper')}><GitHub status={build.data} onChanged={build.reload} /></Fold>
+        <SiteEdits />
+      </>}
     </div>
   );
 }
