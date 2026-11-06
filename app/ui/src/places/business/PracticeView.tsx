@@ -218,7 +218,7 @@ function Improvement({ suggested }: { suggested: number }) {
   // C4 task 17: Work's row (#/business/practice?focus=adopt) and Suggest fixes land on Use this version.
   const wantsAdopt = route.query.focus === 'adopt';
   const landed = useRef(false);
-  useEffect(() => { if (suggested > 0) { landed.current = false; status.reload(); } }, [suggested]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (suggested > 0) { landed.current = false; status.reload(); } }, [suggested]);
   const [phase, setPhase] = useState<'idle' | 'running' | 'adopt' | 'rollback' | 'busy'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
 
