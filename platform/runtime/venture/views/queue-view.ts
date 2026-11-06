@@ -16,6 +16,7 @@ import { postingName } from '../build/posting.ts';
 import { openDelegation } from '../delivery/harness/loop.ts';
 import { DELEGATE_LABELS } from '../delivery/harness/delegate.ts';
 import { judgeStateLine } from '../delivery/judge-run.ts';
+import { draftAmounts } from '../delivery/deliverable.ts';
 import { VIEW_MAX_LINES } from '../delivery/shared.ts';
 import { holdOfHandoff } from '../policy/holds.ts';
 import type { RateTable } from '../playbooks/ca-firm/rates.ts';
@@ -131,6 +132,8 @@ function runItem(state: State, venture: VentureRecord, head: Head, run: Delivery
     return {
       kind: 'draft', id: run.id, ...head, title, line: `For ${client}. You send it yourself.`,
       sections: [...draftSections(text), ...files, ...(notes.length ? [{ heading: 'Checks', lines: notes }] : [])],
+      // C4 task 16: each amount with the receipt that backs it, so the preview marks it.
+      amounts: draftAmounts({ deliverable: run.deliverable, text, ownWords: !!run.editedText }, [...listRecords(state, 'venture-price-receipt', venture.id), ...listRecords(state, 'venture-work-receipt', venture.id)]),
     };
   }
   if (run.status === 'waiting-for-you' && run.preview) {

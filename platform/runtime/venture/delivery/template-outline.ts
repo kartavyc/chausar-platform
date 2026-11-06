@@ -93,6 +93,18 @@ export const TEMPLATE_OUTLINES: Readonly<Record<TemplateServiceType, readonly st
 export const TEMPLATE_TITLE = 'Reply outline';
 
 /**
+ * One-shot C4 task 16: a figure as the client reads it, with its label left in the receipt ("INR 3,000.00 in total", "INR
+ * 3,000.00 a month"). The amount stays exact, since a draft leaves the business. Any other figure keeps its label, since a
+ * line of a report or a tax line means nothing without it.
+ */
+export function figureWords(label: string, amount: string): string {
+  if (/^total$/i.test(label)) return `${amount} in total`;
+  const per = /^Price per ([\p{L}]+)(, .+)?$/u.exec(label);
+  if (per) return `${amount} ${/^(?:hour|[aeiou])/i.test(per[1]) ? 'an' : 'a'} ${per[1]}${per[2] ?? ''}`;
+  return `${label}: ${amount}`;
+}
+
+/**
  * The template outline: no AI wrote it and it never read the client's message. One sentence per required section,
  * the plan's total in the second section when a receipt exists, and one question for the client.
  */

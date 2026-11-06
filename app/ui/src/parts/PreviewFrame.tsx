@@ -8,6 +8,7 @@ import { Figure, type FigureProof } from './Figure';
 import { Icon } from './Icon';
 import { ModelEstimate } from './ModelEstimate';
 import { Receipt } from './Receipt';
+import { AmountsText } from './AmountsText';
 import s from './PreviewFrame.module.css';
 
 /** A line on a paper preview: words, and the engine's figure for it when it has one. */
@@ -70,7 +71,7 @@ interface ChangePreview {
 /** What a queue row's view holds (`venture.queue.view`), as text. */
 interface TextPreview {
   variant: 'text';
-  view: Pick<QueueItemView, 'sections'> & { title?: string | undefined; line?: string | undefined };
+  view: Pick<QueueItemView, 'sections'> & { title?: string | undefined; line?: string | undefined; amounts?: QueueItemView['amounts'] };
   /** The receipt (or "model estimate") that proves the amounts in the view's lines, when the caller has one. It is
    *  shown under the sheet and makes the sheet one figure group; without it any amount in the lines is unproved and
    *  the Ink rules flag it. */
@@ -233,7 +234,7 @@ function Text({ view, proof, onReceipt, renderText }: TextPreview) {
         {view.sections.map((section, index) => (
           <div key={index} className={s.section}>
             {section.heading !== undefined && <p className={s.sectionHeading}>{section.heading}</p>}
-            {section.lines.map((line, at) => <p key={at} className={s.sectionLine}>{draw(line)}</p>)}
+            {section.lines.map((line, at) => <p key={at} className={s.sectionLine}>{view.amounts?.length ? <AmountsText text={line} amounts={view.amounts} onReceipt={onReceipt} /> : draw(line)}</p>)}
           </div>
         ))}
       </div>

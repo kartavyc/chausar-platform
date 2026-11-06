@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
+import { AmountsText } from '../../parts/AmountsText';
 import { Button } from '../../parts/Button';
 import { refusalWords } from '../../parts/custody';
 import { ownerLineOf, toPlainMessage } from '../../parts/draft-text';
@@ -38,7 +39,7 @@ export function DraftSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const orders = useResource('venture.order.list', {}, { refreshOn: everyEvent });
   const clients = useResource('venture.client.list', {});
   // The sheet is the owner opening it, so the engine keeps its view mark, as on Today.
-  useResource('venture.queue.view', { kind: 'draft', id, opened: true }, { skip: !id });
+  const view = useResource('venture.queue.view', { kind: 'draft', id, opened: true }, { skip: !id });
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ line: string; problem?: boolean } | null>(null);
   const [asking, setAsking] = useState<{ label: string; run: () => void } | null>(null);
@@ -135,7 +136,7 @@ export function DraftSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       {ownerLine && <p className={s.draftNote} data-engine-line="">{ownerLine}</p>}
       {message === null
         ? <p className={s.draftNote}>{t('work.draft.noText')}</p>
-        : <div className={s.draftMessage} data-content="" data-draft-message="">{message}</div>}
+        : <div className={s.draftMessage} data-content="" data-draft-message=""><AmountsText text={message} amounts={view.data?.amounts ?? []} /></div>}
       {(failed.length > 0 || passed > 0 || notChecked > 0) && (
         <div data-draft-checks="">
           {failed.length > 0 && (

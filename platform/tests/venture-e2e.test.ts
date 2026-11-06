@@ -317,7 +317,7 @@ test('the whole venture journey in India, with a model and GitHub answering from
   assert.equal(waiting.status, 'waiting-for-you'); assert.equal(waiting.practice, true); assert.equal(waiting.preview, null);
   const practice = await ready(waiting.id);
   assert.equal(practice.status, 'ready-for-review', JSON.stringify(practice));
-  assert.ok(practice.renderedText?.includes('Total: INR 2,948.82'), practice.renderedText ?? '');
+  assert.ok(practice.renderedText?.includes('INR 2,948.82 in total'), practice.renderedText ?? '');
   assert.ok(practice.checks.length > 0 && practice.checks.every(c => c.passed), JSON.stringify(practice.checks));
   assert.ok(practice.checks.some(c => c.check === 'no-done-claims'));
   await assert.rejects(ask('venture.delivery.review', { runId: waiting.id, verdict: 'accepted' }), code('PRACTICE_DRAFT'));

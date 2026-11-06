@@ -11,7 +11,7 @@ import {formatMoney} from '../../../../platform/runtime/owner-format';
 import {countryProfile} from '../../../../platform/runtime/venture/core/countries';
 import {digest as priceDigest} from '../../../../platform/runtime/portable';
 import type {RoomPrice} from '../../../../platform/runtime/venture/playbooks/kit/client-room-core';
-import type {ReceiptLite} from './types';
+import type {QueueItemView,ReceiptLite} from './types';
 import {FakeYoutubeServiceRun} from './fake-youtube-service-run';
 import {fakeYoutubeMediaIntake} from './fake-youtube-intake';
 import {isYoutubeService,validateYoutubeServiceIntake} from '../../../../platform/runtime/venture/playbooks/youtube/service-fields';
@@ -20,7 +20,7 @@ import {SITE_FORM_RULE} from '../../../../platform/runtime/venture/playbooks/web
 import {NEWSLETTER_PRIVACY_RULE} from '../../../../platform/runtime/venture/playbooks/newsletter-studio/legal-core';
 import {fakeSellerPreflight} from './fake-seller-preflight';
 import {fakeRecruitPreflight} from './fake-recruiting-preflight';
-import {templateOutline,TEMPLATE_OUTLINE_LINE} from '../../../../platform/runtime/venture/delivery/template-outline';
+import {figureWords,templateOutline,TEMPLATE_OUTLINE_LINE} from '../../../../platform/runtime/venture/delivery/template-outline';
 import {reviewTemplate} from './fake-template-review';
 /**
  * Orders, delivery runs and client files for the fake engine (the Work place), kept per business. It keeps
@@ -128,6 +128,26 @@ export class FakeWorkDesk {
   private orderPrices=new Map<string,{price:RoomPrice;receipt:ReceiptLite}>();
   private invoiceSnapshots = new Map<string, { countryCode: string; currency: string; subtotal: string; taxes: { key: string; label: string; minor: string }[]; treatment?: string; rateBps?: string }>();
   invoiceSnapshot(biz: string, id: string) { return clone(this.invoiceSnapshots.get(biz + ':' + id)); }
+  /** C4 task 16: a template draft's view, with the receipt of each amount, as views/queue-view.ts runItem and delivery/deliverable.ts draftAmounts give it. */
+  templateDraftView(biz:string,businessName:string,kind:unknown,id:unknown):QueueItemView|null{
+    if(kind!=='draft')return null;
+    const run=(this.deliveries[biz]??[]).find(item=>item.id===id);
+    const text=run?.editedText??run?.renderedText;
+    if(!run||!text)return null;
+    const sections:QueueItemView['sections']=[];
+    let current:QueueItemView['sections'][number]={lines:[]};
+    for(const line of text.split('\n').filter(item=>item.trim()&&!item.startsWith('# '))){
+      if(line.startsWith('## ')){if(current.heading||current.lines.length)sections.push(current);current={heading:line.slice(3),lines:[]};}else current.lines.push(line);
+    }
+    if(current.heading||current.lines.length)sections.push(current);
+    const amounts=(run.deliverable?.sections??[]).flatMap(section=>section.parts).flatMap(part=>{
+      if(part.kind!=='figure')return [];
+      const receipt=this.host.receipt?.(part.receiptId)??[...this.orderPrices.values()].find(value=>value.receipt.id===part.receiptId)?.receipt;
+      const figure=receipt?.figures.find(item=>item.key===part.figureKey);
+      return figure&&text.includes(figure.display)?[{display:figure.display,receiptId:part.receiptId}]:[];
+    });
+    return{kind:'draft',id:run.id,businessName,agent:this.host.agentName(),title:run.deliverable?.title??'Draft',line:'You send it yourself.',sections,amounts};
+  }
   roomPrice(biz:string,id:string){const kept=this.orderPrices.get(biz+':'+id);return kept?clone(kept.price):undefined;}
   orderReceipt(biz:string,id:string){return clone([...this.orderPrices.entries()].find(([key,value])=>key.startsWith(biz+':')&&value.receipt.id===id)?.[1].receipt);}
   private narrationPrices=new Map<string,{id:string;currency:string;hourlyMinor:string;ownerSet:boolean;stale:boolean}>();
@@ -484,7 +504,7 @@ export class FakeWorkDesk {
     const receipt=this.host.receipt?.(order.priceReceiptId)??this.orderPrices.get(biz+':'+order.id)?.receipt;
     const total=receipt?.figures.find(figure=>figure.key==='total');
     const deliverable=templateOutline(this.host.plan()?.blueprint.serviceType??'other',total?{receiptId:order.priceReceiptId,figureKey:'total'}:null);
-    const blocks=['# '+deliverable.title,...deliverable.sections.map(section=>'## '+section.heading+'\n'+section.parts.map(part=>part.kind==='text'?part.text:total!.label+': '+total!.display).join(' '))];
+    const blocks=['# '+deliverable.title,...deliverable.sections.map(section=>'## '+section.heading+'\n'+section.parts.map(part=>part.kind==='text'?part.text:figureWords(total!.label,total!.display)).join(' '))];
     if(deliverable.questionsForClient.length)blocks.push(['Questions for you:',...deliverable.questionsForClient.map(question=>'- '+question)].join('\n'));
     const renderedText=TEMPLATE_OUTLINE_LINE+'\n\n'+blocks.join('\n\n');
     const run: DeliveryLite&{preview:null} = { id: runId, at, orderId: order.id, status: 'ready-for-review', servedBy:'template', practice: false, deliverable, renderedText, preview:null, verdict: null, awaitingYou: true };
