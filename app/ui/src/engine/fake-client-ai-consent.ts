@@ -1,4 +1,4 @@
-import { CLIENT_AI_DEFAULT_DISCLOSURE, clientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+import { CLIENT_AI_DEFAULT_DISCLOSURE, clientAiConsentView } from '../../../../platform/shared/venture/clients/ai-consent-core.ts';
 import { EngineError, type ClientLite, type ClientAiConsentView, type ClientAiDefaultView } from './types';
 import type {W4DeskHost} from './fake-w4';
 

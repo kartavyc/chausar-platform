@@ -2,7 +2,7 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useOwnerCountry, useOwnerZone } from '../../shell/clock';
-import { formatCount } from '../../../../../platform/runtime/owner-format';
+import { formatCount } from '../../../../../platform/shared/owner-format.ts';
 import { useEngine, useResource } from '../../engine/context';
 import { EngineError, type AgentNoteView, type AgentView } from '../../engine/types';
 import { Button } from '../../parts/Button';

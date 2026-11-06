@@ -1,5 +1,5 @@
 // Original private report from actual saved browser records. It never calls a model or sends a message.
-import {digest} from '../../../../platform/runtime/portable';import type {W4DeskHost} from './fake-w4';import type {MailThreadsView,MonitorsView} from './types';
+import { digest } from '../../../../platform/shared/portable.ts';import type {W4DeskHost} from './fake-w4';import type {MailThreadsView,MonitorsView} from './types';
 export function vaFakeReport(host:W4DeskHost,kind:'morning'|'weekly'):string{const now=Date.parse(host.now()),since=now-(kind==='morning'?1:7)*86400000,lines:string[]=[];
  const threads=(host.ask('venture.mail.threads',{}) as MailThreadsView).threads;
  for(const thread of threads){const found=host.supportThread?.(thread.id);if(found?.held)continue;for(const mail of found?.messages??[]){if(Date.parse(mail.date)<since||Date.parse(mail.date)>now)continue;lines.push(mail.subject+' [source mail:'+mail.messageId+'; digest '+digest(mail)+']');}}

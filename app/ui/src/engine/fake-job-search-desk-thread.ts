@@ -1,11 +1,13 @@
 import {bindFakeClientAi} from './fake-client-ai-consent';
 import {fakeAttested} from './fake-rules-attest';
 // Exact local pack states; native network/model capabilities are never replaced with a successful simulation.
-import {check,digest} from '../../../../platform/runtime/portable';import type {FakeDeskKind} from './fake-playbooks';
+import { check, digest } from '../../../../platform/shared/portable.ts';import type {FakeDeskKind} from './fake-playbooks';
 import {exact,guarded,clientRule,type CareerFakeState,type ThreadRow} from './fake-job-search-desk-core';
-import {careerPack,type CareerPackInput} from '../../../../platform/runtime/venture/playbooks/job-search-desk/pack';
-import {careerResearchPack,type CareerResearchPackInput} from '../../../../platform/runtime/venture/playbooks/job-search-desk/research-pack';
-import {careerFileBinding,careerThreadUpdate} from '../../../../platform/runtime/venture/playbooks/job-search-desk/thread-state';
+import { careerPack } from '../../../../platform/shared/venture/playbooks/job-search-desk/pack.ts';
+import type { CareerPackInput } from '../../../../platform/runtime/venture/playbooks/job-search-desk/pack.ts';
+import { careerResearchPack } from '../../../../platform/shared/venture/playbooks/job-search-desk/research-pack.ts';
+import type { CareerResearchPackInput } from '../../../../platform/runtime/venture/playbooks/job-search-desk/research-pack.ts';
+import { careerFileBinding, careerThreadUpdate } from '../../../../platform/shared/venture/playbooks/job-search-desk/thread-state.ts';
 import {fakeCareerFiles,fakeCareerFilesValid} from './fake-job-search-desk-files';
 export function fakeCareerThreads(c:CareerFakeState):FakeDeskKind{
  const view=(row:ThreadRow)=>({...structuredClone(row),ageDays:Math.max(0,Math.floor((Date.parse(c.host.now())-Date.parse(row.at))/86400000))});

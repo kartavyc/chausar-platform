@@ -11,8 +11,8 @@
  * The fake reads plain words with a small table instead of the owner's AI: it is a sample, never a model.
  */
 
-import { networkChips } from '../../../../platform/runtime/venture/network/chips';
-import { formatCount } from '../../../../platform/runtime/owner-format';
+import { networkChips } from '../../../../platform/shared/venture/network/chips.ts';
+import { formatCount } from '../../../../platform/shared/owner-format.ts';
 import {
   EngineError, type ChatConsentView, type NetworkImportKind, type NetworkImportResult, type NetworkImportView, type NetworkSearchView, type NetworkSourcesView, type PeopleView,
   type PersonSummary, type PersonView, type PipelineCardView, type PipelineStage, type ReceiptLite, type SearchResultView, type SearchWebState, type TieBand,

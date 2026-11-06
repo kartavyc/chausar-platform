@@ -10,13 +10,9 @@
 import { EngineError } from './types';
 import type { ClientLite } from './types';
 import type { W4DeskHost } from './fake-w4';
-import {
-  LISTS_LINE, MAX_COMPANIES, MAX_LIST_ENTRIES, MAX_LISTS, MAX_TIMELINE, crmId, crmPayload, historyOf, listGroups, memberId, memberKind, newestFirst,
-  parseClientEdit, parseCompanySave, parseLink, parseListPlace, parseListSave, parseLog, sameName, timelineOf,
-  type ClientCrmView, type CompanyBody, type CompanyRow, type CompanyView, type CrmChangeBody, type CrmEntryBody, type CrmLinkBody, type CrmListBody,
-  type CrmListItemBody, type CrmListRow, type CrmListView, type CrmMemberView, type CrmWho, type NameOf, type TimelineEntryView,
-} from '../../../../platform/runtime/venture/crm/crm-data';
-import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
+import { LISTS_LINE, MAX_COMPANIES, MAX_LIST_ENTRIES, MAX_LISTS, MAX_TIMELINE, crmId, crmPayload, historyOf, listGroups, memberId, memberKind, newestFirst, parseClientEdit, parseCompanySave, parseLink, parseListPlace, parseListSave, parseLog, sameName, timelineOf } from '../../../../platform/shared/venture/crm/crm-data.ts';
+import type { ClientCrmView, CompanyBody, CompanyRow, CompanyView, CrmChangeBody, CrmEntryBody, CrmLinkBody, CrmListBody, CrmListItemBody, CrmListRow, CrmListView, CrmMemberView, CrmWho, NameOf, TimelineEntryView } from '../../../../platform/runtime/venture/crm/crm-data.ts';
+import { COUNTRY_TIME_ZONES } from '../../../../platform/shared/venture/local-day-data.ts';
 
 const METHODS = new Set([
   'venture.crm.client', 'venture.crm.client.edit', 'venture.crm.companies', 'venture.crm.company', 'venture.crm.company.save', 'venture.crm.link',

@@ -12,13 +12,13 @@
  * The sample: Lumen Studio aims to invoice ₹1,50,000 in October 2026; the other businesses have no goal yet.
  */
 
-import { formatMoney } from '../../../../platform/runtime/owner-format';
+import { formatMoney } from '../../../../platform/shared/owner-format.ts';
 import { EngineError, type BlueprintViewLite, type BooksSummaryLite, type GoalFigure, type GoalSuggestion, type GoalView, type InvoiceLite, type InvoiceViewLite, type ModelStatusLite, type NextBestStep, type QueueRow, type ReceiptLite } from './types';
 import { BOOKS, RECEIPTS } from './fixtures';
 import { inr } from './fake-money';
-import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
-import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
-import { currencyMinorDigits, decimalMinor } from '../../../../platform/runtime/currency';
+import { countryProfile } from '../../../../platform/shared/venture/core/countries.ts';
+import { COUNTRY_TIME_ZONES } from '../../../../platform/shared/venture/local-day-data.ts';
+import { currencyMinorDigits, decimalMinor } from '../../../../platform/shared/currency.ts';
 import type { VentureViewLite } from './types';
 import type { W4DeskHost } from './fake-w4';
 

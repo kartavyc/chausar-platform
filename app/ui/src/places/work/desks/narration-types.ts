@@ -1,5 +1,5 @@
 // Browser-safe owner desk data and callbacks. Native authority remains in the desk handlers.
-import type {Json} from '../../../../../../platform/runtime/portable';
+import type { Json } from '../../../../../../platform/runtime/portable.ts';
 import type {NarrationSegmentBody} from '../../../../../../platform/runtime/venture/playbooks/narration-studio/records';
 export type NarrationRow=NarrationSegmentBody&{id:string};
 export type NarrationJob={orderId:string;rows:NarrationRow[];stale:boolean;connected:boolean;clientReady:boolean;disclosure:string;audio:{segmentId:string;name:string;contentBase64:string;digest:string}[]};

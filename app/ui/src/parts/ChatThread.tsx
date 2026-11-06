@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT, type T } from '../text';
 import { useClock, useOwnerZone } from '../shell/clock';
-import { dayKeyIn, formatDay, formatTime } from '../../../../platform/runtime/owner-format';
+import { dayKeyIn, formatDay, formatTime } from '../../../../platform/shared/owner-format.ts';
 import { Avatar, ChausarAvatar, type DeptId } from './Avatar';
 import { Button } from './Button';
 import { cx } from './cx';

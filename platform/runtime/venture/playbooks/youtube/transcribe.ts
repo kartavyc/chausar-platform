@@ -119,7 +119,7 @@ export async function makeLocalTranscript(deps: VentureDeps, ctx: Context, input
   check(speech, 'TRANSCRIBE_NOT_AVAILABLE', WHISPER_MISSING);
   const local = speech.localTranscriber();
   if (!local.ready) throw new ChausarError('TRANSCRIBE_NOT_AVAILABLE', local.reason);
-  const problem = localPathProblem(input.cutFile);
+  const problem = localPathProblem(input.cutFile, process.platform);
   check(!problem, 'INVALID_VENTURE_REQUEST', `The cut: ${problem}`);
   check(await isFile(input.cutFile), 'INVALID_VENTURE_REQUEST', "There is no file at the cut's path on this computer. Put the cut back, or make a new order that names where it is now.");
   // The workspace closing (lock, close, switch, quit) stops this: the engine holds off and waits instead of VAULT_BUSY.
@@ -193,7 +193,7 @@ export async function transcriptionSetHandler(deps: VentureDeps, ctx: Context, p
     check(typeof body.command === 'string' && typeof body.model === 'string', 'INVALID_VENTURE_REQUEST', 'Give the full paths to whisper-cli and to its model file.');
     const command = body.command, model = body.model;
     for (const [path, what] of [[command, 'whisper-cli'], [model, 'The model file']] as const) {
-      const problem = localPathProblem(path);
+      const problem = localPathProblem(path, process.platform);
       check(!problem, 'INVALID_VENTURE_REQUEST', `${what}: ${problem}`);
     }
     check(isWhisperCli(command), 'INVALID_VENTURE_REQUEST', process.platform === 'win32'

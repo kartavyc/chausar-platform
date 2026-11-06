@@ -3,7 +3,7 @@ import { useT, type T } from '../../text';
 import { useEngine } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { useClock, useOwnerZone } from '../../shell/clock';
-import { dayKeyIn, formatDay } from '../../../../../platform/runtime/owner-format';
+import { dayKeyIn, formatDay } from '../../../../../platform/shared/owner-format.ts';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { ConsentWords } from '../../parts/ConsentWords';

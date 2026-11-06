@@ -15,7 +15,7 @@ import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { useChanged } from '../../parts/useChanged';
-import { currencySign } from '../../../../../platform/runtime/owner-format';
+import { currencySign } from '../../../../../platform/shared/owner-format.ts';
 
 /**
  * Prices in the D look: each offer a card with its price at rest as the calculator's total with its receipt

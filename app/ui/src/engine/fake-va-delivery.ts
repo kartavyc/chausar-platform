@@ -1,7 +1,7 @@
 // Original local approved-brief delivery. Browser rehearsal never invents an AI call.
-import {digest} from '../../../../platform/runtime/portable';
-import {vaBriefDeliverable} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/brief-deliverable';
-import {vaBriefCheck} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/brief-check';
+import { digest } from '../../../../platform/shared/portable.ts';
+import { vaBriefDeliverable } from '../../../../platform/shared/venture/playbooks/virtual-assistant/brief-deliverable.ts';
+import { vaBriefCheck } from '../../../../platform/shared/venture/playbooks/virtual-assistant/brief-check.ts';
 import {roomExact} from './fake-client-room';
 import {EngineError,type DeliveryLite,type OrderLite,type QueueRow,type QueueItemView,type ModelStatusLite} from './types';
 import type {WorkHost} from './fake-work';

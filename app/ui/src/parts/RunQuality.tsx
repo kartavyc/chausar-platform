@@ -6,7 +6,7 @@ import { StateChip } from './Chip';
 import { stateText } from './states';
 import type { CoverageView, DeliverableReport, ReportItem, RunDetail } from '../engine/types';
 import s from './RunQuality.module.css';
-import { formatCount } from '../../../../platform/runtime/owner-format';
+import { formatCount } from '../../../../platform/shared/owner-format.ts';
 import { Fold } from './Fold';
 
 /**

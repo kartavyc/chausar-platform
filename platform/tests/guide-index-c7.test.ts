@@ -1,5 +1,5 @@
 // C7 task 23: scripts/guide-index.mjs splits docs/beta-guide.md by its ## and ### headings into
-// platform/runtime/venture/core/guide-data.json (each section's anchor, title and words, images left out), so in-app help
+// platform/shared/venture/core/guide-data.json (each section's anchor, title and words, images left out), so in-app help
 // can quote the guide. `--check` fails when the data is out of date with the guide.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { guideSections, slugOf } from '../../scripts/guide-index.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const SCRIPT = join(ROOT, 'scripts', 'guide-index.mjs'), GUIDE = join(ROOT, 'docs', 'beta-guide.md'), DATA = join(ROOT, 'platform', 'runtime', 'venture', 'core', 'guide-data.json');
+const SCRIPT = join(ROOT, 'scripts', 'guide-index.mjs'), GUIDE = join(ROOT, 'docs', 'beta-guide.md'), DATA = join(ROOT, 'platform', 'shared', 'venture', 'core', 'guide-data.json');
 const run = (args: string[]) => spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8', windowsHide: true });
 
 async function folder(t: TestContext): Promise<string> {

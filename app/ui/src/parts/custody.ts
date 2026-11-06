@@ -6,7 +6,7 @@
 
 import { EngineError } from '../engine/types';
 import type { T } from '../text';
-import { formatMoment } from '../../../../platform/runtime/owner-format';
+import { formatMoment } from '../../../../platform/shared/owner-format.ts';
 
 /** TRANSFER.maxTextChars in platform/runtime/workspace-custody-contracts.ts: a bigger move file is refused before it is sent. */
 export const TRANSFER_MAX_CHARS = 1_900_000;

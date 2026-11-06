@@ -8,11 +8,11 @@
  * a statement import never counts a line twice, and a preview link needs a public address.
  */
 
-import { REFERENCE_RATE, REFERENCE_SOURCE } from '../../../../platform/runtime/venture/money/reference-rate';
-import { formatMoney, formatUsd } from '../../../../platform/runtime/owner-format';
-import { formatDayRange } from '../../../../platform/runtime/owner-format';
+import { REFERENCE_RATE, REFERENCE_SOURCE } from '../../../../platform/shared/venture/money/reference-rate.ts';
+import { formatMoney, formatUsd } from '../../../../platform/shared/owner-format.ts';
+import { formatDayRange } from '../../../../platform/shared/owner-format.ts';
 import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRESSES, SITE_FILES, SPEND_POLICIES, TAX_WORKINGS } from './fixtures-extras';
-import {RATE_TABLES} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
+import { RATE_TABLES } from '../../../../platform/shared/venture/playbooks/ca-firm/rates.ts';
 import { FakeCountryMoney, type CountryMoneyHost } from './fake-country-money';
 import { FAKE_CA_RULES } from './fake-ca-rules';
 import type { SignoffCheckView } from './types';
@@ -24,7 +24,7 @@ import {
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.
 import { currencyLeadOf, rupeesLead, spendLead } from './fake-lead';
 import type { WriteCapKind } from './types';
-import {influencerOutreachInput,influencerEmailText} from '../../../../platform/runtime/venture/playbooks/social/influencer-outreach';
+import { influencerOutreachInput, influencerEmailText } from '../../../../platform/shared/venture/playbooks/social/influencer-outreach.ts';
 
 const clone = <T>(value: T): T => structuredClone(value);
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);

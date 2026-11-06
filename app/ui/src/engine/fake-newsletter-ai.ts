@@ -2,10 +2,10 @@ import {bindFakeClientAi} from './fake-client-ai-consent';
 // Original recorded AI demonstration. It uses the same source validator and exact request binding as the engine.
 import type {W4DeskHost} from './fake-w4';import type {OrderLite,ModelStatusLite} from './types';
 import type {FakeNewsletterIssue} from './fake-newsletter-studio';
-import {digest} from '../../../../platform/runtime/portable';
-import {newsletterExact as exact,requireNewsletter as need} from '../../../../platform/runtime/venture/playbooks/newsletter-studio/core';
-import {newsletterTask,newsletterAiAnswer,newsletterSources} from '../../../../platform/runtime/venture/playbooks/newsletter-studio/ai-core';
-import {saveNewsletterDraft} from '../../../../platform/runtime/venture/playbooks/newsletter-studio/state';
+import { digest } from '../../../../platform/shared/portable.ts';
+import { newsletterExact as exact, requireNewsletter as need } from '../../../../platform/shared/venture/playbooks/newsletter-studio/core.ts';
+import { newsletterTask, newsletterAiAnswer, newsletterSources } from '../../../../platform/shared/venture/playbooks/newsletter-studio/ai-core.ts';
+import { saveNewsletterDraft } from '../../../../platform/shared/venture/playbooks/newsletter-studio/state.ts';
 const binding=(i:FakeNewsletterIssue)=>digest({...i,aiRequest:null,aiCallIds:[]});
 export function fakeNewsletterAi(host:W4DeskHost,i:FakeNewsletterIssue,order:OrderLite,p:Record<string,unknown>,next:()=>number){need(order.intake?.fields?.private!==true,'PRIVATE_NEEDS_LOCAL','Private source notes need a qualified local model. Write the issue manually meanwhile.');need(!i.slices.length,'NEWSLETTER_EXPORTED','This issue already has an exported audience. Start a new issue to change its words.');need(p.digest===digest(i),'APPROVAL_CHANGED','Review the current newsletter before asking AI.');
  if(p.action==='ai-preview'){exact(p.payload,[]);const task=newsletterTask(i.sourceNotes,i.language),clientAi=bindFakeClientAi(host,order.id),main=(host.ask('venture.models.status',{}) as ModelStatusLite).tiers.main;need(main?.usable&&main.presetId!=='built-in-templates','NO_MODEL_CONNECTED','Connect an AI in Your AI before asking it to prepare this issue.');const payloadText=JSON.stringify(task.input),preview={clientAi,callId:'newsletter-call-'+next(),payloadText,digest:host.digest(payloadText),presetId:main.presetId,model:main.model,endpoint:'https://api.anthropic.com/v1/messages',estimatedMaxCostMicros:'1000',estimatedMaxCostDisplay:'under $0.01'},issue={...i,aiRequest:{preview,binding:binding(i)},aiCallIds:[...i.aiCallIds,preview.callId]};return {issue,result:{preview,issue},line:'Review this exact request before source notes leave Chausar.'};}

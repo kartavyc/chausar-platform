@@ -1,12 +1,10 @@
 // The fake engine's lesson desk (wave 6, package 6E2): the engine's own core (playbooks/lesson-desk/core.ts) over
 // in-memory batches, so every code, word, id and digest matches the engine. Fees go through the fake money's own
 // invoice prepare; a parent message is handed to the owner after the exact digest is approved, and nothing is sent.
-import { check } from '../../../../platform/runtime/portable';
-import { ownerHandoff } from '../../../../platform/runtime/venture/playbooks/kit/owner-message';
-import {
-  LESSON_PLAYBOOK, batchDigest, batchRow, batchView, exact, idOf, lessonAct, lessonRequest, markHandedOff, messageOf, newBatch, withoutLearners,
-  type LessonFee, type LessonWorld,
-} from '../../../../platform/runtime/venture/playbooks/lesson-desk/core';
+import { check } from '../../../../platform/shared/portable.ts';
+import { ownerHandoff } from '../../../../platform/shared/venture/playbooks/kit/owner-message.ts';
+import { LESSON_PLAYBOOK, batchDigest, batchRow, batchView, exact, idOf, lessonAct, lessonRequest, markHandedOff, messageOf, newBatch, withoutLearners } from '../../../../platform/shared/venture/playbooks/lesson-desk/core.ts';
+import type { LessonFee, LessonWorld } from '../../../../platform/runtime/venture/playbooks/lesson-desk/core.ts';
 import type { LessonBatchBody } from '../../../../platform/runtime/venture/playbooks/lesson-desk/records';
 import { EngineError, type ClientLite, type InvoiceViewLite, type OrderLite, type VoiceConsentsView } from './types';
 import type { FakeDeskKind, FakePlaybookDesk } from './fake-playbooks';

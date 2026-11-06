@@ -1,4 +1,4 @@
-import { formatDay } from '../../../../../platform/runtime/owner-format';
+import { formatDay } from '../../../../../platform/shared/owner-format.ts';
 import type { AgentThreadItem, AgentView, ChatPart, DiffLine, UiRunEvent } from '../../engine/types';
 import type { DiffLine as CardLine } from '../../parts/DiffCard';
 import { isKeeper } from './departments';

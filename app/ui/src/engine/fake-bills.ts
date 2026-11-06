@@ -8,10 +8,10 @@
  * The sample engine has no clock running, so it never drafts a repeating bill's next one by itself.
  */
 
-import { formatMoney } from '../../../../platform/runtime/owner-format';
+import { formatMoney } from '../../../../platform/shared/owner-format.ts';
 import { EngineError, PAYMENT_METHODS, type BillView, type MoneyFigure, type ReceiptLite } from './types';
 import { inr } from './fake-money';
-import { decimalMinor } from '../../../../platform/runtime/currency';
+import { decimalMinor } from '../../../../platform/shared/currency.ts';
 
 interface HeldLine { description: string; amount: number; taxName: string; rate: number }
 interface HeldBill {

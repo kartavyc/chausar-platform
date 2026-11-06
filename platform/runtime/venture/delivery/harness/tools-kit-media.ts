@@ -148,7 +148,7 @@ export const MEDIA_TOOLS: Readonly<Record<MediaToolName, Spec>> = Object.freeze(
       if (!env.deps || env.deps.host === 'hosted-web') fail('Clips are cleaned in the desktop app.');
       const clip = env.intake?.cutFile ?? null;
       if (!clip) fail('This order names no clip on this computer.');
-      const problem = localPathProblem(clip);
+      const problem = localPathProblem(clip, process.platform);
       if (problem) fail(`The clip: ${problem}`);
       const cleaned = await cleanClip(ffmpegOf(env.deps), clip!);
       if (cleaned.status === 'failed') fail(cleaned.line);

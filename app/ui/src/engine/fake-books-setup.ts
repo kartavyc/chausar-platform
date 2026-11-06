@@ -3,11 +3,11 @@ import {EngineError,type OrderLite} from './types';
 import type {W4DeskHost} from './fake-w4';
 import type {FakeDeskKind} from './fake-playbooks';
 import type {BooksPostingBody} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/records';
-import {check,digest} from '../../../../platform/runtime/portable';
-import {setupDraft} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/setup';
-import {setupSource} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/setup-source';
-import {setupMappings} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/setup-posting-core';
-import {validateSetupMaster} from '../../../../platform/runtime/adapters/accounting/zoho-setup-validation';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { setupDraft } from '../../../../platform/shared/venture/playbooks/bookkeeping-cfo/setup.ts';
+import { setupSource } from '../../../../platform/shared/venture/playbooks/bookkeeping-cfo/setup-source.ts';
+import { setupMappings } from '../../../../platform/shared/venture/playbooks/bookkeeping-cfo/setup-posting-core.ts';
+import { validateSetupMaster } from '../../../../platform/shared/adapters/accounting/zoho-setup-validation.ts';
 
 type Row=BooksPostingBody&{id:string};
 function exact(raw:unknown,keys:string[],required=keys){check(raw&&typeof raw==='object'&&!Array.isArray(raw)&&Object.getPrototypeOf(raw)===Object.prototype,'INVALID_VENTURE_REQUEST','Use one request object.');const value=raw as Record<string,unknown>;check(Object.keys(value).every(key=>keys.includes(key))&&required.every(key=>Object.hasOwn(value,key)),'INVALID_VENTURE_REQUEST','Use the exact required fields.');return value;}

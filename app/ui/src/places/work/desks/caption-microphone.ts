@@ -1,5 +1,5 @@
 // Original local microphone capture. AudioWorklet PCM goes only to the desktop engine, never a speech website.
-import {EngineError} from '../../../engine/types';import {captionWav} from '../../../../../../platform/runtime/venture/playbooks/translation-studio/caption-audio';
+import {EngineError} from '../../../engine/types';import { captionWav } from '../../../../../../platform/shared/venture/playbooks/translation-studio/caption-audio.ts';
 export type MicrophoneChunk={lineId:string;phase:'draft'|'final';audioBase64:string};
 export type CaptionMicrophone={stop:(flush?:boolean)=>Promise<void>};
 /** An explicit caller-owned session must already exist before requesting the operating system microphone. */

@@ -1,12 +1,12 @@
 // Browser rehearsal cannot reach Shopify or a hosted buyer session. It validates exactly, then refuses unavailable access.
 import {EngineError,type OrderLite,type BlueprintViewLite} from './types';
 import type {W4DeskHost} from './fake-w4';import type {FakeDeskKind} from './fake-playbooks';
-import {check} from '../../../../platform/runtime/portable';
-import {shopifyDomain,shopifyAccount} from '../../../../platform/runtime/venture/build/shopify-admin-core';
-import {storefrontConnection} from '../../../../platform/runtime/venture/build/storefront-assistant-core';
-import {shopifyOrderBinding} from '../../../../platform/runtime/venture/playbooks/online-seller/shopify-state';
-import {storefrontBinding} from '../../../../platform/runtime/venture/playbooks/online-seller/storefront-records';
-import {sellerOwnerCaps} from '../../../../platform/runtime/venture/playbooks/online-seller/owner-form';
+import { check } from '../../../../platform/shared/portable.ts';
+import { shopifyDomain, shopifyAccount } from '../../../../platform/shared/venture/build/shopify-admin-core.ts';
+import { storefrontConnection } from '../../../../platform/shared/venture/build/storefront-assistant-core.ts';
+import { shopifyOrderBinding } from '../../../../platform/shared/venture/playbooks/online-seller/shopify-state.ts';
+import { storefrontBinding } from '../../../../platform/shared/venture/playbooks/online-seller/storefront-records.ts';
+import { sellerOwnerCaps } from '../../../../platform/shared/venture/playbooks/online-seller/owner-form.ts';
 function exact(raw:unknown,keys:string[],required=keys):Record<string,unknown>{check(raw&&typeof raw==='object'&&!Array.isArray(raw)&&Object.getPrototypeOf(raw)===Object.prototype,'INVALID_VENTURE_REQUEST','Use one request object.');const p=raw as Record<string,unknown>;check(Object.keys(p).every(k=>keys.includes(k))&&required.every(k=>Object.hasOwn(p,k)),'INVALID_VENTURE_REQUEST','Use the exact required fields.');return p;}
 function guarded<T>(run:()=>T):T{try{return run();}catch(error){if(error instanceof Error&&'code'in error)throw new EngineError(String(error.code),error.message);throw error;}}
 export function fakeSellerConnectors(host:W4DeskHost):{kinds:Record<string,FakeDeskKind>}{

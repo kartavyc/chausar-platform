@@ -6,13 +6,13 @@
  * invoice screens see it. Imports and consent stay on the extras desk (fake-extras.ts). The sample rows are synthetic.
  */
 
-import { formatDay, formatMoney } from '../../../../platform/runtime/owner-format';
+import { formatDay, formatMoney } from '../../../../platform/shared/owner-format.ts';
 import {
   EngineError, type BankAlertRuleLite, type BankAlertsView, type BankApplyResult, type BankLedgerRow, type BankLedgerView, type InvoiceViewLite,
   type QueueRow, type UiRunEvent,
 } from './types';
 import { inr } from './fake-money';
-import { decimalMinor } from '../../../../platform/runtime/currency';
+import { decimalMinor } from '../../../../platform/shared/currency.ts';
 
 export interface BankHost {
   current(): string;

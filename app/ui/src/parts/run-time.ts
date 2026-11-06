@@ -5,7 +5,7 @@
 
 import { useT, type T } from '../text';
 import { useClock } from '../shell/clock';
-import { formatAge } from '../../../../platform/runtime/owner-format';
+import { formatAge } from '../../../../platform/shared/owner-format.ts';
 import type { RunSummary } from '../engine/types';
 
 type Times = Pick<RunSummary, 'elapsed' | 'waited' | 'waitingSince'>;

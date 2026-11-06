@@ -1,9 +1,9 @@
 // Original Chausar S7 owner inbox. postmill AGPL interaction ideas only; no copied code.
-import {REPLY_BUCKETS} from '../../../../../../platform/runtime/venture/playbooks/social/reply-buckets';
+import { REPLY_BUCKETS } from '../../../../../../platform/shared/venture/playbooks/social/reply-buckets.ts';
 import {useState} from 'react';
 import {useEngine,useResource} from '../../../engine/context';import {EngineError} from '../../../engine/types';import {useT} from '../../../text';
 import {Tile,TileHead} from '../../../parts/Tile';import {Field} from '../../../parts/Field';import {Button} from '../../../parts/Button';import {Count} from '../../../parts/Figure';
-import type {InboxView,InboxItem} from '../../../../../../platform/runtime/venture/playbooks/social/inbox';
+import type { InboxView, InboxItem } from '../../../../../../platform/runtime/venture/playbooks/social/inbox.ts';
 import s from './SocialCanvas.module.css';
 import { Fold } from '../../../parts/Fold';
 import { Select } from '../../../parts/Select';

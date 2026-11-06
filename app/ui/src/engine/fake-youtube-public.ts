@@ -1,8 +1,9 @@
 // Original rehearsal public-read boundary. No Google call or successful statistics response is simulated.
-import {check,digest} from '../../../../platform/runtime/portable';
-import {youtubePublicRequest,youtubePublicView,youtubeQuotaDay,reserveYoutubeQuota,YOUTUBE_QUOTA_LIMITS,type YoutubePublicRead,type YoutubeQuotaUse} from '../../../../platform/runtime/venture/playbooks/youtube/public-state';
-import {youtubeResearchReceipt} from '../../../../platform/runtime/venture/playbooks/youtube/research-receipt';
-import {YOUTUBE_OFFERS2} from '../../../../platform/runtime/venture/playbooks/youtube/offers2';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { youtubePublicRequest, youtubePublicView, youtubeQuotaDay, reserveYoutubeQuota, YOUTUBE_QUOTA_LIMITS } from '../../../../platform/shared/venture/playbooks/youtube/public-state.ts';
+import type { YoutubePublicRead, YoutubeQuotaUse } from '../../../../platform/runtime/venture/playbooks/youtube/public-state.ts';
+import { youtubeResearchReceipt } from '../../../../platform/shared/venture/playbooks/youtube/research-receipt.ts';
+import { YOUTUBE_OFFERS2 } from '../../../../platform/shared/venture/playbooks/youtube/offers2.ts';
 import type {W4DeskHost} from './fake-w4';import type {FakeDeskKind,FakeForgottenPerson} from './fake-playbooks';import type {OrderLite,BlueprintViewLite,WorkReceiptLite} from './types';
 type Exact=(raw:unknown,allowed:string[],required?:string[])=>Record<string,unknown>;
 const offers=new Set(['episode-package','shorts-from-own-video','licensed-clips',...YOUTUBE_OFFERS2.map(o=>o.id)]);

@@ -2,13 +2,11 @@
 // in-memory slots and bookings, so codes, words and digests match the engine. The quote is the order's own price
 // receipt, the deposit is the fake money's advance invoice with its How to pay UPI link, and a reminder is handed to the
 // owner after the exact digest is approved. Nothing is sent and no money moves.
-import { check } from '../../../../platform/runtime/portable';
-import { ownerHandoff } from '../../../../platform/runtime/venture/playbooks/kit/owner-message';
-import { idOf } from '../../../../platform/runtime/venture/playbooks/lesson-desk/core';
-import {
-  BOOKING_PLAYBOOK, bookingAct, bookingDigest, bookingHandedOff, bookingMessageOf, bookingRequest, bookingRow, bookingView, closeSlot, depositPart, exact,
-  newBooking, newSlot, slotDigest, slotView, type BookingWorld, type Held,
-} from '../../../../platform/runtime/venture/playbooks/booking-desk/core';
+import { check } from '../../../../platform/shared/portable.ts';
+import { ownerHandoff } from '../../../../platform/shared/venture/playbooks/kit/owner-message.ts';
+import { idOf } from '../../../../platform/shared/venture/playbooks/lesson-desk/core.ts';
+import { BOOKING_PLAYBOOK, bookingAct, bookingDigest, bookingHandedOff, bookingMessageOf, bookingRequest, bookingRow, bookingView, closeSlot, depositPart, exact, newBooking, newSlot, slotDigest, slotView } from '../../../../platform/shared/venture/playbooks/booking-desk/core.ts';
+import type { BookingWorld, Held } from '../../../../platform/runtime/venture/playbooks/booking-desk/core.ts';
 import type { BookingBody, BookingSlotBody } from '../../../../platform/runtime/venture/playbooks/booking-desk/records';
 import { EngineError, type ClientLite, type InvoiceViewLite, type OrderLite } from './types';
 import type { FakeDeskKind, FakePlaybookDesk } from './fake-playbooks';

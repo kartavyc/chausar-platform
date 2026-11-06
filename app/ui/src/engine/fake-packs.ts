@@ -1,7 +1,8 @@
 // W6 6F2 (D31): playbook packs in the fake engine, answering exactly as platform/runtime/venture/packs/packs.ts does:
 // the same pack validator (pack-format.ts is browser-safe), the same preview, digest and refusal codes, in the same order.
 // The demo never runs a calculator; packs here are shown, added and removed only.
-import { validatePack, packOperation, packView, type PackDoc, type PackView } from '../../../../platform/runtime/venture/packs/pack-format';
+import { validatePack, packOperation, packView } from '../../../../platform/shared/venture/packs/pack-format.ts';
+import type { PackDoc, PackView } from '../../../../platform/runtime/venture/packs/pack-format.ts';
 import { EngineError } from './types';
 
 type Host = { current(): string; exists(): boolean; changed(): void };

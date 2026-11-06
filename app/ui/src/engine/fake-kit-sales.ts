@@ -6,8 +6,8 @@
  * template (no AI is connected here) and runs no kit playbook, so the honest exit never decides here.
  */
 
-import { goNoGoFit } from '../../../../platform/runtime/venture/playbooks/kit/go-no-go-fit';
-import { formatMoney } from '../../../../platform/runtime/owner-format';
+import { goNoGoFit } from '../../../../platform/shared/venture/playbooks/kit/go-no-go-fit.ts';
+import { formatMoney } from '../../../../platform/shared/owner-format.ts';
 import {
   EngineError,
   type BlueprintViewLite, type ClientLite, type GoNoGoCardView, type GoNoGoInputName, type OfferLite, type OrderLite, type OutreachHandoff, type PersonView,

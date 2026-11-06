@@ -6,8 +6,8 @@ import {useT,useLanguage} from '../../../text';
 import {Tile,TileHead} from '../../../parts/Tile';
 import {Button} from '../../../parts/Button';
 import {Figure} from '../../../parts/Figure';
-import type {InfluencerView} from '../../../../../../platform/runtime/venture/playbooks/social/influencer-case';
-import type {CampaignPacket} from '../../../../../../platform/runtime/venture/playbooks/social/influencer-packet';
+import type { InfluencerView } from '../../../../../../platform/runtime/venture/playbooks/social/influencer-case.ts';
+import type { CampaignPacket } from '../../../../../../platform/runtime/venture/playbooks/social/influencer-packet.ts';
 import s from './SocialCanvas.module.css';
 import { Fold } from '../../../parts/Fold';
 function download(text:string,name:string){const href=URL.createObjectURL(new Blob([text],{type:'text/markdown;charset=utf-8'}));try{const a=document.createElement('a');a.href=href;a.download=name;a.click();}finally{URL.revokeObjectURL(href);}}

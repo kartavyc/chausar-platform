@@ -1,10 +1,10 @@
 // Manual candidate message and interview approvals in the real desk's shapes.
 import type {RecruitStore,RecruitRole,RecruitCandidate,RecruitTouch,RecruitInterview} from './fake-recruiting-desk';
-import {need} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/criteria';
-import {rulesReady} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/role-state';
-import {recruitExact as exact,recruitLine as line,candidateMessage} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/request-core';
-import {moveCandidate} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/ledger';
-import {calendarBusy,interviewPack} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/schedule';
+import { need } from '../../../../platform/shared/venture/playbooks/recruiting-desk/criteria.ts';
+import { rulesReady } from '../../../../platform/shared/venture/playbooks/recruiting-desk/role-state.ts';
+import { recruitExact as exact, recruitLine as line, candidateMessage } from '../../../../platform/shared/venture/playbooks/recruiting-desk/request-core.ts';
+import { moveCandidate } from '../../../../platform/shared/venture/playbooks/recruiting-desk/ledger.ts';
+import { calendarBusy, interviewPack } from '../../../../platform/shared/venture/playbooks/recruiting-desk/schedule.ts';
 export function fakeRecruitCommunications(s:RecruitStore,kind:string,id:string,action:string,raw:unknown,approval:unknown):RecruitTouch|RecruitInterview{
  const {host,save,base,find}=s;
  const context=(id:unknown)=>{need(typeof id==='string','INVALID_VENTURE_REQUEST','Choose a candidate.');const candidate=find<RecruitCandidate>('candidate',id),role=s.roleOf(candidate.roleId);need(!host.recruitingBlocked?.(candidate.email,candidate.personId),'OUTREACH_BLOCKED','This candidate asked not to be contacted, or is on your blocklist.');rulesReady(role);s.privacy();need(candidate.screenedRuleDigest===role.approvedDigest,'RECRUIT_SCREEN_REQUIRED','Screen the candidate against the current approved rules first.');need(!['joined','rejected','withdrawn'].includes(candidate.stage),'RECRUIT_STAGE_TERMINAL','This candidate record is closed.');return {candidate,role};};

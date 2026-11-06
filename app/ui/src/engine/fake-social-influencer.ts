@@ -1,11 +1,12 @@
-import {campaignPacket} from '../../../../platform/runtime/venture/playbooks/social/influencer-packet';
+import { campaignPacket } from '../../../../platform/shared/venture/playbooks/social/influencer-packet.ts';
 // Original S10 fake campaign desk. Pure case transitions are shared with the real engine.
 import {EngineError,type BlueprintViewLite,type OrderLite} from './types';
 import type {FakeDeskKind,FakeForgottenPerson} from './fake-playbooks';
 import type {W4DeskHost} from './fake-w4';
-import {d3Object,check} from '../../../../platform/runtime/venture/playbooks/social/d3-core';
-import {newInfluencerCase,changeInfluencerCase,type InfluencerCase} from '../../../../platform/runtime/venture/playbooks/social/influencer-case';
-import {influencerOutreachInput} from '../../../../platform/runtime/venture/playbooks/social/influencer-outreach';
+import { d3Object, check } from '../../../../platform/shared/venture/playbooks/social/d3-core.ts';
+import { newInfluencerCase, changeInfluencerCase } from '../../../../platform/shared/venture/playbooks/social/influencer-case.ts';
+import type { InfluencerCase } from '../../../../platform/runtime/venture/playbooks/social/influencer-case.ts';
+import { influencerOutreachInput } from '../../../../platform/shared/venture/playbooks/social/influencer-outreach.ts';
 type Stored=InfluencerCase&{id:string};
 export function fakeSocialInfluencer(host:W4DeskHost):FakeDeskKind&{forgetPeople(people:readonly FakeForgottenPerson[],erase:boolean):void}{
  const workspace=new Map<string,Stored[]>(),rows=()=>{if(!workspace.has(host.current()))workspace.set(host.current(),[]);return workspace.get(host.current())!;};

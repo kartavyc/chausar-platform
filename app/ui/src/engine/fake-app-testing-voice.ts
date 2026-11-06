@@ -1,10 +1,10 @@
 // Browser preparation shares native text, rights and quote validators. It never invents a paid provider response.
-import {check} from '../../../../platform/runtime/portable';
+import { check } from '../../../../platform/shared/portable.ts';
 import {fakeAttested} from './fake-rules-attest';
 import type {DemoProjectBody} from '../../../../platform/runtime/venture/playbooks/app-testing/demo-records';
-import {prepareNarrationRows,quoteNarration,claimNarration} from '../../../../platform/runtime/venture/playbooks/narration-studio/state';
-import {narrationRights} from '../../../../platform/runtime/venture/playbooks/narration-studio/source-core';
-import {requireAppTestingClientRule} from '../../../../platform/runtime/venture/playbooks/app-testing/rules';
+import { prepareNarrationRows, quoteNarration, claimNarration } from '../../../../platform/shared/venture/playbooks/narration-studio/state.ts';
+import { narrationRights } from '../../../../platform/shared/venture/playbooks/narration-studio/source-core.ts';
+import { requireAppTestingClientRule } from '../../../../platform/shared/venture/playbooks/app-testing/rules.ts';
 import {fakeNarrationQuote,audioHash,b64} from './fake-narration-audio';
 import {fakeSpeechAccount,setFakeSpeechAccount} from './fake-speech-account';
 import type {W4DeskHost} from './fake-w4';import type {OrderLite} from './types';

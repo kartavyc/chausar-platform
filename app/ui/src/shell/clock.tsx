@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { useResource } from '../engine/context';
-import { computerZone, ownerZone } from '../../../../platform/runtime/owner-format';
+import { computerZone, ownerZone } from '../../../../platform/shared/owner-format.ts';
 
 /** Reads the time now. Places call it when they render (Today's date line and greeting), never to work out a figure. */
 export type Clock = () => Date;

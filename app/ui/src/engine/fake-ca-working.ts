@@ -1,21 +1,25 @@
-import {healthReportText} from '../../../../platform/runtime/venture/playbooks/ca-firm/c2-checks';
-import {caExample} from '../../../../platform/runtime/venture/playbooks/ca-firm/examples';
+import { healthReportText } from '../../../../platform/shared/venture/playbooks/ca-firm/c2-checks.ts';
+import { caExample } from '../../../../platform/shared/venture/playbooks/ca-firm/examples.ts';
 // C2 demo uses the actual deterministic calculator, with the same review and refusal rules. No outside effects.
 import {EngineError,type CaView,type ClientLite,type ReceiptLite} from './types';
 import type {FakeDeskKind,FakeForgottenPerson} from './fake-playbooks';import type {W4DeskHost} from './fake-w4';
-import {digest} from '../../../../platform/runtime/portable';
-import {ownerWorking} from '../../../../platform/runtime/venture/playbooks/ca-firm/owner-input';
-import {whatIf,type WhatIfInput} from '../../../../platform/runtime/venture/playbooks/ca-firm/what-if';
-import {documentEntries,type DocumentEntryInput} from '../../../../platform/runtime/venture/playbooks/ca-firm/doc-entry';
-import {booksHealthCheck,type HealthInput} from '../../../../platform/runtime/venture/playbooks/ca-firm/health-check';
-import {RATE_TABLES,rateTableHash} from '../../../../platform/runtime/venture/playbooks/ca-firm/rates';
-import {validateFinding,type CaWorkingBody} from '../../../../platform/runtime/venture/playbooks/ca-firm/work-core';
-import {checkedCase} from '../../../../platform/runtime/venture/playbooks/ca-firm/differential-core';
+import { digest } from '../../../../platform/shared/portable.ts';
+import { ownerWorking } from '../../../../platform/shared/venture/playbooks/ca-firm/owner-input.ts';
+import { whatIf } from '../../../../platform/shared/venture/playbooks/ca-firm/what-if.ts';
+import type { WhatIfInput } from '../../../../platform/runtime/venture/playbooks/ca-firm/what-if.ts';
+import { documentEntries } from '../../../../platform/shared/venture/playbooks/ca-firm/doc-entry.ts';
+import type { DocumentEntryInput } from '../../../../platform/runtime/venture/playbooks/ca-firm/doc-entry.ts';
+import { booksHealthCheck } from '../../../../platform/shared/venture/playbooks/ca-firm/health-check.ts';
+import type { HealthInput } from '../../../../platform/runtime/venture/playbooks/ca-firm/health-check.ts';
+import { RATE_TABLES, rateTableHash } from '../../../../platform/shared/venture/playbooks/ca-firm/rates.ts';
+import { validateFinding } from '../../../../platform/shared/venture/playbooks/ca-firm/work-core.ts';
+import type { CaWorkingBody } from '../../../../platform/runtime/venture/playbooks/ca-firm/work-core.ts';
+import { checkedCase } from '../../../../platform/shared/venture/playbooks/ca-firm/differential-core.ts';
 import {caCheck as check,caExact as exact,caCall as call,caOut as out} from './fake-ca-core';
 type Work=CaWorkingBody&{id:string;at:string};
 export function fakeCaWorking(host:W4DeskHost){
  let serial=0;const all=new Map<string,Map<string,Work>>(),captures=new Map<string,unknown[]>();const rows=()=>{let m=all.get(host.current());if(!m){m=new Map();all.set(host.current(),m);}return m;};
- const ca=()=>host.ask('venture.ca.get',{}) as CaView;const view=(row:Work)=>({...structuredClone(row),digest:digest(row),...(row.mode==='health'?{reportText:healthReportText(row.receipt.working as import('../../../../platform/runtime/venture/playbooks/ca-firm/health-check').HealthWorking,row.decisions)}:{})});
+ const ca=()=>host.ask('venture.ca.get',{}) as CaView;const view=(row:Work)=>({...structuredClone(row),digest:digest(row),...(row.mode==='health'?{reportText:healthReportText(row.receipt.working as import('../../../../platform/shared/venture/playbooks/ca-firm/health-check.ts').HealthWorking,row.decisions)}:{})});
  const kind:FakeDeskKind={
  list(p){exact(p,['playbook','kind','filter'],['playbook','kind']);const f=exact(p.filter??{},['clientId'],[]);return {playbook:'ca-firm',kind:'working',rows:[...rows().values()].filter(row=>!f.clientId||row.clientId===f.clientId).map(view).reverse(),line:'Saved calculator workings and CA decisions.'};},
  get(p){exact(p,['playbook','kind','id']);const row=rows().get(String(p.id));check(row,'CA_WORK_NOT_FOUND','Choose a saved working.');return {playbook:'ca-firm',kind:'working',item:view(row),digest:digest(row)};},

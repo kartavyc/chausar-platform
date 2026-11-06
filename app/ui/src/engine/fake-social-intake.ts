@@ -1,13 +1,13 @@
-import {SOCIAL_CHANNELS} from '../../../../platform/runtime/venture/playbooks/social/channel-ids';
+import { SOCIAL_CHANNELS } from '../../../../platform/shared/venture/playbooks/social/channel-ids.ts';
 // Browser-only social intake and delivery preflight, matching the real order boundary.
-import { socialD2Preflight } from '../../../../platform/runtime/venture/playbooks/social/d2-preflight';
+import { socialD2Preflight } from '../../../../platform/shared/venture/playbooks/social/d2-preflight.ts';
 import { fakeKitIntake } from './fake-kit-intake';
 import { EngineError, type OfferIntakeLite, type OrderLite, type BlueprintViewLite, type CalendarIntakeLite } from './types';
-import { localPathProblem } from '../../../../platform/runtime/local-paths';
-import { socialSourceText } from '../../../../platform/runtime/venture/playbooks/social/source-text';
-import { sourceInventory } from '../../../../platform/runtime/venture/playbooks/social/inventory';
-import { communityDecision, requireCommunityGo } from '../../../../platform/runtime/venture/playbooks/social/community';
-import { socialFormats } from '../../../../platform/runtime/venture/playbooks/social/formats';
+import { localPathProblem } from '../../../../platform/shared/local-paths.ts';
+import { socialSourceText } from '../../../../platform/shared/venture/playbooks/social/source-text.ts';
+import { sourceInventory } from '../../../../platform/shared/venture/playbooks/social/inventory.ts';
+import { communityDecision, requireCommunityGo } from '../../../../platform/shared/venture/playbooks/social/community.ts';
+import { socialFormats } from '../../../../platform/shared/venture/playbooks/social/formats.ts';
 function invalid(line: string): never { throw new EngineError('INVALID_VENTURE_REQUEST', line); }
 function object(value: unknown, line: string): Record<string, unknown> {
  if (!value || typeof value !== 'object' || Array.isArray(value)) invalid(line);
@@ -31,7 +31,7 @@ function calendarOf(value: unknown, key: string, today: string): CalendarIntakeL
  if (past.length) invalid(`The calendar for ${month} has posts on days before today, from ${past[0]}. Pick a later month.`);
  return { month: month as string, channels: [...channels], postsPerChannel: postsPerChannel as number, weekdays: [...weekdays] };
 }
-export function fakeSocialIntake(raw: unknown, ask: OfferIntakeLite, key: string, meta: { by: string; at: string; today: string; currency?: string; hosted?: boolean }, consents: () => import('./types').VoiceConsentsView = () => ({consents:[],line:''})): NonNullable<OrderLite['intake']> {
+export function fakeSocialIntake(raw: unknown, ask: OfferIntakeLite, key: string, meta: { by: string; at: string; today: string; currency?: string; hosted?: boolean }, consents: () => import('./types.ts').VoiceConsentsView = () => ({consents:[],line:''})): NonNullable<OrderLite['intake']> {
  const body = raw === undefined ? {} : object(raw, 'Send the intake as named fields.');
  const { fields, moneyAmounts, ...base } = body;
  const own = fakeKitIntake({ fields, ...(ask.rights.length ? {rights:base.rights} : {}), ...(moneyAmounts === undefined ? {} : { moneyAmounts }) }, ask, consents, meta)!;
