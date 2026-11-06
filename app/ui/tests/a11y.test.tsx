@@ -371,3 +371,14 @@ describe('axe on a phone', () => {
     }, timeoutOf(each));
   }
 });
+
+describe('axe on the command bar (C2)', () => {
+  it('the list open, with records, pages, actions and the Ask row', async () => {
+    const root = await settle({ name: 'the bar', hash: '#/money' });
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' });
+    box.focus();
+    await act(async () => { fireEvent.change(box, { target: { value: 'invoice' } }); });
+    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Find or ask' }).querySelectorAll('[role="group"]').length).toBeGreaterThan(2));
+    expect(await violations(root)).toEqual([]);
+  }, 30_000);
+});

@@ -7,7 +7,7 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { formatHash, parseHash, type PlaceId, type Route } from './routes';
 
-let origin: { element: HTMLElement | null; rowId: string | null } = { element: null, rowId: null };
+let origin: { element: HTMLElement | null; rowId: string | null; again?: string } = { element: null, rowId: null };
 
 /** Release detached private DOM and row identities when Forget resets the frame. */
 export function forgetFocusOrigin(): void {
@@ -50,11 +50,19 @@ export function setQuery(query: Record<string, string>): void {
  * the sheet: opening another sheet without one, or closing the sheet, takes it out of the address.
  */
 export function openSheet(kind: string, id: string, from?: Element | null, tab?: string): void {
-  const element = (from ?? document.activeElement) as HTMLElement | null;
-  origin = { element: element && element !== document.body ? element : null, rowId: element?.closest?.('[data-row-id]')?.getAttribute('data-row-id') ?? null };
+  rememberOpener((from ?? document.activeElement) as HTMLElement | null);
   const route = currentRoute();
   const { tab: _old, ...query } = route.query;
   navigate({ ...route, query: tab ? { ...query, tab } : query, sheet: { kind, id } });
+}
+
+/**
+ * The control that opens the next sheet, as openSheet keeps it: the command bar (C2) opens a sheet by its href and
+ * keeps itself as the opener, so closing the sheet puts focus back in the bar. `again` finds the opener drawn anew
+ * when the sheet opened on another page.
+ */
+export function rememberOpener(element: HTMLElement | null, again?: string): void {
+  origin = { element: element && element !== document.body ? element : null, rowId: element?.closest?.('[data-row-id]')?.getAttribute('data-row-id') ?? null, ...(again ? { again } : {}) };
 }
 
 export function closeSheet(): void {
@@ -69,9 +77,12 @@ export function closeSheet(): void {
  *  by its own loaded version) leaves focus to the new sheet's title. */
 export function returnFocus(): void {
   if (currentRoute().sheet) return;
-  const { element, rowId } = origin;
+  const { element, rowId, again } = origin;
   origin = { element: null, rowId: null };
   if (element?.isConnected) { element.focus(); return; }
+  // The opener was drawn again on the new page (the command bar in each page header): focus goes to the new one.
+  const redrawn = again ? document.querySelector<HTMLElement>(again) : null;
+  if (redrawn) { redrawn.focus(); return; }
   if (rowId) {
     const row = document.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`);
     row?.focus();

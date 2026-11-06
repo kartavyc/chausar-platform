@@ -77,38 +77,38 @@ describe('the rail and the header (spec 4.3: Today, Chats, Team, Work, Clients, 
     expect(within(rail).getByRole('link', { name: 'Chats, new' })).toBeTruthy();
   });
 
-  it('the header box: typed words and Enter open #/chats with them in the composer, never sent', async () => {
+  it('the command bar: the Ask row opens #/chats with the words in the composer, never sent', async () => {
     stubWidth(false);
     const { spy } = await start('#/team');
-    const box = await screen.findByRole('textbox', { name: 'Ask Chausar anything' });
-    fireEvent.change(box, { target: { value: 'What waits on me this week?' } });
-    await act(async () => { fireEvent.submit(box.closest('form')!); });
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' }) as HTMLInputElement;
+    box.focus();
+    await act(async () => { fireEvent.change(box, { target: { value: 'What waits on me this week?' } }); });
+    await waitFor(() => expect(screen.getAllByRole('option')[0]!.textContent).toBe('Ask Chausar: What waits on me this week?'));
+    await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
     await hashChanged();
     await settle();
     expect(window.location.hash).toBe('#/chats');
     await waitFor(() => expect(composer().value).toBe('What waits on me this week?'));
     expect(document.activeElement).toBe(composer());
     expect(calls(spy, 'venture.chief.thread.send')).toHaveLength(0);
-    // The header box is empty again.
-    expect((screen.getByRole('textbox', { name: 'Ask Chausar anything' }) as HTMLInputElement).value).toBe('');
   });
 
-  it('Ctrl K opens #/chats from anywhere and puts the cursor in the composer; it sends nothing', async () => {
+  it('Ctrl K from anywhere goes to the bar and sends nothing; the box names the keys', async () => {
     stubWidth(false);
     const { spy } = await start('#/money');
-    await screen.findByRole('textbox', { name: 'Ask Chausar anything' });
-    expect(screen.getByRole('textbox', { name: 'Ask Chausar anything' }).getAttribute('aria-keyshortcuts')).toBe('Control+K');
+    const box = await screen.findByRole('combobox', { name: 'Find or ask' });
+    expect(box.getAttribute('aria-keyshortcuts')).toBe('Control+K');
     await act(async () => { fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true }); });
     await hashChanged();
     await settle();
-    expect(window.location.hash).toBe('#/chats');
-    await waitFor(() => expect(document.activeElement).toBe(composer()));
+    expect(window.location.hash).toBe('#/money');
+    expect(document.activeElement).toBe(box);
     expect(calls(spy, 'venture.chief.thread.send')).toHaveLength(0);
   });
 });
 
-describe('Ctrl K and the Ask box', () => {
-  it('Ctrl K inside another field is left to that field; inside the Ask box it asks', async () => {
+describe('Ctrl K and the bar', () => {
+  it('Ctrl K inside another field is left to that field; inside the bar it selects the words', async () => {
     stubWidth(false);
     await start('#/onboarding');
     const box = await screen.findByRole('textbox', { name: /^(What do you want to start\?|Or describe it in one sentence)$/ });
@@ -116,28 +116,23 @@ describe('Ctrl K and the Ask box', () => {
     await act(async () => { fireEvent.keyDown(box, { key: 'k', ctrlKey: true }); });
     await hashChanged();
     expect(window.location.hash).toBe('#/onboarding');
-    const ask = screen.getByRole('textbox', { name: 'Ask Chausar anything' });
-    ask.focus();
-    fireEvent.change(ask, { target: { value: 'Which way fits me?' } });
-    await act(async () => { fireEvent.keyDown(ask, { key: 'k', ctrlKey: true }); });
-    await hashChanged();
-    await settle();
-    expect(window.location.hash).toBe('#/chats');
-    await waitFor(() => expect(composer().value).toBe('Which way fits me?'));
+    expect(document.activeElement).toBe(box);
+    const bar = screen.getByRole('combobox', { name: 'Find or ask' }) as HTMLInputElement;
+    bar.focus();
+    fireEvent.change(bar, { target: { value: 'Which way fits me?' } });
+    await act(async () => { fireEvent.keyDown(bar, { key: 'k', ctrlKey: true }); });
+    expect(document.activeElement).toBe(bar);
+    expect([bar.selectionStart, bar.selectionEnd]).toEqual([0, 18]);
   });
 
-  it('the keys show only while the box has focus or the pointer is over it', async () => {
+  it('the keys show at rest, as keys (F2)', async () => {
     stubWidth(false);
     await start('#/money');
-    const ask = await screen.findByRole('textbox', { name: 'Ask Chausar anything' });
-    const form = ask.closest('form')!;
-    expect(form.querySelector('kbd')).toBeNull();
-    await act(async () => { fireEvent.focus(ask); });
-    expect(form.querySelector('kbd')?.textContent).toBe('Ctrl K');
-    await act(async () => { fireEvent.blur(ask); });
-    expect(form.querySelector('kbd')).toBeNull();
-    await act(async () => { fireEvent.mouseEnter(form); });
-    expect(form.querySelector('kbd')).not.toBeNull();
+    const bar = await screen.findByRole('combobox', { name: 'Find or ask' });
+    const holder = bar.closest('[data-find-box]')!;
+    expect(holder.querySelector('kbd')?.textContent).toBe('Ctrl K');
+    await act(async () => { fireEvent.focus(bar); });
+    expect(holder.querySelector('kbd')?.textContent).toBe('Ctrl K');
   });
 });
 

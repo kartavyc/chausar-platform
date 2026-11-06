@@ -1,35 +1,24 @@
 /**
- * Asking Chausar from anywhere (Ink v2 wave 4, 4C2): the header's "Ask Chausar anything" box, Ctrl K, the Chausar
- * story on Today and the questions on Start all hand their words to Chats this way. The words wait here, in memory
- * only (never in the address, where they would sit in the history, and never in browser storage), until the Chats
- * place takes them into its composer. Nothing is sent: the owner presses Send.
+ * Asking Chausar from anywhere (Ink v2 wave 4, 4C2; C2): the command bar's Ask row, the Chausar story on Today and the
+ * questions on Start all hand their words to Chats this way. The words wait here, in memory only (never in the
+ * address, where they would sit in the history, and never in browser storage), until the Chats place takes them into
+ * its composer. Ctrl K (useFindKey) goes to the command bar.
  */
 
 import { useEffect, useRef } from 'react';
 import { goTo } from './navigation';
 
-let draft = '';
 let pending: string | null = null;
 const listeners = new Set<() => void>();
 
-/** What the header box holds right now, so Ctrl K carries it (the box keeps it as the owner types). */
-export function setAskDraft(text: string): void {
-  draft = text;
-}
-
-/** Forget clears both in-memory handoffs, including words not yet taken by Chats. */
+/** Forget clears the in-memory handoff, including words not yet taken by Chats. */
 export function forgetAskWords(): void {
-  draft = '';
   pending = null;
 }
 
-/**
- * Opens a new chat with these words in the composer, unsent. Left out, the header box's words go (Ctrl K). Every box
- * that showed the words is emptied.
- */
+/** Opens a new chat with these words in the composer, unsent; left out, an empty new chat. */
 export function askChausar(text?: string): void {
-  pending = (text ?? draft).trim();
-  draft = '';
+  pending = (text ?? '').trim();
   goTo('chats');
   for (const listener of [...listeners]) listener();
 }
@@ -41,7 +30,7 @@ export function takeAsk(): string | null {
   return words;
 }
 
-/** Calls back after every ask (the header box empties itself; Chats takes the words). */
+/** Calls back after every ask (Chats takes the words). */
 export function onAsk(listener: () => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
@@ -63,24 +52,29 @@ export function useAskWords(take: (words: string) => void): void {
   }, []);
 }
 
-/** A field the owner types in, other than the Ask box itself: Ctrl K there is the field's own (a link, say). */
+/** A field the owner types in, other than the command bar itself: Ctrl K there is the field's own (a link, say). */
 function typingElsewhere(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el || typeof el.closest !== 'function') return false;
-  return Boolean(el.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) && !el.closest('[data-ask-box]');
+  return Boolean(el.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) && !el.closest('[data-find-box]');
 }
 
 /**
- * Ctrl K (Cmd K on a Mac) opens a new chat with what the header box holds, from anywhere but another field the owner is
- * typing in, and never while an input method composes.
+ * Ctrl K (Cmd K on a Mac), from anywhere but another field the owner is typing in, and never while an input method
+ * composes: beside the rail it puts the cursor in the header's command bar with its words selected; where no header
+ * bar shows (a phone, Chats) it calls `openDialog`, which opens the bar as a dialog.
  */
-export function useAskKey(): void {
+export function useFindKey(openDialog: () => void): void {
+  const latest = useRef(openDialog);
+  latest.current = openDialog;
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
-      if (event.isComposing || event.altKey || event.shiftKey || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k') return;
+      if (event.isComposing || event.keyCode === 229 || event.altKey || event.shiftKey || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k') return;
       if (typingElsewhere(event.target)) return;
       event.preventDefault();
-      askChausar();
+      const box = document.querySelector<HTMLInputElement>('[data-find-header] input[role="combobox"]');
+      if (box) { box.focus(); box.select(); return; }
+      latest.current();
     };
     document.addEventListener('keydown', listener);
     return () => document.removeEventListener('keydown', listener);

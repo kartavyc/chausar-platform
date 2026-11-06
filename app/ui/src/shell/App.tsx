@@ -3,8 +3,9 @@ import { EngineProvider, useEngine, useEngineStatus } from '../engine/context';
 import { TextProvider, useT, type Language } from '../text';
 import { SheetTitleContext } from '../parts/Sheet';
 import { ShellToolsContext } from '../parts/PageTitle';
-import { AskBox } from './AskBox';
-import { useAskKey } from './ask';
+import { useFindKey } from './ask';
+import { CommandBox } from './find/CommandBox';
+import { CommandDialog, openFindDialog, useFindDialogOpen } from './find/CommandDialog';
 import { Bell, NotifyProvider } from './Bell';
 import { StatusLine } from '../parts/StatusLine';
 import { closeSheet, returnFocus, useRoute } from './navigation';
@@ -58,42 +59,50 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
   const narrow = useNarrow();
   const main = useRef<HTMLElement>(null);
   useShellKeys({ mainRef: main, onClose: closeSheet });
-  useAskKey();
+  useFindKey(openFindDialog);
+  const finding = useFindDialogOpen();
 
   const { Place } = PLACES[route.place];
   const sheet = route.sheet;
   const SheetKind = sheet ? SHEETS[sheet.kind] ?? UnknownSheet : null;
-  const covered = narrow && Boolean(sheet && SheetKind);
+  // A sheet or the command dialog on a phone covers the screen under the status line; beside the rail the dialog
+  // lies over the page, which stays out of reach until it closes.
+  const covered = narrow && (Boolean(sheet && SheetKind) || finding);
+  const behind = covered || finding;
   const [sheetTitle, setSheetTitle] = useState<string | undefined>();
-  const dialog = covered ? { role: 'dialog', 'aria-modal': true, 'aria-labelledby': sheetTitle } : {};
-  const shellTools = useMemo(() => (narrow ? null : <><AskBox /><Bell /></>), [narrow]);
+  const dialog = narrow && sheet && SheetKind ? { role: 'dialog', 'aria-modal': true, 'aria-labelledby': sheetTitle } : {};
+  // C2: beside the rail every page header carries the command bar and the bell. On Chats the header holds no bar (the
+  // composer is the ask box there; B4 task 19's rule, held here until B4 lands): Ctrl K opens the dialog instead.
+  const onChats = route.place === 'chats';
+  const shellTools = useMemo(() => (narrow ? null : <>{!onChats && <CommandBox />}<Bell /></>), [narrow, onChats]);
 
   return (
     // One notification list for the bell and the centre (W4 4G4), so they never disagree.
     <OwnerZone>
     <NotifyProvider>
     <div className={s.app} data-phone={narrow ? '' : undefined} data-sheet-open={sheet ? '' : undefined} data-boot={checking ? '' : undefined}>
-      <button type="button" className={s.skip} inert={covered} onClick={() => main.current?.focus()}>{t('shell.skip')}</button>
+      <button type="button" className={s.skip} inert={behind} onClick={() => main.current?.focus()}>{t('shell.skip')}</button>
       <div className={s.status}>{statusLine}</div>
       {narrow
         ? <div className={s.top} inert={covered}><TopBar /></div>
-        : <div className={s.rail}><Rail route={route} /></div>}
-      <main ref={main} id="main" tabIndex={-1} className={s.main} inert={covered}>
-        {/* Beside the rail, every page header carries the Ask box (W4 4C2) and the bell (W4 4G4); on a phone the bell sits
-            in the top bar and Chats has a tab. */}
+        : <div className={s.rail} inert={behind}><Rail route={route} /></div>}
+      <main ref={main} id="main" tabIndex={-1} className={s.main} inert={behind}>
+        {/* Beside the rail, every page header carries the command bar (C2) and the bell (W4 4G4); on a phone both sit in
+            the top bar. */}
         <ShellToolsContext.Provider value={shellTools}>
           {/* W4 4J21: a business started on the hosted app without an account says so above every place. */}
           <div className={s.page}><TrialBanner /><AiGo /><Place key={route.place} /></div>
         </ShellToolsContext.Provider>
       </main>
       {sheet && SheetKind && (
-        <div className={s.sheet} data-cover={narrow ? '' : undefined} {...dialog}>
+        <div className={s.sheet} data-cover={narrow ? '' : undefined} inert={finding} {...dialog}>
           <SheetTitleContext.Provider value={setSheetTitle}>
             <SheetKind key={`${sheet.kind}:${sheet.id}`} id={sheet.id} onClose={closeSheet} returnFocus={returnFocus} />
           </SheetTitleContext.Provider>
         </div>
       )}
       {narrow && <div className={s.tabs} inert={covered}><PhoneTabs route={route} /></div>}
+      <CommandDialog cover={narrow} />
     </div>
     </NotifyProvider>
     </OwnerZone>

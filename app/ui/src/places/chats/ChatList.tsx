@@ -8,14 +8,14 @@
  * settled chats are not listed; a quiet link beside the title says how many and opens Settled chats.
  */
 
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useState } from 'react';
 import { useT } from '../../text';
 import type { Resource } from '../../engine/context';
-import type { ChiefLineAmount, ChiefThreadSummary, ChiefThreadsView } from '../../engine/types';
+import type { ChiefThreadSummary, ChiefThreadsView } from '../../engine/types';
 import { useClock, useOwnerZone } from '../../shell/clock';
 import { dayKeyIn, formatDay, formatTime, weekdayIn } from '../../../../../platform/runtime/owner-format';
 import { Button } from '../../parts/Button';
-import { Figure } from '../../parts/Figure';
+import { LineWithAmounts } from '../../parts/LineWithAmounts';
 import { cx } from '../../parts/cx';
 import { Icon } from '../../parts/Icon';
 import s from './Chats.module.css';
@@ -103,7 +103,7 @@ function Group({ label, threads, selected, now, zone, snoozed }: { label: string
                   <span className={s.chatTitle} data-content="">{thread.title}</span>
                   {thread.unread > 0 && <span className="sr-only">{t('chats.list.unread')}</span>}
                 </a>
-                {thread.lastLine && <span className={s.chatLine} data-last-line="">{withAmounts(thread.lastLine, thread.amounts)}</span>}
+                {thread.lastLine && <span className={s.chatLine} data-last-line=""><LineWithAmounts line={thread.lastLine} amounts={thread.amounts} /></span>}
               </span>
               <span className={s.chatSide}>
                 {snoozed && thread.snoozedUntil ? (
@@ -122,21 +122,4 @@ function Group({ label, threads, selected, now, zone, snoozed }: { label: string
       </ul>
     </section>
   );
-}
-
-/**
- * The engine's line with each amount it names as a Figure with its receipt, cut at the offsets the engine sends, and
- * only where the words there are the amount's own (an offset that does not match is skipped).
- */
-function withAmounts(line: string, amounts: readonly ChiefLineAmount[]) {
-  const out: ReactNode[] = [];
-  let at = 0;
-  for (const amount of [...amounts].sort((a, b) => a.start - b.start)) {
-    if (amount.start < at || line.slice(amount.start, amount.start + amount.length) !== amount.text) continue;
-    if (amount.start > at) out.push(line.slice(at, amount.start));
-    out.push(<Figure key={amount.start} value={amount.text} receiptId={amount.receiptId} />);
-    at = amount.start + amount.length;
-  }
-  if (at < line.length) out.push(line.slice(at));
-  return out;
 }
