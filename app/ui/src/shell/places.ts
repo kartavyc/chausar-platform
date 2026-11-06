@@ -3,7 +3,7 @@ import type { ComponentType } from 'react';
 import { chunkComponent } from './Chunk';
 import { loadText } from '../text';
 import { BASE_SHEETS, SHEET_OWNERS, type SheetComponent, type SheetComponentProps } from './sheets';
-import type { PlaceId } from './routes';
+import { RAIL_PLACES, TAB_PLACES, type PlaceId } from './routes';
 
 export interface PlaceModule { Place: ComponentType; sheets?: Readonly<Record<string, SheetComponent>> }
 export type PlaceLoaders = Record<string, () => Promise<PlaceModule>>;
@@ -59,3 +59,22 @@ const onboarding = EAGER_PLACES[modulePath('onboarding')];
 export const FirstRun = import.meta.env.MODE === 'test' ? onboarding!.FirstRun! : chunkComponent(async () => ((await loadPlace('onboarding')) as OnboardingModule).FirstRun);
 export const Welcome = import.meta.env.MODE === 'test' ? onboarding!.Welcome! : chunkComponent(async () => ((await loadPlace('onboarding')) as OnboardingModule).Welcome);
 
+/** First draw, then idle. Only navigation places are fetched; their words wait until they are opened. */
+export function prefetchPlaces(loaders: PlaceLoaders = PLACE_LOADERS): () => void {
+  let idle: number | undefined, timer: ReturnType<typeof setTimeout> | undefined;
+  let cancelled = false;
+  const run = () => {
+    if (cancelled) return;
+    for (const id of new Set([...RAIL_PLACES, ...TAB_PLACES])) void loadModule(modulePath(id), loaders).catch(() => {});
+  };
+  const frame = requestAnimationFrame(() => {
+    if (typeof requestIdleCallback === 'function') idle = requestIdleCallback(run);
+    else timer = setTimeout(run, 50);
+  });
+  return () => {
+    cancelled = true;
+    cancelAnimationFrame(frame);
+    if (idle !== undefined && typeof cancelIdleCallback === 'function') cancelIdleCallback(idle);
+    if (timer !== undefined) clearTimeout(timer);
+  };
+}
