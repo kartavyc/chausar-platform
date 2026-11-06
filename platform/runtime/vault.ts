@@ -1,3 +1,4 @@
+import { isCaptureSample } from './venture/replay/sample.ts';
 import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { constants } from 'node:fs';
 import { open, readFile, mkdir, lstat, realpath, rename, unlink, link, readdir, rmdir } from 'node:fs/promises';
@@ -357,6 +358,7 @@ export class Vault implements StateStore {
   #shutdown?: Promise<void>;
   #transaction = new AsyncLocalStorage<boolean>();
   #snapshotScope = new AsyncLocalStorage<boolean>();
+  #captureRestored = false;
   #keychain?: KeychainHook;
   #writerGuard?: VaultWriterGuard;
   /** D12: the data version this business was opened at, when the ladder brought it up in memory; null otherwise. */
@@ -867,6 +869,22 @@ export class Vault implements StateStore {
     if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.'));
     this.#ready();
     const pending = this.#chain.then(work); this.#chain = pending.catch(() => {}); return pending;
+  }
+  /** Trusted developer replay only: a fresh marked sample vault, never an existing business or RPC route. */
+  restoreCaptureState(state: State): Promise<void> {
+    if (this.#captureRestored || !isCaptureSample(this) || this.#state.conversations.some(row => typeof row?.kind === 'string' && row.kind.startsWith('venture-')))
+      return Promise.reject(new InternalError('CAPTURE_SAMPLE_REQUIRED', 'Restore a capture only into a newly created disposable sample vault.'));
+    if (state.workspace?.demo !== true) return Promise.reject(new InternalError('CAPTURE_SAMPLE_REQUIRED', 'Replay only sample data.'));
+    validateState(state);
+    this.#captureRestored = true;
+    return this.#enqueue(() => this.#transaction.run(true, () => this.guarded(async assertCurrent => {
+      const draft = structuredClone(state);
+      const envelope = encodeSnapshot(draft, { ...this.#envelope, revision: draft.revision }, this.#key);
+      const checked = decodeSnapshot(envelope, this.#key);
+      assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
+      this.#state = checked; this.#envelope = envelope;
+      return { result: undefined, committedState: structuredClone(checked) };
+    })));
   }
   update<T>(change: (state: State) => T | Promise<T>): Promise<T> {
     if (this.#transaction.getStore()) return Promise.reject(new InternalError('REENTRANT_TRANSACTION', 'Nested vault transactions are not supported.'));
