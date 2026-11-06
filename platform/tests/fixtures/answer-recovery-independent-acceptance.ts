@@ -1,3 +1,4 @@
+import { testKdfMemo } from '../helpers/kdf-memo.ts';
 import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
 import { createHash } from 'node:crypto';
@@ -28,7 +29,7 @@ export async function fixture(t: TestContext) {
   const originalAuthority = Buffer.from(legacy.authorityBase64, 'base64');
   assert.equal(sha256(originalAuthority), legacy.originalAuthoritySha256);
   await writeFile(authorityPath, originalAuthority, { flag: 'wx' });
-  const options = { directory, demo: true, storage: 'experimental-file' as const };
+  const options = { directory, kdfMemo: testKdfMemo(t), demo: true, storage: 'experimental-file' as const };
   let engine = new Engine(options), app = createLocalServer(engine), host = await app.listen(), bearer = host.token;
   const raw = async (method: string, payload: unknown = {}, authorization = bearer) => {
     const response = await fetch(`${host.origin}/api/rpc`, { method: 'POST',

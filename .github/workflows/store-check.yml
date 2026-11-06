@@ -1,0 +1,55 @@
+name: Store snapshot checks
+on:
+  push:
+    branches: ['b2c/os-store-check-*']
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: --max-old-space-size=3072
+      CHAUSAR_RUN_ROOT: /tmp/store-receipts
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: SQLite CI probe
+        if: always()
+        run: |
+          mkdir -p /tmp/store-receipts/app.asar.unpacked
+          printf '%s\n' "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE sample(value INTEGER);INSERT INTO sample VALUES(7)');console.log(JSON.stringify({node:process.version,sqlite:process.versions.sqlite,value:db.prepare('SELECT value FROM sample').get().value}));db.close();" > /tmp/store-receipts/app.asar.unpacked/probe.cjs
+          node /tmp/store-receipts/app.asar.unpacked/probe.cjs > /tmp/store-receipts/sqlite.log 2>&1
+      - name: Matched memo suite receipts
+        if: always()
+        run: |
+          git fetch --depth=1 origin 6f670db4cd452896384175b4b799b5ae2e0c9269:refs/heads/store-baseline
+          git clone --no-hardlinks . /tmp/store-before
+          git -C /tmp/store-before checkout --detach 6f670db4cd452896384175b4b799b5ae2e0c9269
+          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/store-before/node_modules
+          for variant in before after; do
+            if [ "$variant" = before ]; then cd /tmp/store-before; else cd "$GITHUB_WORKSPACE"; fi
+            for run in 1 2 3 4 5; do
+              node --test --test-concurrency=1 --test-reporter=tap --test-reporter-destination=/tmp/store-receipts/memo-$variant-$run.tap --test-reporter=./scripts/test-timing-reporter.mjs --test-reporter-destination=/tmp/store-receipts/memo-$variant-$run.timings.jsonl platform/tests/alert-brief-independent-public-acceptance.test.ts platform/tests/answer-recovery-independent-public-acceptance.test.ts
+            done
+          done
+      - name: Retain receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-snapshot-receipts
+          path: /tmp/store-receipts
+
+
+
+
+
+
+
+
