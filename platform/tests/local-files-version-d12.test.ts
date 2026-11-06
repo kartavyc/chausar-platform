@@ -80,3 +80,65 @@ test('a damaged file of no known kind is still replaced, as before (only a newer
   await cliLookFile(path).write({});
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), { version: 1, looks: {} });
 });
+
+
+test('newer preferences are ignored, preserved on change, and noted once', async t => {
+  const directory = await home(t);
+  const { readAppPreferences, writeAppPreferences } = await import('../runtime/app-preferences.ts');
+  const path = join(directory, 'preferences.json');
+  const newer = JSON.stringify({ format: 'chausar.preferences.v99', motion: 'off', language: 'hi' });
+  await writeFile(path, newer);
+  assert.deepEqual(await readAppPreferences(directory), { motion: 'system', language: 'en' });
+  assert.deepEqual(await writeAppPreferences(directory, { motion: 'off' }), { motion: 'system', language: 'en' });
+  assert.equal(await readFile(path, 'utf8'), newer);
+  assert.equal((await notes(directory)).filter(line => line.step === 'preferences').length, 1);
+});
+
+test('newer readable-export notes cannot be read, rewritten or used to delete a file', async t => {
+  const directory = await home(t);
+  const path = join(directory, 'custody', 'exports.json');
+  const file = 'chausar-workspace_sample-123.json';
+  const target = join(directory, file);
+  await writeFile(target, 'sample copy');
+  const newer = JSON.stringify({ format: 'chausar.exports.v99', readable: [{ file, path: target, at: '2026-11-06T00:00:00Z', kept: false }] });
+  await writeFile(path, newer);
+  const custody = new CustodyFiles(directory);
+  assert.deepEqual(await custody.readableExports('workspace_sample'), []);
+  await custody.noteReadable(file, '2026-11-06T01:00:00Z');
+  await assert.rejects(custody.deleteReadable(file), (error: any) => error.code === 'EXPORT_NOT_FOUND');
+  assert.equal(await readFile(path, 'utf8'), newer);
+  assert.equal(await readFile(target, 'utf8'), 'sample copy');
+  assert.equal((await notes(directory)).filter(line => line.step === 'exports').length, 1);
+});
+
+test('newer update settings are ignored and survive an owner setting change', async t => {
+  const directory = await home(t);
+  const updates = join(directory, 'updates');
+  await mkdir(updates);
+  const path = join(updates, 'settings.json');
+  const newer = JSON.stringify({ format: 'chausar.update-settings.v99', daily: false, channel: 'beta' });
+  await writeFile(path, newer);
+  const { UpdateService } = await import('../runtime/update-service.ts');
+  const service = new UpdateService({ directory: updates, version: '0.1.0', channel: 'stable', publicKey: null, feedUrl: null, windowsPublisher: null, isBusy: () => false });
+  assert.equal((await service.view()).daily, true);
+  await service.settings({ daily: false });
+  assert.equal(await readFile(path, 'utf8'), newer);
+  assert.equal((await notes(directory)).filter(line => line.step === 'update-settings').length, 1);
+});
+
+
+test('the pending update of a newer local format is not removed or acted on', async t => {
+  const directory = await home(t);
+  const updates = join(directory, 'updates'), stage = join(updates, 'stage');
+  await mkdir(stage, { recursive: true });
+  const path = join(stage, 'pending-release.json'), artifactPath = join(stage, 'future.artifact');
+  await writeFile(artifactPath, 'future installer');
+  const newer = JSON.stringify({ format: 'chausar.pending-release.v99', manifest: { version: '0.1.0' }, artifactPath });
+  await writeFile(path, newer);
+  const { UpdateService } = await import('../runtime/update-service.ts');
+  const service = new UpdateService({ directory: updates, version: '0.1.0', channel: 'stable', publicKey: 'configured only, never used', feedUrl: 'https://example.com/feed', windowsPublisher: null, isBusy: () => false });
+  assert.equal((await service.view()).target, null);
+  assert.equal(await readFile(path, 'utf8'), newer);
+  assert.equal(await readFile(artifactPath, 'utf8'), 'future installer');
+  assert.equal((await notes(directory)).filter(line => line.step === 'pending-release').length, 1);
+});

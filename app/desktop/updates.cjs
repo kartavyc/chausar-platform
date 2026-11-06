@@ -210,6 +210,12 @@ async function installOnQuit(input) {
 async function readBoot(file) {
   try { return JSON.parse(await fsp.readFile(file, 'utf8')); } catch { return undefined; }
 }
+const bootNoted = new Set();
+async function noteNewerBoot(updatesFolder) {
+  if (bootNoted.has(updatesFolder)) return;
+  bootNoted.add(updatesFolder);
+  await noterFor(updatesFolder)({ op: 'local-file', step: 'boot', code: 'LOCAL_FILE_NEWER' });
+}
 const newerBoot = raw => !!raw && typeof raw === 'object' && typeof raw.format === 'string' && raw.format !== BOOT_FORMAT && /^chausar\.boot\.v\d+$/.test(raw.format);
 
 /** The C5 hook: one diagnostics line, and the words for the window (main.cjs shows them with Show installer). */
@@ -227,7 +233,7 @@ async function onFailedBoot({ version, previous }, { note = async () => {}, show
  */
 async function startBoot(updatesFolder, version, { onFailedBoot: hook, show } = {}) {
   const file = join(updatesFolder, 'boot.json'), raw = await readBoot(file);
-  if (newerBoot(raw)) return { attempts: 0, failed: false };
+  if (newerBoot(raw)) { await noteNewerBoot(updatesFolder); return { attempts: 0, failed: false }; }
   const same = raw && raw.format === BOOT_FORMAT && raw.version === version && Number.isSafeInteger(raw.attempts) && raw.attempts >= 0;
   const marker = { format: BOOT_FORMAT, version, attempts: same ? raw.attempts + 1 : 1, reported: same ? raw.reported === true : false };
   const failed = marker.attempts > FAILED_STARTS;
@@ -247,7 +253,7 @@ async function startBoot(updatesFolder, version, { onFailedBoot: hook, show } = 
 /** Called at the first ready plus first paint: this version started, so the count goes. */
 async function clearBoot(updatesFolder) {
   const file = join(updatesFolder, 'boot.json');
-  if (newerBoot(await readBoot(file))) return;
+  if (newerBoot(await readBoot(file))) { await noteNewerBoot(updatesFolder); return; }
   await fsp.unlink(file).catch(error => { if (error.code !== 'ENOENT') throw error; });
 }
 

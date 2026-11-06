@@ -4,7 +4,8 @@
 // key and feed address come from the build's metadata, through what main hands the worker; with either missing the state
 // is a plain not-set-up and nothing is asked. Installing happens at quit, in the desktop's own process (app/desktop/updates.cjs).
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { newerFormat, newerVersion, noteNewerOnce, readLocalJson } from './local-files.ts';
 import { randomBytes } from 'node:crypto';
 import { ChausarError, check } from './contracts.ts';
 import type { UpdateState, UpdatesView } from './update-service-core.ts';
@@ -71,9 +72,16 @@ export class UpdateService {
   get #stage(): string { return join(this.#o.directory, 'stage'); }
   get #settingsPath(): string { return join(this.#o.directory, 'settings.json'); }
 
+  async #newerSettings(): Promise<boolean> {
+    const raw = await readLocalJson(this.#settingsPath);
+    if (!newerFormat(raw, 'chausar.update-settings.v1') && !newerVersion(raw, 1)) return false;
+    await noteNewerOnce(join(dirname(this.#o.directory), 'custody'), 'settings.json', 'update-settings');
+    return true;
+  }
   async #load(): Promise<Kept> {
-    if (this.#kept) return this.#kept;
     const blank: Kept = { daily: true, channel: null, lastCheckAt: null, lastResult: null, reason: null };
+    if (await this.#newerSettings()) return blank;
+    if (this.#kept) return this.#kept;
     try {
       const raw = JSON.parse(await readFile(this.#settingsPath, 'utf8'));
       this.#kept = { ...blank, daily: raw.daily !== false, channel: RELEASE_CHANNELS.includes(raw.channel) ? raw.channel : null, lastCheckAt: Number.isSafeInteger(raw.lastCheckAt) ? raw.lastCheckAt : null, lastResult: typeof raw.lastResult === 'string' ? raw.lastResult : null, reason: typeof raw.reason === 'string' ? raw.reason.slice(0, 300) : null };
@@ -81,11 +89,12 @@ export class UpdateService {
     return this.#kept;
   }
   async #save(change: Partial<Kept>): Promise<void> {
+    if (await this.#newerSettings()) return;
     const next = { ...(await this.#load()), ...change };
     this.#kept = next;
     await mkdir(this.#o.directory, { recursive: true });
     const temporary = `${this.#settingsPath}.${randomBytes(6).toString('hex')}.tmp`;
-    await writeFile(temporary, JSON.stringify(next), { mode: 0o600 });
+    await writeFile(temporary, JSON.stringify({ format: 'chausar.update-settings.v1', ...next }), { mode: 0o600 });
     await rename(temporary, this.#settingsPath);
   }
   /** The release waiting to install, or null. One the running version has reached has done its work, and goes. */
@@ -93,6 +102,10 @@ export class UpdateService {
     const path = join(this.#stage, 'pending-release.json');
     let record: { manifest?: ReleaseManifest; artifactPath?: string };
     try { record = JSON.parse(await readFile(path, 'utf8')); } catch { return null; }
+    if (newerFormat(record, 'chausar.pending-release.v1') || newerVersion(record, 1)) {
+      await noteNewerOnce(join(dirname(this.#o.directory), 'custody'), 'pending-release.json', 'pending-release');
+      return null;
+    }
     const manifest = record.manifest;
     if (!manifest || typeof manifest.version !== 'string') return null;
     if (compareVersions(manifest.version, this.#o.version) > 0) return manifest;
@@ -124,6 +137,7 @@ export class UpdateService {
   async #rollbacks(): Promise<{ raw: any; skip: string[] } | null> {
     try {
       const raw = JSON.parse(await readFile(join(this.#o.directory, 'rollbacks.json'), 'utf8'));
+      if (newerFormat(raw, 'chausar.rollbacks.v1')) await noteNewerOnce(join(dirname(this.#o.directory), 'custody'), 'rollbacks.json', 'rollbacks');
       if (raw?.format !== 'chausar.rollbacks.v1' || !Array.isArray(raw.swaps) || !Array.isArray(raw.skip)) return null;
       return { raw, skip: raw.skip.filter((version: unknown) => typeof version === 'string') };
     } catch { return null; }
