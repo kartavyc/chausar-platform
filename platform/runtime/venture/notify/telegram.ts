@@ -119,6 +119,58 @@ async function sendOnce(deps: VentureDeps, owner: Context, saved: Saved, count: 
   return post;
 }
 
+/** C5 task 11: what Find me answers: the chat to save and its first name, or none with the words why. */
+export type TelegramFound = { found: { chatId: string; name: string } | null; line: string };
+const START_FIRST = 'Send /start to your bot in Telegram, then press Find me again.';
+
+/** The newest private chat in a getUpdates answer whose message starts with /start; groups and channels are skipped. */
+export function startedChat(body: unknown): { chatId: string; name: string } | null {
+  const result = (body as { result?: unknown } | null)?.result;
+  if (!Array.isArray(result)) return null;
+  for (const item of [...result].reverse()) {
+    const message = (item as { message?: { chat?: { id?: unknown; type?: unknown; first_name?: unknown }; text?: unknown } } | null)?.message;
+    const chat = message?.chat;
+    if (!chat || chat.type !== 'private' || typeof message!.text !== 'string' || !/^\/start\b/.test(message!.text.trim())) continue;
+    const id = typeof chat.id === 'number' && Number.isSafeInteger(chat.id) ? String(chat.id) : null;
+    if (!id || !CHAT_ID.test(id)) continue;
+    const name = typeof chat.first_name === 'string' ? chat.first_name.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 64) : '';
+    return { chatId: id, name: name || 'this chat' };
+  }
+  return null;
+}
+
+/**
+ * venture.notify.telegram.findChat { token } (prepare, app only): one getUpdates call to the owner's own bot, through
+ * the network guard, to find the chat that sent /start. Answers its id and first name for the owner to confirm; stores
+ * nothing (the save is venture.notify.telegram with that chat id). A webhook (409), a refused token and no /start yet
+ * each answer plain words. The token is never written anywhere and never said back.
+ */
+export async function telegramFindChatHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<TelegramFound> {
+  requireAppChannel(ctx, 'venture.notify.telegram.findChat');
+  const body = exactPayload(payload, ['token'], ['token']);
+  check(deps.host !== 'hosted-web', 'TIER_UNAVAILABLE', WORDS.hosted);
+  check(typeof body.token === 'string' && BOT_TOKEN.test(body.token.trim()), 'INVALID_VENTURE_REQUEST', WORDS.token);
+  authorize(deps.store, ctx, 'prepare');
+  readVenture(deps, ctx);
+  const token = (body.token as string).trim();
+  let answer;
+  try {
+    answer = await guardedFetch({
+      url: `https://${TELEGRAM_HOST}/bot${token}/getUpdates?allowed_updates=%5B%22message%22%5D`, method: 'GET',
+      maxRedirects: 0, timeoutMs: TELEGRAM_TIMEOUT_MS, maxBytes: 256 * 1024,
+    }, deps.net ?? {});
+  } catch {
+    return { found: null, line: 'Chausar could not reach Telegram. Check this computer is online, then press Find me again.' };
+  }
+  if (answer.status === 409) return { found: null, line: 'Your bot sends its messages to a web address (a webhook), so Chausar cannot read them. Type your chat id under "Type the chat id yourself" instead.' };
+  if (answer.status === 401 || answer.status === 404) return { found: null, line: 'Telegram refused the bot token. Check it in BotFather and paste it again.' };
+  if (answer.status < 200 || answer.status >= 300) return { found: null, line: `Telegram answered ${answer.status}. Press Find me again in a minute.` };
+  let parsed: unknown = null;
+  try { parsed = JSON.parse(answer.body.toString('utf8')); } catch { /* no chat found */ }
+  const found = startedChat(parsed);
+  return found ? { found, line: `Is this you: ${found.name}?` } : { found: null, line: START_FIRST };
+}
+
 const worthRetry = (post: Post) => !post.halted && (post.status !== null ? post.status >= 500 || post.status === 429 : post.wentOut);
 
 /** Sends one text, tried once more at most after no answer or a server error. */

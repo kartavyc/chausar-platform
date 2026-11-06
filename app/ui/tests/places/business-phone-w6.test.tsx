@@ -45,6 +45,8 @@ describe('Telegram alerts and phone access on this computer', () => {
     const token = within(fold).getByLabelText('Bot token') as HTMLInputElement;
     expect(token.type).toBe('password');
     fireEvent.change(token, { target: { value: 'not a token' } });
+    // C5 task 11: the chat id is found by Find me; typing it is the manual path, in its own fold.
+    fireEvent.click(within(fold).getByText('Type the chat id yourself', { selector: 'summary' }));
     fireEvent.change(within(fold).getByLabelText('Your chat id'), { target: { value: '7000123456' } });
     fireEvent.click(within(fold).getByRole('button', { name: 'Save bot' }));
     await within(fold).findByText(/^Couldn't save: Paste the bot token BotFather gave you\./);
