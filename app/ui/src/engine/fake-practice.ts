@@ -16,13 +16,13 @@ import { bindFakeClientAi } from './fake-client-ai-consent';
 import {
   EngineError, type BlueprintViewLite, type CheckLite, type DeliveryLite, type EpisodeLite, type ImprovementReadinessLite,
   type ImprovementRunLite, type ImprovementStatusLite, type JudgeAutoView, type JudgePreview, type ModelStatusLite, type PlaybookLite,
-  type ScenarioLite, type ServiceType, type SimulationRunLite, type VentureRunEvent,
+  type ScenarioLite, type ServiceType, type SimulationRunLite, type UiRunEvent,
 } from './types';
 
 export interface PracticeHost {
   current(): string;
   now(): string;
-  emit(event: VentureRunEvent): void;
+  emit(event: UiRunEvent): void;
   /** Another desk's answer, for the records this desk reads (the plan, the AI status and delivery runs). */
   ask(method: string, params: Record<string, unknown>): unknown;
   /** The fake's short digest; eight of them make the engine's 64-character digest. */

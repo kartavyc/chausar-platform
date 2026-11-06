@@ -1,3 +1,4 @@
+import { testKdfMemo } from '../helpers/kdf-memo.ts';
 import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
 import { createHash } from 'node:crypto';
@@ -6,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve, isAbsolute } from 'node:path';
 import { Engine } from '../../runtime/engine.ts';
 import { createLocalServer } from '../../runtime/server.ts';
-import { preloadBridge } from './preload-bridge.ts';
+import { trustedHostBridge } from './trusted-host-bridge.ts';
 
 // Actual pre-repair Engine encrypted authority and public originals. No authored
 // State, deleted cutoff, live provider, native SQL, installed GUI or user vault.
@@ -28,7 +29,7 @@ export async function fixture(t: TestContext) {
   const originalAuthority = Buffer.from(legacy.authorityBase64, 'base64');
   assert.equal(sha256(originalAuthority), legacy.originalAuthoritySha256);
   await writeFile(authorityPath, originalAuthority, { flag: 'wx' });
-  const options = { directory, demo: true, storage: 'experimental-file' as const };
+  const options = { directory, kdfMemo: testKdfMemo(t), demo: true, storage: 'experimental-file' as const };
   let engine = new Engine(options), app = createLocalServer(engine), host = await app.listen(), bearer = host.token;
   const raw = async (method: string, payload: unknown = {}, authorization = bearer) => {
     const response = await fetch(`${host.origin}/api/rpc`, { method: 'POST',
@@ -47,8 +48,8 @@ export async function fixture(t: TestContext) {
     await rm(directory, { recursive: true, force: true });
   });
   await http('workspace.open', { passphrase: legacy.passphrase });
-  // Every public request goes through the real desktop preload and strict IPC contract, then this loopback HTTP server.
-  const bridge = await preloadBridge({ dispatch: http });
+  // Every public request goes through the real trusted host validator and strict IPC contract, then this loopback HTTP server.
+  const bridge = await trustedHostBridge({ dispatch: http });
   const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => bridge.request(method, payload);
   const advance = (milliseconds = 1000) => t.mock.timers.setTime(Date.now() + milliseconds);
   let lastExportedTime = 0;

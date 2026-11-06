@@ -2,7 +2,7 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import type { IdeaView, ProposalView, VentureRunEvent } from '../../engine/types';
+import type { IdeaView, ProposalView, UiRunEvent } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Count } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
@@ -10,7 +10,7 @@ import s from './IdeasFold.module.css';
 import { Fold } from '../../parts/Fold';
 
 /** Ideas rest on the business's records: a queue change (an invoice paid, an order moved) can make or retire one. */
-const IDEA_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.done' || event.type === 'run.failed';
+const IDEA_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed' || event.type === 'run.done' || event.type === 'run.failed';
 
 
 

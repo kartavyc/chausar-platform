@@ -9,7 +9,7 @@
 import { formatDay, formatMoney } from '../../../../platform/runtime/owner-format';
 import {
   EngineError, type BankAlertRuleLite, type BankAlertsView, type BankApplyResult, type BankLedgerRow, type BankLedgerView, type InvoiceViewLite,
-  type QueueRow, type VentureRunEvent,
+  type QueueRow, type UiRunEvent,
 } from './types';
 import { inr } from './fake-money';
 import { decimalMinor } from '../../../../platform/runtime/currency';
@@ -17,7 +17,7 @@ import { decimalMinor } from '../../../../platform/runtime/currency';
 export interface BankHost {
   current(): string;
   now(): string;
-  emit(event: VentureRunEvent): void;
+  emit(event: UiRunEvent): void;
   /** Today's rows, to add a bank row the owner decides, and the fake's digest for a new row. */
   rows(): QueueRow[];
   setRows(rows: QueueRow[]): void;

@@ -24,7 +24,7 @@ import type { AvatarState } from '../../parts/Avatar';
 import { Receipt } from '../../parts/Receipt';
 import { SwipeCard } from '../../parts/SwipeCard';
 import { cx } from '../../parts/cx';
-import { EngineError, type QueueAction, type QueueDecision, type QueueRow, type VentureRunEvent } from '../../engine/types';
+import { EngineError, type QueueAction, type QueueDecision, type QueueRow, type UiRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
 import { decide as decideRow, reread as rereadRow, seenKey, undoOf, useTodaySession, type DecidedLine } from './session';
 import { ViewSheet, viewSheetId } from './ViewSheet';
@@ -66,9 +66,9 @@ const FIXED_BLOCKS = new Set(['greeting', 'notices', 'goal', 'needs']);
 
 /** The team list changes with a posture or gate change, which the engine says with a queue change; the agents' states
  *  come from the runs, read on their own. */
-const TEAM_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed';
+const TEAM_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed';
 /** The open business's plan changes when it is accepted or edited, or another business opens: a queue change. */
-const PLAN_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed';
+const PLAN_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed';
 
 /**
  * The engine's order: plan, prices and setup rows lead, then oldest first, locked businesses last. A row keeps the

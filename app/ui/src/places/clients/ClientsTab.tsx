@@ -15,13 +15,13 @@ import { EmptyState } from '../../parts/EmptyState';
 import { Icon } from '../../parts/Icon';
 import { Row } from '../../parts/Row';
 import { Tile } from '../../parts/Tile';
-import type { ClientLite, OrderLite, VentureRunEvent } from '../../engine/types';
+import type { ClientLite, OrderLite, UiRunEvent } from '../../engine/types';
 import { Owed } from './ClientSheet';
 import { useClientsChanged } from './signals';
 import s from './Clients.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 
-const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
+const refreshOn = (event: UiRunEvent) => event.type === 'queue.changed';
 
 export function ClientsTab({ clients }: { clients: Resource<ClientLite[]> }) {
   const t = useT();

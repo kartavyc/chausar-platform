@@ -189,7 +189,7 @@ describe('Money w4: cash ahead and the next three weeks', () => {
 
   it('without a bank statement there is no line and no figure, only a way to import one', async () => {
     const empty: CashView = {
-      bank: null, opening: null, points: [], lowest: { onTime: null, ifLateNeverPay: null }, usualCosts: null, assumptions: [], nextWeeks: [], ticks: [],
+      bank: null, opening: null, points: [], lowest: { onTime: null, ifLateNeverPay: null }, usualCosts: null, assumptions: [], nextWeeks: [], ifIssued: [], ticks: [],
       basis: { filters: [], truncated: false, notCounted: null }, line: 'Import a bank statement to see cash ahead.',
     };
     start('#/money', { override: { 'venture.money.cash': () => empty } });

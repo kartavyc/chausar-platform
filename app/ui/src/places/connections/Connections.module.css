@@ -692,3 +692,9 @@
 }
 
 .needsRow { padding: var(--sp-3) 0; border-bottom: 1px solid var(--line); }
+
+.modelConnections {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

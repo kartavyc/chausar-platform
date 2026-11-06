@@ -7,6 +7,7 @@ import { Button } from '../../parts/Button';
 import { Figure } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
 import { cx } from '../../parts/cx';
+import { Swap } from '../../parts/Swap';
 import { usePlainTiles } from '../../parts/Tile';
 import type { NextBestStep, QueueRow } from '../../engine/types';
 import { goalAmount, type GoalAmount } from './goal';
@@ -65,12 +66,12 @@ export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
           {who && (
             <span className={s.who}>
               {data.agent && <Avatar name={data.agent} size={24} />}
-              {who}
+              <Swap value={data.rowId}>{who}</Swap>
             </span>
           )}
         </div>
-        <h2 id={titleId} className={s.title}>{data.title}</h2>
-        {data.line && <p className={s.line}>{data.line}</p>}
+        <h2 id={titleId} className={s.title}><Swap value={data.rowId}>{data.title}</Swap></h2>
+        {data.line && <p className={s.line}><Swap value={data.rowId}>{data.line}</Swap></p>}
         {(data.total || data.goalAfter) && (
           <div className={s.figures}>
             {data.total && (
@@ -83,7 +84,7 @@ export function NextStep({ data, primary, onOpen, onPrimary }: NextStepProps) {
             {data.goalAfter && (
               <div className={s.figure}>
                 <span className={s.figureLabel}>{t('today.next.goalAfter')}</span>
-                <span className={s.after} data-num="">{data.goalAfter}</span>
+                <span className={s.after} data-num=""><Swap value={data.rowId}>{data.goalAfter}</Swap></span>
               </div>
             )}
           </div>
@@ -161,7 +162,7 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
   const press = () => { setPending(row.id); host.goToRow(row.id); };
   const primaryId = (row.actions.find((action) => action.primary) ?? row.actions[0])?.id;
   const open = () => (row.viewRef ? host.look(row) : host.goToRow(row.id));
-  if (folded) return <FoldedStep title={row.title} total={total ?? undefined} primary={primary} onPrimary={press} onOpen={open} />;
+  if (folded) return <FoldedStep rowId={row.id} title={row.title} total={total ?? undefined} primary={primary} onPrimary={press} onOpen={open} />;
   // The row's own line and "asks you once more" are on its card already: the tile says neither again (words).
   const data: NextStepData = {
     rowId: row.id, title: row.title, agent: step.agent ?? row.agent,
@@ -182,7 +183,7 @@ export function TodayNextStep({ step, row, host, folded = false }: { step: NextB
  * The next best step folded into the goal card on a phone (D-Phone-Today): "Next best step", the row's title and its
  * figure on one line, and the card's one filled button, the row's own primary (locked and worded as its card).
  */
-function FoldedStep({ title, total, primary, onPrimary, onOpen }: { title: string; total?: GoalAmount | undefined; primary: ApprovalPrimary; onPrimary: () => void; onOpen: () => void }) {
+function FoldedStep({ rowId, title, total, primary, onPrimary, onOpen }: { rowId: string; title: string; total?: GoalAmount | undefined; primary: ApprovalPrimary; onPrimary: () => void; onOpen: () => void }) {
   const t = useT();
   const noteId = useId();
   const plain = usePlainTiles();
@@ -190,7 +191,7 @@ function FoldedStep({ title, total, primary, onPrimary, onOpen }: { title: strin
     <div className={s.folded} data-next-folded="">
       <p className={s.foldedEyebrow}>{t('today.next.eyebrow')}</p>
       <p className={s.foldedLine}>
-        <span>{title}</span>
+        <Swap value={rowId}>{title}</Swap>
         {total && <Figure {...total} tone={plain ? undefined : 'dark'} />}
       </p>
       {primary.locked && primary.note && <p id={noteId} className={s.foldedNote}><Icon name="lock" size={14} />{primary.note}</p>}

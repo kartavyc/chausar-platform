@@ -24,7 +24,7 @@ import { Icon } from '../../parts/Icon';
 import { PageTitle } from '../../parts/PageTitle';
 import { SectionHead } from '../../parts/Tile';
 import type { SheetComponent } from '../../shell/sheets';
-import type { QueueRow, RunSummary, VentureRunEvent } from '../../engine/types';
+import type { QueueRow, RunSummary, UiRunEvent } from '../../engine/types';
 import { NewOrderSheet } from './NewOrderSheet';
 import { OrderFocus } from './OrderFocus';
 import { OrderList, waitsOnYou } from './OrderList';
@@ -63,7 +63,7 @@ function routeFor(route: Route, filter: WorkFilter, business: string | undefined
 
 const everyEvent = () => true;
 const never = () => false;
-const queueEvent = (event: VentureRunEvent) => event.type === 'queue.changed';
+const queueEvent = (event: UiRunEvent) => event.type === 'queue.changed';
 
 /** Business names as the engine sends them with Today's rows, by business id. */
 function businessNames(rows: readonly QueueRow[] | undefined): Map<string, string> {

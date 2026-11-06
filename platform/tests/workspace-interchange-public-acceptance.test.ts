@@ -9,7 +9,7 @@ import { code, CORRECTED_SOURCE_BYTES, fixture, HINDI, LARGE_ID, LEADING_ZERO_ID
 
 // Independent expectations, deliberately not imported from the implementation's
 // profile. These observed public bindings must run only on the frozen joined
-// Engine/preload. Exact wire assertions await a public managed readback route.
+// Engine/trusted host. Exact wire assertions await a public managed readback route.
 const COLLECTIONS = ['members', 'facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning',
   'plugins', 'modelReceipts', 'activity', 'conflicts', 'merges', 'tombstones', 'conversations', 'routes', 'sessions',
   'unsupported', 'schedules', 'sourceRules'];
@@ -75,7 +75,7 @@ export function assertCompleteArchive(archive: WorkspaceInterchange, expected: S
 }
 
 // Observed host operation payloads only. The final adapter must call the frozen
-// Engine methods through f.request/preload; no mock implementation belongs here.
+// Engine methods through f.request/trusted host; no mock implementation belongs here.
 export type InterchangeOperations = {
   export(input: { destinationId: string; confirmed: true }): Promise<any>;
   prepare(input: { exportId: string; candidateId: string; targetId: string }): Promise<any>;

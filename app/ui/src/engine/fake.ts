@@ -88,7 +88,7 @@ import { withPriceGuide } from './fake-price-ranges';
 import { createFakeBackground, type FakeBackgroundStart } from './fake-background';
 import { introLine } from '../../../../platform/runtime/venture/agents/intro-core';
 import type { DeliveryLite, InvoiceLite, OrderLite, ReceiptLite } from './types';
-import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
+import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type UiRunEvent } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -246,7 +246,7 @@ export class FakeEngine {
   private scheduledSession = 0;
   private receiptSeq = 421;
   private seq = 40;
-  private listeners = new Set<(event: VentureRunEvent) => void>();
+  private listeners = new Set<(event: UiRunEvent) => void>();
   private readonly latencyMs: number;
   private readonly now: () => string;
   // Onboarding: the businesses on this computer, whether a vault is open, and each new business's interview.
@@ -434,7 +434,7 @@ export class FakeEngine {
       draftText: (id:string)=>{const run=(this.work.request('venture.delivery.list',{}) as DeliveryLite[]).find(item=>item.id===id);return run?.editedText??run?.renderedText??null;},
       sharedDraftDigest:(id:string)=>this.extras.sharedDraftDigest(this.current,id),
       socialClientAnswer:(id:string)=>this.posting.socialClientAnswer(id),
-      current: () => this.current, now: () => this.now(), emit: (event: VentureRunEvent) => this.emit(event), hosted: () => this.hosted,
+      current: () => this.current, now: () => this.now(), emit: (event: UiRunEvent) => this.emit(event), hosted: () => this.hosted,
       rows: () => this.rows, setRows: (rows: QueueRow[]) => { this.rows = rows; }, digest: digestOf,
       ask: (method: string, p: Record<string, unknown>) => this.answerNow(method, p),
       // 5G: only screened imported mail words, through an internal host seam.
@@ -555,12 +555,12 @@ export class FakeEngine {
     }
   }
 
-  subscribe(listener: (event: VentureRunEvent) => void): () => void {
+  subscribe(listener: (event: UiRunEvent) => void): () => void {
     this.listeners.add(listener);
     return () => { this.listeners.delete(listener); };
   }
 
-  emit(event: VentureRunEvent): void {
+  emit(event: UiRunEvent): void {
     this.seq += 1;
     for (const listener of [...this.listeners]) listener(event);
   }

@@ -4,11 +4,11 @@ import type { AvatarState } from '../../parts/Avatar';
 import type { ProgressTone } from '../../parts/ProgressRing';
 import { stateText } from '../../parts/states';
 import type { T } from '../../text';
-import type { AgentView, RunSummary, VentureRunEvent } from '../../engine/types';
+import type { AgentView, RunSummary, UiRunEvent } from '../../engine/types';
 import { stateOf, type AgentState, type Member } from './departments';
 
 /** Team reads change when a run moves, and when the business or its queue changes (a switch arrives as queue.changed). */
-export const refreshOn = (event: VentureRunEvent): boolean => event.type.startsWith('run.') || event.type === 'queue.changed';
+export const refreshOn = (event: UiRunEvent): boolean => event.type.startsWith('run.') || event.type === 'queue.changed';
 
 /** The run an agent is on now: one waiting on the owner first, else one at work. Runs name their agent. */
 export function currentRun(runs: readonly RunSummary[] | undefined, agent: string): RunSummary | undefined {

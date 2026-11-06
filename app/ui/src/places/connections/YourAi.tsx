@@ -6,13 +6,16 @@ import { Inner } from '../../parts/Card';
 import { Field } from '../../parts/Field';
 import { Row } from '../../parts/Row';
 import { Tile } from '../../parts/Tile';
-import type { ModelConnectParams, ModelPresetLite, ModelStatusLite, ModelTier } from '../../engine/types';
+import type { ModelConnectParams, ModelConnectionLite, ModelPresetLite, ModelStatusLite, ModelTier } from '../../engine/types';
 import { useCliChecks, useCliStatus, CliTool } from './CliStatus';
 import { connectionWords } from './ConnectionWords';
 import { AgentSettings } from './AgentSettings';
 import s from './Connections.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { SwapWords } from '../../parts/Swap';
+import { LeaveRow } from '../../parts/LeaveRow';
+import { useLeavingList } from '../../parts/useLeaving';
 
 export const TEMPLATES = 'built-in-templates';
 const CONNECTABLE = new Set(['ready', 'unverified']);
@@ -68,9 +71,9 @@ export function YourAi({ focus }: { focus: boolean }) {
     const native = cli.status.data?.clis.find(view => view.cli === (lead.id === 'codex-cli' ? 'codex' : lead.id === 'claude-code-cli' ? 'claude-code' : ''));
     if (native) return <CliTool key={item.id} view={!canConnect && native.setup?.state === 'trusted' && native.fix === null && native.state !== 'ready' && native.lastTask?.outcome !== 'failed' ? { ...native, fix: lead.availabilityReason } : native} onChosen={() => void check()} actions={action} plan={cli.plan.data?.tools.find(view => view.cli === native.cli)} ran={cli.status.data?.clis[0]?.cli === native.cli ? cli.status.data.line : undefined}>{form}</CliTool>;
     const line = saved.length ? t('connections.ai.connected') : canConnect ? t('connections.ai.notConnected') : connectionWords(t, lead.availabilityReason);
-    return <Row key={item.id} id={`ai-add-${item.id}`} title={<span data-ai-name="">{item.title}</span>} line={line} actions={action}>
+    return <Row key={item.id} id={`ai-add-${item.id}`} title={<span data-ai-name="">{item.title}</span>} line={<SwapWords>{line}</SwapWords>} actions={action}>
       <Fold summary={t('connections.cli.details')} className={s.fold}>
-        {saved.map(connection => <p key={connection.id} className={s.note}><span data-code="">{connection.model}</span>{!connection.usable && <>. {connectionWords(t, connection.reason)}</>}</p>)}
+        <ConnectedModels connections={saved} />
         {!saved.length && <p className={s.note}>{connectionWords(t, lead.availabilityReason.replace('Not yet checked with a live key.', '').trim())}{lead.needsKey && <> {lead.keyHint}</>}</p>}
       </Fold>
       {form}
@@ -101,6 +104,15 @@ export function YourAi({ focus }: { focus: boolean }) {
     </Tile>
     {side && data && <div className={s.side}><SendRule now={data.sendPolicy} onSaved={() => status.reload()} /></div>}
   </div>;
+}
+
+/** Choice rows stay put. Only their connected model details leave or arrive after the engine answers. */
+function ConnectedModels({ connections }: { connections: ModelConnectionLite[] }) {
+  const t = useT();
+  const { drawn, left } = useLeavingList(connections, connection => connection.id);
+  return <ul className={s.modelConnections}>{drawn.map(row => <LeaveRow key={row.key} row={row} left={left}>
+    <p className={s.note} data-model-connection={row.item.id}><span data-code="">{row.item.model}</span>{!row.item.usable && <>. {connectionWords(t, row.item.reason)}</>}</p>
+  </LeaveRow>)}</ul>;
 }
 
 const SEND_RULES = ['nothing', 'shape', 'samples'] as const;
