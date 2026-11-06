@@ -1,4 +1,5 @@
 import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { CURRENT_SCHEMA } from './migrations/ladder.ts';
 import { authorize, check, ChausarError, hash, type Context, type Member, type State, internalCheck } from './contracts.ts';
 import { compileDictionary, type Dictionary, type DictionaryDraft } from './ontology.ts';
 import { canSeeFact } from './memory.ts';
@@ -274,7 +275,7 @@ export class WorkspaceActivationHost {
     'ACTIVATION_AUTHORITY', 'Root must allocate a distinct workspace with a fresh unrestricted owner and independent current desktop session authority.');
   }
   #state(projection: WorkspaceBusinessProjection, authority: WorkspaceActivationAuthority): State {
-    return { schemaVersion: 1, revision: 0,
+    return { schemaVersion: CURRENT_SCHEMA, revision: 0,
       workspace: { id: authority.workspaceId, ...structuredClone(projection.workspace), demo: true, createdAt: authority.createdAt },
       members: [structuredClone(authority.owner)],
       policy: structuredClone(projection.policy),
