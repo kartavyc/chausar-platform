@@ -198,7 +198,8 @@ test('handlers get the deps the spec names, and an empty payload arrives as {}',
     core: async () => ({ handlers: handlers({ 'venture.get': async (deps, _ctx, payload) => { seen.value = { deps, payload }; return null; } }) }),
   });
   const store = new VentureTestStore();
-  const clock = () => new Date('2026-10-15T10:00:00.000Z');
+  let clockCalls = 0;
+  const clock = () => { clockCalls += 1; return new Date('2026-10-15T10:00:00.000Z'); };
   const host = new VentureHost(store, services, { demo: false, storage: 'postgres', clock }, fake);
   await host.request(owner, 'venture.get', undefined);
   assert.ok(seen.value);
@@ -206,7 +207,9 @@ test('handlers get the deps the spec names, and an empty payload arrives as {}',
   assert.deepEqual(payload, {});
   assert.equal(deps.store, store);
   assert.equal(deps.services, services);
-  assert.equal(deps.clock, clock);
+  const previousCalls = clockCalls;
+  assert.equal(deps.clock().toISOString(), '2026-10-15T10:00:00.000Z');
+  assert.equal(clockCalls, previousCalls + 1, 'Outside a capture, the clock wrapper delegates to the supplied clock exactly once.');
   assert.equal(deps.host, 'test');
   assert.equal(deps.demo, false);
   assert.equal(deps.storage, 'postgres');
