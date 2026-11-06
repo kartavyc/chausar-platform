@@ -1,5 +1,9 @@
-import type { PersonaFields, PersonaView, PlaybookPick, ServiceType, VoiceInput, VoiceSections, VoiceView, WayNeeds, WayView, WaysView } from './contract.gen';
-export type { PersonaFields, PersonaView, PlaybookPick, ServiceType, VoiceInput, VoiceSections, VoiceView, WayNeeds, WayView, WaysView } from './contract.gen';
+import type { VenturePayloads, VentureResults } from './contract.gen';
+export type { VentureRunEvent } from './contract.gen';
+import type { AwayView, BusinessSnapshotView, CalendarFeedView, ChatConsentView, CliStatusView, ConnectorCheckRow, ConnectorChecksView, DecisionView, FixTheRuleView, GoalSuggestion, GoalView, GuidanceLineView, IdeaView, JudgeAutoView, KeeperJobView, KnowledgeSourceView, NoteChangeView, NotificationView, NotifyDigestView, NotifySettingsView, OwnerView, PhoneAccessView, PlanSuggestionView, PlatformRuleView, PostingLimitsView, PostingProposal, PostingStepsView, PushSubscriptionInput, RulesListView, ScoreRule, SearchResultView, SettingsDraftView } from './contract.gen';
+export type { AwayView, BusinessSnapshotView, CalendarFeedView, ChatConsentView, CliStatusView, ConnectorCheckRow, ConnectorChecksView, DecisionView, FixTheRuleView, GoalSuggestion, GoalView, GuidanceLineView, IdeaView, JudgeAutoView, KeeperJobView, KnowledgeSourceView, NoteChangeView, NotificationView, NotifyDigestView, NotifySettingsView, OwnerView, PhoneAccessView, PlanSuggestionView, PlatformRuleView, PostingLimitsView, PostingProposal, PostingStepsView, PushSubscriptionInput, RulesListView, ScoreRule, SearchResultView, SettingsDraftView } from './contract.gen';
+import type { PlaybookPick, WayNeeds, WayView, WaysView, ServiceType, VoiceInput, VoiceSections, VoiceView, PersonaFields, PersonaView } from './contract.gen';
+export type { PlaybookPick, WayNeeds, WayView, WaysView, ServiceType, VoiceInput, VoiceSections, VoiceView, PersonaFields, PersonaView } from './contract.gen';
 import type { BuilderId, MiniAppCallResult, MiniAppCard, MiniAppMessage, MiniAppView } from './contract.gen';
 export type { BuilderId, MiniAppCallResult, MiniAppCard, MiniAppMessage, MiniAppView } from './contract.gen';
 import type { AgentCapView, AgentHealth, AgentMessageView, AgentNoteView, AgentProposalView, AgentRunItem, AgentThreadView, AgentView, ChiefCounted, ChiefFit, ChiefLineAmount, ChiefMessageView, ChiefSnoozeOption, ChiefThreadStateInput, ChiefThreadSummary, ChiefThreadsView, DepartmentId, DepartmentView, ProposalKind, ProposalView, RetireInFlight, RetiredAgentView, RoleModelView, RoutineInput, RoutineSchedule, RoutineSuggestion, RoutineView, StandingOrderView, StandingPlaybookView, StandingStepView, TeamListView } from './contract.gen';
@@ -8,8 +12,8 @@ import type { FollowupView, InboundView, LeadEmailCheck, LeadMoveView, LeadSendV
 export type { FollowupView, InboundView, LeadEmailCheck, LeadMoveView, LeadSendView, LeadView, LostReason, MailboxView, NetworkBandCounts, NetworkImportKind, NetworkImportView, NetworkSourcesView, OutreachDraftView, OutreachKind, OutreachView, PeopleView, PersonSummary, PersonView, PipelineCaps, PipelineCardView, PipelineQuoteView, PipelineStage, PipelineView, TieBand, TriageRule, WarmPathView } from './contract.gen';
 import type { AcrossLeftOut, AcrossMoneyView, AgingView, BankAlertsView, BankConsentView, BankImportResult, BankLedgerRow, BillLineInput, BillView, CaDiffExplanation, CaReceiptView, CashIssueView, CashView, CreditNoteView, DepartmentSpend, FlowView, InvoiceNext, InvoiceTimelineEntry, MarginsView, MoneyExportFile, MoneyOverview, ReceiptVerifyView, RecurringInvoiceView, SeriesPoint, SignedReceiptsFile, SpendMeterView, SpendPolicyView, SpendRateInput, StatTileView, TotalBasis } from './contract.gen';
 export type { AcrossLeftOut, AcrossMoneyView, AgingView, BankAlertsView, BankConsentView, BankImportResult, BankLedgerRow, BillLineInput, BillView, CaDiffExplanation, CaReceiptView, CashIssueView, CashView, CreditNoteView, DepartmentSpend, FlowView, InvoiceNext, InvoiceTimelineEntry, MarginsView, MoneyExportFile, MoneyOverview, ReceiptVerifyView, RecurringInvoiceView, SeriesPoint, SignedReceiptsFile, SpendMeterView, SpendPolicyView, SpendRateInput, StatTileView, TotalBasis } from './contract.gen';
-import type { CoverageView, DeliverableReport, DeliveredFile, DraftChangeView, DrillRunView, FileRequestView, OrderContract, OrderContractView, OrderStageView, ReportItem, RunDetail, RunSummary, RunToolLine } from './contract.gen';
-export type { CoverageView, DeliverableReport, DeliveredFile, DraftChangeView, DrillRunView, FileRequestView, OrderContract, OrderContractView, OrderStageView, ReportItem, RunDetail, RunSummary, RunToolLine } from './contract.gen';
+import type { RunDetail, RunSummary, DeliveredFile, DeliverableReport, RunToolLine, DraftChangeView, CoverageView, ReportItem, OrderStageView, FileRequestView, OrderContractView, OrderContract, DrillRunView } from './contract.gen';
+export type { RunDetail, RunSummary, DeliveredFile, DeliverableReport, RunToolLine, DraftChangeView, CoverageView, ReportItem, OrderStageView, FileRequestView, OrderContractView, OrderContract, DrillRunView } from './contract.gen';
 import type { QueueRow, QueueRowMeta, QueueCount, QueueItemView, QueuePreview, QueueSetPreview, QuestionCard, QuestionItem, QuestionOption, PreviewFigure, PreviewLength, PreviewWords, NextBestStep, PlanChangeView, RowFigure, RowFigureReceipt, KindedFigure, RankedOptionView, DiffLine } from './contract.gen';
 export type { QueueRow, QueueRowMeta, QueueCount, QueueItemView, QueuePreview, QueueSetPreview, QuestionCard, QuestionItem, QuestionOption, PreviewFigure, PreviewLength, PreviewWords, NextBestStep, PlanChangeView, RowFigure, RowFigureReceipt, KindedFigure, RankedOptionView, DiffLine } from './contract.gen';
 import type { AcrossLineKey, AcrossRunsView, AgentHealthStatus, AgentNoteChange, AgentNoteLoad, AgentNoteScope, AgentNotesView, AgentSendResult, AgentSuggestion, AgentThreadItem, AgingBucketId, AutoReadinessView, BankApplyResult, BankLedgerView, BankRowClass, BooksPeriodKey, BoundaryView, BuildStatusWord, CaLatestPapers, CaPendingRate, CapabilityItemView, CapabilityPageView, ChatPart, ChiefSendResult, ChiefSettleResult, ChiefSnoozePreset, ChiefThreadState, ChiefThreadStateResult, ChiefThreadView, ConnectorLadder, ConnectorModeName, CurrencyLead, DecisionOpens, DeliveredView, Display, DraftChangesView, EvidenceItem, FigureKind, FigureSource, InboundTriage, InterviewAnswer, JournalChainView, JournalEntry, KeeperJobId, KeeperView, KnowledgeSourceInput, LawfulBasis, LimitReachedView, LineLabel, ModelAvailability, ModelReceiptView, ModelTier, MoneyOverviewLine, NetworkImportResult, NetworkSearchView, OrderStageId, OrderStageReason, OrderWaitsOnYou, OutreachChannel, OutreachHandoff, OutreachLane, OutreachLanguage, OutreachSentChannel, PaymentMethod, PipelineSettingsView, PostingStepId, Posture, PreviewReceiptKind, PricingModel, ProposalStatus, QueueAction, QueueActionId, QueueAmount, QueueChange, QueueDecision, QueueKind, QueueList, QueueSendsTo, RateCardLine, RecipeView, RetireCheckView, RoutineRunState, RunControlResult, RunScopeView, RunState, RunStep, SearchWebState, ShadowSummaryView, SiteEditState, SocialCalendarFile, SpendLead, SpendMeterRowView, SpendMetersView, SpendRateUnit, SpendRow, StandingOrdersView, StandingUndoView, TaxWorkingLine, TaxWorkingSection, TelegramView, TranscriptionSetupView, TriageField, TriagePreview, VentureRunEventType, WayCategory, WriteCapKind, WriteCapView } from './contract.gen';
@@ -106,7 +110,7 @@ export type QueueKindW4 = 'proposal' | 'followup' | 'reply' | 'notice';
 
 
 /** seq: the event's place in the business's log, for replay after a reconnect (4G1); count: on notify.new only. */
-export interface VentureRunEvent {
+export interface UiRunEvent {
   type: VentureRunEventType | 'work.step'; businessId: string; runId?: string; at: string; seq?: number; count?: number;
   /** One-shot C3 task 10: on a `work.step` frame alone (no seq, never in the log): which job, which step, how it stands. */
   workId?: string; kind?: WorkKindLite; step?: string; state?: WorkStepStateLite; passed?: boolean;
@@ -220,7 +224,7 @@ export interface BankConsentLite { id: string; provider: string | null; accountL
 /** A staged website edit (contracts.ts SiteEditRecord), trimmed. Apply and revert send planDigest as the reviewed hash. */
 
 export interface SiteEditLite {
-  id: string; at: string; target: { kind: 'local-folder' | 'github'; identity: string }; path: string; summary: string;
+  id: string; at: string; target: { kind: 'local-folder' | 'github' | 'cloudflare-kv'; identity: string }; path: string; summary: string;
   before: string; after: string; beforeDigest: string; afterDigest: string; planDigest: string; state: SiteEditState;
   log: { at: string; by: string; step: 'staged' | 'applied' | 'verified' | 'rolled-back' | 'rejected' | 'needs-inspection'; line: string }[];
 }
@@ -276,7 +280,7 @@ export interface VentureEventRecordLite { id: string; seq: number; name: string;
  * Ink v2 wave 4 (4G1): frames, the page's run events as they were pushed (seq on each, count on notify.new), for replay
  * after a gap; firstSeq, the oldest event the log keeps, so an afterSeq below it means events were trimmed.
  */
-export interface VentureEventsResult { events: VentureEventRecordLite[]; lastSeq: number; firstSeq: number; frames: VentureRunEvent[] }
+export interface VentureEventsResult { events: VentureEventRecordLite[]; lastSeq: number; firstSeq: number; frames: UiRunEvent[] }
 
 /** `venture.receipt.get` (PriceReceiptRecord), only what a receipt sheet shows. Figures arrive formatted. */
 export interface PriceFigureLite { key: string; label: string; display: Display }
@@ -371,16 +375,16 @@ export interface ConnectorCardLite {
 
 
 export interface ModelPresetLite {
-  id: string; label: string; kind: string; model: string | null; modelEditable: boolean; tiers: ModelTier[];
+  id: ModelTierLite['presetId']; label: string; kind: string; model: string | null; modelEditable: boolean; tiers: ModelTier[];
   needsKey: boolean; keyHint: string | null; runsOn: 'provider-api' | 'this-computer' | 'chausar-engine';
   consentText: string; consentDigest: string; verification: 'not-live-verified' | 'built-in'; verificationNote?: string | null;
   availability: ModelAvailability; availabilityReason: string;
 }
 export interface ModelConnectionLite {
-  id: string; presetId: string; model: string | null; tiers: ModelTier[]; status: 'connected' | 'disconnected'; consentedAt: string;
+  id: string; presetId: ModelTierLite['presetId']; model: string | null; tiers: ModelTier[]; status: 'connected' | 'disconnected'; consentedAt: string;
   keyLoaded: boolean; usable: boolean; reason: string; verificationNote?: string | null;
 }
-export interface ModelTierLite { presetId: string; model: string | null; usable: boolean; reason: string; verificationNote?: string | null }
+export interface ModelTierLite { presetId: RoleModelView['tiers'][number]['presetId']; model: string | null; usable: boolean; reason: string; verificationNote?: string | null }
 export interface ModelStatusLite {
   connections: ModelConnectionLite[]; tiers: Record<ModelTier, ModelTierLite>;
   /** Engine-formatted, for example 'USD 0.0042 (estimate, price unconfirmed)'. */
@@ -389,7 +393,7 @@ export interface ModelStatusLite {
   /** 4F2 (M7): on connect's answer only, when the new key took over work an earlier one did: who now pays, in words. */
   payerLine?: Display;
 }
-export interface ModelConnectParams { presetId: string; consentDigest: string; apiKey?: string; model?: string; tiers?: ModelTier[]; monthlyCapUsd?: string }
+export interface ModelConnectParams { presetId: ModelTierLite['presetId']; consentDigest: string; apiKey?: string; model?: string; tiers?: ModelTier[]; monthlyCapUsd?: string }
 export interface AiOptionsLite { presets: ModelPresetLite[]; status: ModelStatusLite; unchecked: boolean }
 
 /** `venture.blueprint.get` and `.update` (BlueprintView), trimmed. Prices arrive only as receipts. */
@@ -442,7 +446,7 @@ export type RightsBasisLite = 'own-footage' | 'licence' | 'creator-clip-programm
 export interface OfferIntakeLite {
   rights: RightsBasisLite[]; fields: ('format' | 'aiVoice' | 'aiPresenter' | 'paidPromotion' | 'cutFile' | 'calendar' | 'clientRules')[];
   /** 5A1: a kit offer's own intake fields (kept under the order's intake.fields); absent on the flagships. */
-  kit?: { id: string; label: string; help: string; kind: 'rights' | 'choice' | 'yes-no' | 'text' | 'list' | 'date' | 'money' | 'file' | 'consent' | 'people'; required: boolean; options?: string[] }[];
+  kit?: { id: string; label: string; help: string; kind: 'rights' | 'choice' | 'yes-no' | 'text' | 'list' | 'date' | 'money' | 'file' | 'consent' | 'people'; required: boolean; options?: readonly string[] }[];
 }
 /** `OrderIntake.calendar`: weekdays are ISO numbers, 1 Monday to 7 Sunday. The engine plans the dated slots from it. */
 export interface CalendarIntakeLite { month: string; channels: string[]; postsPerChannel: number; weekdays: number[] }
@@ -626,7 +630,7 @@ export interface UploadLite {
    * Where it came from: absent or 'client', a transcript made on this computer from the cut (venture.files.transcribe),
    * or a still from the cut (venture.files.poster, 4J3; never listed by venture.files.list).
    */
-  origin?: 'client' | 'local-transcription' | 'poster';
+  origin?: 'client' | 'local-transcription' | 'poster' | 'client-link';
 }
 /** `venture.delivery.list` (DeliveryRunView), trimmed to what a client's sheet shows. */
 export type DeliveryStatus = 'waiting-for-you' | 'needs-answer' | 'brief-waiting' | 'ready-for-review' | 'accepted' | 'edited' | 'rejected' | 'failed'
@@ -841,7 +845,7 @@ export interface JudgePreview { runId: string; digest: string; estimatedMaxCostD
  * public (on by default), when its standing consent was recorded (null until then, or while off), and the engine's
  * line for the setting's sheet, which says the client's words go to the owner's AI.
  */
-export interface JudgeAutoView { auto: boolean; consentAt: string | null; line: Display }
+
 /**
  * `venture.transcription.get` and `.set`: the owner's whisper.cpp (full paths to whisper-cli and its model file, null
  * when not set up), its status checked on disk by the engine, whether ffmpeg is here too, and the engine's plain line.
@@ -909,24 +913,14 @@ import type { PlaybookOrigin } from '../../../../platform/runtime/venture/playbo
 export { PLAYBOOK_ORIGINS, type PlaybookOrigin } from '../../../../platform/runtime/venture/playbook-origins';
 export interface PlaybookLite { id: string; version: number; hash: string; origin?: PlaybookOrigin; parentId?: string | null }
 /** `venture.posting.propose`: the post waits on Today. `warnings` are the risk gate's, in the engine's words. */
-export interface PostingProposal {
-  postId: string; connectorId: string; draftId: string; part: number | null;
-  state: 'described' | 'approved' | 'applied' | 'rejected' | 'outcome_unknown'; line: Display; warnings: Display[];
-}
+
 
 export interface PostingCandidateLite {
   key: string; kind: 'test-id' | 'role' | 'aria-label' | 'xpath'; value: string; name?: string; lang?: string;
   checkedOn: string | null; addedBy: 'chausar' | 'owner';
 }
 /** `venture.posting.checkSteps`: `stepsCheckedOn` is the oldest day across the three steps, or null while any has none. */
-export interface PostingStepsView {
-  connectorId: string;
-  steps: { step: PostingStepId; candidates: PostingCandidateLite[]; response?: { key: string; method: string; path: string; checkedOn: string | null } }[];
-  stepsCheckedOn: string | null;
-  /** The oldest day across the post box and the post button: what a check can date before the first post. */
-  boxAndButtonCheckedOn: string | null;
-  line: Display;
-}
+
 /** `venture.share.recordAnswer`: the client's answer, as the owner recorded it or the client gave it through the link. */
 export interface ShareAnswer { draftId: string; decision: 'approved' | 'changes'; comment: string | null; at: string; via: 'share-link' | 'owner-recorded' }
 /**
@@ -937,10 +931,7 @@ export interface DraftPostLite { draftId: string; channel: string; name: string;
 /** The posting limits the owner may set, in the owner's units: posts a day, minutes, days, percent, posts. */
 export interface OwnerPostingLimits { capPer24h: number; minGapMinutes: number; warmUpDays: number; duplicatePercent: number; linkStreak: number }
 /** `venture.posting.limits.*`: per channel, Chausar's own limits, the owner's settings and those the gate uses. */
-export interface PostingLimitsView {
-  channels: { connectorId: string; name: string; house: OwnerPostingLimits; owner: Partial<OwnerPostingLimits>; inUse: OwnerPostingLimits }[];
-  line: Display;
-}
+
 /**
  * `venture.social.calendar`: the CSV the engine built, the name to save it under, its row count, the posts it left out
  * (channel name, words, why), the posts whose cell got an apostrophe (defused), the posts written as threads, and the
@@ -996,21 +987,11 @@ export interface SizeAskLite {
   questions: { measure: 'turnover' | 'headcount'; question: Display; choices: { id: string; label: Display }[]; answer: string | null }[];
 }
 /** `venture.rules.list`: the dated platform rules a flagship playbook's checks rest on. */
-export interface PlatformRuleView {
-  id: string; platform: string; rule: Display; checkedOn: string; stale: boolean; usedBy: string[]; limitations: string[];
-  source: { title: string; url: string } | null;
-  /** 5A3: every source; a house rule's is "Chausar's own rule" with no address (url ''). */
-  sources: { title: string; url: string }[];
-  line: Display;
-}
+
 /** 5A3 (P6): a recipe and one row of the measurement-boundaries table, as the engine words them. */
 
 
-export interface RulesListView {
-  playbook: { id: string; label: string; riskLevel: string; lastReviewed: string } | null; rules: PlatformRuleView[]; summary: Display;
-  /** 5A3: a kit playbook's recipes and measurement boundaries; empty for the flagships. */
-  recipes: RecipeView[]; boundaries: BoundaryView[];
-}
+
 
 // ---------------------------------------------------------------------------------------------------------------
 // Ink v2 wave 4: the views the new engine methods answer (contracts.ts section 9e), named by package 4-0. Every figure
@@ -1033,7 +1014,7 @@ export interface MoneyFigure { display: Display; receiptId: string }
 
 
  // 5A6: page monitors
-export interface KeeperJobView { id: KeeperJobId; name: Display; lastRun: { at: string; outcome: 'ok' | 'warn' | 'failed'; line: Display } | null; note: Display | null }
+
 
 
 /** W6 6G2 (D43). One agent on the Retired shelf; to is null when the owner took over its work. */
@@ -1045,7 +1026,7 @@ export interface KeeperJobView { id: KeeperJobId; name: Display; lastRun: { at: 
 /** 4B1 and 4B2 agent chat, proposals, standing orders and notes. */
 
 
-export interface ChatConsentView { state: 'needed' | 'given' | 'stale' | 'not-needed'; text: Display | null; digest: string | null; at: string | null }
+
 
 
 
@@ -1059,7 +1040,7 @@ export interface ChatConsentView { state: 'needed' | 'given' | 'stale' | 'not-ne
 
 
 /** erases (4B3): undoing this change takes the note away, which erases its words like Forget. */
-export interface NoteChangeView { id: string; noteId: string; at: string; who: 'owner' | 'cofounder' | 'proposal' | 'undo'; line: Display; undone: boolean; erases: boolean }
+
 
 
 /** 4B3: the check ids a step's work must pass (contracts.ts CHECK_IDS), worded by the UI. */
@@ -1146,13 +1127,7 @@ export interface LayoutChangeResult { layout: LayoutView; undo: LayoutRequest; l
 
 
 
-export interface SearchResultView {
-  person: PersonSummary | null; url: string | null; fitBp: number; why: Display;
-  checks: { trait: Display; check: 'yes' | 'partly' | 'not-supported'; quote: string | null; source: Display | null }[];
-  path: WarmPathView | null; inPipeline: PipelineStage | null; cold: boolean;
-  /** 4D4: the tie's receipt, and the LinkedIn address the files hold; null for a web result. */
-  receiptId: string | null; linkedin: string | null;
-}
+
 /** 4D3: what a search's web part did, to branch on without matching words. */
 
 
@@ -1168,7 +1143,7 @@ export interface SearchResultView {
 
 
 
-export interface ScoreRule { field: string; operator: 'is' | 'contains' | 'at-least' | 'at-most'; value: string; points: number }
+
 
 
 
@@ -1184,43 +1159,28 @@ export interface ScoreRule { field: string; operator: 'is' | 'contains' | 'at-le
 
 
 /** 4E4: nextRead, when the morning read comes next, while the address is on the engine's shelf; else null. */
-export interface CalendarFeedView { set: boolean; host: string | null; lastRead: string | null; line: Display; nextRead: string | null }
+
 
 /** 4F1 and 4F2 run controls, pause all, Away, write caps. */
 
 /** since: once the time away began, Today's rows made between the two days, for the "Since you left" filter (4F1). */
-export interface AwayView { away: { from: string; to: string } | null; promises: { due: string; line: Display }[]; keepsRunning: Display[]; approvalsWaiting: number; autoReply: string | null; line: Display; since?: { from: string; to: string; rowIds: string[] } }
+
 
 
 /** 4G1 and 4G3 notifications and push. */
 /** ended (one-shot C4 task 7): the item no longer waits on the owner. */
-export interface NotificationView { id: string; rowId: string; kind: QueueKind | QueueKindW4; title: Display; at: string; read: boolean; ended?: true }
+
 /** W6 6F6 (notify/telegram.ts). said: what a test alert did, only on a test. */
 
 /** W6 6F7 (notify/phone.ts): the phone listener's state; a one-time pairing link and its QR code when one was asked for. */
-export interface PhoneAccessView {
-  on: boolean; addresses: { via: 'wifi' | 'tailscale'; address: string }[]; phones: number;
-  link: string | null; expiresAt: string | null; line: Display; qr: { size: number; rows: string[] } | null;
-}
+
 /** 4G1: the newest daily digest, for the centre only; receiptIds back its money figures. */
-export interface NotifyDigestView { id: string; day: string; at: string; line: Display; items: NotificationView[]; stillWaiting: number; receiptIds: string[] }
-export interface NotifySettingsView {
-  pausedUntil: string | null; quietHours: { from: string; to: string } | null; digest: { hour: number } | null; push: boolean; tray: boolean; keepsRunning: Display[]; line: Display;
-}
-export interface PushSubscriptionInput { endpoint: string; keys: { p256dh: string; auth: string }; expirationTime?: number | null }
+
+
+
 
 /** 4H1 the CLI status and per-role models. */
-export interface CliStatusView {
-  cli: 'claude-code' | 'codex'; label: Display; found: boolean; path: string | null; version: string | null;
-  flags: 'match' | 'mismatch' | 'unknown'; missingFlags: string[]; signedIn: 'yes' | 'no' | 'unknown'; terms: 'accepted' | 'pending' | 'not-needed';
-  lastTask: { at: string; outcome: 'succeeded' | 'failed'; named?: Display } | null; state: ModelAvailability; line: Display; fix: Display | null;
-  /** A2: Codex only, when the engine keeps a Codex trust (platform/runtime/codex-trust.ts). */
-  setup?: CodexSetupLite;
-  /** A2: after a failed last task, the provider's own status page when it says the provider has problems. */
-  provider?: ProviderTroubleLite;
-  /** D4 task 6: a look kept between starts, and when it was really taken; the fresh look follows within seconds. */
-  kept?: true; checkedAt?: string;
-}
+
 /** C7: event triggers (venture.events.*): the relay's host, the recent events and each event's blanks. */
 export interface RelayEventLite { id: string; source: 'razorpay' | 'cal-com'; kind: 'payment' | 'booking' | 'booking-cancelled'; receivedAt: string; state: 'new' | 'confirmed' | 'refused' | 'drafted' | 'missed'; line: Display }
 export interface EventsViewLite { relay: string | null; calKey: boolean; line: Display; label: Display; missed: number; events: RelayEventLite[]; blanks: Readonly<Record<string, readonly string[]>> }
@@ -1262,31 +1222,13 @@ export interface CodexSetupLite {
 /** A sum on the goal card: receiptId null when nothing was added up (a zero, no receipt). */
 export interface GoalFigure { display: Display; receiptId: string | null }
 /** elapsedDays counts today as gone; lastDay: say "Last day", not "0 days left". */
-export interface GoalView {
-  month: string; state: 'set' | 'unset'; goal: MoneyFigure | null; invoiced: GoalFigure; ready: GoalFigure; stillToInvoice: MoneyFigure | null; receivedSoFar: GoalFigure;
-  invoicedPermille: number | null; readyPermille: number | null; pacePermille: number; pace: 'ahead' | 'behind' | null; paceReceiptId: string | null;
-  /** 4I2: whole percents to word (invoicedPercent may pass 100); past the goal and by how much; ahead or behind pace by how much. */
-  invoicedPercent: number | null; pacePercent: number; past: boolean; pastBy: MoneyFigure | null; paceBy: MoneyFigure | null;
-  elapsedDays: number; monthDays: number; daysLeft: number; lastDay: boolean;
-  lastMonth: GoalFigure | null; line: Display; next: NextBestStep | null; briefing: { rowIds: string[]; more: number } | null;
-  /** One-shot C6: every invoice issued in the month is paid ("All November invoices paid"), with its receipt; else null. */
-  paidInFull?: { line: Display; receiptId: string } | null;
-}
+
 /** typed: the amount as the owner would type it in the goal field ("150000.00"). */
-export interface GoalSuggestion { amountMinor: string; display: Display; estimate: true; line: Display; typed: string }
+
 
 /** 4J1 and 4J2 decisions, edits, set approval, the triage rule, settings drafts. */
 /** by: the member who decided, null for a saved rule or a timeout; ruleId and rule: the saved rule that decided, if one did. */
-export interface DecisionView {
-  id: string; at: string; subject: string; action: string; who: 'owner' | 'cofounder' | 'accountant' | 'saved-rule' | 'timeout' | 'chausar'; rule: Display | null; ruleId: string | null;
-  reason: Display; line: Display; by: string | null;
-  /** A4 review (L5): the reader's own decision (the engine words its line with You). */
-  mine: boolean;
-  /** 4J19: the agent whose step a saved rule or a gate is about (venture.team.gate takes it), else null. */
-  agentId: string | null;
-  /** C4 (T26): what the decision was about, for the screen to open; null when that thing is gone or cannot be opened. */
-  opens?: DecisionOpens;
-}
+
 
 
 
@@ -1294,7 +1236,7 @@ export interface DecisionView {
 
 /** 4J2: line says how the revision was merged; replacement is offered when the owner's own version sits beside the agent's. */
 
-export interface SettingsDraftView { form: string; values: unknown; at: string }
+
 /** 4J2 review: a set as the engine works it out; queue.set takes its digest, and secondAsk: true when it asks twice. */
 
 
@@ -1332,7 +1274,7 @@ export type MoneyExportFormat = 'csv' | 'tally-xml' | 'gstr1-csv';
 
 /** 4J6: one business a total or count left out, and why (month: the month its summary was saved in, for other-month). */
 
-export interface BusinessSnapshotView { businessId: string; name: string; open: boolean; locked: boolean; asOf: string | null; line: Display; lineKey: AcrossLineKey }
+
 /**
  * 4J6: receipts holds a receipt id in the open business for each figure shown (for another business, a receipt of what
  * its summary saved and when; its own receipts open only after switching). total: invoiced in `month` in one currency.
@@ -1342,8 +1284,8 @@ export interface BusinessSnapshotView { businessId: string; name: string; open: 
 
 
 /** 4J7 to 4J10 connection checks, file requests, ways to earn, the owner, signatures and the journal chain. */
-export interface ConnectorCheckRow { connectorId: string; name: string; outcome: 'answered' | 'failed' | 'skipped'; line: Display; account: string | null; expiresOn: string | null; fix: Display | null }
-export interface ConnectorChecksView { at: string; rows: ConnectorCheckRow[]; health: { ready: number; warnings: number; blocking: number } }
+
+
 
 /**
  * `WayView` in platform/runtime/venture/contracts.ts (4J8): one way per playbook that runs today. Hours and pay are a
@@ -1377,13 +1319,9 @@ export interface AttachmentNote { name: string; used: boolean; line: string | nu
  * `PlanSuggestionView` (4J8, "Add this to {business}"): patch is exactly what venture.blueprint.update takes, or null when
  * nothing changes; the owner applies it there with basedOn, then accepts. Words and at most one new offer, never a price.
  */
-export interface PlanSuggestionView {
-  basedOn: { blueprintId: string; digest: string };
-  patch: BlueprintPatchLite | null; changes: PlanChangeView[]; attachment?: AttachmentNote;
-  left: Display; line: Display; callId: string | null;
-}
+
 /** kept: only on the answer that removed a stored name, the backups line Forget also shows. */
-export interface OwnerView { firstName: string | null; excludedServices: string[]; businessName: string; kept?: Display[]; familyId?: string }
+
 /**
  * Wave 6 (6C1): each tool found on this computer, its own sign-in state (from its own status command) and any login in
  * flight: the device code and link the tool printed (platform/runtime/venture/models/login.ts).
@@ -1410,7 +1348,7 @@ export interface ToolsLite { tools: ToolLite[]; line: string }
 export interface BackgroundStateLite { supported: boolean; asked: boolean; startAtLogin: boolean; keepRunning: boolean; registered: boolean; systemOff: boolean }
 /** Wave 6 (6C2): About you, as core/about.ts answers. Offers never carry an amount. */
 /** A field tile; venture.about.families lists its professions too (one-shot A5), venture.about.read and .pick do not. */
-export interface FamilyLite { id: string; label: string; line: string }
+export interface FamilyLite { id: ParamsOf<'venture.about.pick'>['familyId']; label: string; line: string }
 export interface FamilyTileLite extends FamilyLite { professions: { id: string; label: string }[] }
 export interface AboutReadLite {
   family: FamilyLite | null;
@@ -1455,9 +1393,9 @@ export interface NeedsListLite { family: { id: string; label: string } | null; n
 
 
 
-export interface GuidanceLineView { stepId: string; text: string; check: string | null; state: 'measured' | 'dark' | 'unmeasured' }
+
 /** 4J16: a part of the drafts the owner keeps correcting. It changes nothing; starter prefills the agent's chat and is never sent. */
-export interface FixTheRuleView { field: string; stepId: string | null; agent: string | null; corrected: number; reviews: number; line: string; starter: string }
+
 
 
 /**
@@ -1472,8 +1410,8 @@ export interface FixTheRuleView { field: string; stepId: string | null; agent: s
 
 
 
-export interface KnowledgeSourceView { id: string; kind: 'text' | 'link' | 'file' | 'past-work'; title: string; at: string; line: Display }
-export interface IdeaView { id: string; title: Display; reason: Display; evidence: { id: string; line: Display }[]; prompt: string }
+
+
 /** 4J18: one line of the capability page, with what it is about (key) and its honest state, so the screen can word it in Hindi. */
 
 
@@ -1675,6 +1613,8 @@ export interface DeskActView { playbook: DeskPlaybook; kind: string; id: string;
 // ---------------------------------------------------------------------------------------------------------------
 // The methods the UI calls, with their params and results.
 // ---------------------------------------------------------------------------------------------------------------
+
+/** Untrusted form and mini-app input is validated by the transport and engine, never trusted by the UI. */
 
 export interface EngineMethods {
   'venture.queue.list': { params: { scope?: 'current' | 'all' }; result: QueueList };
@@ -2325,7 +2265,7 @@ export interface EngineClient {
   readonly transport: Transport;
   request<M extends MethodName>(method: M, params?: ParamsOf<M>): Promise<ResultOf<M>>;
   /** Run and queue events. Falls back to polling `venture.events` every 5 s when pushes are not available. */
-  subscribe(listener: (event: VentureRunEvent) => void): () => void;
+  subscribe(listener: (event: UiRunEvent) => void): () => void;
   status(): EngineStatus;
   onStatus(listener: (status: EngineStatus) => void): () => void;
   /**

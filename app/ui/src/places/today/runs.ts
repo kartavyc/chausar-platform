@@ -5,11 +5,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEngine } from '../../engine/context';
-import type { RunDetail, RunSummary, VentureRunEvent } from '../../engine/types';
+import type { RunDetail, RunSummary, UiRunEvent } from '../../engine/types';
 import type { AvatarState } from '../../parts/Avatar';
 
 /** Run events and queue changes refresh what Today shows about runs. */
-export const RUN_EVENTS = (event: VentureRunEvent) => event.type.startsWith('run.') || event.type === 'queue.changed';
+export const RUN_EVENTS = (event: UiRunEvent) => event.type.startsWith('run.') || event.type === 'queue.changed';
 
 /** A run's state as its ring says it: working, waiting on the owner, stopped, or nothing when it is done. */
 export function runStateOf(run: Pick<RunSummary, 'state'>): AvatarState {

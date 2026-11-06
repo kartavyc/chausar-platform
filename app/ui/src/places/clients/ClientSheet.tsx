@@ -16,7 +16,7 @@ import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
 import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
-import { EngineError, type ClientAddParams, type ClientLite, type VentureRunEvent } from '../../engine/types';
+import { EngineError, type ClientAddParams, type ClientLite, type UiRunEvent } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { Fields, MoreDetails } from './Fields';
 // W5 5A4: the client's brand kit, read by every creative step.
@@ -28,7 +28,7 @@ import { InvoiceRef } from '../money/parts';
 import { clientsChanged, useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
-const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
+const refreshOn = (event: UiRunEvent) => event.type === 'queue.changed';
 
 export function ClientSheet(props: SheetComponentProps) {
   return props.id === 'new' ? <NewClientSheet {...props} /> : <ExistingClientSheet {...props} />;

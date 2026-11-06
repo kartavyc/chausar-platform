@@ -1,5 +1,5 @@
 import { formatDay } from '../../../../../platform/runtime/owner-format';
-import type { AgentThreadItem, AgentView, ChatPart, DiffLine, VentureRunEvent } from '../../engine/types';
+import type { AgentThreadItem, AgentView, ChatPart, DiffLine, UiRunEvent } from '../../engine/types';
 import type { DiffLine as CardLine } from '../../parts/DiffCard';
 import { isKeeper } from './departments';
 import { refreshOn } from './shared';
@@ -24,7 +24,7 @@ export function canChat(agent: AgentView): boolean {
 }
 
 /** Chat, notes and the playbook change as messages arrive and runs move. */
-export const chatRefresh = (event: VentureRunEvent): boolean => event.type === 'agent.message' || refreshOn(event);
+export const chatRefresh = (event: UiRunEvent): boolean => event.type === 'agent.message' || refreshOn(event);
 
 /** An item's id in the thread, as venture.agents.thread.list's `before` names it. */
 export function itemId(item: AgentThreadItem): string {

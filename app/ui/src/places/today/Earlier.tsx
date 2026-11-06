@@ -2,7 +2,7 @@ import { memo, useId } from 'react';
 import { useT } from '../../text';
 import { useDay } from '../../parts/when';
 import { useResource } from '../../engine/context';
-import type { JournalEntry, VentureRunEvent } from '../../engine/types';
+import type { JournalEntry, UiRunEvent } from '../../engine/types';
 import { EmptyState } from '../../parts/EmptyState';
 import { Receipt } from '../../parts/Receipt';
 import { StatusMark, type StatusTone } from '../../parts/Row';
@@ -15,7 +15,7 @@ import s from './Today.module.css';
 const LATEST = 6;
 
 /** A decision changes the journal, and says so with a queue change. */
-const JOURNAL_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed';
+const JOURNAL_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed';
 
 /** The status circle for a journal line: done, said no, or waiting on the owner (described, or its outcome unknown). */
 const TONE: Readonly<Record<JournalEntry['state'], StatusTone>> = {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEventFeed } from '../../src/engine/events';
-import type { VentureRunEvent } from '../../src/engine/types';
+import type { UiRunEvent } from '../../src/engine/types';
 
 afterEach(() => vi.useRealTimers());
 
@@ -8,7 +8,7 @@ describe('event feed', () => {
   it('desktop pushes arrive as they are; malformed ones are dropped', () => {
     let push: ((value: unknown) => void) | undefined;
     const feed = createEventFeed({ onEvent: (cb) => { push = cb; return () => {}; }, request: vi.fn() });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     push!({ type: 'run.step', businessId: 'lumen', runId: '31', at: '2026-10-21T10:00:00Z' });
     push!({ type: 'nonsense', businessId: 'lumen', at: 'x' });
@@ -21,7 +21,7 @@ describe('event feed', () => {
     let push: ((value: unknown) => void) | undefined;
     const request = vi.fn();
     const feed = createEventFeed({ onEvent: (cb) => { push = cb; return () => {}; }, request });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     push!({ type: 'queue.changed', businessId: 'lumen', at: '2026-10-21T10:00:00Z', seq: 4 });
     push!({ type: 'work.step', businessId: 'lumen', at: '2026-10-21T10:00:01Z', workId: 'w1', kind: 'improve', step: 'read', state: 'current', extra: 'dropped' });
@@ -44,7 +44,7 @@ describe('event feed', () => {
     ];
     const request = vi.fn(async () => replies.shift()!);
     const feed = createEventFeed({ request });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     feed.subscribe((e) => seen.push(e));
     await vi.advanceTimersByTimeAsync(0);
     expect(request).toHaveBeenLastCalledWith('venture.events', { limit: 1 });
@@ -70,7 +70,7 @@ describe('event feed', () => {
     const fetch = vi.fn(async () => new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }));
     const request = vi.fn();
     const feed = createEventFeed({ request, sse: { fetch, bearer: async () => 'tok' } });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     await vi.advanceTimersByTimeAsync(0);
     expect(fetch).toHaveBeenCalledWith('/api/events', expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer tok' }) }));
@@ -91,7 +91,7 @@ describe('event feed: the sequence (Ink v2 wave 4, 4G1)', () => {
   it('a pushed frame keeps its seq, and notify.new its count; a count on any other event is dropped', () => {
     let push: ((value: unknown) => void) | undefined;
     const feed = createEventFeed({ onEvent: (cb) => { push = cb; return () => {}; }, request: vi.fn() });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     push!({ type: 'notify.new', businessId: 'lumen', at: '2026-10-21T10:00:00Z', seq: 12, count: 3 });
     push!({ type: 'run.done', businessId: 'lumen', runId: '31', at: '2026-10-21T10:00:01Z', seq: 13, count: 3 });
@@ -106,7 +106,7 @@ describe('event feed: the sequence (Ink v2 wave 4, 4G1)', () => {
 
   it('polling replays the engine\'s frames as they were pushed, count included', async () => {
     vi.useFakeTimers();
-    const frames: VentureRunEvent[] = [
+    const frames: UiRunEvent[] = [
       { type: 'run.done', businessId: 'main', runId: '31', at: '2026-10-21T10:00:00Z', seq: 8 },
       { type: 'notify.new', businessId: 'main', at: '2026-10-21T10:00:00Z', seq: 9, count: 2 },
     ];
@@ -123,7 +123,7 @@ describe('event feed: the sequence (Ink v2 wave 4, 4G1)', () => {
     ];
     const request = vi.fn(async () => replies.shift() ?? { events: [], lastSeq: 10, firstSeq: 1, frames: [] });
     const feed = createEventFeed({ request });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     feed.subscribe((e) => seen.push(e));
     await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(5000);
@@ -132,12 +132,12 @@ describe('event feed: the sequence (Ink v2 wave 4, 4G1)', () => {
 });
 
 describe('event feed: replay after a gap or a reconnect (Ink v2 wave 4, 4G4)', () => {
-  const frame = (seq: number, type: VentureRunEvent['type'] = 'run.step'): VentureRunEvent => ({ type, businessId: 'main', runId: '31', at: `2026-10-21T10:00:0${seq % 10}Z`, seq });
-  const reply = (frames: VentureRunEvent[], lastSeq: number, firstSeq = 1) => ({
+  const frame = (seq: number, type: UiRunEvent['type'] = 'run.step'): UiRunEvent => ({ type, businessId: 'main', runId: '31', at: `2026-10-21T10:00:0${seq % 10}Z`, seq });
+  const reply = (frames: UiRunEvent[], lastSeq: number, firstSeq = 1) => ({
     events: frames.map((f) => ({ id: `e${f.seq}`, seq: f.seq!, name: f.type, at: f.at, data: { runId: f.runId } })), lastSeq, firstSeq, frames,
   });
   /** A stream that sends these frames, then stays open (or closes, when `close`). */
-  const streamOf = (frames: VentureRunEvent[], close = false) => {
+  const streamOf = (frames: UiRunEvent[], close = false) => {
     const encoder = new TextEncoder();
     let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
     const body = new ReadableStream<Uint8Array>({
@@ -149,7 +149,7 @@ describe('event feed: replay after a gap or a reconnect (Ink v2 wave 4, 4G4)', (
     });
     return { response: new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }), end: () => controller?.close() };
   };
-  const seqs = (seen: VentureRunEvent[]) => seen.map((e) => e.seq);
+  const seqs = (seen: UiRunEvent[]) => seen.map((e) => e.seq);
 
   it('a dropped stream opens again, asks venture.events {afterSeq} and applies the two missed frames once', async () => {
     vi.useFakeTimers();
@@ -158,7 +158,7 @@ describe('event feed: replay after a gap or a reconnect (Ink v2 wave 4, 4G4)', (
     const fetch = vi.fn().mockResolvedValueOnce(first.response).mockResolvedValueOnce(second.response);
     const request = vi.fn(async () => reply([frame(6), frame(7), frame(8)], 8));
     const feed = createEventFeed({ request, sse: { fetch, bearer: async () => 'tok' }, retryMs: 5000 });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     await vi.advanceTimersByTimeAsync(0);
     expect(seqs(seen)).toEqual([5]);
@@ -174,7 +174,7 @@ describe('event feed: replay after a gap or a reconnect (Ink v2 wave 4, 4G4)', (
     let push: ((value: unknown) => void) | undefined;
     const request = vi.fn(async () => reply([frame(6), frame(7), frame(8)], 8));
     const feed = createEventFeed({ onEvent: (cb) => { push = cb; return () => {}; }, request });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     push!(frame(5));
     push!(frame(8));
@@ -195,7 +195,7 @@ describe('event feed: replay after a gap or a reconnect (Ink v2 wave 4, 4G4)', (
     let push: ((value: unknown) => void) | undefined;
     const request = vi.fn(async () => reply([frame(40), frame(41)], 41, 40));
     const feed = createEventFeed({ onEvent: (cb) => { push = cb; return () => {}; }, request });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     push!(frame(5));
     push!(frame(41));
@@ -209,7 +209,7 @@ describe('event feed: replay after a gap or a reconnect (Ink v2 wave 4, 4G4)', (
     let push: ((value: unknown) => void) | undefined;
     const request = vi.fn(async () => { throw new Error('offline'); });
     const feed = createEventFeed({ onEvent: (cb) => { push = cb; return () => {}; }, request });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     push!(frame(5));
     push!(frame(8));
@@ -226,7 +226,7 @@ describe('event feed: replay after a gap or a reconnect (Ink v2 wave 4, 4G4)', (
     const fetch = vi.fn(async () => streamOf([]).response);
     const request = vi.fn();
     const feed = createEventFeed({ request, sse: { fetch, bearer: async () => 'tok' }, visibility: { hidden: () => hidden, onChange: (cb) => { change = cb; return () => {}; } } });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     await vi.advanceTimersByTimeAsync(0);
     expect(seen).toEqual([]);
@@ -243,7 +243,7 @@ describe('event feed: replay after a gap or a reconnect (Ink v2 wave 4, 4G4)', (
     let push: ((value: unknown) => void) | undefined;
     const request = vi.fn();
     const feed = createEventFeed({ onEvent: (cb) => { push = cb; return () => {}; }, request });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     push!(frame(300));
     push!({ ...frame(12), businessId: 'other' });
@@ -264,7 +264,7 @@ describe('event feed: replay after a gap or a reconnect (Ink v2 wave 4, 4G4)', (
     const fetch = vi.fn(async (_url: string, init?: RequestInit) => { signals.push(init!.signal!); return responses.shift()!; });
     const request = vi.fn(async () => reply([frame(6), frame(7)], 7));
     const feed = createEventFeed({ request, sse: { fetch, bearer: async () => 'tok' }, visibility });
-    const seen: VentureRunEvent[] = [];
+    const seen: UiRunEvent[] = [];
     const stop = feed.subscribe((e) => seen.push(e));
     await vi.advanceTimersByTimeAsync(0);
     expect(seqs(seen)).toEqual([5]);

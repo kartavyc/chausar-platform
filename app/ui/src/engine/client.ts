@@ -10,7 +10,7 @@
 import type { BackupCopyLite, CopyImportInput, CopyImportResult, PackShareResult } from './types';
 import { createEventFeed, pageVisibility, type PageVisibility } from './events';
 import { errorLine, ownerError } from './owner-errors';
-import { EngineError, type BackgroundStateLite, type DiagnosticsPreview, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ReceiptShareResult, type ResultOf, type Transport, type VentureRunEvent } from './types';
+import { EngineError, type BackgroundStateLite, type DiagnosticsPreview, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ReceiptShareResult, type ResultOf, type Transport, type UiRunEvent } from './types';
 
 export interface ChausarBridge {
   request(method: string, payload?: unknown): Promise<unknown>;
@@ -293,7 +293,7 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
       // One-shot B1: a refusal reaches the page in the owner's words (owner-errors.ts), with its code kept.
       return (bridge ? overDesktop(method, payload) : overHttp(method, payload)).catch((error: unknown) => { throw ownerError(error); }) as Promise<ResultOf<M>>;
     },
-    subscribe(listener: (event: VentureRunEvent) => void) { return feed.subscribe(listener); },
+    subscribe(listener: (event: UiRunEvent) => void) { return feed.subscribe(listener); },
     status: () => status.get(),
     onStatus: (listener) => status.subscribe(listener),
     // 4D4: the desktop's file pick for the network import, with its refusals as engine errors.
