@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState, type FormEvent } from 'react';
 import { useLanguage, useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -8,7 +9,7 @@ import { useMonth } from '../../parts/when';
 import { GoalBar } from '../../parts/charts/GoalBar';
 import { EngineError, type GoalView } from '../../engine/types';
 import { GOAL_EVENTS, goalAmount, goalFromView, monthBefore, monthOf, useGoalSuggestion } from '../today/goal';
-import { TileSection, messageOf, usePlan } from './shared';
+import { TileSection, usePlan } from './shared';
 import { DraftRecover, DraftWord, useSettingsDraft } from './settingsDraft';
 import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';

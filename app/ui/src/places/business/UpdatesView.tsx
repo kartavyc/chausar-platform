@@ -1,10 +1,11 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import type { UpdatesView as View } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { formatBytes } from '../../parts/when';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import s from './Business.module.css';
 import r from './Reports.module.css';
 

@@ -1,3 +1,5 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
 // A2: trust both kinds of Codex. Chausar runs a Codex only through a pinned manifest of its reviewed setup: the native
 // program's digest and version, and its own `--version`, `exec --help` and `features list` answers, each pinned, which
 // loadCodexCliHostGateway (codex-cli-host.ts) checks in full at load, with the program's digest checked again before
@@ -88,7 +90,7 @@ export const SETUP_WORDS = Object.freeze({
   resealed: 'Chausar could not read the lock on your Codex choice and made a new one. Check the Codex again.',
 });
 
-const sha256Of = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
+const sha256Of = (bytes: Uint8Array | string) => sha256Hex(bytes);
 
 async function fileDigest(path: string): Promise<string> {
   const info = await stat(path);
@@ -185,7 +187,7 @@ function decisionOf(value: unknown): CodexDecision | null {
   return { at: v.at, decision: v.decision, by: 'owner', sha256, version, path };
 }
 function sameMac(a: unknown, b: string): boolean {
-  if (typeof a !== 'string' || !/^[a-f0-9]{64}$/.test(a)) return false;
+  if (typeof a !== 'string' || !DIGEST_PATTERN.test(a)) return false;
   return timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
 }
 
@@ -281,7 +283,7 @@ export class CodexTrust {
       if ((error as { code?: unknown })?.code === 'CREDENTIAL_NO_STORE') return null;
       throw error;
     }
-    if (key && /^[a-f0-9]{64}$/.test(key)) return key;
+    if (key && DIGEST_PATTERN.test(key)) return key;
     if (!create) return '';
     key = randomBytes(32).toString('hex');
     await seal.set(SEAL_SCOPE.workspaceId, SEAL_SCOPE.name, key);
@@ -561,7 +563,7 @@ export class CodexTrust {
    * showed (one-shot A3: the confirmation carries it, so the yes records that copy and no other).
    */
   async record(sha256: unknown, path: unknown): Promise<CodexSetupView> {
-    check(typeof sha256 === 'string' && /^[a-f0-9]{64}$/.test(sha256), 'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
+    check(typeof sha256 === 'string' && DIGEST_PATTERN.test(sha256), 'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
     check(typeof path === 'string' && path.length > 0 && path.length <= 4096 && !/[\0\r\n]/.test(path), 'INVALID_VENTURE_REQUEST', 'Choose the Codex Chausar showed you.');
     const heldKey = reviewKey(sha256, path);
     const review = this.#reviews.get(heldKey);

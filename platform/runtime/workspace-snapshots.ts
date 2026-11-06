@@ -1,3 +1,4 @@
+import { sha256Hex } from './hash.ts';
 // Business snapshots (Ink v2 wave 4, package 4J6, catalogue C10): what the other businesses on this computer may know
 // about one that is closed, and the never-contact list they share. Each business keeps its own encrypted vault and
 // only one opens at a time, so "All businesses", Chats and the Start gallery read a small summary instead: name, the
@@ -10,7 +11,7 @@
 // blocked or forgotten address, with a MAC over them, under its own key the operating system keeps
 // (custody/never-contact-key.json); it cannot be turned back into an address, and it fails closed, never empty.
 // Only the engine writes here; a business that opens with a passphrase never gets a summary (the engine's rule).
-import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { lstat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ChausarError, check } from './contracts.ts';
@@ -141,7 +142,7 @@ export class WorkspaceSnapshots {
   forgetKey(): void { this.#key?.fill(0); this.#key = null; this.#listKey?.fill(0); this.#listKey = null; }
 
   #subkey(key: Buffer, purpose: string): Buffer { return Buffer.from(hkdfSync('sha256', key, Buffer.alloc(0), purpose, 32)); }
-  #keyId(key: Buffer): string { return createHash('sha256').update(this.#subkey(key, 'chausar.summary-key-id.v1')).digest('hex').slice(0, 16); }
+  #keyId(key: Buffer): string { return sha256Hex(this.#subkey(key, 'chausar.summary-key-id.v1')).slice(0, 16); }
 
   /** Encrypts and writes one business's summary. Refuses (INVALID_SNAPSHOT) any other shape; DEVICE_KEY_FAILED without a key. */
   async write(folder: string, snapshot: BusinessSnapshot): Promise<void> {
@@ -213,7 +214,7 @@ export class WorkspaceSnapshots {
   /** The one spelling a check is made of: trimmed and lower case (an email, a phone in E.164, a LinkedIn profile address). */
   #spelling(value: string): string { return String(value ?? '').trim().toLowerCase(); }
   #hash(key: Buffer, value: string): string { return createHmac('sha256', this.#subkey(key, NEVER_CONTACT_FORMAT)).update(`${NEVER_CONTACT_FORMAT}\n${value}`).digest('hex'); }
-  #listKeyId(key: Buffer): string { return createHash('sha256').update(this.#subkey(key, 'chausar.never-contact-key-id.v1')).digest('hex').slice(0, 16); }
+  #listKeyId(key: Buffer): string { return sha256Hex(this.#subkey(key, 'chausar.never-contact-key-id.v1')).slice(0, 16); }
   #mac(key: Buffer, keyId: string, hashes: readonly string[]): string {
     return createHmac('sha256', this.#subkey(key, 'chausar.never-contact-mac.v1')).update(`${keyId}\n${hashes.join('\n')}`).digest('hex');
   }

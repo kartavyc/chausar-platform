@@ -102,9 +102,7 @@ export function invoiceTitle(t: T, invoice: Pick<InvoiceLite, 'number'>, client:
   return invoice.number ? t('money.invoices.title', { number: invoice.number, client }) : t('money.invoices.draftTitle', { client });
 }
 
-export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+
 
 /**
  * An amount the owner typed, echoed back in the owner form ("2000" on a rupee invoice reads "₹2,000", B2): the text is

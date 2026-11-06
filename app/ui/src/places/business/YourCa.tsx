@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
@@ -8,7 +9,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Receipt } from '../../parts/Receipt';
 import type { CaLatestPapers, CaOfRecord, CaPendingRate, CaReceiptView, CaSignoffRequest } from '../../engine/types';
-import { TileSection, dayOf, messageOf } from './shared';
+import { TileSection, dayOf } from './shared';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';

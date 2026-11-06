@@ -1,3 +1,5 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
 import { createPublicKey, createHash, randomBytes, verify as verifySignature, type KeyObject } from 'node:crypto';
 import { constants, createReadStream } from 'node:fs';
 import { open, readFile, lstat, rename, unlink, link, mkdir } from 'node:fs/promises';
@@ -105,7 +107,7 @@ function validateManifest(value:any):asserts value is ReleaseManifest {
   internalCheck(value.schemaVersion===1 && typeof value.rollback.supported==='boolean' && value.rollback.requiresBackup===true, 'INVALID_MANIFEST','A version-one manifest must require a vault backup before installation.');
   versionParts(value.version); versionParts(value.minEngineVersion);
   check(typeof value.publishedAt==='string' && Number.isFinite(Date.parse(value.publishedAt)) && new Date(value.publishedAt).toISOString()===value.publishedAt && Date.parse(value.publishedAt)<=Date.now()+300000, 'INVALID_MANIFEST','The release needs a canonical publication timestamp.');
-  internalCheck(['win32','linux','darwin'].includes(value.platform) && ['x64','arm64'].includes(value.architecture) && /^[a-f0-9]{64}$/.test(value.sha256) && Number.isSafeInteger(value.size) && value.size>0 && value.size<=MAX_ARTIFACT && Number.isSafeInteger(value.dataSchemaVersion) && value.dataSchemaVersion>0 && value.dataSchemaVersion<=1000, 'INVALID_MANIFEST','The release platform, digest, size, or data version is invalid.');
+  internalCheck(['win32','linux','darwin'].includes(value.platform) && ['x64','arm64'].includes(value.architecture) && DIGEST_PATTERN.test(value.sha256) && Number.isSafeInteger(value.size) && value.size>0 && value.size<=MAX_ARTIFACT && Number.isSafeInteger(value.dataSchemaVersion) && value.dataSchemaVersion>0 && value.dataSchemaVersion<=1000, 'INVALID_MANIFEST','The release platform, digest, size, or data version is invalid.');
   let url:URL;try{url=new URL(value.url);}catch{check(false,'INVALID_RELEASE_URL','Use an explicit HTTPS artifact URL.');}
   const host=url!.hostname.replace(/^\[|\]$/g,'');
   internalCheck(url!.protocol==='https:' && !url!.username && !url!.password && !url!.hash && (!url!.port||url!.port==='443') && !isIP(host) && host.includes('.') && !/(?:^|\.)(localhost|local|internal|test)$/.test(host) && value.url===url!.href, 'INVALID_RELEASE_URL','Release artifacts must use canonical public HTTPS URLs without credentials.');
@@ -119,7 +121,7 @@ async function writeStaged(path:string,bytes:Uint8Array,replace=false) {
   try {await file.writeFile(bytes);await file.sync();await file.close();if(replace){await regular(path);await rename(temporary,path);}else{await link(temporary,path);await unlink(temporary);}}
   catch(error){await file.close().catch(()=>{});await unlink(temporary).catch(()=>{});throw error;}
 }
-function digest(bytes:Uint8Array){return createHash('sha256').update(bytes).digest('hex');}
+function digest(bytes:Uint8Array){return sha256Hex(bytes);}
 async function fileDigest(path:string,hash=createHash('sha256')){for await(const chunk of createReadStream(path))hash.update(chunk as Buffer);return hash;}
 
 // C5 task 31, the stage half: a release is fetched as a stream. `ReleaseDownload` is the seam: tests pass a stand-in,
@@ -268,7 +270,7 @@ export class ReleaseUpdater {
     internalCheck(typeof options.validateRestore==='function','ROLLBACK_RESTORE_REQUIRED','Trusted engine code must validate a disposable restore before preparing rollback.');
     const expected=Object.freeze({...options.expectedVault}),backup={...options.backup},validator=options.validateRestore;
     internalCheck(hasExactKeys(expected,['vaultId','workspaceId','revision'])&&typeof expected.vaultId==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(expected.vaultId)&&typeof expected.workspaceId==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(expected.workspaceId)&&Number.isSafeInteger(expected.revision)&&expected.revision>=0,'INVALID_ROLLBACK_IDENTITY','Capture the expected vault, workspace and backup revision from trusted engine state.');
-    internalCheck(typeof backup.sha256==='string'&&/^[a-f0-9]{64}$/.test(backup.sha256),'INVALID_ROLLBACK_BACKUP','Pin the digest captured when the encrypted backup was created.');
+    internalCheck(typeof backup.sha256==='string'&&DIGEST_PATTERN.test(backup.sha256),'INVALID_ROLLBACK_BACKUP','Pin the digest captured when the encrypted backup was created.');
     const artifact=await rollbackFile(options.previousArtifactPath,previous.size,'ROLLBACK_ARTIFACT_MISMATCH');
     internalCheck(artifact.bytes.length===previous.size&&digest(artifact.bytes)===previous.sha256,'ROLLBACK_ARTIFACT_MISMATCH','The previous package differs from its signed length or digest.');
     const snapshot=await rollbackFile(backup.path,MAX_BACKUP,'INVALID_ROLLBACK_BACKUP');

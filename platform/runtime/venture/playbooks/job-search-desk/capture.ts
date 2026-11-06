@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../../shared/digest.ts';
 // Original bounded listing capture. JobOS (Apache-2.0) inspired revision checks; parse5 (MIT) parses inert HTML.
 import {parse,type DefaultTreeAdapterTypes as Tree} from 'parse5';
 import {ChausarError,check,hash} from '../../../portable.ts';
@@ -7,7 +8,7 @@ export type CareerPagePart={start:number;end:number;text:string;revision:string}
 /** Every slice must cover one unchanged text snapshot exactly, including the final character. */
 export function completeCareerCapture(total:number,revision:string,parts:readonly CareerPagePart[]){
  const need=(condition:unknown)=>check(condition,'CAREER_CAPTURE_INCOMPLETE','No job was saved.');
- need(Number.isSafeInteger(total)&&total>0&&total<=500000&&typeof revision==='string'&&/^[a-f0-9]{64}$/.test(revision)&&Array.isArray(parts)&&parts.length>0&&parts.length<=100);
+ need(Number.isSafeInteger(total)&&total>0&&total<=500000&&typeof revision==='string'&&DIGEST_PATTERN.test(revision)&&Array.isArray(parts)&&parts.length>0&&parts.length<=100);
  let end=0;const text:string[]=[];
  for(const part of parts){need(part&&Number.isSafeInteger(part.start)&&Number.isSafeInteger(part.end)&&part.start===end&&part.end>part.start&&part.end<=total&&part.revision===revision&&typeof part.text==='string'&&part.text.length===part.end-part.start);end=part.end;text.push(part.text);}
  const result=text.join('');need(end===total&&hash(result)===revision);

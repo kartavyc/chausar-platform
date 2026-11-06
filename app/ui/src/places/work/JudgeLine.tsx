@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
@@ -37,7 +38,7 @@ function judgeShows(draft: DeliveryLite): boolean {
   return !!verdictOf(draft) || (draft.status === 'ready-for-review' && codeChecksPassed(draft));
 }
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 export function JudgeLine({ drafts, onChanged }: { drafts: DeliveryLite[]; onChanged: () => void }) {
   const t = useT();

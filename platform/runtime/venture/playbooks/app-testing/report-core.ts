@@ -1,10 +1,11 @@
+import { DIGEST_PATTERN } from '../../../../shared/digest.ts';
 // Original source-bound app test report. Owner reproduction is labelled as such, never represented as an automated assertion.
 import {check,digest} from '../../../portable.ts';import {reviewedFindings,type AppFinding,type FindingDecision} from './logcat.ts';
 export type FindingReproduction={id:string;stepIds:string[];observed:string};
 export type AppTestReportInput={packageName:string;apkSha256:string;planDigest:string;steps:readonly {id:string;title:string;expected:string}[];attempts:readonly {id:string;operation:string;stepId:string|null;phase:string;at:string;journalId:string;line:string}[];findings:readonly AppFinding[];decisions:readonly FindingDecision[];reproductions:readonly FindingReproduction[]};
 /** Exact reviewed evidence and successful step receipts determine report contents and its provenance hash. */
 export function appTestReport(input:AppTestReportInput){
- const included=reviewedFindings(input.findings,input.decisions),ids=new Set(input.steps.map(s=>s.id));check(/^[a-f0-9]{64}$/.test(input.apkSha256)&&/^[a-f0-9]{64}$/.test(input.planDigest),'APPROVAL_STALE','Bind this report to the approved client APK and plan.');
+ const included=reviewedFindings(input.findings,input.decisions),ids=new Set(input.steps.map(s=>s.id));check(DIGEST_PATTERN.test(input.apkSha256)&&DIGEST_PATTERN.test(input.planDigest),'APPROVAL_STALE','Bind this report to the approved client APK and plan.');
  check(Array.isArray(input.reproductions)&&input.reproductions.length===included.length&&new Set(input.reproductions.map(r=>r.id)).size===included.length,'FINDING_REPRODUCTION_REQUIRED','Record how you reproduced every included finding.');
  const executed=new Set(input.attempts.filter(a=>a.phase==='applied'&&['launch','tap'].includes(a.operation)&&a.journalId).map(a=>a.stepId).filter(Boolean));
  const lines=['App test report','Package: '+input.packageName,'APK SHA256: '+input.apkSha256,'Plan receipt: '+input.planDigest,'Coverage is limited to the recorded steps and log tail. No finding does not prove the app is correct.','Test steps'];

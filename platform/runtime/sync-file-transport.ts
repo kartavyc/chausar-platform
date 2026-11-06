@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { link, lstat, mkdir, open, readdir, rename, unlink } from 'node:fs/promises';
@@ -23,7 +24,7 @@ export type FileSyncTransportOptions = {
 type Identity = { format: 'chausar.file-sync.v1'; storeId: string; workspaceId: string; vaultId: string };
 type Authority = Identity & { fence: number; clockFloorMs: number; lease: SyncLease | null; head: SyncHead | null };
 const MAX_BLOB = 96 * 1024 * 1024, MAX_BACKUP = 64 * 1024 * 1024, MAX_STATE = 8192;
-const HASH = /^[a-f0-9]{64}$/;
+const HASH = DIGEST_PATTERN;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const SNAPSHOT_KEYS = 'ciphertextBase64,ciphertextDigest,createdAt,deviceId,epoch,fence,format,memberId,previousHash,revision,sequence,signature,signerId,vaultId,workspaceId';
 const LEASE_KEYS = 'deviceId,epoch,expiresAt,fence,memberId,token';

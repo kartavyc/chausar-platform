@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * W6 6G5 (D44): what each agent and each routine spent this month, one step away on Spend: a quiet icon button beside
  * the Paid calls total opens the list under it, so the page at rest says no more than it did. Each row is the
@@ -22,7 +23,7 @@ import { splitFigure } from '../../parts/Figure';
 import { Row } from '../../parts/Row';
 import type { SpendMeterRowView, SpendMetersView } from '../../engine/types';
 import { Amount, Rupees, spendShown } from './parts';
-import { messageOf, onRuns } from './words';
+import { onRuns } from './words';
 import s from './Money.module.css';
 
 /** The way in: an icon button named for what it opens, beside the Paid calls total. */

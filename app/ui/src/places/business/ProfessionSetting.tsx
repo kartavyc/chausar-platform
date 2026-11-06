@@ -1,9 +1,10 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { ComplianceCheck, type ComplianceAnswer } from '../../parts/ComplianceCheck';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './ProfessionSetting.module.css';

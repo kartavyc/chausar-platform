@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Chausar venture launcher, agents (Ink v2 wave 4, package 4B1, catalogue A3): proposals in an agent's thread. A
 // standing request ("from now on") becomes an instruction proposal: the agent drafts one typed patch on a step its role
 // owns (through the owner's AI, or from the owner's own words with templates only), code checks it under the owner
@@ -262,7 +263,7 @@ export async function proposalDecideHandler(deps: VentureDeps, ctx: Context, pay
   requireAppChannel(ctx, 'venture.agents.proposal.decide');
   const body = exactPayload(payload, ['id', 'digest', 'decision'], ['id', 'digest', 'decision']);
   const id = identifier(body.id, 'Proposal');
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you read.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you read.');
   check(body.decision === 'accept' || body.decision === 'reject', 'INVALID_VENTURE_REQUEST', 'Choose accept or reject.');
   const seen = body.digest, decision = body.decision;
   const { state } = readAs(deps, ctx, 'approve');

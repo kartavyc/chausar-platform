@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * One invoice beside the list: the engine's figures, the receipt that priced it, its books receipt (or the engine's
  * reason there is none), payments with their receipts, notes, and the invoice text as the client gets it.
@@ -26,7 +27,7 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import { Credits, NextStep, PaymentLine, RateChange, Timeline } from './InvoiceExtras';
 import { BillPart, HowToPay } from './InvoicePay';
 import { ThankYou } from './ThankYou';
-import { messageOf, onMoney, statusOf, useDay } from './words';
+import { onMoney, statusOf, useDay } from './words';
 import s from './Money.module.css';
 import { Fold } from '../../parts/Fold';
 

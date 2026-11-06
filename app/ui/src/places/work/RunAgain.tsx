@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
@@ -8,7 +9,7 @@ import type { QueueAction, QueueRow } from '../../engine/types';
 import s from './Work.module.css';
 import {actionWords} from '../today/OutreachRows';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /** Today's row that runs a failed run again, the engine's own retry path, when it still offers one. */
 export function againRow(queue: readonly QueueRow[] | undefined, runId: string): QueueRow | undefined {

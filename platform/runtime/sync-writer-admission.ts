@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { link, lstat, open, readdir, rename, unlink } from 'node:fs/promises';
@@ -60,7 +61,7 @@ type Grant = {
 };
 type Authority = Identity & { fence: number; clockFloorMs: number; stateDigest: string; grant: Grant | null };
 const MAX_RECORD_BYTES = 8192, MAX_GRANT_MS = 120000;
-const HASH = /^[a-f0-9]{64}$/;
+const HASH = DIGEST_PATTERN;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const keys = (value: unknown, expected: string) => !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join(',') === expected;
 const integer = (value: unknown, minimum = 0): value is number => Number.isSafeInteger(value) && (value as number) >= minimum;

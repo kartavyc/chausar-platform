@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { ChausarError, check, hash, internalCheck } from './contracts.ts';
 
 export const INVESTIGATION_SEARCH_METHOD = 'simple-token-conjunction-v1' as const;
@@ -47,7 +48,7 @@ function project(projection: AuthorizedInvestigationSearchProjection, request: I
   const documents = Array.from(projection.documents, document => {
     exactObject(document, ['id', 'kind', 'revision', 'digest', 'text']);
     check(typeof document.id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,199}$/.test(document.id) && !ids.has(document.id), 'SEARCH_DOCUMENT_INVALID', 'Search documents need distinct bounded identities.'); ids.add(document.id);
-    internalCheck(['investigation', 'journal'].includes(document.kind) && Number.isSafeInteger(document.revision) && document.revision >= 0 && typeof document.digest === 'string' && /^[a-f0-9]{64}$/.test(document.digest), 'SEARCH_DOCUMENT_INVALID', 'Search documents need declared kinds and pinned revisions and digests.');
+    internalCheck(['investigation', 'journal'].includes(document.kind) && Number.isSafeInteger(document.revision) && document.revision >= 0 && typeof document.digest === 'string' && DIGEST_PATTERN.test(document.digest), 'SEARCH_DOCUMENT_INVALID', 'Search documents need declared kinds and pinned revisions and digests.');
     check(typeof document.text === 'string' && !document.text.includes('\0') && !/[\uD800-\uDFFF]/u.test(document.text), 'SEARCH_DOCUMENT_INVALID', 'Search document text must be UTF-8 data.');
     textBytes += Buffer.byteLength(document.text); check(textBytes <= request.bounds.maxTextBytes, 'SEARCH_TEXT_LIMIT', 'The complete authorized text exceeds the UTF-8 byte bound.');
     return { id: document.id, kind: document.kind, revision: document.revision, digest: document.digest, text: document.text };

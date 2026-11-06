@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 import { check, type Context, internalCheck } from '../../contracts.ts';
 import { current, digest } from '../../actions.ts';
 import { assertSourceAccess, trustFingerprint } from '../../trust.ts';
@@ -11,7 +12,7 @@ import { sha256, requiredText } from './common.ts';
 
 const systems = ['tally', 'zoho-books', 'quickbooks', 'xero'];
 const minimums: Record<ReadEnvironment, QualifiedLevel> = { synthetic: 'synthetic-tested', sandbox: 'sandbox-verified', live: 'live-verified' };
-const hash = (value: string) => /^[a-f0-9]{64}$/.test(value);
+const hash = (value: string) => DIGEST_PATTERN.test(value);
 const unresolved = [
   'SOURCE_CLOCK_AND_SNAPSHOT_REQUIRED', 'SEMANTIC_WIRE_TRANSLATION_BINDING_REQUIRED',
   'SEMANTIC_RUNTIME_PROJECTION_REQUIRED', 'RIGHTS_GOLDEN_HOLDOUT_REQUIRED', 'CURRENT_SEMANTIC_LEDGER_ANCHOR_REQUIRED',

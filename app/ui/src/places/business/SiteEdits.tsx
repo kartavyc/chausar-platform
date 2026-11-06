@@ -1,10 +1,11 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { SiteEditLite } from '../../engine/types';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import s from './Business.module.css';
 import { Reveal } from '../../parts/RevealBlock';
 

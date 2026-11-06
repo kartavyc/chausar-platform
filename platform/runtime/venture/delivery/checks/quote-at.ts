@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../../hash.ts';
 // Chausar delivery checks (Ink v2 wave 4, package 4J16, catalogue Q4): a quote must appear where it is cited. Code
 // only, no model. A cited quote is looked for at its place, within a small window: 10 seconds either side of a
 // transcript timestamp, or 2 lines (or rows) either side of the cited line or row, or on the cited page itself. The
@@ -8,7 +9,7 @@
 // moveQuoteTimes moves a quote's time to where the transcript says it, once, and says so; the final check is round 2.
 // Ideas taken, code written here: OpenQodex packages/review/src/evidence-check.ts (quote at location with a window and
 // one correction round), podcast-to-article SKILL.md step 7 (quote spot checks against the transcript).
-import { createHash } from 'node:crypto';
+
 
 /** The window a quote may sit in around its citation. */
 export const QUOTE_WINDOW = Object.freeze({ lines: 2, ms: 10_000 });
@@ -131,7 +132,7 @@ export function quoteCheck(citations: readonly QuoteCitation[], source: QuoteSou
 
 /** A fixed sample of the quotes for a seed (the same every time), each checked at its place. */
 export function spotCheckQuotes(citations: readonly QuoteCitation[], source: QuoteSource, options: { sample: number; seed: string }): QuoteResult[] {
-  const rank = (citation: QuoteCitation) => createHash('sha256').update(`${options.seed}\n${citation.quote}\n${place(citation.at)}`).digest('hex');
+  const rank = (citation: QuoteCitation) => sha256Hex(`${options.seed}\n${citation.quote}\n${place(citation.at)}`);
   return [...citations].sort((a, b) => (rank(a) < rank(b) ? -1 : rank(a) > rank(b) ? 1 : 0))
     .slice(0, Math.max(0, options.sample)).map(citation => ({ ...citation, ...checkQuote(citation, source) }));
 }

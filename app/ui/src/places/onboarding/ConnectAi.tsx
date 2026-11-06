@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -17,7 +18,7 @@ import { Progress } from '../../parts/Progress';
 /** How often the screen looks again while a tool's own sign-in waits for the owner. */
 export const LOGIN_POLL_MS = 1500;
 const PRESET: Readonly<Record<ToolLite['cli'], string>> = { codex: 'codex-cli', 'claude-code': 'claude-code-cli' };
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 const connectedTo = (status: ModelStatusLite | undefined) => Boolean(status && Object.values(status.tiers).some((tier) => tier.presetId !== TEMPLATES && tier.usable));
 
 /**

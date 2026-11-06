@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
 // Synthesis and retained-continuation request validation (split out of gateway.ts, D11).
 import { check, hash } from '../contracts.ts';
 import { validateReviewedConversationCalculationParameters } from '../conversation-calculation-arguments.ts';
@@ -83,7 +84,7 @@ export function validateContinuation(raw: unknown, id: string): GatewayConversat
   continuationObject(raw, [...keys, 'exchanges', 'reviewedCalculationParameters'], keys);
   check(raw.schemaVersion === 1 && raw.turnId === id && continuationId(raw.turnId)
     && continuationText(raw.originalQuestion, 8000) && continuationText(raw.clarification, 500)
-    && typeof raw.digest === 'string' && /^[a-f0-9]{64}$/.test(raw.digest), CONTINUATION_INVALID, 'The retained continuation has invalid identity or text.');
+    && typeof raw.digest === 'string' && DIGEST_PATTERN.test(raw.digest), CONTINUATION_INVALID, 'The retained continuation has invalid identity or text.');
   continuationSources(raw.sourceIds);
   const scope = raw.requestScope;
   continuationObject(scope, ['sourceIds', 'branch', 'asOf', 'onDate', 'period']);

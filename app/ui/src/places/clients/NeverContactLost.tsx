@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * NEVER_CONTACT_LOST (4J6; NOTES item 44): the never-contact list of the businesses on this computer can no longer be
  * checked (its key lost or changed, the file changed), so the network drafts nothing. Wherever the network refuses for
@@ -13,7 +14,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
-import { messageOf } from './network';
+
 import s from './Network.module.css';
 
 export function NeverContactLost() {

@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher, network (Ink v2 wave 4, package 4E3; D-Network "read each morning"): the owner's private
 // calendar address. venture.network.calendar { url } (approve, inside the app, desktop only) checks the address, reads
 // it once through the network guard with redirects refused, and keeps it on the engine's secret shelf (the address
@@ -6,7 +7,7 @@
 // only, cancelled and big ones dropped, nothing of a description or a place kept); each read's facts take the place
 // of the last read's, so the network does not fill with copies. It also keeps the calls with people in the network
 // that ended lately or end today, with no title or other attendee, so Today can ask for notes after each (C17).
-import { createHash } from 'node:crypto';
+
 import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type {
   CalendarFeedRecord, CalendarFeedView, IsoTime, KeeperRunRecord, NetworkImportRecord, PersonFact, PersonRecord, VentureDeps, VentureRecord,
@@ -179,7 +180,7 @@ export function recentCalls(text: string, people: readonly PersonRecord[], ventu
       const cancelled = /^cancel+ed$/i.test(get('STATUS')?.value.trim() ?? '');
       const ids = [...new Set(people.map(email => byEmail.get(email)).filter((id): id is string => !!id))];
       if (start !== null && end !== null && !cancelled && new Set(people).size <= SMALL_GROUP && ids.length && end >= nowMs - KEEP_BEFORE_MS && end <= nowMs + KEEP_AFTER_MS) {
-        const id = `ev_${createHash('sha256').update(`${get('UID')?.value ?? ''}\n${start}`).digest('hex').slice(0, 20)}`;
+        const id = `ev_${sha256Hex(`${get('UID')?.value ?? ''}\n${start}`).slice(0, 20)}`;
         const old = before.find(item => item.id === id);
         if (!out.some(item => item.id === id)) out.push({ id, endAt: new Date(end).toISOString(), personIds: ids, notesAt: old?.notesAt ?? null, declined: old?.declined ?? false });
       }
@@ -237,7 +238,7 @@ function keeperRun(tx: VentureTx, outcome: KeeperRunRecord['outcome'], line: str
 export function readIntoNetwork(deps: VentureDeps, tx: VentureTx, input: { text: string; host: string; owners: string[] }): CalendarFeedRecord {
   const venture = tx.venture!;
   const today = localDayAt(tx.now, venture.country);
-  const digest = createHash('sha256').update(`calendar-ics\n${input.text}`).digest('hex');
+  const digest = sha256Hex(`calendar-ics\n${input.text}`);
   const old = calendarFeedOf(tx.state, venture.id);
   let line: string;
   if (old && old.status === 'set' && old.digest === digest) {

@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar connectors: page monitors (Ink v2 wave 5, package 5A6, catalogue K16). The owner asks Chausar to watch a
 // public page for any change, for a text to appear, or for a price to fall below their figure. Adding one is a standing
 // check, so it is on the always-ask floor (H12): approve, inside the app, never on the hosted app (it sleeps while
@@ -9,7 +10,7 @@
 // first. A price is read only from the element the owner picked and parsed by code into paise; no model reads a page.
 // The seed-then-diff watcher, with its last value, hash and backoff, follows OpenMuse's Monitor (packages/domain/src/
 // agent.ts) and JobFinderOS's --seed poll, both reusable by licence; this is written for Chausar, not copied.
-import { createHash } from 'node:crypto';
+
 import { check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type { KeeperRunRecord, MonitorRecord, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, exactPayload, identifier, listRecords, readVenture, requireAppChannel, singleLine, ventureAction, type VentureTx } from '../records.ts';
@@ -44,7 +45,7 @@ export const MONITOR_WORDS = Object.freeze({
   signedIn: 'This address carries a key or a sign-in. Watch a public page instead.',
 });
 
-const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+const sha = (text: string) => sha256Hex(text);
 const fold = (text: string) => text.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 
 // ---------------------------------------------------------------------------

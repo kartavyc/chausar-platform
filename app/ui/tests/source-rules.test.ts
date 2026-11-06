@@ -455,3 +455,7 @@ describe('figures stay whole', () => {
     for (const sheet of sheets) expect(truncatedFigures(sheet.css), sheet.f).toEqual([]);
   });
 });
+
+it('error formatting is imported from the shared helper, never redefined in a screen', () => {
+  for (const { f, text } of code) expect(text, f).not.toMatch(/\b(?:function\s+messageOf\s*\(|(?:const|let|var)\s+messageOf\s*=)/);
+});

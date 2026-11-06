@@ -15,7 +15,7 @@ import { againRow, useRunAgain } from './RunAgain';
 import s from './Work.module.css';
 
 const SEP = ' · ';
-export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /** The ring each run's state draws around its agent: working, waiting on you, stopped; a finished run has none. */
 export const RINGS: Readonly<Record<RunState, AvatarState>> = { active: 'working', waiting: 'waiting', failed: 'failed', done: 'idle' };

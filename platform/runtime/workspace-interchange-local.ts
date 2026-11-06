@@ -1,5 +1,7 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, mkdir, open, readdir, realpath, rmdir } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -17,13 +19,13 @@ import type {
 
 const MAX_FILES = 4096, MAX_BYTES = 64 * 1024 * 1024;
 const plainId = /^[A-Za-z0-9_-]{1,100}$/, slotId = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
-const digestPattern = /^[a-f0-9]{64}$/;
+const digestPattern = DIGEST_PATTERN;
 const CONTROL = '.workspace-interchange-control';
 const businessDirectories: Record<string, string> = {
   reports: 'report-files', 'plugin-assets': 'plugin-assets', 'research-evidence': 'research-evidence',
   'conversation-files': 'conversation-files', 'sync-evidence': 'sync-evidence',
 };
-const sha = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const sha = (bytes: string | Uint8Array) => sha256Hex(bytes);
 const same = (a: unknown, b: unknown) => interchangeDigest(a) === interchangeDigest(b);
 const controlId = (recordId: string, part: 'archive' | 'pin' | 'commit') => `wic_${sha(recordId)}_${part}`;
 const reservationId = (targetId: string) => `wit_${sha(targetId)}_reservation`;

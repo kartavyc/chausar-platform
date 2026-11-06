@@ -12,7 +12,7 @@ import { useDay } from '../money/words';
 import s from './Crm.module.css';
 import { Fold } from '../../parts/Fold';
 
-export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 export function CrmFold({ summary, open, onToggle, children }: { summary: string; open?: boolean; onToggle?: (open: boolean) => void; children: ReactNode }) {
   return (

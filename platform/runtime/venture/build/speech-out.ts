@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar connectors: speech out (Ink v2 wave 5, package 5A6), text to speech on the owner's own provider key. A
 // capability table names each provider's languages, its stock voices with the licence their output is used under, the
 // most characters one call takes, and its price per character from the provider's own page with the day it was
@@ -10,7 +11,7 @@
 // dated Standard price; this fixture-qualified route becomes write only with that key. Other providers keep their
 // planned labels and manual paths. No live account qualification is implied. AI voices are disclosed
 // by the playbooks that use them (5Q, 5J2). Written for Chausar; nothing here is learned from an outside source.
-import { createHash } from 'node:crypto';
+
 import { check, ChausarError, type Context } from '../../contracts.ts';
 import type { SpendRate, VentureDeps } from '../contracts.ts';
 import { exactPayload, readVenture } from '../records.ts';
@@ -64,7 +65,7 @@ export const SPEECH_PROVIDERS: readonly SpeechProvider[] = Object.freeze([
 ]);
 
 const keyOf = (id: string) => `speech:${id}` as const;
-const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+const sha = (text: string) => sha256Hex(text);
 
 /** A provider as the screens show it: write only when its call is written and the owner's key is here, else planned. */
 function viewOf(deps: VentureDeps, provider: SpeechProvider): SpeechProviderView {
@@ -142,7 +143,7 @@ export async function speechSay(
     return { value: provider.audio!(answer.body), billedMicros: null };
   });
   check(audio.length > 0, 'NET_FAILED', `${provider.name} sent no audio.`);
-  const digest = createHash('sha256').update(audio).digest('hex');
+  const digest = sha256Hex(audio);
   return {
     audio, digest, quote,
     asset: {

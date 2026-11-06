@@ -1,4 +1,5 @@
-import { createHash, createPublicKey, randomBytes, verify, type KeyObject } from 'node:crypto';
+import { sha256Hex } from './hash.ts';
+import { createPublicKey, randomBytes, verify, type KeyObject } from 'node:crypto';
 import type { Context, Role, State, StateStore } from './contracts.ts';
 import { PhoneError, isId, requirePhone } from './phone/contracts.ts';
 import type { AppChannel, PhoneCapability, PhoneMethods, SessionAuthority, SessionGrant } from './phone/contracts.ts';
@@ -13,7 +14,7 @@ const capabilities: PhoneCapability[] = ['brief.read', 'chat', 'upload', 'approv
 const channels: AppChannel[] = ['ios', 'android', 'web'];
 const signedMethods = ['session.validate', 'session.revoke', 'brief.list', 'brief.read', 'receipt.read', 'chat.start',
   'approval.list', 'approval.inspect', 'approval.submit', 'request.list', 'request.status', 'request.cancel'];
-const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
+const digest = (value: string | Uint8Array) => sha256Hex(value);
 const credentialHash = (credential: string) => digest(`chausar-phone-credential-v1\n${credential}`);
 const inviteHash = (code: string) => digest(`chausar-phone-invite-v1\n${code}`);
 const copy = <T>(value: T): T => structuredClone(value);

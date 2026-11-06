@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * A network result's drafting buttons (D-Network's `.r-acts`; 4D4 left them to 4E4): WhatsApp and Draft intro (or Draft
  * a note, when the owner knows them directly or has no confirmed connector). Each puts the person on the pipeline first
@@ -15,7 +16,7 @@ import { Button } from '../../parts/Button';
 import { Icon } from '../../parts/Icon';
 import type { OutreachChannel, PipelineStage, SearchResultView } from '../../engine/types';
 import { NeverContactLost } from './NeverContactLost';
-import { codeOf, messageOf } from './network';
+import { codeOf } from './network';
 import { clientsChanged } from './signals';
 import { draftSheetId } from './handoff';
 import s from './Pipeline.module.css';

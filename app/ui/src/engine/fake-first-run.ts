@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../../platform/shared/digest.ts';
 /**
  * Wave 6 first run in the fake engine, answering as the engine does:
  *   venture.ai.tools / .login.start / .login.cancel  each tool's own sign-in (platform/runtime/venture/models/login.ts):
@@ -197,7 +198,7 @@ export class FakeFirstRun {
   private trust(p: Record<string, unknown>): { setup: CodexSetupLite } {
     if (this.host.hosted() || this.dialogAnswer === 'missing') throw new EngineError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
     const asked = { cli: p.cli, sha256: p.sha256 };
-    if (asked.cli !== 'codex' || typeof asked.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(asked.sha256)) throw invalid('Choose the Codex Chausar showed you.');
+    if (asked.cli !== 'codex' || typeof asked.sha256 !== 'string' || !DIGEST_PATTERN.test(asked.sha256)) throw invalid('Choose the Codex Chausar showed you.');
     if (this.setup.state === 'trusted' && this.setup.sha256 === asked.sha256) return { setup: { ...this.setup } };
     if (!this.heldReview || asked.sha256 !== OWN_SHA) throw new EngineError('CODEX_SETUP_CHANGED', 'That Codex changed since you looked at it. Check it again.');
     this.dialogs.push({ title: DIALOG.title, detail: DIALOG.detail(SETUP.review.version, OWN_PROGRAM), buttons: [...DIALOG.buttons] });

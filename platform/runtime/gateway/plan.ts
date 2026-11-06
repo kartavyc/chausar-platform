@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
 // The analytical plan: operation catalogue, plan and business-selection schemas, the payload each route sends, and
 // plan validation (split out of gateway.ts, D11).
 import { check, hash, type State } from '../contracts.ts';
@@ -26,7 +27,7 @@ export function publishedCalculationCatalog(state: State, operations: string[], 
     unavailableReason: 'No published calculation definitions are available.' };
   const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 4096;
   const identifier = (value: unknown): value is string => typeof value === 'string' && /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(value);
-  check(typeof dictionary.hash === 'string' && /^[a-f0-9]{64}$/.test(dictionary.hash) && Number.isSafeInteger(dictionary.version)
+  check(typeof dictionary.hash === 'string' && DIGEST_PATTERN.test(dictionary.hash) && Number.isSafeInteger(dictionary.version)
     && Array.isArray(dictionary.operations) && Array.isArray(dictionary.definitions), 'INVALID_CALCULATION_CATALOG', 'The published calculation catalogue is unavailable.');
   const descriptors = operations.map(id => {
     const matches = dictionary.operations.filter(operation => operation.id === id);

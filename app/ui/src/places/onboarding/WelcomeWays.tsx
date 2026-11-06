@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
@@ -27,7 +28,7 @@ import { FilePick } from '../../parts/FilePick';
  */
 
 interface WayProps { onOpened: () => void; onBack: () => void }
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /** The head of a way in: back to the list, the title (focused, for a screen reader) and one line. */
 export function Way({ title, lead, onBack, children }: { title: string; lead: string; onBack: () => void; children: ReactNode }) {

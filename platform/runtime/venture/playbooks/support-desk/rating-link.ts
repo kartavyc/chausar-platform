@@ -1,12 +1,13 @@
+import { sha256Hex } from '../../../hash.ts';
 // HINDI_REVIEW: machine-drafted, needs a native reviewer.
 // Opaque one-answer rating links. ResolveHQ (source-available) supplied ideas only; original Chausar code.
-import {createHash,randomBytes} from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import {check,type Context} from '../../../contracts.ts';
 import type {SupportTicketRecord,VentureDeps} from '../../contracts.ts';
 import {currentVenture,listRecords,ventureAction,type VentureTx} from '../../records.ts';
 import {addRating} from './ratings.ts';
 export type SupportRatingPage={language:'en'|'hi';answered:boolean};
-const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
+const sha=(s:string)=>sha256Hex(s);
 /** Owner-approved link creation stores only a hash. The owner still sends the link; desktop has no public endpoint. */
 export function inviteRating(tx:VentureTx,deps:VentureDeps,ticket:SupportTicketRecord){
  check(ticket.sentAt,'SUPPORT_RATING_NOT_READY','A rating link is available only after you recorded a reply as sent.');

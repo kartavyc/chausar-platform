@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
 import { check,internalCheck } from '../contracts.ts';
 import { canonical, digest } from '../actions.ts';
 
@@ -143,16 +144,16 @@ function validateRegistration(entry: ConnectorOperationRegistration) {
   check(plain(entry), 'INVALID_CONNECTOR_REGISTRATION', 'Operation registrations must be plain records.');
   validateScope(entry.scope);
   check(exactKeys(entry, ['scope', 'implemented', 'capabilities', 'evidenceIds', 'limitations'], ['maxEvidenceAgeMs', 'implementationDigest']) && typeof entry.implemented === 'boolean' && uniqueStrings(entry.capabilities, CONNECTOR_CAPABILITIES) && uniqueStrings(entry.evidenceIds) && uniqueStrings(entry.limitations), 'INVALID_CONNECTOR_REGISTRATION', 'Operation registrations require typed, unique capability and evidence records.');
-  internalCheck(entry.implementationDigest === undefined || (typeof entry.implementationDigest === 'string' && /^[a-f0-9]{64}$/.test(entry.implementationDigest)), 'INVALID_CONNECTOR_REGISTRATION', 'An implementation binding must be a SHA-256 digest.');
+  internalCheck(entry.implementationDigest === undefined || (typeof entry.implementationDigest === 'string' && DIGEST_PATTERN.test(entry.implementationDigest)), 'INVALID_CONNECTOR_REGISTRATION', 'An implementation binding must be a SHA-256 digest.');
   check(entry.maxEvidenceAgeMs === undefined || (Number.isSafeInteger(entry.maxEvidenceAgeMs) && entry.maxEvidenceAgeMs > 0), 'INVALID_CONNECTOR_REGISTRATION', 'Evidence age limits must be positive safe integer milliseconds.');
 }
 function validateEvidence(evidence: ConnectorEvidence) {
   check(plain(evidence) && exactKeys(evidence, ['id', 'scope', 'assertions', 'observedAt', 'expiresAt', 'artifact', 'notes', 'environment', 'provenance'], ['implementationDigest']) && text(evidence.id), 'INVALID_CONNECTOR_EVIDENCE', 'Evidence must be an explicit bounded record.');
-  internalCheck(evidence.implementationDigest === undefined || (typeof evidence.implementationDigest === 'string' && /^[a-f0-9]{64}$/.test(evidence.implementationDigest)), 'INVALID_CONNECTOR_EVIDENCE', 'Evidence implementation bindings must be SHA-256 digests.');
+  internalCheck(evidence.implementationDigest === undefined || (typeof evidence.implementationDigest === 'string' && DIGEST_PATTERN.test(evidence.implementationDigest)), 'INVALID_CONNECTOR_EVIDENCE', 'Evidence implementation bindings must be SHA-256 digests.');
   validateScope(evidence.scope);
   check(uniqueStrings(evidence.assertions, assertions) && evidence.assertions.length > 0 && uniqueStrings(evidence.notes), 'INVALID_CONNECTOR_EVIDENCE', 'Evidence assertions and notes must be unique and supported.');
   check(timestamp(evidence.expiresAt) > timestamp(evidence.observedAt), 'INVALID_CONNECTOR_EVIDENCE', 'Evidence must have a positive validity interval.');
-  internalCheck(plain(evidence.artifact) && exactKeys(evidence.artifact, ['sha256', 'reference']) && /^[a-f0-9]{64}$/.test(evidence.artifact.sha256) && text(evidence.artifact.reference), 'INVALID_CONNECTOR_EVIDENCE', 'Evidence needs an artifact digest and permitted reference.');
+  internalCheck(plain(evidence.artifact) && exactKeys(evidence.artifact, ['sha256', 'reference']) && DIGEST_PATTERN.test(evidence.artifact.sha256) && text(evidence.artifact.reference), 'INVALID_CONNECTOR_EVIDENCE', 'Evidence needs an artifact digest and permitted reference.');
   check(plain(evidence.provenance), 'INVALID_CONNECTOR_EVIDENCE', 'Evidence provenance is required.');
   if (evidence.environment === 'synthetic') {
     internalCheck(exactKeys(evidence.provenance, ['kind', 'generatorVersion']) && evidence.provenance.kind === 'synthetic-fixture' && text(evidence.provenance.generatorVersion), 'INVALID_CONNECTOR_EVIDENCE', 'Synthetic evidence must identify its fixture generator.');
@@ -270,7 +271,7 @@ export class ConnectorCapabilityRegistry {
   }
   /** Prevents unchanged operation keys from reusing evidence after implementation drift. */
   assertDefinition(scope: ConnectorOperationScope, implementationDigest: string, at: string, minimum: QualifiedLevel = 'synthetic-tested'): ConnectorQualification {
-    internalCheck(typeof implementationDigest === 'string' && /^[a-f0-9]{64}$/.test(implementationDigest), 'INVALID_IMPLEMENTATION_DIGEST', 'Supply the exact SHA-256 implementation digest.');
+    internalCheck(typeof implementationDigest === 'string' && DIGEST_PATTERN.test(implementationDigest), 'INVALID_IMPLEMENTATION_DIGEST', 'Supply the exact SHA-256 implementation digest.');
     const entry = this.#operations.get(connectorOperationKey(scope));
     check(entry?.implementationDigest === implementationDigest, 'CONNECTOR_DEFINITION_UNQUALIFIED', 'This exact implementation lacks a matching pinned qualification definition.');
     return this.assertCanUse(scope, at, minimum);

@@ -1,0 +1,34 @@
+name: Shared helpers validation
+on:
+  push:
+    branches: ['b2c/os-helpers-check-*']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run typecheck:ui
+        if: '!cancelled()'
+      - run: node scripts/check.mjs
+        if: '!cancelled()'
+      - run: node --test platform/tests/shared-helpers-d11.test.ts platform/tests/owner-format-money.test.ts platform/tests/venture-model-cache-cost-d2.test.ts
+        if: '!cancelled()'
+      - run: node node_modules/vitest/vitest.mjs run --config app/ui/vitest.config.ts app/ui/tests/source-rules.test.ts app/ui/tests/shell/status-line-d4.test.tsx app/ui/tests/engine --maxWorkers=1 --reporter=default --reporter=json --outputFile.json=${{ runner.temp }}/helpers-ui.json
+        if: '!cancelled()'
+      - run: npm run build:ui
+        if: '!cancelled()'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: helpers-ui
+          path: ${{ runner.temp }}/helpers-ui.json

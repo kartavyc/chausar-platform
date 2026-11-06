@@ -1,8 +1,9 @@
+import { sha256Hex } from '../../../hash.ts';
 // Original local audio evidence and delivery. Owner listening is distinct from recognizer similarity.
-import {createHash} from 'node:crypto';import {authorize,check,type Context} from '../../../contracts.ts';import type {VentureDeps} from '../../contracts.ts';import {ventureAction,listRecords,digest} from '../../records.ts';
+import {authorize,check,type Context} from '../../../contracts.ts';import type {VentureDeps} from '../../contracts.ts';import {ventureAction,listRecords,digest} from '../../records.ts';
 import {currentDubAudio as bytesOf} from './dub-audio.ts';
 import {currentDub,dubJobView,replaceDub} from './dub-runtime.ts';import {finishDubSentence} from './dub-core.ts';import {dubAudioEnergy,renderDubTrack} from './dub-media.ts';import {requireTranslationClientRule} from './rules.ts';import {inspectNarrationAudio} from '../narration-studio/media.ts';
-const sha=(bytes:Buffer)=>createHash('sha256').update(bytes).digest('hex');
+const sha=(bytes:Buffer)=>sha256Hex(bytes);
 
 /** Playback returns only the current consent-bound saved bytes, with a verified content digest. */
 export function playDub(deps:VentureDeps,ctx:Context,jobId:string,groupId:string,sentenceId:string,expected:unknown){const live=currentDub(deps,ctx,jobId,groupId);check(expected===dubJobView(live.job).digest,'APPROVAL_STALE','Review the current dub group.');const {row,bytes}=bytesOf(live,sentenceId);return {name:`dub-${row.id}.mp3`,mime:'audio/mpeg',contentBase64:bytes.toString('base64'),digest:row.audioDigest};}

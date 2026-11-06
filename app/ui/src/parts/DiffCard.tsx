@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type MouseEvent } from 'react';
 import { useT } from '../text';
 import type { DeptId } from './Avatar';
@@ -43,7 +44,7 @@ export interface DiffCardProps {
   offered?: string | undefined;
 }
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * A "from now on" request, turned into a proposed change to an agent's instructions (spec 5.2; D's `.prop`,

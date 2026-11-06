@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 /**
  * W6 6F1 (D30): what an outside MCP tool may do without the owner, decided by Chausar and never by the server.
  *
@@ -7,7 +8,7 @@
  * - Every other call is bound to a digest of its exact arguments before the owner sees the card.
  * - Large tool sets sit behind a search: the AI sees a count and searches by words instead of reading every schema.
  */
-import { createHash } from 'node:crypto';
+
 import { canonical } from '../../portable.ts';
 import type { ExternalMcpServer } from './external-config.ts';
 import type { ExternalTool } from './external-client.ts';
@@ -66,14 +67,14 @@ function propertiesOf(tool: Pick<ExternalTool, 'inputSchema'>): string[] {
 /** True only when this exact server, tool name, description and field list are on Chausar's checked list. */
 export function isCheckedReadOnly(server: ExternalMcpServer, tool: ExternalTool, list: readonly CheckedEntry[] = CHECKED_READ_ONLY): boolean {
   const fields = canonical(propertiesOf(tool));
-  const text = tool.description ?? '', sha = createHash('sha256').update(text, 'utf8').digest('hex');
+  const text = tool.description ?? '', sha = sha256Hex(text);
   return list.some(entry => serverMatches(entry.server, server) && entry.tools.some(item =>
     item.tool === tool.name && ('description' in item ? item.description === text : item.descriptionSha256 === sha) && canonical([...item.properties].sort()) === fields));
 }
 
 /** sha256 of the canonical JSON of the exact arguments. The approval card and the dispatch both carry it. */
 export function argumentsDigest(input: unknown): string {
-  return createHash('sha256').update(canonical(input)).digest('hex');
+  return sha256Hex(canonical(input));
 }
 
 /** Above this many tools, a listing without search words returns only the count. */

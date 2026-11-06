@@ -1,9 +1,10 @@
+import { sha256Hex } from './hash.ts';
 import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import { lstat, readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHash } from 'node:crypto';
+
 import { ChausarError, check, hash, newId, now } from './contracts.ts';
 import { runtimeFile } from './engine-paths.ts';
 
@@ -46,7 +47,7 @@ export class AnalyticalHelper {
     try { const file = await lstat(executable); check(file.isFile() && !file.isSymbolicLink(),'PYTHON_UNAVAILABLE','The configured helper executable must be a regular trusted file.'); }
     catch { throw new ChausarError('PYTHON_UNAVAILABLE','The configured trusted Python executable is unavailable.'); }
     const payload = JSON.stringify({ operation,input }); check(Buffer.byteLength(payload) <= this.options.maxInputBytes,'HELPER_INPUT_LIMIT','The helper request exceeds its transfer budget.');
-    const implementationHash = createHash('sha256').update(await readFile(FILE)).digest('hex');
+    const implementationHash = sha256Hex(await readFile(FILE));
     const startedAt = now(); const directory = await mkdtemp(join(tmpdir(),'chausar-helper-'));
     try {
       const output: any = await new Promise((accept,reject) => {

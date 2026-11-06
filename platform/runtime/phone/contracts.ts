@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
 /** Portable companion protocol. No desktop, database, framework, or Node imports. */
 export const PHONE_PROTOCOL_VERSION = 1 as const;
 export type PhoneChannel = 'ios' | 'android' | 'web' | 'whatsapp' | 'email';
@@ -93,7 +94,7 @@ export function requirePhone(condition: unknown, code: PhoneErrorCode): asserts 
 export const sameBinding = (a: DeviceBinding, b: DeviceBinding) => a.workspaceId === b.workspaceId && a.memberId === b.memberId && a.deviceId === b.deviceId && a.epoch === b.epoch;
 export const isId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
 export const isOperationVersion = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(value);
-export const isApprovalToken = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+export const isApprovalToken = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 export function validBinding(binding: DeviceBinding): boolean { return !!binding && isId(binding.workspaceId) && isId(binding.memberId) && isId(binding.deviceId) && Number.isSafeInteger(binding.epoch) && binding.epoch > 0; }
 export function validAuthority(authority: SessionAuthority, time: number): boolean {
   return !!authority && validBinding(authority.binding) && isId(authority.sessionId) && Number.isFinite(Date.parse(authority.expiresAt)) && Date.parse(authority.expiresAt) > time && Number.isFinite(Date.parse(authority.validatedAt)) && Date.parse(authority.validatedAt) <= time && Array.isArray(authority.capabilities) && authority.capabilities.every(c => ['brief.read', 'chat', 'upload', 'approval.simple'].includes(c));

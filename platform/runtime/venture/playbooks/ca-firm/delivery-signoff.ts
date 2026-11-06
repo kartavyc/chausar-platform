@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../../shared/digest.ts';
 // AI-native CA firm: a delivery run for a regulated offer asks the CA of record to sign off its papers. delivery/runs.ts
 // calls requestSignoffForRun after a run reaches 'ready-for-review', and again after the owner edits it (the edit is new
 // papers); naming a CA of record sweeps ready papers that have no request (sweepSignoffRequests); and a held draft row
@@ -60,7 +61,7 @@ export async function requestSignoffForRun(deps: VentureDeps, ctx: Context, run:
     if (!receiptIds.length) return null;
     const request = await requestCaSignoff(deps, ctx, {
       subjectKind: papers.subjectKind, title, clientName, workingDigest: papersDigest(stored),
-      receiptIds, playbookHash: /^[a-f0-9]{64}$/.test(stored.playbookHash) ? stored.playbookHash : null, deliveryId: stored.id,
+      receiptIds, playbookHash: DIGEST_PATTERN.test(stored.playbookHash) ? stored.playbookHash : null, deliveryId: stored.id,
     });
     return request.id;
   } catch {

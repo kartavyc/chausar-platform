@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { authorize, audit, check, hash, newId, now, type Context, type Fact, type StateStore } from './contracts.ts';
 import { canSeeFact, currentAccess, selectFacts, validDate, validatePeriod, type FactFilter, type Period } from './memory.ts';
 import { OntologyService, type Definition } from './ontology.ts';
@@ -54,7 +55,7 @@ export class CalculatorService {
       const value = options.restatement;
       check(value.version === 1 && value.interpretation === 'restated-private-diagnostic'
         && Object.keys(value).sort().join(',') === 'candidateStateDigest,forkDigest,interpretation,originalAnswerId,originalReceiptId,publicationId,trialId,version'
-        && [value.forkDigest, value.candidateStateDigest].every(pin => /^[a-f0-9]{64}$/.test(pin))
+        && [value.forkDigest, value.candidateStateDigest].every(pin => DIGEST_PATTERN.test(pin))
         && [value.trialId, value.publicationId, value.originalAnswerId, value.originalReceiptId].every(id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,160}$/.test(id)),
       'RESTATEMENT_CONTEXT_REQUIRED', 'Restated receipts need the exact issued fork, version and original receipt context.');
       this.restatement = structuredClone(value);

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState } from 'react';
 import { useT, type T } from '../../text';
 import { useDay, useMoment } from '../../parts/when';
@@ -8,7 +9,7 @@ import type { DeliveryLite, ShareAnswer, ShareLink } from '../../engine/types';
 import s from './Work.module.css';
 
 const never = () => false;
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /** When a link stops working, as '28 Oct' in the owner's zone (B2). */
 function useUntil(): (iso: string) => string {

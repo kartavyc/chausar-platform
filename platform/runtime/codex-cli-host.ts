@@ -1,3 +1,5 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
 import { createHash } from 'node:crypto';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
@@ -36,9 +38,9 @@ const ARTIFACT_NAMES = {
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
-function digest(value: unknown): value is string { return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value); }
+function digest(value: unknown): value is string { return typeof value === 'string' && DIGEST_PATTERN.test(value); }
 function timestamp(value: unknown): value is string { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
-function sha256(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex'); }
+function sha256(bytes: Uint8Array): string { return sha256Hex(bytes); }
 function invalid(message: string): never { throw new ChausarError('CLI_HOST_EVIDENCE_INVALID', message); }
 
 /** Reads regular files with a hard byte bound, without running any executable. */

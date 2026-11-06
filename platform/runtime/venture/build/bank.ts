@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher: the read-only bank connector shape (package P2-connectors).
 // No bank provider is wired in this build (in India it would be an RBI account aggregator), so the card says planned.
 // What is real: importing a statement file into exact minor units, a stable id per transaction so a re-import never
@@ -8,7 +9,7 @@
 // and (Ink v2 wave 2, 2D) pairing transfers between the owner's own accounts (findOwnTransfers) and whole-word search for
 // an invoice number. These are rewrites in TypeScript on BigInt minor units, not copies.
 import { formatDayRange, formatMoney } from '../../owner-format.ts';
-import { createHash } from 'node:crypto';
+
 import { check, type Context } from '../../contracts.ts';
 import { decimalMinor } from '../../currency.ts';
 import type { CountryProfile, DateOrder, IsoDate, IsoTime, MinorString } from '../contracts.ts';
@@ -127,7 +128,7 @@ export function emptyLedger(accountLabel: string, currency: string): BankLedger 
 }
 
 function hash16(fields: (string | null)[]): string {
-  return createHash('sha256').update(fields.map(f => f ?? '').join('\u001f')).digest('hex').slice(0, 16);
+  return sha256Hex(fields.map(f => f ?? '').join('\u001f')).slice(0, 16);
 }
 
 /** The bank's reference when there is one, else a hash of the fields that identify the row. */

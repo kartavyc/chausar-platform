@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
@@ -11,7 +12,7 @@ import { Select } from '../../parts/Select';
 import s from './Team.module.css';
 
 const DEPT_KEY: Readonly<Record<string, string>> = { sales: 'dept.sales', marketing: 'dept.mkt', production: 'dept.prod', money: 'dept.money', operations: 'dept.ops' };
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * Team > Hire one more agent (C7 task 16; REPORT row 56): the sentence, then one step at a time, each showing only its own

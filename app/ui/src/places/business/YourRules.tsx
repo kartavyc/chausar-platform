@@ -1,9 +1,10 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import type { LockedRuleLite, RuleLocksLite, VentureRunEvent } from '../../engine/types';
 import { onDesktop, safeUrl } from '../connections/external';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import s from './Business.module.css';
 import r from './RulesSection.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';

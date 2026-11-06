@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
 import { ActionService, canonical, current, digest, sourceAccess } from '../actions.ts';
 import type { ActionResult, Connector, PreparedAction, Readback } from '../actions.ts';
 import { check } from '../contracts.ts';
@@ -136,7 +137,7 @@ function businessObject(value: unknown): asserts value is WriteObject {
 }
 function evidence(value: unknown): asserts value is WriteEvidence {
   exactKeys(value, ['reference', 'sha256'], 'INVALID_WRITE_EVIDENCE');
-  check(text(value.reference) && typeof value.sha256 === 'string' && /^[a-f0-9]{64}$/.test(value.sha256), 'INVALID_WRITE_EVIDENCE', 'Source observations require an evidence reference and SHA-256.');
+  check(text(value.reference) && typeof value.sha256 === 'string' && DIGEST_PATTERN.test(value.sha256), 'INVALID_WRITE_EVIDENCE', 'Source observations require an evidence reference and SHA-256.');
 }
 function boundedRecord<T>(value: T): T {
   const wire = canonical(value);
@@ -227,7 +228,7 @@ export class QualifiedSyntheticWriteService<P extends WriteObject> {
     const payload = this.#definition.validatePayload(value.payload); businessObject(payload);
     check(canonical(payload) === canonical(value.payload), 'INVALID_WRITE_PAYLOAD', 'Validated write meaning must match the exact reviewed parameters.');
     this.#validatePreparation(value.preparation);
-    check(typeof value.qualificationDigest === 'string' && /^[a-f0-9]{64}$/.test(value.qualificationDigest) && typeof value.authorizationDigest === 'string' && /^[a-f0-9]{64}$/.test(value.authorizationDigest), 'WRITE_BINDING_CHANGED', 'Preparation requires exact qualification and authorization bindings.');
+    check(typeof value.qualificationDigest === 'string' && DIGEST_PATTERN.test(value.qualificationDigest) && typeof value.authorizationDigest === 'string' && DIGEST_PATTERN.test(value.authorizationDigest), 'WRITE_BINDING_CHANGED', 'Preparation requires exact qualification and authorization bindings.');
     return boundedRecord(value) as WriteEnvelope<P>;
   }
   #revalidate(envelope: WriteEnvelope<P>, state: State, context: Context, mode: 'read' | 'write') {

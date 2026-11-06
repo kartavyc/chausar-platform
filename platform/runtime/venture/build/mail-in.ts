@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar connectors: mail in (Ink v2 wave 5, package 5A6). No second mailbox reader is built: playbooks read the
 // owner's read-only mailbox through 4E3 (network/mailbox.ts, venture.mailbox.*, labelled read), and an owner without
 // one forwards the mails or exports them as .eml or .mbox files and imports them here (venture.mail.import, approve,
@@ -12,7 +13,7 @@
 // Message-ID, In-Reply-To and References across both sources, and a thread's client is the client whose address wrote
 // in it. Forget (network/forget.ts) deletes an imported message like any other inbound mail, its words and files too.
 // Written for Chausar; the mbox reading follows the mboxrd convention (">From " lines), nothing copied.
-import { createHash } from 'node:crypto';
+
 import { ingestSupportMail } from '../playbooks/support-desk/ingest.ts';
 import { check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type { InboundRecord, UploadFormat, VentureDeps, VentureRecord } from '../contracts.ts';
@@ -46,7 +47,7 @@ export const MAIL_WORDS = Object.freeze({
  */
 export const MAIL_DESKS: Readonly<Record<string, string>> = Object.freeze({ 'support-desk': 'ticket', 'recruiting-desk': 'resume', 'virtual-assistant': 'inbox' });
 
-const sha = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
+const sha = (value: string | Buffer) => sha256Hex(value);
 const megabytes = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 // ---------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * W6 6G4 (D44): what Chausar remembers about the business or one client, as dated facts (venture.memory.*). Each current
  * fact shows its topic, its words (quoted: the owner's, or an AI's labelled "From AI"), since when it is true, where it
@@ -13,7 +14,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { FactView, FactVisibility } from '../../engine/types';
 import { useDay, useLocalToday } from '../money/words';
-import { CrmFold, messageOf } from './CrmParts';
+import { CrmFold } from './CrmParts';
 import s from './Crm.module.css';
 import { Select } from '../../parts/Select';
 

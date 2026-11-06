@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../../shared/digest.ts';
 // Original version-bound client briefs. Shared by the native desk and browser simulation.
 import {check,digest} from '../../../portable.ts';
 import {validDate} from '../../../date-core.ts';
@@ -12,7 +13,7 @@ export function roomBrief(input:RoomInput,previous:RoomBrief|null):RoomBrief{
  check(input.via==='owner-recorded'||input.via==='client-page','INVALID_VENTURE_REQUEST','Record where this request came from.');
  check(input.fields&&bounded(input.fields.scope,4000)&&bounded(input.fields.deliverable,4000)&&typeof input.fields.deadline==='string'&&validDate(input.fields.deadline),'INVALID_VENTURE_REQUEST','Complete the scope, deliverable and a real deadline.');
  const p=input.price;
- check(p&&bounded(p.offerId,120)&&typeof p.minor==='string'&&/^\d{1,18}$/.test(p.minor)&&/^[A-Z]{3}$/.test(p.currency)&&bounded(p.receiptId,120)&&/^[a-f0-9]{64}$/.test(p.priceDigest)&&bounded(p.display,100),'INVALID_VENTURE_REQUEST','Use the owner price and its code receipt.');
+ check(p&&bounded(p.offerId,120)&&typeof p.minor==='string'&&/^\d{1,18}$/.test(p.minor)&&/^[A-Z]{3}$/.test(p.currency)&&bounded(p.receiptId,120)&&DIGEST_PATTERN.test(p.priceDigest)&&bounded(p.display,100),'INVALID_VENTURE_REQUEST','Use the owner price and its code receipt.');
  if(previous)check(previous.orderId===input.orderId&&previous.clientId===input.clientId,'APPROVAL_STALE','The order or client changed. Start a new room brief.');
  const version=(previous?.version??0)+1;
  const kept={orderId:input.orderId,clientId:input.clientId,request:input.request,via:input.via,fields:{scope:input.fields.scope,deliverable:input.fields.deliverable,deadline:input.fields.deadline},price:{...p},version};

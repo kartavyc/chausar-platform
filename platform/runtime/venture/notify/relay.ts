@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher, notify (Ink v2 wave 4, package 4G3; spec 5.7, catalogue O13): the phone relay from the
 // desktop. The desktop has no web address a phone could subscribe to, so the owner may set one https address of their
 // own (an ntfy topic or similar) inside the app; each alert outside the app then posts {"count":N} to it and nothing
@@ -7,7 +8,7 @@
 // use the host alone too. A post that may not have arrived settles as not sent, saying the next alert carries the
 // current count, and is tried once more at most, as a new entry, as is a server error; a refusal is not. The hosted
 // app has web push, so a relay there says so.
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { ChausarError, check, type Context } from '../../contracts.ts';
 import { currentVenture, exactPayload, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { checkUrl, guardedFetch } from '../core/net-guard.ts';
@@ -71,7 +72,7 @@ function worthRetry(post: Post): boolean {
 const BEFORE_SENDING: ReadonlySet<string> = new Set(['NET_URL_REFUSED', 'NET_ADDRESS_REFUSED', 'NET_LOOKUP_FAILED']);
 const STANDING_LINE = 'A relay is set in Notifications: the count alone goes to it.';
 const TIMED_OUT = Symbol('timed-out');
-const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+const sha256 = (text: string) => sha256Hex(text);
 /** How one post ended. wentOut: the post may have reached the relay. halted: the journal refused it. */
 type Post = { took: boolean; status: number | null; code: string; wentOut: boolean; halted: boolean };
 

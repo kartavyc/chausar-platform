@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The notes sheet after a call (`?sheet=call-notes:<event id>`; the engine's 4E3 venture.meeting.digest): the owner
  * pastes or types their notes, and the engine reads them for the people named, intros promised by either side and next
@@ -16,7 +17,7 @@ import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
 import type { ChatConsentView, ProposalView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { codeOf, messageOf } from '../clients/network';
+import { codeOf } from '../clients/network';
 import s from './OutreachRows.module.css';
 
 type Digest = Awaited<ReturnType<typeof digestOf>>;

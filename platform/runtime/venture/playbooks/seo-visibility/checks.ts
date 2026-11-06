@@ -1,5 +1,6 @@
+import { sha256Hex } from '../../../hash.ts';
 // Chausar SEO checks. GEOHub (AGPL, ideas only) and seo-agent (MIT); rebuilt independently.
-import { createHash } from 'node:crypto';
+
 import {seoArticleText} from './article-text.ts';
 import { lintArticle } from './lint.ts';
 import type { KitCheck } from '../kit/define.ts';
@@ -49,7 +50,7 @@ const isArticle=(input:Parameters<KitCheck>[0])=>(input.offerKey==='content-reta
 export const seoClaimChecks:KitCheck=input=>{
  if(!isArticle(input))return [{playbook:'seo-visibility',check:'claims-corroborated',outcome:'not-run',detail:'This stage is not an article.'}];
  let words:string;try{words=seoArticleText(input);}catch(error){return [{playbook:'seo-visibility',check:'claims-corroborated',outcome:'fail',detail:(error as Error).message}];}
- const hash=createHash('sha256').update(words).digest('hex'),lint=lintArticle({text:words,local:null});
+ const hash=sha256Hex(words),lint=lintArticle({text:words,local:null});
  const noNumbers=!/\d/.test(words.replace(/\[claim:[^\]]+\]/g,''));
  const verified=input.toolCalls?.some(call=>{if(call.tool!=='seo.corroborate'||!call.envelope.ok)return false;const result=call.envelope.result as any;return result?.data?.artifactDigest===hash&&result?.data?.pass===true;});
  return [{playbook:'seo-visibility',check:'claims-corroborated',outcome:lint.pass&&(noNumbers||verified)?'pass':'fail',detail:lint.pass&&(noNumbers||verified)?'The exact article has the required source evidence.':'Check this exact article: each number needs its marker and two independent sources; rewrite blocked stock phrases.'}];
@@ -58,7 +59,7 @@ export const seoClaimChecks:KitCheck=input=>{
 export const seoLocalChecks:KitCheck=input=>{
  if(!isArticle(input)||input.offerKey!=='local-seo')return [{playbook:'seo-visibility',check:'local-not-doorway',outcome:'not-run',detail:'This is not a local landing page.'}];
  let words:string;try{words=seoArticleText(input);}catch(error){return [{playbook:'seo-visibility',check:'local-not-doorway',outcome:'fail',detail:(error as Error).message}];}
- const hash=createHash('sha256').update(words).digest('hex');const good=input.toolCalls?.some(call=>{if(call.tool!=='seo.lint'||!call.envelope.ok)return false;const data=(call.envelope.result as any)?.data;return data?.artifactDigest===hash&&data?.checks?.some((c:any)=>c.id==='doorway-page'&&c.pass===true);});
+ const hash=sha256Hex(words);const good=input.toolCalls?.some(call=>{if(call.tool!=='seo.lint'||!call.envelope.ok)return false;const data=(call.envelope.result as any)?.data;return data?.artifactDigest===hash&&data?.checks?.some((c:any)=>c.id==='doorway-page'&&c.pass===true);});
  return [{playbook:'seo-visibility',check:'local-not-doorway',outcome:good?'pass':'fail',detail:good?'The local page includes all four recorded evidence elements.':'Check the exact local page and include all four local elements.'}];
 };
 /** Report prose cannot turn unreceipted measured figures into evidence. */

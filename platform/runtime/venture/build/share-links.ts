@@ -1,3 +1,5 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
+import { sha256Hex } from '../../hash.ts';
 import {careerLinkCurrent} from '../playbooks/job-search-desk/share-current.ts';
 // Chausar venture launcher: read-only preview links for a client. venture.share.create, venture.share.list and
 // venture.share.revoke, plus the two trusted entry points the hosted web server's /share/<token> page uses
@@ -21,7 +23,7 @@ import {careerLinkCurrent} from '../playbooks/job-search-desk/share-current.ts';
 //   account, screened as untrusted words. Three more kinds, read only and revocable like every link: 'order-status' (a
 //   live order's steps, page only), 'statement' ("What you owe us", money/statement.ts, its receipts sealed when the link
 //   is made, its view the invoices' Viewed line) and 'books' (one month's invoices and payments for the accountant).
-import { createHash } from 'node:crypto';
+
 import {roomLinkCurrent,roomClientText,appendRoomRequest} from '../playbooks/kit/client-room-state.ts';
 import { ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
@@ -69,7 +71,7 @@ export const SHARE_COMMENT_CHARS = 1000;
 const SHARABLE = new Set(['ready-for-review', 'accepted', 'edited']);
 const NO_CLIENT = 'no-client';
 
-const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+const sha256 = (value: string) => sha256Hex(value);
 /** The address part of a share link: 24 random bytes, base64url. */
 export const SHARE_TOKEN = /^[A-Za-z0-9_-]{32}$/;
 export const shareTokenHash = (token: string) => sha256(token);
@@ -484,7 +486,7 @@ export async function sharePage(deps: VentureDeps, ctx: Context, token: unknown,
  */
 export async function shareDecide(deps: VentureDeps, ctx: Context, token: unknown, input: { decision: unknown; comment?: unknown; digest: unknown }): Promise<SharePage | null> {
   check(input.decision === 'approved' || input.decision === 'changes', 'INVALID_VENTURE_REQUEST', 'Choose approve or ask for changes.');
-  internalCheck(typeof input.digest === 'string' && /^[a-f0-9]{64}$/.test(input.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the draft you read.');
+  internalCheck(typeof input.digest === 'string' && DIGEST_PATTERN.test(input.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the draft you read.');
   check(input.comment === undefined || input.comment === null || (typeof input.comment === 'string' && input.comment.length <= SHARE_COMMENT_CHARS), 'INVALID_VENTURE_REQUEST', `Write a comment of at most ${SHARE_COMMENT_CHARS} characters.`);
   const said = typeof input.comment === 'string' && input.comment.trim() ? screenedClientWords(input.comment) : null;
   return ventureAction(deps, ctx, 'prepare', 'share.decide', tx => {

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Business > Settled chats (#/business/chats), wave 6 package 6G1 (D42: the archive lives in Settings). The owner picks
  * how many quiet days before a chat settles on its own (Never is 0), and sees each settled chat with why it settled: by
@@ -11,7 +12,7 @@ import { useDay } from '../../parts/when';
 import { useEngine, useResource } from '../../engine/context';
 import type { ChiefThreadStateInput, ChiefThreadSummary, VentureRunEvent } from '../../engine/types';
 import { Button } from '../../parts/Button';
-import { TileSection, messageOf } from '../business/shared';
+import { TileSection } from '../business/shared';
 import { ChangeNotice } from './ChangeNotice';
 import s from './Chats.module.css';
 import { Select } from '../../parts/Select';

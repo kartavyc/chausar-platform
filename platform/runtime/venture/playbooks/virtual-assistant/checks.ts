@@ -1,8 +1,9 @@
+import { DIGEST_PATTERN } from '../../../../shared/digest.ts';
 // Original code checks. A fluent draft cannot stand in for the saved owner approval.
 import type {KitBaselineCase} from '../kit/define.ts';
 import {roomBrief,approveRoomBrief,type RoomBrief} from '../kit/client-room-core.ts';
 import {paymentFieldAllowed} from './payment.ts';
-export function vaReportSourcesValid(lines:readonly {text:string;source:{kind:string;id:string;digest:string}}[],sources:ReadonlyMap<string,string>){return lines.every(line=>typeof line.text==='string'&&['mail','monitor','today'].includes(line.source?.kind)&&/^[a-f0-9]{64}$/.test(line.source.digest)&&sources.get(line.source.kind+':'+line.source.id)===line.source.digest);}
+export function vaReportSourcesValid(lines:readonly {text:string;source:{kind:string;id:string;digest:string}}[],sources:ReadonlyMap<string,string>){return lines.every(line=>typeof line.text==='string'&&['mail','monitor','today'].includes(line.source?.kind)&&DIGEST_PATTERN.test(line.source.digest)&&sources.get(line.source.kind+':'+line.source.id)===line.source.digest);}
 export {roomApproved,vaBriefCheck} from './brief-check.ts';
 export function scoreVaBaseline(item:KitBaselineCase,draft:string,meta:Readonly<Record<string,string>>){
  try{

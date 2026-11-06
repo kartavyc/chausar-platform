@@ -1,9 +1,10 @@
+import { DIGEST_PATTERN } from '../../../../shared/digest.ts';
 // Original R2 mapping and sensitive-action gate. Qwen-CUA/JobOS (Apache-2.0) informed the boundary; no upstream code copied.
 import {check} from '../../../portable.ts';
 import type {FormTarget,FormMappedValue} from './types.ts';
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const id=(v:unknown):v is string=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(v);
-const hash=(v:unknown):v is string=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
+const hash=(v:unknown):v is string=>typeof v==='string'&&DIGEST_PATTERN.test(v);
 function need(ok:unknown):asserts ok{check(ok,'FORM_MAPPING_INVALID','Use unique source columns and current visible form fields.');}
 
 /** A hold is never an authorization. Only the journalled exact owner decision may release a submit. */

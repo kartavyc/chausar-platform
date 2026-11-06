@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -12,7 +13,7 @@ import r from './AgentRetire.module.css';
 
 const never = () => false;
 const OWNER = 'owner';
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * The check before an agent retires (W6 6G2, D43), in the agent panel: what it holds (its steps, standing orders, notes

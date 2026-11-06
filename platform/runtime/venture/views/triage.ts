@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Chausar venture launcher, views (Ink v2 wave 4, package 4J2; catalogue O18): the owner's triage rule orders Today
 // (venture.triage.preview and venture.triage.set). The owner writes how they want Today ordered ("clients with a
 // deadline first"); their own AI maps the words to a typed rule over fixed fields only (due, client, kind, money,
@@ -200,7 +201,7 @@ export async function triageSetHandler(deps: VentureDeps, ctx: Context, payload:
   requireAppChannel(ctx, 'venture.triage.set');
   const body = exactPayload(payload, ['rule', 'digest'], ['rule', 'digest']);
   const rule = validateRule(body.rule, null);
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the dry run you saw.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the dry run you saw.');
   return ventureAction(deps, ctx, 'approve', 'triage.set', tx => {
     check(ruleInForceDigest(tx.state, tx.venture!) === body.digest, 'APPROVAL_STALE', 'Your order changed on another screen. Look at the dry run again.');
     tx.put<TriageRuleRecord>({ ...tx.base('venture-triage-rule'), rule, digest: digest({ rule }), by: ctx.memberId });

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Invoices (D-Money `.invs`, `.itile`, `.itab`): one table of every invoice, drafts to check and issue first, then the
  * open ones waiting for payment, then the closed ones; and under it the orders not invoiced yet. Each row shows the
@@ -35,7 +36,7 @@ import type { InvoiceLite, OrderLite } from '../../engine/types';
 import { keepDraft } from '../clients/handoff';
 import { EngineWords, Failed, Section } from './parts';
 import { Recurring } from './Recurring';
-import { invoiceChip, messageOf, onMoney, useDay } from './words';
+import { invoiceChip, onMoney, useDay } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 

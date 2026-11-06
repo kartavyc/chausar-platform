@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -14,7 +15,7 @@ import { EMPTY_INTAKE, intakeParams, intakeReady, type IntakeDraft } from './int
 import { IntakeFields } from './IntakeFields';
 import { KitIntakeFields } from './KitIntakeFields';
 import { kitIntakeFiles, kitIntakeParams, kitIntakeReady, type KitAnswers } from './kit-intake';
-import { messageOf } from './PreviousRuns';
+
 import { clearPrefill, peekPrefill, prefillOrder } from './prefill';
 import { workChanged } from './refresh';
 import s from './Work.module.css';

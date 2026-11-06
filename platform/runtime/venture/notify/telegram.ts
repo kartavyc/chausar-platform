@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Wave 6 package 6F6 (D35): phone alerts through the owner's own Telegram bot, from the desktop app. The owner makes a
 // bot with BotFather and gives Chausar its token and their chat id inside the app; both go to the computer's protected
 // key storage (the host's credential port, name alerts:telegram) and never into the business file, which keeps only
@@ -7,7 +8,7 @@
 // Each send is its own action journal entry under the owner's standing setting (action notify.relay, target
 // api.telegram.org), holding the count and the outcome, never the token or chat id; a send that may not have arrived
 // or met a server error is tried once more as a new entry, a refusal is not. The hosted app does not talk to Telegram.
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { ChausarError, authorize, check, type Context, type State } from '../../contracts.ts';
 import { currentVenture, exactPayload, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { guardedFetch } from '../core/net-guard.ts';
@@ -34,7 +35,7 @@ const WORDS = Object.freeze({
 });
 
 type Saved = { token: string; chatId: string };
-const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+const sha256 = (text: string) => sha256Hex(text);
 const TIMED_OUT = Symbol('timed-out');
 
 /** The alert text: the count alone, then one line per title when the owner chose details. Never a link. */

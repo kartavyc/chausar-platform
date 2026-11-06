@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Business > Notifications, on this computer (wave 6, 6F6 and 6F7; D35). C4 task 39 (17.d2): one fold under "How alerts
  * reach you", "Get alerts on your phone", which opens by itself while nothing is set up, holding in this order:
@@ -15,7 +16,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { ParamsOf, PhoneAccessView, TelegramView } from '../../engine/types';
-import { messageOf } from './shared';
+
 import { ResultLine } from '../../parts/ResultLine';
 import { QrCode } from '../../parts/QrCode';
 import s from './Business.module.css';

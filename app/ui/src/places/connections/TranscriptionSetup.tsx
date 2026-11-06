@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { connectionWords } from './ConnectionWords';
@@ -9,7 +10,7 @@ import type { TranscriptionSetupView } from '../../engine/types';
 import s from './Connections.module.css';
 
 const never = () => false;
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * Transcription on this computer (Ink v2 wave 2, 2E2), a tile beside Your AI on the desktop: the full paths to the

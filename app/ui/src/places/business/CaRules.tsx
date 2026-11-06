@@ -1,10 +1,11 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import type { CaCitationsView } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 /** The CA sees the dated table and sources before confirming its exact version. */

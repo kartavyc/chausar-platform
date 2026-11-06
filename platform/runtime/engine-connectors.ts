@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { authorize, check, ChausarError, newId, type Context, type State, type StateStore, internalCheck } from './contracts.ts';
 import { digest } from './actions.ts';
 import { assertSourceAccess, sourceAllowed, trustFingerprint } from './trust.ts';
@@ -73,7 +74,7 @@ type ConsumerBinding = {
   semanticProof?: ConnectorSemanticProof;
 };
 const levels: Record<ReadEnvironment, QualifiedLevel> = { synthetic: 'synthetic-tested', sandbox: 'sandbox-verified', live: 'live-verified' };
-const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const sha = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 const id = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
 const captures = (state: State): ConnectorCapture[] => state.imports.filter(item => item.type === 'connector-capture-v1');
 const bindingFor = (state: State, captureId: string): ConsumerBinding | undefined => state.imports.find(item => item.type === 'connector-consumer-binding-v1' && item.captureId === captureId);

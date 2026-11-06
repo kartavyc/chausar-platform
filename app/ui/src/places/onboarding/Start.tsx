@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useLanguage, useT } from '../../text';
 import { useEngine } from '../../engine/context';
@@ -20,7 +21,7 @@ type Stage = { kind: 'idle' } | { kind: 'working'; step: Step } | { kind: 'code'
 /** link: where to fix it, when the engine's refusal names a place (W4 4J21: no AI connected, to Your AI). */
 type Problem = { text: string; on: 'box' | 'passphrase' | 'engine'; link?: { href: string; label: string } | undefined };
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * One box, "What do you want to start?", the country and Start. Then the plan is Today's first row. Only what the

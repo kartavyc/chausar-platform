@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -10,7 +11,7 @@ import { InlineError } from '../../parts/InlineError';
 import { stateText } from '../../parts/states';
 import { EngineError, type AgentView, type RoutineSchedule, type RoutineSuggestion, type RoutineView } from '../../engine/types';
 import { Tile, TileHead } from '../../parts/Tile';
-import { dayOf, messageOf } from './shared';
+import { dayOf } from './shared';
 import { ModelReceipt } from '../../parts/ModelReceipt';
 import { ResultLine } from '../../parts/ResultLine';
 import { EventTriggers } from './EventTriggers';

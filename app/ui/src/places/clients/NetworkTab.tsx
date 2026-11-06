@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The Network tab (#/clients/network; spec 5.5, the direction D board D-Network, modelled on Happenstance): the owner's
  * own network from their own files, searched in plain words. It opens on the search (starters that fill the box and
@@ -36,7 +37,7 @@ import { ExternalLink } from '../connections/external';
 import { clientsChanged, useClientsChanged } from './signals';
 import { NetworkSources } from './NetworkSources';
 import { NetworkDrafts } from './NetworkDrafts';
-import { codeOf, dotsOf, LinkedInButton, messageOf, networkRefresh, quoted, roleLine, usePersonForgotten, WarmPath } from './network';
+import { codeOf, dotsOf, LinkedInButton, networkRefresh, quoted, roleLine, usePersonForgotten, WarmPath } from './network';
 import s from './Network.module.css';
 import { Fold } from '../../parts/Fold';
 

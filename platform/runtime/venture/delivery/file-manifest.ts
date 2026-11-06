@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher, delivery (Ink v2 wave 4, package 4J1; catalogue J2): an approval bound to the bytes of the
 // files it covers. Accept or an edit of a draft that hands over files (the attachments, tables and receipts its run
 // made) stores a manifest: each file's id and the sha256 of its bytes, with who decided and when (deliveryReviewHandler
@@ -8,7 +9,7 @@
 // own files the run only read are not handed over, so they are not in the manifest. Nothing here is a model's.
 // The per-format manifest and the refusal on changed bytes follow JobOS state_store.py (trust in a request field as a
 // trap); a rewrite, not a copy.
-import { createHash } from 'node:crypto';
+
 import { ChausarError, type Context, type State } from '../../contracts.ts';
 import { digest, findRecord, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import type { DeliveryRunRecord, FileManifest, IsoTime, VentureDeps } from '../contracts.ts';
@@ -28,7 +29,7 @@ export function fileSha(state: State, ventureId: string, fileId: string): string
   const receipt = findRecord(state, 'venture-work-receipt', fileId);
   if (receipt && receipt.ventureId === ventureId) return digest(Object.fromEntries(Object.entries(receipt).filter(([key]) => !RECORD_BASE.has(key))));
   const upload = findRecord(state, 'venture-upload', fileId);
-  if (upload && upload.ventureId === ventureId) return createHash('sha256').update(Buffer.from(upload.contentBase64, 'base64')).digest('hex');
+  if (upload && upload.ventureId === ventureId) return sha256Hex(Buffer.from(upload.contentBase64, 'base64'));
   return null;
 }
 

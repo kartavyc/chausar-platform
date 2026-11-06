@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto';
+import { sha256Hex } from '../hash.ts';
+
 import { audit, authorize, check, internalCheck } from '../contracts.ts';
 import type { Context, StateStore } from '../contracts.ts';
 import { canonical, digest } from '../actions.ts';
@@ -32,7 +33,7 @@ export type ReadImportBridgeDependencies = Readonly<{
   importer: Pick<CursorImportService, 'decoderDescriptor' | 'open' | 'capturePage' | 'get'>;
   now?: () => string;
 }>;
-const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const sha256 = (bytes: Uint8Array) => sha256Hex(bytes);
 const cursor = (value: unknown): string | null => value === null ? null : canonical(value);
 
 /** Preserves read evidence and raw bytes; mapping review, reconciliation and fact publication remain separate. */

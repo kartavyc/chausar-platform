@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto';
+import { sha256Hex } from '../../hash.ts';
+
 import { check } from '../../contracts.ts';
 import type { ReadContinuation, ReadPageRequest, ReadTransportContext, ReadEnvironment } from '../../connector-framework/read.ts';
 import { ReadTransportError } from '../../connector-framework/read.ts';
@@ -46,7 +47,7 @@ export type AccountingReadConfig = {
   environment: ReadEnvironment; transport: AccountingTransport;
 };
 
-export const sha256 = (value: string | Uint8Array): string => createHash('sha256').update(value).digest('hex');
+export const sha256 = (value: string | Uint8Array): string => sha256Hex(value);
 export function freezeOperation(scope: ConnectorOperationScope): ConnectorOperationScope {
   const pinned = structuredClone(scope);
   Object.freeze(pinned.applicability); return Object.freeze(pinned);

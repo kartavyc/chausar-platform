@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher: staged website edits (package P2-connectors).
 // An agent or the owner stages an edit to one existing file: the current content, the new content and a plan digest
 // over both. Nothing is written until the owner applies that exact plan digest inside the app. Before writing, the live
@@ -11,7 +12,7 @@
 // gave a write grant and a writer exists. This build ships no GitHub writer, so the GitHub card's write mode is planned.
 // The stage, review by hash, apply, verify and roll back pattern follows beyondtahir/beyondseo (MIT, Copyright (c) 2026
 // Muhammad Tahir Ashraf); this is a rewrite in TypeScript, not a copy.
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { authorize, check, ChausarError, type Context, type State, internalCheck } from '../../contracts.ts';
@@ -37,7 +38,7 @@ export type GitHubWriter = {
 export type GitHubWriteGrant = { scope: 'contents:write'; grantedAt: IsoTime };
 
 export function contentDigest(text: string): string {
-  return createHash('sha256').update(text, 'utf8').digest('hex');
+  return sha256Hex(text);
 }
 
 /** A relative path with forward slashes inside the site: no parent steps, no drive or absolute path, no .git. */

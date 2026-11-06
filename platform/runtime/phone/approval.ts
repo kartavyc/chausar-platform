@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
 import { PhoneError, copyBinding, isApprovalToken, isId, isOperationVersion, requirePhone, sameBinding, validAuthority, validBinding } from './contracts.ts';
 import type { ApprovalChallenge, ApprovalDecision, ApprovalPreview, ApprovalReceipt, DeviceBinding, PhoneChannel, SessionAuthority } from './contracts.ts';
 
@@ -95,7 +96,7 @@ export const webCryptoApproval: PhoneApprovalCrypto = {
 };
 
 const hex = (bytes: Uint8Array) => [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
-const isDigest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const isDigest = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 const copyPreview = (preview: ApprovalPreview): ApprovalPreview => ({
   approvalId: preview.approvalId, actionId: preview.actionId, binding: copyBinding(preview.binding),
   actionRevision: preview.actionRevision, operationVersion: preview.operationVersion, digest: preview.digest,

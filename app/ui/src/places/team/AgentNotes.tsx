@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useOwnerCountry, useOwnerZone } from '../../shell/clock';
@@ -12,7 +13,7 @@ import c from './AgentChat.module.css';
 import { Reveal } from '../../parts/RevealBlock';
 
 const never = () => false;
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /** The note being written: a new one (noteId null) or a correction of the note as the owner opened it (basedOn). */
 type Draft = { noteId: string | null; text: string; basedOn: string | null };

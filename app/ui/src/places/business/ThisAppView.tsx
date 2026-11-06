@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -5,7 +6,7 @@ import type { MotionPreferenceLite } from '../../engine/types';
 import { applyMotionPreference } from '../../shell/motionPreference';
 import { BuildLine } from './BuildLine';
 import { LanguageSetting } from './LanguageSetting';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import s from './ThisAppView.module.css';
 
 /**

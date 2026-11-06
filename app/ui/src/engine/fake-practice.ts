@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../../platform/shared/digest.ts';
 /**
  * The fake engine's answers for practice, improvement and the judge (Ink v2 wave 2, package 2C2): rehearsals with the
  * practice clients (venture.simulation.*), the improvement loop, using a kept version and going back from it
@@ -64,7 +65,7 @@ interface Signal { run: DeliveryLite; source: keyof typeof SIGNAL_WORDS }
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
-const DIGEST = /^[a-f0-9]{64}$/;
+const DIGEST = DIGEST_PATTERN;
 const ID = /^[A-Za-z0-9_.:-]{1,200}$/;
 /** What one judge call or rehearsal may cost, as the model port writes it for an unconfirmed price. Sample text. */
 const JUDGE_COST = 'under $0.01 (estimate)';

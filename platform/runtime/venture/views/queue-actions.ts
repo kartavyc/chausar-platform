@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Chausar venture launcher, views (Ink v2 wave 4, package 4J2; catalogue O5, O6, O9): what the owner does on Today
 // beyond one button. Send back with words: a draft gets a revision turn that begins "Revise this to: ..." and waits for
 // the owner's approval (delivery/revise.ts); on a plan or price row it is a No that keeps the words on its decision.
@@ -122,7 +123,7 @@ async function answered(deps: VentureDeps, ctx: Context, subject: string, work: 
 function rowPayload(payload: unknown): { rowId: string; digest: string; text: unknown } {
   const body = exactPayload(payload, ['rowId', 'digest', 'text'], ['rowId', 'digest', 'text']);
   check(idOk(body.rowId), 'INVALID_VENTURE_REQUEST', 'Send the id of the row you decided on.');
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
   return { rowId: body.rowId, digest: body.digest, text: body.text };
 }
 
@@ -462,7 +463,7 @@ export async function queueSetHandler(deps: VentureDeps, ctx: Context, payload: 
   requireAppChannel(ctx, 'venture.queue.set');
   const body = exactPayload(payload, ['rowIds', 'digest', 'secondAsk'], ['rowIds', 'digest']);
   const ids = pickedIds(body.rowIds);
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the set you saw.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the set you saw.');
   check(body.secondAsk === undefined || body.secondAsk === true, 'INVALID_VENTURE_REQUEST', 'secondAsk is true when the owner answered the second ask.');
   authorize(deps.store, ctx, 'approve');
   const worked = await workSet(deps, ctx, ids);

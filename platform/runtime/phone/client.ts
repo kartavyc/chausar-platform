@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
 import { PhoneError, copyAuthority, copyBinding, copyBrief, isApprovalToken, isId, isOperationVersion, requirePhone, sameBinding, validAuthority, validBinding, validBrief } from './contracts.ts';
 import type { AppChannel, ApprovalChallenge, ApprovalReceipt, BriefCache, BriefView, ChatAnswer, ConnectionState, DeviceBinding, PairingState, PhoneCapability, PhoneCredentialStore, PhoneErrorCode, PhoneMethods, PhoneTransport, RemoteRequest, RequestResult, RequestState, SessionAuthority, SessionGrant, UploadMetadata, UploadReceipt } from './contracts.ts';
 
@@ -297,7 +298,7 @@ export class PhoneClient {
     catch (error) { this.unknown(requestId, revision); throw publicError(error); }
   }
   async upload(requestId: string, metadata: UploadMetadata, bytes: Uint8Array): Promise<RemoteRequest<UploadReceipt>> {
-    requirePhone(!!metadata && typeof metadata.name === 'string' && metadata.name.length > 0 && metadata.name.length <= 200 && !/[\x00-\x1f/\\]/.test(metadata.name) && ['image/jpeg', 'image/png', 'application/pdf', 'text/csv'].includes(metadata.mediaType) && bytes instanceof Uint8Array && Number.isSafeInteger(metadata.sizeBytes) && metadata.sizeBytes === bytes.byteLength && bytes.byteLength > 0 && bytes.byteLength <= 10 * 1024 * 1024 && /^[a-f0-9]{64}$/.test(metadata.sha256), 'INVALID_REQUEST');
+    requirePhone(!!metadata && typeof metadata.name === 'string' && metadata.name.length > 0 && metadata.name.length <= 200 && !/[\x00-\x1f/\\]/.test(metadata.name) && ['image/jpeg', 'image/png', 'application/pdf', 'text/csv'].includes(metadata.mediaType) && bytes instanceof Uint8Array && Number.isSafeInteger(metadata.sizeBytes) && metadata.sizeBytes === bytes.byteLength && bytes.byteLength > 0 && bytes.byteLength <= 10 * 1024 * 1024 && DIGEST_PATTERN.test(metadata.sha256), 'INVALID_REQUEST');
     requirePhone(this.connection !== 'offline', 'OFFLINE'); requirePhone(this.grant, 'UNPAIRED');
     const generation = this.generation; const content = Uint8Array.from(bytes); const file: UploadMetadata = { name: metadata.name, mediaType: metadata.mediaType, sizeBytes: metadata.sizeBytes, sha256: metadata.sha256 };
     const revision = this.reserve(requestId, 'upload');
@@ -317,7 +318,7 @@ export class PhoneClient {
   async inspectApproval(approvalId: string) {
     requirePhone(isId(approvalId), 'INVALID_REQUEST'); this.challenges.delete(approvalId); const authority = await this.fresh('approval.simple');
     const challenge = await this.call('approval.inspect', { approvalId }); const p = challenge?.preview;
-    requirePhone(!!p && p.approvalId === approvalId && isId(p.actionId) && validBinding(p.binding) && sameBinding(p.binding, authority.binding) && Number.isSafeInteger(p.actionRevision) && p.actionRevision > 0 && isOperationVersion(p.operationVersion) && /^[a-f0-9]{64}$/.test(p.digest) && typeof p.title === 'string' && p.title.length <= 200 && typeof p.summary === 'string' && p.summary.length <= 16000 && ['simple-reversible', 'open-desktop'].includes(p.eligibility), 'INVALID_RESPONSE');
+    requirePhone(!!p && p.approvalId === approvalId && isId(p.actionId) && validBinding(p.binding) && sameBinding(p.binding, authority.binding) && Number.isSafeInteger(p.actionRevision) && p.actionRevision > 0 && isOperationVersion(p.operationVersion) && DIGEST_PATTERN.test(p.digest) && typeof p.title === 'string' && p.title.length <= 200 && typeof p.summary === 'string' && p.summary.length <= 16000 && ['simple-reversible', 'open-desktop'].includes(p.eligibility), 'INVALID_RESPONSE');
     requirePhone(Date.parse(p.expiresAt) > this.clock() && Date.parse(p.expiresAt) <= this.clock() + 300000, 'APPROVAL_EXPIRED');
     const preview = { approvalId: p.approvalId, actionId: p.actionId, binding: copyBinding(p.binding), actionRevision: p.actionRevision, operationVersion: p.operationVersion, digest: p.digest, expiresAt: p.expiresAt, title: p.title, summary: p.summary, eligibility: p.eligibility };
     if (p.eligibility === 'simple-reversible') { requirePhone(isApprovalToken(challenge.token), 'INVALID_RESPONSE'); this.challenges.set(approvalId, { preview, token: challenge.token }); }

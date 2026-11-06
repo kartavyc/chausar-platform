@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -10,7 +11,7 @@ import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 import { LoadingPlace } from '../../parts/Skeleton';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 /** The agent says each new persona version in its chat, so a message is when the persona may have changed. */
 const PERSONA_EVENTS = (event: VentureRunEvent) => event.type === 'agent.message';
 const LENGTHS = ['short', 'medium', 'long'] as const;

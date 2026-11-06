@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * W6 6G3 (D44): pipelines as lists. `?sheet=lists:all` lists the owner's lists (each opens its own sheet) and makes a new
  * one: a name and two to eight stages, one per line. `?sheet=list:<id>` shows one list as its stages in order, who sits
@@ -15,7 +16,7 @@ import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
 import type { CrmListView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { CrmFold, HistoryList, messageOf } from './CrmParts';
+import { CrmFold, HistoryList } from './CrmParts';
 import s from './Crm.module.css';
 import { Select } from '../../parts/Select';
 

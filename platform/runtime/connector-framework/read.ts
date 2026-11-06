@@ -1,4 +1,6 @@
-import { createHash } from 'node:crypto';
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
+import { sha256Hex } from '../hash.ts';
+
 import { digest as canonicalDigest } from '../actions.ts';
 import { check } from '../contracts.ts';
 import { validatePeriod } from '../memory.ts';
@@ -155,7 +157,7 @@ export type ConnectorReadDependencies = Readonly<{
   clock?: ReadClock;
 }>;
 
-const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
+const digest = (value: string | Uint8Array) => sha256Hex(value);
 const cursorKey = (cursor: ReadCursor | null) => JSON.stringify(cursor);
 const scopeKey = (scope: ReadAuthorityScope) => JSON.stringify([scope.tenantId, scope.sourceId, scope.organizationId ?? null, scope.companyId ?? null]);
 export const readAuthorityScopeHash = (scope: ReadAuthorityScope): string => digest(scopeKey(scope));
@@ -313,7 +315,7 @@ export class ConnectorReadDispatcher {
               && exact(rawPage!.source, ['reportReference', 'generatedAtMs', 'snapshotId', 'completeness', 'totalRows'])
               && (rawPage!.source.reportReference === null || boundedText(rawPage!.source.reportReference, 1_000))
               && (rawPage!.source.snapshotId === null || boundedText(rawPage!.source.snapshotId, 200)), 'READ_SOURCE_EVIDENCE_INVALID');
-            require(boundedText(rawPage!.contentType, 100) && typeof rawPage!.schemaFingerprint === 'string' && /^[a-f0-9]{64}$/.test(rawPage!.schemaFingerprint)
+            require(boundedText(rawPage!.contentType, 100) && typeof rawPage!.schemaFingerprint === 'string' && DIGEST_PATTERN.test(rawPage!.schemaFingerprint)
               && integer(rawPage!.rowCount, 0, limits.maxRows) && ['reported-complete', 'reported-partial', 'unknown'].includes(rawPage!.source.completeness)
               && (rawPage!.source.totalRows === null || integer(rawPage!.source.totalRows, 0, Number.MAX_SAFE_INTEGER))
               && (rawPage!.source.generatedAtMs === null || integer(rawPage!.source.generatedAtMs, 0, 8_640_000_000_000_000)), 'READ_PAGE_INVALID');
@@ -338,7 +340,7 @@ export class ConnectorReadDispatcher {
         require(page && page.content instanceof Uint8Array && page.content.byteLength <= limits.pageBytes
           && bytes + page.content.byteLength <= limits.totalBytes, 'READ_BYTE_LIMIT');
         require(typeof page!.contentType === 'string' && /^[A-Za-z0-9.+-]+\/[A-Za-z0-9.+-]+(?:; charset=utf-8)?$/.test(page!.contentType)
-          && /^[a-f0-9]{64}$/.test(page!.schemaFingerprint) && integer(page!.rowCount, 0, limits.maxRows), 'READ_PAGE_INVALID');
+          && DIGEST_PATTERN.test(page!.schemaFingerprint) && integer(page!.rowCount, 0, limits.maxRows), 'READ_PAGE_INVALID');
         require(rows + page!.rowCount <= limits.maxRows, 'READ_ROW_LIMIT');
         require(page!.source && ['reported-complete', 'reported-partial', 'unknown'].includes(page!.source.completeness)
           && (page!.source.totalRows === null || integer(page!.source.totalRows, 0, Number.MAX_SAFE_INTEGER))

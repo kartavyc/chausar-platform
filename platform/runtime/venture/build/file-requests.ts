@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher, the client's file request link (Ink v2 wave 4, package 4J7, catalogue K9): the write-only
 // twin of share links. venture.share.request { orderId, note? } (approve, inside the app) makes a single-use link,
 // valid for 15 minutes, at /share/<token>/upload on the hosted web server with a public address; anywhere else it is
@@ -13,7 +14,7 @@
 // - release: frees the lock after a refused file, so the client can try again while the link lasts.
 // A use after the 15 minutes is SHARE_EXPIRED. DPDP: Forget erases a forgotten person's name from the note and from a
 // client's file name (eraseFileRequestsNaming, called by network/forget.ts).
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { check, ChausarError, type Context, type State } from '../../contracts.ts';
 import type { Display, FileRequestRecord, FileRequestView, ShareLinkStoredRecord, UploadFormat, UploadRecord, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, digest, exactPayload, formatVentureDate, identifier, listRecords, requireAppChannel, singleLine, ventureAction, type VentureTx } from '../records.ts';
@@ -33,7 +34,7 @@ export const FILE_REQUEST_WORDS = Object.freeze({
   erased: 'Erased: words that named someone you asked Chausar to forget.',
 });
 
-const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+const sha256 = (value: string) => sha256Hex(value);
 const TOKEN = /^[A-Za-z0-9_-]{32}$/;
 const CONTROL = /[\u0000-\u001f\u007f]/;
 

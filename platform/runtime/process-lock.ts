@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { sha256Hex } from './hash.ts';
+import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { open, lstat, link, unlink } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join } from 'node:path';
@@ -9,7 +10,7 @@ type Owned={owner:Owner;raw:string};
 type Options={busyCode?:string;busyMessage?:string;changedCode?:string;changedMessage?:string;unsafeCode?:string};
 export type ProcessLock={path:string;token:string;release():Promise<void>};
 const MAX_BYTES=4096,MAX_GENERATIONS=32;
-const hash=(raw:string)=>createHash('sha256').update(raw).digest('hex');
+const hash=(raw:string)=>sha256Hex(raw);
 const fresh=():Owned=>{const owner={pid:process.pid,token:randomUUID(),startedAt:new Date().toISOString()};return{owner,raw:JSON.stringify(owner)};};
 function dead(owner:Owner):boolean {try{process.kill(owner.pid,0);return false;}catch(error:any){return error.code==='ESRCH';}}
 function failure(options:Options,kind:'busy'|'changed'|'unsafe',message?:string):never {

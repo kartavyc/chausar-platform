@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { authorize, audit, check, hash, newId, now, type Context, type Fact, type State, type StateStore, internalCheck } from './contracts.ts';
 import { CalculatorService, type CalculationReceipt, type CalculatorOptions, type CalculationRequest } from './calculator.ts';
 import { assertCompiledSingleSum } from './compiled-calculation.ts';
@@ -47,7 +48,7 @@ export type BridgeRecord = {
   sourceIds: string[]; rowIds: string[]; stale: boolean; contentHash: string;
 };
 const PROFILE_KIND = 'descriptive-bridge-profile-v1', RECEIPT_KIND = 'descriptive-bridge-receipt-v1';
-const SHA = /^[a-f0-9]{64}$/, FIELD = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+const SHA = DIGEST_PATTERN, FIELD = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 const PROFILE_KEYS = ['label', 'dictionaryHash', 'operationId', 'moneyDefinitionHash', 'quantityField', 'quantityMeaning', 'quantityScale', 'identityFields', 'identityMeaning', 'grain', 'unitField', 'unit', 'unitMeaning', 'factorRule', 'method', 'rounding', 'incompleteCoverage', 'scope'];
 function plain(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype; }
 function exact(value: unknown, keys: string[], code: string) {

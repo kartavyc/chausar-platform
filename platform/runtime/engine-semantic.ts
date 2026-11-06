@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { check, type Context, type State, type StateStore, internalCheck } from './contracts.ts';
 import { digest, current } from './actions.ts';
 import { assertSourceAccess, trustFingerprint } from './trust.ts';
@@ -40,7 +41,7 @@ type EvidenceRecord = {
   translation?: { binding: SemanticTranslationBinding; digest: string };
 };
 type Anchor = { type: 'engine-semantic-anchor-v1'; id: string; sourceId: string; captureId: string; generation: number; head: string; bindingHash: string; proofHash: string; translationDigest?: string };
-const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const sha = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 const view = (state: State): StateStore => ({ read: () => structuredClone(state), update: async () => { throw new Error('Semantic readiness is read only.'); } });
 const rowsOf = (capture: ConnectorCapture) => capture.pages.flatMap(page => page.rows);
 const inputHash = (input: QualificationInput) => hashData({ ...input, at: null, artifactBytes: Object.fromEntries(Object.entries(input.artifactBytes).map(([path, bytes]) => [path, sha256Bytes(bytes)])) });

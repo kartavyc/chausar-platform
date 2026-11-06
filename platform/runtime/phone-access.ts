@@ -1,3 +1,4 @@
+import { sha256Hex } from './hash.ts';
 // Wave 6 package 6F7 (D35): phone access from the owner's computer. The owner presses "Make a pairing link" in the
 // app; this starts a phone listener (the owner's own local server, server.ts, in phone mode) on the home network, and
 // gives a link like http://192.168.1.20:43117/#pair=<one-time code>. The code is in the fragment, so it never reaches a
@@ -6,7 +7,7 @@
 // every request the channel 'phone'. Away from home the same works over Tailscale's private addresses. Stop closes the
 // listener and revokes every phone session. Plain http on the home network: Tailscale encrypts its own traffic, home
 // Wi-Fi relies on the network's own password (the phone access guide says so).
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { networkInterfaces, type NetworkInterfaceInfo } from 'node:os';
 import { check } from './contracts.ts';
 import type { Engine } from './engine.ts';
@@ -47,7 +48,7 @@ export function privatePeer(address: string | undefined): boolean {
   return !!parts && (parts[0] === 127 || homeNetwork(parts) || tailscale(parts));
 }
 
-const digest = (value: string) => createHash('sha256').update(`chausar-phone-access-v1\n${value}`, 'utf8').digest('hex');
+const digest = (value: string) => sha256Hex(`chausar-phone-access-v1\n${value}`);
 const refused = () => Object.assign(new Error('This pairing link was used, expired or is wrong. Make a new one in the Chausar app.'), { code: 'PAIRING_FORBIDDEN' });
 
 export type PhoneAccessOptions = {

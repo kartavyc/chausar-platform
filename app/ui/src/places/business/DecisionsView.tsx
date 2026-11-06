@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState } from 'react';
 import { useT } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
@@ -8,7 +9,7 @@ import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { Row } from '../../parts/Row';
 import type { AgentView, DecisionOpens, DecisionView } from '../../engine/types';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import b from './Business.module.css';
 import s from './Decisions.module.css';
 

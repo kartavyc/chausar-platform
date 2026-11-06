@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -9,7 +10,7 @@ import s from './Work.module.css';
 import c from './ContractSheet.module.css';
 import { Fold } from '../../parts/Fold';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /** One item's state (open, done, skipped), or open when the engine sent no marks yet. */
 function stateOf(view: OrderContractView, id: string): string {

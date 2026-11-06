@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -7,7 +8,7 @@ import { saveTextFile } from '../../parts/custody';
 import type { DeliveryLite, SocialCalendarFile } from '../../engine/types';
 import s from './Work.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 /** The engine's answers that mean "this draft has no calendar file": the screen then shows nothing for it. */
 const NO_CALENDAR = new Set(['CALENDAR_NOT_A_SOCIAL_DRAFT', 'CALENDAR_NO_SLOTS']);
 

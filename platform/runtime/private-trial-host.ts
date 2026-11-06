@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { performance } from 'node:perf_hooks';
 import { ChausarError, authorize, check, hash, type Context, type State, type StateStore, internalCheck } from './contracts.ts';
 import { canSeeFact, currentAccess } from './memory.ts';
@@ -64,7 +65,7 @@ const authorityDigest = (state: State) => hash({ schemaVersion: state.schemaVers
 const withoutDigest = (value: { digest: string }) => { const { digest: ignored, ...body } = value; return body; };
 function ref(value: PrivateTrialArtifactRef, expectedId?: string): PrivateTrialArtifactRef {
   internalCheck(value && opaqueId(value.id) && (!expectedId || value.id === expectedId) && value.purpose === purpose
-    && /^[a-f0-9]{64}$/.test(value.valueDigest) && Number.isSafeInteger(value.diskBytes) && value.diskBytes > 0,
+    && DIGEST_PATTERN.test(value.valueDigest) && Number.isSafeInteger(value.diskBytes) && value.diskBytes > 0,
   'TRIAL_CUSTODY_INVALID', 'Encrypted custody must return the exact opaque identity, authenticated digest and measured encrypted bytes.');
   return { id: value.id, purpose, valueDigest: value.valueDigest, diskBytes: value.diskBytes };
 }
@@ -114,12 +115,12 @@ export class PrivateTrialHostService {
     const value = stored.value as Binding;
     check(value?.version === 1 && value.type === 'private-trial-issued-binding-v1' && value.trialId === trialId
       && ['active', 'discarded', 'promoting', 'promoted'].includes(value.status) && typeof value.createdAt === 'string'
-      && Number.isFinite(Date.parse(value.createdAt)) && value.fork && /^[a-f0-9]{64}$/.test(value.fork.issuedDigest),
+      && Number.isFinite(Date.parse(value.createdAt)) && value.fork && DIGEST_PATTERN.test(value.fork.issuedDigest),
     'TRIAL_CUSTODY_CHANGED', 'Retain an authenticated service-issued binding for the exact trial.');
     ref(value.fork.ref, `${trialId}-fork`);
     if (value.evaluation) {
       ref(value.evaluation.ref, `${trialId}-evaluation`);
-      check(/^[a-f0-9]{64}$/.test(value.evaluation.issuedDigest), 'TRIAL_CUSTODY_CHANGED', 'Retain the separately issued evaluation identity.');
+      check(DIGEST_PATTERN.test(value.evaluation.issuedDigest), 'TRIAL_CUSTODY_CHANGED', 'Retain the separately issued evaluation identity.');
     }
     this.#access(ctx, value); return { binding: value, bindingRef: stored.ref };
   }

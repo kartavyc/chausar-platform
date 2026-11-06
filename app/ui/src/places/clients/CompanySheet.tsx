@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * W6 6G3 (D44): the company sheet (`?sheet=company:<id>`). The company's name and website, its clients (each opens the
  * client sheet) and people (each opens the person sheet): the other side of the link the client and person sheets show.
@@ -14,7 +15,7 @@ import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
 import type { CompanyView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { CrmFold, HistoryList, TimelineList, messageOf } from './CrmParts';
+import { CrmFold, HistoryList, TimelineList } from './CrmParts';
 import s from './Crm.module.css';
 
 export function CompanySheet({ id, onClose, returnFocus }: SheetComponentProps) {

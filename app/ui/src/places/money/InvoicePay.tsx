@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Wave 6 money on the invoice sheet (6D1 to 6D3). How clients pay: the UPI QR code exactly as the engine drew it (the
  * UI only draws its squares), the UPI ID, the amount the engine wrote beside its receipt, the bank details, the file
@@ -30,7 +31,7 @@ import { Receipt } from '../../parts/Receipt';
 import type { InvoicePdfView, InvoiceShareResult, InvoiceViewLite } from '../../engine/types';
 import { copyText, performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
-import { messageOf } from './words';
+
 import s from './Money.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';

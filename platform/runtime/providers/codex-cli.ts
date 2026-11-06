@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
 import { isAbsolute } from 'node:path';
 import { check, ChausarError, hash, internalCheck } from '../contracts.ts';
 import type { ProcessRequest, ProcessResult } from '../gateway.ts';
@@ -114,7 +115,7 @@ function assertCapabilities(profile: CodexCliCapabilityProfile): void {
   const evidence = profile.evidence;
   if (evidence.kind === 'synthetic-fixture') internalCheck(typeof evidence.label === 'string' && evidence.label.startsWith('synthetic'), 'CLI_CAPABILITY_REQUIRED', 'Label synthetic CLI fixtures explicitly.');
   else if (evidence.kind === 'official-docs') check(typeof evidence.checkedAt === 'string' && Number.isFinite(Date.parse(evidence.checkedAt)), 'CLI_CAPABILITY_REQUIRED', 'Record when the official CLI contract was checked.');
-  else if (evidence.kind === 'installed-help') internalCheck(typeof evidence.executable === 'string' && nativeCommand(evidence.executable) && isAbsolute(evidence.executable) && typeof evidence.version === 'string' && evidence.version.length > 0 && /^[a-f0-9]{64}$/.test(evidence.helpDigest), 'CLI_CAPABILITY_REQUIRED', 'Record the native executable, version and help digest.');
+  else if (evidence.kind === 'installed-help') internalCheck(typeof evidence.executable === 'string' && nativeCommand(evidence.executable) && isAbsolute(evidence.executable) && typeof evidence.version === 'string' && evidence.version.length > 0 && DIGEST_PATTERN.test(evidence.helpDigest), 'CLI_CAPABILITY_REQUIRED', 'Record the native executable, version and help digest.');
   else throw new ChausarError('CLI_CAPABILITY_REQUIRED', 'Unknown CLI interface evidence.');
   check(Array.isArray(profile.flags) && CODEX_CLI_FLAGS.every(flag => profile.flags.includes(flag)), 'CLI_CAPABILITY_UNSUPPORTED', 'The reviewed CLI interface is missing a required flag.');
   check(Array.isArray(profile.configKeys) && CODEX_CLI_CONFIG.every(value => profile.configKeys.includes(value.split('=')[0])), 'CLI_CAPABILITY_UNSUPPORTED', 'The reviewed CLI interface is missing a required configuration key.');

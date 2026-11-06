@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher: the bank shape as engine methods. venture.bank.import { csv, account } and
 // venture.bank.consent { account, days?, revoke? }, both the owner's own clicks inside the app.
 // The statement file is one the owner downloaded from their bank: bank.ts reads it into exact minor units and gives each
@@ -13,7 +14,7 @@
 // checks the rules on the new rows, Today shows what they found, and one journalled bank.alert sends the count of
 // alerts, and nothing else, to the owner's address through the network guard with redirects refused.
 import { formatMoney } from '../../owner-format.ts';
-import { createHash } from 'node:crypto';
+
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import type {
   BankAccountRecord, BankAlertsView, BankApplyResult, BankConsentView, BankImportRecord, BankImportResult, BankLedgerRow, BankLedgerView,
@@ -82,7 +83,7 @@ export async function bankImport(deps: VentureDeps, ctx: Context, payload: unkno
   check(typeof body.csv === 'string', 'BANK_STATEMENT_INVALID', 'Choose a statement file.');
   const csv = body.csv;
   const label = accountLabel(body.account);
-  const fileDigest = createHash('sha256').update(csv, 'utf8').digest('hex');
+  const fileDigest = sha256Hex(csv);
   const imported = await ventureAction(deps, ctx, 'admin', 'bank.import', tx => {
     const country = countryOf(tx.venture);
     const options = { currency: country.currency, minorDigits: country.minorDigits, dateOrder: country.dateOrder };
@@ -135,7 +136,7 @@ async function sendAlertCount(deps: VentureDeps, ctx: Context, importId: string,
   try {
     const done = await journalled<null>(deps, ctx, {
       action: 'bank.alert', subject: `bank-alert:${importId}`, target: 'Your alert address',
-      actionDigest: createHash('sha256').update(`${importId}\n${delivery.url}\n${body}`, 'utf8').digest('hex'),
+      actionDigest: sha256Hex(`${importId}\n${delivery.url}\n${body}`),
       line: `Send the number of new bank alerts (${count}) to the address you set. Only the number goes out.`,
       descriptionComplete: true,
     }, async (): Promise<ApplyResult<null>> => {
