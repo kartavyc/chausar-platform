@@ -26,7 +26,7 @@ async function placeChecked(path, bytes, fs) {
   } catch (error) { await fs.unlink(temporary).catch(() => {}); throw error; }
 }
 
-function createRollback({ userData, version, platform, appImage = null, publicKey, windowsPublisher = null, updates, app, note = () => {}, signatureOf, spawnInstaller, now = Date.now, fs = fsp }) {
+function createRollback({ userData, version, platform, appImage = null, publicKey, windowsCertificateThumbprint = null, updates, app, note = () => {}, signatureOf, spawnInstaller, now = Date.now, fs = fsp }) {
   const folder = join(userData, 'updates'), vaults = join(userData, 'vaults'), recordPath = join(folder, 'rollbacks.json');
   const readJson = async path => { try { return JSON.parse(await fs.readFile(path, 'utf8')); } catch { return null; } };
 
@@ -98,13 +98,13 @@ function createRollback({ userData, version, platform, appImage = null, publicKe
       return 'relaunching';
     }
     if (platform === 'win32') {
-      if (!windowsPublisher) return 'needs-signing';
+      if (!updates.certificateThumbprint(windowsCertificateThumbprint)) return 'needs-signing';
       const runPath = join(folder, 'stage', `chausar-update-${randomBytes(8).toString('hex')}.exe`);
       await fs.mkdir(dirname(runPath), { recursive: true });
       await fs.copyFile(release.artifactPath, runPath);
       if (!(await updates.verifyStaged({ ...release, artifactPath: runPath }, publicKey, platform))) { await fs.unlink(runPath).catch(() => {}); return 'not-verified'; }
       const signed = await signatureOf(runPath);
-      if (signed?.status !== 'Valid' || signed.publisher !== windowsPublisher) { await fs.unlink(runPath).catch(() => {}); return 'needs-signing'; }
+      if (!updates.publisherMatches(signed, windowsCertificateThumbprint)) { await fs.unlink(runPath).catch(() => {}); return 'needs-signing'; }
       spawnInstaller(runPath, ['/S', '--updated']);
       app.exit(0);
       return 'installer-started';

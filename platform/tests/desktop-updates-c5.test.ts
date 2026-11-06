@@ -1,9 +1,10 @@
 // C5 task 32 (the module half): app/desktop/updates.cjs installs a verified, staged update when the owner quits, and
 // keeps the boot marker that D12's automatic rollback reads. Linux swaps the AppImage by rename; Windows runs the staged
-// NSIS installer only when its Authenticode signature is valid and from the pinned publisher (stubbed here: nothing is
+// NSIS installer only when its Authenticode signature is valid and from the pinned thumbprint (stubbed here: nothing is
 // run, nothing is signed, nothing is downloaded); with no certificate yet the state is needs-signing. Keys are made here.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
+import { runInNewContext } from 'node:vm';
 import { createRequire } from 'node:module';
 import { constants as fsConstants } from 'node:fs';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
@@ -73,17 +74,17 @@ test('nothing is used unless it is verified: a changed byte, another key or anot
   }
 });
 
-test('Windows: unsigned or no certificate gives needs-signing, the wrong publisher refuses, the pinned one runs /S --updated', async t => {
+test('Windows: unsigned or no certificate gives needs-signing, the wrong thumbprint refuses, the pinned one runs /S --updated', async t => {
   const root = await folder(t), release = await staged(root, 'win32'), runs: Array<[string, string[]]> = [];
   const spawnInstaller = (path: string, args: string[]) => { runs.push([path, args]); };
-  const at = (windowsPublisher: string | null, answer: { status: string; publisher: string | null }, updatesFolder?: string) =>
-    updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsPublisher, signatureOf: async () => answer, spawnInstaller, isBusy: neverBusy, updatesFolder });
-  assert.equal((await at(null, { status: 'Valid', publisher: 'Chausar Technologies' })).state, 'needs-signing');
-  assert.equal((await at('Chausar Technologies', { status: 'NotSigned', publisher: null })).state, 'needs-signing');
-  assert.equal((await at('Chausar Technologies', { status: 'HashMismatch', publisher: 'Chausar Technologies' })).state, 'needs-signing');
-  assert.equal((await at('Chausar Technologies', { status: 'Valid', publisher: 'Someone Else' })).state, 'publisher-mismatch');
+  const at = (windowsCertificateThumbprint: string | null, answer: { status: string; thumbprint: string | null }, updatesFolder?: string) =>
+    updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsCertificateThumbprint, signatureOf: async () => answer, spawnInstaller, isBusy: neverBusy, updatesFolder });
+  assert.equal((await at(null, { status: 'Valid', thumbprint: 'A'.repeat(40) })).state, 'needs-signing');
+  assert.equal((await at('A'.repeat(40), { status: 'NotSigned', thumbprint: null })).state, 'needs-signing');
+  assert.equal((await at('A'.repeat(40), { status: 'HashMismatch', thumbprint: 'A'.repeat(40) })).state, 'needs-signing');
+  assert.equal((await at('A'.repeat(40), { status: 'Valid', thumbprint: 'B'.repeat(40) })).state, 'publisher-mismatch');
   assert.equal(runs.length, 0);
-  assert.equal((await at('Chausar Technologies', { status: 'Valid', publisher: 'Chausar Technologies' }, join(root, 'updates'))).state, 'installer-started');
+  assert.equal((await at('A'.repeat(40), { status: 'Valid', thumbprint: 'A'.repeat(40) }, join(root, 'updates'))).state, 'installer-started');
   assert.equal(runs.length, 1); assert.deepEqual(runs[0][1], ['/S', '--updated']);
   assert.notEqual(runs[0][0], release.artifactPath, 'a private copy runs, never the staged path');
   assert.match(runs[0][0], /\.exe$/);
@@ -96,8 +97,8 @@ test('Windows: unsigned or no certificate gives needs-signing, the wrong publish
 test('Windows: a staged file rewritten during the backup is not run, and the signature is read again on the copy that runs', async t => {
   const root = await folder(t), release = await staged(root, 'win32'), runs: string[] = [], read: string[] = [];
   const spawnInstaller = (path: string) => { runs.push(path); };
-  const signatureOf = async (path: string) => { read.push(path); return { status: 'Valid', publisher: 'Chausar Technologies' }; };
-  const swapped = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf, spawnInstaller, isBusy: neverBusy, updatesFolder: join(root, 'updates'),
+  const signatureOf = async (path: string) => { read.push(path); return { status: 'Valid', thumbprint: 'A'.repeat(40) }; };
+  const swapped = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsCertificateThumbprint: 'A'.repeat(40), signatureOf, spawnInstaller, isBusy: neverBusy, updatesFolder: join(root, 'updates'),
     beforeInstall: async () => { await writeFile(release.artifactPath, 'a different program put here during the backup'); } });
   assert.equal(swapped.state, 'not-verified');
   assert.equal(runs.length, 0);
@@ -105,20 +106,20 @@ test('Windows: a staged file rewritten during the backup is not run, and the sig
   assert.deepEqual((await readdir(join(root, 'stage'))).filter(name => name.endsWith('.exe')), [], 'no private copy is left behind');
   const again = await staged(join(root, 'again'), 'win32');
   let calls = 0;
-  const lateUnsigned = async (path: string) => { read.push(path); return ++calls === 1 ? { status: 'Valid', publisher: 'Chausar Technologies' } : { status: 'NotSigned', publisher: null }; };
-  const late = await updates.installOnQuit({ staged: again, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf: lateUnsigned, spawnInstaller, isBusy: neverBusy });
+  const lateUnsigned = async (path: string) => { read.push(path); return ++calls === 1 ? { status: 'Valid', thumbprint: 'A'.repeat(40) } : { status: 'NotSigned', thumbprint: null }; };
+  const late = await updates.installOnQuit({ staged: again, publicKey, platform: 'win32', windowsCertificateThumbprint: 'A'.repeat(40), signatureOf: lateUnsigned, spawnInstaller, isBusy: neverBusy });
   assert.equal(late.state, 'needs-signing'); assert.equal(runs.length, 0);
   const ok = await staged(join(root, 'ok'), 'win32');
   read.length = 0;
-  assert.equal((await updates.installOnQuit({ staged: ok, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf, spawnInstaller, isBusy: neverBusy })).state, 'installer-started');
+  assert.equal((await updates.installOnQuit({ staged: ok, publicKey, platform: 'win32', windowsCertificateThumbprint: 'A'.repeat(40), signatureOf, spawnInstaller, isBusy: neverBusy })).state, 'installer-started');
   assert.equal(read.at(-1), runs.at(-1), 'the last signature read is of the exact file that runs');
 });
 
 test('never during a busy run, never over newer data, and macOS stays manual', async t => {
   const root = await folder(t), runs: unknown[] = [], spawnInstaller = () => { runs.push(1); };
-  const win = await staged(root, 'win32'), signatureOf = async () => ({ status: 'Valid', publisher: 'Chausar Technologies' });
-  assert.equal((await updates.installOnQuit({ staged: win, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf, spawnInstaller, isBusy: () => true })).state, 'busy');
-  assert.equal((await updates.installOnQuit({ staged: win, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf, spawnInstaller, isBusy: neverBusy, openDataSchema: 2 })).state, 'data-newer');
+  const win = await staged(root, 'win32'), signatureOf = async () => ({ status: 'Valid', thumbprint: 'A'.repeat(40) });
+  assert.equal((await updates.installOnQuit({ staged: win, publicKey, platform: 'win32', windowsCertificateThumbprint: 'A'.repeat(40), signatureOf, spawnInstaller, isBusy: () => true })).state, 'busy');
+  assert.equal((await updates.installOnQuit({ staged: win, publicKey, platform: 'win32', windowsCertificateThumbprint: 'A'.repeat(40), signatureOf, spawnInstaller, isBusy: neverBusy, openDataSchema: 2 })).state, 'data-newer');
   assert.equal(runs.length, 0);
   const mac = await staged(join(root, 'mac'), 'darwin');
   assert.equal((await updates.installOnQuit({ staged: mac, publicKey, platform: 'darwin', isBusy: neverBusy })).state, 'manual');
@@ -185,19 +186,19 @@ test('Windows: a private copy rewritten while the release is kept is not run, an
     await original(from, to, mode);
     if (/[\\/]\.installed-[0-9a-f]+[\\/]installer$/.test(to)) await writeFile(from, 'EVIL: bytes put in place while the release was kept');
   });
-  const result = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf: async () => ({ status: 'Valid', publisher: 'Chausar Technologies' }), spawnInstaller: (path: string) => { runs.push(path); }, isBusy: neverBusy, updatesFolder: join(root, 'updates') });
+  const result = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsCertificateThumbprint: 'A'.repeat(40), signatureOf: async () => ({ status: 'Valid', thumbprint: 'A'.repeat(40) }), spawnInstaller: (path: string) => { runs.push(path); }, isBusy: neverBusy, updatesFolder: join(root, 'updates') });
   assert.equal(result.state, 'not-verified');
   assert.deepEqual(runs, []);
   await assert.rejects(readFile(join(root, 'updates', 'installed', 'installer')), 'nothing unverified is kept as the installed release');
   assert.deepEqual((await readdir(join(root, 'updates'))).filter(name => name.startsWith('.installed-')), [], 'no half-kept folder is left');
 });
 
-// Fix round 2 (review 2, LOW-3): the late publisher check on the copy, and the copy never written over an existing file.
-test('Windows: a copy whose late signature names another publisher does not run, and is removed', async t => {
+// Fix round 2 (review 2, LOW-3): the late thumbprint check on the copy, and the copy never written over an existing file.
+test('Windows: a copy whose late signature names another thumbprint does not run, and is removed', async t => {
   const root = await folder(t), release = await staged(root, 'win32'), runs: string[] = [];
   let reads = 0;
-  const signatureOf = async () => ++reads === 1 ? { status: 'Valid', publisher: 'Chausar Technologies' } : { status: 'Valid', publisher: 'Someone Else' };
-  const result = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf, spawnInstaller: (path: string) => { runs.push(path); }, isBusy: neverBusy, updatesFolder: join(root, 'updates') });
+  const signatureOf = async () => ++reads === 1 ? { status: 'Valid', thumbprint: 'A'.repeat(40) } : { status: 'Valid', thumbprint: 'B'.repeat(40) };
+  const result = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsCertificateThumbprint: 'A'.repeat(40), signatureOf, spawnInstaller: (path: string) => { runs.push(path); }, isBusy: neverBusy, updatesFolder: join(root, 'updates') });
   assert.equal(result.state, 'publisher-mismatch'); assert.equal(reads, 2); assert.deepEqual(runs, []);
   assert.deepEqual((await readdir(join(root, 'stage'))).filter(name => name.startsWith('chausar-update-')), []);
   assert.deepEqual((await readdir(join(root, 'updates'))).filter(name => name.startsWith('.installed-') || name === 'installed'), []);
@@ -210,11 +211,42 @@ test('Windows: the private copy is made with an exclusive create, so it never wr
     if (/chausar-update-[0-9a-f]+\.exe$/.test(to)) modes.push(mode);
     return original(from, to, mode);
   });
-  const result = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsPublisher: 'Chausar Technologies', signatureOf: async () => ({ status: 'Valid', publisher: 'Chausar Technologies' }), spawnInstaller: () => {}, isBusy: neverBusy });
+  const result = await updates.installOnQuit({ staged: release, publicKey, platform: 'win32', windowsCertificateThumbprint: 'A'.repeat(40), signatureOf: async () => ({ status: 'Valid', thumbprint: 'A'.repeat(40) }), spawnInstaller: () => {}, isBusy: neverBusy });
   assert.equal(result.state, 'installer-started');
   assert.deepEqual(modes, [fsConstants.COPYFILE_EXCL]);
   const taken = join(root, 'taken.exe');
   await writeFile(taken, 'already here');
   await assert.rejects(original(release.artifactPath, taken, fsConstants.COPYFILE_EXCL), (error: any) => error.code === 'EEXIST');
   assert.equal(await readFile(taken, 'utf8'), 'already here');
+});
+
+
+test('cleanup: Windows uses an exact certificate thumbprint, not the shared thumbprint name', async t => {
+  const root = await folder(t), release = await staged(root, 'win32');
+  let runs = 0;
+  const expected = 'A'.repeat(40);
+  const options = { staged: release, publicKey, platform: 'win32', windowsCertificateThumbprint: expected,
+    isBusy: neverBusy, spawnInstaller: () => { runs++; } };
+  assert.equal((await updates.installOnQuit({ ...options, signatureOf: async () => ({ status: 'Valid', thumbprint: 'Same name', thumbprint: 'B'.repeat(40) }) })).state, 'publisher-mismatch');
+  assert.equal(runs, 0);
+  assert.equal((await updates.installOnQuit({ ...options, signatureOf: async () => ({ status: 'Valid', thumbprint: 'Any name', thumbprint: expected.toLowerCase() }) })).state, 'installer-started');
+  assert.equal(runs, 1);
+});
+
+test('cleanup: signature checks call the system PowerShell by absolute path and read its certificate thumbprint', async () => {
+  const calls: any[] = [];
+  const module = { exports: {} as any };
+  const execFile = (command: string, args: string[], options: any, reply: any) => {
+    calls.push({ command, args, options });
+    reply(null, JSON.stringify({ status: 'Valid', thumbprint: 'c'.repeat(40) }));
+  };
+  runInNewContext(await readFile(new URL('../../app/desktop/updates.cjs', import.meta.url), 'utf8'), {
+    module, Buffer, process: { env: { SystemRoot: 'C:\\Windows' } },
+    require: (name: string) => name === 'node:child_process' ? { execFile } : name === './diagnostics.cjs' ? { createDiagnostics: () => null } : require(name),
+  });
+  const answer = await module.exports.windowsSignature('C:/sample/release.exe');
+  assert.match(calls[0].command, /^C:\\Windows\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/i);
+  assert.equal(calls[0].options.windowsHide, true);
+  assert.match(calls[0].args.at(-1), /SignerCertificate.Thumbprint/);
+  assert.deepEqual({ ...answer }, { status: 'Valid', thumbprint: 'C'.repeat(40) });
 });

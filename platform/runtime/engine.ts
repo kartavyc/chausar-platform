@@ -3421,7 +3421,7 @@ export class Engine {
   /** C5 task 31: one for the engine's life, so its ten quiet minutes count from the start. */
   #updates: UpdateService | null = null;
   private updateService(): UpdateService {
-    return this.#updates ??= new UpdateService({ publicKey: this.options.updatePublicKey ?? null, feedUrl: null, directory: resolve(this.options.directory, 'updates'), channel: 'stable', windowsPublisher: null, ...this.options.updates, version: this.version, isBusy: () => this.updatesBusy() });
+    return this.#updates ??= new UpdateService({ publicKey: this.options.updatePublicKey ?? null, feedUrl: null, directory: resolve(this.options.directory, 'updates'), channel: 'stable', windowsCertificateThumbprint: null, ...this.options.updates, version: this.version, isBusy: () => this.updatesBusy() });
   }
   /**
    * C5 task 32, trusted main-process route only, at quit: is a run busy, the open data's version, and the safety copy of the

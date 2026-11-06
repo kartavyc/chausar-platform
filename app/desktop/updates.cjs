@@ -7,7 +7,7 @@
 //            folder and one rename, so the old file is gone only once the rename has happened.
 //   Windows: a private copy of the staged NSIS installer, made after the safety backup and checked again (hash and
 //            signature) right before it runs, runs silently (/S --updated) only when Get-AuthenticodeSignature says Valid and
-//            the signer is the pinned publisher (chausarWindowsPublisher in the build metadata). With no publisher
+//            the signer is the pinned publisher (chausarWindowsCertificateThumbprint in the build metadata). With no publisher
 //            pinned, or an unsigned file, nothing runs and the state is needs-signing (the certificate is an outside step).
 //   macOS:   manual.
 // Never during a busy run, and never a release whose data version is lower than the open data's (D12 attach point 1).
@@ -20,7 +20,7 @@ const fsp = require('node:fs/promises');
 const { createReadStream, constants: fsConstants } = require('node:fs');
 const { createHash, createPublicKey, randomBytes, verify } = require('node:crypto');
 const { execFile, spawn } = require('node:child_process');
-const { dirname, isAbsolute, join, basename } = require('node:path');
+const { dirname, isAbsolute, join, basename, win32 } = require('node:path');
 const { createDiagnostics } = require('./diagnostics.cjs');
 
 const BOOT_FORMAT = 'chausar.boot.v1';
@@ -59,20 +59,31 @@ async function verifyStaged(staged, publicKey, platform) {
   } catch { return false; }
 }
 
-/** Authenticode status and signer (the certificate's CN), read by a hidden PowerShell. The path goes through the env. */
+/** The exact certificate identity, never the publisher's display name. */
+function certificateThumbprint(value) {
+  return typeof value === 'string' && /^[a-f0-9]{40}$/i.test(value) ? value.toUpperCase() : null;
+}
+function publisherMatches(answer, expected) {
+  const pinned = certificateThumbprint(expected);
+  return !!pinned && answer?.status === 'Valid' && certificateThumbprint(answer.thumbprint) === pinned;
+}
+/** Authenticode status and certificate thumbprint, read by the system PowerShell in a hidden process. */
 function windowsSignature(path) {
-  const command = '$s = Get-AuthenticodeSignature -LiteralPath $env:UPDATE_FILE_TO_CHECK; [pscustomobject]@{ status = $s.Status.ToString(); subject = if ($s.SignerCertificate) { $s.SignerCertificate.Subject } else { $null } } | ConvertTo-Json -Compress';
+  const command = '$s = Get-AuthenticodeSignature -LiteralPath $env:UPDATE_FILE_TO_CHECK; [pscustomobject]@{ status = $s.Status.ToString(); thumbprint = if ($s.SignerCertificate) { $s.SignerCertificate.Thumbprint } else { $null } } | ConvertTo-Json -Compress';
   return new Promise(resolve => {
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { windowsHide: true, timeout: 30000, env: { ...process.env, UPDATE_FILE_TO_CHECK: path } }, (error, stdout) => {
-      if (error) return resolve({ status: 'Unknown', publisher: null });
+    const systemRoot = process.env.SystemRoot;
+    if (!systemRoot || !win32.isAbsolute(systemRoot)) return resolve({ status: 'Unknown', thumbprint: null });
+    const powershell = win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    execFile(powershell, ['-NoProfile', '-NonInteractive', '-Command', command], { windowsHide: true, timeout: 30000, env: { ...process.env, UPDATE_FILE_TO_CHECK: path } }, (error, stdout) => {
+      if (error) return resolve({ status: 'Unknown', thumbprint: null });
       try {
         const answer = JSON.parse(stdout);
-        const cn = /(?:^|,\s*)CN=(?:"([^"]+)"|([^,]+))/.exec(answer.subject ?? '');
-        resolve({ status: String(answer.status), publisher: cn ? (cn[1] ?? cn[2]).trim() : null });
-      } catch { resolve({ status: 'Unknown', publisher: null }); }
+        resolve({ status: String(answer.status), thumbprint: certificateThumbprint(answer.thumbprint) });
+      } catch { resolve({ status: 'Unknown', thumbprint: null }); }
     });
   });
 }
+
 function runInstaller(path, args) {
   spawn(path, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
 }
@@ -143,11 +154,11 @@ async function swapAppImage(appImage, staged, fs) {
 
 /**
  * Installs the staged update at quit, or says why not. Returns { state, version }, state one of UPDATE_STATES.
- * input: { staged: {manifest, signature, artifactPath} | null, publicKey, isBusy, platform?, appImage?, windowsPublisher?,
+ * input: { staged: {manifest, signature, artifactPath} | null, publicKey, isBusy, platform?, appImage?, windowsCertificateThumbprint?,
  *          openDataSchema?, updatesFolder?, beforeInstall?, signatureOf?, spawnInstaller?, fs? }
  */
 async function installOnQuit(input) {
-  const { staged, publicKey, platform = process.platform, appImage = process.env.APPIMAGE, windowsPublisher = null, openDataSchema = null, updatesFolder = null } = input;
+  const { staged, publicKey, platform = process.platform, appImage = process.env.APPIMAGE, windowsCertificateThumbprint = null, openDataSchema = null, updatesFolder = null } = input;
   const signatureOf = input.signatureOf ?? windowsSignature, spawnInstaller = input.spawnInstaller ?? runInstaller, fs = { rename: fsp.rename, ...(input.fs ?? {}) };
   const note = noterFor(updatesFolder), version = staged?.manifest?.version ?? null;
   const done = async (state, extra = {}) => { await note({ op: 'install-on-quit', state, version }); return { state, version, ...extra }; };
@@ -164,10 +175,10 @@ async function installOnQuit(input) {
       return done('installed');
     }
     if (platform === 'win32') {
-      if (!windowsPublisher) return done('needs-signing');
+      if (!certificateThumbprint(windowsCertificateThumbprint)) return done('needs-signing');
       const answer = await signatureOf(staged.artifactPath);
       if (answer?.status !== 'Valid') return done('needs-signing');
-      if (answer.publisher !== windowsPublisher) return done('publisher-mismatch');
+      if (!publisherMatches(answer, windowsCertificateThumbprint)) return done('publisher-mismatch');
       await input.beforeInstall?.(staged);
       // Review rounds 1 and 2 (MEDIUM-3, MEDIUM-1): what runs is a private copy made after the backup. Its keeping copy is
       // prepared first; then the copy's hash against the signed manifest and its signature are the very last checks,
@@ -184,7 +195,7 @@ async function installOnQuit(input) {
       if (!(await verifyStaged({ ...staged, artifactPath: runPath }, publicKey, platform))) return refuseCopy('not-verified');
       const last = await signatureOf(runPath);
       if (last?.status !== 'Valid') return refuseCopy('needs-signing');
-      if (last.publisher !== windowsPublisher) return refuseCopy('publisher-mismatch');
+      if (!publisherMatches(last, windowsCertificateThumbprint)) return refuseCopy('publisher-mismatch');
       spawnInstaller(runPath, ['/S', '--updated']);
       if (building) await commitKeep(updatesFolder, building, staged.manifest).catch(() => note({ op: 'keep-release', state: 'failed', version }));
       else if (updatesFolder) await note({ op: 'keep-release', state: 'failed', version });
@@ -240,4 +251,4 @@ async function clearBoot(updatesFolder) {
   await fsp.unlink(file).catch(error => { if (error.code !== 'ENOENT') throw error; });
 }
 
-module.exports = { BOOT_FORMAT, UPDATE_STATES, installOnQuit, verifyStaged, windowsSignature, runInstaller, keepRelease, previousVersion, startBoot, clearBoot, onFailedBoot };
+module.exports = { BOOT_FORMAT, UPDATE_STATES, installOnQuit, verifyStaged, certificateThumbprint, publisherMatches, windowsSignature, runInstaller, keepRelease, previousVersion, startBoot, clearBoot, onFailedBoot };

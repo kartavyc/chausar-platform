@@ -1,6 +1,6 @@
 'use strict';
 // Chausar desktop (one-shot C5 tasks 31, 32): main's side of auto-update, kept here so main.cjs only calls it. Reads the
-// build's metadata (chausarUpdatePublicKey, chausarUpdateFeed, chausarWindowsPublisher in package.json), so a packaged app
+// build's metadata (chausarUpdatePublicKey, chausarUpdateFeed, chausarWindowsCertificateThumbprint in package.json), so a packaged app
 // needs no environment variable. Empty or absent until the founder gives them: the owner then reads a plain state, and
 // nothing here touches the disk. Previews and development runs never take part.
 //
@@ -23,7 +23,7 @@ function updateMetadata(metadata, { packaged }) {
   const text = value => (typeof value === 'string' && value.trim() !== '' ? value : null);
   if (!packaged || metadata?.chausarPreview === true) return null;
   const publicKey = text(metadata?.chausarUpdatePublicKey);
-  return publicKey ? { publicKey, feedUrl: text(metadata?.chausarUpdateFeed), windowsPublisher: text(metadata?.chausarWindowsPublisher) } : null;
+  return publicKey ? { publicKey, feedUrl: text(metadata?.chausarUpdateFeed), windowsCertificateThumbprint: require('./updates.cjs').certificateThumbprint(metadata?.chausarWindowsCertificateThumbprint) } : null;
 }
 
 /** What the worker needs for the daily check. The folder is always named, so the owner's row reads a plain state. */
@@ -34,7 +34,7 @@ function updateEnvironment(metadata, { userData, packaged }) {
     CHAUSAR_UPDATE_CHANNEL: metadata?.chausarReleaseChannel === 'beta' ? 'beta' : 'stable',
     CHAUSAR_UPDATE_PUBLIC_KEY: keys?.publicKey ?? '',
     CHAUSAR_UPDATE_FEED: keys?.feedUrl ?? '',
-    CHAUSAR_WINDOWS_PUBLISHER: keys?.windowsPublisher ?? '',
+    CHAUSAR_WINDOWS_CERTIFICATE_THUMBPRINT: keys?.windowsCertificateThumbprint ?? '',
   };
 }
 
@@ -44,7 +44,7 @@ function createUpdateWiring({ metadata, userData, packaged, version, platform, a
   let ready = false, painted = false, cleared = false, work = Promise.resolve();
   const later = job => { work = work.then(job).catch(() => { /* a help, never a gate */ }); return work; };
   // D12 task 9: going back to the kept release; only for a build with update keys, in the real app.
-  const rollback = keys && app ? (rollbackFor ?? createRollback)({ userData, version, platform, appImage, publicKey: keys.publicKey, windowsPublisher: keys.windowsPublisher, updates, app, note, signatureOf: updates.windowsSignature, spawnInstaller: updates.runInstaller, fs }) : null;
+  const rollback = keys && app ? (rollbackFor ?? createRollback)({ userData, version, platform, appImage, publicKey: keys.publicKey, windowsCertificateThumbprint: keys.windowsCertificateThumbprint, updates, app, note, signatureOf: updates.windowsSignature, spawnInstaller: updates.runInstaller, fs }) : null;
 
   /** The staged release as updates.cjs reads it, or null. One the running version has reached is the engine's to clear. */
   async function readStaged() {
@@ -61,7 +61,7 @@ function createUpdateWiring({ metadata, userData, packaged, version, platform, a
     } catch { return null; }
   }
   /** Could anything install here at quit? When not, quit asks for no copy and hashes nothing; the row already says so. */
-  const canInstall = () => (platform === 'win32' ? !!keys?.windowsPublisher : platform === 'linux' && !!appImage);
+  const canInstall = () => (platform === 'win32' ? !!keys?.windowsCertificateThumbprint : platform === 'linux' && !!appImage);
 
   /**
    * Checks a kept release again (signature, platform, length, hash) right before use, copies it under a name a person can
@@ -129,7 +129,7 @@ function createUpdateWiring({ metadata, userData, packaged, version, platform, a
   async function installAfterStop(prepared) {
     if (!prepared) return null;
     const answer = await updates.installOnQuit({
-      staged: prepared.staged, publicKey: keys.publicKey, platform, appImage, windowsPublisher: keys.windowsPublisher, openDataSchema: prepared.openDataSchema ?? null, updatesFolder: folder,
+      staged: prepared.staged, publicKey: keys.publicKey, platform, appImage, windowsCertificateThumbprint: keys.windowsCertificateThumbprint, openDataSchema: prepared.openDataSchema ?? null, updatesFolder: folder,
       isBusy: async () => prepared.busy === true,
       // The engine made the copy before it stopped; a copy that failed stops the install here.
       beforeInstall: async () => { if (prepared.backup === 'failed') throw failure('SAFETY_BACKUP_FAILED', 'The safety copy failed, so the update waits.'); },
