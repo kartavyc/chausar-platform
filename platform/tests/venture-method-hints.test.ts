@@ -21,7 +21,7 @@ const UI_METHODS = [...block.matchAll(/^\s*'([a-z]+(?:\.[A-Za-z]+)+)':/gm)].map(
 const venture = (methods: readonly string[]) => [...new Set(methods.filter(method => method.startsWith('venture.')))].sort();
 const sorted = (methods: readonly string[]) => [...methods].sort();
 
-test('the pinned counts: 384 venture methods, 364 reached through the hosted host', () => {
+test('the pinned counts: 391 venture methods, 371 reached through the hosted host', () => {
   // Wave 6 adds consent, native settings and exact approvals, and removes three obsolete turn methods. 6C1 and 6C2 add
   // six draft methods (not hosted); 6C7 adds venture.needs.list, which the hosted host reaches. 6D adds billing get and
   // set, the invoice PDF and Razorpay payment links, all reached (hosted has no print port or key storage, and says so). 6C5
@@ -33,9 +33,9 @@ test('the pinned counts: 384 venture methods, 364 reached through the hosted hos
   // Batches 8 and 9: 6H1 mini apps (10), 6H2 recorded flows (2), 6H3 layout (2), 6I1 push-to-talk (6), all reached.
   // Batch 10: 6J2 feedback (6), all reached (hosted has no report keys composed and says so).
   // One-shot A2: venture.ai.setup.trust, the owner's choice of Codex, answered by the engine (hosted refuses it).
-  assert.equal(VENTURE_METHODS.length, 384);
+  assert.equal(VENTURE_METHODS.length, 391);
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 364);
+  assert.equal(hosted.length, 371);
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 

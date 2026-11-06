@@ -1,4 +1,4 @@
-import { fakeClientAiConsent } from './fake-client-ai-consent';
+import { FakeClientAiDefault, fakeClientAiConsent } from './fake-client-ai-consent';
 import { ownerError } from './owner-errors';
 import { INTERNAL_LINE_CODES, refusalTravel } from '../../../../platform/runtime/owner-flag';
 import { shownLine } from '../../../../platform/runtime/venture/core/shown-line';
@@ -81,6 +81,7 @@ import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-d
 const localDayAt = (instant: string, country: { code: string }) => new Intl.DateTimeFormat('en-CA', { timeZone: COUNTRY_TIME_ZONES[country.code] ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(instant));
 import { withPriceGuide } from './fake-price-ranges';
 import { createFakeBackground, type FakeBackgroundStart } from './fake-background';
+import { introLine } from '../../../../platform/runtime/venture/agents/intro-core';
 import type { DeliveryLite, InvoiceLite, OrderLite, ReceiptLite } from './types';
 import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
 
@@ -103,6 +104,8 @@ const RECEIPTED = new Set(['price', 'quote', 'invoice']);
 export interface FakeOptions {
   /** An opt-in synthetic UI example, never evidence of a live model run. */
   agentProgress?: boolean;
+  /** C5 task 1: the demo team has not met its agents yet, so Team introduces each once. */
+  newTeam?: boolean;
   latencyMs?: number; now?: () => string;
   /** A computer with no business yet and no vault open: the first run. */
   fresh?: boolean;
@@ -268,6 +271,8 @@ export class FakeEngine {
   timeStop(runId: string): void { this.w4.timeStop(runId); }
   /** Tests (A3, S3): the owner's AI call in Chats fails from now on (null turns it off), as chief/answer.ts meets it. */
   chatAiFails(failure: { reason: string | null } | null): void { this.chief.failAi(failure); }
+  /** C5 task 5: Chats answers as with no AI connected. */
+  chatWithoutAi(on = true): void { this.chief.withoutAi(on); }
   /** Tests (A3, S2): one of the open business's drafts as a run left it (a failed check, for one). */
   reviseDelivery(runId: string, change: (run: DeliveryLite) => DeliveryLite): DeliveryLite { return this.work.reviseRun(this.current, runId, change); }
   /**
@@ -289,6 +294,7 @@ export class FakeEngine {
       if(sample){sample.progress='indeterminate';sample.steps=[];sample.agentProgress={model:'Synthetic example',messages:[{id:'sample-message',text:'Synthetic example: I am checking the supplied brief.',label:'model-estimate'}],tools:[{id:'sample-tool',name:'read_order',status:'running'}]};}
     }
     this.agents = clone(AGENTS);
+    for (const [business, list] of Object.entries(this.agents)) this.metAgents[business] = new Set(options.newTeam ? [] : list.map((agent) => agent.id));
     this.clients = clone(CLIENTS);
     this.evidence = clone(EVIDENCE);
     this.latencyMs = options.latencyMs ?? 0;
@@ -526,6 +532,9 @@ export class FakeEngine {
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
     if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
     if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);
+    if (method === 'venture.client.aiDefault.get' || method === 'venture.client.aiDefault.set') return this.aiDefault.request(method, params, this.current, this.now());
+    if (method === 'venture.accountant.get') return this.accountants[this.current] ?? { email: null, whatsapp: null, at: null };
+    if (method === 'venture.accountant.set') return this.setAccountant(p);
     if (method === 'venture.agentApproval.decide') return rejectFakeAgentApproval(params);
     if (method === 'venture.agentSettings.get' || method === 'venture.agentSettings.set') return this.agentSettings.request(method, params);
     if (method === 'venture.mcpCredential.set') return this.agentSettings.credential(params);
@@ -579,6 +588,7 @@ export class FakeEngine {
         return clone({ ...view, modelReceipt: fakeRunReceipt(view) });
       }
       case 'venture.team.list': return this.teamView();
+      case 'venture.team.introduced': return this.introduced(p);
       case 'venture.team.gate': return this.gate(p as ParamsOf<'venture.team.gate'>);
       case 'venture.team.posture': return this.posture(p as ParamsOf<'venture.team.posture'>);
       case 'venture.spend.list': return { rows: this.spendRows(), ...this.spendTotal() };
@@ -798,13 +808,42 @@ export class FakeEngine {
 
   private shareView(p:Record<string,unknown>){const method='venture.share.list';const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];const openPosts=typeof p.deliveryId==='string'?this.posting.openPosts(p.deliveryId):[];const answer=typeof p.deliveryId==='string'?this.posting.socialClientAnswer(p.deliveryId)?.answer:null;return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra],...(openPosts.length?{posts:openPosts,clientApproval:true,answer:answer??null}: {})};}
 
+  /** C5 task 16: the CA's contact per business (money/accountant.ts). */
+  private readonly accountants: Record<string, { email: string | null; whatsapp: string | null; at: string | null }> = {};
+  private setAccountant(p: Record<string, unknown>) {
+    if (Object.keys(p).some((key) => key !== 'email' && key !== 'whatsapp')) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+    const email = typeof p.email === 'string' && p.email.trim() ? p.email.trim() : null;
+    if (email && !/^[^\s@,;<>"]{1,64}@[^\s@,;<>"]{1,190}\.[^\s@,;<>".]{2,}$/.test(email)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Give an email address like name@example.com.');
+    const whatsapp = typeof p.whatsapp === 'string' ? p.whatsapp.replace(/[\s()+-]/g, '') : '';
+    if (whatsapp && !/^\d{6,15}$/.test(whatsapp)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Give a WhatsApp number with its country code, like 919876543210.');
+    return (this.accountants[this.current] = { email, whatsapp: whatsapp || null, at: this.now() });
+  }
+
+  /** C5 task 7: Allow AI for new clients. */
+  private readonly aiDefault = new FakeClientAiDefault();
+
   private clientAiConsent(method:string, payload:unknown) {
     return fakeClientAiConsent(method,payload,{clients:this.clients[this.current]??[],ventureId:"venture_"+this.current,now:()=>this.now(),changed:()=>{this.work.recheckAiConsent();this.emit({type:'queue.changed',businessId:this.current,at:this.now()});}});
   }
 
   /** venture.team.list as the engine sends it; W6 6G2: retired agents on the Retired shelf, their steps with whoever took over. */
   private teamView(): TeamListView {
-    return this.retire.withShelf(this.w4.teamList(this.retire.agentsNow(clone(this.agents[this.current] ?? [])), this.runs));
+    const view = this.retire.withShelf(this.w4.teamList(this.retire.agentsNow(clone(this.agents[this.current] ?? [])), this.runs));
+    // C5 task 1 (agents/intro.ts): the agents not met yet on this business, each with its code-written line.
+    const met = this.metAgents[this.current] ?? new Set<string>();
+    return { ...view, introduce: view.agents.filter((agent) => agent.kind !== 'code' && !met.has(agent.id)).map((agent) => ({ agentId: agent.id, line: introLine(agent.name, agent.role) })) };
+  }
+
+  /** C5 task 1: the agents met per business (venture-team-intro); a fresh fake has met every demo agent already. */
+  private readonly metAgents: Record<string, Set<string>> = {};
+
+  /** C5 task 1 venture.team.introduced: as agents/intro.ts, the same refusal and the ids met so far. */
+  private introduced(p: Record<string, unknown>): { met: string[] } {
+    const ids = p.agentIds;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 50 || !ids.every((id) => typeof id === 'string' && /^[a-z0-9_-]{1,64}$/i.test(id))) throw new EngineError('INVALID_VENTURE_REQUEST', 'Name the agents you have met.');
+    const met = (this.metAgents[this.current] ??= new Set<string>());
+    for (const id of ids as string[]) met.add(id);
+    return { met: [...met].sort() };
   }
 
   private answerNow(method: string, p: Record<string, unknown>): unknown {
@@ -1011,6 +1050,8 @@ export class FakeEngine {
       stateCode: taxId ? taxId.slice(0, 2) : text(p.stateCode), note,
     };
     if (dryRun) return clone(client);
+    const consent = this.aiDefault.consentFor(this.current, client.id, this.now());
+    if (consent) client.aiConsent = consent;
     this.clients[this.current] = [client, ...(this.clients[this.current] ?? [])];
     const fields = { name: client.name, email: client.email, countryCode: client.countryCode, taxId: client.taxId, stateCode: client.stateCode, note: client.note };
     for (const [field, value] of Object.entries(fields)) {

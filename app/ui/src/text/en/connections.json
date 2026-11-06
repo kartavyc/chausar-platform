@@ -1,5 +1,15 @@
 {
   "connections.line": "Your AI and your tools.",
+  "connections.phone.title": "Your phone",
+  "connections.phone.line": "Use Chausar on your phone over this Wi-Fi.",
+  "connections.phone.pair": "Pair your phone",
+  "connections.phone.again": "Make a new code",
+  "connections.phone.qr": "Code to scan with your phone",
+  "connections.phone.works": {
+    "one": "Works for {count} minute.",
+    "other": "Works for {count} minutes."
+  },
+  "connections.phone.failed": "Could not make a code: {message}",
   "connections.failed": "Couldn't load your connections: {message}",
   "connections.posting": "Posting",
   "connections.posting.api": "API",

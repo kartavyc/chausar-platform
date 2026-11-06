@@ -39,6 +39,13 @@ const BEFORE_W4: Readonly<Record<Exclude<VentureMethod, W4Method | W5Method>, re
   'venture.chief.thread.state': ['prepare', 'ui'], 'venture.chief.settle.set': ['prepare', 'ui'],
   // W6 6H3: a place's layout; each change carries its exact Undo.
   'venture.layout.get': ['read', 'rui'], 'venture.layout.change': ['prepare', 'ui'],
+  'venture.accountant.set': ['prepare', 'ui'],
+  'venture.accountant.get': ['read', 'rui'],
+  'venture.notify.telegram.findChat': ['prepare', 'uio'],
+  'venture.client.aiDefault.set': ['approve', 'ui'],
+  'venture.client.aiDefault.get': ['read', 'rui'],
+  'venture.away.preview': ['read', 'rui'],
+  'venture.team.introduced': ['read', 'rui'],
   // W6 6H2: recorded flows. A run touches the website in the desktop's window; its submits go through the journal.
   'venture.flows.list': ['read', 'rui'], 'venture.flows.act': ['approve', 'o'],
   // W6 6G3: CRM reads, and owner edits whose every change is kept in the field history; 6G4: dated memory facts.

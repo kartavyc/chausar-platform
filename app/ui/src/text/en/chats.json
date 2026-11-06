@@ -1,5 +1,6 @@
 {
   "chats.title": "Chats",
+  "chats.connect": "Connect your AI",
   "chats.line": "Ask Chausar about your business. Every figure comes with its receipt.",
   "chats.failed": "Couldn't read your chats. {message}",
   "chats.list.title": "Your chats",

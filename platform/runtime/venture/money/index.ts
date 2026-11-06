@@ -1,6 +1,8 @@
 // P3 money: price receipts, tax treatment, clients, orders, invoices, payments and the books.
 // Every money number comes from BigInt code with a receipt; the existing calculator proves billed,
 // received and earned from the facts written here. Loaded by the venture host on first use.
+import { accountantGetHandler, accountantSetHandler } from './accountant.ts';
+import { getClientAiDefault, setClientAiDefault } from '../clients/ai-default.ts';
 import { ChausarError } from '../../contracts.ts';
 import type { VentureHandlerTable } from '../contracts.ts';
 import { booksSummary } from './books.ts';
@@ -46,6 +48,10 @@ export const handlers: VentureHandlerTable = {
   'venture.client.aiConsent.get': getClientAiConsent,
   'venture.client.aiConsent.agree': agreeClientAiConsent,
   'venture.client.aiConsent.withdraw': withdrawClientAiConsent,
+  'venture.client.aiDefault.get': getClientAiDefault,
+  'venture.accountant.get': accountantGetHandler,
+  'venture.accountant.set': accountantSetHandler,
+  'venture.client.aiDefault.set': setClientAiDefault,
   'venture.order.create': createOrder,
   'venture.order.list': listOrders,
   'venture.order.deliver': deliverOrder,

@@ -101,6 +101,8 @@ export interface QueueDecision { outcome: 'done' | 'stale' | 'refused'; line: Di
 export type RunState = 'active' | 'waiting' | 'done' | 'failed';
 export interface RunStep {
   id: string; purpose: string; state: 'done' | 'current' | 'pending' | 'waiting' | 'failed'; elapsed?: Display;
+  /** C5 task 4: this step's working time, and the wait for the owner just before it. */
+  working?: Display; waiting?: Display;
   tools?: RunToolLine[]; evidence?: { kind: string; id: string; label: string }[]; error?: string; audited?: boolean;
   /** 4J14 (Q6): on the read step, how much of the client's files code handed over (venture.runs.get only). */
   coverage?: CoverageView;
@@ -140,6 +142,8 @@ export interface RunToolLine { name: string; line: string; state?: 'done' | 'err
 /** 4F1: usually, "Usually 3 to 5 min" once three runs finished (U6); stop, a stop on its way or done, in engine words (O1). */
 export interface RunSummary {
   runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
+  /** C5 task 4: the run's time apart, from stamped times only; an older run shows elapsed alone. */
+  worked?: Display; waited?: Display;
   progress?: { done: number; total: number } | 'indeterminate'; result?: Display; receiptId?: string; estimate?: boolean;
   usually?: Display; stop?: { state: 'stopping' | 'stopped'; line: Display; trigger?: 'same-error' | 'same-action' | 'failures-in-row' };
   /**
@@ -258,6 +262,8 @@ export interface SpendRateInput {
  * set; `capRupees`, `askFirstRupees`: the limits in rupees at that rate. All null or absent without a rate.
  */
 export interface SpendPolicyView {
+  /** C5 task 15: the offer of the reference rate shipped with this release; gone once it is in use. */
+  reference?: { perUsd: string; on: string; line: Display; source: Display; url: string };
   capMicros: string | null; askFirstMicros: string | null; capUsd: string | null; askFirstUsd: string | null;
   cap: Display; askFirst: Display; rates: SpendRateLine[]; setAt: string | null;
   inrPerUsd: string | null; rupeeRate: Display | null; capRupees?: Display; askFirstRupees?: Display;
@@ -606,6 +612,8 @@ export interface ClientRulesLite { bannedWords?: string[]; bannedTopics?: string
 export interface BlueprintViewLite { blueprint: BlueprintLite; offerReceipts: Record<string, ReceiptLite | null>; playbook?: PlaybookPick; intake?: Record<string, OfferIntakeLite>; /** W6 6C3: the profession's sourced ranges, information only. */ priceGuide?: PriceGuideView }
 export interface BlueprintPatchLite {
   countryCode?: string;
+  /** C5 task 13: I charge GST, on Prices (core/blueprint.ts applyTaxPatch). */
+  taxRegistered?: boolean; taxRate?: string; taxId?: string | null; taxState?: string | null; sacCode?: string | null;
   name?: string; oneLiner?: string; customer?: string;
   /** share (5A2): a share of an amount the client confirms later, as percent text ('8.33'), in place of a fixed price; null takes it away. */
   offers?: { id: string; name?: string; description?: string; unitPrice?: string | null; pricingModel?: PricingModel; share?: { percent: string } | null }[];
@@ -675,7 +683,7 @@ export interface ClientLite {
   owed?: { display: Display; receiptId: string };
 }
 export interface ClientAddParams { name: string; email?: string; countryCode?: string; taxId?: string; stateCode?: string; note?: string }
-export type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+export type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { SearchProviderId, WebSearchView, WebReadView } from '../../../../platform/runtime/venture/web/search-types';
 import type { PeopleLookupView, PeopleSearchView } from '../../../../platform/runtime/venture/people/people-types';
 import type { FlowsActPayload, FlowsActView, FlowsListView } from '../../../../platform/runtime/venture/flows/flow-types';
@@ -710,7 +718,7 @@ export interface MiniAppView extends MiniAppCard {
 /** What the bridge answers for one tools/call, in the MCP CallToolResult shape. */
 export interface MiniAppCallResult { content: { type: 'text'; text: string }[]; structuredContent: unknown; isError: false }
 export type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView, FactView, FactVisibility, MemoryChange, MemoryView };
-import type { ClientAiConsent, ClientAiConsentView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
+import type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';
 import type { AgentApprovalRequest } from '../../../../platform/runtime/venture/agent-runtime/driver-types';
 /** `venture.order.list` (OrderRecord), trimmed. `request` is what the client asked for, typed by the owner. */
@@ -842,6 +850,8 @@ export interface InvoiceTimelineEntry {
 }
 export interface InvoiceViewLite {
   country?: CountryLite;
+  /** C5 task 12: the method a new payment starts from (money/invoices.ts paymentDefaultsOf). */
+  paymentDefaults?: { method: PaymentMethod };
   invoice: InvoiceLite & {
     currency: string; dueInDays: number; digest: string; documentTitle: string;
     priceReceiptId: string; booksReceiptId: string | null; booksNote: string | null;
@@ -1203,7 +1213,7 @@ export interface RetireCheckView {
 
 /** 4B1 and 4B2 agent chat, proposals, standing orders and notes. */
 export type ChatPart = { kind: 'text'; text: string } | { kind: 'figure'; receiptId: string; key: string; display: Display } | { kind: 'estimate'; text: string };
-export interface AgentSuggestion { kind: 'order'; offerId: string | null; request: string }
+export type AgentSuggestion = { kind: 'order'; offerId: string | null; request: string } | { kind: 'connect-ai' };
 export interface ChatConsentView { state: 'needed' | 'given' | 'stale' | 'not-needed'; text: Display | null; digest: string | null; at: string | null }
 export type AgentNoteScope = 'agent' | `client:${string}`;
 export type AgentNoteLoad = 'always' | 'topic';
@@ -1306,6 +1316,8 @@ export interface ChiefMessageView {
   id: string; at: string; from: 'owner' | 'chief'; parts: ChatPart[]; proposals: ProposalView[];
   routedTo: { agent: string; name: string } | null; worked: { label: Display; value: Display; receiptId: string }[]; dropped: Display[];
   counted: ChiefCounted | null;
+  /** C5 task 5: Connect your AI, under an answer written with no AI. */
+  suggestion?: { kind: 'connect-ai' };
 }
 /** snooze (W6 6G1): the snooze choices now, none while the chat waits for the owner. */
 export interface ChiefThreadView { thread: ChiefThreadSummary; messages: ChiefMessageView[]; more: boolean; snooze: ChiefSnoozeOption[] }
@@ -1318,7 +1330,7 @@ export type TieBand = 'close' | 'know-well' | 'know' | 'met-once' | 'cold';
 export interface PersonSummary { id: string; name: string; initials: string; title: Display | null; company: string | null; band: TieBand | null; dots: number; hidden: boolean; degree: '1st' | '2nd' | null }
 export interface WarmPathView { kind: 'direct' | 'same-company' | 'connector'; via: { id: string; name: string } | null; confirmed: boolean; strength: TieBand; line: Display }
 /** 4D4: consent, the chat consent a search needs while it is needed (needed or stale, with its text and digest), else null. */
-export interface PeopleView { people: PersonSummary[]; suggestions: { a: string; b: string; line: Display }[]; total: number; consent: ChatConsentView | null }
+export interface PeopleView { people: PersonSummary[]; suggestions: { a: string; b: string; line: Display }[]; total: number; consent: ChatConsentView | null; chips?: string[] }
 export interface PersonView {
   person: PersonSummary; fields: { field: string; value: Display; source: Display; sourceId: string }[]; how: { line: Display; receiptId: string | null }[];
   paths: WarmPathView[]; card: PipelineCardView | null; drafts: OutreachView[]; merged: boolean; web: { text: string; url: string }[];
@@ -1668,6 +1680,8 @@ export interface AboutReadLite {
   /** A1 final check: the AI read's own call id, carried by the kept card. */
   callId?: string;
   file?: { name: string; included: boolean; line: string | null };
+  /** C5 task 6: your AI's first reply after About you, when it gave one (at most two sentences, no digits). */
+  reply?: string;
 }
 /** Wave 6 (6C7): what the business needs from outside, as core/needs.ts answers. */
 export interface NeedLite {
@@ -1766,6 +1780,8 @@ export interface GoNoGoCardView {
   maxLoss: { minor: string; display: Display; receiptId: string } | null;
   limit: { minor: string; display: Display } | null;
   spendsNothing: Display | null;
+  /** C5 task 14: on NO-GO, what would make it a go, worked out by code. */
+  toGo?: { line: Display; months: number | null; monthly: { minor: string; display: Display } | null };
 }
 export interface GoNoGoListView { cards: GoNoGoCardView[] }
 /** 5A2: a price that is a share of an amount the client confirms later (basis points the owner set). */
@@ -1938,6 +1954,8 @@ export interface EngineMethods {
   'venture.spend.list': { params: Record<string, never>; result: { rows: SpendRow[]; total: Display; totalRupees?: Display; totalLead?: SpendLead } };
   'venture.spend.policy.get': { params: Record<string, never>; result: SpendPolicyView };
   'venture.spend.policy.set': {
+    /** C5 task 15: use the reference rate shipped with this release; not together with inrPerUsd. */
+    useReference?: true;
     params: {
       capUsd?: string | null; askFirstUsd?: string | null; rates?: SpendRateInput[]; inrPerUsd?: string | null;
       // 4F2: the day's cap, the alert share in permille, each agent's own monthly limit, and lower daily write caps.
@@ -2182,7 +2200,7 @@ export interface EngineMethods {
   'venture.agents.retire': { params: { agent: string; to: string; digest: string }; result: { retired: RetiredAgentView; line: Display } };
   'venture.agents.restore': { params: { agent: string }; result: { agent: AgentView; routines: number; line: Display } };
   // W6 6H1 (D39): mini apps, their permission screen, versions with undo, pin, export, delete and the MCP Apps bridge.
-  'venture.apps.list': { params: Record<string, never>; result: { apps: MiniAppCard[]; ideas: Display[]; never: Display } };
+  'venture.apps.list': { params: Record<string, never>; result: { apps: MiniAppCard[]; ideas: { label: Display; preview: Display }[]; never: Display } };
   'venture.apps.get': { params: { app: string }; result: { app: MiniAppView } };
   'venture.apps.make': { params: { ask: string; app?: string }; result: { app: MiniAppView; line: Display } };
   'venture.apps.grant': { params: { app: string; digest: string }; result: { app: MiniAppView; line: Display } };
@@ -2195,6 +2213,13 @@ export interface EngineMethods {
   // W6 6H3 (D40): a place's layout, read and changed by the owner (the AI changes it through Chausar's MCP tools).
   'venture.layout.get': { params: { place: LayoutPlace }; result: LayoutView };
   'venture.layout.change': { params: LayoutRequest; result: LayoutChangeResult };
+  'venture.accountant.set': { params: { email?: string | null; whatsapp?: string | null }; result: { email: string | null; whatsapp: string | null; at: string | null } };
+  'venture.accountant.get': { params: Record<string, never>; result: { email: string | null; whatsapp: string | null; at: string | null } };
+  'venture.notify.telegram.findChat': { params: { token: string }; result: { found: { chatId: string; name: string } | null; line: Display } };
+  'venture.client.aiDefault.set': { params: { on: boolean; digest: string }; result: ClientAiDefaultView };
+  'venture.client.aiDefault.get': { params: Record<string, never>; result: ClientAiDefaultView };
+  'venture.away.preview': { params: { from: string; to: string }; result: { from: string; to: string; items: AwayView['promises'] } };
+  'venture.team.introduced': { params: { agentIds: string[] }; result: { met: string[] } };
   // Wave 6 (6H2, D41): recorded flows, recorded once in the desktop's window and run with no AI.
   'venture.flows.list': { params: Record<string, never>; result: FlowsListView };
   'venture.flows.act': { params: FlowsActPayload; result: FlowsActView };
@@ -2493,6 +2518,8 @@ export type EngineStatus =
 
 export type Transport = 'desktop' | 'web' | 'hosted' | 'fake';
 
+/** C5 task 16: what the desktop opened for Send to my CA. */
+export interface PackShareResult { how: 'email' | 'whatsapp'; opened: 'draft' | 'none' | 'app' | 'web'; file: string; to: string }
 export interface EngineClient {
   readonly transport: Transport;
   request<M extends MethodName>(method: M, params?: ParamsOf<M>): Promise<ResultOf<M>>;
@@ -2524,6 +2551,8 @@ export interface EngineClient {
    * file (venture.invoice.pdf), keeps it in Chausar's share folder and opens the owner's own app; it answers what opened.
    * Nothing is sent. Absent on the web, the hosted app and the fake, where the sheet opens the engine's share links.
    */
+  /** C5 task 16: Send to my CA: a draft or WhatsApp with the month's file; desktop only. */
+  sharePack?(month: string, how: 'email' | 'whatsapp'): Promise<PackShareResult>;
   shareInvoice?(invoiceId: string, how: 'email' | 'whatsapp'): Promise<InvoiceShareResult>;
   /** Desktop only (A6): shows the invoice file the desktop kept for sharing in the file manager. SHARE_FILE_GONE when it is gone. */
   showShared?(name: string): Promise<void>;

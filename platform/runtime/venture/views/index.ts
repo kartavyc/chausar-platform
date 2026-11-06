@@ -15,7 +15,7 @@ import { rulesListHandler } from '../playbooks/rules-view.ts';
 // Wave 6 (6C5): owner attestation of locked rules, and the hard stops.
 import { rulesAttestHandler, rulesLocksHandler } from '../playbooks/rules-attest.ts';
 import { businessPauseHandler, runsResumeHandler, runsRoundGateHandler, runsSteerHandler, runsStopHandler } from '../delivery/run-controls.ts';
-import { awayGetHandler, awaySetHandler } from '../delivery/away.ts';
+import { awayGetHandler, awayPreviewHandler, awaySetHandler } from '../delivery/away.ts';
 import { runsAllowWritesHandler } from '../delivery/harness/write-caps.ts';
 import { decisionsListHandler } from '../journal/decisions.ts';
 import { allowSessionHandler } from '../policy/allow-session.ts';
@@ -74,6 +74,7 @@ export const handlers: VentureHandlerTable = {
   'venture.runs.steer': runsSteerHandler,
   'venture.business.pause': businessPauseHandler,
   'venture.away.set': awaySetHandler,
+  'venture.away.preview': awayPreviewHandler,
   'venture.away.get': awayGetHandler,
   'venture.runs.allowWrites': runsAllowWritesHandler,
   // 4J1 decisions and allow for this session.

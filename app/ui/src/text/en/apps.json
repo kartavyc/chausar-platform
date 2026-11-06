@@ -3,6 +3,7 @@
   "apps.line": "Small tools your AI built for this business. They run inside Chausar and ask you before doing anything outside it.",
   "apps.make.title": "Make an app",
   "apps.make.label": "Describe the app",
+  "apps.make.ideas": "Ideas to start from",
   "apps.make.placeholder": "Say what the app should do, like: who paid and who is due",
   "apps.make.busy": "Your AI is writing it.",
   "apps.card.open": "Open",

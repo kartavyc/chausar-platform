@@ -51,7 +51,7 @@ const ID_PREFIX: Record<VentureRecordKind, string> = {
   'venture-chief-thread': 'chiefthread', 'venture-chief-message': 'chiefmsg', 'venture-proposal': 'proposal',
   'venture-chat-settle': 'chatsettle',
   // Wave 6 (6H3)
-  'venture-layout': 'layout', 'venture-layout-go': 'layoutgo',
+  'venture-layout': 'layout', 'venture-layout-go': 'layoutgo', 'venture-team-intro': 'teamintro', 'venture-client-ai-default': 'aidefault', 'venture-accountant': 'accountant',
   'venture-person': 'person', 'venture-network-import': 'netimport', 'venture-forgotten': 'forgotten',
   'venture-tie': 'tie', 'venture-network-search': 'netsearch',
   'venture-opportunity': 'opp', 'venture-pipeline-settings': 'pipesettings',
@@ -363,7 +363,8 @@ export function smallInteger(value: unknown, field: string, min: number, max: nu
 /** Owner-typed amount text to minor units: strips spaces and thousands commas, then exact decimal parsing. */
 export function amountText(value: unknown, field: string): string {
   check(typeof value === 'string' && value.length <= 40, 'INVALID_AMOUNT', `${field} must be an amount like 2499 or 2499.50.`);
-  const cleaned = value.replace(/[\s,]/g, '');
+  // C5 task 12: "Full amount" copies the balance as the screen shows it ("₹2,000"), so a leading money sign is read past.
+  const cleaned = value.replace(/^\s*[₹$€£]/, '').replace(/[\s,]/g, '');
   check(/^\d+(?:\.\d+)?$/.test(cleaned), 'INVALID_AMOUNT', `${field} must be a positive amount like 2499 or 2499.50.`);
   return cleaned;
 }

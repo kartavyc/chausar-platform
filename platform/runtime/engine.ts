@@ -1889,6 +1889,13 @@ export class Engine {
       case 'venture.chief.settle.set':
       case 'venture.layout.get':
       case 'venture.layout.change':
+      case 'venture.accountant.set':
+      case 'venture.accountant.get':
+      case 'venture.notify.telegram.findChat':
+      case 'venture.client.aiDefault.set':
+      case 'venture.client.aiDefault.get':
+      case 'venture.away.preview':
+      case 'venture.team.introduced':
       case 'venture.flows.list':
       case 'venture.flows.act':
       case 'venture.chief.fit':

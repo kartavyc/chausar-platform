@@ -105,6 +105,13 @@ const METHODS = Object.freeze([
   'venture.chief.thread.state', 'venture.chief.settle.set',
   // W6 6H3: a place's layout.
   'venture.layout.get', 'venture.layout.change',
+  'venture.accountant.set',
+  'venture.accountant.get',
+  'venture.notify.telegram.findChat',
+  'venture.client.aiDefault.set',
+  'venture.client.aiDefault.get',
+  'venture.away.preview',
+  'venture.team.introduced',
   // Wave 6 (6H2): recorded flows
   'venture.flows.list', 'venture.flows.act',
   'venture.proposals.raise', 'venture.proposals.dismiss',
