@@ -5,7 +5,7 @@ import {PLAYBOOK_CATALOGUE_ENTRIES} from '../runtime/venture/build/catalogue-pla
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
-import { SERVICE_TYPE_LABELS, SERVICE_TYPES, STEP_PLAN, VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { SERVICE_TYPE_LABELS, SERVICE_TYPES, STEP_PLAN, VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintRecord, BriefModelOutput, BriefRecord, BuilderId, ClientRecord, CountryProfile, GitHubFixture, GitHubRequest, GitHubResponse,
   GitHubTransport, Json, LineAuthor, LineLabel, ModelPort, ModelTask, OrderRecord, PriceReceiptRecord, SecretName, SecretShelf, VentureDeps,

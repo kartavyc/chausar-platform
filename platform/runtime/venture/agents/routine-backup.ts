@@ -6,7 +6,7 @@
 // after something was sent, never falls back. A run that carries a client's data takes a backup only when that
 // client's AI consent was given while the backup was already connected. The main chat consent keeps its rule exactly.
 import { check, type Context, type State } from '../../contracts.ts';
-import { MODEL_PRESET_IDS } from '../contracts.ts';
+import { MODEL_PRESET_IDS } from '../contract-values.ts';
 import type { ChatConsentRecord, IsoTime, ModelPresetId, ModelStatusView, VentureDeps, VentureRecord } from '../contracts.ts';
 import { currentVenture, digest, exactPayload, listRecords, readVenture, requireAppChannel, ventureAction } from '../records.ts';
 import { planBookOf, planCliOf } from '../models/plan-book.ts';

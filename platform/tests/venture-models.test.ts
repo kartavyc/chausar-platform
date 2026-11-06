@@ -14,7 +14,7 @@ import { isAbsolute, join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
-import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, ENGINE_METHODS, METHOD_OWNERS, MODEL_PRESET_IDS, MODEL_PURPOSES, PURPOSE_TIER, VENTURE_ERRORS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import type {
   ModelHttpRequest, ModelHttpResponse, ModelPort, ModelProcessRequest, ModelProcessResponse, ModelPurpose, ModelReplayFixture, ModelStatusView, ModelTask, ModelTransport,
   SecretName, SecretShelf, VentureDeps,

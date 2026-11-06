@@ -7,7 +7,7 @@
 // 5A3's kit/rules.ts re-exports DatedRule from here rather than declaring a second one. Written for Chausar; nothing
 // here is learned from an outside source.
 import { ChausarError } from '../../../contracts.ts';
-import { DEPARTMENT_IDS, TOOL_NAMES } from '../../contracts.ts';
+import { DEPARTMENT_IDS, TOOL_NAMES } from '../../contract-values.ts';
 import type { DepartmentId, IsoDate, OrderIntake, PlaybookCheckResult, PlaybookStep, PricingModel, WayCategory } from '../../contracts.ts';
 import type { ApprovalBlockId } from '../../onboarding-contracts.ts';
 import type { RightsBasis } from '../../delivery/rights.ts';

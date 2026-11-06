@@ -9,7 +9,7 @@ import {
   activateTerm, bpsPercent, copiedTokens, digest, exactPayload, percentBps, requireAppChannel, requireVenture, singleLine,
   tidyWords, ventureAction, type VentureTx,
 } from '../records.ts';
-import { APPROVAL_COUNT, INTERVIEW_IDS, OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPE_LABELS, STARTER_CONNECTORS, STEP_IDS, STEP_PLAN } from '../contracts.ts';
+import { APPROVAL_COUNT, INTERVIEW_IDS, OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPE_LABELS, STARTER_CONNECTORS, STEP_IDS, STEP_PLAN } from '../contract-values.ts';
 import type {
   BackOffice, BlueprintModelOutput, BlueprintRecord, BlueprintStep, BlueprintView, CountryProfile, InterviewRecord, Json,
   Labelled, ModelTask, Offer, PlanFlagshipStep, PricingModel, ServiceType, TermRecord, VentureDeps, VentureRecord, VentureStatus,

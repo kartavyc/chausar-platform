@@ -9,7 +9,7 @@ import { sha256Hex } from '../../hash.ts';
 // import would do and stores nothing; Undo removes exactly what one import made, and says first what goes with it.
 
 import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
-import { NETWORK_IMPORT_KINDS } from '../contracts.ts';
+import { NETWORK_IMPORT_KINDS } from '../contract-values.ts';
 import type {
   IsoDate, IsoTime, NetworkAbsorbed, NetworkImportKind, NetworkImportRecord, NetworkImportResult, NetworkImportUndo, NetworkImportView, OpportunityRecord,
   OutreachRecord, PersonFact, PersonRecord, RecordBase, VentureDeps, VentureRecord,

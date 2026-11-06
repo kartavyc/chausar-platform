@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS, W4_METHOD_LEVELS, W4_METHODS, W5_METHOD_LEVELS, W5_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, PRE_VAULT_METHODS, VENTURE_METHODS, W4_METHOD_LEVELS, W4_METHODS, W5_METHOD_LEVELS, W5_METHODS } from '../runtime/venture/contract-values.ts';
 import { METHOD_HINTS, METHOD_LEVEL_OF } from '../runtime/venture/method-hints.ts';
 import { ACTOR_ACTIONS } from '../runtime/hosted/runtime/contract.ts';
 import { VentureHost } from '../runtime/venture/host.ts';

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Context } from '../runtime/contracts.ts';
 import type { BrowserPort, BrowserPostJob, ConnectorPostRecord, PostingProposal, VentureDeps } from '../runtime/venture/contracts.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import { houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as build } from '../runtime/venture/build/index.ts';
 import { POSTING_CONSENT_LINE, connectorQueueRows, decideConnectorRow, decidePost, resolveUnknownPost } from '../runtime/venture/build/posting.ts';

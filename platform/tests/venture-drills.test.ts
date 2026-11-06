@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import type { DrillRunRecord, DrillRunView, DrillRunsView, PlaybookRecord } from '../runtime/venture/contracts.ts';
 import { handlers as deliveryHandlers } from '../runtime/venture/delivery/index.ts';
 import { DRILL_IDS, DRILL_PARTS, DRILL_TOOL_NAMES, runDrills } from '../runtime/venture/delivery/drills.ts';
-import { TOOL_NAMES } from '../runtime/venture/contracts.ts';
+import { TOOL_NAMES } from '../runtime/venture/contract-values.ts';
 import { harnessPolicyContext } from '../runtime/venture/policy/context.ts';
 import { latchTaint, resultIntegrity } from '../runtime/venture/policy/taint.ts';
 import { ladderPolicy } from '../runtime/venture/policy/ladder.ts';

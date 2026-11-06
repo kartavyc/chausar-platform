@@ -8,7 +8,7 @@ import { scriptedAgent, consentForOrder, SCRIPTED_AGENT_SETTINGS } from './fixtu
 import { waitForAgentWork } from '../runtime/venture/agent-runtime/runner.ts';
 import assert from 'node:assert/strict';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
-import { PURPOSE_TIER, REQUIRED_SECTIONS, STEP_PLAN } from '../runtime/venture/contracts.ts';
+import { PURPOSE_TIER, REQUIRED_SECTIONS, STEP_PLAN } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintRecord, CountryProfile, DeliveryRunView, Episode, ImprovementRunRecord, ImprovementStatus, ModelOutcome, ModelPort, ModelPreset,
   ModelPreview, ModelPurpose, ModelStatusView, ModelTask, OrderRecord, PlaybookPatch, PlaybookRecord, PriceFigure, PriceReceiptRecord, SignalRecord,

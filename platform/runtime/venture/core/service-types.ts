@@ -2,7 +2,7 @@
 // Template words describe what the owner and an agent will do, never what was done: no digits, no banned
 // words, no done claims. A test runs every string here through assertNoNumbers, houseStyleFindings and
 // doneClaimFindings.
-import { OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPES, SERVICE_TYPE_LABELS } from '../contracts.ts';
+import { OFFER_IDS, SECOND_OFFER_MODEL, SERVICE_TYPES, SERVICE_TYPE_LABELS } from '../contract-values.ts';
 import type { InterviewModelOutput, PricingModel, ServiceType } from '../contracts.ts';
 import { pickPlaybook } from '../playbooks/registry.ts';
 import { SERVICE_KEYWORDS } from './service-keywords.ts';

@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { Context } from '../runtime/contracts.ts';
-import { VENTURE_ERRORS } from '../runtime/venture/contracts.ts';
+import { VENTURE_ERRORS } from '../runtime/venture/contract-values.ts';
 import type { BrowserPort, BrowserPostJob, BrowserPostResult, ConnectorCard, ConnectorPostRecord, VentureDeps } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings, listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { CONNECTOR_CATALOGUE, handlers } from '../runtime/venture/build/index.ts';

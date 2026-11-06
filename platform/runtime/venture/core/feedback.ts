@@ -19,7 +19,7 @@
 import { randomBytes } from 'node:crypto';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import type { FeedbackItemRecord, FeedbackSettingRecord, RecordBase, VentureDeps, VentureMethod, VentureRecord } from '../contracts.ts';
-import { VENTURE_METHODS } from '../contracts.ts';
+import { VENTURE_METHODS } from '../contract-values.ts';
 import { exactPayload, listRecords, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { readAs } from '../delivery/shared.ts';
 import { guardedFetch } from './net-guard.ts';

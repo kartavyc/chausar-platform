@@ -11,7 +11,7 @@ import { check } from '../../../contracts.ts';
 import { digitCopy } from '../../core/secrets.ts';
 import { namesMoneyScale, scaledAmountToken } from '../../core/money-words.ts';
 import { assertNoMoney, assertNoNumbers, copiedTokens, houseStyleFindings, modelNumbers, tidyWords } from '../../records.ts';
-import { CHECK_IDS, PLAYBOOK_PATCH_OPS, TOOL_NAMES } from '../../contracts.ts';
+import { CHECK_IDS, PLAYBOOK_PATCH_OPS, TOOL_NAMES } from '../../contract-values.ts';
 import type { CheckId, HarnessLimits, PlaybookPatch, PlaybookPatchOp, PlaybookStep, ServiceType, ToolName } from '../../contracts.ts';
 import { CA_FIRM_ID } from '../../playbooks/ca-firm/registration.ts';
 import { SOCIAL_AGENCY_ID } from '../../playbooks/social/registration.ts';
