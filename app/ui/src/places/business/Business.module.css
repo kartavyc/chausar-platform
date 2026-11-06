@@ -661,3 +661,11 @@
   font-weight: var(--weight-strong);
   color: var(--fg);
 }
+
+/* C5 task 13: I charge GST, a quiet switch above the prices; its fields show only once it is on. */
+.gst {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-block: var(--sp-3);
+}

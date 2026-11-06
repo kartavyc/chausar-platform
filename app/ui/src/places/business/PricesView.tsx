@@ -7,7 +7,7 @@ import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
 import { Tile } from '../../parts/Tile';
 import { PriceGuideList } from '../../parts/PriceSources';
-import type { OfferLite, PriceGuideView, ReceiptLite } from '../../engine/types';
+import type { BlueprintLite, BlueprintPatchLite, OfferLite, PriceGuideView, ReceiptLite } from '../../engine/types';
 import { PendingPlanRows, messageOf, quoteAgain, totalOf, usePlan } from './shared';
 import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
@@ -38,6 +38,7 @@ export function PricesView() {
           <h2 id={headingId} className={s.groupTitle}>{t('business.offers')}</h2>
           <span className={s.note}>{t('business.pricesLine')}</span>
         </div>
+        <GstSwitch office={blueprint.backOffice} onChanged={plan.reload} />
         <ul className={s.cards}>
           {blueprint.offers.map((offer) => (
             <OfferPrice key={offer.id} offer={offer} receipt={offerReceipts[offer.id] ?? null} currency={blueprint.backOffice.currency} onChanged={plan.reload} />
@@ -150,5 +151,51 @@ function OfferPrice({ offer, receipt, currency, onChanged }: { offer: OfferLite;
       </form>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </Tile>
+  );
+}
+
+const GST_RATES = ['5', '12', '18', '28'] as const;
+const bpsOf = (percent: string) => String(Math.round(Number(percent) * 100));
+
+/**
+ * C5 task 13: "I charge GST". The fields appear only after the switch; every change goes through venture.blueprint.update
+ * as a price does, and the engine checks the GSTIN (core/tax-fields.ts). E-invoicing stays out of scope.
+ */
+function GstSwitch({ office, onChanged }: { office: BlueprintLite['backOffice']; onChanged: () => void }) {
+  const t = useT();
+  const client = useEngine();
+  const headId = useId();
+  const [on, setOn] = useState(office.taxRegistered.value);
+  const [rate, setRate] = useState(() => { const held = GST_RATES.find((item) => bpsOf(item) === office.taxRateBps); return held ?? (office.taxRegistered.value ? String(Number(office.taxRateBps) / 100) : '18'); });
+  const [gstin, setGstin] = useState(office.taxId ?? '');
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  async function send(patch: BlueprintPatchLite) {
+    setBusy(true);
+    setProblem(null);
+    try { await client.request('venture.blueprint.update', { patch }); await quoteAgain(client); onChanged(); return true; }
+    catch (error) { setProblem(t('business.saveFailed', { message: messageOf(error) })); return false; }
+    finally { setBusy(false); }
+  }
+  async function flip(next: boolean) {
+    setOn(next);
+    if (!next && office.taxRegistered.value) await send({ taxRegistered: false });
+  }
+  return (
+    <section className={s.gst} aria-labelledby={headId}>
+      <label className={s.agree} id={headId}>
+        <input type="checkbox" checked={on} disabled={busy} onChange={(event) => void flip(event.currentTarget.checked)} />
+        {t('business.gst.switch')}
+      </label>
+      {on && (
+        <form className={s.form} onSubmit={(event: FormEvent) => { event.preventDefault(); const taxId = gstin.trim(); void send({ taxRegistered: true, taxRate: rate.trim(), ...(taxId ? { taxId } : {}) }); }}>
+          <Field label={t('business.gst.rate')} hint={t('business.gst.rateHint')} inputMode="decimal" list="gst-rates" value={rate} disabled={busy} onChange={(event) => setRate(event.currentTarget.value)} />
+          <datalist id="gst-rates">{GST_RATES.map((item) => <option key={item} value={item} />)}</datalist>
+          <Field label={t('business.gst.gstin')} autoComplete="off" spellCheck={false} value={gstin} disabled={busy} onChange={(event) => setGstin(event.currentTarget.value)} />
+          <div className={s.buttons}><Button type="submit" variant="secondary" disabled={busy || !rate.trim()}>{t('business.gst.save')}</Button></div>
+        </form>
+      )}
+      {problem && <p className={s.problem} role="alert">{problem}</p>}
+    </section>
   );
 }

@@ -393,6 +393,24 @@ export class FakeBusinessDesk {
       resetCountry(next, country.code, beforeCountry.code);
     }
     next.country = country;
+    // C5 task 13 (core/blueprint.ts applyTaxPatch, core/tax-fields.ts): I charge GST, its rate and the GSTIN.
+    if (patch.taxRegistered !== undefined) {
+      if (typeof patch.taxRegistered !== 'boolean') throw invalid('Say yes or no to charging tax.');
+      next.backOffice.taxRegistered = told(patch.taxRegistered) as typeof next.backOffice.taxRegistered;
+      if (!patch.taxRegistered) { next.backOffice.taxRateBps = '0'; next.backOffice.taxRateBy = 'not-registered'; }
+    }
+    if (patch.taxRate !== undefined) {
+      if (!next.backOffice.taxRegistered.value) throw new EngineError('INVALID_TAX_RATE', 'Turn tax on before you set a rate.');
+      const match = /^(\d{1,2})(?:\.(\d{1,2}))?$/.exec(String(patch.taxRate).trim());
+      if (!match) throw new EngineError('INVALID_TAX_RATE', 'Type the rate as a percent, like 18.');
+      next.backOffice.taxRateBps = String(Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0')));
+      next.backOffice.taxRateBy = 'told-by-you';
+    }
+    if (patch.taxId !== undefined) {
+      const cleaned = patch.taxId === null ? null : String(patch.taxId).toUpperCase().replace(/\s+/g, '');
+      if (cleaned !== null && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(cleaned)) throw new EngineError('INVALID_TAX_ID', 'Check your GSTIN.');
+      next.backOffice.taxId = cleaned;
+    }
     if (patch.name !== undefined) next.name = told(text(patch.name, 60, 'The name'));
     if (patch.oneLiner !== undefined) next.oneLiner = told(text(patch.oneLiner, 160, 'The one line'));
     if (patch.customer !== undefined) next.customer = told(text(patch.customer, 200, "Who it's for"));
