@@ -197,11 +197,11 @@ export class FakeGoals {
         paceReceiptId = by.receiptId;
         paceBy = { display: by.display, receiptId: by.receiptId! };
       }
-    } else {
-      const before = this.invoices(previousMonth(chosen), 'issued');
-      const words2 = monthWords(previousMonth(chosen));
-      lastMonth = this.sum(`Invoiced in ${words2}`, before.map(({ invoice, minor, client }) => ({ label: `${invoice.number} for ${client}`, minor })), `Nothing was invoiced in ${words2}.`);
     }
+    // C4 task 34, as money/goals.ts: last month's invoiced figure, set or not, for the goal's field.
+    const before = this.invoices(previousMonth(chosen), 'issued');
+    const words2 = monthWords(previousMonth(chosen));
+    lastMonth = this.sum(`Invoiced in ${words2}`, before.map(({ invoice, minor, client }) => ({ label: `${invoice.number} for ${client}`, minor })), `Nothing was invoiced in ${words2}.`);
 
     const ahead = isCurrent ? this.next(goal ? { month: chosen, goalMinor: Number(goal.amountMinor), invoicedMinor } : null) : { next: null, briefing: null };
     return {

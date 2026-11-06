@@ -153,17 +153,13 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
             )}
           </dl>
           <GoalBar data={data.bar} tone="light" />
+          {/* C4 task 34 (140.x1): the pace sentence Today's goal shows, from the same engine field (pacePercent). */}
+          {shown?.pace && <p className={b.line} data-goal-pace="">{t('today.goal.bar.pace', { pace: `${shown.pacePercent}%` })}</p>}
         </>
       )}
       {data?.state === 'unset' && (
         <>
           <p className={b.line}>{t('business.goals.none', { month: words(month) })}</p>
-          {data.lastMonth && (
-            <p className={s.inline}>
-              <span>{t('today.goal.lastMonth', { month: data.lastMonth.month })}</span>
-              <Figure value={data.lastMonth.amount.value} receiptId={data.lastMonth.amount.receiptId!} />
-            </p>
-          )}
           {suggestion.state === 'sent' && (
             <>
               <p className={s.inline}>
@@ -197,6 +193,12 @@ function MonthGoal({ month, months, words, view, failed, onMonth }: MonthGoalPro
           inputMode="decimal" autoComplete="off" value={typed} disabled={busy}
           onChange={(event) => { setTyped(event.currentTarget.value); setProblem(null); }}
         />
+        {/* C4 task 34 (13.x1): last month's invoiced figure beside the field, set or not, with its receipt. */}
+        {shown && (
+          shown.lastMonth?.receiptId
+            ? <p className={s.inline} data-last-month=""><span>{t('today.goal.lastMonth', { month: monthOf(monthBefore(month)) })}</span><Figure value={shown.lastMonth.display} receiptId={shown.lastMonth.receiptId} /></p>
+            : <p className={b.quiet} data-last-month="">{t('business.goals.noLastMonth')}</p>
+        )}
         {problem && <p className={b.problem} role="alert">{problem}</p>}
         {saved && <p className={b.quiet} role="status">{saved}</p>}
         <div className={b.formEnd}>
