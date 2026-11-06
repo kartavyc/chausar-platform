@@ -1,0 +1,26 @@
+name: D9 chunks validation
+on:
+  push:
+    branches: [b2c/os-d9-check-*]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vite build --config app/ui/vite.config.ts --mode fake --manifest --outDir "$RUNNER_TEMP/d9-fake"
+      - env:
+          CHAUSAR_RUN_ROOT: ${{ runner.temp }}/chausar
+        run: node scripts/ui-shots/chunks.mjs "$RUNNER_TEMP/d9-fake"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chunks-browser
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/chausar/ui-chunks/*.json
+            ${{ runner.temp }}/d9-fake/.vite/manifest.json

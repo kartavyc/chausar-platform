@@ -9,6 +9,9 @@ export const RAIL_PLACES = ['today', 'chats', 'team', 'work', 'clients', 'money'
 /** approve: the standalone approval page (W4 4G4, O11), `#/approve/next` or `#/approve/<rowId>`; no rail item. */
 export const OTHER_PLACES = ['business', 'onboarding', 'approve'] as const;
 export type PlaceId = (typeof RAIL_PLACES)[number] | (typeof OTHER_PLACES)[number];
+/** Phone's main tabs; shared with the idle page loader. */
+export const TAB_PLACES = ['today', 'chats', 'work', 'money'] as const satisfies readonly PlaceId[];
+
 
 export interface SheetRef { kind: string; id: string }
 export interface Route { place: PlaceId; sub?: string; sheet?: SheetRef; query: Record<string, string> }

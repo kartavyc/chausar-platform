@@ -542,7 +542,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
     if (problems.length) throw new Error(`the packaged build is incomplete, so no receipt was written: ${problems.join('; ')}`);
     // D5 task 5: what the build carries goes on the receipt; any problem (a fourth language, a Claude Code program file,
     // no Ink build, Ink source, another Codex) refuses it.
-    const read = await readPackageContents(unpackedDir, { mode: plan.mode });
+    const read = await readPackageContents(unpackedDir, { mode: plan.mode, inkRoot: join(root, 'app/ui/dist') });
     if (read.problems.length) throw new Error(`the packaged build carries the wrong contents, so no receipt was written: ${read.problems.join('; ')}`);
     contents = { sizes: read.sizes, totalBytes: read.totalBytes, fileCount: read.fileCount, locales: read.locales, anthropic: read.anthropic, codexVersion: read.codexVersion, archiveFiles: read.archive.files, problems: read.problems };
   }

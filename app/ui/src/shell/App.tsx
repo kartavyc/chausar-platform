@@ -13,7 +13,7 @@ import { StatusLine } from '../parts/StatusLine';
 import { closeSheet, returnFocus, useRoute } from './navigation';
 import { PrivacyBoundary } from './PrivacyBoundary';
 import { useShellKeys } from './keys';
-import { PLACES, SHEETS } from './places';
+import { PLACES, SHEETS, prefetchPlaces } from './places';
 import { Rail } from './Rail';
 import { UnknownSheet, type SheetComponent } from './sheets';
 import type { SheetRef } from './routes';
@@ -68,6 +68,7 @@ function MotionPreference() {
  * has a main landmark and a heading to land on: the place's, or the dialog's.
  */
 function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: boolean }) {
+  useEffect(() => import.meta.env.MODE === 'test' ? undefined : prefetchPlaces(), []);
   const t = useT();
   const route = useRoute();
   const narrow = useNarrow();
