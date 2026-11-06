@@ -1,5 +1,5 @@
 // C7 task 23: scripts/guide-index.mjs splits docs/beta-guide.md by its ## and ### headings into
-// platform/runtime/venture/core/guide-data.json (each section's anchor, title and words, images left out), so in-app help
+// platform/shared/venture/core/guide-data.json (each section's anchor, title and words, images left out), so in-app help
 // can quote the guide. `--check` fails when the data is out of date with the guide.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,9 +9,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { guideSections, slugOf } from '../../scripts/guide-index.mjs';
+import { guideSections as runtimeGuideSections, guideSection } from '../runtime/venture/core/guide.ts';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const SCRIPT = join(ROOT, 'scripts', 'guide-index.mjs'), GUIDE = join(ROOT, 'docs', 'beta-guide.md'), DATA = join(ROOT, 'platform', 'runtime', 'venture', 'core', 'guide-data.json');
+const SCRIPT = join(ROOT, 'scripts', 'guide-index.mjs'), GUIDE = join(ROOT, 'docs', 'beta-guide.md'), DATA = join(ROOT, 'platform', 'shared', 'venture', 'core', 'guide-data.json');
 const run = (args: string[]) => spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8', windowsHide: true });
 
 async function folder(t: TestContext): Promise<string> {
@@ -56,4 +57,13 @@ test('no image path is in the data, and anchors follow the guide\'s own links', 
   ]);
   const guide = await readFile(GUIDE, 'utf8');
   for (const [, anchor] of guide.matchAll(/\]\(#([^)]+)\)/g)) assert.ok(JSON.parse(text).sections.some((section: any) => section.anchor === anchor), anchor);
+});
+
+test('the runtime guide reads the canonical shared data from source', async () => {
+  const expected = JSON.parse(await readFile(DATA, 'utf8')).sections.filter((section: { anchor: string }) => section.anchor !== 'contents');
+  const actual = runtimeGuideSections();
+  assert.deepEqual(actual, expected);
+  assert.ok(Object.isFrozen(actual) && actual.every(section => Object.isFrozen(section)));
+  assert.deepEqual(guideSection('chatgpt-plan-codex'), expected.find((section: { anchor: string }) => section.anchor === 'chatgpt-plan-codex'));
+  assert.equal(guideSection('not-a-guide-section'), null);
 });

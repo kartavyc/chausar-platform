@@ -3,7 +3,8 @@
 // always allowed; the unfinished stages are refused (auto with AUTO_LOCKED). The stage words and the stored names come
 // from the engine's own pure module, so the two cannot drift.
 import { EngineError, type LaunchStatusView } from './types';
-import { OWNER_STAGES, STORED_STAGE, ownerStageOf, type OwnerStage } from '../../../../platform/runtime/venture/core/launch-stage';
+import { OWNER_STAGES, STORED_STAGE, ownerStageOf } from '../../../../platform/shared/venture/core/launch-stage.ts';
+import type { OwnerStage } from '../../../../platform/runtime/venture/core/launch-stage.ts';
 
 export const LAUNCH_WORDS = {
   connectAi: 'Connect your AI first.',

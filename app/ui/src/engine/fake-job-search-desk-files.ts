@@ -1,8 +1,8 @@
 // Genuine browser Office files. Same code-owned content as the native career renderer, no PDF capability claim.
 import {sha256} from '@noble/hashes/sha2.js';import {bytesToHex} from '@noble/hashes/utils.js';
-import {docxParts} from '../../../../platform/runtime/venture/playbooks/kit/ooxml/docx-parts';
-import {storedZipBytes} from '../../../../platform/runtime/venture/playbooks/kit/ooxml/browser';
-import type {CareerStoredPack} from '../../../../platform/runtime/venture/playbooks/job-search-desk/thread-state';
+import { docxParts } from '../../../../platform/shared/venture/playbooks/kit/ooxml/docx-parts.ts';
+import { storedZipBytes } from '../../../../platform/shared/venture/playbooks/kit/ooxml/browser.ts';
+import type { CareerStoredPack } from '../../../../platform/runtime/venture/playbooks/job-search-desk/thread-state.ts';
 import type {CareerPackFile} from '../../../../platform/runtime/venture/playbooks/job-search-desk/file-types';
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 export const bytesHash=(b:Uint8Array)=>bytesToHex(sha256(b));

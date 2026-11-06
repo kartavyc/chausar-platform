@@ -14,7 +14,7 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { useClock, useOwnerZone } from '../../shell/clock';
-import { dayKeyIn, timeKeyIn } from '../../../../../platform/runtime/owner-format';
+import { dayKeyIn, timeKeyIn } from '../../../../../platform/shared/owner-format.ts';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';

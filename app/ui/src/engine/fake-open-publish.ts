@@ -1,9 +1,9 @@
 /** Open API projection for the demo. Reuses the publishing desk journal, shared source parser and history gate. */
 import {EngineError,type DeliveryLite,type OrderLite,type ClientLite,type DraftPostLite} from './types';
 import type {PostingHost} from './fake-posting';
-import {actualSocialPosts} from '../../../../platform/runtime/venture/playbooks/social/post-label';
-import {socialLegalBlock} from '../../../../platform/runtime/venture/playbooks/social/legal-confirmation';
-import type {OpenAccountView} from '../../../../platform/runtime/venture/build/open-posting-core';
+import { actualSocialPosts } from '../../../../platform/shared/venture/playbooks/social/post-label.ts';
+import { socialLegalBlock } from '../../../../platform/shared/venture/playbooks/social/legal-confirmation.ts';
+import type { OpenAccountView } from '../../../../platform/runtime/venture/build/open-posting-core.ts';
 export const OPEN_NAMES:Readonly<Record<string,string>>={bluesky:'Bluesky',mastodon:'Mastodon',telegram:'Telegram',discord:'Discord'};
 export const openIdentity=(account:NonNullable<OpenAccountView['account']>)=>account.server+'|'+account.accountId+'|'+account.destinationId;
 export function openFakeAccount(host:PostingHost,id:string):OpenAccountView{return (host.ask('venture.desk.get',{playbook:'social-agency',kind:'open-posting',id}) as {item:OpenAccountView}).item;}

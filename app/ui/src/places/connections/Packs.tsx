@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { PackView } from '../../../../../platform/runtime/venture/packs/pack-format';
+import type { PackView } from '../../../../../platform/runtime/venture/packs/pack-format.ts';
 import { useEngine, useResource } from '../../engine/context';
 import { useT } from '../../text';
 import { Button } from '../../parts/Button';

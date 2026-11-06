@@ -225,7 +225,7 @@ describe('no layout jumps (B4 task 5)', () => {
   });
 
   it('the first run and Welcome scroll in their own box with the same room, so a tall step does not shift', () => {
-    const onboarding = readFileSync(join(import.meta.dirname, '../../src/places/onboarding/Onboarding.module.css'), 'utf8');
+    const onboarding = readFileSync(join(import.meta.dirname, '../../src/parts/Entry.module.css'), 'utf8');
     const first = /\.first \{([^}]*)\}/.exec(onboarding)![1]!;
     expect(first).toContain('scrollbar-gutter: stable');
     expect(first).toContain('overflow-y: auto');

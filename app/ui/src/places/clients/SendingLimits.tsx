@@ -5,7 +5,7 @@ import { useT } from '../../text';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Inner } from '../../parts/Card';
-import { HOUSE_CAPS, OUTREACH_LANES, WARMUP_PERCENT } from '../../../../../platform/runtime/venture/network/limit-settings';
+import { HOUSE_CAPS, OUTREACH_LANES, WARMUP_PERCENT } from '../../../../../platform/shared/venture/network/limit-settings.ts';
 import s from '../connections/PostingLimits.module.css';
 
 export function SendingLimits() {

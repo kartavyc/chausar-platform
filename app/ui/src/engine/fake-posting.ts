@@ -1,7 +1,7 @@
 import openCards from './fixtures-open-posting.json';
 import {OPEN_NAMES,openIdentity,openFakeAccount,openFakePosts,openFakeDraft} from './fake-open-publish';
-import {historyRisk} from '../../../../platform/runtime/venture/playbooks/social/risk-history';
-import {d3Object} from '../../../../platform/runtime/venture/playbooks/social/d3-core';
+import { historyRisk } from '../../../../platform/shared/venture/playbooks/social/risk-history.ts';
+import { d3Object } from '../../../../platform/shared/venture/playbooks/social/d3-core.ts';
 import type {FakeForgottenPerson} from './fake-playbooks';
 /**
  * The fake engine's answers for posting (Ink v2 wave 2, packages 2B1 and 2B2): a post proposed from a checked draft
@@ -19,7 +19,7 @@ import {
   type PostingStepsView, type UiRunEvent, type QueueItemView, type QueueDecision, type ConnectorCardLite,
 } from './types';
 
-import type { ScheduledPostSnapshot, ScheduledPostBinding } from '../../../../platform/runtime/venture/playbooks/social/scheduled-core';
+import type { ScheduledPostSnapshot, ScheduledPostBinding } from '../../../../platform/runtime/venture/playbooks/social/scheduled-core.ts';
 export interface PostingHost {
   eraseInfluencerCopies?(orderIds:readonly string[]):void;
   draftText?(id:string):string|null;

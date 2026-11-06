@@ -1,7 +1,9 @@
+import type { AuditFinding } from '../../../../contract/venture/playbooks/dev-agency/scanners.ts';
+export type { AuditFinding } from '../../../../contract/venture/playbooks/dev-agency/scanners.ts';
 // Original bounded npm audit contract. Official npm audit JSON interface, X6; no scanner code bundled or installed.
 import {check,devObject} from './core.ts';
 import {secretFindings} from '../../core/secrets.ts';
-export type AuditFinding={package:string;severity:'critical'|'high'|'moderate'|'low'|'info';range:string;advisories:{title:string;url:string}[]};
+
 const parse=(text:string)=>{check(typeof text==='string'&&text.length<=2_000_000,'DEV_SCAN_INVALID','Use a bounded JSON scanner file.');let raw:unknown;try{raw=JSON.parse(text);}catch{check(false,'DEV_SCAN_INVALID','The scanner did not return JSON.');}check(typeof raw==='object'&&raw!==null&&!Array.isArray(raw),'DEV_SCAN_INVALID','Use a scanner JSON object.');return raw as Record<string,unknown>;};
 /** A fixed registry and only copied manifests; never use client npm settings, scripts, install or fix. */
 export function npmAuditInput(packageJson:string,packageLock:string):{packageJson:string;packageLock:string;registry:string;args:string[]}{

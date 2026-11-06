@@ -6,8 +6,8 @@
  * never reaches it and makes a sample link.
  */
 
-import { billingChange, billingWith } from '../../../../platform/runtime/venture/money/billing-rules';
-import { upiPayment } from '../../../../platform/runtime/venture/money/upi';
+import { billingChange, billingWith } from '../../../../platform/shared/venture/money/billing-rules.ts';
+import { upiPayment } from '../../../../platform/shared/venture/money/upi.ts';
 import type { BillingSettings } from '../../../../platform/runtime/venture/money/billing-types';
 import { EngineError, type BillingView, type HowToPayLite } from './types';
 

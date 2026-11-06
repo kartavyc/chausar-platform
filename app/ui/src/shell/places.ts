@@ -29,3 +29,6 @@ export const SHEETS: Readonly<Record<string, SheetComponent>> = Object.assign(
   ...Object.values(PLACES).map((place) => place.sheets ?? {}),
   BASE_SHEETS,
 );
+
+export { FirstRun } from '../places/onboarding/FirstRun';
+export { Welcome } from '../places/onboarding/Welcome';

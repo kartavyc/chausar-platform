@@ -16,7 +16,7 @@
 
 import type { Language } from '../../text';
 import { EngineError, type EngineClient, type InterviewAnswer, type InterviewQuestionLite, type Transport, type WorkspaceCreated } from '../../engine/types';
-import { COUNTRY_TIME_ZONES } from '../../../../../platform/runtime/venture/local-day-data';
+import { COUNTRY_TIME_ZONES } from '../../../../../platform/shared/venture/local-day-data.ts';
 
 /** venture.preview and venture.create take 10 to 2000 characters. */
 export const OPEN_BOX = { min: 10, max: 2000 } as const;

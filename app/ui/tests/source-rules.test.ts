@@ -13,6 +13,10 @@ function files(dir: string): string[] {
 const code = files(src).filter((f) => /\.(tsx?|css)$/.test(f)).map((f) => ({ f: relative(src, f).split(sep).join('/'), text: readFileSync(f, 'utf8') }));
 
 describe('rules the UI keeps (spec section 6)', () => {
+  it('shared UI layers do not import places outside the single place loader (D9)', () => {
+    const found = code.filter(({ f, text }) => /^(shell|parts|engine|text)\//.test(f) && f !== 'shell/places.ts' && /(?:from\s*|import\s*\()(['"])[^'"\n]*\/places\//.test(text)).map(({ f }) => f);
+    expect(found).toEqual([]);
+  });
   it('paths are relative with forward slashes, so the fake engine exemption applies on every system', () => {
     expect(code.some(({ f }) => f === 'engine/fake.ts')).toBe(true);
     for (const { f } of code) expect(f.includes(String.fromCharCode(92)), f).toBe(false);

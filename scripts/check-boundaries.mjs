@@ -2,8 +2,7 @@
 // D11: the boundary check. platform/shared and platform/contract stay browser-safe: no node: module and nothing from
 // platform/runtime. app/ui/src value-imports from platform/ only through platform/shared or platform/contract;
 // `import type` (or every name marked `type`) from platform/runtime is allowed, since it is erased.
-// Usage: node scripts/check-boundaries.mjs [--report]   (--report prints the crossings and exits 0; CI's lint job uses it
-// until D11a task 2 moves the helpers the UI imports, then the flag goes and a crossing fails the build.)
+// Usage: node scripts/check-boundaries.mjs [--report] (--report is an optional inventory; CI checks strictly.)
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join, posix, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,3 +61,4 @@ else {
   process.stdout.write(`${crossings.length} boundary crossings${report ? ' (report only)' : ''}:\n${crossings.map(line => `  ${line}`).join('\n')}\n`);
   if (!report) process.exitCode = 1;
 }
+

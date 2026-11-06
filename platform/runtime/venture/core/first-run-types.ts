@@ -1,13 +1,14 @@
+import type { FamilyId, FamilyOffer, NeedConnect, NeedLabel, NeedView, NeedsList } from '../../../contract/venture/core/first-run-types.ts';
+export type { FamilyId, FamilyOffer, NeedConnect, NeedLabel, NeedView, NeedsList } from '../../../contract/venture/core/first-run-types.ts';
 // Chausar venture launcher (wave 6, 6C1, 6C2, 6C7): the shapes of the first run's answers, in one file with no imports,
 // so contracts.ts and onboarding-contracts.ts can name them without pulling the engine into every type graph.
 // families.ts, about.ts, needs-data.ts and models/login.ts hold the code; a test checks FAMILY_IDS against FamilyId.
 
 /** The eleven profession families of DECISIONS D2 (core/families.ts FAMILY_IDS, same order). */
-export type FamilyId =
-  | 'money-tax' | 'teaching' | 'creative' | 'writing' | 'local-services' | 'documents' | 'research' | 'people' | 'shop-office' | 'tech' | 'licensed';
+
 
 /** One offer the owner could sell: a short name and one line. Never an amount. */
-export type FamilyOffer = { name: string; line: string };
+
 
 export type AboutFile = { name: string; included: boolean; line: string | null };
 export type AboutRead = {
@@ -33,17 +34,11 @@ export type AboutRead = {
 /** A family tile (venture.about.families) with its professions in the catalogue's order (A5). */
 export type FamilyTile = { id: FamilyId; label: string; line: string; professions: { id: string; label: string }[] };
 
-export type NeedLabel = 'write' | 'read' | 'handoff' | 'planned';
+
 /** How the owner connects it: the service's own sign-in, a key into the keychain, a setup guide, or nothing yet. */
-export type NeedConnect = { kind: 'sign-in' | 'key' | 'guide' | 'none'; connectorId: string | null; place: 'connections' | 'connections/ai' | null };
-export type NeedView = {
-  id: string; name: string; why: string; label: NeedLabel; connect: NeedConnect;
-  /** Planned only: who or what it waits on, and the manual path until then. */
-  waitsOn: string | null; meanwhile: string | null;
-  /** Never true: skipping every service still leaves a working business. */
-  required: false;
-};
-export type NeedsList = { family: { id: FamilyId; label: string } | null; needs: NeedView[] };
+
+
+
 
 export type LoginState = 'idle' | 'starting' | 'waiting' | 'signed-in' | 'failed' | 'cancelled';
 export type ToolLogin = { state: LoginState; code: string | null; link: string | null; line: string | null };

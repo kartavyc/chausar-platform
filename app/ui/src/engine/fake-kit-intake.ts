@@ -1,5 +1,5 @@
 // Chausar fake kit intake (5M). Browser-only mirror of kit/intake.ts, preserving its field-exact refusals.
-import { decimalMinor } from '../../../../platform/runtime/currency';
+import { decimalMinor } from '../../../../platform/shared/currency.ts';
 import { EngineError, type OfferIntakeLite, type OrderLite, type VoiceConsentsView } from './types';
 type Fields = NonNullable<NonNullable<OrderLite['intake']>['fields']>;
 const invalid = (line: string): never => { throw new EngineError('INVALID_VENTURE_REQUEST', line); };

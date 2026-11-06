@@ -1,9 +1,11 @@
 // Original fake research path. Uses the same computations and HTML as native; no provider or print success is invented.
-import {digest,check,type Json} from '../../../../platform/runtime/portable';
-import {computeResearch,researchApproval,researchView,researchIdea,type YoutubeResearchBody,type ResearchMode} from '../../../../platform/runtime/venture/playbooks/youtube/research-state';
-import {youtubeResearchReceipt} from '../../../../platform/runtime/venture/playbooks/youtube/research-receipt';
-import {youtubeResearchHtml} from '../../../../platform/runtime/venture/playbooks/youtube/research-report';
-import {YOUTUBE_OFFERS2} from '../../../../platform/runtime/venture/playbooks/youtube/offers2';
+import { digest, check } from '../../../../platform/shared/portable.ts';
+import type { Json } from '../../../../platform/runtime/portable.ts';
+import { computeResearch, researchApproval, researchView, researchIdea } from '../../../../platform/shared/venture/playbooks/youtube/research-state.ts';
+import type { YoutubeResearchBody, ResearchMode } from '../../../../platform/runtime/venture/playbooks/youtube/research-state.ts';
+import { youtubeResearchReceipt } from '../../../../platform/shared/venture/playbooks/youtube/research-receipt.ts';
+import { youtubeResearchHtml } from '../../../../platform/shared/venture/playbooks/youtube/research-report.ts';
+import { YOUTUBE_OFFERS2 } from '../../../../platform/shared/venture/playbooks/youtube/offers2.ts';
 import type {W4DeskHost} from './fake-w4';
 import type {FakeDeskKind,FakeForgottenPerson} from './fake-playbooks';
 import type {OrderLite,BlueprintViewLite,WorkReceiptLite} from './types';

@@ -4,14 +4,15 @@
 import type { FakePlaybookDesk } from './fake-playbooks';
 import type { W4DeskHost } from './fake-w4';
 import {EngineError,type OrderLite} from './types';
-import {articleExact,articleLine,ArticleError,requireArticle} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/core';
-import {articleIntake} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/intake-core';
-import {prepareArticle,chooseArticleAngle,saveArticleDraft,checkArticleBundle} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/state';
-import {articleApprovalInput,articleHandoff} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/render';
-import {importArticleRun,type ArticleRun} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/run-core';
-import {requireArticleClientRule} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/legal-core';
+import { articleExact, articleLine, ArticleError, requireArticle } from '../../../../platform/shared/venture/playbooks/podcast-to-article/core.ts';
+import { articleIntake } from '../../../../platform/shared/venture/playbooks/podcast-to-article/intake-core.ts';
+import { prepareArticle, chooseArticleAngle, saveArticleDraft, checkArticleBundle } from '../../../../platform/shared/venture/playbooks/podcast-to-article/state.ts';
+import { articleApprovalInput, articleHandoff } from '../../../../platform/shared/venture/playbooks/podcast-to-article/render.ts';
+import { importArticleRun } from '../../../../platform/shared/venture/playbooks/podcast-to-article/run-core.ts';
+import type { ArticleRun } from '../../../../platform/runtime/venture/playbooks/podcast-to-article/run-core.ts';
+import { requireArticleClientRule } from '../../../../platform/shared/venture/playbooks/podcast-to-article/legal-core.ts';
 import type {ArticleLedgerBody} from '../../../../platform/runtime/venture/playbooks/podcast-to-article/records';
-import {localPathProblem} from '../../../../platform/runtime/local-paths';
+import { localPathProblem } from '../../../../platform/shared/local-paths.ts';
 type Row=ArticleLedgerBody&{id:string;kind:'venture-article-ledger';ventureId:string;memberId:string;epoch:number;at:string};
 
 /** Source evidence and approvals are isolated by business and client order. */

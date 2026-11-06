@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {useEngine,useEngineEvents,useResource} from '../../../engine/context';import {useT} from '../../../text';
-import type {Json} from '../../../../../../platform/runtime/portable';import type {DemoJob,TestJob} from './app-testing-types';
+import type { Json } from '../../../../../../platform/runtime/portable.ts';import type {DemoJob,TestJob} from './app-testing-types';
 export function useTestingJob<T extends DemoJob|TestJob>(kind:'test'|'demo',orderId:string,clientId:string,parentLocked:boolean){
  const engine=useEngine(),t=useT(),[busy,setBusy]=useState(false),[error,setError]=useState(''),life=useRef(0),busyNow=useRef(false),last=useRef<{job:T;digest:string}|null>(null),started=useRef(false);
  const list=useResource('venture.desk.list',{playbook:'app-testing',kind},{refreshOn:e=>e.type==='desk.changed'||e.type==='privacy.forgotten'}),detail=useResource('venture.desk.get',{playbook:'app-testing',kind,id:orderId},{refreshOn:e=>e.type==='desk.changed'||e.type==='privacy.forgotten'});

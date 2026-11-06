@@ -6,7 +6,7 @@
  * editor shows the whole text in one box.
  */
 
-import { TEMPLATE_OUTLINE_LINE } from '../../../../platform/runtime/venture/delivery/template-outline';
+import { TEMPLATE_OUTLINE_LINE } from '../../../../platform/shared/venture/delivery/template-outline.ts';
 
 export interface DraftSection {
   heading: string;

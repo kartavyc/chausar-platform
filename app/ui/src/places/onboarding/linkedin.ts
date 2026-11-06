@@ -5,9 +5,9 @@
  * summary, industry and location (platform/runtime/venture/core/profile-csv.ts).
  */
 import { EngineError } from '../../engine/types';
-import { profileEntry } from '../../../../../platform/runtime/venture/core/profile-csv';
-import { storedZipBytes } from '../../../../../platform/runtime/venture/playbooks/kit/ooxml/browser';
-import { verifiedEntry } from '../../../../../platform/runtime/venture/playbooks/kit/ooxml/zip-core';
+import { profileEntry } from '../../../../../platform/shared/venture/core/profile-csv.ts';
+import { storedZipBytes } from '../../../../../platform/shared/venture/playbooks/kit/ooxml/browser.ts';
+import { verifiedEntry } from '../../../../../platform/shared/venture/playbooks/kit/ooxml/zip-core.ts';
 
 export const FILE_MAX_BYTES = 1024 * 1024;
 export type AboutFile = { name: string; kind: 'resume-pdf' | 'linkedin-zip'; contentBase64: string };

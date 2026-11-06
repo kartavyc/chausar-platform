@@ -11,7 +11,7 @@
  * instead of the owner's AI: it is a sample, never a model. Nothing here sends anything: a handoff is a link.
  */
 
-import { dayKeyIn, formatClock, formatMoney, formatTime, ownerZone, timeKeyIn } from '../../../../platform/runtime/owner-format';
+import { dayKeyIn, formatClock, formatMoney, formatTime, ownerZone, timeKeyIn } from '../../../../platform/shared/owner-format.ts';
 import {
   EngineError, type CalendarFeedView, type FollowupView, type InboundTriage, type InboundView, type LawfulBasis, type LeadView, type LostReason,
   type MailboxView, type OutreachChannel, type OutreachHandoff, type OutreachKind, type OutreachSentChannel, type OutreachView, type PipelineCardView, type PipelineQuoteView,
@@ -19,9 +19,9 @@ import {
 } from './types';
 import type { W4DeskHost } from './fake-w4';
 import type { PipelineSettingsView, OutreachLane } from './types';
-import { effectiveLaneLimits, LANE_WORDS, limitsObject, pipelineCapsInput } from '../../../../platform/runtime/venture/network/limit-settings';
-import { DEFAULT_PIPELINE_SETTINGS, nextAllowedDay, weekStart } from '../../../../platform/runtime/venture/network/followups';
-import { checkScoreRules } from '../../../../platform/runtime/venture/network/score';
+import { effectiveLaneLimits, LANE_WORDS, limitsObject, pipelineCapsInput } from '../../../../platform/shared/venture/network/limit-settings.ts';
+import { DEFAULT_PIPELINE_SETTINGS, nextAllowedDay, weekStart } from '../../../../platform/shared/venture/network/followups.ts';
+import { checkScoreRules } from '../../../../platform/shared/venture/network/score.ts';
 
 export type HeldPipelineQuote = PipelineQuoteView & { explanation: string; currency: string; beforeTaxMinor: string };
 

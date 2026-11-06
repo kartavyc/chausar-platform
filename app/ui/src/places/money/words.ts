@@ -4,7 +4,7 @@
  */
 
 import type { T } from '../../text';
-import { typedMoney } from '../../../../../platform/runtime/owner-format';
+import { typedMoney } from '../../../../../platform/shared/owner-format.ts';
 import { useDay as useWhenDay, useLocalToday, useMoment as useWhenMoment, useMonth } from '../../parts/when';
 import { useResource } from '../../engine/context';
 import type { BooksSummaryLite, InvoiceLite, UiRunEvent } from '../../engine/types';

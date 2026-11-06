@@ -1,9 +1,11 @@
+import type { ReportBlock, BlockScope, IsoDate, ReportBar } from '../../../../contract/venture/playbooks/kit/records-report.ts';
+export type { ReportBlock, BlockScope, ReportBar } from '../../../../contract/venture/playbooks/kit/records-report.ts';
 // Chausar playbook kit: client reports and their share links (Ink v2 wave 5, package 5A5, P11). The record bodies and
 // the methods' answers; types only (contracts.ts imports them). Written for Chausar; nothing here is learned from an
 // outside source.
 // Primitive report values stay a type leaf for the browser renderer.
 export type Display=string;
-type IsoDate=string;
+
 type IsoTime=string;
 
 /** The files a report can be made as. */
@@ -13,20 +15,15 @@ export type ReportFormat = 'html' | 'pdf' | 'docx' | 'xlsx';
  * Where a block belongs, for a share link's scope: the channel it is about (a platform's export, 'instagram') and the
  * days it covers. null: it is about no one channel, or no dates; such a block is never outside a scope.
  */
-export type BlockScope = { channel: string | null; from: IsoDate | null; to: IsoDate | null };
+
 /** One bar of a bars block, as code worked it out from its receipt; width is its share of the longest bar, 0 to 100. */
-export type ReportBar = { label: string; display: string; receiptId: string; key: string; width: number };
+
 /**
  * A report block after its sources were checked (playbooks/kit/report/blocks.ts). A metric's and every bar's figure
  * is a receipt's own figure; a heading or prose that holds a number (digits, or a number in Hindi or English words)
  * the owner did not write is a model estimate; a quote is shown as written.
  */
-export type ReportBlock =
-  | { kind: 'heading'; text: string; estimate: boolean }
-  | ({ kind: 'prose'; text: string; estimate: boolean } & BlockScope)
-  | ({ kind: 'metric'; label: string; display: string; unit: string; receiptId: string; key: string } & BlockScope)
-  | ({ kind: 'bars'; label: string; bars: ReportBar[] } & BlockScope)
-  | { kind: 'quote'; text: string; by: string | null };
+
 
 /**
  * One file of a report as render made it: its name, format, size, sha256 and bytes. The vault keeps only what

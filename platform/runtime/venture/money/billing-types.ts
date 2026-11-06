@@ -1,28 +1,22 @@
+import type { BankDetails, BillingSettings, RazorpayAccount, QrMatrix, InvoicePart, MinorText } from '../../../contract/venture/money/billing-types.ts';
+export type { BankDetails, BillingSettings, RazorpayAccount, QrMatrix, InvoicePart, MinorText } from '../../../contract/venture/money/billing-types.ts';
 // Wave 6 money (6D1 to 6D4): the shapes of the owner's billing settings, an invoice's part of its order, how a client
 // pays (UPI link and QR, bank details, a Razorpay Payment Link) and a foreign-currency order price. Types only, so the
 // contracts and the fake engine import them without loading engine code.
 export type IsoDateText = string;
-export type MinorText = string;
+
 
 /** The owner's bank account, as typed. ifsc for India, swift for clients abroad; both optional beside the number. */
-export type BankDetails = { accountName: string; accountNumber: string; ifsc: string | null; swift: string | null; bankName: string | null };
+
 
 /** Which Razorpay account the saved keys are for; the keys themselves live only in protected storage. */
-export type RazorpayAccount = { mode: 'test' | 'live'; keyHint: string; savedAt: string };
+
 
 /**
  * The owner's billing settings (6D1, 6D2), kept on the business. Absent fields read as the defaults: one final invoice due
  * in 7 days, reminders 3, 10 and 30 days late, no terms line, no UPI ID or bank details.
  */
-export type BillingSettings = {
-  dueInDays: number;
-  terms: string | null;
-  reminderDays: number[];
-  upiId: string | null;
-  payeeName: string | null;
-  bank: BankDetails | null;
-  razorpay: RazorpayAccount | null;
-};
+
 
 /** venture.billing.get's answer: the settings with the defaults filled in, and the honest label of each way to pay. */
 export type BillingView = {
@@ -37,14 +31,7 @@ export type BillingView = {
  * before tax; partial an amount before tax the owner typed; final the exact rest. basisReceiptId is the receipt of the
  * whole order these parts are cut from; earlierMinor what issued invoices on the order billed before this one.
  */
-export type InvoicePart = {
-  kind: 'advance' | 'milestone' | 'partial' | 'final';
-  label: string;
-  shareBps: string | null;
-  basisReceiptId: string;
-  orderTotalMinor: MinorText;
-  earlierMinor: MinorText;
-};
+
 
 /** How much of an order is billed (6D1): every figure from code, beside the invoices that make it. */
 export type OrderBilledView = {
@@ -53,7 +40,7 @@ export type OrderBilledView = {
 };
 
 /** A QR code drawn by code: size modules a side, each row a string of '1' (dark) and '0' (light). */
-export type QrMatrix = { version: number; size: number; rows: string[] };
+
 
 /** A Razorpay Payment Link the owner made for an invoice (6D3). */
 export type PayLinkState = {

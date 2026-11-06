@@ -8,7 +8,7 @@ import { TextProvider } from '../../src/text';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { createEngineClient, type ChausarBridge } from '../../src/engine/client';
 import { StatusLine } from '../../src/parts/StatusLine';
-import { BootScreen } from '../../src/places/onboarding/BootScreen';
+import { BootScreen } from '../../src/shell/BootScreen';
 import type { EngineStatus } from '../../src/engine/types';
 
 describe('task 29: reconnecting', () => {

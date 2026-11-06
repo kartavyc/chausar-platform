@@ -1,7 +1,7 @@
 /** Bookkeeping fake, after finance-skills/cfo/bankmcp (MIT ideas); exact desk validation and business-local records. */
-import { decimalMinor } from '../../../../platform/runtime/currency';
+import { decimalMinor } from '../../../../platform/shared/currency.ts';
 import { EngineError, type OrderLite } from './types';
-import { readCollectionsSource } from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/collections-source-core';
+import { readCollectionsSource } from '../../../../platform/shared/venture/playbooks/bookkeeping-cfo/collections-source-core.ts';
 import type { FakePlaybookDesk } from './fake-playbooks';
 import type { W4DeskHost } from './fake-w4';
 import {fakeBooksFinance} from './fake-books-finance';

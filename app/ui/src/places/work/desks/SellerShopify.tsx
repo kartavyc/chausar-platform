@@ -3,7 +3,7 @@ import {useState} from 'react';import {useResource} from '../../../engine/contex
 import {Field} from '../../../parts/Field';import {Button} from '../../../parts/Button';import {Figure} from '../../../parts/Figure';import {openSheet} from '../../../shell/navigation';
 import {SellerSelect,type SellerJson} from './SellerOperations';import type {ConnectionAct} from './SellerConnections';
 import type {SellerShopifyBody} from '../../../../../../platform/runtime/venture/playbooks/online-seller/shopify-records';
-import {digest} from '../../../../../../platform/runtime/portable';import s from './OnlineSellerDesk.module.css';
+import { digest } from '../../../../../../platform/shared/portable.ts';import s from './OnlineSellerDesk.module.css';
 import {SellerCheck} from './SellerCheck';
 type Write=SellerShopifyBody['writes'][number];
 function ChangeReview({write,act,locked}:{write:Write;act:ConnectionAct;locked:boolean}){

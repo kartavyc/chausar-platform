@@ -1,11 +1,14 @@
-import {sellerOwnerOptions} from '../../../../platform/runtime/venture/playbooks/online-seller/owner-analysis';
-import {sellerOwnerCaps,sellerOwnerChange,sellerStageNumbers} from '../../../../platform/runtime/venture/playbooks/online-seller/owner-form';
+import { sellerOwnerOptions } from '../../../../platform/shared/venture/playbooks/online-seller/owner-analysis.ts';
+import { sellerOwnerCaps, sellerOwnerChange, sellerStageNumbers } from '../../../../platform/shared/venture/playbooks/online-seller/owner-form.ts';
 // Chausar seller operations rehearsal. Exact shared cores, no fabricated marketplace or photo writes.
 import {EngineError,type OrderLite,type BlueprintViewLite} from './types';import type {W4DeskHost} from './fake-w4';import type {FakePlaybookDesk,FakeForgottenPerson} from './fake-playbooks';
-import {sellerFile,sellerCsv,sellerImageFiles} from '../../../../platform/runtime/venture/playbooks/online-seller/source';
-import {sellerProduct,stageSellerChange,checkSellerApply,sellerChangeHandoff,type SellerCaps} from '../../../../platform/runtime/venture/playbooks/online-seller/staging';
-import {analyseSellerOperation,type SellerOperationMode} from '../../../../platform/runtime/venture/playbooks/online-seller/operations-analysis';import {sellerOperationFigures} from '../../../../platform/runtime/venture/playbooks/online-seller/operations-figures';
-import {sellerStock,type SellerMovement} from '../../../../platform/runtime/venture/playbooks/online-seller/stock';import {sellerCase} from '../../../../platform/runtime/venture/playbooks/online-seller/cases';import {sellerPhotoBrief} from '../../../../platform/runtime/venture/playbooks/online-seller/photos';import {sellerText} from '../../../../platform/runtime/venture/playbooks/online-seller/operations-core';
+import { sellerFile, sellerCsv, sellerImageFiles } from '../../../../platform/shared/venture/playbooks/online-seller/source.ts';
+import { sellerProduct, stageSellerChange, checkSellerApply, sellerChangeHandoff } from '../../../../platform/shared/venture/playbooks/online-seller/staging.ts';
+import type { SellerCaps } from '../../../../platform/runtime/venture/playbooks/online-seller/staging.ts';
+import { analyseSellerOperation } from '../../../../platform/shared/venture/playbooks/online-seller/operations-analysis.ts';
+import type { SellerOperationMode } from '../../../../platform/runtime/venture/playbooks/online-seller/operations-analysis.ts';import { sellerOperationFigures } from '../../../../platform/shared/venture/playbooks/online-seller/operations-figures.ts';
+import { sellerStock } from '../../../../platform/shared/venture/playbooks/online-seller/stock.ts';
+import type { SellerMovement } from '../../../../platform/runtime/venture/playbooks/online-seller/stock.ts';import { sellerCase } from '../../../../platform/shared/venture/playbooks/online-seller/cases.ts';import { sellerPhotoBrief } from '../../../../platform/shared/venture/playbooks/online-seller/photos.ts';import { sellerText } from '../../../../platform/shared/venture/playbooks/online-seller/operations-core.ts';
 import type {SellerStageBody,SellerCaseBody} from '../../../../platform/runtime/venture/playbooks/online-seller/records';import {fakeTextWorkbook} from './fake-kit-report';
 type Base={id:string;kind:string;ventureId:string;memberId:string;epoch:number;at:string};type Stage=SellerStageBody&Base;
 type Read={id:string;orderId:string;sourceId:string;sourceDigest:string;caps:SellerCaps;memberId:string;epoch:number};

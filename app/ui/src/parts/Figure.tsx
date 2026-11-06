@@ -1,7 +1,7 @@
 import { cx } from './cx';
 import { ModelEstimate } from './ModelEstimate';
 import { Receipt } from './Receipt';
-import { HOLDS_MONEY, MONEY_TEXT } from '../../../../platform/runtime/owner-format';
+import { HOLDS_MONEY, MONEY_TEXT } from '../../../../platform/shared/owner-format.ts';
 import s from './Figure.module.css';
 import { SwapWords } from './Swap';
 

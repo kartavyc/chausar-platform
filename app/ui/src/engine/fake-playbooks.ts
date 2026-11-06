@@ -48,21 +48,21 @@ export interface FakeDeskKind {
 /** One playbook's fake desk: its record kinds, and any methods of its own. */
 /** Exact links known before a successful Forget or import Undo; internal to the fake engine. */
 export interface FakeForgottenPerson { id: string; clientId: string | null; names: readonly string[]; emails: readonly string[]; phones: readonly string[]; urls?: readonly string[] }
-export type TenderNoticeScope={businessId:string;orders:readonly import('./types').OrderLite[];files:(orderId:string)=>{id:string;name:string;format:string;contentBase64:string;digest:string}[]};
+export type TenderNoticeScope={businessId:string;orders:readonly import('./types.ts').OrderLite[];files:(orderId:string)=>{id:string;name:string;format:string;contentBase64:string;digest:string}[]};
 export type TenderNotice={subject:string;version:string;createdAt:string;title:string;line:string;link:string};
 export interface FakePlaybookDesk {
   testingSource?(orderId:string):void;
   /** W6 6E5: why a regulated draft cannot be accepted yet (the engine's kit/signoff-gate.ts), or null. */
   signoffBlock?(run:never):string|null;
-  r5Report?(orderId:string):import('../../../../platform/runtime/venture/playbooks/monitored-data/report').WatchReport|import('../../../../platform/runtime/venture/playbooks/it-triage/report').TriageReport;
-  phoneReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/phone-receptionist/report').PhoneReport;
+  r5Report?(orderId:string):import('../../../../platform/shared/venture/playbooks/monitored-data/report.ts').WatchReport|import('../../../../platform/shared/venture/playbooks/it-triage/report.ts').TriageReport;
+  phoneReport?(orderId:string):import('../../../../platform/shared/venture/playbooks/phone-receptionist/report.ts').PhoneReport;
   formsSource?(orderId:string):void;
-  devReport?(orderId:string):import('../../../../platform/runtime/venture/playbooks/dev-agency/report').DevReport;
-  careerSource?(orderId:string):import('./fake-career-source').CareerDeliverySource;
-  watchNotices?(scope:{businessId:string;orders:readonly import('./types').OrderLite[];offers:readonly {id:string;playbookOffer?:string}[]}):TenderNotice[];
+  devReport?(orderId:string):import('../../../../platform/shared/venture/playbooks/dev-agency/report.ts').DevReport;
+  careerSource?(orderId:string):import('./fake-career-source.ts').CareerDeliverySource;
+  watchNotices?(scope:{businessId:string;orders:readonly import('./types.ts').OrderLite[];offers:readonly {id:string;playbookOffer?:string}[]}):TenderNotice[];
   tenderNotices?(scope?:TenderNoticeScope):Promise<TenderNotice[]>;
-  sharedLinks?(deliveryId?:string):import('./types').ShareLink[];
-  revokeShare?(id:string):import('./types').ShareLink|null;
+  sharedLinks?(deliveryId?:string):import('./types.ts').ShareLink[];
+  revokeShare?(id:string):import('./types.ts').ShareLink|null;
   endSession?(): void;
   workReceipt?(id:string):WorkReceiptLite|undefined;
   readonly playbook: string;
@@ -117,7 +117,7 @@ export class FakePlaybooksDesk {
 
   /** Clear session-only credentials on vault lock or attachment; saved desk work remains. */
   endSession(): void { for(const desk of this.desks)desk.endSession?.(); }
-  watchNotices(scope:{businessId:string;orders:readonly import('./types').OrderLite[];offers:readonly {id:string;playbookOffer?:string}[]}){return this.desks.flatMap(desk=>desk.watchNotices?.(scope)??[]);}
+  watchNotices(scope:{businessId:string;orders:readonly import('./types.ts').OrderLite[];offers:readonly {id:string;playbookOffer?:string}[]}){return this.desks.flatMap(desk=>desk.watchNotices?.(scope)??[]);}
   async tenderNotices(scope:TenderNoticeScope):Promise<TenderNotice[]>{const found=await Promise.all(this.desks.map(desk=>desk.tenderNotices?.(scope)??[]));return found.flat();}
 
   formsSource(orderId:string){return this.desks.find(d=>d.playbook==='data-entry-desk')!.formsSource!(orderId);}
@@ -133,8 +133,8 @@ export class FakePlaybooksDesk {
   workReceipt(id:string):WorkReceiptLite|undefined {for(const desk of this.desks){const receipt=desk.workReceipt?.(id);if(receipt)return receipt;}return undefined;}
 
   /** Erase each desk-owned copy after the network change succeeds. */
-  sharedLinks(deliveryId?:string):import('./types').ShareLink[]{return [...this.rooms.sharedLinks(deliveryId),...this.desks.flatMap(d=>d.sharedLinks?.(deliveryId)??[])];}
-  revokeShare(id:string):import('./types').ShareLink|null{const room=this.rooms.revokeShare(id);if(room)return room;for(const desk of this.desks){const found=desk.revokeShare?.(id);if(found)return found;}return null;}
+  sharedLinks(deliveryId?:string):import('./types.ts').ShareLink[]{return [...this.rooms.sharedLinks(deliveryId),...this.desks.flatMap(d=>d.sharedLinks?.(deliveryId)??[])];}
+  revokeShare(id:string):import('./types.ts').ShareLink|null{const room=this.rooms.revokeShare(id);if(room)return room;for(const desk of this.desks){const found=desk.revokeShare?.(id);if(found)return found;}return null;}
 
   /** Erase each desk-owned copy after the network change succeeds. */
   forgetPeople(people: readonly FakeForgottenPerson[], removeClient: boolean): void {

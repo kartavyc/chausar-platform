@@ -1,18 +1,19 @@
 import {bindFakeClientAi} from './fake-client-ai-consent';
 import {fakeTranslationMedia} from './fake-translation-media';
-import {digest} from '../../../../platform/runtime/portable';
-import {formatCost} from '../../../../platform/runtime/owner-format';
+import { digest } from '../../../../platform/shared/portable.ts';
+import { formatCost } from '../../../../platform/shared/owner-format.ts';
 // Original Chausar translation rehearsal. Shared state checks match the real desk; no provider is called.
 import {EngineError,type OrderLite,type ShareLink,type ModelStatusLite,type BlueprintViewLite} from './types';
 import type {FakePlaybookDesk,FakeDeskKind,FakeForgottenPerson} from './fake-playbooks';
 import type {W4DeskHost} from './fake-w4';
-import {exactTranslation as exact,newTranslation,translationAction,translationView,translationApproval,type TranslationState} from '../../../../platform/runtime/venture/playbooks/translation-studio/state';
-import {transcriptSource,translationSourceFresh} from '../../../../platform/runtime/venture/playbooks/translation-studio/source-binding';
-import {translationHtml} from '../../../../platform/runtime/venture/playbooks/translation-studio/html';
+import { exactTranslation as exact, newTranslation, translationAction, translationView, translationApproval } from '../../../../platform/shared/venture/playbooks/translation-studio/state.ts';
+import type { TranslationState } from '../../../../platform/runtime/venture/playbooks/translation-studio/state.ts';
+import { transcriptSource, translationSourceFresh } from '../../../../platform/shared/venture/playbooks/translation-studio/source-binding.ts';
+import { translationHtml } from '../../../../platform/shared/venture/playbooks/translation-studio/html.ts';
 import {docx} from './fake-kit-report';
 import {linesOf,validateCues,toSrt,toVtt} from './fake-youtube-core';
-import {translationAiAnswer,translationAiBinding,applyTranslationAi} from '../../../../platform/runtime/venture/playbooks/translation-studio/ai-core';
-import {requireTranslationClientRule,TRANSLATION_RIGHTS_RULE} from '../../../../platform/runtime/venture/playbooks/translation-studio/rules';
+import { translationAiAnswer, translationAiBinding, applyTranslationAi } from '../../../../platform/shared/venture/playbooks/translation-studio/ai-core.ts';
+import { requireTranslationClientRule, TRANSLATION_RIGHTS_RULE } from '../../../../platform/shared/venture/playbooks/translation-studio/rules.ts';
 const need=(ok:unknown,code:string,line:string):void=>{if(!ok)throw new EngineError(code,line);};
 const base64=(bytes:Uint8Array)=>{let text='';for(const byte of bytes)text+=String.fromCharCode(byte);return btoa(text);};
 function exported(job:TranslationState,format:unknown){need(['html','docx','pdf','srt','vtt'].includes(String(format)),'TRANSLATION_INPUT_INVALID','Choose a supported export format.');need(translationView(job).canExport,'TRANSLATION_APPROVAL_REQUIRED','Approve this exact translation with the client before exporting.');requireTranslationClientRule();let bytes:Uint8Array,mime:string,name:string,note:string|null=null;if(format==='docx'){bytes=docx('Translation',job.segments.map(s=>s.target));mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document';name='translation.docx';}else if(format==='srt'||format==='vtt'){need(job.format==='subtitles','TRANSLATION_INPUT_INVALID','Choose a subtitle job.');const cues=job.segments.map(s=>({id:s.id,startMs:s.startMs!,endMs:s.endMs!,lines:linesOf(s.target.split(/\s+/u),'web'),words:null}));need(validateCues(cues,'web').findings.length===0,'TRANSLATION_CHECK_FAILED','Fix subtitle timing and reading speed before export.');bytes=new TextEncoder().encode(format==='srt'?toSrt(cues):toVtt(cues));mime=format==='srt'?'application/x-subrip':'text/vtt';name='translation.'+format;}else{bytes=new TextEncoder().encode(translationHtml(job));mime='text/html';name='translation.html';if(format==='pdf')note='A PDF needs the desktop app.';}return {name,mime,contentBase64:base64(bytes),note,saved:false,sent:false};}

@@ -1,6 +1,6 @@
 // Original source-bound receptionist delivery, sharing the approved-brief queue pattern. No model, Git or scanner run is invented.
-import {digest} from '../../../../platform/runtime/portable';
-import {phoneDelivery,phoneChecks} from '../../../../platform/runtime/venture/playbooks/phone-receptionist/report';
+import { digest } from '../../../../platform/shared/portable.ts';
+import { phoneDelivery, phoneChecks } from '../../../../platform/shared/venture/playbooks/phone-receptionist/report.ts';
 import {roomExact} from './fake-client-room';
 import {EngineError,type DeliveryLite,type OrderLite,type QueueRow,type QueueItemView,type ModelStatusLite} from './types';
 import type {WorkHost} from './fake-work';

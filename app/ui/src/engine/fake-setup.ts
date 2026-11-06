@@ -12,7 +12,7 @@
  * The rows are the fake's own sample connections; nothing here is a real check.
  */
 
-import { isFamilyId } from '../../../../platform/runtime/venture/core/families';
+import { isFamilyId } from '../../../../platform/shared/venture/core/families.ts';
 import { EngineError, type ConnectorCardLite, type ConnectorCheckRow, type ConnectorGuideLite, type ConnectorLadder, type ConnectorChecksView, type FileRequestView, type ModelStatusLite, type OwnerView, type SettingsDraftView } from './types';
 import type { W4DeskHost } from './fake-w4';
 import GUIDES from './fixtures-guides.json';

@@ -10,11 +10,11 @@ import { EngineError } from './types';
 import type { PeopleLookupView, PeopleSearchView, WebReadView, WebSearchView } from './types';
 import type { W4DeskHost } from './fake-w4';
 import { fakeCheckedFetchUrl } from './fake-kit-connect';
-import { PAGE_LABEL, READ_WORDS, readLine, webSearchChange, webSearchViewOf } from '../../../../platform/runtime/venture/web/search-data';
+import { PAGE_LABEL, READ_WORDS, readLine, webSearchChange, webSearchViewOf } from '../../../../platform/shared/venture/web/search-data.ts';
 import type { SavedSearchKey } from '../../../../platform/runtime/venture/web/search-types';
-import { HAPPENSTANCE_PRICE, PEOPLE_CIN, PEOPLE_LLPIN, PEOPLE_WORDS, peopleKeyChange, peopleLookupAsk, peopleQuoteOf, peopleViewOf } from '../../../../platform/runtime/venture/people/people-data';
+import { HAPPENSTANCE_PRICE, PEOPLE_CIN, PEOPLE_LLPIN, PEOPLE_WORDS, peopleKeyChange, peopleLookupAsk, peopleQuoteOf, peopleViewOf } from '../../../../platform/shared/venture/people/people-data.ts';
 import type { SavedPeopleKeys } from '../../../../platform/runtime/venture/people/people-types';
-import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
+import { COUNTRY_TIME_ZONES } from '../../../../platform/shared/venture/local-day-data.ts';
 
 const METHODS = new Set(['venture.web.search', 'venture.web.read', 'venture.people.services', 'venture.people.lookup']);
 const SAMPLE_PAGE = 'Sample page text. In this preview Chausar reads no page; the desktop app reads the page itself, politely, and keeps its main text.';

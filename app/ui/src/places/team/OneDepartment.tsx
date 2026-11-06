@@ -2,7 +2,7 @@ import { useId } from 'react';
 import { useT } from '../../text';
 import type { RunSummary } from '../../engine/types';
 import { openSheet } from '../../shell/navigation';
-import { formatDay } from '../../../../../platform/runtime/owner-format';
+import { formatDay } from '../../../../../platform/shared/owner-format.ts';
 import { Inner, Lift } from '../../parts/Card';
 import { BarChart, hasBars } from '../../parts/charts/BarChart';
 import { Chip, StateChip } from '../../parts/Chip';
