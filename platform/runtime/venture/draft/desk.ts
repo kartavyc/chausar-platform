@@ -1,4 +1,5 @@
-import { runClock, runTransport } from '../replay/scope.ts';
+import { runTransport } from '../replay/transport.ts';
+import { runClock } from '../replay/scope.ts';
 import { isCaptureSample } from '../replay/sample.ts';
 import type { State, StateStore } from '../../contracts.ts';
 // Chausar venture launcher, the draft desk: AI and plan state before any vault exists (onboarding spec 2.2, 2.3).

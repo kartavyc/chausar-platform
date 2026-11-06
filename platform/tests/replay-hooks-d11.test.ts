@@ -1,10 +1,11 @@
+import { runTransport } from '../runtime/venture/replay/transport.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 import { EventEmitter } from 'node:events';
 import { createRunRecorder } from '../runtime/venture/replay/capture.ts';
 import { createRunReplay } from '../runtime/venture/replay/replay-run.ts';
-import { inRun, runTransport } from '../runtime/venture/replay/scope.ts';
+import { inRun } from '../runtime/venture/replay/scope.ts';
 import { guardedFetch } from '../runtime/venture/core/net-guard.ts';
 import { CodexRpc } from '../runtime/venture/agent-runtime/codex-rpc.ts';
 
