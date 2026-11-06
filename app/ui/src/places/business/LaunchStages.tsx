@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
-import type { LaunchStatusView, VentureRunEvent } from '../../engine/types';
+import type { LaunchStatusView, UiRunEvent } from '../../engine/types';
 import { TileSection } from './shared';
 import s from './Business.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
@@ -17,7 +17,7 @@ import { useDay } from '../../parts/when';
  * approval; Back to practice needs no second ask, since it only takes autonomy away. A blocked Live keeps its button
  * locked (aria-disabled) and shows the engine's reason under it.
  */
-const onChange = (event: VentureRunEvent) => event.type === 'queue.changed';
+const onChange = (event: UiRunEvent) => event.type === 'queue.changed';
 
 export function LaunchStages() {
   const t = useT();

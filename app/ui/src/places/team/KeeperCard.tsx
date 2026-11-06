@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
-import type { KeeperJobView, VentureRunEvent } from '../../engine/types';
+import type { KeeperJobView, UiRunEvent } from '../../engine/types';
 import { openSheet } from '../../shell/navigation';
 import { Avatar } from '../../parts/Avatar';
 import { Inner, Lift } from '../../parts/Card';
@@ -13,7 +13,7 @@ import s from './Team.module.css';
 import { Fold } from '../../parts/Fold';
 
 /** Keeper's jobs change when one of them runs (keeper.ran), and with the business. */
-const onKeeper = (event: VentureRunEvent) => event.type === 'keeper.ran' || event.type === 'queue.changed';
+const onKeeper = (event: UiRunEvent) => event.type === 'keeper.ran' || event.type === 'queue.changed';
 
 const OUTCOME_TONE = { ok: 'done', warn: 'wait', failed: 'fail' } as const;
 

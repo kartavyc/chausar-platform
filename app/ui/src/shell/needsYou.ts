@@ -1,5 +1,5 @@
 import { useResource } from '../engine/context';
-import type { QueueRow, VentureRunEvent } from '../engine/types';
+import type { QueueRow, UiRunEvent } from '../engine/types';
 
 /**
  * One-shot B3: one "needs you" count. The rail, the phone tabs, Today's greeting and heading and Team read the same
@@ -7,7 +7,7 @@ import type { QueueRow, VentureRunEvent } from '../engine/types';
  */
 
 /** Today's queue changes: a queue change, and a run that waits on the owner or failed. */
-export const QUEUE_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
+export const QUEUE_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
 
 /**
  * The engine's rule (views/queue.ts summaryOf): every row needs the owner but a locked business's, which is only "open

@@ -8,7 +8,7 @@ import { App } from '../../src/shell/App';
 import { ClockProvider } from '../../src/shell/clock';
 import { NARROW } from '../../src/shell/useNarrow';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import type { EngineClient, NotificationView, VentureRunEvent } from '../../src/engine/types';
+import type { EngineClient, NotificationView, UiRunEvent } from '../../src/engine/types';
 import { assertInkRules } from '../helpers/ink-rules';
 
 const NOW = () => '2026-10-23T13:35:00.000Z';
@@ -114,7 +114,7 @@ describe('the bell', () => {
     const { engine } = start('#/work');
     await within(tools()).findByRole('button', { name: 'Notifications, 2 new' });
     await act(async () => { await engine.request('venture.notify.read', { all: true }); });
-    const event: VentureRunEvent = { type: 'notify.new', businessId: 'lumen', at: NOW() };
+    const event: UiRunEvent = { type: 'notify.new', businessId: 'lumen', at: NOW() };
     await act(async () => { engine.emit(event); });
     await within(tools()).findByRole('button', { name: 'Notifications' });
   });

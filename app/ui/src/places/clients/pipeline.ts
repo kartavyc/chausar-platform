@@ -4,7 +4,7 @@
  */
 
 import type { LinkStrength, PathPerson } from '../../parts/PathLine';
-import type { OutreachChannel, OutreachKind, PipelineCardView, PipelineStage, TieBand, VentureRunEvent, WarmPathView } from '../../engine/types';
+import type { OutreachChannel, OutreachKind, PipelineCardView, PipelineStage, TieBand, UiRunEvent, WarmPathView } from '../../engine/types';
 import { useLanguage, useT } from '../../text';
 import { useDay } from '../money/words';
 
@@ -14,7 +14,7 @@ export const STAGE_ORDER: readonly PipelineStage[] = ['found', 'asked', 'talking
 export const CLOSED_STAGES: ReadonlySet<PipelineStage> = new Set(['won', 'lost', 'not-now']);
 
 /** The board, the due list and the sheets reload on a pipeline change or a queue change (a follow-up came due). */
-export const pipelineRefresh = (event: VentureRunEvent) => event.type === 'pipeline.changed' || event.type === 'queue.changed';
+export const pipelineRefresh = (event: UiRunEvent) => event.type === 'pipeline.changed' || event.type === 'queue.changed';
 
 /** A band as PathLine's two strengths: the engine's band, never a guess. Cold claims no strength. */
 function strengthOf(band: TieBand): LinkStrength | undefined {

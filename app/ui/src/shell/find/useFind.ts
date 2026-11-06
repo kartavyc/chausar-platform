@@ -9,7 +9,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useResource } from '../../engine/context';
-import type { FindHit, FindItem, FindKind, VentureRunEvent } from '../../engine/types';
+import type { FindHit, FindItem, FindKind, UiRunEvent } from '../../engine/types';
 import { useT } from '../../text';
 import { FIND_WHOLE_SCORE, wordsOf } from '../../../../../platform/runtime/venture/views/find-core';
 import { useNeedsYou } from '../needsYou';
@@ -25,7 +25,7 @@ const MORE_HREF: Readonly<Record<FindKind, string>> = {
 };
 
 /** A found thing reads again when the queue changes, Chausar answers, or a run moves. */
-const FIND_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'chief.message' || event.type.startsWith('run.');
+const FIND_EVENTS = (event: UiRunEvent) => event.type === 'queue.changed' || event.type === 'chief.message' || event.type.startsWith('run.');
 
 export type FindRow =
   | { id: string; kind: 'record'; href: string; item: FindItem }
