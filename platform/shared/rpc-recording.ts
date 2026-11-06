@@ -1,4 +1,5 @@
 /** D11d test protocol. Pure JSON helpers shared by the engine recorder and the unshipped scripted UI client. */
+import { isDigest } from './digest.ts';
 export type RecordingJson = null | boolean | number | string | RecordingJson[] | { [key: string]: RecordingJson };
 export type RecordingPlaceholder =
   | { kind: 'id'; prefix: string }
@@ -15,7 +16,6 @@ export type RpcRecording = { format: 'chausar-rpc-recording/1'; scenario: string
 const UUID = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}';
 const GENERATED = new RegExp(`^(.*_)?(${UUID})$`);
 const TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,3}))?Z$/;
-const DIGEST = /^[a-f0-9]{64}$/;
 const TOKENS = new RegExp(`(?<![A-Za-z0-9_])(?:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z|[a-f0-9]{64}|(?:[a-z][a-z0-9_]*_)?${UUID})(?![A-Za-z0-9_])`, 'g');
 const PLACEHOLDER = /<(?:id|time|digest)-\d+>/g;
 
@@ -46,7 +46,7 @@ export function createRecordingCodec(epoch: string) {
     const id = GENERATED.exec(value);
     let entry: RecordingPlaceholder;
     if (time) entry = { kind: 'time', offsetMs: Date.parse(value) - base, precision: time[1]?.length ?? 0 };
-    else if (DIGEST.test(value)) entry = { kind: 'digest' };
+    else if (isDigest(value)) entry = { kind: 'digest' };
     else if (id) entry = { kind: 'id', prefix: id[1] ?? '' };
     else return value;
     const key = `<${entry.kind}-${++counts[entry.kind]}>`;

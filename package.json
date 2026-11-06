@@ -23,6 +23,7 @@
     "predesktop": "npm run build:ui",
     "desktop": "node scripts/desktop-launch.mjs --demo",
     "test": "node --test platform/tests/*.test.ts",
+    "recordings:update": "node scripts/update-recordings.mjs",
     "check": "node scripts/check.mjs",
     "format": "biome format --write",
     "format:check": "biome format",

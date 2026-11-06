@@ -1,4 +1,6 @@
 {
+  "platform/tests/rpc-recorder-d11.test.ts": 1.3,
+  "platform/tests/recordings-d11.test.ts": 4.4,
   "platform/tests/contracts-types-only-d6.test.ts": 0.9,
   "platform/tests/gen-contract-d8.test.ts": 0.2,
   "platform/tests/method-registry-d8.test.ts": 0.2,

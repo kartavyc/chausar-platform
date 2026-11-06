@@ -1,0 +1,1476 @@
+{
+  "format": "chausar-rpc-recording/1",
+  "scenario": "today",
+  "epoch": "2026-11-06T12:00:00.000Z",
+  "placeholders": {
+    "<time-1>": {
+      "kind": "time",
+      "offsetMs": 0,
+      "precision": 3
+    },
+    "<id-1>": {
+      "kind": "id",
+      "prefix": "blueprint_"
+    },
+    "<id-2>": {
+      "kind": "id",
+      "prefix": "venture_"
+    },
+    "<digest-1>": {
+      "kind": "digest"
+    },
+    "<digest-2>": {
+      "kind": "digest"
+    },
+    "<digest-3>": {
+      "kind": "digest"
+    },
+    "<digest-4>": {
+      "kind": "digest"
+    },
+    "<digest-5>": {
+      "kind": "digest"
+    },
+    "<digest-6>": {
+      "kind": "digest"
+    },
+    "<id-3>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-4>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-5>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-6>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-7>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-8>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-9>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-10>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-11>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-12>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-13>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-14>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<digest-7>": {
+      "kind": "digest"
+    },
+    "<id-15>": {
+      "kind": "id",
+      "prefix": "agentmsg_"
+    },
+    "<id-16>": {
+      "kind": "id",
+      "prefix": "agentmsg_"
+    },
+    "<id-17>": {
+      "kind": "id",
+      "prefix": "proposal_"
+    },
+    "<digest-8>": {
+      "kind": "digest"
+    }
+  },
+  "frames": [
+    {
+      "kind": "request",
+      "id": 1,
+      "method": "venture.blueprint.update",
+      "payload": {
+        "patch": {
+          "offers": [
+            {
+              "id": "offer_1",
+              "unitPrice": "2999"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "queue.changed",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 19
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "notify.new",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 20
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 1,
+      "result": {
+        "blueprint": {
+          "id": "<id-1>",
+          "kind": "venture-blueprint",
+          "ventureId": "<id-2>",
+          "memberId": "owner",
+          "epoch": 1,
+          "at": "<time-1>",
+          "country": {
+            "code": "IN",
+            "name": "India",
+            "currency": "INR",
+            "minorDigits": 2,
+            "region": "india",
+            "tax": {
+              "mode": "gst",
+              "label": "GST",
+              "standardRateBps": "1800",
+              "registrationNote": "Service businesses usually register for GST above a yearly turnover of INR 20 lakh (INR 10 lakh in special category states). Some must register earlier. Check with a CA.",
+              "idLabel": "GSTIN",
+              "idPattern": null,
+              "invoiceKind": "tax-invoice",
+              "checkedOn": "2026-10-15"
+            },
+            "paymentRails": [
+              "razorpay",
+              "cashfree",
+              "paypal"
+            ],
+            "dateOrder": "day-month-year",
+            "complianceNotes": [
+              "Customer personal data falls under the DPDP Act and its rules.",
+              "Commercial SMS needs DLT registration, so Chausar does not send SMS.",
+              "Export of services is zero-rated only under an LUT and with payment in foreign currency. Check with a CA."
+            ]
+          },
+          "version": 2,
+          "status": "draft",
+          "source": "template",
+          "structureHash": "<digest-1>",
+          "digest": "<digest-2>",
+          "modelCallIds": [],
+          "serviceType": "bookkeeping",
+          "name": {
+            "value": "Ledger Cafe Books",
+            "label": "told-by-you",
+            "by": "owner"
+          },
+          "oneLiner": {
+            "value": "A bookkeeping studio where an agent drafts the monthly report and you check it.",
+            "label": "assumption",
+            "by": "template"
+          },
+          "customer": {
+            "value": "Small business owners who want tidy books without chasing receipts.",
+            "label": "assumption",
+            "by": "template"
+          },
+          "offers": [
+            {
+              "id": "offer_1",
+              "name": {
+                "value": "Monthly books",
+                "label": "assumption",
+                "by": "template"
+              },
+              "description": {
+                "value": "Bank matching, bill sorting and a short monthly report.",
+                "label": "assumption",
+                "by": "template"
+              },
+              "pricing": {
+                "model": "monthly",
+                "quantityUnit": "month",
+                "unitPriceMinor": "299900",
+                "unitPriceLabel": "told-by-you",
+                "defaultQuantity": "1"
+              }
+            },
+            {
+              "id": "offer_2",
+              "name": {
+                "value": "Catch up",
+                "label": "assumption",
+                "by": "template"
+              },
+              "description": {
+                "value": "Past months put in order before the regular service starts.",
+                "label": "assumption",
+                "by": "template"
+              },
+              "pricing": {
+                "model": "project",
+                "quantityUnit": "project",
+                "unitPriceMinor": null,
+                "unitPriceLabel": "not-set",
+                "defaultQuantity": "1"
+              }
+            }
+          ],
+          "deliverySteps": [
+            {
+              "id": "step_1",
+              "title": {
+                "value": "Collect bills and bank statements",
+                "label": "assumption",
+                "by": "template"
+              },
+              "doneBy": "you",
+              "capability": "planned",
+              "note": "You collect what the client sends and add the files to the order, where the agent reads them. Reading inboxes for you is planned."
+            },
+            {
+              "id": "step_2",
+              "title": {
+                "value": "Sort and match every entry",
+                "label": "assumption",
+                "by": "template"
+              },
+              "doneBy": "you",
+              "capability": "planned",
+              "note": "You do the hands-on work. For bookkeeping, an agent reconciles a month from the files you add, for you to check; other hands-on work is planned."
+            },
+            {
+              "id": "step_3",
+              "title": {
+                "value": "Draft the monthly report for review",
+                "label": "assumption",
+                "by": "template"
+              },
+              "doneBy": "agent-then-you",
+              "capability": "drafts-now",
+              "note": "An agent drafts a reply from the client's message. You check it."
+            },
+            {
+              "id": "step_4",
+              "title": {
+                "value": "Send the report to the client",
+                "label": "assumption",
+                "by": "template"
+              },
+              "doneBy": "you",
+              "capability": "planned",
+              "note": "You send it to the client. Sending for you is planned."
+            }
+          ],
+          "approvals": [
+            {
+              "value": "Every monthly report before it reaches a client",
+              "label": "assumption",
+              "by": "template"
+            },
+            {
+              "value": "Any message that asks a client for money",
+              "label": "assumption",
+              "by": "template"
+            }
+          ],
+          "backOffice": {
+            "currency": "INR",
+            "taxMode": "gst",
+            "taxLabel": "GST",
+            "taxRegistered": {
+              "value": true,
+              "label": "told-by-you",
+              "by": "owner"
+            },
+            "taxRateBps": "1800",
+            "taxRateBy": "country-table",
+            "taxId": null,
+            "taxState": null,
+            "sacCode": null,
+            "lutConfirmed": false,
+            "invoiceKind": "tax-invoice",
+            "taxInvoiceReady": false,
+            "taxInvoiceMissing": [
+              "Your GSTIN",
+              "Your state",
+              "Your SAC code"
+            ],
+            "paymentRail": "razorpay",
+            "invoicePrefix": "INV"
+          },
+          "starterConnectorIds": [
+            "lovable",
+            "github",
+            "razorpay",
+            "mail-app",
+            "cal-com",
+            "chausar-books"
+          ]
+        },
+        "offerReceipts": {
+          "offer_1": null,
+          "offer_2": null
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "id": 2,
+      "method": "venture.queue.list",
+      "payload": {
+        "scope": "current"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 2,
+      "result": {
+        "rows": [
+          {
+            "id": "plan:<id-2>:<id-1>",
+            "businessId": "main",
+            "businessName": "Ledger Cafe Books",
+            "kind": "price",
+            "createdAt": "<time-1>",
+            "title": "New price for Monthly books",
+            "line": "Accept the plan to use it on new orders and invoices.",
+            "change": {
+              "label": "Monthly books",
+              "before": "₹2,499 per month",
+              "after": "₹2,999 per month",
+              "ownerEntered": true
+            },
+            "viewRef": {
+              "kind": "plan",
+              "id": "<id-1>"
+            },
+            "actions": [
+              {
+                "id": "read",
+                "label": "Read",
+                "primary": false
+              },
+              {
+                "id": "approve",
+                "label": "Accept",
+                "primary": true
+              }
+            ],
+            "digest": "<digest-3>",
+            "meta": {
+              "client": null,
+              "business": "Ledger Cafe Books",
+              "at": "<time-1>"
+            },
+            "changeCount": {
+              "line": "1 price changed",
+              "details": [
+                "Monthly books: ₹2,499 per month to ₹2,999 per month"
+              ],
+              "coverage": "This comparison doesn't cover wording changes."
+            },
+            "amounts": [
+              {
+                "text": "₹2,499",
+                "where": "change.before",
+                "start": 0,
+                "length": 6,
+                "receiptId": "fig:plan:<id-1>"
+              },
+              {
+                "text": "₹2,999",
+                "where": "change.after",
+                "start": 0,
+                "length": 6,
+                "receiptId": "fig:plan:<id-1>"
+              },
+              {
+                "text": "₹2,499",
+                "where": "details",
+                "index": 0,
+                "start": 15,
+                "length": 6,
+                "receiptId": "fig:plan:<id-1>"
+              },
+              {
+                "text": "₹2,999",
+                "where": "details",
+                "index": 0,
+                "start": 35,
+                "length": 6,
+                "receiptId": "fig:plan:<id-1>"
+              }
+            ]
+          },
+          {
+            "id": "setup:ai:none",
+            "businessId": "main",
+            "businessName": "Ledger Cafe Books",
+            "kind": "setup",
+            "createdAt": "<time-1>",
+            "title": "Connect your AI",
+            "line": "Templates work without one. Your agents draft with your AI once it is connected.",
+            "actions": [
+              {
+                "id": "connect",
+                "label": "Connect",
+                "primary": true
+              }
+            ],
+            "digest": "<digest-4>",
+            "meta": {
+              "client": null,
+              "business": "Ledger Cafe Books",
+              "at": "<time-1>"
+            }
+          },
+          {
+            "id": "setup:prices:<id-1>",
+            "businessId": "main",
+            "businessName": "Ledger Cafe Books",
+            "kind": "setup",
+            "createdAt": "<time-1>",
+            "title": "Set your prices",
+            "line": "Catch up has no price yet.",
+            "actions": [
+              {
+                "id": "set-prices",
+                "label": "Set prices",
+                "primary": true
+              }
+            ],
+            "digest": "<digest-5>",
+            "meta": {
+              "client": null,
+              "business": "Ledger Cafe Books",
+              "at": "<time-1>"
+            }
+          }
+        ],
+        "summary": "3 need you",
+        "needsYou": 3,
+        "businesses": 1
+      }
+    },
+    {
+      "kind": "request",
+      "id": 3,
+      "method": "venture.queue.decide",
+      "payload": {
+        "id": "plan:<id-2>:<id-1>",
+        "digest": "<digest-3>",
+        "action": "approve"
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "queue.changed",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 22
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "queue.changed",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 23
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "notify.new",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 24
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 3,
+      "result": {
+        "outcome": "done",
+        "line": "New price for Monthly books accepted.",
+        "undoable": true
+      }
+    },
+    {
+      "kind": "request",
+      "id": 4,
+      "method": "venture.team.list",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 4,
+      "result": {
+        "agents": [
+          {
+            "id": "delivery",
+            "name": "Bookkeeping agent",
+            "role": "Reads each order, works on it with tools, and drafts the reply for you to check.",
+            "now": "Connect your AI",
+            "posture": "rehearsal",
+            "spend": "$0.00",
+            "steps": [
+              {
+                "id": "gather",
+                "purpose": "Read the client's message and files and pull out what is needed",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "clarify",
+                "purpose": "Decide what is still unclear",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "work",
+                "purpose": "Sort and match every entry",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "price",
+                "purpose": "Take prices from the calculator",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "draft",
+                "purpose": "Draft the monthly report for review",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "verify",
+                "purpose": "Check the draft",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "approve",
+                "purpose": "You review the draft",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "send",
+                "purpose": "Send it to the client (you copy it for now)",
+                "gate": "hold",
+                "floor": true
+              }
+            ],
+            "department": "money",
+            "kind": "agent",
+            "state": "idle",
+            "health": {
+              "status": "healthy",
+              "reason": null,
+              "digest": "<digest-6>"
+            },
+            "postureSetBy": "business",
+            "chat": true
+          },
+          {
+            "id": "keeper",
+            "name": "Keeper",
+            "role": "Keeps Chausar running by fixed rules, not AI: backups, delivery checks, connection checks, rule and rate dates, posting steps and network strength.",
+            "now": "Idle",
+            "posture": "rehearsal",
+            "spend": "$0.00",
+            "steps": [],
+            "department": "operations",
+            "kind": "code",
+            "state": "idle",
+            "chat": false
+          }
+        ],
+        "departments": [
+          {
+            "id": "sales",
+            "name": "Sales and clients",
+            "counts": {
+              "working": 0,
+              "waiting": 0,
+              "stopped": 0,
+              "idle": 0
+            },
+            "doneThisWeek": {
+              "count": 0,
+              "receiptId": "<id-3>",
+              "permille": 0
+            },
+            "spendThisMonth": {
+              "display": "$0.00",
+              "receiptId": "<id-4>",
+              "lead": {
+                "currency": "USD",
+                "figure": "$0.00"
+              },
+              "sharePermille": 0
+            },
+            "series": {
+              "jobs": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ],
+              "spend": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ]
+            }
+          },
+          {
+            "id": "marketing",
+            "name": "Marketing",
+            "counts": {
+              "working": 0,
+              "waiting": 0,
+              "stopped": 0,
+              "idle": 0
+            },
+            "doneThisWeek": {
+              "count": 0,
+              "receiptId": "<id-5>",
+              "permille": 0
+            },
+            "spendThisMonth": {
+              "display": "$0.00",
+              "receiptId": "<id-6>",
+              "lead": {
+                "currency": "USD",
+                "figure": "$0.00"
+              },
+              "sharePermille": 0
+            },
+            "series": {
+              "jobs": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ],
+              "spend": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ]
+            }
+          },
+          {
+            "id": "production",
+            "name": "Production",
+            "counts": {
+              "working": 0,
+              "waiting": 0,
+              "stopped": 0,
+              "idle": 0
+            },
+            "doneThisWeek": {
+              "count": 0,
+              "receiptId": "<id-7>",
+              "permille": 0
+            },
+            "spendThisMonth": {
+              "display": "$0.00",
+              "receiptId": "<id-8>",
+              "lead": {
+                "currency": "USD",
+                "figure": "$0.00"
+              },
+              "sharePermille": 0
+            },
+            "series": {
+              "jobs": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ],
+              "spend": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ]
+            }
+          },
+          {
+            "id": "money",
+            "name": "Money",
+            "counts": {
+              "working": 0,
+              "waiting": 0,
+              "stopped": 0,
+              "idle": 1
+            },
+            "doneThisWeek": {
+              "count": 0,
+              "receiptId": "<id-9>",
+              "permille": 0
+            },
+            "spendThisMonth": {
+              "display": "$0.00",
+              "receiptId": "<id-10>",
+              "lead": {
+                "currency": "USD",
+                "figure": "$0.00"
+              },
+              "sharePermille": 0
+            },
+            "series": {
+              "jobs": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ],
+              "spend": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ]
+            }
+          },
+          {
+            "id": "operations",
+            "name": "Operations",
+            "counts": {
+              "working": 0,
+              "waiting": 0,
+              "stopped": 0,
+              "idle": 1
+            },
+            "doneThisWeek": {
+              "count": 0,
+              "receiptId": "<id-11>",
+              "permille": 0
+            },
+            "spendThisMonth": {
+              "display": "$0.00",
+              "receiptId": "<id-12>",
+              "lead": {
+                "currency": "USD",
+                "figure": "$0.00"
+              },
+              "sharePermille": 0
+            },
+            "series": {
+              "jobs": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ],
+              "spend": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ]
+            }
+          }
+        ],
+        "shared": null,
+        "totals": {
+          "doneThisWeek": {
+            "count": 0,
+            "receiptId": "<id-13>"
+          },
+          "spendThisMonth": {
+            "display": "$0.00",
+            "receiptId": "<id-14>",
+            "lead": {
+              "currency": "USD",
+              "figure": "$0.00"
+            }
+          },
+          "held": null
+        },
+        "teamHealth": {
+          "status": "healthy",
+          "reason": null,
+          "digest": "<digest-7>"
+        },
+        "introduce": [
+          {
+            "agentId": "delivery",
+            "line": "Bookkeeping agent reads each order, works on it with tools, and drafts the reply for you to check."
+          }
+        ]
+      }
+    },
+    {
+      "kind": "request",
+      "id": 5,
+      "method": "venture.agents.thread.send",
+      "payload": {
+        "agent": "delivery",
+        "text": "Send the report to the client today."
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "agent.message",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 25
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "proposal.created",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 26
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "agent.message",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 27
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 5,
+      "result": {
+        "added": [
+          {
+            "type": "message",
+            "message": {
+              "id": "<id-15>",
+              "at": "<time-1>",
+              "from": "owner",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "Send the report to the client today."
+                }
+              ]
+            }
+          },
+          {
+            "type": "message",
+            "message": {
+              "id": "<id-16>",
+              "at": "<time-1>",
+              "from": "agent",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "That needs your approval on Today."
+                }
+              ],
+              "proposalId": "<id-17>"
+            }
+          }
+        ],
+        "line": null
+      }
+    },
+    {
+      "kind": "request",
+      "id": 6,
+      "method": "venture.queue.list",
+      "payload": {
+        "scope": "current"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 6,
+      "result": {
+        "rows": [
+          {
+            "id": "setup:ai:none",
+            "businessId": "main",
+            "businessName": "Ledger Cafe Books",
+            "kind": "setup",
+            "createdAt": "<time-1>",
+            "title": "Connect your AI",
+            "line": "Templates work without one. Your agents draft with your AI once it is connected.",
+            "actions": [
+              {
+                "id": "connect",
+                "label": "Connect",
+                "primary": true
+              }
+            ],
+            "digest": "<digest-4>",
+            "meta": {
+              "client": null,
+              "business": "Ledger Cafe Books",
+              "at": "<time-1>"
+            }
+          },
+          {
+            "id": "setup:prices:<id-1>",
+            "businessId": "main",
+            "businessName": "Ledger Cafe Books",
+            "kind": "setup",
+            "createdAt": "<time-1>",
+            "title": "Set your prices",
+            "line": "Catch up has no price yet.",
+            "actions": [
+              {
+                "id": "set-prices",
+                "label": "Set prices",
+                "primary": true
+              }
+            ],
+            "digest": "<digest-5>",
+            "meta": {
+              "client": null,
+              "business": "Ledger Cafe Books",
+              "at": "<time-1>"
+            }
+          },
+          {
+            "id": "proposal:<id-17>:75e84a0dc509-74234e98afe7",
+            "businessId": "main",
+            "businessName": "Ledger Cafe Books",
+            "kind": "proposal",
+            "createdAt": "<time-1>",
+            "title": "Send the report to the client today.",
+            "agent": "Bookkeeping agent",
+            "line": "This is the \"Send it to the client (you copy it for now)\" step, which always asks you first. Nothing changes until you approve.",
+            "actions": [
+              {
+                "id": "deny",
+                "label": "Not now",
+                "primary": false
+              },
+              {
+                "id": "approve",
+                "label": "Approve",
+                "primary": true,
+                "secondAsk": true
+              }
+            ],
+            "digest": "<digest-8>",
+            "meta": {
+              "client": null,
+              "business": "Ledger Cafe Books",
+              "at": "<time-1>"
+            },
+            "sendsTo": "client"
+          }
+        ],
+        "summary": "3 need you",
+        "needsYou": 3,
+        "businesses": 1
+      }
+    },
+    {
+      "kind": "request",
+      "id": 7,
+      "method": "venture.queue.decide",
+      "payload": {
+        "id": "proposal:<id-17>:75e84a0dc509-74234e98afe7",
+        "digest": "<digest-8>",
+        "action": "deny"
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "queue.changed",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 28
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 7,
+      "result": {
+        "outcome": "done",
+        "line": "Not now. Nothing changed."
+      }
+    },
+    {
+      "kind": "request",
+      "id": 8,
+      "method": "venture.queue.list",
+      "payload": {
+        "scope": "current"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 8,
+      "result": {
+        "rows": [
+          {
+            "id": "setup:ai:none",
+            "businessId": "main",
+            "businessName": "Ledger Cafe Books",
+            "kind": "setup",
+            "createdAt": "<time-1>",
+            "title": "Connect your AI",
+            "line": "Templates work without one. Your agents draft with your AI once it is connected.",
+            "actions": [
+              {
+                "id": "connect",
+                "label": "Connect",
+                "primary": true
+              }
+            ],
+            "digest": "<digest-4>",
+            "meta": {
+              "client": null,
+              "business": "Ledger Cafe Books",
+              "at": "<time-1>"
+            }
+          },
+          {
+            "id": "setup:prices:<id-1>",
+            "businessId": "main",
+            "businessName": "Ledger Cafe Books",
+            "kind": "setup",
+            "createdAt": "<time-1>",
+            "title": "Set your prices",
+            "line": "Catch up has no price yet.",
+            "actions": [
+              {
+                "id": "set-prices",
+                "label": "Set prices",
+                "primary": true
+              }
+            ],
+            "digest": "<digest-5>",
+            "meta": {
+              "client": null,
+              "business": "Ledger Cafe Books",
+              "at": "<time-1>"
+            }
+          }
+        ],
+        "summary": "2 need you",
+        "needsYou": 2,
+        "businesses": 1
+      }
+    }
+  ]
+}
