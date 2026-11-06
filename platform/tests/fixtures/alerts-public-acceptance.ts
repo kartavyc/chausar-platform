@@ -9,7 +9,7 @@ import type { Context } from '../../runtime/contracts.ts';
 import { Engine } from '../../runtime/engine.ts';
 import type { MappingRecipe } from '../../runtime/ingest.ts';
 import type { DictionaryDraft } from '../../runtime/ontology.ts';
-import { preloadBridge } from './preload-bridge.ts';
+import { trustedHostBridge } from './trusted-host-bridge.ts';
 
 export const PERIOD = { from: '2026-09-01', to: '2026-09-30' };
 export const SOURCE = 'synthetic-public-alert-sales';
@@ -30,7 +30,7 @@ const recipe: MappingRecipe = {
   ], allowedKinds: ['sale'], allowedStatuses: ['delivered'], onUnmapped: 'reject',
 };
 
-// Actual preload -> structured clone -> strict IPC -> in-process Engine. The
+// Actual trusted host validation -> structured clone -> strict IPC -> in-process Engine. The
 // sole host substitution is historical Date, scoped to this sequential test.
 // Facts, source controls, reconciliations and receipts all enter by public RPC.
 export async function fixture(t: TestContext, excludeNulls = false) {
@@ -48,8 +48,8 @@ export async function fixture(t: TestContext, excludeNulls = false) {
       'Cleanup stays inside its exact temporary parent and prefix.');
     await rm(target, { recursive: true, force: true });
   });
-  const h = await preloadBridge({ dispatch: (method, payload) => engine.requestAs(currentContext, method, payload) });
-  const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => h.exposed.request(method, payload);
+  const h = await trustedHostBridge({ dispatch: (method, payload) => engine.requestAs(currentContext, method, payload) });
+  const request = (method: string, payload: Record<string, unknown> = {}): Promise<any> => h.request(method, payload);
   async function requestAs(ctx: Context, method: string, payload: Record<string, unknown> = {}) {
     const prior = currentContext; currentContext = ctx;
     try { return await request(method, payload); } finally { currentContext = prior; }
