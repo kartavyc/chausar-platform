@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -15,7 +16,7 @@ import { useMoment } from '../../parts/when';
 import { LoadingPlace } from '../../parts/Skeleton';
 
 const never = () => false;
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 type Undo = { kind: 'version'; version: number } | { kind: 'pin'; pinned: boolean };
 
 /** Saves the exported single file where the owner picks (the browser's own download; the desktop shows its save dialog). */

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Recording a payment, as a form beside the list. The amount is the owner's own text, sent as typed; the engine
  * reads it, checks it against the balance and answers with the invoice's new figures. Recording cannot be undone,
@@ -24,7 +25,7 @@ import { Sheet } from '../../parts/Sheet';
 import { PAYMENT_METHODS, type InvoiceViewLite, type PaymentMethod } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { ThankYou } from './ThankYou';
-import { invoiceTitle, messageOf, statusOf, typedWords, useDay, useLocalToday } from './words';
+import { invoiceTitle, statusOf, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';

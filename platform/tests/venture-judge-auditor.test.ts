@@ -73,7 +73,7 @@ test('auditor: a step whose receipt never joined the run is not audited, and its
   state = await applyTurn(env, state, turn([['books.reconcile', RECONCILE]], true), meta);
   const [step] = state.rounds![0].steps;
   assert.equal(step.audited, false);
-  assert.match(step.reason, /not in the run/);
+  assert.match(step.reason, /not in the job/);
   assert.deepEqual(state.proofs, []);
   assert.equal(state.sections, 'reply', 'without an audited proof the reply cannot report finished work');
   assert.equal(state.toolCalls[0].outcome, 'succeeded', 'the call itself is kept as it happened');
@@ -103,13 +103,13 @@ test('auditor: it checks the real output, so a tampered receipt or table, or a p
 
   const other = toolEnv(practice('clean'), { runRef: { kind: 'rehearsal', scenarioId: 'other', episode: 1 } });
   const elsewhere = await call(other, 'calc.sum', { table: 'f2', amountColumn: 'Amount' });
-  assert.match(auditStep(env, { ...elsewhere }).reason, /not in the run/);
+  assert.match(auditStep(env, { ...elsewhere }).reason, /not in the job/);
   env.receipts.push(...other.receipts);
   assert.match(auditStep(env, elsewhere).reason, /another run/);
 
   const read = await call(env, 'files.read', { target: 'f1', part: 'columns' });
   assert.equal(auditStep(env, read).audited, true);
-  assert.match(auditStep(env, { ...read, proofs: [{ ...read.proofs[0], tableId: 'upload_missing' }] }).reason, /not a file or table of this run/);
+  assert.match(auditStep(env, { ...read, proofs: [{ ...read.proofs[0], tableId: 'upload_missing' }] }).reason, /not a file or table of this job/);
 });
 
 test('auditor: a heavy-work brief counts as progress only once the owner\'s tool finished; a declined brief never does', () => {
@@ -137,7 +137,7 @@ test('auditor: the runs view reads one flag per step; a run from before the ledg
     ...newHarnessState(['files.list'], DEFAULT_LIMITS, []),
     toolCalls: [{ id: 't1.1', turn: 1, tool: 'files.list', input: {}, inputDigest: '', envelope: { ok: true, result: {} }, outcome: 'succeeded', effect: 'read', tier: 'code', receiptIds: [], tableIds: [] }],
   };
-  assert.deepEqual(auditedSteps(old), [{ stepId: 't1.1', tool: 'files.list', round: 1, audited: false, reason: 'This run started before steps were audited.' }]);
+  assert.deepEqual(auditedSteps(old), [{ stepId: 't1.1', tool: 'files.list', round: 1, audited: false, reason: 'This job started before steps were audited.' }]);
   assert.equal(isStepAudited(old, 't1.1'), false);
   assert.deepEqual(auditedProgress(old), { done: 0, total: 1 });
   assert.deepEqual(auditedSteps(null), []);

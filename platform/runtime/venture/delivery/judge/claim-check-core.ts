@@ -282,8 +282,8 @@ export function checkClaims(draft: string, sources: readonly SourceText[], optio
   });
   const unmatched = claims.filter(claim => !claim.matched);
   const detail = !claims.length ? 'The draft makes no specific claim to check.'
-    : !unmatched.length ? "Every figure, date, name and certification in the draft matches the client's files or the run's evidence."
-      : `${unmatched.length === 1 ? 'This claim is' : 'These claims are'} not in the client's files or the run's evidence: ${unmatched.map(claim => `"${quote(claim.text, 60)}"`).join(', ')}.`;
+    : !unmatched.length ? "Every figure, date, name and certification in the draft matches the client's files or the job's evidence."
+      : `${unmatched.length === 1 ? 'This claim is' : 'These claims are'} not in the client's files or the job's evidence: ${unmatched.map(claim => `"${quote(claim.text, 60)}"`).join(', ')}.`;
   return { passed: unmatched.length === 0, claims, unmatched, detail };
 }
 
@@ -632,10 +632,10 @@ export function receiptsVerdict(numbers: readonly DraftNumber[], references: rea
   }
   for (const kind of ['file', 'link'] as const) {
     const missing = references.filter(reference => reference.kind === kind && !reference.found).map(reference => reference.text);
-    if (missing.length) problems.push(`The ${subject} names ${missing.length === 1 ? `a ${kind}` : `${kind}s`} not in this run's evidence: ${quoted(missing)}.`);
+    if (missing.length) problems.push(`The ${subject} names ${missing.length === 1 ? `a ${kind}` : `${kind}s`} not in this job's evidence: ${quoted(missing)}.`);
   }
   for (const reference of references.filter(item => item.found && item.digestMatches === false)) {
-    problems.push(`The digest the ${subject} gives for "${quote(reference.text, 60)}" does not match the one this run holds.`);
+    problems.push(`The digest the ${subject} gives for "${quote(reference.text, 60)}" does not match the one this job holds.`);
   }
   // Where estimates are forbidden, only money, rates and tax fail; a count with no receipt is labelled like any other.
   const estimates = numbers.filter(number => number.status === 'estimate');

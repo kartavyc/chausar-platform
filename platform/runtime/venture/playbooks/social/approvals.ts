@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../../hash.ts';
 // Chausar flagship playbook, social media agency: approvals, the client share link record and draft-before-schedule.
 // - The owner approves a draft first. Only drafts that passed the checks and that the owner approved go on a share link.
 // - The client decides each draft once, on the exact text (its digest), before the link ends. The record keeps a hash
@@ -10,7 +11,7 @@
 //
 // Idea taken, code written here: postmill-ai/postmill-app (AGPL-3.0, so ideas only), whose promote step refuses any
 // draft that is not approved and returns a reason per post.
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { check, newId } from '../../../contracts.ts';
 import type { IsoDate, IsoTime } from '../../contracts.ts';
 import { digest } from '../../records.ts';
@@ -51,7 +52,7 @@ export const SHARE_LINK_SERVING = Object.freeze({
 const DEFAULT_TTL_HOURS = 168;
 const MAX_DRAFTS = 60;
 
-const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+const sha256 = (value: string) => sha256Hex(value);
 const timeOf = (value: string, field: string) => {
   const time = Date.parse(value);
   check(typeof value === 'string' && Number.isFinite(time), 'INVALID_VENTURE_REQUEST', `The ${field} is not a time.`);

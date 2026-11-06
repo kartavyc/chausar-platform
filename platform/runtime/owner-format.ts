@@ -13,6 +13,8 @@ import { COUNTRY_TIME_ZONES } from './venture/local-day-data.ts';
 
 /** The currencies written with a sign; every other currency keeps its code, so "$" never means three currencies. */
 const SIGNS: Readonly<Record<string, string>> = Object.freeze({ INR: '₹', USD: '$', EUR: '€' });
+// These ISO codes are also ordinary headings. Keep a fraction so their money form is unambiguous.
+const WORD_CODES = ['ALL', 'TOP'] as const;
 
 /** The sign an amount in this currency is written with, or null when it is written with its code. */
 export function currencySign(currency: string): string | null {
@@ -28,6 +30,7 @@ function grouped(digits: string, indian: boolean): string {
 /** One amount from its parts: sign, whole digits and the fraction digits to show ('' for none). */
 function written(negative: boolean, whole: string, fraction: string, currency: string): string {
   const sign = currencySign(currency);
+  if (!fraction && WORD_CODES.some(code => code === currency)) fraction = '00';
   const figure = `${grouped(whole, currency === 'INR')}${fraction ? `.${fraction}` : ''}`;
   return `${negative ? '-' : ''}${sign ?? `${currency} `}${figure}`;
 }
@@ -83,15 +86,15 @@ export function typedMoney(text: string, currency: string): string | null {
  * The currency codes the screens read as money when a figure is written with its code: every code the runtime knows
  * (the list currency.ts accepts), so "HKD 5,000" is money and "GST 18%" is not.
  */
-const CODES = [...Intl.supportedValuesOf('currency'), 'CLF', 'UYI', 'UYW'].join('|');
+const CODES = [...Intl.supportedValuesOf('currency'), 'CLF', 'UYI', 'UYW'].filter(code => !WORD_CODES.some(word => word === code)).join('|');
 /**
  * Money in text, one pattern for the engine, the fake and the app: a sign or a code, then its digits. It reads the
  * owner form ("₹2,000", "-₹500", "SGD 5,000") and the exact form ("INR 2,000.00", "USD 0.0042") alike.
  */
-export const MONEY_TEXT = new RegExp(`-?(?:[₹$€]\\s?|\\b(?:${CODES})\\s?-?)\\d[\\d,]*(?:\\.\\d+)?`, 'g');
-/** Whether a text holds an amount anywhere (MONEY_TEXT without the global flag, so it keeps no state between tests). */
-export const HOLDS_MONEY = new RegExp(`(?:[₹$€]\\s?|\\b(?:${CODES})\\s?-?)\\d`);
-
+const MONEY_PREFIX = String.raw`(?:[₹$€]\s?|\b(?:${CODES})\s?-?|\b(?:${WORD_CODES.join('|')})\s?-?(?=\d[\d,]*[,.]\d))`;
+export const MONEY_TEXT = new RegExp(String.raw`-?${MONEY_PREFIX}\d[\d,]*(?:\.\d+)?`, 'g');
+/** Same pattern without global state, so prose and money checks always agree. */
+export const HOLDS_MONEY = new RegExp(MONEY_TEXT.source);
 /** A count, grouped as the business's country groups it: "1,00,000" for India, "100,000" elsewhere. */
 export function formatCount(n: number | bigint, countryCode: string): string {
   const negative = n < 0, digits = String(negative ? -n : n).replace(/\..*$/, '');

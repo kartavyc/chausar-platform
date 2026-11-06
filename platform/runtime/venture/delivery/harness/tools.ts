@@ -8,7 +8,7 @@
 // for the owner, and only an allow lets it start.
 import { ChausarError, check, newId } from '../../../contracts.ts';
 import { digest, modelWords } from '../../records.ts';
-import { TOOL_NAMES } from '../../contracts.ts';
+import { TOOL_NAMES } from '../../contract-values.ts';
 import type {
   ClaimProof, ClaimProofKind, DateOrder, DelegationRequest, ExecutionOutcome, ExecutionTier, HandoffChoice, HandoffRequest, Json, MockEffect, OrderIntake, PolicyHold, QuestionCard, RecordBase, SandboxPorts, ToolCallRecord,
   ToolEffect, ToolEnvelope, ToolName, VentureDeps, VentureHostKind, VentureRecordKind, WorkReceiptRecord, WorkRunRef, WorkTableRecord, WorkTableRow,

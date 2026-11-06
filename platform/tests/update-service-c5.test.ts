@@ -301,3 +301,11 @@ test('on the local server, only the owner on this computer changes how it update
   assert.ok(BOOTSTRAP_ONLY_METHODS.includes('updates.check'));
   assert.ok(!BOOTSTRAP_ONLY_METHODS.includes('updates.status'));
 });
+
+test('overlapping ticks admit only one update check after loading settings', async t => {
+  const { service, reads, advance } = await setup(t);
+  advance(10 * MINUTE);
+  await Promise.all([service.tick(), service.tick(), service.tick()]);
+  await service.settled();
+  assert.equal(reads.length, 1);
+});

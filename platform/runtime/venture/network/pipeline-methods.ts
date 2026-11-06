@@ -4,7 +4,7 @@
 // inside the app. The rules live in pipeline.ts, the dates in followups.ts, the score in score.ts, the counted
 // figures in funnel.ts. A card shows its person's strength and best warm path from 4D2's ties and paths.
 import { authorize, ChausarError, check, type Context, type State } from '../../contracts.ts';
-import { PIPELINE_STAGES, TIE_BANDS } from '../contracts.ts';
+import { PIPELINE_STAGES, TIE_BANDS } from '../contract-values.ts';
 import type {
   FollowupsView, FollowupView, IsoDate, LawfulBasis, LostReason, OutreachChannel, OutreachKind, PipelineCaps, PipelineCardResult, PipelineCardView, PipelineEvidenceInput, PipelineSettingsRecord, PipelineSettingsView,
   PersonRecord, PipelineQuoteView, PipelineStage, PipelineView, ScoreRule, StatTileView, TieRecord, VentureDeps, VentureRecord,

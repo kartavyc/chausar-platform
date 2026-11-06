@@ -452,7 +452,7 @@ export class FakeMoneyViews {
       ...(rate === null && this.country().currency === 'INR' ? { needsRate: true } : {}),
       line: rate === null ? `${words}: invoiced before tax. The AI and tool spend is not counted: ${this.noRate()}.` : `${words}: invoiced before tax, less the AI and tool spend of each client's orders at ${rate}.`,
       basis: this.basis(
-        [`Invoices issued in ${words}, before tax, less credit notes`, "AI and tool spend by UTC month, tagged to a client through its run and order"],
+        [`Invoices issued in ${words}, before tax, less credit notes`, "AI and tool spend by UTC month, tagged to a client through its job and order"],
         leftOut.count ? { count: leftOut.count, line: `${leftOut.count} not counted: ${plural(leftOut.count, leftOut.one, leftOut.many)}` } : null,
       ),
     };

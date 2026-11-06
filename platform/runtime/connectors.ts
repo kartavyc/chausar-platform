@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 import { assertSourceAccess, trustFingerprint } from './trust.ts';
 import { ImportService, type MappingRecipe, type ImportFormat } from './ingest.ts';
@@ -239,7 +240,7 @@ export class ConnectorService {
     this.#access(context,input.sourceId);
     check(CONNECTOR_REGISTRY.some(item => item.id === input.connector) && typeof input.company === 'string' && input.company.length > 0 && typeof input.edition === 'string' && input.edition.length > 0, 'INVALID_RECIPE_SCOPE', 'Name the system edition and company for this recipe.');
     check(Array.isArray(input.fields) && input.fields.length <= 100 && new Set(input.fields).size === input.fields.length && input.fields.every(field => typeof field === 'string' && field.length > 0 && field.length <= 80 && !['__proto__','prototype','constructor'].includes(field)), 'INVALID_RECIPE_FIELDS', 'Recipe fields must be bounded, unique data names.');
-    check(typeof input.evidence?.reportId === 'string' && input.evidence.reportId.length > 0 && input.evidence.reportId.length <= 200 && /^[a-f0-9]{64}$/.test(input.evidence.sha256), 'RECIPE_EVIDENCE_REQUIRED', 'A recipe needs its named source report and SHA-256 evidence.');
+    check(typeof input.evidence?.reportId === 'string' && input.evidence.reportId.length > 0 && input.evidence.reportId.length <= 200 && DIGEST_PATTERN.test(input.evidence.sha256), 'RECIPE_EVIDENCE_REQUIRED', 'A recipe needs its named source report and SHA-256 evidence.');
     const bindings = Object.entries(ALIASES).map(([target, aliases]) => { const candidates = input.fields.filter(field => aliases.includes(field)); return { target,candidates,selected:candidates.length === 1 ? candidates[0] : null, ambiguous:candidates.length !== 1 || (target === 'amountMinor' && candidates.includes('amount')) }; });
     const proposal: Proposal = { id:newId('recipe-proposal'), connector:input.connector, sourceId:input.sourceId, company:input.company, edition:input.edition, fields:[...input.fields], evidence:structuredClone(input.evidence), bindings, status:'proposed' };
     await this.#store.update(state => { this.#access(context,input.sourceId); state.learning.push({ ...proposal, category:'connector-recipe', at:now(), executable:false, qualification:'unqualified' }); audit(state,'connector.recipe.proposed',{ proposalId:proposal.id }); });

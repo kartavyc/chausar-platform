@@ -30,7 +30,7 @@ const CALENDAR_HEADER = 'date,channel,text,alt_text,owner_approved_at,client_app
 const CALENDAR_WORDS = {
   notSocial: 'Only a social media draft has a calendar file.',
   noSlots: 'This order has no calendar, so code planned no slots. Only a content calendar order has a calendar file.',
-  noDraft: 'This run has no draft yet. The calendar file comes from a draft you approved.',
+  noDraft: 'This job has no draft yet. The calendar file comes from a draft you approved.',
   practice: 'A practice draft never goes to a client.',
   noSlot: 'This post has no slot in the calendar.',
   owner: 'You have not approved this draft.',

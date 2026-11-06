@@ -1,5 +1,7 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, mkdir, open, readdir, realpath, rmdir, link, unlink } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -25,12 +27,12 @@ const LIVE_AUTHORITY = 'live/main/authority.encrypted.json';
 const INERT = 'backup.inert.json';
 const idPattern = /^[A-Za-z0-9_-]{1,100}$/;
 const slotPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
-const digestPattern = /^[a-f0-9]{64}$/;
+const digestPattern = DIGEST_PATTERN;
 const purposes = ['private-trial', 'workspace-interchange'] as const;
 const widerWorkspace = ['reports', 'plugin-assets', 'research-evidence', 'conversation-files', 'sync-evidence'];
 // custody/ holds business cards and this computer's key records; transfers/ holds a move file during one import only (KEYCHAIN-SPEC 2.8).
 const widerApplication = ['backups', 'exports', 'updates', 'custody', 'transfers', '.workspace-interchange-control', CONTROL];
-const sha = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const sha = (bytes: string | Uint8Array) => sha256Hex(bytes);
 function canonical(value: any): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (value !== null && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;

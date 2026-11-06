@@ -6,7 +6,7 @@
 // the gate again (W1 H13) and then the real engine method for its kind; Not now dismisses it. Nothing here spends,
 // sends or changes a price on its own: each method does what it always does, under its own gates.
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
-import { METHOD_OWNERS } from '../contracts.ts';
+import { METHOD_OWNERS } from '../contract-values.ts';
 import type {
   ChatPart, Json, ProposalKind, ProposalRaised, ProposalRecord, ProposalView, VentureDeps, VentureMethod, VentureRecord,
 } from '../contracts.ts';

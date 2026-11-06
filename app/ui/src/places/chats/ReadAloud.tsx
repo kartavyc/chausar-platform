@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * W6 6I1 (D45): Read aloud on one answer from Chausar. The engine builds the words to speak from the stored answer, only
  * what code checked (each figure by its receipt, never a number the AI wrote), and quotes the speech call first
@@ -13,7 +14,7 @@ import { Icon } from '../../parts/Icon';
 import type { TalkSaid } from '../../engine/types';
 import s from './Talk.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 export function ReadAloud({ threadId, messageId }: { threadId: string; messageId: string }) {
   const t = useT();

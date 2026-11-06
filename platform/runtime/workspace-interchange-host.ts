@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { authorize, ChausarError, newId, type Context, type State, internalCheck } from './contracts.ts';
 import {
   canonicalInterchangeJson, captureWorkspaceInterchange, encodeWorkspaceInterchange,
@@ -101,7 +102,7 @@ function requireValue(condition: unknown, code: string, message: string): assert
   if (!condition) throw new ChausarError(code, message);
 }
 const id = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(value);
-const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const digest = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 const equal = (a: unknown, b: unknown) => canonicalInterchangeJson(a) === canonicalInterchangeJson(b);
 function exact(value: unknown, keys: string[]) {
   canonicalInterchangeJson(value);

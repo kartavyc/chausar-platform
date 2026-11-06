@@ -1,5 +1,6 @@
+import { sha256Hex } from '../../hash.ts';
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
-import { createHash } from 'node:crypto';
+
 import { validateMCPArguments } from '../../mcp.ts';
 import type { DeliveryRunRecord, ToolCallRecord, ToolName, UploadRecord, VentureDeps, WorkReceiptRecord, WorkTableRecord } from '../contracts.ts';
 import { digest, findRecord, listRecords, ventureAction } from '../records.ts';
@@ -96,7 +97,7 @@ export async function calculateTrustedJob(deps: VentureDeps, ctx: Context, runId
     check(digest({ files: current.files, tables: currentTables, receipts: currentReceipts, contextRows: calculatorSources(tx.state, run.ventureId, order.clientId, order.id), calculations: current.run.agentJob?.calculations ?? [] }) === snapshot, 'JOB_SOURCE_CHANGED', 'The calculator sources changed. Read them again.');
     const madeTables = outcome?.tables ?? [], madeReceipts = outcome?.receipts ?? [];
     const socialSources = name === 'social.report' ? files.filter(file => file.format === 'csv').map(file => ({ id: file.id,
-      digest: createHash('sha256').update(Buffer.from(file.contentBase64, 'base64').toString('utf8')).digest('hex') })) : [];
+      digest: sha256Hex(Buffer.from(file.contentBase64, 'base64').toString('utf8')) })) : [];
     const youtubeSources = name.startsWith('youtube.') ? files.map(file=>({id:file.id,digest:digest(file)})) : [];
     const sources = [...files, ...socialSources, ...youtubeSources, ...files.filter(file => ['csv','xlsx'].includes(file.format)).flatMap(file => tablesOfFile(file)), ...tables, ...receipts, ...madeTables];
     for (const row of [...madeTables, ...madeReceipts]) {

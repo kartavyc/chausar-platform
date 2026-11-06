@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { SpendPolicyView, SpendRate, SpendRow } from '../runtime/venture/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import { ventureAction } from '../runtime/venture/records.ts';
 import { handlers as money } from '../runtime/venture/money/index.ts';
 import { paidCall } from '../runtime/venture/money/spend.ts';

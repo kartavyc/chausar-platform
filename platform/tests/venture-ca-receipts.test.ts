@@ -13,7 +13,7 @@ import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
 import { OntologyService, starterPacks } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
-import { JUDGE_QUESTIONS } from '../runtime/venture/contracts.ts';
+import { JUDGE_QUESTIONS } from '../runtime/venture/contract-values.ts';
 import type {
   CaFirmView, CaReceiptView, Deliverable, DeliveryRunView, ModelOutcome, ModelPort, ModelPreview, ModelPurpose, ModelStatusView, ModelTask, SecretShelf,
   ToolCallRecord, VentureDeps, VentureMethod, WorkReceiptRecord,

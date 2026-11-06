@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { randomUUID } from 'node:crypto';
 import { authorize, check, ChausarError, type Context, type State, internalCheck } from './contracts.ts';
 import { canSeeFact } from './memory.ts';
@@ -19,7 +20,7 @@ import type { PrivateArtifactRef } from './vault.ts';
 const PROVENANCE = 'chausar.backup-activation-provenance.v1' as const;
 const EVIDENCE_ID = 'backup_activation_provenance_v1';
 const id = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(value);
-const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const digest = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 const equal = (left: unknown, right: unknown) => canonicalInterchangeJson(left) === canonicalInterchangeJson(right);
 type BackupRead = WorkspaceBackupV2CustodyRecord & { measurement: WorkspaceBackupV2Measurement };
 type MaterialRead = WorkspaceInterchangeCustodyRecord & { measurement: WorkspaceInterchangeCustodyMeasurement };

@@ -104,3 +104,15 @@ test('a typed amount may carry grouping commas the owner writes, western or Indi
   assert.equal(typedMoney('1,2,3', 'INR'), null);
   assert.equal(typedMoney('12,00', 'INR'), null);
 });
+
+test('ordinary ALL and TOP counts are not mistaken for currency amounts', () => {
+  for (const text of ['ALL 3 files', 'TOP 5', 'TOP 25 results']) {
+    assert.equal(HOLDS_MONEY.test(text), false, text);
+    assert.deepEqual([...text.matchAll(MONEY_TEXT)], [], text);
+  }
+  for (const text of ['ALL 3.00', 'TOP 5.50', 'ALL 1,000']) wholeMatch(text);
+  assert.equal(formatMoney('300', 'ALL'), 'ALL 300.00');
+  assert.equal(formatMoney('500', 'TOP'), 'TOP 5.00');
+  assert.equal(typedMoney('3', 'ALL'), 'ALL 3.00');
+  assert.equal(formatMoneyRange('300', '500', 'TOP'), 'TOP 3.00 to TOP 5.00');
+});

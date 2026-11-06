@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Save the files, in the Share with your CA sheet (W4 4J4, U11 and P12; C4 T24): one month's invoices, credit notes,
  * payments and costs as a CSV file for the owner's accountant, with the receipts behind its totals. Chausar never sends
@@ -18,7 +19,7 @@ import type { MoneyExportFormat } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Select } from '../../parts/Select';
 import { Icon } from '../../parts/Icon';
-import { messageOf, useMonthWords } from './words';
+import { useMonthWords } from './words';
 import v from './MoneyViews.module.css';
 
 type Said = { text: string; problem: boolean; id?: string | undefined };

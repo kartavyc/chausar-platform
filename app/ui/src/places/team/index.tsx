@@ -77,7 +77,10 @@ function PlaceBody() {
 
   return (
     <>
-      <PageTitle title={t('place.team')} line={line} count={some ? count : undefined} />
+      {/* B4 task 14: hiring stays in the header row at every width; on a phone it is the icon alone. C7: its own sheet. */}
+      <PageTitle title={t('place.team')} line={line} count={some ? count : undefined} tools={some && split ? (
+        <button type="button" className={s.addAgent} aria-label={t('team.addAgent')} onClick={(event) => openSheet('hire', 'new', event.currentTarget)}><Icon name="plus" size={16} /><span className={s.addAgentWords}>{t('team.addAgent')}</span></button>
+      ) : undefined} />
       {team.error && <p className={s.failed}>{t('team.failed', { message: team.error.message })}</p>}
       {agents?.length === 0 && (
         <EmptyState title={t('team.empty')} actions={[{ label: t('team.emptyLink'), href: TEAM_ACCEPT_PLAN_HREF }]} />
@@ -89,9 +92,7 @@ function PlaceBody() {
           {split && (
             <div className={s.toolbar}>
               {/* C1: one row of departments at every width, with their counts; what does not fit goes under More. */}
-              <Tabs mode="buttons" label={t('dept.show')} items={withCounts(departmentChoices(t), members, split.departments)} value={chosen} onChange={show} />
-              {/* C7 (REPORT row 56): hiring one more agent from a sentence, in its own sheet. */}
-              <button type="button" className={s.addAgent} onClick={(event) => openSheet('hire', 'new', event.currentTarget)}><Icon name="plus" size={16} />{t('team.addAgent')}</button>
+              <Tabs mode="buttons" label={t('dept.show')} items={withCounts(departmentChoices(t), members, split.departments).filter((item) => item.id === 'all' || item.id === chosen || item.count > 0)} value={chosen} onChange={show} />
             </div>
           )}
           <LoadingPlace shape="tiles" loading={!team.data && !team.error} />
@@ -142,21 +143,30 @@ function countsOf(members: readonly Member[]): DepartmentData['counts'] {
 }
 
 /**
- * The tinted department panels, two to a row: a panel with one agent beside one with more takes five columns to their
- * seven (D-Team), two alike share the row, and a last one alone takes it whole. Agents the engine put in no department
- * follow in a plain tile.
+ * The department panels with agents, two to a row: a panel with one agent beside one with more takes five columns to
+ * their seven (D-Team), two alike share the row, and a last one alone takes it whole. The empty ones are one line.
+ * Agents the engine put in no department follow in a plain tile.
  */
 function Departments({ departments, apart, jobs, onChanged }: { departments: DepartmentData[]; apart: Member[]; jobs: number | undefined; onChanged: () => void }) {
   const t = useT();
   const apartId = useId();
-  const spans = spansOf(departments);
+  // B4 task 14: departments with agents are sections; the empty ones are one line with one way on.
+  const filled = departments.filter((department) => department.members.length > 0);
+  const empties = departments.filter((department) => department.members.length === 0);
+  const spans = spansOf(filled);
   // D-Team: the jobs tile takes the place beside a last panel that would stand alone, else a row of its own.
   const lone = spans[spans.length - 1] === 12;
   if (jobs !== undefined && lone) spans[spans.length - 1] = 6;
   return (
     <Bento as="section" label={t('team.departments')} className={s.depts}>
-      {departments.map((department, at) => <DepartmentPanel key={department.dept} data={department} span={spans[at]} onChanged={onChanged} />)}
+      {filled.map((department, at) => <DepartmentPanel key={department.dept} data={department} span={spans[at]} onChanged={onChanged} />)}
       {jobs !== undefined && <JobsTile departments={departments} total={jobs} span={lone ? 6 : 12} />}
+      {empties.length > 0 && (
+        <p className={s.emptyDepts} data-empty-depts="">
+          <span>{t('team.dept.noneList', { names: empties.map((department) => t(`dept.${department.dept}`)).join(', ') })}</span>{' '}
+          <a href={TEAM_ADD_AGENT_HREF}>{t('team.dept.addHere')}</a>
+        </p>
+      )}
       {apart.length > 0 && (
         <Tile as="section" span={12} labelledBy={apartId}>
           <TileHead id={apartId} title={t('team.apart')} />

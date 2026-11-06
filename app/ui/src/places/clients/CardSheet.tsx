@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The card sheet beside the board (`?sheet=card:<id>`; the engine's 4E1 card view): where the card stands and its next
  * step (set your own, with its day), why it is here (its trigger, and its score with the rules that matched), the warm
@@ -25,7 +26,7 @@ import { StrengthDots } from '../../parts/StrengthDots';
 import type { LostReason, PipelineCardView, PipelineQuoteView, PipelineStage } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { clientsChanged } from './signals';
-import { codeOf, dotsOf, messageOf, WarmPath } from './network';
+import { codeOf, dotsOf, WarmPath } from './network';
 import { CLOSED_STAGES, pipelineRefresh, STAGE_ORDER, useCardWords } from './pipeline';
 import { DraftForm } from './DraftForm';
 import { draftSheetId, parseWriteTab } from './handoff';

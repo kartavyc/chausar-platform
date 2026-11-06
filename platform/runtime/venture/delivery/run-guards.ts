@@ -108,7 +108,7 @@ export async function refuseMissingCapability(playbook: Pick<PlaybookRecord, 'st
     if (mode?.status === 'available') continue;
     const what = capabilityWords(entry, need.connector, need.mode);
     throw new ChausarError('RUN_CAPABILITY_MISSING', mode
-      ? `This run needs ${what}, which is planned. Nothing was put in its place.`
-      : `This run needs ${what}, which this build cannot do. Nothing was put in its place.`);
+      ? `This job needs ${what}, which is planned. Nothing was put in its place.`
+      : `This job needs ${what}, which this build cannot do. Nothing was put in its place.`);
   }
 }

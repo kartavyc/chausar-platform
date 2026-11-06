@@ -1,3 +1,5 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { CURRENT_SCHEMA } from './migrations/ladder.ts';
 import { authorize, check, ChausarError, hash, type Context, type Member, type State, internalCheck } from './contracts.ts';
 import { compileDictionary, type Dictionary, type DictionaryDraft } from './ontology.ts';
 import { canSeeFact } from './memory.ts';
@@ -89,7 +91,7 @@ type CheckedCandidate = { candidate: WorkspaceImportCandidate; pin: Extract<Work
 
 const plainId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
 const custodyId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(value);
-const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const digest = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 const equal = (a: unknown, b: unknown) => canonicalInterchangeJson(a) === canonicalInterchangeJson(b);
 const legacyFormats = ['csv', 'bank-csv', 'tally-xml', 'zoho-json', 'shopify-json', 'gst-json'];
 const liveStores = ['ontology', 'facts', 'imports', 'conflicts', 'merges', 'tombstones', 'sourceRules'];
@@ -273,7 +275,7 @@ export class WorkspaceActivationHost {
     'ACTIVATION_AUTHORITY', 'Root must allocate a distinct workspace with a fresh unrestricted owner and independent current desktop session authority.');
   }
   #state(projection: WorkspaceBusinessProjection, authority: WorkspaceActivationAuthority): State {
-    return { schemaVersion: 1, revision: 0,
+    return { schemaVersion: CURRENT_SCHEMA, revision: 0,
       workspace: { id: authority.workspaceId, ...structuredClone(projection.workspace), demo: true, createdAt: authority.createdAt },
       members: [structuredClone(authority.owner)],
       policy: structuredClone(projection.policy),

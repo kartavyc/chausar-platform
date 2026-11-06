@@ -6,7 +6,7 @@ import { FRAME_BASE_COLOURS } from '../../../platform/runtime/venture/apps/frame
 
 /**
  * WCAG 2.2 contrast for every text colour on the page and sheet backgrounds, in light and dark, computed from the
- * values in tokens.css. jsdom cannot compute colours, so the axe check (a11y.test.tsx) leaves colour contrast to this.
+ * values in tokens.css. jsdom cannot compute colours, so the axe check (a11y/) leaves colour contrast to this.
  * All Ink text is under 18 px (24 px for regular weight counts as large), so every pair needs 4.5:1. That includes
  * --dim: struck old values and pending steps are text the owner reads.
  */

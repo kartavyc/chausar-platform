@@ -7,7 +7,8 @@ import { ProvedFigure } from '../money/parts';
 import { Icon } from '../../parts/Icon';
 import { Receipt } from '../../parts/Receipt';
 import { DEPT_ICONS } from '../../parts/icons';
-import { Panel, type TileSpan } from '../../parts/Tile';
+import { DeptDot } from '../../parts/Chip';
+import { Panel, usePlainTiles, type TileSpan } from '../../parts/Tile';
 import { AgentList } from './AgentCard';
 import { withoutRate, type DepartmentData } from './departments';
 import s from './Team.module.css';
@@ -54,12 +55,14 @@ export function DepartmentPanel({ data, span, onChanged }: { data: DepartmentDat
   const name = t(`dept.${data.dept}`);
   const proof = data.spend ? proofOf({ receiptId: data.spend.receiptId }) : null;
   const empty = data.members.length === 0;
+  // B4 task 14: on plain tiles the department is a plain section with its dot by its name; D's tiles keep the icon box.
+  const plain = usePlainTiles();
   // Nothing to say for a department nobody is in, that did no job and spent nothing (the engine's share is 0).
   const quiet = empty && (data.jobs ?? 0) === 0 && (data.spend?.share ?? 0) === 0;
   return (
     <Panel as="article" dept={data.dept} span={span} labelledBy={headId} className={s.panel}>
       <div className={s.deptHead}>
-        <DeptIcon dept={data.dept} />
+        {plain ? <DeptDot dept={data.dept} /> : <DeptIcon dept={data.dept} />}
         <div className={s.deptTitle}>
           <h2 id={headId} className={s.deptName}>{name}</h2>
           {empty && <CountsLine counts={data.counts} />}
@@ -80,14 +83,9 @@ export function DepartmentPanel({ data, span, onChanged }: { data: DepartmentDat
       )}
       {data.members.length > 0
         ? <AgentList members={data.members} label={t('team.dept.agents', { dept: name })} dept={data.dept} ground="lift" onChanged={onChanged} />
-        : <EmptyState title={t('team.dept.none', { dept: name })} actions={[{ label: t('team.dept.noneLink'), href: waysFor(data.dept) }]} />}
+        : <EmptyState title={t('team.dept.noneList', { names: name })} actions={[{ label: t('team.dept.addHere'), href: '#/team?sheet=hire:new' }]} />}
     </Panel>
   );
-}
-
-/** The ways to earn, for a department that has no agents yet (spec 8): the Start gallery, opened on that department. */
-export function waysFor(dept: DepartmentData['dept']): string {
-  return `#/onboarding?dept=${dept}`;
 }
 
 /**

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine } from '../../engine/context';
@@ -10,7 +11,7 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import s from './Connections.module.css';
 import { FilePick } from '../../parts/FilePick';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /** C4 (T28): "A, B and C", from the parser's own list. */
 const banksWords = (): string => {

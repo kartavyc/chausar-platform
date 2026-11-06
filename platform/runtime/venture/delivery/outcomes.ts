@@ -66,7 +66,7 @@ export function actOutcome(act: OutsideAct): OutcomeView | null {
 export function runOutcome(input: { failed: 'agent' | 'provider' | null; proposed: boolean; acts: readonly OutcomeView[] }): Omit<OutcomeView, 'applied'> | null {
   const { acts } = input;
   if (input.failed && !acts.some(act => act.applied) && (input.proposed || acts.length)) {
-    return { outcome: 'failed', line: input.failed === 'provider' ? 'Failed: the run failed before its outside action was done.' : 'Failed: the agent gave up before its outside action was done.' };
+    return { outcome: 'failed', line: input.failed === 'provider' ? 'Failed: the job failed before its outside action was done.' : 'Failed: the agent gave up before its outside action was done.' };
   }
   if (!acts.length) return null;
   const one = acts.length === 1;

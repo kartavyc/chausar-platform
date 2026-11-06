@@ -12,7 +12,7 @@
 // (an auditor's tool allowlist). Rewrites in TypeScript, not copies.
 import type { State } from '../../contracts.ts';
 import { listRecords } from '../records.ts';
-import { TOOL_NAMES } from '../contracts.ts';
+import { TOOL_NAMES } from '../contract-values.ts';
 import type { DeliveryRunRecord, HarnessState, ToolName } from '../contracts.ts';
 import { REDACTED, secretFindings } from '../core/secrets.ts';
 import { classifyEffects, toolDeclaration } from '../policy/effects.ts';
@@ -94,7 +94,7 @@ function scanLine(findings: readonly TraceFinding[]): string | null {
   const listed = findings.slice(0, 4).map(item => `${item.what} (${item.at})`);
   const more = findings.length > 4 ? ` and ${findings.length - 4} more` : '';
   const joined = listed.length === 1 ? listed[0] : `${listed.slice(0, -1).join(', ')} and ${listed[listed.length - 1]}`;
-  return `Before any quality check reads this run, code scanned it and found ${joined}${more}. No quality check reads this run. Look at it in Work before you decide on the draft yourself.`;
+  return `Before any quality check reads this job, code scanned it and found ${joined}${more}. No quality check reads this job. Look at it in Work before you decide on the draft yourself.`;
 }
 
 /** Scans one run's trace, by code, before any judge. Reads only what it is given. */

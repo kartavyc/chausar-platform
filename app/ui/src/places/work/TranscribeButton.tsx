@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -6,7 +7,7 @@ import type { OrderLite } from '../../engine/types';
 import s from './Work.module.css';
 
 const never = () => false;
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 /** The cut's file name, from a Windows or a Unix path, so the owner knows which footage it will read. */
 const cutName = (path: string | null) => (path ?? '').split(/[\\/]/).pop() ?? '';
 

@@ -8,7 +8,7 @@ import type {
   AgentView, CheckResult, ClientListRow, EvidenceItem, InvoiceListRow, InvoiceView, LeadView, MoneyOverview, QueueItemView, QueueList,
   SpendRecord, SpendRow, SumReceiptRecord, VentureDeps,
 } from '../runtime/venture/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS } from '../runtime/venture/contract-values.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as money } from '../runtime/venture/money/index.ts';
 import { handlers as core } from '../runtime/venture/core/index.ts';

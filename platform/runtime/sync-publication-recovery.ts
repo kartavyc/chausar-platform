@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { hash } from './contracts.ts';
 import type { SyncHead, SyncSnapshot, SyncTransport } from './sync.ts';
 
@@ -33,7 +34,7 @@ export type SyncPublicationResult =
   | (Observation & { status: 'unknown'; reason: Exclude<SyncPublicationReason, 'HEAD_MATCH' | 'ANCESTOR_MATCH' | 'HEAD_UNCHANGED_RECORD_ABSENT'> });
 
 const MAX_RECORDS = 1024;
-const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const digest = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 const identity = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 const integer = (value: unknown, minimum: number): value is number => Number.isSafeInteger(value) && (value as number) >= minimum;
 const object = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);

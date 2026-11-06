@@ -111,6 +111,7 @@ test('runs: an improvement run is listed with one step per round, its time, and 
   assert.deepEqual(listed, {
     runId: improvement.id, businessId: 'main', agent: 'Bookkeeping agent', purpose: 'Improve how the work is done from your feedback', state: 'done',
     startedAt: '2026-10-15T09:57:00.000Z', elapsed: '3 min', result: 'Kept your current work instructions: the change did not do better.',
+    finishedAt: '2026-10-15T10:00:00.000Z', practice: true,
   });
   const detail = await get(env, improvement.id);
   assert.deepEqual(detail.steps.map(step => [step.id, step.purpose, step.state]), [

@@ -20,7 +20,7 @@ import { screenUntrusted } from '../../policy/untrusted.ts';
 /** The breaker's thresholds. Frozen: nothing at run time changes them. */
 export const BREAKER_LIMITS = Object.freeze({ sameError: 3, sameAction: 3, failuresInRow: 5 } as const);
 /** The line on a call the breaker kept from starting. */
-export const BREAKER_SKIPPED = 'Chausar stopped the run because it kept failing the same way, so this call did not run.';
+export const BREAKER_SKIPPED = 'Chausar stopped the job because it kept failing the same way, so this call did not run.';
 /** Chausar's words to the agent beside what was tried, on the turns after a breaker stop. */
 export const TRIED_LINE = "These were tried and failed. Don't repeat them.";
 /** Chausar's words to the agent when the run or the day is near its spend limit (M5). */

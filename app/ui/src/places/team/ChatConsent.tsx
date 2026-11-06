@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import type { ChatConsentView } from '../../engine/types';
@@ -5,7 +6,7 @@ import { Button } from '../../parts/Button';
 import { ConsentWords } from '../../parts/ConsentWords';
 import c from './AgentChat.module.css';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * The one chat consent per business (W4 4B3; engine 4B1 venture.chats.consent): before the first message goes to the

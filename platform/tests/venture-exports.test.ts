@@ -2,7 +2,7 @@
 // Written in Phase B against the contracts; it passes once all five packages have landed (Phase C).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { DRAFT_METHODS, METHOD_OWNERS, PRE_VAULT_METHODS, VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 import type { VentureMethod, VenturePackageId } from '../runtime/venture/contracts.ts';
 import { missingHandlers, PACKAGE_LOADERS, type VenturePackageModule } from '../runtime/venture/host.ts';
 

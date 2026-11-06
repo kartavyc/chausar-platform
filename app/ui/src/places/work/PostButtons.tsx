@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -8,7 +9,7 @@ import { answerOf } from './ShareLinks';
 import s from './Work.module.css';
 
 const never = () => false;
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 /** The connectors whose text posts Chausar can make from the owner's own browser (build/posting.ts). */
 const TEXT_POSTING = new Set(['linkedin', 'x', 'bluesky', 'mastodon', 'telegram', 'discord']);
 

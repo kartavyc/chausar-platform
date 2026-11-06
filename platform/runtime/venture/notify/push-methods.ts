@@ -1,3 +1,5 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher, notify (Ink v2 wave 4, package 4G3; spec 5.7 and 8, catalogue O13): phone alerts by web
 // push on the hosted app. venture.notify.push.key gives the browser the server's public key; push.subscribe keeps one
 // record per browser (its endpoint on a known push service, its two keys and a hash of the hosted session that asked,
@@ -14,7 +16,7 @@
 // points at this server's clock or key: then each is counted as a failure. A redirect or an address the guard refuses
 // is final; any other failure is tried once more, as a new entry, and the third failing delivery in a row deletes the
 // record. A journal that refuses (a broken chain, 4J10) stops the delivery. Nothing here reads the business's words.
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { ChausarError, check, type Context } from '../../contracts.ts';
 import { currentVenture, exactPayload, readVenture, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { guardedFetch } from '../core/net-guard.ts';
@@ -38,7 +40,7 @@ const REFUSED_STATUSES: ReadonlySet<number> = new Set([401, 403]);
 const FINAL_CODES: ReadonlySet<string> = new Set(['NET_REDIRECT_REFUSED', 'NET_URL_REFUSED', 'NET_ADDRESS_REFUSED']);
 /** Failures before anything left this computer: nothing could have arrived. */
 const BEFORE_SENDING: ReadonlySet<string> = new Set(['NET_URL_REFUSED', 'NET_ADDRESS_REFUSED', 'NET_LOOKUP_FAILED', 'PUSH_ENDPOINT_REFUSED']);
-const SESSION_HASH = /^[a-f0-9]{64}$/;
+const SESSION_HASH = DIGEST_PATTERN;
 export const PUSH_WORDS = Object.freeze({
   desktop: 'On this computer, phone alerts come by Telegram below; the tray shows the count.',
   notSetUp: 'Phone alerts are not set up on this server yet. The bell still lists everything.',
@@ -158,7 +160,7 @@ export async function endPushSessions(deps: VentureDeps, ctx: Context, hashes: r
  * (the journal refused). wentOut: a request may have reached the push service.
  */
 type Try = { kind: 'sent' | 'gone' | 'refused' | 'final' | 'retry' | 'halted'; status: number | null; wentOut: boolean };
-const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+const sha256 = (text: string) => sha256Hex(text);
 const TIMED_OUT = Symbol('timed-out');
 
 /** One try to one browser, as its own journal entry: the count, the push service's host and the outcome. */

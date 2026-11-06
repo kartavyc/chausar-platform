@@ -5,7 +5,7 @@ import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
 import { OntologyService, starterPacks } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
-import { STEP_PLAN } from '../runtime/venture/contracts.ts';
+import { STEP_PLAN } from '../runtime/venture/contract-values.ts';
 import type {
   BlueprintRecord, ClientRecord, CountryProfile, DeliveryRunRecord, HarnessState, ModelPort, ModelStatusView, OrderRecord, PriceFigure,
   PriceReceiptRecord, SecretName, SecretShelf, VentureBusinessRef, VentureDeps, VentureEventRecord, VentureMethod, VentureRecord,

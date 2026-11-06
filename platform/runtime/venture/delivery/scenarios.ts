@@ -3,7 +3,7 @@
 // Scenario words hold no digits and never copy a real client's request.
 // Every case names the rules judge (Ink v2 wave 2, Q1): it is asked only when an AI judge is on and every code check
 // passed (simulate.ts practiceChecks), so with built-in templates the case shows "Not checked", never a pass.
-import { CHECK_IDS, SCENARIO_KINDS } from '../contracts.ts';
+import { CHECK_IDS, SCENARIO_KINDS } from '../contract-values.ts';
 import { findRecord, listRecords } from '../records.ts';
 import { liveSignals } from './check-signals.ts';
 import { CA_PRACTICE } from '../playbooks/ca-firm/practice.ts';

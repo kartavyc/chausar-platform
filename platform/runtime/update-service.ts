@@ -186,6 +186,8 @@ export class UpdateService {
   async tick(): Promise<void> {
     if (!this.configured || this.#work) return;
     const kept = await this.#load();
+    // Another tick or Check now can start work while settings are loading.
+    if (this.#work) return;
     if (updateCheckDue({ now: this.#clock(), startedAt: this.#startedAt, lastCheckAt: kept.lastCheckAt, lastResult: kept.lastResult, daily: kept.daily, busy: this.#o.isBusy() })) this.#begin();
   }
   /** Tests and shutdown: the work under way has ended. */

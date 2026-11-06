@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The import sheet (`?sheet=network-import:new`, or `:<kind>` from "Import a newer file"; 4D4 from the engine's 4D1):
  * choose the kind of file, pick it, and Chausar checks it first (venture.network.import { check: true }: what it would
@@ -23,7 +24,7 @@ import type { NetworkImportKind, NetworkImportResult } from '../../engine/types'
 import type { SheetComponentProps } from '../../shell/sheets';
 import { clientsChanged } from './signals';
 import { KIND_ICONS } from './NetworkSources';
-import { messageOf } from './network';
+
 import { Fold } from '../../parts/Fold';
 import s from './Network.module.css';
 import { FilePick } from '../../parts/FilePick';

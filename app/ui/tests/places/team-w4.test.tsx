@@ -70,10 +70,10 @@ describe('Team w4: the department toggle and panels from the engine', () => {
     start();
     const toggle = await screen.findByRole('group', { name: 'Show departments' });
     // C1 task 2: the row carries its counts at every width.
-    expect(within(toggle).getAllByRole('button').map((b) => b.textContent?.replace(/ \d+$/, ''))).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Money', 'Operations']);
+    expect(within(toggle).getAllByRole('button').map((b) => b.textContent?.replace(/ \d+$/, ''))).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Operations']);
     await panel('Production');
     const panels = within(main()).getAllByRole('article').filter((a) => a.hasAttribute('data-dept'));
-    expect(panels.map((p) => p.getAttribute('data-dept'))).toEqual(['sales', 'mkt', 'prod', 'money', 'ops']);
+    expect(panels.map((p) => p.getAttribute('data-dept'))).toEqual(['sales', 'mkt', 'prod', 'ops']);
 
     const production = await panel('Production');
     expect(production.querySelector('[data-count]')?.textContent).toBe('4');
@@ -93,10 +93,10 @@ describe('Team w4: the department toggle and panels from the engine', () => {
     expect(production.querySelector('[data-counts]')).toBeNull();
     const marketing = await panel('Marketing');
     expect(marketing.querySelector('[data-held]')).toBeNull();
-    const money = await panel('Money');
-    expect(money.querySelector('[data-count]')).toBeNull();
-    expect(money.querySelector('[data-figure-group]')).toBeNull();
-    expect(within(money).getByText('No agents in Money yet.')).toBeTruthy();
+    expect(within(main()).queryByRole('article', { name: 'Money' })).toBeNull();
+    const empty = within(main()).getByText('No agents yet in Money.').closest('p')!;
+    expect(empty.querySelector('[data-count]')).toBeNull();
+    expect(empty.querySelector('[data-figure-group]')).toBeNull();
     // A staffed department that spent nothing this month (share 0) has its jobs, and no spend line.
     const sales = await panel('Sales and clients');
     expect(sales.querySelector('[data-count]')?.textContent).toBe('1');
@@ -136,7 +136,7 @@ describe('Team w4: the department toggle and panels from the engine', () => {
     const chips = await screen.findByRole('group', { name: 'Show departments' });
     await waitFor(() => expect(within(chips).getByRole('button', { name: /^Marketing/ }).querySelector('[data-count]')?.textContent).toBe('2'));
     expect(within(chips).getByRole('button', { name: /^All departments/ }).querySelector('[data-count]')?.textContent).toBe('5');
-    expect(within(chips).getByRole('button', { name: /^Money/ }).querySelector('[data-count]')).toBeNull();
+    expect(within(chips).queryByRole('button', { name: /^Money/ })).toBeNull();
   });
 
   it('C7: "Hire one more agent" is a button that opens the hire sheet (team-hire-c7), not onboarding', async () => {
@@ -158,7 +158,7 @@ describe('Team w4: jobs done this week', () => {
     const tile = await within(main()).findByRole('region', { name: 'Jobs done this week' });
     expect(tile.textContent).toContain('8 in all');
     const rows = [...tile.querySelectorAll('[data-key]')];
-    expect(rows.map((row) => row.getAttribute('data-key'))).toEqual(['sales', 'marketing', 'production', 'money', 'operations']);
+    expect(rows.map((row) => row.getAttribute('data-key'))).toEqual(['sales', 'marketing', 'production']);
     const production = tile.querySelector('[data-key="production"]') as HTMLElement;
     expect(production.querySelector('meter')?.getAttribute('value')).toBe('1000');
     expect(production.textContent).toContain('4');
@@ -218,8 +218,8 @@ describe('Team w4: one department', () => {
 
   it('a department with no agents says so in one sentence and links to the ways to earn for it', async () => {
     start('#/team?dept=money');
-    expect(await within(main()).findByText('No agents in Money yet.')).toBeTruthy();
-    expect(within(main()).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=money');
+    expect(await within(main()).findByText('No agents yet in Money.')).toBeTruthy();
+    expect(within(main()).getByRole('link', { name: 'Add an agent here' }).getAttribute('href')).toBe('#/team?sheet=hire:new');
   });
 });
 

@@ -37,7 +37,7 @@ import { SOCIAL_AGENCY_ID } from './registration.ts';
 export const CALENDAR_WORDS = Object.freeze({
   notSocial: 'Only a social media draft has a calendar file.',
   noSlots: 'This order has no calendar, so code planned no slots. Only a content calendar order has a calendar file.',
-  noDraft: 'This run has no draft yet. The calendar file comes from a draft you approved.',
+  noDraft: 'This job has no draft yet. The calendar file comes from a draft you approved.',
   practice: 'A practice draft never goes to a client.',
   noSlot: 'This post has no slot in the calendar.',
 });

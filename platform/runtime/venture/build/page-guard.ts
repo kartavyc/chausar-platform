@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher: the script and read-back guard for the posting window (catalogue K4, Ink v2 wave 2 2B2).
 // Every page script Chausar runs in the owner's browser passes checkPageScript first, and so will any later browser
 // agent's. It runs only in Chausar's own tab, on an http or https page, and is refused when its text reads cookies,
@@ -9,7 +10,7 @@
 // What it cannot do, said plainly: it reads the script's text, so a script built to slip past a word list can; the
 // scripts Chausar runs are fixed code in build/browser.ts, and this guard is the second line, not the first.
 // Idea taken, code written here: AutoCua's run_script guardrails (web/controller/run_script/guardrails_check.rs, MIT).
-import { createHash } from 'node:crypto';
+
 import { ChausarError } from '../../contracts.ts';
 import { screenReadback } from '../core/secrets.ts';
 
@@ -50,7 +51,7 @@ const RULES: readonly Rule[] = Object.freeze([
 ]);
 
 function sha256(text: string): string {
-  return createHash('sha256').update(text, 'utf8').digest('hex');
+  return sha256Hex(text);
 }
 
 function sourceOf(value: unknown): string {

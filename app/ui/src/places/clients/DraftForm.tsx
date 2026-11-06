@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * "Write to them" (Ink v2 wave 4, 4E4; the engine's 4E2 venture.outreach.draft): what to draft (an intro through a
  * confirmed connector, a note, a LinkedIn connection note, a reply, a cold email), on which channel, in English or
@@ -16,7 +17,7 @@ import { Field } from '../../parts/Field';
 import { Tabs } from '../../parts/Tabs';
 import type { LawfulBasis, OutreachChannel, OutreachKind, PipelineCardView } from '../../engine/types';
 import { NeverContactLost } from './NeverContactLost';
-import { codeOf, messageOf } from './network';
+import { codeOf } from './network';
 import { clientsChanged } from './signals';
 import { askOf, draftSheetId, keepAsk, type DraftAsk } from './handoff';
 import { CHANNELS_OF } from './pipeline';

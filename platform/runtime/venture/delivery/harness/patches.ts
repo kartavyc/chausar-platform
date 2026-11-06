@@ -11,7 +11,7 @@ import { check } from '../../../contracts.ts';
 import { digitCopy } from '../../core/secrets.ts';
 import { namesMoneyScale, scaledAmountToken } from '../../core/money-words.ts';
 import { assertNoMoney, assertNoNumbers, copiedTokens, houseStyleFindings, modelNumbers, tidyWords } from '../../records.ts';
-import { CHECK_IDS, PLAYBOOK_PATCH_OPS, TOOL_NAMES } from '../../contracts.ts';
+import { CHECK_IDS, PLAYBOOK_PATCH_OPS, TOOL_NAMES } from '../../contract-values.ts';
 import type { CheckId, HarnessLimits, PlaybookPatch, PlaybookPatchOp, PlaybookStep, ServiceType, ToolName } from '../../contracts.ts';
 import { CA_FIRM_ID } from '../../playbooks/ca-firm/registration.ts';
 import { SOCIAL_AGENCY_ID } from '../../playbooks/social/registration.ts';
@@ -258,7 +258,7 @@ export function applyPatch(body: PlaybookBody, patch: PlaybookPatch, context: { 
     case 'checks.add': {
       const step = stepOf(kind => kind === 'verify' || kind === 'write', 'a writing or checking step');
       if (!(CHECK_IDS as readonly string[]).includes(patch.value)) refuse(`There is no check called ${JSON.stringify(patch.value)}.`);
-      if (step.checks.includes(patch.value as CheckId)) refuse('The step already runs that check.');
+      if (step.checks.includes(patch.value as CheckId)) refuse('The step already performs that check.');
       step.checks = [...step.checks, patch.value as CheckId];
       break;
     }

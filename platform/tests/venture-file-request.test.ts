@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import type { Context } from '../runtime/contracts.ts';
-import { APP_ONLY_METHODS, METHOD_OWNERS, W4_METHOD_LEVELS } from '../runtime/venture/contracts.ts';
+import { APP_ONLY_METHODS, METHOD_OWNERS, W4_METHOD_LEVELS } from '../runtime/venture/contract-values.ts';
 import type { FileRequestView, VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as build } from '../runtime/venture/build/index.ts';

@@ -1,4 +1,6 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
+import { sha256Hex } from '../hash.ts';
+import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
@@ -26,7 +28,7 @@ function exact(value: unknown, keys: string[]): value is Record<string, unknown>
   return object(value) && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 }
 const iso = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
-const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const digest = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 function validBinding(value: unknown): boolean {
   return exact(value, ['workspaceId', 'memberId', 'deviceId', 'epoch']) && isId(value.workspaceId) && isId(value.memberId)
     && isId(value.deviceId) && Number.isSafeInteger(value.epoch) && (value.epoch as number) > 0;
@@ -219,7 +221,7 @@ export class EncryptedFilePhoneCustodyStorage implements PhoneCustodyStorage {
       && !options.directory.startsWith('\\\\') && isId(options.custodyId)
       && options.key instanceof Uint8Array && options.key.byteLength === 32, 'CACHE_INVALID');
     this.directory = resolve(options.directory); this.custodyId = options.custodyId; this.key = Buffer.from(options.key);
-    const name = createHash('sha256').update(JSON.stringify([FORMAT, this.custodyId])).digest('hex');
+    const name = sha256Hex(JSON.stringify([FORMAT, this.custodyId]));
     this.path = join(this.directory, `${name}.custody`);
     this.queueKey = process.platform === 'win32' ? this.path.toLowerCase() : this.path;
   }

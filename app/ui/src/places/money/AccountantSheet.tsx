@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Share with your CA (C4 T24; `?sheet=accountant:books`, from For your CA and the business menu's Invite your accountant):
  * the one sheet, with two ways to hand one month over. Save the files (ExportButton.tsx), and Make a link (W4 4J7's 'books'
@@ -17,7 +18,7 @@ import type { ShareLink } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { copyText } from '../clients/handoff';
 import { ExportButton } from './ExportButton';
-import { messageOf, monthBefore, useMoment, useMonthWords, useThisMonth } from './words';
+import { monthBefore, useMoment, useMonthWords, useThisMonth } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 import { Select } from '../../parts/Select';

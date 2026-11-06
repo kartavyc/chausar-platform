@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../platform/shared/errors.ts';
 import { useId, useRef, useState, type ReactNode, type KeyboardEvent } from 'react';
 import { useT } from '../text';
 import { Button } from './Button';
@@ -19,7 +20,8 @@ export interface ComposerProps {
   /** Stores the message. The text is cleared only once this resolves; if it rejects the text stays. */
   onSend: (text: string) => Promise<void>;
   /** Short things to ask; a tap puts the words in the box and never sends them. C5 task 8: an idea may carry a preview line. */
-  suggestions?: readonly (string | { label: string; preview: string })[] | undefined;
+  /** A press fills the box and the chip goes. `fill`: the box gets these words, the chip says `label`. */
+  suggestions?: readonly (string | { label: string; preview?: string | undefined; fill?: string | undefined })[] | undefined;
   /** The suggestions' name for screen readers, when not plain suggestions. */
   suggestionsLabel?: string | undefined;
   /** Apps: an idea is a complete request, so its next stop is Send. */
@@ -42,7 +44,7 @@ export interface ComposerFailure {
   fix?: InlineFix | undefined;
 }
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * Where the owner writes to an agent or to Chausar (D's `.cp-comp`, `.cbox`, `.sugs`, `.send`). Enter sends,
@@ -62,6 +64,8 @@ export function Composer({ label, placeholder, onSend, suggestions, suggestionsL
   const inFlight = useRef(false);
   const [text, setText] = useState(initial ?? '');
   const [sending, setSending] = useState(false);
+  /** B4 tasks 14 and 19: a chip already used is gone. */
+  const [used, setUsed] = useState<readonly string[]>([]);
   const [error, setError] = useState<{ message: string; known: ComposerFailure | null } | null>(null);
   const empty = text.trim() === '';
 
@@ -108,17 +112,20 @@ export function Composer({ label, placeholder, onSend, suggestions, suggestionsL
         <div className={s.suggestions} role="group" aria-label={suggestionsLabel ?? t('composer.suggestions')}>
           {suggestions.map((suggestion) => {
             const words = typeof suggestion === 'string' ? suggestion : suggestion.label;
+            const preview = typeof suggestion === 'string' ? undefined : suggestion.preview;
+            const fill = typeof suggestion === 'string' ? words : suggestion.fill ?? words;
+            if (used.includes(words)) return null;
             return (
               <button
                 key={words}
                 type="button"
-                className={typeof suggestion === 'string' ? s.suggestion : s.idea}
+                className={preview === undefined ? s.suggestion : s.idea}
                 disabled={sending}
-                aria-pressed={focusSendOnSuggestion ? text === words : undefined}
-                onClick={() => { write(words); if (focusSendOnSuggestion) queueMicrotask(() => sendButton.current?.focus()); else box.current?.focus(); }}
+                aria-pressed={focusSendOnSuggestion ? text === fill : undefined}
+                onClick={() => { write(fill); if (focusSendOnSuggestion) queueMicrotask(() => sendButton.current?.focus()); else { setUsed((was) => [...was, words]); box.current?.focus(); } }}
               >
                 {words}
-                {typeof suggestion !== 'string' && <span className={s.ideaPreview}>{suggestion.preview}</span>}
+                {preview !== undefined && <span className={s.ideaPreview}>{preview}</span>}
               </button>
             );
           })}

@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
 // The grounded synthesis mode: the host's codec, resolving admitted tool results, checking a reviewed synthesis
 // preview again, and building one (split out of gateway.ts, D11).
 import { check, ChausarError, hash, newId, now, type Context, type StateStore } from '../contracts.ts';
@@ -31,7 +32,7 @@ export function resolveSynthesis(core: GatewayCore, context: Context, id: string
     synthesisObject(authority.binding, ['toolTurnId', 'plannerModelReceiptId', 'toolResultsDigest', 'inputDigest', 'evidence']);
     const binding = authority.binding;
     check(binding.toolTurnId === id && continuationId(binding.plannerModelReceiptId)
-      && typeof binding.toolResultsDigest === 'string' && /^[a-f0-9]{64}$/.test(binding.toolResultsDigest)
+      && typeof binding.toolResultsDigest === 'string' && DIGEST_PATTERN.test(binding.toolResultsDigest)
       && binding.inputDigest === hash(authority.summary) && Array.isArray(binding.evidence), SYNTHESIS_INVALID, 'The current synthesis binding does not match its exact input.');
     check(Array.isArray(authority.summary.results) && Array.isArray(authority.summary.evidence), SYNTHESIS_INVALID, 'The synthesis summary needs admitted ordered results.');
     for (const result of authority.summary.results) synthesisObject(result, ['ref', 'tool', 'status', 'evidenceRefs']);
@@ -44,7 +45,7 @@ export function resolveSynthesis(core: GatewayCore, context: Context, id: string
         ['ref', 'resultRef', 'answerId', 'evidenceHash', 'renderText']);
       const descriptor = authority.summary.evidence.find(item => item.ref === evidence.ref);
       check(descriptor && descriptor.resultRef === evidence.resultRef && resultRefs.includes(evidence.resultRef)
-        && continuationId(evidence.answerId) && typeof evidence.evidenceHash === 'string' && /^[a-f0-9]{64}$/.test(evidence.evidenceHash)
+        && continuationId(evidence.answerId) && typeof evidence.evidenceHash === 'string' && DIGEST_PATTERN.test(evidence.evidenceHash)
         && typeof evidence.renderText === 'string' && evidence.renderText.length <= 32768, SYNTHESIS_INVALID, 'A synthesis reference has no exact local evidence binding.');
       if (evidence.receiptId !== undefined) check(continuationId(evidence.receiptId), SYNTHESIS_INVALID, 'A synthesis receipt reference is invalid.');
       if (evidence.figureKey !== undefined) check(typeof evidence.figureKey === 'string' && evidence.figureKey.length > 0 && evidence.figureKey.length <= 200, SYNTHESIS_INVALID, 'A synthesis figure reference is invalid.');

@@ -1,11 +1,12 @@
+import { sha256Hex } from '../../../hash.ts';
 // Original Chausar S3 desktop montage. marketing-skill MIT ideas; shared kit cleans clips and groups captions.
 import {constants} from 'node:fs';
-import {randomUUID,createHash} from 'node:crypto';import {mkdtemp,copyFile,writeFile,stat,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {dirname,join,resolve,sep} from 'node:path';
+import { randomUUID } from 'node:crypto';import {mkdtemp,copyFile,writeFile,stat,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {dirname,join,resolve,sep} from 'node:path';
 import type {VentureDeps} from '../../contracts.ts';import {systemFfmpeg,FILE_ONLY_INPUT,parseFfmpegLog} from '../youtube/finishing.ts';import {mediaHash} from '../youtube/local-media.ts';import {cleanClip} from '../kit/media-intake.ts';
 import {montagePlan,type MontageInput} from './montage.ts';import {requireSocial,socialNumber} from './d2-core.ts';import type {ReelJob} from './production-types.ts';
 function local(deps:VentureDeps){requireSocial(deps.host!=='hosted-web','TIER_UNAVAILABLE','Reels are cut in the desktop app.');const port=deps.ffmpeg??systemFfmpeg,binary=port.locate();requireSocial(binary,'MEDIA_TOOL_UNAVAILABLE','Install ffmpeg on this computer to cut reels.');return {port,binary};}
 /** Owner approval binds files, cut times, captions, contact and the fresh output filename. */
-export function reelApproval(job:ReelJob){return createHash('sha256').update(JSON.stringify({sources:job.sources,plan:job.plan,output:job.output})).digest('hex');}
+export function reelApproval(job:ReelJob){return sha256Hex(JSON.stringify({sources:job.sources,plan:job.plan,output:job.output}));}
 export type ReelProposal=Omit<MontageInput,'clips'|'beatMap'>&{clips:{id:string;startMs:number;endMs:number}[];beatMap?:number[];bpm?:number};
 export async function prepareReel(deps:VentureDeps,owned:readonly string[],input:ReelProposal):Promise<ReelJob>{const {port,binary}=local(deps);requireSocial(Array.isArray(input.clips)&&input.clips.length>0&&input.clips.length<=30&&input.clips.every(clip=>owned.includes(clip.id)),'MEDIA_FILE_REQUIRED','Choose only local clips from this order intake.');const sources:ReelJob['sources']=[];
  for(const clip of input.clips){const before=await mediaHash(clip.id);const run=await port.run(binary,['-hide_banner','-nostdin',...FILE_ONLY_INPUT,'-i',clip.id,'-t','0.1','-f','null','-'],20000,deps.closing?.signal);requireSocial(run.code===0&&!run.timedOut&&!run.startError&&!run.aborted,'MEDIA_SCAN_FAILED','The local clip scan failed.');const log=parseFfmpegLog(run.stderr,null);requireSocial(log.hasVideo&&log.durationMs&&log.width&&log.height,'MEDIA_SCAN_FAILED','The clip scan must report video duration and dimensions.');requireSocial(await mediaHash(clip.id)===before,'DERIVED_STALE','A clip changed during measurement.');sources.push({id:clip.id,digest:before,durationMs:log.durationMs,hasAudio:log.hasAudio});}

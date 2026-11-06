@@ -1,6 +1,7 @@
 // C7 task 13: the code checks on one more agent the owner hires, with what the engine knows: its departments and the
 // floor's words (policy/effects.ts). The checks themselves are in hire-check-core.ts, which the fake engine shares.
-import { DEPARTMENT_IDS, type DepartmentId } from '../contracts.ts';
+import { DEPARTMENT_IDS } from '../contract-values.ts';
+import type { DepartmentId } from '../contracts.ts';
 import { DESTRUCTIVE_WORDS } from '../policy/effects.ts';
 import { checkHireWith, HIRE_LIMITS, HIRE_READS, type HireRead, type HireRole as CoreRole } from './hire-check-core.ts';
 

@@ -17,7 +17,7 @@
 // (failed), each with its one-sentence fix. A routine (4J13) can't be switched on for a connector never checked:
 // requireConnectorChecked answers ROUTINE_NEEDS_CHECK.
 import { authorize, check, ChausarError, type Context, type State } from '../../contracts.ts';
-import { DELEGATE_CLIS } from '../contracts.ts';
+import { DELEGATE_CLIS } from '../contract-values.ts';
 import type {
   ConnectorCheckRecord, ConnectorCheckRow, ConnectorChecksView, DelegateCli, IsoDate, KeeperRunRecord, ModelPresetId, VentureDeps, VentureRecord,
 } from '../contracts.ts';

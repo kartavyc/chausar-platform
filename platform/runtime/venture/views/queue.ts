@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Chausar venture launcher, views (P1-A): Today's queue. venture.queue.list and venture.queue.decide.
 //
 // Why scope 'all' shows the other businesses as locked rows, not their own rows: each business is its own encrypted
@@ -35,7 +36,7 @@ import type {
 DeliveryReason,DeliveryRunRecord,Display,EvidenceRecord,HarnessState,InvoiceRecord,MicroString,Offer,QueueAction,QueueActionId,
 QueueDecision,QueueDecisionRecord,QueueKind,QueueList,QueueRow,VentureBusinessRef,VentureDeps,VentureRecord,
 } from '../contracts.ts';
-import { DELIVERY_REASONS,QUEUE_ACTION_IDS } from '../contracts.ts';
+import { DELIVERY_REASONS, QUEUE_ACTION_IDS } from '../contract-values.ts';
 import { blueprintAccept } from '../core/blueprint.ts';
 import { allowCapWindow } from '../delivery/harness/loop.ts';
 import { judgeStateLine } from '../delivery/judge-run.ts';
@@ -153,7 +154,7 @@ function planRows(state: State, venture: VentureRecord, business: Business): Pen
     row: {
       ...base(business, 'price', subject, latest.id, latest.at), title,
       line: rest.length ? `Also changes ${rest.map(offer => offer.name.value).join(', ')}.` : 'Accept the plan to use it on new orders and invoices.',
-      change: { label: name, before: priceText(accepted.offers.find(item => item.id === first.id), currency), after: priceText(first, currency) },
+      change: { label: name, before: priceText(accepted.offers.find(item => item.id === first.id), currency), after: priceText(first, currency), ownerEntered: true },
       viewRef, actions: [action('read', 'Read', false), action('approve', 'Accept', true, { secondAsk: !onePress })],
     },
   }];
@@ -773,7 +774,7 @@ export async function queueDecideHandler(deps: VentureDeps, ctx: Context, payloa
   requireAppChannel(ctx, 'venture.queue.decide');
   const body = exactPayload(payload, ['id', 'digest', 'action', 'answer', 'viewed'], ['id', 'digest', 'action']);
   check(typeof body.id === 'string' && /^[A-Za-z0-9_.:-]{3,400}$/.test(body.id) && body.id.includes(':'), 'INVALID_VENTURE_REQUEST', 'Send the id of the row you decided on.');
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the row you saw.');
   check(typeof body.action === 'string' && (QUEUE_ACTION_IDS as readonly string[]).includes(body.action), 'INVALID_VENTURE_REQUEST', 'Choose one of the row\'s actions.');
   check(body.viewed === undefined || typeof body.viewed === 'boolean', 'INVALID_VENTURE_REQUEST', 'viewed must be true or false.');
   const answer = body.answer === undefined ? null : plainText(body.answer, 'Answer', { min: 0, max: 2000 });

@@ -24,8 +24,8 @@ const KEPT = 'Kept as a suggestion. The owner decides on Today; nothing changes 
 /** What the agent reads back when nothing in the run backs its claim. */
 const UNBACKED: Readonly<Record<EvidenceType, string>> = Object.freeze({
   'owner-entered': '',
-  document: 'No file read in this run shows this value, so it is kept as your own reading, unchecked.',
-  'tool-verified': 'No calculator receipt from this run holds this value, so it is kept as your own reading, unchecked.',
+  document: 'No file read in this job shows this value, so it is kept as your own reading, unchecked.',
+  'tool-verified': 'No calculator receipt from this job holds this value, so it is kept as your own reading, unchecked.',
   'web-page': 'Chausar has no web tool yet, so it is kept as your own reading, unchecked.',
   'model-inferred': 'Kept as your own reading, unchecked.',
 });
@@ -85,7 +85,7 @@ function backingCall(env: ToolEnv, type: EvidenceType, from: string | undefined,
   const calls = env.calls ?? [];
   const file = /^f\d{1,2}$/.test(from) ? fileOf(env, from) : null;
   const receiptNumber = /^w(\d{1,2})$/.exec(from);
-  if (!file && !receiptNumber) fail('from names a file you read, such as f1, or a calculator receipt from this run, such as w1.');
+  if (!file && !receiptNumber) fail('from names a file you read, such as f1, or a calculator receipt from this job, such as w1.');
   if (file) {
     if (type !== 'document') return null;
     const number = env.files.indexOf(file) + 1;

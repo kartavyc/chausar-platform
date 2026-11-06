@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
@@ -5,7 +6,7 @@ import type { AgentView } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import s from './AgentExtras.module.css';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * The skills at the top of the agent panel's Can do tab (W4 4J22b, from 4J17's skills.ts; catalogue A18): each skill the engine reads from the
@@ -28,7 +29,7 @@ export function AgentSkills({ agent, onTry }: { agent: AgentView; onTry: (starte
           {skills.map((skill) => (
             <li key={skill.name} className={s.skill}>
               <h4 className={s.skillName}>{skill.name}</h4>
-              <p className={s.line}>{skill.line}</p>
+              {skill.line.trim() !== skill.name.trim() && <p className={s.line}>{skill.line}</p>}
               <p className={s.starter}>{skill.starter}</p>
               <div className={s.buttons}>
                 <Button size="sm" onClick={() => onTry(skill.starter)}>{t('team.skills.try')}</Button>

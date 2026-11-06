@@ -50,13 +50,17 @@ export function recordedCallMicros(call: { costMicros?: unknown; usage?: unknown
 
 /**
  * The most a call can cost before it is sent: input tokens counted as ceil(payloadChars / 2), which is well above
- * what any tokenizer produces for text, plus the full output allowance. '0' without a table.
+ * what the original estimate allows for text, plus the full output allowance. Each input token reserves
+ * the highest saved input/cache rate, so a premium cache write cannot evade the spend cap. '0' without a table.
  */
 export function estimateMaxCostMicros(payloadChars: number, maxOutputTokens: number, table: ModelPriceTable | null): MicroString {
   if (!table) return '0';
   check(validTokenCount(payloadChars) && validTokenCount(maxOutputTokens), 'INVALID_VENTURE_REQUEST', 'The model request size is not a whole number.');
   const inputTokens = (BigInt(payloadChars) + 1n) / 2n;
-  const total = inputTokens * BigInt(table.inputMicrosPerMillion) + BigInt(maxOutputTokens) * BigInt(table.outputMicrosPerMillion);
+  const inputRate = [table.inputMicrosPerMillion, table.cacheReadMicrosPerMillion, table.cacheWriteMicrosPerMillion]
+    .filter((rate): rate is string => rate !== undefined)
+    .reduce((highest, rate) => BigInt(rate) > highest ? BigInt(rate) : highest, 0n);
+  const total = inputTokens * inputRate + BigInt(maxOutputTokens) * BigInt(table.outputMicrosPerMillion);
   return String((total + MICROS_PER_MILLION_TOKENS - 1n) / MICROS_PER_MILLION_TOKENS);
 }
 

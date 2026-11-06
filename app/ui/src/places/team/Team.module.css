@@ -857,6 +857,20 @@
   }
 }
 
+/* B4 task 14: the empty departments and a still team are one plain line across the grid. */
+.emptyDepts,
+.statsLine {
+  grid-column: 1 / -1;
+  color: var(--fg2);
+  font-size: var(--text-body);
+}
+
+@media (max-width: 759px) {
+  .addAgentWords {
+    display: none;
+  }
+}
+
 .addAgent:hover {
   background: var(--hover);
 }

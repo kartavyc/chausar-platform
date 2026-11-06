@@ -1,5 +1,6 @@
+import { sha256Hex } from '../../../hash.ts';
 // Chausar 5B1: typed transcript edits. Tomada (AGPL), ideas only; no source copied.
-import { createHash } from 'node:crypto';
+
 import { check, ChausarError } from '../../../contracts.ts';
 
 export type EditWord = { id: string; text: string; startMs: number; endMs: number };
@@ -24,7 +25,7 @@ export type EditResult = {
 };
 /** The exact document fingerprint bound to the owner's second ask. */
 export function editDigest(document: EditDocument): string {
-  return createHash('sha256').update(JSON.stringify(document)).digest('hex');
+  return sha256Hex(JSON.stringify(document));
 }
 /** Refuses corrupt timings and duplicate ids instead of guessing a range. */
 export function validateEditDocument(document: EditDocument): void {

@@ -7,7 +7,8 @@ import { localDayAt, ventureTimeZone } from '../local-day.ts';
 import { BOOKS_PERIOD_KEYS, booksPeriods, calendarMonth, todayLocal } from './dates.ts';
 import { previousMonth } from './goal-plans.ts';
 import { newestFirst } from './shared.ts';
-import { experimentalStorage, type BooksFigure, type BooksPeriodKey, type BooksSummary, type IsoDate, type MinorString, type VentureDeps, type VentureRecord } from '../contracts.ts';
+import { experimentalStorage } from '../contract-values.ts';
+import type { BooksFigure, BooksPeriodKey, BooksSummary, IsoDate, MinorString, VentureDeps, VentureRecord } from '../contracts.ts';
 
 export const EXPERIMENTAL_NOTE = "Test version: practice here, don't send real invoices yet.";
 export const BOOKS_TAX_NOTE = 'Billed and earned leave out tax. Received is the cash that came in, tax included.';

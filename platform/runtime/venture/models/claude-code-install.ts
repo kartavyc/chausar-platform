@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // D5 (founder, 5 Nov): no Chausar installer carries Claude Code. When the owner has none, "Install Claude Code" (the
 // first run's Your AI step) downloads Anthropic's official installer only after the owner's yes, shows its progress, runs
 // it unmodified, then looks for Claude Code again. The yes is made inside the engine from the click in main's own dialog
@@ -7,7 +8,7 @@
 // web server. The ports are injected so tests never download or start anything. D5 fix: it fails closed. The caller
 // passes the ports (the real set is built once, at the wiring), and only an explicit desktop host installs.
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
+
 import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
@@ -144,7 +145,7 @@ export async function installClaudeCode(
     let script: Buffer;
     try { script = await download(installer.url, ports, progress); }
     catch (error) { progress({ step: 'failed' }); throw error; }
-    const installerSha256 = createHash('sha256').update(script).digest('hex');
+    const installerSha256 = sha256Hex(script);
     const path = join(folder, installer.file);
     await writeFile(path, script, { mode: 0o600 });
     progress({ step: 'installing' });

@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { MODEL_PURPOSES } from '../runtime/venture/contracts.ts';
+import { MODEL_PURPOSES } from '../runtime/venture/contract-values.ts';
 import { instructionSites, VENTURE } from './prompt-weight/static.ts';
 import { FIXTURES, PASS_THROUGH, REGISTRY, WRAPPERS } from './prompt-weight/tasks.ts';
 import { capture } from './prompt-weight/capture.ts';

@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 import { digest } from '../../actions.ts';
 import { check,internalCheck } from '../../contracts.ts';
 import type { MappingRecipe } from '../../ingest.ts';
@@ -22,7 +23,7 @@ export type AccountingDecoderConfig = {
 export function createAccountingDecoder(input: AccountingDecoderConfig): QualifiedDecoder {
   const config = { ...input, minorDigitsByCurrency: structuredClone(input.minorDigitsByCurrency) };
   for (const key of ['id', 'version', 'identityNamespace', 'company', 'dataset', 'branch'] as const) requiredText(config[key]);
-  check(/^[a-f0-9]{64}$/.test(config.schemaSha256) && ['total', 'subtotal', 'taxTotal', 'balance'].includes(config.measure), 'ACCOUNTING_DECODER_INVALID', 'Pin the reviewed wire schema and exact source measure.');
+  check(DIGEST_PATTERN.test(config.schemaSha256) && ['total', 'subtotal', 'taxTotal', 'balance'].includes(config.measure), 'ACCOUNTING_DECODER_INVALID', 'Pin the reviewed wire schema and exact source measure.');
   check(config.minorDigitsByCurrency && Object.entries(config.minorDigitsByCurrency).every(([code, precision]) => /^[A-Z]{3}$/.test(code) && Number.isInteger(precision) && precision >= 0 && precision <= 6),
     'ACCOUNTING_PRECISION_INVALID', 'Supply a reviewed currency precision profile.');
   const profileHash = digest({ company: config.company, dataset: config.dataset, branch: config.branch, measure: config.measure, minorDigitsByCurrency: config.minorDigitsByCurrency });

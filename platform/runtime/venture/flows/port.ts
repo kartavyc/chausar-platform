@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Chausar venture launcher, recorded flows (wave 6, package 6H2; DECISIONS D41): the engine worker's side of the
 // desktop's flow window. It sends { kind: 'host-flows', callId, runId, op, payload } and waits for { kind:
 // 'host-flows-result', callId, ok, result | code } (engine-harness.cjs passes it to app/desktop/flow-browser.cjs).
@@ -25,7 +26,7 @@ const closed = () => new ChausarError('FLOW_BROWSER_CLOSED', 'The Chausar flow w
 
 const str = (value: unknown, max: number): string | null => (typeof value === 'string' && value.length <= max ? value : null);
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
-const hex = (value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const hex = (value: unknown) => typeof value === 'string' && DIGEST_PATTERN.test(value);
 
 function candidatesOf(value: unknown): FlowCandidate[] | null {
   if (!Array.isArray(value) || value.length > 6) return null;

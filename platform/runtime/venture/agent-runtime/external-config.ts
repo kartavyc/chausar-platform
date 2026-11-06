@@ -39,7 +39,7 @@ export function validateExternalServers(raw: unknown): ExternalMcpServer[] {
     }
     check(row.transport === 'http' && text(row.url), BAD, 'Choose a local program or HTTP server.');
     let url: URL; try { url = new URL(row.url); } catch { check(false, BAD, 'Enter a full server URL.'); }
-    check(!url.username && !url.password && !url.search && !url.hash && (url.protocol === 'https:' || url.protocol === 'http:' && ['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname)), BAD, 'Use an https address (or http on this computer) with no password or ? part in it. Add a password in the box for it.');
+    check(!url.username && !url.password && !url.search && !url.hash && (url.protocol === 'https:' || url.protocol === 'http:' && ['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname)), BAD, 'Use a web address starting with https (or http on this computer), with no password and nothing after ? or #. Add a password in its own box.');
     if (brokerTradingHost(url.href)) refuseBrokerConnection('This server'); // W6 6E7 (D49)
     check(row.oauth === undefined || row.oauth === true, BAD, 'Turn sign-in on or leave it off.');
     return { ...identity, transport: 'http', url: url.href, ...(row.oauth ? { oauth: true as const } : {}) };

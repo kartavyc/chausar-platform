@@ -156,7 +156,7 @@ export interface FakeOptions {
 
 /** A business on this computer, as the fake keeps it. `passphrase` only for one locked with a passphrase (sample only). */
 interface HeldBusiness extends FakeBusiness { recovery: 'made' | 'not-made'; passphrase?: string | undefined }
-interface HeldVenture { originalCountry?: ReturnType<typeof countryProfile>; workingName: string; serviceType: ServiceType | null; idea: string; countryCode: string; done: number; launchStage?: string }
+interface HeldVenture { originalCountry?: ReturnType<typeof countryProfile>; workingName: string; serviceType: ServiceType | null; idea: string; countryCode: string; done: number; launchStage?: string; liveSince?: string | null }
 /** Answered with no vault open, as the engine answers them before its vault check (CUSTODY_PRE_VAULT_METHODS too). */
 /** The long methods and the job each is (platform/runtime/work-progress.ts). */
 const FAKE_WORK: Readonly<Record<string, WorkKindLite>> = {
@@ -670,7 +670,7 @@ export class FakeEngine {
       }
       case 'venture.runs.get': {
         const run = this.runs.find((r) => r.runId === p.runId);
-        if (!run) throw new EngineError('RUN_NOT_FOUND', 'This run is not on this computer.');
+        if (!run) throw new EngineError('RUN_NOT_FOUND', 'This job is not on this computer.');
         // 4F3: the scope's cap in rupees at the owner's rate, read when asked, as the engine's views/runs.ts does.
         // W6 6G5 (D44): with the run's model receipt, as the engine's runs.get adds it.
         const view = this.w4.runView(run);
@@ -873,6 +873,7 @@ export class FakeEngine {
     const runs = this.answerNow('venture.delivery.list', {}) as DeliveryLite[];
     return {
       stored: venture?.launchStage ?? 'rehearsal', accepted: !!this.desk.acceptedPlanFor(this.current),
+      liveSince: venture?.liveSince ?? null,
       connected: !!main && main.usable !== false && main.presetId !== 'built-in-templates',
       acceptedDeliveries: runs.filter((run) => run.verdict?.choice === 'accepted' && run.servedBy === 'model' && !run.practice).length,
     };
@@ -883,7 +884,7 @@ export class FakeEngine {
     if (!venture) throw new EngineError('VENTURE_NOT_FOUND', 'Start a business first.');
     if (method === 'venture.launch.advance') {
       const stored = fakeLaunchAdvance(this.launchFacts(), p);
-      if (stored !== (venture.launchStage ?? 'rehearsal')) { venture.launchStage = stored; this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }); }
+      if (stored !== (venture.launchStage ?? 'rehearsal')) { venture.launchStage = stored; venture.liveSince = stored === 'approve-each' ? this.now() : null; this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }); }
     } else if (Object.keys(p).length) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
     return fakeLaunchStatus(this.launchFacts());
   }

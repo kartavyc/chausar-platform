@@ -57,6 +57,13 @@ const personaOf = async (name: string) => {
   return (await within(fold).findByRole('region', { name: 'How it talks' })) as HTMLElement;
 };
 
+/** Capabilities live inside How it works, opened through their summary. */
+const canDoOf = async (name: string) => {
+  const tab = await tabPanel(name);
+  const fold = [...tab.querySelectorAll('details')].find(one => one.querySelector('summary')?.textContent === 'What it can do')!;
+  await act(async () => { fold.open = true; fold.dispatchEvent(new Event('toggle')); });
+  return fold;
+};
 beforeEach(() => {
   Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:agent-file'), revokeObjectURL: vi.fn() });
 });
@@ -66,7 +73,7 @@ describe('the agent panel: Persona (W4 4J22b, from 4J17)', () => {
   it('sits in Instructions with every field, empty until the owner sets one, the engine\'s line, and Save locked until a change', async () => {
     start(PERSONA);
     const aside = await panel('Editor');
-    expect(within(aside).getByRole('tab', { name: /^Instructions/ }).getAttribute('aria-selected')).toBe('true');
+    expect(within(aside).getByRole('tab', { name: /^How it works/ }).getAttribute('aria-selected')).toBe('true');
     const tab = await personaOf('Editor');
     for (const name of ['Tone', 'Greeting', 'Hand-off line', 'Topics it stays away from', 'Sign-off']) expect((within(tab).getByRole('textbox', { name }) as HTMLInputElement).value).toBe('');
     expect(within(tab).getByRole('combobox', { name: 'Reply length' })).toBeTruthy();
@@ -136,8 +143,8 @@ describe('the agent panel: Persona (W4 4J22b, from 4J17)', () => {
 
 describe('the agent panel: Skills, at the top of Can do (W4 4J22b, from 4J17)', () => {
   it('lists each skill with its line, and Try this fills the chat box once, without sending', async () => {
-    const { spy } = start('#/team?sheet=agent:editor&tab=cando');
-    const tab = await tabPanel('Editor');
+    const { spy } = start('#/team?sheet=agent:editor&tab=instructions');
+    const tab = await canDoOf('Editor');
     const skills = await within(tab).findByRole('list', { name: "Editor's skills" });
     expect(within(skills).getAllByRole('listitem').map((item) => item.querySelector('h4')!.textContent)).toEqual(['Cut the episode', 'Cut shorts from the episode']);
     expect(skills.textContent).toContain('How would you cut the episode for my next order?');
@@ -156,8 +163,8 @@ describe('the agent panel: Skills, at the top of Can do (W4 4J22b, from 4J17)', 
 
 describe('the agent panel: Can do (W4 4J22b, from 4J18)', () => {
   it('says the team shares one tool list and lists what it can see, can do and what is off, each with its state', async () => {
-    start('#/team?sheet=agent:editor&tab=cando');
-    const tab = await tabPanel('Editor');
+    start('#/team?sheet=agent:editor&tab=instructions');
+    const tab = await canDoOf('Editor');
     expect(tab.textContent).toContain("The order's AI team shares one tool list");
     for (const name of ['What it can see', 'What it can do', "If it is off here, it can't do it"]) expect(within(tab).getByRole('heading', { level: 3, name })).toBeTruthy();
     const provider = within(tab).getByText('Send each step, with what it reads, to your own AI provider: your key or the CLI you set up.').closest('li')!;
@@ -167,8 +174,8 @@ describe('the agent panel: Can do (W4 4J22b, from 4J18)', () => {
   });
 
   it('marks a step this build cannot do yet as planned, never as working', async () => {
-    start('#/team?sheet=agent:publisher&tab=cando');
-    const tab = await tabPanel('Publisher');
+    start('#/team?sheet=agent:publisher&tab=instructions');
+    const tab = await canDoOf('Publisher');
     const step = within(tab).getByText(/Planned: it needs Instagram to write/).closest('li')!;
     expect(step.querySelector('[data-state]')!.textContent).toBe('Planned');
   });
@@ -288,8 +295,8 @@ it('owner-only native work is absent from sample agent assignments and their cap
   expect(billing.items.find(i => i.key === 'step:issue')?.state).toBe('works');
   await expect(client.request('venture.team.gate', { agentId: 'billing', stepId: 'issue', gate: 'auto' })).rejects.toMatchObject({ code: 'GATE_FLOOR' });
 
-  start('#/team?sheet=agent:editor&tab=cando');
-  const tab = await tabPanel('Editor');
+  start('#/team?sheet=agent:editor&tab=instructions');
+  const tab = await canDoOf('Editor');
   expect(tab.textContent).not.toContain('Publish to YouTube');
   expect(tab.textContent).toContain("Can't send anything to a client, a contact or the public.");
 });

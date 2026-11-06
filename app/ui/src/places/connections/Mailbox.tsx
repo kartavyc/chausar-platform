@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Connections, "Your mailbox" (Ink v2 wave 4, 4E4; the engine's 4E3 venture.mailbox.*): the owner's own inbox, read
  * only, over IMAP with an app password, so Chausar sees replies from people in the network or the pipeline. It never
@@ -24,7 +25,7 @@ import type { MailboxView } from '../../engine/types';
 import { EngineError } from '../../engine/types';
 import s from './Mailbox.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 export function Mailbox() {
   const t = useT();

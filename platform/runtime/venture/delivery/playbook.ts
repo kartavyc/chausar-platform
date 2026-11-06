@@ -5,7 +5,7 @@
 // The owner's own changes from chat are versions too (ownerVersion, Ink v2 wave 4).
 import { check, type Context, type State } from '../../contracts.ts';
 import { digest, exactPayload, findRecord, listRecords, ventureAction, type VentureTx } from '../records.ts';
-import { CHECK_IDS, REQUIRED_SECTIONS, TOOL_NAMES } from '../contracts.ts';
+import { CHECK_IDS, REQUIRED_SECTIONS, TOOL_NAMES } from '../contract-values.ts';
 import type {
   BlueprintRecord, CheckId, ExecutionTier, HarnessLimits, OrderIntake, PlaybookPatch, PlaybookRecord, PlaybookStep, StepKind, ToolName, VentureDeps,
   VentureRecord,

@@ -1,14 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Row, StatusMark } from '../../src/parts/Row';
 import { Avatar } from '../../src/parts/Avatar';
-import { JobList } from '../../src/parts/JobList';
 import { runKey } from '../../src/shell/keys';
-import { RUNS } from '../../src/engine/fixtures';
-import type { RunSummary } from '../../src/engine/types';
-import { assertInkRules, receiptMark } from '../helpers/ink-rules';
+import { assertInkRules } from '../helpers/ink-rules';
 
 const css = (file: string) => readFileSync(join(import.meta.dirname, '../../src/parts', file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 /** The body of the first rule whose selector is exactly `selector`. */
@@ -108,86 +105,5 @@ describe('StatusMark, the D status circle (.sic)', () => {
     const narrow = /@media\s*\(max-width:\s*759px\)\s*\{([\s\S]*?)\n\}/.exec(text)?.[1] ?? '';
     expect(narrow).toMatch(/padding-left:\s*calc\(var\(--lead\) \+ var\(--sp-3\)\)/);
     expect(narrow).not.toMatch(/--av-32/);
-  });
-});
-
-describe('JobList in the D look', () => {
-  const summaries: RunSummary[] = RUNS.map(({ steps: _s, question: _q, error: _e, ...summary }) => summary);
-
-  it('is two tiles of list rows, each run with its agent avatar ringed by its state', () => {
-    const { container } = render(<JobList runs={summaries} onOpen={() => {}} />);
-    const [working, previous] = [...container.querySelectorAll('section')];
-    expect(working!.hasAttribute('data-tile')).toBe(true);
-    expect(previous!.hasAttribute('data-tile')).toBe(true);
-    const ring = (purpose: string) => {
-      const row = screen.getByRole('button', { name: purpose }).closest('li')!;
-      const avatar = row.querySelector('[data-dept]')!;
-      expect(avatar.getAttribute('aria-hidden')).toBe('true');
-      return avatar;
-    };
-    expect(ring('Cutting shorts from episode 13').getAttribute('data-state')).toBe('working');
-    expect(ring('Pricing the sponsor slot').getAttribute('data-state')).toBe('waiting');
-    expect(ring('Rendering the thumbnail set').getAttribute('data-state')).toBe('failed');
-    expect(ring('Matched September bank lines to invoices').hasAttribute('data-state')).toBe(false);
-    expect(ring('Cutting shorts from episode 13').textContent).toBe('ED');
-    expect(screen.getByRole('button', { name: 'Cutting shorts from episode 13' }).closest('li')!.textContent).toContain('Editor');
-  });
-
-  it('a measured run draws a still bar in its state colour; an unmeasured one a still segment and no progress element (which would animate)', () => {
-    render(<JobList runs={summaries} onOpen={() => {}} />);
-    const rowOf = (purpose: string) => screen.getByRole('button', { name: purpose }).closest('li')!;
-    const cutting = rowOf('Cutting shorts from episode 13');
-    const bar = cutting.querySelector('progress')!;
-    expect(bar.getAttribute('value')).toBe('3');
-    expect(bar.dataset.tone).toBe('working');
-    expect(within(cutting).getByText('3 of 5').classList.contains('mono')).toBe(false);
-    const waiting = rowOf('Pricing the sponsor slot');
-    expect(waiting.querySelector('progress')!.dataset.tone).toBe('wait');
-    expect(waiting.textContent).toContain('Waiting on you');
-    const unmeasured = rowOf('Checking titles against the last 30 videos');
-    expect(unmeasured.querySelector('progress')).toBeNull();
-    expect(unmeasured.querySelector('[data-still]')!.getAttribute('aria-hidden')).toBe('true');
-    expect(unmeasured.textContent).toContain('Working, no step count yet');
-    expect(unmeasured.textContent).not.toContain('indeterminate');
-  });
-
-  it('an unmeasured run that waits on you says so in wait words, with no step count', () => {
-    const runs = summaries.map((run) => (run.runId === '29' ? { ...run, progress: 'indeterminate' as const } : run));
-    render(<JobList runs={runs} onOpen={() => {}} />);
-    const waiting = screen.getByRole('button', { name: 'Pricing the sponsor slot' }).closest('li')!;
-    const words = within(waiting).getByText('Waiting on you, no step count yet');
-    expect(words.className).toMatch(/wait/);
-    expect(waiting.querySelector('[data-still] [data-tone="wait"]')).not.toBeNull();
-  });
-
-
-
-  it('previous runs: the result as the sub line, its receipt or "model estimate" at the end, a failure in fail words with Run again', () => {
-    const onRunAgain = vi.fn();
-    // A model-written result never carries a receipt, even when the engine sends one.
-    const runs = summaries.map((run) => (run.runId === '26' ? { ...run, receiptId: 'R-9999' } : run));
-    expect(runs.find((run) => run.runId === '26')!.estimate).toBe(true);
-    render(<JobList runs={runs} onOpen={() => {}} onRunAgain={onRunAgain} />);
-    const rowOf = (purpose: string) => screen.getByRole('button', { name: purpose }).closest('li')!;
-    const books = rowOf('Matched September bank lines to invoices');
-    expect(books.hasAttribute('data-dense')).toBe(true);
-    expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
-    const reach = rowOf('Estimated reach for episode 14');
-    expect(reach.textContent).toContain('About 18,000 views in 30 days');
-    expect(reach.querySelector('[data-estimate]')!.textContent).toBe('model estimate');
-    expect(within(reach).queryByRole('button', { name: /receipt/i })).toBeNull();
-    const failed = rowOf('Rendering the thumbnail set');
-    // 4Z2: a failed run carries no result line from the engine; the row says it failed.
-    expect(within(failed).getByText('This job failed.').className).toMatch(/fail/);
-    fireEvent.click(within(failed).getByRole('button', { name: 'Run again' }));
-    expect(onRunAgain).toHaveBeenCalledWith(expect.objectContaining({ runId: '28' }));
-    assertInkRules(document.body);
-  });
-
-  it('the bars fill with the state tokens and never move', () => {
-    const text = css('JobList.module.css');
-    expect(text).toMatch(/\.bar\[data-tone='working'\]::-webkit-progress-value\s*\{[^}]*background:\s*var\(--accent\)/);
-    expect(text).toMatch(/\.bar\[data-tone='wait'\]::-webkit-progress-value\s*\{[^}]*background:\s*var\(--wait-ring\)/);
-    expect(text).not.toMatch(/animation|transition/);
   });
 });

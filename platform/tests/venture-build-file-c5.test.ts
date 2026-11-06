@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { LIMITS, briefFileOf, builderNote, planHandoff } from '../runtime/venture/build/handoff.ts';
-import { VENTURE_METHODS } from '../runtime/venture/contracts.ts';
+import { VENTURE_METHODS } from '../runtime/venture/contract-values.ts';
 
 const require = createRequire(import.meta.url);
 const { saveBriefFile } = require('../../app/desktop/brief-save.cjs');

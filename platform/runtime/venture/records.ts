@@ -6,7 +6,7 @@
 import { audit, authorize, check, newId, type Context, type State, type StateStore } from '../contracts.ts';
 import { digest } from '../actions.ts';
 import { validDate } from '../memory.ts';
-import { APP_ONLY_METHODS, VENTURE_EVENTS, VENTURE_RECORD_KINDS } from './contracts.ts';
+import { APP_ONLY_METHODS, VENTURE_EVENTS, VENTURE_RECORD_KINDS } from './contract-values.ts';
 import { confirmSeal, noteSealKeys, noteWrite, sealWrites } from './journal/chain.ts';
 import type {
   AnyVentureRecord, DateOrder, IsoTime, Json, RecordBase, RecordOf, TermRecord, VentureDeps, VentureEventName, VentureEventRecord,

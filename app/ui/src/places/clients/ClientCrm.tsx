@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * W6 6G3 and 6G4 (D44): the CRM parts of the client sheet, under the client's fields. Company: the company the client is
  * in (opens the company sheet), or "Put in a company" (an existing one or a new one). Timeline: what the owner logged,
@@ -16,7 +17,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { ClientCrmView, CrmEntryKind } from '../../engine/types';
 import { useLocalToday } from '../money/words';
-import { CrmFold, HistoryList, TimelineList, messageOf } from './CrmParts';
+import { CrmFold, HistoryList, TimelineList } from './CrmParts';
 import { AddFact, FactsSection } from './FactsSection';
 import { clientsChanged } from './signals';
 import s from './Crm.module.css';

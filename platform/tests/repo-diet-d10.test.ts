@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -151,4 +151,28 @@ test('task 9: .gitignore ignores the local leftovers the audit found (green sinc
   }
   const ignored = out.split(/\r?\n/).filter(Boolean);
   assert.deepEqual(samples.filter(sample => !ignored.includes(sample)), []);
+});
+
+
+test('task 6: the dead-code review starts from every shipped surface and the tests', () => {
+  const config = JSON.parse(read('knip.json'));
+  const entry = config.workspaces['.'].entry;
+  for (const file of ['platform/runtime/worker.ts', 'platform/runtime/server.ts', 'platform/runtime/hosted/server.ts', 'app/desktop/main.cjs', 'app/ui/src/main.tsx', 'app/ui/parts.html', 'platform/tests/**/*.test.ts', 'app/ui/tests/**/*.test.{ts,tsx}']) assert.ok(entry.includes(file), file);
+  assert.ok(config.workspaces['app/companion']);
+  assert.deepEqual(config.ignoreDependencies, ['@duckdb/node-api', 'pg']);
+  const pkg = JSON.parse(read('package.json'));
+  assert.equal(pkg.scripts.knip, 'knip --no-progress');
+  assert.match(read('.github/workflows/nightly.yml'), /npm run knip -- --no-exit-code/);
+});
+
+
+test('task 7: reviewed unused UI and playbook files stay removed', () => {
+  for (const path of ['app/ui/src/parts/JobList.tsx', 'app/ui/src/parts/JobList.module.css', 'app/ui/src/places/stub.tsx', 'platform/runtime/venture/playbooks/it-triage/tile.ts', 'platform/runtime/venture/playbooks/monitored-data/tile.ts', 'platform/runtime/venture/playbooks/online-seller/prepare-run.ts']) assert.equal(existsSync(`${root}/${path}`), false, path);
+});
+
+test('task 9: the directly imported DOM test helper is pinned explicitly', () => {
+  const pkg = JSON.parse(read('package.json'));
+  const lock = JSON.parse(read('package-lock.json'));
+  assert.match(pkg.devDependencies['@testing-library/dom'] ?? '', /^\d+\.\d+\.\d+$/);
+  assert.equal(pkg.devDependencies['@testing-library/dom'], lock.packages['node_modules/@testing-library/dom'].version);
 });
