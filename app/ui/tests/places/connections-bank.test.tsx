@@ -220,6 +220,8 @@ describe('Connections > Bank account', () => {
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Import' })); });
     await waitFor(() => expect(within(sheet).getByText('Added 1 transaction from 21 Oct. See them under Connections, in your bank account.')).toBeTruthy());
     expect(callsOf(spy, 'venture.bank.import')).toEqual([{ csv, account: 'HDFC current' }]);
+    expect((within(sheet).getByLabelText('Account') as HTMLInputElement).value).toBe('');
+    expect((within(sheet).getByLabelText('Statement file (CSV)') as HTMLInputElement).files?.length ?? 0).toBe(0);
   });
 
 

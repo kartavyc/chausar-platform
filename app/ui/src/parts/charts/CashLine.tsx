@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { Receipt } from '../Receipt';
 import { ChartData, ChartFoot, ChartValue, chartRoot } from './ChartData';
@@ -9,6 +9,8 @@ import s from './Charts.module.css';
 
 export interface CashLineProps {
   data: CashData;
+  detailsLabel?: string | undefined;
+  details?: ReactNode;
   onReceipt?: ((id: string) => void) | undefined;
   /** false (W4 4J20, Money's headline tile): no hover line per week; the chart's table still holds every value. */
   tips?: boolean | undefined;
@@ -39,7 +41,7 @@ function runs(points: CashPoint[], value: (point: CashPoint) => number | null): 
  * on the last week with an actual figure, where the forecast takes over. Values stay per mille in a 1000-tall viewBox stretched to the tile, the lines keep their
  * width at any size (non-scaling strokes), and the words are HTML, so they never shrink below 12 px.
  */
-export function CashLine({ data, onReceipt, tips = true }: CashLineProps) {
+export function CashLine({ data, onReceipt, tips = true, detailsLabel, details }: CashLineProps) {
   const t = useT();
   const assumesId = svgId(useId(), 'assumes');
   const { points } = data;
@@ -123,6 +125,8 @@ export function CashLine({ data, onReceipt, tips = true }: CashLineProps) {
       <ChartFoot proof={proof} onReceipt={onReceipt}>
         <ChartData
           caption={data.label}
+          summary={detailsLabel}
+          children={details}
           columns={[t('chart.cash.actual'), t('chart.cash.forecast'), ...(receipted ? [t('chart.data.receipt')] : [])]}
           rows={points.map((point) => ({
             key: point.key,
