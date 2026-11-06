@@ -167,3 +167,15 @@ test('cleanup: Windows real-location checks use native path expansion for short 
   const source = await readFile(new URL('../runtime/run-root.mjs', import.meta.url), 'utf8');
   assert.match(source, /realpathSync\.native\(current\)/);
 });
+
+
+test('cleanup: an older developer data folder is named but never moved', async t => {
+  const { previousDataNotice } = await import('../runtime/data-home.ts');
+  const { parent, repo } = await fakeRepo(t);
+  const old = join(repo, 'data'), current = join(parent, 'new-data');
+  assert.equal(previousDataNotice(old, current), null);
+  await mkdir(old);
+  assert.match(previousDataNotice(old, current) ?? '', /left untouched/);
+  assert.ok((previousDataNotice(old, current) ?? '').includes(old));
+  assert.equal(previousDataNotice(old, old), null);
+});

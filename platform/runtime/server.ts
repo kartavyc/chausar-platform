@@ -16,7 +16,7 @@ import { INK_ROOT, INK_TYPES, listInkFiles } from './ui-ink.ts';
 import { createPhoneAccess, privatePeer } from './phone-access.ts';
 import { ownerError } from './owner-error.ts';
 // D3: the data folder is the data home, never ./data where the server was started (data-home.ts).
-import { serverDataDirectory } from './data-home.ts';
+import { serverDataDirectory, previousDataNotice } from './data-home.ts';
 export { serverDataDirectory };
 
 /** Only the trusted local owner bootstrap session may send these (never a member session). */
@@ -222,6 +222,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   // build is listed, both before anything listens: an unbuilt Ink app stops the start with its own plain reason
   // (UI_NOT_BUILT). Making the engine opens no vault.
   const engine = await createServerEngine(); const demo = engine.options.demo;
+  const previous = previousDataNotice(resolve('data'), engine.options.directory!);
+  if (previous) console.log(previous);
   let ink: InkBuild;
   try { ink = { folder: INK_ROOT, files: await listInkFiles(INK_ROOT) }; }
   catch (error) { if ((error as { code?: string }).code !== 'UI_NOT_BUILT') throw error; console.error((error as Error).message); process.exit(1); }
