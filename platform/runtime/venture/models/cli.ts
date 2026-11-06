@@ -1,12 +1,13 @@
 // Chausar venture launcher, package P2 (models): the Claude Code and Codex command-line routes.
 // The engine never reads or stores a subscription token: each tool uses its own login on this computer.
-// The Claude Code flags come from cliArguments in gateway.ts and have never been checked against an
-// installed `claude`; Codex flags come from the reviewed host profile (providers/codex-cli.ts).
+// The Claude Code flags come from cliArguments in gateway.ts; Codex flags come from the reviewed host profile
+// (providers/codex-cli.ts). Since Ink v2 wave 4 (4H1) both lists are checked against the installed tool's own help
+// before a connection (cli-status.ts), so a flag the tool does not know refuses it instead of failing every call.
 import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ChausarError } from '../../contracts.ts';
 import { cliArguments } from '../../gateway.ts';
-import { buildCodexCliArguments, parseCodexCliOutput, type CodexCliCapabilityProfile } from '../../providers/codex-cli.ts';
+import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS, buildCodexCliArguments, parseCodexCliOutput, type CodexCliCapabilityProfile } from '../../providers/codex-cli.ts';
 import type { Json, ModelProcessResponse, ModelTask } from '../contracts.ts';
 import { sanitizeSchema } from './schema.ts';
 import { RESPONSE_LIMIT_BYTES, isPlainRecord, readUsage, type Parsed } from './types.ts';
@@ -82,6 +83,58 @@ export function codexPlan(model: string, task: ModelTask<unknown>, host: CodexHo
   const args = buildCodexCliArguments(model, SCHEMA_PLACEHOLDER, host.capabilities);
   const stdin = `${task.instructions}\n${JSON.stringify(task.input)}`;
   return { kind: 'codex-cli', command, args, stdin, schema, maxOutputTokens: task.maxOutputTokens, payloadText: cliPayloadText(command, args, stdin) };
+}
+
+/** The distinct flags in an argument list, in the order they first appear; values ('', JSON, paths) are not flags. */
+function flagsIn(args: readonly string[]): string[] {
+  return [...new Set(args.filter(arg => /^--[A-Za-z]/.test(arg)))];
+}
+
+/**
+ * Ink v2 wave 4 (4H1): every flag the route sends to the tool, taken from the argument builders themselves
+ * (cliArguments in gateway.ts for Claude Code, buildCodexCliArguments for Codex's exec), so the check of an installed
+ * tool's help can never drift from what a call passes.
+ */
+export function cliRouteFlags(kind: 'claude-cli' | 'codex-cli'): string[] {
+  if (kind === 'claude-cli') {
+    return flagsIn(cliArguments({ kind: 'claude-cli', model: 'claude-sonnet-5-5', maxOutputTokens: 256 }, SCHEMA_PLACEHOLDER, undefined, { schema: {}, instructions: 'Flag list.' }));
+  }
+  const profile: CodexCliCapabilityProfile = {
+    evidence: { kind: 'synthetic-fixture', label: 'synthetic flag list' },
+    flags: [...CODEX_CLI_FLAGS], configKeys: CODEX_CLI_CONFIG.map(value => value.split('=')[0]), stdinPrompt: true, sandboxModes: ['read-only'],
+  };
+  return flagsIn(buildCodexCliArguments('gpt-6-luna', SCHEMA_PLACEHOLDER, profile));
+}
+
+/**
+ * Route flags a tool accepts without listing them in its --help, so the help check does not require them; every
+ * other route flag must be listed. Kept short and from evidence only: Claude Code 2.1.286 (checked on the founder's
+ * computer, 23 Oct 2026) takes --max-turns but its help page does not show it. Codex's exec lists all of its flags.
+ */
+export const CLI_UNLISTED_FLAGS: Readonly<Record<'claude-cli' | 'codex-cli', readonly string[]>> = Object.freeze({
+  'claude-cli': Object.freeze(['--max-turns']),
+  'codex-cli': Object.freeze([]),
+});
+
+/**
+ * How each tool says it does not know an option: Claude Code's parser ("error: unknown option '--x'") and Codex's
+ * ("error: unexpected argument '--x' found", or "Found argument '--x' which wasn't expected" before that).
+ */
+const UNKNOWN_OPTION: readonly RegExp[] = [
+  /\bunknown option ['"]?(--[A-Za-z0-9][A-Za-z0-9-]*)/gi,
+  /\bunexpected argument ['"](--[A-Za-z0-9][A-Za-z0-9-]*)/gi,
+  /\bunrecognized (?:option|argument) ['"]?(--[A-Za-z0-9][A-Za-z0-9-]*)/gi,
+  /\bFound argument ['"](--[A-Za-z0-9][A-Za-z0-9-]*)['"] which wasn't expected/gi,
+];
+
+/**
+ * The route flags a failed call's output says the tool does not know, in the route's order; empty when it names none
+ * of them. This is how a flag the help check lets through (CLI_UNLISTED_FLAGS) is caught if a tool ever drops it.
+ */
+export function unknownRouteFlags(kind: 'claude-cli' | 'codex-cli', output: string): string[] {
+  const named = new Set<string>();
+  for (const pattern of UNKNOWN_OPTION) for (const match of output.slice(0, 16_384).matchAll(pattern)) named.add(match[1]);
+  return cliRouteFlags(kind).filter(flag => named.has(flag));
 }
 
 function tooLarge(stdout: string): boolean {

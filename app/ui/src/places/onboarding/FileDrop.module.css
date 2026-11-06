@@ -1,0 +1,55 @@
+/* The file drop: a quiet dashed box under the one-sentence box, solid while a file is held over it. */
+
+.drop {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) dashed var(--edge);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.drop[data-over] {
+  border-style: solid;
+  border-color: var(--fg);
+}
+
+.file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control);
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--fg);
+}
+
+/* "Add a file" reads as a link and takes the keyboard focus of the input it names. */
+.pick {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.file:focus-within .pick {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.note {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--mute);
+}
+
+.problem {
+  font-size: var(--text-read);
+  color: var(--fail);
+}

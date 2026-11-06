@@ -4,11 +4,11 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineProvider } from '../../src/engine/context';
 import { TextProvider } from '../../src/text';
-import type { BooksSummaryLite, InvoiceViewLite, MoneyOverview, TaxWorking } from '../../src/engine/types';
+import { EngineError, type BooksSummaryLite, type GoalView, type InvoiceViewLite, type MoneyOverview, type TaxWorking } from '../../src/engine/types';
 import { Overview } from '../../src/places/money/Overview';
 import { Amount } from '../../src/places/money/parts';
 import type { MoneyViews } from '../../src/places/money/views';
-import { assertInkRules } from '../helpers/ink-rules';
+import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 
 /*
  * Money in the direction D look (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, package 3F). Every figure is
@@ -63,6 +63,12 @@ const OPEN: BooksSummaryLite['openInvoices'] = [
   { invoiceId: 'inv-0039', number: 'INV-0039', clientName: 'Boat Audio', balanceDisplay: '₹26,200.00', dueDate: '2026-10-28' },
 ];
 const books = (open = OPEN): Override => async (params, request) => ({ ...((await request('venture.books.summary', params)) as BooksSummaryLite), openInvoices: structuredClone(open) });
+/**
+ * An engine without the W4 money views (aging, in and out, cash ahead): each answers NOT_BUILT_YET, as the engine did
+ * before 4J4. The overview then falls back to the overview line, the open invoices and Due to you next (wave 3).
+ */
+const refuse: Override = () => { throw new EngineError('NOT_BUILT_YET', 'Not built yet.'); };
+const OLDER: Record<string, Override> = { 'venture.money.aging': refuse, 'venture.money.flow': refuse, 'venture.money.cash': refuse };
 const ledgerline = async () => {
   const engine = new FakeEngine({ now: NOW });
   await engine.request('workspace.open', { folder: 'ledgerline' });
@@ -73,9 +79,12 @@ describe('Money v2: the sub-pages', () => {
   it('are a segmented row of links named Money, each with its icon, the current one marked', async () => {
     start('#/money');
     const nav = screen.getByRole('navigation', { name: 'Money' });
+    // Businesses (W4 4J20) joins once the engine says this computer has more than one business.
+    await within(nav).findByRole('link', { name: 'Businesses' });
     const links = within(nav).getAllByRole('link');
     expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
-      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Books', '#/money/books'], ['Spend', '#/money/spend'], ['Journal', '#/money/journal'],
+      ['Overview', '#/money'], ['Invoices', '#/money/invoices'], ['Bills', '#/money/bills'], ['Books', '#/money/books'], ['Margins', '#/money/margins'],
+      ['Spend', '#/money/spend'], ['Journal', '#/money/journal'], ['Businesses', '#/money/businesses'],
     ]);
     for (const link of links) expect(link.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
     expect(links[0]!.getAttribute('aria-current')).toBe('page');
@@ -86,12 +95,13 @@ describe('Money v2: the sub-pages', () => {
 });
 
 describe('Money v2: the overview tiles', () => {
-  it('Invoiced this month is the books billed figure for this month with its receipt, and draws no goal bar until W4', async () => {
-    const { calls } = start('#/money', { override: { 'venture.money.overview': overview() } });
+  it('with no goal for the month (W4 4I2), Invoiced this month is the goals view figure for this month with its receipt, and draws no goal bar', async () => {
+    const noGoal: Override = async (params, request) => ({ ...(await request('venture.goals.get', params) as GoalView), state: 'unset', goal: null, invoicedPermille: null, readyPermille: null, stillToInvoice: null, pace: null, paceReceiptId: null, invoicedPercent: null, past: false, pastBy: null, paceBy: null });
+    const { calls } = start('#/money', { override: { 'venture.money.overview': overview(), 'venture.goals.get': noGoal } });
     const invoiced = await tile('Invoiced this month');
     expect(await within(invoiced).findByText('₹1,12,400.00')).toBeTruthy();
-    expect(within(invoiced).getByRole('button', { name: 'Receipt R-0401' })).toBeTruthy();
-    expect(calls).toContainEqual(['venture.books.summary', { period: 'this-month' }]);
+    expect(invoiced.querySelector('[data-receipt]')).not.toBeNull();
+    expect(calls).toContainEqual(['venture.goals.get', {}]);
     expect(screen.queryByRole('img', { name: /goal/i })).toBeNull();
     assertInkRules();
   });
@@ -100,10 +110,11 @@ describe('Money v2: the overview tiles', () => {
     start('#/money', { override: { 'venture.money.overview': overview() } });
     const received = await tile('Received');
     expect(await within(received).findByText('₹86,200.00')).toBeTruthy();
-    expect(within(received).getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
+    expect(within(received).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     const spend = await tile('AI spend this month');
     expect(await within(spend).findByText('₹60.10')).toBeTruthy();
-    expect(within(spend).getByRole('button', { name: 'Receipt R-0431' })).toBeTruthy();
+    // The figure's own receipt (the split by department under it, W4 4A2, carries the same one: money-w4.test.tsx).
+    expect(within(spend.querySelector('[data-figure]') as HTMLElement).getByRole('button', { name: receiptMark('R-0431') })).toBeTruthy();
     // A cost that includes estimates is still worked out by code: it is not a number a model wrote.
     expect(spend.textContent).not.toContain('model estimate');
     expect(within(spend).getByRole('link', { name: 'Each call' }).getAttribute('href')).toBe('#/money/spend');
@@ -131,7 +142,8 @@ describe('Money v2: the overview tiles', () => {
     expect(words.matches('[data-figure-words]')).toBe(true);
     expect(words.classList.contains('mono')).toBe(false);
     expect(words.closest('[data-phrase]')).toBeNull();
-    expect(within(spend).getByRole('button', { name: 'Receipt R-0431' })).toBeTruthy();
+    // The figure's own receipt (the split by department under it, W4 4A2, carries the same one: money-w4.test.tsx).
+    expect(within(spend.querySelector('[data-figure]') as HTMLElement).getByRole('button', { name: receiptMark('R-0431') })).toBeTruthy();
     const received = await within(await tile('Received')).findByText('₹86,200.00');
     expect(received.closest('[data-phrase]')).toBeNull();
     assertInkRules();
@@ -142,7 +154,8 @@ describe('Money v2: the overview tiles', () => {
     const received = await tile('Received');
     await within(received).findByText('₹40,000.00');
     expect(received.textContent).toContain('model estimate');
-    expect(received.querySelector('[data-receipt]')).toBeNull();
+    // The tile's own figure carries no receipt (last month's, under it, has its own: W4 4J20).
+    expect(within(received).getByText('₹40,000.00').closest('[data-figure]')!.querySelector('[data-receipt]')).toBeNull();
     assertInkRules();
   });
 
@@ -155,7 +168,7 @@ describe('Money v2: the overview tiles', () => {
         { id: 'spent', label: 'AI and tools this month', value: '₹60.10, includes estimates', estimate: true },
       ],
     };
-    start('#/money', { override: { 'venture.money.overview': overview(bare) } });
+    start('#/money', { override: { ...OLDER, 'venture.money.overview': overview(bare) } });
     const owed = await tile('Owed to you');
     await counted(owed, '1 open invoice', '1');
     await within(owed).findByText('Boat Audio');
@@ -168,31 +181,34 @@ describe('Money v2: the overview tiles', () => {
     expect(spend.querySelector('[data-receipt]')).toBeNull();
     const received = await tile('Received');
     await within(received).findByText('₹86,200.00');
-    expect(within(received).getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
+    expect(within(received).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     assertInkRules();
   });
 
   it('with the sample engine, Owed to you and AI spend show their figures, each with its receipt', async () => {
-    // The fake engine now sends both lines with their receipts, as money/overview.ts does.
-    start('#/money');
+    // The fake engine now sends both lines with their receipts, as money/overview.ts does (an engine before 4J4's aging).
+    start('#/money', { override: OLDER });
     const owed = await tile('Owed to you');
-    await waitFor(() => expect(within(owed).getByRole('button', { name: 'Receipt R-0430' })).toBeTruthy());
-    const owedFigure = within(owed).getByRole('button', { name: 'Receipt R-0430' }).closest('[data-figure-group]');
+    await waitFor(() => expect(within(owed).getByRole('button', { name: receiptMark('R-0430') })).toBeTruthy());
+    const owedFigure = within(owed).getByRole('button', { name: receiptMark('R-0430') }).closest('[data-figure-group]');
     expect(owedFigure?.textContent).toContain('₹26,200.00');
     await counted(owed, '1 open invoice', '1');
     const spend = await tile('AI spend this month');
+    // 4Z3: a business in India with a rupee rate leads with rupees, the dollars beneath with two decimals and the rate.
     expect(await within(spend).findByText('₹60.10')).toBeTruthy();
-    expect(within(spend).getByRole('button', { name: 'Receipt R-0431' })).toBeTruthy();
+    expect(spend.textContent).toContain('USD 0.72 at ₹83.50 per $1');
+    // The figure's own receipt (the split by department under it, W4 4A2, carries the same one: money-w4.test.tsx).
+    expect(within(spend.querySelector('[data-figure]') as HTMLElement).getByRole('button', { name: receiptMark('R-0431') })).toBeTruthy();
     assertInkRules();
   });
 });
 
 describe('Money v2: owed and due next', () => {
-  it('Owed to you: the figure with its receipt, the open invoices as a count, and each one oldest due first', async () => {
-    start('#/money', { override: { 'venture.money.overview': overview(), 'venture.books.summary': books() } });
+  it('without the aging view, Owed to you: the figure with its receipt, the open invoices as a count, and each one oldest due first', async () => {
+    start('#/money', { override: { ...OLDER, 'venture.money.overview': overview(), 'venture.books.summary': books() } });
     const owed = await tile('Owed to you');
     expect(await within(owed).findByText('₹47,580.00')).toBeTruthy();
-    expect(within(owed).getByRole('button', { name: 'Receipt R-0430' })).toBeTruthy();
+    expect(within(owed).getByRole('button', { name: receiptMark('R-0430') })).toBeTruthy();
     await counted(owed, '3 open invoices', '3');
     const items = within(within(owed).getByRole('list')).getAllByRole('listitem');
     expect(items.map((item) => item.querySelector('[data-client]')?.textContent)).toEqual(['Iyer & Co', 'Boat Audio', 'Mehta Traders']);
@@ -205,30 +221,31 @@ describe('Money v2: owed and due next', () => {
     assertInkRules();
   });
 
-  it('Due to you next lists what is due from today on, soonest first, with balances, and nothing about costs', async () => {
-    start('#/money', { override: { 'venture.money.overview': overview(), 'venture.books.summary': books() } });
+  it('without the cash view, Due to you next lists what is due from today on, soonest first, with balances, and nothing about costs', async () => {
+    start('#/money', { override: { ...OLDER, 'venture.money.overview': overview(), 'venture.books.summary': books() } });
     const next = await tile('Due to you next');
     await within(next).findByText('Boat Audio');
     const items = within(within(next).getByRole('list')).getAllByRole('listitem');
     expect(items.map((item) => item.querySelector('[data-client]')?.textContent)).toEqual(['Boat Audio', 'Mehta Traders']);
     expect(items[0]!.textContent).toContain('₹26,200.00');
     expect(items[0]!.textContent).toContain('Due 28 Oct 2026');
-    expect(within(next).getByRole('button', { name: 'Receipt R-0430' })).toBeTruthy();
+    expect(within(next).getByRole('button', { name: receiptMark('R-0430') })).toBeTruthy();
     expect(next.textContent).not.toMatch(/cost/i);
     assertInkRules();
   });
 
   it('with nothing due from today on, Due to you next says so in one line', async () => {
-    start('#/money', { override: { 'venture.money.overview': overview(), 'venture.books.summary': books([OPEN[1]!]) } });
+    start('#/money', { override: { ...OLDER, 'venture.money.overview': overview(), 'venture.books.summary': books([OPEN[1]!]) } });
     const next = await tile('Due to you next');
     expect(await within(next).findByText('Nothing is due from today on.')).toBeTruthy();
     expect(within(next).queryByRole('list')).toBeNull();
   });
 
-  it('draws no in-and-out chart and no cash line, and no sentence promises them', async () => {
-    start('#/money', { override: { 'venture.money.overview': overview() } });
+  it('from an engine without the W4 money views, draws no in-and-out chart and no cash line, and no sentence promises them', async () => {
+    start('#/money', { override: { ...OLDER, 'venture.money.overview': overview() } });
     await within(await tile('Owed to you')).findByText('₹47,580.00');
-    expect(within(main()).queryAllByRole('img')).toEqual([]);
+    // The goal bar on Invoiced this month is the only chart the engine sends data for here (W4 4I2).
+    expect(within(main()).queryAllByRole('img').filter((img) => !/of the goal invoiced|by department/.test(img.getAttribute('aria-label') ?? ''))).toEqual([]);
     expect(main().textContent).not.toMatch(/in and out|cash|13 weeks|coming soon/i);
   });
 });
@@ -298,7 +315,7 @@ describe('Money v2: the invoices table', () => {
     expect(open.textContent).toContain('₹26,200.00');
     expect(open.textContent).toContain('Sent');
     expect(open.textContent).toContain('28 Oct 2026');
-    expect(within(open).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
+    expect(within(open).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     expect(within(open).getByRole('button', { name: 'Record payment' }).dataset.variant).toBe('secondary');
     const paid = within(table).getByRole('button', { name: 'Invoice INV-0038' }).closest('tr')!;
     expect(paid.textContent).toContain('Paid');
@@ -331,7 +348,7 @@ describe('Money v2: the invoices table', () => {
     start('#/money/invoices');
     const section = await screen.findByRole('region', { name: 'To invoice' });
     const order = (await within(section).findByText('Boat Audio · Two mentions in episode 14')).closest('li')!;
-    expect(within(order).getByRole('button', { name: 'Receipt R-0415' })).toBeTruthy();
+    expect(within(order).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     expect(within(order).getByRole('button', { name: 'Prepare invoice' }).dataset.variant).toBe('primary');
   });
 });
@@ -341,8 +358,8 @@ describe('Money v2: books, simple first', () => {
     start('#/money/books');
     const billed = await tile('Billed');
     expect(await within(billed).findByText('₹1,12,400.00')).toBeTruthy();
-    expect(within(billed).getByRole('button', { name: 'Receipt R-0401' })).toBeTruthy();
-    expect(within(await tile('Earned')).getByRole('button', { name: 'Receipt R-0403' })).toBeTruthy();
+    expect(within(billed).getByRole('button', { name: receiptMark('R-0401') })).toBeTruthy();
+    expect(within(await tile('Earned')).getByRole('button', { name: receiptMark('R-0403') })).toBeTruthy();
     const periods = screen.getByRole('group', { name: 'Period' });
     await click(within(periods).getByRole('button', { name: 'Last month' }));
     expect(window.location.hash).toBe('#/money/books?period=last-month');
@@ -397,7 +414,7 @@ describe('Money v2: books, simple first', () => {
     expect(details.getAttribute('aria-expanded')).toBe('true');
     expect(await screen.findByRole('heading', { name: 'Tax working, September 2026' })).toBeTruthy();
     expect(screen.getByText('Needs your CA to confirm')).toBeTruthy();
-    expect(within(screen.getAllByText('CGST at 9%')[0]!.closest('li')!).getByRole('button', { name: 'Receipt R-0419' })).toBeTruthy();
+    expect(within(screen.getAllByText('CGST at 9%')[0]!.closest('li')!).getByRole('button', { name: receiptMark('R-0419') })).toBeTruthy();
     assertInkRules();
     await click(details);
     expect(screen.queryByText('CGST at 9%')).toBeNull();
@@ -416,10 +433,13 @@ describe('Money v2: spend', () => {
   });
 
   it('keeps the Ink rules with the owner rupee rate set', async () => {
-    start('#/money/spend');
+    // The sample has the owner's rupee rate (4Z3); cleared first, the owner types it here.
+    const engine = new FakeEngine({ now: NOW });
+    await engine.request('venture.spend.policy.set', { inrPerUsd: null });
+    start('#/money/spend', { engine });
     const settings = await screen.findByRole('region', { name: 'Limits and rates' });
     // The owner's own limits, said back in the engine's sentences: engine words, in the body face.
-    for (const words of ['USD 20.0000 a month', 'Asks you first above USD 2.0000']) {
+    for (const words of ['USD 20.00 a month', 'Asks you first above USD 2.00']) {
       const line = await within(settings).findByText(words);
       expect(line.closest('[data-engine-line]'), words).toBeTruthy();
       expect(line.closest('.mono'), words).toBeNull();
@@ -428,7 +448,9 @@ describe('Money v2: spend', () => {
     await act(async () => { fireEvent.change(within(settings).getByLabelText('Rupees per US dollar'), { target: { value: '83.50' } }); });
     await click(within(settings).getByRole('button', { name: 'Save' }));
     await click(within(settings).getAllByRole('button', { name: 'Save' }).find((b) => b.hasAttribute('data-confirm'))!);
-    await within(settings).findByText('₹1,670.00 at ₹83.50 per $1 (your rate, set 21 Oct 2026)');
+    // 4Z3: rupees lead the limit in India, the rate said once on its own line.
+    await within(settings).findByText('₹1,670.00 a month');
+    expect(within(settings).getByText('₹83.50 per $1 (your rate, set 21 Oct 2026)')).toBeTruthy();
     assertInkRules();
   });
 });

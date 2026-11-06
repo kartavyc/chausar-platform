@@ -1,0 +1,29 @@
+/* Money > Journal's chain line and Check a receipt (W4 4J22a). */
+
+.box {
+  display: grid;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.fold > summary {
+  cursor: pointer;
+  font-size: var(--text-read);
+  color: var(--link);
+  padding: var(--sp-1) 0;
+}
+
+.form {
+  display: grid;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-2);
+}

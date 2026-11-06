@@ -6,6 +6,7 @@
 import { CHECK_IDS, SCENARIO_KINDS } from '../contracts.ts';
 import { listRecords } from '../records.ts';
 import { practiceFileNames } from './harness/practice.ts';
+import { signalExpectations } from './corrections.ts';
 import type { State } from '../../contracts.ts';
 import type { CheckId, DeliveryReason, Scenario, ScenarioKind, ServiceType, SignalRecord } from '../contracts.ts';
 
@@ -211,11 +212,13 @@ function reasonWords(reason: SignalRecord['reason']): string {
 
 /**
  * A rehearsal case made from a signal: the service type's messy practice client with checks focused on the reason.
- * It never copies the client's request, so rehearsals stay free of client data.
+ * It never copies the client's request, so rehearsals stay free of client data. With the vault's state, a case made
+ * from the owner's edit or send-back carries its expectations (Ink v2 4J16, corrections.ts), made from fixed lists.
  */
-export function signalScenario(signal: SignalRecord, type: ServiceType): Scenario {
+export function signalScenario(signal: SignalRecord, type: ServiceType, state?: State): Scenario {
   const messy = scenariosFor(type)[1];
   const focus = new Set<CheckId>([...SIGNAL_CORE, ...focusChecks(signal.reason)]);
+  const expectations = state ? signalExpectations(state, signal) : [];
   return {
     ...messy,
     id: `signal-${signal.id}`,
@@ -225,11 +228,15 @@ export function signalScenario(signal: SignalRecord, type: ServiceType): Scenari
     source: 'signal',
     signalId: signal.id,
     ...(practiceFileNames({ id: messy.id, serviceType: type, source: 'signal' }).length ? { files: practiceFileNames({ id: messy.id, serviceType: type, source: 'signal' }) } : {}),
+    ...(expectations.length ? { expectations } : {}),
   };
 }
 
-/** The template practice clients plus every signal that was turned into a rehearsal case. */
+/**
+ * The template practice clients plus every signal that was turned into a rehearsal case, and (Ink v2 4J16, Q15) every
+ * edit or send-back of the owner's as soon as it is recorded: each correction is a rehearsal case with its expectations.
+ */
 export function listScenarios(state: State, ventureId: string, type: ServiceType): Scenario[] {
-  const signals = listRecords(state, 'venture-signal', ventureId).filter(signal => signal.scenarioId !== null);
-  return [...scenariosFor(type), ...signals.map(signal => signalScenario(signal, type))];
+  const signals = listRecords(state, 'venture-signal', ventureId).filter(signal => signal.scenarioId !== null || signal.source === 'owner-edited' || signal.source === 'owner-rejected');
+  return [...scenariosFor(type), ...signals.map(signal => signalScenario(signal, type, state))];
 }

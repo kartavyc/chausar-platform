@@ -1,0 +1,41 @@
+/* The gallery's toolbar: D-Start's `.toolbar`, `.sort` and its select. The chips wrap; Sort keeps to the right, and
+   drops under them when the row is narrow. */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg2);
+}
+
+.select {
+  min-height: 34px;
+  padding: 0 var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-read);
+}
+
+.select:focus-visible {
+  border-color: var(--fg);
+  outline: var(--focus) solid var(--link);
+  outline-offset: 1px;
+}
+
+/* On a phone the Sort control is at least the 44 px touch target. */
+@media (max-width: 759px) {
+  .select { min-height: var(--target); }
+}

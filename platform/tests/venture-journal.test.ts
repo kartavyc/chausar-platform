@@ -48,7 +48,7 @@ async function addPartner(store: VentureTestStore) {
 const input = (over: Partial<ProposeInput> = {}): ProposeInput => ({
   action: 'invoice.issue', subject: 'invoice_1', target: 'Cafe Aroma Demo', actionDigest: 'a'.repeat(64), line: 'Issue the invoice for Cafe Aroma Demo.', ...over,
 });
-const write = (subject: string): ProposeInput => input({ action: 'connector.write', subject, target: 'Mail app', actionDigest: createHash('sha256').update(subject).digest('hex'), line: 'Send the reminder email.' });
+const write = (subject: string): ProposeInput => input({ action: 'connector.write', subject, target: 'Mail app', actionDigest: createHash('sha256').update(subject).digest('hex'), line: 'Send the reminder email.', operation: 'send-deliverable' });
 const entries = (store: VentureTestStore) => listRecords(store.read(), 'venture-journal-entry');
 const states = (entry: { journal: { state: string }[] }) => entry.journal.map(step => step.state);
 
@@ -425,7 +425,8 @@ test('venture.journal.list is a views read method registered everywhere a ventur
 test('static: the journal files throw only declared codes, keep the house style, credit their sources, and never store a token', async () => {
   const folder = new URL('../runtime/venture/journal/', import.meta.url);
   const files = (await readdir(folder)).filter(name => name.endsWith('.ts'));
-  assert.deepEqual(files.sort(), ['index.ts', 'journal.ts', 'list.ts', 'simulation.ts', 'tokens.ts']);
+  // Ink v2 wave 4 (4J1): the decision record and the system-line grammar. 4J10: the chain, signatures, end states, extras.
+  assert.deepEqual(files.sort(), ['action-extras.ts', 'chain.ts', 'decisions.ts', 'end-states.ts', 'index.ts', 'journal.ts', 'list.ts', 'seal-json.ts', 'signing.ts', 'simulation.ts', 'system-lines.ts', 'tokens.ts']);
   let all = '';
   for (const file of files) {
     const source = await readFile(new URL(file, folder), 'utf8');

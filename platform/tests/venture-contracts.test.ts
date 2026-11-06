@@ -46,13 +46,15 @@ function clientRecord(tx: VentureTx, name: string): ClientRecord {
   return { ...tx.base('venture-client'), name, email: null, countryCode: null, taxId: null, stateCode: null, note: null };
 }
 
-test('VENTURE_METHODS: 126 unique valid names with owners and well-formed subsets', () => {
-  assert.equal(VENTURE_METHODS.length, 126);
+test('VENTURE_METHODS: 268 unique valid names with owners and well-formed subsets', () => {
+  // 126 through wave 2, the 138 wave 4 names package 4-0 added (W4_METHODS), 4J8's venture.blueprint.suggest and 4J5's
+  // venture.bills.stop.
+  assert.equal(VENTURE_METHODS.length, 268);
   assert.ok(unique(VENTURE_METHODS));
   for (const method of VENTURE_METHODS) { assert.match(method, METHOD_NAME); assert.ok(method.length <= 80); }
   assert.deepEqual(Object.keys(METHOD_OWNERS), [...VENTURE_METHODS]);
   for (const subset of [APP_ONLY_METHODS, EVIDENCE_METHODS, PRE_VAULT_METHODS, DRAFT_METHODS]) for (const method of subset) assert.ok(VENTURE_METHODS.includes(method), method);
-  assert.deepEqual([...PRE_VAULT_METHODS], ['venture.countries', 'venture.preview']);
+  assert.deepEqual([...PRE_VAULT_METHODS], ['venture.countries', 'venture.preview', 'venture.playbooks.list']);
 });
 
 test('DRAFT_METHODS: the nine onboarding methods, apart from the pre-vault two, with app-only connect, decide and fill', () => {

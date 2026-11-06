@@ -367,7 +367,7 @@ test('journal: the description, the target, every journal line and the outcome a
   const subject = `run_1:${'a'.repeat(16)}`;
   const proposed = await proposeAction(deps, agent, {
     action: 'connector.write', subject, target: 'https://bob:pw1234@hooks.example.com/x', actionDigest: 'b'.repeat(64),
-    line: `Send the reminder with key ${SECRETS.openai}.`, agent: 'Books agent',
+    line: `Send the reminder with key ${SECRETS.openai}.`, agent: 'Books agent', operation: 'send-deliverable',
   });
   assert.equal(proposed.subject, subject);
   assert.equal(proposed.target, 'https://hooks.example.com/x');
@@ -375,7 +375,7 @@ test('journal: the description, the target, every journal line and the outcome a
   assert.equal(proposed.journal[0].line, `Send the reminder with key ${REDACTED}.`);
 
   const done = await journalled(deps, owner, {
-    action: 'connector.write', subject: 'reminder_2', target: 'Mail app', actionDigest: 'c'.repeat(64), line: 'Send the second reminder.',
+    action: 'connector.write', subject: 'reminder_2', target: 'Mail app', actionDigest: 'c'.repeat(64), line: 'Send the second reminder.', operation: 'send-deliverable',
   }, async () => ({ outcome: 'applied', line: `Sent with token ${SECRETS.slack}.`, url: `https://example.com/p/1?access_token=${SECRETS.generic}&id=7`, value: null }));
   const entry = done.entry;
   assert.ok(entry.outcome && !entry.outcome.url!.includes(SECRETS.generic) && entry.outcome.url!.includes('id=7'), entry.outcome?.url ?? 'no url');

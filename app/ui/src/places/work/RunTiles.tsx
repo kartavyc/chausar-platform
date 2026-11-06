@@ -7,8 +7,10 @@ import { Icon } from '../../parts/Icon';
 import { ProgressRing } from '../../parts/ProgressRing';
 import { SectionHead, Tile } from '../../parts/Tile';
 import { cx } from '../../parts/cx';
-import type { RunDetail, RunSummary } from '../../engine/types';
+import type { QueueRow, RunDetail, RunSummary } from '../../engine/types';
 import { useRunDetails } from './PreviousRuns';
+import { RoundGate, gateRow } from './RoundGate';
+import { useStopRun } from './StopDialog';
 import s from './Work.module.css';
 
 /** The current step's mark: a quarter arc on a ring, drawn once and never turning (nothing loops). */
@@ -21,10 +23,16 @@ function StillArc() {
   );
 }
 
-function RunTile({ run, detail, business }: { run: RunSummary; detail: RunDetail | undefined; business: string | undefined }) {
+interface RunTileProps { run: RunSummary; detail: RunDetail | undefined; business: string | undefined; queue: readonly QueueRow[] | undefined; onChanged: (() => void) | undefined }
+
+function RunTile({ run, detail, business, queue, onChanged }: RunTileProps) {
   const t = useT();
   const titleId = useId();
   const waiting = run.state === 'waiting';
+  // W4 4F3: Stop and its dialog; a run the engine says is stopping reads Stopping until it says stopped.
+  const stop = useStopRun(run, detail, onChanged);
+  const stopping = run.stop?.state === 'stopping';
+  const gate = detail?.gate?.waiting ? gateRow(queue, run.runId) : undefined;
   const open = (origin: HTMLElement) => openSheet('run', run.runId, origin);
   // The step the engine says is in hand: the current one, or the one that waits on the owner, counted in its list.
   const steps = detail?.steps ?? [];
@@ -46,7 +54,9 @@ function RunTile({ run, detail, business }: { run: RunSummary; detail: RunDetail
         <>
           <p className={cx(s.runStep, s.wait)}>
             <Icon name="clock" size={14} />
-            {at >= 0 ? t('work.run.waitsAt', { step: at + 1, total: steps.length }) : t('run.waiting')}
+            {/* 4Z2: counted as the ring counts it (the engine's steps done), so the line and the ring never disagree. */}
+            {typeof run.progress === 'object' ? t('work.run.waitsAfter', { done: run.progress.done, total: run.progress.total })
+              : at >= 0 ? t('work.run.waitsAt', { step: at + 1, total: steps.length }) : t('run.waiting')}
           </p>
           {detail?.question && (
             <p className={s.question}>
@@ -60,11 +70,20 @@ function RunTile({ run, detail, business }: { run: RunSummary; detail: RunDetail
       ) : null}
       <div className={s.runFoot}>
         <span className="mono">{t('work.run.foot', { id: run.runId, elapsed: run.elapsed })}</span>
-        {/* Answer only when the engine sent a question to answer; otherwise the run is opened to see what it waits on. */}
-        {waiting && (detail?.question
-          ? <Button variant="primary" size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.answer')}</Button>
-          : <Button size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.open')}</Button>)}
+        {stopping ? <span className={s.runActs}><span className={s.stopping}>{t('work.stop.stopping')}</span>{stop.button}</span> : (
+          <span className={s.runActs}>
+            {/* While the round gate waits, its own Stop decides the run: the tile's Stop steps aside. */}
+            {!detail?.gate?.waiting && stop.button}
+            {/* Answer only when the engine sent a question to answer; otherwise the run is opened to see what it waits on.
+                While the Stop dialog is open its own primary is the tile's one; a gate decides in its own box. */}
+            {waiting && !stop.open && !detail?.gate?.waiting && (detail?.question
+              ? <Button variant="primary" size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.answer')}</Button>
+              : <Button size="sm" onClick={(event) => open(event.currentTarget)}>{t('work.run.open')}</Button>)}
+          </span>
+        )}
       </div>
+      {stop.panel}
+      {!stop.open && <RoundGate detail={detail} row={gate} onChanged={onChanged} />}
     </Tile>
   );
 }
@@ -74,10 +93,13 @@ function RunTile({ run, detail, business }: { run: RunSummary; detail: RunDetail
  * its state, the business, a ring of measured steps ("Working, no step count yet" when the engine cannot count them),
  * the purpose (which opens the run sheet), the step in hand from the engine, and "Run 31 · 4m". A run that waits says
  * which step waits, shows its question, and Answer opens the run sheet, where it is answered; with no question from
- * the engine, a plain Open does. The All view's head counts what runs and what failed ("3 running · 1 failed"). There
- * is no Stop yet: run controls come with the engine's (W4 4F), and so do frames and previews on the tiles (W4 4J).
+ * the engine, a plain Open does. The All view's head counts what runs and what failed ("3 running · 1 failed").
+ * W4 4F3: each tile has Stop ("Stop run 31"), which opens its small dialog (StopDialog.tsx); a run the round gate holds
+ * shows the gate's line and its Continue box (RoundGate.tsx), decided through Today's row for it.
  */
-export function RunTiles({ runs, names, meta }: { runs: RunSummary[]; names: ReadonlyMap<string, string>; meta?: string | undefined }) {
+export function RunTiles({ runs, names, meta, queue, onChanged }: {
+  runs: RunSummary[]; names: ReadonlyMap<string, string>; meta?: string | undefined; queue?: readonly QueueRow[] | undefined; onChanged?: (() => void) | undefined;
+}) {
   const t = useT();
   const id = useId();
   const details = useRunDetails(runs);
@@ -85,7 +107,7 @@ export function RunTiles({ runs, names, meta }: { runs: RunSummary[]; names: Rea
     <section aria-labelledby={id} className={s.block}>
       <SectionHead id={id} title={t('work.running')} meta={meta} />
       <ul className={s.runs}>
-        {runs.map((run) => <RunTile key={run.runId} run={run} detail={details[run.runId]} business={names.get(run.businessId)} />)}
+        {runs.map((run) => <RunTile key={run.runId} run={run} detail={details[run.runId]} business={names.get(run.businessId)} queue={queue} onChanged={onChanged} />)}
       </ul>
     </section>
   );

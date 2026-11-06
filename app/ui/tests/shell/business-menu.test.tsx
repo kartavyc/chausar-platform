@@ -121,3 +121,45 @@ describe('Business menu: a popover over the page', () => {
     expect(document.activeElement).not.toBe(button);
   });
 });
+
+/** The fake engine with venture.get held until `release`, or answering null (no business open). */
+function holding(answer: 'hold' | 'none') {
+  const base = createFakeClient(new FakeEngine());
+  const request = base.request.bind(base);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const client = {
+    ...base,
+    request: (async (method: string, params?: unknown) => {
+      if (method === 'venture.get') {
+        if (answer === 'none') return null;
+        await held;
+      }
+      return request(method as never, params as never);
+    }) as typeof base.request,
+  };
+  return { client, release: () => release() };
+}
+
+describe('Business menu: the name while venture.get loads (4Z3)', () => {
+  it('says nothing while it loads, never "No business open", then the business', async () => {
+    window.location.hash = '#/today';
+    const { client, release } = holding('hold');
+    render(<App client={client} language="en" />);
+    const rail = screen.getByRole('navigation', { name: 'Places' });
+    const button = await within(rail).findByRole('button', { name: /Switch business/ });
+    expect(button.textContent).not.toContain('No business open');
+    expect(button.querySelector('[data-loading]')).not.toBeNull();
+    await act(async () => { release(); });
+    expect(await within(rail).findByRole('button', { name: /Lumen Studio/ })).toBeTruthy();
+    expect(rail.querySelector('[data-loading]')).toBeNull();
+  });
+
+  it('says "No business open" only when the engine answers that none is', async () => {
+    window.location.hash = '#/today';
+    const { client } = holding('none');
+    render(<App client={client} language="en" />);
+    const rail = screen.getByRole('navigation', { name: 'Places' });
+    expect(await within(rail).findByRole('button', { name: /No business open/ })).toBeTruthy();
+  });
+});

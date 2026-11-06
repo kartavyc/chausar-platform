@@ -93,6 +93,9 @@ const NON_TEXT_PAIRS: [string, string][] = [
   ['fail-ring', 'surface'],
   ['accent', 'goal-track'],
   ['chart-ink', 'surface'],
+  // The resting bars and the shared part of a split (4A2 review): marks whose meaning the legend and table also say.
+  ['chart-rest', 'surface'],
+  ['chart-rest', 'inner'],
   ...(['age-30', 'age-60', 'age-90', 'age-over'] as const).map((a): [string, string] => [a, 'surface']),
 ];
 /**

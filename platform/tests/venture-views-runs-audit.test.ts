@@ -54,8 +54,9 @@ test('runs: a step is audited only when the auditor passed its work, and only au
   assert.deepEqual([step('work').state, step('work').audited], ['done', false]);
   assert.deepEqual([step('clarify').state, step('clarify').audited], ['waiting', true]);
   assert.equal('audited' in step('price'), false, 'a step with no tool calls is not the auditor\'s');
-  assert.deepEqual(step('work').tools, [{ name: 'Worked out totals with the calculator', line: 'Done. Not counted: The receipt work_1 does not match its own digest.' }]);
-  assert.deepEqual(step('gather').tools, [{ name: 'Read a client file', line: 'Done.' }]);
+  // Ink v2 wave 4 (4F1, U7): a call with both its times stamped carries its state and measured time.
+  assert.deepEqual(step('work').tools, [{ name: 'Worked out totals with the calculator', line: 'Done. Not counted: The receipt work_1 does not match its own digest.', state: 'done', ms: 90000 }]);
+  assert.deepEqual(step('gather').tools, [{ name: 'Read a client file', line: 'Done.', state: 'done', ms: 5000 }]);
   // gather is done and audited; work is done but failed its audit, so it is not progress.
   assert.deepEqual(detail.progress, { done: 1, total: 8 });
   const [summary] = await runs(env);

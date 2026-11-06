@@ -10,13 +10,16 @@
  * set as proved figures, until W4 4J1 sends their receipts.
  */
 
+import { useState } from 'react';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { EmptyState } from '../../parts/EmptyState';
 import { Receipt } from '../../parts/Receipt';
+import { splitFigure } from '../../parts/Figure';
 import { Row } from '../../parts/Row';
 import type { SpendRow } from '../../engine/types';
-import { Amount, EngineWords, Failed, Rupees, Section } from './parts';
+import { Amount, EngineWords, Failed, Rupees, Section, spendShown } from './parts';
+import { Meter } from './Meter';
 import { SpendPolicy } from './SpendPolicy';
 import { onRuns } from './words';
 import s from './Money.module.css';
@@ -24,17 +27,24 @@ import s from './Money.module.css';
 export function Spend() {
   const t = useT();
   const spend = useResource('venture.spend.list', {}, { refreshOn: onRuns });
+  // 4Z3: a saved spend setting reads the calls and the meter again at once (the engine sends no event for it).
+  const [round, setRound] = useState(0);
   const rows = spend.data?.rows ?? [];
-  const total = spend.data && (
+  // 4Z3: the month's total as the engine says it leads (rupees or dollars first), the other amount beside it (the rate
+  // is said once, in the settings below).
+  const shownTotal = spend.data && spendShown(spend.data.totalLead, spend.data.total, spend.data.totalRupees, true);
+  const total = shownTotal && (
     <p className={s.total}>
-      <EngineWords><Amount text={spend.data.total} /></EngineWords>
-      <Rupees text={spend.data.totalRupees} />
+      <EngineWords><Amount text={shownTotal.value} /></EngineWords>
+      <Rupees text={shownTotal.rupees} />
     </p>
   );
 
   return (
     <>
       {spend.error && <Failed error={spend.error} />}
+      {/* W4 4J20: this month's spend against its limit, and what to do once it is used up (Meter.tsx). */}
+      <Meter key={round} />
       <Section title={t('money.spend.title')} end={total}>
         {spend.data && rows.length === 0 && <EmptyState title={t('money.spend.none')} />}
         {rows.length > 0 && (
@@ -49,7 +59,7 @@ export function Spend() {
         )}
         {rows.some((row) => row.kind === 'refused' && !row.reason) && <p className={s.quietLine}>{t('money.spend.refusedNote')}</p>}
       </Section>
-      <SpendPolicy />
+      <SpendPolicy onSaved={() => { spend.reload(); setRound((n) => n + 1); }} />
     </>
   );
 }
@@ -59,14 +69,17 @@ function SpendFigures({ row }: { row: SpendRow }) {
   const kind = <span className={s.kind} data-kind={row.kind}>{t(`money.spend.kind.${row.kind}`)}</span>;
   const dot = <span className={s.dot} aria-hidden="true">·</span>;
   const figure = (value: string) => <Amount text={value} />;
+  // 4Z3: each figure as the engine says it leads (rupees or dollars first), the other amount beside it.
+  const reserved = spendShown(row.reservedLead, row.reserved, row.reservedRupees, true);
+  const settled = row.settled !== undefined ? spendShown(row.settledLead, row.settled, row.settledRupees, true) : undefined;
   const body = row.kind === 'refused' ? (
-    <>{figure(row.reserved)}<Rupees text={row.reservedRupees} />{dot}{kind}</>
+    <>{figure(reserved.value)}<Rupees text={reserved.rupees} />{dot}{kind}</>
   ) : (
     <>
-      <span className={s.figureLabel}>{t('money.spend.reserved')}</span>{' '}{figure(row.reserved)}<Rupees text={row.reservedRupees} />
+      <span className={s.figureLabel}>{t('money.spend.reserved')}</span>{' '}{figure(reserved.value)}<Rupees text={reserved.rupees} />
       {dot}
-      {row.settled !== undefined
-        ? <><span className={s.figureLabel}>{t('money.spend.settled')}</span>{' '}{figure(row.settled)}<Rupees text={row.settledRupees} /></>
+      {settled !== undefined
+        ? <><span className={s.figureLabel}>{t('money.spend.settled')}</span>{' '}{figure(settled.value)}<Rupees text={settled.rupees} /></>
         : <span className={s.figureLabel}>{t('money.spend.notSettled')}</span>}
       {dot}
       {kind}
@@ -74,6 +87,7 @@ function SpendFigures({ row }: { row: SpendRow }) {
   );
   // With its receipt, the call's figures sit under it; without one, they are the engine's words as written.
   return row.receiptId
-    ? <p className={s.figures} data-figure-group="">{body}<Receipt id={row.receiptId} /></p>
+    // 4Z3: the mark named for the figure the call settled at (or reserved, until it settles), as shown.
+    ? <p className={s.figures} data-figure-group="">{body}<Receipt id={row.receiptId} amount={splitFigure((settled ?? reserved).value).amount} /></p>
     : <p className={s.figures} data-engine-line="">{body}</p>;
 }

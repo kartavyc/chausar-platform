@@ -7,6 +7,7 @@ import { Button } from '../../src/parts/Button';
 import { Receipt } from '../../src/parts/Receipt';
 import { runKey } from '../../src/shell/keys';
 import { TextProvider } from '../../src/text';
+import { receiptMark } from '../helpers/ink-rules';
 
 const css = (file: string) => readFileSync(join(import.meta.dirname, '../../src/parts', file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
@@ -96,6 +97,6 @@ describe('the dark receipt', () => {
   it('lightens on hover with the goal card\'s own hover colour', () => {
     expect(css('Receipt.module.css')).toMatch(/\[data-tone='dark'\]:hover\s*\{[^}]*color:\s*var\(--goal-link-hover\)/);
     render(<Receipt id="R-0421" tone="dark" onOpen={() => {}} />);
-    expect(screen.getByRole('button', { name: 'Receipt R-0421' }).dataset.tone).toBe('dark');
+    expect(screen.getByRole('button', { name: receiptMark('R-0421') }).dataset.tone).toBe('dark');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { Bento, Panel, SectionHead, Tile, TileHead } from '../../src/parts/Tile';
 import { Inner, Lift } from '../../src/parts/Card';
 import { Chip, CountChip, DeptChip, DeptDot, KindChip, PostureChip, StateChip } from '../../src/parts/Chip';
@@ -11,7 +11,7 @@ import { Figure } from '../../src/parts/Figure';
 import { Icon } from '../../src/parts/Icon';
 import { DEPT_IDS, type IconName } from '../../src/parts/icons';
 import { CATALOGUES, TextProvider, format } from '../../src/text';
-import { assertFiguresProved, assertInkRules, assertNoInlineStyles } from '../helpers/ink-rules';
+import { assertFiguresProved, assertInkRules, assertNoInlineStyles, receiptMark } from '../helpers/ink-rules';
 import { cssOf, rule } from '../helpers/css';
 
 /**
@@ -514,6 +514,62 @@ describe('Segmented', () => {
     for (const stub of stubs) stub.mockRestore();
   });
 
+  it('a row wider than its place says which edges hide more (data-more), as it scrolls; a row that fits says nothing', () => {
+    let full = 800;
+    const stubs = [...layOut(300, () => undefined), vi.spyOn(Element.prototype, 'scrollWidth', 'get').mockImplementation(() => full)];
+    const links = ['a', 'b', 'c'].map((id) => ({ id, label: id.toUpperCase(), href: `#/${id}` }));
+    const { unmount } = render(<Segmented mode="links" label="Views" value="a" options={links} />);
+    const row = screen.getByRole('navigation', { name: 'Views' });
+    expect(row.getAttribute('data-more')).toBe('end');
+    row.scrollLeft = 200;
+    fireEvent.scroll(row);
+    expect(row.getAttribute('data-more')).toBe('both');
+    row.scrollLeft = 500;
+    fireEvent.scroll(row);
+    expect(row.getAttribute('data-more')).toBe('start');
+    unmount();
+    full = 300;
+    render(<Segmented mode="links" label="Views" value="a" options={links} />);
+    expect(screen.getByRole('navigation', { name: 'Views' }).hasAttribute('data-more')).toBe(false);
+    for (const stub of stubs) stub.mockRestore();
+  });
+
+  it('when the row narrows (a sheet opens beside the page) the current segment is brought back into view', () => {
+    let width = 1000;
+    let resized: (() => void) | undefined;
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class { constructor(callback: () => void) { resized = callback; } observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    const stubs = [
+      vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(function (this: HTMLElement) { return this.getAttribute('aria-current') === 'page' ? 500 : 0; }),
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) { return this.getAttribute('aria-current') === 'page' ? 140 : width; }),
+      vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(() => width),
+    ];
+    render(<Segmented mode="links" label="Views" value="b" options={[{ id: 'a', label: 'A', href: '#/a' }, { id: 'b', label: 'B', href: '#/b' }]} />);
+    const row = screen.getByRole('navigation', { name: 'Views' });
+    expect(row.scrollLeft).toBe(0);
+    width = 300;
+    act(() => resized!());
+    expect(row.scrollLeft).toBe(344);
+    for (const stub of stubs) stub.mockRestore();
+    globalThis.ResizeObserver = original;
+  });
+
+  it('a segment reached by Tab is scrolled into the row, so it never sits under the faded edge', () => {
+    const stubs = layOut(300, (el) => (el.textContent === 'C' ? [600, 120] : undefined));
+    const links = ['a', 'b', 'c'].map((id) => ({ id, label: id.toUpperCase(), href: `#/${id}` }));
+    render(<Segmented mode="links" label="Views" value="a" options={links} />);
+    const row = screen.getByRole('navigation', { name: 'Views' });
+    expect(row.scrollLeft).toBe(0);
+    fireEvent.focus(screen.getByRole('link', { name: 'C' }));
+    expect(row.scrollLeft).toBe(424);
+    for (const stub of stubs) stub.mockRestore();
+  });
+
+  it('the edge that hides more fades out (a mask in tokens, no colour of its own)', () => {
+    for (const edge of ['start', 'end', 'both']) expect(rule('Segmented.module.css', `.seg[data-more='${edge}']`)).toMatch(/mask-image:\s*linear-gradient\([^;]*var\(--sp-\d\)/);
+    expect(cssOf('Segmented.module.css')).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
+  });
+
   it('one department dot serves the toggle and the chips: the same DeptDot part in both, its colours in one place', () => {
     const { container: alone } = render(<DeptDot dept="prod" />);
     const reference = alone.firstElementChild!;
@@ -551,7 +607,7 @@ describe('StatTile', () => {
     expect(tile.hasAttribute('data-card')).toBe(true);
     expect(tile.dataset.span).toBe('3');
     expect(screen.getByText('AI spend this month').querySelector('svg')!.innerHTML).toBe(iconMarkup('indian-rupee'));
-    expect(screen.getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     expect(assertFiguresProved(container)).toHaveLength(1);
     // The figure takes the tile's value size (so a phone can shrink it), not a fixed Figure size.
     const figure = container.querySelector('[data-figure]')!;

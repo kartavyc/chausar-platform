@@ -89,7 +89,7 @@ export const QUEUE: RowSeed[] = [
     actions: [{ id: 'read', label: 'Read', primary: false }, { id: 'approve', label: 'Accept', primary: true, requiresView: true }],
   },
   {
-    id: 'q-draft-ep14', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Editor', kind: 'draft', createdAt: '2026-10-21T08:40:00.000Z',
+    id: 'run:d-ep14:review-1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Editor', kind: 'draft', createdAt: '2026-10-21T08:40:00.000Z',
     title: 'Episode 14 is cut', line: '11 min 42 s. Watch it before approving.',
     viewRef: { kind: 'draft', id: 'draft-ep14' },
     actions: [{ id: 'watch', label: 'Watch', primary: false }, { id: 'approve', label: 'Approve', primary: true, requiresView: true }],
@@ -134,14 +134,16 @@ export const QUEUE: RowSeed[] = [
   {
     // The engine's connector row (posting.ts connectorQueueRows). LinkedIn, not Instagram: posting a picture or video
     // through the browser is not built, so the engine never proposes an Instagram post; a text post is.
-    id: 'q-connector-linkedin', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Publisher', kind: 'connector', createdAt: '2026-10-21T10:02:00.000Z',
+    id: 'post:linkedin-ep13:v1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Publisher', kind: 'connector', createdAt: '2026-10-21T10:02:00.000Z',
     title: 'Post to LinkedIn', line: "Chausar will post in a browser window on this computer. Please don't type in that window until the post is done. The platform may restrict this account.",
     viewRef: { kind: 'draft', id: 'post-linkedin-ep13' },
+    // 4J19 review: the engine's post: subject, and the whole text shown, so the sample can be approved in a set.
+    descriptionComplete: true,
     actions: [{ id: 'deny', label: 'Do not post', primary: false }, { id: 'approve', label: 'Approve and post', primary: true, secondAsk: true, requiresView: true }],
   },
   {
     id: 'q-run-again-thumbs', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Editor', kind: 'question', createdAt: '2026-10-21T10:06:00.000Z',
-    title: 'Thumbnail set stopped', line: 'ffmpeg was not found on this computer.',
+    title: 'Thumbnail set failed', line: 'ffmpeg was not found on this computer.',
     viewRef: { kind: 'run', id: '28' },
     actions: [{ id: 'later', label: 'Later', primary: false }, { id: 'run-again', label: 'Run again', primary: true }],
   },
@@ -149,6 +151,13 @@ export const QUEUE: RowSeed[] = [
     id: 'q-locked-sitara', businessId: 'sitara', businessName: 'Sitara Events', kind: 'locked', createdAt: '2026-10-21T10:10:00.000Z',
     title: 'Sitara Events is locked. Open to see what needs you.',
     actions: [{ id: 'open', label: 'Open', primary: true }],
+  },
+  {
+    // W4 4J22a: the engine's notice for an order whose contract waits to be signed (order-contracts.ts
+    // contractNoticeRows); the fake's quality desk keeps the contract (fake-4j22a.ts) and drops this row once signed.
+    id: 'contract:o-iyer-oct:contract-iyer-1', businessId: 'ledgerline', businessName: 'Ledgerline', kind: 'notice', createdAt: '2026-10-21T10:12:00.000Z',
+    title: 'Sign the contract for an order', line: "Iyer & Co's order waits for a contract you sign. No work starts on it until you do.",
+    actions: [{ id: 'later', label: 'Later', primary: false }, { id: 'open', label: 'Open the order', primary: true }],
   },
 ];
 
@@ -209,11 +218,11 @@ const editorSteps =(): RunDetail['steps'] => [
 
 export const RUNS: RunDetail[] = [
   {
-    runId: '31', businessId: 'lumen', agent: 'Editor', purpose: 'Cutting shorts from episode 13', state: 'active', startedAt: '2026-10-21T10:20:00.000Z', elapsed: '4m',
+    runId: '31', businessId: 'lumen', agent: 'Editor', purpose: 'Cutting shorts from episode 13', state: 'active', startedAt: '2026-10-21T10:20:00.000Z', elapsed: '4m', poster: null,
     progress: { done: 3, total: 5 }, steps: editorSteps(),
   },
   {
-    runId: '30', businessId: 'lumen', agent: 'Researcher', purpose: 'Checking titles against the last 30 videos', state: 'active', startedAt: '2026-10-21T10:23:00.000Z', elapsed: '1m',
+    runId: '30', businessId: 'lumen', agent: 'Researcher', purpose: 'Checking titles against the last 30 videos', state: 'active', startedAt: '2026-10-21T10:23:00.000Z', elapsed: '1m', poster: null,
     progress: 'indeterminate',
     steps: [
       { id: 's1', purpose: 'Read the last 30 titles and their views', state: 'done', elapsed: '18s', tools: [{ name: 'youtube.read', line: '30 videos, from the channel export you uploaded' }], evidence: [{ kind: 'file', id: 'f-export-oct', label: 'channel export' }] },
@@ -221,7 +230,7 @@ export const RUNS: RunDetail[] = [
     ],
   },
   {
-    runId: '29', businessId: 'lumen', agent: 'Producer', purpose: 'Pricing the sponsor slot', state: 'waiting', startedAt: '2026-10-21T10:01:00.000Z', elapsed: '6m',
+    runId: '29', businessId: 'lumen', agent: 'Producer', purpose: 'Pricing the sponsor slot', state: 'waiting', startedAt: '2026-10-21T10:01:00.000Z', elapsed: '6m', poster: null,
     progress: { done: 2, total: 3 },
     question: { id: 'q-29', text: 'The sponsor wants to see the video before it goes up. Share a private preview link with them?', choices: ['Yes, share a private link', 'No, they see it when it is public'] },
     steps: [
@@ -231,9 +240,12 @@ export const RUNS: RunDetail[] = [
     ],
   },
   {
-    runId: '28', businessId: 'lumen', agent: 'Editor', purpose: 'Rendering the thumbnail set', state: 'failed', startedAt: '2026-10-21T09:58:00.000Z', elapsed: '40s',
-    progress: { done: 1, total: 3 }, result: 'Stopped: ffmpeg was not found on this computer.',
-    error: 'The renderer stopped: ffmpeg was not found on this computer. Install ffmpeg, or turn off the finishing check, then run again.',
+    runId: '28', businessId: 'lumen', agent: 'Editor', purpose: 'Rendering the thumbnail set', state: 'failed', startedAt: '2026-10-21T09:58:00.000Z', elapsed: '40s', poster: null,
+    // 4Z2: a failed delivery run carries no result line (views/runs.ts resultOf); its error says what went wrong.
+    progress: { done: 1, total: 3 },
+    // W4 4F3: the error alone; the fix and its code as the engine's fixOf sends them (delivery/failure-words.ts).
+    error: 'The renderer stopped: ffmpeg was not found on this computer.',
+    fix: 'Install ffmpeg, or turn off the finishing check, then run again.', fixKind: 'install-ffmpeg',
     steps: [
       { id: 's1', purpose: 'Picked 3 frames for thumbnails', state: 'done', elapsed: '22s' },
       { id: 's2', purpose: 'Render the thumbnails', state: 'failed', elapsed: '18s', error: 'ffmpeg was not found on this computer.' },
@@ -243,6 +255,8 @@ export const RUNS: RunDetail[] = [
   {
     runId: '27', businessId: 'ledgerline', agent: 'Bookkeeper', purpose: 'Matched September bank lines to invoices', state: 'done', startedAt: '2026-10-21T07:30:00.000Z', elapsed: '4m',
     progress: { done: 3, total: 3 }, result: 'Matched 212 of 214 lines. 2 need your data.', receiptId: 'R-0412',
+    // 4H2 (U17): Ledgerline's main tier is its own Sonnet key (fixtures-business.ts), and the call named it.
+    writtenBy: 'Written by Claude Sonnet 5.5',
     steps: [
       { id: 's1', purpose: 'Read the bank statement you uploaded', state: 'done', elapsed: '31s', audited: true, evidence: [{ kind: 'file', id: 'f-bank-sep', label: 'bank statement' }] },
       { id: 's2', purpose: 'Matched lines to invoices', state: 'done', elapsed: '3m', audited: true, tools: [{ name: 'books.match', line: '212 matched, 2 left' }] },
@@ -255,9 +269,16 @@ export const RUNS: RunDetail[] = [
         ],
       },
     ],
+    // 4J3 (A17): the Delivered card, as the engine's delivery/delivered.ts builds it for an accepted run.
+    delivered: {
+      line: 'Handed over 1 file.',
+      files: [{ id: 'wt-match-sep', name: 'September bank lines matched to invoices', digest: '3c9e5a7f1b2d4e6f8a0c2e4f6a8b0d2f4e6a8c0e2f4a6b8d0f2e4a6c8e0a2c4e', at: '2026-10-21T07:33:40.000Z', source: 'table', line: 'Matched the bank statement to the bills' }],
+      changed: [{ id: 'u-sales-mehta-sep', name: 'mehta-sales-register-september.xlsx', digest: '7a1c3e5f9b2d4f6a8c0e2a4c6e8f0b2d4a6c8e0f2b4d6a8c0e2f4b6d8a0c2e4f', at: '2026-10-21T07:32:00.000Z', source: 'order-file', line: 'A file added to the order' }],
+      changedLine: "Changed during this run, not proven to be the agent's.",
+    },
   },
   {
-    runId: '26', businessId: 'lumen', agent: 'Researcher', purpose: 'Estimated reach for episode 14', state: 'done', startedAt: '2026-10-21T07:10:00.000Z', elapsed: '2m',
+    runId: '26', businessId: 'lumen', agent: 'Researcher', purpose: 'Estimated reach for episode 14', state: 'done', startedAt: '2026-10-21T07:10:00.000Z', elapsed: '2m', poster: null,
     progress: { done: 2, total: 2 }, result: 'About 18,000 views in 30 days', estimate: true,
     steps: [
       { id: 's1', purpose: 'Read views for the last 30 videos', state: 'done', elapsed: '40s' },
@@ -269,7 +290,7 @@ export const RUNS: RunDetail[] = [
 export const AGENTS: Record<string, AgentView[]> = {
   lumen: [
     {
-      id: 'editor', name: 'Editor', role: 'Cuts episodes and shorts', now: 'Cutting shorts from episode 13', posture: 'approve-each', spend: '₹42.10 this month',
+      id: 'editor', department: 'production', name: 'Editor', role: 'Cuts episodes and shorts', now: 'Cutting shorts from episode 13', posture: 'approve-each', spend: '₹42.10 this month',
       last: { line: 'Episode 14 cut, 11 min 42 s' },
       steps: [
         { id: 'cut', purpose: 'Cut the episode', gate: 'auto', floor: false },
@@ -279,7 +300,7 @@ export const AGENTS: Record<string, AgentView[]> = {
       ],
     },
     {
-      id: 'researcher', name: 'Researcher', role: 'Titles, hooks and thumbnails', now: 'Checking titles against the last 30 videos', posture: 'shadow', spend: '₹18.00 reserved',
+      id: 'researcher', department: 'marketing', name: 'Researcher', role: 'Titles, hooks and thumbnails', now: 'Checking titles against the last 30 videos', posture: 'shadow', spend: '₹18.00 reserved',
       last: { line: 'About 18,000 views in 30 days', estimate: true },
       steps: [
         { id: 'titles', purpose: 'Suggest titles', gate: 'auto', floor: false },
@@ -287,7 +308,7 @@ export const AGENTS: Record<string, AgentView[]> = {
       ],
     },
     {
-      id: 'producer', name: 'Producer', role: 'Sponsors and prices', now: 'Waiting on you', posture: 'approve-each', spend: '₹0.00 this month',
+      id: 'producer', department: 'sales', name: 'Producer', role: 'Sponsors and prices', now: 'Waiting on you', posture: 'approve-each', spend: '₹0.00 this month',
       last: { line: 'Priced the sponsor slot', receiptId: 'R-0415' },
       steps: [
         { id: 'brief', purpose: 'Read sponsor briefs', gate: 'auto', floor: false },
@@ -296,13 +317,13 @@ export const AGENTS: Record<string, AgentView[]> = {
       ],
     },
     {
-      id: 'publisher', name: 'Publisher', role: 'Posts to your channels', now: 'Idle', posture: 'rehearsal', spend: '₹0.00 this month',
+      id: 'publisher', department: 'marketing', name: 'Publisher', role: 'Posts to your channels', now: 'Idle', posture: 'rehearsal', spend: '₹0.00 this month',
       steps: [{ id: 'post', purpose: 'Post to Instagram', gate: 'hold', floor: true }],
     },
   ],
   ledgerline: [
     {
-      id: 'bookkeeper', name: 'Bookkeeper', role: 'Monthly books and GST working', now: 'Idle', posture: 'approve-each', spend: '₹31.40 this month',
+      id: 'bookkeeper', department: 'money', name: 'Bookkeeper', role: 'Monthly books and GST working', now: 'Idle', posture: 'approve-each', spend: '₹31.40 this month',
       last: { line: 'Matched 212 of 214 lines', receiptId: 'R-0412' },
       steps: [
         { id: 'match', purpose: 'Match bank lines to invoices', gate: 'auto', floor: false },
@@ -311,7 +332,7 @@ export const AGENTS: Record<string, AgentView[]> = {
       ],
     },
     {
-      id: 'billing', name: 'Billing', role: 'Invoices and quotes', now: 'Idle', posture: 'approve-each', spend: '₹2.10 this month',
+      id: 'billing', department: 'money', name: 'Billing', role: 'Invoices and quotes', now: 'Idle', posture: 'approve-each', spend: '₹2.10 this month',
       steps: [
         { id: 'draft', purpose: 'Draft invoices', gate: 'auto', floor: false },
         { id: 'issue', purpose: 'Issue an invoice to a client', gate: 'hold', floor: true },
@@ -322,7 +343,7 @@ export const AGENTS: Record<string, AgentView[]> = {
 
 export const RECEIPTS: ReceiptLite[] = [
   { id: 'R-0430', at: '2026-10-21T10:30:00.000Z', explanation: 'The open balance of every issued invoice, added up.', stale: false, figures: [{ key: 'total', label: 'Clients owe you', display: 'Sum of open balances' }] },
-  { id: 'R-0431', at: '2026-10-21T10:31:00.000Z', explanation: 'AI and tool calls this month: settled calls at their cost, running calls at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI and tools this month', display: '₹60.10' }] },
+  { id: 'R-0431', at: '2026-10-21T10:31:00.000Z', explanation: 'AI and tool calls this month: settled calls at their cost, running calls at their estimate.', stale: false, figures: [{ key: 'total', label: 'AI and tools this month', display: 'USD 0.7198' }] },
   { id: 'R-0412', at: '2026-10-21T07:34:00.000Z', explanation: 'Bank lines matched to issued invoices by amount, date and reference.', stale: false, figures: [{ key: 'total', label: 'Lines matched', display: '212 of 214' }] },
   {
     id: 'R-0415', at: '2026-10-21T10:04:00.000Z', explanation: 'Two mentions at ₹15,000 each, no discount, priced before tax.', stale: false,
@@ -365,11 +386,18 @@ export const BOOKS: Record<string, BooksSummaryLite> = {
   },
 };
 
+/**
+ * Paid calls as money/spend.ts spendRow sends them: US dollars from micro-dollars (4Z3: engine-shaped, so the owner's
+ * rate and currency choice give them rupees and their leads in the fake too, from SPEND_MICROS).
+ */
 export const SPEND: SpendRow[] = [
-  { id: 'sp1', agent: 'Editor', label: 'Model calls for episode 14', reserved: '₹45.00', settled: '₹42.10', kind: 'billed', receiptId: 'R-0412' },
-  { id: 'sp2', agent: 'Researcher', label: 'Title comparison, running', reserved: '₹18.00', kind: 'estimate' },
+  { id: 'sp1', agent: 'Editor', label: 'Model calls for episode 14', reserved: 'USD 0.5389', settled: 'USD 0.5041', kind: 'billed', receiptId: 'R-0412' },
+  { id: 'sp2', agent: 'Researcher', label: 'Title comparison, running', reserved: 'USD 0.2156', kind: 'estimate' },
   { id: 'sp3', connector: 'Instagram', label: 'Paid boost for the short', reserved: 'No price', kind: 'refused', reason: 'Instagram has no price on your rate card, so the call was refused.' },
 ];
+
+/** Each sample call's reserved and settled micro-dollars (₹45.00, ₹42.10 and ₹18.00 at ₹83.50 per $1); a refused call has none. */
+export const SPEND_MICROS: Readonly<Record<string, { reserved: number; settled?: number }>> = { sp1: { reserved: 538_863, settled: 504_132 }, sp2: { reserved: 215_600 } };
 
 export const JOURNAL: JournalEntry[] = [
   { id: 'j1', action: 'Send invoice', target: 'Mehta Traders', state: 'described', at: '2026-10-21T09:20:00.000Z', line: 'Waiting for your approval' },
@@ -423,7 +451,7 @@ export const CLIENTS: Record<string, ClientLite[]> = {
 export const ORDERS: Record<string, OrderLite[]> = {
   lumen: [
     { id: 'o-boat-14', at: '2026-10-20T09:00:00.000Z', clientId: 'c-boat', offerId: 'offer_sponsor', quantity: '2', request: 'Two mentions in episode 14', status: 'open', priceReceiptId: 'R-0415', deliveredOn: null },
-    { id: 'o-boat-12', at: '2026-10-02T11:00:00.000Z', clientId: 'c-boat', offerId: 'offer_sponsor', quantity: '2', request: 'Two mentions in episode 12', status: 'invoiced', priceReceiptId: 'R-0416', deliveredOn: null },
+    { id: 'o-boat-12', at: '2026-10-02T11:00:00.000Z', clientId: 'c-boat', offerId: 'offer_sponsor', quantity: '2', request: 'Two mentions in episode 12', status: 'delivered', priceReceiptId: 'R-0416', deliveredOn: '2026-10-12' },
   ],
   ledgerline: [
     { id: 'o-iyer-oct', at: '2026-10-21T09:31:00.000Z', clientId: 'c-iyer', offerId: 'offer_books', quantity: '1', request: 'Monthly books from October', status: 'open', priceReceiptId: 'R-0420', deliveredOn: null },
@@ -454,6 +482,10 @@ export const DELIVERIES: Record<string, DeliveryLite[]> = {
         { check: 'length-bounds', passed: true, detail: 'The draft length is within bounds.' },
       ],
       servedBy: 'model', practiceNow: false, canAccept: true, acceptBlocked: null,
+      // 4J19: the draft's text, as DeliveryRunView carries it (Today's Edit opens it).
+      renderedText: 'This episode is brought to you by Boat Audio.\n\nWe tested five budget mics in one room, and the one that won costs less than you think.',
+      // 4J19 review: which engine wrote it, from the call that answered before Lumen's key was taken off.
+      writtenBy: 'Written by Claude Haiku 4.5',
     },
     { id: 'd-practice-1', at: '2026-10-15T09:10:00.000Z', orderId: 'o-boat-14', status: 'accepted', practice: true, deliverable: { title: 'Practice sponsor script' }, verdict: { choice: 'accepted', at: '2026-10-15T09:20:00.000Z' } },
     { id: 'd-ep12-script', at: '2026-10-03T10:00:00.000Z', orderId: 'o-boat-12', status: 'accepted', practice: false, deliverable: { title: 'Sponsor script for episode 12' }, verdict: { choice: 'accepted', at: '2026-10-03T12:00:00.000Z' } },
@@ -468,6 +500,8 @@ export const DELIVERIES: Record<string, DeliveryLite[]> = {
         { check: 'rules-judge', passed: true, detail: 'Every rule passed its own floor. Each yes cited something code found in the run.' },
       ],
       servedBy: 'model', practiceNow: false, canAccept: false, acceptBlocked: null,
+      // 4J19 review: which engine wrote it, as DeliveryRunView carries it (Ledgerline's main tier is its own Sonnet key).
+      writtenBy: 'Written by Claude Sonnet 5.5',
       judge: { status: 'done', preview: null, auto: true, estimatedMaxCostDisplay: 'USD 0.0031 (estimate, price unconfirmed)', line: "Your edit is your own words, so the judge does not read it. Any verdict here is on the agent's draft." },
     },
   ],

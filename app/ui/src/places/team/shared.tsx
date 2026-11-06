@@ -44,9 +44,12 @@ export function toneOf(run: RunSummary): ProgressTone {
   return run.state === 'waiting' ? 'waiting' : run.state === 'failed' ? 'failed' : 'working';
 }
 
-/** A run's time so far, or "paused" while it waits on the owner: its clock is not running then. */
-export function elapsedOf(t: T, run: RunSummary): string {
-  return run.state === 'waiting' ? t('run.paused') : run.elapsed;
+/**
+ * A run's time so far; nothing while it waits on the owner (4Z2): its clock is not running then, and "Waiting on you"
+ * already says so, where "paused" beside it read as a second state.
+ */
+export function elapsedOf(run: RunSummary): string | undefined {
+  return run.state === 'waiting' ? undefined : run.elapsed;
 }
 
 /** An agent's state in words: the run words from states.ts (Working, Waiting on you, Stopped), or Idle. */

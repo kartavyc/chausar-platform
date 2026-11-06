@@ -10,11 +10,11 @@ import { GoalCard } from '../../src/places/today/GoalCard';
 import { goalFromBooks, type GoalCardData } from '../../src/places/today/goal';
 import { NextStep } from '../../src/places/today/NextStep';
 import { greetingKey } from '../../src/places/today/Greeting';
-import { assertFiguresProved, assertInkRules, assertOnePrimary } from '../helpers/ink-rules';
+import { assertFiguresProved, assertInkRules, assertOnePrimary, receiptMark } from '../helpers/ink-rules';
 
 /*
  * Today in the direction D look (w3 package 3C, docs/superpowers/designs/ink-v2-direction-d/D-Today.dc.html): the
- * greeting, the goal card (the real invoiced figure, no bar until W4 4I), the team at work, needs you as cards with
+ * greeting, the goal card (from the goals view since W4 4I2; today-goal.test.tsx), the team at work, needs you as cards with
  * filter chips, Working now and Earlier. Only what the engine sends is drawn.
  */
 
@@ -45,6 +45,8 @@ const previewOf = (id: string) => waitFor(() => {
 /** A locked primary is Button's `locked`: aria-disabled, so it stays in the Tab order and says why. */
 const locked = (button: HTMLElement) => button.getAttribute('aria-disabled') === 'true' || (button as HTMLButtonElement).disabled;
 const ORDER = [...QUEUE].map((r) => ({ ...r, digest: '' }) as QueueRow).sort(queueOrder).map((r) => r.id);
+/** The rows' titles as the fold names them. */
+const titlesOf = (ids: readonly string[]) => ids.map((id) => QUEUE.find((r) => r.id === id)!.title).join(' · ');
 
 async function loaded() {
   await waitFor(() => expect(rowIds().length).toBeGreaterThan(0));
@@ -116,8 +118,8 @@ describe('Today v2: the greeting', () => {
     start();
     await loaded();
     const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
-    await waitFor(() => expect(header.textContent).toContain('12 need you, across 3 businesses. 2 agents are working.'));
-    expect(header.querySelector('b')?.textContent).toBe('12');
+    await waitFor(() => expect(header.textContent).toContain('13 need you, across 3 businesses. 2 agents are working.'));
+    expect(header.querySelector('b')?.textContent).toBe('13');
   });
 
   it('with nothing waiting, the line only says who is working', async () => {
@@ -129,19 +131,20 @@ describe('Today v2: the greeting', () => {
 });
 
 describe('Today v2: the goal card', () => {
-  it('until goals exist, says what was invoiced this month from the books, with its receipt, and draws no bar', async () => {
-    const { client } = start();
+  it('reads the goal from venture.goals.get (W4 4I2); with no goal set it still says what was invoiced this month with its receipt, and draws no bar', async () => {
+    // W3's rule holds with goals: the card draws no goal, bar or percent it does not have. Ledgerline has no goal yet.
+    const { client } = await opened('ledgerline');
     const spy = vi.spyOn(client, 'request');
-    const goal = await screen.findByRole('region', { name: 'Invoiced this month' });
-    await waitFor(() => expect(within(goal).getByRole('button', { name: 'Receipt R-0401' })).toBeTruthy());
-    expect(goal.querySelector('[data-ui-number]')?.textContent).toBe('₹1,12,400.00');
-    expect(goal.textContent).toContain('Before tax');
-    expect(goal.textContent).toContain('October');
-    expect(within(goal).getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
+    start({ client });
+    const goal = await screen.findByRole('region', { name: 'October goal' });
+    await waitFor(() => expect(goal.textContent).toContain('No goal for October yet.'));
+    expect(spy.mock.calls.some(([method]) => (method as string) === 'venture.goals.get')).toBe(true);
+    expect(goal.querySelector('[data-ui-number]')?.textContent).toBe('₹16,000.00');
+    expect(goal.textContent).toContain('Invoiced this month');
+    expect(within(goal).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     expect(within(goal).queryByRole('img')).toBeNull();
     expect(within(goal).queryByRole('button', { name: 'Change the goal' })).toBeNull();
     expect(goal.textContent).not.toContain('%');
-    expect(spy.mock.calls.some(([method]) => (method as string) === 'venture.goals.get')).toBe(false);
     assertFiguresProved(goal);
   });
 
@@ -151,7 +154,7 @@ describe('Today v2: the goal card', () => {
     bar: { invoicedPermille: 789, readyPermille: 126, pacePermille: 742, label: "79% of the goal invoiced. Issuing INV-0042 takes it to 92%. Today's pace is 74%." },
     ready: { value: '₹18,880', receiptId: 'R-0419' },
     foot: [
-      { id: 'pace', label: "Against today's pace", amount: { value: '₹7,110', receiptId: 'R-0422' }, trend: 'ahead' },
+      { id: 'pace', label: 'Ahead of pace', amount: { value: '₹7,110', receiptId: 'R-0422' }, trend: 'ahead' },
       { id: 'still', label: 'Still to invoice', amount: { value: '₹31,600', receiptId: 'R-0421' } },
       { id: 'received', label: 'Received so far', amount: { value: '₹86,200', receiptId: 'R-0402' } },
     ],
@@ -171,7 +174,7 @@ describe('Today v2: the goal card', () => {
     expect(goal.textContent).toContain("Today's pace");
     const foot = goal.querySelector('[data-goal-foot]')!;
     expect(foot.querySelectorAll('[data-receipt][data-tone="dark"]')).toHaveLength(3);
-    expect(foot.textContent).toContain('ahead');
+    expect(foot.textContent).toContain('Ahead of pace');
     fireEvent.click(within(goal).getByRole('button', { name: 'Change the goal' }));
     expect(edit).toHaveBeenCalledTimes(1);
     assertInkRules(container);
@@ -235,7 +238,7 @@ describe('Today v2: the goal card', () => {
   });
 });
 
-describe('Today v2: the next best step (built now, shown from W4 4I)', () => {
+describe('Today v2: the next best step part (shown from the engine in today-goal.test.tsx)', () => {
   it('names the row, its figure with a receipt, the goal after it, and one primary that asks once more', () => {
     const open = vi.fn();
     const go = vi.fn();
@@ -252,7 +255,7 @@ describe('Today v2: the next best step (built now, shown from W4 4I)', () => {
     const next = screen.getByRole('region', { name: 'Issue INV-0042 to Mehta Traders' });
     expect(next.textContent).toContain('Next best step');
     expect(next.textContent).toContain('Billing · Ledgerline');
-    expect(within(next).getByRole('button', { name: 'Receipt R-0419' })).toBeTruthy();
+    expect(within(next).getByRole('button', { name: receiptMark('R-0419') })).toBeTruthy();
     expect(next.textContent).toContain('Goal after');
     expect(next.textContent).toContain('92%');
     expect(next.textContent).toContain('Asks you once more before it goes out');
@@ -293,16 +296,16 @@ describe('Today v2: the team at work', () => {
   it('counts the agents by state from their runs and lists every agent as a story, needs you first', async () => {
     start();
     await screen.findByRole('region', { name: 'Team at work' });
-    await waitFor(() => expect(team().textContent).toContain('2 working · 1 needs you · 1 idle'));
+    // Keeper, the engine's own jobs as code, is on the team too (W4 4A1); departments are today-w4.test.tsx's.
+    await waitFor(() => expect(team().textContent).toContain('2 working · 1 needs you · 2 idle'));
     const stories = within(team()).getByRole('list', { name: 'Your agents' });
     await waitFor(() => expect(within(stories).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
-      .toEqual(['Producer, needs you', 'Editor, 3 of 5', 'Researcher, working', 'Publisher, idle']));
+      .toEqual(['Chausar, ask anything', 'Producer, needs you', 'Editor, 3 of 5', 'Researcher, working', 'Publisher, idle', 'Keeper, idle', null]));
     const producer = within(stories).getByRole('button', { name: 'Producer, needs you' });
     expect(producer.querySelector('[data-state]')?.getAttribute('data-state')).toBe('waiting');
-    for (const avatar of stories.querySelectorAll('[data-dept]')) expect(avatar.getAttribute('data-dept')).toBe('none');
-    expect(stories.querySelector('[data-badge]')).toBeNull();
-    expect(within(team()).queryByRole('button', { name: /Chausar/ })).toBeNull();
-    expect(within(team()).queryByRole('button', { name: /Add agent/ })).toBeNull();
+    // W4 4C2: Chausar leads the stories and opens Chats (chats.test.tsx).
+    expect(within(stories).getAllByRole('button')[0]!.getAttribute('aria-label')).toBe('Chausar, ask anything');
+    expect(within(stories).getByRole('button', { name: 'Add agent' })).toBeTruthy();
     expect(within(team()).getByRole('link', { name: 'See team' }).getAttribute('href')).toBe('#/team');
   });
 
@@ -343,23 +346,23 @@ describe('Today v2: needs you', () => {
     start();
     await loaded();
     const head = within(needsYou()).getByRole('heading', { level: 2, name: 'Needs you' });
-    expect(head.parentElement!.textContent).toContain('12');
+    expect(head.parentElement!.textContent).toContain('13');
     const show = within(needsYou()).getByRole('group', { name: 'Show' });
-    for (const name of ['All 12', 'To approve 7', 'Questions 3', 'Setup 2', 'Lumen Studio 7', 'Ledgerline 4', 'Sitara Events, locked 1']) {
+    for (const name of ['All 13', 'To approve 7', 'Questions 4', 'Setup 2', 'Lumen Studio 7', 'Ledgerline 5', 'Sitara Events, locked 1']) {
       expect(within(show).getByRole('button', { name }), name).toBeTruthy();
     }
     expect(within(show).getAllByRole('button')).toHaveLength(7);
-    expect(within(show).getByRole('button', { name: 'All 12' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(show).getByRole('button', { name: 'All 13' }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('Questions shows only the questions and puts show=questions in the address', async () => {
     start();
     await loaded();
-    await click(within(needsYou()).getByRole('button', { name: 'Questions 3' }));
+    await click(within(needsYou()).getByRole('button', { name: 'Questions 4' }));
     expect(window.location.hash).toBe('#/today?show=questions');
-    await waitFor(() => expect(rowIds()).toEqual(['q-question-title', 'q-question-preview', 'q-run-again-thumbs']));
-    expect(within(needsYou()).getByRole('button', { name: 'Questions 3' }).getAttribute('aria-pressed')).toBe('true');
-    await click(within(needsYou()).getByRole('button', { name: 'All 12' }));
+    await waitFor(() => expect(rowIds()).toEqual(['q-question-title', 'q-question-preview', 'q-run-again-thumbs', 'contract:o-iyer-oct:contract-iyer-1']));
+    expect(within(needsYou()).getByRole('button', { name: 'Questions 4' }).getAttribute('aria-pressed')).toBe('true');
+    await click(within(needsYou()).getByRole('button', { name: 'All 13' }));
     expect(window.location.hash).toBe('#/today');
   });
 
@@ -373,9 +376,9 @@ describe('Today v2: needs you', () => {
   it('a business chip shows only that business', async () => {
     start();
     await loaded();
-    await click(within(needsYou()).getByRole('button', { name: 'Ledgerline 4' }));
+    await click(within(needsYou()).getByRole('button', { name: 'Ledgerline 5' }));
     expect(window.location.hash).toBe('#/today?show=business%3Aledgerline');
-    await waitFor(() => expect(rowIds()).toEqual(['q-plan', 'q-signoff-gst', 'q-invoice-mehta', 'q-quote-iyer']));
+    await waitFor(() => expect(rowIds()).toEqual(['q-plan', 'q-signoff-gst', 'q-invoice-mehta', 'q-quote-iyer', 'contract:o-iyer-oct:contract-iyer-1']));
   });
 
   it('draws no business chips when every row is from one business', async () => {
@@ -385,18 +388,19 @@ describe('Today v2: needs you', () => {
     expect(within(show).queryByRole('button', { name: /Lumen Studio/ })).toBeNull();
   });
 
-  it('six big cards, then four small ones, then the rest behind "Show 2 more", which reveals them and moves focus', async () => {
+  it('five full cards in the engine order, then the rest behind "Show 8 more", which reveals them and moves focus', async () => {
     start();
     await loaded();
     const cards = [...needsYou().querySelectorAll('[data-row]')];
-    expect(cards.map((c) => c.getAttribute('data-row-id'))).toEqual(ORDER.slice(0, 10));
-    expect(cards.map((c) => c.getAttribute('data-layout'))).toEqual([...Array(6).fill('card'), ...Array(4).fill('compact')]);
-    const more = within(needsYou()).getByRole('button', { name: 'Show 2 more' });
-    expect(more.closest('[data-more]')!.textContent).toContain('Thumbnail set stopped');
+    expect(cards.map((c) => c.getAttribute('data-row-id'))).toEqual(ORDER.slice(0, 5));
+    expect(cards.map((c) => c.getAttribute('data-layout'))).toEqual(Array(5).fill('card'));
+    const more = within(needsYou()).getByRole('button', { name: 'Show 8 more' });
+    expect(more.closest('[data-more]')!.textContent).toContain('8 more need you');
+    expect(more.closest('[data-more]')!.querySelector('[data-more-line]')!.textContent).toBe(`${titlesOf(ORDER.slice(5, 8))} and 5 more`);
     await click(more);
     expect(rowIds()).toEqual(ORDER);
-    expect(document.activeElement?.getAttribute('data-row-id')).toBe(ORDER[10]);
-    expect(within(needsYou()).queryByRole('button', { name: 'Show 2 more' })).toBeNull();
+    expect(document.activeElement?.getAttribute('data-row-id')).toBe(ORDER[5]);
+    expect(within(needsYou()).queryByRole('button', { name: 'Show 8 more' })).toBeNull();
     assertOnePrimary(needsYou());
     assertFiguresProved(needsYou());
     assertInkRules(document.body);
@@ -407,17 +411,20 @@ describe('Today v2: needs you', () => {
     const client = createFakeClient(engine);
     start({ client });
     await loaded();
-    expect(within(needsYou()).getByRole('button', { name: 'Show 2 more' })).toBeTruthy();
+    expect(within(needsYou()).getByRole('button', { name: 'Show 8 more' })).toBeTruthy();
+    expect(ORDER.slice(5)).toContain('q-run-again-thumbs');
     await resolveElsewhere(client, 'q-run-again-thumbs', 'later');
-    const more = await within(needsYou()).findByRole('button', { name: 'Show 1 more' });
+    const more = await within(needsYou()).findByRole('button', { name: 'Show 7 more' });
     const fold = more.closest<HTMLElement>('[data-more]')!;
-    expect(fold.textContent).toContain('1 more needs you');
-    expect(fold.textContent).not.toContain('Thumbnail set stopped');
-    expect(fold.textContent).toContain('Sitara Events is locked');
+    expect(fold.textContent).toContain('7 more need you');
+    expect(fold.textContent).not.toContain('Thumbnail set failed');
+    const left = ORDER.slice(5).filter((id) => id !== 'q-run-again-thumbs');
+    expect(fold.querySelector('[data-more-line]')!.textContent).toBe(`${titlesOf(left.slice(0, 3))} and 4 more`);
   });
 
   it('draws no fold once nothing behind it waits', async () => {
-    const client = createFakeClient(new FakeEngine({ queue: QUEUE.filter((r) => r.kind !== 'locked') }));
+    const keep = new Set([...ORDER.slice(0, 5), 'q-run-again-thumbs']);
+    const client = createFakeClient(new FakeEngine({ queue: QUEUE.filter((r) => keep.has(r.id)) }));
     start({ client });
     await loaded();
     expect(within(needsYou()).getByRole('button', { name: 'Show 1 more' })).toBeTruthy();
@@ -430,22 +437,25 @@ describe('Today v2: needs you', () => {
     start({ engine: new FakeEngine({ queue: [...QUEUE, ...SETUP_ROWS] }) });
     await loaded();
     const order = [...QUEUE, ...SETUP_ROWS].map((r) => ({ ...r, digest: '' }) as QueueRow).sort(queueOrder);
-    const folded = order.slice(10);
-    expect(folded).toHaveLength(4);
-    const fold = within(needsYou()).getByRole('button', { name: 'Show 4 more' }).closest<HTMLElement>('[data-more]')!;
-    expect(fold.querySelector('[data-more-line]')!.textContent).toBe(`${folded.slice(0, 3).map((r) => r.title).join(' · ')} and 1 more`);
+    const folded = order.slice(5);
+    expect(folded).toHaveLength(10);
+    const fold = within(needsYou()).getByRole('button', { name: 'Show 10 more' }).closest<HTMLElement>('[data-more]')!;
+    expect(fold.querySelector('[data-more-line]')!.textContent).toBe(`${folded.slice(0, 3).map((r) => r.title).join(' · ')} and 7 more`);
   });
 
   it('a card stays the same card across a filter change: a typed answer and a decision on its way survive', async () => {
     const { client, calls, release } = wrapped(new FakeEngine(), { hold: true });
     start({ client });
     await loaded();
+    // Past the first five, the question waits behind the fold; shown, it is a compact card.
+    expect(needsYou().querySelector('[data-row-id="q-question-title"]')).toBeNull();
+    await click(within(needsYou()).getByRole('button', { name: 'Show 8 more' }));
     const card = cardOf('q-question-title');
     expect(card.getAttribute('data-layout')).toBe('compact');
     await click(within(card).getByRole('button', { name: 'Answer' }));
     fireEvent.change(within(card).getByRole('textbox', { name: 'Your answer' }), { target: { value: 'Option B' } });
-    await click(within(needsYou()).getByRole('button', { name: 'Questions 3' }));
-    await waitFor(() => expect(rowIds()).toEqual(['q-question-title', 'q-question-preview', 'q-run-again-thumbs']));
+    await click(within(needsYou()).getByRole('button', { name: 'Questions 4' }));
+    await waitFor(() => expect(rowIds()).toEqual(['q-question-title', 'q-question-preview', 'q-run-again-thumbs', 'contract:o-iyer-oct:contract-iyer-1']));
     expect(cardOf('q-question-title')).toBe(card);
     expect(card.getAttribute('data-layout')).toBe('card');
     expect((within(card).getByRole('textbox', { name: 'Your answer' }) as HTMLInputElement).value).toBe('Option B');
@@ -453,8 +463,8 @@ describe('Today v2: needs you', () => {
     await click(within(card).getByRole('button', { name: 'Send answer' }));
     const decides = () => calls.filter(([method]) => method === 'venture.queue.decide');
     expect(decides()).toHaveLength(1);
-    await click(within(needsYou()).getByRole('button', { name: 'All 12' }));
-    await waitFor(() => expect(rowIds()).toEqual(ORDER.slice(0, 10)));
+    await click(within(needsYou()).getByRole('button', { name: 'All 13' }));
+    await waitFor(() => expect(rowIds()).toEqual(ORDER));
     expect(cardOf('q-question-title')).toBe(card);
     const answer = within(card).getByRole('button', { name: 'Answer' }) as HTMLButtonElement;
     expect(answer.disabled).toBe(true);
@@ -485,23 +495,24 @@ describe('Today v2: previews on the cards', () => {
   it('a draft to watch shows the video frame, "Not watched yet" until it was watched here', async () => {
     start();
     await loaded();
-    const draft = cardOf('q-draft-ep14');
+    const draft = cardOf('run:d-ep14:review-1');
     const frame = draft.querySelector('[data-preview="video"]')!;
     expect(frame.textContent).toContain('Not watched yet');
     expect(locked(within(draft).getByRole('button', { name: 'Approve' }))).toBe(true);
     expect(draft.textContent).toContain('Approve unlocks after you watch it');
-    await click(within(draft).getByRole('button', { name: 'Watch Episode 14' }));
+    // W4 4J19: the frame takes the title the engine's own preview gives it (4J3).
+    await click(within(draft).getByRole('button', { name: 'Watch The budget mic that beat the room' }));
     expect(window.location.hash).toBe('#/today?sheet=view%3Adraft%3Adraft-ep14');
     await screen.findByRole('complementary', { name: 'Episode 14' });
-    await waitFor(() => expect(locked(within(cardOf('q-draft-ep14')).getByRole('button', { name: 'Approve' }))).toBe(false));
-    expect(cardOf('q-draft-ep14').querySelector('[data-preview="video"]')!.textContent).not.toContain('Not watched yet');
+    await waitFor(() => expect(locked(within(cardOf('run:d-ep14:review-1')).getByRole('button', { name: 'Approve' }))).toBe(false));
+    expect(cardOf('run:d-ep14:review-1').querySelector('[data-preview="video"]')!.textContent).not.toContain('Not watched yet');
   });
 
   it('drawing a preview does not count as viewed', async () => {
     start();
     await loaded();
     await settle();
-    expect(locked(within(cardOf('q-draft-ep14')).getByRole('button', { name: 'Approve' }))).toBe(true);
+    expect(locked(within(cardOf('run:d-ep14:review-1')).getByRole('button', { name: 'Approve' }))).toBe(true);
     expect(locked(within(cardOf('q-signoff-gst')).getByRole('button', { name: 'Send to CA' }))).toBe(true);
     expect(locked(within(cardOf('q-plan')).getByRole('button', { name: 'Accept' }))).toBe(true);
   });
@@ -510,29 +521,38 @@ describe('Today v2: previews on the cards', () => {
     start();
     await loaded();
     await waitFor(() => expect(cardOf('q-plan').querySelector('[data-preview="text"]')?.textContent).toContain('Monthly books'));
-    await waitFor(() => expect(cardOf('q-signoff-gst').querySelector('[data-preview="text"]')?.textContent).toContain('Mehta Traders, worked by the calculator'));
+    // W4 4J19: sign-off papers come with the engine's own preview (4J3): the working paper and its calculator receipt.
+    const paper = cardOf('q-signoff-gst').querySelector('[data-preview="paper"]')!;
+    expect(paper.textContent).toContain('GST working for September');
+    expect(paper.querySelector('[data-receipt="w-gst-sep"][data-receipt-source="ca"]')).not.toBeNull();
     const price = cardOf('q-price-sponsor');
     expect(price.querySelector('del')?.textContent).toBe('₹25,000');
-    expect(within(price).getByRole('button', { name: 'Receipt R-0415' })).toBeTruthy();
+    expect(within(price).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     expect(price.querySelector('[data-preview]')).toBeNull();
     expect(cardOf('q-setup-ai').querySelector('[data-preview]')).toBeNull();
     assertFiguresProved(needsYou());
   });
 
   it("a draft is quoted words; a plan's and a file's text is Chausar's own, on the card and in the sheet", async () => {
-    // Lumen Studio's own rows, so the LinkedIn draft (the sixth) is a big card with its text.
-    start({ hash: '#/today?show=business%3Alumen' });
+    // The post, the plan and the sign-off on their own, so each is one of the five full cards (4Z3) with its text.
+    const keep = new Set(['post:linkedin-ep13:v1', 'q-plan', 'q-signoff-gst']);
+    start({ engine: new FakeEngine({ queue: QUEUE.filter((r) => keep.has(r.id)) }) });
     await loaded();
-    const post = await previewOf('q-connector-linkedin');
-    expect(post.closest('[data-content]')).toBeTruthy();
+    // W4 4J19: the post comes with the engine's own preview (4J3): its exact text is quoted words.
+    const post = await waitFor(() => {
+      const found = cardOf('post:linkedin-ep13:v1').querySelector<HTMLElement>('[data-preview="post"] [data-content]');
+      if (!found) throw new Error('no post preview');
+      return found;
+    });
+    expect(post.textContent).toContain('We tested five budget mics');
     expect(post.closest('[data-engine-line]')).toBeNull();
-    await click(within(needsYou()).getByRole('button', { name: 'All 12' }));
     const plan = await previewOf('q-plan');
-    const file = await previewOf('q-signoff-gst');
-    for (const preview of [plan, file]) {
-      expect(preview.closest('[data-engine-line]')).toBeTruthy();
-      expect(preview.closest('[data-content]')).toBeNull();
-    }
+    expect(plan.closest('[data-engine-line]')).toBeTruthy();
+    expect(plan.closest('[data-content]')).toBeNull();
+    // The sign-off papers' figures carry the calculator's receipt, so they need no engine-line stopgap.
+    const file = cardOf('q-signoff-gst').querySelector<HTMLElement>('[data-preview="paper"]')!;
+    expect(file.closest('[data-engine-line]')).toBeNull();
+    expect(file.closest('[data-content]')).toBeNull();
     await click(within(cardOf('q-plan')).getByRole('button', { name: 'Read' }));
     const sheet = await screen.findByRole('complementary', { name: 'Ledgerline plan' });
     await waitFor(() => expect(sheet.querySelector('[data-engine-line]')).toBeTruthy());
@@ -571,11 +591,12 @@ describe('Today v2: previews on the cards', () => {
   });
 
   it('a file of a business not registered for tax shows its title and line, and no tax figures', async () => {
-    // Lumen Studio is open, and its plan says it does not charge GST.
-    start();
+    // Lumen Studio is open, and its plan says it does not charge GST. W4 4J19: a sign-off row the engine sent no preview
+    // for (here, the sample's under another id) still follows this rule.
+    start({ engine: new FakeEngine({ queue: QUEUE.map((row) => (row.id === 'q-signoff-gst' ? { ...row, id: 'q-signoff-plain' } : row)) }) });
     await loaded();
     const preview = await waitFor(() => {
-      const found = cardOf('q-signoff-gst').querySelector<HTMLElement>('[data-preview="text"]')!;
+      const found = cardOf('q-signoff-plain').querySelector<HTMLElement>('[data-preview="text"]')!;
       expect(found.textContent).toContain('Mehta Traders, worked by the calculator');
       return found;
     });
@@ -584,12 +605,14 @@ describe('Today v2: previews on the cards', () => {
   });
 
   it('a file of a business registered for tax keeps its first three lines, and no more', async () => {
-    // Ledgerline is open: its plan says it charges GST.
-    const { client } = await opened('ledgerline');
+    // Ledgerline is open: its plan says it charges GST. W4 4J19: a sign-off row with no preview of the engine's own.
+    const client = createFakeClient(new FakeEngine({ queue: QUEUE.map((row) => (row.id === 'q-signoff-gst' ? { ...row, id: 'q-signoff-plain' } : row)) }));
+    await client.request('workspace.lock', {});
+    await client.request('workspace.open', { folder: 'ledgerline' });
     start({ client });
     await loaded();
     const preview = await waitFor(() => {
-      const found = cardOf('q-signoff-gst').querySelector<HTMLElement>('[data-preview="text"]')!;
+      const found = cardOf('q-signoff-plain').querySelector<HTMLElement>('[data-preview="text"]')!;
       expect(found.textContent).toContain('GST on sales');
       return found;
     });
@@ -603,11 +626,11 @@ describe('Today v2: previews on the cards', () => {
   it('the draft card: Watch opens it, and once the sheet is closed Approve is unlocked', async () => {
     start();
     await loaded();
-    await click(within(cardOf('q-draft-ep14')).getByRole('button', { name: 'Watch' }));
+    await click(within(cardOf('run:d-ep14:review-1')).getByRole('button', { name: 'Watch' }));
     const sheet = await screen.findByRole('complementary', { name: 'Episode 14' });
     await click(within(sheet).getByRole('button', { name: /^Close/ }));
     await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
-    expect(locked(within(cardOf('q-draft-ep14')).getByRole('button', { name: 'Approve' }))).toBe(false);
+    expect(locked(within(cardOf('run:d-ep14:review-1')).getByRole('button', { name: 'Approve' }))).toBe(false);
   });
 
   it('the price card asks once more inside the card, decides once with its digest, and shrinks to its receipt line', async () => {
@@ -625,8 +648,8 @@ describe('Today v2: previews on the cards', () => {
     expect(decides[0]![1]).toMatchObject({ id: 'q-price-sponsor', action: 'approve' });
     expect((decides[0]![1] as { digest: string }).digest).toBeTruthy();
     const status = within(cardOf('q-price-sponsor')).getByRole('status');
-    expect(status.textContent).toBe('Sponsor slot price · Approved · R-0421');
-    expect(within(status).getByRole('button', { name: 'Receipt R-0421' })).toBeTruthy();
+    expect(status.textContent!.trim()).toBe('Sponsor slot price · Approved');
+    expect(within(status).getByRole('button', { name: receiptMark('R-0421') })).toBeTruthy();
   });
 });
 
@@ -648,7 +671,8 @@ describe('Today v2: working now and earlier', () => {
     const waiting = rowOf('run-29');
     expect(waiting.textContent).toContain('Waiting on you');
     expect(waiting.textContent).not.toContain('6m');
-    await waitFor(() => expect(rowOf('run-28').textContent).toContain('ffmpeg was not found on this computer.'));
+    // 4Z2: a known failure in plain words; the tool's own line is on the run's sheet.
+    await waitFor(() => expect(rowOf('run-28').textContent).toContain("The video tool isn't installed on this computer yet."));
     const stopped = rowOf('run-28');
     // An engine-failed run is "Failed"; "Stopped" is kept for the owner's own Stop (W4 4F).
     expect(stopped.textContent).toContain('Failed');
@@ -668,8 +692,8 @@ describe('Today v2: working now and earlier', () => {
     const earlier = await screen.findByRole('region', { name: 'Earlier' });
     await waitFor(() => expect(within(earlier).getAllByRole('listitem')).toHaveLength(5));
     expect(earlier.textContent).toContain('Recorded ₹86,200.00');
-    expect(within(earlier).getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
-    expect(within(earlier).getByRole('button', { name: 'Receipt R-0420' })).toBeTruthy();
+    expect(within(earlier).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
+    expect(within(earlier).getByRole('button', { name: receiptMark('R-0420') })).toBeTruthy();
     const check = within(earlier).getByRole('link', { name: 'Check it' });
     expect(check.getAttribute('href')).toBe('#/money/journal');
     expect(check.closest('li')!.textContent).toContain('The send timed out.');
@@ -695,7 +719,7 @@ describe('Today v2: working now and earlier', () => {
     const { client, calls } = wrapped(new FakeEngine());
     start({ client });
     await waitFor(() => expect(rowOf('run-31')?.textContent).toContain('Rendering 3 of 6'));
-    await waitFor(() => expect(rowOf('run-28')?.textContent).toContain('ffmpeg was not found on this computer.'));
+    await waitFor(() => expect(rowOf('run-28')?.textContent).toContain("The video tool isn't installed on this computer yet."));
     await waitFor(() => expect(within(screen.getByRole('region', { name: 'Team at work' })).getAllByRole('article')[0]!.textContent).toContain('Rendering 3 of 6'));
     await settle();
     const asked = calls.filter(([method]) => method === 'venture.runs.get').map(([, params]) => (params as { runId: string }).runId);
@@ -706,7 +730,7 @@ describe('Today v2: working now and earlier', () => {
     start();
     await loaded();
     await waitFor(() => expect(within(screen.getByRole('region', { name: 'Earlier' })).getAllByRole('listitem')).toHaveLength(5));
-    await waitFor(() => expect(screen.getByRole('region', { name: 'Invoiced this month' }).querySelector('[data-ui-number]')).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('region', { name: 'October goal' }).querySelector('[data-ui-number]')).toBeTruthy());
     await settle();
     assertInkRules(document.body);
   });

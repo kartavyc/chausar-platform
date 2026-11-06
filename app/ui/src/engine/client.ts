@@ -7,12 +7,27 @@
  * at once. A transport failure sets the status line; an engine refusal stays with the request that caused it.
  */
 
-import { createEventFeed } from './events';
-import { EngineError, type EngineClient, type EngineStatus, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
+import { createEventFeed, pageVisibility, type PageVisibility } from './events';
+import { EngineError, type EngineClient, type EngineStatus, type HostedMeLite, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
 
 export interface ChausarBridge {
   request(method: string, payload?: unknown): Promise<unknown>;
   openExternal?(url: string): Promise<void>;
+  /**
+   * Desktop only (4D1): the owner picks one of their own network files and a desktop worker reads it on this computer;
+   * text (what Chausar keeps) goes to venture.network.import { kind, name, text }. ownerAddresses: needed for mail.
+   * ownerProfile: the owner's LinkedIn address, when a messages export cannot tell who they are. Null when cancelled.
+   */
+  pickNetworkFile?(kind: string, options?: { ownerAddresses?: string[]; ownerProfile?: string; timeZone?: string }): Promise<{
+    kind: string; name: string; text: string; rows: number; people: number; dropped: [string, number][]; line: string;
+  } | null>;
+  /**
+   * Desktop only (4J4): asks the engine for one month's CSV for the owner's CA (venture.money.export) and saves it where
+   * the owner picks; the system save dialog asks before it replaces a file. EXPORT_EXISTS when a file appeared under the
+   * picked name meanwhile; EXPORT_NOT_SAVED with plain words when the disk refused. Null when cancelled. On the web the
+   * page downloads the engine's csv itself.
+   */
+  saveMoneyExport?(month: string): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
   onEngineStatus?(callback: (status: { healthy: boolean; state: string }) => void): () => void;
   onEvent?(callback: (value: unknown) => void): () => void;
 }
@@ -23,6 +38,8 @@ export interface ClientEnv {
   location?: { hash: string; pathname: string; search: string } | undefined;
   replaceUrl?: ((url: string) => void) | undefined;
   hosted?: boolean | undefined;
+  /** The page's visibility (4G4): a hidden web page closes its event stream, so the owner stops counting as watching. */
+  visibility?: PageVisibility | undefined;
 }
 
 const LOCAL_TOKEN = /^(?:[a-fA-F0-9]{64}|[A-Za-z0-9_-]{43})$/;
@@ -52,6 +69,21 @@ function capturePairingToken(env: ClientEnv): string | null {
   env.replaceUrl?.(`${location.pathname}${location.search}#/today`);
   const token = found.length === 1 ? found[0]! : '';
   return LOCAL_TOKEN.test(token) ? token : null;
+}
+
+/**
+ * W4 4J21: the hosted session view's `me`, only what the Ink app reads: the server's trials switch and the temporary
+ * business's view (4J23, hosted/trial.ts trialView). Anything not in that shape is null: nothing is guessed.
+ */
+export function hostedMeOf(value: unknown): HostedMeLite | null {
+  if (!value || typeof value !== 'object') return null;
+  const me = value as { trials?: unknown; trial?: unknown };
+  if (typeof me.trials !== 'boolean') return null;
+  const trial = me.trial as Record<string, unknown> | null | undefined;
+  if (trial === null || trial === undefined) return { trials: me.trials, trial: null };
+  const ok = typeof trial === 'object' && trial.temporary === true && typeof trial.line === 'string' && typeof trial.expiresAt === 'string'
+    && typeof trial.endsSoon === 'boolean' && (trial.warning === null || typeof trial.warning === 'string');
+  return ok ? { trials: me.trials, trial: { temporary: true, line: trial.line as string, expiresAt: trial.expiresAt as string, endsSoon: trial.endsSoon as boolean, warning: trial.warning as string | null } } : { trials: me.trials, trial: null };
 }
 
 function asEngineError(error: unknown): EngineError {
@@ -87,6 +119,19 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
       return hostedToken;
     } catch {
       status.set({ state: 'offline' });
+      return null;
+    }
+  }
+
+  /** GET /api/hosted/session again for its `me`; the bearer it carries is kept too, as bearer() keeps it. */
+  async function hostedSessionMe(): Promise<HostedMeLite | null> {
+    try {
+      const response = await env.fetch!('/api/hosted/session', { credentials: 'same-origin', cache: 'no-store' });
+      if (!response.ok) return null;
+      const body = (await response.json()) as { token?: unknown; me?: unknown };
+      if (typeof body.token === 'string' && HOSTED_TOKEN.test(body.token)) hostedToken = body.token;
+      return hostedMeOf(body.me);
+    } catch {
       return null;
     }
   }
@@ -150,11 +195,18 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     subscribe(listener: (event: VentureRunEvent) => void) { return feed.subscribe(listener); },
     status: () => status.get(),
     onStatus: (listener) => status.subscribe(listener),
+    // 4D4: the desktop's file pick for the network import, with its refusals as engine errors.
+    ...(bridge?.pickNetworkFile ? { pickNetworkFile: (kind, options) => bridge.pickNetworkFile!(kind, options).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    // 4J21: the hosted server's `me` (trials switch, temporary business), read again with the session each time.
+    ...(transport === 'hosted' ? { hostedMe: hostedSessionMe } : {}),
+    // 4J20: Export for your CA saved by the desktop, with its refusals as engine errors.
+    ...(bridge?.saveMoneyExport ? { saveMoneyExport: (month: string) => bridge.saveMoneyExport!(month).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
   };
   const feed = createEventFeed({
     onEvent: bridge?.onEvent ? (callback) => bridge.onEvent!(callback) : undefined,
     request: (method, params) => client.request(method, params),
     sse: bridge ? undefined : { fetch: env.fetch!, bearer },
+    visibility: bridge ? undefined : env.visibility,
   });
   return client;
 }
@@ -168,5 +220,6 @@ export function browserEnv(): ClientEnv {
     location: window.location,
     replaceUrl: (url) => window.history.replaceState(null, '', url),
     hosted,
+    visibility: pageVisibility(document),
   };
 }

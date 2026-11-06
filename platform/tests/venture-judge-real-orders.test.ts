@@ -708,7 +708,7 @@ test('the journal: a standing approval is only for the judge\'s own send, and ap
   const env = await business(PLAIN_IDEA);
   const { approveAction, approveIn, proposeAction } = await import('../runtime/venture/journal/journal.ts');
   const agent = { ...owner, channel: 'mcp' as const };
-  const write = await proposeAction(env.deps, agent, { action: 'connector.write', subject: 'mail_1', target: 'Mail app', actionDigest: 'e'.repeat(64), line: 'Send the reminder email.' });
+  const write = await proposeAction(env.deps, agent, { action: 'connector.write', subject: 'mail_1', target: 'Mail app', actionDigest: 'e'.repeat(64), line: 'Send the reminder email.', operation: 'send-deliverable' });
   await assert.rejects(ventureAction(env.deps, owner, 'approve', 'test.standing', tx => approveIn(tx, owner, env.deps.store, { entryId: write.id, digest: write.actionDigest, standing: true })), code('INVALID_VENTURE_REQUEST'));
   const { entry } = await approveAction(env.deps, owner, { entryId: write.id, digest: write.actionDigest, standing: true } as any);
   assert.equal(entry.approval!.approvedBy, 'owner', 'approveAction drops standing: a person approved it');

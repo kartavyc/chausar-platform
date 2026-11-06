@@ -1,0 +1,122 @@
+/* W4 4J19: D-Work's `.osteps`: a stepper of round marks joined by a line, the label under each. Done is a tick on the
+   accent's soft ground; waiting on you is the wait ring with a clock; always asks is a lock on grey; not yet is a
+   dashed circle. The words under each mark (and the screen-reader words) always say the state too. */
+
+.steps {
+  display: flex;
+  margin-top: var(--sp-4);
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.line {
+  position: absolute;
+  top: 11px;
+  right: calc(50% + 14px);
+  width: calc(100% - 28px);
+  height: 2px;
+  border-radius: var(--r-chip);
+  background: var(--line);
+}
+
+.line[data-reached] {
+  background: var(--accent);
+}
+
+.dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r-chip);
+  color: var(--mute);
+}
+
+.step[data-state='done'] .dot {
+  border: 0;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.step[data-state='waits'] .dot {
+  border: 1.5px solid var(--wait-ring);
+  background: var(--wait-soft);
+  color: var(--wait);
+}
+
+.step[data-state='always-asks'] .dot {
+  border: 0;
+  background: var(--hover);
+  color: var(--fg2);
+}
+
+.step[data-state='unknown'] .dot {
+  border-style: solid;
+  color: var(--fg2);
+}
+
+.label {
+  margin-top: var(--sp-1);
+  max-width: 100%;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: 16px;
+  color: var(--fg2);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.step[data-state='waits'] .label {
+  font-weight: var(--weight-strong);
+  color: var(--wait-strong);
+}
+
+.step[data-state='not-yet'] .label {
+  color: var(--mute);
+}
+
+.waits {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg);
+}
+
+.waits svg {
+  flex: none;
+  color: var(--wait-strong);
+}
+
+/* 4Z2: on a narrow page six steps in one row ran their labels together ("Episode Publish"): they fall into rows of
+   three, each label with its own room. The line joins the steps within a row only. */
+@container (max-width: 560px) {
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: var(--sp-3);
+  }
+
+  .step:nth-child(3n + 1) .line {
+    display: none;
+  }
+
+  .label {
+    padding-inline: var(--sp-1);
+    overflow-wrap: normal;
+  }
+}

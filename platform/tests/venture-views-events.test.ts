@@ -22,9 +22,12 @@ import { owner, seedBlueprint, seedOrder, setup } from './venture-views-env.ts';
 
 const names = (env: { store: { read(): any } }) => listRecords(env.store.read(), 'venture-event').sort((a, b) => a.seq - b.seq).map(event => event.name);
 
-test('the six run events join VENTURE_EVENTS, after every older event', () => {
-  assert.deepEqual([...VENTURE_RUN_EVENT_TYPES], ['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed']);
-  assert.deepEqual(VENTURE_EVENTS.slice(-6), [...VENTURE_RUN_EVENT_TYPES]);
+test('the run events join VENTURE_EVENTS, after every older event: the six of P1-A, then the eight of Ink v2 wave 4', () => {
+  assert.deepEqual([...VENTURE_RUN_EVENT_TYPES], [
+    'run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
+    'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+  ]);
+  assert.deepEqual(VENTURE_EVENTS.slice(-14), [...VENTURE_RUN_EVENT_TYPES]);
 });
 
 test('a delivery run emits run.started and run.waiting, a review run.done, each followed by one queue.changed, published after the commit', async () => {
@@ -79,9 +82,12 @@ test('the venture host turns committed run events into VentureRunEvents for its 
     notify: events => { heard.push(events); },
   }, loaders as typeof PACKAGE_LOADERS);
   await host.request(owner, 'venture.runs.list', {});
+  // Each frame carries its seq (Ink v2 wave 4, 4G1); the queue changed, so the notification centre looked and said so.
   assert.deepEqual(heard, [[
-    { type: 'run.done', businessId: 'main', runId: 'delivery_1', at: env.now() },
-    { type: 'queue.changed', businessId: 'main', at: env.now() },
+    { type: 'run.done', businessId: 'main', runId: 'delivery_1', at: env.now(), seq: 2 },
+    { type: 'queue.changed', businessId: 'main', at: env.now(), seq: 3 },
+  ], [
+    { type: 'notify.new', businessId: 'main', at: env.now(), seq: 4, count: 1 },
   ]]);
   host.close();
 });
@@ -89,8 +95,8 @@ test('the venture host turns committed run events into VentureRunEvents for its 
 test('views/events: an actor event becomes a VentureRunEvent and one SSE frame; other events are dropped', () => {
   assert.equal(runEventFromActor({ seq: 4, name: 'invoice-issued', data: {}, at: '2026-10-15T10:00:00.000Z' }, 'b1'), null);
   const event = runEventFromActor({ seq: 5, name: 'run.waiting', data: { runId: 'delivery_1', secret: 'x' }, at: '2026-10-15T10:00:00.000Z' }, 'b1');
-  assert.deepEqual(event, { type: 'run.waiting', businessId: 'b1', runId: 'delivery_1', at: '2026-10-15T10:00:00.000Z' });
-  assert.equal(sseFrame(event!), `data: ${JSON.stringify(event)}\n\n`);
+  assert.deepEqual(event, { type: 'run.waiting', businessId: 'b1', runId: 'delivery_1', at: '2026-10-15T10:00:00.000Z', seq: 5 });
+  assert.equal(sseFrame(event!), `id: 5\ndata: ${JSON.stringify(event)}\n\n`);
 });
 
 test('engine and local server: run events reach onVentureEvent and stream over GET /api/events with the rpc bearer only', async t => {
@@ -126,7 +132,7 @@ test('engine and local server: run events reach onVentureEvent and stream over G
   await until(/"queue\.changed"/);
   const frame = text.split('\n\n').find(block => block.includes('queue.changed'))!;
   const pushed = JSON.parse(frame.slice(frame.indexOf('data: ') + 6));
-  assert.deepEqual(Object.keys(pushed).sort(), ['at', 'businessId', 'type']);
+  assert.deepEqual(Object.keys(pushed).sort(), ['at', 'businessId', 'seq', 'type']);
   assert.deepEqual([pushed.type, pushed.businessId], ['queue.changed', 'main']);
   assert.deepEqual(heard.map(event => [event.type, event.businessId]), [['queue.changed', 'main']]);
   controller.abort();
@@ -155,7 +161,7 @@ test('desktop: the worker message becomes a validated harness event, and the pre
   const source = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
   const ipc = new EventEmitter() as any; ipc.invoke = async () => ({ ok: true, result: {} }); let api: any;
   vm.runInNewContext(source, { require: (name: string) => { assert.equal(name, 'electron'); return { ipcRenderer: ipc, contextBridge: { exposeInMainWorld: (_name: string, value: unknown) => { api = value; } } }; } });
-  assert.deepEqual(Object.keys(api).sort(), ['onEngineStatus', 'onEvent', 'openExternal', 'request']);
+  assert.deepEqual(Object.keys(api).sort(), ['onEngineStatus', 'onEvent', 'openExternal', 'pickNetworkFile', 'request', 'saveMoneyExport']);
   const received: any[] = [];
   const remove = api.onEvent((event: unknown) => received.push(event));
   ipc.emit('chausar:venture-event', {}, { ...good, private: 'dropped' });
@@ -240,5 +246,5 @@ test('hosted server: GET /api/events needs the session and the page bearer, and 
   for (let i = 0; i < 100 && !frames.length; i++) await new Promise(resolve => setTimeout(resolve, 20));
   stream.destroy();
   assert.deepEqual(frames.map(frame => [frame.type, frame.businessId]), [['queue.changed', created.businessId]]);
-  assert.deepEqual(Object.keys(frames[0]).sort(), ['at', 'businessId', 'type']);
+  assert.deepEqual(Object.keys(frames[0]).sort(), ['at', 'businessId', 'seq', 'type']);
 });

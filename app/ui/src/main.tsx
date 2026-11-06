@@ -6,6 +6,7 @@ import './tokens/motion.css';
 import './tokens/base.css';
 import { App } from './shell/App';
 import { createEngineClient } from './engine/client';
+import { browserPush, startHostedPush } from './shell/push';
 import { pickLanguage, type Language } from './text';
 import type { EngineClient } from './engine/types';
 
@@ -28,6 +29,9 @@ async function start() {
   const lang = language();
   document.documentElement.lang = lang;
   const client = await engine();
+  // The hosted app only (W4 4G4): the service worker for phone alerts, and this browser's subscription sent again so it
+  // carries the session now signed in. It never asks the browser for permission; Business > Notifications does, on a press.
+  void startHostedPush(client, browserPush());
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App client={client} language={lang} />

@@ -72,6 +72,11 @@ const ACTIVE_TAGS = /<\/?(?:script|iframe|style)\b[^>]*>/gi;
 const HIDDEN = /[\u200B\u202A-\u202E\u2060-\u2064\u2066-\u2069]|(?<!^)\uFEFF|[\u{E0000}-\u{E007F}]/gu;
 /** Taken out only of the copies words are looked for in: joiners, the soft hyphen and variation selectors. */
 const DETECT_ONLY = /[\u200C\u200D\u00AD\uFE00-\uFE0F]/g;
+/**
+ * Taken out of the cleaned text too, with no finding (they hide nothing worth holding an item for, but can split a
+ * number or a word): every soft hyphen, and a joiner (ZWJ, ZWNJ) unless it sits between characters of an Indian script.
+ */
+const STRAY = /\u00AD|(?<![\u0900-\u0DFF])[\u200C\u200D]|[\u200C\u200D](?![\u0900-\u0DFF])/gu;
 const ANY_TAG = /<\/?[A-Za-z][^>]*>/g;
 const INJECTION: readonly RegExp[] = [
   /\b(?:ignore|disregard|forget|override|bypass)\s+(?:(?:all|any|the|your|my|these|those|of)\s+)*(?:previous|prior|above|earlier|preceding|system|original|existing|other)\s+(?:instructions?|prompts?|rules?|directions?|messages?|guidelines?|directives?)/i,
@@ -121,15 +126,17 @@ function screenText(input: string, keep: readonly IdKind[], checks: ScreenOption
   text = tags.text;
   if (active || tags.found) findings.push({ kind: 'active-content', what: WHAT.active });
   const hidden = sweep(text, HIDDEN, '');
-  text = hidden.text;
+  text = hidden.text.replace(STRAY, '');
   if (hidden.found) findings.push({ kind: 'hidden', what: WHAT.hidden });
   // Keys, tokens, secret parts of web addresses and ids, in one pass of the shared rule set.
   const read = screenReadback(text, { keep });
   if (read.found.includes('secret')) findings.push({ kind: 'secret', what: WHAT.secret });
   for (const kind of ID_KINDS) if (read.found.includes(kind)) findings.push({ kind: 'id', what: ID_WHAT[kind] });
   text = read.text;
-  // Words: in the text as it came, the cleaned text, and the cleaned text with every tag taken out or turned to a space.
-  const copies = [...new Set([input, text, text.replace(ANY_TAG, ''), text.replace(ANY_TAG, ' ')].map(detectable))];
+  // Words: in the text as it came, the cleaned text, and the cleaned text with every tag taken out or turned to a space;
+  // then each of those with - _ + / . turned to spaces, so words joined into an address or a file name are found too.
+  const shapes = [input, text, text.replace(ANY_TAG, ''), text.replace(ANY_TAG, ' ')].map(detectable);
+  const copies = [...new Set([...shapes, ...shapes.map(copy => copy.replace(/[-_+/.]+/g, ' '))])];
   if (copies.some(copy => INJECTION.some(pattern => pattern.test(copy)))) findings.push({ kind: 'injection', what: WHAT.injection });
   if (copies.some(copy => CHECKER.some(pattern => pattern.test(copy)))) findings.push({ kind: 'checker', what: WHAT.checker });
   for (const rule of checks ?? []) {

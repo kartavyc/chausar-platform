@@ -32,6 +32,8 @@ export interface DeskHost {
   business(id: string): { opens: BusinessOnComputer['opens']; recovery: 'made' | 'not-made'; passphrase?: string | undefined } | null;
   /** Whether this computer's protected storage can keep a business key. */
   deviceKeys(): boolean;
+  /** 4H2: whether this answers as the hosted web server. */
+  hosted?(): boolean;
 }
 
 const DESK_METHODS = new Set([
@@ -78,6 +80,8 @@ export class FakeBusinessDesk {
   private receipts: ReceiptLite[];
   /** What each priced offer costs, as the engine would show it, by business and offer. */
   private prices: Record<string, string> = { 'lumen:offer_sponsor': '₹15,000.00', 'ledgerline:offer_books': '₹16,000.00', 'ledgerline:offer_gst': '₹5,000.00' };
+  /** 4J8: how many offers each business's owner has added, so an added offer's id is never reused. */
+  private ownerOffers: Record<string, number> = {};
   private seq = 0;
 
   constructor(host: DeskHost, options: { fresh?: boolean } = {}) {
@@ -126,19 +130,31 @@ export class FakeBusinessDesk {
     }
   }
 
+  /**
+   * The presets with this host's availability: on the hosted app no command-line tool ever runs, so both are
+   * unavailable there, in the engine's words (models/presets.ts availabilityOf, AVAILABILITY_REASONS.hostedCli).
+   */
+  private presets() {
+    const presets = clone(MODEL_PRESETS);
+    if (!this.host.hosted?.()) return presets;
+    return presets.map((preset) => (preset.runsOn === 'this-computer'
+      ? { ...preset, availability: 'unavailable' as const, availabilityReason: 'Runs only in the desktop app, on your own computer. The hosted web app uses keys only.' }
+      : preset));
+  }
+
   request(method: string, p: Record<string, unknown>): unknown {
     const biz = this.host.current();
     switch (method) {
-      case 'venture.models.presets': return clone(MODEL_PRESETS);
+      case 'venture.models.presets': return this.presets();
       case 'venture.models.status': return clone(this.modelsOf(biz));
       case 'venture.models.connect': return this.connect(this.modelsOf(biz), p, biz);
       case 'venture.models.disconnect': return this.disconnect(this.modelsOf(biz), p);
-      case 'venture.ai.options': return { presets: clone(MODEL_PRESETS), status: clone(this.draftAi), unchecked: true };
+      case 'venture.ai.options': return { presets: this.presets(), status: clone(this.draftAi), unchecked: true };
       case 'venture.ai.status': return clone(this.draftAi);
       case 'venture.ai.connect': return this.connect(this.draftAi, p, null);
       case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p);
       case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? clone(view) : null; }
-      case 'venture.blueprint.update': return this.update(biz, p.patch);
+      case 'venture.blueprint.update': return this.update(biz, p.patch, p.basedOn);
       case 'venture.price.quote': return this.quote(biz, p);
       case 'venture.build.status': return clone(this.buildOf(biz));
       case 'venture.build.brief': return this.brief(biz);
@@ -241,10 +257,16 @@ export class FakeBusinessDesk {
     return view;
   }
 
-  private update(biz: string, raw: unknown): BlueprintViewLite {
+  private update(biz: string, raw: unknown, basedOn?: unknown): BlueprintViewLite {
     const view = this.planOf(biz);
     const patch = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     if (Object.keys(patch).length === 0) throw invalid('Change at least one thing.');
+    // 4J8: a suggestion's patch is bound to the plan it read (core/blueprint.ts blueprintUpdate).
+    if (basedOn !== undefined) {
+      const bound = (basedOn && typeof basedOn === 'object' ? basedOn : {}) as Record<string, unknown>;
+      if (typeof bound.blueprintId !== 'string' || typeof bound.digest !== 'string') throw invalid('Send the id and digest of the plan the change was made from.');
+      if (bound.blueprintId !== view.blueprint.id || bound.digest !== view.blueprint.digest) throw new EngineError('APPROVAL_STALE', 'Your plan changed since this was suggested. Ask again, then apply it.');
+    }
     const text = (value: unknown, max: number, what: string) => {
       const s = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
       if (s.length < 2 || s.length > max) throw invalid(`${what} must be between 2 and ${max} characters.`);
@@ -281,6 +303,25 @@ export class FakeBusinessDesk {
         offer.pricing.unitPriceLabel = 'told-by-you';
         typedPrices[offer.id] = rupees(typed);
       }
+    }
+    // 4J8: an offer the owner adds, with no price yet, or takes out again (core/owner-offers.ts).
+    if (patch.removeOffer !== undefined) {
+      const id = (patch.removeOffer as Record<string, unknown> | null)?.id;
+      const offer = next.offers.find((o) => o.id === id);
+      if (!offer) throw new EngineError('OFFER_NOT_FOUND', 'That offer is not in your plan.');
+      if (!offer.addedByOwner) throw invalid('Only an offer you added can be taken out.');
+      next.offers = next.offers.filter((o) => o.id !== id);
+    }
+    if (patch.addOffer !== undefined) {
+      const add = (patch.addOffer ?? {}) as Record<string, unknown>;
+      const model = add.pricingModel as PricingModel;
+      if (!(model in UNITS)) throw invalid('Choose per month, per project or per hour.');
+      if (next.offers.filter((o) => o.addedByOwner).length >= 5) throw invalid('Your plan holds five offers you added. Take one out first.');
+      this.ownerOffers[biz] = (this.ownerOffers[biz] ?? 0) + 1;
+      next.offers.push({
+        id: `offer_own_${this.ownerOffers[biz]}`, addedByOwner: true, name: told(text(add.name, 60, 'The offer name')), description: told(text(add.description, 200, 'The offer description')),
+        pricing: { model, quantityUnit: UNITS[model], unitPriceMinor: null, unitPriceLabel: 'not-set', defaultQuantity: '1' },
+      });
     }
     next.digest = this.host.digest({ ...next, digest: '' });
     for (const [offerId, display] of Object.entries(typedPrices)) this.prices[`${biz}:${offerId}`] = display;

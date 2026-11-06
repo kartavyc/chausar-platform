@@ -242,7 +242,7 @@ export function gstLines(env: ToolEnv, map: RegisterMap, side: 'outward' | 'inwa
  * A table of payments a business made that may need tax deducted, column by column. The PAN column is optional. The
  * name column is payeeName, never payee: a bare payee field reads as payment details to the policy (policy/effects.ts).
  */
-export type PaymentsMap = { table: string; payeeName: string; pan?: string; payeeKind: string; section: string; date: string; amount: string; skipRows?: string[] };
+export type PaymentsMap = { table: string; payeeName: string; pan?: string; payeeKind?: string; section: string; date: string; amount: string; skipRows?: string[] };
 
 const PAYEE_KINDS: Readonly<Record<string, PayeeKind>> = Object.freeze({
   individual: 'individual', huf: 'huf', 'hindu undivided family': 'huf', company: 'company', firm: 'firm', 'partnership firm': 'firm', llp: 'firm', other: 'other',
@@ -268,7 +268,9 @@ export function tdsPayments(env: ToolEnv, map: PaymentsMap, financialYear: strin
   const table = amountTable(env, alias);
   const col = (key: keyof PaymentsMap, what: string) => columnOf(table, alias, map[key], what);
   const columns = {
-    payee: col('payeeName', "the payee's name"), pan: map.pan === undefined ? null : col('pan', "the payee's PAN"), payeeKind: col('payeeKind', 'the kind of payee'),
+    // Ink v2 4J16 (CA8): no kind column, an empty kind cell or an empty date cell reach the working as '' and it asks
+    // the client (NEEDS_FACTS); nothing is guessed here.
+    payee: col('payeeName', "the payee's name"), pan: map.pan === undefined ? null : col('pan', "the payee's PAN"), payeeKind: map.payeeKind === undefined ? null : col('payeeKind', 'the kind of payee'),
     section: col('section', 'the TDS section'), date: col('date', 'the payment date'), amount: col('amount', 'the amount paid'),
   };
   noteSource(log, table);
@@ -283,12 +285,12 @@ export function tdsPayments(env: ToolEnv, map: PaymentsMap, financialYear: strin
     const amount = moneyCell(env, alias, row.id, columns.amount, cell(columns.amount));
     if (amount === null) fail(`${where(alias, row.id, columns.amount)} is empty.`);
     if (amount! < 0n) fail(`${where(alias, row.id, columns.amount)} is negative. A refund from a payee goes to your CA.`);
-    const kind = cell(columns.payeeKind).toLowerCase().replace(/\s+/g, ' ');
+    const kind = columns.payeeKind ? cell(columns.payeeKind).toLowerCase().replace(/\s+/g, ' ') : '';
     const pan = columns.pan ? cell(columns.pan).replace(/\s+/g, '').toUpperCase() : '';
     const id = `${alias}.${row.id}`;
     const section = sectionCode(cell(columns.section));
-    const date = dateCell(env, alias, row.id, columns.date, cell(columns.date));
-    if (date < from || date >= to) {
+    const date = cell(columns.date) ? dateCell(env, alias, row.id, columns.date, cell(columns.date)) : '';
+    if (date && (date < from || date >= to)) {
       notes.push({ line: id, ref: id, reason: `${payee}: dated ${date}, outside the financial year ${financialYear}.` });
       return [];
     }

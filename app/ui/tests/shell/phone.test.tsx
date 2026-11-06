@@ -1,6 +1,6 @@
 // The phone layout (w3 plan, package 3H1; D-Phone-Today and D-Phone-Team): under 760 px the rail gives way to a top
-// bar (the mark and the business) and bottom tabs (Today, Team, Work, Clients, More); More opens a sheet with the
-// rest; every sheet covers the screen; Team's department toggle is a row of filter chips. Plus the web app's
+// bar (the mark and the business) and bottom tabs (Today, Chats, Team, Work, More; W4 4C2 moved Clients into More);
+// More opens a sheet with the rest; every sheet covers the screen; Team's department toggle is a row of filter chips. Plus the web app's
 // manifest, its icons and the theme colours. jsdom has no media queries, so each phone test stubs matchMedia.
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -60,7 +60,7 @@ describe('useNarrow', () => {
 
 describe('the phone frame', () => {
   // On Team, the lighter page: the first test of the file also pays for warming jsdom up.
-  it('has no rail: a top bar with the mark linking to Today and the business button, and no bell or account button', async () => {
+  it('has no rail: a top bar with the mark linking to Today, the business button and the bell (W4 4G4), and no account button', async () => {
     stubWidth(true);
     const { container } = start('#/team');
     const bar = topBar()!;
@@ -74,7 +74,9 @@ describe('the phone frame', () => {
     // The phone's business button is the name alone (D's `.bizb`), never the kind line under it.
     await settle();
     expect(business.textContent).not.toContain('YouTube channel');
-    expect(screen.queryByRole('button', { name: /Notifications/ })).toBeNull();
+    // The bell sits in the top bar alone: once on the screen, never in the page header too.
+    expect(within(bar).getAllByRole('button', { name: /^Notifications/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /^Notifications/ })).toHaveLength(1);
     expect(screen.queryByRole('button', { name: /account/i })).toBeNull();
     // One navigation named Places: the bottom tabs, after the page.
     expect(screen.getAllByRole('navigation', { name: 'Places' })).toHaveLength(1);
@@ -84,21 +86,21 @@ describe('the phone frame', () => {
     expect(main.compareDocumentPosition(tabs()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   }, 15_000);
 
-  it('the bottom tabs are Today with its count, Team, Work, Clients and More', async () => {
+  it('the bottom tabs are Today with its count, Chats, Team, Work and More (W4 4C2: Clients moved into More)', async () => {
     stubWidth(true);
     start();
     const links = within(tabs()).getAllByRole('link');
-    expect(links.map((a) => a.textContent?.replace(/\d+, \d+ needs? you$/, ''))).toEqual(['Today', 'Team', 'Work', 'Clients', 'More']);
-    expect(links.slice(0, 4).map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/team', '#/work', '#/clients']);
+    expect(links.map((a) => a.textContent?.replace(/\d+, \d+ needs? you$/, ''))).toEqual(['Today', 'Chats', 'Team', 'Work', 'More']);
+    expect(links.slice(0, 4).map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work']);
     const today = links[0]!;
-    await waitFor(() => expect(today.querySelector('[data-badge]')?.textContent).toBe('12'));
+    await waitFor(() => expect(today.querySelector('[data-badge]')?.textContent).toBe('13'));
     expect(today.querySelector('[data-badge]')?.getAttribute('aria-hidden')).toBe('true');
-    expect(within(today).getByText(', 12 need you').className).toBe('sr-only');
+    expect(within(today).getByText(', 13 need you').className).toBe('sr-only');
     expect(today.getAttribute('aria-current')).toBe('page');
   });
 
   it.each([
-    ['#/team', 'Team'], ['#/work?state=failed', 'Work'], ['#/clients/pipeline', 'Clients'],
+    ['#/chats', 'Chats'], ['#/team', 'Team'], ['#/work?state=failed', 'Work'], ['#/clients', 'More'], ['#/clients/pipeline', 'More'],
     ['#/money', 'More'], ['#/money/invoices', 'More'], ['#/connections', 'More'], ['#/business/plan', 'More'], ['#/onboarding', 'More'],
   ])('at %s the current tab is %s', async (hash, tab) => {
     stubWidth(true);
@@ -108,7 +110,7 @@ describe('the phone frame', () => {
     expect(current[0]!.hasAttribute('data-current')).toBe(true);
   });
 
-  it('More opens a sheet "More" with Money, Connections, Business and Start a new business; a link closes it', async () => {
+  it('More opens a sheet "More" with Clients, Money, Connections, Business and Start a new business; a link closes it', async () => {
     stubWidth(true);
     start('#/team');
     const more = within(tabs()).getByRole('link', { name: 'More' });
@@ -120,10 +122,10 @@ describe('the phone frame', () => {
     const list = within(sheet).getByRole('navigation', { name: 'More places' });
     const links = within(list).getAllByRole('link');
     expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
-      ['Money', '#/money'], ['Connections', '#/connections'], ['Business', '#/business/plan'], ['Start a new business', '#/onboarding'],
+      ['Clients', '#/clients'], ['Money', '#/money'], ['Connections', '#/connections'], ['Business', '#/business/plan'], ['Start a new business', '#/onboarding'],
     ]);
     for (const link of links) expect(link.querySelectorAll('svg[aria-hidden="true"]').length).toBeGreaterThan(0);
-    await act(async () => { fireEvent.click(links[0]!); window.location.hash = '#/money'; });
+    await act(async () => { fireEvent.click(links[1]!); window.location.hash = '#/money'; });
     await hashChanged();
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'More' })).toBeNull());
     expect(within(tabs()).getByRole('link', { name: 'More' }).getAttribute('aria-current')).toBe('page');
@@ -216,16 +218,17 @@ function withDepartments(): EngineClient {
 }
 
 describe('Team on a phone', () => {
-  it('the department toggle is a row of filter chips that scrolls sideways, with the same choices, held in the address', async () => {
+  it('the department toggle is a row of filter chips that wraps (4Z2: no chip starts cut off), with the same choices, held in the address', async () => {
     stubWidth(true);
     start('#/team', withDepartments());
     const toggle = await screen.findByRole('group', { name: 'Show departments' });
-    expect(toggle.hasAttribute('data-scroll')).toBe(true);
-    expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments', 'Sales and clients', 'Marketing', 'Production', 'Money', 'Operations']);
-    await act(async () => { fireEvent.click(within(toggle).getByRole('button', { name: 'Production' })); });
+    expect(toggle.hasAttribute('data-scroll')).toBe(false);
+    // Each chip carries how many agents it holds (D-Phone-Team, W4 4A2); Keeper sits in no department in this engine view.
+    expect(within(toggle).getAllByRole('button').map((b) => b.textContent)).toEqual(['All departments 5', 'Sales and clients 1', 'Marketing 2', 'Production 1', 'Money 0', 'Operations 0']);
+    await act(async () => { fireEvent.click(within(toggle).getByRole('button', { name: /^Production/ })); });
     await hashChanged();
     expect(window.location.hash).toBe('#/team?dept=prod');
-    expect(within(screen.getByRole('group', { name: 'Show departments' })).getByRole('button', { name: 'Production' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(screen.getByRole('group', { name: 'Show departments' })).getByRole('button', { name: /^Production/ }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('a wide window keeps the segmented toggle', async () => {

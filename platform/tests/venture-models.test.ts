@@ -7,7 +7,7 @@ import { createServer } from 'node:http';
 import { readdir, readFile } from 'node:fs/promises';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
@@ -20,7 +20,7 @@ import { digest, formatMicros, houseStyleFindings, listRecords, ventureAction } 
 import {
   PRESETS, assertSchemaSafe, callCostMicros, clientDataFindings, createModelPort, createReplayTransport, defaultModelTransport, handlers,
 } from '../runtime/venture/models/index.ts';
-import { TEMP_PREFIX } from '../runtime/venture/models/cli.ts';
+import { TEMP_PREFIX, cliRouteFlags } from '../runtime/venture/models/cli.ts';
 import { AVAILABILITY_REASONS, availabilityOf } from '../runtime/venture/models/presets.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
@@ -82,11 +82,25 @@ type Recorder = {
   replyHttp: (request: ModelHttpRequest) => Promise<ModelHttpResponse> | ModelHttpResponse;
   replyProcess: (request: ModelProcessRequest) => Promise<ModelProcessResponse> | ModelProcessResponse;
 };
+/**
+ * How an installed tool answers the checks a connection runs (4H1): its version, and a help page that lists every
+ * flag the route sends (exec's, for Codex). No sign-in command is listed, so sign-in stays unknown.
+ */
+function checkAnswer(request: ModelProcessRequest): ModelProcessResponse {
+  const asked = request.args.join(' ');
+  if (asked === '--help') return { exitCode: 0, stdout: cliRouteFlags('claude-cli').map(flag => `  ${flag} <value>`).join('\n') };
+  if (asked === 'exec --help') return { exitCode: 0, stdout: cliRouteFlags('codex-cli').map(flag => `  ${flag} <value>`).join('\n') };
+  // The version line in the form each real tool prints it (models/cli-look.ts).
+  return { exitCode: 0, stdout: /codex(?:\.exe)?$/i.test(request.command) ? 'codex-cli 0.154.0' : '2.0.0 (Claude Code)' };
+}
+/** Where a search path would have each tool on this test's computer: an absolute .exe. An absolute command is found where it says. */
+const TOOL_BIN = join(tmpdir(), 'chausar-models-test-bin');
+const locateCli = (command: string) => (isAbsolute(command) ? command : join(TOOL_BIN, `${command}.exe`));
 function recorder(): Recorder {
   const rec: Recorder = {
     http: [], process: [],
     replyHttp: () => anthropicReply({ words: 'Model words' }),
-    replyProcess: request => (request.purpose === 'version-check' ? { exitCode: 0, stdout: 'claude 2.0.0 (synthetic)' } : { exitCode: 1, stdout: '' }),
+    replyProcess: request => (request.purpose === 'version-check' ? checkAnswer(request) : { exitCode: 1, stdout: '' }),
     transport: {
       replay: false,
       async http(request) { rec.http.push(structuredClone(request)); return rec.replyHttp(request); },
@@ -115,7 +129,7 @@ async function setup(options: { codexCli?: unknown; venture?: boolean; transport
   const secrets = new MemoryShelf();
   const rec = recorder();
   const transport = options.transport ?? rec.transport;
-  const makePort = (shelf: SecretShelf = secrets) => createModelPort({ store, clock, transport, secrets: shelf, host: 'test', demo: false, codexCli: options.codexCli, claudeCodeTerms });
+  const makePort = (shelf: SecretShelf = secrets) => createModelPort({ store, clock, transport, secrets: shelf, host: 'test', demo: false, codexCli: options.codexCli, claudeCodeTerms, locateCli });
   const port = makePort();
   const trust = new TrustService(store);
   const deps = {
@@ -197,8 +211,14 @@ test('presets: six presets, consent digests, Luna unverified, CLI checks change 
   assert.equal(byId['codex-cli'].availability, 'needs-setup');
 
   await port.checkCli('claude-code-cli');
-  assert.equal(rec.process.length, 1);
-  assert.deepEqual({ ...rec.process[0], env: undefined }, { command: 'claude', args: ['--version'], env: undefined, stdin: '', timeoutMs: 10000, purpose: 'version-check' });
+  // The version check, then the help page for the route's flags (4H1); its help lists no sign-in command, so nothing else.
+  // Each runs the program the search path has, in an empty folder made for the look (4H1 review).
+  assert.deepEqual(rec.process.map(request => request.args.join(' ')), ['--version', '--help']);
+  const claudeExe = join(TOOL_BIN, 'claude.exe');
+  assert.deepEqual({ ...rec.process[0], env: undefined, cwd: undefined }, { command: claudeExe, args: ['--version'], env: undefined, stdin: '', timeoutMs: 10000, purpose: 'version-check', cwd: undefined });
+  assert.deepEqual({ ...rec.process[1], env: undefined, cwd: undefined }, { command: claudeExe, args: ['--help'], env: undefined, stdin: '', timeoutMs: 5000, purpose: 'version-check', cwd: undefined });
+  assert.ok(rec.process[0].cwd && rec.process[0].cwd !== tmpdir() && rec.process[1].cwd === rec.process[0].cwd);
+  assert.equal(existsSync(rec.process[0].cwd), false, 'the folder is removed after the look');
   assert.equal(port.presets().find(item => item.id === 'claude-code-cli')?.availability, 'unverified');
 
   const failing = await setup();
@@ -219,8 +239,9 @@ test('the Claude Code terms gate: pending means needs setup with the terms words
   assert.equal(claude.availability, 'needs-setup');
   assert.equal(claude.availabilityReason, AVAILABILITY_REASONS.claudeTerms);
   assert.equal(AVAILABILITY_REASONS.claudeTerms, "Chausar hasn't yet accepted Anthropic's terms for running Claude Code. Use an Anthropic key for now.");
-  // Even a found CLI stays behind the gate.
-  await port.checkCli('claude-code-cli');
+  // Even a found CLI stays behind the gate: the port's own check refuses in the terms words and runs nothing.
+  await assert.rejects(port.checkCli('claude-code-cli'), (error: any) => error?.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
+  assert.deepEqual(rec.process, []);
   assert.equal(port.presets().find(item => item.id === 'claude-code-cli')?.availability, 'needs-setup');
   const checksBefore = rec.process.length;
   await assert.rejects(connect(deps, 'claude-code-cli'), (error: any) => error?.code === 'PRESET_UNAVAILABLE' && error.message === AVAILABILITY_REASONS.claudeTerms);
@@ -276,7 +297,7 @@ test('connect: consent, key and model rules; CLI check before the write; keys ne
   let connectionsAtCheck = -1;
   rec.replyProcess = request => {
     if (request.purpose === 'version-check') connectionsAtCheck = connections(store).filter(item => item.presetId === 'claude-code-cli').length;
-    return { exitCode: 0, stdout: 'claude 2.0.0 (synthetic)' };
+    return checkAnswer(request);
   };
   await connect(deps, 'claude-code-cli', { tiers: ['main'] });
   assert.equal(connectionsAtCheck, 0);
@@ -496,7 +517,7 @@ test('Claude Code CLI: flags, a clean environment, a 150 second limit and the te
   const before = new Set((await readdir(tmpdir())).filter(name => name.startsWith(TEMP_PREFIX)));
   let during: string[] = [];
   rec.replyProcess = async request => {
-    if (request.purpose === 'version-check') return { exitCode: 0, stdout: 'claude 2.0.0 (synthetic)' };
+    if (request.purpose === 'version-check') return { exitCode: 0, stdout: '2.0.0 (Claude Code)' };
     during = (await readdir(tmpdir())).filter(name => name.startsWith(TEMP_PREFIX) && !before.has(name));
     return { exitCode: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: '', structured_output: { words: 'Command line words' }, usage: { input_tokens: 10, output_tokens: 5 } }) };
   };
@@ -535,12 +556,16 @@ test('Claude Code CLI: flags, a clean environment, a 150 second limit and the te
 });
 
 test('Codex CLI: the profile executable, the host process port and the schema file', async () => {
-  const executable = join(tmpdir(), 'codex');
+  const executable = join(tmpdir(), 'codex.exe');
   const host: any[] = [];
   let schemaSeen: unknown = null;
+  let folderDuring: string[] | null = null;
   const hostProcess = async (request: any) => {
     host.push(structuredClone(request));
     if (request.args[0] === '--version') return { exitCode: 0, stdout: 'codex-cli 0.154.0' };
+    // The connection looks at the tool first (4H1): exec's help must list every flag the route sends.
+    if (request.args.join(' ') === 'exec --help' || request.args.join(' ') === '--help') return checkAnswer({ ...request, purpose: 'version-check' });
+    folderDuring = readdirSync(request.cwd);
     const schemaPath = request.args[request.args.indexOf('--output-schema') + 1];
     schemaSeen = JSON.parse(await readFile(schemaPath, 'utf8'));
     const lines = [
@@ -563,7 +588,13 @@ test('Codex CLI: the profile executable, the host process port and the schema fi
   assert.equal(outcome.value.words, 'Codex words');
   const request = host.at(-1);
   assert.equal(request.command, executable);
-  assert.equal(request.cwd, tmpdir());
+  // The checks ran in an empty folder made for the look, never the shared temp folder; the call itself in another made
+  // for it; each removed after (4H1, H39).
+  assert.deepEqual(host.slice(0, 2).map(item => item.args.join(' ')), ['--version', 'exec --help']);
+  assert.ok(host[0].cwd !== tmpdir() && host[1].cwd === host[0].cwd && !existsSync(host[0].cwd));
+  assert.notEqual(request.cwd, tmpdir());
+  assert.deepEqual(folderDuring, []);
+  assert.equal(existsSync(request.cwd), false);
   assert.equal(request.schema, null);
   assert.equal(request.timeoutMs, 150000);
   assert.equal('purpose' in request, false);
@@ -936,11 +967,12 @@ test('replay through the port: calls are marked replay and status says synthetic
 // 13. Handlers and house rules
 // ---------------------------------------------------------------------------
 
-test('handlers: exactly the five model methods; presets and status need no venture', async () => {
+test('handlers: exactly the seven model methods; presets and status need no venture', async () => {
   // The venture.ai.* draft methods are owned by models too, but the engine's draft desk answers them, outside the table.
+  // Five, and the two Ink v2 wave 4 added (the CLI status and per-role models, 4H1).
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'models' && !DRAFT_METHODS.includes(method));
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
-  assert.equal(owned.length, 5);
+  assert.equal(owned.length, 7);
   const { deps } = await setup({ venture: false });
   assert.equal((await call(deps, 'venture.models.presets')).length, 6);
   const status = await call(deps, 'venture.models.status');

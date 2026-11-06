@@ -4,7 +4,7 @@ import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { EngineError } from '../../src/engine/types';
 import { TAX_WORKINGS } from '../../src/engine/fixtures-extras';
-import { assertInkRules } from '../helpers/ink-rules';
+import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 
 type Call = [string, unknown];
 type Override = (params: unknown) => unknown;
@@ -39,8 +39,8 @@ describe('Money: books', () => {
     const { calls } = start('#/money/books');
     const billed = await tileOf('Billed');
     expect(await within(billed).findByText('₹1,12,400.00')).toBeTruthy();
-    expect(within(billed).getByRole('button', { name: 'Receipt R-0401' })).toBeTruthy();
-    expect(within(await tileOf('Received')).getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
+    expect(within(billed).getByRole('button', { name: receiptMark('R-0401') })).toBeTruthy();
+    expect(within(await tileOf('Received')).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     expect((await tileOf('Earned')).textContent).toContain('₹95,254.24');
     expect(calls).toContainEqual(['venture.books.summary', { period: 'this-month' }]);
     expect(screen.getByText('1 Oct 2026 to 31 Oct 2026')).toBeTruthy();
@@ -85,7 +85,7 @@ describe('Money: books', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'GST on your sales' })).toBeTruthy();
     const cgst = screen.getAllByText('CGST at 9%')[0]!.closest('li')!;
     expect(cgst.textContent).toContain('₹1,440.00');
-    expect(within(cgst).getByRole('button', { name: 'Receipt R-0419' })).toBeTruthy();
+    expect(within(cgst).getByRole('button', { name: receiptMark('R-0419') })).toBeTruthy();
     const credit = screen.getByText('Input credit').closest('li')!;
     expect(credit.textContent).toContain('₹0.00');
     expect(credit.querySelector('[data-receipt]')).toBeNull();
@@ -112,7 +112,7 @@ describe('Money: spend', () => {
     expect(billed.textContent).toContain('Reserved ₹45.00');
     expect(billed.textContent).toContain('Settled ₹42.10');
     expect(billed.textContent).toContain('billed');
-    expect(within(billed).getByRole('button', { name: 'Receipt R-0412' })).toBeTruthy();
+    expect(within(billed).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
     const estimate = screen.getByText('Title comparison, running').closest('li')!;
     expect(estimate.textContent).toContain('Reserved ₹18.00');
     expect(estimate.textContent).toContain('Not settled yet');
@@ -162,9 +162,9 @@ describe('Money: spend', () => {
 describe('Money: spend settings', () => {
   it('shows the limit, the ask-first figure and the rate card in the engine words, with one quiet Change', async () => {
     start('#/money/spend');
-    expect(await within(await waitFor(settings)).findByText('USD 20.0000 a month')).toBeTruthy();
+    expect(await within(await waitFor(settings)).findByText('₹1,670.00 a month')).toBeTruthy();
     const region = settings();
-    expect(within(region).getByText('Asks you first above USD 2.0000')).toBeTruthy();
+    expect(within(region).getByText('Asks you first above ₹167.00')).toBeTruthy();
     expect(within(region).getByText('USD 3.0000 in and USD 15.0000 out, per million tokens')).toBeTruthy();
     expect(within(region).getByText('Anthropic pricing page, checked 14 Oct 2026')).toBeTruthy();
     expect(within(region).getByRole('button', { name: 'Change' }).dataset.variant).toBe('quiet');
@@ -172,8 +172,11 @@ describe('Money: spend settings', () => {
   });
 
   it('takes rupees per US dollar; then the limits show rupees beside the dollars, with the rate and the day it was set', async () => {
-    const { calls } = start('#/money/spend');
-    await within(await waitFor(settings)).findByText('USD 20.0000 a month');
+    // The sample has the owner's rupee rate (4Z3); cleared first, the owner types it here.
+    const engine = new FakeEngine({ now: () => '2026-10-21T11:00:00.000Z' });
+    await engine.request('venture.spend.policy.set', { inrPerUsd: null });
+    const { calls } = start('#/money/spend', {}, engine);
+    await within(await waitFor(settings)).findByText('USD 20.00 a month');
     expect(within(settings()).queryByText(/per \$1/)).toBeNull();
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     const rate = within(settings()).getByLabelText('Rupees per US dollar') as HTMLInputElement;
@@ -183,16 +186,18 @@ describe('Money: spend settings', () => {
     await click(within(settings()).getByRole('button', { name: 'Save' }));
     await click(within(settings()).getAllByRole('button', { name: 'Save' }).find((b) => b.hasAttribute('data-confirm'))!);
     expect(calls.find(([m]) => m === 'venture.spend.policy.set')![1]).toMatchObject({ inrPerUsd: '83.50' });
-    expect(await within(settings()).findByText('₹1,670.00 at ₹83.50 per $1 (your rate, set 21 Oct 2026)')).toBeTruthy();
-    expect(within(settings()).getByText('₹167.00 at ₹83.50 per $1 (your rate, set 21 Oct 2026)')).toBeTruthy();
+    // 4Z3: rupees lead the limits in India, the dollars after them; the rate said once, on its own line (4A2's rule).
+    expect(await within(settings()).findByText('₹1,670.00 a month')).toBeTruthy();
+    expect(within(settings()).getByText('Asks you first above ₹167.00')).toBeTruthy();
     expect(within(settings()).getByText('₹83.50 per $1 (your rate, set 21 Oct 2026)')).toBeTruthy();
+    expect(settings().textContent!.split('per $1').length - 1).toBe(1);
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     expect((within(settings()).getByLabelText('Rupees per US dollar') as HTMLInputElement).value).toBe('83.50');
   });
 
   it('asks for every figure in US dollars, never in millionths of a dollar', async () => {
     start('#/money/spend');
-    await within(await waitFor(settings)).findByText('USD 20.0000 a month');
+    await within(await waitFor(settings)).findByText('₹1,670.00 a month');
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     expect(settings().textContent).not.toMatch(/millionth/i);
     expect(within(settings()).getByText('In US dollars, like 20 or 12.50. Your AI bills in US dollars. Leave it empty for no limit.')).toBeTruthy();
@@ -203,7 +208,7 @@ describe('Money: spend settings', () => {
 
   it('sends the figures exactly as typed, an empty one as null and the held rate as it came, only after a second ask', async () => {
     const { calls } = start('#/money/spend');
-    await within(await waitFor(settings)).findByText('USD 20.0000 a month');
+    await within(await waitFor(settings)).findByText('₹1,670.00 a month');
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     const cap = within(settings()).getByLabelText('Monthly limit') as HTMLInputElement;
     expect(cap.value).toBe('20.00');
@@ -220,17 +225,17 @@ describe('Money: spend settings', () => {
     expect(calls.filter(([m]) => m === 'venture.spend.policy.set')).toEqual([]);
     await click(confirm);
     expect(calls.filter(([m]) => m === 'venture.spend.policy.set')).toEqual([['venture.spend.policy.set', {
-      capUsd: '30', askFirstUsd: null, inrPerUsd: null,
+      capUsd: '30', askFirstUsd: null, inrPerUsd: '83.50', currencyLead: 'auto',
       rates: [{ item: 'model:anthropic-api', unit: 'per-million-tokens', inputUsdPerMillion: '3.00', outputUsdPerMillion: '15.00', source: 'Anthropic pricing page', checkedOn: '2026-10-14' }],
     }]]);
-    expect(await within(settings()).findByText('USD 30.0000 a month')).toBeTruthy();
+    expect(await within(settings()).findByText('₹2,505.00 a month')).toBeTruthy();
     expect(within(settings()).getByText('Never asks first')).toBeTruthy();
     expect(within(settings()).getByText('Saved.')).toBeTruthy();
   });
 
   it('adds a rate per call; the engine writes its price', async () => {
     const { calls } = start('#/money/spend');
-    await within(await waitFor(settings)).findByText('USD 20.0000 a month');
+    await within(await waitFor(settings)).findByText('₹1,670.00 a month');
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     await click(within(settings()).getByRole('button', { name: 'Add a rate' }));
     const line = within(settings()).getByRole('group', { name: 'New rate' });
@@ -249,7 +254,7 @@ describe('Money: spend settings', () => {
 
   it('shows the engine refusal in its words and keeps the form', async () => {
     start('#/money/spend');
-    await within(await waitFor(settings)).findByText('USD 20.0000 a month');
+    await within(await waitFor(settings)).findByText('₹1,670.00 a month');
     await click(within(settings()).getByRole('button', { name: 'Change' }));
     await type(within(settings()).getByLabelText('Monthly limit'), '5.001');
     await click(within(settings()).getByRole('button', { name: 'Save' }));
@@ -268,10 +273,10 @@ describe('Money: journal', () => {
     expect(sent.textContent).toContain('Waiting for your approval');
     const held = screen.getByText('Hold quote · Iyer & Co').closest('li')!;
     expect(held.textContent).toContain('Approved');
-    expect(within(held).getByRole('button', { name: 'Receipt R-0420' })).toBeTruthy();
+    expect(within(held).getByRole('button', { name: receiptMark('R-0420') })).toBeTruthy();
     const applied = screen.getByText('Record payment · Boat Audio').closest('li')!;
     expect(applied.textContent).toContain('Applied');
-    expect(within(applied).getByRole('button', { name: 'Receipt R-0402' })).toBeTruthy();
+    expect(within(applied).getByRole('button', { name: receiptMark('R-0402') })).toBeTruthy();
     expect(screen.getByText('Post · LinkedIn').closest('li')!.textContent).toContain('Rejected');
     const unknown = screen.getByText('Send email · Iyer & Co').closest('li')!;
     expect(unknown.textContent).toContain('Outcome unknown');

@@ -13,6 +13,8 @@ import { cx } from '../../parts/cx';
 import type { ClientLite } from '../../engine/types';
 import type { OrderAction, OrderView } from './orders';
 import { messageOf } from './PreviousRuns';
+// W4 4J19: the order's stage steps and what waits on the owner.
+import { OrderSteps } from './OrderSteps';
 import s from './Work.module.css';
 
 /** One plain sentence for where an order stands (CogSend wording). */
@@ -148,6 +150,7 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
           )}
         </p>
       )}
+      <OrderSteps order={order} />
       <div className={s.orderFoot}>
         <p className={cx(s.say, state === 'waiting' && s.wait)}>{orderSentence(view, t)}</p>
         {(waitsOnYou(view) || (action && phase !== 'confirm')) && (

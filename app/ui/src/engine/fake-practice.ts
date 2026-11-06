@@ -337,6 +337,17 @@ export class FakePracticeDesk {
       id, at, status: 'kept-candidate', parentPlaybookId: parent.id, candidatePlaybookId: candidate.id, changes: [CHANGE],
       costDisplay: byModel ? MODEL_COST : TEMPLATE_COST, modelMode: byModel ? 'model' : 'template', incompleteReason: null,
       digest: this.hex({ runId: id, candidatePlaybookId: candidate.id, changes: [CHANGE] }),
+      // 4J16 (Q16, via 4J22a): the round as an experiment, with the old version on the same cases as its control.
+      rounds: [{ round: 1, experiment: {
+        hypothesis: 'Drafts that hold the plan price and offer no free work need fewer changes from you.', change: CHANGE, patchId: `patch-${id}`,
+        control: { kind: 'parent-on-same-cases', playbookHash: parent.hash, cases: 3, window: { from: at, to: at } },
+        budget: { capMicros: '500000', capDisplay: 'US$0.50', spentMicros: '0', spentDisplay: 'US$0.00' },
+        stopRules: ['Stop when the run has spent its budget of US$0.50, between practice episodes.', 'Stop after 1 round.', 'Keep the old version when the change makes any case newly fail or adds a critical error.'],
+        rollbackRule: 'A kept change waits for you to adopt it; after that you can go back to the version it was made from with one tap.',
+        result: { kind: 'caused', line: 'With the old version as the control on the same 3 practice cases, the change won 2, lost 0 and tied 1.' },
+        // 4J22a (4J15): the lift on the same 3 paired cases: too few to tell, as the engine's exact test says.
+        lift: { cases: 3, reachable: false, direction: 'none', estimate: true, line: 'Not enough practice cases to tell yet.', digest: this.hex({ lift: id }) },
+      } }],
     };
     (this.improvements[biz] ??= []).unshift(run);
     this.host.emit({ type: 'run.done', businessId: biz, runId: id, at });

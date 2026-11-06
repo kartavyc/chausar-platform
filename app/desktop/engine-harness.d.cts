@@ -23,5 +23,7 @@ export class EngineHarness extends EventEmitter {
   start(): Promise<void>;
   request(method: string, payload?: Record<string, unknown>): Promise<unknown>;
   updateJobLifecycle(state: Readonly<{ awake: boolean; windowOpen: boolean; backgroundEnabled: boolean }>): Promise<{ applied: true }>;
+  /** Ink v2 wave 4 (4G1): whether the owner is looking at the window, as a plain notice. False when it was not sent. */
+  reportWatching(watching: boolean): boolean;
   stop(): Promise<{ graceful: boolean; forced: boolean; exitCode?: number | null }>;
 }

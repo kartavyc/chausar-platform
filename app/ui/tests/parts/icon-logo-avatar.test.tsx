@@ -35,6 +35,8 @@ const D_STYLE_ICONS = [
 ];
 const BOARD_ICONS = ['shield-check', 'upload', 'search', 'sliders-horizontal', 'paperclip'];
 // W4 packages add the names they need here, one line each.
+// 4I2: behind today's pace, beside trending-up for ahead.
+BOARD_ICONS.push('trending-down');
 
 describe('Icon', () => {
   it('is a quiet svg by default: hidden from screen readers, not focusable, the D stroke', () => {

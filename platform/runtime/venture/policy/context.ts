@@ -11,6 +11,9 @@ import { acceptedBlueprintOrNull } from '../delivery/shared.ts';
 import { AGENT_ID } from '../views/shared.ts';
 import type { Approval, PolicyContext } from './ladder.ts';
 import { POSTURES, postureOfStage, runPosture, stepGate, tighten } from './posture.ts';
+import { sessionAllowedSteps } from './allow-session.ts';
+import { teamFlagship } from '../views/team-shape.ts';
+import { LOCKED_POSTURE_CAP } from './auto-lock.ts';
 
 /** Why a whole step is on the floor. The team view shows the same words next to the step. */
 export const STEP_FLOOR_WORDS = Object.freeze({
@@ -31,9 +34,13 @@ export function agentPosture(state: State, ventureId: string, agentId: string): 
   return records.length ? records[records.length - 1].posture : null;
 }
 
-/** The business posture tightened by the agent's own. What the team view shows. */
+/**
+ * The business posture tightened by the agent's own. What the team view shows. Ink v2 wave 4 (4J15): while auto with
+ * spot checks is locked (policy/auto-lock.ts), every posture is capped at approve each, so a vault that says auto
+ * (edited, imported or restored) still asks at each step.
+ */
 export function effectivePosture(state: State, venture: VentureRecord, agentId: string = AGENT_ID): Posture {
-  return tighten(postureOfStage(venture.launchStage), agentPosture(state, venture.id, agentId));
+  return tighten(postureOfStage(venture.launchStage), agentPosture(state, venture.id, agentId), LOCKED_POSTURE_CAP);
 }
 
 /** Each step's gate as the policy reads it: stored, else on hold; a floor step always on hold. */
@@ -50,6 +57,8 @@ export type ContextInput = {
   runRef: WorkRunRef;
   approval?: Approval;
   agentId?: string;
+  /** 4J1: the open vault's store, which holds this session's allowances; without it no step is allowed for the session. */
+  store?: object;
 };
 
 /** The policy context for one run, as of now. Reads only. */
@@ -64,7 +73,18 @@ export function harnessPolicyContext(input: ContextInput): PolicyContext {
     gates: stepGates(input.state, input.venture.id, steps, agentId),
     stepsByTool,
     stepTitles: Object.fromEntries(steps.map(step => [step.id, step.title])),
+    // 4J1: the agent's steps allowed for this session on a real order, never one on the floor (policy/allow-session.ts).
+    ...(input.runRef.kind === 'delivery' ? { session: Object.fromEntries(Object.entries(sessionAllowedSteps(input.store, input.state, input.venture.id, agentId))
+      .filter(([stepId]) => steps.some(step => step.id === stepId && sessionStepFloor(input.state, input.venture, step) === null))) } : {}),
   };
+}
+
+/**
+ * 4J1: why a step can't be allowed for a session: the same floor the team view shows (views/team.ts stepFloor), the
+ * step's own from its kind and tools, else the flagship playbook's. Null when it is below the floor.
+ */
+export function sessionStepFloor(state: State, venture: VentureRecord, step: Pick<PlaybookStep, 'id' | 'kind' | 'tools'>): string | null {
+  return stepFloorReason(step) ?? teamFlagship(state, venture)?.floor[step.id] ?? null;
 }
 
 /**

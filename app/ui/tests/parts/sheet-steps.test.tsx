@@ -7,11 +7,12 @@ import { RunSheetView } from '../../src/parts/RunSheet';
 import { evidenceLabel } from '../../src/parts/evidence';
 import { JobList } from '../../src/parts/JobList';
 import { RUNS } from '../../src/engine/fixtures';
-import type { RunDetail, RunSummary } from '../../src/engine/types';
+import { EngineError, type RunDetail, type RunSummary } from '../../src/engine/types';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { preprocessCSS, resolveConfig } from 'vite';
 import axe from 'axe-core';
+import { assertFiguresProved, receiptMark } from '../helpers/ink-rules';
 
 const run = (id: string): RunDetail => structuredClone(RUNS.find((r) => r.runId === id)!);
 
@@ -98,7 +99,7 @@ describe('RunSheet', () => {
     expect(fold.open).toBe(false);
     expect(fold.querySelector('summary')!.textContent).toBe('Worked for 4m');
     expect(container.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
-    expect(screen.getAllByRole('button', { name: 'Receipt R-0412' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: receiptMark('R-0412') }).length).toBeGreaterThan(0);
   });
 
   it('a rules judge that settled nothing reads "Not checked", never "Failed", and a check is text, not a link', () => {
@@ -129,9 +130,113 @@ describe('RunSheet', () => {
   it('a failed run shows the real error and Run again', () => {
     const onRunAgain = vi.fn();
     const { container } = render(<RunSheetView run={run('28')} onClose={() => {}} onRunAgain={onRunAgain} />);
-    expect(container.textContent).toContain('ffmpeg was not found on this computer. Install ffmpeg');
+    expect(container.textContent).toContain('ffmpeg was not found on this computer.');
+    // W4 4F3: the engine's fix, in the screen's words, under what went wrong.
+    expect(container.textContent).toContain('How to fix itInstall ffmpeg, or turn off the finishing check, then run again.');
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
     expect(onRunAgain).toHaveBeenCalled();
+  });
+});
+
+describe('RunSheet: run controls (W4 4F3)', () => {
+  const scope: RunDetail['scope'] = {
+    tools: ['Read the files you gave it', 'Cut video with ffmpeg'], actions: ['Post to YouTube, for your approval'], cap: '$0.40', posture: 'approve-each',
+    line: 'Set when it started: 2 tools, 1 outside action it may propose for your approval, a spend cap of $0.40, approve each step.', capReceiptId: 'fig:scope:31',
+  };
+
+  it('puts the scope line under the title, with what it may do one step away, and "Usually" only when the engine sends it', () => {
+    const { container, unmount } = render(<RunSheetView run={{ ...run('31'), scope, usually: 'Usually 3 to 5 min' }} onClose={() => {}} />);
+    // The cap is a figure with its receipt; nothing in the line is left as an unproved engine line.
+    const line = container.querySelector('[data-figure]')!.closest('p')!;
+    expect(line.textContent).toContain('Set when it started: 2 tools, 1 outside action it may propose for your approval, a spend cap of $0.40');
+    expect(line.closest('[data-engine-line]')).toBeNull();
+    expect(screen.getByRole('button', { name: receiptMark('fig:scope:31') })).toBeTruthy();
+    expect(() => assertFiguresProved(container)).not.toThrow();
+    const fold = container.querySelector('details[data-fold="scope"]') as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    expect(fold.querySelector('summary')!.textContent).toBe('What it may do');
+    expect(fold.textContent).toContain('Cut video with ffmpeg');
+    expect(fold.textContent).toContain('Post to YouTube, for your approval');
+    expect(container.textContent).toContain('Started 4m ago · Usually 3 to 5 min');
+    unmount();
+    const plain = render(<RunSheetView run={run('31')} onClose={() => {}} />);
+    expect(plain.container.textContent).not.toContain('Usually');
+    expect(plain.container.querySelector('details[data-fold="scope"]')).toBeNull();
+  });
+
+  it("has a steer box for the agent's next step, and shows the notes with the engine's words", async () => {
+    const onSteer = vi.fn(async () => {});
+    const notes = [{ text: 'Keep each short under 45 seconds.', at: '2026-10-21T10:22:00.000Z', line: 'Sent. Waiting for the agent to pick it up.' }];
+    const { container } = render(<RunSheetView run={{ ...run('31'), steer: notes }} onClose={() => {}} onSteer={onSteer} />);
+    const box = screen.getByLabelText('Tell Editor something for its next step');
+    fireEvent.change(box, { target: { value: '  Use the brighter frame.  ' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to Editor' })); });
+    expect(onSteer).toHaveBeenCalledWith('Use the brighter frame.');
+    // The owner's own words are quoted content; the engine's line beside them says where the note is.
+    const quote = container.querySelector('[data-content]')!;
+    expect(quote.textContent).toBe('Keep each short under 45 seconds.');
+    expect(screen.getByText('Sent. Waiting for the agent to pick it up.')).toBeTruthy();
+    expect(box.getAttribute('maxlength')).toBe('500');
+  });
+
+  it('a run that is done or failed has no steer box', () => {
+    render(<RunSheetView run={run('28')} onClose={() => {}} onSteer={async () => {}} />);
+    expect(screen.queryByLabelText(/something for its next step/)).toBeNull();
+  });
+
+  it('a stopped run says so in the engine words, with Resume; a stopping run says Stopping; neither reads Failed', () => {
+    const onResume = vi.fn();
+    const line = 'Stopped by you. Finished steps are kept.';
+    const { container, unmount } = render(<RunSheetView run={{ ...run('29'), question: undefined, stop: { state: 'stopped', line }, result: line }} onClose={() => {}} onResume={onResume} />);
+    expect(screen.getByText(line)).toBeTruthy();
+    expect(container.textContent).not.toContain('Failed');
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    expect(onResume).toHaveBeenCalled();
+    unmount();
+    render(<RunSheetView run={{ ...run('31'), stop: { state: 'stopping', line: 'Stopping: the step in progress finishes first.' } }} onClose={() => {}} />);
+    expect(screen.getByText('Stopping: the step in progress finishes first.')).toBeTruthy();
+  });
+
+  it('a run a crash cut says Interrupted in its head, never Stopped', () => {
+    const line = 'Interrupted: Chausar stopped while this ran. Nothing was sent again.';
+    const { container } = render(<RunSheetView run={{ ...run('29'), question: undefined, stop: { state: 'stopped', line }, interrupted: { at: '2026-10-21T10:00:00.000Z', line, steps: [] } }} onClose={() => {}} />);
+    const head = container.querySelector('[data-sheet-line]') ?? screen.getByText(/Started 6m ago/).parentElement!;
+    expect(head.textContent).toContain('Interrupted');
+    expect(head.textContent).not.toContain('Stopped');
+  });
+
+  it("shows the cap in rupees at the owner's rate beside it, proved by the same receipt", () => {
+    const rupees = { ...scope, capRupees: '₹33.40', capRate: '₹83.50 per $1 (your rate, set 15 Oct 2026)' };
+    const { container } = render(<RunSheetView run={{ ...run('31'), scope: rupees }} onClose={() => {}} />);
+    expect(container.textContent).toContain('₹33.40 at ₹83.50 per $1 (your rate, set 15 Oct 2026)');
+    expect(() => assertFiguresProved(container)).not.toThrow();
+  });
+
+  it('a refused note is said in the screen words for its code', async () => {
+    const onSteer = vi.fn(async () => { throw new EngineError('RUN_NOT_RUNNING', 'engine words'); });
+    render(<RunSheetView run={run('31')} onClose={() => {}} onSteer={onSteer} />);
+    fireEvent.change(screen.getByLabelText('Tell Editor something for its next step'), { target: { value: 'Hello' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to Editor' })); });
+    expect(screen.getByText('Could not send it: This run is not running, so there is nothing to stop or steer.')).toBeTruthy();
+  });
+
+  it('marks each tool call with a shape and a word, with its measured time, and counts the calls in flight', () => {
+    const steps: RunDetail['steps'] = [{
+      id: 's1', purpose: 'Rendering 3 of 6', state: 'current', tools: [
+        { name: 'ffmpeg.render', line: 'short-1.mp4', state: 'done', ms: 1200 },
+        { name: 'ffmpeg.render', line: 'short-2.mp4', state: 'error', ms: 640 },
+        { name: 'ffmpeg.render', line: 'short-3.mp4', state: 'cancelled' },
+      ],
+    }];
+    const { container } = render(<RunSheetView run={{ ...run('31'), steps, live: [{ callId: 'a', state: 'done' }, { callId: 'b', state: 'start' }, { callId: 'c', state: 'error' }] }} onClose={() => {}} />);
+    const tools = [...container.querySelectorAll('[data-tool-state]')];
+    expect(tools.map((tool) => tool.getAttribute('data-tool-state'))).toEqual(['done', 'error', 'cancelled']);
+    expect(tools[0]!.textContent).toContain('1.2 s');
+    expect(tools[1]!.textContent).toContain('640 ms');
+    expect(tools[1]!.textContent).toContain('failed');
+    expect(tools[2]!.textContent).toContain('cancelled');
+    for (const tool of tools) expect(tool.querySelector('svg')).not.toBeNull();
+    expect(screen.getByText('Calls now: 1 done, 1 running, 1 failed')).toBeTruthy();
   });
 });
 
@@ -153,7 +258,8 @@ describe('JobList', () => {
     const onRunAgain = vi.fn();
     const onOpen = vi.fn();
     render(<JobList runs={summaries} onOpen={onOpen} onRunAgain={onRunAgain} />);
-    expect(screen.getByText('Stopped: ffmpeg was not found on this computer.')).toBeTruthy();
+    // 4Z2: the engine sends no result line on a failed run; the row says it failed.
+    expect(screen.getByText('This run failed.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
     expect(onRunAgain).toHaveBeenCalledWith(expect.objectContaining({ runId: '28' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cutting shorts from episode 13' }));

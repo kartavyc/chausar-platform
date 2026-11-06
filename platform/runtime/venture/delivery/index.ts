@@ -1,5 +1,6 @@
 // Chausar venture launcher, delivery package (P5): playbook, draft replies, rehearsal, launch ladder,
 // real delivery runs and the capability list. The host loads this file on first use of a method it owns.
+import { ChausarError } from '../../contracts.ts';
 import type { VentureHandler, VentureHandlerTable } from '../contracts.ts';
 import { capabilitiesHandler } from './capabilities.ts';
 import { filesAddHandler, filesListHandler, filesTranscribeHandler } from './harness/files.ts';
@@ -9,6 +10,10 @@ import { improveAdoptHandler, improveGetHandler, improveRollbackHandler, improve
 import { deliveryJudgeHandler, deliveryJudgeSendHandler, judgeAutoGetHandler, judgeAutoSetHandler, withJudgeNotices } from './judge-run.ts';
 import { launchAdvanceHandler, launchStatusHandler } from './launch.ts';
 import { playbookHandler } from './playbook.ts';
+import { playbookGuidanceHandler } from './guidance-report.ts';
+import { filesPosterHandler } from './poster.ts';
+import { optionsRerankHandler } from './rerank.ts';
+import { drillsListHandler, drillsRunHandler } from './drills.ts';
 import { deliveryAnswerHandler, deliveryApproveHandler, deliveryDelegateHandler, deliveryListHandler, deliveryReviewHandler, deliveryRunHandler } from './runs.ts';
 import { simulationFromSignalHandler, simulationGetHandler, simulationRunHandler, simulationScenariosHandler } from './simulate.ts';
 import { transcriptionGetHandler, transcriptionSetHandler } from '../playbooks/youtube/transcribe.ts';
@@ -16,6 +21,8 @@ import { transcriptionGetHandler, transcriptionSetHandler } from '../playbooks/y
 type RunMethod = 'venture.delivery.run' | 'venture.delivery.approve' | 'venture.delivery.answer' | 'venture.delivery.delegate';
 /** A delivery method's run, as the screens read it, with the judge's notice when its write turn waits (judge-run.ts). */
 const noticed = <M extends RunMethod>(handler: VentureHandler<M>): VentureHandler<M> => async (deps, ctx, payload) => withJudgeNotices(deps, ctx, [await handler(deps, ctx, payload)])[0];
+/** A wave 4 method whose package has not landed yet: listed, so the contract and the desktop see it, and refused. */
+const notBuiltYet = async (): Promise<never> => { throw new ChausarError('NOT_BUILT_YET', 'This part of Chausar is not built yet.'); };
 
 export const handlers: VentureHandlerTable = {
   'venture.delivery.playbook': playbookHandler,
@@ -49,6 +56,18 @@ export const handlers: VentureHandlerTable = {
   'venture.files.transcribe': filesTranscribeHandler,
   'venture.transcription.get': transcriptionGetHandler,
   'venture.transcription.set': transcriptionSetHandler,
+  // Ink v2 wave 4 (package 4-0 registered these; each package replaces its own lines). 4J2 fixes and draft changes.
+  'venture.delivery.fix': async (deps, ctx, payload) => (await import('./revise.ts')).deliveryFixHandler(deps, ctx, payload),
+  'venture.delivery.decideChange': async (deps, ctx, payload) => (await import('./changes.ts')).decideChangeHandler(deps, ctx, payload),
+  'venture.delivery.changes': async (deps, ctx, payload) => (await import('./changes.ts')).deliveryChangesHandler(deps, ctx, payload),
+  // 4J2 review: Make a copy of a draft that went out.
+  'venture.delivery.copy': async (deps, ctx, payload) => (await import('./copy.ts')).deliveryCopyHandler(deps, ctx, payload),
+  // 4J3 a still from the cut; 4J14 reranking scored options; 4J15 drills; 4J16 the guidance report.
+  'venture.files.poster': filesPosterHandler,
+  'venture.options.rerank': optionsRerankHandler,
+  'venture.drills.run': drillsRunHandler,
+  'venture.drills.list': drillsListHandler,
+  'venture.playbook.guidance': playbookGuidanceHandler,
 };
 
 // For tests and the other screens' fixtures.

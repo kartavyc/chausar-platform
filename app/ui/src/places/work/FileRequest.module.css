@@ -1,0 +1,6 @@
+/* A file from your client: the tile's head, its line, the button and what the engine sent, spaced like its neighbours. */
+
+.tile {
+  display: grid;
+  gap: var(--sp-3);
+}

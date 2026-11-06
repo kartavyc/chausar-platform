@@ -13,17 +13,26 @@ export type LoggedEvent = { seq?: number; name: string; data: unknown; at: strin
 const ID = /^[A-Za-z0-9_.:-]{1,200}$/;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
 
-/** A logged event as a VentureRunEvent for one business, or null when it is not a run event. Only the run id is kept. */
+const whole = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
+
+/**
+ * A logged event as a VentureRunEvent for one business, or null when it is not a run event. Only the run id is kept,
+ * with the event's seq (its place in the log, Ink v2 wave 4 4G1) and, on notify.new alone, its count.
+ */
 export function runEventFromActor(event: LoggedEvent, businessId: string): VentureRunEvent | null {
   if (!(VENTURE_RUN_EVENT_TYPES as readonly string[]).includes(event.name) || !ID.test(businessId) || !ISO.test(event.at)) return null;
   const data = event.data && typeof event.data === 'object' && !Array.isArray(event.data) ? event.data as Record<string, unknown> : {};
   const runId = typeof data.runId === 'string' && ID.test(data.runId) ? data.runId : undefined;
-  return { type: event.name as VentureRunEventType, businessId, ...(runId ? { runId } : {}), at: event.at };
+  const count = event.name === 'notify.new' && whole(data.count) ? data.count : undefined;
+  return {
+    type: event.name as VentureRunEventType, businessId, ...(runId ? { runId } : {}), at: event.at,
+    ...(whole(event.seq) ? { seq: event.seq } : {}), ...(count !== undefined ? { count } : {}),
+  };
 }
 
-/** One Server-Sent Events frame: a default message whose data is the event as JSON. */
+/** One Server-Sent Events frame: a default message whose data is the event as JSON, and its seq as the event id. */
 export function sseFrame(event: VentureRunEvent): string {
-  return `data: ${JSON.stringify(event)}\n\n`;
+  return `${whole(event.seq) ? `id: ${event.seq}\n` : ''}data: ${JSON.stringify(event)}\n\n`;
 }
 
 /** The stream's first lines: how long a browser waits before it reconnects. */

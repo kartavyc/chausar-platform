@@ -20,7 +20,7 @@ import { handlers } from '../runtime/venture/delivery/index.ts';
 import { capabilityList } from '../runtime/venture/delivery/capabilities.ts';
 import { claimBacked } from '../runtime/venture/delivery/harness/claims.ts';
 import {
-  DELEGATE_CLAUDE_TERMS, delegateArgs, delegateAvailability, delegateBrief, delegateEnv, DELEGATE_DEFAULT_LIMITS, delegateOffer, delegatePorts, folderNames, maskNumbers, REAL_ORDER_ONLY,
+  DELEGATE_CLAUDE_TERMS, delegateArgs, delegateAvailability, delegateBrief, delegateBusy, delegateEnv, DELEGATE_DEFAULT_LIMITS, delegateOffer, delegatePorts, folderNames, maskNumbers, REAL_ORDER_ONLY,
 } from '../runtime/venture/delivery/harness/delegate.ts';
 import { createDelegatePorts } from '../runtime/venture/delivery/harness/delegate-process.ts';
 import { tablesOfFile } from '../runtime/venture/delivery/harness/files.ts';
@@ -359,6 +359,12 @@ test('real order: nothing starts before the owner approves the exact brief; the 
     assert.equal(run.status, 'waiting-for-you');
     assert.equal(run.harness!.phase, 'act');
     await assert.rejects(decide(env, { ...run, harness: { ...run.harness!, delegations: [request] } }, 'approve'), code('DELIVERY_NOT_BRIEFING'), 'a second approval starts nothing');
+    // 4J13 (H30): the heavy work reported into this run once, under the brief's fixed id; its sources are the order's
+    // files it read, so no warning; the second approval delivered nothing more.
+    const reported = listRecords(env.store.read(), 'venture-delivery-run').find(item => item.id === run.id)!.reports!;
+    assert.deepEqual(reported.map(report => [report.messageId, report.from, report.sources, report.warning]),
+      [[`brief:${request.toolCallId}`, 'heavy-work', FILES.map(file => file.name), null]]);
+    assert.match(reported[0].line, /^Claude Code reported back\. /);
 
     // The folder held only the brief and copies of the order's files; the environment held no key and no vault setting.
     const spy = fake.spy();
@@ -529,4 +535,33 @@ test('rehearsal: heavy work is never offered without a found tool and is refused
   const loop = { serviceType: 'bookkeeping' as const, offer: { name: 'x', description: 'y' }, clientRequest: 'z', playbook: { steps: [] }, dictionaryManifest: '', files: [], containsClientData: false, allowed: [], host: 'test' as const };
   assert.ok(!(actTask(loop, state).input as any).tools.some((tool: any) => tool.tool === 'agent.delegate'));
   assert.equal(PURPOSE_TIER['agent-turn'], 'fast');
+});
+
+// 4J11 (H31): one delegated script per computer at a time.
+test('one at a time: two briefs approved together; the second is refused before its claim, with nothing reserved, and can run after', async () => {
+  const fake = installFake({ kind: 'claude', behavior: 'hang' }, { timeoutMs: 1500 });
+  try {
+    const env = await setup(fake.ports);
+    const first = await toBrief(env);
+    const second = await toBrief(env);
+    assert.equal(first.status, 'brief-waiting');
+    assert.equal(second.status, 'brief-waiting');
+    const settled = await Promise.allSettled([decide(env, first, 'approve'), decide(env, second, 'approve')]);
+    const refused = settled.findIndex(item => item.status === 'rejected');
+    assert.notEqual(refused, -1, 'one of the two is refused');
+    assert.equal(settled.filter(item => item.status === 'rejected').length, 1, 'only one is refused');
+    assert.equal((settled[refused] as PromiseRejectedResult).reason?.code, 'DELEGATE_BUSY');
+    const loser = [first, second][refused];
+    const stored = listRecords(env.store.read(), 'venture-delivery-run').find(run => run.id === loser.id)!;
+    assert.equal(stored.status, 'brief-waiting', 'its brief still waits for the owner');
+    assert.equal(stored.harness!.delegations!.at(-1)!.status, 'waiting', 'never claimed');
+    const spend = await listSpend(env.deps, owner, {});
+    assert.equal(spend.rows.length, 1, 'only the run that started holds a reservation');
+    assert.equal(delegateBusy(), false, 'the slot is free once the first run is done');
+    // Approved again now, it starts: nothing was lost by the refusal.
+    fake.setMode({ kind: 'claude', behavior: 'fail' });
+    const again = await decide(env, loser, 'approve');
+    assert.notEqual(again.status, 'brief-waiting');
+    assert.equal((await listSpend(env.deps, owner, {})).rows.length, 2);
+  } finally { fake.cleanup(); }
 });

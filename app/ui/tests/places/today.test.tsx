@@ -5,6 +5,7 @@ import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient, queueOrder } from '../../src/engine/fake';
 import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
 import { EngineError, type EngineClient, type QueueDecision, type QueueKind, type QueueRow } from '../../src/engine/types';
+import { receiptMark } from '../helpers/ink-rules';
 
 type Seed = Omit<QueueRow, 'digest'>;
 
@@ -68,7 +69,7 @@ describe('Today: the header and the list', () => {
   it('greets the owner and says the engine summary line', async () => {
     start();
     expect(screen.getByRole('heading', { level: 1, name: 'Good morning' })).toBeTruthy();
-    await waitFor(() => expect(headerLine()).toBe('12 need you, across 3 businesses. 2 agents are working.'));
+    await waitFor(() => expect(headerLine()).toBe('13 need you, across 3 businesses. 2 agents are working.'));
   });
 
   it('lists every row in the engine order, across businesses, each tagged with its business and agent', async () => {
@@ -105,7 +106,7 @@ describe('Today: the header and the list', () => {
     await unfold();
     expect(rowIds()).toHaveLength(QUEUE.length + SETUP_ROWS.length);
     const kinds = new Set<QueueKind>([...QUEUE, ...SETUP_ROWS].map((r) => r.kind));
-    expect(kinds.size).toBe(10);
+    expect(kinds.size).toBe(11);
     for (const li of needsYou().querySelectorAll<HTMLElement>('[data-row]')) {
       const buttons = [...li.querySelectorAll<HTMLButtonElement>('[data-key]')];
       expect(buttons.length === 1 || buttons.length === 2, li.dataset.rowId).toBe(true);
@@ -119,7 +120,7 @@ describe('Today: the header and the list', () => {
     start();
     const price = await rowOf('Sponsor slot price');
     expect(price.querySelector('del')?.textContent).toBe('₹25,000');
-    expect(within(price).getByRole('button', { name: 'Receipt R-0415' })).toBeTruthy();
+    expect(within(price).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     const question = await rowOf('Which title for episode 15?');
     expect(question.textContent).toContain('model estimate');
     expect(question.querySelector('[data-receipt]')).toBeNull();
@@ -134,7 +135,7 @@ describe('Today: deciding', () => {
     await readFirst(row);
     await click(within(row).getByRole('button', { name: 'Send to CA' }));
     await waitFor(() => expect((needsYou().querySelector('[data-row-id="q-signoff-gst"]') as HTMLElement).textContent).toBe('GST working for September · Sent to your CA'));
-    await waitFor(() => expect(headerLine()).toBe('11 need you, across 3 businesses. 2 agents are working.'));
+    await waitFor(() => expect(headerLine()).toBe('12 need you, across 3 businesses. 2 agents are working.'));
   });
 
   it('a second ask confirms inside the row; the decided line carries the receipt', async () => {
@@ -150,8 +151,8 @@ describe('Today: deciding', () => {
       expect(li).toBeTruthy();
       return li!;
     });
-    expect(line.textContent).toBe('Sponsor slot price · Approved · R-0421');
-    fireEvent.click(within(line).getByRole('button', { name: 'Receipt R-0421' }));
+    expect(line.textContent!.trim()).toBe('Sponsor slot price · Approved');
+    fireEvent.click(within(line).getByRole('button', { name: receiptMark('R-0421') }));
     expect(window.location.hash).toContain('sheet=receipt%3AR-0421');
   });
 
@@ -180,8 +181,8 @@ describe('Today: deciding', () => {
     expect(sheet.textContent).toContain('Cold open');
     await waitFor(() => expect(locked(approve)).toBe(false));
     await click(approve);
-    expect(spy.mock.calls.find(([m]) => m === 'venture.queue.decide')![1]).toMatchObject({ id: 'q-draft-ep14', action: 'approve', viewed: true });
-    await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-draft-ep14"]')!.textContent).toBe('Episode 14 is cut · Approved'));
+    expect(spy.mock.calls.find(([m]) => m === 'venture.queue.decide')![1]).toMatchObject({ id: 'run:d-ep14:review-1', action: 'approve', viewed: true });
+    await waitFor(() => expect(needsYou().querySelector('[data-row-id="run:d-ep14:review-1"]')!.textContent).toBe('Episode 14 is cut · Approved'));
   });
 
   it('a plan is read the same way before Accept unlocks', async () => {
@@ -222,14 +223,15 @@ describe('Today: deciding', () => {
     const changed = engine.touch('q-quote-iyer');
     await click(within(row).getByRole('button', { name: 'Approve' }));
     await click(within(row).getByRole('button', { name: 'Approve' }));
-    // A card says it in its own words, the new version in place (Ink v2, 3B5a).
-    expect(row.textContent).toContain('This changed. Here is the new version.');
+    // A card says the click ran nothing, the new version in place (Ink v2, 3B5a; W4 4J19 in 4J1's words).
+    expect(row.textContent).toContain('This click did not run anything. Here is the new version.');
     expect(row.textContent).toContain('Updated after the client replied.');
     expect(row.textContent).toContain('₹12,000 (revised)');
     await click(within(row).getByRole('button', { name: 'Approve' }));
     await click(within(row).getByRole('button', { name: 'Approve' }));
     expect(spy.mock.calls.filter(([m]) => m === 'venture.queue.decide').at(-1)![1]).toMatchObject({ digest: changed.digest });
-    await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-quote-iyer"]')!.textContent).toMatch(/· Approved · R-\d{4}$/));
+    await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-quote-iyer"]')!.textContent).toMatch(/· Approved\s*$/));
+    expect(needsYou().querySelector('[data-row-id="q-quote-iyer"]')!.querySelector('[data-receipt]')!.getAttribute('data-receipt')).toMatch(/^R-\d{4}$/);
   });
 
   it('a stale draft has to be opened again before Approve unlocks', async () => {
@@ -241,10 +243,10 @@ describe('Today: deciding', () => {
     await screen.findByRole('complementary', { name: 'Episode 14' });
     const approve = () => within(row).getByRole('button', { name: 'Approve' }) as HTMLButtonElement;
     await waitFor(() => expect(locked(approve())).toBe(false));
-    engine.touch('q-draft-ep14');
+    engine.touch('run:d-ep14:review-1');
     await click(approve());
-    // A card says it in its own words, the new version in place (Ink v2, 3B5a).
-    expect(row.textContent).toContain('This changed. Here is the new version.');
+    // A card says the click ran nothing, the new version in place (Ink v2, 3B5a; W4 4J19 in 4J1's words).
+    expect(row.textContent).toContain('This click did not run anything. Here is the new version.');
     expect(locked(approve())).toBe(true);
     fireEvent.click(within(row).getByRole('button', { name: 'Watch' }));
     await waitFor(() => expect(locked(approve())).toBe(false));
@@ -365,7 +367,7 @@ describe('Today: working now', () => {
     start();
     await within(await screen.findByRole('region', { name: 'Working now' })).findByRole('button', { name: 'Cutting shorts from episode 13' });
     expect([...working().querySelectorAll('li')].map((li) => li.getAttribute('data-row-id'))).toEqual(['run-31', 'run-30', 'run-29', 'run-28']);
-    await waitFor(() => expect(line('Cutting shorts from episode 13').textContent).toBe('EDCutting shorts from episode 13Editor · Rendering 3 of 63 of 54m'));
+    await waitFor(() => expect(line('Cutting shorts from episode 13').textContent).toBe('EDCutting shorts from episode 13Editor · Rendering 3 of 63 of 5Stop4m'));
     const waiting = line('Pricing the sponsor slot');
     expect(waiting.textContent).toContain('Producer');
     expect(waiting.textContent).toContain('Waiting on you');
@@ -398,12 +400,12 @@ describe('Today: working now', () => {
 
   it('refreshes on run events: a run started again is working again', async () => {
     start();
-    const row = await rowOf('Thumbnail set stopped');
+    const row = await rowOf('Thumbnail set failed');
     await waitFor(() => expect(line('Rendering the thumbnail set').textContent).toContain('Failed'));
     await click(within(row).getByRole('button', { name: 'Run again' }));
     await waitFor(() => expect(line('Rendering the thumbnail set').textContent).not.toContain('Failed'));
     expect(line('Rendering the thumbnail set').querySelector('[data-state]')?.getAttribute('data-state')).toBe('working');
-    await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-run-again-thumbs"]')!.textContent).toBe('Thumbnail set stopped · Started again'));
+    await waitFor(() => expect(needsYou().querySelector('[data-row-id="q-run-again-thumbs"]')!.textContent).toBe('Thumbnail set failed · Started again'));
   });
 });
 

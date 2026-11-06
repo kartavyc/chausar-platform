@@ -1,0 +1,237 @@
+/* W4 4J22b: the agent panel's Persona (with the agent file), Skills and Can do tabs, in the panel's own spacing. */
+
+.tab {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.line,
+.said {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.quiet {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--mute);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.small {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.section {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.form {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.selectField {
+  display: grid;
+  gap: calc(var(--sp-1) * 1.5);
+}
+
+.label {
+  composes: label from '../../parts/Field.module.css';
+}
+
+.select {
+  composes: input from '../../parts/Field.module.css';
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.buttons[data-start] {
+  justify-content: flex-start;
+}
+
+/* The second ask, inside the tab: the question and its two answers. */
+.ask {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--wash);
+}
+
+.askLine {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.results,
+.skills,
+.items {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result,
+.skill {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.scenario,
+.skillName {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.reply,
+.starter {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.starter::before {
+  content: '"';
+}
+
+.starter::after {
+  content: '"';
+}
+
+/* The file picker's label, drawn as a small secondary button; the input itself is for screen readers and keys. */
+.pick {
+  composes: button from '../../parts/Button.module.css';
+  min-height: var(--control-sm);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-button-sm);
+  font-size: var(--text-read);
+  cursor: pointer;
+}
+
+.pick[data-disabled] {
+  color: var(--mute);
+  cursor: default;
+}
+
+.pick:has(+ input:focus-visible) {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 2px;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-2);
+}
+
+.state {
+  display: inline-flex;
+}
+
+.itemLine {
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+@media (max-width: 759px) {
+  .item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Team: helpers nested under the agent they help (4J12). The parent's place holds its card, then its helpers' cards
+   on a hairline that hangs from it. */
+.withHelpers {
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.helpersBox {
+  display: grid;
+  gap: var(--sp-2);
+  padding-left: var(--sp-4);
+  border-left: var(--hair) solid var(--line);
+}
+
+.helpersSpend {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.helpersMoney {
+  composes: hit from '../../parts/touch.module.css';
+  color: var(--link);
+}
+
+.helpers {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chatLink {
+  composes: hit from '../../parts/touch.module.css';
+  color: var(--link);
+  font-weight: var(--weight-medium);
+}
+
+/* How it talks: a closed fold in Instructions, its summary styled as the tab's small section heads. */
+.fold {
+  display: grid;
+}
+
+.foldSummary {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.fold[open] > .foldSummary {
+  margin-bottom: var(--sp-3);
+}
+
+@media (max-width: 759px) {
+  .foldSummary {
+    min-height: var(--target);
+  }
+}

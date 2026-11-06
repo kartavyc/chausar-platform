@@ -4,6 +4,9 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import type { EpisodeLite, ImprovementRunLite, ScenarioLite, SimulationRunLite, VentureRunEvent } from '../../engine/types';
 import { TileSection, dayOf, messageOf } from './shared';
+// W4 4J22a: drills (4J15), experiments (4J16) and the guidance report (4J16).
+import { Drills, Experiments } from './Drills';
+import { GuidanceReport } from './GuidanceReport';
 import s from './Business.module.css';
 
 /**
@@ -31,6 +34,9 @@ export function PracticeView() {
         <Improvement />
         <JudgeSetting />
       </div>
+      {/* W4 4J22a: the drills against the version in use, and each guidance line with the check that sees it. */}
+      <Drills />
+      <GuidanceReport />
     </div>
   );
 }
@@ -214,6 +220,8 @@ function Improvement() {
             </Button>
           </div>
           <p className={s.note}>{t('business.practice.ownAi')}</p>
+          {/* W4 4J22a: each change the newest run tried, as an experiment with its control. */}
+          <Experiments run={data.latest} />
           {candidate && (
             <div className={s.foldBody} data-candidate={candidate.runId}>
               <p className={s.strong}>{t('business.practice.changes')}</p>

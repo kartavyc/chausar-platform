@@ -17,7 +17,7 @@ import type { TranscriptionSetupRecord, TranscriptionSetupView, VentureDeps } fr
 import type { DictionaryEntry } from '../../delivery/harness/dictionary.ts';
 import { readAs } from '../../delivery/shared.ts';
 import { exactPayload, listRecords, requireAppChannel, ventureAction } from '../../records.ts';
-import { systemFfmpeg, type FfmpegRun } from './finishing.ts';
+import { FILE_ONLY_INPUT, systemFfmpeg, type FfmpegRun } from './finishing.ts';
 import { parseTranscript, type Cue } from './transcript.ts';
 
 export const FFMPEG_MISSING = 'ffmpeg not found on this computer. Chausar never installs it.';
@@ -124,12 +124,14 @@ export async function makeLocalTranscript(deps: VentureDeps, ctx: Context, input
   const signal = deps.closing?.signal;
   check(!signal?.aborted, 'TRANSCRIBE_STOPPED', STOPPED_WORKSPACE_CLOSED);
   const release = deps.closing?.hold();
-  const folder = await mkdtemp(join(tmpdir(), 'chausar-transcribe-'));
+  // Made inside the try (4J3), so the hold is released even when the folder cannot be made.
+  let folder: string | null = null;
   try {
+    folder = await mkdtemp(join(tmpdir(), 'chausar-transcribe-'));
     const sound = join(folder, 'sound.wav');
-    // The cut's path is a full local path, so it can never be read as an ffmpeg option.
+    // The cut's path is a full local path, so it can never be read as an ffmpeg option; ffmpeg opens plain files only.
     let run: FfmpegRun | null = null;
-    try { run = await port.run(binary, ['-hide_banner', '-nostats', '-nostdin', '-i', input.cutFile, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', '-y', sound], FFMPEG_TIMEOUT_MS, signal); } catch { run = null; }
+    try { run = await port.run(binary, ['-hide_banner', '-nostats', '-nostdin', ...FILE_ONLY_INPUT, '-i', input.cutFile, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', '-y', sound], FFMPEG_TIMEOUT_MS, signal); } catch { run = null; }
     check(!run?.aborted && !signal?.aborted, 'TRANSCRIBE_STOPPED', STOPPED_WORKSPACE_CLOSED);
     check(run && run.code === 0 && !run.timedOut && !run.startError && await isFile(sound), 'SPEECH_FAILED', 'ffmpeg could not take the sound out of the cut. Nothing was kept.');
     const made = await speech.transcribeFile(ctx, { path: sound, prompt: input.prompt, timeoutMs: WHISPER_TIMEOUT_MS, ...(signal ? { signal } : {}) });
@@ -138,7 +140,7 @@ export async function makeLocalTranscript(deps: VentureDeps, ctx: Context, input
     check(cues.length > 0, 'SPEECH_FAILED', 'whisper.cpp heard no speech in the cut. Nothing was kept.');
     return { srt: srtOf(cues), cues: cues.length, providerId: made.providerId };
   } finally {
-    await rm(folder, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => undefined);
+    if (folder) await rm(folder, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => undefined);
     release?.();
   }
 }

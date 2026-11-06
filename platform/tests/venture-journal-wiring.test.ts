@@ -203,7 +203,7 @@ test('delivery: each send to your AI is a journal entry approved with a bound to
   const env = await harnessSetup();
   script(env, [READ, DONE]);
   // A real token exists in this process the whole time: the owner approved some other action and kept the token.
-  const other = await proposeAction(env.deps, agentCtx, { action: 'connector.write', subject: 'mail_1', target: 'Mail app', actionDigest: 'e'.repeat(64), line: 'Send the reminder email.' });
+  const other = await proposeAction(env.deps, agentCtx, { action: 'connector.write', subject: 'mail_1', target: 'Mail app', actionDigest: 'e'.repeat(64), line: 'Send the reminder email.', operation: 'send-deliverable' });
   const { token } = await approveAction(env.deps, owner, { entryId: other.id, digest: other.actionDigest });
 
   let run = await delivery['venture.delivery.run']!(env.deps, owner, { orderId: env.order.id }) as DeliveryRunView;

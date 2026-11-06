@@ -188,7 +188,15 @@ export type ComposeDecision = {
   callIds: string[]; // draft call ids, one or two
   writtenBy: WrittenBy;
   at: IsoTime;
+  /** Ink v2 wave 4 (4J8): the file dropped with the sentence, never its text; absent when none was. */
+  attachment?: ComposeAttachmentNote;
 };
+/**
+ * The file the owner dropped with the sentence: its name, whether it went with the model calls (as background only),
+ * and, when it was left out, the plain line that says why and its reason, so a screen can say it in its own words
+ * (Hindi too): words aimed at the AI, hidden characters, or a file the screen could not check.
+ */
+export type ComposeAttachmentNote = { name: string; used: boolean; line: string | null; reason: 'injection' | 'hidden' | 'error' | null };
 export type ComposedPlan = {
   composeId: string;
   digest: string; // digest of the plan without composeId and digest; venture.create checks it

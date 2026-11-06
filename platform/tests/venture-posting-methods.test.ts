@@ -73,6 +73,9 @@ test("a post waits for the client's recorded answer, then goes to Today as one c
   await assert.rejects(propose(deps, `${run.id}.post-1`), refused('POST_CLIENT_NOT_APPROVED', /Your client has not approved this draft\./));
   await clientSays(env, run);
   await assert.rejects(method(deps, 'venture.posting.propose', { draftId: `${run.id}.post-1`, text: 'Anything else.' }, agent), code('INVALID_VENTURE_REQUEST'));
+  // 4J7 (K6): the browser posts from the account signed in, so it takes no account: refused, never dropped or relabelled.
+  await assert.rejects(method(deps, 'venture.posting.propose', { draftId: `${run.id}.post-1`, account: '@lumensocial' }, agent), code('CONNECTOR_FIELD_UNSUPPORTED'));
+  assert.equal(listRecords(env.store.read(), 'venture-connector-post').length, 0, 'nothing is proposed');
 
   const proposal = await propose(deps, `${run.id}.post-1`);
   assert.deepEqual({ ...proposal, postId: 'x' }, {

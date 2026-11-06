@@ -99,6 +99,29 @@ export class Browser {
     await this.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }] });
   }
 
+  /** The computer's languages as the page reads them (navigator.languages, Accept-Language), for pages loaded after
+   *  this: the app picks Hindi from them itself (main.tsx, pickLanguage), as it would on a computer set to Hindi. */
+  async languages(list) {
+    if (!this.userAgent) this.userAgent = (await this.send('Browser.getVersion')).userAgent;
+    await this.send('Emulation.setUserAgentOverride', { userAgent: this.userAgent, acceptLanguage: list });
+  }
+
+  /** A clock that reads `iso` when each page loaded after this starts, then runs on (null: the real clock again). The
+   *  fake engine dates everything from `new Date()`, so a case can see what shows on a later day. */
+  async clock(iso) {
+    if (this.clockScript) {
+      await this.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: this.clockScript });
+      this.clockScript = null;
+    }
+    if (!iso) return;
+    const source = `(() => {
+      const Real = Date, shift = Real.parse(${JSON.stringify(iso)}) - Real.now();
+      class Shifted extends Real { constructor(...a) { if (a.length) super(...a); else super(Real.now() + shift); } static now() { return Real.now() + shift; } }
+      globalThis.Date = Shifted;
+    })();`;
+    this.clockScript = (await this.send('Page.addScriptToEvaluateOnNewDocument', { source })).identifier;
+  }
+
   /** Loads a page afresh and waits for its load event. It passes through about:blank first: an address that differs
    *  from the last only after its # would otherwise move inside the old page and keep its state (the fake engine's
    *  decisions, the focus). */

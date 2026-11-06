@@ -24,6 +24,9 @@ import { cleanSacCode, cleanTaxId, cleanTaxState, withTaxInvoiceFields } from '.
 import { DEFAULT_WORKING_NAME, labelled, modelLine, noMarkup, optionalFlag, ownerPrice, styledWords, toldByYou, wordCap } from './words.ts';
 import { flagshipPlan, flagshipStarterIds, type FlagshipPlan } from '../playbooks/plan.ts';
 import { flagshipDelivery } from '../playbooks/steps.ts';
+import type { OwnerOfferRecord } from '../contracts.ts';
+import { addOwnerOffer, liveOwnerOffers, ownerOfferInput, removeOwnerOffer, syncOwnerOffers } from './owner-offers.ts';
+import { recordDecision } from '../journal/decisions.ts';
 
 // ---------------------------------------------------------------------------
 // Flagship playbooks (playbooks/plan.ts): their words are fixed engine words on the plan
@@ -82,8 +85,11 @@ export type StructureBlocks = {
 };
 export type BlueprintStructure = {
   serviceType: ServiceType;
-  /** playbookOffer: present only on a flagship playbook's plan, so every other structure hash is unchanged. */
-  offers: { id: string; pricing: Offer['pricing']; playbookOffer?: string }[];
+  /**
+   * playbookOffer: present only on a flagship playbook's plan, so every other structure hash is unchanged. owner: an
+   * offer the owner added (4J8), always after the plan's own offers; present only on those.
+   */
+  offers: { id: string; pricing: Offer['pricing']; playbookOffer?: string; owner?: true }[];
   steps: { id: string; doneBy: BlueprintStep['doneBy']; capability: BlueprintStep['capability']; note: string }[];
   approvals: number;
   backOffice: BackOffice;
@@ -147,7 +153,20 @@ export function composedStarterIds(country: CountryProfile, tools: readonly stri
  * that playbook's offers (each keeps its playbook offer id), approval count, connectors and base service type
  * (playbooks/plan.ts), composed or not. Pure.
  */
-export function structureOf(venture: VentureRecord, interview: InterviewRecord, composition: CompositionRecord | null = null): BlueprintStructure {
+export function structureOf(venture: VentureRecord, interview: InterviewRecord, composition: CompositionRecord | null = null, owned: readonly OwnerOfferRecord[] = []): BlueprintStructure {
+  return withOwnerOffers(planStructure(venture, interview, composition), owned);
+}
+
+/**
+ * Ink v2 wave 4 (4J8): the offers the owner added, after the plan's own, each priced as the owner chose to charge it and
+ * with no price yet (carryOver keeps a price the owner set). With none, the structure is unchanged, so no hash moves.
+ */
+function withOwnerOffers(structure: BlueprintStructure, owned: readonly OwnerOfferRecord[]): BlueprintStructure {
+  if (!owned.length) return structure;
+  return { ...structure, offers: [...structure.offers, ...owned.map(record => ({ id: record.offerId, pricing: offerPricing(record.pricingModel, null), owner: true as const }))] };
+}
+
+function planStructure(venture: VentureRecord, interview: InterviewRecord, composition: CompositionRecord | null): BlueprintStructure {
   const country = venture.country;
   const flagship = flagshipPlan(venture.idea);
   const type = flagship?.serviceType ?? (composition ? composition.family : venture.serviceType ?? interview.serviceType.value);
@@ -231,7 +250,7 @@ export function structureOf(venture: VentureRecord, interview: InterviewRecord, 
 export function structureFromBlueprint(blueprint: BlueprintRecord): BlueprintStructure {
   const structure: BlueprintStructure = {
     serviceType: blueprint.serviceType,
-    offers: blueprint.offers.map(o => ({ id: o.id, pricing: o.pricing, ...(o.playbookOffer ? { playbookOffer: o.playbookOffer } : {}) })),
+    offers: blueprint.offers.map(o => ({ id: o.id, pricing: o.pricing, ...(o.playbookOffer ? { playbookOffer: o.playbookOffer } : {}), ...(o.addedByOwner ? { owner: true as const } : {}) })),
     steps: blueprint.deliverySteps.map(s => ({ id: s.id, doneBy: s.doneBy, capability: s.capability, note: s.note })),
     approvals: blueprint.approvals.length,
     backOffice: blueprint.backOffice,
@@ -240,7 +259,7 @@ export function structureFromBlueprint(blueprint: BlueprintRecord): BlueprintStr
   // A composed record hashes its blocks too, so a rewrite can change words but never the block structure.
   if (isComposedRecord(blueprint)) {
     structure.blocks = {
-      offers: blueprint.offers.map(o => o.block as OfferBlockId),
+      offers: blueprint.offers.filter(o => !o.addedByOwner).map(o => o.block as OfferBlockId),
       steps: blueprint.deliverySteps.map(s => s.block as StepBlockId),
       approvals: [...(blueprint.approvalBlocks ?? [])],
       pages: (blueprint.pages ?? []).map(p => p.block),
@@ -348,7 +367,7 @@ export function idsOf(structure: BlueprintStructure): BlueprintIds {
   const flagship = structure.offers.some(offer => offer.playbookOffer);
   if (!structure.blocks && !flagship) return TEMPLATE_IDS;
   return {
-    offers: structure.offers.map(o => o.id), steps: structure.steps.map(s => s.id), approvals: structure.approvals, composed: !!structure.blocks,
+    offers: structure.offers.filter(o => !o.owner).map(o => o.id), steps: structure.steps.map(s => s.id), approvals: structure.approvals, composed: !!structure.blocks,
     ...(flagship ? { flagship: true as const } : {}),
   };
 }
@@ -473,7 +492,7 @@ export function blueprintTask(venture: VentureRecord, interview: InterviewRecord
       country: venture.country.name,
       answers: openingAnswers(interview),
       structure: {
-        offers: structure.offers.map(o => ({ id: o.id, pricingModel: o.pricing.model })),
+        offers: structure.offers.filter(o => !o.owner).map(o => ({ id: o.id, pricingModel: o.pricing.model })),
         steps: structure.steps.map(s => ({ id: s.id, doneBy: s.doneBy })),
         approvals: ids.composed || flagship ? 0 : APPROVAL_COUNT,
       },
@@ -506,7 +525,7 @@ type PlanWords = {
   flagshipSteps?: PlanFlagshipStep[];
 };
 
-function labelWords(output: BlueprintModelOutput, by: 'model' | 'template', venture: VentureRecord, interview: InterviewRecord, structure?: BlueprintStructure): PlanWords {
+function labelWords(output: BlueprintModelOutput, by: 'model' | 'template', venture: VentureRecord, interview: InterviewRecord, structure?: BlueprintStructure, owned: readonly OwnerOfferRecord[] = []): PlanWords {
   // A number in the model's words makes the line a model estimate; template words hold no numbers.
   const allowed = copiedTokens(venture.idea, ...typedAnswers(interview));
   const say = (value: string) => (by === 'model' ? modelLine(value, allowed) : labelled(value, 'assumption', by));
@@ -527,7 +546,15 @@ function labelWords(output: BlueprintModelOutput, by: 'model' | 'template', vent
     name,
     oneLiner: say(output.oneLiner),
     customer: typed ? toldByYou(typed) : say(output.customer),
-    offers: flagship && structure ? flagshipWordsFor(structure, flagship) : output.offers.map(o => ({ name: say(o.name), description: say(o.description) })),
+    offers: [
+      ...(flagship && structure ? flagshipWordsFor({ offers: structure.offers.filter(o => !o.owner) }, flagship) : output.offers.map(o => ({ name: say(o.name), description: say(o.description) }))),
+      // 4J8: the offers the owner added keep the owner's own words; Rewrite with AI never writes them.
+      ...(structure?.offers ?? []).filter(o => o.owner).map(o => {
+        const record = owned.find(item => item.offerId === o.id);
+        check(record, 'APPROVAL_STALE', 'Your plan changed while its words were being written. Write it again.');
+        return { name: toldByYou(record.name), description: toldByYou(record.description) };
+      }),
+    ],
     steps: output.steps.map(s => say(s.title)),
     approvals,
     ...(flagship ? { flagshipSteps: flagshipStepLines(flagship) } : {}),
@@ -553,7 +580,8 @@ function assemble(tx: VentureTx, structure: BlueprintStructure, words: PlanWords
     oneLiner: words.oneLiner,
     customer: words.customer,
     offers: structure.offers.map((o, index) => ({
-      id: o.id, ...(blocks ? { block: blocks.offers[index] } : {}), ...(o.playbookOffer ? { playbookOffer: o.playbookOffer } : {}),
+      id: o.id, ...(blocks && blocks.offers[index] ? { block: blocks.offers[index] } : {}), ...(o.playbookOffer ? { playbookOffer: o.playbookOffer } : {}),
+      ...(o.owner ? { addedByOwner: true as const } : {}),
       name: words.offers[index].name, description: words.offers[index].description, pricing: structuredClone(o.pricing),
     })),
     deliverySteps: structure.steps.map((s, index) => ({
@@ -653,7 +681,17 @@ function ensureTerms(tx: VentureTx, blueprint: BlueprintRecord): void {
 // Owner edits
 // ---------------------------------------------------------------------------
 
-const PATCH_KEYS = ['name', 'oneLiner', 'customer', 'taxRegistered', 'taxRate', 'taxId', 'taxState', 'sacCode', 'lutConfirmed', 'offers'] as const;
+const PATCH_KEYS = ['name', 'oneLiner', 'customer', 'taxRegistered', 'taxRate', 'taxId', 'taxState', 'sacCode', 'lutConfirmed', 'offers', 'addOffer', 'removeOffer'] as const;
+const DIGEST_TEXT = /^[a-f0-9]{64}$/;
+const STALE_SUGGESTION = 'Your plan changed since this was suggested. Ask again, then apply it.';
+
+/** The plan version a patch was made from (a suggestion's basedOn): its id and digest. */
+function basedOnOf(value: unknown): { blueprintId: string; digest: string } {
+  const body = exactPayload(value, ['blueprintId', 'digest'], ['blueprintId', 'digest']);
+  check(typeof body.blueprintId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(body.blueprintId), 'INVALID_VENTURE_REQUEST', 'Send the id of the plan the change was made from.');
+  check(typeof body.digest === 'string' && DIGEST_TEXT.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the plan the change was made from.');
+  return { blueprintId: body.blueprintId, digest: body.digest };
+}
 const OFFER_PATCH_KEYS = ['id', 'name', 'description', 'unitPrice', 'pricingModel'] as const;
 
 /** What an edit changed that the open interview also holds, so the two stay the same. */
@@ -800,8 +838,10 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
   check(!(composition && useTemplate), 'INVALID_VENTURE_REQUEST', COMPOSED_TEMPLATE_REFUSED);
   const interview = interviewOf(state, venture.id);
   check(interviewDone(interview), 'INTERVIEW_INCOMPLETE', 'Answer the questions about your price and tax first.');
-  const fromInterview = digest(structureOf(venture, interview, composition));
-  const planned = carryOver(structureOf(venture, interview, composition), latestBlueprint(state, venture.id), venture.acceptedBlueprintId !== null, venture.country);
+  // 4J8: the offers the owner added stay on every rewrite, with their words and prices.
+  const owned = liveOwnerOffers(state, venture.id);
+  const fromInterview = digest(structureOf(venture, interview, composition, owned));
+  const planned = carryOver(structureOf(venture, interview, composition, owned), latestBlueprint(state, venture.id), venture.acceptedBlueprintId !== null, venture.country);
   const plannedHash = digest(planned);
 
   // With no AI serving the main tier the port takes the template route; for a composed plan that is a clear refusal,
@@ -827,13 +867,14 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
     const current = tx.venture as VentureRecord;
     const currentInterview = interviewOf(tx.state, current.id);
     check(interviewDone(currentInterview), 'INTERVIEW_INCOMPLETE', 'Answer the questions about your price and tax first.');
-    const structureNow = structureOf(current, currentInterview, compositionOf(tx.state, current.id));
+    const ownedNow = liveOwnerOffers(tx.state, current.id);
+    const structureNow = structureOf(current, currentInterview, compositionOf(tx.state, current.id), ownedNow);
     const stale = 'Your plan changed while its words were being written. Write it again.';
     check(digest(structureNow) === fromInterview, 'APPROVAL_STALE', stale);
     const previous = latestBlueprint(tx.state, current.id);
     const structure = carryOver(structureNow, previous, current.acceptedBlueprintId !== null, current.country);
     check(digest(structure) === plannedHash, 'APPROVAL_STALE', stale);
-    const words = labelWords(output, by, current, currentInterview, structure);
+    const words = labelWords(output, by, current, currentInterview, structure, ownedNow);
     const record = assemble(tx, structure, words, by, callIds, nextBlueprintVersion(tx.state, current.id), previous);
     tx.put(record);
     tx.touch({ blueprintId: record.id, status: statusAtLeast(current.status, 'blueprint') });
@@ -852,22 +893,32 @@ export async function blueprintGet(deps: VentureDeps, ctx: Context, payload: unk
   return latest ? blueprintView(state, latest, deps.host) : null;
 }
 
-/** venture.blueprint.update { patch } (prepare): owner edits make a new draft version. */
+/**
+ * venture.blueprint.update { patch, basedOn? } (prepare): owner edits make a new draft version. basedOn (4J8): refused
+ * APPROVAL_STALE unless the newest plan of the open business is still that one. addOffer and removeOffer (4J8): an
+ * offer the owner adds, with no price, or takes out again.
+ */
 export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BlueprintView> {
-  const body = exactPayload(payload, ['patch'], ['patch']);
+  const body = exactPayload(payload, ['patch', 'basedOn'], ['patch']);
   const patch = exactPayload(body.patch, PATCH_KEYS);
   check(Object.keys(patch).length > 0, 'INVALID_VENTURE_REQUEST', 'Send at least one change.');
+  const basedOn = Object.hasOwn(body, 'basedOn') ? basedOnOf(body.basedOn) : null;
+  const adding = has(patch, 'addOffer') ? ownerOfferInput(patch.addOffer) : null;
   return ventureAction(deps, ctx, 'prepare', 'blueprint.update', tx => {
     const venture = tx.venture as VentureRecord;
     const country = venture.country;
     const latest = latestBlueprint(tx.state, venture.id);
     check(latest, 'BLUEPRINT_NOT_FOUND', 'Write your plan first.');
+    if (basedOn) check(latest.id === basedOn.blueprintId && latest.digest === basedOn.digest && latest.ventureId === venture.id, 'APPROVAL_STALE', STALE_SUGGESTION);
     const next: BlueprintRecord = { ...structuredClone(latest), ...tx.base('venture-blueprint'), version: nextBlueprintVersion(tx.state, venture.id), status: 'draft' };
     const mirror: InterviewMirror = {};
     if (has(patch, 'name')) next.name = toldByYou(singleLine(patch.name, 'The business name', { min: 2, max: 60 }));
     if (has(patch, 'oneLiner')) next.oneLiner = toldByYou(singleLine(patch.oneLiner, 'The one line summary', { min: 2, max: 160 }));
     if (has(patch, 'customer')) next.customer = toldByYou(singleLine(patch.customer, 'Who it is for', { min: 2, max: 200 }));
+    if (has(patch, 'removeOffer')) removeOwnerOffer(tx, next, patch.removeOffer);
     if (has(patch, 'offers')) applyOfferPatches(next, patch.offers, country, mirror);
+    if (adding) addOwnerOffer(tx, next, adding);
+    syncOwnerOffers(tx, next);
     applyTaxPatch(next.backOffice, patch, country, mirror);
     withTaxInvoiceFields(next.backOffice, country);
     seal(next);
@@ -893,6 +944,9 @@ export async function blueprintAccept(deps: VentureDeps, ctx: Context, payload: 
     tx.touch({ acceptedBlueprintId: accepted.id, status: statusAtLeast(venture.status, 'build') });
     ensureTerms(tx, accepted);
     activateTerm(tx, 'offer', { recordId: accepted.id, kind: 'venture-blueprint' });
+    // 4J1 (O17): who accepted the plan and when, wherever they did (journal/decisions.ts).
+    // rowId: the Today row this version is shown as (views/queue.ts planRows), so a click there is listed once.
+    recordDecision(tx, { subject: `plan:${venture.id}`, action: 'accept', who: 'owner', ruleId: null, reason: `Plan version ${accepted.version} accepted.`, rowId: `plan:${venture.id}:${accepted.id}` });
     tx.emit('blueprint-accepted', { blueprintId: accepted.id, version: accepted.version, digest: accepted.digest });
     return blueprintView(tx.state, accepted, deps.host);
   });

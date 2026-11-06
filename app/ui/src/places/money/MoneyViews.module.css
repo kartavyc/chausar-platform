@@ -1,0 +1,694 @@
+/* Money's wave 4 views (W4 4J20): the bar above the overview (business chips, the month, Export for your CA), the
+   lines around the charts on D-Money (`.cash` figures, `.lt` next three weeks, `.ow-f` reminders), money across
+   businesses, bills, margins, the spend meter and the invoice sheet's extras. Figures are DM Mono through the Figure
+   part; colour is for state only (amber waiting, red overdue), the charts' own greys and the accent. Spacing is on
+   tokens only. */
+
+/* The bar above the overview: chips at the start, the month and the export at the end. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.barEnd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+.month {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--control-sm);
+  padding-inline: var(--sp-3);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button-sm);
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.month:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.monthSelect {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.monthSelect:focus {
+  outline: none;
+}
+
+.export {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.exportSaid,
+.exportProblem {
+  font-size: var(--text-label);
+  line-height: 17px;
+  color: var(--mute);
+}
+
+.exportProblem {
+  color: var(--fail);
+}
+
+/* Words beside or under a figure. */
+.quiet {
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+.before {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-2);
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.projected {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--sp-2);
+  padding-inline: var(--sp-2);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  font-size: var(--text-label);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+/* Owed to you: the late count, and the reminders line at the tile's foot. */
+.lateWords {
+  margin-top: var(--sp-1);
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+.remind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.remindWho {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.drafts {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: var(--target);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.draftText {
+  min-width: 0;
+}
+
+/* Cash, next 13 weeks: the three figures over the chart. */
+.cash,
+.next {
+  display: flex;
+  flex-direction: column;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4) var(--sp-8);
+  margin: var(--sp-3) 0 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.statLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-label);
+  line-height: 17px;
+  color: var(--mute);
+}
+
+.statValue,
+.statSub {
+  margin: 0;
+}
+
+.statSub {
+  font-size: var(--text-label);
+  line-height: 17px;
+  color: var(--mute);
+}
+
+.key {
+  flex: none;
+  inline-size: 14px;
+  block-size: 0;
+  border-top: 2px solid var(--chart-ink);
+}
+
+.key[data-mark='today'] {
+  inline-size: 8px;
+  block-size: 8px;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--accent);
+}
+
+.key[data-mark='dashed'] {
+  border-top-style: dashed;
+  border-top-color: var(--chart-forecast);
+}
+
+.empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+/* Next three weeks, by date. */
+.weekList {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.weekItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 56px;
+  padding-block: var(--sp-2);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.weekItem:first-child {
+  border-top: 0;
+}
+
+.weekMark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--av-32);
+  block-size: var(--av-32);
+  border-radius: var(--r-chip);
+  background: var(--wash);
+  color: var(--fg2);
+}
+
+.weekText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.weekLine {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: 19px;
+  color: var(--fg);
+}
+
+.weekSub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--text-label);
+  line-height: 17px;
+  color: var(--mute);
+}
+
+.weekAmount {
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.usual {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1);
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+/* Money across businesses. */
+.business {
+  display: flex;
+  flex-direction: column;
+}
+
+.leftOut {
+  margin: var(--sp-2) 0 0;
+  padding-left: var(--sp-5);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+/* Margins per client: a plain table that stacks on a phone. */
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body);
+}
+
+.table th,
+.table td {
+  padding: var(--sp-3) var(--sp-4);
+  border-top: var(--hair) solid var(--line-soft);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table thead th {
+  border-top: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.client {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+@media (max-width: 759px) {
+  .table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .table tr {
+    display: block;
+    padding-block: var(--sp-2);
+    border-top: var(--hair) solid var(--line-soft);
+  }
+
+  .table th,
+  .table td {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-1) var(--sp-4);
+    border-top: 0;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    font-size: var(--text-label);
+    color: var(--mute);
+  }
+}
+
+.basis {
+  display: grid;
+  gap: var(--sp-1);
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--mute);
+}
+
+/* Bills. */
+.owedBills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.billAside {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-read);
+}
+
+.billState {
+  padding-inline: var(--sp-2);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  font-size: var(--text-label);
+  line-height: 20px;
+  color: var(--fg2);
+}
+
+.billState[data-state='overdue'] {
+  border-color: var(--fail-line);
+  background: var(--fail-soft);
+  color: var(--fail);
+}
+
+/* Late, in words, beside a due date or a next step: red only for overdue. */
+.late {
+  display: inline-block;
+  margin-left: var(--sp-2);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--fail);
+}
+
+/* The spend meter on Spend. */
+.meterTile {
+  display: grid;
+  gap: var(--sp-2);
+  margin-bottom: var(--gap-section);
+}
+
+.meterTitle {
+  font-size: var(--text-tile);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.meterLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.near {
+  font-size: var(--text-read);
+  color: var(--wait-strong);
+}
+
+.meterReached {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--text-body);
+  color: var(--fail);
+}
+
+/* The limit sheet. */
+.limitLine {
+  font-size: var(--text-body);
+  line-height: 20px;
+  color: var(--fg);
+}
+
+.limitWays {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-4) 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-body);
+}
+
+.limitWay {
+  min-height: var(--control-sm);
+}
+
+/* The accountant's link. */
+.link {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.linkUrl {
+  overflow-wrap: anywhere;
+  font-size: var(--text-read);
+}
+
+/* Lists in the Invoices page: invoices that repeat. */
+.plainList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plainItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding-block: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.plainItem:first-child {
+  border-top: 0;
+}
+
+.plainTitle {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+/* The invoice sheet's extras. */
+.nextStep {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.banner {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--hair) solid var(--wait);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
+  font-size: var(--text-body);
+  color: var(--fg);
+}
+
+.tds {
+  flex-basis: 100%;
+  font-size: var(--text-label);
+  color: var(--mute);
+}
+
+.credit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  padding-block: var(--sp-2);
+  font-size: var(--text-read);
+}
+
+.creditState {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timelineItem {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding-block: var(--sp-2);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.timelineItem:first-child {
+  border-top: 0;
+}
+
+/* The total across businesses: its receipt sits at the tile's top right, as on a figure tile. */
+.acrossTotal {
+  position: relative;
+}
+
+/* The overview's folds (4J20, simple first): in and out by month and the next three weeks, closed until opened. */
+.more {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.moreFold {
+  border-top: var(--hair) solid var(--line-soft);
+  padding-top: var(--sp-3);
+}
+
+.moreFold > :not(summary) {
+  margin-top: var(--sp-3);
+}
+
+.moreSummary {
+  width: fit-content;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--link);
+  cursor: pointer;
+}
+
+.moreSummary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* What issuing a draft today brings in, under the cash line. */
+.issue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-2);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: var(--hair) solid var(--line-soft);
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.issueLink {
+  margin-left: auto;
+}
+
+.assumes {
+  margin: var(--sp-2) 0 0;
+  padding-left: var(--sp-5);
+  line-height: 18px;
+}
+
+.repeatTile {
+  margin-top: var(--sp-3);
+}
+
+/* A tile sized to what it holds, not stretched to its neighbour's height (4J20: Owed beside the cash line). */
+.fit {
+  align-self: start;
+}
+
+/* The overview measures its own width, so a sheet open beside it (a narrower page at any window size) wraps the tiles
+   instead of clipping them: under 900 px the first figure tile takes the row and the other two share the next; owed and
+   cash each take a row. */
+.page {
+  container: money / inline-size;
+}
+
+@container money (max-width: 899px) {
+  .page .glanceRow > [data-span] {
+    grid-column: span 6;
+  }
+
+  .page .glanceRow > [data-span]:first-child,
+  .page .pairRow > [data-span] {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Under 560 px (a phone at 390, or a sheet beside a narrow window) two tiles side by side clip their figures: every
+   glance tile takes the whole row. */
+@container money (max-width: 559px) {
+  .page .glanceRow > [data-span] {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The spend meter as a token-styled bar (4J20): grey track; the accent while there is room, amber near the limit, red
+   once it is used up. */
+.meterBar {
+  inline-size: 100%;
+}
+
+.meterBar svg {
+  display: block;
+}
+
+.meterTrack {
+  fill: var(--chart-rest);
+}
+
+.meterFill {
+  fill: var(--accent);
+}
+
+.meterFill[data-state='near'] {
+  fill: var(--wait);
+}
+
+.meterFill[data-state='over'] {
+  fill: var(--fail);
+}

@@ -1,0 +1,71 @@
+/* Business > Notifications (W4 4G4): the engine's settings line above two tiles; the quiet-hours times side by side;
+   the digest hour in D's select box (Field's look); the pause under a hairline; the blocked-push line in the wait
+   tone, because it is the owner's next step, not a failure. */
+
+.said {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.blocked {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--wait);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+.field {
+  display: grid;
+  gap: calc(var(--sp-1) * 1.5);
+}
+
+.label {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+  color: var(--fg2);
+}
+
+.select {
+  width: 100%;
+  min-height: var(--control);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--btn-line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+}
+
+.select:focus-visible {
+  outline: var(--focus) solid var(--link);
+  outline-offset: 0;
+}
+
+.pause {
+  display: grid;
+  gap: var(--sp-3);
+  max-width: 520px;
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.running {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}

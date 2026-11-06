@@ -4,12 +4,23 @@ const REQUEST_CHANNEL = 'chausar:request';
 const STATUS_CHANNEL = 'chausar:engine-status';
 // Run events pushed to the window (VentureRunEvent in platform/runtime/venture/contracts.ts). The preload checks them again.
 const VENTURE_EVENT_CHANNEL = 'chausar:venture-event';
-const VENTURE_EVENT_TYPES = Object.freeze(['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed']);
+const VENTURE_EVENT_TYPES = Object.freeze([
+  'run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
+  // Ink v2 wave 4 (VENTURE_RUN_EVENT_TYPES): ids only; notify.new also carries a count.
+  'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
+]);
+// Ink v2 wave 4 channel (package 4-0 named it): the desktop reads one of the owner's network files on this computer in a
+// worker and hands the window only what Chausar keeps (4D1, network-files.cjs). The count of things that need the owner
+// reaches the window and the tray on notify.new alone (4G3), so it has no channel of its own.
+const PICK_FILE_CHANNEL = 'chausar:network:pickFile';
+// 4J4 (P12): the desktop asks the engine for one month's CSV for the owner's CA and saves it where the owner picks
+// (money-export.cjs); the window names only the month. Chausar never sends the file.
+const MONEY_EXPORT_CHANNEL = 'chausar:money:saveExport';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
   'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.backup', 'workspace.export', 'workspace.delete',
-  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export',
+  'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset',
   'workspace.backup.v2.create', 'workspace.backup.v2.read', 'workspace.backup.v2.restoreInert', 'workspace.backup.v2.readRestored', 'workspace.backup.v2.inspectRestored', 'workspace.backup.v2.diagnostics',
   'workspace.activation.target.create', 'workspace.activation.target.get', 'workspace.backup.activation.prepare', 'workspace.backup.activation.inspect', 'workspace.activation.review', 'workspace.activation.execute', 'workspace.activation.get',
   'workspace.interchange.export', 'workspace.interchange.prepare', 'workspace.interchange.review', 'workspace.interchange.discard', 'workspace.interchange.diagnostics',
@@ -67,6 +78,49 @@ const METHODS = Object.freeze([
   'venture.judge.auto.get', 'venture.judge.auto.set',
   'venture.posting.limits.get', 'venture.posting.limits.set',
   'venture.transcription.get', 'venture.transcription.set',
+  // Ink v2 wave 4 (W4_METHODS in platform/runtime/venture/contracts.ts, same order)
+  'venture.team.keeper', 'venture.team.clearQuarantine',
+  'venture.agents.thread.list', 'venture.agents.thread.send', 'venture.agents.proposal.decide', 'venture.agents.version.undo',
+  'venture.agents.orders.list', 'venture.chats.consent',
+  'venture.agents.notes.list', 'venture.agents.notes.edit', 'venture.agents.notes.forget', 'venture.agents.notes.undo',
+  'venture.chief.threads', 'venture.chief.thread.list', 'venture.chief.thread.send', 'venture.chief.thread.pin', 'venture.chief.fit',
+  'venture.proposals.raise', 'venture.proposals.dismiss',
+  'venture.network.import', 'venture.network.importUndo', 'venture.network.merge', 'venture.network.split', 'venture.network.forget',
+  'venture.network.hide', 'venture.network.people', 'venture.network.person', 'venture.network.sources',
+  'venture.network.recompute', 'venture.network.know', 'venture.network.link',
+  'venture.network.search', 'venture.network.searchMore', 'venture.network.saveSearch', 'venture.network.research',
+  'venture.pipeline.list', 'venture.pipeline.followups', 'venture.pipeline.add', 'venture.pipeline.setNext', 'venture.pipeline.move', 'venture.pipeline.settings',
+  'venture.outreach.draft', 'venture.outreach.open', 'venture.outreach.sent', 'venture.outreach.restricted',
+  'venture.mailbox.connect', 'venture.mailbox.disconnect', 'venture.mailbox.sync', 'venture.inbound.list', 'venture.inbound.confirm',
+  'venture.network.calendar', 'venture.meeting.digest',
+  'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set', 'venture.away.get',
+  'venture.runs.allowWrites',
+  'venture.notify.list', 'venture.notify.read', 'venture.notify.settings',
+  'venture.notify.push.key', 'venture.notify.push.subscribe', 'venture.notify.push.unsubscribe', 'venture.notify.relay',
+  'venture.models.cli.status', 'venture.models.roles',
+  'venture.goals.get', 'venture.goals.set', 'venture.goals.suggest',
+  'venture.decisions.list', 'venture.policy.allowSession',
+  'venture.queue.sendBack', 'venture.queue.edit', 'venture.queue.undo', 'venture.queue.set', 'venture.triage.set', 'venture.triage.preview',
+  'venture.delivery.fix', 'venture.delivery.decideChange', 'venture.delivery.changes', 'venture.settings.draft', 'venture.settings.drafts',
+  'venture.queue.setPreview', 'venture.delivery.copy',
+  'venture.files.poster',
+  'venture.money.aging', 'venture.money.flow', 'venture.money.cash', 'venture.money.margins', 'venture.money.export',
+  'venture.bills.add', 'venture.bills.pay', 'venture.bills.list', 'venture.credit.issue', 'venture.invoice.recurring', 'venture.invoice.recurringList',
+  'venture.invoice.remind', 'venture.payment.clear', 'venture.bills.stop',
+  'venture.money.across', 'venture.runs.across',
+  'venture.connectors.check', 'venture.share.request',
+  'venture.playbooks.list', 'venture.blueprint.suggest',
+  'venture.owner.get', 'venture.owner.set',
+  'venture.receipt.verify', 'venture.journal.chain', 'venture.journal.acceptBreak',
+  'venture.order.contract', 'venture.order.contract.propose', 'venture.order.contract.sign',
+  'venture.routines.list', 'venture.routines.runs', 'venture.routines.set', 'venture.routines.remove',
+  'venture.options.rerank',
+  'venture.drills.run', 'venture.drills.list', 'venture.auto.readiness', 'venture.shadow.summary',
+  'venture.playbook.guidance',
+  'venture.voice.get', 'venture.voice.set', 'venture.voice.learn', 'venture.persona.get', 'venture.persona.set', 'venture.persona.test',
+  'venture.agents.export', 'venture.agents.import',
+  'venture.knowledge.list', 'venture.knowledge.add', 'venture.knowledge.remove', 'venture.knowledge.test',
+  'venture.ideas.list', 'venture.ideas.start', 'venture.ideas.dismiss', 'venture.agents.capabilities',
 ]);
 const allowedMethods = new Set(METHODS);
 const OPEN_EXTERNAL_CHANNEL = 'chausar:open-external';
@@ -79,7 +133,7 @@ const EXTERNAL_ORIGINS = Object.freeze([
   'https://postmarkapp.com', 'https://cal.com', 'https://calendly.com', 'https://calendar.google.com', 'https://www.hubspot.com',
   'https://attio.com', 'https://business.whatsapp.com', 'https://telegram.org', 'https://slack.com', 'https://discord.com',
   'https://www.notion.com', 'https://drive.google.com', 'https://linear.app', 'https://www.airtable.com', 'https://www.linkedin.com',
-  'https://x.com', 'https://www.instagram.com', 'https://www.facebook.com', 'https://ads.google.com', 'https://buffer.com',
+  'https://x.com', 'https://www.instagram.com', 'https://www.facebook.com', 'https://ads.google.com', 'https://buffer.com', 'https://wa.me',
   'https://www.youtube.com', 'https://studio.youtube.com',
   'https://tallysolutions.com', 'https://www.xero.com', 'https://quickbooks.intuit.com', 'https://www.mca.gov.in', 'https://www.gst.gov.in',
   'https://documenso.com', 'https://www.docusign.com', 'https://www.firstbase.io', 'https://posthog.com', 'https://plausible.io',
@@ -131,11 +185,44 @@ function isTrustedDocument(url) { return documentOf(url) === TRUSTED_DOCUMENT; }
 function assertTrustedSender(event, contents) {
   if (!contents || event?.sender !== contents || event?.senderFrame !== contents.mainFrame || !isTrustedDocument(event.senderFrame?.url)) throw failure('UNTRUSTED_SENDER', 'Request sender is not trusted.');
 }
-// The only links the app opens in the system browser: one https partner link from a user click.
+// 4E2: a mail handoff opens the owner's own mail app with one address, a subject and a body filled in; nothing else
+// (no second address, no cc or bcc, no attachment, no header slipped in with a line break) and the owner presses send
+// there. The link is read field by field from the text as given (a broken escape refuses it), then rebuilt with each
+// field encoded again, and the rebuilt link is the one opened: the engine's handoff (network/handoff.ts) spells it the same.
+const MAILTO_ADDRESS = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(\.[A-Za-z0-9-]{1,63})+$/;
+// Any control character (NUL, tab, CR and LF among them), next line, line separator or paragraph separator: a header
+// break in some mail app, so never in the address or the subject. The body keeps its CRLF line breaks.
+const MAILTO_BREAKS = /[\p{Cc}\u0085\u2028\u2029]/u;
+function rebuiltMailto(input) {
+  const decode = value => { try { return decodeURIComponent(value); } catch { return null; } };
+  const rest = input.replace(/^mailto:/i, '');
+  const mark = rest.indexOf('?');
+  const rawAddress = mark < 0 ? rest : rest.slice(0, mark), rawQuery = mark < 0 ? '' : rest.slice(mark + 1);
+  if (rest.includes('#')) return null;
+  const address = decode(rawAddress);
+  if (address === null || MAILTO_BREAKS.test(address) || !MAILTO_ADDRESS.test(address)) return null;
+  const fields = {};
+  for (const pair of rawQuery ? rawQuery.split('&') : []) {
+    const equals = pair.indexOf('=');
+    if (equals < 0) return null;
+    const key = pair.slice(0, equals), value = decode(pair.slice(equals + 1));
+    if ((key !== 'subject' && key !== 'body') || Object.hasOwn(fields, key) || value === null) return null;
+    if (key === 'subject' && MAILTO_BREAKS.test(value)) return null;
+    fields[key] = value;
+  }
+  const query = ['subject', 'body'].filter(key => Object.hasOwn(fields, key)).map(key => `${key}=${encodeURIComponent(fields[key])}`).join('&');
+  return `mailto:${encodeURIComponent(address).replace(/%40/g, '@')}${query ? `?${query}` : ''}`;
+}
+// The only links the app opens in the system browser: one https partner link from a user click, or one mail handoff.
 function validateExternalUrl(input) {
   if (typeof input !== 'string' || input.length === 0 || input.length > MAX_EXTERNAL_URL) throw failure('INVALID_EXTERNAL_URL', 'Use one partner link.');
   let url;
   try { url = new URL(input); } catch { throw failure('INVALID_EXTERNAL_URL', 'Use one partner link.'); }
+  if (url.protocol === 'mailto:') {
+    const rebuilt = rebuiltMailto(input);
+    if (rebuilt === null || rebuilt.length > MAX_EXTERNAL_URL) throw failure('INVALID_EXTERNAL_URL', 'Use one partner link.');
+    return rebuilt;
+  }
   if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') throw failure('INVALID_EXTERNAL_URL', 'Use one partner link.');
   if (!EXTERNAL_ORIGINS.includes(url.origin)) throw failure('EXTERNAL_URL_NOT_ALLOWED', 'Chausar opens only its listed partner sites.');
   return url.href;
@@ -143,12 +230,18 @@ function validateExternalUrl(input) {
 function publicError(error) {
   return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.' };
 }
-// A run event from the engine worker, cut down to its four plain fields; null when anything is off.
+// A run event from the engine worker, cut down to its plain fields (seq when present, count on notify.new only); null
+// when anything is off.
 function validateVentureEvent(input) {
   if (!isRecord(input) || !VENTURE_EVENT_TYPES.includes(input.type)) return null;
   const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
+  const whole = value => Number.isSafeInteger(value) && value >= 0;
   if (!id(input.businessId) || (input.runId !== undefined && !id(input.runId))) return null;
   if (typeof input.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(input.at)) return null;
-  return Object.freeze({ type: input.type, businessId: input.businessId, ...(input.runId !== undefined ? { runId: input.runId } : {}), at: input.at });
+  if ((input.seq !== undefined && !whole(input.seq)) || (input.count !== undefined && (input.type !== 'notify.new' || !whole(input.count)))) return null;
+  return Object.freeze({
+    type: input.type, businessId: input.businessId, ...(input.runId !== undefined ? { runId: input.runId } : {}), at: input.at,
+    ...(input.seq !== undefined ? { seq: input.seq } : {}), ...(input.count !== undefined ? { count: input.count } : {}),
+  });
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });
+module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, PICK_FILE_CHANNEL, MONEY_EXPORT_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, OPEN_EXTERNAL_CHANNEL, EXTERNAL_ORIGINS, validateRequest, validateExternalUrl, assertTrustedSender, isTrustedDocument, publicError, validateVentureEvent });

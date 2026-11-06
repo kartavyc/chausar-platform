@@ -577,7 +577,7 @@ async function filesUnder(directory: string): Promise<string[]> {
   return out;
 }
 
-test('boundary: nothing under platform/runtime imports from platform/tests; DRAFT_METHODS equals ONBOARDING_METHODS; the pre-vault two stay two', async () => {
+test('boundary: nothing under platform/runtime imports from platform/tests; DRAFT_METHODS equals ONBOARDING_METHODS; the pre-vault methods stay the three', async () => {
   const runtime = new URL('../runtime/', import.meta.url);
   const files = await filesUnder(decodeURIComponent(runtime.pathname).replace(/^\/([A-Za-z]:)/, '$1'));
   assert.ok(files.length > 100, 'the scan reads the runtime files');
@@ -586,7 +586,8 @@ test('boundary: nothing under platform/runtime imports from platform/tests; DRAF
     assert.doesNotMatch(source, /from\s+['"][^'"]*platform\/tests\/|from\s+['"](?:\.\.\/)+tests\/|import\(\s*['"][^'"]*\/tests\//, relative(process.cwd(), file));
   }
   assert.deepEqual([...DRAFT_METHODS], [...ONBOARDING_METHODS]);
-  assert.deepEqual([...PRE_VAULT_METHODS], ['venture.countries', 'venture.preview']);
+  // The draft methods are not pre-vault; the one later addition is the Start gallery's list of ways (Ink v2 wave 4, 4J8).
+  assert.deepEqual([...PRE_VAULT_METHODS], ['venture.countries', 'venture.preview', 'venture.playbooks.list']);
   assert.ok(initialState('x').policy, 'imports stay used');
   assert.ok(ChausarError);
 });

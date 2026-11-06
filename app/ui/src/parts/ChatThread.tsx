@@ -11,7 +11,12 @@ import s from './ChatThread.module.css';
 export type ThreadEntry =
   | { kind: 'owner'; id: string; at: string; text: string }
   /** The agent's words. `estimate` when they carry a model-written figure with no receipt (spec 5.4). */
-  | { kind: 'agent'; id: string; at: string; text: string; estimate?: boolean | undefined }
+  | {
+    kind: 'agent'; id: string; at: string; text: string; estimate?: boolean | undefined;
+    /** W4 4B3: the message drawn from its typed parts (words, a figure with its receipt, a model estimate) in place of
+     *  `text`; the caller marks quoted words `data-content` itself. */
+    body?: ReactNode;
+  }
   /** A run, folded to one row (spec 5.2). Its tick rows (`steps`, the Steps part) open from the row. */
   | {
     kind: 'run'; id: string; at: string; title: string; state: 'done' | 'failed' | 'active' | 'waiting';
@@ -24,6 +29,11 @@ export interface ChatThreadProps {
   /** Who the owner is talking to: an agent, or Chausar itself as chief of staff (`chausar`). */
   agent: { name: string; dept?: DeptId | undefined; chausar?: boolean | undefined };
   entries: readonly ThreadEntry[];
+  /**
+   * W4 4B3: earlier pages the owner asked for ("Show earlier messages"), drawn before `entries` in a part of the log
+   * that is not read out, so loading them never re-announces old messages.
+   */
+  older?: readonly ThreadEntry[] | undefined;
   /** "Today" and "Yesterday" are worked out from this; left out, now. */
   now?: Date | undefined;
   /** Left out, the computer's own zone. */
@@ -77,7 +87,7 @@ function blocksOf(entries: readonly ThreadEntry[], t: T, language: Language, now
  * arrives it follows it only if the owner was already at the bottom; someone reading older messages stays put.
  * Each message sets its own direction (`dir="auto"`), so a reply in a right-to-left script reads right.
  */
-export function ChatThread({ agent, entries, now, timeZone, className }: ChatThreadProps) {
+export function ChatThread({ agent, entries, older, now, timeZone, className }: ChatThreadProps) {
   const t = useT();
   const language = useLanguage();
   const log = useRef<HTMLDivElement>(null);
@@ -97,44 +107,50 @@ export function ChatThread({ agent, entries, now, timeZone, className }: ChatThr
   }, [newest]);
 
   const blocks = blocksOf(entries, t, language, now ?? new Date(), timeZone);
+  const olderBlocks = blocksOf(older ?? [], t, language, now ?? new Date(), timeZone);
   return (
     <div ref={log} className={cx(s.thread, className)} role="log" aria-live="polite" aria-label={t('thread.label', { name: agent.name })} onScroll={onScroll}>
-      {blocks.length === 0 && <p className={s.empty}>{t('thread.empty')}</p>}
-      {blocks.map((block) => {
-        if (block.kind === 'day') return <p key={`day-${block.key}`} className={s.day} data-day="">{block.label}</p>;
-        if (block.kind === 'owner') {
-          return (
-            <div key={block.entry.id} className={s.mine} data-from="owner">
-              <span className="sr-only">{t('thread.fromYou')}</span>
-              <p className={s.mineText} dir="auto" data-content="">{block.entry.text}</p>
-              {timeOf(block.entry.at)}
-            </div>
-          );
-        }
-        return (
-          <div key={block.key} className={s.from}>
-            {agent.chausar ? <ChausarAvatar size={28} /> : <Avatar name={agent.name} dept={agent.dept} size={28} />}
-            <div className={s.fromBody}>
-              {block.entries.map((entry) => {
-                if (entry.kind === 'agent') {
-                  const time = timeOf(entry.at);
-                  return (
-                    <div key={entry.id} className={s.theirs} data-from="agent">
-                      <span className="sr-only">{t('thread.from', { name: agent.name })}</span>
-                      <p className={s.bubble} dir="auto" data-content="">{entry.text}</p>
-                      {(time || entry.estimate) && <p className={s.meta}>{time}{entry.estimate && <ModelEstimate />}</p>}
-                    </div>
-                  );
-                }
-                if (entry.kind === 'run') return <RunFold key={entry.id} run={entry} />;
-                return <div key={entry.id} className={s.card}>{entry.node}</div>;
-              })}
-            </div>
-          </div>
-        );
-      })}
+      {blocks.length === 0 && olderBlocks.length === 0 && <p className={s.empty}>{t('thread.empty')}</p>}
+      {olderBlocks.length > 0 && <div className={s.older} aria-live="off" data-older="">{olderBlocks.map(drawBlock)}</div>}
+      {blocks.map(drawBlock)}
     </div>
   );
+
+  function drawBlock(block: Block) {
+    if (block.kind === 'day') return <p key={`day-${block.key}`} className={s.day} data-day="">{block.label}</p>;
+    if (block.kind === 'owner') {
+      return (
+        <div key={block.entry.id} className={s.mine} data-from="owner">
+          <span className="sr-only">{t('thread.fromYou')}</span>
+          <p className={s.mineText} dir="auto" data-content="">{block.entry.text}</p>
+          {timeOf(block.entry.at)}
+        </div>
+      );
+    }
+    return (
+      <div key={block.key} className={s.from}>
+        {agent.chausar ? <ChausarAvatar size={28} /> : <Avatar name={agent.name} dept={agent.dept} size={28} />}
+        <div className={s.fromBody}>
+          {block.entries.map((entry) => {
+            if (entry.kind === 'agent') {
+              const time = timeOf(entry.at);
+              return (
+                <div key={entry.id} className={s.theirs} data-from="agent">
+                  <span className="sr-only">{t('thread.from', { name: agent.name })}</span>
+                  {entry.body === undefined
+                    ? <p className={s.bubble} dir="auto" data-content="">{entry.text}</p>
+                    : <div className={s.bubble} dir="auto">{entry.body}</div>}
+                  {(time || entry.estimate) && <p className={s.meta}>{time}{entry.estimate && <ModelEstimate />}</p>}
+                </div>
+              );
+            }
+            if (entry.kind === 'run') return <RunFold key={entry.id} run={entry} />;
+            return <div key={entry.id} className={s.card}>{entry.node}</div>;
+          })}
+        </div>
+      </div>
+    );
+  }
 }
 
 function RunFold({ run }: { run: Extract<ThreadEntry, { kind: 'run' }> }) {

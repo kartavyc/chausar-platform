@@ -1,0 +1,35 @@
+/* The approval page (W4 4G4): one card at the width of Today's big card, and under it Next, or the way back to
+   Today. Nothing else competes with the decision. */
+
+.page {
+  display: grid;
+  gap: var(--gap-grid);
+  max-width: 640px;
+}
+
+.position {
+  margin: 0;
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--mute);
+}
+
+.card {
+  display: grid;
+}
+
+.next {
+  display: flex;
+}
+
+.quiet {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--mute);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fail);
+}

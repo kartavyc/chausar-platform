@@ -5,7 +5,8 @@
 // id in a row's viewRef. Text only: every figure is already formatted by code, and model numbers say so.
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
-import { exactPayload, formatVentureDate, listRecords, readVenture } from '../records.ts';
+import { exactPayload, formatVentureDate, isAppChannel, listRecords, readVenture } from '../records.ts';
+import { markViewed } from './view-marks.ts';
 import type {
   BlueprintRecord, DeliveryRunRecord, Display, InvoiceRecord, Labelled, PlanFlagshipStep, QueueItemView, QueueRow, VentureDeps, VentureRecord,
 } from '../contracts.ts';
@@ -276,9 +277,15 @@ function byRow(state: State, venture: VentureRecord, head: Head, row: QueueRow, 
   return null;
 }
 
-/** venture.queue.view { id, kind? } (read): what a Today row is about. QUEUE_ITEM_NOT_FOUND when it is gone. */
+/**
+ * venture.queue.view { id, kind?, opened? } (read): what a Today row is about. QUEUE_ITEM_NOT_FOUND when it is gone.
+ * opened: true only when the owner explicitly opened or expanded the item in the app (4J19): then it leaves a view mark
+ * for set approval. A card drawing its preview sends no opened and leaves nothing, so drawing never counts as reading.
+ */
 export async function queueViewHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<QueueItemView> {
-  const body = exactPayload(payload, ['id', 'kind'], ['id']);
+  const body = exactPayload(payload, ['id', 'kind', 'opened'], ['id']);
+  check(body.opened === undefined || body.opened === true, 'INVALID_VENTURE_REQUEST', 'opened is true when the owner opened it, or left out.');
+  const opened = body.opened === true;
   check(typeof body.id === 'string' && /^[A-Za-z0-9_.:-]{3,400}$/.test(body.id), 'INVALID_VENTURE_REQUEST', 'Send the id of the row, or of the thing it points at.');
   check(body.kind === undefined || ['draft', 'file', 'run', 'plan'].includes(body.kind as string), 'INVALID_VENTURE_REQUEST', 'kind is draft, file, run or plan.');
   const { state, venture } = readVenture(deps, ctx);
@@ -291,12 +298,15 @@ export async function queueViewHandler(deps: VentureDeps, ctx: Context, payload:
       check(row.businessId === businessOf(deps, state).id, 'QUEUE_ITEM_NOT_FOUND', 'Open that business to read this.');
       const rowHead = { ...head, ...(row.agent ? { agent: row.agent } : {}) };
       const view = row.viewRef ? byRef(deps, state, venture, rowHead, row.viewRef.kind, row.viewRef.id) : byRow(state, venture, rowHead, row, subject);
-      if (view) return view;
+      // 4J2: inside the app, the owner read this exact version of the row (a set approval needs it), when they opened it.
+      if (view) { if (opened) await markViewed(deps, ctx, [row]); return view; }
       throw new ChausarError('QUEUE_ITEM_NOT_FOUND', 'This row has nothing to read. It opens its place instead.');
     }
   }
   const view = byRef(deps, state, venture, head, (body.kind as string | undefined) ?? '', id)
     ?? (body.kind === undefined ? (byRef(deps, state, venture, head, 'draft', id) ?? byRef(deps, state, venture, head, 'file', id) ?? byRef(deps, state, venture, head, 'plan', id)) : null);
   if (!view) throw gone();
+  // 4J2: the rows that open this thing were read in their present versions.
+  if (opened && isAppChannel(ctx)) await markViewed(deps, ctx, (await queueRowsWithSubjects(deps, ctx)).filter(item => item.row.viewRef?.id === id && (body.kind === undefined || item.row.viewRef.kind === body.kind)).map(item => item.row));
   return view;
 }

@@ -39,6 +39,17 @@ export function pickCountry(codes: readonly string[], region: string | null): st
   return codes.includes('XX') ? 'XX' : codes[0] ?? 'XX';
 }
 
+/**
+ * A country's name as the reader's language writes it (4Z2): the engine sends a code and an English name, so a Hindi
+ * screen names the country itself from the code ("भारत"), and "another country" in its own words. English keeps the
+ * engine's name.
+ */
+export function countryWords(country: { code: string; name: string }, language: 'en' | 'hi', t: (key: string) => string): string {
+  if (language === 'en') return country.name;
+  if (country.code === 'XX') return t('onboarding.country.other');
+  try { return new Intl.DisplayNames([language], { type: 'region' }).of(country.code) ?? country.name; } catch { return country.name; }
+}
+
 /** The sentence as the engine will read it: Windows line ends made plain, spaces trimmed. */
 export function cleanSentence(text: string): string {
   return text.replace(/\r\n/g, '\n').trim();

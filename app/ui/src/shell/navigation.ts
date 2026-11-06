@@ -40,16 +40,23 @@ export function setQuery(query: Record<string, string>): void {
   navigate({ ...currentRoute(), query });
 }
 
-export function openSheet(kind: string, id: string, from?: Element | null): void {
+/**
+ * `tab` names a tab inside the sheet (the agent panel's Chat, W4 4B3: `?sheet=agent:editor&tab=chat`). It belongs to
+ * the sheet: opening another sheet without one, or closing the sheet, takes it out of the address.
+ */
+export function openSheet(kind: string, id: string, from?: Element | null, tab?: string): void {
   const element = (from ?? document.activeElement) as HTMLElement | null;
   origin = { element: element && element !== document.body ? element : null, rowId: element?.closest?.('[data-row-id]')?.getAttribute('data-row-id') ?? null };
-  navigate({ ...currentRoute(), sheet: { kind, id } });
+  const route = currentRoute();
+  const { tab: _old, ...query } = route.query;
+  navigate({ ...route, query: tab ? { ...query, tab } : query, sheet: { kind, id } });
 }
 
 export function closeSheet(): void {
   const route = currentRoute();
   if (!route.sheet) return;
   delete route.sheet;
+  delete route.query.tab;
   navigate(route);
 }
 

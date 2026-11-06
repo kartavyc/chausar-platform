@@ -93,9 +93,47 @@ Where a board shows data the engine does not send yet, the place draws what is r
 | Phone | the Chats tab (Clients moves into More); the bell; the business name in the hosted manifest | 4C; 4G; 4J |
 | Parts built, waiting for data | GoalCard with a goal, NextStep, Gallery, PathLine, StrengthDots, the Board in W4's stages, NotificationBell, Composer, ChatThread, DiffCard, AgingBar, BarChart, CashLine, SplitBar; PreviewFrame's text view takes a `proof` the file and plan views do not send yet | 4I, 4J, 4D, 4E, 4G, 4C, 4B |
 
+## Ink v2, wave 4: new features (26 October)
+
+Wave 4 put real engine data behind every place the direction D boards draw. Wave 3 left placeholders where the engine sent nothing; those are now filled. The plan is `docs/superpowers/plans/2026-10-23-chausar-ink-v2-w4.md`. The boards, `WALK.md` and the side-by-side page in `docs/superpowers/designs/ink-v2-direction-d/` now show the wave 4 app.
+
+### What the owner can now do
+
+- **Team by department.** Five departments (Sales and clients, Marketing, Production, Money, Operations) with their jobs, spend and playbook steps, one department at a time (`#/team?dept=prod`), and Keeper, the code that keeps backups and connections, shown as code, not AI.
+- **Chat with an agent.** A quiet Chat button on each agent card opens its panel. Say "from now on ..." and the agent proposes a change to its instructions, with what is added in words and "Version 4 to 5, you can undo"; Accept, then Undo, works. Notes come only from the owner's own words. The panel also has Instructions with standing orders and the locked Auto, Runs, Notes and Can do.
+- **Chats with Chausar.** Ask about money, work or the team. Every figure comes with its receipt, or says "model estimate". A short plan ends in one next step; Start puts it on Today as a card, and "On Today" opens that card.
+- **The owner's own network.** Import a LinkedIn export, contacts, a calendar or mail headers (read on this computer, message text left out), search in plain words, see how well you know each person (worked out by code, with a receipt) and warm paths marked "possible path, not confirmed".
+- **The pipeline.** Found, Asked, Talking, Proposal, Won, with Lost and Not now, forward only. Follow-ups come due on Today by date. Drafts open in mail, LinkedIn or WhatsApp; Chausar never sends, and the owner taps "I sent it".
+- **Run controls.** Stop, Force stop and Resume on every run, a stopped run on its own tile with why, the repeat-failure breaker, How to fix it, and Pause all, Stop all and Away from the business menu.
+- **Goals.** A month goal on Today's dark card with pace, days left and the next best step, and a Goals page to set one.
+- **The bell and the digest.** A notification centre with a daily digest, Mark all read, quiet hours and pause in Business > Notifications, and an approval page a phone alert can open.
+- **Your AI, honestly.** Connections checks the Claude Code and Codex apps on this computer and says what it ran; it never says "signed in" without evidence.
+- **Money.** Bills, margins, money across businesses, owed by age, cash for the next 13 weeks, the month picker and Export for your CA (a file saved on this computer; nothing is sent).
+- **The rest.** Approve several (nothing ticked for you, no approve all), Sort, Send back with your words and Edit on a draft (a stale save says so and locks), previews and order stage steps, the Start gallery with the ways to earn and connector guides, Voice, What AI knows, Practice with drills, Routines, the journal chain with "Check a receipt", Ideas and Waiting on you on Today, and Hindi for every new string.
+
+### The walk (package 4Z)
+
+- `node scripts/ui-shots/walk.mjs` now covers 111 cases, every wave 4 address and opened state among them. Hindi comes from the computer's languages, the way the app picks it, instead of `?lang=hi`; a case can start on a later day (`clock`), which Today's Ideas fold needs.
+- The first walk: 479 checks, 24 failed, no axe violation. The pipeline board let its hidden column hints widen the page (fixed), and 11 checks pressed buttons by old or English names (the cases were updated).
+- Walking every flow by hand found four more faults, each fixed with a test: the agent chat's hidden words scrolled the panel's head out of view after a message; the agent panel was a little taller than an 860 px window and then scrolled sideways; "On Today" in Chats did not bring a folded card into view; and a plan's title in Hindi broke one word per line on a phone.
+- The last walk: 479 checks over 111 cases, none failed, nothing accepted in `accepted.mjs`, no axe or colour-contrast violation in either theme, every focus check passing. `WALK.md` has the "Wave 4" numbers and the lists.
+- Not walked by hand: the breaker and a stale draft, because the fake engine cannot make either happen in one window (both are held by tests), and Electron, because this checkout has no Electron binary and the launcher won't download one.
+- The Hindi list: `app/ui/tests/baselines/text-keys-w3.json` holds the English keys of the wave 3 commit. Every key wave 4 added is in both catalogues and in `app/ui/src/text/hi-review.json`, which also names the engine files that carry their own machine-drafted Hindi (`HINDI_REVIEW`). `tests/text.test.ts` checks both the wave 2 and the wave 3 baselines.
+
+### What stays planned
+
+- **The W5 playbooks.** The gallery shows only the three built ways to earn; W5 adds the rest, with the step mechanics a new role needs.
+- **Not placed in wave 4** (the plan's "Not placed" list):
+  - credits, plans and billing (a spec non-goal: the owner pays for AI directly);
+  - a custom agent from one sentence (A16), which needs W5's step mechanics;
+  - the filmstrip of browser posting runs (U7);
+  - importing clients and their history (C22), which lands in W5 beside the playbooks that use it;
+  - network import on the hosted app, which needs parsing in the browser first.
+- **Word budgets.** Several places grew past their wave 3 baselines (Today, Team, Pipeline, Money, Connections, Start). The founder confirms the new numbers in the wave 4 PR.
+
 ## Known limits
 
-- **The walk.** Done in wave 3: see "Ink v2, wave 3" above and `docs/superpowers/designs/ink-v2-direction-d/WALK.md`. Run `node scripts/ui-shots/walk.mjs` again after any change to a place.
+- **The walk.** Done in waves 3 and 4: see "Ink v2, wave 3" and "Ink v2, wave 4" above and `docs/superpowers/designs/ink-v2-direction-d/WALK.md`. Run `node scripts/ui-shots/walk.mjs` again after any change to a place.
 - **Other businesses are locked rows.** Each business is its own encrypted vault and the engine keeps one open, so Today shows other businesses as locked rows until a read-only vault open exists.
 - **Auto with spot checks is not open.** The spot-check decision is now recorded when a run's write finishes at that posture, but the launch ladder keeps the stage planned, `venture.launch.advance` refuses it, the delivery runs allow only shadow and approve each, and every model turn on a real order still waits for the owner to approve its exact text. Opening it needs the ladder step, a stage the runs accept, and a decision on unattended turns for client data.
 - **The hosted tick.** The hosted server sweeps the journal when a business opens, but does not run the engine's five-minute tick.
@@ -106,6 +144,24 @@ Where a board shows data the engine does not send yet, the place draws what is r
 - **Regulated CA papers wait for wave 2 (Ink v2).** Since wave 1, a GST, TDS or ITR working must quote a figure from a calculator receipt, and nothing regulated can be accepted, shared, posted or sent until the CA signs that exact text (an edit needs its own sign-off). No agent tool calls the tax calculators until wave 2, so those offers stop at the check until then. The FY 2026-27 TDS and AY 2027-28 income-tax tables are new and unconfirmed: they work in rehearsal only until the CA confirms them, and the FY 2025-26 TDS table is now version 2 (the no-PAN rule is the higher of the rate and 20%), which the CA confirms again.
 - **Spend is counted in US dollars.** Limits and caps are typed in dollars, the currency the AI providers bill. With a rupees-per-dollar rate set by the owner, spend also shows in rupees, labelled with that rate and its date.
 - **The untrusted-content screen starts in observe mode.** It notes what it finds on outside content (kinds only, never the words) and the owner can switch a business to enforce, where flagged content waits on Today until released.
+- **No web search ships (Ink v2 wave 4, 4D3).** A network search's "Also look outside my network" and "Before you write" need a web search the host composes (`VentureDeps.webSearch`); none does yet, so both say "Web search is not set up here." Before a host composes one, it must show the owner a consent that names the search provider and what is sent to it: the owner's own words for a search, and a person's name and company for "Before you write". Pages are then read only through the network guard, never a LinkedIn or other profile page.
+- **Breakers, write caps and spend limits (Ink v2 wave 4, 4F2): what is not built yet.**
+  - *Connector action reasons.* The table that says what a connector error means (a duplicate is looked up and used, already done counts as done, past its deadline goes to a person, a missing permission keeps the action as a flagged draft) is built and tested (`delivery/failure-words.ts` `connectorAction`), but no connector calls it yet. Follow-up: wire it where the posting and payment connectors settle an error.
+  - *Range estimates.* An estimate that depends on something unmeasured is not shown as a range ("₹380 to ₹520"). Every estimate this build shows is a single figure that already takes the expensive side: a call's most it can cost, a heavy-work run's cap, and the drafts projection, worked out at the dearest of the last ten drafts.
+  - *Balances.* Chausar reads no balance from any AI provider, so none is ever shown, as zero or as anything else. Follow-up: when a provider balance is read, an unreadable one says "unknown".
+  - *Prompt-cache prices.* The owner can put prompt-cache read and write prices on the rate card, and the card shows each as its own line, but a call's cost is still worked out from its input and output tokens only: the providers' usage reports are not yet read for cached tokens. Follow-up: read the cache counts and price them at those lines.
+  - *Runs on the owner's own plan.* Calls through Claude Code or Codex on this computer spend nothing here and write no spend row; only calls on the owner's own API keys do.
+  - *"Skipped polishing".* Near a limit, an optional step is left out of the agent's turn with that line, but the run sheet does not show it yet; no shipped step is optional until wave 5 marks some.
+- **Business summaries and the never-contact list (Ink v2 wave 4, 4J6).**
+  - *Passphrase businesses on the shared list.* A business that opens with a passphrase writes no summary, but its blocklisted and forgotten emails, phones and LinkedIn pages still join `custody/never-contact.json`, so every business keeps them out. They are keyed one-way checks, yet anyone holding this computer's login (which opens the list's key) can test whether a given address is on the list. The list never says which business added it.
+  - *Other businesses' figures stay in the open vault.* `venture.money.across` and the chief write sum receipts (subject `across`) that hold another business's name and saved totals with their time. When that business later turns on a passphrase or is deleted, those receipts stay in the vaults that made them: the other vaults are closed and encrypted, so they can't be purged then. They hold totals only, never a client's words.
+  - *Resetting the list.* A list Chausar can no longer check (its key lost, changed or unreadable, the file changed or of a bad shape) stops every draft with `NEVER_CONTACT_LOST` and is never emptied by itself. The owner's reset is `workspace.custody.neverContactReset {confirmation}` (owner only, inside the app, a business open and its name typed, refused on the hosted app and while the list still checks, journalled as `custody.never-contact-reset`); no screen offers it yet. Each business adds its own blocklist again when next opened; people forgotten in other businesses can't be put back.
+- **The journal chain and receipts (Ink v2 wave 4, 4J10 and 4J22a).** The chain shows when a stamped record was changed, but not when an attacker edits every stamped record together or replays an older pin with its own valid signature. Delivery runs carry no chain stamp yet. "Check a receipt" says "Doesn't match" only for a changed line; an old unsigned receipt, a missing key or a retired key reads "Not confirmed" with its reason, never as tampering.
+- **Forget and client files.** Forgetting a person removes them from the network, the pipeline, drafts and routine prompts, but files a client uploaded stay with their order. Whether Forget should remove those too is a founder question.
+- **TDS wording.** The payment sheet calls it "the client's TDS certificate". The founder and the CA confirm the wording.
+- **Quotes as evidence (Ink v2 wave 4, 4E4).** A price receipt names no person, so a Proposal move picks from the business's last 20 offer quotes, as the owner's own word; the engine refuses an order or invoice receipt. A quote tied to one person needs engine work.
+- **Agent questions (4J22b).** The engine reads the owner's reply to an agent's questions; the send button's words come from a copy of its reading rules in the UI, held to the engine's by a differential test. Helpers on Team show no spend amount, because per-agent spend comes as words without a receipt.
+- **Lift (4J22a).** An experiment's lift compares the gate's paired cases, and those passes can rest on the judge's answers, so lift is always shown as a model estimate, never as a proved figure.
 
 ## Planned
 

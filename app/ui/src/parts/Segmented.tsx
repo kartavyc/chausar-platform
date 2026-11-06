@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { type FocusEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { T } from '../text';
 import { DeptDot } from './Chip';
 import { cx } from './cx';
@@ -54,23 +54,50 @@ function Inside({ option }: { option: SegmentOption }) {
   );
 }
 
+/** Which edges of a scrolling row hide more segments; undefined when the row fits. These are layout pixels, never money. */
+type More = 'start' | 'end' | 'both' | undefined;
+function moreOf(row: HTMLElement): More {
+  const start = row.scrollLeft > 1;
+  const end = row.scrollLeft + row.clientWidth < row.scrollWidth - 1;
+  return start && end ? 'both' : start ? 'start' : end ? 'end' : undefined;
+}
+
 /**
  * D's `.seg`: a row of segments on a white pill, the current one on the selected ink. When the row is wider than
- * its place, it scrolls sideways and the current segment is brought into view.
+ * its place, it scrolls sideways and the current segment is brought into view, on mount, when the choice changes and
+ * when the row's own width changes (a sheet opening beside the page). The edge that hides more fades (`data-more`),
+ * so the segments past it are found at every width.
  */
 export function Segmented(props: SegmentedProps) {
   const { label, value, className } = props;
   const row = useRef<HTMLElement | null>(null);
+  const [more, setMore] = useState<More>(undefined);
   const setRow = (element: HTMLElement | null) => {
     row.current = element;
   };
-  useEffect(() => {
+  const measure = useCallback(() => {
+    if (row.current) setMore(moreOf(row.current));
+  }, []);
+  const reveal = useCallback(() => {
     const current = row.current?.querySelector<HTMLElement>('[aria-pressed="true"], [aria-current="page"]');
     if (row.current && current) revealInRow(row.current, current);
-  }, [value]);
+    measure();
+  }, [measure]);
+  useEffect(reveal, [value, reveal]);
+  // A segment reached by Tab comes into the row too, so focus never sits under the faded edge.
+  const onFocus = (event: FocusEvent<HTMLElement>) => {
+    if (row.current && event.target !== row.current) revealInRow(row.current, event.target);
+    measure();
+  };
+  useEffect(() => {
+    if (!row.current || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => reveal());
+    observer.observe(row.current);
+    return () => observer.disconnect();
+  }, [reveal]);
   if (props.mode === 'links') {
     return (
-      <nav ref={setRow} className={cx(s.seg, className)} aria-label={label}>
+      <nav ref={setRow} className={cx(s.seg, className)} aria-label={label} data-more={more} onScroll={measure} onFocus={onFocus}>
         <ul className={s.list}>
           {props.options.map((option) => (
             <li key={option.id}>
@@ -85,7 +112,7 @@ export function Segmented(props: SegmentedProps) {
   }
   const { onChange } = props;
   return (
-    <div ref={setRow} className={cx(s.seg, className)} role="group" aria-label={label}>
+    <div ref={setRow} className={cx(s.seg, className)} role="group" aria-label={label} data-more={more} onScroll={measure} onFocus={onFocus}>
       {props.options.map((option) => (
         <button key={option.id} type="button" className={s.item} aria-pressed={option.id === value} onClick={() => onChange(option.id)}>
           <Inside option={option} />

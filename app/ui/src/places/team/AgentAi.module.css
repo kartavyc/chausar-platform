@@ -1,0 +1,33 @@
+/* Its AI in the agent panel (W4 4H2): each kind of job with the AI that serves it and its price line. */
+
+.tiers {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tier {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.how > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
+  font-size: var(--text-read);
+  color: var(--link);
+  cursor: pointer;
+}
+
+.how > summary:hover {
+  color: var(--link-hover);
+}
+
+.name {
+  margin: 0;
+  font-size: var(--text-read);
+  color: var(--fg);
+}

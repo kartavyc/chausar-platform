@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { Engine } from '../runtime/engine.ts';
-import type { ApprovalSeal, JournalEntry, JournalRecord, MockEffect, SiteEditRecord, SpotCheckRecord, VentureDeps } from '../runtime/venture/contracts.ts';
+import type { ApprovalSeal, JournalEntry, JournalRecord, MockEffect, SiteEditRecord, VentureDeps } from '../runtime/venture/contracts.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { gateEffect, sealApproval } from '../runtime/venture/policy/holds.ts';
 import { spotCheckOnFinish } from '../runtime/venture/policy/spot-check.ts';
@@ -248,21 +248,14 @@ test('at shadow, outbox.propose journals a shadow entry and answers the simulati
 // 5. The spot-check completion hook
 // ---------------------------------------------------------------------------
 
-test('a finished run gets its spot-check decision only at auto with spot checks, once per run', async () => {
+test('a finished run gets no spot-check decision while auto with spot checks is locked, even in a vault whose stage says auto', async () => {
   const env = await setup();
   const finish = (runId: string, spendMicros = '1000') => ventureAction(env.deps, owner, 'approve', 'finish', tx => spotCheckOnFinish(tx, { runId, spendMicros }));
   await ventureAction(env.deps, owner, 'admin', 'stage', tx => tx.touch({ launchStage: 'approve-each' }));
   assert.equal(await finish('delivery_1'), null, 'below auto with spot checks the owner approves each run anyway');
+  // Ink v2 wave 4 (4J15): the policy caps every posture at approve each while auto is locked (policy/auto-lock.ts).
   await ventureAction(env.deps, owner, 'admin', 'stage', tx => tx.touch({ launchStage: 'auto-spot-check' }));
-  const first = await finish('delivery_2') as SpotCheckRecord;
-  assert.equal(first.ordinal, 1);
-  assert.equal(first.sampled, false);
-  assert.equal((await finish('delivery_2'))!.id, first.id, 'once per run');
-  const costly = await finish('delivery_3', '900000') as SpotCheckRecord;
-  assert.equal(costly.sampled, true);
-  assert.equal(costly.reason, 'over-spend');
-  // An agent set tighter than the business never gets a spot check: it approves each run.
-  await ventureAction(env.deps, owner, 'approve', 'posture', tx => tx.put({ ...tx.base('venture-agent-posture'), agentId: 'delivery', posture: 'approve-each' }));
-  assert.equal(await finish('delivery_4'), null);
-  assert.equal(listRecords(env.store.read(), 'venture-spot-check').length, 2);
+  assert.equal(await finish('delivery_2'), null);
+  assert.equal(await finish('delivery_3', '900000'), null);
+  assert.equal(listRecords(env.store.read(), 'venture-spot-check').length, 0);
 });

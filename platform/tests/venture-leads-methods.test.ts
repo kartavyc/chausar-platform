@@ -1,6 +1,7 @@
 // The customer engine's lead rules as engine methods (venture.leads.add, .list, .draft, .recordSend). A lead needs the
-// page it was found on; an email counts only after a mail server check; the blocklist comes before any draft; every
-// draft carries the business postal address and an unsubscribe line; agents only draft and the owner records each send.
+// page it was found on; an email counts only after a mail server check; the blocklist comes before any draft; the lead
+// list drafts cold email, so every draft carries the business postal address and an unsubscribe line (the footer rule,
+// 4E2: a warm note goes from the person's pipeline card instead); agents only draft and the owner records each send.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
@@ -9,6 +10,8 @@ import type { LeadView, OutreachDraftView, VentureDeps } from '../runtime/ventur
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers } from '../runtime/venture/build/index.ts';
 import { code, owner, phone, setup, type Env } from './venture-views-env.ts';
+import { net, personNamed } from './venture-network-env.ts';
+import { withPeople } from './venture-pipeline-env.ts';
 
 const agent: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'mcp' };
 type Handler = (deps: VentureDeps, ctx: Context, payload: unknown) => Promise<unknown>;
@@ -95,6 +98,17 @@ test('venture.leads.draft: blocklist first, a verified email, the postal address
   });
   await assert.rejects(call(deps, 'venture.leads.draft', draft, agent), code('LEADS_BLOCKED'));
   await assert.rejects(call(deps, 'venture.leads.draft', { leadId: 'lead_missing', subject: 'x', body: 'y' }), code('LEADS_NOT_FOUND'));
+});
+
+test('venture.leads.draft is a cold email, so it keeps the footer even when the lead is someone you know well (4E2)', async () => {
+  const env = await setup();
+  const deps: VentureDeps = { ...env.deps, mx: async () => [{ exchange: 'mx.dewdrop.example', priority: 10 }] };
+  await withPeople(env);
+  await net(env, 'venture.network.know', { personId: personNamed(env, 'Asha Rao').id, how: 'well' });
+  const lead = await call<LeadView>(deps, 'venture.leads.add', { name: 'Asha Rao', email: 'asha@dewdrop.example', sourceUrl: SOURCE });
+  const made = await call<{ lead: LeadView; draft: OutreachDraftView }>(deps, 'venture.leads.draft', { leadId: lead.id, subject: 'Hello', body: 'A short note.', postalAddress: '12 FC Road, Pune 411004' });
+  assert.match(made.draft.text, /--\nLedger Cafe Books\n12 FC Road, Pune 411004\nTo stop these emails/);
+  assert.deepEqual(made.draft.footer, { businessName: 'Ledger Cafe Books', postalAddress: '12 FC Road, Pune 411004', unsubscribe: 'To stop these emails, reply with the word unsubscribe and we will not write to you again.' });
 });
 
 test('venture.leads.recordSend: the owner records a send they made themselves; Chausar never sends', async () => {

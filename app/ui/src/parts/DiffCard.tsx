@@ -33,6 +33,9 @@ export interface DiffCardProps {
   busy?: boolean | undefined;
   /** The instructions moved on since this was drafted (spec 8): it can no longer be accepted. */
   stale?: boolean | undefined;
+  /** W4 4B3: the engine's own words for a stale proposal ("This was drafted against version 4; ..."), shown instead
+   *  of the card's general line. */
+  staleLine?: string | undefined;
   /** What the owner decided, once the engine has it. `undone`: accepted, then put back. */
   decided?: 'accepted' | 'rejected' | 'undone' | undefined;
   className?: string | undefined;
@@ -50,7 +53,7 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  * has the decision the outcome line (a status) takes focus, so focus is never dropped to the page.
  */
 export function DiffCard({
-  agent, dept, appliesTo, lines, fromVersion, toVersion, onAccept, onReject, onUndo, busy = false, stale = false, decided, className,
+  agent, dept, appliesTo, lines, fromVersion, toVersion, onAccept, onReject, onUndo, busy = false, stale = false, staleLine, decided, className,
 }: DiffCardProps) {
   const t = useT();
   const id = useId();
@@ -140,7 +143,7 @@ export function DiffCard({
           </span>
         </p>
       )}
-      {stale && decided === undefined && <p className={s.note} data-tone="wait">{t('diff.stale')}</p>}
+      {stale && decided === undefined && <p className={s.note} data-tone="wait">{staleLine ?? t('diff.stale')}</p>}
       {open && (
         <div className={s.actions}>
           <Button onClick={(event) => void decide(onReject, event)} disabled={held}>{t('diff.reject')}</Button>

@@ -1,0 +1,314 @@
+{
+  "_source": "The engine's own data (platform/runtime/venture/core/ways.ts listWays with no business open, core/checklist.ts CHECKLIST_ITEMS). platform/tests/venture-ways.test.ts pins both equal; make it again when the engine changes them. The Hindi is the engine's, machine-drafted for a native reviewer.",
+  "ways": {
+    "ways": [
+      {
+        "id": "ca-firm",
+        "playbook": "ca-firm",
+        "label": "CA practice",
+        "category": "money-and-tax",
+        "department": "money",
+        "line": "Books, GST, TDS and income tax working papers for small businesses. Your CA of record signs anything regulated.",
+        "hours": "6 to 10 h a week",
+        "minHours": 6,
+        "maxHours": 10,
+        "hoursEstimate": true,
+        "youDo": "Meet clients, review every draft, and work with your CA.",
+        "team": [
+          {
+            "role": "Intake clerk",
+            "initials": "IC",
+            "department": "sales"
+          },
+          {
+            "role": "Tax preparer",
+            "initials": "TP",
+            "department": "money"
+          },
+          {
+            "role": "Reconciler",
+            "initials": "RE",
+            "department": "money"
+          },
+          {
+            "role": "Working papers writer",
+            "initials": "WP",
+            "department": "money"
+          }
+        ],
+        "teamLine": "Read client files, match statements, pick the tax rules and write working papers. Code works out every figure.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹20,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "The client's files (PDF, CSV or Excel) and your own mail app. Tally on this computer if you use it. A person files on the tax portals."
+        },
+        "starter": "A CA practice: books, GST and income tax working papers for small businesses.",
+        "yours": [],
+        "hi": {
+          "label": "CA प्रैक्टिस",
+          "line": "छोटे बिज़नेस के लिए बही-खाते, GST, TDS और इनकम टैक्स के वर्किंग पेपर्स। जो भी काम नियमों के तहत है, उस पर आपके CA दस्तख़त करते हैं।",
+          "hours": "हफ़्ते में 6 से 10 घंटे",
+          "youDo": "क्लाइंट से मिलें, हर ड्राफ़्ट जाँचें और अपने CA के साथ काम करें।",
+          "team": [
+            "इनटेक क्लर्क",
+            "टैक्स प्रिपेयरर",
+            "रिकंसाइलर",
+            "वर्किंग पेपर्स राइटर"
+          ],
+          "teamLine": "क्लाइंट की फ़ाइलें पढ़ते हैं, स्टेटमेंट मिलाते हैं, टैक्स के नियम चुनते हैं और वर्किंग पेपर्स लिखते हैं। हर आँकड़ा कोड निकालता है।",
+          "pay": "₹5,000 से ₹20,000",
+          "per": "प्रति क्लाइंट, हर महीने",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "CA practice: छोटे बिज़नेस के लिए बही-खाते, GST और इनकम टैक्स के वर्किंग पेपर्स।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "क्लाइंट की फ़ाइलें (PDF, CSV या Excel) और आपका अपना मेल ऐप। अगर आप Tally इस्तेमाल करते हैं, तो इस कंप्यूटर पर Tally। टैक्स पोर्टल पर फ़ाइलिंग कोई व्यक्ति करता है।"
+          }
+        }
+      },
+      {
+        "id": "youtube",
+        "playbook": "youtube",
+        "label": "YouTube channel",
+        "category": "content",
+        "department": "production",
+        "line": "Hooks, edit lists, titles, descriptions and chapters for client videos, from footage the client owns or has licensed.",
+        "hours": "4 to 8 h a week",
+        "minHours": 4,
+        "maxHours": 8,
+        "hoursEstimate": true,
+        "youDo": "Talk to clients, cut each video from the edit list in your own editor, then you or the client publish.",
+        "team": [
+          {
+            "role": "Intake clerk",
+            "initials": "IC",
+            "department": "production"
+          },
+          {
+            "role": "Producer",
+            "initials": "PR",
+            "department": "sales"
+          },
+          {
+            "role": "Story editor",
+            "initials": "SE",
+            "department": "production"
+          },
+          {
+            "role": "Packager",
+            "initials": "PA",
+            "department": "marketing"
+          }
+        ],
+        "teamLine": "Read each brief, ask the client what is missing, write hooks, pick moments for the edit list, and draft titles and chapters.",
+        "clientsPay": {
+          "text": "₹5,000 to ₹30,000",
+          "per": "per video",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "The client's transcript (SRT or VTT) and footage notes as files. ffmpeg on this computer is optional, for the check on a finished cut."
+        },
+        "starter": "A YouTube channel service: hooks, titles and chapters for client videos.",
+        "yours": [],
+        "hi": {
+          "label": "YouTube चैनल",
+          "line": "क्लाइंट के वीडियो के लिए हुक, एडिट लिस्ट, टाइटल, डिस्क्रिप्शन और चैप्टर, उसी फ़ुटेज से जो क्लाइंट का अपना है या लाइसेंस पर है।",
+          "hours": "हफ़्ते में 4 से 8 घंटे",
+          "youDo": "क्लाइंट से बात करें, एडिट लिस्ट से अपने एडिटर में हर वीडियो एडिट करें, फिर आप या क्लाइंट पब्लिश करें।",
+          "team": [
+            "इनटेक क्लर्क",
+            "प्रोड्यूसर",
+            "स्टोरी एडिटर",
+            "पैकेजर"
+          ],
+          "teamLine": "हर ब्रीफ़ पढ़ते हैं, क्लाइंट से कमी पूछते हैं, हुक लिखते हैं, एडिट लिस्ट के लिए पल चुनते हैं और टाइटल व चैप्टर का ड्राफ़्ट बनाते हैं।",
+          "pay": "₹5,000 से ₹30,000",
+          "per": "प्रति वीडियो",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "क्लाइंट के वीडियो के लिए YouTube चैनल सर्विस: हुक, टाइटल और चैप्टर।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "क्लाइंट की ट्रांसक्रिप्ट (SRT या VTT) और फ़ुटेज के नोट्स, फ़ाइलों में। इस कंप्यूटर पर ffmpeg हो तो कटे हुए वीडियो की जाँच भी होती है, पर ज़रूरी नहीं।"
+          }
+        }
+      },
+      {
+        "id": "social-agency",
+        "playbook": "social-agency",
+        "label": "Social media agency",
+        "category": "marketing",
+        "department": "marketing",
+        "line": "Calendars, posts, replies and monthly reports for local shops, clinics and coaches.",
+        "hours": "4 to 6 h a week",
+        "minHours": 4,
+        "maxHours": 6,
+        "hoursEstimate": true,
+        "youDo": "Approve every draft and post, talk to clients, and post or hand off.",
+        "team": [
+          {
+            "role": "Intake",
+            "initials": "IN",
+            "department": "sales"
+          },
+          {
+            "role": "Strategist",
+            "initials": "ST",
+            "department": "marketing"
+          },
+          {
+            "role": "Writer",
+            "initials": "WR",
+            "department": "marketing"
+          },
+          {
+            "role": "Creative",
+            "initials": "CR",
+            "department": "production"
+          },
+          {
+            "role": "Checker",
+            "initials": "CH",
+            "department": "operations"
+          },
+          {
+            "role": "Analyst",
+            "initials": "AN",
+            "department": "marketing"
+          }
+        ],
+        "teamLine": "Voice sheets, calendars, captions, reply drafts, ad briefs, and report words from the client's own exports.",
+        "clientsPay": {
+          "text": "₹8,000 to ₹25,000",
+          "per": "a client a month",
+          "estimate": true,
+          "source": "Model estimate, written by an AI in October 2026 from general knowledge of freelance work in India. Not a survey, a quote or a promise: you set every price."
+        },
+        "needs": {
+          "ai": "Your own AI, paid by you directly.",
+          "connections": "The client's brand files and platform exports, and your own mail app. You post from your own accounts, or import the calendar file into your scheduler."
+        },
+        "starter": "A social media agency: calendars, posts and replies for local shops.",
+        "yours": [],
+        "hi": {
+          "label": "सोशल मीडिया एजेंसी",
+          "line": "लोकल दुकानों, क्लिनिक और कोच के लिए कैलेंडर, पोस्ट, जवाब और महीने की रिपोर्ट।",
+          "hours": "हफ़्ते में 4 से 6 घंटे",
+          "youDo": "हर ड्राफ़्ट और पोस्ट मंज़ूर करें, क्लाइंट से बात करें, और ख़ुद पोस्ट करें या क्लाइंट को सौंपें।",
+          "team": [
+            "इनटेक",
+            "स्ट्रैटेजिस्ट",
+            "राइटर",
+            "क्रिएटिव",
+            "चेकर",
+            "एनालिस्ट"
+          ],
+          "teamLine": "वॉइस शीट, कैलेंडर, कैप्शन, जवाबों के ड्राफ़्ट, ऐड ब्रीफ़, और क्लाइंट के अपने एक्सपोर्ट से रिपोर्ट के शब्द।",
+          "pay": "₹8,000 से ₹25,000",
+          "per": "प्रति क्लाइंट, हर महीने",
+          "source": "मॉडल का अनुमान, जिसे एक AI ने अक्टूबर 2026 में भारत में फ़्रीलांस काम की आम जानकारी से लिखा। यह कोई सर्वे, कोटेशन या वादा नहीं है: हर दाम आप तय करते हैं।",
+          "starter": "Social media agency: लोकल दुकानों के लिए कैलेंडर, पोस्ट और जवाब।",
+          "needs": {
+            "ai": "आपका अपना AI, जिसका ख़र्च आप सीधे देते हैं।",
+            "connections": "क्लाइंट की ब्रांड फ़ाइलें और प्लेटफ़ॉर्म के एक्सपोर्ट, और आपका अपना मेल ऐप। पोस्ट आप अपने अकाउंट से करते हैं, या कैलेंडर फ़ाइल अपने शेड्यूलर में डालते हैं।"
+          }
+        }
+      }
+    ],
+    "categories": [
+      {
+        "id": "content",
+        "label": "Content",
+        "hi": "कंटेंट",
+        "count": 1
+      },
+      {
+        "id": "marketing",
+        "label": "Marketing",
+        "hi": "मार्केटिंग",
+        "count": 1
+      },
+      {
+        "id": "money-and-tax",
+        "label": "Money and tax",
+        "hi": "पैसा और टैक्स",
+        "count": 1
+      }
+    ],
+    "upTo": {
+      "maxHours": 5,
+      "label": "Up to 5 h a week",
+      "hi": "हफ़्ते में 5 घंटे तक",
+      "count": 0
+    }
+  },
+  "checklist": [
+    {
+      "id": "ai",
+      "label": "Connect your AI",
+      "link": "#/connections/ai"
+    },
+    {
+      "id": "idea",
+      "label": "Say what you want to do",
+      "link": "#/business/plan"
+    },
+    {
+      "id": "questions",
+      "label": "Set your price and tax",
+      "link": "#/business/plan"
+    },
+    {
+      "id": "plan",
+      "label": "Accept your plan",
+      "link": "#/business/plan"
+    },
+    {
+      "id": "prices",
+      "label": "Set your prices",
+      "link": "#/business/prices"
+    },
+    {
+      "id": "brief",
+      "label": "Write the build brief",
+      "link": "#/business/build"
+    },
+    {
+      "id": "builder",
+      "label": "Open it in Lovable or Replit",
+      "link": "#/business/build"
+    },
+    {
+      "id": "repo",
+      "label": "Follow the build on GitHub",
+      "link": "#/business/build"
+    },
+    {
+      "id": "rehearsal",
+      "label": "Rehearse with practice clients",
+      "link": "#/business/practice"
+    },
+    {
+      "id": "first-client",
+      "label": "Add your first client",
+      "link": "#/clients"
+    },
+    {
+      "id": "first-invoice",
+      "label": "Send your first invoice",
+      "link": "#/money/invoices"
+    },
+    {
+      "id": "first-payment",
+      "label": "Record your first payment",
+      "link": "#/money/invoices"
+    }
+  ]
+}

@@ -13,7 +13,7 @@ import type { RightsBasis } from '../delivery/rights.ts';
 import { PLAYBOOK_REGISTRY, pickPlaybook, type PlaybookRegistration } from './registry.ts';
 import { CA_APPROVALS, CA_CONNECTORS, CA_OFFERS } from './ca-firm/playbook.ts';
 import { CA_FIRM_ID } from './ca-firm/registration.ts';
-import { YOUTUBE_APPROVALS, YOUTUBE_OFFERS, youtubeConnectors } from './youtube/playbook.ts';
+import { YOUTUBE_APPROVALS, YOUTUBE_CONNECTOR_IDS, YOUTUBE_OFFERS } from './youtube/playbook.ts';
 import { YOUTUBE_ID } from './youtube/registration.ts';
 import { SOCIAL_APPROVALS, SOCIAL_CONNECTORS, SOCIAL_OFFERS } from './social/playbook.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
@@ -92,7 +92,7 @@ const YOUTUBE_PLAN = build(
   registration(YOUTUBE_ID),
   YOUTUBE_OFFERS.map(offer => ({ key: offer.id, name: offer.name, description: offer.description, model: offer.pricing, rights: offer.rightsBases })),
   YOUTUBE_APPROVALS.map(item => ({ key: item.id, words: item.words })),
-  youtubeConnectors({ ffmpeg: false }).map(item => item.id),
+  [...YOUTUBE_CONNECTOR_IDS], // a static list: loading the plan never calls into build/posting.ts
   {
     offers: [{ key: 'episode-package', block: 'package' }, { key: 'shorts-from-own-video', block: 'package' }, { key: 'licensed-clips', block: 'retainer' }],
     approvals: [
@@ -143,7 +143,12 @@ export function flagshipStarterIds(plan: FlagshipPlan, country: Pick<CountryProf
   return [...new Set(['lovable', 'github', country.paymentRails[0], ...plan.connectors, 'chausar-books'])];
 }
 
-/** The plan offer a blueprint offer is, by the playbook offer id it keeps; null for an offer from another plan. */
-export function flagshipOffer(plan: FlagshipPlan | null, offer: { playbookOffer?: string } | null | undefined): FlagshipOffer | null {
+/**
+ * The plan offer a blueprint offer is, by the playbook offer id it keeps; null for an offer from another plan. An offer
+ * the owner added to a flagship playbook's plan (4J8) runs that playbook's steps, so it takes intake as the playbook's
+ * own first offer does (YouTube's episode package: the footage rights included), under the owner's offer name.
+ */
+export function flagshipOffer(plan: FlagshipPlan | null, offer: { playbookOffer?: string; addedByOwner?: true; name?: { value: string } } | null | undefined): FlagshipOffer | null {
+  if (plan && offer?.addedByOwner && plan.offers[0]) return { ...plan.offers[0], name: offer.name?.value ?? plan.offers[0].name };
   return plan && offer?.playbookOffer ? plan.offers.find(item => item.key === offer.playbookOffer) ?? null : null;
 }

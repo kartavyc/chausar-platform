@@ -13,6 +13,7 @@ import { monthSpendNow } from '../../money/spend.ts';
 import { agentStage } from '../runs.ts';
 import { currentPlaybook, playbookLimits } from '../playbook.ts';
 import { runCapMicros } from './loop.ts';
+import { draftCapDenial } from './write-caps.ts';
 
 /** Why the gate said no this time, in plain words, with a stable code. */
 export type Denial = { code: string; reason: string };
@@ -94,7 +95,9 @@ export function recheckSend(deps: VentureDeps, ventureId: string, runId: string,
     const state = deps.store.read();
     const run = findRecord(state, 'venture-delivery-run', runId);
     const waiting = run && run.status === 'waiting-for-you' && run.callId === callId ? run.preview : null;
-    denial = recheckBeforeApply(runFacts(state, ventureId, run, { approvedDigest, currentDigest: waiting?.digest ?? null, callMicros: waiting?.estimatedMaxCostMicros ?? '0' }, deps.clock().toISOString()));
+    denial = recheckBeforeApply(runFacts(state, ventureId, run, { approvedDigest, currentDigest: waiting?.digest ?? null, callMicros: waiting?.estimatedMaxCostMicros ?? '0' }, deps.clock().toISOString()))
+      // Ink v2 wave 4 (4F2): a call that writes a draft is held to today's cap on drafts (write-caps.ts).
+      ?? draftCapDenial(state, findRecord(state, 'venture-record', ventureId), waiting ? run : null, deps.clock().toISOString());
   } catch {
     denial = { code: 'RECHECK_FAILED', reason: RECHECK_FAILED };
   }

@@ -639,3 +639,75 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Your network (4D4): the owner's own files as rows in one tile, each with its honest Reads label. */
+.network {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.networkList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.networkSource {
+  display: flex;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.networkBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.networkHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.networkName {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.networkFold {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.networkFold > .note {
+  margin-bottom: var(--sp-3);
+}
+
+.networkSummary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--control-sm);
+  font-size: var(--text-read);
+  color: var(--fg2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.networkSummary::-webkit-details-marker {
+  display: none;
+}
+
+.networkFold[open] > .networkSummary > svg {
+  transform: rotate(90deg);
+}

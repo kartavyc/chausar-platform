@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
@@ -10,6 +10,7 @@ import { FILE_ACCEPT, fileProblem, readBase64 } from './files';
 import { EMPTY_INTAKE, intakeParams, intakeReady, type IntakeDraft } from './intake';
 import { IntakeFields } from './IntakeFields';
 import { messageOf } from './PreviousRuns';
+import { clearPrefill, peekPrefill } from './prefill';
 import { workChanged } from './refresh';
 import s from './Work.module.css';
 
@@ -32,8 +33,11 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const plan = useResource('venture.blueprint.get', {}, { refreshOn: never });
   const [clientId, setClientId] = useState(id === 'new' ? '' : id);
   const [name, setName] = useState('');
-  const [offerId, setOfferId] = useState('');
-  const [request, setRequest] = useState('');
+  // W4 4B3: an agent's chat may open this sheet with the service and request filled in (prefill.ts).
+  const [prefill] = useState(peekPrefill);
+  useEffect(clearPrefill, []);
+  const [offerId, setOfferId] = useState(prefill?.offerId ?? '');
+  const [request, setRequest] = useState(prefill?.request ?? '');
   const [intake, setIntake] = useState<IntakeDraft>(EMPTY_INTAKE);
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);

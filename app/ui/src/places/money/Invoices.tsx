@@ -10,7 +10,10 @@
  * due date reads as a sentence ("Due 28 Oct 2026"). The table, its row groups, rows, heads and cells carry their roles
  * explicitly: Safari drops a table's semantics once CSS changes how it is drawn.
  *
- * Lateness is not a state the engine sends yet (W4 4J), so no row is marked late, and reminders wait for W4 4E.
+ * W4 4J20: an open invoice past its due day says how late it is (the engine's `late`, worded here), and its action is
+ * its one next step by state (the engine's `next`): Remind drafts a payment reminder the owner sends from their own app
+ * (venture.invoice.remind, then 4E4's draft sheet), a drafted one opens, and a cheque waiting to clear opens the invoice
+ * where it is marked cleared. Under the table, invoices that repeat (Recurring.tsx).
  */
 
 import { useId, useState } from 'react';
@@ -26,9 +29,12 @@ import { Receipt } from '../../parts/Receipt';
 import { Row } from '../../parts/Row';
 import { SectionHead, Tile } from '../../parts/Tile';
 import type { InvoiceLite, OrderLite } from '../../engine/types';
+import { keepDraft } from '../clients/handoff';
 import { EngineWords, Failed, Section } from './parts';
+import { Recurring } from './Recurring';
 import { messageOf, onMoney, useDay } from './words';
 import s from './Money.module.css';
+import v from './MoneyViews.module.css';
 
 const ORDER: Readonly<Record<InvoiceLite['status'], number>> = { draft: 0, issued: 1, 'part-paid': 1, paid: 2, void: 2 };
 
@@ -85,6 +91,7 @@ export function Invoices() {
           </ul>
         </Section>
       )}
+      {invoices.data && <Recurring />}
     </>
   );
 }
@@ -126,8 +133,16 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
   }
 
   let action;
+  const next = invoice.next;
   if (invoice.status === 'draft') {
     action = <Button variant="primary" size="sm" data-key="primary" onClick={(event) => open(event.currentTarget)}>{t('money.invoices.issue')}</Button>;
+  } else if (owing && next?.action === 'remind') {
+    // 4J5: the reminder's day has come. Drafted already: open it to send it yourself; else ask the Billing agent for it.
+    action = next.draftId
+      ? <Button size="sm" data-key="primary" onClick={(event) => openSheet('outreach', next.draftId!, event.currentTarget)}>{t('money.remind.open')}</Button>
+      : <RemindButton invoiceId={invoice.id} />;
+  } else if (owing && next?.action === 'clear') {
+    action = <Button size="sm" data-key="primary" onClick={(event) => open(event.currentTarget)}>{t('money.invoices.clear')}</Button>;
   } else if (owing) {
     action = <Button size="sm" data-key="primary" onClick={(event) => openSheet('payment', invoice.id, event.currentTarget)}>{t('money.invoices.record')}</Button>;
   } else {
@@ -162,10 +177,46 @@ function InvoiceRow({ invoice, client, request }: { invoice: InvoiceLite; client
         {view.error && <EngineWords className={s.quietSmall}>{t('money.failed', { message: view.error.message })}</EngineWords>}
       </td>
       <td role="cell" className={s.cellStatus}><StateChip kind="invoice" value={invoice.status} /></td>
-      <td role="cell" className={s.cellDue}>{due}</td>
-      <td role="cell" className={s.cellReceipt}>{proved && <Receipt id={receiptId} />}</td>
+      <td role="cell" className={s.cellDue}>
+        {due}
+        {/* 4J4: how late, from the engine's whole days (its line worded here). */}
+        {owing && invoice.late && <span className={v.late} data-late="">{t('money.late', { count: String(invoice.late.days) })}</span>}
+      </td>
+      <td role="cell" className={s.cellReceipt}>{proved && <Receipt id={receiptId} amount={total} />}</td>
       <td role="cell" className={s.cellAction}>{action}</td>
     </tr>
+  );
+}
+
+/**
+ * Remind (4J5, M12): the Billing agent drafts a payment reminder from the invoice's own figures
+ * (venture.invoice.remind); the draft sheet opens so the owner sends it from their own app. Nothing is sent here.
+ */
+function RemindButton({ invoiceId }: { invoiceId: string }) {
+  const t = useT();
+  const engine = useEngine();
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  async function remind(origin: HTMLElement) {
+    setBusy(true);
+    setRefusal(null);
+    try {
+      const made = await engine.request('venture.invoice.remind', { invoiceId });
+      keepDraft(engine, made.draft);
+      openSheet('outreach', made.draft.id, origin);
+    } catch (error) {
+      setRefusal(t('money.remind.failedOne', { message: messageOf(error) }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Button size="sm" data-key="primary" disabled={busy} onClick={(event) => void remind(event.currentTarget)}>{t('money.invoices.remind')}</Button>
+      {refusal && <span className={s.refusal} role="status" data-engine-line="">{refusal}</span>}
+    </>
   );
 }
 

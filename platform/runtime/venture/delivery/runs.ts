@@ -8,19 +8,21 @@
 import { ChausarError, check, newId, type Context, type State } from '../../contracts.ts';
 import { copiedTokens, exactPayload, findRecord, identifier, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { DELIVERY_REASONS, REQUIRED_SECTIONS } from '../contracts.ts';
+import { writtenByLine } from '../models/written-by.ts';
 import type {
   BlueprintRecord, CheckId, CheckResult, ClaimProof, DelegateFigure, DelegateRunRecord, DelegationRequest, Deliverable, DeliveryReason, DeliveryRunRecord,
   DeliveryRunView, HarnessState, ModelPreview, ModelTask, OrderRecord, PlaybookCheckResult, PlaybookRecord, PriceReceiptRecord, RecordBase, SignalRecord, ToolEnvelope,
   VentureDeps, VentureRecord, VentureRecordKind, WorkReceiptRecord, WorkTableRecord,
+  MicroString, ToolName,
 } from '../contracts.ts';
 import { correctDraft, firstFailedCheck, knownNames, runChecks, withDraftChecks, type CheckInput } from './checks.ts';
 import type { ReceiptCorrection } from './judge/claim-check.ts';
 import { deliveryTask, draftAllowedTokens, orderRefs, renderDeliverable, TEMPLATE_OUTLINE_LINE, templateOutline, templateTotal, validateDraft, type AnyReceipt, type DraftRefs, type DraftTimes } from './deliverable.ts';
 import {
   DELEGATE_CLAUDE_TERMS, DELEGATE_LABELS, delegateAvailability, delegateGateOpen, delegateOffer, delegatePorts, delegateSpend, delegateSpendOutcome,
-  delegationEnvelopeResult, runDelegation, type DelegateAvailability, type DelegationResult,
+  delegationEnvelopeResult, runDelegation, type DelegateAvailability, type DelegationResult, takeDelegateSlot,
 } from './harness/delegate.ts';
-import { countedMicros, fixedEstimate, ownerRates, reserveSpend, resolveRate, settleSpendAction, spendRefused } from '../money/spend.ts';
+import { budgetPressure, countedMicros, fixedEstimate, ownerRates, reserveSpend, resolveRate, settleSpendAction, spendRefused } from '../money/spend.ts';
 import { dictionaryEntries, manifest, ownerDefinitions } from './harness/dictionary.ts';
 import { buildToolEnv, fileList, madeSoFar, namer, orderUploads, uploadsById } from './harness/env.ts';
 import type { FileLike } from './harness/files.ts';
@@ -33,7 +35,9 @@ import { HOSTED_NO_OWNER_CLI } from './harness/sandbox.ts';
 import { recheckRun, recheckSend } from './harness/recheck.ts';
 import { storeRunEvidence } from './harness/tools-evidence.ts';
 import { ensurePlaybook, flagshipDraft, playbookLimits, verifyChecks } from './playbook.ts';
-import { failedPlaybookCheck, runFlagshipChecks } from '../playbooks/draft-checks.ts';
+import { failedPlaybookCheck, runFlagshipChecks, voiceDraftCheck, withQuoteFixes, withVoiceCheck } from '../playbooks/draft-checks.ts';
+import { voicePart, voiceRules } from '../agents/voice.ts';
+import { personaInputs, personaPart, writingStyle } from '../agents/persona.ts';
 import { refusalsOf } from '../playbooks/ca-firm/claims.ts';
 import { caOfferFor, caSignoffBlock } from '../playbooks/ca-firm/signoff-gate.ts';
 import { diffExplanations } from '../playbooks/ca-firm/signoff.ts';
@@ -42,6 +46,26 @@ import { acceptedBlueprint, errorCode, newestFirst, optionalFlag, previewShownWh
 import { journalled } from '../journal/journal.ts';
 import { spotCheckOnFinish } from '../policy/spot-check.ts';
 import { screenSettingOf } from '../policy/untrusted-methods.ts';
+import { freezeScope, refuseMissingCapability, refuseNewWork } from './run-guards.ts';
+import { loadQuarantineCheck, refuseQuarantined } from './quarantine-gate.ts';
+import { contractChecks, draftWords, refuseUnsignedContract, refuseUnsignedRun } from '../money/order-contracts.ts';
+import { carryControls, gateWaits, stampOwnerWords, stoppedNow, STOPPED_BY_YOU } from './harness/controls.ts';
+import { notesCarried, recallNotes, staleNotes } from '../agents/recall.ts';
+import { knowledgeForTurn, SOURCES_CHANGED, sourcesCarried, staleSources, turnQuery } from '../agents/knowledge-recall.ts';
+import { repairTurn } from './harness/repair.ts';
+import { acceptManifest } from './file-manifest.ts';
+import { recordDecision } from '../journal/decisions.ts';
+import { unconfirmedActions } from './harness/hygiene.ts';
+import { questionWindowMs, refuseExpiredQuestion, withQuestionExpiry } from './timed-questions.ts';
+import { withRunLease } from './leases.ts';
+import { withReport } from './report-back.ts';
+import { guardedPlaybookChecks } from './trace-scan.ts';
+import { landRevision, withRevision } from './revise.ts';
+
+/** 4J1: what each review verdict says in the decision record. */
+const REVIEW_DECISION_WORDS: Readonly<Record<'accepted' | 'edited' | 'rejected', string>> = Object.freeze({
+  accepted: 'Draft accepted.', edited: 'You edited the draft into your own version.', rejected: 'Draft rejected.',
+});
 
 export const STAGE_BLOCKED_REASON = 'Rehearse with your AI first, then move to shadow.';
 export const PRACTICE_REASON = 'Practice drafts are not for clients. Move to approve each to use drafts.';
@@ -96,19 +120,27 @@ function orderContext(state: State, venture: VentureRecord, orderId: string): Or
  * A flagship playbook's own checks on a draft (playbooks/draft-checks.ts), after the harness checks; undefined for
  * the eight fixed steps. The finishing check reads a cut on this computer, so the hosted server never runs it. The CA
  * firm calculator's refusals among the run's tool calls go with them, so a refused working fails, do not retry. The
- * tables the run's tools made and its tool calls go too, for the checks that read them.
+ * tables the run's tools made and its tool calls go too, for the checks that read them. An order whose signed contract
+ * protects anything gets the contract's check last, on the eight fixed steps too (4J12).
  */
 async function flagshipChecks(deps: VentureDeps, context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, servedBy: 'model' | 'template', extras: { work?: readonly WorkReceiptRecord[]; tables?: readonly WorkTableRecord[]; files?: readonly FileLike[]; harness?: HarnessState } = {}): Promise<PlaybookCheckResult[] | undefined> {
-  if (!playbook.flagship) return undefined;
-  return runFlagshipChecks({
+  // Ink v2 wave 4 (4J12, H24): a signed order contract's protected items, on every playbook's drafts, after its own.
+  const contract = contractChecks(deps.store.read(), context.venture, context.order.id, { text: draftWords(deliverable), ...(extras.files ? { files: extras.files.map(file => ({ name: file.name, digest: file.digest })) } : {}) });
+  // Ink v2 wave 4 (4J17, A8): the owner's voice, by code, on every playbook's drafts; it only ever adds a result.
+  const voice = servedBy === 'template' ? null : voiceDraftCheck(deliverable, voiceRules(deps.store.read(), context.venture), playbook.flagship ?? null);
+  if (!playbook.flagship) return withVoiceCheck(contract.length ? contract : undefined, voice);
+  const checkInput = {
     flagship: playbook.flagship, offerKey: context.offerKey, servedBy, deliverable, request: context.order.request, intake: context.order.intake ?? null,
-    files: extras.files ?? [], receipts: [...context.receipts, ...(extras.work ?? [])], known: context.known, mode: 'client',
+    files: extras.files ?? [], receipts: [...context.receipts, ...(extras.work ?? [])], known: context.known, mode: 'client' as const,
     today: todayIso(deps, context.venture), dateOrder: context.venture.country.dateOrder, ...(deps.host === 'hosted-web' ? { finishing: null } : {}),
     refusals: refusalsOf(extras.harness?.toolCalls ?? []),
     tables: extras.tables ?? [], toolCalls: extras.harness?.toolCalls ?? [],
     // The CA's explanations of portal differences, so one recorded while the run waited counts now (Ink v2 2A2).
     caExplanations: diffExplanations(deps.store.read(), context.venture.id),
-  });
+  };
+  // Ink v2 wave 4 (4J15, Q14): a check that changes what it checks is voided and what it changed is put back.
+  const own = await guardedPlaybookChecks(playbook.flagship, { deliverable, files: checkInput.files, tables: checkInput.tables, toolCalls: checkInput.toolCalls }, () => runFlagshipChecks(checkInput)) as PlaybookCheckResult[];
+  return withVoiceCheck([...own, ...contract], voice);
 }
 
 function draftContext(context: OrderContext, today: string): { refs: DraftRefs; offer: { name: string; description: string } } {
@@ -136,10 +168,12 @@ function checkDraft(context: OrderContext, playbook: PlaybookRecord, deliverable
 
 /**
  * The calculator's figure in place of each number it refutes in the draft (delivery/checks.ts correctDraft), before
- * the draft is rendered and checked; the receipts check then lists each correction with its note.
+ * the draft is rendered and checked; the receipts check then lists each correction with its note. 4J16 (Q4): round 1
+ * of the quote check first, a quote's time moved to where the order's transcript says it (withQuoteFixes).
  */
 function correctOrderDraft(context: OrderContext, playbook: PlaybookRecord, deliverable: Deliverable, extras: DraftCheckExtras = {}): { deliverable: Deliverable; corrections: ReceiptCorrection[] } {
-  return correctDraft(draftCheckInput(context, playbook, deliverable, '', extras));
+  const quoted = withQuoteFixes(deliverable, extras.files ?? [], playbook.flagship);
+  return correctDraft(draftCheckInput(context, playbook, quoted, '', extras));
 }
 
 /**
@@ -169,8 +203,20 @@ function recordCheckSignal(tx: VentureTx, runId: string, checks: readonly CheckR
   tx.emit('signal-recorded', { signalId: signal.id, runId, source: signal.source, reason: failed });
 }
 
-function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord): Omit<DeliveryRunRecord, 'status' | 'servedBy' | 'practice' | 'callId' | 'preview' | 'deliverable' | 'renderedText' | 'checks'> {
-  return { ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: playbook.id, playbookHash: playbook.hash, verdict: null, editedText: null };
+/**
+ * A new run's common fields. Ink v2 wave 4 (4F1): checked again in the commit that stores it, no new run while paused
+ * (or on its own while the owner is away), and its scope frozen from the tools it is granted and its spend cap.
+ */
+function baseRun(tx: VentureTx, order: OrderRecord, playbook: PlaybookRecord, grant: readonly ToolName[], capMicros: MicroString): Omit<DeliveryRunRecord, 'status' | 'servedBy' | 'practice' | 'callId' | 'preview' | 'deliverable' | 'renderedText' | 'checks'> {
+  refuseNewWork(tx.state, tx.venture!, tx.ctx, tx.now);
+  // Ink v2 wave 4 (4A1): and none while the team or one of its agents is quarantined (quarantine-gate.ts).
+  refuseQuarantined(tx.state, tx.venture!, tx.now);
+  // 4J12 (H24): and none on an order whose contract the owner has not signed (money/order-contracts.ts).
+  refuseUnsignedContract(tx.state, tx.venture!, order);
+  return {
+    ...tx.base('venture-delivery-run'), orderId: order.id, playbookId: playbook.id, playbookHash: playbook.hash, verdict: null, editedText: null,
+    scope: freezeScope(tx.state, tx.venture!, grant, capMicros, tx.now),
+  };
 }
 
 /** venture.delivery.run: a template outline at any stage, or an agent draft waiting for the owner to approve the send. */
@@ -181,11 +227,20 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const order = findRecord(state, 'venture-order', orderId);
   check(order && order.ventureId === venture.id, 'ORDER_NOT_FOUND', 'That order was not found.');
+  // Ink v2 wave 4 (4F1): no new run while paused, or on its own while the owner is away (run-guards.ts).
+  refuseNewWork(state, venture, ctx, deps.clock().toISOString());
+  // Ink v2 wave 4 (4A1): a quarantined agent starts no work until the owner clears it on Team (quarantine-gate.ts).
+  await loadQuarantineCheck();
+  refuseQuarantined(state, venture, deps.clock().toISOString());
+  // 4J12 (H24): an order whose contract waits for the owner's signature starts nothing, before any preview.
+  refuseUnsignedContract(state, venture, order);
   // Decide before any preview, so a blocked request records nothing.
   const status = useTemplate ? null : deps.models.status(ctx);
   const template = useTemplate || status!.tiers.main.presetId === 'built-in-templates';
   if (!template) check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   const playbook = await ensurePlaybook(deps, ctx);
+  // 4F1 (O21): an agent step that needs a connector only planned refuses the run; nothing is put in its place.
+  await refuseMissingCapability(playbook);
   const fresh = readAs(deps, ctx, 'prepare');
   const context = orderContext(fresh.state, fresh.venture, orderId);
   const { refs, offer } = draftContext(context, todayIso(deps, context.venture));
@@ -201,7 +256,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
       const stage = tx.venture!.launchStage;
       check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
       const run: DeliveryRunRecord = {
-        ...baseRun(tx, context.order, playbook), status: 'waiting-for-you', servedBy: 'model', practice: stage === 'shadow', callId: preview.callId,
+        ...baseRun(tx, context.order, playbook, harness.grant, harness.limits.maxCostMicros), status: 'waiting-for-you', servedBy: 'model', practice: stage === 'shadow', callId: preview.callId,
         preview, deliverable: null, renderedText: null, checks: [], harness, uploadIds: uploads.map(upload => upload.id),
       };
       tx.put(run);
@@ -217,6 +272,10 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
   const preview: ModelPreview | null = template ? null : await deps.models.preview(ctx, deliveryTask({
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, idea: context.venture.idea, refs,
     containsClientData: true, templateTotalRef: 'order.total', guidance: draft?.guidance ?? writeGuidance(playbook), ...(draft ? { sections: draft.sections } : {}),
+    // 4J18: the sources that share words with the draft's work, as the writing turn's (agents/knowledge-recall.ts).
+    knowledge: oneStepKnowledge(fresh.state, context, playbook, offer, draft),
+    // 4J17: the writer's persona and the owner's voice, as the writing turn's.
+    style: writingStyle(fresh.state, context.venture, playbook),
   }));
 
   if (!preview) {
@@ -226,7 +285,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'template');
     return ventureAction(deps, ctx, 'prepare', 'delivery.run', tx => {
       const run: DeliveryRunRecord = {
-        ...baseRun(tx, context.order, playbook), status: 'ready-for-review', servedBy: 'template', practice: false, callId: null, preview: null,
+        ...baseRun(tx, context.order, playbook, [], '0'), status: 'ready-for-review', servedBy: 'template', practice: false, callId: null, preview: null,
         deliverable, renderedText, checks, ...(playbookChecks ? { playbookChecks } : {}),
       };
       tx.put(run);
@@ -242,7 +301,7 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
     const stage = tx.venture!.launchStage;
     check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
     const run: DeliveryRunRecord = {
-      ...baseRun(tx, context.order, playbook), status: 'waiting-for-you', servedBy: 'model', practice: stage === 'shadow', callId: preview.callId,
+      ...baseRun(tx, context.order, playbook, [], preview.estimatedMaxCostMicros), status: 'waiting-for-you', servedBy: 'model', practice: stage === 'shadow', callId: preview.callId,
       preview, deliverable: null, renderedText: null, checks: [],
     };
     tx.put(run);
@@ -259,10 +318,25 @@ export async function deliveryRunHandler(deps: VentureDeps, ctx: Context, payloa
  */
 function loopContext(deps: VentureDeps, ctx: Context, state: State, context: OrderContext, playbook: PlaybookRecord, offer: { name: string; description: string }, files: readonly FileLike[], answers: readonly string[], delegate: readonly DelegateAvailability[] = []): LoopContext {
   const entries = dictionaryEntries(state, context.venture, playbook.aliases ?? {}, ownerDefinitions(deps, ctx));
+  const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null);
   return {
     serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, playbook, dictionaryManifest: manifest(entries),
     files: fileList(files), containsClientData: true, allowed: copiedTokens(context.order.request, context.venture.idea, ...answers), host: deps.host,
-    delegate: delegate.map(item => item.cli), draft: flagshipDraft(playbook, context.offerKey, context.order.intake ?? null),
+    delegate: delegate.map(item => item.cli), draft,
+    // 4B2: the agents' notes this order recalls, for the act turns (agents/recall.ts).
+    notes: recallNotes(state, context.venture, playbook, context.order),
+    // 4J18: the sources from what the AI knows that share words with each turn's own work, screened as read
+    // (agents/knowledge-recall.ts): the act steps', and the writing step's with its drafting guidance.
+    knowledge: knowledgeForTurn(state, context.venture, turnQuery('act', playbook.steps, context.order.request, offer.name)),
+    writeKnowledge: knowledgeForTurn(state, context.venture, turnQuery('write', playbook.steps, context.order.request, offer.name, draft?.guidance ?? writeGuidance(playbook))),
+    // 4F2 (M5): near the day's or the month's spend limit the act turn is told to report, not start new work.
+    budget: budgetPressure(state, context.venture, deps.clock().toISOString()),
+    // 4J11 (H29): this order's journalled actions that may still happen or may already have happened (harness/hygiene.ts).
+    unconfirmed: unconfirmedActions(state, context.venture.id, context.order.id),
+    // 4J17: the personas of the agents doing the act turns and the writer's (agents/persona.ts), and the owner's voice.
+    personas: personaPart(personaInputs(state, context.venture, playbook, 'act')),
+    writePersonas: personaPart(personaInputs(state, context.venture, playbook, 'write')),
+    voice: voicePart(state, context.venture, playbook.flagship ?? null),
   };
 }
 
@@ -310,6 +384,13 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
   check(run.status === 'waiting-for-you' && run.callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
   // The owner may have moved the stage down since the draft was made: nothing is sent unless an agent may draft now.
   check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+  // Ink v2 wave 4 (4F1): nothing goes out while the business is paused (run-guards.ts).
+  refuseNewWork(state, venture, ctx, deps.clock().toISOString());
+  // Ink v2 wave 4 (4A1): nor while the team or one of its agents is quarantined (quarantine-gate.ts).
+  await loadQuarantineCheck();
+  refuseQuarantined(state, venture, deps.clock().toISOString());
+  // 4J12 (H24): nor while the order's contract waits for the owner's signature (money/order-contracts.ts).
+  refuseUnsignedRun(state, venture, run);
   const callId = run.callId;
   const context = orderContext(state, venture, run.orderId);
   const playbook = findRecord(state, 'venture-playbook', run.playbookId);
@@ -335,15 +416,26 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     ? { boundMicros: notice.boundMicros, bound: notice.cost, until: new Date(deps.clock().getTime() + JUDGE_PENDING_MS).toISOString() }
     : null;
 
+  // 4F1: set once the AI answered, so the journal says the call went out even when its answer is not kept here.
+  const went = { out: false };
+  let notKept: unknown = null;
   const send = async (): Promise<DeliveryRunView> => {
     // The gate again, just before the send, on what the vault says now; a deny closes the journal entry with its reason.
+    // A pause that came meanwhile (4F1) refuses it the same way: nothing was sent.
+    refuseNewWork(deps.store.read(), venture, ctx, deps.clock().toISOString());
+    // 4J12: a contract revision proposed meanwhile stops the send too, before anything goes.
+    refuseUnsignedRun(deps.store.read(), venture, run);
     recheckSend(deps, venture.id, runId, callId, approved);
-    if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved, pending });
+    if (run.harness) return approveHarnessTurn(deps, ctx, { state, run, harness: run.harness, context, playbook, refs, offer, callId, approved, pending, answered: () => { went.out = true; } });
     const allowed = draftAllowedTokens(context.order.request, context.venture.idea);
     const draft = flagshipDraft(playbook, context.offerKey);
+    // 4J18: a source this draft's text carries that was removed, changed or held since never goes; it is made again.
+    await refuseStaleSources(deps, ctx, { run, callId, context, harness: null });
+    const knowledge = sourcesCarried(state, venture, run.preview?.payloadText ?? '');
     let deliverable: Deliverable;
     try {
       const outcome = await deps.models.runPreview(ctx, callId, approved, raw => validateDraft(raw, { serviceType: context.blueprint.serviceType, refs, allowed, ...(draft ? { sections: draft.sections } : {}) }));
+      went.out = true;
       deliverable = outcome.value;
     } catch (error) {
       await markFailedWhenSpent(deps, ctx, run, callId, error);
@@ -357,6 +449,13 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     try {
       return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
         const current = tx.find('venture-delivery-run', runId);
+        // 4F1: force stopped while this call was out (the stopped run keeps the cut call): the answer is not kept, what
+        // was sent stays sent, and the cut is settled so Resume can go on.
+        if (current?.status === 'stopped' && current.callId === callId) {
+          const settled = tx.replace({ ...current, callId: null });
+          tx.emit('run.step', { runId });
+          return runView(settled, tx.venture!, Date.parse(tx.now), tx.state);
+        }
         check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
         // Checked again: the stage can move down while the call is out. At shadow the answer is a practice draft.
         const stage = tx.venture!.launchStage;
@@ -364,6 +463,12 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
         const next: DeliveryRunRecord = {
           ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks,
           ...(playbookChecks ? { playbookChecks } : {}), ...(pending ? { judgePending: pending } : {}),
+          // 4F2 (H32): when the AI-written draft was kept; the drafts cap counts these (harness/write-caps.ts).
+          readyAt: tx.now,
+          // 4J18: the sources the approved text carried, by id.
+          ...(knowledge.length ? { knowledge } : {}),
+          // 4J2 (O5, O6): a revision the owner asked for lands: merged by paragraph with the owner's words (revise.ts).
+          ...landRevision(current, { renderedText, checks, ...(playbookChecks ? { playbookChecks } : {}) }, tx.now),
         };
         tx.replace(next);
         recordCheckSignal(tx, runId, checks);
@@ -388,7 +493,18 @@ export async function approveDelivery(deps: VentureDeps, ctx: Context, payload: 
     notAfter: run.preview?.expiresAt ?? null,
     quote: run.preview ? { figure: run.preview.estimatedMaxCostMicros, payer: run.preview.presetId } : null,
     descriptionComplete: run.preview ? previewShownWhole(run.preview) : false,
-  }, async () => ({ outcome: 'applied', line: 'Sent to your AI. It answered.', value: await send() }));
+  }, async (): Promise<{ outcome: 'applied'; line: string; value: DeliveryRunView | null }> => {
+    try {
+      // 4J13 (H34): the call holds a lease on its run while it is out (leases.ts): if Chausar dies, the run goes back to waiting.
+      return { outcome: 'applied', line: 'Sent to your AI. It answered.', value: await withRunLease(deps, ctx, runId, callId, send) };
+    } catch (error) {
+      // 4F1: once the AI answered, the call went out: the journal says so honestly, and the error still reaches the owner.
+      if (!went.out) throw error;
+      notKept = error;
+      return { outcome: 'applied', line: 'Sent to your AI. It answered, but its answer was not kept.', value: null };
+    }
+  });
+  if (notKept) throw notKept;
   const sentView = sent.value!;
   // The consent is recorded only when none exists, and only when the approving surface bound the setting's words it
   // showed (Today's row digest); never from the cost line alone.
@@ -411,6 +527,8 @@ type HarnessApproval = {
   offer: { name: string; description: string }; callId: string; approved: string;
   /** The judge's due marker for the write turn's ready commit (judge-run.ts), or null. */
   pending?: DeliveryRunRecord['judgePending'];
+  /** 4F1: told once the AI answered, so the journal records that the call went out (approveDelivery). */
+  answered?: () => void;
 };
 
 /**
@@ -420,16 +538,26 @@ type HarnessApproval = {
  */
 async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApproval): Promise<DeliveryRunView> {
   const { run, harness, context, playbook, refs, callId } = a;
+  // 4F1: from here to the commit is the time this turn took to run (the run's measured working time, estimates.ts).
+  const began = deps.clock().getTime();
   const files = uploadsById(a.state, context.venture.id, harness.uploadIds);
   const made = madeSoFar(a.state, harness);
   const available = harness.phase === 'act' ? await delegateOffer(deps) : [];
   const loop = loopContext(deps, ctx, a.state, context, playbook, a.offer, files, answersOf(harness), available);
   const task = nextTask(loop, context, refs, harness, made.receipts, files, made.tables);
+  // 4B2: a note this turn's text carries that was forgotten or changed since never goes; the step is made again.
+  if (harness.phase === 'act') await refuseStaleNotes(deps, ctx, a);
+  // 4J18: and a source removed, changed or held since, read from the vault just before the send (act or writing turn).
+  await refuseStaleSources(deps, ctx, a);
   let value: unknown, by: 'model' | 'template', costMicros: string;
   try {
     const outcome = await deps.models.runPreview(ctx, callId, a.approved, raw => harness.phase === 'act' ? validateTurn(raw, harness.limits) : task.validate(raw));
     value = outcome.value; by = outcome.by; costMicros = outcome.costMicros;
+    a.answered?.();
   } catch (error) {
+    // 4F2 (H35): an act turn answered in a shape Chausar cannot read gets one repair turn (harness/repair.ts).
+    const repaired = await repairTurn(deps, ctx, run, harness, callId, error, a.answered);
+    if (repaired) return repaired;
     await markFailedWhenSpent(deps, ctx, run, callId, error);
     throw error;
   }
@@ -438,35 +566,60 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
     if (harness.phase === 'act') {
       // The owner approved this turn's exact text before it ran: that is the approval a step on hold waits for.
       const env = buildToolEnv({ deps, ctx, state: a.state, venture: context.venture, playbook, runRef: { kind: 'delivery', runId: run.id }, files, tables: made.tables, receipts: made.receipts, allowed: loop.allowed, delegateOffer: available, approval: { kind: 'owner-turn', callId }, intake: context.order.intake ?? null });
-      const next = await applyTurn(env, harness, value as AgentTurn, { by, callId, costMicros });
+      // 4A1: quarantined while the call was out: none of this turn's tools run.
+      refuseQuarantined(deps.store.read(), context.venture, deps.clock().toISOString());
+      // 4B2: the notes this turn recalled, read from the exact text the owner approved (agents/recall.ts notesCarried).
+      // 4J18: and the sources it read, the same way (agents/knowledge-recall.ts sourcesCarried).
+      const approvedText = run.preview?.payloadText ?? '';
+      const turned = await applyTurn(env, harness, value as AgentTurn, { by, callId, costMicros, recalled: notesCarried(a.state, context.venture, approvedText), knowledge: sourcesCarried(a.state, context.venture, approvedText) });
       const newTables = env.tables.slice(made.tables.length), newReceipts = env.receipts.slice(made.receipts.length);
+      // 4F1: what the owner changed while the turn ran (a stop, a note, the gate) joins what the turn made.
+      const next = carryControls(turned, liveHarness(deps, run.id));
       // A hand-off waits for an answer and a heavy-work brief for the owner's decision: neither previews a turn yet.
-      const pauses = next.phase === 'needs-answer' || next.phase === 'brief';
+      // Nor does a stop (the owner's, a force stop, or the gate's) or the round gate holding the run for the owner (4F1).
+      const pauses = next.phase === 'needs-answer' || next.phase === 'brief' || !!next.control?.stop || gateWaits(next);
       const preview = pauses ? null : await deps.models.preview(ctx, nextTask(loop, context, refs, next, env.receipts, files, env.tables));
       check(pauses || preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
       return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
         const current = tx.find('venture-delivery-run', run.id);
+        // 4F1: a force stop cut this very call: the turn is thrown away, nothing it made is stored, only what it cost.
+        if (current?.harness?.control?.cutCallId === callId) return keepCutTurn(tx, current, costMicros);
         check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
         const stage = tx.venture!.launchStage;
         check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
         for (const table of newTables) tx.put(table);
         for (const receipt of newReceipts) tx.put(receipt);
-        const stored: DeliveryRunRecord = preview
-          ? { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: next, practice: current.practice || stage === 'shadow' }
-          : { ...current, status: next.phase === 'brief' ? 'brief-waiting' : 'needs-answer', callId: null, preview: null, harness: next, practice: current.practice || stage === 'shadow' };
+        const merged = workedFor(carryControls(next, current.harness), began, tx.now);
+        const practice = current.practice || stage === 'shadow';
+        // 4F1: the owner's stop, or the gate's, takes effect now: finished steps are kept and nothing more runs.
+        const stopping = !!merged.control?.stop;
+        const stored: DeliveryRunRecord = stopping
+          ? { ...current, status: 'stopped', callId: null, preview: null, harness: stoppedNow(merged, tx.now, STOPPED_BY_YOU), practice }
+          : preview
+            // The owner's notes this next text carries are stamped with its call; only that turn takes them (4F1).
+            ? { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: stampOwnerWords(merged, next, preview.callId), practice }
+            : next.phase === 'needs-answer' || next.phase === 'brief'
+              // 4J13 (A13): a question carries when it stops being answerable (timed-questions.ts).
+              ? { ...current, status: next.phase === 'brief' ? 'brief-waiting' : 'needs-answer', callId: null, preview: null, harness: withQuestionExpiry(merged, tx.now, questionWindowMs(playbook)), practice }
+              // The round gate (4F1): the run waits for the owner's Continue or Stop on Today; nothing is previewed yet.
+              : { ...current, status: 'waiting-for-you', callId: null, preview: null, harness: merged, practice };
         tx.replace(stored);
         // Facts the agent noted (evidence.record), checked again against the trace just stored: suggestions for the owner.
         storeRunEvidence(tx, env.evidence ?? [], { runId: run.id, clientId: context.order.clientId });
-        if (preview) tx.emit('delivery-waiting', { runId: stored.id, orderId: stored.orderId, practice: stored.practice });
+        if (stopping) tx.emit('run.stopped', { runId: stored.id });
+        else if (preview) tx.emit('delivery-waiting', { runId: stored.id, orderId: stored.orderId, practice: stored.practice });
         else if (next.phase === 'brief') tx.emit('delivery-brief-waiting', { runId: stored.id, orderId: stored.orderId });
-        else tx.emit('delivery-needs-answer', { runId: stored.id, orderId: stored.orderId });
+        else if (next.phase === 'needs-answer') tx.emit('delivery-needs-answer', { runId: stored.id, orderId: stored.orderId });
         tx.emit('run.step', { runId: stored.id });
-        tx.emit('run.waiting', { runId: stored.id });
+        if (!stopping) tx.emit('run.waiting', { runId: stored.id });
         return runView(stored, tx.venture!, Date.parse(tx.now), tx.state);
       });
     }
 
-    const done = finishWrite(harness, { by, callId, costMicros });
+    // 4A1: quarantined while the call was out: the draft is not stored.
+    refuseQuarantined(deps.store.read(), context.venture, deps.clock().toISOString());
+    // 4J18: the sources the writing turn read, from the exact text the owner approved (agents/knowledge-recall.ts).
+    const done = finishWrite(harness, { by, callId, costMicros, knowledge: sourcesCarried(a.state, context.venture, run.preview?.payloadText ?? '') });
     const answers = harness.handoffs.flatMap(handoff => handoff.answer === null ? [] : [handoff.answer]);
     const { deliverable, corrections } = correctOrderDraft(context, playbook, value as Deliverable, { work: made.receipts, answers, harness: done, files });
     const receipts: AnyReceipt[] = [...context.receipts, ...made.receipts];
@@ -479,12 +632,21 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
     const playbookChecks = await flagshipChecks(deps, context, playbook, deliverable, 'model', { work: made.receipts, tables: made.tables, files, harness: done });
     return await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
       const current = tx.find('venture-delivery-run', run.id);
+      // 4F1: a force stop cut this write turn's call: the draft is thrown away; only what its call cost is kept.
+      if (current?.harness?.control?.cutCallId === callId) return keepCutTurn(tx, current, costMicros);
       check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
       const stage = tx.venture!.launchStage;
       check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+      // 4F1: the last step finished, so a stop asked meanwhile has nothing left to stop; the owner's notes and gate stay.
+      const carried = carryControls(done, current.harness);
+      const finished = workedFor(carried.control?.stop ? { ...carried, control: { stop: null, stoppedAt: null, line: null } } : carried, began, tx.now);
       const next: DeliveryRunRecord = {
-        ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks, harness: done,
+        ...current, status: 'ready-for-review', practice: current.practice || stage === 'shadow', preview: null, deliverable, renderedText, checks, harness: finished,
         ...(playbookChecks ? { playbookChecks } : {}), ...(a.pending ? { judgePending: a.pending } : {}),
+        // 4F2 (H32): when the AI-written draft was kept; the drafts cap counts these (harness/write-caps.ts).
+        readyAt: tx.now,
+        // 4J2 (O5, O6): a revision the owner asked for lands: merged by paragraph with the owner's words (revise.ts).
+        ...landRevision(current, { renderedText, checks, ...(playbookChecks ? { playbookChecks } : {}) }, tx.now),
       };
       tx.replace(next);
       // The spot-check completion hook (policy/spot-check.ts): at auto with spot checks the finished run gets its
@@ -502,11 +664,151 @@ async function approveHarnessTurn(deps: VentureDeps, ctx: Context, a: HarnessApp
   }
 }
 
+/** 4B2: the owner's words when a turn waiting for approval carried a note forgotten or changed since. */
+export const NOTES_CHANGED = 'A note this step carried was forgotten or changed, so Chausar made the step again with your notes as they are now. Read it again.';
+
+/**
+ * 4B2: a turn whose approved text carries a note the owner forgot or changed since (agents/recall.ts staleNotes) is never
+ * sent. The step is made again from the notes as they are now and waits for the owner's approval like any other, and
+ * the approval that was asked is refused with APPROVAL_STALE before anything goes to the AI.
+ */
+async function refuseStaleNotes(deps: VentureDeps, ctx: Context, a: HarnessApproval): Promise<void> {
+  const { run, callId } = a;
+  const venture = a.context.venture;
+  if (!staleNotes(a.state, venture, run.preview?.payloadText ?? '').length) return;
+  const made = await previewNextTurn(deps, ctx, a.state, venture, run, a.harness);
+  await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
+    const current = tx.find('venture-delivery-run', run.id);
+    check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
+    const harness = made.harness ? stampOwnerWords(carryControls(made.harness, current.harness), made.harness, made.preview.callId) : current.harness;
+    tx.replace<DeliveryRunRecord>({ ...current, callId: made.preview.callId, preview: made.preview, harness });
+    tx.emit('delivery-waiting', { runId: run.id, orderId: current.orderId, practice: current.practice });
+    tx.emit('run.waiting', { runId: run.id });
+  });
+  throw new ChausarError('APPROVAL_STALE', NOTES_CHANGED);
+}
+
+/**
+ * 4J18: the sources a one-step draft (the client's message, no files) carries: those that share words with its
+ * writing work, matched the way the writing turn's are (agents/knowledge-recall.ts).
+ */
+function oneStepKnowledge(state: State, context: OrderContext, playbook: PlaybookRecord, offer: { name: string }, draft: { guidance: readonly string[] } | null | undefined) {
+  return knowledgeForTurn(state, context.venture, turnQuery('write', playbook.steps, context.order.request, offer.name, draft?.guidance ?? writeGuidance(playbook)));
+}
+
+/**
+ * 4J18: a turn (act, writing or one-step draft) whose approved text carries a source from what the AI knows that was removed, changed
+ * (by Forget, say) or held since (agents/knowledge-recall.ts staleSources), read from the vault as it is just before
+ * the send, is never sent. The step is made again from what the AI knows now and waits for the owner's approval, and
+ * the approval that was asked is refused with APPROVAL_STALE before anything goes to the AI.
+ */
+async function refuseStaleSources(deps: VentureDeps, ctx: Context, a: Pick<HarnessApproval, 'run' | 'callId' | 'context'> & { harness: HarnessState | null }): Promise<void> {
+  // A one-step draft (harness null) is made again by previewNextTurn the same way: with what the AI knows now.
+  const { run, callId } = a;
+  const venture = a.context.venture;
+  const fresh = deps.store.read();
+  if (!staleSources(fresh, venture, run.preview?.payloadText ?? '').length) return;
+  const made = await previewNextTurn(deps, ctx, fresh, venture, run, a.harness);
+  await ventureAction(deps, ctx, 'approve', 'delivery.approve', tx => {
+    const current = tx.find('venture-delivery-run', run.id);
+    check(current && current.status === 'waiting-for-you' && current.callId === callId, 'DELIVERY_NOT_WAITING', 'This draft reply is not waiting for your approval.');
+    const harness = made.harness ? stampOwnerWords(carryControls(made.harness, current.harness), made.harness, made.preview.callId) : current.harness;
+    tx.replace<DeliveryRunRecord>({ ...current, callId: made.preview.callId, preview: made.preview, harness });
+    tx.emit('delivery-waiting', { runId: run.id, orderId: current.orderId, practice: current.practice });
+    tx.emit('run.waiting', { runId: run.id });
+  });
+  throw new ChausarError('APPROVAL_STALE', SOURCES_CHANGED);
+}
+
+// ---------------------------------------------------------------------------
+// Ink v2 wave 4 (4F1): run controls inside a turn in flight
+// ---------------------------------------------------------------------------
+
+/** The run's loop state as stored now, so what the owner changed while a turn ran is not lost. */
+function liveHarness(deps: VentureDeps, runId: string): HarnessState | null {
+  return findRecord(deps.store.read(), 'venture-delivery-run', runId)?.harness ?? null;
+}
+
+/** Adds the time from began to now to the run's measured working time. */
+function workedFor(state: HarnessState, began: number, nowIso: string): HarnessState {
+  return { ...state, workedMs: (state.workedMs ?? 0) + Math.max(0, Date.parse(nowIso) - began) };
+}
+
+/**
+ * A turn the owner force stopped while it ran: what it made is not stored, its call cost still counts toward the run's
+ * cap, and the run stays stopped. The journal entry of its send settles as its journal says (applied: it went out).
+ */
+function keepCutTurn(tx: VentureTx, current: DeliveryRunRecord, costMicros: string): DeliveryRunView {
+  // The cut is settled here: its cost joins the run's, and Resume may go on (run-controls.ts).
+  const harness = current.harness ? {
+    ...current.harness, used: { ...current.harness.used, costMicros: String(BigInt(current.harness.used.costMicros) + BigInt(costMicros)) },
+    ...(current.harness.control ? { control: { ...current.harness.control, cutCallId: null } } : {}),
+  } : current.harness;
+  const kept: DeliveryRunRecord = { ...current, harness };
+  tx.replace(kept);
+  tx.emit('run.step', { runId: kept.id });
+  return runView(kept, tx.venture!, Date.parse(tx.now), tx.state);
+}
+
+/**
+ * A heavy-work brief the owner force stopped while their tool ran: the record of what ran is kept (it ran on this
+ * computer and its cost is on the ledger), what it made does not join the run, and the brief is closed so Resume goes
+ * on with the next turn. The run stays stopped.
+ */
+function keepCutBrief(tx: VentureTx, current: DeliveryRunRecord, record: DelegateRunRecord, costMicros: string): DeliveryRunView {
+  tx.put(record);
+  tx.emit('delegate-finished', { runId: current.id, delegateRunId: record.id, cli: record.cli, outcome: record.outcome });
+  const message = 'You force stopped the run, so what the tool made was not kept.';
+  const closed = openDelegation(current.harness!)
+    ? settleDelegation(current.harness!, { status: 'declined', envelope: { ok: false, error: { code: 'TOOL_SKIPPED', name: 'ToolSkipped', message } }, outcome: 'cancelled', delegateRunId: record.id, receiptIds: [], proofs: [], costMicros })
+    : current.harness!;
+  // The cut is settled here, so Resume may go on (run-controls.ts).
+  const harness = closed.control ? { ...closed, control: { ...closed.control, cutCallId: null } } : closed;
+  const kept: DeliveryRunRecord = { ...current, harness };
+  tx.replace(kept);
+  tx.emit('run.step', { runId: kept.id });
+  return runView(kept, tx.venture!, Date.parse(tx.now), tx.state);
+}
+
+/**
+ * The next turn of a run, previewed from its own playbook version (never a newer one in use), for Resume, a steer note
+ * on a waiting run and the round gate's Continue (run-controls.ts). An agent run previews its act or write turn; when
+ * no AI serves quick work any more, the act phase gives way to writing, as when the run started. A one-step run
+ * previews its draft again. Returns the loop state the preview was made from, which the caller stores with it.
+ */
+export async function previewNextTurn(deps: VentureDeps, ctx: Context, state: State, venture: VentureRecord, run: DeliveryRunRecord, harness: HarnessState | null): Promise<{ preview: ModelPreview; harness: HarnessState | null }> {
+  const context = orderContext(state, venture, run.orderId);
+  const playbook = findRecord(state, 'venture-playbook', run.playbookId);
+  check(playbook && playbook.ventureId === venture.id, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
+  const { refs, offer } = draftContext(context, todayIso(deps, venture));
+  if (!harness) {
+    const draft = flagshipDraft(playbook, context.offerKey, context.order.intake ?? null);
+    // 4J2: a revision the owner asked for puts their words first in the step's input (revise.ts withRevision).
+    const preview = await deps.models.preview(ctx, withRevision(deliveryTask({
+      serviceType: context.blueprint.serviceType, offer, clientRequest: context.order.request, idea: context.venture.idea, refs,
+      containsClientData: true, templateTotalRef: 'order.total', guidance: draft?.guidance ?? writeGuidance(playbook), ...(draft ? { sections: draft.sections } : {}),
+      knowledge: oneStepKnowledge(state, context, playbook, offer, draft), // 4J18
+      style: writingStyle(state, context.venture, playbook), // 4J17
+    }), run.revision));
+    check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
+    return { preview, harness: null };
+  }
+  const next = harness.phase === 'act' && deps.models.status(ctx).tiers.fast.presetId === 'built-in-templates' ? skipActs(harness, NO_QUICK_AI) : harness;
+  const files = uploadsById(state, venture.id, next.uploadIds);
+  const made = madeSoFar(state, next);
+  const available = next.phase === 'act' ? await delegateOffer(deps) : [];
+  const loop = loopContext(deps, ctx, state, context, playbook, offer, files, answersOf(next), available);
+  const preview = await deps.models.preview(ctx, withRevision(nextTask(loop, context, refs, next, made.receipts, files, made.tables), run.revision));
+  check(preview, 'NO_MODEL_CONNECTED', 'Connect an AI first, or use built-in templates.');
+  return { preview, harness: next };
+}
+
 /**
  * venture.delivery.answer { runId, answer } (app only): the owner answers the agent's hand-off question (their own
  * decision, or what the client said). The next turn is previewed and waits for approval like every other turn.
+ * within: more writes in the same commit as the answer (4B1: the owner's message in the agent's thread); absent for the method.
  */
-export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<DeliveryRunView> {
+export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, payload: unknown, within?: (tx: VentureTx, handoff: number) => void): Promise<DeliveryRunView> {
   requireAppChannel(ctx, 'venture.delivery.answer');
   const body = exactPayload(payload, ['runId', 'answer'], ['runId', 'answer']);
   const runId = identifier(body.runId, 'Draft reply');
@@ -514,7 +816,14 @@ export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, pay
   const { state, venture } = readAs(deps, ctx, 'approve');
   const run = findRun(state, venture, runId);
   check(run.status === 'needs-answer' && run.harness?.phase === 'needs-answer', 'DELIVERY_NOT_ASKING', 'This draft reply is not waiting for an answer.');
+  // 4J13 (A13): a question that ran out takes no answer, so a late approval never lets a held call run.
+  refuseExpiredQuestion(run.harness, deps.clock().getTime(), venture);
   check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+  // Ink v2 wave 4 (4A1): an answer does not move a quarantined team's run on (quarantine-gate.ts).
+  await loadQuarantineCheck();
+  refuseQuarantined(state, venture, deps.clock().toISOString());
+  // 4J12: nor one whose order contract waits for the owner's signature (again in the commit).
+  refuseUnsignedRun(state, venture, run);
   const context = orderContext(state, venture, run.orderId);
   const playbook = findRecord(state, 'venture-playbook', run.playbookId);
   check(playbook, 'PLAYBOOK_NOT_FOUND', 'The playbook for this draft was not found.');
@@ -530,13 +839,20 @@ export async function deliveryAnswerHandler(deps: VentureDeps, ctx: Context, pay
     // The same question this answer was read against: another answer and a new hand-off may have landed meanwhile.
     check(current && current.status === 'needs-answer' && current.harness?.turns.length === run.harness!.turns.length
       && current.harness?.handoffs.length === run.harness!.handoffs.length, 'DELIVERY_NOT_ASKING', 'This draft reply is not waiting for an answer.');
+    refuseExpiredQuestion(current.harness, Date.parse(tx.now), tx.venture!);
+    refuseQuarantined(tx.state, tx.venture!, tx.now);
+    // 4J12: an answer does not move on a run whose order contract waits for the owner's signature.
+    refuseUnsignedRun(tx.state, tx.venture!, current);
     const stage = tx.venture!.launchStage;
     check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
-    const stored: DeliveryRunRecord = { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: next, practice: current.practice || stage === 'shadow' };
+    // 4F1: notes the owner sent meanwhile stay; those this text carries are stamped with its call (harness/controls.ts).
+    const harness = stampOwnerWords(carryControls(next, current.harness), next, preview.callId);
+    const stored: DeliveryRunRecord = { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness, practice: current.practice || stage === 'shadow' };
     tx.replace(stored);
     tx.emit('delivery-waiting', { runId, orderId: stored.orderId, practice: stored.practice });
     tx.emit('run.step', { runId });
     tx.emit('run.waiting', { runId });
+    within?.(tx, current.harness!.handoffs.findLastIndex(handoff => handoff.answer === null));
     return runView(stored, tx.venture!, Date.parse(tx.now), tx.state);
   });
 }
@@ -570,6 +886,12 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
   check(run.status === 'brief-waiting' && open && (open.status === 'waiting' || (decision === 'decline' && staleDelegation(open, nowMs))), 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
   check(agentStage(venture.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
   check(body.digest === open.digest, 'APPROVAL_STALE', 'The brief changed since you read it. Read it again.');
+  // Ink v2 wave 4 (4F1): heavy work does not start while the business is paused; declining stays open.
+  if (decision === 'approve') refuseNewWork(state, venture, ctx, deps.clock().toISOString());
+  // Ink v2 wave 4 (4A1): heavy work does not start for a quarantined team; declining stays open.
+  if (decision === 'approve') { await loadQuarantineCheck(); refuseQuarantined(state, venture, deps.clock().toISOString()); }
+  // 4J12: nor while the order's contract waits for the owner's signature; declining stays open.
+  if (decision === 'approve') refuseUnsignedRun(state, venture, run);
   const harness = run.harness!;
   const context = orderContext(state, venture, run.orderId);
   const playbook = findRecord(state, 'venture-playbook', run.playbookId);
@@ -598,7 +920,9 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
       check(current && current.status === 'brief-waiting' && live && live.digest === open.digest && live.status === open.status, 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
       const stage = tx.venture!.launchStage;
       check(agentStage(stage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
-      const stored: DeliveryRunRecord = { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: next, practice: current.practice || stage === 'shadow' };
+      // 4F1: notes sent meanwhile stay; those this text carries are stamped with its call (harness/controls.ts).
+      const kept = stampOwnerWords(carryControls(next, current.harness), next, preview.callId);
+      const stored: DeliveryRunRecord = { ...current, status: 'waiting-for-you', callId: preview.callId, preview, harness: kept, practice: current.practice || stage === 'shadow' };
       tx.replace(stored);
       tx.emit('delivery-waiting', { runId, orderId: stored.orderId, practice: stored.practice });
       tx.emit('run.step', { runId });
@@ -618,33 +942,51 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
   const now = await delegateAvailability(ports, open.cli, deps.claudeCodeTerms);
   check(ports && now.state !== 'needs-setup' && now.executable === open.executable && now.version === open.version, 'TIER_UNAVAILABLE',
     `${label} is gone or changed since the brief was written, so it was not started. Decline the brief and the agent can ask again.`);
-  const delegateFiles = uploadsById(state, venture.id, open.uploadIds);
+  // 4J11 (H31): one delegated run on this computer at a time. The slot is taken here, synchronously, so a second
+  // approval is refused before its claim: its brief stays waiting and nothing is reserved for it. runDelegation releases
+  // it when the tool is done; every throw before that releases it here.
+  const releaseSlot = takeDelegateSlot();
+  let delegateFiles: FileLike[];
   // Claimed first, in its own write: a second approval finds the brief running and starts nothing. The same write holds
   // the run's cost on the spend ledger (its charge record), or refuses the run when it has no price or passes the cap.
   const spend = delegateSpend(open, runId);
   let estimate = '0';
-  const claimed = await ventureAction(deps, ctx, 'approve', 'delivery.delegate', tx => {
-    const current = tx.find('venture-delivery-run', runId);
-    const live = current?.harness ? openDelegation(current.harness) : null;
-    check(current && current.status === 'brief-waiting' && live && live.status === 'waiting' && live.digest === open.digest, 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
-    check(agentStage(tx.venture!.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
-    // The owner's approval of this exact brief (its digest was checked above) opens the floor gate on starting it.
-    const rate = resolveRate({ item: spend.item, list: spend.list, owner: ownerRates(tx.list('venture-spend-policy')), subject: spend });
-    estimate = fixedEstimate(rate, spend);
-    // Heavy work counts against the run's spend cap. The owner approved this brief with its cost in view, so that one
-    // approval raises the cap by its reserve: nothing asks twice, and the run is then held against the raised cap.
-    const raised = addCapWindow(current.harness!, estimate, tx.now, ctx.memberId);
-    reserveRunCall(raised, estimate);
-    const started = startDelegation(raised, tx.now, { kind: 'owner-action', digest: body.digest as string, memberId: ctx.memberId });
-    reserveSpend(tx, { ...spend, rate, estimateMicros: estimate });
-    tx.replace({ ...current, harness: started });
-    tx.emit('run.step', { runId });
-    return started;
-  }).catch(error => spendRefused(deps, ctx, error));
+  let claimed: HarnessState;
+  try {
+    delegateFiles = uploadsById(state, venture.id, open.uploadIds);
+    claimed = await ventureAction(deps, ctx, 'approve', 'delivery.delegate', tx => {
+      const current = tx.find('venture-delivery-run', runId);
+      const live = current?.harness ? openDelegation(current.harness) : null;
+      check(current && current.status === 'brief-waiting' && live && live.status === 'waiting' && live.digest === open.digest, 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
+      check(agentStage(tx.venture!.launchStage), 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
+      // 4F1: a pause that came while the tool was checked refuses the start here too (run-guards.ts).
+      refuseNewWork(tx.state, tx.venture!, ctx, tx.now);
+      refuseQuarantined(tx.state, tx.venture!, tx.now);
+      // 4J12: nor while the order's contract waits for the owner's signature.
+      refuseUnsignedRun(tx.state, tx.venture!, current);
+      // The owner's approval of this exact brief (its digest was checked above) opens the floor gate on starting it.
+      const rate = resolveRate({ item: spend.item, list: spend.list, owner: ownerRates(tx.list('venture-spend-policy')), subject: spend });
+      estimate = fixedEstimate(rate, spend);
+      // Heavy work counts against the run's spend cap. The owner approved this brief with its cost in view, so that one
+      // approval raises the cap by its reserve: nothing asks twice, and the run is then held against the raised cap.
+      const raised = addCapWindow(current.harness!, estimate, tx.now, ctx.memberId);
+      reserveRunCall(raised, estimate);
+      const started = startDelegation(raised, tx.now, { kind: 'owner-action', digest: body.digest as string, memberId: ctx.memberId });
+      reserveSpend(tx, { ...spend, rate, estimateMicros: estimate });
+      tx.replace({ ...current, harness: started });
+      tx.emit('run.step', { runId });
+      return started;
+    }).catch(error => spendRefused(deps, ctx, error));
+  } catch (error) {
+    releaseSlot();
+    throw error;
+  }
   const request = openDelegation(claimed)!;
+  // 4F1: the time the owner's tool works counts toward the run's measured working time (estimates.ts).
+  const began = deps.clock().getTime();
   let result: DelegationResult;
   try {
-    result = await runDelegation(ports!, request, delegateFiles, { currency: venture.country.currency, dateOrder: venture.country.dateOrder, runRef: { kind: 'delivery', runId } });
+    result = await runDelegation(ports!, request, delegateFiles, { currency: venture.country.currency, dateOrder: venture.country.dateOrder, runRef: { kind: 'delivery', runId } }, releaseSlot);
   } catch (error) {
     // The tool may have run and spent: the reservation stays held and is never retried on its own.
     await settleSpendAction(deps, ctx, spend.key, { kind: 'unknown' }).catch(() => null);
@@ -682,24 +1024,34 @@ export async function deliveryDelegateHandler(deps: VentureDeps, ctx: Context, p
 
   let preview: ModelPreview | null = null;
   let previewError: unknown = null;
-  try { preview = await previewNext(next, [...made.receipts, ...receipts]); } catch (error) { previewError = error; }
+  // 4F1: a stop the owner asked for while the tool ran: what it made is kept and no next turn is previewed.
+  const stopping = !!liveHarness(deps, runId)?.control?.stop;
+  if (!stopping) try { preview = await previewNext(next, [...made.receipts, ...receipts]); } catch (error) { previewError = error; }
   // What the tool made is stored even when the next turn can't be previewed: the owner's plan paid for it.
   const { view, blocked } = await ventureAction(deps, ctx, 'approve', 'delivery.delegate', tx => {
     const current = tx.find('venture-delivery-run', runId);
+    // 4F1: a force stop cut this very brief while the tool ran: the record of what ran is kept, what it made does not join the run.
+    if (current?.harness?.control?.cutCallId === request.toolCallId) return { view: keepCutBrief(tx, current, record, costMicros), blocked: false };
     check(current && current.status === 'brief-waiting', 'DELIVERY_NOT_BRIEFING', NOT_BRIEFING);
     for (const receipt of receipts) tx.put(receipt);
     tx.put(record);
     tx.emit('delegate-finished', { runId, delegateRunId: record.id, cli: record.cli, outcome: record.outcome });
     const stage = tx.venture!.launchStage;
-    const going = preview !== null && agentStage(stage);
-    const stored: DeliveryRunRecord = going
-      ? { ...current, status: 'waiting-for-you', callId: preview!.callId, preview, harness: next, practice: current.practice || stage === 'shadow' }
-      : { ...current, status: 'failed', callId: null, preview: null, harness: next };
-    tx.replace(stored);
+    const merged = workedFor(carryControls(next, current.harness), began, tx.now);
+    const halted = !!merged.control?.stop;
+    const going = !halted && preview !== null && agentStage(stage);
+    const stored: DeliveryRunRecord = halted
+      ? { ...current, status: 'stopped', callId: null, preview: null, harness: stoppedNow(merged, tx.now, STOPPED_BY_YOU) }
+      : going
+        ? { ...current, status: 'waiting-for-you', callId: preview!.callId, preview, harness: stampOwnerWords(merged, next, preview!.callId), practice: current.practice || stage === 'shadow' }
+        : { ...current, status: 'failed', callId: null, preview: null, harness: merged };
+    // 4J13 (H30): the heavy work reports into this run under the brief's fixed id, with its marker, in this same write;
+    // its sources are the order's files it read (none: the report carries the no-sources warning).
+    tx.replace(withReport(stored, { messageId: `brief:${request.toolCallId}`, from: 'heavy-work', line: `${label} reported back. ${record.reason}`, sources: delegateFiles.map(file => file.name) }, tx.now).run);
     if (going) tx.emit('delivery-waiting', { runId, orderId: stored.orderId, practice: stored.practice });
     tx.emit('run.step', { runId });
-    tx.emit(going ? 'run.waiting' : 'run.failed', { runId });
-    return { view: runView(stored, tx.venture!, Date.parse(tx.now), tx.state), blocked: !agentStage(stage) };
+    tx.emit(halted ? 'run.stopped' : going ? 'run.waiting' : 'run.failed', { runId });
+    return { view: runView(stored, tx.venture!, Date.parse(tx.now), tx.state), blocked: !halted && !agentStage(stage) };
   });
   if (previewError) throw previewError;
   check(!blocked, 'LAUNCH_STAGE_BLOCKED', STAGE_BLOCKED_REASON);
@@ -775,12 +1127,18 @@ export async function deliveryReviewHandler(deps: VentureDeps, ctx: Context, pay
       const unsigned = caSignoffBlock(tx.state, tx.venture!, run);
       if (unsigned) throw new ChausarError('CA_SIGNOFF_REQUIRED', unsigned);
     }
+    // 4J1 (J2): Accept or an edit binds the files the draft hands over, by the sha256 of their bytes, to whoever decided.
+    const manifest = verdict !== 'rejected' ? acceptManifest(tx.state, run, tx.now, ctx.memberId) : null;
     const next: DeliveryRunRecord = {
-      ...run, status: verdict, practice, verdict: { choice: verdict, reason, at: tx.now }, editedText,
+      // 4J1: Accept of a draft the owner edited and that came back for review keeps the owner's words (draft-text.ts).
+      ...run, status: verdict, practice, verdict: { choice: verdict, reason, at: tx.now }, editedText: verdict === 'accepted' ? run.editedText ?? null : editedText,
       // The owner's edit is the owner's own words: the judge never reads it, and its line says so (judge-run.ts).
       ...(verdict === 'edited' && run.judge ? { judge: { ...run.judge, line: JUDGE_EDIT_LINE } } : {}),
+      ...(manifest ? { manifest } : {}),
     };
     tx.replace(next);
+    // 4J1 (O17): who decided and when, wherever the owner reviewed it (Today, Work or the run sheet).
+    recordDecision(tx, { subject: `run:${runId}`, action: verdict, who: 'owner', ruleId: null, reason: REVIEW_DECISION_WORDS[verdict], rowId: null });
     if (verdict !== 'accepted') {
       const signal: SignalRecord = { ...tx.base('venture-signal'), source: verdict === 'edited' ? 'owner-edited' : 'owner-rejected', runId, reason, scenarioId: null };
       tx.put(signal);
@@ -848,7 +1206,8 @@ export function runView(run: DeliveryRunRecord, venture: VentureRecord, nowMs: n
     : null;
   const canAccept = ready && blocked === null;
   const awaitingYou = waiting ? live : asking ? agentStage(stage) && !cancelled : brief ? briefWaits && agentStage(stage) && !cancelled : ready ? !practiceNow || stage === 'shadow' : false;
-  return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked };
+  // 4H1 (U17): which engine wrote the draft, read from its own call record; only with the vault's state.
+  return { ...run, practiceNow, awaitingYou, canApprove, canAccept, acceptBlocked: blocked, ...(state ? { writtenBy: writtenByLine(state, run) } : {}) };
 }
 
 /** venture.delivery.list: every run, newest first, each with what the engine would allow now (see runView). */

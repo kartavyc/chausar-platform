@@ -1,7 +1,7 @@
 /**
  * Sheet kinds. The shell shows one sheet at a time from the address (?sheet=<kind>:<id>). The foundation provides
  * `run`, `receipt` (a price or sum receipt), `ca-receipt` (a CA firm's calculator receipt, in the same receipt
- * sheet) and `more` (the phone's More tab); a place adds its own by exporting `sheets` from its index.tsx (see
+ * sheet), `more` (the phone's More tab) and `notifications` (the bell's centre, W4 4G4); a place adds its own by exporting `sheets` from its index.tsx (see
  * places.ts).
  */
 
@@ -13,6 +13,7 @@ import type { IconName } from '../parts/icons';
 import { RunSheet } from '../parts/RunSheet';
 import { Sheet } from '../parts/Sheet';
 import { useRoute } from './navigation';
+import { NotificationCentre } from './NotificationCentre';
 import type { PlaceId } from './routes';
 import s from './sheets.module.css';
 
@@ -111,8 +112,10 @@ function CaReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   );
 }
 
-/** The places under the phone's More tab, in the rail's order, then a new business (Start). */
+/** The places under the phone's More tab, in the rail's order, then a new business (Start). W4 4C2 moved Clients here,
+ *  since Chats took its tab. */
 const MORE_LINKS: readonly { place: PlaceId; href: string; icon: IconName; key: string }[] = [
+  { place: 'clients', href: '#/clients', icon: 'contact', key: 'place.clients' },
   { place: 'money', href: '#/money', icon: 'wallet', key: 'place.money' },
   { place: 'connections', href: '#/connections', icon: 'plug', key: 'place.connections' },
   { place: 'business', href: '#/business/plan', icon: 'sliders-horizontal', key: 'place.business' },
@@ -152,4 +155,6 @@ export function UnknownSheet({ onClose, returnFocus }: SheetComponentProps) {
   return <Sheet label="" title={t('sheet.unknown')} onClose={onClose} returnFocus={returnFocus} />;
 }
 
-export const BASE_SHEETS: Readonly<Record<string, SheetComponent>> = { run: RunSheetKind, receipt: ReceiptSheet, 'ca-receipt': CaReceiptSheet, more: MoreSheet };
+export const BASE_SHEETS: Readonly<Record<string, SheetComponent>> = { run: RunSheetKind, receipt: ReceiptSheet, 'ca-receipt': CaReceiptSheet, more: MoreSheet,
+  // W4 4G4: the notification centre the bell opens.
+  notifications: NotificationCentre };

@@ -75,3 +75,17 @@
     min-height: var(--target);
   }
 }
+
+/* A row wider than its place fades at the edge that hides more (4J20), so the segments past it are found at every
+   width. The mask only takes opacity from the gradient, so the token there gives no colour of its own. */
+.seg[data-more='end'] {
+  mask-image: linear-gradient(to right, var(--surface) calc(100% - var(--sp-6)), transparent);
+}
+
+.seg[data-more='start'] {
+  mask-image: linear-gradient(to left, var(--surface) calc(100% - var(--sp-6)), transparent);
+}
+
+.seg[data-more='both'] {
+  mask-image: linear-gradient(to right, transparent, var(--surface) var(--sp-6), var(--surface) calc(100% - var(--sp-6)), transparent);
+}

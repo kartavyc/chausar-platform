@@ -202,7 +202,8 @@ test('the gate runs again when the owner approves: a post another post overtook 
   assert.equal(jobs.length, 1, 'the second post never reached the browser');
   assert.equal(listRecords(env.store.read(), 'venture-connector-post').find(post => post.id === second.postId)!.state, 'described', 'it still waits; the owner may deny it');
 
-  // Another post goes out in the very commit that records the approval: the last look inside the apply stops it.
+  // Another post goes out right after the commit that records the approval, before the claim: the last look inside the
+  // apply stops it. It is made by a Chausar write, as a real post is, so the chained journal (4J10) has it.
   env.advance(2 * HOUR);
   const three = await seedPostDraft(deps, ['LinkedIn: Our cafe is closed on Monday for Diwali.']);
   const third = await propose(deps, `${three.id}.post-1`);
@@ -210,15 +211,15 @@ test('the gate runs again when the owner approves: a post another post overtook 
   const overtaking = { ...structuredClone(record(first.postId)), id: 'post_overtaking', text: 'A post made at the same moment.' };
   const update = env.store.update.bind(env.store);
   let injected = false;
-  env.store.update = (change => update(async state => {
-    const result = await change(state);
-    const approved = state.conversations.find(item => item.id === third.postId) as ConnectorPostRecord | undefined;
+  env.store.update = (async change => {
+    const result = await update(change);
+    const approved = env.store.read().conversations.find(item => item.id === third.postId) as ConnectorPostRecord | undefined;
     if (approved?.state === 'approved' && !injected) {
       injected = true;
-      state.conversations.push({ ...overtaking, at: env.now(), claimedAt: env.now() });
+      await ventureAction(env.deps, owner, 'admin', 'test.overtake', tx => { tx.put({ ...overtaking, at: tx.now, claimedAt: tx.now }); });
     }
     return result;
-  })) as typeof env.store.update;
+  }) as typeof env.store.update;
   const decided = await decidePost(deps, owner, { postId: third.postId, digest: thirdDigest, action: 'approve' });
   assert.equal(decided.post.state, 'rejected');
   assert.equal(decided.post.outcome?.by, 'engine');

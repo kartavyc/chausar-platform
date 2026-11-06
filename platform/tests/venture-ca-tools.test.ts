@@ -366,7 +366,8 @@ test('tax.gst: a table the CA has not confirmed refuses with do not retry, makes
   assert.equal((errorOf(refused)!.details as { retry: boolean }).retry, false);
   assert.deepEqual(workReceipts(env), [], 'no receipt from a refused working');
   // The next act turn tells the agent not to try again.
-  const history = (env.models.previewed.at(-1)!.input as { history: { calls: { tool: string; error?: { message: string } }[] }[] }).history;
+  // 4J11: the history is { summary, turns }.
+  const history = (env.models.previewed.at(-1)!.input as { history: { turns: { calls: { tool: string; error?: { message: string } }[] }[] } }).history.turns;
   const line = history.flatMap(item => item.calls).find(item => item.tool === 'tax.gst')!.error!.message;
   assert.match(line, /^Do not retry: Your CA has not confirmed /);
 

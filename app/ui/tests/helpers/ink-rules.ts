@@ -19,7 +19,9 @@
  *   [data-ui-number]     that figure's value, in DM Mono with tabular digits
  *   [data-figure-words]  the engine's words after a figure's amount ("includes estimates"), in the body face; they
  *                        never hold an amount of their own
- *   [data-receipt="id"]  a Receipt control (src/parts/Receipt.tsx): a button or link with a non-empty receipt id
+ *   [data-receipt="id"]  a Receipt control (src/parts/Receipt.tsx): a button or link with a non-empty receipt id. 4Z3:
+ *                        it is a small receipt mark, named "Receipt for <amount>" (or "Receipt"); its code never shows
+ *                        on the page, only inside the receipt sheet it opens. Find one with `receiptMark(id)`.
  *   [data-estimate]      the "model estimate" chip, or a model-written value with its chip (src/parts/ModelEstimate.tsx)
  *   [data-figure-group]  a block whose amounts are proved together by the one receipt control or estimate chip inside
  *                        it: an invoice preview's lines and total, a change's old and new price
@@ -107,6 +109,31 @@ function estimatesIn(scope: Element): Element[] {
   return [...scope.querySelectorAll('[data-estimate]')].filter((el) => textOf(el) !== '');
 }
 
+/**
+ * 4Z3: a receipt mark by its receipt id, as the `name` of a role query: `getByRole('button', { name: receiptMark('R-0419') })`.
+ * The mark carries the id in `data-receipt` and is named for what it proves ("Receipt for ₹1,12,400", or "Receipt"),
+ * never by its code, so a test finds it by the id it opens and checks the name says it is a receipt.
+ */
+export function receiptMark(id: string | RegExp): (name: string, element: Element) => boolean {
+  const opens = (receipt: string) => (typeof id === 'string' ? receipt === id : id.test(receipt));
+  return (name, element) => opens(element.getAttribute('data-receipt') ?? '') && /^Receipt(?:\s|$)|रसीद/u.test(name);
+}
+
+/**
+ * 4Z3: a receipt mark never prints its code beside an amount (it read like accounting software). The code is shown
+ * inside the receipt sheet the mark opens; the mark itself says what it is through its name.
+ */
+function markProblems(root: Root): string[] {
+  const problems: string[] = [];
+  for (const mark of within(root, '[data-receipt]')) {
+    const id = (mark.getAttribute('data-receipt') ?? '').trim();
+    if (!id) continue;
+    if ((mark.textContent ?? '').includes(id)) problems.push(`receipt mark "${id}" prints its code: show the mark only; the code belongs inside the receipt sheet`);
+    if (!(mark.getAttribute('aria-label') ?? '').trim()) problems.push(`receipt mark "${id}" has no name: name it for what it proves ("Receipt for ₹1,12,400")`);
+  }
+  return problems;
+}
+
 /** What is wrong with the proof inside a figure or a figure group, if anything. */
 function proofProblem(scope: Element, what: string): string | null {
   const receipts = receiptsIn(scope).length;
@@ -164,6 +191,7 @@ function figureProblems(root: Root): { problems: string[]; numbers: Element[] } 
     if (problem) problems.push(problem);
   }
   problems.push(...bareMoney(root));
+  problems.push(...markProblems(root));
   return { problems, numbers };
 }
 
@@ -173,7 +201,8 @@ function figureProblems(root: Root): { problems: string[]; numbers: Element[] } 
  * - each figure holds a receipt control with a non-empty id or a non-empty "model estimate" label, never both;
  * - figures do not nest (an outer figure could pass on an inner one's receipt);
  * - a `[data-figure-group]` holds a proof the same way, and covers the amounts written inside it;
- * - no `[data-count]` is a number or holds money, and no money-looking text sits anywhere else.
+ * - no `[data-count]` is a number or holds money, and no money-looking text sits anywhere else;
+ * - a receipt mark is named and never prints its code (4Z3).
  * Returns the numbers it checked, so a test can also say how many it expects.
  */
 export function assertFiguresProved(root: Root = document.body): Element[] {

@@ -11,6 +11,7 @@ import { INDIA_STATES } from '../../contracts.ts';
 import { bpsText, divRound, invalid, isoDate, longDate, minBig, notModelled, paise, sumBig, type IsoDate } from './money.ts';
 import { rateTableFor, sectionOf, useRateTable, REHEARSAL, type GstRatesPayload, type RateTable, type RateUse, type TableStamp } from './rates.ts';
 import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
+import { absent, requireFacts } from './needs-facts.ts';
 
 export type GstLine = {
   id: string;
@@ -105,12 +106,15 @@ function checkLine(line: GstLine, index: number, side: 'outward' | 'inward', ids
 
 export function gstWorking(input: GstWorkingInput, use: RateUse = REHEARSAL): CaReceipt<GstWorking> {
   if (!input || typeof input !== 'object') invalid('Send the GST working inputs.');
-  if (!gstinValid(input.gstin)) invalid('Check the GSTIN of the business.');
-  if (typeof input.period !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(input.period)) invalid('The period is a month written like 2025-10.');
   if (!Array.isArray(input.outward) || !Array.isArray(input.inward)) invalid('Send the sale lines and the purchase lines as lists.');
   const ids = new Set<string>();
   input.outward.forEach((line, index) => checkLine(line, index, 'outward', ids));
   input.inward.forEach((line, index) => checkLine(line, index, 'inward', ids));
+  // Ink v2 4J16 (CA8): which GSTIN and which month are the client's facts; asked, never guessed (needs-facts.ts), once
+  // every line the working does not model (cess, reverse charge) was refused for the CA.
+  requireFacts('GST working', [...(absent(input.gstin) ? [{ field: 'gstin' as const }] : []), ...(absent(input.period) ? [{ field: 'period' as const }] : [])]);
+  if (!gstinValid(input.gstin)) invalid('Check the GSTIN of the business.');
+  if (typeof input.period !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(input.period)) invalid('The period is a month written like 2025-10.');
 
   const ourState = input.gstin.slice(0, 2);
   const builder = new ReceiptBuilder('gst-working');

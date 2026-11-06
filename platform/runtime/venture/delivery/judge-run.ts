@@ -19,7 +19,7 @@
 // a signal for the improvement loop; a vote code could not check settles nothing and blocks nothing; a refused answer
 // leaves every rule unsettled, never a pass.
 import { ChausarError, check, type Context, type State } from '../../contracts.ts';
-import { digest, exactPayload, findRecord, identifier, listRecords, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
+import { currentVenture, digest, exactPayload, findRecord, identifier, listRecords, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import type {
   CheckResult, DeliveryJudgePreview, DeliveryRunRecord, DeliveryRunView, JudgeAutoView, JudgeSettingRecord, ModelPreview, ModelPresetId,
   SignalRecord, VentureDeps, VentureRecord,
@@ -30,19 +30,23 @@ import { madeSoFar } from './harness/env.ts';
 import { capShortfall } from './harness/loop.ts';
 import { recheckBeforeApply, type Denial } from './harness/recheck.ts';
 import { decideRules, rulesTask, validateBallot, type RulesInput, type RulesVerdict } from './judge/rules.ts';
-import { failedCheckReason, JUDGE_EDIT_LINE, judgeReading, PRACTICE_REASON, runView } from './runs.ts';
+import { failedCheckReason, JUDGE_EDIT_LINE, JUDGE_PENDING_MS, judgeReading, PRACTICE_REASON, runView } from './runs.ts';
 
 export { JUDGE_EDIT_LINE };
 import { acceptedBlueprintOrNull, errorCode, previewShownWhole, quote, readAs, ventureReceipts } from './shared.ts';
 import { journalled } from '../journal/journal.ts';
+import { backgroundGateNow, backgroundWaits } from './report-back.ts';
 import { costDisplay, estimateMaxCostMicros } from '../models/cost.ts';
 import { presetSpec } from '../models/presets.ts';
-import { listRateOfTable, modelTableOf, monthSpendNow, resolveRate, spendRatesOf } from '../money/spend.ts';
+import { budgetPressure, listRateOfTable, modelTableOf, monthSpendNow, resolveRate, spendRatesOf } from '../money/spend.ts';
 import { flagshipJudgeRules } from '../playbooks/draft-checks.ts';
 import { caOfferFor } from '../playbooks/ca-firm/signoff-gate.ts';
 import { SOCIAL_AGENCY_ID } from '../playbooks/social/registration.ts';
 import { YOUTUBE_ID } from '../playbooks/youtube/registration.ts';
+import { scanRun } from './trace-scan.ts';
 
+/** Why the judge did not run on its own near the month's limit (Ink v2 wave 4, 4F2, M5). */
+export const JUDGE_PRESSURE_LINE = "Not checked: this month's limit is nearly used.";
 export const JUDGE_FAILED_CHECK = 'Fix the failed check first; the judge reads only drafts that pass the code checks.';
 const NOT_READY = 'The judge reads a draft once it is ready for your review.';
 const TEMPLATE_OUTLINE = 'The judge reads drafts an agent wrote; this is a template outline.';
@@ -116,6 +120,9 @@ function notJudgeable(state: State, venture: VentureRecord, run: DeliveryRunReco
   if (run.servedBy !== 'model' || !run.deliverable) return new ChausarError('JUDGE_NOT_READY', TEMPLATE_OUTLINE);
   if (runView(run, venture, nowMs, state).practiceNow) return new ChausarError('PRACTICE_DRAFT', PRACTICE_REASON);
   if (failedCheckReason(run.checks.filter(result => result.check !== 'rules-judge'), run.playbookChecks) !== null) return new ChausarError('JUDGE_NOT_READY', JUDGE_FAILED_CHECK);
+  // Ink v2 wave 4 (4J15, Q14): code scans the run's trace before any judge reads it (delivery/trace-scan.ts).
+  const scan = scanRun(state, run);
+  if (!scan.clean) return new ChausarError('JUDGE_NOT_READY', scan.line!);
   return null;
 }
 
@@ -377,7 +384,8 @@ async function sendJudge(deps: VentureDeps, ctx: Context, a: { venture: VentureR
       const harness = a.standing && costMicros !== null && current.harness ? withCost(current.harness, costMicros) : current.harness;
       const next: DeliveryRunRecord = {
         ...current, checks: [...current.checks.filter(item => item.check !== 'rules-judge'), result],
-        judge: { ...current.judge, status: 'done', preview: null, at: tx.now, line: null },
+        // 4J14 (Q7): each rule's result as code counted it, so the report words it (strong, fair, weak, no) and its keep line.
+        judge: { ...current.judge, status: 'done', preview: null, at: tx.now, line: null, rules: verdict.rules.map(rule => ({ rule: rule.rule, outcome: rule.outcome, yes: rule.yes, votes: rule.votes.length })) },
         ...(harness ? { harness } : {}),
       };
       tx.replace(next);
@@ -483,6 +491,19 @@ async function askOnItsOwn(deps: VentureDeps, ctx: Context, runId: string): Prom
   if (run.judge || notJudgeable(state, venture, run, nowMs) || judgeAudience(state, venture, run) === 'internal' || !judgeAutoOf(state, venture.id).auto) return;
   if (deps.models.status(ctx).tiers.fast.presetId === 'built-in-templates') return;
   const draftDigest = draftDigestOf(run);
+  // Ink v2 wave 4 (4F2, M5): past the month's alert share the judge does not run on its own and says so; the owner
+  // can still ask it, and the code checks have run already.
+  if (budgetPressure(state, venture, new Date(nowMs).toISOString()).month) {
+    await noteNotRun(deps, ctx, run.id, draftDigest, JUDGE_PRESSURE_LINE);
+    return;
+  }
+  // 4J13 (H30): on the desktop, background model work waits while the owner works and the AI is local or busy. The
+  // judge waits (never failed), keeping the cost bound shown, and the sweep asks again once it may go (retryWaitingJudges).
+  const waits = backgroundWaits(backgroundGateNow(deps, ctx, state));
+  if (waits) {
+    await noteWaiting(deps, ctx, run.id, draftDigest, waits);
+    return;
+  }
   let preview: ModelPreview | null;
   try {
     preview = await deps.models.preview(ctx, rulesTask(judgeInput(state, venture, run).asked));
@@ -546,6 +567,52 @@ async function noteRefused(deps: VentureDeps, ctx: Context, runId: string, callI
   } catch {
     // The run stands as it is.
   }
+}
+
+/**
+ * 4J13 (H30): the judge waits to be asked on its own: status waiting with no call, "Waiting: {why}", and the cost bound
+ * the write turn's approval showed, so the retry goes within it. "Ask the judge" stays open meanwhile.
+ */
+async function noteWaiting(deps: VentureDeps, ctx: Context, runId: string, draftDigest: string, why: string): Promise<void> {
+  try {
+    await ventureAction(deps, ctx, 'approve', 'delivery.judgeAuto', tx => {
+      const current = tx.find('venture-delivery-run', runId);
+      if (!current || current.status !== 'ready-for-review' || current.judge || draftDigestOf(current) !== draftDigest) return;
+      const deferred = { boundMicros: current.judgePending?.boundMicros ?? null, bound: current.judgePending?.bound ?? '' };
+      tx.replace({ ...current, judge: { status: 'waiting', callId: null, preview: null, at: tx.now, draftDigest, auto: true, estimatedMaxCostDisplay: null, line: `Waiting: ${why}`, deferred } });
+      tx.emit('run.step', { runId });
+    });
+  } catch {
+    // The run stands as it is.
+  }
+}
+
+/**
+ * 4J13 (H30): at the sweep (agents/routine-runner.ts), once background model work may go, each judge that waited to be
+ * asked on its own is asked again: the run is due again within the bound kept, and autoJudge runs as after the write
+ * turn (consent, setting, audience and cap read again). While the gate still says wait, nothing changes. Never throws.
+ */
+export async function retryWaitingJudges(deps: VentureDeps, ctx: Context): Promise<number> {
+  const state = deps.store.read();
+  const venture = currentVenture(state);
+  if (!venture || backgroundWaits(backgroundGateNow(deps, ctx, state))) return 0;
+  const waiting = listRecords(state, 'venture-delivery-run', venture.id).filter(run => run.status === 'ready-for-review' && run.judge?.status === 'waiting' && run.judge.deferred && !run.judge.preview);
+  let asked = 0;
+  for (const run of waiting) {
+    const due = await ventureAction(deps, ctx, 'approve', 'delivery.judgeAuto', tx => {
+      const current = tx.find('venture-delivery-run', run.id);
+      const deferred = current?.judge?.status === 'waiting' && !current.judge.preview ? current.judge.deferred : undefined;
+      if (!current || current.status !== 'ready-for-review' || !deferred || current.judge!.draftDigest !== draftDigestOf(current)) return false;
+      const next: DeliveryRunRecord = { ...current, judgePending: { boundMicros: deferred.boundMicros, bound: deferred.bound, until: new Date(Date.parse(tx.now) + JUDGE_PENDING_MS).toISOString() } };
+      delete next.judge;
+      tx.replace(next);
+      return true;
+    }).catch(() => false);
+    if (!due) continue;
+    await autoJudge(deps, ctx, { id: run.id }).catch(() => null);
+    asked += 1;
+  }
+  return asked;
 }
 
 /** The judge could not be asked on its own: the run says why, and "Ask the judge" stays open. */

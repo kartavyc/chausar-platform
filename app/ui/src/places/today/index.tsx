@@ -5,11 +5,12 @@
  * Keys (J, K, Enter, A, D) come from the shell and move through the cards as through rows.
  */
 
-import { memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useT } from '../../text';
+import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { goTo, openSheet, setQuery, useRoute } from '../../shell/navigation';
 import { StorageNotice } from '../../shell/StorageNotice';
+import { PausedNote } from '../../shell/PausedNote';
 import { useNarrow } from '../../shell/useNarrow';
 import { refusalWords } from '../../parts/custody';
 import { LeftContext } from '../onboarding/started';
@@ -18,7 +19,7 @@ import type { AvatarState } from '../../parts/Avatar';
 import { Receipt } from '../../parts/Receipt';
 import { SwipeCard } from '../../parts/SwipeCard';
 import { cx } from '../../parts/cx';
-import { EngineError, type QueueAction, type QueueDecision, type QueueRow, type VentureRunEvent } from '../../engine/types';
+import { EngineError, type QueueAction, type QueueDecision, type QueueList, type QueueRow, type VentureRunEvent } from '../../engine/types';
 import type { SheetComponent } from '../../shell/sheets';
 import { seenKey, useTodaySession, type DecidedLine } from './session';
 import { ViewSheet, viewSheetId } from './ViewSheet';
@@ -27,8 +28,18 @@ import { TodayGoal } from './GoalCard';
 import { TeamAtWork } from './TeamAtWork';
 import { BIG_CARDS, COMPACT_CARDS, NeedsYou, SwipeTip, knownFilter, matchesFilter, type CardLayout, type NeedsItem } from './NeedsYou';
 import { useCardPreview } from './CardPreview';
+// W4 4J19: a draft card's Send back and Edit, Undo on a decided line, a probe notice's Open, the edit sheet.
+import { UndoButton, draftToolsFor, openNotice } from './SendBack';
+import { EditSheet } from './EditSheet';
+import { WorkReceiptSheet } from './WorkReceiptSheet';
+import { DraftsProvider } from './drafts';
+import { actionWords, useOutreachOpen, useOutreachPreview, wordedRow } from './OutreachRows';
+import { MeetingNotes } from './MeetingNotes';
 import { WorkingNow, focusRow } from './WorkingNow';
 import { Earlier } from './Earlier';
+// W4 4J22b: an agent's question card says the answer back on its send button; ideas and who waits on you, folded last.
+import { useAnswerLabel } from './QuestionsCard';
+import { IdeasFold } from './IdeasFold';
 import { RUN_EVENTS, agentStateOf, runStateOf, useRunDetails } from './runs';
 import s from './Today.module.css';
 
@@ -70,6 +81,16 @@ const NOT_DECISIONS: ReadonlySet<QueueAction['id']> = new Set<QueueAction['id']>
 
 const focusedRowId = () => (document.activeElement as HTMLElement | null)?.closest?.('[data-row-id]')?.getAttribute('data-row-id') ?? null;
 
+/**
+ * 4Z2: the engine's summary in the screen's words, from its counts (queue.ts summaryOf: how many need you, across how
+ * many businesses), so a Hindi screen reads Hindi. A locked business is its own card below, which says so. With nothing
+ * counted, the engine's sentence stands.
+ */
+function summaryWords(t: T, list: QueueList): string {
+  if (list.needsYou === 0) return list.summary;
+  return list.businesses > 1 ? t('today.sub.across', { count: list.needsYou, businesses: list.businesses }) : t('today.needs.count', { count: list.needsYou });
+}
+
 /** Two sentences on one line: the engine's summary and the working count, with a full stop between them. */
 function sentences(first: string | undefined, second: string | undefined): string | undefined {
   if (!first) return second;
@@ -84,6 +105,7 @@ export function Place() {
   const session = useTodaySession();
   const route = useRoute();
   const narrow = useNarrow();
+  const openOutreach = useOutreachOpen(); // 4E4: a follow-up's handoff, Reply in Mail, Add notes
   const queue = useResource('venture.queue.list', { scope: 'all' }, { refreshOn: QUEUE_EVENTS });
   const runList = useResource('venture.runs.list', { state: 'all' }, { refreshOn: RUN_EVENTS });
   const team = useResource('venture.team.list', {}, { refreshOn: TEAM_EVENTS });
@@ -133,6 +155,18 @@ export function Place() {
     if (!reveal) return;
     if (focusRow(reveal) || !live.some((row) => row.id === reveal)) setReveal(null);
   });
+
+  // W4 4B3: an agent's chat opens a card here by its subject (`?row=proposal:<id>`; a row's id is its subject and its
+  // version). Once the card is listed it comes into view through goToRow, and the address lets go of it.
+  const askedRow = route.query.row;
+  useEffect(() => {
+    if (!askedRow) return;
+    const row = live.find((r) => r.id === askedRow || r.id.startsWith(`${askedRow}:`));
+    if (!row) return;
+    goToRow(row.id);
+    const { row: _asked, ...rest } = route.query;
+    setQuery(rest);
+  }, [askedRow, live.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function look(row: QueueRow, origin?: HTMLElement) {
     const ref = row.viewRef;
@@ -214,7 +248,9 @@ export function Place() {
     return decision;
   }
 
-  function navigate(_row: QueueRow, action: QueueAction): boolean {
+  function navigate(row: QueueRow, action: QueueAction): boolean {
+    if (openOutreach(row, action)) return true;
+    if (openNotice(row, action)) return true;
     const go = PLACES_FOR[action.id];
     if (!go) return false;
     go();
@@ -269,6 +305,7 @@ export function Place() {
 
   // The cards' handlers stay the same from render to render (each reads the latest state through a ref), so a card is
   // drawn again only when what it shows changes: the page re-renders on every queue, run or session change.
+  const cardHandles = useRef(new Map<string, ApprovalHandle>());
   const latest = useRef({ decide, reread, navigate, look, opener, session });
   latest.current = { decide, reread, navigate, look, opener, session };
   const handlers = useMemo(() => ({
@@ -278,6 +315,8 @@ export function Place() {
     view: (row: QueueRow) => latest.current.look(row),
     open: (row: QueueRow, origin: HTMLElement) => latest.current.opener(row)?.(row, origin),
     defer: (row: QueueRow) => latest.current.session.defer(row.id),
+    // 4I2: each drawn card's own buttons, so the next best step presses the card's primary through its handle.
+    handle: (id: string, handle: ApprovalHandle | null) => { if (handle) cardHandles.current.set(id, handle); else cardHandles.current.delete(id); },
   }), []);
 
   /** Hide the swipe tip for the session; focus goes to the first card, not lost to the page. */
@@ -288,7 +327,7 @@ export function Place() {
   }
 
   const card = (item: NeedsItem, layout: CardLayout) => (item.done ? (
-    <Decided line={item.done} settle={settled.has(item.row.id)} layout={layout} />
+    <Decided line={item.done} settle={settled.has(item.row.id)} layout={layout} phone={narrow} />
   ) : (
     <TodayCard
       row={item.row}
@@ -304,12 +343,15 @@ export function Place() {
       onOpen={opener(item.row) ? handlers.open : undefined}
       phone={narrow}
       onDefer={handlers.defer}
+      onHandle={handlers.handle}
     />
   ));
 
   const activeRuns = runs.filter((run) => run.state === 'active').length;
-  const summary = waiting > 0 ? queue.data?.summary : undefined;
-  const workingRuns = runs.filter((run) => run.state === 'active' || run.state === 'waiting'
+  const summary = waiting > 0 && queue.data ? summaryWords(t, queue.data) : undefined;
+  // 4F3: a stopped run is listed only while the engine's row to resume it is on Today (a replaced one has none).
+  const workingRuns = runs.filter((run) => ((run.state === 'active' || run.state === 'waiting')
+    && (run.stop?.state !== 'stopped' || live.some((row) => row.viewRef?.kind === 'run' && row.viewRef.id === run.runId && row.actions.some((a) => a.id === 'resume'))))
     || (run.state === 'failed' && live.some((row) => row.viewRef?.kind === 'run' && row.viewRef.id === run.runId && row.actions.some((a) => a.id === 'run-again') && !session.line(row.id))));
   // Each listed run's steps, read once and shared by the team's live tiles (a subset of these runs) and Working now.
   const details = useRunDetails(workingRuns.map((run) => run.runId));
@@ -321,12 +363,15 @@ export function Place() {
         count={summary ? String(queue.data?.needsYou ?? waiting) : undefined}
       />
       <StorageNotice />
+      <PausedNote />
       {/* One container, so the grids below follow the page's own width (a sheet open beside it narrows it). */}
       <div className={s.today}>
         <div className={s.page}>
-          <TodayGoal />
+          <TodayGoal next={{ rows: live, isViewed: (row) => session.isViewed(seenKey(row)), isDecided: (id) => Boolean(session.line(id)), goToRow, look: handlers.view, handleOf: (id) => cardHandles.current.get(id) }} spans={showBusiness} />
           <TeamAtWork agents={team.data?.agents ?? []} runs={runs} details={details} rowForRun={rowForRun} goToRow={goToRow} phone={narrow} />
         </div>
+        {/* W4 4J19: the draft replies the cards show, read once for the page. */}
+        <DraftsProvider>
         <NeedsYou
           items={items}
           loaded={Boolean(queue.data)}
@@ -339,10 +384,12 @@ export function Place() {
           phone={narrow}
           tip={narrow && session.showsTip() ? <SwipeTip onHide={hideTip} /> : undefined}
         />
+        </DraftsProvider>
         <div className={s.bottom}>
           <WorkingNow runs={workingRuns} details={details} rowForRun={rowForRun} goToRow={goToRow} />
           <Earlier />
         </div>
+        <IdeasFold />
       </div>
     </>
   );
@@ -366,6 +413,8 @@ interface TodayCardProps {
   phone: boolean;
   /** Move the card to the end of the list for the session (a left swipe on a card with no Later). */
   onDefer: (row: QueueRow) => void;
+  /** Lend the card's own buttons to Today (the next best step presses its primary through them). */
+  onHandle: (id: string, handle: ApprovalHandle | null) => void;
 }
 
 /**
@@ -378,20 +427,25 @@ interface TodayCardProps {
  * was on screen when the finger came down: a new version that arrives mid-swipe (its digest changed) is never pressed
  * by that swipe; the card shows it as changed, and the owner swipes again if they want to.
  */
-const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, taxRegistered, showBusiness, onDecide, onReread, onAction, onView, onOpen, phone, onDefer }: TodayCardProps) {
+const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, taxRegistered, showBusiness, onDecide, onReread, onAction, onView, onOpen, phone, onDefer, onHandle }: TodayCardProps) {
   const t = useT();
-  const handle = useRef<ApprovalHandle>(null);
+  const handle = useRef<ApprovalHandle | null>(null);
+  // The card's buttons, for the swipe here and for Today's next best step (4I2).
+  const register = useCallback((next: ApprovalHandle | null) => { handle.current = next; onHandle(row.id, next); }, [onHandle, row.id]);
   // The row now, and its digest when the finger last came down on the card (a swipe acts only on that version).
   const latest = useRef(row);
   latest.current = row;
   const started = useRef<string | null>(null);
   const preview = useCardPreview(row, { unseen: !viewed, enabled: layout === 'card', taxRegistered });
+  const outreach = useOutreachPreview(row); // 4E4: what a follow-up's or a reply's handoff did
+  const answerLabel = useAnswerLabel(row);
   const card = (
     <ApprovalRow
-      row={row}
+      row={wordedRow(row, t)}
       layout={layout}
       agentState={agentState}
-      preview={preview}
+      preview={outreach ?? preview}
+      tools={draftToolsFor(row)}
       viewed={viewed}
       onDecide={onDecide}
       onReread={onReread}
@@ -399,8 +453,9 @@ const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, tax
       showBusiness={showBusiness}
       onView={onView}
       onOpen={onOpen}
-      handle={phone ? handle : undefined}
+      handle={register}
       buttonSize={phone ? 'xl' : undefined}
+      answerLabel={answerLabel}
     />
   );
   if (!phone) return card;
@@ -413,12 +468,12 @@ const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, tax
   return (
     <div className={s.swipe} onPointerDownCapture={() => { started.current = latest.current.digest; }}>
       <SwipeCard
-        rightLabel={() => handle.current?.primary().label ?? fromRow?.label ?? ''}
+        rightLabel={() => handle.current?.primary().label ?? (fromRow ? actionWords(fromRow.label, t) : '')}
         asksAgain={() => handle.current?.primary().asksAgain ?? Boolean(fromRow?.secondAsk)}
         rightLocked={() => handle.current?.primary().locked ?? false}
         // The card's own note line already says why it is locked; the swipe adds nothing under it.
         lockedNote=""
-        leftLabel={later ? later.label : t('today.swipe.skip')}
+        leftLabel={later ? actionWords(later.label, t) : t('today.swipe.skip')}
         onRight={decides ? () => (same() ? handle.current?.pressPrimary() : 'none') : undefined}
         onLeft={() => {
           if (!same()) return 'none';
@@ -434,18 +489,20 @@ const TodayCard = memo(function TodayCard({ row, layout, agentState, viewed, tax
 });
 
 /** A decided card, shrunk to one line: title, what was done, and its receipt. It stays until the session ends. */
-function Decided({ line: { row, line, receiptId }, settle, layout }: { line: DecidedLine; settle: boolean; layout: CardLayout }) {
-  const said = receiptId ? (line.endsWith(receiptId) ? line.slice(0, -receiptId.length) : `${line} · `) : line;
+function Decided({ line: { row, line, receiptId, undo }, settle, layout, phone = false }: { line: DecidedLine; settle: boolean; layout: CardLayout; phone?: boolean }) {
+  // 4Z3: the receipt is a mark after the line; its code is not printed (the engine's line may end with it).
+  const said = receiptId && line.endsWith(receiptId) ? line.slice(0, -receiptId.length).replace(/\s*·\s*$/, '') : line;
   return (
     <article className={cx(s.decided, settle && s.settle)} data-row="" data-row-id={row.id} data-decided="" data-layout={layout} tabIndex={-1}>
       <span role="status">
         <span className={s.decidedTitle}>{row.title}</span>
         {' · '}
         {said}
-        {receiptId && <Receipt id={receiptId} />}
+        {receiptId && <>{' '}<Receipt id={receiptId} /></>}
+        {undo && <UndoButton row={row} undo={undo} phone={phone} />}
       </span>
     </article>
   );
 }
 
-export const sheets: Readonly<Record<string, SheetComponent>> = { view: ViewSheet };
+export const sheets: Readonly<Record<string, SheetComponent>> = { view: ViewSheet, 'call-notes': MeetingNotes, 'edit-draft': EditSheet, 'work-receipt': WorkReceiptSheet };

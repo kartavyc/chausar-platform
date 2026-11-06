@@ -5,6 +5,9 @@ import { cx } from './cx';
 import { Icon } from './Icon';
 import s from './SwipeCard.module.css';
 
+/** Where a drag never starts a swipe: fields, and anything marked data-no-swipe (an open tool on a card, W4 4J19). */
+const NO_SWIPE = 'input, textarea, select, [contenteditable=""], [contenteditable="true"], [data-no-swipe]';
+
 export type { PressResult } from './ApprovalRow';
 
 /** How far a card is dragged, in CSS pixels, before letting go acts. The underlay is this wide, so a card that shows
@@ -164,6 +167,9 @@ export function SwipeCard({
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (event.pointerType === 'mouse' || event.button !== 0) return;
+    // W4 4J19: a drag that starts in a field or in an open tool's box (marked data-no-swipe) is the owner typing or
+    // working there, never a swipe that decides the card.
+    if ((event.target as Element | null)?.closest?.(NO_SWIPE)) return;
     // Nothing in progress: any pointer still listed lost its end event, so it is stale.
     if (!drag.current && !multi.current) pointers.current.clear();
     pointers.current.add(event.pointerId);

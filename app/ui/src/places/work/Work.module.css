@@ -299,6 +299,24 @@
   overflow-wrap: anywhere;
 }
 
+/* 4Z2: the engine's technical line, one step away under the plain words. */
+.whyMore {
+  margin-top: var(--sp-2);
+  font-size: var(--text-label);
+  color: var(--fg);
+}
+
+.whyMore summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.whyTech {
+  margin-top: var(--sp-1);
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
 .stopActs {
   display: flex;
   flex-wrap: wrap;
@@ -829,4 +847,112 @@
   .linkButton {
     min-height: var(--target);
   }
+}
+
+/* W4 4F3: run controls. Stop and the tile's own button share the foot; a run the engine says is stopping reads so. */
+.runActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.stopping {
+  font-weight: var(--weight-medium);
+  color: var(--wait);
+}
+
+/* The small Stop dialog under the tile's foot (or a row): the question, its line, Not now, Force stop and Stop. */
+.stopDialog {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
+}
+
+.stopDialogTitle {
+  font-size: var(--text-read);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.stopDialogLine {
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.stopDialogActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+/* What the engine answered to a stop or a resume, in its words. */
+.stopSaid {
+  margin-top: var(--sp-2);
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+/* The round gate on a waiting tile: the engine's line, the optional note, Stop and Continue. */
+.gate {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
+}
+
+.gateLine {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--wait);
+}
+
+.gateActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+/* The stopped runs above the failed ones, in the pair's left column. */
+.stack {
+  display: grid;
+  gap: var(--gap-grid);
+  min-width: 0;
+}
+
+/* A stop that waits for Resume (not a failure): the clock on the waiting ground, and its why in the same ground. */
+.stopMarkWait {
+  background: var(--wait-soft);
+  color: var(--wait);
+}
+
+.whyWait {
+  background: var(--wait-soft);
+}
+
+.whyLabelWait {
+  color: var(--wait);
+}
+
+/* How to fix it, opened from its button: the engine's fix in the screen's words, on the inner grey. */
+.fix {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--inner);
+}
+
+.fixLabel {
+  font-size: var(--text-label);
+  line-height: 16px;
+  font-weight: var(--weight-strong);
+  color: var(--fg2);
 }

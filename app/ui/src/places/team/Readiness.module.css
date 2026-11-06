@@ -1,0 +1,67 @@
+/* Under the posture choice (W4 4J22a): the locked Auto card, the shadow summary and what auto would need. */
+
+.lockedChoice:hover {
+  border-color: var(--line);
+}
+
+.lockedLabel {
+  cursor: default;
+  color: var(--fg2);
+}
+
+.lockLine {
+  color: var(--fg2);
+}
+
+.block {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.line {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.fold > summary {
+  cursor: pointer;
+  font-size: var(--text-read);
+  color: var(--link);
+  padding: var(--sp-1) 0;
+}
+
+.list {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0 0 var(--sp-2) var(--sp-5);
+  font-size: var(--text-read);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+/* The locked Auto card (4J22a review): a lock chip like a floor step's, a muted radio, and a dashed grey focus ring in
+   place of the picking ring, so nothing suggests it can be chosen. */
+.lockChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: var(--sp-1) 0 0 calc(var(--sp-4) + var(--sp-1));
+  padding: 0 var(--sp-2);
+  min-height: var(--control-sm);
+  border-radius: var(--r-button);
+  background: var(--inner);
+  color: var(--fg2);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+}
+
+.lockedLabel input {
+  opacity: 0.45;
+  accent-color: var(--mute);
+}
+
+.lockedChoice.lockedChoice:has(input:focus-visible) {
+  outline: var(--focus) dashed var(--mute);
+}

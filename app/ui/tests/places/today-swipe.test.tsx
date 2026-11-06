@@ -53,9 +53,16 @@ const cardOf = (id: string) => needsYou().querySelector<HTMLElement>(`[data-row-
 const swiperOf = (id: string) => cardOf(id).closest<HTMLElement>('[data-swipe-card]')!;
 const locked = (button: HTMLElement) => button.getAttribute('aria-disabled') === 'true';
 
+/** The list has come, with the fold opened: Today shows the five most urgent cards (4Z3), and the swipes here reach
+ *  cards past them too. */
 async function loaded() {
   await waitFor(() => expect(rowIds().length).toBeGreaterThan(0));
   await settle();
+  const more = within(needsYou()).queryByRole('button', { name: /^Show [0-9]+ more$/ });
+  if (more) {
+    await act(async () => { fireEvent.click(more); });
+    await settle();
+  }
 }
 
 /** A one-finger touch drag across the card by `dx`, let go at the end (SwipeCard acts at 96 px or more). `from`: the
@@ -122,12 +129,12 @@ describe('Today on a phone: swipe', () => {
   it('a right swipe on the draft not watched yet decides nothing; the card says why once, in its own note', async () => {
     const { decides } = start();
     await loaded();
-    await swipe('q-draft-ep14', 120);
+    await swipe('run:d-ep14:review-1', 120);
     expect(decides()).toHaveLength(0);
-    expect(locked(within(cardOf('q-draft-ep14')).getByRole('button', { name: 'Approve' }))).toBe(true);
-    const root = swiperOf('q-draft-ep14').parentElement!.parentElement!;
+    expect(locked(within(cardOf('run:d-ep14:review-1')).getByRole('button', { name: 'Approve' }))).toBe(true);
+    const root = swiperOf('run:d-ep14:review-1').parentElement!.parentElement!;
     expect(root.textContent!.split(UNLOCK)).toHaveLength(2);
-    expect(within(cardOf('q-draft-ep14')).getByText(UNLOCK)).toBeTruthy();
+    expect(within(cardOf('run:d-ep14:review-1')).getByText(UNLOCK)).toBeTruthy();
   });
 
   it('a new version that comes in while the finger is down is never decided by that swipe', async () => {

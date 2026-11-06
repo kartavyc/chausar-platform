@@ -497,7 +497,8 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
   assert.equal(inv.supplierTaxId, GSTIN_27);
   assert.equal(inv.clientTaxId, null);
   assert.equal(inv.sacCode, '998222');
-  assert.deepEqual(inv.lines, [{ description: 'Monthly books', quantity: '1', unitMinor: '249900', amountMinor: '249900' }]);
+  // Ink v2 wave 4 (4J5, M15): each line keeps the rate charged.
+  assert.deepEqual(inv.lines, [{ description: 'Monthly books', quantity: '1', unitMinor: '249900', amountMinor: '249900', taxRateBps: '1800' }]);
   assert.match(inv.digest, /^[a-f0-9]{64}$/);
   assert.equal(view.receipt.id, inv.priceReceiptId);
   assert.deepEqual(view.receipt.subject, { type: 'invoice', invoiceId: inv.id });
@@ -562,7 +563,8 @@ test('an India tax invoice: prepare, approve by digest, number, fact and books r
   assert.ok(state.activity.some((a: any) => a.event === 'venture.invoice.issue'));
 
   await assert.rejects(call(env, 'venture.invoice.issue', { invoiceId: inv.id, digest: inv.digest }), code('INVOICE_NOT_DRAFT'));
-  await assert.rejects(call(env, 'venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-02' }), code('INVOICE_NOT_DRAFT'));
+  // Ink v2 wave 4 (4J5, M11): an order's quote becomes one invoice, once.
+  await assert.rejects(call(env, 'venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-02' }), code('QUOTE_ALREADY_INVOICED'));
   const got = await call(env, 'venture.invoice.get', { invoiceId: inv.id });
   assert.equal(got.documentText, issued.documentText);
   await assert.rejects(call(env, 'venture.invoice.get', { invoiceId: 'invoice_missing' }), code('INVOICE_NOT_FOUND'));
@@ -666,7 +668,7 @@ test('payments: part then the rest, overpaying refuses, and the received receipt
   const issued = await call(env, 'venture.invoice.issue', { invoiceId: draft.invoice.id, digest: draft.invoice.digest });
 
   await assert.rejects(pay('100', '2026-10-05', { ...owner, channel: 'mcp' }), code('APP_APPROVAL_REQUIRED'));
-  await assert.rejects(pay('100', '2026-10-05', owner, 'cheque'), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(pay('100', '2026-10-05', owner, 'barter'), code('INVALID_VENTURE_REQUEST')); // a cheque is a method since 4J5
   await assert.rejects(pay('0', '2026-10-05'), code('INVALID_AMOUNT'));
   await assert.rejects(pay('10.505', '2026-10-05'), code('INVALID_AMOUNT'));
   await assert.rejects(pay('-5', '2026-10-05'), code('INVALID_AMOUNT'));
@@ -924,6 +926,16 @@ test('a JPY venture runs end to end with zero minor digits', async () => {
   assert.equal(summary.notes.length, 2, 'no experimental notice on durable storage');
 });
 
+test('TDS is an Indian withholding: a payment outside India that names TDS is refused (4J5, M15)', async () => {
+  const env = await setup('US');
+  await seedBlueprint(env, { status: 'accepted', registered: true, rateBps: '825', price: '10000' });
+  const { order } = await orderFor(env, { name: 'Austin Diner', countryCode: 'US' });
+  const draft = await call(env, 'venture.invoice.prepare', { orderId: order.id, issueDate: '2026-10-01' });
+  const issued = await call(env, 'venture.invoice.issue', { invoiceId: draft.invoice.id, digest: draft.invoice.digest });
+  await assert.rejects(call(env, 'venture.payment.record', { invoiceId: issued.invoice.id, amount: '50', tds: { section: '194J', amount: '5' }, receivedOn: '2026-10-05', method: 'card' }), code('INVALID_VENTURE_REQUEST'));
+  assert.equal(listRecords(env.store.read(), 'venture-payment').length, 0);
+});
+
 // ---------------------------------------------------------------------------
 // 9 and 10. Static guards and the handler table
 // ---------------------------------------------------------------------------
@@ -949,9 +961,9 @@ test('every error code the money package throws is a listed venture code or a kn
   for (const name of found) assert.ok((VENTURE_ERRORS as readonly string[]).includes(name) || passThrough.has(name), `${name} is not listed`);
 });
 
-test('handlers cover exactly the eighteen money methods', () => {
+test('handlers cover exactly the money methods: eighteen, the twenty-one Ink v2 wave 4 added, and 4J5\'s bills.stop', () => {
   const owned = VENTURE_METHODS.filter(method => METHOD_OWNERS[method] === 'money');
-  assert.equal(owned.length, 18);
+  assert.equal(owned.length, 40);
   assert.deepEqual(Object.keys(handlers).sort(), [...owned].sort());
   for (const method of owned) assert.equal(typeof handlers[method], 'function');
   assert.equal(typeof computePrice, 'function');

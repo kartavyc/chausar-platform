@@ -16,6 +16,9 @@
 //   files, and the client's words with their own lists from intake; on a content calendar, each slot code planned has
 //   its post (calendar-slots); on a monthly report, every figure in the words has a receipt (narrative-receipted).
 // - Every flagship: the prompt-leak lint on the agent's words (prompt-leak.ts); a leak fails and blocks Accept.
+// - YouTube and social (Ink v2 4J16): the writing checks in English and Hindi (writing-checks.ts: hard bans, AI-tell
+//   rates against a baseline, the quoted share, bait), each with its rate; on YouTube, quotes-at-source, each quote
+//   the draft cites with a time found in the transcript within ten seconds of it (delivery/checks/quote-at.ts).
 // - YouTube and social: rules-current, whether the dated platform rules the checks that ran rest on are still inside
 //   their recheck window (rules-current.ts); past it, 'not run' naming the rules to recheck, which never blocks Accept.
 // The rules judge asks each playbook's own rules in rehearsal (flagshipJudgeRules).
@@ -37,7 +40,8 @@ import { YOUTUBE_OFFERS, YOUTUBE_STEPS, type YoutubeOfferId } from './youtube/pl
 import { YOUTUBE_ID } from './youtube/registration.ts';
 import { checkDraftClaims, checkSocialDraft, checkWords, countCharacters, type Finding, type PostDraft, type SocialCheckId } from './social/checks.ts';
 import { postOfLine, socialRules, threadParts } from './social/post-lines.ts';
-import { channelCapability } from './social/channels.ts';
+import { channelCapability, SOCIAL_CHANNELS } from './social/channels.ts';
+import { holdsPhrase, makesClaim, VOICE_PLAYBOOK, VOICE_STOP_WORDS } from './voice-match.ts';
 import type { CalendarSlot } from './social/calendar.ts';
 import { assignSlots, calendarPosts, calendarSlots, socialDraftPosts } from './social/draft-posts.ts';
 import { checkReportNarrative, reportFiguresOf } from './social/report.ts';
@@ -45,6 +49,10 @@ import { SOCIAL_JUDGE_RULES } from './social/judge.ts';
 import { SOCIAL_AGENCY_ID } from './social/registration.ts';
 import { PROMPT_LEAK_CHECK, promptLeakLine, promptLeaks, type PromptLeak } from './prompt-leak.ts';
 import { rulesCurrentResult } from './rules-current.ts';
+import { writingChecks } from './writing-checks.ts';
+import { draftQuotes, moveQuoteTimes, quoteCheck } from '../delivery/checks/quote-at.ts';
+import { rateFinding } from '../delivery/checks/rating.ts';
+import { factsWords, missingOf } from './ca-firm/needs-facts.ts';
 
 export type FlagshipCheckInput = {
   flagship: string;
@@ -125,7 +133,110 @@ async function playbookOwnChecks(input: FlagshipCheckInput): Promise<PlaybookChe
   // names only the rules for its own channels and exports, the rules its findings quoted first.
   const ran = own.filter(item => item.outcome !== 'not-run').flatMap(item => [item.check, ...(GROUPS.find(group => group.id === item.check)?.checks ?? [])]);
   const rules = rulesCurrentResult(input.flagship, input.today, ran, input.flagship === SOCIAL_AGENCY_ID ? scope : undefined);
-  return rules ? [...own, as(rules.check, rules.outcome, rules.detail)] : own;
+  // Ink v2 4J16: the writing checks (Q20) and quotes at their place (Q4), after the playbook's own.
+  const evidence = evidenceChecks(input).map(item => as(item.check, item.outcome, item.detail));
+  return rules ? [...own, as(rules.check, rules.outcome, rules.detail), ...evidence] : [...own, ...evidence];
+}
+
+// ---------------------------------------------------------------------------
+// Writing and quotes (Ink v2 wave 4, 4J16)
+// ---------------------------------------------------------------------------
+
+/**
+ * The writing checks (writing-checks.ts) on the words of a YouTube or social draft, which go out in public; a social
+ * draft's posts are read one by one for stacked asks, and its English bait phrases are left to its own word check. A CA
+ * firm's papers go to the client and the CA, so they are not read for tells or bait. A YouTube draft that quotes the
+ * talk ("words" (12:40)) has each quote checked at its time in the order's transcript (quotesAtSource). A CA draft
+ * whose calculator asked for facts gets facts-answered (factsAnswered).
+ */
+function evidenceChecks(input: FlagshipCheckInput): { check: string; outcome: PlaybookCheckResult['outcome']; detail: string }[] {
+  if (input.flagship === CA_FIRM_ID) { const facts = factsAnswered(input); return facts ? [facts] : []; }
+  if (input.flagship !== YOUTUBE_ID && input.flagship !== SOCIAL_AGENCY_ID) return [];
+  const social = input.flagship === SOCIAL_AGENCY_ID;
+  const posts = social ? socialDraftPosts(input.deliverable).map(post => post.text) : undefined;
+  const writing = writingChecks(deliverableWords(input.deliverable), { ...(posts?.length ? { posts } : {}), englishBait: !social });
+  const quotes = social ? null : quotesAtSource(input);
+  return quotes ? [...writing, quotes] : writing;
+}
+
+/**
+ * quotes-at-source (Q4): each quote a YouTube draft cites with a time is in the order's transcript within ten seconds
+ * of it. Round 1 ran in the draft pre-check (withQuoteFixes); this final check is round 2: a quote still off its place
+ * fails, saying where it really is, and the quotes code moved are named. Null when the draft cites no quote; not run
+ * when no transcript came with the order.
+ */
+function quotesAtSource(input: FlagshipCheckInput): { check: string; outcome: PlaybookCheckResult['outcome']; detail: string } | null {
+  const cited = draftQuotes(deliverableWords(input.deliverable)).filter(item => item.at.kind === 'time');
+  if (!cited.length) return null;
+  const check = 'quotes-at-source';
+  const cues = transcriptOf(input.files);
+  if (cues === 'none') return { check, outcome: 'not-run', detail: 'not run: the draft quotes the talk, and no transcript came with the order to check the quotes against.' };
+  if (cues === 'unreadable') return { check, outcome: 'not-run', detail: 'not run: the transcript could not be read, so the quotes were not checked.' };
+  const result = quoteCheck(cited, { kind: 'transcript', cues }, 2);
+  const fixes = input.deliverable.quoteFixes ?? [];
+  // What code moved comes first, inside the part of the line Today shows (160 characters), so the owner reads it before
+  // Approve; the row's meta lists the moves too (views/row-meta.ts).
+  const moved = fixes.length ? `Chausar moved ${fixes.length === 1 ? '1 quote; check it' : `${fixes.length} quotes; check them`} before you approve: ${fixes.join(' ')} ` : '';
+  return { check, outcome: result.outcome === 'pass' ? 'pass' : 'fail', detail: `${moved}${result.detail}` };
+}
+
+/**
+ * facts-answered (4J16, Q5 with CA8): an open item where a tax figure rests on a fact the calculator asked the client
+ * for (NEEDS_FACTS). Its facts are typed by code ({ affects: tax-figure, known }), and its severity comes from the
+ * rating table, never from a model: unknown while no later call of that tool worked, or (TDS) while the payee it was
+ * about is missing from the later working (the agent left that row out), so it is rated high and fails. Null when no
+ * calculator asked for facts in this run.
+ */
+function factsAnswered(input: FlagshipCheckInput): { check: string; outcome: PlaybookCheckResult['outcome']; detail: string } | null {
+  const calls = input.toolCalls ?? [];
+  const asked = calls.filter(call => call.tool.startsWith('tax.') && !call.envelope.ok && call.envelope.error.code === 'NEEDS_FACTS');
+  if (!asked.length) return null;
+  const open = asked.flatMap(call => {
+    const items = call.envelope.ok ? [] : missingOf(call.envelope.error.details);
+    const worked = calls.findLast(later => later.tool === call.tool && later.turn > call.turn && later.envelope.ok);
+    if (!worked || !worked.envelope.ok) return items;
+    // A TDS working after the answer must hold each payee the client was asked about; a row left out is still open.
+    const payees = ((worked.envelope.result as { payments?: { payee?: unknown }[] } | null)?.payments ?? []).map(row => row.payee);
+    return call.tool === 'tax.tds' ? items.filter(item => item.about !== undefined && !payees.includes(item.about)) : [];
+  });
+  const check = 'facts-answered';
+  if (!open.length) return { check, outcome: 'pass', detail: 'The facts the calculator asked the client for were answered, and the tax was worked after that.' };
+  const rating = rateFinding('ca-open-item', { affects: 'tax-figure', known: 'unknown' });
+  const missing = factsWords(open);
+  return {
+    check, outcome: rating.priority === 'fix-before-sending' ? 'fail' : 'pass',
+    detail: `Rated ${rating.severity} by code: ${rating.rationale.filter(line => line !== rating.rationale.at(-1)).join(' ')} Still open: ${missing}.`,
+  };
+}
+
+/** The order's transcript as timed lines, or why there is none to read. */
+function transcriptOf(files: readonly FileLike[]): { startMs: number; endMs: number; text: string }[] | 'none' | 'unreadable' {
+  const sent = files.find(file => file.format === 'transcript');
+  if (!sent) return 'none';
+  try { return transcriptCues(sent); } catch { return 'unreadable'; }
+}
+
+/**
+ * Round 1 of the quote check (Q4), in the draft pre-check before the checks run (delivery/runs.ts and simulate.ts, with
+ * the order's files): on a YouTube draft, each quote cited with a time that the transcript says at another time has
+ * its time moved there by code, and quoteFixes says so; the final check (round 2) names them. One round only: a draft
+ * already corrected, another playbook's draft, or one with no readable transcript comes back as it was.
+ */
+export function withQuoteFixes(deliverable: Deliverable, files: readonly FileLike[], flagship: string | null | undefined): Deliverable {
+  if (flagship !== YOUTUBE_ID || deliverable.quoteFixes) return deliverable;
+  const cues = transcriptOf(files);
+  if (cues === 'none' || cues === 'unreadable') return deliverable;
+  const fixes: string[] = [];
+  const sections = deliverable.sections.map(section => ({
+    ...section,
+    parts: section.parts.map(part => {
+      if (part.kind !== 'text') return part;
+      const moved = moveQuoteTimes(part.text, cues);
+      fixes.push(...moved.fixes);
+      return moved.fixes.length ? { ...part, text: moved.text } : part;
+    }),
+  }));
+  return fixes.length ? { ...deliverable, sections, quoteFixes: fixes } : deliverable;
 }
 
 // ---------------------------------------------------------------------------
@@ -423,4 +534,61 @@ function socialChecks(input: FlagshipCheckInput, scope?: { channels: string[]; e
   const threads = posts.flatMap(post => threadNote(post) ?? []);
   const [limits, claims, disclosure, words] = GROUPS.map(group => grouped(group.id, findings.filter(item => group.checks.includes(item.check)), group.pass, group.id === 'channel-limits' ? threads : []));
   return [limits, media, claims, disclosure, words, ...extra];
+}
+
+// ---------------------------------------------------------------------------
+// The owner's voice (Ink v2 wave 4, 4J17, A8)
+// ---------------------------------------------------------------------------
+
+/** The voice check's id, on every playbook's drafts (the eight fixed steps too). */
+export const VOICE_CHECK = 'voice';
+/** One voice that is on, as the check reads it (agents/voice.ts voiceRules): its never-use words and claims. */
+export type VoiceRule = { language: 'en' | 'hi'; channel: string | null; neverUse: readonly string[]; willNotClaim: readonly string[] };
+/** The words the voice check and learning leave out, and how a word is read (voice-match.ts, a leaf module). */
+export { VOICE_STOP_WORDS };
+/** The label the voice result carries in a run's checks: the owner's own voice, not a playbook's (voice-match.ts). */
+export { VOICE_PLAYBOOK };
+
+/**
+ * The channels whose voices read a draft, by its playbook: a voice for every channel reads every draft; a social draft's
+ * posts are read by the voices for their own channels too; a YouTube package by the YouTube voice; any other reply by
+ * the mail voice. The writing turn is given the same voices (agents/voice.ts voicePart).
+ */
+export function voiceChannelsOf(flagship: string | null): { whole: (string | null)[]; posts: readonly string[] } {
+  if (flagship === SOCIAL_AGENCY_ID) return { whole: [null], posts: SOCIAL_CHANNELS };
+  return { whole: flagship === YOUTUBE_ID ? [null, 'youtube'] : [null, 'email'], posts: [] };
+}
+
+/**
+ * The voice check on a draft, by code: every word the owner's voices never use and every claim they will not make,
+ * read in the draft's words. A voice for every channel reads the whole draft; a social draft's posts are each read by
+ * the voices for their own channel too; a YouTube package by the YouTube voice, and any other reply by the mail voice.
+ * Null when no voice that is on applies, so a business without one gets no extra result.
+ */
+export function voiceDraftCheck(deliverable: Deliverable, rules: readonly VoiceRule[], flagship: string | null): PlaybookCheckResult | null {
+  const { whole, posts } = voiceChannelsOf(flagship);
+  const texts: { text: string; rules: VoiceRule[] }[] = [{ text: deliverableWords(deliverable), rules: rules.filter(rule => whole.includes(rule.channel)) }];
+  if (posts.length) for (const post of socialDraftPosts(deliverable)) texts.push({ text: post.text, rules: rules.filter(rule => rule.channel === post.channel) });
+  const read = texts.filter(item => item.rules.length);
+  if (!read.length) return null;
+  const found: string[] = [];
+  for (const { text, rules: applied } of read) {
+    for (const rule of applied) {
+      for (const word of rule.neverUse) if (holdsPhrase(text, word)) found.push(`The draft uses "${word}", a word your voice never uses.`);
+      for (const claim of rule.willNotClaim) if (makesClaim(text, claim)) found.push(`The draft claims "${claim}", which your voice will not claim.`);
+    }
+  }
+  const lines = [...new Set(found)];
+  return lines.length
+    ? { playbook: VOICE_PLAYBOOK, check: VOICE_CHECK, outcome: 'fail', detail: lines.slice(0, 3).join(' ') }
+    : { playbook: VOICE_PLAYBOOK, check: VOICE_CHECK, outcome: 'pass', detail: 'No word your voice never uses, and no claim it will not make.' };
+}
+
+/**
+ * The draft's checks with the voice check after them. It only ever adds a result: a draft another check failed stays
+ * failed whatever the voice says (failedPlaybookCheck finds the first failure).
+ */
+export function withVoiceCheck(results: readonly PlaybookCheckResult[] | undefined, voice: PlaybookCheckResult | null): PlaybookCheckResult[] | undefined {
+  if (!voice) return results ? [...results] : undefined;
+  return [...(results ?? []), voice];
 }

@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { useT } from '../../text';
+import { Receipt } from '../Receipt';
 import { ChartData, ChartFoot, ChartValue, chartRoot } from './ChartData';
 import { FLIP, PLOT, PLOT_UP, svgId } from './plot';
 import { Gutter } from './Ticks';
@@ -9,6 +10,8 @@ import s from './Charts.module.css';
 export interface CashLineProps {
   data: CashData;
   onReceipt?: ((id: string) => void) | undefined;
+  /** false (W4 4J20, Money's headline tile): no hover line per week; the chart's table still holds every value. */
+  tips?: boolean | undefined;
 }
 
 /** A week's place across the chart: the middle of its column, so the axis words below sit under it. */
@@ -36,7 +39,7 @@ function runs(points: CashPoint[], value: (point: CashPoint) => number | null): 
  * on the last week with an actual figure, where the forecast takes over. Values stay per mille in a 1000-tall viewBox stretched to the tile, the lines keep their
  * width at any size (non-scaling strokes), and the words are HTML, so they never shrink below 12 px.
  */
-export function CashLine({ data, onReceipt }: CashLineProps) {
+export function CashLine({ data, onReceipt, tips = true }: CashLineProps) {
   const t = useT();
   const assumesId = svgId(useId(), 'assumes');
   const { points } = data;
@@ -50,6 +53,8 @@ export function CashLine({ data, onReceipt }: CashLineProps) {
   const end = points[endAt];
   const ticks = data.ticks ?? [];
   const { proof } = data;
+  // W4 4J20: each week its own receipt, listed in the table (the chart's proof is then `each`).
+  const receipted = points.some((point) => point.receiptId);
   const tip = (point: CashPoint) =>
     t('chart.tip', {
       label: point.label,
@@ -73,7 +78,7 @@ export function CashLine({ data, onReceipt }: CashLineProps) {
             <g transform={FLIP}>
               {points.map((point, i) => (
                 <rect key={point.key} className={s.hit} x={i * 100} y="0" width="100" height="1000">
-                  <title>{tip(point)}</title>
+                  {tips && <title>{tip(point)}</title>}
                 </rect>
               ))}
               {ticks.map((tick) => (
@@ -118,13 +123,14 @@ export function CashLine({ data, onReceipt }: CashLineProps) {
       <ChartFoot proof={proof} onReceipt={onReceipt}>
         <ChartData
           caption={data.label}
-          columns={[t('chart.cash.actual'), t('chart.cash.forecast')]}
+          columns={[t('chart.cash.actual'), t('chart.cash.forecast'), ...(receipted ? [t('chart.data.receipt')] : [])]}
           rows={points.map((point) => ({
             key: point.key,
             heading: point.label,
             cells: [
               <ChartValue money value={point.actual} />,
               <ChartValue money value={point.forecast} />,
+              ...(receipted ? [point.receiptId ? <Receipt id={point.receiptId} onOpen={onReceipt} /> : <ChartValue money value={null} />] : []),
             ],
           }))}
         />

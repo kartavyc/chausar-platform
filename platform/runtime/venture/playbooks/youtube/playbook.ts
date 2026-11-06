@@ -230,6 +230,14 @@ export type YoutubeConnectorEnv = { ffmpeg: boolean; speech?: boolean; posting?:
 const planned = (mode: YoutubeConnectorMode['mode'], what: string, reason: string): YoutubeConnectorMode => ({ mode, status: 'planned', what, reason });
 const available = (mode: YoutubeConnectorMode['mode'], what: string): YoutubeConnectorMode => ({ mode, status: 'available', what, reason: null });
 
+/**
+ * The ids of the connectors youtubeConnectors builds, in its order, as a plain list: playbooks/plan.ts reads them when
+ * it loads, so loading the plan never calls into build/posting.ts (whose own loading may still be under way).
+ */
+export const YOUTUBE_CONNECTOR_IDS: readonly string[] = Object.freeze([
+  'client-files', 'ffmpeg', 'youtube-upload', 'youtube-comments', 'messages', 'youtube-data', 'youtube-analytics', 'transcription', 'paid-generation', 'editor-handoff',
+]);
+
 /** The connectors this playbook uses, labelled with what this build does. Upload modes come from the posting module. */
 export function youtubeConnectors(env: YoutubeConnectorEnv): YoutubeConnector[] {
   const posting = postingOptions('youtube', env.posting ?? NOT_PROBED);

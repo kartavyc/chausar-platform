@@ -1,5 +1,6 @@
 // Chausar venture launcher, delivery package (P5): the launch ladder.
-// rehearsal -> shadow (practice drafts) -> approve each draft. Approving a sample and auto with spot checks are planned.
+// rehearsal -> shadow (practice drafts) -> approve each draft. Approving a sample is planned. Auto with spot checks is
+// built but locked (Ink v2 wave 4, 4J15, the founder's decision): it always answers AUTO_LOCKED (policy/auto-lock.ts).
 // Each stage changes what the owner can do; shadow needs a passing rehearsal that a real model wrote and a judge answered.
 import { check, type Context, type State } from '../../contracts.ts';
 import { exactPayload, listRecords, requireAppChannel, ventureAction } from '../records.ts';
@@ -9,6 +10,7 @@ import { NOT_JUDGED_REASON } from './judge.ts';
 import { expectedPlaybookHash } from './playbook.ts';
 import { scenariosFor } from './scenarios.ts';
 import { acceptedBlueprintOrNull, newestFirst, readAs, serviceTypeOf } from './shared.ts';
+import { AUTO_LOCKED_WORDS, autoLocked } from '../policy/auto-lock.ts';
 
 export const REASON_CONNECT_AI = "Connect an AI and rehearse with it first. Template outlines can't be judged.";
 export const REASON_REHEARSE_ALL = 'Rehearse all three practice clients with the current playbook.';
@@ -17,8 +19,9 @@ export const REASON_NO_JUDGE = 'Your AI wrote the drafts, but no AI judged them.
 export const REASON_NOT_JUDGED = 'Your last rehearsal was not judged. Run it again with your AI.';
 export const REASON_PASS_ALL = 'Every practice client must pass. Rehearse the ones that failed again.';
 export const REASON_SAMPLE_PLANNED = 'Planned. Needs a sampling rule first.';
-export const REASON_AUTO_PLANNED = 'Planned. Not in this build.';
-const PLANNED_STAGES: readonly LaunchStage[] = ['approve-sample', 'auto-spot-check'];
+/** 4J15: auto with spot checks is built but locked; readiness (venture.auto.readiness) never opens it. */
+export const REASON_AUTO_LOCKED = AUTO_LOCKED_WORDS;
+const PLANNED_STAGES: readonly LaunchStage[] = ['approve-sample'];
 const DAY_MS = 86_400_000;
 
 type Row = LaunchStatus['rehearsal'][number];
@@ -109,7 +112,7 @@ export function computeLaunchStatus(state: State, venture: VentureRecord, now: D
   const current = LAUNCH_STAGES.indexOf(venture.launchStage);
   const stages: LaunchStatus['stages'] = LAUNCH_STAGES.map((stage, index) => {
     if (stage === 'approve-sample') return { stage, allowed: false, reason: REASON_SAMPLE_PLANNED, status: 'planned' };
-    if (stage === 'auto-spot-check') return { stage, allowed: false, reason: REASON_AUTO_PLANNED, status: 'planned' };
+    if (stage === 'auto-spot-check') return { stage, allowed: false, reason: REASON_AUTO_LOCKED, status: 'available' };
     if (stage === 'rehearsal') return { stage, allowed: true, reason: 'Made-up clients only. A real order gets a template outline, not an agent draft.', status: 'available' };
     if (index <= current) {
       return { stage, allowed: true, reason: stage === 'shadow' ? 'Agent drafts for real orders are practice drafts that cannot reach a client.' : 'You approve each draft before you copy it to a client.', status: 'available' };
@@ -142,13 +145,14 @@ export async function launchStatusHandler(deps: VentureDeps, ctx: Context, paylo
   return computeLaunchStatus(state, venture, deps.clock());
 }
 
-/** venture.launch.advance: down any time; up one allowed stage at a time; the planned stages never. */
+/** venture.launch.advance: down any time; up one allowed stage at a time; the planned stage never; auto is locked (AUTO_LOCKED). */
 export async function launchAdvanceHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<LaunchStatus> {
   requireAppChannel(ctx, 'venture.launch.advance');
   const body = exactPayload(payload, ['to'], ['to']);
   check(typeof body.to === 'string' && (LAUNCH_STAGES as readonly string[]).includes(body.to), 'INVALID_VENTURE_REQUEST', 'Choose a launch stage.');
   const to = body.to as LaunchStage;
-  check(!PLANNED_STAGES.includes(to), 'STAGE_PLANNED', to === 'approve-sample' ? REASON_SAMPLE_PLANNED : REASON_AUTO_PLANNED);
+  autoLocked(to);
+  check(!PLANNED_STAGES.includes(to), 'STAGE_PLANNED', REASON_SAMPLE_PLANNED);
   readAs(deps, ctx, 'approve');
   return ventureAction(deps, ctx, 'approve', 'launch.advance', tx => {
     const venture = tx.venture!;

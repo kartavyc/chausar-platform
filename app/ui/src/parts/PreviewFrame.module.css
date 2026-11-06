@@ -107,6 +107,16 @@
   background: var(--pv-scrim-strong);
 }
 
+/* W4 4J19: the still the engine took from the cut, under the frame's words and buttons. */
+.poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.55;
+}
+
 /* ---- Paper (documents and invoices on the desk) --------------------------------------------------------------- */
 
 .frame[data-preview='paper'],
@@ -460,4 +470,12 @@
   .frame[data-preview='text'],
   .frame[data-preview='post'] { height: 180px; }
   .videoTitle { left: var(--sp-3); top: var(--sp-10); }
+}
+
+/* W4 4J19: the receipts under a sheet with no total (a CA working paper). */
+.paperProof {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
 }

@@ -48,9 +48,15 @@ export interface ActorHandle {
   on(event: string, listener: (event: ActorEvent) => void): () => void;
   /**
    * The client share page (/share/<token>): the server's own call, never an owner action, so it is not in ACTOR_ACTIONS.
-   * Only the local runtime has it; without it the page answers that nothing is here.
+   * Only the local runtime has it; without it the page answers that nothing is here. 4J7 added 'comment' (a client's
+   * comment on one item) and 'upload' (a step of the /share/<token>/upload file request page).
    */
-  shareLink?(op: 'page' | 'decide', token: string, input: unknown): Promise<unknown>;
+  shareLink?(op: 'page' | 'decide' | 'comment' | 'upload', token: string, input: unknown): Promise<unknown>;
+  /**
+   * Ink v2 wave 4 (4G3): hosted sessions that signed out or were revoked, as hashes of their ids; their phone alert
+   * subscriptions end. The server's own call, never an owner action. Only the local runtime has it.
+   */
+  endPushSessions?(hashes: readonly string[]): Promise<number>;
 }
 
 export interface VentureRuntime {
@@ -64,6 +70,11 @@ export interface VentureRuntime {
   state(key: ActorKey): ActorState;
   /** Puts actors to sleep that have been idle for the configured time. Rivet sleeps its actors itself. */
   sleepIdle(): Promise<number>;
+  /**
+   * Ink v2 wave 4 (4G1, 4G3): the engine's tick for each awake actor (the notification centre's look at Today), never
+   * waking one. Answers how many it ticked. Only the local runtime has it; Rivet would schedule its own.
+   */
+  tick?(): Promise<number>;
   dispose(): Promise<void>;
 }
 

@@ -6,6 +6,7 @@
 import { useMemo } from 'react';
 import { useLanguage, type T } from '../../text';
 import { useClock } from '../../shell/clock';
+import { useResource } from '../../engine/context';
 import type { BooksSummaryLite, InvoiceLite, VentureRunEvent } from '../../engine/types';
 
 export type OpenInvoice = BooksSummaryLite['openInvoices'][number];
@@ -22,17 +23,65 @@ export const onRuns = (event: VentureRunEvent) => event.type.startsWith('run.');
 const LOCALE = { en: 'en-IN', hi: 'hi-IN' } as const;
 export type Day = (iso: string | null | undefined) => string;
 
-/** A calendar day ('2026-10-28') as '28 Oct 2026' in the reader's language. Read in UTC so the day never shifts. */
-export function useDay(): Day {
+/**
+ * A calendar day ('2026-10-28') as '28 Oct 2026' in the reader's language, or '28 Oct' with `short` (a chart's axis,
+ * a list by date within weeks). Read in UTC so the day never shifts.
+ */
+export function useDay(size: 'full' | 'short' = 'full'): Day {
   const language = useLanguage();
   return useMemo(() => {
-    const format = new Intl.DateTimeFormat(LOCALE[language], { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const format = new Intl.DateTimeFormat(LOCALE[language], { day: 'numeric', month: 'short', ...(size === 'full' ? { year: 'numeric' as const } : {}), timeZone: 'UTC' });
     return (iso) => {
       if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso ?? '';
       const at = new Date(`${iso}T00:00:00.000Z`);
       return Number.isNaN(at.getTime()) ? iso : format.format(at);
     };
-  }, [language]);
+  }, [language, size]);
+}
+
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** A month ('2026-10') as 'October 2026' (long) or 'Oct' (short, a chart's column) in the reader's language. */
+export function useMonthWords(size: 'long' | 'short' = 'long'): (month: string) => string {
+  const language = useLanguage();
+  return useMemo(() => {
+    const format = new Intl.DateTimeFormat(LOCALE[language], size === 'long' ? { month: 'long', year: 'numeric', timeZone: 'UTC' } : { month: 'short', timeZone: 'UTC' });
+    return (month) => (MONTH.test(month) ? format.format(new Date(`${month}-01T00:00:00.000Z`)) : month);
+  }, [language, size]);
+}
+
+/** This month on this computer's calendar ('2026-10'), read from the app's one clock. */
+export function useThisMonth(): string {
+  const clock = useClock();
+  // The engine's own day on the business's calendar (its time zone), when the books say it; else this computer's.
+  const books = useResource('venture.books.summary', { period: 'this-month' }, { refreshOn: onMoney });
+  const today = books.data?.today;
+  return today && /^\d{4}-\d{2}-\d{2}$/.test(today) ? today.slice(0, 7) : new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit' }).format(clock()).slice(0, 7);
+}
+
+/** How many months the picker offers: this one and the five before it (simple first, 4J20). */
+export const MONTHS_SHOWN = 6;
+
+/** The months the picker offers, newest first: this one and the five before it. */
+export function monthsOffered(thisMonth: string): string[] {
+  const months = [thisMonth];
+  while (months.length < MONTHS_SHOWN) months.push(monthBefore(months[months.length - 1]!));
+  return months;
+}
+
+/** The month before one ('2026-01' before '2026-02', '2025-12' before '2026-01'): a calendar step, no amount. */
+export function monthBefore(month: string): string {
+  const at = new Date(`${month}-01T00:00:00.000Z`);
+  at.setUTCMonth(at.getUTCMonth() - 1);
+  return at.toISOString().slice(0, 7);
+}
+
+/** The month Money shows (?month=2026-09 in the address; this month when none or not a month), and this month. */
+export function useChosenMonth(query: Record<string, string>): { month: string; thisMonth: string } {
+  const thisMonth = useThisMonth();
+  const asked = query.month;
+  // Only a month the picker offers: anything else in the address is this month.
+  return { month: asked && MONTH.test(asked) && monthsOffered(thisMonth).includes(asked) ? asked : thisMonth, thisMonth };
 }
 
 /** A moment ('2026-10-21T09:20:00Z') as '21 Oct, 2:50 pm' on this computer's clock. */

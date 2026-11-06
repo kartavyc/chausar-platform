@@ -1,0 +1,95 @@
+/* Your AI apps (W4 4H2): a tile under Your AI with one inner card per command-line tool, its state at rest, and the
+   engine's line, its fix and what was found one fold away. D-STYLE pieces: tile, inner cards, a chip, a fold. */
+
+.tile {
+  margin-top: var(--gap-grid);
+}
+
+.tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--gap-cards);
+  margin: var(--sp-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.toolHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+}
+
+.name {
+  margin: 0;
+  font-size: var(--text-row);
+  font-weight: var(--weight-strong);
+  color: var(--fg);
+}
+
+.chip {
+  margin-left: auto;
+}
+
+.fix {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-4);
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+}
+
+.fact {
+  display: contents;
+}
+
+.facts dt {
+  color: var(--mute);
+}
+
+.facts dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.more {
+  margin-top: 0;
+}
+
+.more[open] {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.more > summary {
+  justify-self: start;
+}
+
+.how {
+  margin-top: var(--sp-4);
+}
+
+@container (max-width: 759px) {
+  .tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

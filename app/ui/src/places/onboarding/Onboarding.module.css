@@ -137,6 +137,12 @@
   color: var(--mute);
 }
 
+/* W4 4J21: a filter with no way in it. */
+.waysNone {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
 /* The one-sentence tile on the Start page, and the form it shares with the first run. */
 .describe {
   display: grid;

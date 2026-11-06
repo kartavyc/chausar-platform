@@ -16,6 +16,8 @@ import { Receipt } from '../../parts/Receipt';
 import { Row } from '../../parts/Row';
 import { EngineWords, Failed, Section } from './parts';
 import { useMoment } from './words';
+// W4 4J22a: whether the record of outside actions adds up, and Check a receipt (4J10).
+import { JournalChain } from './JournalChain';
 import s from './Money.module.css';
 
 const LIMIT = 50;
@@ -42,6 +44,7 @@ export function Journal() {
     <>
       {journal.error && <Failed error={journal.error} />}
       <Section title={t('money.journal.heading')}>
+        <JournalChain onAccepted={journal.reload} />
         {journal.data && entries.length === 0 && <EmptyState title={t('money.journal.none')} />}
         {entries.length > 0 && (
           <ul className={s.list}>

@@ -10,6 +10,7 @@ import { EmptyState } from '../../src/parts/EmptyState';
 import { Field } from '../../src/parts/Field';
 import { CodeGroups, NewPassphrase } from '../../src/parts/Secret';
 import { TextProvider } from '../../src/text';
+import { assertFiguresProved, receiptMark } from '../helpers/ink-rules';
 
 describe('Button', () => {
   it('is a real button that never submits a form, in one of three looks', () => {
@@ -91,7 +92,7 @@ describe('Change', () => {
     expect(old.className).toContain('mono');
     expect(screen.getByText('₹30,000').className).toContain('mono');
     expect(container.textContent).toContain('was');
-    fireEvent.click(screen.getByRole('button', { name: 'Receipt R-0415' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Receipt for ₹30,000' }));
     expect(onReceipt).toHaveBeenCalledWith('R-0415');
   });
 
@@ -103,37 +104,52 @@ describe('Change', () => {
 });
 
 describe('Receipt', () => {
-  it('is a button that opens the receipt sheet, labelled with its id, never a bare amount', () => {
-    render(<Receipt id="R-0419" />);
-    const button = screen.getByRole('button', { name: 'Receipt R-0419' });
-    expect(button.textContent).toBe('R-0419');
+  it('is a small receipt mark (4Z3) that opens the receipt sheet; it never prints its code, which the sheet shows', () => {
+    render(<Receipt id="R-0419" amount="₹1,12,400" />);
+    const button = screen.getByRole('button', { name: 'Receipt for ₹1,12,400' });
+    expect(button.textContent).toBe('');
+    expect(button).toBe(screen.getByRole('button', { name: receiptMark('R-0419') }));
     fireEvent.click(button);
     expect(window.location.hash).toBe('#/today?sheet=receipt%3AR-0419');
   });
 
+  it('says what it proves in Hindi too, and is plainly "Receipt" when it stands for no one amount', () => {
+    render(<TextProvider language="hi"><Receipt id="R-0419" amount="₹1,12,400" /></TextProvider>);
+    expect(screen.getByRole('button', { name: '₹1,12,400 की रसीद' }).dataset.receipt).toBe('R-0419');
+    render(<Receipt id="R-0420" />);
+    expect(screen.getByRole('button', { name: 'Receipt' }).dataset.receipt).toBe('R-0420');
+  });
+
   it("with source ca it opens the CA firm's calculator receipt (venture.ca.receipt) in the receipt sheet", () => {
     render(<Receipt id="w-portal-sep" source="ca" />);
-    const button = screen.getByRole('button', { name: 'Receipt w-portal-sep' });
+    const button = screen.getByRole('button', { name: receiptMark('w-portal-sep') });
     expect(button.dataset.receipt).toBe('w-portal-sep');
     fireEvent.click(button);
     expect(window.location.hash).toBe('#/today?sheet=ca-receipt%3Aw-portal-sep');
   });
 
-  it('is the D receipt chip: it carries data-receipt and a receipt icon hidden from screen readers', () => {
+  it('carries data-receipt and the receipt icon, hidden from screen readers (the name says it)', () => {
     render(<Receipt id="R-0419" onOpen={() => {}} />);
-    const button = screen.getByRole('button', { name: 'Receipt R-0419' });
+    const button = screen.getByRole('button', { name: receiptMark('R-0419') });
     expect(button.dataset.receipt).toBe('R-0419');
     expect(button.querySelector('svg.lucide-receipt-text')!.getAttribute('aria-hidden')).toBe('true');
   });
 
-  it('on the dark goal card it is an underlined light link, with no chip and no icon', () => {
-    render(<Receipt id="R-0421" tone="dark" onOpen={() => {}} />);
-    const button = screen.getByRole('button', { name: 'Receipt R-0421' });
+  it('on the dark goal card it is the same mark in the goal card\'s light link colour, with no code', () => {
+    render(<Receipt id="R-0421" tone="dark" amount="₹18,880" onOpen={() => {}} />);
+    const button = screen.getByRole('button', { name: 'Receipt for ₹18,880' });
     expect(button.dataset.tone).toBe('dark');
-    expect(button.textContent).toBe('R-0421');
-    expect(button.querySelector('svg')).toBeNull();
+    expect(button.textContent).toBe('');
+    expect(button.querySelector('svg.lucide-receipt-text')).not.toBeNull();
     const css = readFileSync(join(import.meta.dirname, '../../src/parts/Receipt.module.css'), 'utf8');
-    expect(css).toMatch(/\[data-tone='dark'\]\s*\{[^}]*color:\s*var\(--goal-link\)[^}]*text-decoration:\s*underline/);
+    expect(css).toMatch(/\[data-tone='dark'\]\s*\{[^}]*color:\s*var\(--goal-link\)/);
+  });
+
+  it('a mark that prints its code, or has no name, breaks the Ink rules', () => {
+    const { container } = render(<span data-figure-group=""><span>₹10</span><button type="button" data-receipt="R-1" aria-label="Receipt">R-1</button></span>);
+    expect(() => assertFiguresProved(container)).toThrow(/prints its code/);
+    const { container: unnamed } = render(<span data-figure-group=""><span>₹10</span><button type="button" data-receipt="R-2"><svg /></button></span>);
+    expect(() => assertFiguresProved(unnamed)).toThrow(/has no name/);
   });
 });
 

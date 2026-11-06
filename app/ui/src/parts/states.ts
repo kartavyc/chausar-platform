@@ -12,7 +12,10 @@
  */
 
 import type { T } from '../text';
-import type { DeliveryStatus, InvoiceLite, LeadStage, Posture, QueueKind, RunState, RunStep } from '../engine/types';
+import type {
+  DeliverableReport, DeliveryStatus, GuidanceLineView, InvoiceLite, LeadStage, OrderContractView, Posture, QueueKind, QueueKindW4, ReportItem,
+  RoutineRunState, RunDetail, RunState, RunStep,
+} from '../engine/types';
 
 export const STATE_TONES = ['working', 'wait', 'fail', 'idle', 'done', 'neutral'] as const;
 export type StateTone = (typeof STATE_TONES)[number];
@@ -73,10 +76,12 @@ const DELIVERY: Record<DeliveryStatus, StateEntry> = {
   edited: { key: 'state.delivery.edited', tone: 'done' },
   rejected: { key: 'state.delivery.rejected', tone: 'idle' },
   failed: { key: 'state.delivery.failed', tone: 'fail' },
+  // W4 4F3: stopped by the owner or by Chausar; it waits for Resume. An engine failure stays 'failed'.
+  stopped: { key: 'state.delivery.stopped', tone: 'wait' },
 };
 
 /** A Today card's kind (the kind chip). Kinds are labels, not states, so all are neutral. */
-const QUEUE: Record<QueueKind, StateEntry> = {
+const QUEUE: Record<QueueKind | QueueKindW4, StateEntry> = {
   draft: { key: 'state.queue.draft', tone: 'neutral' },
   price: { key: 'state.queue.price', tone: 'neutral' },
   quote: { key: 'state.queue.quote', tone: 'neutral' },
@@ -88,6 +93,85 @@ const QUEUE: Record<QueueKind, StateEntry> = {
   locked: { key: 'state.queue.locked', tone: 'neutral' },
   connector: { key: 'state.queue.connector', tone: 'neutral' },
   bank: { key: 'state.queue.bank', tone: 'neutral' },
+  proposal: { key: 'state.queue.proposal', tone: 'neutral' },
+  // W4 4G4: the other wave 4 kinds, so the notification centre never reads "Unknown".
+  followup: { key: 'state.queue.followup', tone: 'neutral' },
+  reply: { key: 'state.queue.reply', tone: 'neutral' },
+  notice: { key: 'state.queue.notice', tone: 'neutral' },
+};
+
+// W4 4J22a: the engine's one vocabulary (4J14, delivery/verdicts.ts) and the other wave 4 states, each worded here.
+// tests/parts/states-w4.test.ts reads the engine's lists, so a value it adds fails until it has words.
+
+/** A check's outcome (Q7): only a pass is green; one that could not run or settled nothing is not a pass. */
+const CHECK: Record<ReportItem['outcome'] & ('pass' | 'fail' | 'not-run' | 'not-checked'), StateEntry> = {
+  pass: { key: 'state.check.pass', tone: 'done' },
+  fail: { key: 'state.check.fail', tone: 'fail' },
+  'not-run': { key: 'state.check.not-run', tone: 'idle' },
+  'not-checked': { key: 'state.check.not-checked', tone: 'neutral' },
+};
+
+/** A model's judgment of a rule, as a word. */
+const JUDGMENT: Record<NonNullable<ReportItem['judgment']>, StateEntry> = {
+  strong: { key: 'state.judgment.strong', tone: 'neutral' },
+  fair: { key: 'state.judgment.fair', tone: 'neutral' },
+  weak: { key: 'state.judgment.weak', tone: 'neutral' },
+  no: { key: 'state.judgment.no', tone: 'neutral' },
+};
+
+/** A draft's verdict from its checks. */
+const VERDICT: Record<NonNullable<DeliverableReport['verdict']>, StateEntry> = {
+  pass: { key: 'state.verdict.pass', tone: 'done' },
+  rewrite: { key: 'state.verdict.rewrite', tone: 'fail' },
+  'do-not-send': { key: 'state.verdict.do-not-send', tone: 'fail' },
+};
+
+/** A fix, from the checks it targeted run again. */
+const FIX: Record<'fixed' | 'partially-fixed' | 'not-fixed' | 'unverified', StateEntry> = {
+  fixed: { key: 'state.fix.fixed', tone: 'done' },
+  'partially-fixed': { key: 'state.fix.partially-fixed', tone: 'neutral' },
+  'not-fixed': { key: 'state.fix.not-fixed', tone: 'fail' },
+  unverified: { key: 'state.fix.unverified', tone: 'neutral' },
+};
+
+/** A run that acted outside (Q8): Success only when a code check of the real result passed. */
+const OUTCOME: Record<NonNullable<RunDetail['outcome']>['outcome'], StateEntry> = {
+  success: { key: 'state.outcome.success', tone: 'done' },
+  'not-checked': { key: 'state.outcome.not-checked', tone: 'neutral' },
+  failed: { key: 'state.outcome.failed', tone: 'fail' },
+};
+
+/** A finding's class: a hard error, a content issue, or creative judgement left to the owner. */
+const FINDING: Record<DeliverableReport['findings'][number]['class'], StateEntry> = {
+  'hard-error': { key: 'state.finding.hard-error', tone: 'fail' },
+  content: { key: 'state.finding.content', tone: 'neutral' },
+  creative: { key: 'state.finding.creative', tone: 'neutral' },
+};
+
+/** One run of a routine (4J13). A finished one says Delivered, never Done. */
+const ROUTINE: Record<RoutineRunState, StateEntry> = {
+  queued: { key: 'state.routine.queued', tone: 'idle' },
+  running: { key: 'state.routine.running', tone: 'working' },
+  'needs-input': { key: 'state.routine.needs-input', tone: 'wait' },
+  completed: { key: 'state.routine.completed', tone: 'done' },
+  failed: { key: 'state.routine.failed', tone: 'fail' },
+  missed: { key: 'state.routine.missed', tone: 'idle' },
+  skipped: { key: 'state.routine.skipped', tone: 'idle' },
+  interrupted: { key: 'state.routine.interrupted', tone: 'idle' },
+};
+
+/** A guidance line and the check that can see it (Q18). */
+const GUIDANCE: Record<GuidanceLineView['state'], StateEntry> = {
+  measured: { key: 'state.guidance.measured', tone: 'done' },
+  dark: { key: 'state.guidance.dark', tone: 'neutral' },
+  unmeasured: { key: 'state.guidance.unmeasured', tone: 'idle' },
+};
+
+/** A deliverable or check of an order's contract (4J12). */
+const CONTRACT_ITEM: Record<NonNullable<OrderContractView['items']>[number]['state'], StateEntry> = {
+  open: { key: 'state.contractItem.open', tone: 'idle' },
+  done: { key: 'state.contractItem.done', tone: 'done' },
+  skipped: { key: 'state.contractItem.skipped', tone: 'neutral' },
 };
 
 export const STATE_WORDS = {
@@ -98,6 +182,15 @@ export const STATE_WORDS = {
   lead: LEAD,
   delivery: DELIVERY,
   queue: QUEUE,
+  check: CHECK,
+  judgment: JUDGMENT,
+  verdict: VERDICT,
+  fix: FIX,
+  outcome: OUTCOME,
+  finding: FINDING,
+  routine: ROUTINE,
+  guidance: GUIDANCE,
+  contractItem: CONTRACT_ITEM,
 } as const;
 
 export type StateKind = keyof typeof STATE_WORDS;

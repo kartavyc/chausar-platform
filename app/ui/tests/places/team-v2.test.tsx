@@ -9,7 +9,7 @@ import { TextProvider } from '../../src/text';
 import { DepartmentPanel } from '../../src/places/team/DepartmentPanel';
 import { OneDepartment } from '../../src/places/team/OneDepartment';
 import type { DepartmentData, Member } from '../../src/places/team/departments';
-import { assertInkRules } from '../helpers/ink-rules';
+import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -22,9 +22,26 @@ import { join } from 'node:path';
 type FakeClient = ReturnType<typeof createFakeClient>;
 type Intercept = (method: string, params: Record<string, unknown>, base: FakeClient) => Promise<unknown> | undefined;
 
+/**
+ * The team as the engine sent it before W4 4A1: agents only, with no department, kind, state, health or Keeper, and no
+ * departments or totals. These wave 3 tests hold Team's fallback for such an engine; team-w4.test.tsx holds Team with
+ * the engine's departments, which the fake engine now sends.
+ */
+function beforeW4(view: TeamListView): TeamListView {
+  return {
+    agents: view.agents.filter((one) => one.id !== 'keeper').map(({ department: _d, kind: _k, state: _s, health: _h, postureSetBy: _p, chat: _c, parentId: _r, ...rest }) => rest),
+  };
+}
+
 function start(hash = '#/team', options: { language?: 'en' | 'hi'; intercept?: Intercept } = {}) {
   window.location.hash = hash;
-  const base = createFakeClient(new FakeEngine());
+  const fake = createFakeClient(new FakeEngine());
+  const base: FakeClient = {
+    ...fake,
+    request: ((method: string, params?: Record<string, unknown>) => (method === 'venture.team.list'
+      ? fake.request('venture.team.list', {}).then(beforeW4)
+      : fake.request(method as never, params as never))) as FakeClient['request'],
+  };
   const client: EngineClient = options.intercept
     ? {
         ...base,
@@ -99,9 +116,11 @@ describe('Team v2: the stats tiles', () => {
     // "Includes estimates" means calls not settled yet, a cost code worked out, not a number a model wrote: the spend
     // line's proof is its receipt, as on Money (money/parts.tsx lineProof), never the "model estimate" label.
     const spend = (await within(glance).findByText('AI spend this month')).closest('[data-card]') as HTMLElement;
+    // 4Z3: a business in India with a rupee rate leads with rupees, its words after them, the dollars beneath (two decimals).
     expect(spend.querySelector('[data-figure] [data-ui-number]')?.textContent).toBe('₹60.10');
     expect(spend.querySelector('[data-figure] [data-figure-words]')?.textContent).toBe(', includes estimates');
-    expect(within(spend).getByRole('button', { name: 'Receipt R-0431' })).toBeTruthy();
+    expect(spend.textContent).toContain('USD 0.72 at ₹83.50 per $1');
+    expect(within(spend).getByRole('button', { name: receiptMark('R-0431') })).toBeTruthy();
     expect(within(spend).queryByText('model estimate')).toBeNull();
     // No "Done this week" until the engine counts it (W4 4A).
     expect(within(glance).queryByText('Done this week')).toBeNull();
@@ -114,7 +133,7 @@ describe('Team v2: the stats tiles', () => {
     await act(async () => { await base.request('workspace.open', { folder: 'ledgerline' }); });
     const glance = await screen.findByRole('region', { name: 'Team at a glance' });
     const spend = (await within(glance).findByText('AI spend this month')).closest('[data-card]') as HTMLElement;
-    await waitFor(() => expect(within(spend).getByRole('button', { name: 'Receipt R-0412' })).toBeTruthy());
+    await waitFor(() => expect(within(spend).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy());
     expect(spend.querySelector('[data-ui-number]')?.textContent).toBe('₹33.50');
     const working = within(glance).getByText('Working now').closest('[data-card]') as HTMLElement;
     expect(working.textContent).toContain('Nobody is working right now.');
@@ -149,7 +168,7 @@ describe('Team v2: the stats tiles', () => {
     const group = spend.querySelector('[data-figure-group]') as HTMLElement;
     expect(group.querySelector('[data-ui-number]')!.textContent).toBe('$33.50');
     expect(group.textContent).toContain(rupees);
-    expect(within(group).getByRole('button', { name: 'Receipt R-0412' })).toBeTruthy();
+    expect(within(group).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
     assertInkRules(document.body);
   });
 
@@ -157,7 +176,7 @@ describe('Team v2: the stats tiles', () => {
     start();
     await within(main()).findByRole('button', { name: 'Editor' });
     const line = screen.getByRole('heading', { level: 1, name: 'Team' }).nextElementSibling as HTMLElement;
-    expect(line.textContent).toBe('4 agents. They do the work, you approve what matters.');
+    expect(line.textContent).toBe('4 agents.');
     expect(line.querySelector('b')?.textContent).toBe('4');
   });
 });
@@ -184,9 +203,10 @@ describe('Team v2: without departments, one tile of agent cards', () => {
     expect(within(editor).getByRole('img', { name: '3 of 5 steps done' })).toBeTruthy();
     expect(editor.textContent).toContain('4m');
     expect(within(editor).getByText('Asks each time')).toBeTruthy();
-    expect(editor.textContent).toContain('Episode 14 cut, 11 min 42 s');
-    // The chat arrives with W4 4B: no Chat button yet.
-    expect(within(editor).queryByRole('button', { name: /Chat/ })).toBeNull();
+    // At work, the card says what it does now, not its last result (4A2 review).
+    expect(editor.textContent).not.toContain('Episode 14 cut, 11 min 42 s');
+    // W4 4B3: the quiet Chat button (team-chat.test.tsx holds what it does).
+    expect(within(editor).getByRole('button', { name: 'Chat with Editor' }).getAttribute('data-variant')).toBe('chat');
     await click(within(editor).getByRole('button', { name: 'Cutting shorts from episode 13' }));
     expect(window.location.hash).toBe('#/team?sheet=run%3A31');
     await click(screen.getByRole('button', { name: /^Close/ }));
@@ -194,7 +214,7 @@ describe('Team v2: without departments, one tile of agent cards', () => {
     expect(window.location.hash).toBe('#/team?sheet=agent%3Aeditor');
   });
 
-  it('a waiting agent: amber ring, "Waiting on you" in wait words then what it waits on, a waiting bar, and paused, not a clock', async () => {
+  it('a waiting agent: amber ring, "Waiting on you" in wait words then what it waits on, a waiting bar, and no clock', async () => {
     start('#/team', {
       // The engine's own "now" line for a waiting agent may say anything; the card says the wait in the UI's words.
       intercept: (method, _p, base) => method === 'venture.team.list'
@@ -207,7 +227,8 @@ describe('Team v2: without departments, one tile of agent cards', () => {
     expect(now.getAttribute('data-waiting')).toBe('');
     expect(now.closest('p')!.textContent).toBe('Waiting on you Pricing the sponsor slot');
     expect(within(producer).getByRole('img', { name: '2 of 3 steps done, waiting on you' })).toBeTruthy();
-    expect(producer.textContent).toContain('paused');
+    // 4Z2: no "paused" beside "Waiting on you": one state, said once.
+    expect(producer.textContent).not.toContain('paused');
     expect(producer.textContent).not.toContain('6m');
   });
 
@@ -265,16 +286,15 @@ describe('Team v2: a department panel', () => {
     const panel = screen.getByRole('article', { name: 'Production' });
     expect(panel.getAttribute('data-dept')).toBe('prod');
     expect(within(panel).getByRole('heading', { level: 2, name: 'Production' })).toBeTruthy();
-    // An engine-failed run is "failed"; "stopped" is kept for the owner's own Stop (W4 4F).
-    expect(panel.querySelector('[data-counts]')!.textContent).toBe('1 working · 1 run failed');
-    expect(within(panel).getByText('1 run failed').getAttribute('data-tone')).toBe('fail');
+    // Beside its cards, each saying its own state, the panel has no counts line of its own (4A2 review).
+    expect(panel.querySelector('[data-counts]')).toBeNull();
     expect(within(panel).getByText('6').hasAttribute('data-count')).toBe(true);
-    expect(within(panel).getByText('jobs this week')).toBeTruthy();
-    // The spend and its receipt are one figure group; the receipt sits on the label line, so the head keeps one line.
-    const spend = panel.querySelector('[data-figure-group]') as HTMLElement;
+    expect(within(panel).getByText('done this week')).toBeTruthy();
+    // The spend under the head: the figure with its receipt (Money's ProvedFigure), after the words "This month".
+    const spend = panel.querySelector('[data-figure]') as HTMLElement;
     expect(spend.textContent).toContain('₹42.10');
-    const label = within(spend).getByText('this month');
-    expect(within(label).getByRole('button', { name: 'Receipt R-0419' })).toBeTruthy();
+    expect(within(spend).getByRole('button', { name: receiptMark('R-0419') })).toBeTruthy();
+    expect(spend.closest('p')!.textContent).toContain('This month');
     expect(within(panel).getByRole('list', { name: 'Production agents' })).toBeTruthy();
     const editor = within(panel).getByRole('button', { name: 'Editor' }).closest('li') as HTMLElement;
     expect(avatarIn(editor).getAttribute('data-dept')).toBe('prod');
@@ -293,7 +313,7 @@ describe('Team v2: a department panel', () => {
     expect(panel.textContent).toContain('3 idle');
     // A department with nobody in it says so and points to the ways to earn (spec section 8).
     expect(within(panel).getByText('No agents in Sales and clients yet.')).toBeTruthy();
-    expect(within(panel).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding');
+    expect(within(panel).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=sales');
     const css = readFileSync(join(import.meta.dirname, '../../src/places/team/Team.module.css'), 'utf8');
     expect(css).toMatch(/\[data-tone='wait'\][^{]*\{[^}]*color: var\(--wait-strong\)/);
   });
@@ -312,9 +332,9 @@ describe('Team v2: with departments from the engine', () => {
     const money = within(main()).getByRole('article', { name: 'Money' });
     expect(within(money).queryByRole('list', { name: 'Money agents' })).toBeNull();
     expect(within(money).getByText('No agents in Money yet.')).toBeTruthy();
-    expect(within(money).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding');
+    expect(within(money).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=money');
     expect(screen.queryByRole('region', { name: 'Your agents' })).toBeNull();
-    expect(screen.getByRole('heading', { level: 1, name: 'Team' }).nextElementSibling!.textContent).toBe('4 agents in 3 departments. They do the work, you approve what matters.');
+    expect(screen.getByRole('heading', { level: 1, name: 'Team' }).nextElementSibling!.textContent).toBe('4 agents in 3 departments.');
     assertInkRules(document.body);
   });
 
@@ -334,7 +354,7 @@ describe('Team v2: with departments from the engine', () => {
   it('an address with a department opens on it; one with no agents says so and offers ways to earn', async () => {
     start('#/team?dept=money', { intercept: withDepartments });
     expect(await within(main()).findByText('No agents in Money yet.')).toBeTruthy();
-    expect(within(main()).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding');
+    expect(within(main()).getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=money');
   });
 
   for (const hash of ['#/team', '#/team?dept=prod']) {
@@ -370,8 +390,8 @@ describe('Team v2: one department', () => {
     renderWithEngine(<OneDepartment data={data} />);
     const hero = screen.getByRole('region', { name: 'Production' });
     expect(hero.getAttribute('data-dept')).toBe('prod');
-    expect(within(hero).getByText('jobs this week').closest('div')!.querySelector('[data-count]')!.textContent).toBe('6');
-    expect(within(hero).getByRole('button', { name: 'Receipt R-0419' })).toBeTruthy();
+    expect(within(hero).getByText('done this week').closest('div')!.querySelector('[data-count]')!.textContent).toBe('6');
+    expect(within(hero).getByRole('button', { name: receiptMark('R-0419') })).toBeTruthy();
     expect(within(hero).getByText('playbook steps').closest('div')!.querySelector('[data-count]')!.textContent).toBe('3');
     expect(within(hero).getByText('1 working')).toBeTruthy();
     expect(within(hero).getByText('1 run failed')).toBeTruthy();
@@ -397,13 +417,13 @@ describe('Team v2: one department', () => {
   it('says which version a change makes only when a version is given', () => {
     renderWithEngine(<OneDepartment data={{ ...data, version: { current: 4, next: 5 } }} />);
     const flow = screen.getByRole('region', { name: 'How Production runs' });
-    expect(flow.textContent).toContain('A change here makes version 5. You can undo it.');
+    expect(flow.textContent).toContain('An instruction change makes version 5. You can undo it.');
   });
 
   it('with no agents: one sentence and a link to the ways to earn', () => {
     renderWithEngine(<OneDepartment data={{ dept: 'ops', counts: { working: 0, waiting: 0, stopped: 0, idle: 0 }, members: [] }} />);
     expect(screen.getByText('No agents in Operations yet.')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding');
+    expect(screen.getByRole('link', { name: 'See ways to earn' }).getAttribute('href')).toBe('#/onboarding?dept=ops');
     expect(screen.queryByRole('region', { name: 'How Operations runs' })).toBeNull();
   });
 
@@ -464,24 +484,30 @@ describe('Team v2: the agent panel', () => {
     await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
   });
 
-  it('has Steps and Runs tabs; arrow keys, Home and End move between them', async () => {
+  // W4 4B3: Steps became Instructions (still first shown, still holding the posture and the steps' gates), with Chat
+  // before it and Notes after Runs; the tabs and their keys are tested in full in team-chat.test.tsx.
+  it('opens on Instructions; arrow keys, Home and End move between the tabs', async () => {
     start();
     const panel = await openPanel();
     const tabs = within(panel).getByRole('tablist', { name: 'Editor' });
-    const [steps, runs] = within(tabs).getAllByRole('tab');
-    expect([steps!.textContent, runs!.textContent]).toEqual(['Steps', 'Runs']);
+    const [chat, steps, runs, notes] = within(tabs).getAllByRole('tab');
+    expect([chat!.textContent, notes!.textContent]).toEqual(['Chat', 'Notes']);
+    expect(steps!.textContent).toMatch(/^Instructions/);
+    expect(runs!.textContent).toMatch(/^Runs/);
     expect(steps!.getAttribute('aria-selected')).toBe('true');
-    expect(within(panel).getByRole('tabpanel', { name: 'Steps' })).toBeTruthy();
+    expect(within(panel).getByRole('tabpanel', { name: /^Instructions/ })).toBeTruthy();
     await act(async () => { steps!.focus(); fireEvent.keyDown(steps!, { key: 'ArrowRight' }); });
     expect(runs!.getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(runs);
     expect(within(panel).getByRole('tabpanel', { name: 'Runs' })).toBeTruthy();
     await act(async () => { fireEvent.keyDown(runs!, { key: 'Home' }); });
-    expect(steps!.getAttribute('aria-selected')).toBe('true');
-    await act(async () => { fireEvent.keyDown(steps!, { key: 'End' }); });
-    expect(runs!.getAttribute('aria-selected')).toBe('true');
-    await act(async () => { fireEvent.keyDown(runs!, { key: 'ArrowLeft' }); });
-    expect(steps!.getAttribute('aria-selected')).toBe('true');
+    expect(chat!.getAttribute('aria-selected')).toBe('true');
+    // W4 4J22b: Can do comes after Notes, so End is Can do and Left from there is Notes.
+    const all = within(tabs).getAllByRole('tab');
+    await act(async () => { fireEvent.keyDown(chat!, { key: 'End' }); });
+    expect(all.at(-1)!.getAttribute('aria-selected')).toBe('true');
+    await act(async () => { fireEvent.keyDown(all.at(-1)!, { key: 'ArrowLeft' }); });
+    expect(all.at(-2)!.getAttribute('aria-selected')).toBe('true');
   });
 
   it('Steps: the postures as radio cards, each with what it means, and the steps with their gates', async () => {

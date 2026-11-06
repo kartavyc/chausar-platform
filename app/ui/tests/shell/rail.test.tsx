@@ -1,5 +1,5 @@
 // The rail in the direction D look (w3 plan, package 3A2): the brand link, the business button with its initials
-// square, the six places with their icons, and Today's count. There is no Chats item until W4 4C adds it.
+// square, the seven places with their icons, and Today's count. W4 4C2 added Chats, second.
 import { describe, expect, it } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
@@ -52,31 +52,31 @@ describe('the rail', () => {
     expect(button.textContent).not.toContain(' · ');
   });
 
-  it('lists Today, Team, Work, Clients, Money and Connections, each with its icon and word, and no Chats yet', async () => {
+  it('lists Today, Chats, Team, Work, Clients, Money and Connections, each with its icon and word (W4 4C2 added Chats)', async () => {
     const rail = start('#/team');
     const places = within(within(rail).getByRole('list')).getAllByRole('link');
-    expect(places.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/team', '#/work', '#/clients', '#/money', '#/connections']);
+    expect(places.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/connections']);
     const icons = places.map((a) => {
       const svg = a.querySelector('svg')!;
       expect(svg.getAttribute('aria-hidden')).toBe('true');
       return [...svg.classList].find((c) => c.startsWith('lucide-'));
     });
-    expect(icons).toEqual(['lucide-sun', 'lucide-users', 'lucide-briefcase', 'lucide-contact', 'lucide-wallet', 'lucide-plug']);
-    expect(places.map((a) => a.textContent!.replace(/\d.*$/, ''))).toEqual(['Today', 'Team', 'Work', 'Clients', 'Money', 'Connections']);
-    expect(places.map((a) => a.getAttribute('aria-current'))).toEqual([null, 'page', null, null, null, null]);
-    // W4 4C adds Chats (and flips this line); until then there is no dead item.
-    expect(within(rail).queryByRole('link', { name: /Chats/ })).toBeNull();
+    expect(icons).toEqual(['lucide-sun', 'lucide-messages-square', 'lucide-users', 'lucide-briefcase', 'lucide-contact', 'lucide-wallet', 'lucide-plug']);
+    expect(places.map((a) => a.textContent!.replace(/\d.*$/, '').replace(/New, new$/, ''))).toEqual(['Today', 'Chats', 'Team', 'Work', 'Clients', 'Money', 'Connections']);
+    expect(places.map((a) => a.getAttribute('aria-current'))).toEqual([null, null, 'page', null, null, null, null]);
+    // W4 4C2 flipped this line: Chats is a real place now.
+    expect(within(rail).getByRole('link', { name: /^Chats/ }).getAttribute('href')).toBe('#/chats');
   });
 
   it("carries Today's count in DM Mono, hidden from screen readers but said in words, amber when Today is not open", async () => {
     const rail = start('#/team');
     const today = within(rail).getByRole('link', { name: /^Today/ });
-    await waitFor(() => expect(today.textContent).toBe('Today12, 12 need you'));
+    await waitFor(() => expect(today.textContent).toBe('Today13, 13 need you'));
     const count = today.querySelector('[aria-hidden="true"].mono')!;
-    expect(count.textContent).toBe('12');
+    expect(count.textContent).toBe('13');
     expect(count.getAttribute('data-tone')).toBe('wait');
     expect(count.nextElementSibling!.className).toBe('sr-only');
-    expect(count.nextElementSibling!.textContent).toBe(', 12 need you');
+    expect(count.nextElementSibling!.textContent).toBe(', 13 need you');
     await go('#/today');
     await waitFor(() => expect(within(rail).getByRole('link', { name: /^Today/ }).getAttribute('aria-current')).toBe('page'));
     expect(within(rail).getByRole('link', { name: /^Today/ }).querySelector('.mono')!.hasAttribute('data-tone')).toBe(false);

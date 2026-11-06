@@ -47,14 +47,14 @@ export function BarChart(props: BarChartProps) {
   const noted = noteLabel !== undefined && first.points.some((point) => point.note !== undefined);
   const note = (point: BarPoint) => (point.note === undefined ? null : <span className={`${s.note} mono`} data-note="">{point.note}</span>);
 
-  const receipted = series.some((one) => one.points.some((point) => point.receiptId));
+  const receipted = series.some((one) => one.points.some((point) => point.receiptId || point.noteReceiptId));
   const table = (
     <ChartData
       caption={label}
       columns={[...series.map((one) => one.label), ...(noted && noteLabel ? [noteLabel] : []), ...(receipted ? [t('chart.data.receipt')] : [])]}
       rows={first.points.map((point) => {
         const pair = pairOf(point);
-        const ids = [point.receiptId, pair?.receiptId].filter((id): id is string => Boolean(id));
+        const ids = [point.receiptId, pair?.receiptId, point.noteReceiptId].filter((id, at, all): id is string => Boolean(id) && all.indexOf(id) === at);
         return {
           key: point.key,
           heading: point.label,

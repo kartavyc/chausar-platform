@@ -12,6 +12,7 @@ import {
 } from './money.ts';
 import { rateTableFor, sectionOf, useRateTable, REHEARSAL, type AgeBand, type IncomeTaxPayload, type RateTable, type RateUse, type RegimeRates, type Slab } from './rates.ts';
 import { ReceiptBuilder, type CaReceipt } from './receipt.ts';
+import { absent, requireFacts } from './needs-facts.ts';
 
 export type Presumptive =
   | { scheme: '44AD'; digitalReceiptsMinor: string; cashReceiptsMinor: string }
@@ -149,12 +150,18 @@ function deductionsAllowed(builder: ReceiptBuilder, table: RateTable<IncomeTaxPa
  */
 export function computeIncomeTax(input: IncomeTaxInput, use: RateUse = REHEARSAL): CaReceipt<IncomeTaxWorking> {
   if (!input || typeof input !== 'object') invalid('Send the income tax inputs.');
-  if (input.regime !== 'new' && input.regime !== 'old') invalid('Choose the new or the old regime.');
-  if (input.residency !== 'resident' && input.residency !== 'non-resident') invalid('Say whether the person is resident.');
-  if (!AGE_BANDS.includes(input.ageBand)) invalid('Choose the age band: below 60, 60 to 79, or 80 and over.');
   const also = input.alsoHas ?? [];
   if (!Array.isArray(also) || also.some(item => !NOT_MODELLED_INCOMES.includes(item))) invalid('Other incomes are named from the list this working knows.');
   if (also.length) notModelled(`This working does not compute ${also.map(item => INCOME_WORDS[item]).join(', ')}. Your CA works the return.`);
+  // Ink v2 4J16 (CA8): facts only the client can give are asked, never guessed (needs-facts.ts). No income named at
+  // all is a gap too: a nil tax is never assumed (a zero the files show is a fact). A case the CA works comes first,
+  // so with every person fact given, the income gap is asked only after the deductions are read.
+  const noIncome = [input.salaryMinor, input.otherSlabIncomeMinor, input.businessIncomeMinor, input.presumptive].every(value => value === undefined || value === null);
+  const unknown = (['regime', 'residency', 'ageBand'] as const).filter(field => absent(input[field]));
+  if (unknown.length) requireFacts('income tax working', [...unknown.map(field => ({ field })), ...(noIncome ? [{ field: 'income' as const }] : [])]);
+  if (input.regime !== 'new' && input.regime !== 'old') invalid('Choose the new or the old regime.');
+  if (input.residency !== 'resident' && input.residency !== 'non-resident') invalid('Say whether the person is resident.');
+  if (!AGE_BANDS.includes(input.ageBand)) invalid('Choose the age band: below 60, 60 to 79, or 80 and over.');
   if (input.presumptive && input.businessIncomeMinor !== undefined) invalid('Business income comes from the books or from a presumptive scheme, not both.');
 
   const table = incomeTaxTable(input.assessmentYear);
@@ -192,6 +199,7 @@ export function computeIncomeTax(input: IncomeTaxInput, use: RateUse = REHEARSAL
 
   const gross = builder.step('gross-total-income', 'Gross total income', salaryIncome + other + business);
   const claimed = deductionsAllowed(builder, table, regime, input);
+  if (noIncome) requireFacts('income tax working', [{ field: 'income' }]);
   const deductions = minBig(claimed, gross);
   if (input.deductions?.length) builder.step('deductions', claimed > gross ? 'Deductions, limited to gross total income' : 'Deductions allowed', deductions);
   const total = builder.step('total-income', 'Total income, rounded to the nearest ten rupees', round288(gross - deductions), sectionOf(table, 'rounding-income'));

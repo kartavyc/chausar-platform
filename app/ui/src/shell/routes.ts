@@ -3,8 +3,10 @@
  * Anything that does not parse lands on Today; a sheet that does not parse is dropped.
  */
 
-export const RAIL_PLACES = ['today', 'team', 'work', 'clients', 'money', 'connections'] as const;
-export const OTHER_PLACES = ['business', 'onboarding'] as const;
+/** W4 4C2: Chats, the owner's talk with Chausar as chief of staff, comes second, after Today. */
+export const RAIL_PLACES = ['today', 'chats', 'team', 'work', 'clients', 'money', 'connections'] as const;
+/** approve: the standalone approval page (W4 4G4, O11), `#/approve/next` or `#/approve/<rowId>`; no rail item. */
+export const OTHER_PLACES = ['business', 'onboarding', 'approve'] as const;
 export type PlaceId = (typeof RAIL_PLACES)[number] | (typeof OTHER_PLACES)[number];
 
 export interface SheetRef { kind: string; id: string }
@@ -25,6 +27,12 @@ export function parseHash(hash: string): Route {
   const route: Route = { place: place as PlaceId, query: {} };
   const sub = rest.join('/');
   if (sub && rest.every((part) => SEGMENT.test(part))) route.sub = sub;
+  // The approval page names one Today row by its id, which the engine spells like a sheet id (`run:R_1:q2`).
+  else if (place === 'approve' && rest.length === 1) {
+    let id = rest[0]!;
+    try { id = decodeURIComponent(id); } catch { id = ''; }
+    if (SHEET_ID.test(id)) route.sub = id;
+  }
   const params = new URLSearchParams(search);
   for (const [key, value] of params) {
     if (key === 'sheet') {

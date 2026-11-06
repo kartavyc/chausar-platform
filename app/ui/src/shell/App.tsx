@@ -1,7 +1,11 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { EngineProvider, useEngine, useEngineStatus } from '../engine/context';
 import { TextProvider, useT, type Language } from '../text';
 import { SheetTitleContext } from '../parts/Sheet';
+import { ShellToolsContext } from '../parts/PageTitle';
+import { AskBox } from './AskBox';
+import { useAskKey } from './ask';
+import { Bell, NotifyProvider } from './Bell';
 import { StatusLine } from '../parts/StatusLine';
 import { closeSheet, returnFocus, useRoute } from './navigation';
 import { useShellKeys } from './keys';
@@ -9,6 +13,7 @@ import { PLACES, SHEETS } from './places';
 import { Rail } from './Rail';
 import { UnknownSheet } from './sheets';
 import { PhoneTabs, TopBar } from './TopBar';
+import { TrialBanner } from './TrialBanner';
 import { useNarrow } from './useNarrow';
 import { BootScreen } from '../places/onboarding/BootScreen';
 import type { EngineClient } from '../engine/types';
@@ -49,6 +54,7 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
   const narrow = useNarrow();
   const main = useRef<HTMLElement>(null);
   useShellKeys({ mainRef: main, onClose: closeSheet });
+  useAskKey();
 
   const { Place } = PLACES[route.place];
   const sheet = route.sheet;
@@ -56,8 +62,11 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
   const covered = narrow && Boolean(sheet && SheetKind);
   const [sheetTitle, setSheetTitle] = useState<string | undefined>();
   const dialog = covered ? { role: 'dialog', 'aria-modal': true, 'aria-labelledby': sheetTitle } : {};
+  const shellTools = useMemo(() => (narrow ? null : <><AskBox /><Bell /></>), [narrow]);
 
   return (
+    // One notification list for the bell and the centre (W4 4G4), so they never disagree.
+    <NotifyProvider>
     <div className={s.app} data-phone={narrow ? '' : undefined} data-sheet-open={sheet ? '' : undefined} data-boot={checking ? '' : undefined}>
       <button type="button" className={s.skip} inert={covered} onClick={() => main.current?.focus()}>{t('shell.skip')}</button>
       <div className={s.status}>{statusLine}</div>
@@ -65,7 +74,12 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
         ? <div className={s.top} inert={covered}><TopBar /></div>
         : <div className={s.rail}><Rail route={route} /></div>}
       <main ref={main} id="main" tabIndex={-1} className={s.main} inert={covered}>
-        <div className={s.page}><Place key={route.place} /></div>
+        {/* Beside the rail, every page header carries the Ask box (W4 4C2) and the bell (W4 4G4); on a phone the bell sits
+            in the top bar and Chats has a tab. */}
+        <ShellToolsContext.Provider value={shellTools}>
+          {/* W4 4J21: a business started on the hosted app without an account says so above every place. */}
+          <div className={s.page}><TrialBanner /><Place key={route.place} /></div>
+        </ShellToolsContext.Provider>
       </main>
       {sheet && SheetKind && (
         <div className={s.sheet} data-cover={narrow ? '' : undefined} {...dialog}>
@@ -76,5 +90,6 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
       )}
       {narrow && <div className={s.tabs} inert={covered}><PhoneTabs route={route} /></div>}
     </div>
+    </NotifyProvider>
   );
 }

@@ -197,9 +197,10 @@ test('guardedFetch: too many hops, a redirect after a write, and credentials acr
     'https://a.example/go': { status: 302, headers: { location: 'https://b.example/landing' } },
     'https://b.example/landing': { status: 200, body: 'ok' },
   });
-  await guardedFetch({ url: 'https://a.example/go', headers: { authorization: 'Bearer abc', cookie: 'sid=1', accept: 'text/plain' } }, { resolve, send: away.send });
+  // 4J11 (H31): a request that carries a sign-in never follows a redirect at all, so no credential goes anywhere else.
+  await assert.rejects(guardedFetch({ url: 'https://a.example/go', headers: { authorization: 'Bearer abc', cookie: 'sid=1', accept: 'text/plain' } }, { resolve, send: away.send }), code('NET_REDIRECT_REFUSED'));
   assert.equal(away.seen[0].headers.authorization, 'Bearer abc');
-  assert.deepEqual(away.seen[1].headers, { accept: 'text/plain' }, 'no credentials go to another origin');
+  assert.equal(away.seen.length, 1, 'nothing went to another origin');
 
   const blank = sender({ 'https://a.example/nowhere': { status: 302 } });
   await assert.rejects(guardedFetch({ url: 'https://a.example/nowhere' }, { resolve, send: blank.send }), code('NET_REDIRECT_REFUSED'));

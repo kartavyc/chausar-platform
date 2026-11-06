@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ApprovalRow, readBack } from '../../src/parts/ApprovalRow';
 import { EngineError, type QueueDecision, type QueueList, type QueueRow } from '../../src/engine/types';
+import { receiptMark } from '../helpers/ink-rules';
 
 const price: QueueRow = {
   id: 'q1', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Producer', kind: 'price', createdAt: '2026-10-21T08:00:00Z', digest: 'd1',
@@ -60,7 +61,7 @@ describe('ApprovalRow', () => {
     const onDecide = vi.fn(async () => done('Approved · R-0421', 'R-0421'));
     list(<ApprovalRow row={signoff} onDecide={onDecide} />);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send to CA' })); });
-    expect(screen.getByRole('button', { name: 'Receipt R-0421' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: receiptMark('R-0421') })).toBeTruthy();
   });
 
   it('requiresView locks the primary until the draft was opened', async () => {

@@ -134,3 +134,32 @@
   margin-top: var(--sp-1);
   color: var(--fg2);
 }
+
+/* W4 4F3 (U7): a tool call's state, a shape beside its words; failed in fail words, cancelled in grey. */
+.toolMark {
+  display: inline-grid;
+  place-items: center;
+  vertical-align: middle;
+  margin-right: var(--sp-1);
+}
+
+.toolMark[data-mark='done'] {
+  color: var(--accent-text);
+}
+
+.toolMark[data-mark='error'] {
+  color: var(--fail);
+}
+
+.toolMark[data-mark='cancelled'] {
+  color: var(--mute);
+}
+
+.toolError {
+  font-weight: var(--weight-medium);
+  color: var(--fail);
+}
+
+.toolCancelled {
+  color: var(--mute);
+}

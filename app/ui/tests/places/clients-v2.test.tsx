@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import { EngineError, type EngineClient, type LeadView } from '../../src/engine/types';
-import { assertInkRules } from '../helpers/ink-rules';
+import { EngineError, type EngineClient } from '../../src/engine/types';
+import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 
-// Clients in the direction D look (Ink v2 wave 3, package 3E2): two tabs held in the address (Clients and Pipeline;
-// Network waits for W4 4D), the clients as rows with initials, and the pipeline as a board of the engine's own lead
+// Clients in the direction D look (Ink v2 wave 3, package 3E2): tabs held in the address (Clients and Pipeline; W4 4D4
+// added Network, see clients-network.test.tsx), the clients as rows with initials, and the pipeline as a board of the engine's own lead
 // stages. Everything shown comes from the fake engine or from data written here.
 
 type Fake = ReturnType<typeof createFakeClient>;
@@ -24,18 +24,6 @@ async function start(hash = '#/clients', options: { language?: 'en' | 'hi'; prep
 /** Clicks something that changes the address, then lets the shell see the new hash. */
 async function click(element: HTMLElement) {
   await act(async () => { fireEvent.click(element); window.dispatchEvent(new HashChangeEvent('hashchange')); });
-}
-
-/** The engine answers venture.leads.list with these leads (a stage the sample engine cannot reach by itself). */
-function withLeads(leads: (base: LeadView[]) => LeadView[]) {
-  return (client: Fake) => {
-    const base = client.request.bind(client);
-    client.request = (async (method: string, params?: unknown) => {
-      if (method !== 'venture.leads.list') return base(method as never, params as never);
-      const listed = (await base(method as never, params as never)) as { leads: LeadView[] };
-      return { leads: leads(listed.leads) };
-    }) as EngineClient['request'];
-  };
 }
 
 /** The engine refuses this method, as an engine that stopped answering would. */
@@ -70,21 +58,20 @@ const column = (root: HTMLElement, name: string) => within(root).getByRole('head
 const cardOf = (root: HTMLElement, name: string) => within(root).getByRole('heading', { level: 3, name }).closest('article') as HTMLElement;
 
 describe('Clients: the tabs', () => {
-  it('are links held in the address, Clients and Pipeline with their counts, and no Network tab until W4 4D', async () => {
+  it('are links held in the address, Clients, Pipeline and Network with their counts (W4 4D4 added Network)', async () => {
     await start('#/clients');
     await screen.findByRole('list', { name: 'Clients' });
     const nav = tabs();
     const links = within(nav).getAllByRole('link');
-    expect(links.map((link) => link.getAttribute('href'))).toEqual(['#/clients', '#/clients/pipeline']);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['#/clients', '#/clients/pipeline', '#/clients/network']);
     const clients = within(nav).getByRole('link', { name: /^Clients/ });
     const pipeline = within(nav).getByRole('link', { name: /^Pipeline/ });
     expect(clients.getAttribute('aria-current')).toBe('page');
     expect(pipeline.getAttribute('aria-current')).toBeNull();
-    // The counts are Counts: how many clients and how many leads, never money.
+    // The counts are Counts: how many clients and how many people on the pipeline (W4 4E4), never money.
     await waitFor(() => expect(clients.querySelector('[data-count]')?.textContent).toBe('2'));
-    await waitFor(() => expect(pipeline.querySelector('[data-count]')?.textContent).toBe('2'));
-    expect(within(nav).queryByRole('link', { name: /Network/ })).toBeNull();
-    expect(screen.queryByText(/Network/)).toBeNull();
+    await waitFor(() => expect(pipeline.querySelector('[data-count]')?.textContent).toBe('9'));
+    expect(within(nav).getByRole('link', { name: /^Network/ }).getAttribute('aria-current')).toBeNull();
     // An icon sits before each word, hidden from screen readers.
     for (const link of links) expect(link.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
     assertInkRules();
@@ -126,7 +113,7 @@ describe('Clients: the Clients tab', () => {
     expect(boat.textContent).toContain('Order open: Two mentions in episode 14');
     const figure = boat.querySelector('[data-figure]') as HTMLElement;
     expect(figure.querySelector('[data-ui-number]')?.textContent).toBe('₹26,200.00');
-    expect(within(figure).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
+    expect(within(figure).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
     const nimbus = rows.find((row) => row.textContent?.includes('Nimbus Mics'))!;
     expect(nimbus.querySelector('[data-figure]')).toBeNull();
     expect(nimbus.textContent).toContain('No orders yet.');
@@ -210,7 +197,7 @@ describe('Clients: the Clients tab', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1);
     expect(list.textContent).not.toContain('No orders yet.');
     // What they owe comes with the client, so it still shows.
-    expect(within(list).getByRole('button', { name: 'Receipt R-0416' })).toBeTruthy();
+    expect(within(list).getByRole('button', { name: receiptMark('R-0416') })).toBeTruthy();
   });
 });
 
@@ -268,133 +255,35 @@ describe('Clients: tax details, simple first', () => {
 });
 
 describe('Clients: the Pipeline tab', () => {
-  it('is a board with one column per engine lead stage, in the engine order, each with its count', async () => {
+  // W4 4E4 replaced the board of lead stages (W3 3E2) with the pipeline, Found to Not now: its tiles, chips, cards,
+  // moves, follow-ups and sheets are tested in clients-pipeline.test.tsx and clients-outreach.test.tsx.
+  it('is the pipeline board, Found to Not now, and a lead is one of its cards, opening the lead sheet', async () => {
     await start('#/clients/pipeline');
     const root = await board();
-    const headings = within(root).getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(headings).toEqual(['New', 'Drafted', 'Contacted', 'Replied', 'Won']);
-    await waitFor(() => expect(within(column(root, 'New')).getAllByRole('article')).toHaveLength(2));
-    expect(column(root, 'New').querySelector('[data-count]')?.textContent).toBe('2');
-    expect(column(root, 'Drafted').querySelector('[data-count]')?.textContent).toBe('0');
-    expect(column(root, 'Drafted').textContent).toContain('Nothing here yet.');
-    // Lost and Blocked fold away, and with nobody in them there is nothing to open, so no strip is drawn.
-    expect(within(root).queryByRole('button', { name: /^Show Lost/ })).toBeNull();
-    expect(within(root).queryByRole('button', { name: /^Show Blocked/ })).toBeNull();
-    assertInkRules();
-  });
-
-  it('a card shows initials, the name, the company, the email check in the engine words and its latest draft', async () => {
-    await start('#/clients/pipeline');
-    const root = await board();
-    const asha = await waitFor(() => cardOf(root, 'Asha Rao'));
+    await waitFor(() => expect(within(root).getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Found', 'Asked', 'Talking', 'Proposal', 'Won']));
+    const asha = cardOf(column(root, 'Found'), 'Asha Rao');
     expect(asha.querySelector('[aria-hidden="true"][data-dept]')?.textContent).toBe('AR');
-    expect(asha.textContent).toContain('Pocket Audio');
-    expect(asha.textContent).toContain('A mail server answers for pocketaudio.in.');
-    expect(asha.textContent).toContain('No draft yet');
-    const kabir = cardOf(root, 'Kabir Shah');
-    expect(kabir.textContent).toContain('Not checked yet: no mail server answered for studiokite.co.');
-    // Cards do not move by drag or key until W4 4E gives the engine a forward-only move.
-    expect(root.querySelector('[draggable="true"]')).toBeNull();
-  });
-
-  it('a drafted lead says "Draft ready" in Drafted; one the owner sent says "Sent 21 Oct" in Contacted', async () => {
-    await start('#/clients/pipeline', {
-      prepare: async (client) => {
-        const { draft } = await client.request('venture.leads.draft', { leadId: 'lead-pocket', subject: 'Hello there', body: 'A short note about our mic tests.' });
-        // Noon UTC, so the day is 21 October on any computer's clock within eleven hours of UTC (India included).
-        await client.request('venture.leads.recordSend', { leadId: 'lead-pocket', draftId: draft.id, sentAt: '2026-10-21T12:00:00.000Z' });
-        await client.request('venture.leads.add', { name: 'Ravi Menon', company: 'Menon Bakes', email: 'ravi@example.in', sourceUrl: 'https://example.in/team' });
-        const added = (await client.request('venture.leads.list', {})).leads.find((lead) => lead.name === 'Ravi Menon')!;
-        await client.request('venture.leads.draft', { leadId: added.id, subject: 'Hello Ravi', body: 'A short note about our videos.' });
-      },
-    });
-    const root = await board();
-    await waitFor(() => expect(within(column(root, 'Contacted')).getAllByRole('article')).toHaveLength(1));
-    expect(cardOf(column(root, 'Contacted'), 'Asha Rao').textContent).toContain('Sent 21 Oct');
-    expect(cardOf(column(root, 'Drafted'), 'Ravi Menon').textContent).toContain('Draft ready');
-    expect(within(column(root, 'New')).getAllByRole('article')).toHaveLength(1);
-  });
-
-  it('opening a card opens the lead sheet', async () => {
-    await start('#/clients/pipeline');
-    const root = await board();
-    await click(await within(root).findByRole('button', { name: 'Asha Rao' }));
+    expect(asha.textContent).toContain('Email works');
+    await click(within(asha).getByRole('button', { name: 'Asha Rao' }));
     expect(window.location.hash).toBe('#/clients/pipeline?sheet=lead%3Alead-pocket');
     expect(await screen.findByRole('complementary', { name: 'Asha Rao' })).toBeTruthy();
     assertInkRules();
   });
 
-  it('the toolbar holds Add a lead, which opens the add sheet', async () => {
+  it('the toolbar holds Import contacts and Add a lead, which opens the add sheet', async () => {
     await start('#/clients/pipeline');
     await board();
-    expect(screen.queryByRole('button', { name: 'Add client' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Import contacts' })).toBeTruthy();
     await click(screen.getByRole('button', { name: 'Add a lead' }));
     expect(window.location.hash).toBe('#/clients/pipeline?sheet=lead%3Anew');
     expect(await screen.findByRole('complementary', { name: 'Add a lead' })).toBeTruthy();
   });
 
-  it('Blocked stays folded until asked for, then opens with its people (simple first)', async () => {
-    await start('#/clients/pipeline', { prepare: async (client) => { await client.request('venture.leads.block', { value: 'pocketaudio.in' }); } });
-    const root = await board();
-    const strip = await within(root).findByRole('button', { name: 'Show Blocked, 1 person' });
-    expect(strip.getAttribute('aria-expanded')).toBe('false');
-    expect(within(root).queryByRole('heading', { level: 3, name: 'Asha Rao' })).toBeNull();
-    await act(async () => { fireEvent.click(strip); });
-    const blocked = column(root, 'Blocked');
-    expect(cardOf(blocked, 'Asha Rao')).toBeTruthy();
-    expect(within(blocked).getByRole('button', { name: 'Hide Blocked' }).getAttribute('aria-expanded')).toBe('true');
-    assertInkRules();
-  });
-
-  it('Lost folds the same way, as "Show Lost, {n} people"', async () => {
-    await start('#/clients/pipeline', {
-      override: withLeads((leads) => leads.map((lead) => ({ ...lead, status: 'lost' as const }))),
-    });
-    const root = await board();
-    expect(await within(root).findByRole('button', { name: 'Show Lost, 2 people' })).toBeTruthy();
-    expect(within(column(root, 'New')).queryAllByRole('article')).toHaveLength(0);
-  });
-
-  it('with a draft ready, the Show chips filter the board and the choice is held in the address', async () => {
-    await start('#/clients/pipeline', {
-      prepare: async (client) => { await client.request('venture.leads.draft', { leadId: 'lead-pocket', subject: 'Hello there', body: 'A short note about our mic tests.' }); },
-    });
-    const root = await board();
-    const chips = await screen.findByRole('group', { name: 'Show' });
-    const all = within(chips).getByRole('button', { name: /^All/ });
-    const drafts = within(chips).getByRole('button', { name: /^Has a draft/ });
-    expect(all.getAttribute('aria-pressed')).toBe('true');
-    expect(all.querySelector('[data-count]')?.textContent).toBe('2');
-    expect(drafts.querySelector('[data-count]')?.textContent).toBe('1');
-    await click(drafts);
-    expect(window.location.hash).toBe('#/clients/pipeline?show=drafts');
-    await waitFor(() => expect(within(root).queryByRole('heading', { level: 3, name: 'Kabir Shah' })).toBeNull());
-    expect(cardOf(root, 'Asha Rao')).toBeTruthy();
-    expect(within(screen.getByRole('group', { name: 'Show' })).getByRole('button', { name: /^Has a draft/ }).getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('opens with the filter pressed from the address', async () => {
-    await start('#/clients/pipeline?show=drafts', {
-      prepare: async (client) => { await client.request('venture.leads.draft', { leadId: 'lead-pocket', subject: 'Hello there', body: 'A short note about our mic tests.' }); },
-    });
-    const root = await board();
-    const chips = await screen.findByRole('group', { name: 'Show' });
-    expect(within(chips).getByRole('button', { name: /^Has a draft/ }).getAttribute('aria-pressed')).toBe('true');
-    await waitFor(() => expect(within(root).queryByRole('heading', { level: 3, name: 'Kabir Shah' })).toBeNull());
-  });
-
-  it('with no draft ready there are no Show chips, since they would filter to nothing', async () => {
-    await start('#/clients/pipeline');
-    await waitFor(async () => expect(within(await board()).getAllByRole('article')).toHaveLength(2));
-    expect(screen.queryByRole('group', { name: 'Show' })).toBeNull();
-  });
-
-  it('with no leads it says so in one sentence, with one way to add one', async () => {
-    await start('#/clients/pipeline', { prepare: async (client) => { await client.request('workspace.open', { folder: 'ledgerline' }); } });
-    expect(await screen.findByText('No leads yet.')).toBeTruthy();
+  it('with nobody on it, it says so in one sentence with its ways forward', async () => {
+    await start('#/clients/pipeline', { prepare: ledgerline });
+    expect(await screen.findByText('Nobody is in your pipeline yet.')).toBeTruthy();
     expect(screen.queryByRole('group', { name: 'Pipeline board' })).toBeNull();
-    const add = screen.getByRole('button', { name: 'Add a lead' });
-    expect(add.dataset.variant).toBe('primary');
+    expect(screen.getByRole('button', { name: 'Add a lead' })).toBeTruthy();
     assertInkRules();
   });
 
@@ -403,16 +292,16 @@ describe('Clients: the Pipeline tab', () => {
     await board();
     const line = await waitFor(() => {
       const found = headerLine();
-      expect(found?.textContent).toBe('2 people you may write to. You send every message yourself.');
+      expect(found?.textContent).toBe('9 people you may write to. You send every message yourself.');
       return found!;
     });
-    expect(line.querySelector('b')?.textContent).toBe('2');
+    expect(line.querySelector('b')?.textContent).toBe('9');
   });
 
-  it('J and K move between the cards and Enter opens the focused one in the lead sheet', async () => {
+  it('J and K move between the cards and Enter opens the focused one', async () => {
     await start('#/clients/pipeline');
     const root = await board();
-    await waitFor(() => expect(within(root).getAllByRole('article')).toHaveLength(2));
+    await waitFor(() => expect(within(root).getAllByRole('article').length).toBeGreaterThan(2));
     const [first, second] = within(root).getAllByRole('article');
     await act(async () => { fireEvent.keyDown(document.body, { key: 'j' }); });
     expect(document.activeElement).toBe(first);
@@ -420,24 +309,16 @@ describe('Clients: the Pipeline tab', () => {
     expect(document.activeElement).toBe(second);
     await act(async () => { fireEvent.keyDown(document.activeElement!, { key: 'k' }); });
     expect(document.activeElement).toBe(first);
-    await act(async () => { fireEvent.keyDown(document.activeElement!, { key: 'j' }); });
-    const name = within(second!).getByRole('heading', { level: 3 }).textContent!;
+    const name = within(first!).getByRole('heading', { level: 3 }).textContent!;
     await act(async () => { fireEvent.keyDown(document.activeElement!, { key: 'Enter' }); window.dispatchEvent(new HashChangeEvent('hashchange')); });
-    expect(window.location.hash).toMatch(/^#\/clients\/pipeline\?sheet=lead%3Alead-/);
+    expect(window.location.hash).toMatch(/^#\/clients\/pipeline\?sheet=(card|lead)%3A/);
     expect(await screen.findByRole('complementary', { name })).toBeTruthy();
   });
 
-  it('drops show=drafts from the address when nobody has a draft ready', async () => {
-    await start('#/clients/pipeline?show=drafts');
-    await waitFor(async () => expect(within(await board()).getAllByRole('article')).toHaveLength(2));
-    await waitFor(() => expect(window.location.hash).toBe('#/clients/pipeline'));
-  });
-
-  it('says so when the leads cannot be read, and draws no board', async () => {
-    await start('#/clients/pipeline', { override: failing('venture.leads.list') });
+  it('says so when the pipeline cannot be read, and draws no board', async () => {
+    await start('#/clients/pipeline', { override: failing('venture.pipeline.list') });
     expect((await screen.findByRole('alert')).textContent).toContain('The engine is not answering.');
     expect(screen.queryByRole('group', { name: 'Pipeline board' })).toBeNull();
-    expect(screen.queryByText('No leads yet.')).toBeNull();
   });
 });
 

@@ -5,7 +5,7 @@ import { EngineError, type AgentView } from '../../engine/types';
 import { Count } from '../../parts/Figure';
 import { Gate } from '../../parts/Gate';
 import { Icon } from '../../parts/Icon';
-import { DEPT_ICONS, type DeptId, type IconName } from '../../parts/icons';
+import type { DeptId, IconName } from '../../parts/icons';
 import s from './Team.module.css';
 
 type GateValue = 'auto' | 'hold';
@@ -24,11 +24,11 @@ export interface GateListProps {
   onFloor?: (() => void) | undefined;
 }
 
-/** A step's icon in the flow: a lock on a floor step, else the department's own icon (the engine names no per-step
- *  icon). */
-function stepIcon(floor: boolean, dept: DeptId | undefined): IconName {
-  if (floor) return 'lock';
-  return dept ? DEPT_ICONS[dept] : 'file-text';
+/** A step's own icon in the flow, from how it runs (the engine names no per-step icon): a lock on a floor step, a
+ *  play mark on one that runs on its own, a clock on one that waits for you. */
+function stepIcon(step: { floor: boolean; gate: 'auto' | 'hold' }): IconName {
+  if (step.floor) return 'lock';
+  return step.gate === 'auto' ? 'play' : 'clock';
 }
 
 /**
@@ -63,6 +63,7 @@ export function GateList({ agents, look, labelledBy, dept, onSaved, onFloor }: G
   const flow = look === 'flow';
   const List = flow ? 'ol' : 'ul';
   return (
+    <>
     <List className={flow ? s.flow : s.steps} aria-labelledby={labelledBy}>
       {steps.map(({ agent, step }, at) => {
         const gate = pending?.agentId === agent.id && pending.stepId === step.id ? pending.gate : step.gate;
@@ -80,7 +81,7 @@ export function GateList({ agents, look, labelledBy, dept, onSaved, onFloor }: G
         return (
           <li key={`${agent.id}:${step.id}`} className={s.flowStep}>
             <span className={s.stepNo} aria-hidden="true"><Count value={at + 1} /></span>
-            <span className={s.stepIcon} data-dept={dept} aria-hidden="true"><Icon name={stepIcon(step.floor, dept)} size={16} /></span>
+            <span className={s.stepIcon} data-dept={dept} aria-hidden="true"><Icon name={stepIcon(step)} size={16} /></span>
             <span className={s.stepText}>
               <span className={s.stepTitle}>{step.purpose}</span>
               <span className={s.stepSub}>{agent.name}</span>
@@ -91,5 +92,8 @@ export function GateList({ agents, look, labelledBy, dept, onSaved, onFloor }: G
         );
       })}
     </List>
+    {/* W4 4J22a: Auto on a step runs it alone only at the locked posture (4J15); until that opens, it asks. */}
+    <p className={s.quiet} data-auto-note="">{t('team.gate.autoNote')}</p>
+    </>
   );
 }

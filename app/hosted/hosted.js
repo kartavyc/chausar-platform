@@ -69,7 +69,35 @@ function renderSignIn(message = '') {
     await call('/api/auth/passkey/login/verify', { credential: credentialJson(credential) });
     await start();
   }) }, 'Sign in with a passkey') : null;
-  show(h('h1', {}, 'Sign in to Chausar'), h('p', { class: 'mute' }, 'No password. Use a link we send to your email, or a passkey on this device.'), form, passkey ? h('div', { class: 'row' }, passkey) : null, line);
+  const trial = h('div', {});
+  show(h('h1', {}, 'Sign in to Chausar'), h('p', { class: 'mute' }, 'No password. Use a link we send to your email, or a passkey on this device.'), form, passkey ? h('div', { class: 'row' }, passkey) : null, trial, line);
+  void offerTrial(trial, line);
+}
+
+/* Ink v2 wave 4 (4J21, from 4J23): "Start without an account", only when the server's trials switch is on (its public
+   health check says so). It starts a temporary business, then opens the app; the business is kept by adding an email. */
+async function offerTrial(holder, line) {
+  let health = null;
+  try {
+    const response = await fetch('/api/health', { credentials: 'same-origin', cache: 'no-store' });
+    health = response.ok ? await response.json() : null;
+  } catch { health = null; }
+  if (health?.trials !== true || !holder.isConnected) return;
+  const go = h('button', { class: 'quiet', type: 'button', onclick: event => void busy(event.currentTarget, line, async () => {
+    await call('/api/hosted/trial', {});
+    await call('/api/hosted/select', { businessId: null });
+    window.location.assign('/app/');
+  }) }, 'Start without an account');
+  // When it is deleted, from the server's own limits (hosted/trial.ts): days after the last use once the business is
+  // made, minutes before that. Without the numbers, the page says only that it is deleted when not used.
+  const days = Number.isInteger(health.trialIdleDays) ? health.trialIdleDays : null;
+  const minutes = Number.isInteger(health.trialEmptyMinutes) ? health.trialEmptyMinutes : null;
+  const when = days && minutes
+    ? `It is deleted ${days} ${days === 1 ? 'day' : 'days'} after you last use it, or ${minutes} minutes after if you have not made the business yet.`
+    : 'If you stop using it, it is deleted.';
+  holder.replaceChildren(h('h2', {}, 'Just looking?'),
+    h('p', { class: 'mute' }, `Try Chausar first. The business is temporary until you add your email. ${when}`),
+    h('div', { class: 'row' }, go));
 }
 
 function renderSent(email, delivers) {

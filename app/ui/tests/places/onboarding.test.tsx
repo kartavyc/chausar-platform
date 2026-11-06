@@ -30,10 +30,17 @@ function start(options: FakeOptions = { fresh: true }, { hash = '#/today', langu
   return { engine, client, calls, flow, refuse: (method: string, error: EngineError) => refusals.set(method, error), ...view };
 }
 
-const box = () => screen.findByRole('textbox', { name: 'What do you want to start?' });
+// Inside the app the engine lists ways to earn (W4 4J21), so the box there is "Or describe it in one sentence".
+const box = () => screen.findByRole('textbox', { name: /^(What do you want to start\?|Or describe it in one sentence)$/ });
 async function type(text: string) { fireEvent.change(await box(), { target: { value: text } }); }
 async function press(name: string | RegExp) { await act(async () => { fireEvent.click(screen.getByRole('button', { name })); }); }
-const titles = (titlesInOrder: string[]) => titlesInOrder.map((title) => screen.getByText(title));
+// A card's own title, not the next best step tile above the cards that repeats the first one (W4 4I2, an h2).
+const cardTitle = (title: string) => screen.getAllByText(title).filter((node) => node.tagName !== 'H2');
+const titles = (titlesInOrder: string[]) => titlesInOrder.map((title) => {
+  const [node, ...more] = cardTitle(title);
+  expect(more, title).toHaveLength(0);
+  return node!;
+});
 function inOrder(nodes: HTMLElement[]) {
   for (let i = 1; i < nodes.length; i++) expect(nodes[i - 1]!.compareDocumentPosition(nodes[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 }
@@ -88,7 +95,7 @@ describe('onboarding: first run', () => {
       ...flow().slice(10),
     ]);
     expect(flow().slice(10).some(([m]) => m === 'workspace.create' || m === 'venture.create')).toBe(false);
-    await screen.findByText('Your plan is ready. Read it.');
+    await screen.findAllByText('Your plan is ready. Read it.');
     inOrder(titles(['Your plan is ready. Read it.', 'Connect your AI', 'Confirm your prices and tax', 'Keep this business']));
     await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio/ })).toBeTruthy());
   });
@@ -214,7 +221,7 @@ describe('onboarding: what the engine forces before a vault', () => {
     expect(go.hasAttribute('aria-disabled')).toBe(false);
     await press('Continue');
     await screen.findByRole('navigation', { name: 'Places' });
-    await screen.findByText('Your plan is ready. Read it.');
+    await screen.findAllByText('Your plan is ready. Read it.');
     expect(screen.getByText('Connect your AI')).toBeTruthy();
     expect(screen.queryByText('Keep this business')).toBeNull();
   });
@@ -243,7 +250,7 @@ describe('onboarding: New business from the business menu', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/today'));
     expect(flow().map(([m]) => m).slice(0, 4)).toEqual(['venture.preview', 'workspace.status', 'workspace.lock', 'workspace.create']);
     // Ledgerline's plan waits too; the queue spans every business, oldest first.
-    await waitFor(() => expect(screen.getAllByText('Your plan is ready. Read it.')).toHaveLength(2));
+    await waitFor(() => expect(cardTitle('Your plan is ready. Read it.')).toHaveLength(2));
     // The business switcher, not Today's filter chip for the same business (Today shows one per business, w3 3C).
     await waitFor(() => expect(screen.getByRole('button', { name: /Bookkeeping studio.*Switch business/ })).toBeTruthy());
   });

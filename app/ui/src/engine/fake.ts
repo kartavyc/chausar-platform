@@ -5,7 +5,7 @@
  * opening a passphrase business without it. Figures are fixed sample text; nothing is computed for display.
  */
 
-import { AGENTS, BOOKS, BUSINESSES, CLIENTS, CONNECTORS, EVIDENCE, JOURNAL, QUEUE, RECEIPTS, RUNS, SPEND } from './fixtures';
+import { AGENTS, BOOKS, BUSINESSES, CLIENTS, CONNECTORS, EVIDENCE, JOURNAL, QUEUE, RECEIPTS, RUNS, SPEND, SPEND_MICROS } from './fixtures';
 import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE, SERVICE_KEYWORDS, SERVICE_LABELS, type FakeBusiness } from './fixtures';
 import type { BackupLite, BlueprintViewLite, InterviewAnswer, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
 import { createStatusStore } from './client';
@@ -14,12 +14,22 @@ import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
 import { FakeWorkDesk } from './fake-work';
 import { FakeMoney } from './fake-money';
 import { FakeExtrasDesk } from './fake-extras';
+// 4Z3: which currency leads spend, as the engine's money/spend.ts.
+import { rupeesAt, rupeesLead, spendLead, spendSettings } from './fake-lead';
 import { FakePostingDesk } from './fake-posting';
 import { FakePracticeDesk } from './fake-practice';
 import { FakeBankDesk } from './fake-bank';
 import { FakeWiringDesk } from './fake-wiring';
-import type { DeliveryLite, OrderLite } from './types';
-import { EngineError, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
+import { FakeAgentsDesk } from './fake-agents';
+import { FakeChiefDesk } from './fake-chief';
+import { FakeNetworkDesk } from './fake-network';
+import { FakeNotifyDesk } from './fake-notify';
+import { FakeW4Desk } from './fake-w4';
+import { AUTO_LOCKED_WORDS } from './fake-4j22a';
+import { fakeChecklist, fakeWays } from './fake-start';
+import { withTruth } from './fake-setup';
+import type { DeliveryLite, InvoiceLite, OrderLite, ReceiptLite } from './types';
+import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type VentureRunEvent } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -53,6 +63,16 @@ export interface FakeOptions {
   only?: string[];
   /** These sample businesses have lost this computer's key: only the recovery code opens them (for example ['ledgerline']). */
   keyMissing?: string[];
+  /**
+   * W4 4E4: the pipeline's sample is dated so a follow-up is late, two replies wait and a call just ended (the mailbox
+   * and the calendar set): Today shows its follow-up, reply and notes cards. `?due` in the dev page's address.
+   */
+  pipelineDue?: boolean;
+  /**
+   * W4 4J21: the open business is a temporary one on the hosted app (4J23), started without an account: 'temporary', or
+   * 'ending' in its last day. It answers as the hosted server does. `?trial` or `?trial-ending` in the dev page's address.
+   */
+  trial?: 'temporary' | 'ending';
 }
 
 /** A business on this computer, as the fake keeps it. `passphrase` only for one locked with a passphrase (sample only). */
@@ -62,6 +82,8 @@ interface HeldVenture { workingName: string; serviceType: ServiceType | null; id
 const BEFORE_VAULT = new Set([
   'workspace.status', 'workspace.list', 'workspace.open', 'workspace.create', 'workspace.lock', 'venture.countries', 'venture.preview',
   'workspace.recover', 'workspace.restore', 'workspace.transfer.import', 'workspace.backups.list',
+  // Ink v2 wave 4 (4J8): the Start gallery's ways to earn, a pre-vault method on the engine too.
+  'venture.playbooks.list',
 ]);
 /** The recovery codes the sample opens with: the one made at creation and the one Keep this business makes. */
 const SAMPLE_CODES = new Set([SAMPLE_RECOVERY_CODE, 'R4KD9QXM2HTW7PLB3NCF6YJV']);
@@ -120,6 +142,7 @@ export class FakeEngine {
   private closedByOwner = false;
   private readonly deviceKeys: boolean;
   private readonly hosted: boolean;
+  private readonly trial: 'temporary' | 'ending' | null;
   /** Your AI, plan and prices, website build: fake-business.ts. */
   private readonly desk: FakeBusinessDesk;
   /** Orders, delivery runs, invoices and client files: fake-work.ts. */
@@ -136,6 +159,16 @@ export class FakeEngine {
   private readonly practice: FakePracticeDesk;
   private readonly bank: FakeBankDesk;
   private readonly wiring: FakeWiringDesk;
+  /**
+   * Ink v2 wave 4 (registered empty by package 4-0; each U package fills its own): agent chat and notes
+   * (fake-agents.ts), Chats (fake-chief.ts), the network and the pipeline (fake-network.ts), notifications
+   * (fake-notify.ts), and the rest (fake-w4.ts).
+   */
+  private readonly agentsDesk: FakeAgentsDesk;
+  private readonly chief: FakeChiefDesk;
+  private readonly network: FakeNetworkDesk;
+  private readonly notify: FakeNotifyDesk;
+  private readonly w4: FakeW4Desk;
 
   constructor(options: FakeOptions = {}) {
     // `npm run dev:ui` can show the first run: add ?fresh to the address (and ?no-keys for a computer without
@@ -155,23 +188,32 @@ export class FakeEngine {
     }));
     for (const b of BUSINESSES) this.ventures.set(b.id, { workingName: b.name, serviceType: b.serviceType, idea: '', countryCode: 'IN', done: 6 });
     this.deviceKeys = options.deviceKeys ?? !devAsks('no-keys');
-    this.hosted = options.hosted ?? false;
+    this.trial = options.trial ?? (devAsks('trial-ending') ? 'ending' : devAsks('trial') ? 'temporary' : null);
+    this.hosted = (options.hosted ?? false) || this.trial !== null;
     this.desk = new FakeBusinessDesk({
       current: () => this.current, now: () => this.now(), receiptId: () => `R-0${this.receiptSeq++}`,
       businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
       rows: () => this.rows, setRows: (rows) => { this.rows = rows; }, digest: digestOf,
       settle: (id) => { this.decided.add(id); }, emit: (event) => this.emit(event),
       business: (id) => this.businesses.find((b) => b.id === id) ?? null, deviceKeys: () => this.deviceKeys && !this.hosted,
+      // 4H2: the hosted app lists the command-line presets as unavailable (models/presets.ts availabilityOf).
+      hosted: () => this.hosted,
     }, { fresh });
     this.work = new FakeWorkDesk({
       current: () => this.current, now: () => this.now(), clients: () => this.clients[this.current] ?? [],
       plan: () => this.desk.request('venture.blueprint.get', {}) as BlueprintViewLite | null,
       runs: () => this.runs, agentName: () => this.agents[this.current]?.[0]?.name ?? 'Agent', emit: (event) => this.emit(event),
+      // 4J3: the invoices an order's stage steps read (read only when the order list is asked for, after money exists).
+      invoices: () => this.money.request('venture.invoice.list', {}) as InvoiceLite[],
     }, { fresh });
     this.money = new FakeMoney({
       now: () => this.now(), business: () => this.current, clients: () => this.clients[this.current] ?? [],
       orders: () => this.work.request('venture.order.list', {}) as OrderLite[],
       changed: () => this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() }),
+      // 4J5: the credit note cards it puts on Today.
+      rows: () => this.rows, setRows: (rows: QueueRow[]) => { this.rows = rows; }, digest: digestOf,
+      // 4J20: the money views read the owner's rupee rate from the spend settings.
+      ask: (method, p) => this.answerNow(method, p),
     });
     this.extras = new FakeExtrasDesk({
       current: () => this.current, now: () => this.now(), businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
@@ -182,13 +224,37 @@ export class FakeEngine {
       current: () => this.current, now: () => this.now(), emit: (event: VentureRunEvent) => this.emit(event), hosted: () => this.hosted,
       rows: () => this.rows, setRows: (rows: QueueRow[]) => { this.rows = rows; }, digest: digestOf,
       ask: (method: string, p: Record<string, unknown>) => this.answerNow(method, p),
+      // 4J6: the businesses on this computer, as workspace.list lists them (fake-across.ts).
+      businesses: () => this.businesses.map((b) => ({ id: b.id, name: b.name, opens: b.opens })),
+      // 4F3: the runs, which Stop, Resume and the round gate change (fake-run-controls.ts).
+      runs: () => this.runs,
+      // 4J21: a temporary business refuses links (TRIAL_LIMIT), as the hosted app does.
+      trial: () => this.trial !== null,
       reviseDelivery: (runId: string, revise: (run: DeliveryLite) => DeliveryLite) => this.work.reviseRun(this.current, runId, revise),
       keepMadeTranscript: (p: Record<string, unknown>) => this.work.keepMade(this.current, p),
+      // 4J2: Make a copy keeps the owner's new draft with the others (fake-4j2.ts).
+      keepDelivery: (run: DeliveryLite) => this.work.keepRun(this.current, run),
+      // 4J22a: the chain counts the journal's entries, and verify reads a stored receipt (fake-4j22a.ts).
+      journal: () => this.journal, receipt: (id: string) => this.findReceipt(id),
     };
     this.posting = new FakePostingDesk(waveHost, { fresh });
     this.practice = new FakePracticeDesk(waveHost, { fresh });
     this.bank = new FakeBankDesk(waveHost, { fresh });
     this.wiring = new FakeWiringDesk(waveHost, { fresh });
+    // 4B3: a request on the floor in an agent's chat is a proposal the Chats desk raises to Today.
+    this.agentsDesk = new FakeAgentsDesk(waveHost, { fresh, floor: (input) => this.chief.draftFromAgent(input) });
+    // 4C2: the Chats desk reads the one chat consent the agents' desk keeps (it needs no agent).
+    this.chief = new FakeChiefDesk(waveHost, { fresh, consent: () => this.agentsDesk.chatConsent() });
+    this.network = new FakeNetworkDesk(waveHost, { fresh, meetings: this.chief, ...(options.pipelineDue === undefined ? {} : { due: options.pipelineDue }) });
+    this.notify = new FakeNotifyDesk(waveHost, { fresh });
+    // 4J22b: an idea's Start drafts through the Chats desk; an imported agent file and a persona version speak in the agent's chat.
+    this.w4 = new FakeW4Desk(waveHost, {
+      fresh,
+      extras: {
+        draftIdea: (input) => this.chief.draftFromIdea(input), draftImport: (input) => this.agentsDesk.draftImport(input), say: (agent, text) => this.agentsDesk.say(agent, text),
+        waitingMail: () => this.network.waitingMail(),
+      },
+    });
     if (fresh) {
       this.rows = []; this.runs = []; this.agents = {}; this.clients = {}; this.evidence = [];
       this.businesses = []; this.ventures.clear(); this.open = false; this.current = '';
@@ -234,42 +300,58 @@ export class FakeEngine {
       case 'venture.queue.view': {
         const view = QUEUE_VIEWS.find((v) => v.kind === p.kind && v.id === p.id);
         if (!view) throw new EngineError('VIEW_NOT_FOUND', 'This is not on this computer any more.');
+        // 4J2: as on the engine, the rows that open this were read in their present versions (fake-4j2.ts), only when
+        // the owner opened it (4J19: opened: true; a card drawing its preview leaves no mark).
+        if (p.opened !== undefined && p.opened !== true) throw new EngineError('INVALID_VENTURE_REQUEST', 'opened is true when the owner opened it, or left out.');
+        if (p.opened === true) this.w4.markViewed({ id: p.id, kind: p.kind });
         return clone(view);
       }
       case 'venture.runs.list': {
         const state = p.state ?? 'all';
         const runs = this.runs.filter((r) => state === 'all' || (state === 'active' ? r.state === 'active' || r.state === 'waiting' : r.state === 'done' || r.state === 'failed'));
-        return { runs: runs.map(({ steps: _s, question: _q, error: _e, ...summary }) => clone(summary)) };
+        // 4F3: the scope, notes, gate and calls in flight are the run sheet's (venture.runs.get), as on the engine.
+        return { runs: runs.map(({ steps: _s, question: _q, error: _e, scope: _c, steer: _n, gate: _g, live: _l, ...summary }) => clone(summary)) };
       }
       case 'venture.runs.get': {
         const run = this.runs.find((r) => r.runId === p.runId);
         if (!run) throw new EngineError('RUN_NOT_FOUND', 'This run is not on this computer.');
-        return clone(run);
+        // 4F3: the scope's cap in rupees at the owner's rate, read when asked, as the engine's views/runs.ts does.
+        return clone(this.w4.runView(run));
       }
-      case 'venture.team.list': return { agents: clone(this.agents[this.current] ?? []) };
+      case 'venture.team.list': return this.w4.teamList(clone(this.agents[this.current] ?? []), this.runs);
       case 'venture.team.gate': return this.gate(p as ParamsOf<'venture.team.gate'>);
       case 'venture.team.posture': return this.posture(p as ParamsOf<'venture.team.posture'>);
-      case 'venture.spend.list': return { rows: clone(SPEND), total: '₹60.10 this month (includes estimates)' };
-      case 'venture.journal.list': return { entries: clone(this.journal).slice(0, typeof p.limit === 'number' ? p.limit : undefined) };
+      case 'venture.spend.list': return { rows: this.spendRows(), ...this.spendTotal() };
+      // 4J22a: a break the owner accepted in the record shows as an entry first, as the engine's journal list has it.
+      case 'venture.journal.list': return { entries: clone([...this.w4.quality.breakEntries(), ...this.journal]).slice(0, typeof p.limit === 'number' ? p.limit : undefined) };
       case 'venture.journal.resolve': return this.resolveJournal(p as ParamsOf<'venture.journal.resolve'>);
       case 'venture.evidence.list': return { items: clone(this.evidence).filter((e) => typeof p.subject !== 'string' || e.subject === p.subject) };
       case 'venture.evidence.apply': return this.applyEvidence(String(p.id ?? ''));
       case 'venture.evidence.dismiss': return this.dismissEvidence(String(p.id ?? ''));
       case 'venture.client.list': return clone(this.clients[this.current] ?? []);
       case 'venture.client.add': return this.addClient(p);
-      case 'venture.events': return { events: [], lastSeq: this.seq };
+      case 'venture.events': return { events: [], lastSeq: this.seq, firstSeq: 0, frames: [] };
       case 'venture.get': {
         const venture = this.ventures.get(this.current);
         const playbook = this.desk.playbook(this.current);
-        return venture ? { venture: { id: this.current, workingName: venture.workingName, serviceType: venture.serviceType }, done: venture.done, total: 12, ...(playbook ? { playbook } : {}) } : null;
+        // 4J8: the checklist item by item, with names and links, as the engine's venture.get carries it.
+        // 4J20: the business's country (its code and currency), as the engine's venture record carries it.
+        return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, country: venture.countryCode ? { code: venture.countryCode, currency: 'INR' } : null }, done: venture.done, total: 12, checklist: fakeChecklist(venture.done), ...(playbook ? { playbook } : {}), ...this.w4.pausedField() } : null;
+      }
+      case 'venture.playbooks.list': {
+        // 4J8: the ways to earn; the open business is "You run this" on its own way.
+        const venture = this.open ? this.ventures.get(this.current) : undefined;
+        return fakeWays(p, venture ? { businessId: this.current, name: venture.workingName, playbook: this.desk.playbook(this.current)?.id ?? null } : null);
       }
       case 'venture.receipt.get': {
-        const receipt = RECEIPTS.find((r) => r.id === p.id) ?? this.desk.receipt(String(p.id)) ?? this.money.receipt(String(p.id));
+        const receipt = this.findReceipt(String(p.id));
         if (!receipt) throw new EngineError('RECEIPT_NOT_FOUND', 'This receipt is not on this computer.');
-        return clone(receipt);
+        // 4J10 (via 4J22a): a stored receipt comes with the business's signature on it, as the engine's getReceipt sends it.
+        const signature = this.w4.quality.signature(receipt);
+        return clone(signature ? { ...receipt, signature } : receipt);
       }
       case 'venture.books.summary': return this.money.books(clone(BOOKS[this.current] ?? BOOKS.lumen!), p.period);
-      case 'venture.connectors.list': return clone(CONNECTORS);
+      case 'venture.connectors.list': return withTruth(clone(CONNECTORS), this.hosted);
       case 'workspace.list': return {
         complete: true,
         businesses: this.businesses.map((b) => ({ folder: b.id, name: b.name, demo: true, unlock: b.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer', opens: b.opens, recovery: b.recovery, openedAt: b.id === this.current ? this.now() : null, listedFrom: 'card' })),
@@ -297,22 +379,70 @@ export class FakeEngine {
         if (this.practice.handles(method)) return this.practice.request(method, p);
         if (this.bank.handles(method)) return this.bank.request(method, p);
         if (this.wiring.handles(method)) return this.wiring.request(method, p);
+        for (const desk of [this.agentsDesk, this.chief, this.network, this.notify, this.w4]) if (desk.handles(method)) return desk.request(method, p);
         throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
     }
   }
 
   /** Another desk's answer at once, with no latency: what the wave 2 desks read (orders, runs, files, invoices). */
+  /** A stored receipt by id, from whichever desk made it (venture.receipt.get, and 4J22a's verify). */
+  private findReceipt(id: string): ReceiptLite | undefined {
+    return RECEIPTS.find((r) => r.id === id) ?? this.desk.receipt(id) ?? this.money.receipt(id) ?? this.w4.receipt(id) ?? this.network.receipt(id);
+  }
+
+  /**
+   * The sample month's spend total as money/spend.ts listSpend sends it: the sample spend (USD 0.7198, the total Team
+   * and Money send) with its words, in rupees too at the owner's rate when one is set, and 4Z3: as the owner's currency
+   * leads it.
+   */
+  /**
+   * The sample's calls as money/spend.ts spendRow sends them: each figure in rupees too at the owner's rate when one is
+   * set, and 4Z3: each as the owner's currency leads it.
+   */
+  private spendRows() {
+    const { rate, choice } = spendSettings(() => this.answerNow('venture.spend.policy.get', {}));
+    return clone(SPEND).map((row) => {
+      const micros = SPEND_MICROS[row.id];
+      if (!micros) return row;
+      const settled = micros.settled;
+      return {
+        ...row,
+        ...(rate ? { reservedRupees: rupeesAt(micros.reserved, rate), ...(settled !== undefined ? { settledRupees: rupeesAt(settled, rate) } : {}) } : {}),
+        reservedLead: spendLead(micros.reserved, rate?.perUsd ?? null, rupeesLead(choice)),
+        ...(settled !== undefined ? { settledLead: spendLead(settled, rate?.perUsd ?? null, rupeesLead(choice)) } : {}),
+      };
+    });
+  }
+
+  private spendTotal() {
+    const { rate, choice } = spendSettings(() => this.answerNow('venture.spend.policy.get', {}));
+    const words = ' this month (includes estimates)';
+    return {
+      total: `USD 0.7198${words}`, ...(rate ? { totalRupees: rupeesAt(719_800, rate) } : {}),
+      totalLead: spendLead(719_800, rate?.perUsd ?? null, rupeesLead(choice), words),
+    };
+  }
+
   private answerNow(method: string, p: Record<string, unknown>): unknown {
     if (FakeMoney.answers(method)) return this.money.request(method, p);
-    if (method === 'venture.connectors.list') return clone(CONNECTORS);
-    for (const desk of [this.desk, this.work, this.extras, this.posting, this.practice, this.bank, this.wiring]) {
+    if (method === 'venture.connectors.list') return withTruth(clone(CONNECTORS), this.hosted);
+    // 4B3: agent chat reads the team (whose steps an agent owns) and the clients (whom a note is about).
+    if (method === 'venture.team.list') return this.w4.teamList(clone(this.agents[this.current] ?? []), this.runs);
+    if (method === 'venture.client.list') return clone(this.clients[this.current] ?? []);
+    // 4E4: a pipeline card moved to Won makes its client, as the engine's move does through addClient.
+    if (method === 'venture.client.add') return this.addClient(p);
+    // 4J2: a set approval decides each item as Today does (fake-4j2.ts).
+    if (method === 'venture.queue.decide') return this.decide(p as ParamsOf<'venture.queue.decide'>);
+    for (const desk of [this.desk, this.work, this.extras, this.posting, this.practice, this.bank, this.wiring, this.agentsDesk, this.chief, this.network, this.notify, this.w4]) {
       if (desk.handles(method)) return desk.request(method, p);
     }
     throw new EngineError('METHOD_NOT_ALLOWED', `The fake engine does not answer ${method}.`);
   }
 
   private queueList(scope: 'current' | 'all') {
-    const rows = this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort(queueOrder);
+    this.network.syncRows(); // 4E4: follow-ups come due as the clock moves; replies and calls wait as the engine lists them
+    this.chief.syncRows(); // 4C2: a proposal's card is made again from what it acts on now (only Dismiss once its gate fails)
+    const rows =this.rows.filter((r) => !this.decided.has(r.id) && (scope === 'all' || r.businessId === this.current)).sort(queueOrder);
     const businesses = new Set(rows.map((r) => r.businessId)).size;
     const count = String(rows.length);
     const summary = rows.length === 0 ? 'Nothing needs you.' : `${count} ${rows.length === 1 ? 'needs' : 'need'} you, across ${businesses} ${businesses === 1 ? 'business' : 'businesses'}`;
@@ -323,13 +453,39 @@ export class FakeEngine {
     const row = this.rows.find((r) => r.id === p.id);
     if (!row) return { outcome: 'refused', line: 'This is no longer here.', reason: 'RESOLVED_ELSEWHERE' };
     if (this.decided.has(row.id)) return { outcome: 'refused', line: 'You decided this already.', reason: 'ALREADY_DECIDED' };
-    if (p.digest !== row.digest) return { outcome: 'stale', line: 'This changed since you opened it.', latest: clone(row) };
+    if (p.digest !== row.digest) return { outcome: 'stale', line: 'This click did not run anything. Here is the new version.', latest: clone(row) };
     const action = row.actions.find((a) => a.id === p.action);
     if (!action) return { outcome: 'refused', line: 'That is not a choice for this row.', reason: 'INVALID_ACTION' };
     if (action.requiresView && p.viewed !== true) return { outcome: 'refused', line: 'Open it and read it first.', reason: 'VIEW_FIRST' };
     if (row.kind === 'locked') return { outcome: 'refused', line: 'This business opens with its passphrase.', reason: 'PASSPHRASE_REQUIRED' };
     if (action.id === 'answer' && !(p.answer ?? '').trim()) return { outcome: 'refused', line: 'Write an answer first.', reason: 'ANSWER_REQUIRED' };
+    // 4E4: a next step from meeting notes with no day takes the day as Approve's answer (chief/proposals.ts).
+    if (row.needs?.answer === 'day' && action.id === 'approve' && !/^\d{4}-\d{2}-\d{2}$/.test(p.answer?.trim() ?? '')) return { outcome: 'refused', line: 'Pick the day for this step first.', reason: 'INVALID_VENTURE_REQUEST' };
     this.decided.add(row.id);
+    // 4J5: Issue or Cancel on a credit note's card does what the engine does, and says it in the engine's words.
+    const credited = row.id.startsWith('credit:') ? this.money.decideCredit(row.id, action.id) : null;
+    if (credited) {
+      this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
+      return { outcome: 'done', line: credited };
+    }
+    // 4C2: Approve or Not now on a proposal's card from Chats (fake-chief.ts), in the engine's words.
+    const proposed = this.chief.decide(row, action.id);
+    if (proposed) {
+      this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
+      return { outcome: 'done', line: proposed };
+    }
+    // 4F3: Resume, Run again and the round gate's Continue and Stop on a run-control row, in the engine's words.
+    const controlled = this.w4.decideRunControl(row, action.id, p.answer);
+    if (controlled) {
+      this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
+      return { outcome: 'done', line: controlled };
+    }
+    // 4E4: I sent it on a follow-up, a reply's answer, or No notes after a call, in the engine's words.
+    const networked = this.network.decide(row, action.id);
+    if (networked) {
+      this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
+      return { outcome: 'done', line: networked };
+    }
     if (action.id === 'approve' && row.viewRef?.kind === 'plan') this.desk.accept(row.businessId, row.viewRef.id);
     const receiptId = RECEIPTED.has(row.kind) && (action.id === 'approve' || action.id === 'issue') ? `R-0${this.receiptSeq++}` : undefined;
     if (action.id === 'run-again' && row.viewRef?.kind === 'run') this.restart(row.viewRef.id);
@@ -359,15 +515,15 @@ export class FakeEngine {
   }
 
   /**
-   * venture.team.posture with the engine's ladder: rehearsal, shadow, approve each, auto with spot checks. A sample
-   * business has not delivered enough approved work for the top step, so it is refused (POSTURE_ABOVE_STAGE).
+   * venture.team.posture with the engine's ladder: rehearsal, shadow, approve each, auto with spot checks. The top step
+   * is built but locked (4J15): it is refused AUTO_LOCKED whatever the readiness says, as the engine refuses it.
    */
   private posture(p: ParamsOf<'venture.team.posture'>) {
     const agent = (this.agents[this.current] ?? []).find((a) => a.id === p.agentId);
     if (!agent) throw new EngineError('AGENT_NOT_FOUND', 'That agent was not found.');
     const ladder: readonly Posture[] = ['rehearsal', 'shadow', 'approve-each', 'auto-spot-check'];
     if (!ladder.includes(p.posture)) throw new EngineError('INVALID_VENTURE_REQUEST', 'Choose rehearsal, shadow, approve each or auto with spot checks.');
-    if (p.posture === 'auto-spot-check') throw new EngineError('POSTURE_ABOVE_STAGE', 'Auto with spot checks opens once this business has delivered work you approved for a few weeks. It is too early for that.');
+    if (p.posture === 'auto-spot-check') throw new EngineError('AUTO_LOCKED', AUTO_LOCKED_WORDS);
     agent.posture = p.posture;
     this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() });
     return { agent: clone(agent) };
@@ -449,6 +605,21 @@ export class FakeEngine {
   // computer keeps the key and no recovery code exists yet, Keep this business.
   // -------------------------------------------------------------------------------------------------------------
 
+  /** W4 4J21: the hosted session's `me` as the hosted server sends it (trials on in the sample), or null off hosted. */
+  hostedMe(): HostedMeLite | null {
+    return this.hosted ? { trials: true, trial: this.trial ? this.trialView() : null } : null;
+  }
+
+  /** The hosted session view of a temporary business (hosted/trial.ts trialView), in the hosted server's words. */
+  private trialView() {
+    const ending = this.trial === 'ending';
+    const expiresAt = new Date(Date.parse(this.now()) + (ending ? 20 : 6 * 24 + 20) * 3_600_000).toISOString();
+    return {
+      temporary: true as const, line: 'This business is temporary until you add your email.', expiresAt, endsSoon: ending,
+      warning: ending ? 'This business will be deleted within a day unless you add your email.' : null,
+    };
+  }
+
   private onboarding(method: string, p: Record<string, unknown>): unknown {
     switch (method) {
       case 'workspace.status': {
@@ -457,7 +628,7 @@ export class FakeEngine {
           open: this.open, workspace: business ? { name: business.name } : undefined,
           unlock: business ? (business.opens === 'needs-passphrase' ? 'typed' : 'this-computer') : undefined,
           closedByOwner: this.closedByOwner, experimental: true,
-          ...(this.hosted ? { hosted: { businesses: this.businesses.map((b) => ({ id: b.id, name: b.name })) } } : {}),
+          ...(this.hosted ? { hosted: { businesses: this.businesses.map((b) => ({ id: b.id, name: b.name })), ...(this.trial ? { trial: this.trialView() } : {}) } } : {}),
         };
       }
       case 'workspace.lock': {
@@ -495,7 +666,7 @@ export class FakeEngine {
         const venture: HeldVenture = { workingName: named ?? 'My service business', serviceType: null, idea, countryCode: country.code, done: 1 };
         this.ventures.set(this.current, venture);
         this.interviews.set(this.current, this.templateInterview(country.code));
-        return { venture: { id: this.current, workingName: venture.workingName, serviceType: null }, done: venture.done, total: 12 };
+        return { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: null }, done: venture.done, total: 12 };
       }
       case 'venture.interview.next': {
         const questions = this.interviews.get(this.current);
@@ -766,5 +937,7 @@ export function createFakeClient(engine: FakeEngine = new FakeEngine()): EngineC
     subscribe: (listener) => engine.subscribe(listener),
     status: () => status.get(),
     onStatus: (listener) => status.subscribe(listener),
+    // W4 4J21: as the hosted page's client reads `me` from the session (client.ts hostedMe).
+    ...(engine.hostedMe() ? { hostedMe: async () => structuredClone(engine.hostedMe()) } : {}),
   };
 }

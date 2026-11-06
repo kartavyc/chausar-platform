@@ -12,8 +12,10 @@ import { CA_RECEIPTS, CA_REQUEST_TITLES, CA_VIEWS, LEADS, OVERVIEW, POSTAL_ADDRE
 import { dayMonthYear, NO_PROVIDER_LINE } from './fake-bank';
 import {
   EngineError, type BankConsentView, type BankImportResult, type CaReceiptView, type CaView, type LeadMoveView, type LeadView, type MoneyOverview, type OutreachDraftView,
-  type PlaybookPick, type ShareLink, type SiteEditLite, type SpendPolicyView, type SpendRateInput, type VentureRunEvent,
+  type PlaybookPick, type ShareLink, type SiteEditLite, type SpendPolicyView, type SpendRateInput, type VentureRunEvent, type CurrencyLead,
 } from './types';
+// 4Z3: which currency leads spend, as the engine's money/spend.ts.
+import { currencyLeadOf, rupeesLead, spendLead } from './fake-lead';
 
 const clone = <T>(value: T): T => structuredClone(value);
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
@@ -65,6 +67,8 @@ function asUsd(micros: string | null): string | null {
 /** The owner's rupee rate in the sample, as the engine keeps it: ten-thousandths of a rupee per dollar, and its day. */
 interface SampleRupeeRate { perUsd: bigint; setOn: string }
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** 4J20: the sample month's AI spend per business with its sum receipt, as fake-team.ts sends it, for the meter. */
+const MONTH_SPEND: Readonly<Record<string, { micros: number; receiptId: string }>> = { lumen: { micros: 719800, receiptId: 'R-0431' }, ledgerline: { micros: 401200, receiptId: 'R-0412' } };
 /** Rupees per US dollar as typed, up to four places, as the engine's rupeeRateOf. Above zero. */
 function rupeeRate(value: unknown): bigint {
   const match = typeof value === 'string' ? /^(\d{1,4})(?:\.(\d{1,4}))?$/.exec(value.trim()) : null;
@@ -99,6 +103,8 @@ export class FakeExtrasDesk {
   private readonly host: ExtrasHost;
   private policies: Record<string, SpendPolicyView>;
   private rupees: Record<string, SampleRupeeRate | null> = {};
+  /** 4Z3: the owner's choice of which currency leads spend, per business; absent: Auto. */
+  private leadChoice: Record<string, CurrencyLead> = {};
   private ca: Record<string, CaView>;
   private caReceipts: Record<string, Record<string, CaReceiptView>>;
   private leads: Record<string, LeadView[]>;
@@ -114,6 +120,8 @@ export class FakeExtrasDesk {
   constructor(host: ExtrasHost, options: { fresh?: boolean } = {}) {
     this.host = host;
     this.policies = options.fresh ? {} : clone(SPEND_POLICIES);
+    // 4Z3: the sample's own rupee rate, as its policies say it (set 15 Oct 2026), so every spend view agrees with them.
+    if (!options.fresh) for (const [biz, policy] of Object.entries(this.policies)) if (policy.inrPerUsd) this.rupees[biz] = { perUsd: rupeeRate(policy.inrPerUsd), setOn: '2026-10-15' };
     this.ca = options.fresh ? {} : clone(CA_VIEWS);
     this.caReceipts = options.fresh ? {} : clone(CA_RECEIPTS);
     this.leads = options.fresh ? {} : clone(LEADS);
@@ -130,8 +138,8 @@ export class FakeExtrasDesk {
     switch (method) {
       case 'venture.money.overview': return this.overview(biz);
       case 'venture.tax.working': return this.taxWorking(biz);
-      case 'venture.spend.policy.get': return clone(this.policyOf(biz));
-      case 'venture.spend.policy.set': return this.setPolicy(biz, p);
+      case 'venture.spend.policy.get': return this.withLead(biz, this.withMeter(biz, clone(this.policyOf(biz))));
+      case 'venture.spend.policy.set': return this.withLead(biz, this.withMeter(biz, this.setPolicy(biz, p)));
       case 'venture.ca.get': return clone(this.caOf(biz));
       case 'venture.ca.setOfRecord': return this.setCa(biz, p);
       case 'venture.ca.recordSignoff': return this.signoff(biz, p);
@@ -150,7 +158,8 @@ export class FakeExtrasDesk {
       case 'venture.site.revert': return this.applyEdit(biz, p, 'revert');
       case 'venture.share.create': return this.share(biz, p);
       case 'venture.share.list': {
-        const links = this.shares.filter((s) => s.businessId === biz && (typeof p.deliveryId !== 'string' || s.deliveryId === p.deliveryId)).map((s) => this.link(s));
+        // As the engine lists them (build/share-links.ts shareView): the address shows once, when made; never again.
+        const links = this.shares.filter((s) => s.businessId === biz && (typeof p.deliveryId !== 'string' || s.deliveryId === p.deliveryId)).map((s) => this.listed(s));
         return { links, shares: structuredClone(links) };
       }
       case 'venture.share.revoke': return this.revoke(biz, p);
@@ -173,13 +182,62 @@ export class FakeExtrasDesk {
 
   private overview(biz: string): MoneyOverview {
     const owed = this.host.owed();
-    return { lines: [{ id: 'owed', label: 'Clients owe you', value: owed.value, ...(owed.receiptId ? { receiptId: owed.receiptId } : {}) }, ...clone(OVERVIEW[biz] ?? [])] };
+    // The AI spend line's rupees at the owner's rate now (none without one), and 4Z3: the line as the owner's currency
+    // leads it (money/overview.ts), as the engine works both out from the spend settings.
+    const rate = this.rupees[biz] ?? null;
+    const lines = clone(OVERVIEW[biz] ?? []).map((line) => {
+      const month = MONTH_SPEND[biz];
+      if (line.id !== 'spent' || !month) return line;
+      const { rupees: _sample, ...rest } = line;
+      return {
+        ...rest, ...(rate ? { rupees: rupeesBeside(String(month.micros), rate) } : {}),
+        lead: spendLead(month.micros, rate?.perUsd ?? null, rupeesLead(this.leadChoice[biz] ?? 'auto'), line.estimate ? ', includes estimates' : ''),
+      };
+    });
+    return { lines: [{ id: 'owed', label: 'Clients owe you', value: owed.value, ...(owed.receiptId ? { receiptId: owed.receiptId } : {}) }, ...lines] };
+  }
+
+  /** 4Z3: the owner's choice of which currency leads spend, and what leads now: dollars without a rate. */
+  private withLead(biz: string, policy: SpendPolicyView): SpendPolicyView {
+    const currencyLead = this.leadChoice[biz] ?? 'auto';
+    const leads = Boolean(policy.inrPerUsd) && rupeesLead(currencyLead);
+    const perUsd = this.rupees[biz]?.perUsd ?? null;
+    // The limit lines as the owner's currency leads them (money/spend.ts policyView), absent with no limit.
+    const { capLead: _cap, askFirstLead: _ask, ...rest } = policy;
+    return {
+      ...rest, currencyLead, leads: leads ? 'INR' : 'USD',
+      ...(policy.capMicros !== null ? { capLead: spendLead(policy.capMicros, perUsd, leads, ' a month') } : {}),
+      ...(policy.askFirstMicros !== null ? { askFirstLead: spendLead(policy.askFirstMicros, perUsd, leads, '', 'Asks you first above ') } : {}),
+    };
   }
 
   private taxWorking(biz: string) {
     const working = TAX_WORKINGS[biz];
     if (!working) throw new EngineError('BLUEPRINT_NOT_FOUND', 'Make your plan first. The tax working follows its tax settings.');
     return clone(working);
+  }
+
+  /**
+   * 4J20: the month's meter against the monthly limit, as money/spend.ts spendMeter words it, over the sample month's
+   * spend (the same total and sum receipt fake-team.ts sends for Team's spend), and the limit-reached choices once it
+   * is used up (raise it or wait; never credits). No limit, no meter.
+   */
+  private withMeter(biz: string, policy: SpendPolicyView): SpendPolicyView {
+    const month = MONTH_SPEND[biz];
+    if (policy.capMicros === null || !month) return { ...policy, meter: null };
+    const cap = Number(policy.capMicros);
+    const permille = cap > 0 ? Math.floor((month.micros * 1000) / cap) : 1000;
+    const over = month.micros >= cap;
+    const now = this.host.now();
+    const next = new Date(Date.UTC(Number(now.slice(0, 4)), Number(now.slice(5, 7)), 1));
+    const resetOn = next.toISOString().slice(0, 10);
+    const day = `${next.getUTCDate()} ${next.toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' })}`;
+    const percent = Math.floor(permille / 10);
+    return {
+      ...policy,
+      meter: { usedPermille: permille, line: over ? "This month's limit is used up" : `${percent}% of this month's limit used`, near: permille >= (policy.alertPermille ?? 800), over, receiptId: month.receiptId, resetOn, reset: `Starts again on ${day}` },
+      ...(over ? { limitReached: { scope: 'business' as const, line: "This month's AI limit is used up. Nothing more is spent until you raise it or the month ends.", options: [{ id: 'raise' as const, label: 'Raise the limit' }, { id: 'wait' as const, label: `Wait until ${day}` }] } } : {}),
+    };
   }
 
   private policyOf(biz: string): SpendPolicyView {
@@ -190,7 +248,7 @@ export class FakeExtrasDesk {
   }
 
   private setPolicy(biz: string, p: Record<string, unknown>): SpendPolicyView {
-    const extra = Object.keys(p).find((key) => !['capUsd', 'askFirstUsd', 'rates', 'inrPerUsd'].includes(key));
+    const extra = Object.keys(p).find((key) => !['capUsd', 'askFirstUsd', 'rates', 'inrPerUsd', 'currencyLead'].includes(key));
     if (extra) throw invalid(`${extra} is not a spend setting.`);
     const figure = (value: unknown, field: string): string | null => dollars(value, field, 6);
     const policy = clone(this.policyOf(biz));
@@ -234,6 +292,8 @@ export class FakeExtrasDesk {
     delete policy.askFirstRupees;
     if (rate && policy.capMicros !== null) policy.capRupees = rupeesBeside(policy.capMicros, rate);
     if (rate && policy.askFirstMicros !== null) policy.askFirstRupees = rupeesBeside(policy.askFirstMicros, rate);
+    // 4Z3: which currency leads; left out, the choice already set is kept.
+    if (p.currencyLead !== undefined) this.leadChoice[biz] = currencyLeadOf(p.currencyLead);
     policy.setAt = this.host.now();
     this.rupees[biz] = rate;
     this.policies[biz] = policy;
@@ -354,12 +414,13 @@ export class FakeExtrasDesk {
 
   /**
    * The engine's stage rule: forward only, won and lost stay, blocked (an opt-out) from any stage and never left.
-   * A move that is not forward leaves the stage as it is and records nothing; a move keeps its evidence.
+   * A move that is not forward leaves the stage as it is and records nothing; a move keeps its evidence. `at` is the
+   * time of the act that moved it, as the engine stamps both in one transaction.
    */
-  private advance(lead: LeadView, to: LeadView['status'], evidence: LeadMoveView['evidence']): void {
+  private advance(lead: LeadView, to: LeadView['status'], evidence: LeadMoveView['evidence'], at: string = this.host.now()): void {
     const from = lead.status;
     if (from === 'blocked' || (to !== 'blocked' && (from === 'won' || from === 'lost' || STAGE_RANK[to]! <= STAGE_RANK[from]!))) return;
-    lead.moves.push({ from, to, at: this.host.now(), by: 'owner', evidence });
+    lead.moves.push({ from, to, at, by: 'owner', evidence });
     lead.status = to;
   }
 
@@ -407,7 +468,7 @@ export class FakeExtrasDesk {
       digest: `d${this.seq.toString(16).padStart(7, '0')}`,
     };
     lead.drafts.unshift(draft);
-    this.advance(lead, 'drafted', { kind: 'draft', id: draft.id });
+    this.advance(lead, 'drafted', { kind: 'draft', id: draft.id }, at);
     return { lead: clone(lead), draft: clone(draft) };
   }
 
@@ -548,19 +609,31 @@ export class FakeExtrasDesk {
   // ---------------------------------------------------------------------------------------------------------------
 
   private link(held: HeldShare): ShareLink {
-    return { id: held.id, url: held.url, ...(held.reason ? { reason: held.reason } : {}), expiresAt: held.expiresAt };
+    return { id: held.id, url: held.url, ...(held.reason ? { reason: held.reason } : {}), expiresAt: held.expiresAt, ...(held.shareKind ? { shareKind: held.shareKind } : {}) };
+  }
+
+  /** A link as venture.share.list sends it: no address, and why (shown once when made, or not served here). */
+  private listed(held: HeldShare): ShareLink {
+    const ended = Date.parse(held.expiresAt) <= Date.parse(this.host.now());
+    const reason = held.url ? (ended ? 'This link has ended.' : 'The link was shown once, when it was made.') : held.reason;
+    return { ...this.link(held), url: null, ...(reason ? { reason } : {}) };
   }
 
   private share(biz: string, p: Record<string, unknown>): ShareLink {
-    const deliveryId = text(p.deliveryId);
+    // 4J20: a month of books for the owner's accountant (build/share-links.ts kind 'books'): read only, revocable.
+    const books = p.kind === 'books';
+    if (books && (typeof p.month !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(p.month) || p.deliveryId !== undefined)) throw invalid('Choose a month like 2026-10.');
+    if (p.kind !== undefined && p.kind !== 'draft' && !books) throw invalid('Choose a draft, an order status, a statement or a month of books to share.');
+    const deliveryId = books ? `books:${String(p.month)}` : text(p.deliveryId);
     if (!deliveryId) throw invalid('Choose the draft to share.');
     const hours = p.expiresInHours === undefined ? 168 : p.expiresInHours;
     if (typeof hours !== 'number' || !Number.isInteger(hours) || hours < 1 || hours > 720) throw invalid('A link lasts 1 to 720 hours.');
     const id = `share-${++this.seq}`;
     const expiresAt = new Date(Date.parse(this.host.now()) + hours * 3_600_000).toISOString();
+    const kind = books ? { shareKind: 'books' as const } : {};
     const held: HeldShare = this.host.hosted()
-      ? { id, businessId: biz, deliveryId, url: `https://share.chausar.test/s/${id}`, expiresAt }
-      : { id, businessId: biz, deliveryId, url: null, reason: 'This computer has no public address, so a client cannot open a link from it. Send them the file instead.', expiresAt };
+      ? { id, businessId: biz, deliveryId, url: `https://share.chausar.test/s/${id}`, expiresAt, ...kind }
+      : { id, businessId: biz, deliveryId, url: null, reason: 'Share links open only on the hosted Chausar with a public address. Send your client the draft yourself and record their answer.', expiresAt, ...kind };
     // Kept with or without an address, as the engine keeps a link it does not serve: the owner records the answer on it.
     this.shares.unshift(held);
     return this.link(held);

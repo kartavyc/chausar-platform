@@ -26,7 +26,8 @@ export function ViewSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const kind = id.slice(0, at) as QueueItemView['kind'];
   const ref = id.slice(at + 1);
   const known = at > 0 && KINDS.includes(kind) && ref.length > 0;
-  const view = useResource('venture.queue.view', { kind, id: ref }, { skip: !known });
+  // W4 4J19: the sheet is the owner opening it, so the engine keeps its view mark for a set approval.
+  const view = useResource('venture.queue.view', { kind, id: ref, opened: true }, { skip: !known });
   const data = view.data;
 
   useEffect(() => {

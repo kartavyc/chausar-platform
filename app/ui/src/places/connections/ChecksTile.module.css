@@ -1,0 +1,92 @@
+/* Check connections: the button, the engine's counts, then one row per connection with its status mark, outcome word,
+   the engine's line, its fix and the day its access ends. */
+
+.tile {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--gap-grid);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.health {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-top: var(--hair) solid var(--line-soft);
+}
+
+.mark {
+  display: flex;
+  min-height: 22px;
+  align-items: center;
+}
+
+.body {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.name {
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.outcome {
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
+.line,
+.fix,
+.ends {
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.fix {
+  color: var(--fg);
+}
+
+.ends[data-ended] {
+  color: var(--fg);
+}
+
+.again {
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 759px) {
+  .row { grid-template-columns: auto minmax(0, 1fr); }
+  .again { grid-column: 2; }
+}

@@ -7,6 +7,7 @@
 
 import type { FigureProof } from '../Figure';
 import type { DeptId } from '../icons';
+import type { ChartProof } from './ChartData';
 
 /** Today's goal bar (D's `.g-bar` on the goal card, `.gb` on the Money tile). The goal counts money invoiced before
  *  tax. All three are per mille of the goal. */
@@ -42,6 +43,8 @@ export interface BarPoint {
   note?: string | undefined;
   /** This value's own receipt, listed in the chart's table. */
   receiptId?: string | undefined;
+  /** The note's own receipt when it has one apart from the value's (W4 4J20: what was left in a month), listed too. */
+  noteReceiptId?: string | undefined;
   /** Ranked bars by department take the department's colour. */
   dept?: DeptId | undefined;
 }
@@ -75,8 +78,11 @@ export interface AgingData {
 }
 
 /** A total split by department (D's `.sbar` and `.sleg`: AI spend by department). One proof covers the split. */
+/** A split's part: a department, or `shared`, the spend no single department can claim (W4 4A2). */
+export type SplitPartId = DeptId | 'shared';
+
 export interface SplitData {
-  parts: { dept: DeptId; amount: string; permille: number }[];
+  parts: { dept: SplitPartId; amount: string; permille: number }[];
   /** The receipt (or "model estimate") behind every amount here: every money figure on a chart has one. */
   proof: FigureProof;
   label: string;
@@ -95,6 +101,8 @@ export interface CashPoint {
   /** The forecast, per mille; null where the forecast does not reach. */
   forecastPermille: number | null;
   forecast: string | null;
+  /** This week's own receipt (W4 4J20: each week of the 13 is its own sum), listed in the chart's table. */
+  receiptId?: string | undefined;
 }
 
 /** Cash in the bank, week by week (D's `.cash` tile), marked as a forecast with its assumptions listed. */
@@ -106,7 +114,7 @@ export interface CashData {
   assumptions: string[];
   /** Level lines with the engine's labels, per mille of the same scale. Optional. */
   ticks?: ChartTick[] | undefined;
-  /** The receipt (or "model estimate") behind every amount here. */
-  proof: FigureProof;
+  /** The receipt (or "model estimate") behind every amount here, or `each` when every week has its own receipt. */
+  proof: ChartProof;
   label: string;
 }

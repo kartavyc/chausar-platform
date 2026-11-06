@@ -74,6 +74,7 @@
 .swatch[data-dept='prod'] { background: var(--prod); border-color: var(--prod); }
 .swatch[data-dept='money'] { background: var(--money); border-color: var(--money); }
 .swatch[data-dept='ops'] { background: var(--ops); border-color: var(--ops); }
+.swatch[data-dept='shared'] { background: var(--chart-rest); border-color: var(--chart-rest); }
 
 /* An empty bucket or department: a hollow square in its own colour, and no segment in the bar. */
 .swatch[data-zero] {
@@ -268,6 +269,14 @@
   white-space: nowrap;
 }
 
+/* A note with a currency code before its amount ("USD 0.0455", W4 4A2) breaks at its space rather than run into the
+   next column's; the amount itself never breaks. */
+.columns .note {
+  padding-inline: var(--sp-1);
+  white-space: normal;
+  overflow-wrap: normal;
+}
+
 .column[data-current] .note {
   color: var(--fg);
   font-weight: var(--weight-medium);
@@ -279,10 +288,11 @@
 }
 
 /* On a narrow tile, amounts would crowd their neighbours: only the current one stays written over its bar and under
-   its label (the others are in the hover line and the table). Counts are short and all stay. Nine columns or more
+   its label (the others are in the hover line and the table). Counts are short and all stay, over a figure group's
+   bars too (4Z2: a department's jobs kept only the last week's count). Nine columns or more
    keep every other label, counted back from the current one, so no word is broken. */
 @container (max-width: 440px) {
-  .chart[data-figure-group] .cap:not([data-current]) {
+  .chart[data-figure-group] .cap:not([data-current]):not([data-count]) {
     display: none;
   }
 
@@ -457,6 +467,7 @@
 .seg[data-dept='prod'] { fill: var(--prod); }
 .seg[data-dept='money'] { fill: var(--money); }
 .seg[data-dept='ops'] { fill: var(--ops); }
+.seg[data-dept='shared'] { fill: var(--chart-rest); }
 
 .ageList {
   display: flex;

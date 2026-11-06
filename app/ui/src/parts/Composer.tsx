@@ -16,6 +16,8 @@ export interface ComposerProps {
   suggestions?: readonly string[] | undefined;
   /** One quiet line under the box, such as what the agent does without asking. */
   hint?: string | undefined;
+  /** Words already in the box when it opens (W4 4C2: an ask from the header or Start), unsent until Send. */
+  initial?: string | undefined;
   className?: string | undefined;
 }
 
@@ -28,14 +30,14 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  * is read-only and the suggestions wait, and a failure leaves the words in place with the reason under them. A send
  * starts once however fast Enter is pressed. Nothing goes to browser storage.
  */
-export function Composer({ label, placeholder, onSend, suggestions, hint, className }: ComposerProps) {
+export function Composer({ label, placeholder, onSend, suggestions, hint, initial, className }: ComposerProps) {
   const t = useT();
   const id = useId();
   const box = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
   /** Set the moment a send starts, before React re-renders, so a second Enter or submit can never send twice. */
   const inFlight = useRef(false);
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initial ?? '');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const empty = text.trim() === '';

@@ -12,7 +12,8 @@ export type ClientDraft = { title: string; text: string | null; digest: string }
 
 /** The draft as the client sees it, and the digest a client's answer and a post are bound to. */
 export function clientDraft(run: Pick<DeliveryRunRecord, 'id' | 'status' | 'editedText' | 'renderedText' | 'deliverable'>): ClientDraft {
-  const shown = run.status === 'edited' && run.editedText ? run.editedText : run.renderedText;
+  // 4J1: an accepted draft carries edited words only when the owner's edit came back for review and was accepted as it was.
+  const shown = (run.status === 'edited' || run.status === 'accepted') && run.editedText ? run.editedText : run.renderedText;
   const text = typeof shown === 'string' ? redactSecrets(shown) : null;
   const title = redactSecrets(run.deliverable?.title ?? 'Draft');
   return { title, text, digest: digest({ deliveryId: run.id, title, text }) };

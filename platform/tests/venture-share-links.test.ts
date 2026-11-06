@@ -103,7 +103,8 @@ test('on the hosted web server the address carries the token once; the vault kee
 
   // Revoking stops the page at once; revoking again changes nothing.
   const revoked = await call<ShareLinkView>(deps, 'venture.share.revoke', { id: made.id });
-  assert.deepEqual(revoked, { id: made.id, url: null, reason: SHARE_WORDS.revoked, expiresAt: made.expiresAt, revoked: true });
+  // 4J7 (O20): the page was opened through its token, so the link keeps when it was first viewed.
+  assert.deepEqual(revoked, { id: made.id, url: null, reason: SHARE_WORDS.revoked, expiresAt: made.expiresAt, revoked: true, viewedAt: '2026-10-15T10:00:00.000Z' });
   assert.equal(await sharePage(deps, owner, token), null);
   assert.deepEqual(await call(deps, 'venture.share.revoke', { id: made.id }), revoked);
 });
@@ -144,7 +145,8 @@ test('the local server on this computer answers 404 for every /share address', a
   const app = createLocalServer(engine);
   const { origin } = await app.listen();
   t.after(async () => { await app.close(); await rm(path, { recursive: true, force: true }); });
-  for (const address of ['/share', `/share/${'A'.repeat(32)}`, '/share/x/y']) {
+  // 4J7 (K9): the client's file request page is hosted only too.
+  for (const address of ['/share', `/share/${'A'.repeat(32)}`, '/share/x/y', `/share/${'A'.repeat(32)}/upload`]) {
     assert.equal((await fetch(`${origin}${address}`)).status, 404, address);
     assert.equal((await fetch(`${origin}${address}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'decision=approved' })).status, 404, address);
   }

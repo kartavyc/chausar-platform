@@ -7,7 +7,7 @@ import axe from 'axe-core';
 import { ApprovalRow, timeOf, type ApprovalHandle, type PressResult } from '../../src/parts/ApprovalRow';
 import { Change } from '../../src/parts/Change';
 import { TextProvider } from '../../src/text';
-import { assertFiguresProved, assertInkRules } from '../helpers/ink-rules';
+import { assertFiguresProved, assertInkRules, receiptMark } from '../helpers/ink-rules';
 import type { QueueDecision, QueueRow } from '../../src/engine/types';
 
 // Ink v2 wave 3, package 3B5a: the approval card (D-Today's `.qcard`) and the compact card (`.qk`). The row layout and
@@ -42,7 +42,7 @@ const quote: QueueRow = {
 };
 const stopped: QueueRow = {
   id: 'q-again', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Editor', kind: 'question', createdAt: '2026-10-21T10:06:00.000Z', digest: 'd6',
-  title: 'Thumbnail set stopped', line: 'ffmpeg was not found on this computer.', viewRef: { kind: 'run', id: '28' },
+  title: 'Thumbnail set failed', line: 'ffmpeg was not found on this computer.', viewRef: { kind: 'run', id: '28' },
   actions: [{ id: 'later', label: 'Later', primary: false }, { id: 'run-again', label: 'Run again', primary: true }],
 };
 const question: QueueRow = {
@@ -118,7 +118,7 @@ describe('ApprovalRow as a card (layout="card")', () => {
     const change = article.querySelector<HTMLElement>('[data-figure-group][data-size="pill"]')!;
     expect(change.querySelector('del')!.textContent).toBe('₹25,000');
     expect(within(change).getByText('₹30,000').className).toContain('mono');
-    expect(within(change).getByRole('button', { name: 'Receipt R-0415' })).toBeTruthy();
+    expect(within(change).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     assertInkRules(document.body);
   });
 
@@ -145,9 +145,9 @@ describe('ApprovalRow as a card (layout="card")', () => {
       expect(card().querySelector('[data-note]')!.textContent).toBe('Unlocks after you open it');
     });
 
-    it('a primary that asks twice says "Asks once more"; a plan, once read, says nothing changes until you approve', () => {
+    it('a primary that asks twice says "Asks you to confirm" (4Z2); a plan, once read, says nothing changes until you approve', () => {
       const { unmount } = render(<ApprovalRow layout="card" row={price} onDecide={vi.fn()} />);
-      expect(card().querySelector('[data-note]')!.textContent).toBe('Asks once more');
+      expect(card().querySelector('[data-note]')!.textContent).toBe('Asks you to confirm');
       unmount();
       render(<ApprovalRow layout="card" row={plan} viewed onDecide={vi.fn()} />);
       expect(card().querySelector('[data-note]')!.textContent).toBe('Nothing changes until you approve');
@@ -222,8 +222,8 @@ describe('ApprovalRow as a card (layout="card")', () => {
       await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Run again' })); });
       const line = container.querySelector('article[data-decided]')!;
       expect(line.getAttribute('data-row-id')).toBe('q-again');
-      expect(within(line as HTMLElement).getByRole('status').textContent).toBe('Thumbnail set stopped · Approved · R-0421');
-      expect(screen.getByRole('button', { name: 'Receipt R-0421' })).toBeTruthy();
+      expect(within(line as HTMLElement).getByRole('status').textContent!.trim()).toBe('Thumbnail set failed · Approved');
+      expect(screen.getByRole('button', { name: receiptMark('R-0421') })).toBeTruthy();
       expect(container.querySelectorAll('[data-key]')).toHaveLength(0);
       assertInkRules(document.body);
     });
@@ -234,7 +234,8 @@ describe('ApprovalRow as a card (layout="card")', () => {
       render(<ApprovalRow layout="card" row={draft} onDecide={onDecide} />);
       fireEvent.click(within(card()).getByRole('button', { name: 'Watch' }));
       await act(async () => { fireEvent.click(within(card()).getByRole('button', { name: 'Approve' })); });
-      expect(card().textContent).toContain('This changed. Here is the new version.');
+      // W4 4J19: a stale click says it ran nothing, in 4J1's words.
+      expect(card().textContent).toContain('This click did not run anything. Here is the new version.');
       expect(card().textContent).toContain('Recut to 11 min 30 s.');
       expect(isLocked(approveIn())).toBe(true);
     });
@@ -292,7 +293,7 @@ describe('ApprovalRow as a compact card (layout="compact")', () => {
     const change = article.querySelector('[data-figure-group][data-size="mini"]')!;
     expect(change.querySelector('del')!.textContent).toBe('₹10,000');
     expect(within(change as HTMLElement).getByText('Monthly fee').className).not.toContain('sr-only');
-    expect(within(article).getByRole('button', { name: 'Receipt R-0420' })).toBeTruthy();
+    expect(within(article).getByRole('button', { name: receiptMark('R-0420') })).toBeTruthy();
     expect([...article.querySelectorAll<HTMLButtonElement>('[data-key]')].map((b) => b.dataset.size)).toEqual(['sm', 'sm']);
     assertInkRules(document.body);
   });
@@ -384,7 +385,7 @@ describe('Change, in its three sizes', () => {
     expect(root.textContent).toContain('Sponsor slot');
     expect(root.textContent).toContain('was ₹25,000');
     expect(root.textContent).toContain('now ₹30,000');
-    fireEvent.click(screen.getByRole('button', { name: 'Receipt R-0415' }));
+    fireEvent.click(screen.getByRole('button', { name: receiptMark('R-0415') }));
     expect(onReceipt).toHaveBeenCalledWith('R-0415');
     assertInkRules(document.body);
   });
@@ -631,8 +632,10 @@ describe('Engine lines, until W4 4J1 gives their amounts receipts', () => {
   });
 
   it('a question\'s line is both the engine\'s line and the agent\'s quoted words', () => {
+    // W4 4J19: the stopgap stays only while the line holds an amount the engine did not prove.
+    const quoted: QueueRow = { ...question, line: 'A: "The ₹2,000 mic". B: "Every budget mic".' };
     for (const layout of ['row', 'card'] as const) {
-      const { unmount } = render(layout === 'row' ? <ul><ApprovalRow row={question} onDecide={vi.fn()} /></ul> : <ApprovalRow layout="card" row={question} onDecide={vi.fn()} />);
+      const { unmount } = render(layout === 'row' ? <ul><ApprovalRow row={quoted} onDecide={vi.fn()} /></ul> : <ApprovalRow layout="card" row={quoted} onDecide={vi.fn()} />);
       const line = document.querySelector('[data-engine-line]')!;
       expect(line.hasAttribute('data-content'), layout).toBe(true);
       unmount();

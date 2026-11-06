@@ -12,6 +12,9 @@ import { TranscribeButton } from './TranscribeButton';
 import { PostButtons } from './PostButtons';
 import { JudgeLine } from './JudgeLine';
 import { CalendarFile } from './CalendarFile';
+import { FileRequest } from './FileRequest';
+// W4 4J22a: the order's contract, with Sign (4J12).
+import { ContractSheet } from './ContractSheet';
 import s from './Work.module.css';
 
 /** The status circle of a draft the engine lists no run for: what it says, by its icon as well as its colour. A draft
@@ -60,6 +63,7 @@ export function OrderFocus({ view, clients, deliveries, runs, queue, backHref, o
         <OrderList views={[view]} clients={clients} runIds={runIds} onChanged={onChanged} full />
         <TranscribeButton order={view.order} />
       </section>
+      <ContractSheet orderId={view.order.id} />
       <Tile as="section" labelledBy={runsId}>
         <TileHead id={runsId} title={t('work.focus.runs')} />
         {mine.length === 0 ? <EmptyState title={t('work.focus.noRuns')} /> : (
@@ -90,6 +94,7 @@ export function OrderFocus({ view, clients, deliveries, runs, queue, backHref, o
           <ShareLinks drafts={shareable} onAnswered={() => setAnswered((n) => n + 1)} />
         </Tile>
       )}
+      <FileRequest orderId={view.order.id} />
       <PostButtons drafts={shareable} version={answered} />
       <CalendarFile drafts={shareable} />
       <div>{back}</div>

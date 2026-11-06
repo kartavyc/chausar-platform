@@ -1,25 +1,30 @@
 // Orders: one offer for one client, priced by its own receipt with the client's tax treatment.
 // The request text is client data: it stays in the vault and only reaches a model through an approved preview.
+// Ink v2 wave 4 (4J3): the order list carries each order's stage steps and what waits on the owner (order-steps.ts).
 import { check, type Context } from '../../contracts.ts';
 import { activateTerm, exactPayload, isoDate, listRecords, plainText, readVenture, ventureAction } from '../records.ts';
 import { insertBooksFact, saleFact } from './facts.ts';
+import { orderIndex, orderSteps } from './order-steps.ts';
 import { buildPriceReceipt, receiptTaxable } from './quote.ts';
 import { newestFirst, oneLine, quantityText, recordId, requireAcceptedBlueprint, requireOffer, requirePrice } from './shared.ts';
-import type { OrderRecord, VentureDeps } from '../contracts.ts';
+import type { OrderListRow, OrderRecord, VentureDeps } from '../contracts.ts';
 import { localDayAt } from '../local-day.ts';
 import { flagshipOffer, flagshipPlan } from '../playbooks/plan.ts';
 import { orderIntake } from '../playbooks/intake.ts';
 
 /**
  * venture.order.create (level prepare). intake: what a flagship playbook's offer asks (playbooks/intake.ts); an offer
- * that cuts footage refuses the order with RIGHTS_REQUIRED until its rights are recorded here.
+ * that cuts footage refuses the order with RIGHTS_REQUIRED until its rights are recorded here. taxInclusive (4J5, M15):
+ * the owner's price includes the tax, so the order's receipts split it (money/tax-kinds.ts).
  */
 export async function createOrder(deps: VentureDeps, ctx: Context, payload: unknown): Promise<OrderRecord> {
-  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request', 'intake'], ['clientId', 'offerId', 'request']);
+  const body = exactPayload(payload, ['clientId', 'offerId', 'quantity', 'request', 'intake', 'taxInclusive'], ['clientId', 'offerId', 'request']);
   const clientId = recordId(body.clientId, 'Client');
   const offerId = recordId(body.offerId, 'Offer');
   const quantity = body.quantity === undefined ? null : quantityText(body.quantity);
   const request = plainText(body.request, 'The request', { min: 3, max: 4000 });
+  check(body.taxInclusive === undefined || typeof body.taxInclusive === 'boolean', 'INVALID_VENTURE_REQUEST', 'Say whether the price includes tax with true or false.');
+  const taxInclusive = body.taxInclusive === true;
 
   return ventureAction(deps, ctx, 'prepare', 'order.create', tx => {
     const venture = tx.venture;
@@ -35,10 +40,11 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
     });
     const base = tx.base('venture-order');
     const orderQuantity = quantity ?? offer.pricing.defaultQuantity;
-    const receipt = buildPriceReceipt(tx, { type: 'order', orderId: base.id }, { quantity: orderQuantity }, blueprint, offer, client);
+    const receipt = buildPriceReceipt(tx, { type: 'order', orderId: base.id }, { quantity: orderQuantity, taxInclusive }, blueprint, offer, client);
     const order: OrderRecord = {
       ...base, clientId: client.id, offerId: offer.id, quantity: orderQuantity, request,
       status: 'open', priceReceiptId: receipt.id, deliveredOn: null, saleFactId: null, ...(intake ? { intake } : {}),
+      ...(taxInclusive ? { taxInclusive: true } : {}),
     };
     const stored = tx.put(order);
     activateTerm(tx, 'order', { recordId: stored.id, kind: 'venture-order' });
@@ -47,11 +53,13 @@ export async function createOrder(deps: VentureDeps, ctx: Context, payload: unkn
   });
 }
 
-/** venture.order.list (level read): newest first. */
-export async function listOrders(deps: VentureDeps, ctx: Context, payload: unknown): Promise<OrderRecord[]> {
+/** venture.order.list (level read): newest first, each order with its stage steps and what waits on the owner (4J3). */
+export async function listOrders(deps: VentureDeps, ctx: Context, payload: unknown): Promise<OrderListRow[]> {
   exactPayload(payload, []);
   const { state, venture } = readVenture(deps, ctx);
-  return newestFirst(listRecords(state, 'venture-order', venture.id));
+  // The records the stages read are indexed once for the whole list, not once per order.
+  const index = orderIndex(state, venture, deps.clock().getTime());
+  return newestFirst(listRecords(state, 'venture-order', venture.id)).map(order => ({ ...order, ...orderSteps(index, order) }));
 }
 
 /**

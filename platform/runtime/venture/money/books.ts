@@ -4,7 +4,8 @@ import { check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import { exactPayload, isoDate, listRecords, readVenture } from '../records.ts';
 import { localDayAt, ventureTimeZone } from '../local-day.ts';
-import { BOOKS_PERIOD_KEYS, booksPeriods, todayLocal } from './dates.ts';
+import { BOOKS_PERIOD_KEYS, booksPeriods, calendarMonth, todayLocal } from './dates.ts';
+import { previousMonth } from './goal-plans.ts';
 import { newestFirst } from './shared.ts';
 import { experimentalStorage, type BooksFigure, type BooksPeriodKey, type BooksSummary, type IsoDate, type MinorString, type VentureDeps, type VentureRecord } from '../contracts.ts';
 
@@ -55,26 +56,8 @@ function entryDates(state: State, ventureId: string): IsoDate[] {
   return days;
 }
 
-/**
- * venture.books.summary { period? | from?, to? } (level read): billed, received and earned for a period, each with its
- * calculator receipt. period picks one of the choices in `periods` ('all' when nothing is given); from and to give
- * exact days instead, and a missing one is taken from 'all'. Every default day is on the owner's calendar.
- */
-export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BooksSummary> {
-  const body = exactPayload(payload, ['period', 'from', 'to']);
-  const { state, venture } = readVenture(deps, ctx);
-  const custom = body.from !== undefined || body.to !== undefined;
-  check(body.period === undefined || (typeof body.period === 'string' && (BOOKS_PERIOD_KEYS as readonly string[]).includes(body.period)),
-    'INVALID_VENTURE_REQUEST', 'Choose all time, this month, last month or this year.');
-  check(!(custom && body.period !== undefined), 'INVALID_VENTURE_REQUEST', 'Choose a period or give dates, not both.');
-  const today = todayLocal(deps.clock, venture.country);
-  const periods = booksPeriods(today, startDay(venture), entryDates(state, venture.id));
-  const periodKey: BooksPeriodKey = body.period === undefined ? 'all' : body.period as BooksPeriodKey;
-  const chosen = periods.find(p => p.key === periodKey) ?? periods[0];
-  const from = body.from === undefined ? chosen.from : isoDate(body.from, 'From');
-  const to = body.to === undefined ? chosen.to : isoDate(body.to, 'To');
-  check(from <= to, 'INVALID_VENTURE_REQUEST', 'The start date must be on or before the end date.');
-
+/** billed, received and earned from one day to another, each with its calculator receipt. */
+async function booksFigures(deps: VentureDeps, ctx: Context, venture: VentureRecord, from: IsoDate, to: IsoDate): Promise<BooksFigure[]> {
   const figures: BooksFigure[] = [];
   for (const { operation, label } of BOOKS_OPERATIONS) {
     const receipt = await deps.services.calculator.calculate(ctx, { operation, period: { from, to } });
@@ -83,6 +66,39 @@ export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unk
     const currency = typeof receipt.currency === 'string' ? receipt.currency : venture.country.currency;
     figures.push({ operation, label, receiptId: receipt.id, minor: receipt.totalMinor, display: formatMinor(receipt.totalMinor, currency), stale: receipt.stale === true });
   }
+  return figures;
+}
+
+/** 4J4: a month like 2026-09, which venture.books.summary takes as its period. */
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/**
+ * venture.books.summary { period? | from?, to? } (level read): billed, received and earned for a period, each with its
+ * calculator receipt. period picks one of the choices in `periods` ('all' when nothing is given) or one month
+ * ('2026-09'); from and to give exact days instead, and a missing one is taken from 'all'. Every default day is on the
+ * owner's calendar. 4J4: when the period is one whole calendar month, previous gives the month before it, each figure
+ * with its receipt, for "last month" beside this one; otherwise previous is null.
+ */
+export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BooksSummary> {
+  const body = exactPayload(payload, ['period', 'from', 'to']);
+  const { state, venture } = readVenture(deps, ctx);
+  const custom = body.from !== undefined || body.to !== undefined;
+  const month = typeof body.period === 'string' && MONTH.test(body.period) ? body.period : null;
+  check(body.period === undefined || month !== null || (typeof body.period === 'string' && (BOOKS_PERIOD_KEYS as readonly string[]).includes(body.period)),
+    'INVALID_VENTURE_REQUEST', 'Choose all time, this month, last month, this year or a month like 2026-09.');
+  check(!(custom && body.period !== undefined), 'INVALID_VENTURE_REQUEST', 'Choose a period or give dates, not both.');
+  const today = todayLocal(deps.clock, venture.country);
+  const periods = booksPeriods(today, startDay(venture), entryDates(state, venture.id));
+  const periodKey: BooksPeriodKey = body.period === undefined || month !== null ? 'all' : body.period as BooksPeriodKey;
+  const chosen = month !== null ? calendarMonth(month) : periods.find(p => p.key === periodKey) ?? periods[0];
+  const from = body.from === undefined ? chosen.from : isoDate(body.from, 'From');
+  const to = body.to === undefined ? chosen.to : isoDate(body.to, 'To');
+  check(from <= to, 'INVALID_VENTURE_REQUEST', 'The start date must be on or before the end date.');
+
+  const figures = await booksFigures(deps, ctx, venture, from, to);
+  const whole = from.slice(0, 7) === to.slice(0, 7) && calendarMonth(from.slice(0, 7)).from === from && calendarMonth(from.slice(0, 7)).to === to;
+  const before = whole ? calendarMonth(previousMonth(from.slice(0, 7))) : null;
+  const previous = before ? { month: before.month, label: before.display, period: { from: before.from, to: before.to }, figures: await booksFigures(deps, ctx, venture, before.from, before.to) } : null;
 
   const clients = listRecords(state, 'venture-client', venture.id);
   const openInvoices = newestFirst(listRecords(state, 'venture-invoice', venture.id))
@@ -101,8 +117,8 @@ export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unk
   const notes = [BOOKS_TAX_NOTE, BOOKS_AGING_NOTE];
   if (experimentalStorage(deps)) notes.push(EXPERIMENTAL_NOTE);
   return {
-    period: { from, to }, periodKey: custom ? 'custom' : periodKey, periods, today, timeZone: ventureTimeZone(venture.country),
-    currency: venture.country.currency, figures, openInvoices, notes,
+    period: { from, to }, periodKey: custom || month !== null ? 'custom' : periodKey, periods, today, timeZone: ventureTimeZone(venture.country),
+    currency: venture.country.currency, figures, openInvoices, notes, ...(month !== null ? { month } : {}), previous,
   };
 }
 

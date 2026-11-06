@@ -16,16 +16,37 @@ import type { StoredPasskey } from './webauthn.ts';
 export const DIRECTORY_FORMAT = 'chausar.hosted-directory.v1';
 
 export type HostedPasskey = StoredPasskey & { name: string; createdAt: string; lastUsedAt: string | null };
-export type HostedBusiness = { id: string; name: string; createdAt: string; sealedPassphrase: Sealed; workspaceId: string | null };
+/**
+ * vaultTenantId (Ink v2 wave 4, 4J23): the tenant whose folder and key hold this business's vault, when it is not its
+ * owner's own; only a temporary business kept by an account that already existed has one (trial.ts).
+ */
+export type HostedBusiness = { id: string; name: string; createdAt: string; sealedPassphrase: Sealed; workspaceId: string | null; vaultTenantId?: string };
+/**
+ * Ink v2 wave 4 (4J23): an account started without one. Its email and verifiedAt stay empty until it is claimed; it is
+ * deleted with its vault at expiresAt (7 days after lastUsedAt with a business, an hour without one) unless claimed
+ * first (trial.ts). businessStartedAt: when its one business was made, kept after a delete so it never makes another.
+ * claimLinks: how many "add your email" links it asked for. endingAt: housekeeping began deleting it; from then on it
+ * can't be claimed, used or kept alive.
+ */
+export type HostedTrial = { startedAt: string; lastUsedAt: string; expiresAt: string; businessStartedAt?: string; claimLinks?: number; endingAt?: string };
 export type HostedUser = {
   id: string; tenantId: string; email: string; userHandle: string; createdAt: string; verifiedAt: string;
   status: 'active' | 'disabled'; passkeys: HostedPasskey[]; businesses: HostedBusiness[];
+  trial?: HostedTrial;
+  /**
+   * Ink v2 wave 4 (4G3): sessions of this account that signed out or were revoked, as hashes of their ids, with the
+   * businesses that have not yet deleted the phone alert subscriptions they made. Until then those browsers get nothing;
+   * an entry goes once every business has confirmed. The newest 200 are kept.
+   */
+  endedPushSessions?: HostedEndedSession[];
 };
-export type MagicLinkRecord = { id: string; tokenHash: string; email: string; browserHash: string; createdAt: string; expiresAt: string; consumedAt: string | null };
+export type HostedEndedSession = { hash: string; at: string; pending: string[] };
+/** claimUserId (4J23): the temporary business's account this link keeps, when it was asked for from one. */
+export type MagicLinkRecord = { id: string; tokenHash: string; email: string; browserHash: string; createdAt: string; expiresAt: string; consumedAt: string | null; claimUserId?: string };
 export type ChallengeRecord = { id: string; challenge: string; purpose: 'register' | 'login'; userId: string | null; browserHash: string; expiresAt: string };
 export type HostedSessionRecord = {
   id: string; tokenHash: string; userId: string; createdAt: string; expiresAt: string; lastSeenAt: string;
-  revokedAt: string | null; method: 'magic-link' | 'passkey'; businessId: string | null;
+  revokedAt: string | null; method: 'magic-link' | 'passkey' | 'trial'; businessId: string | null;
 };
 /**
  * Where a client share link's token leads (venture.share.create on this server): the sha256 of the token, never the
@@ -49,6 +70,8 @@ export interface HostedDirectory {
   readonly kind: 'experimental-file' | 'memory' | 'postgres';
   /** A copy: changing it changes nothing. */
   read(): DirectoryState;
+  /** The revision read() would answer, without copying anything (4J23: a cheap "has anything changed"). */
+  revision?(): number;
   /**
    * One change at a time, on a draft. A throw discards the draft; a return commits it once. On PostgreSQL a change can
    * run again on newer state when another server process wrote first, so a change only edits its draft.
@@ -64,7 +87,9 @@ export function prune(state: DirectoryState, nowMs: number) {
   const day = 86_400_000;
   state.magicLinks = state.magicLinks.filter(link => Date.parse(link.expiresAt) + day > nowMs);
   state.challenges = state.challenges.filter(item => Date.parse(item.expiresAt) > nowMs);
-  state.sessions = state.sessions.filter(session => !session.revokedAt && Date.parse(session.expiresAt) > nowMs);
+  // A temporary business's session stays until housekeeping deletes the trial (4J23), so its visitor is told why it ended.
+  const trials = new Set(state.users.filter(user => user.trial).map(user => user.id));
+  state.sessions = state.sessions.filter(session => !session.revokedAt && (Date.parse(session.expiresAt) > nowMs || (session.method === 'trial' && trials.has(session.userId))));
   if (state.shareLinks) state.shareLinks = state.shareLinks.filter(link => Date.parse(link.expiresAt) > nowMs);
   const oldest = new Date(nowMs - 400 * day).toISOString().slice(0, 7);
   for (const tenant of Object.keys(state.usage)) {
@@ -90,6 +115,7 @@ export class MemoryDirectory implements HostedDirectory {
   #clock: () => number;
   constructor(clock: () => number = Date.now) { this.#clock = clock; }
   read(): DirectoryState { return structuredClone(this.#state); }
+  revision(): number { return this.#state.revision; }
   update<T>(change: (state: DirectoryState) => T | Promise<T>): Promise<T> {
     return this.#serial.run(async () => {
       const draft = structuredClone(this.#state);
@@ -140,6 +166,7 @@ export class FileDirectory implements HostedDirectory {
   }
 
   read(): DirectoryState { return structuredClone(this.#state); }
+  revision(): number { return this.#state.revision; }
 
   update<T>(change: (state: DirectoryState) => T | Promise<T>): Promise<T> {
     return this.#serial.run(async () => {
@@ -252,6 +279,7 @@ export class PostgresDirectory implements HostedDirectory {
   }
 
   read(): DirectoryState { return structuredClone(this.#state); }
+  revision(): number { return this.#state.revision; }
 
   refresh(): Promise<void> {
     if (this.#closed) return Promise.resolve();

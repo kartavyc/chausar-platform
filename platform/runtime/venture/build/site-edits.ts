@@ -19,6 +19,8 @@ import type { GitHubTransport, IsoTime, RepoRef, SiteEditRecord, SiteEditState, 
 import { MAX_STORED_PAYLOAD, digest, exactPayload, identifier, isAppChannel, listRecords, singleLine, ventureAction } from '../records.ts';
 import { digestOf, journalled } from '../journal/journal.ts';
 import { gateEffect, sealApproval } from '../policy/holds.ts';
+import { turnDownEditIn } from '../journal/action-extras.ts';
+import { reportEndState } from '../journal/end-states.ts';
 
 export type SiteTarget = {
   kind: 'local-folder' | 'github';
@@ -190,6 +192,13 @@ async function writeReviewed(deps: VentureDeps, ctx: Context, target: SiteTarget
       ? { outcome: 'applied' as const, line: stepInfo.line, value: record }
       : { outcome: 'unknown' as const, line: 'The write could not be confirmed. Check the file before trying again.', value: record };
   });
+  // 4J10 (H27): the read back after writing is a dated acceptance check, so the entry is verified. Never throws.
+  if (!done.replayed && done.value?.state === stepInfo.done) {
+    await reportEndState(deps, ctx, {
+      entryId: done.entry.id, state: 'verified', by: 'engine', line: 'Read back after writing: the file matches what you reviewed.',
+      check: { id: 'site-readback', checkedOn: deps.clock().toISOString().slice(0, 10) },
+    }).catch(() => {});
+  }
   return done.value ?? reviewedAfter(deps, editId);
 }
 
@@ -285,6 +294,7 @@ export async function rejectSiteEdit(deps: VentureDeps, ctx: Context, payload: u
   return ventureAction(deps, ctx, 'approve', 'site.edit.reject', tx => {
     const edit = tx.find('venture-site-edit', editId);
     check(edit && edit.state === 'staged', 'SITE_EDIT_NOT_FOUND', 'This edit is not waiting.');
-    return tx.replace({ ...edit, state: 'rejected', log: [...edit.log, { at: tx.now, by: ctx.memberId, step: 'rejected', line: 'You turned this edit down. Nothing was written.' }] });
+    // 4J10 (H28): the edit kind's reject cleanup: its staged copy goes, and a waiting site.apply entry for it ends.
+    return turnDownEditIn(tx, edit);
   });
 }

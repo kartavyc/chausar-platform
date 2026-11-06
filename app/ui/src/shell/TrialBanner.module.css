@@ -1,0 +1,62 @@
+/* The hosted trial banner: a quiet line at the top of every place, its caution in the icon's amber, not a block of
+   colour; the last day's warning in ink. Add email opens one field and its button under it. */
+
+.banner {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.icon {
+  flex: none;
+  color: var(--wait);
+}
+
+.words {
+  flex: 1;
+  min-width: 0;
+}
+
+.line {
+  font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--fg2);
+}
+
+.warning {
+  font-size: var(--text-read);
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+  color: var(--fg);
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+
+.sent {
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.problem {
+  font-size: var(--text-read);
+  color: var(--fail);
+}
+
+@media (max-width: 759px) {
+  .head { flex-wrap: wrap; }
+}

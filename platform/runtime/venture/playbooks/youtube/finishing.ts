@@ -70,6 +70,12 @@ export function ffmpegPort(spawnChild: typeof spawn = spawn, options: { closeWai
 /** The ffmpeg already on this computer. */
 export const systemFfmpeg: FfmpegPort = ffmpegPort();
 
+/**
+ * Put right before an input (Ink v2 wave 4, 4J3): ffmpeg may open plain files only, so a playlist or a concat list named
+ * as the cut can never make it fetch an address or read any other protocol.
+ */
+export const FILE_ONLY_INPUT: readonly string[] = Object.freeze(['-protocol_whitelist', 'file']);
+
 // ---------------------------------------------------------------------------
 // Reading ffmpeg's log
 // ---------------------------------------------------------------------------
@@ -269,7 +275,7 @@ export async function finishingCheck(file: string, options: FinishingOptions): P
   const timeout = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const pass = async (args: string[]): Promise<FfmpegRun | FinishingReport> => {
     let run: FfmpegRun;
-    try { run = await port.run(binary, ['-hide_banner', '-nostats', '-i', path, ...args, '-f', 'null', '-'], timeout); } catch {
+    try { run = await port.run(binary, ['-hide_banner', '-nostats', ...FILE_ONLY_INPUT, '-i', path, ...args, '-f', 'null', '-'], timeout); } catch {
       return notRun('not run: ffmpeg could not start.');
     }
     if (run.startError) return notRun(`not run: ffmpeg could not start (${run.startError}).`);

@@ -174,10 +174,12 @@ async function axe(b) {
   }))`);
 }
 
-async function stepsOf(b, steps) {
+async function stepsOf(b, steps, hindi = false) {
   for (const step of steps ?? []) {
     if (step.press !== undefined) {
-      await b.click(button(step.press, step.in ?? 'document'), `"${step.press}"${step.in ? ` in ${step.in}` : ''}`);
+      // In Hindi a button carries its Hindi name (`hi`), when the case gives one.
+      const name = hindi && step.hi !== undefined ? step.hi : step.press;
+      await b.click(button(name, step.in ?? 'document'), `"${name}"${step.in ? ` in ${step.in}` : ''}`);
       await sleep(500);
     } else if (step.business) {
       await b.click(button(/Switch business$/), 'the business button');
@@ -214,22 +216,26 @@ async function runJob(b, base, job) {
   try {
     await b.viewport(width, height);
     await b.theme(theme === 'dark');
+    // W4 4Z: Hindi comes from the computer's languages, the way the app picks it (never `?lang=hi`, which hung a shot),
+    // and a case may start on a later day (`clock`).
+    await b.languages(hindi ? 'hi-IN,hi' : 'en-US,en');
+    await b.clock(c.clock ?? null);
     const page = c.page ?? '';
     const hashAt = c.path.indexOf('#');
-    const params = new URLSearchParams((hashAt >= 0 ? c.path.slice(0, hashAt) : c.path).replace(/^\?/, ''));
-    if (hindi) params.set('lang', 'hi');
-    const query = params.toString();
+    const query = new URLSearchParams((hashAt >= 0 ? c.path.slice(0, hashAt) : c.path).replace(/^\?/, '')).toString();
     await b.go(`${base}/${page}${query ? `?${query}` : ''}${hashAt >= 0 ? c.path.slice(hashAt) : ''}`);
     // From here on the page must not load again: a dev server reloads every open page when a source file changes
     // (other work in the same checkout), and a case caught by one is walked again (see main).
     offReload = b.on((m) => { if (m.method === 'Page.frameNavigated' && !m.params.frame.parentId) result.reloaded = true; });
     if (!(await b.evaluate(SETTLED))) throw new Error('the page did not show its place within 30 s');
+    const lang = await b.evaluate('document.documentElement.lang');
+    if (lang !== (hindi ? 'hi' : 'en')) result.problems.push(`the app chose the language "${lang}", not ${hindi ? 'Hindi' : 'English'}`);
     await sleep(400);
     if (job.kind === 'focus') {
       result.problems.push(...await c.run(b, { sleep, button }));
       return result;
     }
-    await stepsOf(b, c.steps);
+    await stepsOf(b, c.steps, hindi);
     await sleep(450); // motion settles in 400 ms or less
     result.problems.push(...await b.evaluate(PAGE_CHECKS(width, hindi)));
     const found = await axe(b);

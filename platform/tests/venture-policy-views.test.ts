@@ -8,7 +8,7 @@ import { listRecords, ventureAction } from '../runtime/venture/records.ts';
 import { handlers as delivery } from '../runtime/venture/delivery/index.ts';
 import { HOLD_APPROVE_ANSWER, HOLD_DECLINE_ANSWER } from '../runtime/venture/policy/holds.ts';
 import { setAgentPosture } from '../runtime/venture/policy/context.ts';
-import { recordSpotCheck, reviewSpotCheck, sampleRun, SPOT_CHECK_RULE } from '../runtime/venture/policy/spot-check.ts';
+import { recordSpotCheck, sampleRun, SPOT_CHECK_RULE } from '../runtime/venture/policy/spot-check.ts';
 import { CLIENT_NAME, call, code, harness, owner, seedBlueprint, seedOrder, seedRun, setStage, setup, type Env } from './venture-views-env.ts';
 
 const team = (env: Env) => call<{ agents: AgentView[] }>(env, 'venture.team.list').then(result => result.agents);
@@ -38,7 +38,8 @@ test('team: gates start on hold at every posture, auto with spot checks included
   await seedBlueprint(env, { price2: '1500000' });
   await setStage(env, 'auto-spot-check');
   const [agent] = await team(env);
-  assert.equal(agent.posture, 'auto-spot-check');
+  // Ink v2 wave 4 (4J15): auto with spot checks is locked, so a vault whose stage says auto works at approve each.
+  assert.equal(agent.posture, 'approve-each');
   assert.ok(agent.steps.every(step => step.gate === 'hold'), 'nothing runs alone until the owner says so, step by step');
   const { agent: after } = await call<{ agent: AgentView }>(env, 'venture.team.gate', { agentId: 'delivery', stepId: 'work', gate: 'auto' });
   assert.equal(after.steps.find(step => step.id === 'work')?.gate, 'auto');
@@ -117,41 +118,14 @@ test('spot checks: a fixed rule, every fifth run plus every run that spent more 
   assert.throws(() => sampleRun(1, '10', { everyNth: 0, overMicros: '0' }), code('INVALID_VENTURE_REQUEST'));
 });
 
-test('spot checks: each run at auto with spot checks is recorded once, sampled ones wait on Today, and the review is recorded', async () => {
+test('spot checks: while auto with spot checks is locked no run is recorded for one, even in a vault whose stage says auto', async () => {
   const env = await setup();
   const plan = await seedBlueprint(env, { price2: '1500000' });
   const { order } = await seedOrder(env, plan);
+  // Ink v2 wave 4 (4J15): the policy caps every posture at approve each (policy/auto-lock.ts), so the owner approves each run.
   await setStage(env, 'auto-spot-check');
-  const runs: DeliveryRunRecord[] = [];
-  for (let index = 0; index < 5; index += 1) runs.push(await seedRun(env, order, { status: 'ready-for-review' }));
-  const decided = [];
-  for (const run of runs) decided.push(await ventureAction(env.deps, owner, 'prepare', 'seed.spot', tx => recordSpotCheck(tx, { runId: run.id, spendMicros: run === runs[1] ? '300000' : '1000' })));
-  assert.deepEqual(decided.map(record => [record.ordinal, record.sampled, record.reason]), [[1, false, null], [2, true, 'over-spend'], [3, false, null], [4, false, null], [5, true, 'every-nth']]);
-  const again = await ventureAction(env.deps, owner, 'prepare', 'seed.spot', tx => recordSpotCheck(tx, { runId: runs[0].id, spendMicros: '1000' }));
-  assert.equal(again.id, decided[0].id, 'one decision per run');
-  assert.equal(listRecords(env.store.read(), 'venture-spot-check').length, 5);
-  // Below auto with spot checks nothing is sampled: the owner approves each run anyway.
-  await setStage(env, 'approve-each');
-  await assert.rejects(ventureAction(env.deps, owner, 'prepare', 'seed.spot', tx => recordSpotCheck(tx, { runId: 'delivery_x', spendMicros: '1000' })), code('INVALID_VENTURE_REQUEST'));
-  await setStage(env, 'auto-spot-check');
-
-  const spots = (await list(env)).rows.filter(row => row.id.startsWith('spot:'));
-  assert.deepEqual(spots.map(row => [row.kind, row.title, row.line]), [
-    ['draft', `Spot check: the draft for ${CLIENT_NAME}`, 'This run spent USD 0.3000, more than USD 0.2000.'],
-    ['draft', `Spot check: the draft for ${CLIENT_NAME}`, 'One run in five is checked, and this is one.'],
-  ]);
-  assert.deepEqual(spots[0].actions.map(action => [action.id, action.label, action.primary, action.requiresView ?? false]), [['deny', 'Needs work', false, false], ['approve', 'Looks right', true, true]]);
-  assert.deepEqual(spots[0].viewRef, { kind: 'run', id: runs[1].id });
-  const unviewed = await decide(env, spots[0], 'approve');
-  assert.equal(unviewed.reason, 'VIEW_FIRST');
-  const looked = await decide(env, spots[0], 'approve', { viewed: true });
-  assert.deepEqual([looked.outcome, looked.line], ['done', 'Spot check recorded: it looks right.']);
-  const flagged = await decide(env, spots[1], 'deny');
-  assert.deepEqual([flagged.outcome, flagged.line], ['done', 'Spot check recorded: it needs work.']);
-  const reviews = listRecords(env.store.read(), 'venture-spot-check').filter(record => record.sampled).map(record => record.review && [record.review.verdict, record.review.by]);
-  assert.deepEqual(reviews, [['looks-right', 'owner'], ['needs-work', 'owner']]);
+  const run = await seedRun(env, order, { status: 'ready-for-review' });
+  await assert.rejects(ventureAction(env.deps, owner, 'prepare', 'seed.spot', tx => recordSpotCheck(tx, { runId: run.id, spendMicros: '300000' })), code('INVALID_VENTURE_REQUEST'));
+  assert.equal(listRecords(env.store.read(), 'venture-spot-check').length, 0);
   assert.equal((await list(env)).rows.filter(row => row.id.startsWith('spot:')).length, 0);
-  await assert.rejects(reviewSpotCheck(env.deps, owner, decided[1].id, 'needs-work'), code('SPOT_CHECK_NOT_FOUND'), 'reviewed once');
-  await assert.rejects(reviewSpotCheck(env.deps, owner, decided[0].id, 'looks-right'), code('SPOT_CHECK_NOT_FOUND'), 'only a sampled run is reviewed');
-  await assert.rejects(reviewSpotCheck(env.deps, { ...owner, channel: 'phone' }, decided[4].id, 'looks-right'), code('APP_APPROVAL_REQUIRED'));
 });

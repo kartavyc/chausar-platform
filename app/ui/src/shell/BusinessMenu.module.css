@@ -55,6 +55,15 @@
   color: var(--fg);
 }
 
+/* 4Z3: while venture.get loads, a quiet bar where the name goes (never "No business open" before the engine says so). */
+.nameLoading {
+  display: block;
+  width: 96px;
+  height: 12px;
+  border-radius: var(--r-button-sm);
+  background: var(--wash);
+}
+
 .kind {
   font-size: var(--text-label);
   line-height: 1.35;

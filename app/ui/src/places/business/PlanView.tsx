@@ -2,13 +2,14 @@ import { useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
+import { cx } from '../../parts/cx';
 import { EmptyState } from '../../parts/EmptyState';
 import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
 import { ProgressBar } from '../../parts/ProgressBar';
 import { Tile } from '../../parts/Tile';
-import { SERVICE_TYPES, type BlueprintLite, type BlueprintPatchLite, type BlueprintViewLite } from '../../engine/types';
+import { SERVICE_TYPES, type BlueprintLite, type BlueprintPatchLite, type BlueprintViewLite, type ChecklistItemLite } from '../../engine/types';
 import { LabelTag, PendingPlanRows, TileSection, messageOf, quoteAgain, totalOf, usePlan } from './shared';
 import { RulesSection } from './RulesSection';
 import s from './Business.module.css';
@@ -117,8 +118,46 @@ function Setup() {
   return (
     <TileSection title={t('business.setup.title')} more={done ? undefined : { href: '#/today?show=setup', label: t('business.setup.left') }}>
       <ProgressBar progress={{ done: data.done, total: data.total }} tone="working" />
-      <p className={s.note}>{t(done ? 'business.setup.done' : 'business.setup.line')}</p>
+      {/* W4 4J21: with the steps listed by name, "each step that is left waits on Today" goes; the links say it. */}
+      {(done || !data.checklist?.length) && <p className={s.note}>{t(done ? 'business.setup.done' : 'business.setup.line')}</p>}
+      {data.checklist && data.checklist.length > 0 && <Checklist items={data.checklist} />}
     </TileSection>
+  );
+}
+
+/** How many of the steps left show at rest; every step is one fold away. */
+const NEXT_STEPS = 3;
+
+/**
+ * The setup steps by name (W4 4J21, from 4J8's checklistFor): the next steps left, each linking where it is done, and
+ * every step, done or not, one fold away. Names and links are the engine's.
+ */
+function Checklist({ items }: { items: ChecklistItemLite[] }) {
+  const t = useT();
+  const nextId = useId();
+  const left = items.filter((item) => !item.done).slice(0, NEXT_STEPS);
+  return (
+    <>
+      {left.length > 0 && (
+        <>
+          <p id={nextId} className="sr-only">{t('business.owner.nextSteps')}</p>
+          <ul className={s.list} aria-labelledby={nextId} data-setup-next="">
+            {left.map((item) => <li key={item.id}><a className={s.link} href={item.link}>{item.label}</a></li>)}
+          </ul>
+        </>
+      )}
+      <details className={s.fold}>
+        <summary>{t('business.owner.allSteps', { count: String(items.length) })}</summary>
+        <ul className={cx(s.foldBody, s.list)}>
+          {items.map((item) => (
+            <li key={item.id} className={cx(s.line, s.checkItem)}>
+              {item.done && <span data-done="" className={s.tick}><Icon name="check" size={14} /><span className="sr-only">{t('business.owner.stepDone')}</span></span>}
+              <a className={s.link} href={item.link}>{item.label}</a>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </>
   );
 }
 

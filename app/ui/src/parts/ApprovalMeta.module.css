@@ -1,0 +1,90 @@
+/* W4 4J19: a Today row's facts (D-Today `.qc-meta` additions, `.qc-note`'s end words, the price beside Approve). Words
+   on the card's own surface, in its greys; a waiting or over-limit fact in the wait tone, never colour alone. */
+
+.expires,
+.waiting {
+  color: var(--wait);
+}
+
+.facts {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.sends,
+.count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 24px;
+  padding: 0 var(--sp-2);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-chip);
+  font-size: var(--text-label);
+  color: var(--fg2);
+}
+
+.count[data-over] {
+  color: var(--wait);
+  border-color: var(--wait-ring);
+}
+
+.attempt {
+  overflow-wrap: break-word;
+}
+
+.changes summary {
+  cursor: pointer;
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+
+.details {
+  display: grid;
+  gap: var(--sp-1);
+  margin-top: var(--sp-2);
+  padding-left: var(--sp-4);
+  list-style: disc;
+}
+
+.coverage,
+.stale {
+  margin-top: var(--sp-1);
+  color: var(--mute);
+}
+
+.beside {
+  display: grid;
+  gap: var(--sp-1);
+  margin-top: var(--sp-3);
+  font-size: var(--text-read);
+  line-height: 18px;
+  color: var(--fg2);
+}
+
+.price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.priceLine,
+.free {
+  color: var(--fg2);
+}
+
+.fixesHead {
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}

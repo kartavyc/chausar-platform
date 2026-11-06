@@ -386,7 +386,8 @@ test('a YouTube draft: rules-current passes inside the window and says which rul
   const verify = detail.steps.find((step: any) => step.id === 'verify');
   const shown = verify.evidence.find((item: any) => item.id === 'youtube:rules-current');
   assert.ok(shown, 'the run shows the rule freshness with its checks');
-  assert.match(shown.label, /^Not checked: not run: 5 rules past their 90-day recheck: .*\. Recheck them\.$/, 'the whole line survives the label cut');
+  // 4J14 (Q7): a check that could not run reads "Not run" from the one table, its own "not run:" not said twice.
+  assert.match(shown.label, /^Not run: 5 rules past their 90-day recheck: .*\. Recheck them\.$/, 'the whole line survives the label cut');
 });
 
 test('a social draft: rules-current covers the rules its checks rest on, and goes not run after ninety days', async () => {

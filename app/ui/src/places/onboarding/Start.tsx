@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useLanguage, useT } from '../../text';
 import { useEngine } from '../../engine/context';
-import { EngineError, type CountryLite } from '../../engine/types';
+import { EngineError, type CountryLite, type PlanSuggestionView } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { saveTextFile } from '../../parts/custody';
 import { Icon } from '../../parts/Icon';
 import { Logo } from '../../parts/Logo';
 import { Tile } from '../../parts/Tile';
 import { goTo } from '../../shell/navigation';
+import { BusinessPick, Suggestion, type Target } from './BusinessPick';
 import { Examples } from './Examples';
-import { browserRegion, cleanSentence, DEFAULT_NAME, makeVault, NeedsAnswer, PASSPHRASE_MIN, pickCountry, sentenceProblem, setUpPlan, type Sentence } from './flow';
+import { FileDrop, type DroppedFile } from './FileDrop';
+import { browserRegion, cleanSentence, countryWords, DEFAULT_NAME, makeVault, NeedsAnswer, PASSPHRASE_MIN, pickCountry, sentenceProblem, setUpPlan, type Sentence } from './flow';
 import s from './Onboarding.module.css';
 
-type Step = 'read' | 'vault' | 'plan';
+type Step = 'read' | 'vault' | 'plan' | 'suggest';
 type Stage = { kind: 'idle' } | { kind: 'working'; step: Step } | { kind: 'code'; code: string };
-type Problem = { text: string; on: 'box' | 'passphrase' | 'engine' };
+/** link: where to fix it, when the engine's refusal names a place (W4 4J21: no AI connected, to Your AI). */
+type Problem = { text: string; on: 'box' | 'passphrase' | 'engine'; link?: { href: string; label: string } | undefined };
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -33,10 +36,17 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
  * shown), so the page around it can stop offering ways away from it: the open business was locked on the way, and the
  * recovery code shows once. `onBegin(false)` when it rests again (a refusal before the vault).
  */
-export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
+export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, business, home }: {
   variant: 'first-run' | 'place'; onStarted: () => void; orDescribe?: boolean | undefined; onBegin?: ((begun: boolean) => void) | undefined;
+  /** Words another tile puts in the box (W4 4C2: the fit's Start with this), each with its own count; never sent. */
+  fill?: { text: string; n: number } | undefined;
+  /** W4 4J21: the business open now, so the sentence can be added to it instead (the business picker). */
+  business?: string | undefined;
+  /** 4Z2: the open business's country code: a new business starts there, ahead of the browser's region. */
+  home?: string | undefined;
 }) {
   const t = useT();
+  const language = useLanguage();
   const client = useEngine();
   const headingId = useId();
   const boxId = useId();
@@ -59,6 +69,11 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
   const [kept, setKept] = useState<Sentence | null>(null);
   const [saved, setSaved] = useState(false);
   const [copyNote, setCopyNote] = useState<string | null>(null);
+  // W4 4J21: where the sentence goes (a new business, or the open one), the file dropped with it, and the plan change
+  // Chausar suggests for the open business.
+  const [target, setTarget] = useState<Target>('new');
+  const [file, setFile] = useState<DroppedFile | null>(null);
+  const [suggestion, setSuggestion] = useState<PlanSuggestionView | null>(null);
 
   const loadCountries = useCallback(() => {
     setCountriesFailed(null);
@@ -71,6 +86,11 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
     );
   }, [client]);
   useEffect(() => { loadCountries(); }, [loadCountries]);
+  // 4Z2: the open business's country may arrive after the list; it is still the first choice until the owner picks one.
+  const picked = useRef(false);
+  useEffect(() => {
+    if (home && !picked.current && countries?.some((c) => c.code === home)) setCountryCode(home);
+  }, [home, countries]);
 
   // The cursor goes in the box on a computer with a mouse; a phone keeps its keyboard closed until the owner taps.
   useEffect(() => {
@@ -82,6 +102,17 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
   const told = useRef(onBegin);
   told.current = onBegin;
   useEffect(() => { told.current?.(begun); }, [begun]);
+
+  // W4 4C2: words from another tile go in the box (as an example's do) while it takes words, with the cursor there.
+  const filled = useRef(fill);
+  filled.current = fill;
+  useEffect(() => {
+    const words = filled.current;
+    if (!words || busy || kept !== null || stage.kind === 'code') return;
+    changeText(words.text);
+    box.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new fill puts words in the box
+  }, [fill?.n]);
 
   function clearPassphrase() {
     if (passphrase.current) passphrase.current.value = '';
@@ -118,7 +149,11 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
     try { await work(); }
     catch (error) {
       setStage({ kind: 'idle' });
-      setProblem({ text: error instanceof NeedsAnswer ? t('onboarding.needsAnswer', { question: error.question }) : messageOf(error), on: 'engine' });
+      const noAi = error instanceof EngineError && error.code === 'NO_MODEL_CONNECTED';
+      setProblem({
+        text: error instanceof NeedsAnswer ? t('onboarding.needsAnswer', { question: error.question }) : messageOf(error), on: 'engine',
+        link: noAi ? { href: '#/connections/ai', label: t('onboarding.ways.connectAi') } : undefined,
+      });
     }
   }
 
@@ -137,6 +172,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
     const idea = cleanSentence(text);
     const wrong = sentenceProblem(idea);
     if (wrong) { setProblem({ text: t(wrong), on: 'box' }); box.current?.focus(); return; }
+    if (adding) { suggest(idea); return; }
     const country = countryCode ?? 'XX';
     void act(async () => {
       setStage({ kind: 'working', step: 'read' });
@@ -145,9 +181,20 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
     });
   }
 
+  /** W4 4J21: a plan change for the open business, suggested and shown; nothing changes until the owner applies it. */
+  function suggest(idea: string) {
+    void act(async () => {
+      setSuggestion(null);
+      setStage({ kind: 'working', step: 'suggest' });
+      setSuggestion(await client.request('venture.blueprint.suggest', { text: idea, ...(file ? { attachment: file } : {}) }));
+      setStage({ kind: 'idle' });
+    });
+  }
+
   /** The sentence changed, typed or from an example: a passphrase asked for the old one is dropped. */
   function changeText(value: string) {
     setText(value);
+    setSuggestion(null);
     if (asking) { setAsking(null); clearPassphrase(); }
     if (problem?.on !== 'engine') setProblem(null);
   }
@@ -164,13 +211,17 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
   const country = countries?.find((c) => c.code === countryCode) ?? null;
   const boxProblem = problem?.on === 'box';
   const place = variant === 'place';
-  const label = kept ? t('onboarding.tryAgain') : asking ? t('onboarding.lockAndStart') : t(place ? 'onboarding.makePlan' : 'onboarding.start');
+  /** W4 4J21: the sentence goes to the open business (Add this to it), not a new one. */
+  const picking = place && business !== undefined && kept === null && asking === null && stage.kind !== 'code';
+  const adding = picking && target === 'add';
+  const label = adding ? t('onboarding.ways.suggest') : kept ? t('onboarding.tryAgain') : asking ? t('onboarding.lockAndStart') : t(place ? 'onboarding.makePlan' : 'onboarding.start');
   /** The box takes words: not while Chausar reads them, and not once the vault is made for them. */
   const editable = !busy && kept === null;
   const question = place && orDescribe ? t('onboarding.describe.or') : t('onboarding.question');
   const inBar = !asking && stage.kind !== 'code';
   const submitButton = (
-    <Button variant="primary" size="lg" type="submit" disabled={busy} aria-busy={busy || undefined}>
+    // While a suggested plan change shows, its Apply is the tile's one primary (W4 4J21).
+    <Button variant={adding && suggestion?.patch ? 'secondary' : 'primary'} size="lg" type="submit" disabled={busy} aria-busy={busy || undefined}>
       {label}
       <Icon name="arrow-right" size={16} />
     </Button>
@@ -186,13 +237,13 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
       ) : choosing && countries ? (
         <>
           <label htmlFor={countryId}>{t('onboarding.country')}</label>
-          <select id={countryId} className={s.select} value={countryCode ?? 'XX'} disabled={busy || kept !== null} onChange={(event) => setCountryCode(event.target.value)}>
-            {countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+          <select id={countryId} className={s.select} value={countryCode ?? 'XX'} disabled={busy || kept !== null} onChange={(event) => { picked.current = true; setCountryCode(event.target.value); }}>
+            {countries.map((c) => <option key={c.code} value={c.code}>{countryWords(c, language, t)}</option>)}
           </select>
         </>
       ) : country ? (
         <>
-          <span>{t('onboarding.basedIn', { country: country.name })}</span>
+          <span>{t('onboarding.basedIn', { country: countryWords(country, language, t) })}</span>
           {kept === null && (
             <>
               <span aria-hidden="true"> · </span>
@@ -210,7 +261,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
         <>
           <div className={s.formHead}>
             <h2 id={headingId} className={s.formTitle}><label htmlFor={boxId}>{question}</label></h2>
-            {countryLine}
+            {!adding && countryLine}
           </div>
           <p className={s.formLine}>{t('onboarding.describe.line')}</p>
         </>
@@ -243,6 +294,11 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
         )}
       </div>
 
+      {picking && business !== undefined && (
+        <BusinessPick business={business} target={target} onTarget={(next) => { setTarget(next); setSuggestion(null); setProblem(null); }} disabled={busy} />
+      )}
+      {adding && client.transport !== 'hosted' && <FileDrop file={file} onFile={(next) => { setFile(next); setSuggestion(null); }} disabled={busy} />}
+
       {asking && (
         <div className={s.step}>
           <p id={reasonId} className={s.sentence}>{t('onboarding.passphrase.choose', { reason: asking.reason })}</p>
@@ -274,7 +330,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
             <input type="checkbox" checked={saved} onChange={(event) => setSaved(event.target.checked)} />
             <span>{t('onboarding.code.saved')}</span>
           </label>
-          {problem && <p id={problemId} className={s.problem} role="alert">{problem.text}</p>}
+          {problem && <p id={problemId} className={s.problem} role="alert">{problem.text}{problem.link && <> <a href={problem.link.href}>{problem.link.label}</a></>}</p>}
           <div className={s.actions}>
             <Button
               variant="primary" size="lg" locked={!saved} lockedReason={t('onboarding.code.savedFirst')}
@@ -286,11 +342,12 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
         </div>
       ) : (
         <>
-          {problem && <p id={problemId} className={s.problem} role="alert">{problem.text}</p>}
+          {problem && <p id={problemId} className={s.problem} role="alert">{problem.text}{problem.link && <> <a href={problem.link.href}>{problem.link.label}</a></>}</p>}
           {!inBar && <div className={s.actions}>{submitButton}</div>}
         </>
       )}
-      <p className={s.progress} role="status">{stage.kind === 'working' ? t(`onboarding.step.${stage.step}`) : ''}</p>
+      <p className={s.progress} role="status">{stage.kind === 'working' ? t(stage.step === 'suggest' ? 'onboarding.ways.suggesting' : `onboarding.step.${stage.step}`) : ''}</p>
+      {adding && suggestion && business !== undefined && <Suggestion key={suggestion.basedOn.digest + suggestion.line} suggestion={suggestion} business={business} onClose={() => setSuggestion(null)} onAgain={() => suggest(cleanSentence(text))} />}
     </form>
   );
 
@@ -298,7 +355,7 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin }: {
     return (
       <Tile as="section" labelledBy={headingId} className={s.describe}>
         {form}
-        <Examples onPick={changeText} disabled={busy || kept !== null || stage.kind === 'code'} />
+        <Examples onPick={changeText} disabled={busy || kept !== null || stage.kind === 'code'} adding={adding} />
       </Tile>
     );
   }

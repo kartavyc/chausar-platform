@@ -21,12 +21,16 @@ import { youtubeWorked } from './harness/tools-youtube.ts';
 import { practiceFiles } from './harness/practice.ts';
 import { judgedAnswers, judgeTask, notJudged } from './judge.ts';
 import { ensurePlaybook, flagshipDraft, playbookLimits } from './playbook.ts';
-import { failedPlaybookCheck, flagshipJudgeRules, runFlagshipChecks } from '../playbooks/draft-checks.ts';
+import { failedPlaybookCheck, flagshipJudgeRules, runFlagshipChecks, voiceDraftCheck, withQuoteFixes, withVoiceCheck } from '../playbooks/draft-checks.ts';
+import { voiceRules } from '../agents/voice.ts';
 import { refusalsOf } from '../playbooks/ca-firm/claims.ts';
 import type { FileLike } from './harness/files.ts';
 import { listScenarios, signalScenario } from './scenarios.ts';
+import { withExpectations } from './corrections.ts';
 import { REQUIRED_SECTIONS } from '../contracts.ts';
 import { acceptedBlueprint, errorCode, optionalFlag, quote, readAs, serviceTypeOf, todayIso, ventureReceipts } from './shared.ts';
+import { refuseNewWork } from './run-guards.ts';
+import { scanTrace } from './trace-scan.ts';
 
 export const CLIENT_SIM_INSTRUCTIONS = 'You play a made-up client of a small service business, for a practice run. '
   + 'Write the client\'s next message as that person would, following the persona and the brief, and answer any questions in the history. '
@@ -140,15 +144,17 @@ async function practiceChecks(env: RehearsalEnv, scenario: Scenario, input: Chec
  * tool calls go with them, for the checks that read them.
  */
 async function practicePlaybookChecks(env: RehearsalEnv, deliverable: Deliverable, servedBy: 'model' | 'template', request: string, extras: { files?: readonly FileLike[]; receipts?: readonly WorkReceiptRecord[]; tables?: readonly WorkTableRecord[]; toolCalls?: readonly ToolCallRecord[] } = {}): Promise<PlaybookCheckResult[] | undefined> {
-  if (!env.playbook.flagship) return undefined;
-  return runFlagshipChecks({
+  // Ink v2 wave 4 (4J17, A8): the owner's voice reads practice drafts too, on the eight fixed steps as well; it only adds a result.
+  const voice = servedBy === 'template' ? null : voiceDraftCheck(deliverable, voiceRules(env.state, env.venture), env.playbook.flagship ?? null);
+  if (!env.playbook.flagship) return withVoiceCheck(undefined, voice);
+  return withVoiceCheck(await runFlagshipChecks({
     flagship: env.playbook.flagship, offerKey: env.offerKey, servedBy, deliverable, request, intake: null, files: extras.files ?? [],
     receipts: [...env.receipts, ...(extras.receipts ?? [])], known: env.known, mode: 'rehearsal', today: todayIso(env.deps, env.venture), dateOrder: env.country.dateOrder,
     ...(env.deps.host === 'hosted-web' ? { finishing: null } : {}),
     tables: extras.tables ?? [], toolCalls: extras.toolCalls ?? [],
     // The CA firm calculator's refusals in this episode fail its working, do not retry, as on a real order.
     refusals: refusalsOf(extras.toolCalls ?? []),
-  });
+  }), voice);
 }
 
 function draftTask(env: RehearsalEnv, clientRequest: string): ModelTask<Deliverable> {
@@ -216,9 +222,12 @@ async function runEpisode(env: RehearsalEnv, scenario: Scenario, index: number):
     }
     mocks.push({ connector: 'mail-app', operation: 'send-deliverable', payloadDigest: digest(renderedText), recordedAt: env.deps.clock().toISOString() });
     step = 'judge';
+    // Ink v2 wave 4 (4J15, Q14): code scans what the episode left before any judge reads it; a finding means no judge.
+    const scan = scanTrace({ harness: null, draft: renderedText });
+    const judging = scan.clean ? env : { ...env, judgeOn: false };
     // A model draft follows the flagship drafting step's headings; a template outline keeps the service type's.
     const playbookChecks = await practicePlaybookChecks(env, deliverable, draft.by, request);
-    const checks = await practiceChecks(env, scenario, {
+    const checks = await practiceChecks(judging, scenario, {
       checks: caseChecks, deliverable, renderedText, serviceType: env.serviceType, flagship: env.playbook.flagship ?? null, corrections: corrected.corrections,
       allowed, receipts: env.receipts, ventureId: env.venture.id,
       mocks, mockModes: scenario.mocks, agentTurns, turnLimit: scenario.turnLimit, askedQuestions,
@@ -227,7 +236,7 @@ async function runEpisode(env: RehearsalEnv, scenario: Scenario, index: number):
     }, { draft: renderForJudge(deliverable, env.receipts), clientRequest: request }, spend, playbookChecks);
 
     let judge: JudgeAnswer[];
-    if (env.judgeOn) {
+    if (judging.judgeOn) {
       step = 'judge';
       const verdict = await ask(env, judgeTask({
         expectedOutcome: scenario.expectedOutcome, persona: scenario.persona,
@@ -235,11 +244,11 @@ async function runEpisode(env: RehearsalEnv, scenario: Scenario, index: number):
       }), spend);
       judge = judgedAnswers(verdict.value, verdict.callId);
     } else {
-      judge = notJudged();
+      judge = scan.clean ? notJudged() : notJudged(scan.line!);
     }
     const failedCheck = firstFailedCheck(checks);
     const judgedNo = judge.find(answer => answer.answer === 'no')?.question ?? null;
-    const firstFailure = failedCheck ?? playbookFailure(playbookChecks) ?? judgedNo;
+    const firstFailure = scan.line ?? failedCheck ?? playbookFailure(playbookChecks) ?? judgedNo;
     return finish({ checks, judge, passed: firstFailure === null, firstFailure, ...(playbookChecks ? { playbookChecks } : {}) });
   } catch (error) {
     if (!BEHAVIOUR_CODES.has(errorCode(error))) throw error;
@@ -326,7 +335,8 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     // The calculator's figure in place of each number it refutes (correctDraft), before the draft is rendered and checked.
     const grounding = { clientRequest: request, answers, harness: state, files, known: env.known, dateOrder: env.country.dateOrder, ownerWords: [env.venture.idea] };
     const caseChecks = withDraftChecks(scenario.checks);
-    const corrected = correctDraft({ checks: caseChecks, deliverable: draft.value, receipts, ventureId: env.venture.id, allowed, grounding });
+    // 4J16 (Q4): round 1 of the quote check first, a quote's time moved to where the practice transcript says it.
+    const corrected = correctDraft({ checks: caseChecks, deliverable: withQuoteFixes(draft.value, files, env.playbook.flagship), receipts, ventureId: env.venture.id, allowed, grounding });
     deliverable = corrected.deliverable;
     renderedText = renderDeliverable(deliverable, receipts, env.country);
     turns.push({ turn: turns.length + 1, by: 'agent', text: renderedText, author: draft.by, callId: draft.callId });
@@ -334,8 +344,11 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     mocks.push({ connector: 'mail-app', operation: 'send-deliverable', payloadDigest: digest(renderedText), recordedAt: env.deps.clock().toISOString() });
     const handoffs = state.handoffs.length;
     step = 'judge';
+    // Ink v2 wave 4 (4J15, Q14): code scans the episode's trace before any judge reads it; a finding means no judge.
+    const scan = scanTrace({ harness: state, draft: renderedText });
+    const judging = scan.clean ? env : { ...env, judgeOn: false };
     const playbookChecks = await practicePlaybookChecks(env, deliverable, draft.by, request, { files, receipts: toolEnv.receipts, tables: toolEnv.tables, toolCalls: state.toolCalls });
-    const checks = await practiceChecks(env, scenario, {
+    const checks = await practiceChecks(judging, scenario, {
       checks: caseChecks, deliverable, renderedText: renderDeliverable(deliverable, receipts, env.country, { attachments: false }), serviceType: env.serviceType,
       flagship: env.playbook.flagship ?? null, corrections: corrected.corrections, times: worked.times,
       allowed, receipts, ventureId: env.venture.id, mocks: [...mocks, ...state.mocks], mockModes: scenario.mocks,
@@ -345,7 +358,7 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
     }, { draft: renderForJudge(deliverable, receipts), clientRequest: request, harness: state, receipts: toolEnv.receipts }, spend, playbookChecks, outside);
 
     let judge: JudgeAnswer[];
-    if (env.judgeOn) {
+    if (judging.judgeOn) {
       step = 'judge';
       const refs = harnessRefs(env.refs, toolEnv.receipts);
       const verdict = await ask(env, judgeTask({
@@ -354,11 +367,11 @@ async function runHarnessEpisode(env: RehearsalEnv, scenario: Scenario, index: n
       }), spend, outside);
       judge = judgedAnswers(verdict.value, verdict.callId);
     } else {
-      judge = notJudged();
+      judge = scan.clean ? notJudged() : notJudged(scan.line!);
     }
     const failedCheck = firstFailedCheck(checks);
     const judgedNo = judge.find(answer => answer.answer === 'no')?.question ?? null;
-    const firstFailure = failedCheck ?? playbookFailure(playbookChecks) ?? judgedNo;
+    const firstFailure = scan.line ?? failedCheck ?? playbookFailure(playbookChecks) ?? judgedNo;
     return result({ checks, judge, passed: firstFailure === null, firstFailure, ...(playbookChecks ? { playbookChecks } : {}) });
   } catch (error) {
     if (!BEHAVIOUR_CODES.has(errorCode(error))) throw error;
@@ -375,13 +388,15 @@ function parseScenarioIds(value: unknown): string[] | null {
   return ids;
 }
 
-export type RehearsalOutcome = { episodes: Episode[]; spend: Spend[]; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[] };
+/** stopped (4J16): the rehearsal reached its budget between episodes, so it did not rehearse every case. */
+export type RehearsalOutcome = { episodes: Episode[]; spend: Spend[]; tables: WorkTableRecord[]; receipts: WorkReceiptRecord[]; stopped?: true };
 
 /**
  * Rehearses the given scenarios with a given playbook, without storing anything. The run handler and the improvement
- * loop's gate both use it, so a candidate playbook is rehearsed exactly as the current one is.
+ * loop's gate both use it, so a candidate playbook is rehearsed exactly as the current one is. budgetMicros (Ink v2
+ * 4J16, Q16): what is left of the improvement run's budget; once the episodes spent it, no further episode starts.
  */
-export async function rehearse(deps: VentureDeps, ctx: Context, playbook: PlaybookRecord, scenarios: readonly Scenario[], options: { useTemplate: boolean; episodes: number | null }): Promise<RehearsalOutcome> {
+export async function rehearse(deps: VentureDeps, ctx: Context, playbook: PlaybookRecord, scenarios: readonly Scenario[], options: { useTemplate: boolean; episodes: number | null; budgetMicros?: bigint }): Promise<RehearsalOutcome> {
   const { state, venture } = readAs(deps, ctx, 'prepare');
   const blueprint = acceptedBlueprint(state, venture);
   const offer = blueprint.offers.find(item => item.id === 'offer_1') ?? blueprint.offers[0];
@@ -399,11 +414,14 @@ export async function rehearse(deps: VentureDeps, ctx: Context, playbook: Playbo
     known: knownNames(venture.workingName, blueprint.name.value, venture.country.name, ...blueprint.offers.map(item => item.name.value)),
   };
   const outcome: RehearsalOutcome = { episodes: [], spend: [], tables: [], receipts: [] };
+  const spent = () => outcome.spend.reduce((total, item) => total + BigInt(item.costMicros), 0n);
   for (const scenario of scenarios) {
     const count = options.episodes ?? scenario.episodes;
     for (let index = 0; index < count; index += 1) {
+      if (options.budgetMicros !== undefined && spent() >= options.budgetMicros) { outcome.stopped = true; return outcome; }
       const result = await runEpisode(env, scenario, index);
-      outcome.episodes.push(result.episode);
+      // Ink v2 4J16 (Q15): a case from the owner's corrections fails a practice draft that breaks one of them.
+      outcome.episodes.push(withExpectations(scenario, result.episode));
       outcome.spend.push(...result.spend);
       outcome.tables.push(...result.tables);
       outcome.receipts.push(...result.receipts);
@@ -426,7 +444,9 @@ export async function simulationRunHandler(deps: VentureDeps, ctx: Context, payl
   const scenarioIds = parseScenarioIds(body.scenarioIds);
   const episodes = body.episodes === undefined ? null : smallInteger(body.episodes, 'Episodes', 1, 3);
   const useTemplate = optionalFlag(body.useTemplate, 'useTemplate');
-  readAs(deps, ctx, 'prepare');
+  const opened = readAs(deps, ctx, 'prepare');
+  // Ink v2 wave 4 (4F1): no rehearsal starts while paused, or on its own while the owner is away (run-guards.ts).
+  refuseNewWork(opened.state, opened.venture, ctx, deps.clock().toISOString());
   const startedAt = deps.clock().toISOString();
   const playbook: PlaybookRecord = await ensurePlaybook(deps, ctx);
 
@@ -485,7 +505,7 @@ export async function simulationFromSignalHandler(deps: VentureDeps, ctx: Contex
     const signal = tx.find('venture-signal', signalId);
     check(signal, 'SIGNAL_NOT_FOUND', 'That signal was not found.');
     const type = serviceTypeOf(tx.state, tx.venture!);
-    const scenario = signalScenario(signal, type);
+    const scenario = signalScenario(signal, type, tx.state);
     if (signal.scenarioId !== scenario.id) tx.replace({ ...signal, scenarioId: scenario.id });
     return scenario;
   });

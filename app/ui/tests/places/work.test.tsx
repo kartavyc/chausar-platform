@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import { EngineError, type MethodName } from '../../src/engine/types';
+import { EngineError, type MethodName, type OrderLite } from '../../src/engine/types';
+import { receiptMark } from '../helpers/ink-rules';
 
 type Call = { method: string; params: unknown };
 interface StartOptions { language?: 'en' | 'hi'; folder?: string; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
@@ -39,7 +40,7 @@ describe('Work: runs', () => {
     expect(within(await rowOf('Cutting shorts from episode 13', working)).getByRole('img', { name: '3 of 5 steps done' })).toBeTruthy();
     expect(within(await rowOf('Checking titles against the last 30 videos', working)).getByRole('img', { name: 'Working, no step count yet' })).toBeTruthy();
     const waiting = await rowOf('Pricing the sponsor slot', working);
-    expect((await within(waiting).findByText('Step 3 of 3 waits on you')).className).toMatch(/wait/);
+    expect((await within(waiting).findByText('2 of 3 done, waits on you')).className).toMatch(/wait/);
     // D's order: running, then the stopped run beside Finished, then orders.
     const finished = await screen.findByRole('region', { name: 'Finished' });
     const orders = await screen.findByRole('region', { name: 'Orders' });
@@ -55,7 +56,7 @@ describe('Work: runs', () => {
     // Each part on its own, so the test does not hang on how the row's pieces happen to sit side by side.
     expect(books.textContent).toContain('Bookkeeper');
     expect(books.textContent).toContain('Matched 212 of 214 lines. 2 need your data.');
-    expect(within(books).getByRole('button', { name: 'Receipt R-0412' })).toBeTruthy();
+    expect(within(books).getByRole('button', { name: receiptMark('R-0412') })).toBeTruthy();
     expect(within(books).getByText('Worked for 4m')).toBeTruthy();
     const reach = await rowOf('Estimated reach for episode 14', previous);
     expect(reach.textContent).toContain('Researcher');
@@ -70,7 +71,7 @@ describe('Work: runs', () => {
     // Ink v2 (3E1): the failed run is D's stopped tile, in a list of failed runs ("Stopped" is the owner's own Stop, W4 4F).
     const previous = await screen.findByRole('region', { name: 'Failed' });
     const failed = await rowOf('Rendering the thumbnail set', previous);
-    await waitFor(() => expect(failed.textContent).toContain('The renderer stopped: ffmpeg was not found on this computer. Install ffmpeg, or turn off the finishing check, then run again.'));
+    await waitFor(() => expect(failed.textContent).toContain('The renderer stopped: ffmpeg was not found on this computer.'));
     const again = await within(failed).findByRole('button', { name: 'Run again' });
     await act(async () => { fireEvent.click(again); });
     expect(calls.find((c) => c.method === 'venture.queue.decide')?.params).toMatchObject({ id: 'q-run-again-thumbs', action: 'run-again' });
@@ -159,7 +160,16 @@ describe('Work: orders', () => {
   });
 
   it('marks an order delivered only after a second ask, and never from the keyboard', async () => {
-    const { calls } = await start();
+    // 4Z2: the sample's episode 12 was delivered before it was invoiced; here the engine has it invoiced first and not
+    // delivered yet (invoice.issue does not deliver an order), so Mark delivered is its next step.
+    let delivered: string | null = null;
+    const undelivered = (orders: OrderLite[]) => orders.map((order) => (order.id === 'o-boat-12' ? { ...order, status: delivered ? 'delivered' as const : 'invoiced' as const, deliveredOn: delivered } : order));
+    const engine = new FakeEngine();
+    const list = () => engine.request('venture.order.list', {}) as Promise<OrderLite[]>;
+    const { calls } = await start('#/work', { intercept: {
+      'venture.order.list': () => list().then(undelivered),
+      'venture.order.deliver': (params) => { delivered = (params as { deliveredOn: string }).deliveredOn; return list().then((orders) => undelivered(orders).find((order) => order.id === 'o-boat-12')); },
+    } });
     const ep12 = await rowOf('Two mentions in episode 12');
     const mark = await within(ep12).findByRole('button', { name: 'Mark delivered' });
     ep12.focus();
@@ -206,7 +216,7 @@ describe('Work: one order from the address', () => {
     const row = await rowOf('Two mentions in episode 14', order);
     await waitFor(() => expect(row.textContent).toContain('Draft ready. Read it before it goes to the client.'));
     expect(clientOf(row).textContent).toContain('Boat Audio');
-    expect(within(order).getByRole('button', { name: 'Receipt R-0415' })).toBeTruthy();
+    expect(within(order).getByRole('button', { name: receiptMark('R-0415') })).toBeTruthy();
     const runs = screen.getByRole('region', { name: 'Runs' });
     expect((await rowOf('Sponsor script for episode 14', runs)).textContent).toContain('Draft ready.');
     expect((await rowOf('Practice sponsor script', runs)).textContent).toContain('Practice draft only.');
@@ -242,7 +252,7 @@ describe('Work: preview links for the client', () => {
     expect(within(share).queryByText('Practice sponsor script')).toBeNull();
     await act(async () => { fireEvent.click(within(line).getByRole('button', { name: 'Share with client' })); });
     expect(calls.find((c) => c.method === 'venture.share.create')?.params).toEqual({ deliveryId: 'd-ep14-script' });
-    await waitFor(() => expect(within(line).getByRole('status').textContent).toBe('This computer has no public address, so a client cannot open a link from it. Send them the file instead.'));
+    await waitFor(() => expect(within(line).getByRole('status').textContent).toBe('Share links open only on the hosted Chausar with a public address. Send your client the draft yourself and record their answer.'));
     expect(within(line).queryByRole('list')).toBeNull();
     expect(line.textContent).not.toMatch(/https?:/);
   });

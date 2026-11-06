@@ -3,7 +3,7 @@
 // random passphrase, sealed with AES-256-GCM under its tenant's key and bound to tenant and business as associated
 // data, so a sealed passphrase copied to another tenant or business never opens. This is server custody, not end to
 // end encryption: whoever holds the master key can open every vault. docs/venture/hosted.md says so.
-import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createECDH, createHash, createHmac, createPrivateKey, hkdfSync, randomBytes, sign, timingSafeEqual } from 'node:crypto';
 import { ChausarError, check } from '../contracts.ts';
 
 export type Sealed = { v: 1; key: string; nonce: string; tag: string; data: string };
@@ -120,4 +120,27 @@ export class HostedCustody {
     const given = Buffer.from(supplied);
     return expected.length === given.length && timingSafeEqual(expected, given);
   }
+
+  /**
+   * The web push key pair (VAPID, Ink v2 wave 4, 4G3): a P-256 key derived from the master key, so every server
+   * process has the same one, browsers' subscriptions outlive a restart, and it is never written anywhere. The private
+   * half stays inside the returned signer, which answers raw r||s signatures; only the public point leaves.
+   */
+  pushKey(): { publicKey: Buffer; sign: (data: Uint8Array) => Buffer } {
+    for (let round = 0; round < 16; round += 1) {
+      const seed = this.#derive('chausar.hosted.push-vapid.v1', String(round));
+      const scalar = BigInt(`0x${seed.toString('hex')}`);
+      if (scalar === 0n || scalar >= P256_ORDER) { seed.fill(0); continue; }
+      const ecdh = createECDH('prime256v1');
+      ecdh.setPrivateKey(seed);
+      const publicKey = ecdh.getPublicKey();
+      const key = createPrivateKey({ key: { kty: 'EC', crv: 'P-256', d: seed.toString('base64url'), x: publicKey.subarray(1, 33).toString('base64url'), y: publicKey.subarray(33).toString('base64url') }, format: 'jwk' });
+      seed.fill(0);
+      return { publicKey, sign: data => sign('sha256', data, { key, dsaEncoding: 'ieee-p1363' }) };
+    }
+    throw new ChausarError('CUSTODY_INVALID', 'The push key could not be made from this custody key.');
+  }
 }
+
+/** The order of the P-256 group: a private key is a whole number from 1 to this, less one. */
+const P256_ORDER = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;

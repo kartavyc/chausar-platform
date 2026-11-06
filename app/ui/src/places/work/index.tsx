@@ -6,8 +6,8 @@
  * client. #/work?order=<id> shows one order with its runs and receipts (the Clients place links there). A run the
  * engine failed is "Failed"; "Stopped" is kept for the owner's own Stop (W4 4F).
  *
- * Only what the engine sends is drawn: Stop, Force stop and Resume (W4 4F), the order steps from Agreed to Paid
- * (W4 4J), and frames or previews on the run tiles (W4 4J) come later, so nothing stands in for them now.
+ * W4 4F3: Stop on every running tile, and the stopped runs (the owner's stop, or Chausar's: a breaker, a crash) on
+ * their own tiles beside the failed ones, with Resume; they wait on the owner, so Needs you shows them too.
  */
 
 import { useId, type ReactNode } from 'react';
@@ -16,6 +16,7 @@ import { useResource } from '../../engine/context';
 import { formatHash, type Route } from '../../shell/routes';
 import { navigate, openSheet, useRoute } from '../../shell/navigation';
 import { StorageNotice } from '../../shell/StorageNotice';
+import { PausedNote } from '../../shell/PausedNote';
 import { Button } from '../../parts/Button';
 import { EmptyState } from '../../parts/EmptyState';
 import { FilterChips, type FilterOption } from '../../parts/FilterChips';
@@ -30,7 +31,7 @@ import { OrderList, waitsOnYou } from './OrderList';
 import { orderView, type OrderView } from './orders';
 import { Finished, superseded } from './PreviousRuns';
 import { RunTiles } from './RunTiles';
-import { StoppedRuns } from './StoppedRun';
+import { StoppedRuns, isStopped } from './StoppedRun';
 import { useWorkChanged } from './refresh';
 import s from './Work.module.css';
 
@@ -66,10 +67,12 @@ function businessNames(rows: readonly QueueRow[] | undefined): Map<string, strin
 }
 
 /** The line under the title: runs going and failed, then orders open and for how many clients. Counted, never summed. */
-function headerLine(t: T, going: number, failed: number, orders: number, clients: number): string {
-  const runs = going > 0
+function headerLine(t: T, going: number, failed: number, orders: number, clients: number, stopped = 0): string {
+  const moving = going > 0
     ? t(failed > 0 ? 'work.line.runsFailed' : 'work.line.runs', { count: going, failed })
-    : failed > 0 ? t('work.line.failed', { count: failed }) : t('work.line.idle');
+    : failed > 0 ? t('work.line.failed', { count: failed }) : stopped > 0 ? '' : t('work.line.idle');
+  // 4F3: the runs stopped and waiting for Resume, counted after the ones going.
+  const runs = stopped > 0 ? [moving, t('work.line.stopped', { count: stopped })].filter(Boolean).join(' ') : moving;
   return orders > 0 ? `${runs} ${t('work.line.orders', { count: orders, clients: t('work.line.clients', { count: clients }) })}` : runs;
 }
 
@@ -108,8 +111,11 @@ export function Place() {
   const offerBusinesses = new Set(all.map((r) => r.businessId)).size > 1 && businessIds.length > 1;
   const business = offerBusinesses && route.query.business && businessIds.includes(route.query.business) ? route.query.business : undefined;
   const shown = business ? all.filter((r) => r.businessId === business) : all;
-  const going = shown.filter((r) => r.state === 'active' || r.state === 'waiting');
-  const waiting = shown.filter((r) => r.state === 'waiting');
+  // 4F3: a stopped run waits for the owner's Resume on its own tile; it is not going.
+  // A stopped run a newer run of its order replaced (Run again) is history, like a replaced failed run.
+  const stoppedRuns = shown.filter((r) => isStopped(r) && !superseded(r.runId, deliveries.data));
+  const going = shown.filter((r) => (r.state === 'active' || r.state === 'waiting') && !isStopped(r));
+  const waiting = shown.filter((r) => r.state === 'waiting' && !isStopped(r));
   const failed = shown.filter((r) => r.state === 'failed');
   const done = shown.filter((r) => r.state === 'done');
   // In All, a failed run that a newer run of its order replaced is history: the newer run stands for it.
@@ -126,8 +132,9 @@ export function Place() {
   const ordersHere = !business || (status.data?.workspace?.name !== undefined && names.get(business) === status.data.workspace.name);
 
   const orderList = (list: OrderView[]) => <OrderList views={list} clients={clients.data} runIds={runIds} onChanged={reload} />;
-  const running = (list: RunSummary[], meta?: string) => <RunTiles runs={list} names={names} meta={meta} />;
+  const running = (list: RunSummary[], meta?: string) => <RunTiles runs={list} names={names} meta={meta} queue={queue.data?.rows} onChanged={reload} />;
   const failedTiles = (list: RunSummary[]) => <StoppedRuns runs={list} names={names} deliveries={deliveries.data} queue={queue.data?.rows} onChanged={reload} />;
+  const stoppedTiles = (list: RunSummary[]) => <StoppedRuns kind="stopped" runs={list} names={names} deliveries={deliveries.data} queue={queue.data?.rows} onChanged={reload} />;
   const finished = (list: RunSummary[], atRest: boolean) => <Finished runs={list} moreHref={atRest ? formatHash(routeFor(route, 'done', business)) : undefined} onChanged={reload} />;
 
   const focus = route.query.order;
@@ -143,9 +150,10 @@ export function Place() {
     content = runs.data && (going.length > 0 ? running(going) : <EmptyState title={t('work.none.active')} />);
   } else if (filter === 'waiting') {
     const mine = ordersHere ? current.filter(waitsOnYou) : [];
-    content = runs.data && ordersReady && (waiting.length > 0 || mine.length > 0 ? (
+    content = runs.data && ordersReady && (waiting.length > 0 || mine.length > 0 || stoppedRuns.length > 0 ? (
       <>
         {waiting.length > 0 && running(waiting)}
+        {stoppedRuns.length > 0 && stoppedTiles(stoppedRuns)}
         {mine.length > 0 && <Orders views={mine}>{orderList}</Orders>}
       </>
     ) : <EmptyState title={t('work.none.waiting')} />);
@@ -158,14 +166,19 @@ export function Place() {
   } else if (runs.data && orders.data && all.length === 0 && orders.data.length === 0) {
     content = <EmptyState title={t('work.empty')} line={t('work.emptyLine')} />;
   } else {
-    const runsMeta = t(failedOpen.length > 0 ? 'work.running.metaFailed' : 'work.running.meta', { count: going.length, failed: failedOpen.length });
     const ordersMeta = t('work.orders.meta', { count: current.length, clients: t('work.line.clients', { count: new Set(current.map((v) => v.order.clientId)).size }) });
     content = (
       <>
-        {going.length > 0 && running(going, runsMeta)}
-        {(failedOpen.length > 0 || done.length > 0) && (
+        {/* 4F3: the counts are the sub line's already, so Running now does not say them again. */}
+        {going.length > 0 && running(going)}
+        {(failedOpen.length > 0 || stoppedRuns.length > 0 || done.length > 0) && (
           <div className={s.pair}>
-            {failedOpen.length > 0 && failedTiles(failedOpen)}
+            {(failedOpen.length > 0 || stoppedRuns.length > 0) && (
+              <div className={s.stack}>
+                {stoppedRuns.length > 0 && stoppedTiles(stoppedRuns)}
+                {failedOpen.length > 0 && failedTiles(failedOpen)}
+              </div>
+            )}
             {done.length > 0 && finished(done, true)}
           </div>
         )}
@@ -177,7 +190,7 @@ export function Place() {
   const empty = runs.data && orders.data && all.length === 0 && orders.data.length === 0;
   const counted = ordersHere ? current : [];
   const line = runs.data && ordersReady && !empty
-    ? headerLine(t, going.length, failedOpen.length, counted.length, new Set(counted.map((v) => v.order.clientId)).size)
+    ? headerLine(t, going.length, failedOpen.length, counted.length, new Set(counted.map((v) => v.order.clientId)).size, stoppedRuns.length)
     : undefined;
 
   const chips: FilterOption[] = CHIPS.map((id) => ({ id, label: t(`work.filter.${id}`) }));
@@ -190,6 +203,7 @@ export function Place() {
     <>
       <PageTitle title={t('place.work')} line={line} count={going.length > 0 ? String(going.length) : undefined} />
       <StorageNotice />
+      <PausedNote />
       <div className={s.toolbar}>
         <div className={s.chips}>
           <FilterChips

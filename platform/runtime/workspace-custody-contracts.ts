@@ -12,12 +12,14 @@ export const CUSTODY_METHODS = Object.freeze([
   'workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import',
   'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode',
   'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export',
+  // Ink v2 wave 4 (4J6): the owner starts a new never-contact list once the old one can no longer be checked.
+  'workspace.custody.neverContactReset',
 ] as const);
 export type CustodyMethod = typeof CUSTODY_METHODS[number];
 /** Answered before the vault check; they also answer with a vault open. */
 export const CUSTODY_PRE_VAULT_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import']);
 /** The owner, in the app (desktop channel, untainted), with a vault open. */
-export const CUSTODY_APP_ONLY_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export']);
+export const CUSTODY_APP_ONLY_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset']);
 /** These change which vault is open or replace its state: engine transitions. */
 export const CUSTODY_TRANSITION_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.transfer.import', 'workspace.backups.restore']);
 /** After one of these succeeds, an automatic backup is due at the next tick. */
@@ -80,6 +82,8 @@ export type CustodyPayloads = {
   'workspace.backups.create': Record<string, never>;
   'workspace.backups.restore': { file: string; confirmed: true };
   'workspace.transfer.export': { passphrase?: string };
+  /** confirmation: the open business's name, typed by the owner. */
+  'workspace.custody.neverContactReset': { confirmation: string };
 };
 export type CustodyResults = {
   'workspace.custody.get': CustodyView;
@@ -92,6 +96,7 @@ export type CustodyResults = {
   'workspace.backups.create': BackupView;
   'workspace.backups.restore': { workspace: WorkspaceCreateResult['workspace']; restoredFrom: BackupView; safety: BackupView };
   'workspace.transfer.export': { fileName: string; text: string; transferCode: string; bytes: number };
+  'workspace.custody.neverContactReset': { line: string };
 };
 
 export const CUSTODY_ERRORS = Object.freeze([
@@ -100,6 +105,8 @@ export const CUSTODY_ERRORS = Object.freeze([
   'BACKUP_NOT_FOUND', 'BACKUP_OTHER_BUSINESS', 'SYNC_NEEDS_PASSPHRASE',
   /** Its words are CUSTODY_WORDS.lock.safetyBackupFailed. */
   'SAFETY_BACKUP_FAILED',
+  /** 4J6: the never-contact list can't be checked (NEVER_CONTACT_LOST), or still checks so there is nothing to reset. */
+  'NEVER_CONTACT_LOST', 'NEVER_CONTACT_OK',
 ] as const);
 
 /** DEVICE_KEYS_UNAVAILABLE carries CUSTODY_WORDS.unavailable[reason] as its message and `reason` on the error.

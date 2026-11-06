@@ -104,6 +104,21 @@ export type BankTransaction = StatementRow & { id: string };
 export type BankLedger = { accountLabel: string; currency: string; transactions: BankTransaction[] };
 export type StatementOptions = { currency: string; minorDigits: number; dateOrder: DateOrder };
 
+/**
+ * 4J4: the row that closes the latest day with a balance. Of that day's rows, it is the one no other row of the day
+ * starts from (another row's balance less its amount is this row's balance), whatever order the statement listed the
+ * day in, newest first or oldest first; when the balances cannot tell, the last one listed. Null with no balance.
+ */
+export function closingRow<T extends { date: IsoDate; amountMinor: MinorString; balanceAfterMinor: MinorString | null }>(rows: readonly T[]): T | null {
+  const withBalance = rows.filter(row => row.balanceAfterMinor !== null);
+  if (!withBalance.length) return null;
+  const day = withBalance.reduce((latest, row) => (row.date > latest ? row.date : latest), withBalance[0].date);
+  const sameDay = withBalance.filter(row => row.date === day);
+  const before = (row: T) => BigInt(row.balanceAfterMinor as string) - BigInt(row.amountMinor);
+  const last = sameDay.filter(row => !sameDay.some(other => other !== row && before(other) === BigInt(row.balanceAfterMinor as string)));
+  return last.length === 1 ? last[0] : sameDay[sameDay.length - 1];
+}
+
 export function emptyLedger(accountLabel: string, currency: string): BankLedger {
   return { accountLabel, currency, transactions: [] };
 }
@@ -367,7 +382,7 @@ export function importAlerts(
 ): BankAlert[] {
   if (rules.length === 0 || added.length === 0) return [];
   const addedIds = new Set(added.map(t => t.id));
-  const balanceMinor = [...ledger.transactions].reverse().find(t => t.balanceAfterMinor !== null)?.balanceAfterMinor ?? null;
+  const balanceMinor = closingRow(ledger.transactions)?.balanceAfterMinor ?? null;
   const same = (a: BankAlertRule, b: BankAlertRule) => JSON.stringify(a) === JSON.stringify(b);
   return evaluateAlerts(rules, ledger, { today, balanceMinor }).filter(alert => {
     if (alert.transactionId !== null) return addedIds.has(alert.transactionId);

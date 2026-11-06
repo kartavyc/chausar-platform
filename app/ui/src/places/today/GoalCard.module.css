@@ -3,6 +3,25 @@
    are the --goal-* tokens; in the dark theme --shadow-goal draws the line that lifts it off the page. D's 10, 18 and 6
    px gaps snap to the 4 px steps; its 12.5 px type to 13. */
 
+/* The goal card and, beside it, the next best step (D-Today's `.row1`, c7 and c5); one above the other when the page is
+   narrow (a phone, or a sheet open beside it). */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap-grid);
+  min-width: 0;
+}
+
+.row[data-next] {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+}
+
+@container today (max-width: 899px) {
+  .row[data-next] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .goal {
   --ring-ground: var(--goal-bg);
   min-width: 0;
@@ -90,12 +109,12 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--sp-2) var(--sp-3);
-  min-height: 48px;
+  min-height: var(--sp-12);
   margin-top: var(--sp-5);
 }
 
 .amount {
-  line-height: 48px;
+  line-height: var(--sp-12);
 }
 
 /* Money's "changed since": the books changed after the receipt was written. The waiting amber, in its ring shade, which
@@ -123,7 +142,7 @@
 .percent {
   margin-left: auto;
   font-size: var(--fig-pct);
-  line-height: 48px;
+  line-height: var(--sp-12);
   font-weight: var(--weight-medium);
   letter-spacing: -0.03em;
   color: var(--accent);
@@ -153,6 +172,19 @@
   color: var(--goal-fg);
 }
 
+.askActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* The engine's words with a suggestion, or why there is none. */
+.suggestLine {
+  font-size: var(--text-label);
+  line-height: 16px;
+  color: var(--goal-mute);
+}
+
 .suggest {
   display: inline-flex;
   flex-wrap: wrap;
@@ -177,6 +209,10 @@
 }
 
 .footLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  white-space: nowrap;
   font-size: var(--text-label);
   line-height: 16px;
   color: var(--goal-mute);
@@ -195,7 +231,19 @@
 }
 
 .trend {
+  flex: none;
   color: var(--accent);
+}
+
+.footLabel[data-trend='behind'] .trend {
+  color: var(--wait-ring);
+}
+
+/* On a phone the next best step folds into the card, under a divider (D-Phone-Today). */
+.nextFold {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: var(--hair) solid var(--goal-line);
 }
 
 /* A phone (D-Phone-Today `.phone .goal`): 18 px padding, the figure at its phone size, the foot one figure per line

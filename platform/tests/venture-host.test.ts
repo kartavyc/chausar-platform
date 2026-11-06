@@ -49,8 +49,10 @@ function modelsModule(counter: { ports: number; replays: unknown[] } = { ports: 
 }
 
 type Loaders = Record<VenturePackageId, () => Promise<VenturePackageModule>>;
+/** No package loaded: the six packages and the four Ink v2 wave 4 added. */
+const NO_CALLS: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0, agents: 0, chief: 0, network: 0, notify: 0 };
 function loaders(overrides: Partial<Loaders> = {}): { loaders: Loaders; calls: Record<VenturePackageId, number> } {
-  const calls: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0 };
+  const calls: Record<VenturePackageId, number> = { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0, agents: 0, chief: 0, network: 0, notify: 0 };
   const base: Loaders = {
     core: async () => ({ handlers: {} }),
     models: async () => modelsModule(),
@@ -58,6 +60,10 @@ function loaders(overrides: Partial<Loaders> = {}): { loaders: Loaders; calls: R
     build: async () => ({ handlers: {} }),
     delivery: async () => ({ handlers: {} }),
     views: async () => ({ handlers: {} }),
+    agents: async () => ({ handlers: {} }),
+    chief: async () => ({ handlers: {} }),
+    network: async () => ({ handlers: {} }),
+    notify: async () => ({ handlers: {} }),
   };
   const merged = { ...base, ...overrides };
   const counted = Object.fromEntries((Object.keys(merged) as VenturePackageId[]).map(id => [id, () => { calls[id] += 1; return merged[id](); }])) as Loaders;
@@ -82,12 +88,12 @@ test('createSecretShelf keeps secrets in memory and clear() empties it', () => {
 });
 
 test('PACKAGE_LOADERS has one loader per package and missingHandlers lists what each owner lacks', () => {
-  assert.deepEqual(Object.keys(PACKAGE_LOADERS).sort(), ['build', 'core', 'delivery', 'models', 'money', 'views']);
+  assert.deepEqual(Object.keys(PACKAGE_LOADERS).sort(), ['agents', 'build', 'chief', 'core', 'delivery', 'models', 'money', 'network', 'notify', 'views']);
   const all = missingHandlers({});
   assert.equal(all.length, VENTURE_METHODS.length - PRE_VAULT_METHODS.length - DRAFT_METHODS.length);
   for (const method of [...PRE_VAULT_METHODS, ...DRAFT_METHODS]) assert.equal(all.includes(method), false, method);
   const fn = async () => null;
-  const full = Object.fromEntries((['core', 'models', 'money', 'build', 'delivery', 'views'] as VenturePackageId[]).map(id => [id,
+  const full = Object.fromEntries((['core', 'models', 'money', 'build', 'delivery', 'views', 'agents', 'chief', 'network', 'notify'] as VenturePackageId[]).map(id => [id,
     Object.fromEntries(VENTURE_METHODS.filter(m => METHOD_OWNERS[m] === id && !PRE_VAULT_METHODS.includes(m) && !DRAFT_METHODS.includes(m)).map(m => [m, fn]))]));
   assert.deepEqual(missingHandlers(full), []);
   // A handler registered in the wrong package's table does not count, and neither does a value that is not a function.
@@ -137,13 +143,13 @@ test('a handler placed in the wrong package table is never reached', async () =>
   assert.equal(reached, false);
 });
 
-test('unknown names and the two pre-vault methods are refused by request', async () => {
+test('unknown names and the pre-vault methods are refused by request', async () => {
   const { loaders: fake, calls } = loaders();
   const host = new VentureHost(new VentureTestStore(), services, baseOptions, fake);
-  for (const method of ['venture.nope', 'workspace.status', 'venture', '', 'venture.countries', 'venture.preview', '__proto__']) {
+  for (const method of ['venture.nope', 'workspace.status', 'venture', '', 'venture.countries', 'venture.preview', 'venture.playbooks.list', '__proto__']) {
     await assert.rejects(host.request(owner, method, {}), code('INVALID_VENTURE_REQUEST'), method);
   }
-  assert.deepEqual(calls, { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0 });
+  assert.deepEqual(calls, NO_CALLS);
 });
 
 test('every app-only method refuses phone, MCP and tainted contexts before any loader runs', async () => {
@@ -160,7 +166,7 @@ test('every app-only method refuses phone, MCP and tainted contexts before any l
     await assert.rejects(host.request(ctx, method, {}), code('APP_APPROVAL_REQUIRED'), `${method} ${JSON.stringify(ctx)}`);
   }
   for (const method of DRAFT_METHODS) await assert.rejects(host.request(owner, method, {}), code('INVALID_VENTURE_REQUEST'), method);
-  assert.deepEqual(calls, { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0 });
+  assert.deepEqual(calls, NO_CALLS);
 });
 
 test('constructing a host calls no loader, no factory and touches no file', async t => {
@@ -175,7 +181,7 @@ test('constructing a host calls no loader, no factory and touches no file', asyn
     { ...baseOptions, githubTransport: () => { factoryCalls += 1; throw new Error('factory called'); } }, fake);
   await new Promise(resolve => setImmediate(resolve));
   assert.ok(host instanceof VentureHost && withFactory instanceof VentureHost);
-  assert.deepEqual(calls, { core: 0, models: 0, money: 0, build: 0, delivery: 0, views: 0 });
+  assert.deepEqual(calls, NO_CALLS);
   assert.equal(factoryCalls, 0);
   await assert.rejects(access(modelReplayPath));
   await assert.rejects(access(githubReplayPath));

@@ -18,12 +18,17 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
-import type { SpendPolicyView, SpendRateInput, SpendRateLine, SpendRateUnit } from '../../engine/types';
+import type { CurrencyLead, SpendPolicyView, SpendRateInput, SpendRateLine, SpendRateUnit } from '../../engine/types';
 import { EngineWords, Failed, Rupees, Section } from './parts';
 import { messageOf, useDay, useLocalToday } from './words';
+import { DraftRecover, DraftWord, useSettingsDraft } from '../business/settingsDraft';
+// 4Z3: the rate said once per page (4A2's rule), on its own line; the limits show only their rupee amounts.
+import { withoutRate } from '../team/departments';
 import s from './Money.module.css';
 
 const UNITS: readonly SpendRateUnit[] = ['per-million-tokens', 'per-call', 'per-run-cap'];
+/** 4Z3: which currency leads AI spend: Auto (by where the business is), rupees first or dollars first. */
+const LEADS: readonly CurrencyLead[] = ['auto', 'inr', 'usd'];
 
 /** One rate card line as the owner edits it: every figure is the text in its field. */
 interface RateDraft { key: string; item: string; unit: SpendRateUnit; input: string; output: string; perCall: string; source: string; checkedOn: string }
@@ -44,7 +49,8 @@ function inputOf(draft: RateDraft): SpendRateInput {
 /** A typed figure, or null when the field was left empty (no limit, never ask first). */
 const figureOrNull = (typed: string): string | null => (typed.trim() === '' ? null : typed.trim());
 
-export function SpendPolicy() {
+/** onSaved (4Z3): the settings were saved, so the figures on the page that follow them are read again at once. */
+export function SpendPolicy({ onSaved }: { onSaved?: (() => void) | undefined } = {}) {
   const t = useT();
   const day = useDay();
   const today = useLocalToday();
@@ -60,8 +66,14 @@ export function SpendPolicy() {
   const [cap, setCap] = useState('');
   const [askFirst, setAskFirst] = useState('');
   const [inrPerUsd, setInrPerUsd] = useState('');
+  const [lead, setLead] = useState<CurrencyLead>('auto');
   const [rates, setRates] = useState<RateDraft[]>([]);
+  const leadId = useId();
   useEffect(() => { setSaved(null); }, [policy.data]);
+  // W4 4J21: the edits, kept as a draft of exactly what venture.spend.policy.set takes, and offered back.
+  const [touched, setTouched] = useState(false);
+  const values = { capUsd: figureOrNull(cap), askFirstUsd: figureOrNull(askFirst), inrPerUsd: figureOrNull(inrPerUsd), currencyLead: lead, rates: rates.map(inputOf) };
+  const draft = useSettingsDraft<typeof values>('spend-policy', values, editing && touched);
 
   const view = saved ?? policy.data;
 
@@ -69,6 +81,7 @@ export function SpendPolicy() {
     setCap(current.capUsd ?? '');
     setAskFirst(current.askFirstUsd ?? '');
     setInrPerUsd(current.inrPerUsd ?? '');
+    setLead(current.currencyLead ?? 'auto');
     setRates(current.rates.map(draftOf));
     setProblem(null);
     setDone(false);
@@ -79,17 +92,34 @@ export function SpendPolicy() {
   function change(key: string, patch: Partial<RateDraft>) {
     setRates((lines) => lines.map((line) => (line.key === key ? { ...line, ...patch } : line)));
     setAsking(false);
+    setTouched(true);
+  }
+
+  /** A draft left behind, back in the form: the figures as they were typed and each rate line as it was. */
+  function recover(current: SpendPolicyView, kept: typeof values) {
+    edit(current);
+    setCap(kept.capUsd ?? '');
+    setAskFirst(kept.askFirstUsd ?? '');
+    setInrPerUsd(kept.inrPerUsd ?? '');
+    setLead(LEADS.includes(kept.currencyLead) ? kept.currencyLead : 'auto');
+    setRates(kept.rates.map((rate, index) => ({
+      key: `kept:${index}`, item: rate.item, unit: rate.unit, input: rate.inputUsdPerMillion ?? '', output: rate.outputUsdPerMillion ?? '',
+      perCall: rate.usdPerCall ?? '', source: rate.source, checkedOn: rate.checkedOn,
+    })));
+    setTouched(true);
+    draft.taken();
   }
 
   async function save() {
     setSending(true);
     setProblem(null);
     try {
-      const reply = await engine.request('venture.spend.policy.set', {
-        capUsd: figureOrNull(cap), askFirstUsd: figureOrNull(askFirst), inrPerUsd: figureOrNull(inrPerUsd), rates: rates.map(inputOf),
-      });
+      const reply = await engine.request('venture.spend.policy.set', values);
       setSaved(reply);
+      // 4Z3: the engine sends no event for a settings change, so the page reads its spend again now.
+      onSaved?.();
       setEditing(false);
+      setTouched(false);
       setDone(true);
     } catch (error) {
       setProblem(t('money.policy.failed', { message: messageOf(error) }));
@@ -107,6 +137,7 @@ export function SpendPolicy() {
   return (
     <Section title={t('money.policy.title')}>
       {policy.error && !view && <Failed error={policy.error} />}
+      {view && !editing && draft.offer && <DraftRecover offer={draft.offer} onRecover={(kept) => recover(view, kept)} onDecline={draft.decline} />}
       {view && !editing && (
         <>
           <ul className={s.policyLines}>
@@ -114,16 +145,29 @@ export function SpendPolicy() {
                 body face, with no receipt of their own. */}
             <li className={s.policyLine}>
               <Icon name="wallet" size={16} />
-              <span className={s.policyText}><EngineWords>{view.cap}</EngineWords><Rupees text={view.capRupees} /></span>
+              <span className={s.policyText}>{view.capLead
+                ? <><EngineWords>{view.capLead.figure}</EngineWords><Rupees text={view.capLead.other} /></>
+                : <><EngineWords>{view.cap}</EngineWords><Rupees text={view.capRupees && withoutRate(view.capRupees, view.rupeeRate ?? undefined)} /></>}</span>
             </li>
             <li className={s.policyLine}>
               <Icon name="shield-check" size={16} />
-              <span className={s.policyText}><EngineWords>{view.askFirst}</EngineWords><Rupees text={view.askFirstRupees} /></span>
+              <span className={s.policyText}>{view.askFirstLead
+                ? <><EngineWords>{view.askFirstLead.figure}</EngineWords><Rupees text={view.askFirstLead.other} /></>
+                : <><EngineWords>{view.askFirst}</EngineWords><Rupees text={view.askFirstRupees && withoutRate(view.askFirstRupees, view.rupeeRate ?? undefined)} /></>}</span>
             </li>
             {view.rupeeRate && (
               <li className={s.policyLine}>
                 <Icon name="indian-rupee" size={16} />
                 <span className={s.policyText}><span className={s.figureLabel}>{t('money.policy.inrPerUsd')}</span>{' '}<EngineWords>{view.rupeeRate}</EngineWords></span>
+              </li>
+            )}
+            {/* 4Z3: which currency leads AI spend now, as the engine says (dollars without a rate), and why on Auto. */}
+            {view.leads && (
+              <li className={s.policyLine} data-shown-first="">
+                <Icon name="arrow-left-right" size={16} />
+                <span className={s.policyText}>
+                  {t('money.policy.shownFirst', { currency: (view.currencyLead ?? 'auto') === 'auto' ? t('money.policy.shownFirst.auto', { currency: t(`money.policy.shownFirst.${view.leads}`) }) : t(`money.policy.shownFirst.${view.leads}`) })}
+                </span>
               </li>
             )}
           </ul>
@@ -153,16 +197,27 @@ export function SpendPolicy() {
         <form className={s.form} noValidate aria-label={t('money.policy.title')} onSubmit={submit}>
           <Field
             label={t('money.policy.cap')} hint={t('money.policy.capHint')} value={cap} inputMode="decimal" autoComplete="off" disabled={sending}
-            onChange={(event) => { setCap(event.currentTarget.value); setAsking(false); }}
+            onChange={(event) => { setCap(event.currentTarget.value); setAsking(false); setTouched(true); }}
           />
           <Field
             label={t('money.policy.askFirst')} hint={t('money.policy.askFirstHint')} value={askFirst} inputMode="decimal" autoComplete="off" disabled={sending}
-            onChange={(event) => { setAskFirst(event.currentTarget.value); setAsking(false); }}
+            onChange={(event) => { setAskFirst(event.currentTarget.value); setAsking(false); setTouched(true); }}
           />
           <Field
             label={t('money.policy.inrPerUsd')} hint={t('money.policy.inrPerUsdHint')} value={inrPerUsd} inputMode="decimal" autoComplete="off" disabled={sending}
-            onChange={(event) => { setInrPerUsd(event.currentTarget.value); setAsking(false); }}
+            onChange={(event) => { setInrPerUsd(event.currentTarget.value); setAsking(false); setTouched(true); }}
           />
+          {/* 4Z3: which currency leads AI spend everywhere it shows; the engine sends each figure led that way. */}
+          <div className={s.field}>
+            <label htmlFor={leadId} className={s.fieldLabel}>{t('money.policy.lead')}</label>
+            <select
+              id={leadId} className={s.select} value={lead} disabled={sending} aria-describedby={`${leadId}-hint`}
+              onChange={(event) => { setLead(event.currentTarget.value as CurrencyLead); setAsking(false); setTouched(true); }}
+            >
+              {LEADS.map((choice) => <option key={choice} value={choice}>{t(`money.policy.lead.${choice}`)}</option>)}
+            </select>
+            <p id={`${leadId}-hint`} className={s.fieldHint}>{t('money.policy.leadHint')}</p>
+          </div>
           <div className={s.rateCard} role="group" aria-label={t('money.policy.rates')}>
             <p className={s.fieldLabel}>{t('money.policy.rates')}</p>
             {rates.map((rate) => (
@@ -192,6 +247,7 @@ export function SpendPolicy() {
             </div>
           ) : (
             <div className={s.buttons}>
+              <DraftWord saved={draft.saved} refused={draft.refused} shown={touched} />
               <Button variant="quiet" disabled={sending} onClick={() => { setEditing(false); setProblem(null); }}>{t('approval.cancel')}</Button>
               <Button variant="primary" type="submit" disabled={sending}>{t('money.policy.save')}</Button>
             </div>

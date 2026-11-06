@@ -1,7 +1,7 @@
 // Chausar venture launcher, core (P1): small helpers for labelled lines, model words and owner amounts.
 import { check } from '../../contracts.ts';
 import { decimalMinor } from '../../currency.ts';
-import { amountText, assertNoPriceWords, doneClaimFindings, houseStyleFindings, modelNumbers, modelWords } from '../records.ts';
+import { amountText, assertNoNumbers, assertNoPriceWords, assertNoSpelledNumbers, doneClaimFindings, houseStyleFindings, modelNumbers, modelWords } from '../records.ts';
 import type { Labelled, LineAuthor, LineLabel } from '../contracts.ts';
 
 /** The highest price an owner may type, in minor units (inclusive). */
@@ -33,6 +33,27 @@ export function styledWords(value: unknown, field: string, max: number, allowed:
   check(houseStyleFindings(words).length === 0, 'MODEL_OUTPUT_REJECTED', `The ${field} used words Chausar keeps out of its plans.`);
   check(doneClaimFindings(words).length === 0, 'MODEL_OUTPUT_REJECTED', `The ${field} claimed work that has not been done.`);
   return words;
+}
+
+/**
+ * Ink v2 wave 4 (4J8): price talk with no number in it ("priced per visit", "a small fee", "on us", "no charge",
+ * "complimentary", "premium", "a bargain"). Plan words sit beside the owner's prices, so they never say one.
+ */
+const PRICE_PHRASING = new RegExp('\\b(?:' + [
+  'price[sd]?', 'pricing', 'costs?', 'costing', 'charge[sd]?', 'charging', 'fees?', 'rates?', 'on us', 'no charge',
+  'complimentary', 'cheap(?:er|est|ly)?', 'premium', 'savings?', 'nominal', 'sums?', 'amounts?', 'bargains?', 'reduced', 'discount(?:s|ed)?',
+].join('|') + ')\\b', 'i');
+
+/**
+ * Ink v2 wave 4 (4J8): words that hold no number and no price, for plan words a suggestion writes and offers an owner
+ * adds: no digit, money sign or magnitude (assertNoNumbers), no number or price in words (assertNoSpelledNumbers) and
+ * no price talk, in every field. Refuses with MODEL_OUTPUT_REJECTED.
+ */
+export function noNumberWords(value: string, field: string, allowed: readonly string[]): string {
+  assertNoNumbers(value, field, allowed);
+  assertNoSpelledNumbers(value, field, allowed);
+  check(!PRICE_PHRASING.test(value), 'MODEL_OUTPUT_REJECTED', `The ${field} talked about a price. Prices come from you and Chausar's calculator, not the AI.`);
+  return value;
 }
 
 const CAP_WORDS: Readonly<Record<number, string>> = Object.freeze({

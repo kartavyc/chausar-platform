@@ -1,0 +1,2 @@
+# npm writes its .cmd shims with CRLF; the fixture is kept byte for byte (venture-cli-status tests).
+platform/tests/fixtures/venture/models/npm-shims/codex.cmd -text

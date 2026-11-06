@@ -73,8 +73,9 @@ export function Figure(props: FigureProps) {
   return (
     <span className={cx(s.figure, className)} data-figure="" data-size={size} data-tone={tone}>
       <span className={cx(s.value, 'mono')} data-ui-number="">{amount}</span>
-      {words && <span className={s.words} data-figure-words="">{words}</span>}
-      {proof.estimate ? <ModelEstimate tone={tone} /> : <Receipt id={proof.receiptId} onOpen={onReceipt} tone={tone} />}
+      {/* Words that open with a comma or semicolon sit right against the amount: no gap before the comma. */}
+      {words && <span className={s.words} data-figure-words="" data-lead={/^[,;]/.test(words) ? 'punct' : undefined}>{words}</span>}
+      {proof.estimate ? <ModelEstimate tone={tone} /> : <Receipt id={proof.receiptId} amount={amount} onOpen={onReceipt} tone={tone} />}
     </span>
   );
 }

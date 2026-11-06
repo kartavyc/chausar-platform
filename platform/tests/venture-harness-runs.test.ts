@@ -613,3 +613,21 @@ test('improvement run: templates keep the old version, calculator-only failures 
   await assert.rejects(call(env, 'venture.improve.adopt', { runId: kept.id, digest: kept.digest }), code('CANDIDATE_STALE'));
 });
 
+
+test('4J7 (K6): a real run tells its first act turn the capabilities on and off, in the text the owner approves; the next turn does not repeat it', async () => {
+  const env = await setup('approve-each');
+  const order = await orderWithFiles(env);
+  scriptTurns(env, [READ, DONE]);
+  let run = await call<DeliveryRunView>(env, 'venture.delivery.run', { orderId: order.id });
+  const first = env.models.previewed.at(-1)!;
+  assert.equal(first.purpose, 'agent-turn');
+  const input = first.input as { tools: { tool: string }[]; capabilities?: { on: string[]; off: { tool: string; why: string }[]; note: string } };
+  assert.ok(input.capabilities, 'the first act turn carries the list');
+  assert.deepEqual([...input.capabilities.on].sort(), input.tools.map(item => item.tool).sort(), 'on is exactly the tools offered');
+  for (const item of input.capabilities.off) assert.ok(item.why.length > 10, item.tool);
+  assert.ok(run.preview!.payloadText.includes('"capabilities"'), 'the owner approves the list with the turn');
+  run = await approve(env, run);
+  const next = env.models.previewed.at(-1)!;
+  assert.equal(next.purpose, 'agent-turn');
+  assert.equal((next.input as { capabilities?: unknown }).capabilities, undefined);
+});

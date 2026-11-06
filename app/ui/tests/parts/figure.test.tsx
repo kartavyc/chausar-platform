@@ -22,14 +22,32 @@ describe('Figure', () => {
     const number = figure.querySelector('[data-ui-number]')!;
     expect(number.textContent).toBe('₹18,880');
     expect(number.classList.contains('mono')).toBe(true);
-    expect(figure.contains(screen.getByRole('button', { name: 'Receipt R-0419' }))).toBe(true);
+    // 4Z3: a small receipt mark named for the amount it proves; the code is not printed beside it.
+    const mark = screen.getByRole('button', { name: 'Receipt for ₹18,880' });
+    expect(figure.contains(mark)).toBe(true);
+    expect(mark.dataset.receipt).toBe('R-0419');
+    expect(figure.textContent).not.toContain('R-0419');
     expect(figure.querySelector('[data-estimate]')).toBeNull();
+  });
+
+  it('names the mark for the amount only, not the engine words after it', () => {
+    render(<Figure value="₹60.10, includes estimates" receiptId="R-0431" />);
+    expect(screen.getByRole('button', { name: 'Receipt for ₹60.10' })).toBeTruthy();
+  });
+
+  it('words after the amount that start with a comma sit right against it, with no space before the comma (4A2 review)', () => {
+    const { container } = render(<Figure value="₹60.10, includes estimates" receiptId="R-0431" />);
+    expect(container.querySelector('[data-figure-words]')?.getAttribute('data-lead')).toBe('punct');
+    const { container: spaced } = render(<Figure value="USD 0.7198 (includes estimates)" receiptId="R-0431" />);
+    expect(spaced.querySelector('[data-figure-words]')?.hasAttribute('data-lead')).toBe(false);
+    const css = readFileSync(join(import.meta.dirname, '../../src/parts/Figure.module.css'), 'utf8');
+    expect(css).toMatch(/\.words\[data-lead='punct'\]\s*\{[^}]*margin-left: calc\(var\(--sp-2\) \* -1\)/);
   });
 
   it('opens the receipt through the handler it is given', () => {
     const onReceipt = vi.fn();
     render(<Figure value="₹18,880" receiptId="R-0419" onReceipt={onReceipt} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Receipt R-0419' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Receipt for ₹18,880' }));
     expect(onReceipt).toHaveBeenCalledWith('R-0419');
   });
 

@@ -9,9 +9,11 @@ import { Icon } from '../../parts/Icon';
 import { Row } from '../../parts/Row';
 import { Tile } from '../../parts/Tile';
 import type { ModelAvailability, ModelConnectParams, ModelPresetLite, ModelStatusLite, ModelTier, ModelTierLite } from '../../engine/types';
+import { useCliChecks } from './CliStatus';
 import s from './Connections.module.css';
 
-const TEMPLATES = 'built-in-templates';
+/** The built-in templates' preset id: no AI, nothing sent (Your AI and the agent panel's Its AI). */
+export const TEMPLATES = 'built-in-templates';
 const HAIKU = 'anthropic-haiku-5-5';
 const SONNET = 'anthropic-sonnet-5-5';
 const CONNECTABLE = new Set(['ready', 'unverified']);
@@ -29,8 +31,10 @@ interface Choice { id: string; title: string; presets: { preset: ModelPresetLite
  * it can connect and the engine's one fix line. Inside a business this is venture.models.*; before any business exists
  * it is the draft desk, venture.ai.*. A key is typed into a password field, sent once with Connect, cleared at once,
  * and never shown again: the engine only ever says whether one is loaded. On the desktop the privacy rule sits beside
- * it as a tile of its own (transcription sits beside What Chausar can do, index.tsx). Whether a CLI is found and
- * signed in arrives with W4 4H.
+ * it as a tile of its own (transcription sits beside What Chausar can do, index.tsx). What the engine found of the
+ * owner's Claude Code and Codex is the tile under this one (CliStatus.tsx, W4 4H2); each of its Check again reads the
+ * choices here again, since their availability comes from the same look. A choice the engine says is unavailable and
+ * runs on this computer is not listed: on the hosted app that is every command-line tool, so it lists keys only.
  */
 export function YourAi({ focus }: { focus: boolean }) {
   const t = useT();
@@ -48,8 +52,12 @@ export function YourAi({ focus }: { focus: boolean }) {
   const presets = (draft ? draftOptions.data?.presets : vaultPresets.data) ?? [];
   const [open, setOpen] = useState<string | null>(null);
   const [said, setSaid] = useState<{ text: string; problem: boolean } | null>(null);
+  const checks = useCliChecks();
+  const reloadPresets = draft ? draftOptions.reload : vaultPresets.reload;
 
   useEffect(() => { if (focus) heading.current?.focus(); }, [focus]);
+  // A fresh look at the command-line tools changes their availability here too.
+  useEffect(() => { if (checks > 0 && known) reloadPresets(); }, [checks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const label = (presetId: string) => presets.find((p) => p.id === presetId)?.label ?? presetId;
   const tierName = (tier: ModelTierLite) => (tier.presetId === TEMPLATES ? tier.reason : `${label(tier.presetId)}${tier.usable ? '' : `. ${tier.reason}`}`);
@@ -69,7 +77,9 @@ export function YourAi({ focus }: { focus: boolean }) {
   const recommended: Choice | null = haiku && sonnet
     ? { id: 'recommended', title: t('connections.ai.recommended'), presets: [{ preset: haiku, tiers: ['fast'] }, { preset: sonnet, tiers: ['main'] }], keyName: 'Anthropic' }
     : null;
-  const singles: Choice[] = presets.map((preset) => ({ id: preset.id, title: preset.label, presets: [{ preset }], keyName: preset.label }));
+  // An AI app that cannot run here at all (the engine says unavailable: the hosted app) is not a choice to list.
+  const listed = presets.filter((preset) => !(preset.availability === 'unavailable' && preset.runsOn === 'this-computer'));
+  const singles: Choice[] = listed.map((preset) => ({ id: preset.id, title: preset.label, presets: [{ preset }], keyName: preset.label }));
 
   function choiceRow(choice: Choice) {
     const lead = choice.presets[0]!.preset;
@@ -114,7 +124,6 @@ export function YourAi({ focus }: { focus: boolean }) {
       <Tile as="section" labelledBy={headingId}>
         <div className={s.head}>
           <h2 id={headingId} ref={heading} tabIndex={-1} className={s.title}>{t('connections.ai.title')}</h2>
-          <span className={s.meta}>{t('connections.ai.meta')}</span>
         </div>
         {draft && <p className={s.note}>{t('connections.ai.draft')}</p>}
         {status.error && <p className={s.problem} role="alert">{t('connections.ai.failed', { message: status.error.message })}</p>}

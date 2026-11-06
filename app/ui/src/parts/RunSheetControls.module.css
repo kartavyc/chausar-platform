@@ -1,0 +1,104 @@
+/* The run sheet's run controls (W4 4F3): the scope line under the title, a stop's note, the calls in flight and the
+   steer box with the owner's notes. */
+
+.scope {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.scopeLine {
+  font-size: var(--text-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.fold > summary {
+  cursor: pointer;
+  font-size: var(--text-read);
+  color: var(--link);
+  padding: var(--sp-1) 0;
+}
+
+.small {
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--fg2);
+}
+
+.list {
+  margin: 0;
+  padding: 0 0 var(--sp-2) var(--sp-5);
+  font-size: var(--text-read);
+  color: var(--fg);
+}
+
+.stop {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--pad-card);
+  border-radius: var(--r-card);
+  background: var(--wait-soft);
+}
+
+.stopHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--wait);
+}
+
+.stopLine {
+  font-size: var(--text-body);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.acts {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.live {
+  font-size: var(--text-read);
+  color: var(--fg2);
+}
+
+.steer {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.notes {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note {
+  display: grid;
+  gap: var(--sp-1);
+  font-size: var(--text-read);
+}
+
+.quote {
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.noteLine {
+  color: var(--mute);
+}
+
+.form {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.problem {
+  font-size: var(--text-read);
+  color: var(--fail);
+}

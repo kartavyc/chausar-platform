@@ -3,6 +3,7 @@
 // from fixed weights (types.ts), never from the model. Only verified evidence overwrites a stored value on its own;
 // weaker evidence waits as a suggestion the owner can apply (evidenceQuestions lists them for Today). A claimed type
 // counts only when a real tool result in the run's trace backs it; otherwise it is downgraded, weak and flagged.
+// personEvidence builds the engine's own rows about people in the owner's network (Ink v2 wave 4), under its own type.
 import { check, type Context, type State } from '../../contracts.ts';
 import { exactPayload, listRecords, readVenture, requireAppChannel, tidyWords, ventureAction, type VentureTx } from '../records.ts';
 import type { ClientRecord, EvidenceItem, EvidenceRecord, Labelled, ToolCallRecord, VentureDeps } from '../contracts.ts';
@@ -142,6 +143,35 @@ export function recordEvidence(tx: VentureTx, input: EvidenceInput): EvidenceRec
     toolCallId: input.toolCallId ?? null, flag, applied: false, appliedAt: null,
   });
   return scored.strength === 'verified' && !held ? applyRecord(tx, stored) : stored;
+}
+
+/**
+ * Evidence the engine worked out itself from the owner's own files and records (Ink v2 wave 4, 4D2: how well the owner
+ * knows someone). Its own type, so it never reads as "read from a file in the run": no run read it. Agents cannot claim
+ * it: recordEvidence does not take it.
+ */
+export const ENGINE_COMPUTED = Object.freeze({ type: 'engine-computed', claim: 'observed' as const, label: 'Worked out by Chausar from your own files and records' });
+const PERSON_ID = /^[A-Za-z0-9_-]{1,80}$/;
+
+/**
+ * One engine-made evidence row about a person in the owner's network (subject 'person:<id>'), built for the caller to
+ * write: the value through evidenceValue (tidied, the secret screen, at most 500 characters), the source through the
+ * secret screen and at most 120 characters after its label. ownerSaid: the owner's own word (owner-entered, verified);
+ * otherwise engine-computed, verified, since code worked it out from the owner's own records. Applied at once, so it
+ * never waits on Today as a question.
+ */
+export function personEvidence(tx: VentureTx, input: { personId: string; field: string; value: string; source: string; ownerSaid: boolean }): EvidenceRecord {
+  check(tx.venture, 'VENTURE_NOT_FOUND', 'Start a business first.');
+  check(PERSON_ID.test(input.personId) && evidenceFieldOk(input.field) && typeof input.value === 'string' && typeof input.source === 'string',
+    'INVALID_VENTURE_REQUEST', 'This evidence is not in a shape Chausar keeps.');
+  const type = input.ownerSaid ? 'owner-entered' : ENGINE_COMPUTED.type;
+  const label = input.ownerSaid ? EVIDENCE_TYPES['owner-entered'].label : ENGINE_COMPUTED.label;
+  const detail = redactSecrets(tidyWords(input.source)).slice(0, 120);
+  return {
+    ...tx.base('venture-evidence'), subject: `person:${input.personId}`, field: input.field, value: evidenceValue(input.value), type, claimedType: type,
+    strength: 'verified', scoreBp: input.ownerSaid ? EVIDENCE_TYPES['owner-entered'].weightBp : 9000, claim: 'observed',
+    source: detail ? `${label}: ${detail}` : `${label}.`, by: 'engine', runId: null, toolCallId: null, flag: null, applied: true, appliedAt: tx.now,
+  };
 }
 
 /** Whether a client field Chausar writes back on apply (name, email, note) would take this value; other fields always do. */

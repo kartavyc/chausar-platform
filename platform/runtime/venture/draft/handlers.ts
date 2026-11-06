@@ -1,6 +1,12 @@
 // Chausar venture launcher, the draft desk: the nine methods answered before the vault check (onboarding v2).
 // venture.ai.* connect an AI on the desk's memory-only shelf and store; venture.compose.* run the composer and
 // hold one plan. They write the in-memory draft store, never the vault, and never take a plan from the renderer.
+// Ink v2 wave 4 (4J8, the file drop): compose.decide may carry one file of text the owner dropped. It passes the
+// untrusted screen in enforce mode first (core/attachment.ts, shared with the plan suggestion); a held file is left out
+// with a plain line, and a clean one goes with the sentence to both calls as background only, as client data: each
+// call is previewed and recorded as 'owner-file-drop', the owner's own words with their file, never as an approval.
+// The session holds the file for this plan's calls, and each call's record keeps what was sent, file text included;
+// on venture.create those records move into the business.
 import { check, newId } from '../../contracts.ts';
 import { exactPayload, plainText, smallInteger } from '../records.ts';
 import type { ModelOutcome, ModelPreset, ModelPresetId, ModelStatusView, VentureDeps } from '../contracts.ts';
@@ -8,16 +14,25 @@ import {
   AI_OPTION_IDS, AI_OPTION_WORDS, AI_STATUS_ORDER, NOT_A_SERVICE_WORDS, OPEN_BOX_TEXT,
 } from '../onboarding-contracts.ts';
 import type {
-  AiOption, AiOptionId, AiOptionStatus, AiOptionsView, AiStatusView, ComposeDecision, ComposedPlan, ComposeModelOutput, ComposeState,
-  DecideModelOutput, WrittenBy,
+  AiOption, AiOptionId, AiOptionStatus, AiOptionsView, AiStatusView, ComposeDecision, ComposedPlan, ComposeModelOutput,
+  ComposeState, DecideModelOutput, WrittenBy,
 } from '../onboarding-contracts.ts';
 import { applyComposePatch, assembleComposed, composeTask, decideTask, makeDecision, withRepair } from '../core/compose.ts';
 import { countryProfile } from '../core/countries.ts';
 import { calls as modelCalls, connectModel, disconnect as modelDisconnect } from '../models/handlers.ts';
+import { droppedFile, screenedFile, sendFileDropTask, withFile, type DroppedFile } from '../core/attachment.ts';
 import { DESK_CONTEXT } from './store.ts';
 
-/** One compose session at a time: the decision, then the plan once fill answers. */
-export type ComposeSession = { decision: ComposeDecision; decideOutput: DecideModelOutput; output: ComposeModelOutput | null; plan: ComposedPlan | null };
+export { ATTACHMENT_LEFT_OUT, ATTACHMENT_MAX_BYTES, type DroppedFile } from '../core/attachment.ts';
+
+/**
+ * One compose session at a time: the decision, then the plan once fill answers. context: the screened file that goes
+ * with this plan's calls, or none.
+ */
+export type ComposeSession = {
+  decision: ComposeDecision; decideOutput: DecideModelOutput; output: ComposeModelOutput | null; plan: ComposedPlan | null;
+  context?: DroppedFile | null;
+};
 
 /** What a draft handler sees of the desk. */
 export type DeskHandle = {
@@ -123,20 +138,28 @@ function writtenBy(deps: VentureDeps, outcome: ModelOutcome<unknown>): WrittenBy
   return { presetId: outcome.presetId, model: outcome.model, replay: deps.models.status(DESK_CONTEXT).replay.active };
 }
 
-/** venture.compose.decide { text, countryCode }: the cheap model reads the sentence and picks views. Replaces any earlier session. */
+/**
+ * venture.compose.decide { text, countryCode, attachment? }: the cheap model reads the sentence (and the screened file,
+ * as background) and picks views. Replaces any earlier session, and its file with it.
+ */
 export async function composeDecide(desk: DeskHandle, payload: unknown): Promise<ComposeDecision> {
-  const body = exactPayload(payload, ['text', 'countryCode'], ['text', 'countryCode']);
+  const body = exactPayload(payload, ['text', 'countryCode', 'attachment'], ['text', 'countryCode']);
   const text = plainText(body.text, 'What you want to do', { min: OPEN_BOX_TEXT.min, max: OPEN_BOX_TEXT.max });
   const country = countryProfile(body.countryCode);
+  const dropped = Object.hasOwn(body, 'attachment') ? screenedFile(droppedFile(body.attachment)) : null;
+  const context = dropped?.context ?? null;
   const deps = desk.deps;
   const before = callIds(deps);
   // A refused decide throws here and stores no decision: the session stays as it was.
-  const outcome: ModelOutcome<DecideModelOutput> = await withRepair(problem => deps.models.generate(DESK_CONTEXT, decideTask(text, country, problem)));
-  const decision = makeDecision({
-    composeId: newId('compose'), text, country, output: outcome.value, callIds: callsSince(deps, before, ['decide']),
-    writtenBy: writtenBy(deps, outcome), at: desk.now().toISOString(),
-  });
-  desk.keep({ decision, decideOutput: outcome.value, output: null, plan: null });
+  const outcome: ModelOutcome<DecideModelOutput> = await withRepair(problem => sendFileDropTask(deps.models, DESK_CONTEXT, withFile(decideTask(text, country, problem), context)));
+  const decision: ComposeDecision = {
+    ...makeDecision({
+      composeId: newId('compose'), text, country, output: outcome.value, callIds: callsSince(deps, before, ['decide']),
+      writtenBy: writtenBy(deps, outcome), at: desk.now().toISOString(),
+    }),
+    ...(dropped ? { attachment: dropped.note } : {}),
+  };
+  desk.keep({ decision, decideOutput: outcome.value, output: null, plan: null, context });
   return structuredClone(decision);
 }
 
@@ -147,7 +170,7 @@ function heldSession(desk: DeskHandle, composeId: unknown): ComposeSession {
   return session;
 }
 
-/** venture.compose.fill { composeId }: the main model fills the decided views from the block library. */
+/** venture.compose.fill { composeId }: the main model fills the decided views from the block library, with the session's file as background. */
 export async function composeFill(desk: DeskHandle, payload: unknown): Promise<ComposedPlan> {
   const body = exactPayload(payload, ['composeId'], ['composeId']);
   const session = heldSession(desk, body.composeId);
@@ -156,7 +179,7 @@ export async function composeFill(desk: DeskHandle, payload: unknown): Promise<C
   const deps = desk.deps;
   const before = callIds(deps);
   // A refused fill throws here: the session keeps its decision and no plan, so Try again calls fill again.
-  const outcome: ModelOutcome<ComposeModelOutput> = await withRepair(problem => deps.models.generate(DESK_CONTEXT, composeTask(session.decision, problem)));
+  const outcome: ModelOutcome<ComposeModelOutput> = await withRepair(problem => sendFileDropTask(deps.models, DESK_CONTEXT, withFile(composeTask(session.decision, problem), session.context)));
   const plan = assembleComposed(session.decision, outcome.value, session.decision.country, {
     writtenBy: writtenBy(deps, outcome), composeCallIds: callsSince(deps, before, ['compose']),
   });
