@@ -20,6 +20,8 @@ export function useSlidingPill(value: unknown) {
     const current = row.querySelector<HTMLElement>(CURRENT);
     if (!current) { element.hidden = true; return; }
     element.hidden = false;
+    // A row that is not laid out has nothing to place; the observer places it once it has a size.
+    if (current.offsetWidth === 0) return;
     element.style.width = `${current.offsetWidth}px`;
     element.style.height = `${current.offsetHeight}px`;
     element.style.transform = `translate(${current.offsetLeft}px, ${current.offsetTop}px)`;

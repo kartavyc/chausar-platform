@@ -194,7 +194,7 @@ describe('Tabs, the look', () => {
     expect(rule('Tabs.module.css', '.tabs')).not.toMatch(/border|box-shadow|overflow/);
     expect(rule('Tabs.module.css', ".item[aria-current='page']")).toMatch(/background:\s*var\(--nav-on\)[\s\S]*color:\s*var\(--nav-on-fg\)/);
     expect(rule('Tabs.module.css', ".item[aria-pressed='true']")).toMatch(/background:\s*var\(--nav-on\)/);
-    expect(rule('Tabs.module.css', ".item[aria-selected='true']")).toMatch(/background:\s*var\(--line\)/);
+    expect(rule('Tabs.module.css', ".item[aria-selected='true']")).toMatch(/background:\s*var\(--nav-on\)/);
     expect(rule('Tabs.module.css', '.count')).toMatch(/color:\s*var\(--mute\)/);
   });
 });

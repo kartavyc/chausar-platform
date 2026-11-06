@@ -351,7 +351,9 @@ describe('Composer', () => {
   });
 
   it('long engine words wrap instead of running out of the box', () => {
-    for (const name of ['error', 'hint', 'suggestion']) expect(ruleOf('Composer', name), name).toMatch(/overflow-wrap:\s*anywhere/);
+    for (const name of ['hint', 'suggestion']) expect(ruleOf('Composer', name), name).toMatch(/overflow-wrap:\s*anywhere/);
+    // B4 task 4: its refusal is an InlineError now.
+    expect(ruleOf('InlineError', 'words')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 
   it('suggestions fill the box and never send', () => {

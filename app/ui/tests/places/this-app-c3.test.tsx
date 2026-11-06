@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
@@ -59,9 +59,9 @@ describe('This app: Animations (one-shot C3 task 3)', () => {
     await waitFor(() => expect(document.documentElement.dataset.motion).toBe('off'));
   });
 
-  it('the business menu lists This app', async () => {
-    start('#/today');
-    fireEvent.click(await screen.findByRole('button', { expanded: false, name: /Switch business/ }));
-    expect(await screen.findByRole('link', { name: 'This app' })).toBeTruthy();
+  it('the Settings list holds This app, last in Business (C1 and C3)', async () => {
+    start('#/business/plan');
+    const nav = await screen.findByRole('navigation', { name: 'Settings' });
+    expect(within(nav).getByRole('link', { name: 'This app' }).getAttribute('href')).toBe('#/business/app');
   });
 });

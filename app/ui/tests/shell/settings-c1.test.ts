@@ -16,7 +16,7 @@ describe('the settings list', () => {
     expect(SETTINGS.map((g) => g.id)).toEqual(['business', 'work', 'money', 'safety']);
     expect(SETTINGS.map((g) => en(g.title))).toEqual(['Business', 'Work', 'Money', 'Safety']);
     expect(SETTINGS.map((g) => g.pages.map((p) => p.sub))).toEqual([
-      ['plan', 'owner', 'voice', 'knowledge', 'build'],
+      ['plan', 'owner', 'voice', 'knowledge', 'build', 'app'],
       ['practice', 'routines', 'notifications', 'away', 'chats'],
       ['prices', 'goals', 'go-no-go', 'ca'],
       ['keep', 'decisions', 'rules', 'reports'],

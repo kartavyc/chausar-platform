@@ -81,7 +81,7 @@ describe('Business in the Ink v2 look', () => {
     const nav = await screen.findByRole('navigation', { name: 'Settings' });
     expect(within(nav).getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
       ['How the work is done', '#/business/plan'], ['About you', '#/business/owner'], ['Voice', '#/business/voice'], ['What AI knows', '#/business/knowledge'],
-      ['Website build', '#/business/build'],
+      ['Website build', '#/business/build'], ['This app', '#/business/app'],
       ['Practice and improve', '#/business/practice'], ['Routines', '#/business/routines'], ['Notifications', '#/business/notifications'], ['Away', '#/business/away'],
       ['Old chats', '#/business/chats'],
       ['Prices', '#/business/prices'], ['Goals', '#/business/goals'], ['Go or no go', '#/business/go-no-go'],

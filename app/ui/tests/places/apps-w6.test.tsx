@@ -43,7 +43,7 @@ describe('Apps (6H1)', () => {
   it('the rail has Apps between Money and Connections; the place lists the sample app, the make box and the rules', async () => {
     await start();
     const rail = screen.getByRole('navigation', { name: 'Places' });
-    const hrefs = within(within(rail).getByRole('list')).getAllByRole('link').map((a) => a.getAttribute('href'));
+    const hrefs = within(within(rail).getAllByRole('list')[0]!).getAllByRole('link').map((a) => a.getAttribute('href'));
     expect(hrefs.slice(5, 8)).toEqual(['#/money', '#/apps', '#/connections']);
     expect(await screen.findByRole('heading', { level: 1, name: 'Apps' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Make an app' })).toBeTruthy();

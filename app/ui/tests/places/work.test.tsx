@@ -162,7 +162,8 @@ describe('Work: filter in the address', () => {
     expect(within(nav).queryByRole('button', { name: 'Running' })).toBeNull();
     expect(within(nav).queryByRole('button', { name: 'Done' })).toBeNull();
     expect(within(nav).getByRole('button', { name: 'All' })).toBeTruthy();
-    expect(within(nav).getByRole('button', { name: 'Ideas' })).toBeTruthy();
+    // C1 task 5: Ideas is a page of its own, not a chip.
+    expect(within(nav).queryByRole('button', { name: 'Ideas' })).toBeNull();
   });
 
   it('says plainly when a filter has nothing, and when there is no work at all', async () => {
