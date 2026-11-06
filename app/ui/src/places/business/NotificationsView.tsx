@@ -29,6 +29,7 @@ import s from './Business.module.css';
 import n from './Notifications.module.css';
 import { Select } from '../../parts/Select';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { Fold } from '../../parts/Fold';
 
 type Change = ParamsOf<'venture.notify.settings'>;
 
@@ -54,7 +55,6 @@ export function NotificationsView() {
   if (!shown) return <LoadingPlace shape="settings" />;
   return (
     <div className={s.page}>
-      <p className={n.said} data-settings-line="">{shown.line}</p>
       <div className={s.split} data-ratio="even">
         <Reach settings={shown} change={change} reread={() => { setView(null); settings.reload(); }} />
         <QuietTimes settings={shown} change={change} />
@@ -82,7 +82,7 @@ function Reach({ settings, change, reread }: { settings: NotifySettingsView; cha
       {relay.data && (
         <>
           <Tray on={settings.tray} change={change} />
-          <Relay view={relay.data} />
+          <Fold summary={t('business.notify.advanced')}><Relay view={relay.data} /></Fold>
           {/* W6 6F6 and 6F7: Telegram alerts and phone access, each in a closed fold. */}
           <PhoneReach />
         </>

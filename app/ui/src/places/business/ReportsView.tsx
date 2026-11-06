@@ -113,7 +113,7 @@ export function ReportsView() {
           </>
         ) : (
           <div className={s.buttons}>
-            <Button disabled={busy} onClick={() => setAsking(true)}>{t('feedback.delete')}</Button>
+            <Button variant="quiet" disabled={busy} onClick={() => setAsking(true)}>{t('feedback.delete')}</Button>
           </div>
         )}
       </TileSection>

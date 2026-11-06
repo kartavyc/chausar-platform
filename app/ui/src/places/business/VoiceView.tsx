@@ -63,6 +63,7 @@ export function VoiceView() {
     <div className={b.page}>
       <p className={b.line}>{data.line}</p>
       <div className={s.grid}>
+        <LearnTile draft={data.draft ?? null} line={said?.key === 'learn' ? said.line : null} onLearned={(line) => { setSaid({ key: 'learn', line }); view.reload(); }} onSet={(input) => set(input, keyOf(input as { language: string; channel: string | null }))} />
         {data.voices.map((voice) => (
           <VoiceTile key={keyOf(voice)} voice={voice} said={said?.key === keyOf(voice) ? said.line : null} onSet={(input) => set(input, keyOf(voice))} />
         ))}
@@ -75,7 +76,6 @@ export function VoiceView() {
           />
         ))}
         <AddVoice taken={new Set([...inUse, ...fresh.map(keyOf)])} onAdd={(voice) => setAdded((was) => [...was, voice])} />
-        <LearnTile draft={data.draft ?? null} line={said?.key === 'learn' ? said.line : null} onLearned={(line) => { setSaid({ key: 'learn', line }); view.reload(); }} onSet={(input) => set(input, keyOf(input as { language: string; channel: string | null }))} />
       </div>
     </div>
   );

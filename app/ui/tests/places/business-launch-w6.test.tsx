@@ -45,16 +45,16 @@ describe('Business: launch stages (6C4)', () => {
     expect(await within(tile).findByRole('button', { name: 'Go live' })).toBeTruthy();
   });
 
-  it('a blocked Live shows the engine reason and a locked button that sends nothing', async () => {
+  it('a blocked Live shows the engine reason and leads to connecting AI without changing stage', async () => {
     const engine = new FakeEngine();
     const status = await engine.request('venture.launch.status', {}) as { stages: { allowed: boolean; reason: string }[] };
     if (status.stages[1]!.allowed) return; // the sample business already has an AI; the first case covers it
     const { calls } = start(engine);
     const tile = await screen.findByRole('region', { name: 'Stage' });
     expect(await within(tile).findByText(status.stages[1]!.reason)).toBeTruthy();
-    const button = within(tile).getByRole('button', { name: 'Go live' });
-    expect(button.getAttribute('aria-disabled')).toBe('true');
+    const button = within(tile).getByRole('button', { name: 'Connect your AI' });
     await act(async () => { fireEvent.click(button); });
+    expect(window.location.hash).toBe('#/connections/ai');
     expect(within(tile).queryByRole('button', { name: 'Go live now' })).toBeNull();
     expect(calls.some((call) => call.method === 'venture.launch.advance')).toBe(false);
   });

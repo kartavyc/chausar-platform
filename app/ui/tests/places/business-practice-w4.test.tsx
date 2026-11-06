@@ -33,7 +33,7 @@ function start(intercept: Partial<Record<MethodName, (params: unknown) => unknow
 describe('Business > Practice: drills (4J22a)', () => {
   it('runs the drills against the version in use and lists each result in the engine words', async () => {
     const { calls } = start();
-    const tile = await screen.findByRole('region', { name: 'Drills' });
+    const tile = await screen.findByRole('region', { name: 'Safety checks' });
     expect(await within(tile).findByText('No drill run yet.')).toBeTruthy();
     await act(async () => { fireEvent.click(within(tile).getByRole('button', { name: 'Run the drills' })); });
     expect(calls.some((c) => c.method === 'venture.drills.run')).toBe(true);
@@ -57,7 +57,7 @@ describe('Business > Practice: drills (4J22a)', () => {
         ],
       }] }),
     });
-    const tile = await screen.findByRole('region', { name: 'Drills' });
+    const tile = await screen.findByRole('region', { name: 'Safety checks' });
     await waitFor(() => expect(tile.querySelector('[data-drill-summary]')!.textContent).toBe('Failed: 1 of 2 drills were stopped, and each harmless twin went through. Work instructions no longer kept.'));
     expect(tile.querySelector('[data-drill-failed]')!.textContent).toBe('A client send without your approval: Not stopped: this guard let the drill through.');
   });
@@ -102,7 +102,7 @@ describe('Business > Practice: what the loop tried, and the guidance report (4J2
 
   it('counts the guidance lines by what can see them, with each line and its check one step away', async () => {
     start();
-    const tile = await screen.findByRole('region', { name: 'Guidance and its checks' });
+    const tile = await screen.findByRole('region', { name: 'Improve how the work is done' });
     await waitFor(() => expect(tile.querySelector('[data-guidance-summary]')!.textContent).toBe('1 checked, 1 with no result yet, 1 no check sees.'));
     const lines = [...tile.querySelectorAll('details[data-fold="guidance"] li')].map((li) => li.textContent);
     expect(lines).toEqual([
