@@ -226,7 +226,7 @@ export function validateSuggestion(raw: unknown, currency: string): string {
   return minor;
 }
 
-function suggestTask(month: string, currency: string, offers: PricedOffer[]): ModelTask<string> {
+export function goalSuggestTask(month: string, currency: string, offers: PricedOffer[]): ModelTask<string> {
   return {
     purpose: 'goal-suggest',
     instructions: [
@@ -265,7 +265,7 @@ export async function suggestGoal(deps: VentureDeps, ctx: Context, payload: unkn
   const currency = venture.country.currency;
   let amountMinor: string;
   try {
-    const outcome = await deps.models.generate(ctx, suggestTask(month, currency, offers));
+    const outcome = await deps.models.generate(ctx, goalSuggestTask(month, currency, offers));
     if (outcome.by !== 'model') return null;
     amountMinor = outcome.value;
   } catch (error) {

@@ -3,12 +3,12 @@
 //
 // For every case in scripts/ui-shots/cases.mjs it opens the app on the fake engine of `npm run dev:ui` in headless
 // Chrome, at 1280 and 390 wide, in the light and the dark theme, and:
-//   - takes a full-height screenshot into app/ui/.shots/ (gitignored): <case>--<width>-<theme>.png;
+//   - takes a full-height screenshot into the output folder: <case>--<width>-<theme>.png;
 //   - runs axe-core (from node_modules) on the page with colour contrast ON; any violation fails the walk;
 //   - checks what jsdom cannot: no page-wide sideways scroll, no text that is a text key, no console error, and in
 //     every count remains readable;
 //   - presses through the focus plan (J and K, the second ask, a sheet, the business menu) and checks where focus lands.
-// It writes app/ui/.shots/report.json, report.md and index.html (the boards beside the shots), and exits 1 when any
+// It writes report.json, report.md and index.html there (the boards beside the shots), and exits 1 when any
 // check fails, except the findings scripts/ui-shots/accepted.mjs lists with their reasons (reported, not failed).
 // With --publish it also copies the shots that match a direction D board (1280 light and 390 light) into
 // docs/superpowers/designs/ink-v2-direction-d/walk/ and writes side-by-side.html and WALK.md there from boards.mjs;
@@ -16,11 +16,13 @@
 //
 // Usage (from the repo root):
 //   node scripts/ui-shots/walk.mjs [--base=http://localhost:5178] [--port=5179] [--cdp=9481] [--workers=4]
-//                                  [--out=app/ui/.shots] [--profiles=<dir>] [--chrome=<path>] [--only=today,team]
+//                                  [--out=<folder>] [--profiles=<dir>] [--chrome=<path>] [--only=today,team]
 //                                  [--publish | --publish-only]
 // Without --base it starts its own dev server (vite --mode fake) on --port and stops it at the end. Each worker is
 // one Chrome on its own debugging port (--cdp, --cdp+1, ...) with its own profile under --profiles (default: inside
-// --out, so on the repo's drive), removed when the walk ends.
+// --out), removed when the walk ends.
+// D3: the output folder is the run root, CHAUSAR_RUN_ROOT/ui-shots, else the temp folder's chausar-runs/<date>-ui-shots,
+// never inside the checkout (an --out there is refused). Four Chrome profiles need a few hundred MB there.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -30,6 +32,7 @@ import { Browser, findChrome } from './browser.mjs';
 import { DEV_PAGE, INTERACTIONS, PLACES, SHEETS } from './cases.mjs';
 import { acceptedFor, listedMd } from './accepted.mjs';
 import { publish, writeIndex } from './publish.mjs';
+import { refuseInsideRepo, runRoot } from '../../platform/runtime/run-root.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const args = process.argv.slice(2);
@@ -38,7 +41,7 @@ const option = (name, fallback) => {
   if (!found) return fallback;
   return found.includes('=') ? found.slice(found.indexOf('=') + 1) : true;
 };
-const OUT = resolve(ROOT, String(option('out', 'app/ui/.shots')));
+const OUT = option('out', '') ? refuseInsideRepo(resolve(ROOT, String(option('out'))), { variable: '--out', fallback: runRoot('ui-shots') }) : runRoot('ui-shots');
 const PROFILES = resolve(String(option('profiles', join(OUT, '.profiles'))));
 const CDP = Number(option('cdp', 9481));
 const WORKERS = Math.max(1, Math.min(8, Number(option('workers', 4))));

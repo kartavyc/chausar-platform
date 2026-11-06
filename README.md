@@ -11,7 +11,7 @@ This repository implements the desktop architecture in the supplied Chausar plan
 Install Node.js **24.13.1 or later**, then from this directory:
 
 ```sh
-npm install
+npm ci
 npm start
 ```
 
@@ -34,7 +34,7 @@ npm start
 Or in the desktop window, once the pinned Electron is installed:
 
 ```sh
-npm install
+npm ci
 npm run desktop
 ```
 
@@ -49,7 +49,7 @@ Without any AI connected, built-in templates do the work and say so. This build 
 ## Desktop and production setup
 
 ```sh
-npm install
+npm ci
 npm run desktop
 ```
 
@@ -102,7 +102,7 @@ The factory benchmark emits a machine-readable report and fails on failed, cance
 | `fixtures/plugins/` | Synthetic WASM fixtures |
 | `docs/evidence/` | Actual current verification records |
 
-Read [security boundaries](SECURITY.md), [acceptance](docs/acceptance.md), [release qualification](docs/releases.md) and [GitHub handoff](docs/github-handoff.md) before expanding deployment scope.
+Read [security boundaries](SECURITY.md), [acceptance](docs/acceptance.md) and [release qualification](docs/releases.md) before expanding deployment scope.
 
 ## Licence
 

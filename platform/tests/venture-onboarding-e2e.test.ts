@@ -31,6 +31,9 @@ import { kindByRules } from './fixtures/venture/onboarding/kind-rules.ts';
 import { memoryDeviceKeyStore, type DeviceKeyStore } from '../runtime/device-custody.ts';
 import type { BackupView, BusinessList, CustodyView } from '../runtime/workspace-custody-contracts.ts';
 
+/** D2: a text the payload carries inside its JSON input, raw or escaped once or twice. */
+const carries = (payload: string, text: string) => [text, JSON.stringify(text).slice(1, -1), JSON.stringify(JSON.stringify(text).slice(1, -1)).slice(1, -1)].some(form => payload.includes(form));
+
 const PASSPHRASE = 'long-enough-passphrase';
 const KEY = ("sk" + "-ant-test-onboarding-e2e-not-a-real-key-5d21");
 const GITHUB_TOKEN = 'github_pat_test_not_a_real_token_00';
@@ -356,7 +359,8 @@ test('the money guard and the repair: a price in words is refused once and repai
     const repair = compose.find(call => call.payloadText.includes('chausar-recompose-v1'));
     assert.ok(repair, `${name}: the repair call carries its own marker`);
     assert.equal(repair, compose[0]);
-    assert.ok(repair.payloadText.includes('Your last answer was refused: ' + rule), `${name}: the repair names the same rule`);
+    // D2: a fixed repair line in the instructions; the rule itself rides in the input (problem).
+    assert.ok(repair.payloadText.includes('Your last answer was refused for the reason given as problem in the input.') && carries(repair.payloadText, rule), `${name}: the repair names the same rule`);
     assert.equal(repair.payloadText.includes(refusedText), false, `${name}: the rejected text is never sent back`);
   }
 });
@@ -375,7 +379,7 @@ test('refused twice: an unknown block id in both answers gives COMPOSE_REFUSED, 
   const rule = 'An offer used a block Chausar does not have.';
   for (const call of failed) assert.deepEqual(call.error, { code: 'MODEL_OUTPUT_REJECTED', message: rule }, 'both answers were refused for the unknown block');
   const repair = failed.find(call => call.payloadText.includes('chausar-recompose-v1'));
-  assert.ok(repair && repair.payloadText.includes('Your last answer was refused: ' + rule), 'the repair names the rule');
+  assert.ok(repair && repair.payloadText.includes('Your last answer was refused for the reason given as problem in the input.') && carries(repair.payloadText, rule), 'the repair names the rule');
 });
 
 test('a decide answer with two lead views is repaired once; a sentence that is not a service gets no views and no plan', async t => {
@@ -388,7 +392,7 @@ test('a decide answer with two lead views is repaired once; a sentence that is n
   const decides = (await first.ask('venture.ai.calls') as ModelCallRecord[]).filter(call => call.purpose === 'decide');
   assert.deepEqual(decides.map(call => call.status), ['completed', 'failed']);
   assert.deepEqual(decides[1].error, { code: 'MODEL_OUTPUT_REJECTED', message: 'Pick exactly one lead view.' }, 'refused for the two lead views');
-  assert.ok(decides[0].payloadText.includes('chausar-redecide-v1') && decides[0].payloadText.includes('Your last answer was refused: Pick exactly one lead view.'));
+  assert.ok(decides[0].payloadText.includes('chausar-redecide-v1') && decides[0].payloadText.includes('Your last answer was refused for the reason given as problem in the input.') && carries(decides[0].payloadText, 'Pick exactly one lead view.'));
   const plan = await first.ask('venture.compose.fill', { composeId: decision.composeId }) as ComposedPlan;
   assert.equal(plan.calls.decide.length, 2);
 

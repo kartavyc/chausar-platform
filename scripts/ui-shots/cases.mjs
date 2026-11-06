@@ -3,7 +3,7 @@
 // engine afresh, so a case that needs another business switches to it through the business menu, like an owner would.
 //
 // A case:
-//   id        file name stem (app/ui/.shots/<id>--<width>-<theme>[-hi].png)
+//   id        file name stem (<walk output folder>/<id>--<width>-<theme>[-hi].png)
 //   path      what follows the server address: "#/today"
 //   steps     done in order after the page settles: { press: name, hi?: name, in?: selector } clicks a button, link or
 //             tab by its accessible name; { business: name } switches business through the menu; { hash } moves inside the app

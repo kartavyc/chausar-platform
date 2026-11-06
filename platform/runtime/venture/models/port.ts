@@ -29,10 +29,10 @@ import { currentRoutineScope } from '../agents/routine-scope.ts';
 import { writeCapDenial } from '../delivery/harness/write-caps.ts';
 import { ANTHROPIC_URL, anthropicBody, anthropicHeaders, parseAnthropic } from './anthropic.ts';
 import {
-  SCHEMA_PLACEHOLDER, TEMP_PREFIX, claudePlan, cliEnv, cliRouteFlags, codexHost, codexPlan, parseClaudeCli, parseCodexCli, unknownRouteFlags,
+  SCHEMA_PLACEHOLDER, TEMP_PREFIX, claudePlan, cliEnv, cliRouteFlags, codexCommand, codexHost, codexPlan, parseClaudeCli, parseCodexCli, unknownRouteFlags,
   type CliPlan, type CodexHost,
 } from './cli.ts';
-import { callCostMicros, costDisplay, estimateMaxCostMicros } from './cost.ts';
+import { callCostOrHeld, costDisplay, estimateMaxCostMicros, recordedCallMicros } from './cost.ts';
 import { formatCost } from '../../owner-format.ts';
 import { clientDataFindings } from './guard.ts';
 import { OPENAI_URL, openaiBody, openaiHeaders, parseOpenAI } from './openai.ts';
@@ -40,6 +40,8 @@ import {
   AVAILABILITY_REASONS, PRESETS, availabilityOf, endpointFor, claudeTermsOpen, cliFlagsWords, cliProblemWords, cliSentence, cliSignedOutWords, presetSpec, type PresetSpec,
 } from './presets.ts';
 import { CLI_LOOK_PREFIX as CLI_LOOK_FOLDER, CLI_STATUS_WORDS, inspectInstalledCli, lastCliTask, locateOnThisComputer } from './cli-status.ts';
+import { CLI_COMMANDS, cliGateOpen } from './cli-look.ts';
+import { KEPT_LOOK_MAX_AGE_MS, keepable, programStamp, readKeptLooks, type CliLookPort, type KeptCliFinding, type KeptLooks } from './cli-look-file.ts';
 import { codexModelsFrom, pickCodexModels, type CodexModels } from './codex-models.ts';
 import { CODEX_QUIET_ARGS } from '../../providers/codex-cli.ts';
 import { assertSchemaSafe } from './schema.ts';
@@ -312,7 +314,10 @@ function failureOf(error: unknown, fallback: { code: string; message: string }):
 // The port
 // ---------------------------------------------------------------------------
 
-export function createModelPort(options: ModelPortOptions): ModelPort {
+/** D4 task 6: the host's file of looks kept between starts (models/cli-look-file.ts); absent, nothing is kept. */
+export type ModelPortHostOptions = ModelPortOptions & { cliLooks?: CliLookPort };
+
+export function createModelPort(options: ModelPortHostOptions): ModelPort {
   const { store, clock, transport, secrets } = options;
   const actionDeps = { store, clock } as unknown as VentureDeps;
   const hosted = options.host === 'hosted-web';
@@ -364,29 +369,103 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     refusedFlags.set(cli, refused);
     const kept = looks.get(cli);
     if (kept) looks.set(cli, withRefused(kept));
+    // D4: a refusal on a real look is kept in the file too, so the next start answers the mismatch.
+    const real = looks.get(cli);
+    if (real && lookedAt.has(cli)) keepLook(cli, real);
+  };
+
+  // D4 task 6: the looks kept between starts (custody/cli-looks.json). Never on the hosted web server or a replay.
+  const keptLooks = hosted || transport.replay === true ? null : options.cliLooks ?? null;
+  /** The file as read once this session, then as this session last wrote it. */
+  let keptFile: Promise<KeptLooks> | null = null;
+  const keptOnDisk = () => (keptFile ??= keptLooks ? keptLooks.read().then(readKeptLooks, (): KeptLooks => ({})) : Promise.resolve<KeptLooks>({}));
+  /** Writes one after another, each the whole file. */
+  let keptWrites: Promise<void> = Promise.resolve();
+  /** The tools already asked about this session: only the first plain ask after a start may answer from the file. */
+  const keptTried = new Set<DelegateCli>();
+  /** The first ask's check of the file under way, which every other plain ask waits for before it joins the look. */
+  const keptChecks = new Map<DelegateCli, Promise<KeptCliFinding | null>>();
+  /** The command a look at this tool asks for now: the Codex program the owner chose is part of what is kept. */
+  const commandOf = (cli: DelegateCli) => { const codex = codexNow(); return cli === 'codex' && codex ? codexCommand(codex) : CLI_COMMANDS[cli]; };
+
+  /** Every real look, and every refusal a real call showed, replaces that tool's kept look; one that did not answer removes it. */
+  const keepLook = (cli: DelegateCli, finding: CliFinding) => {
+    if (!keptLooks) return;
+    const command = commandOf(cli);
+    keptWrites = keptWrites.then(async () => {
+      const looks = { ...await keptOnDisk() };
+      const stamp = keepable(finding) ? await programStamp(finding.path!) : null;
+      if (stamp) looks[cli] = { command, size: stamp.size, mtimeMs: stamp.mtimeMs, finding: structuredClone(finding) };
+      else if (looks[cli]) delete looks[cli];
+      else return;
+      keptFile = Promise.resolve(looks);
+      await keptLooks.write(looks);
+    }).catch(() => undefined);
+  };
+
+  /** A kept look of the same program (path, size, modified time, command) taken under a day ago, else null. */
+  const keptFinding = async (cli: DelegateCli): Promise<KeptCliFinding | null> => {
+    if (!cliGateOpen(cli, claudeTerms)) return null;
+    const entry = (await keptOnDisk())[cli];
+    const command = commandOf(cli);
+    if (!entry || entry.command !== command) return null;
+    let path: string | null;
+    try { path = locate(command); } catch { path = null; }
+    if (!path || path !== entry.finding.path) return null;
+    const stamp = await programStamp(path);
+    if (!stamp || stamp.size !== entry.size || stamp.mtimeMs !== entry.mtimeMs) return null;
+    const age = clock().getTime() - Date.parse(entry.finding.at);
+    if (!(age >= 0 && age < KEPT_LOOK_MAX_AGE_MS)) return null;
+    // A2: sign-in only on the tool's own word, so never from the file; its flags and version stand as last seen.
+    return { ...withRefused(entry.finding), signedIn: 'unknown', kept: true };
+  };
+
+  /** Starts a real look; every other asker joins it. What it finds is kept for availability and in the file. */
+  const startLook = (cli: DelegateCli): Promise<CliFinding> => {
+    const startedMs = clock().getTime();
+    const flight = inspectInstalledCli(cli, { transport, locate, codex: codexNow(), claudeTerms, now: () => clock().toISOString() })
+      .then(finding => {
+        const seen = withRefused(finding);
+        looks.set(cli, seen);
+        lookedAt.set(cli, startedMs);
+        keepLook(cli, seen);
+        return seen;
+      })
+      .finally(() => { flights.delete(cli); });
+    flights.set(cli, flight);
+    return flight;
   };
 
   /**
    * One look at a tool on this computer, kept for availability. Never on the hosted web server. One look runs at a time
    * per tool and every other asker joins it. Unless fresh, a look started within the last minute is reused (the status
-   * screen); a connection asks for a fresh one.
+   * screen); a connection asks for a fresh one. D4: the first plain ask after a start answers a kept look of the same
+   * program at once (kept, sign-in unknown) and starts the real look in the background, which replaces it.
    */
   const look = async (cli: DelegateCli, fresh: boolean): Promise<CliFinding> => {
     check(!hosted, 'TIER_UNAVAILABLE', CLI_STATUS_WORDS.hosted);
+    if (!fresh && keptLooks && !keptTried.has(cli)) {
+      keptTried.add(cli);
+      const checking = keptFinding(cli).catch(() => null);
+      keptChecks.set(cli, checking);
+      const found = await checking.finally(() => keptChecks.delete(cli));
+      // Kept only while no real look has landed meanwhile (a connection's, say).
+      if (found && !lookedAt.has(cli)) {
+        if (!looks.has(cli)) looks.set(cli, found);
+        if (!flights.has(cli)) startLook(cli).catch(() => undefined);
+        return structuredClone(found);
+      }
+    } else if (!fresh) {
+      const checking = keptChecks.get(cli);
+      if (checking) await checking;
+    }
+    keptTried.add(cli);
     let flight = flights.get(cli);
     if (!flight) {
       const startedMs = clock().getTime();
       const kept = looks.get(cli), at = lookedAt.get(cli);
       if (!fresh && kept && at !== undefined && startedMs >= at && startedMs - at < CLI_LOOK_REUSE_MS) return structuredClone(kept);
-      flight = inspectInstalledCli(cli, { transport, locate, codex: codexNow(), claudeTerms, now: () => clock().toISOString() })
-        .then(finding => {
-          const seen = withRefused(finding);
-          looks.set(cli, seen);
-          lookedAt.set(cli, startedMs);
-          return seen;
-        })
-        .finally(() => { flights.delete(cli); });
-      flights.set(cli, flight);
+      flight = startLook(cli);
     }
     return structuredClone(await flight);
   };
@@ -521,7 +600,8 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     }
     const unpricedNativeModel=!!call.agentJobId && metered && !call.replay && (!parsed.answeredBy || parsed.answeredBy!==call.model);
     if(unpricedNativeModel)failure={code:'SPEND_UNPRICED',message:'The quality check did not report the exact model priced for this job. Its cost remains held.'};
-    const costMicros = unpricedNativeModel ? null : parsed.usage ? callCostMicros(parsed.usage, table) : failure ? null : table ? call.estimatedMaxCostMicros : '0';
+    // D2: a cost held because a reported cache kind has no saved rate is null; the reservation stays on the spend row.
+    const costMicros = unpricedNativeModel ? null : parsed.usage ? callCostOrHeld(parsed.usage, table) : failure ? null : table ? call.estimatedMaxCostMicros : '0';
     const outputDigest = parsed.ok ? digest(parsed.value) : null;
     // A2: a task may keep a small plain part of its checked answer on the record (About you keeps its offers).
     let kept: unknown;
@@ -538,7 +618,9 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       if (metered) settleSpend(tx, spendKey(call.id), spendOutcome(sent, parsed.usage !== null, failure !== null, costMicros));
     });
     if (failure) throw new ChausarError(failure.code, failure.message);
-    return { value: value as T, by: 'model', callId: call.id, presetId: spec.id, model: call.model, costMicros: costMicros ?? '0', priceConfirmed: call.priceConfirmed, answeredBy };
+    // D2 fix: a held cost (null) reaches the caller as the reservation, not confirmed, so every caller that adds outcomes
+    // up (the run cap, simulate, improve, personas) counts the most the call could cost, never 0.
+    return { value: value as T, by: 'model', callId: call.id, presetId: spec.id, model: call.model, costMicros: costMicros ?? call.estimatedMaxCostMicros, priceConfirmed: costMicros === null ? false : call.priceConfirmed, answeredBy };
   };
 
   /** Shared start of generate and preview: task checks (the client-data flag first for standing consent), then the tier. */
@@ -600,9 +682,11 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       let spent = 0n;
       let estimate = false;
       for (const call of calls) {
-        if (call.costMicros === null || monthOf(call.at) !== month) continue;
-        spent += BigInt(call.costMicros);
-        if (!call.priceConfirmed) estimate = true;
+        // D3 fix: a held call (its cost null beside reported usage) counts at its reservation, as an estimate.
+        const micros = monthOf(call.at) === month ? recordedCallMicros(call) : null;
+        if (micros === null) continue;
+        spent += BigInt(micros);
+        if (!call.priceConfirmed || call.costMicros === null) estimate = true;
       }
       const views: ConnectionView[] = newestFirst(connections).map(connection => {
         const spec = presetSpec(connection.presetId);

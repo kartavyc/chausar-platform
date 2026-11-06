@@ -645,6 +645,9 @@ export type ModelPriceTable = {
   currency: 'USD';
   inputMicrosPerMillion: MicroString; // micro-USD per million input tokens
   outputMicrosPerMillion: MicroString;
+  /** D2: prompt cache prices, when saved; a reported cache read or write with no price here leaves the call's cost held. */
+  cacheReadMicrosPerMillion?: MicroString;
+  cacheWriteMicrosPerMillion?: MicroString;
   source: string; // where the list price came from
   checkedOn: IsoDate;
   confirmed: boolean; // false: every cost from this table is shown as 'estimate, price unconfirmed'
@@ -728,8 +731,9 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
   approvedBy: string | null; // memberId of the person who approved a client-data send
   estimatedMaxCostMicros: MicroString; // reserved against the monthly cap while dispatching
   priceConfirmed: boolean;
-  usage: { inputTokens: number; outputTokens: number } | null;
-  costMicros: MicroString | null;
+  /** D2: inputTokens is the uncached input; the cache counts appear only when the provider reported more than zero. */
+  usage: { inputTokens: number; outputTokens: number; cachedInputTokens?: number; cacheWriteTokens?: number } | null;
+  costMicros: MicroString | null; // null: failed before a price, or held (a reported cache kind has no saved price)
   outputDigest: string | null;
   error: { code: string; message: string; cause?: string } | null; // cause (4F2): the transport's class, such as 'not-connected', when it said one
   replay: boolean; // true when served from a synthetic recording
@@ -7278,6 +7282,8 @@ export const VENTURE_ERRORS = [
   'FORM_READBACK_UNAVAILABLE', 'FORM_RECORD_EXISTS', 'FORM_RECORD_NOT_FOUND', 'FORM_SEND_UNCONFIRMED',
   'FORM_SIGNIN_REQUIRED', 'FORM_SOURCE_CHANGED', 'FORM_SOURCE_INVALID', 'FORM_STILL_RUNNING',
   'FORM_TARGET_CHANGED', 'SITE_NOT_ALLOWED',
+  // D5: Install Claude Code (models/claude-code-install.ts), wired to a method after the main lane.
+  'CLAUDE_INSTALL_NEEDS_YES', 'CLAUDE_INSTALL_DOWNLOAD_FAILED', 'CLAUDE_INSTALL_FAILED', 'CLAUDE_INSTALL_UNSUPPORTED',
 ] as const;
 export type VentureErrorCode = typeof VENTURE_ERRORS[number];
 

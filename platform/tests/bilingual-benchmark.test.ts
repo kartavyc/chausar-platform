@@ -340,17 +340,19 @@ test('two fresh public Engine runs retain all 80 outcomes, stable meaning and ho
   assert.deepEqual(await readdir(secondScratch), []);
 });
 
-test('CLI refuses unsupported options and escaped output before creating a synthetic workspace', async t => {
+// D3: the report goes to the run root or any .json path outside the checkout; inside the checkout (its .git too) refuses.
+test('CLI refuses unsupported options, a non-JSON output and an output inside the checkout before creating a synthetic workspace', async t => {
   const directory = await ownedScratch(t);
   const script = fileURLToPath(new URL('../../scripts/bilingual-benchmark.mjs', import.meta.url));
+  const checkout = fileURLToPath(new URL('../..', import.meta.url));
   for (const args of [
-    ['--model', 'live-provider'], ['--output', '../outside.json'], ['--output', join(directory, 'absolute.json')],
-    ['--output', 'report.txt'], ['--output', '.git/report.json'], ['--output', '.GIT/report.json'], ['--output', ''],
+    ['--model', 'live-provider'], ['--output', join(checkout, 'results', 'bilingual.json')], ['--output', join(checkout, '.git', 'report.json')],
+    ['--output', 'report.txt'], ['--output', join(directory, 'report.JSON')], ['--output', ''],
   ]) {
     const result = spawnSync(process.execPath, [script, ...args], { cwd: directory, encoding: 'utf8', timeout: 10000, windowsHide: true });
     assert.equal(result.error, undefined);
     assert.notEqual(result.status, 0, JSON.stringify(args));
-    assert.match(result.stderr, /Usage:|relative JSON path inside this source copy/);
+    assert.match(result.stderr, /Usage:|The output must be a \.json file\.|Chausar keeps its data outside the code folder\./);
     assert.equal(result.stdout, '', 'Invalid input does not emit a qualification report.');
   }
   assert.deepEqual(await readdir(directory), []);
@@ -378,7 +380,9 @@ export async function runBilingualBenchmark({ scratchRoot }) {
     fingerprints: { semanticRunSha256: 'synthetic-cli-fixture-only' }, execution: { scratchRoot: scratch } };
 }
 `;
+  await mkdir(join(directory, 'platform', 'runtime'), { recursive: true });
   await Promise.all([copyFile(fileURLToPath(new URL('../../scripts/bilingual-benchmark.mjs', import.meta.url)), script),
+    copyFile(fileURLToPath(new URL('../runtime/run-root.mjs', import.meta.url)), join(directory, 'platform', 'runtime', 'run-root.mjs')),
     writeFile(join(runnerDirectory, 'runner.ts'), fixtureRunner)]);
   const execute = (args: string[], fail = false) => spawnSync(process.execPath, [script, ...args], {
     cwd: directory, encoding: 'utf8', timeout: 10000, windowsHide: true,
@@ -403,7 +407,7 @@ export async function runBilingualBenchmark({ scratchRoot }) {
   const reportPath = join(directory, 'results', 'fixture-report.json'), reportBytes = await readFile(reportPath, 'utf8');
   const report = JSON.parse(reportBytes);
   assert.equal(report.fixtureOnly, true); assert.equal(report.execution.scratchRoot, successScratch);
-  assert.equal(JSON.parse(success.stdout).report, 'results/fixture-report.json');
+  assert.equal(JSON.parse(success.stdout).report, reportPath.replaceAll('\\', '/'));
   assert.deepEqual((await readdir(directory)).sort(), ['package.json', 'platform', 'results', 'scripts']);
   const runnerFailure = execute(['--output', 'results/failed-report.json'], true);
   assert.notEqual(runnerFailure.status, 0); assert.match(runnerFailure.stderr, /Synthetic CLI fixture runner failure/);

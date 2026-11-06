@@ -197,6 +197,8 @@ export function validateBriefOutput(raw: unknown, allowed: readonly string[]): B
   return { whatToBuild, whoItIsFor, pages, lookAndFeel, doneMeans };
 }
 
+const FILL_LINE = 'Write only the fields listed in writeOnly; the rest of the brief is written.';
+
 /** The words a brief task lets the model copy (its own validate closes over them; the fill task needs the same). */
 const ALLOWED_OF = new WeakMap<object, readonly string[]>();
 
@@ -210,8 +212,9 @@ export function briefFillTask(base: ModelTask<BriefModelOutput>, missing: readon
   const properties = (BRIEF_SCHEMA as { properties: Record<string, Json> }).properties;
   return {
     purpose: base.purpose,
-    instructions: `${base.instructions} Write only ${missing.map(name => TEXT_FIELDS[name].words).join(' and ')}; the rest of the brief is written.`,
-    input: { ...(base.input as Record<string, Json>), written, writtenPages: words.pages.map(page => ({ ...page })) } as Json,
+    // D2: a fixed line; which fields to write is in the input (writeOnly), so the fixed prompt stays the same.
+    instructions: `${base.instructions} ${FILL_LINE}`,
+    input: { ...(base.input as Record<string, Json>), writeOnly: missing.map(name => TEXT_FIELDS[name].words), written, writtenPages: words.pages.map(page => ({ ...page })) } as Json,
     schemaName: 'venture-brief-fill',
     schema: { type: 'object', additionalProperties: false, required: [...missing], properties: Object.fromEntries(missing.map(name => [name, properties[name]!])) },
     validate: raw => {

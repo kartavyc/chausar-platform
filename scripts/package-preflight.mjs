@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs';
 import { lstat, open, readFile, readdir } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { lockfileProblems, PINNED_BUILD_GIT_SOURCES } from './lockfile.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const platforms = new Set(['win32', 'darwin', 'linux']);
@@ -108,19 +109,16 @@ export async function packagePreflight({ root = projectRoot, platform = process.
     const path = join(root, 'package-lock.json');
     await regular(path);
     const lock = JSON.parse(await readFile(path, 'utf8'));
-    if (lock.lockfileVersion !== 3 || !lock.packages?.[''] || lock.packages[''].version !== pkg.version) throw new Error('npm lockfile version 3 must match package.json');
-    for (const kind of ['dependencies', 'devDependencies']) {
-      if (JSON.stringify(Object.entries(lock.packages[''][kind] ?? {}).sort()) !== JSON.stringify(Object.entries(pkg[kind] ?? {}).sort())) throw new Error(`locked ${kind} must match package.json`);
-      for (const [name, version] of Object.entries(pkg[kind] ?? {})) {
-        if (lock.packages[`node_modules/${name}`]?.version !== version) throw new Error(`the lockfile must resolve the exact ${name} version`);
-      }
-    }
-    for (const [path, entry] of Object.entries(lock.packages)) {
-      if (!path) continue;
-      if (entry.link || !exactVersion.test(entry.version ?? '') || !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(entry.integrity ?? '')) throw new Error('every locked package requires an exact version and registry integrity hash');
-      const url = new URL(entry.resolved);
-      if (url.protocol !== 'https:' || url.username || url.password) throw new Error('every locked package must resolve to an HTTPS registry artifact');
-    }
+    // D1: the same check desktop packaging runs, including its one pinned build-only Git source (electron-builder's
+    // node-gyp), which the committed lock carries; before D1 this copy refused that entry.
+    const [problem] = lockfileProblems(lock, pkg, { pinnedGitSources: PINNED_BUILD_GIT_SOURCES });
+    if (problem) throw new Error({
+      version: 'npm lockfile version 3 must match package.json',
+      'dependencies-differ': `locked ${problem.kind} must match package.json`,
+      'unresolved-pin': `the lockfile must resolve the exact ${problem.name} version`,
+      entry: 'every locked package requires an exact version and registry integrity hash',
+      resolved: 'every locked package must resolve to an HTTPS registry artifact',
+    }[problem.code] ?? problem.message);
   });
   await check('installed packaging dependencies', async () => {
     if (!pkg) throw new Error('package.json must be valid first');

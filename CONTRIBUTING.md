@@ -11,7 +11,7 @@ Chausar is free software under the GNU Affero General Public License, version 3 
 ## Before you start
 
 1. Read [AGENTS.md](AGENTS.md). Its rules bind every contributor, human or AI. The ones people miss most are below.
-2. Install Node.js 24.13.1 or later, then run `npm install`.
+2. Install Node.js 24.13.1 or later, then run `npm ci`. It installs exactly what the committed `package-lock.json` lists.
 3. For a change to the app screens, look at the existing design first (`app/ui/`) and extend it. Don't redesign.
 
 ## The rules that never bend

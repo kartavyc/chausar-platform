@@ -123,7 +123,7 @@ reader before replacement. No retry or permission change masked that failure.
 Fixture auth/business adapters are labelled synthetic. They do not qualify production
 phone authentication, protected native storage, remote TLS/relay, or real inference.
 
-Commands and final receipts are in `docs/verification/durable-phone-host-*`. The current
+Commands and final receipts were kept with the build logs, now in the private repository. The current
 source check and strict root/portable TypeScript checks reuse the existing installed
 dependencies read-only. No package or SDK acquisition, D write, native GUI/model call,
 real user vault/credential, spending, external send, merge or push occurs in this lane.

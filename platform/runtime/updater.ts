@@ -1,14 +1,15 @@
-import { createPublicKey, createHash, verify as verifySignature, type KeyObject } from 'node:crypto';
-import { constants } from 'node:fs';
-import { open, readFile, lstat, rename, unlink, link } from 'node:fs/promises';
+import { createPublicKey, createHash, randomBytes, verify as verifySignature, type KeyObject } from 'node:crypto';
+import { constants, createReadStream } from 'node:fs';
+import { open, readFile, lstat, rename, unlink, link, mkdir } from 'node:fs/promises';
 import { join, isAbsolute, dirname, basename } from 'node:path';
 import { isIP } from 'node:net';
 import { check, newId, internalCheck } from './contracts.ts';
 import { safeDirectory } from './vault.ts';
 import { acquireProcessLock } from './process-lock.ts';
-import { boundedHttp, type BoundedHttp, type HttpRequest } from './connectors.ts';
+import type { BoundedHttp } from './connectors.ts';
 
-const MAX_ARTIFACT = 256 * 1024 * 1024;
+// C5 task 31: the cap is the signed size, under a 512 MiB ceiling (the beta installer is about 309 MB).
+const MAX_ARTIFACT = 512 * 1024 * 1024;
 const MAX_BACKUP = 64 * 1024 * 1024;
 export type ReleaseManifest = {
   schemaVersion:1; version:string; publishedAt:string; platform:'win32'|'linux'|'darwin'; architecture:'x64'|'arm64';
@@ -67,6 +68,38 @@ function canonical(value:any):string {
 }
 /** Canonical sorted JSON; this exact byte sequence is the Ed25519 signing payload. */
 export function canonicalReleaseManifest(manifest:ReleaseManifest):string { return canonical(manifest); }
+
+// C5 task 30: the signed feed. One file lists every release, signed whole with the same pinned key and in the same
+// canonical form as a manifest; each release inside keeps its own manifest signature, so a picked release is checked
+// twice and staged exactly as before. The install's bucket, sha256(installId + version) mod 100, decides a staged rollout.
+export type ReleaseChannel = 'beta'|'stable';
+export type FeedRelease = { manifest:ReleaseManifest; signature:string };
+/** expiresAt (review round 1): signed with the rest, so a replayed old feed is refused once it expires. */
+export type ReleaseFeed = { schemaVersion:1; channel:ReleaseChannel; rolloutPercent:number; expiresAt:string; releases:FeedRelease[] };
+export type FeedChoice = Readonly<{ offer:FeedRelease|null; reason:'offered'|'up-to-date'|'no-release'|'not-in-rollout' }>;
+const MAX_FEED_BYTES = 1024 * 1024, MAX_FEED_RELEASES = 64;
+export const RELEASE_CHANNELS: readonly ReleaseChannel[] = Object.freeze(['beta','stable']);
+/** Canonical sorted JSON of the whole feed; this exact byte sequence is the feed's Ed25519 signing payload. */
+export function canonicalReleaseFeed(feed:ReleaseFeed):string { return canonical(feed); }
+/** This install's place in a staged rollout of one version, 0 to 99. The same id and version always give the same place. */
+export function rolloutBucket(installId:string,version:string):number {
+  return createHash('sha256').update(installId+version).digest().readUIntBE(0,6)%100;
+}
+const INSTALL_ID = /^[a-f0-9]{32}$/;
+/** The install's random id, made once and kept in <updates>/install-id. A missing or damaged file gets a fresh id. */
+export async function installIdIn(updatesFolder:string):Promise<string> {
+  check(typeof updatesFolder==='string'&&isAbsolute(updatesFolder),'UNSAFE_STAGE','Choose an absolute updates folder.');
+  await mkdir(updatesFolder,{recursive:true});
+  const directory=await safeDirectory(updatesFolder),path=join(directory,'install-id'),exists=await regular(path);
+  if(exists&&(await lstat(path)).size<=64){const kept=(await readFile(path,'utf8')).trim();if(INSTALL_ID.test(kept))return kept;}
+  const made=randomBytes(16).toString('hex');
+  await writeStaged(path,Buffer.from(made+'\n'),exists);
+  return made;
+}
+function signatureBytes(signature:unknown,code:string,message:string):Buffer {
+  check(typeof signature==='string'&&signature.length===86&&/^[A-Za-z0-9_-]+$/.test(signature),code,message);
+  const bytes=Buffer.from(signature as string,'base64url');check(bytes.length===64&&bytes.toString('base64url')===signature,code,message);return bytes;
+}
 function validateManifest(value:any):asserts value is ReleaseManifest {
   exactKeys(value,FIELDS); exactKeys(value.rollback,['supported','requiresBackup']);
   internalCheck(value.schemaVersion===1 && typeof value.rollback.supported==='boolean' && value.rollback.requiresBackup===true, 'INVALID_MANIFEST','A version-one manifest must require a vault backup before installation.');
@@ -87,6 +120,34 @@ async function writeStaged(path:string,bytes:Uint8Array,replace=false) {
   catch(error){await file.close().catch(()=>{});await unlink(temporary).catch(()=>{});throw error;}
 }
 function digest(bytes:Uint8Array){return createHash('sha256').update(bytes).digest('hex');}
+async function fileDigest(path:string,hash=createHash('sha256')){for await(const chunk of createReadStream(path))hash.update(chunk as Buffer);return hash;}
+
+// C5 task 31, the stage half: a release is fetched as a stream. `ReleaseDownload` is the seam: tests pass a stand-in,
+// the app uses `fetchDownload` (fetch with redirects refused and an idle timer). A BoundedHttp passed as `http` still
+// works and is read as one chunk, so older callers keep their shape.
+export type DownloadRequest = { url:string; headers:Record<string,string>; idleTimeoutMs:number; redirect:'error' };
+export type DownloadResponse = { status:number; url?:string; headers?:Record<string,string>; body:AsyncIterable<Uint8Array> };
+export type ReleaseDownload = (request:DownloadRequest)=>Promise<DownloadResponse>;
+const IDLE_TIMEOUT_MS = 60000;
+/** The app's download: fetch, redirects refused, the stream aborted when no byte arrives for the idle time. */
+export const fetchDownload:ReleaseDownload=async request=>{
+  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);
+  const response=await fetch(request.url,{method:'GET',headers:request.headers,redirect:'error',signal:controller.signal}).catch(error=>{clearTimeout(timer);throw error;});
+  const headers:Record<string,string>={};response.headers.forEach((value,key)=>{headers[key]=value;});
+  const reader=response.body?.getReader();
+  async function*body(){
+    try{while(reader){const {done,value}=await reader.read();if(done)return;clearTimeout(timer);timer=setTimeout(()=>controller.abort(),request.idleTimeoutMs);yield value;}}
+    finally{clearTimeout(timer);await reader?.cancel().catch(()=>{});}
+  }
+  return {status:response.status,url:response.url,headers,body:body()};
+};
+function fromBoundedHttp(http:BoundedHttp,maxBytes:number):ReleaseDownload{
+  return async request=>{
+    const response=await http({url:request.url,method:'GET',headers:request.headers,maxBytes,timeoutMs:request.idleTimeoutMs,redirect:'error'});
+    const bytes=typeof response.body==='string'?Buffer.from(response.body):Buffer.from(response.body);
+    return {status:response.status,url:response.url,headers:response.headers,body:(async function*(){yield bytes;})()};
+  };
+}
 /** Read a bounded snapshot from a regular file, checking both handle and path identity. */
 async function rollbackFile(path:string,maximum:number,code:string) {
   check(typeof path==='string'&&isAbsolute(path),'UNSAFE_ROLLBACK_PATH','Rollback inputs need absolute regular-file paths.');
@@ -122,12 +183,13 @@ export class ReleaseUpdater {
   #key:KeyObject;
   #version:string;
   #directory:string;
-  #http:BoundedHttp;
-  constructor(options:{publicKey:string|KeyObject;version:string;stageDirectory:string;http?:BoundedHttp}) {
+  #http:BoundedHttp|undefined;
+  #download:ReleaseDownload|undefined;
+  constructor(options:{publicKey:string|KeyObject;version:string;stageDirectory:string;http?:BoundedHttp;download?:ReleaseDownload}) {
     this.#key=typeof options.publicKey==='string'?createPublicKey(options.publicKey):options.publicKey;
     check(this.#key.type==='public' && this.#key.asymmetricKeyType==='ed25519','INVALID_UPDATE_KEY','Pin an explicit Ed25519 release public key.');
     versionParts(options.version);check(isAbsolute(options.stageDirectory),'UNSAFE_STAGE','Choose an absolute private staging directory.');
-    this.#version=options.version;this.#directory=options.stageDirectory;this.#http=options.http??boundedHttp;
+    this.#version=options.version;this.#directory=options.stageDirectory;this.#http=options.http;this.#download=options.download;
   }
   verify(manifest:ReleaseManifest|string,signature:string):ReleaseManifest {
     const value=this.#authenticate(manifest,signature);
@@ -135,17 +197,42 @@ export class ReleaseUpdater {
     check(compareVersions(this.#version,value.minEngineVersion)>=0,'INCOMPATIBLE_ENGINE','Install the update before this one first.');
     return value;
   }
-  #authenticate(manifest:ReleaseManifest|string,signature:string):ReleaseManifest {
+  /**
+   * Checks the whole feed against the pinned key, then every release in it, then picks this platform's newest release
+   * that this engine may install. A changed byte, another key, another channel or a bad release refuses the feed; a
+   * feed with nothing newer here, or a rollout this install is outside, offers nothing.
+   */
+  verifyFeed(feed:ReleaseFeed|string,signature:string,options:{channel:ReleaseChannel;installId:string;now?:Date}):FeedChoice {
+    check(RELEASE_CHANNELS.includes(options?.channel)&&typeof options.installId==='string'&&options.installId.length>0&&options.installId.length<=100,'INVALID_FEED','Name this install\'s channel and id before reading a feed.');
+    check(typeof feed!=='string'||Buffer.byteLength(feed)<=MAX_FEED_BYTES,'INVALID_FEED','The update feed exceeds its byte limit.');
+    let value:any;try{value=typeof feed==='string'?JSON.parse(feed):structuredClone(feed);}catch{check(false,'INVALID_FEED','The update feed is not valid JSON data.');}
+    check(hasExactKeys(value,['schemaVersion','channel','rolloutPercent','expiresAt','releases'])&&value.schemaVersion===1&&typeof value.expiresAt==='string'&&Number.isFinite(Date.parse(value.expiresAt))&&new Date(value.expiresAt).toISOString()===value.expiresAt&&RELEASE_CHANNELS.includes(value.channel)&&Number.isSafeInteger(value.rolloutPercent)&&value.rolloutPercent>=0&&value.rolloutPercent<=100&&Array.isArray(value.releases)&&value.releases.length>0&&value.releases.length<=MAX_FEED_RELEASES&&value.releases.every((release:any)=>hasExactKeys(release,['manifest','signature'])),'INVALID_FEED','The update feed has unexpected or missing fields.');
+    const payload=canonical(value);
+    check(typeof feed!=='string'||feed===payload,'NONCANONICAL_FEED','Verify the exact canonical feed, without duplicate keys or alternate encodings.');
+    const bytes=signatureBytes(signature,'INVALID_FEED_SIGNATURE','A feed requires a detached base64url Ed25519 signature.');
+    check(verifySignature(null,Buffer.from(payload),this.#key,bytes),'INVALID_FEED_SIGNATURE','The update feed signature is invalid.');
+    check(Date.parse(value.expiresAt)>(options.now??new Date()).getTime(),'FEED_EXPIRED','This update feed has expired, or this computer\'s clock may be wrong. Chausar checks for a newer one later.');
+    check(value.channel===options.channel,'FEED_CHANNEL_MISMATCH','This feed is for another release channel.');
+    const releases:FeedRelease[]=value.releases.map((release:any)=>({manifest:this.#authenticate(release.manifest,release.signature,false),signature:release.signature}));
+    const seen=new Map<string,string>();
+    for(const {manifest} of releases){const key=`${manifest.platform}/${manifest.architecture}/${manifest.version}`,body=canonicalReleaseManifest(manifest);check(!seen.has(key)||seen.get(key)===body,'INVALID_FEED','The feed lists one version twice with different contents.');seen.set(key,body);}
+    const here=releases.filter(({manifest})=>manifest.platform===process.platform&&manifest.architecture===process.arch&&compareVersions(this.#version,manifest.minEngineVersion)>=0);
+    if(!here.length)return Object.freeze({offer:null,reason:'no-release'});
+    const newest=here.reduce((best,release)=>compareVersions(release.manifest.version,best.manifest.version)>0?release:best);
+    if(compareVersions(newest.manifest.version,this.#version)<=0)return Object.freeze({offer:null,reason:'up-to-date'});
+    if(rolloutBucket(options.installId,newest.manifest.version)>=value.rolloutPercent)return Object.freeze({offer:null,reason:'not-in-rollout'});
+    return Object.freeze({offer:Object.freeze({manifest:newest.manifest,signature:newest.signature}),reason:'offered'});
+  }
+  #authenticate(manifest:ReleaseManifest|string,signature:string,thisPlatform=true):ReleaseManifest {
     let value:any;
     internalCheck(typeof manifest !== 'string' || Buffer.byteLength(manifest) <= 65536, 'INVALID_MANIFEST', 'The signed manifest exceeds its byte limit.');
     try{value=typeof manifest==='string'?JSON.parse(manifest):structuredClone(manifest);}catch{internalCheck(false,'INVALID_MANIFEST','The signed manifest is not valid JSON data.');}
     validateManifest(value);
     const payload=canonicalReleaseManifest(value);
     check(typeof manifest!=='string'||manifest===payload,'NONCANONICAL_MANIFEST','Verify the exact canonical signing payload, without duplicate keys or alternate encodings.');
-    check(typeof signature==='string' && signature.length === 86 && /^[A-Za-z0-9_-]+$/.test(signature),'INVALID_RELEASE_SIGNATURE','A release requires a detached base64url Ed25519 signature.');
-    const bytes=Buffer.from(signature,'base64url');
-    check(bytes.length===64 && bytes.toString('base64url')===signature && verifySignature(null,Buffer.from(payload),this.#key,bytes),'INVALID_RELEASE_SIGNATURE','The release signature is invalid.');
-    check(value.platform===process.platform && value.architecture===process.arch,'INCOMPATIBLE_PLATFORM','This signed artifact targets a different operating system or architecture.');
+    const bytes=signatureBytes(signature,'INVALID_RELEASE_SIGNATURE','A release requires a detached base64url Ed25519 signature.');
+    check(verifySignature(null,Buffer.from(payload),this.#key,bytes),'INVALID_RELEASE_SIGNATURE','The release signature is invalid.');
+    if(thisPlatform)check(value.platform===process.platform && value.architecture===process.arch,'INCOMPATIBLE_PLATFORM','This signed artifact targets a different operating system or architecture.');
     return Object.freeze({...value,rollback:Object.freeze({...value.rollback})});
   }
   /** Checks local rollback prerequisites; it never installs a package or restores the authoritative vault. */
@@ -173,6 +260,43 @@ export class ReleaseUpdater {
     // A plan is a snapshot of checked bytes, not authority to execute files that may later change.
     return Object.freeze({prepared:true,installed:false,automatic:false,fromVersion:current.version,toVersion:previous.version,previousManifest:previous,previousSignature,artifactPath:artifact.path,artifactSha256:previous.sha256,artifactSize:previous.size,backup:Object.freeze({path:snapshot.path,sha256:backup.sha256,...expected}),restore:Object.freeze({...restored!}),installMode:'manual-native-installer-required',requiresNativeInstaller:true,requiresInputRevalidation:true,requiresExclusiveVaultLock:true,requiresEffectReconciliation:true,requiresUserApproval:true,unsignedFallbackAllowed:false});
   }
+  /**
+   * Streams the signed artifact into <artifact>.part with a running SHA-256, then links it into place. A cut stream keeps
+   * the part file and the next stage asks only for the rest (Range); a server that ignores the Range starts it again.
+   * A body longer or shorter than the signed size, or with another digest, deletes the part file.
+   */
+  async #fetchTo(verified:ReleaseManifest,artifactPath:string) {
+    const partPath=artifactPath+'.part';let offset=0,hash=createHash('sha256');
+    if(await regular(partPath)){
+      const size=(await lstat(partPath)).size;
+      if(size>0&&size<verified.size){hash=await fileDigest(partPath);offset=size;}else await unlink(partPath);
+    }
+    const download=this.#download??(this.#http?fromBoundedHttp(this.#http,verified.size):fetchDownload);
+    const headers:Record<string,string>={Accept:'application/octet-stream'};if(offset)headers.Range=`bytes=${offset}-`;
+    const response=await download({url:verified.url,headers,idleTimeoutMs:IDLE_TIMEOUT_MS,redirect:'error'});
+    check(!response.url||response.url===verified.url,'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
+    if(offset&&response.status===200){offset=0;hash=createHash('sha256');}
+    else if(offset){
+      const range=response.headers?.['content-range']??response.headers?.['Content-Range'];
+      check(response.status===206&&range===`bytes ${offset}-${verified.size-1}/${verified.size}`,'RELEASE_FETCH_REFUSED','The release server answered another part of the file.');
+    } else check(response.status===200,'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
+    const file=await open(partPath,offset?'a':'w',0o600);let written=offset,finished=false;
+    try {
+      try {
+        for await (const chunk of response.body) {
+          written+=chunk.byteLength;
+          if(written>verified.size)break;
+          hash.update(chunk);await file.write(chunk);
+        }
+        finished=true;
+      } catch {
+        await file.sync().catch(()=>{});
+        check(false,'RELEASE_DOWNLOAD_CUT','The download stopped part way. It continues from there next time.');
+      }
+    } finally {await file.close();if(finished&&(written!==verified.size||hash.copy().digest('hex')!==verified.sha256))await unlink(partPath).catch(()=>{});}
+    if(written!==verified.size||hash.digest('hex')!==verified.sha256){await unlink(partPath).catch(()=>{});internalCheck(false,'RELEASE_HASH_MISMATCH','The staged artifact length or SHA-256 does not match the signed manifest.');}
+    await link(partPath,artifactPath);await unlink(partPath);
+  }
   async stage(manifest:ReleaseManifest|string,signature:string) {
     const verified=this.verify(manifest,signature),directory=await safeDirectory(this.#directory,true),lockPath=join(directory,'stage.lock');
     const lock=await acquireProcessLock(lockPath,{busyCode:'UPDATE_BUSY',changedCode:'UPDATE_LOCK_CHANGED',unsafeCode:'UNSAFE_STAGE'});
@@ -184,14 +308,9 @@ export class ReleaseUpdater {
         check(compareVersions(verified.version,prior.version)>=0,'RELEASE_DOWNGRADE_REFUSED','A newer signed release has already been staged.');
         if(compareVersions(verified.version,prior.version)===0)check(canonicalReleaseManifest(verified)===canonicalReleaseManifest(prior),'RELEASE_VERSION_CONFLICT','The same version was signed with different release contents.');
       }
-      const request:HttpRequest={url:verified.url,method:'GET',headers:{Accept:'application/octet-stream'},maxBytes:verified.size,timeoutMs:60000,redirect:'error'};
-      const response=await this.#http(request);
-      check(response.status===200 && (!response.url||response.url===verified.url),'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
-      const bytes=typeof response.body==='string'?Buffer.from(response.body):Buffer.from(response.body);
-      internalCheck(bytes.length===verified.size && bytes.length<=MAX_ARTIFACT && digest(bytes)===verified.sha256,'RELEASE_HASH_MISMATCH','The staged artifact length or SHA-256 does not match the signed manifest.');
       const artifactPath=join(directory,`release-${verified.version}-${verified.sha256.slice(0,16)}.artifact`);
-      if(await regular(artifactPath)) {check((await lstat(artifactPath)).size===verified.size,'UNSAFE_STAGE','An existing staged artifact was modified.');const existing=await readFile(artifactPath);check(existing.length===verified.size&&digest(existing)===verified.sha256,'UNSAFE_STAGE','An existing staged artifact was modified.');}
-      else await writeStaged(artifactPath,bytes);
+      if(await regular(artifactPath)) {check((await lstat(artifactPath)).size===verified.size,'UNSAFE_STAGE','An existing staged artifact was modified.');check((await fileDigest(artifactPath)).digest('hex')===verified.sha256,'UNSAFE_STAGE','An existing staged artifact was modified.');}
+      else await this.#fetchTo(verified,artifactPath);
       const rollback={fromVersion:verified.version,toVersion:this.#version,automatic:false,requiresVaultBackup:true,requiresVerifiedPreviousPackage:true,requiresNativeInstaller:true,dataSchemaVersion:verified.dataSchemaVersion};
       const record={manifest:verified,signature,artifactPath,baseVersion:this.#version,rollback,verifiedAt:new Date().toISOString(),installed:false};
       await writeStaged(pendingPath,Buffer.from(JSON.stringify(record)),true);

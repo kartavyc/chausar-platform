@@ -46,14 +46,30 @@ test('the monthly ceiling is a BigInt sum of recorded costs for the month, and r
 
 test('usage entries come only from finished calls with a cost, once each', () => {
   const calls = [
-    { id: 'call_1', at: '2026-10-16T09:00:00.000Z', status: 'completed', costMicros: '1200' },
-    { id: 'call_2', at: '2026-10-16T09:01:00.000Z', status: 'failed', costMicros: '300' },
-    { id: 'call_3', at: '2026-10-16T09:02:00.000Z', status: 'dispatching', costMicros: null },
-    { id: 'call_4', at: '2026-10-16T09:03:00.000Z', status: 'preview', costMicros: null },
-    { id: 'call_5', at: '2026-10-16T09:04:00.000Z', status: 'completed', costMicros: '-5' },
+    { id: 'call_1', at: '2026-10-16T09:00:00.000Z', status: 'completed', costMicros: '1200', usage: null, estimatedMaxCostMicros: '0' },
+    { id: 'call_2', at: '2026-10-16T09:01:00.000Z', status: 'failed', costMicros: '300', usage: null, estimatedMaxCostMicros: '0' },
+    { id: 'call_3', at: '2026-10-16T09:02:00.000Z', status: 'dispatching', costMicros: null, usage: null, estimatedMaxCostMicros: '0' },
+    { id: 'call_4', at: '2026-10-16T09:03:00.000Z', status: 'preview', costMicros: null, usage: null, estimatedMaxCostMicros: '0' },
+    { id: 'call_5', at: '2026-10-16T09:04:00.000Z', status: 'completed', costMicros: '-5', usage: null, estimatedMaxCostMicros: '0' },
   ];
   const fresh = usageFromCalls('b_' + 'b'.repeat(24), calls, [entry('call_1', '2026-10', '1200')]);
   assert.deepEqual(fresh.map(e => [e.callId, e.costMicros, e.month]), [['call_2', '300', '2026-10']]);
+});
+
+// D3 fix (review 1, MEDIUM 2): a held call (it reported cache tokens with no saved cache rate, so its recorded cost is
+// null beside its usage) counts toward the account's monthly ceiling at its reservation, the figure its spend row keeps.
+test('D3 fix: a held call counts toward the monthly ceiling at its reservation; a call never priced counts nothing', () => {
+  const usage = { inputTokens: 1000, outputTokens: 200, cachedInputTokens: 4000 };
+  const calls = [
+    { id: 'call_1', at: '2026-10-16T09:00:00.000Z', status: 'completed', costMicros: null, usage, estimatedMaxCostMicros: '10642' },
+    { id: 'call_2', at: '2026-10-16T09:01:00.000Z', status: 'failed', costMicros: null, usage, estimatedMaxCostMicros: '533' },
+    { id: 'call_3', at: '2026-10-16T09:02:00.000Z', status: 'failed', costMicros: null, usage: null, estimatedMaxCostMicros: '900' },
+    { id: 'call_4', at: '2026-10-16T09:03:00.000Z', status: 'dispatching', costMicros: null, usage: null, estimatedMaxCostMicros: '700' },
+    { id: 'call_5', at: '2026-10-16T09:04:00.000Z', status: 'completed', costMicros: '1200', usage, estimatedMaxCostMicros: '9000' },
+  ];
+  const fresh = usageFromCalls('b_' + 'b'.repeat(24), calls, []);
+  assert.deepEqual(fresh.map(e => [e.callId, e.costMicros]), [['call_1', '10642'], ['call_2', '533'], ['call_5', '1200']]);
+  assert.throws(() => checkMonthlyCeiling(fresh, '2026-10', '12374', formatMicros), code('BUDGET_REACHED'), 'the held calls fill the ceiling');
 });
 
 test('the hosted transport gates every call before it leaves and never runs a process', async () => {

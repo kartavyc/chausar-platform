@@ -5,13 +5,14 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { ChausarError, check, hash, newId, now } from './contracts.ts';
+import { runtimeFile } from './engine-paths.ts';
 
 export type HelperOperation = 'pdf.extract' | 'forecast' | 'allocation.optimize';
 export type HelperSpawn = (executable: string, args: string[], options: SpawnOptionsWithoutStdio) => ChildProcessWithoutNullStreams;
 export type HelperOptions = { executable?: string; timeoutMs?: number; maxInputBytes?: number; maxOutputBytes?: number; spawnProcess?: HelperSpawn };
 export type HelperReceipt = { id: string; operation: HelperOperation; inputHash: string; outputHash: string; implementationHash: string; startedAt: string; finishedAt: string; engine: 'python' | 'injected-process'; pythonVersion: string; resourceLimits: boolean; status: 'completed'; sourceTainted: boolean };
 export type HelperResponse = { result: any; receipt: HelperReceipt };
-const FILE = fileURLToPath(new URL('../helpers/analytics.py',import.meta.url));
+const FILE = runtimeFile('../helpers/analytics.py');
 const OPERATIONS = new Set(['pdf.extract','forecast','allocation.optimize']);
 const ERROR_CODES = new Set(['INVALID_HELPER_INPUT','FORECAST_HISTORY_REQUIRED','FORECAST_GAP','OPTIMIZATION_LIMIT','INVALID_PDF','PDF_DEPENDENCY_UNAVAILABLE','PDF_PAGE_LIMIT','PDF_TEXT_LIMIT','PDF_EXTRACT_FAILED','DUPLICATE_JSON_KEY','HELPER_INPUT_LIMIT','HELPER_OUTPUT_LIMIT','HELPER_OPERATION_UNSUPPORTED','HELPER_EXECUTION_FAILED']);
 function jsonData(value: unknown, depth = 0): void {

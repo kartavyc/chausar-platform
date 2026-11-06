@@ -2,3 +2,5 @@
 platform/tests/fixtures/venture/models/npm-shims/codex.cmd -text
 # Licence texts shipped in the installers are kept byte for byte (6J1; codex-bundle-w6 tests check their digests).
 app/desktop/notices/** -text
+# Shell scripts run on Linux (D11: the release smoke on the VPS); bash refuses CRLF.
+*.sh text eol=lf

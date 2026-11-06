@@ -1,4 +1,4 @@
-// Pages the Ink walk writes: the local review page (app/ui/.shots/index.html, every shot beside its board) and, with
+// Pages the Ink walk writes: the local review page (index.html in the walk's output folder, every shot beside its board) and, with
 // --publish, the founder's side-by-side page and WALK.md in the private checkout's docs/superpowers/designs/ink-v2-direction-d/
 // (../chausar-private, or CHAUSAR_PRIVATE_DIR), with the
 // shots that match a board copied into walk/ (1280 light and 390 light only, to keep the repo small).
@@ -67,7 +67,7 @@ function list(items) {
 /** Markdown code ticks dropped, for the page. */
 const plain = (text) => text.replace(/`/g, '');
 
-/** app/ui/.shots/index.html: every board beside its shots, then every other case, light and dark. */
+/** index.html in the walk's output folder (the run root; D3): every board beside its shots, then every other case, light and dark. */
 export function writeIndex(out, cases, results) {
   const boardsDir = relative(out, join(DESIGNS, 'shots')).replace(/\\/g, '/');
   const has = new Set(results.filter((r) => r.file).map((r) => r.file));
@@ -143,7 +143,7 @@ function walkMd(report) {
   const lines = [
     '# The walk, board by board (waves 3, 4 and 5)',
     '',
-    'Written by `node scripts/ui-shots/walk.mjs --publish` (packages 3I and 4Z) from `scripts/ui-shots/boards.mjs` and the walk\'s report. Each direction D board, the address it is compared with, what matches, what differs and why, and what is still to come. The pictures are in `side-by-side.html` beside this file (board left, app right) and in `walk/` (1280 light and 390 light). Every shot, in both themes, is in `app/ui/.shots/` after a walk (not committed). Addresses on `parts.html` are the dev server\'s parts page: the app or its parts on other fake starts or with sample props, never built into the app.',
+    'Written by `node scripts/ui-shots/walk.mjs --publish` (packages 3I and 4Z) from `scripts/ui-shots/boards.mjs` and the walk\'s report. Each direction D board, the address it is compared with, what matches, what differs and why, and what is still to come. The pictures are in `side-by-side.html` beside this file (board left, app right) and in `walk/` (1280 light and 390 light). Every shot, in both themes, is in the walk\'s output folder after a walk (the run root: `CHAUSAR_RUN_ROOT/ui-shots`, else the temp folder\'s `chausar-runs`; never committed). Addresses on `parts.html` are the dev server\'s parts page: the app or its parts on other fake starts or with sample props, never built into the app.',
     '',
     '| Board | Address | What matches | What differs, and why | Still to come |',
     '|---|---|---|---|---|',

@@ -1,0 +1,219 @@
+name: Release
+
+# D11: a tag v<version> builds the Windows x64 and Linux x64 beta installers, tests and smokes each on its runner, then
+# makes checksums, an SBOM and the signed update feed, and opens a DRAFT GitHub release. The founder reviews and
+# publishes the draft himself; nothing here publishes. Windows signing runs only when the certificate secrets exist.
+# Secrets (repository settings, added by the founder): CHAUSAR_RELEASE_KEY (the Ed25519 private key from
+# scripts/release-key.mjs, C5), and later CSC_LINK and CSC_KEY_PASSWORD (the Windows code-signing certificate).
+# desktop-preview.yml stays for manual preview builds.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # The same checks as ci.yml's lint job, once, before anything is built.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check that no data is tracked in the repo
+        run: node scripts/check-clean-tree.mjs --tracked
+      - name: Check source and JSON syntax
+        run: node scripts/check.mjs
+      - name: Report imports that cross the platform boundaries
+        run: node scripts/check-boundaries.mjs --report
+      - name: Check the CHAUSAR_ variable list and the files made from it
+        run: node scripts/env-docs.mjs --check
+      - name: Typecheck runtime and tests
+        run: npm run typecheck
+      - name: Typecheck the Ink frontend
+        run: npm run typecheck:ui
+      - name: Check NOTICE against the installed packages
+        run: node scripts/third-party-notices.mjs --check
+
+  build:
+    needs: lint
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            arch: x64
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Check that the tag is v plus package.json's version
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "The tag $GITHUB_REF_NAME is not v$version, the version in package.json." >&2
+            exit 1
+          fi
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install the pinned Electron distribution
+        run: node node_modules/electron/install.js
+      - name: Point the run root at the runner's temp folder, outside the checkout
+        shell: bash
+        run: echo "CHAUSAR_RUN_ROOT=$RUNNER_TEMP/chausar" >> "$GITHUB_ENV"
+      - name: Desktop, updater and rollback tests
+        shell: bash
+        run: node --test platform/tests/desktop-*.test.ts platform/tests/updater.test.ts platform/tests/rollback.test.ts
+      - name: Stage the bundled Codex from its npm package
+        shell: bash
+        # npm pack fetches the two published tarballs (the registry checks their integrity) and runs nothing; they are
+        # laid out the way npm lays out an installed package, then codex-bundle.mjs copies and checks the files (LICENSE, NOTICE digests).
+        run: |
+          target="${{ matrix.platform }}-${{ matrix.arch }}"
+          dir="$RUNNER_TEMP/codex"
+          mkdir -p "$dir/codex/node_modules/@openai/codex-$target"
+          (cd "$dir" && npm pack --silent @openai/codex@0.166.0 "@openai/codex@0.166.0-$target")
+          tar -xzf "$dir/openai-codex-0.166.0.tgz" -C "$dir/codex" --strip-components=1
+          tar -xzf "$dir/openai-codex-0.166.0-$target.tgz" -C "$dir/codex/node_modules/@openai/codex-$target" --strip-components=1
+          node scripts/codex-bundle.mjs --from "$dir/codex" --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+      - name: Is there a Windows signing certificate?
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          if [ -n "$CSC_LINK" ] && [ -n "$CSC_KEY_PASSWORD" ]; then
+            echo "RELEASE_WINDOWS_SIGNED=1" >> "$GITHUB_ENV"
+            echo "A signing certificate is set: the Windows installer will be signed."
+          else
+            echo "RELEASE_WINDOWS_SIGNED=0" >> "$GITHUB_ENV"
+            echo "No signing certificate: the Windows installer is unsigned, and the release notes say so."
+          fi
+      - name: Build the beta installers (unsigned)
+        if: env.RELEASE_WINDOWS_SIGNED != '1'
+        shell: bash
+        run: npm run package:beta -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+      # The signed path: the final configuration keeps forceCodeSigning on, so the build fails rather than ship an
+      # unsigned file under a signed name. Not exercised until the certificate exists (D11 notes).
+      - name: Build the signed Windows installer
+        if: env.RELEASE_WINDOWS_SIGNED == '1'
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: node scripts/desktop-package.mjs --mode final --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+      - name: Smoke the installed build on this runner (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: node scripts/release-smoke.mjs --installer "$(ls release/beta/*.exe release/*.exe 2>/dev/null | head -n 1)"
+      - name: Smoke the AppImage on this runner (Linux, virtual display)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xvfb xauth libfuse2t64 >/dev/null
+          xvfb-run -a node scripts/release-smoke.mjs --installer "$(ls release/beta/*.AppImage | head -n 1)"
+      - name: Keep the installers for the release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: chausar-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            release/beta/*.exe
+            release/beta/*.AppImage
+            release/beta/*.deb
+            release/beta/*.tar.gz
+            release/beta/packaging-receipt-*.json
+            release/*.exe
+          if-no-files-found: error
+          retention-days: 7
+      - name: Check that the run left nothing in the checkout
+        if: always()
+        run: node scripts/check-clean-tree.mjs --after-run
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - name: Install the locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check NOTICE against the installed packages
+        run: node scripts/third-party-notices.mjs --check
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/dist
+          merge-multiple: true
+      - name: Checksums
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/dist"
+          sha256sum *.exe *.AppImage *.deb *.tar.gz 2>/dev/null > SHA256SUMS
+          cat SHA256SUMS
+      - name: Software bill of materials (shipped packages only)
+        shell: bash
+        run: npm sbom --sbom-format cyclonedx --omit dev > "$RUNNER_TEMP/dist/chausar-sbom.cdx.json"
+      - name: Sign the update feed
+        shell: bash
+        env:
+          CHAUSAR_RELEASE_KEY: ${{ secrets.CHAUSAR_RELEASE_KEY }}
+        run: |
+          if [ -z "$CHAUSAR_RELEASE_KEY" ]; then
+            echo "The CHAUSAR_RELEASE_KEY secret is not set: add the release key before tagging." >&2
+            exit 1
+          fi
+          umask 077
+          key="$RUNNER_TEMP/release-key.pem"
+          printf '%s\n' "$CHAUSAR_RELEASE_KEY" > "$key"
+          chmod 600 "$key"
+          node scripts/release-feed.mjs --artifacts "$RUNNER_TEMP/dist" --private-key "$key" --output "$RUNNER_TEMP/dist/feed.json"
+          rm -f "$key"
+      - name: Release notes
+        shell: bash
+        run: |
+          signed="$(ls "$RUNNER_TEMP"/dist/*.exe | grep -c -v Beta || true)"
+          unsigned_flag=""
+          if [ "$signed" = "0" ]; then unsigned_flag="--unsigned"; fi
+          node scripts/release-notes.mjs --version "${GITHUB_REF_NAME#v}" $unsigned_flag --output "$RUNNER_TEMP/notes.md"
+      - name: Open a draft release (the founder publishes it)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$RUNNER_TEMP/dist"
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "Chausar ${GITHUB_REF_NAME#v}" --notes-file "$RUNNER_TEMP/notes.md" ./*.exe ./*.AppImage ./*.deb ./*.tar.gz SHA256SUMS chausar-sbom.cdx.json feed.json feed.json.sig

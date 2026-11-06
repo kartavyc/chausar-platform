@@ -1,7 +1,7 @@
 # Declared descriptive change bridge
 
 This bounded operation implements the descriptive clause of final plan §22.23,
-`C02-R1-009` ([requirement](specs/CHAUSAR-FINAL-IN-DEPTH-PLAN.md#L2311)). It
+`C02-R1-009` (requirement: `chausar-private/docs/specs/CHAUSAR-FINAL-IN-DEPTH-PLAN.md`, line 2311). It
 explains the difference between two exact private money receipts under an
 explicit owner-published factor convention. Its results are descriptive and
 `declared-experimental`; they do not establish causal effects, intervention

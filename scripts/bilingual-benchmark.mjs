@@ -1,25 +1,17 @@
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
 import { runBilingualBenchmark } from '../platform/benchmarks/bilingual/runner.ts';
+import { outputFile } from '../platform/runtime/run-root.mjs';
 
-const root = await realpath(fileURLToPath(new URL('..', import.meta.url)));
 const args = process.argv.slice(2);
-let requestedOutput = 'results/bilingual-benchmark.json';
+let requestedOutput;
 if (args.length === 2 && args[0] === '--output') requestedOutput = args[1];
 else if (args.length === 1 && args[0].startsWith('--output=')) requestedOutput = args[0].slice(9);
-else if (args.length) throw new Error('Usage: node scripts/bilingual-benchmark.mjs [--output results/bilingual-benchmark.json]');
-const destination = resolve(root, requestedOutput), child = relative(root, destination);
-if (!requestedOutput || isAbsolute(requestedOutput) || !child || isAbsolute(child) || child === '..' || child.startsWith('..' + sep)
-  || !child.endsWith('.json') || ['.git', '.agents', '.codex'].includes(child.split(sep)[0].toLowerCase())) throw new Error('Benchmark output must be a relative JSON path inside this source copy.');
-// Check the existing destination ancestry before creating directories: an outside symlink is not an owned output directory.
-let ancestor = dirname(destination);
-for (;;) {
-  try { ancestor = await realpath(ancestor); break; } catch (error) { if (error.code !== 'ENOENT') throw error; const parent = dirname(ancestor); if (parent === ancestor) throw error; ancestor = parent; }
-}
-const ancestry = relative(root, ancestor);
-if (isAbsolute(ancestry) || ancestry === '..' || ancestry.startsWith('..' + sep)) throw new Error('Benchmark output ancestry escapes this source copy.');
+else if (args.length) throw new Error('Usage: node scripts/bilingual-benchmark.mjs [--output <file.json>]');
+// D3: the report goes to the run root (<root>/bilingual-benchmark/bilingual-benchmark.json) or any .json path outside
+// the checkout, checked before anything is created; the check follows an existing link to where it really leads.
+const destination = outputFile(requestedOutput, { name: 'bilingual-benchmark', file: 'bilingual-benchmark.json' });
 // Source and report paths may be on another drive. Disposable workspaces use the
 // existing canonical temporary parent, checked before any directory is created.
 const temporaryRoot = await realpath(tmpdir()), scratchPrefix = 'chausar-bilingual-cli-';
@@ -39,5 +31,5 @@ try {
   await rm(target, { recursive: true, force: true });
 }
 process.stdout.write(JSON.stringify({ passed: report.passed, score: report.score, byLanguage: report.byLanguage, byTrack: report.byTrack,
-  semanticRunSha256: report.fingerprints.semanticRunSha256, report: child.replaceAll('\\', '/'), modelDispatches: 0, productionQualified: false }) + '\n');
+  semanticRunSha256: report.fingerprints.semanticRunSha256, report: destination.replaceAll('\\', '/'), modelDispatches: 0, productionQualified: false }) + '\n');
 process.exitCode = report.passed ? 0 : 1;

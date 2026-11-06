@@ -5,6 +5,10 @@ const { REQUEST_CHANNEL, STATUS_CHANNEL, VENTURE_EVENT_CHANNEL, OPEN_EXTERNAL_CH
 const { join, resolve } = require('node:path');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+// D11 release smoke: --smoke-user-data=<absolute path> gives a smoke run its own fresh user data folder (and so its own
+// single-instance lock), set before ready. Any other value is ignored.
+const smokeUserData = process.argv.find(arg => arg.startsWith('--smoke-user-data='))?.slice('--smoke-user-data='.length);
+if (smokeUserData && require('node:path')[process.platform === 'win32' ? 'win32' : 'posix'].isAbsolute(smokeUserData)) app.setPath('userData', smokeUserData);
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
 let window; let engine; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();

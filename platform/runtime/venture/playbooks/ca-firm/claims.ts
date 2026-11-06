@@ -19,6 +19,7 @@ import { RATE_TABLES, rateTableHash } from './rates.ts';
 import type { CaCheckId, CaOfferId } from './playbook.ts';
 import type { CaEngine, CaReceipt } from './receipt.ts';
 import type { Difference } from './reconcile.ts';
+import { runtimeUrl } from '../../../engine-paths.ts';
 
 export type CaFinding = { check: CaCheckId; passed: boolean; detail: string };
 export type CaDraftInput = {
@@ -290,7 +291,7 @@ export const CA_JUDGE_RULES: readonly JudgeRule[] = Object.freeze(validateRules(
   { id: 'no-filing-claims', question: 'Does the draft avoid saying a return was filed, signed or e-verified?', text: 'The draft must never say a return was filed, signed or e-verified; the CA or the client does that on the portal.', floor: { kind: 'required-yes' } },
 ]));
 
-export const CA_BASELINE_DIR = new URL('./baselines/', import.meta.url);
+export const CA_BASELINE_DIR = runtimeUrl('venture/playbooks/ca-firm/baselines/');
 
 /** The committed baseline for this playbook. */
 export async function loadCaBaseline(): Promise<BaselineFile> {

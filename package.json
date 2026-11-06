@@ -20,8 +20,11 @@
     "desktop": "node scripts/desktop-launch.mjs --demo",
     "test": "node --test platform/tests/*.test.ts",
     "check": "node scripts/check.mjs",
+    "format": "biome format --write",
+    "format:check": "biome format",
     "typecheck": "tsc --noEmit",
-    "verify": "node scripts/check.mjs && node --test platform/tests/*.test.ts",
+    "guard:data": "node scripts/check-clean-tree.mjs --tracked",
+    "verify": "npm run guard:data && node scripts/check.mjs && node --test platform/tests/*.test.ts",
     "prebuild": "npm run build:ui",
     "build": "node scripts/build.mjs",
     "package": "node scripts/desktop-package.mjs --mode final",
@@ -40,7 +43,10 @@
     "build:ui": "vite build --config app/ui/vite.config.ts",
     "test:ui": "vitest run --config app/ui/vitest.config.ts",
     "bench:ui": "node scripts/ui-bench.mjs",
-    "typecheck:ui": "tsc --noEmit -p app/ui/tsconfig.json"
+    "typecheck:ui": "tsc --noEmit -p app/ui/tsconfig.json",
+    "build:engine": "node scripts/bundle-engine.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "near": "node scripts/near.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.286",
@@ -54,6 +60,7 @@
     "tldts": "7.4.19"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.4",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",
     "@types/node": "24.0.0",
@@ -64,10 +71,13 @@
     "axe-core": "4.10.3",
     "electron": "44.4.5",
     "electron-builder": "26.0.12",
+    "happy-dom": "21.0.4",
     "jsdom": "30.1.2",
+    "knip": "6.44.1",
     "lucide-react": "1.54.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "rolldown": "1.2.16",
     "typescript": "5.9.3",
     "vite": "8.3.4",
     "vitest": "5.0.3"

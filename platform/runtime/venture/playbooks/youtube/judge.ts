@@ -25,6 +25,7 @@ import { planBroll } from './broll.ts';
 import {checkChannelAudit,checkWeeklyPlan} from './offers2.ts';
 import {triageComments} from './comments.ts';
 import {afterPublish} from './after-publish.ts';
+import { runtimeUrl } from '../../../engine-paths.ts';
 
 const unbacked = DRAFT_RULES.find(rule => rule.id === 'no-unbacked-claims')!;
 
@@ -116,7 +117,7 @@ export async function judgeYoutubeDraft(ask: RulesAsk | null, input: YoutubeJudg
 // The committed baseline
 // ---------------------------------------------------------------------------
 
-export const YOUTUBE_BASELINE_DIR = new URL('./baselines/', import.meta.url);
+export const YOUTUBE_BASELINE_DIR = runtimeUrl('venture/playbooks/youtube/baselines/');
 
 export function loadYoutubeBaseline(): Promise<BaselineFile> {
   return loadBaseline(YOUTUBE_ID, YOUTUBE_BASELINE_DIR);

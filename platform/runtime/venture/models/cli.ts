@@ -170,7 +170,7 @@ export function parseClaudeCli(response: ModelProcessResponse): Parsed {
   let data: unknown;
   try { data = JSON.parse(response.stdout); } catch { return { ok: false, code: 'MODEL_FAILED', message: 'Claude Code sent output Chausar could not read.', usage: null }; }
   if (!isPlainRecord(data)) return { ok: false, code: 'MODEL_FAILED', message: 'Claude Code sent output Chausar could not read.', usage: null };
-  const usage = readUsage(data.usage);
+  const usage = readUsage(data.usage, 'claude-cli');
   if (data.is_error === true) {
     const kind = classifyClaudeResult(data) ?? classifyAiText(response.stderr ?? '');
     return kind ? namedFailure(kind, 'Claude Code', usage) : { ok: false, code: 'MODEL_FAILED', message: 'Claude Code reported an error. Chausar did not retry it.', usage };
@@ -190,7 +190,7 @@ export function parseCodexCli(response: ModelProcessResponse): Parsed {
   }
   try {
     const parsed = parseCodexCliOutput(response.stdout);
-    return { ok: true, value: parsed.value, usage: readUsage(parsed.usage) };
+    return { ok: true, value: parsed.value, usage: readUsage(parsed.usage, 'codex-cli') };
   } catch (error) {
     const code = error instanceof ChausarError ? error.code : '';
     if (code === 'MODEL_FAILED') {

@@ -162,50 +162,16 @@ test('every relative link in the venture docs points at a file that exists', asy
   }
 });
 
-/** The onboarding v2 captures the spec asks for: fifteen screens, each in four variants. */
-const ONBOARDING_SCREENS = [
-  '40-pair', '41-connect', '42-connect-key', '43-open-box', '44-working', '45-plan-idea', '46-plan-skill', '47-plan-problem',
-  '48-prices', '49-refused', '50-keep-safe', '51-recovery-code', '52-accept', '53-build', '54-welcome-back',
-];
-const VARIANTS = ['-light', '-dark', '-375-light', '-375-dark'];
+/** D10: the screenshots moved to the private repo. The screenshot walk makes new ones; no public doc embeds or links one. */
+const WALK = '`node scripts/ui-shots/walk.mjs`';
 
-test('the onboarding v2 captures are all saved in screens/onboarding-v2, and the docs point there', async () => {
-  const saved = new Set(await readdir(new URL('screens/onboarding-v2/', docsFolder)));
-  const wanted = ONBOARDING_SCREENS.flatMap(screen => VARIANTS.map(variant => `${screen}${variant}.png`));
-  assert.equal(wanted.length, 60);
-  assert.deepEqual(wanted.filter(name => !saved.has(name)), [], 'every screen in light and dark, at 1366 px and 375 px');
-  assert.deepEqual([...saved].filter(name => !wanted.includes(name)), [], 'nothing else in the folder');
-  // The older captures stay at the top of screens/; none of the onboarding v2 names land there.
-  for (const name of await readdir(new URL('screens/', docsFolder))) assert.equal(/^(4\d|5[0-4])-/.test(name), false, `screens/${name} belongs in screens/onboarding-v2`);
-  for (const page of ['README.md', 'launch.md', 'onboarding.md']) {
+test('the screenshots are not in this repo, and the docs that showed them name the screenshot walk instead', async () => {
+  await assert.rejects(readdir(new URL('screens/', docsFolder)), (error: any) => error?.code === 'ENOENT', 'docs/venture/screens is gone');
+  for (const page of ['README.md', 'launch.md', 'onboarding.md', 'harness.md']) {
     const text = lf(await readFile(new URL(page, docsFolder), 'utf8'));
-    assert.ok(text.includes('screens/onboarding-v2/'), `${page} points at the captures`);
-    assert.equal(text.includes('Still to do, because they need the renderer package'), false, `${page} no longer says the screens are pending`);
-  }
-});
-
-/** The live walk of 19 October (keychain custody): nineteen screens in four variants, twenty moments in light at 1366 px.
- * Number 20 is left out on purpose: that capture showed a real recovery code, so the walk captured the code screen
- * again later (33) with its characters hidden. */
-const LIVE_SCREENS = [
-  '01-pair', '02-connect', '04-open-box', '05-open-box-typed', '06-working', '07-plan', '09-prices', '10-setting-up', '11-accept',
-  '12-build', '16-welcome-back', '18-trust-off', '21-trust-on', '22-welcome-back-passphrase', '27-backups', '33-recovery-code',
-  '37-restore-before-opening', '38-move-here', '40-welcome-back-two',
-];
-const LIVE_MOMENTS = [
-  '03-connect-key', '08-prices-typing', '13-today', '14-reopened', '15-workspace-menu', '17-opened-again', '19-lock-sheet',
-  '23-welcome-back-typed', '24-unlocked', '25-stop-asking', '26-trust-off-again', '28-client-added', '29-restore-sheet', '30-restored',
-  '31-clients-after-restore', '32-new-code-sheet', '34-move-code', '35-today-with-code', '36-welcome-back-options', '39-second-accept',
-];
-
-test('the onboarding v3 live walk captures are all saved in screens/onboarding-v3, and the docs point there', async () => {
-  const saved = new Set(await readdir(new URL('screens/onboarding-v3/', docsFolder)));
-  const wanted = [...LIVE_SCREENS.flatMap(screen => VARIANTS.map(variant => `${screen}${variant}.png`)), ...LIVE_MOMENTS.map(moment => `${moment}-light.png`)];
-  assert.equal(wanted.length, 96);
-  assert.deepEqual(wanted.filter(name => !saved.has(name)), [], 'every capture the walk names');
-  assert.deepEqual([...saved].filter(name => !wanted.includes(name)), [], 'nothing else in the folder');
-  for (const page of ['README.md', 'launch.md', 'onboarding.md']) {
-    assert.ok(lf(await readFile(new URL(page, docsFolder), 'utf8')).includes('screens/onboarding-v3/'), `${page} points at the live walk's captures`);
+    assert.equal(/\]\((?:\.\/)?screens\//.test(text), false, `${page} links no capture`);
+    assert.equal(/`screens\//.test(text), false, `${page} names no capture path`);
+    assert.ok(text.includes(WALK), `${page} names the screenshot walk`);
   }
 });
 

@@ -71,6 +71,7 @@ import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeySt
 import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
   normalizeTransferCode, parseBackupName, slugFolder, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
 import { aiSetupFile, forgetAiSetup } from './venture/models/ai-setup-file.ts';
+import { cliLookFile, cliLookPath } from './venture/models/cli-look-file.ts';
 import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, moveFileName, type BackupKind, type BackupView, type CustodyView, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
 import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-snapshots.ts';
 
@@ -273,7 +274,7 @@ export class Engine {
       const venture = this.options.venture ?? {};
       const host = new VentureHost(vault, { calculator: this.services.calculator, ontology: this.services.ontology, trust: this.services.trust, helper: this.services.helper, speech: this.services.speech },
         { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
-          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover, aiSetup: this.#aiSetup()! }),
+          ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover, aiSetup: this.#aiSetup()!, cliLooks: cliLookFile(cliLookPath(this.options.directory)) }),
           workspace: venture.workspace ?? this.#ventureWorkspace,
           notify: (events: VentureRunEvent[]) => { venture.notify?.(events); this.#publishVentureEvents(events); },
           watching: venture.watching ?? (() => this.#watchingAt()),

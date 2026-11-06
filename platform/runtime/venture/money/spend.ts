@@ -15,7 +15,7 @@
 // beside the dollars (paise worked out in BigInt, to the nearest paisa, a half paisa up), labelled with that rate.
 import { formatCount, formatMoney, formatUsd, formatRate } from '../../owner-format.ts';
 import { ChausarError, check, money, type Context, type State } from '../../contracts.ts';
-import { ESTIMATE_WORDS, microsAsUsd, usdToMicros } from '../models/cost.ts';
+import { ESTIMATE_WORDS, microsAsUsd, recordedCallMicros, usdToMicros } from '../models/cost.ts';
 import { NOT_REPORTED } from '../models/types.ts';
 import { modelLabel } from '../models/written-by.ts';
 import { localDayAt } from '../local-day.ts';
@@ -146,13 +146,20 @@ export function listRateOfTable(item: string, table: ModelPriceTable | null): Sp
   return {
     item, unit: 'per-million-tokens', inputMicrosPerMillion: table.inputMicrosPerMillion, outputMicrosPerMillion: table.outputMicrosPerMillion,
     microsPerCall: null, source: table.source, checkedOn: table.checkedOn, confirmed: table.confirmed, by: 'list',
+    // D2: the table's prompt-cache prices, when it has them, are lines of their own on the card.
+    ...(table.cacheReadMicrosPerMillion ? { cacheReadMicrosPerMillion: table.cacheReadMicrosPerMillion } : {}),
+    ...(table.cacheWriteMicrosPerMillion ? { cacheWriteMicrosPerMillion: table.cacheWriteMicrosPerMillion } : {}),
   };
 }
 
 /** A per-token rate as the price table the model cost code reads. */
 export function modelTableOf(rate: SpendRate, subject?: SpendSubject): ModelPriceTable {
   if (rate.unit === 'per-million-tokens' && micro(rate.inputMicrosPerMillion) && micro(rate.outputMicrosPerMillion)) {
-    return { currency: 'USD', inputMicrosPerMillion: rate.inputMicrosPerMillion, outputMicrosPerMillion: rate.outputMicrosPerMillion, source: rate.source, checkedOn: rate.checkedOn, confirmed: rate.confirmed };
+    // D2: the card's prompt-cache prices travel with the table, so a key call's cache reads and writes are priced at them.
+    return { currency: 'USD', inputMicrosPerMillion: rate.inputMicrosPerMillion, outputMicrosPerMillion: rate.outputMicrosPerMillion,
+      ...(micro(rate.cacheReadMicrosPerMillion) ? { cacheReadMicrosPerMillion: rate.cacheReadMicrosPerMillion } : {}),
+      ...(micro(rate.cacheWriteMicrosPerMillion) ? { cacheWriteMicrosPerMillion: rate.cacheWriteMicrosPerMillion } : {}),
+      source: rate.source, checkedOn: rate.checkedOn, confirmed: rate.confirmed };
   }
   throw new SpendRefusal('SPEND_UNPRICED', `The rate card prices ${subject?.label ?? rate.item} per call, but a model call is priced by tokens. Add its price per million tokens.`,
     subject ? subjectOf(subject) : null, null);
@@ -1026,7 +1033,7 @@ function agentCapViews(state: State, venture: VentureRecord, policy: SpendPolicy
  */
 function keyLimits(state: State, venture: VentureRecord, nowIso: string): LimitReachedView[] {
   const month = monthOf(nowIso);
-  const calls = listRecords(state, 'venture-model-call', venture.id) as { presetId: ModelPresetId; status: string; costMicros: string | null; estimatedMaxCostMicros: string; at: string }[];
+  const calls = listRecords(state, 'venture-model-call', venture.id) as { presetId: ModelPresetId; status: string; costMicros: string | null; usage: unknown; estimatedMaxCostMicros: string; at: string }[];
   const reset = shortDay(resetDay(nowIso), venture.country.dateOrder);
   return listRecords(state, 'venture-model-connection', venture.id).filter(item => item.status === 'connected').flatMap(connection => {
     let spec: ReturnType<typeof presetSpec>;
@@ -1035,8 +1042,10 @@ function keyLimits(state: State, venture: VentureRecord, nowIso: string): LimitR
     let used = 0n;
     for (const call of calls) {
       if (call.presetId !== connection.presetId) continue;
-      if (call.status === 'dispatching') used += BigInt(call.estimatedMaxCostMicros);
-      else if (call.costMicros !== null && monthOf(call.at) === month) used += BigInt(call.costMicros);
+      if (call.status === 'dispatching') { used += BigInt(call.estimatedMaxCostMicros); continue; }
+      // D3 fix: a held cost counts at its reservation, as the port's budget does (models/budget.ts).
+      const micros = monthOf(call.at) === month ? recordedCallMicros(call) : null;
+      if (micros !== null) used += BigInt(micros);
     }
     if (used < BigInt(connection.monthlyCapMicros)) return [];
     return [{

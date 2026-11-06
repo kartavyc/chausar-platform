@@ -19,7 +19,7 @@ import type { AgentHealth, AgentPostureRecord, AgentView, HealthClearRecord, Pla
 import type { FlagshipDelivery } from '../playbooks/steps.ts';
 import { effectivePosture, STEP_FLOOR_WORDS, stepFloorReason } from '../policy/context.ts';
 import { POSTURES, postureOfStage, postureRank, stepGate } from '../policy/posture.ts';
-import { ESTIMATE_WORDS } from '../models/cost.ts';
+import { ESTIMATE_WORDS, recordedCallMicros } from '../models/cost.ts';
 import { departmentOfMember, teamLedger, type TeamLedger } from '../money/department-spend.ts';
 import { installQuarantineCheck } from '../delivery/quarantine-gate.ts';
 import { deliveryRunDetails } from './runs.ts';
@@ -75,10 +75,11 @@ function knownAgent(flagship: FlagshipDelivery | null, steps: readonly PlaybookS
 }
 
 function spendOf(state: State, venture: VentureRecord): string {
-  const calls = state.conversations.filter((record: any) => record?.kind === 'venture-model-call' && record.ventureId === venture.id
-    && AGENT_PURPOSES.includes(record.purpose) && typeof record.costMicros === 'string' && /^\d{1,30}$/.test(record.costMicros)) as { costMicros: string; priceConfirmed?: unknown }[];
-  const total = formatUsd(sumMicros(calls.map(call => call.costMicros)));
-  return calls.some(call => call.priceConfirmed === false) ? `${total}${ESTIMATE_WORDS}` : total;
+  // D3 fix: a held call (its cost null beside reported usage) counts at its reservation, and the total is an estimate.
+  const calls = (state.conversations as any[]).filter(record => record?.kind === 'venture-model-call' && record.ventureId === venture.id && AGENT_PURPOSES.includes(record.purpose))
+    .flatMap(record => { const micros = recordedCallMicros(record); return micros === null ? [] : [{ micros, estimate: record.priceConfirmed === false || record.costMicros === null }]; });
+  const total = formatUsd(sumMicros(calls.map(call => call.micros)));
+  return calls.some(call => call.estimate) ? `${total}${ESTIMATE_WORDS}` : total;
 }
 
 /**

@@ -193,7 +193,9 @@ test('agent turn: a recorded outside action awaits approval, so the next turn an
   assert.deepEqual((next.input as Record<string, unknown>).awaitingApproval, { note: AWAITING_APPROVAL, calls: [{ call: 't1.1', tool: 'outbox.propose' }] });
   assert.equal(AWAITING_APPROVAL, 'These calls are awaiting approval and have not executed.');
   assert.ok(next.instructions.startsWith(AGENT_TURN_INSTRUCTIONS));
-  assert.ok(next.instructions.includes(`${AWAITING_APPROVAL} t1.1 (outbox.propose).`), next.instructions);
+  // D2: the fixed line only; the call ids are in the input, never in the instructions.
+  assert.ok(next.instructions.includes(`${AWAITING_APPROVAL} They are listed in awaitingApproval. Never say they were sent or done.`), next.instructions);
+  assert.doesNotMatch(next.instructions, /t1\.1/);
   const reply = writeTask(WRITE, { ...state, phase: 'write' }, []);
   assert.deepEqual((reply.input as Record<string, unknown>).awaitingApproval, { note: AWAITING_APPROVAL, calls: [{ call: 't1.1', tool: 'outbox.propose' }] });
   assert.ok(reply.instructions.includes(AWAITING_APPROVAL));

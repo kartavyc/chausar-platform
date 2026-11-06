@@ -8,7 +8,8 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "erasableSyntaxOnly": true
   },
   "include": [
     "platform/runtime/**/*.ts",

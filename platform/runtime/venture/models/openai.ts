@@ -31,7 +31,7 @@ export function parseOpenAI(response: ModelHttpResponse): Parsed {
   let data: unknown;
   try { data = JSON.parse(response.body); } catch { return { ok: false, code: 'MODEL_FAILED', message: 'OpenAI sent an answer Chausar could not read.', usage: null }; }
   if (!isPlainRecord(data)) return { ok: false, code: 'MODEL_FAILED', message: 'OpenAI sent an answer Chausar could not read.', usage: null };
-  const usage = readUsage(data.usage);
+  const usage = readUsage(data.usage, 'openai');
   if (data.error) return { ok: false, code: 'MODEL_FAILED', message: 'OpenAI returned an error instead of an answer. Chausar did not retry it.', usage };
   if (data.status !== undefined && data.status !== 'completed') return { ok: false, code: 'MODEL_INCOMPLETE', message: 'The model stopped before it finished. Nothing was retried.', usage };
   const output = data.output ?? [];
