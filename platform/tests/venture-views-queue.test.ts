@@ -85,7 +85,7 @@ test('queue.decide: a changed row is stale and comes back as the latest version;
   assert.equal(price.kind, 'price');
   assert.equal(price.title, 'New price for Monthly books');
   assert.deepEqual(price.change, { label: 'Monthly books', before: '₹2,499 per month', after: '₹2,999 per month' });
-  assert.deepEqual(price.actions.map(action => [action.id, action.primary, action.secondAsk ?? false]), [['read', false, false], ['approve', true, true]]);
+  assert.deepEqual(price.actions.map(action => [action.id, action.primary, action.secondAsk ?? false]), [['read', false, false], ['approve', true, false]]);
 
   // The owner changed the price again while the row was open: the old version is stale, the new one comes back.
   const v3 = await seedBlueprint(env, { status: 'draft', version: 3, price1: '349900', price2: '1500000' });

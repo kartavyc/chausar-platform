@@ -59,6 +59,7 @@ import {
 currentVenture,digest,exactPayload,formatVentureDate,listRecords,plainText,requireAppChannel,ventureAction,
 } from '../records.ts';
 import { withPreviews } from './previews.ts';
+import { changedPrices, priceOnlyOffer } from './price-only.ts';
 import { noticeRows } from './probes.ts';
 import { decideW4Row,type W4RowSource,type W4RowSourceFn } from './queue-w4.ts';
 import { withMeta } from './row-meta.ts';
@@ -80,7 +81,7 @@ const RANK: Readonly<Record<QueueKind, number>> ={
 };
 
 type Input = { answer: string | null };
-type Outcome = { line: Display; receiptId?: string };
+type Outcome = { line: Display; receiptId?: string; undoable?: true };
 type Perform = (deps: VentureDeps, ctx: Context, input: Input) => Promise<Outcome>;
 /** A row before its digest, with what each decision on it does. Navigation actions have no performer. */
 type Pending = { row: Omit<QueueRow, 'digest'>; subject: string; perform: Partial<Record<QueueActionId, Perform>>; navigate?: string };
@@ -129,11 +130,8 @@ function planRows(state: State, venture: VentureRecord, business: Business): Pen
     }];
   }
   const currency = latest.backOffice.currency;
-  const changes = latest.offers.filter(offer => {
-    const before = accepted.offers.find(item => item.id === offer.id);
-    // 5A2: setting or changing a share is a price change too, so it asks twice like any other.
-    return (before?.pricing.unitPriceMinor ?? null) !== offer.pricing.unitPriceMinor || (before?.pricing.share?.bps ?? null) !== (offer.pricing.share?.bps ?? null);
-  });
+  // 5A2: setting or changing a share is a price change too.
+  const changes = changedPrices(accepted, latest);
   if (!changes.length) {
     return [{
       subject, perform: { approve: accept },
@@ -145,15 +143,17 @@ function planRows(state: State, venture: VentureRecord, business: Business): Pen
   const name = first.name.value;
   const title = changes.length === 1 ? `New price for ${name}` : 'New prices in your plan';
   // One-shot A4 (hands-on rows 33, 46): the decision names the price it accepted, not "Plan accepted".
-  const acceptPrice: Perform = async (deps, ctx) => { await blueprintAccept(deps, ctx, { digest: latest.digest }); return { line: `${title} accepted.` }; };
-  // Changing prices always asks twice; the change is on the row itself, so it needs no separate read.
+  // B4 task 7: one price and nothing else is one press on the price the row shows, and can be taken back (price-only.ts).
+  const onePress = priceOnlyOffer(venture, accepted, latest) !== null;
+  const acceptPrice: Perform = async (deps, ctx) => { await blueprintAccept(deps, ctx, { digest: latest.digest }); return { line: `${title} accepted.`, ...(onePress ? { undoable: true as const } : {}) }; };
+  // Anything more than that asks twice. The change is on the row itself, so it needs no separate read.
   return [{
     subject, perform: { approve: acceptPrice },
     row: {
       ...base(business, 'price', subject, latest.id, latest.at), title,
       line: rest.length ? `Also changes ${rest.map(offer => offer.name.value).join(', ')}.` : 'Accept the plan to use it on new orders and invoices.',
       change: { label: name, before: priceText(accepted.offers.find(item => item.id === first.id), currency), after: priceText(first, currency) },
-      viewRef, actions: [action('read', 'Read', false), action('approve', 'Accept', true, { secondAsk: true })],
+      viewRef, actions: [action('read', 'Read', false), action('approve', 'Accept', true, { secondAsk: !onePress })],
     },
   }];
 }
@@ -789,5 +789,5 @@ export async function queueDecideHandler(deps: VentureDeps, ctx: Context, payloa
     return refused(parts.code, parts.message);
   }
   await record(deps, ctx, row, pending.subject, chosen, outcome);
-  return { outcome: 'done', line: outcome.line, ...(outcome.receiptId ? { receiptId: outcome.receiptId } : {}) };
+  return { outcome: 'done', line: outcome.line, ...(outcome.receiptId ? { receiptId: outcome.receiptId } : {}), ...(outcome.undoable ? { undoable: true } : {}) };
 }

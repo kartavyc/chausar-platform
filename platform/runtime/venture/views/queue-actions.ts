@@ -11,8 +11,9 @@ import { formatUsd } from '../../owner-format.ts';
 import { authorize, ChausarError, check, type Context, type State, internalCheck } from '../../contracts.ts';
 import { currentVenture, digest, exactPayload, findRecord, listRecords, plainText, requireAppChannel, ventureAction, type VentureTx } from '../records.ts';
 import { viewedExactly } from './view-marks.ts';
+import { acceptedBefore, priceInUse, priceOnlyOffer } from './price-only.ts';
 import type {
-  DraftEditRecord, QueueDecision, QueueDecisionRecord, QueueRow, QueueSetPreview, QueueSetResult, QueueUndoResult, SumReceiptSubject, VentureDeps, VentureRecord,
+  BlueprintRecord, DraftEditRecord, QueueDecision, QueueDecisionRecord, QueueRow, QueueSetPreview, QueueSetResult, QueueUndoResult, SumReceiptSubject, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { GONE_LINE, queueDecideHandler, queueRowsWithSubjects, STALE_LINE } from './queue.ts';
 import { recordDecision } from '../journal/decisions.ts';
@@ -42,6 +43,8 @@ export const ACTION_WORDS = Object.freeze({
   nothing: 'Nothing to undo here.',
   outside: "This went out, so it can't be undone.",
   planUndo: 'Your plan change is still a draft in the business menu. Accept it there.',
+  priceBack: (offer: string) => `You took back the new price for ${offer}.`,
+  priceInUse: 'Too late to undo: this price is already in use.',
   pick: 'Pick each item you approve. There is no approve all.',
   setKind: 'Only posts and drafts can be approved together. Money, prices, invoices and sign-offs need their own approval.',
   setPaid: 'This one starts paid work, so it needs its own approval.',
@@ -223,7 +226,8 @@ function wentOut(decision: QueueDecisionRecord): boolean {
 /**
  * venture.queue.undo { rowId } (approve, app only): puts back a send-back or an edit made on that row, until its revision
  * starts (UNDO_TOO_LATE after). Something that went out is never undone (UNDO_OUTSIDE_EFFECT). The line promises only
- * "Restored until you edit this again."
+ * "Restored until you edit this again." One price accepted on one press goes back to the previous version, until
+ * something uses the new price (undoPriceAccept); any other accepted plan is refused.
  */
 export async function queueUndoHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<QueueUndoResult> {
   requireAppChannel(ctx, 'venture.queue.undo');
@@ -268,8 +272,47 @@ export async function queueUndoHandler(deps: VentureDeps, ctx: Context, payload:
     });
     return { restored: true, line: RESTORED_LINE };
   }
+  // B4 task 7: one price accepted on one press. Any other accepted plan keeps its refusal.
+  if (decision.subject.startsWith('plan:') && decision.action === 'approve') {
+    const version = listRecords(state, 'venture-blueprint', venture.id).find(item => rowId === `${decision.subject}:${item.id}`);
+    const previous = version ? acceptedBefore(state, venture, version) : null;
+    if (version && previous && priceOnlyOffer(venture, previous, version)) return undoPriceAccept(deps, ctx, rowId, version.id);
+  }
   if (decision.subject.startsWith('plan:')) throw new ChausarError('UNDO_NOTHING', ACTION_WORDS.planUndo);
   throw new ChausarError('UNDO_NOTHING', ACTION_WORDS.nothing);
+}
+
+/**
+ * Puts the plan back as it was before the press: the version in use is the previous record, untouched; this version is a
+ * draft again with its own digest, so the same row comes back to decide anew (the decision is marked undone, as any undo
+ * is). Too late once a quote, an order or an invoice uses the new price, or the plan has a newer version.
+ */
+async function undoPriceAccept(deps: VentureDeps, ctx: Context, rowId: string, versionId: string): Promise<QueueUndoResult> {
+  return ventureAction(deps, ctx, 'approve', 'queue.undo', tx => {
+    const venture = tx.venture as VentureRecord;
+    const version = tx.find('venture-blueprint', versionId);
+    const decision = tx.list('venture-queue-decision').find(item => item.rowId === rowId && !item.undoneAt);
+    check(version && decision, 'UNDO_NOTHING', ACTION_WORDS.nothing);
+    const previous = acceptedBefore(tx.state, venture, version);
+    const offer = previous && priceOnlyOffer(venture, previous, version);
+    check(previous && offer, 'UNDO_NOTHING', ACTION_WORDS.planUndo);
+    const newest = tx.list('venture-blueprint').every(item => item.version <= version.version);
+    check(newest && venture.acceptedBlueprintId === version.id && version.status === 'accepted', 'UNDO_TOO_LATE', ACTION_WORDS.priceInUse);
+    const pressedAt = tx.state.conversations.findIndex((item: { id?: unknown; kind?: unknown } | null) => item?.id === decision.id && item?.kind === decision.kind);
+    check(!priceInUse(tx.state, venture, version, offer.id, pressedAt), 'UNDO_TOO_LATE', ACTION_WORDS.priceInUse);
+    const line = ACTION_WORDS.priceBack(offer.name.value);
+    tx.replace<BlueprintRecord>({ ...version, status: 'draft' });
+    tx.touch({ acceptedBlueprintId: previous.id });
+    // The accept's one other mark: the "offer" term's evidence for this version (core/blueprint.ts blueprintAccept).
+    for (const term of tx.list('venture-term')) {
+      if (term.evidence.some(item => item.recordId === version.id)) tx.replace({ ...term, evidence: term.evidence.filter(item => item.recordId !== version.id) });
+    }
+    undoDecision(tx, rowId);
+    // No rowId: the list folds a plan click's own records into the click, and this one must show (journal/decisions.ts ranByClicks).
+    recordDecision(tx, { subject: decision.subject, action: 'undo', who: 'owner', ruleId: null, reason: line, rowId: null });
+    tx.emit('queue.changed', { rowId });
+    return { restored: true, line };
+  });
 }
 
 // ---------------------------------------------------------------------------

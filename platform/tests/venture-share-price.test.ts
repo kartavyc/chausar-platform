@@ -1,7 +1,7 @@
 // Ink v2 wave 5, package 5A2: share prices (founder decision of 23 Oct; catalogue 2.9.0 "share price kind": a recruiting
 // success fee, a reimbursement audit share, a support desk's AI pass-through markup). A share is basis points the owner
 // sets, of a base taken from a recorded amount with its evidence file, worked out in BigInt and rounded half up to the
-// paisa. Setting or changing a share is a price change: it waits on Today and asks twice, like any price.
+// paisa. Setting or changing a share is a price change: it waits on Today for the owner's press, like any price.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { BlueprintRecord, QueueList, QueueRow, UploadRecord } from '../runtime/venture/contracts.ts';
@@ -93,7 +93,7 @@ test('setting a share is a price change: the plan keeps it as the offer\'s price
   assert.ok(price, 'the change waits on Today');
   assert.equal(price.title, 'New price for Catch up clean up');
   assert.deepEqual(price.change, { label: 'Catch up clean up', before: '₹15,000 per project', after: '8.33% of the amount your client confirms' });
-  assert.deepEqual(price.actions.map(action => [action.id, action.primary, action.secondAsk ?? false]), [['read', false, false], ['approve', true, true]]);
+  assert.deepEqual(price.actions.map(action => [action.id, action.primary, action.secondAsk ?? false]), [['read', false, false], ['approve', true, false]]);
   // The row's counted change and its receipt (4J1) say the share in the same words.
   assert.ok(price.changeCount?.details.includes('Catch up clean up: ₹15,000 per project to 8.33% of the amount your client confirms'), JSON.stringify(price.changeCount));
   const proof = await (money as Record<string, Handler>)['venture.receipt.get'](env.deps, owner, { id: `fig:plan:${latest(env).id}` });

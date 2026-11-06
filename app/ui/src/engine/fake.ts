@@ -314,6 +314,7 @@ export class FakeEngine {
         }
       },
       orders:()=>this.work.request('venture.order.list',{}) as OrderLite[],
+      invoices: () => this.money.request('venture.invoice.list', {}) as InvoiceLite[],
       current: () => this.current, now: () => this.now(), receiptId: () => `R-0${this.receiptSeq++}`,
       businessName: (id) => this.businesses.find((b) => b.id === id)?.name ?? id,
       rows: () => this.rows, setRows: (rows) => { this.rows = rows; }, digest: digestOf,
@@ -525,6 +526,16 @@ export class FakeEngine {
     const p = (params ?? {}) as Record<string, unknown>;
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
     if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
+    if (method === 'venture.queue.undo' && typeof p.rowId === 'string') {
+      // B4 task 7, as views/queue-actions.ts: a price taken back; any other undo is the approvals desk's.
+      const price = this.desk.undoPress(p.rowId);
+      if (price) {
+        this.decided.delete(p.rowId);
+        this.w4.noteDecision(price.subject, 'undo', price.line);
+        this.emit({ type: 'queue.changed', businessId: this.current, at: this.now() });
+        return { restored: price.restored, line: price.line };
+      }
+    }
     if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);
     if (method === 'venture.agentApproval.decide') return rejectFakeAgentApproval(params);
     if (method === 'venture.agentSettings.get' || method === 'venture.agentSettings.set') return this.agentSettings.request(method, params);
@@ -947,10 +958,12 @@ export class FakeEngine {
       return { outcome: 'done', line: sold };
     }
     if (action.id === 'approve' && row.viewRef?.kind === 'plan') {
+      // B4 task 7: one price accepted on one press can be taken back (venture.queue.undo below).
+      const undoable = this.desk.pressed(row.id, row.businessId, row.viewRef.id);
       this.desk.accept(row.businessId, row.viewRef.id);
       this.emit({ type: 'queue.changed', businessId: row.businessId, at: this.now() });
       // B3, as views/queue.ts planRows: the plan's line, or the price's own (one-shot A4), with no receipt.
-      return { outcome: 'done', line: row.kind === 'price' ? `${row.title} accepted.` : 'Plan accepted.' };
+      return { outcome: 'done', line: row.kind === 'price' ? `${row.title} accepted.` : 'Plan accepted.', ...(undoable ? { undoable: true as const } : {}) };
     }
     const receiptId = RECEIPTED.has(row.kind) && (action.id === 'approve' || action.id === 'issue') ? `R-0${this.receiptSeq++}` : undefined;
     if (action.id === 'run-again' && row.viewRef?.kind === 'run') this.restart(row.viewRef.id);
