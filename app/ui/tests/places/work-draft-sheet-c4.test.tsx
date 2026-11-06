@@ -124,6 +124,17 @@ describe('Read draft on Work (C4 task 13)', () => {
     await waitFor(() => expect(within(sheetEl()).queryByRole('button', { name: 'Mark delivered' })).toBeNull());
   });
 
+  it('Reject on the sheet says so, and its Undo brings the draft back to wait (C4 task 15)', async () => {
+    const { spy } = start({ queue: [WAITING], hash: '#/work?sheet=draft%3Ad-ep14-script' });
+    await press(await within(sheetEl()).findByRole('button', { name: 'Reject' }));
+    expect(within(sheetEl()).getByText(/Draft rejected. The agent learns from it./)).toBeTruthy();
+    expect(within(sheetEl()).queryByRole('button', { name: 'Approve' })).toBeNull();
+    await press(within(sheetEl()).getByRole('button', { name: 'Undo' }));
+    expect(spy.mock.calls.some(([method]) => method === 'venture.queue.undo')).toBe(true);
+    await within(sheetEl()).findByRole('button', { name: 'Approve' });
+    expect(within(sheetEl()).getByText(/Restored until you edit this again./)).toBeTruthy();
+  });
+
   it('an approved row on Work has Read draft', async () => {
     start({ queue: [WAITING], hash: '#/work?sheet=draft%3Ad-ep14-script' });
     await press(await within(sheetEl()).findByRole('button', { name: 'Approve' }));

@@ -225,6 +225,23 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     assertInkRules(document.body);
   });
 
+  it('Undo on the reject line brings the card back (C4 task 15)', async () => {
+    const row: Seed = {
+      id: 'run:d-ep14-script:review-blocked', businessId: 'lumen', businessName: 'Lumen Studio', agent: 'Producer', kind: 'draft', createdAt: '2026-10-21T08:30:00.000Z',
+      title: 'Sponsor script for episode 14', line: 'This draft failed a check. Edit it or reject it.', viewRef: { kind: 'draft', id: 'd-ep14-script' },
+      actions: [{ id: 'deny', label: 'Reject', primary: false }, { id: 'read', label: 'Read', primary: true }],
+    };
+    const { spy } = start({ queue: [row] });
+    const card = await cardTitled('Sponsor script for episode 14');
+    await press(within(card).getByRole('button', { name: 'Reject' }));
+    const decided = document.querySelector<HTMLElement>('[data-row-id="run:d-ep14-script:review-blocked"][data-decided]')!;
+    expect(decided.textContent).toContain('Draft rejected. The agent learns from it.');
+    await press(within(decided).getByRole('button', { name: 'Undo' }));
+    expect(calls(spy, 'venture.queue.undo')).toEqual([{ rowId: 'run:d-ep14-script:review-blocked' }]);
+    expect(document.querySelector('[data-row-id="run:d-ep14-script:review-blocked"]')!.textContent).toContain('Restored until you edit this again.');
+    await waitFor(() => expect([...document.querySelectorAll<HTMLElement>('[data-row-id]')].some((item) => !item.hasAttribute('data-decided') && (item.textContent ?? '').includes('Sponsor script for episode 14'))).toBe(true));
+  });
+
   it('after Send back, Undo leaves the line once the revised draft is listed (B3)', async () => {
     const { client } = start();
     const card = await cardTitled('Episode 14 is cut');

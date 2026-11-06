@@ -5,6 +5,7 @@
 // passed (simulate.ts practiceChecks), so with built-in templates the case shows "Not checked", never a pass.
 import { CHECK_IDS, SCENARIO_KINDS } from '../contracts.ts';
 import { findRecord, listRecords } from '../records.ts';
+import { liveSignals } from './check-signals.ts';
 import { CA_PRACTICE } from '../playbooks/ca-firm/practice.ts';
 import { practiceFileNames } from './harness/practice.ts';
 import { signalExpectations } from './corrections.ts';
@@ -316,7 +317,7 @@ export function signalScenario(signal: SignalRecord, type: ServiceType, state?: 
  * edit or send-back of the owner's as soon as it is recorded: each correction is a rehearsal case with its expectations.
  */
 export function listScenarios(state: State, ventureId: string, type: ServiceType): Scenario[] {
-  const signals = listRecords(state, 'venture-signal', ventureId).filter(signal => signal.scenarioId !== null || signal.source === 'owner-edited' || signal.source === 'owner-rejected');
+  const signals = liveSignals(state, ventureId).filter(signal => signal.scenarioId !== null || signal.source === 'owner-edited' || signal.source === 'owner-rejected');
   return [...businessScenarios(state, ventureId, type), ...signals.map(signal => signalScenario(signal, type, state))];
 }
 

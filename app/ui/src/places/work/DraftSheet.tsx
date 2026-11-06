@@ -11,8 +11,8 @@ import type { SheetComponentProps } from '../../shell/sheets';
 import type { QueueAction, QueueActionId, QueueRow } from '../../engine/types';
 import { copyText, performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
-import { draftEditable, draftRunOf, failedChecks } from '../today/SendBack';
-import { decide, useTodaySession } from '../today/session';
+import { draftEditable, draftRunOf, failedChecks, UndoButton } from '../today/SendBack';
+import { decide, undoOf, useTodaySession } from '../today/session';
 import { workChanged } from './refresh';
 import s from './Work.module.css';
 
@@ -47,7 +47,8 @@ export function DraftSheet({ id, onClose, returnFocus }: SheetComponentProps) {
 
   const run = drafts.data?.find((item) => item.id === id);
   const row: QueueRow | undefined = queue.data?.rows.find((item) => draftRunOf(item) === id);
-  const decided = session.lines().find((line) => line.row.viewRef?.kind === 'draft' && line.row.viewRef.id === id);
+  const decided = session.lines().filter((line) => line.row.viewRef?.kind === 'draft' && line.row.viewRef.id === id).at(-1);
+  const undo = decided ? undoOf(decided, queue.data?.rows ?? []) : undefined;
   if (!run) {
     return <Sheet label={t('work.draft.label')} title={drafts.data ? t('work.draft.gone') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus} />;
   }
@@ -129,7 +130,7 @@ export function DraftSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       onClose={onClose}
       returnFocus={returnFocus}
     >
-      {decided && <p className={s.draftLine} role="status" data-sheet-decided="">{decided.line}</p>}
+      {decided && <p className={s.draftLine} role="status" data-sheet-decided="">{decided.line}{undo && <UndoButton row={decided.row} undo={undo} />}</p>}
       {practice && <p className={s.draftLine} data-draft-practice="">{t('work.draft.practice')}</p>}
       {ownerLine && <p className={s.draftNote} data-engine-line="">{ownerLine}</p>}
       {message === null
