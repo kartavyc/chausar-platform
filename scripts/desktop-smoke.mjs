@@ -3,9 +3,10 @@ import { statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { packagedInkSmoke } from './packaged-ink-smoke.mjs';
 import { EngineHarness } from '../app/desktop/engine-harness.cjs';
 
-// Headless worker validation: no Electron window, browser, HTTP listener or vault creation.
+// Headless worker validation. Packaged mode also checks real Ink assets through a synthetic loopback phone session.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PROGRAM = Object.freeze({ win32: 'Chausar.exe', linux: 'chausar' });
 
@@ -46,7 +47,8 @@ async function smoke({ packaged, worker, packageJson }) {
     if (status.open !== false || status.experimental !== true || status.version !== metadata.version) throw new Error('The synthetic worker status is invalid.');
     const stopped = await engine.stop();
     if (!stopped.graceful) throw new Error('The worker did not shut down gracefully.');
-    console.log(JSON.stringify({ ok: true, platform: process.platform, architecture: process.arch, node: process.versions.node, version: status.version, worker: 'synthetic-only', ...(packaged ? { packaged } : {}), gui: 'not-executed', gracefulShutdown: true }));
+    const ink = packaged ? await packagedInkSmoke({ packaged, worker, metadata }) : undefined;
+    console.log(JSON.stringify({ ...(ink ? { ink } : {}), ok: true, platform: process.platform, architecture: process.arch, node: process.versions.node, version: status.version, worker: 'synthetic-only', ...(packaged ? { packaged } : {}), gui: 'not-executed', gracefulShutdown: true }));
   } finally {
     await engine.stop();
     await rm(directory, { recursive: true, force: true });

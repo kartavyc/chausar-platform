@@ -102,8 +102,7 @@ async function readLayout(folder, platform, architecture) {
 async function checkExecutables(folder, files, platform, architecture, entrypoint) {
   for (const name of files) {
     if (name !== entrypoint && !(platform === 'win32' && /^(bin|codex-path|codex-resources)\/.+\.exe$/.test(name))) continue;
-    // Imported here, not at the top: desktop-package.mjs imports this module while its own command line is running.
-    const { validateElectronExecutable } = await import('./desktop-package.mjs');
+    const { validateElectronExecutable } = await import('./desktop-executable.mjs');
     try { await validateElectronExecutable(join(folder, name), platform, architecture); }
     catch (error) { throw new Error(`${name}: ${error.message.replace(/^Electron /, 'the program ')}`); }
   }
