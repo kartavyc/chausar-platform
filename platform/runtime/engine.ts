@@ -37,6 +37,9 @@ import { PhoneSessionService } from './engine-phone-sessions.ts';
 import { EnginePhoneRuntime, type ReviewedPhoneConversationRequest } from './engine-phone-runtime.ts';
 import { createPhoneHttpHandler } from './phone/host.ts';
 import { requirePhone } from './phone/contracts.ts';
+import { preferenceChange, readAppPreferences, writeAppPreferences } from './app-preferences.ts';
+import { WorkProgress } from './work-progress.ts';
+import type { WorkKind } from './venture/views/work-steps.ts';
 import type { Brief, ChatAnswer } from './phone/contracts.ts';
 import { SyncService, type SyncOptions } from './sync.ts';
 import { writerStateDigest, type SyncWriterAdmission, type SyncWriterReview } from './sync-writer-admission.ts';
@@ -65,7 +68,7 @@ import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, InternalError, internalCheck, newId, now, type Context, type State, type StateStore } from './contracts.ts';
-import type { BusinessSnapshot, BusinessSnapshotRead, SecretShelf, VentureClosingPort, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
+import type { BusinessSnapshot, BusinessSnapshotRead, SecretShelf, VentureClosingPort, VentureFrame, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
 import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
 import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
 import { CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
@@ -185,6 +188,7 @@ export class Engine {
       const desk = module.createDraftDesk({
         ...(this.options.venture ?? {}), demo: !!this.options.demo,
         ...(this.services.helper ? { helper: this.services.helper } : {}),
+        work: { begin: (kind: WorkKind, steps: readonly string[]) => this.#work.begin(kind, steps, { businessId: '' }) },
         ventureExists: () => !!this.vault && this.vault.read().conversations.some(record => record?.kind === 'venture-record'),
         vaultOpen: () => !!this.vault,
       }) as DraftDeskHandle;
@@ -202,13 +206,34 @@ export class Engine {
     settle: () => { this.#draft?.handover.settle(); },
   });
   // Run events for the Ink frontend: the desktop worker forwards them over IPC, the local server streams them at /api/events.
-  #ventureEventListeners = new Set<(event: VentureRunEvent) => void>();
-  /** Trusted host hook: hears each run event a venture action committed. Returns the unsubscribe function. */
-  onVentureEvent(listener: (event: VentureRunEvent) => void): () => void {
+  #ventureEventListeners = new Set<(event: VentureFrame) => void>();
+  /** One-shot C3 task 9: which step long work is on. Its frames go to the same listeners and are never written anywhere. */
+  #work = new WorkProgress(event => this.#publishVentureEvents([event]));
+  /** Trusted host hook: hears each run event a venture action committed, and each step of long work. Returns the unsubscribe function. */
+  onVentureEvent(listener: (event: VentureFrame) => void): () => void {
     this.#ventureEventListeners.add(listener);
     return () => { this.#ventureEventListeners.delete(listener); };
   }
-  #publishVentureEvents(events: VentureRunEvent[]) {
+  /** Work with no boundary inside it, as one step of long work. Opening and closing a vault happen in it, so its frames are the app's ('' business). */
+  async #oneStep<T>(kind: WorkKind, step: string, run: () => Promise<T>): Promise<T> {
+    const work = this.#work.begin(kind, [step], { businessId: '' });
+    work.step(step, 'current');
+    try {
+      const answer = await run();
+      work.step(step, 'done');
+      return answer;
+    } catch (error) {
+      work.failCurrent();
+      throw error;
+    } finally {
+      work.end();
+    }
+  }
+  /** The open business as the screens name it; '' with none open (the draft desk's work). */
+  #workBusiness(): string {
+    try { return this.vault ? this.#ventureWorkspace.current().id : ''; } catch { return ''; }
+  }
+  #publishVentureEvents(events: VentureFrame[]) {
     for (const event of events) for (const listener of [...this.#ventureEventListeners]) {
       try { listener(Object.freeze({ ...event })); } catch { /* A listener's failure is its own. */ }
     }
@@ -276,6 +301,7 @@ export class Engine {
         { ...venture, demo: !!this.options.demo, storage: this.options.storage === 'postgres' ? 'postgres' : 'experimental-file',
           ...(venture.host === 'hosted-web' ? {} : { draft: this.#draftHandover, aiSetup: this.#aiSetup()!, cliLooks: cliLookFile(cliLookPath(this.options.directory)) }),
           workspace: venture.workspace ?? this.#ventureWorkspace,
+          work: { begin: (kind: WorkKind, steps: readonly string[]) => this.#work.begin(kind, steps, { businessId: this.#workBusiness() }) },
           notify: (events: VentureRunEvent[]) => { venture.notify?.(events); this.#publishVentureEvents(events); },
           watching: venture.watching ?? (() => this.#watchingAt()),
           // Phone alerts run as the owner inside the app, whoever's request started the look (4G3).
@@ -1077,12 +1103,26 @@ export class Engine {
     // A2: the owner's yes to the Codex found on this computer, before the vault (onboarding) and after it (Your AI).
     // A2 second review: never as a request; only main's dialog confirms a Codex (confirmCodexSetup).
     if (method === 'venture.ai.setup.trust') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
+    // One-shot C3 task 9: the open business's live jobs and any before a business was opened, never another business's.
+    if (method === 'venture.work.list') {
+      check(Object.keys(payload).length === 0, 'INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
+      const here = this.#workBusiness();
+      return { work: [...this.#work.list(''), ...(here ? this.#work.list(here) : [])] };
+    }
+    // One-shot C3: the app's own preference on this computer (animations), answered before the vault check so it works
+    // with no business open; with one open, only its owner may change it, as with export.
+    if (method === 'app.preferences.get') { check(Object.keys(payload).length === 0, 'INVALID_PREFERENCE', 'Ask for the settings of this app with nothing else.'); return readAppPreferences(this.options.directory); }
+    if (method === 'app.preferences.set') {
+      const change = preferenceChange(payload);
+      if (this.vault) this.requireWorkspaceOwner(this.context);
+      return writeAppPreferences(this.options.directory, change);
+    }
     // Keeping the vault key on this computer (KEYCHAIN-SPEC 2 to 4). Answered before the vault check.
     switch (method) {
       case 'workspace.custody.get': return this.custodyView();
       case 'workspace.list': return this.custodyFiles().listBusinesses(this.storageKind());
       case 'workspace.backups.list': return this.backupList();
-      case 'workspace.transfer.import': return this.transferImport(payload);
+      case 'workspace.transfer.import': return this.#oneStep('move-in', 'move', () => this.transferImport(payload));
     }
     if (method === 'workspace.create') {
       check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
@@ -1250,7 +1290,7 @@ export class Engine {
       case 'workspace.custody.recoveryCode': this.requireAppOwner(ctx); return this.custodySerial(() => this.makeRecoveryCode(payload));
       case 'workspace.custody.neverContactReset': this.requireAppOwner(ctx); return this.custodySerial(() => this.neverContactReset(payload));
       case 'workspace.backups.create': this.requireAppOwner(ctx); return this.custodySerial(() => this.writeBackup('manual'));
-      case 'workspace.backups.restore': this.requireAppOwner(ctx); return this.custodySerial(() => this.restoreManagedBackup(payload));
+      case 'workspace.backups.restore': this.requireAppOwner(ctx); return this.#oneStep('restore', 'restore', () => this.custodySerial(() => this.restoreManagedBackup(payload)));
       case 'workspace.transfer.export': this.requireAppOwner(ctx); return this.custodySerial(() => this.transferExport(payload));
       case 'workspace.backup.v2.create': return this.backupHost().create(ctx, this.journalPayload(payload,
         ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['create']>[1]);

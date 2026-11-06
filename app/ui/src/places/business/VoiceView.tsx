@@ -10,6 +10,7 @@ import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './VoiceView.module.css';
 import { Select } from '../../parts/Select';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The six sections, in the engine's order (agents/voice.ts VOICE_SECTIONS). */
 const SECTIONS: readonly (keyof VoiceSections)[] = ['audience', 'howITalk', 'neverUse', 'wordsIUse', 'willNotClaim', 'format'];
@@ -54,7 +55,7 @@ export function VoiceView() {
   }
 
   if (view.error) return <p className={b.problem} role="alert">{messageOf(view.error)}</p>;
-  if (!data) return <p className={b.note}>{t('business.loading')}</p>;
+  if (!data) return <LoadingPlace shape="settings" />;
   const inUse = new Set(data.voices.map(keyOf));
   const fresh = added.filter((voice) => !inUse.has(keyOf(voice)));
 

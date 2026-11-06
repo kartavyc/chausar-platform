@@ -231,11 +231,18 @@
   --top-bar: 56px;
   --tabs: 56px;
 
-  /* Times. Motion runs once and never past 400 ms; motion.css sets every one to 0 under reduced motion. */
+  /* Times. Motion runs once and never past 400 ms; motion.css sets every one to 0 under reduced motion and when the
+     owner turns animations off (<html data-motion="off">). --t-exit is how long a thing takes to leave (shorter than
+     it took to come), --t-stagger the step between the first five things that arrive together (one-shot C3). */
   --t-press: 120ms;
   --t-sheet: 200ms;
   --t-settle: 400ms;
+  --t-exit: 140ms;
+  --t-stagger: 30ms;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  /* A fold eases its height to and from auto (parts/Fold.module.css, parts/Reveal.module.css). */
+  interpolate-size: allow-keywords;
 }
 
 /* Dark: the same names, for the computer's dark setting and for data-theme=dark (public/theme.js sets it before the

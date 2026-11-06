@@ -1,5 +1,10 @@
 {
   "business.keep": "Keep this business",
+  "business.app": "This app",
+  "business.app.motion": "Animations",
+  "business.app.motion.system": "Follow this computer",
+  "business.app.motion.off": "Off",
+  "business.app.motion.line": "Off stops every movement in Chausar on this computer. Your computer's own reduce-motion setting is always followed.",
   "business.pages": "Business pages",
   "business.chats": "Old chats",
   "business.notify.reach": "How alerts reach you",
@@ -663,5 +668,6 @@
   "business.settings.find.keep": "backup recovery code passphrase lock move delete export",
   "business.settings.find.decisions": "who decided approvals history rule stop",
   "business.settings.find.rules": "rules limits hard stops locked",
+  "business.settings.find.app": "animation motion movement version build",
   "business.settings.find.reports": "send report feedback delete my reports"
 }

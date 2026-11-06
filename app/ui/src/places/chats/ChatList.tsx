@@ -8,7 +8,7 @@
  * settled chats are not listed; a quiet link beside the title says how many and opens Settled chats.
  */
 
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode, useDeferredValue } from 'react';
 import { useT } from '../../text';
 import type { Resource } from '../../engine/context';
 import type { ChiefLineAmount, ChiefThreadSummary, ChiefThreadsView } from '../../engine/types';
@@ -19,6 +19,10 @@ import { Figure } from '../../parts/Figure';
 import { cx } from '../../parts/cx';
 import { Icon } from '../../parts/Icon';
 import s from './Chats.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
+import { useFlip } from '../../parts/flip';
+import { useLeavingList } from '../../parts/useLeaving';
+import { LeaveRow } from '../../parts/LeaveRow';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -48,7 +52,8 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
   const groups = threads.data?.groups ?? [];
   const settled = threads.data?.settled.length ?? 0;
   const oldChats = settled > 0 ? t('chats.list.settled', { count: settled }) : t('chats.archive.list');
-  const needle = query.trim().toLocaleLowerCase();
+  // One-shot C3 task 16: the search box answers every key at once; the list follows when there is time.
+  const needle = useDeferredValue(query).trim().toLocaleLowerCase();
   const shown = groups
     .map((group) => ({ ...group, threads: needle ? group.threads.filter((thread) => thread.title.toLocaleLowerCase().includes(needle)) : group.threads }))
     .filter((group) => group.threads.length > 0);
@@ -77,6 +82,7 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
       </div>
       <div className={s.groups}>
         {threads.error && !threads.data && <p className={s.problem} role="alert">{t('chats.failed', { message: threads.error.message })}</p>}
+        <LoadingPlace shape="chat" loading={!threads.data && !threads.error} />
         {threads.data && groups.length === 0 && settled === 0 && <p className={s.quiet}>{t('chats.list.none')}</p>}
         {needle !== '' && groups.length > 0 && shown.length === 0 && <p className={s.quiet}>{t('chats.list.noMatch')}</p>}
         {shown.map((group) => (
@@ -87,18 +93,25 @@ export function ChatList({ threads, selected, onNew }: ChatListProps) {
   );
 }
 
+const threadKey = (thread: ChiefThreadSummary) => thread.id;
+
 /** snoozed (6G1): the Snoozed group shows when each chat comes back instead of when it last moved. */
 function Group({ label, threads, selected, now, zone, snoozed }: { label: string; threads: readonly ChiefThreadSummary[]; selected: string | undefined; now: Date; zone: string; snoozed: boolean }) {
   const t = useT();
   const headingId = useId();
+  // One-shot C3 task 13: a settled chat leaves, a new one arrives, and Pin slides the rows to their new places.
+  const { drawn, left } = useLeavingList(threads, threadKey);
+  const list = useFlip<HTMLUListElement>(threads.map(threadKey).join(' '));
   return (
     <section className={s.group} aria-labelledby={headingId}>
       <h3 id={headingId} className={s.groupTitle}>{label}</h3>
-      <ul className={s.threads}>
-        {threads.map((thread) => {
+      <ul ref={list} className={s.threads}>
+        {drawn.map((row, place) => {
+          const thread = row.item;
           const here = thread.id === selected;
           return (
-            <li key={thread.id} className={cx(s.chat, here && s.on)}>
+            <LeaveRow key={row.key} row={row} left={left} place={place} flipId={row.key}>
+            <div className={cx(s.chat, here && s.on)}>
               <span className={s.chatMark} aria-hidden="true"><Icon name="messages-square" size={16} /></span>
               <span className={s.chatText}>
                 <a className={s.chatLink} href={`#/chats?thread=${encodeURIComponent(thread.id)}`} aria-current={here ? 'page' : undefined}>
@@ -118,7 +131,8 @@ function Group({ label, threads, selected, now, zone, snoozed }: { label: string
                 )}
                 {thread.unread > 0 && <span className={s.unread} aria-hidden="true" />}
               </span>
-            </li>
+            </div>
+            </LeaveRow>
           );
         })}
       </ul>

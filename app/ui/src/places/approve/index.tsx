@@ -22,6 +22,7 @@ import { decide as decideRow, reread as rereadRow, seenKey, useTodaySession } fr
 import { viewSheetId } from '../today/ViewSheet';
 import { useCardPreview } from '../today/CardPreview';
 import s from './Approve.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 const QUEUE_EVENTS = (event: VentureRunEvent) => event.type === 'queue.changed' || event.type === 'run.waiting' || event.type === 'run.failed';
 
@@ -109,7 +110,7 @@ export function Place() {
 
   let body;
   if (queue.error && !queue.data) body = <p className={s.problem} role="alert">{t('sheet.failed', { message: queue.error.message })}</p>;
-  else if (!queue.data) body = <p className={s.quiet}>{t('sheet.loading')}</p>;
+  else if (!queue.data) body = <LoadingPlace shape="sheet" />;
   else if (row) {
     body = (
       <>

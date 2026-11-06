@@ -1,6 +1,7 @@
 import type { ComponentPropsWithoutRef } from 'react';
 import { cx } from './cx';
 import { Icon } from './Icon';
+import { Swap } from './Swap';
 import s from './ResultLine.module.css';
 
 export interface ResultLineProps extends ComponentPropsWithoutRef<'p'> {
@@ -17,7 +18,7 @@ export function ResultLine({ tone = 'done', children, className, ...rest }: Resu
   return (
     <p {...rest} className={cx(s.slot, className)} data-result-line="" data-tone={tone} role={tone === 'problem' ? 'alert' : 'status'}>
       {filled && tone === 'done' && <Icon name="check" size={14} />}
-      {filled && <span className={s.words}>{children}</span>}
+      {filled && <span className={s.words}><Swap value={typeof children === 'string' || typeof children === 'number' ? children : 'words'}>{children}</Swap></span>}
     </p>
   );
 }

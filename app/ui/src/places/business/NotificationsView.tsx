@@ -28,6 +28,7 @@ import { PhoneReach } from './PhoneReach';
 import s from './Business.module.css';
 import n from './Notifications.module.css';
 import { Select } from '../../parts/Select';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 type Change = ParamsOf<'venture.notify.settings'>;
 
@@ -50,7 +51,7 @@ export function NotificationsView() {
   }
 
   if (settings.error && !shown) return <p className={s.problem} role="alert">{t('business.failed', { message: settings.error.message })}</p>;
-  if (!shown) return <p className={s.note}>{t('business.loading')}</p>;
+  if (!shown) return <LoadingPlace shape="settings" />;
   return (
     <div className={s.page}>
       <p className={n.said} data-settings-line="">{shown.line}</p>
@@ -73,7 +74,7 @@ function Reach({ settings, change, reread }: { settings: NotifySettingsView; cha
   const noPhone = pushKey.error?.code === 'TIER_UNAVAILABLE' ? pushKey.error.message : null;
   return (
     <TileSection title={t('business.notify.reach')} meta={t('business.notify.countOnly')}>
-      {!phone && !pushKey.error && <p className={s.note}>{t('business.loading')}</p>}
+      {!phone && !pushKey.error && <LoadingPlace shape="settings" />}
       {pushKey.error && !noPhone && <p className={s.problem}>{t('business.failed', { message: pushKey.error.message })}</p>}
       {phone && <PhonePush on={settings.push} reread={reread} />}
       {noPhone && <p className={s.line}>{noPhone}</p>}

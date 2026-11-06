@@ -5,6 +5,7 @@ import { Button } from '../../parts/Button';
 import { useT } from '../../text';
 import s from './Clients.module.css';
 import { Fold } from '../../parts/Fold';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The one way a client's AI permission is recorded: the owner's press on the exact words this view showed. */
 export const allowClientAi=(engine:EngineClient,clientId:string,view:ClientAiConsentView)=>engine.request('venture.client.aiConsent.agree',{clientId,disclosureDigest:view.disclosureDigest});
@@ -26,7 +27,7 @@ export function AiConsent({clientId}:{clientId:string}) {
   return <Fold summary={<span>{t('clients.ai.title')}{view && <span className={s.state}> · {t(`clients.ai.${view.status}`)}</span>}</span>} className={s.aiConsent}>
     <div className={s.inlineForm}>
       {(problem || resource.error) && <p className={s.failed} role="alert">{problem??resource.error?.message}</p>}
-      {!view && !resource.error && <p className={s.quiet}>{t('sheet.loading')}</p>}
+      {!view && !resource.error && <LoadingPlace shape="sheet" />}
       {view && !resource.error && <><p data-content className={s.quiet}>{view.disclosure}</p><div className={s.formActions}><Button locked={busy||resource.loading} onClick={()=>void act()}>{t(view.status==='agreed'?'clients.ai.withdraw':'clients.ai.allow')}</Button></div></>}
       {resource.error && <Button locked={resource.loading} onClick={resource.reload}>{t('clients.ai.retry')}</Button>}
     </div>

@@ -25,6 +25,7 @@ import { KIND_ICONS } from './NetworkSources';
 import { messageOf } from './network';
 import s from './Network.module.css';
 import { FilePick } from '../../parts/FilePick';
+import { Progress } from '../../parts/Progress';
 
 const KINDS: readonly NetworkImportKind[] = ['linkedin-connections', 'contacts-csv', 'vcard', 'calendar-ics', 'linkedin-messages', 'mail-headers'];
 const ACCEPT: Readonly<Record<NetworkImportKind, string>> = {
@@ -138,7 +139,8 @@ export function ImportSheet({ id, onClose, returnFocus }: SheetComponentProps) {
                     onChange={(event) => { void readInPage(kind, event.target.files?.[0]); event.target.value = ''; }}
                 />
               )}
-              {step.kind === 'busy' && <p className={s.quiet} role="status">{t('clients.import.checking')}</p>}
+              {/* One-shot C3 task 11: the one step, with its elapsed time. */}
+              <Progress kind="import" active={step.kind === 'busy'} labelOf={() => t('clients.import.checking')} />
             </div>
           )}
 

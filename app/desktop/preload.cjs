@@ -115,6 +115,12 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     const id = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
     const whole = value => Number.isSafeInteger(value) && value >= 0;
     const listener = (_event, value) => {
+      // One-shot C3 task 9: a step of long work has its own fields, no seq, and businessId '' before a business is open.
+      if (value && value.type === 'work.step') {
+        if ((value.businessId !== '' && !id(value.businessId)) || !id(value.workId) || !id(value.kind) || !id(value.step) || !['current', 'done', 'failed'].includes(value.state) || typeof value.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(value.at)) return;
+        callback(Object.freeze({ type: value.type, businessId: value.businessId, workId: value.workId, kind: value.kind, step: value.step, state: value.state, at: value.at, ...(value.passed === true || value.passed === false ? { passed: value.passed } : {}) }));
+        return;
+      }
       if (!value || typeof value !== 'object' || !types.includes(value.type) || !id(value.businessId) || (value.type !== 'privacy.forgotten' && value.runId !== undefined && !id(value.runId))) return;
       if (typeof value.at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(value.at)) return;
       if ((value.seq !== undefined && !whole(value.seq)) || (value.count !== undefined && (value.type !== 'notify.new' || !whole(value.count)))) return;

@@ -16,8 +16,9 @@
  * replays the gap, when the page shows.
  */
 
-import type { VentureEventsResult, VentureRunEvent, VentureRunEventType } from './types';
+import type { VentureEventsResult, VentureRunEvent, VentureRunEventType, WorkKindLite, WorkStepStateLite } from './types';
 
+const WORK_STATES: readonly WorkStepStateLite[] = ['current', 'done', 'failed'];
 const RUN_EVENT_TYPES: readonly VentureRunEventType[] = ['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
   // Ink v2 wave 4 (VENTURE_RUN_EVENT_TYPES in the engine): ids only; notify.new also carries a count.
   'agent.message', 'chief.message', 'proposal.created', 'notify.new', 'pipeline.changed', 'run.stopped', 'run.call', 'keeper.ran',
@@ -69,6 +70,12 @@ export function pageVisibility(doc: Document = document): PageVisibility {
 export function readRunEvent(value: unknown): VentureRunEvent | null {
   if (!value || typeof value !== 'object') return null;
   const v = value as Record<string, unknown>;
+  // One-shot C3 task 10: a step of long work has its own fields and no seq: it never waits on a gap and never replays.
+  if (v.type === 'work.step') {
+    if (typeof v.businessId !== 'string' || typeof v.at !== 'string' || typeof v.workId !== 'string' || typeof v.kind !== 'string' || typeof v.step !== 'string'
+      || !WORK_STATES.includes(v.state as WorkStepStateLite)) return null;
+    return { type: 'work.step', businessId: v.businessId, at: v.at, workId: v.workId, kind: v.kind as WorkKindLite, step: v.step, state: v.state as WorkStepStateLite, ...(typeof v.passed === 'boolean' ? { passed: v.passed } : {}) };
+  }
   if (typeof v.type !== 'string' || !RUN_EVENT_TYPES.includes(v.type as VentureRunEventType)) return null;
   if (typeof v.businessId !== 'string' || typeof v.at !== 'string') return null;
   const event: VentureRunEvent = { type: v.type as VentureRunEventType, businessId: v.businessId, at: v.at };

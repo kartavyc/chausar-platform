@@ -53,7 +53,7 @@ export function EditSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   if (!row || !runId) {
     const missing = queue.data !== undefined;
     return (
-      <Sheet label={t('today.edit.label')} title={missing ? t('today.edit.gone') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus} />
+      <Sheet label={t('today.edit.label')} loading={!missing} title={missing ? t('today.edit.gone') : t('sheet.loading')} onClose={onClose} returnFocus={returnFocus} />
     );
   }
 

@@ -22,7 +22,7 @@ export function Fold({ summary, tone, summaryClassName, summaryId, className, ch
   return (
     <details data-fold="" {...rest} className={cx(s.fold, className)}>
       <summary id={summaryId} className={cx(s.summary, summaryClassName)} data-tone={tone}>
-        <span className={s.mark} data-fold-mark="" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
+        <span className={s.mark} data-fold-mark="" data-fold-chevron="" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
         {summary}
       </summary>
       {children}

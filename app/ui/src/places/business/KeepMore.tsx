@@ -11,6 +11,9 @@ import { momentOf, refusalWords, saveTextFile } from '../../parts/custody';
 import { LeftContext, StartedContext } from '../onboarding/started';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
+import { Reveal } from '../../parts/RevealBlock';
+import { LoadingPlace } from '../../parts/Skeleton';
+import { Progress } from '../../parts/Progress';
 
 /**
  * The rest of Keep this business: what the old app's "Your workspace" menu and its Trust & access panel offered for
@@ -61,11 +64,12 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
               {asking !== backup.file && <Button variant="quiet" onClick={() => { setAsking(backup.file); setProblem(null); }}>{t('business.restore')}</Button>}
             </div>
             {/* B4 (208.f1): the ask's buttons stay on the right, like every row's action. */}
-            {asking === backup.file && (
+            <Reveal open={asking === backup.file}>
               <Confirm action={t('business.restoreGo')} cancelLabel={t('business.restoreKeep')} busy={busy} onCancel={() => setAsking(null)} onConfirm={() => void restore(backup)}>
                 <p className={s.line}>{t('business.restoreAsk')}</p>
               </Confirm>
-            )}
+            </Reveal>
+            {asking === backup.file && <Progress kind="restore" active={busy} />}
             {problem?.file === backup.file && <p className={s.problem} role="alert">{problem.text}</p>}
           </li>
         ))}
@@ -271,7 +275,7 @@ export function DeleteBusiness({ onDeleted }: { onDeleted: (result: Deleted) => 
   return (
     <Fold summary={t('business.delete')} className={s.fold} tone="danger">
       {name === null ? (
-        status.error ? <p className={s.problem} role="alert">{failed(t, status.error)}</p> : <p className={s.note}>{t('business.loading')}</p>
+        status.error ? <p className={s.problem} role="alert">{failed(t, status.error)}</p> : <LoadingPlace shape="settings" />
       ) : (
         <form className={s.form} onSubmit={(event) => void go(event)}>
           <p className={s.line}>{t('business.deleteWhat', { name })}</p>

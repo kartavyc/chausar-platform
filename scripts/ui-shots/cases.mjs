@@ -86,6 +86,12 @@ export const PLACES = [
   { id: 'approve-next', path: '#/approve/next', note: 'W4 4G4: the approval page a phone alert opens, the oldest waiting as one card' },
   { id: 'notification-centre', path: '#/work?sheet=notifications:all', note: 'W4 4G4: the bell\'s centre with the digest and Mark all read' },
   { id: 'business-practice', path: '#/business/practice', note: 'practice and improve' },
+  // One-shot C3: cases that open and close things, so a copy left leaving would be caught under --motion.
+  { id: 'motion-sheet-closed', path: '#/money?sheet=receipt:R-0415', steps: [{ key: 'Escape' }], note: 'C3: a sheet closed: its leaving copy is gone' },
+  { id: 'motion-menu-closed', path: '#/today', steps: [{ press: /Switch business$/ }, { key: 'Escape' }], note: 'C3: the business menu closed: gone' },
+  { id: 'motion-approved', path: '#/today', steps: [{ press: 'Approve', in: '[data-row-id="q-price-sponsor"]' }, { press: 'Approve', in: '[data-row-id="q-price-sponsor"]' }], note: 'C3: a decided card: its decided line in the same spot' },
+  { id: 'motion-rehearsed', path: '#/business/practice', steps: [{ press: 'Rehearse now' }], note: 'C3: Rehearse on the fake: its steps and result' },
+  { id: 'business-app', path: '#/business/app', note: 'C3: This app: Animations' },
   { id: 'business-practice-drills', path: '#/business/practice', steps: [{ press: 'Run the drills' }, { unfold: true }], note: 'W4 4J22a: drills run against the version in use, each result; what the loop tried; guidance and its checks' },
   { id: 'business-routines', path: '#/business/routines', note: 'W4 4J22a: routines with their schedule and zone, the next run, history, Turn off, Change, Remove; Add folded' },
   { id: 'business-routines-open', path: '#/business/routines', steps: [{ unfold: true }], note: 'W4 4J22a: the history and the add form opened' },

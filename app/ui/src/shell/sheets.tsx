@@ -16,6 +16,7 @@ import { useRoute } from './navigation';
 import { NotificationCentre } from './NotificationCentre';
 import type { PlaceId } from './routes';
 import s from './sheets.module.css';
+import { LoadingPlace } from '../parts/Skeleton';
 
 export interface SheetComponentProps {
   id: string;
@@ -35,7 +36,7 @@ function ReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   return (
     <Sheet label={t('sheet.receipt')} title={<span data-code="" className="mono">{id}</span>} onClose={onClose} returnFocus={returnFocus} receipt>
       {receipt.error && <p className={s.failed}>{t('sheet.failed', { message: receipt.error.message })}</p>}
-      {!receipt.data && !receipt.error && <p className={s.quiet}>{t('sheet.loading')}</p>}
+      {!receipt.data && !receipt.error && <LoadingPlace shape="sheet" />}
       {receipt.data && (
         <>
           {receipt.data.stale && <p className={s.stale}>{t('receipt.stale')}</p>}
@@ -74,7 +75,7 @@ function CaReceiptSheet({ id, onClose, returnFocus }: SheetComponentProps) {
       onClose={onClose} returnFocus={returnFocus} receipt
     >
       {receipt.error && <p className={s.failed}>{t('sheet.failed', { message: receipt.error.message })}</p>}
-      {!view && !receipt.error && <p className={s.quiet}>{t('sheet.loading')}</p>}
+      {!view && !receipt.error && <LoadingPlace shape="sheet" />}
       {view && (
         <>
           {view.figures.length > 0 ? (

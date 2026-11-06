@@ -1,4 +1,11 @@
 {
+  "progress.keepWorking": "Keep working",
+  "progress.stopWaiting": "Stop waiting",
+  "progress.failed": "Failed",
+  "progress.landsPractice": "It goes on without you. The result lands here, on Practice.",
+  "progress.landsPracticeWork": "It goes on without you. The result lands here, on Practice, and on Work.",
+  "progress.writing": "Writing",
+  "skeleton.status": "Getting this ready.",
   "app.name": "Chausar",
   "shell.skip": "Skip to the page",
   "shell.places": "Places",

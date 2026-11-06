@@ -8,6 +8,7 @@ import { AgentFile } from './AgentFile';
 import s from './AgentExtras.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 /** The agent says each new persona version in its chat, so a message is when the persona may have changed. */
@@ -64,7 +65,7 @@ export function AgentPersona({ agent }: { agent: AgentView }) {
     </Fold>
   );
   if (view.error) return fold(<p className={s.problem} role="alert">{messageOf(view.error)}</p>);
-  if (!view.data || !form) return fold(<p className={s.quiet}>{t('team.loading')}</p>);
+  if (!view.data || !form) return fold(<LoadingPlace shape="list" />);
   const data = view.data;
   // A change to any field makes an earlier test's replies stale, so they go.
   const edit = (patch: Partial<Form>) => { setForm({ ...form, ...patch }); setAsking(null); setTried(null); };

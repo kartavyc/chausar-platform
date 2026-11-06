@@ -5,7 +5,7 @@
 // screen that hears one reads the queue or the run again: the event says only what changed, never the data itself.
 // This file is a leaf: it imports no venture package, so the web servers can use it without loading the engine's views.
 import { VENTURE_RUN_EVENT_TYPES } from '../contracts.ts';
-import type { VentureRunEvent, VentureRunEventType } from '../contracts.ts';
+import type { VentureFrame, VentureRunEvent, VentureRunEventType } from '../contracts.ts';
 
 /** An event as the hosted runtime hands it to listeners (platform/runtime/hosted/runtime/contract.ts ActorEvent). */
 export type LoggedEvent = { seq?: number; name: string; data: unknown; at: string };
@@ -31,8 +31,8 @@ export function runEventFromActor(event: LoggedEvent, businessId: string): Ventu
 }
 
 /** One Server-Sent Events frame: a default message whose data is the event as JSON, and its seq as the event id. */
-export function sseFrame(event: VentureRunEvent): string {
-  return `${whole(event.seq) ? `id: ${event.seq}\n` : ''}data: ${JSON.stringify(event)}\n\n`;
+export function sseFrame(event: VentureFrame): string {
+  return `${'seq' in event && whole(event.seq) ? `id: ${event.seq}\n` : ''}data: ${JSON.stringify(event)}\n\n`;
 }
 
 /** The stream's first lines: how long a browser waits before it reconnects. */

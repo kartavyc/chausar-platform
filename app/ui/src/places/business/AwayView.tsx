@@ -9,6 +9,7 @@ import type { AwayView as Away } from '../../engine/types';
 import { TileSection, dayOf } from './shared';
 import s from './Business.module.css';
 import a from './AwayView.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Away (W4 4F3; catalogue O4; venture.away.get and venture.away.set): the owner says which days they will be away and
@@ -55,7 +56,7 @@ export function AwayView() {
   }
 
   if (away.error && !view) return <p className={s.problem} role="alert">{t('business.failed', { message: away.error.message })}</p>;
-  if (!view) return <p className={s.note}>{t('business.loading')}</p>;
+  if (!view) return <LoadingPlace shape="settings" />;
   return (
     <div className={s.page}>
       <p className={s.lead}>{view.line}</p>

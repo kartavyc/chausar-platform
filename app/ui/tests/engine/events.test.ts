@@ -17,6 +17,24 @@ describe('event feed', () => {
     stop();
   });
 
+  it('a step of long work has no seq: it reaches the listeners and asks for no replay; a malformed one is dropped (one-shot C3)', () => {
+    let push: ((value: unknown) => void) | undefined;
+    const request = vi.fn();
+    const feed = createEventFeed({ onEvent: (cb) => { push = cb; return () => {}; }, request });
+    const seen: VentureRunEvent[] = [];
+    const stop = feed.subscribe((e) => seen.push(e));
+    push!({ type: 'queue.changed', businessId: 'lumen', at: '2026-10-21T10:00:00Z', seq: 4 });
+    push!({ type: 'work.step', businessId: 'lumen', at: '2026-10-21T10:00:01Z', workId: 'w1', kind: 'improve', step: 'read', state: 'current', extra: 'dropped' });
+    push!({ type: 'work.step', businessId: '', at: '2026-10-21T10:00:01Z', workId: 'w2', kind: 'rehearse', step: 's1', state: 'done', passed: true });
+    push!({ type: 'work.step', businessId: 'lumen', at: '2026-10-21T10:00:02Z', workId: 'w1', step: 'read', state: 'nonsense' });
+    expect(seen.slice(1)).toEqual([
+      { type: 'work.step', businessId: 'lumen', at: '2026-10-21T10:00:01Z', workId: 'w1', kind: 'improve', step: 'read', state: 'current' },
+      { type: 'work.step', businessId: '', at: '2026-10-21T10:00:01Z', workId: 'w2', kind: 'rehearse', step: 's1', state: 'done', passed: true },
+    ]);
+    expect(request).not.toHaveBeenCalled();
+    stop();
+  });
+
   it('without pushes it polls venture.events every 5 s from the last seen event', async () => {
     vi.useFakeTimers();
     const replies = [

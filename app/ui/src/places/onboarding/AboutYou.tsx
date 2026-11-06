@@ -7,6 +7,8 @@ import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
 import { Icon } from '../../parts/Icon';
 import { InlineError } from '../../parts/InlineError';
+// One-shot C3: off under the computer's reduce-motion setting or the owner's Animations off; then A becomes B with no motion.
+import { motionOff } from '../../parts/motion';
 import { cleanSentence, computerCountry, pickCountry, sentenceProblem, OPEN_BOX } from './flow';
 import { aboutFile, type AboutFile } from './linkedin';
 import { renameIn } from './rename';
@@ -14,6 +16,7 @@ import f from './FirstRun.module.css';
 import s from './AboutYou.module.css';
 import { Select } from '../../parts/Select';
 import { FilePick } from '../../parts/FilePick';
+import { Progress } from '../../parts/Progress';
 
 export type AboutMode = 'a' | 'b' | 'plan';
 type Mode = AboutMode;
@@ -22,11 +25,6 @@ type Bubble = { who: 'me' | 'them'; text: string; failed?: boolean };
 /** name (one-shot A1, row 3): the name the card shows, which the saved plan keeps with the card's offers. */
 export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string };
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
-/** True when the computer asks for reduced motion: then A becomes B with no motion at all. */
-export function prefersReducedMotion(): boolean {
-  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
-}
 
 /**
  * Step 2 of the first run, About you (W6 6C2, DECISIONS D16 and D16a; reference-ui/OnboardAB.dc.html). It opens as
@@ -53,7 +51,7 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
   const [mode, setMode] = useState<Mode>('a');
   // C1 task 11: the first run's stepper follows the mode (the plan card is step 3, "Your business").
   useEffect(() => { onMode?.(mode); }, [mode, onMode]);
-  const [motion] = useState(() => (prefersReducedMotion() ? 'none' : 'once'));
+  const [motion] = useState(() => (motionOff() ? 'none' : 'once'));
   const [text, setText] = useState('');
   const [file, setFile] = useState<AboutFile | null>(null);
   const [said, setSaid] = useState('');
@@ -333,7 +331,8 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
             ) : (
               <p key={index} className={`${s.bubble} ${bubble.who === 'me' ? s.me : s.them}`} data-content={bubble.who === 'me' ? '' : undefined}>{bubble.text}</p>
             )))}
-            {busy && <p className={`${s.bubble} ${s.them}`} role="status">{t('first-run.about.reading')}</p>}
+            {/* One-shot C3 task 11: Chausar's turn in the chat says which step it is on. */}
+            {busy && <div className={`${s.bubble} ${s.them}`}><Progress kind="about" active /></div>}
             {countryAsk && (
               <div className={`${s.bubble} ${s.them}`}>
                 <p>{t('onboarding.countrySuggestion', { country: countryAsk.name, currency: countryAsk.currency })}</p>

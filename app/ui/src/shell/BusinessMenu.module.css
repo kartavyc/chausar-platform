@@ -122,6 +122,22 @@
   border-radius: var(--r-card);
   background: var(--surface);
   box-shadow: var(--shadow-paper);
+  /* One-shot C3: in with a fade and a 4 px drop over the sheet time, out the same way over the exit time. */
+  transition: opacity var(--t-sheet) var(--ease), transform var(--t-sheet) var(--ease);
+}
+
+@starting-style {
+  .menu {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.menu[data-state='closing'] {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition-duration: var(--t-exit);
+  transition-timing-function: var(--ease-exit);
 }
 
 .heading {

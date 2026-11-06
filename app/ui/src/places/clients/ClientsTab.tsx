@@ -18,6 +18,7 @@ import type { ClientLite, OrderLite, VentureRunEvent } from '../../engine/types'
 import { Owed } from './ClientSheet';
 import { useClientsChanged } from './signals';
 import s from './Clients.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 const refreshOn = (event: VentureRunEvent) => event.type === 'queue.changed';
 
@@ -41,7 +42,7 @@ export function ClientsTab({ clients }: { clients: Resource<ClientLite[]> }) {
       />
     );
   }
-  if (list.length === 0) return null;
+  if (list.length === 0) return <LoadingPlace shape="list" />;
   // Until the orders arrive (or when they cannot be read) a row says nothing about orders: "No orders yet." is said
   // only when the engine answered with none.
   const ordersKnown = orders.data !== undefined;

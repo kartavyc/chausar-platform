@@ -17,6 +17,8 @@ import { workChanged } from './refresh';
 import s from './Work.module.css';
 import { Select } from '../../parts/Select';
 import { FilePick } from '../../parts/FilePick';
+import { Reveal } from '../../parts/RevealBlock';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** The client choice that opens a name field and adds the client with the order. Not a valid client id. */
 export const NEW_CLIENT = '+new';
@@ -117,7 +119,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   } else if (plan.data === null || (plan.data && offers.length === 0)) {
     body = <p className={s.note}>{t('work.form.noServices')}</p>;
   } else if (!plan.data || !clients.data || !business.data) {
-    body = <p className={s.quiet}>{t('sheet.loading')}</p>;
+    body = <LoadingPlace shape="sheet" />;
   } else {
     body = (
       <form className={s.form} onSubmit={(event) => void submit(event)} noValidate>
@@ -126,7 +128,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
             {clients.data.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             <option value={NEW_CLIENT}>{t('work.form.newClient')}</option>
           </Select>
-        {who === NEW_CLIENT && <Field label={t('work.form.clientName')} value={name} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} />}
+        <Reveal open={who === NEW_CLIENT}><Field label={t('work.form.clientName')} value={name} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} /></Reveal>
         <Select label={t('work.form.service')} value={what} onChange={(event) => setOfferId(event.currentTarget.value)}>
             <option value="" disabled>{t('work.form.choose')}</option>
             {offers.map((offer) => {

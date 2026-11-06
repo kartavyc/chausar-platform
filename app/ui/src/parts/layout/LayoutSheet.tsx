@@ -19,13 +19,14 @@ import { Sheet } from '../Sheet';
 import { useLayout } from './useLayout';
 import s from './Layout.module.css';
 import { Select } from '../Select';
+import { LoadingPlace } from '../Skeleton';
 
 const PLACES: readonly LayoutPlace[] = ['today', 'money'];
 const isPlace = (id: string): id is LayoutPlace => (PLACES as readonly string[]).includes(id);
 
 export function LayoutSheet({ id, onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
-  if (!isPlace(id)) return <Sheet label={t('layout.sheet.label')} title={t('layout.arrange')} onClose={onClose} returnFocus={returnFocus}><p className={s.quiet}>{t('layout.loading')}</p></Sheet>;
+  if (!isPlace(id)) return <Sheet label={t('layout.sheet.label')} title={t('layout.arrange')} onClose={onClose} returnFocus={returnFocus}><LoadingPlace shape="list" /></Sheet>;
   return <Arrange place={id} onClose={onClose} returnFocus={returnFocus} />;
 }
 
@@ -66,7 +67,7 @@ function Arrange({ place, onClose, returnFocus }: { place: LayoutPlace; onClose:
         </p>
       )}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
-      {!view && !layout.error && <p className={s.quiet}>{t('layout.loading')}</p>}
+      {!view && !layout.error && <LoadingPlace shape="list" />}
       {layout.error && <p className={s.problem}>{layout.error.message}</p>}
       {view && (
         <>

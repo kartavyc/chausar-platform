@@ -92,7 +92,7 @@ export class DraftDesk {
       session: () => (this.#generation === generation ? this.#session : null),
       keep: session => { if (this.#generation === generation && this.#parts === parts) this.#session = session; },
       // A2: the setup the owner is shown, and the tiny test call that earns "Signed in" (models/cli-test.ts).
-      login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ claudeTerms: this.#options.claudeCodeTerms ?? 'accepted', ...codexTrustOf(this.#options.codexCli),
+      login: () => (this.#login ??= this.#options.login ?? new LoginDesk({ ...(this.#options.work ? { work: this.#options.work } : {}), claudeTerms: this.#options.claudeCodeTerms ?? 'accepted', ...codexTrustOf(this.#options.codexCli),
         testCall: (cli, program) => hostTestCall(cli, program, this.#options.codexCli, parts.deps.models),
         ...(this.#options.statusPages ? { providerStatus: (cli: DelegateCli) => providerTrouble(this.#statusReader ??= new ProviderStatusReader({ ...(this.#options.net ? { net: this.#options.net } : {}) }), cli) } : {}) })),
     };
@@ -189,6 +189,7 @@ export class DraftDesk {
       ...(options.codexCli !== undefined ? { codexCli: options.codexCli } : {}),
     });
     const deps: VentureDeps = Object.freeze({
+      ...(this.#options.work ? { work: this.#options.work } : {}),
       store, clock: this.#clock, models: port, services: options.helper ? Object.freeze({ ...NO_SERVICES, helper: options.helper }) : NO_SERVICES,
       github: Object.freeze({ kind: 'fixture' as const, read: async () => { throw new ChausarError('NOT_BUILT_YET', 'There is no business here yet.'); } }),
       secrets: shelf, host, demo: options.demo, storage: 'experimental-file' as const, claudeCodeTerms,

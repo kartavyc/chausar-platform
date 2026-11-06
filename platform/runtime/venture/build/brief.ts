@@ -393,6 +393,22 @@ export function briefTask(venture: VentureRecord, blueprint: BlueprintRecord, te
 // ---------------------------------------------------------------------------
 
 export async function writeBrief(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BriefRecord> {
+  // One-shot C3 task 9: one model call, so one step.
+  const work = deps.work?.begin('brief', ['write']);
+  work?.step('write', 'current');
+  try {
+    const brief = await writeBriefNow(deps, ctx, payload);
+    work?.step('write', 'done');
+    return brief;
+  } catch (error) {
+    work?.failCurrent();
+    throw error;
+  } finally {
+    work?.end();
+  }
+}
+
+async function writeBriefNow(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BriefRecord> {
   const body = exactPayload(payload ?? {}, ['useTemplate']);
   if (body.useTemplate !== undefined) check(typeof body.useTemplate === 'boolean', 'INVALID_VENTURE_REQUEST', 'useTemplate must be true or false.');
   authorize(deps.store, ctx, 'prepare'); // before any model call, so a reader never starts one

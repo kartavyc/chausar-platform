@@ -44,6 +44,7 @@ import { ChangeNotice } from './ChangeNotice';
 import { PushToTalk } from './PushToTalk';
 import { ReadAloud } from './ReadAloud';
 import s from './Chats.module.css';
+import { Reveal } from '../../parts/RevealBlock';
 
 /** The thread reads again when Chausar answers anywhere, and when a proposal's card moves on Today. */
 const THREAD_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed' || event.type === 'proposal.created';
@@ -249,16 +250,17 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
           </div>
         )}
       </header>
-      {thread && snoozing && !waiting && snoozeOptions.length > 0 && (
-        <div className={cx(s.snooze, s.paneNote)} role="group" aria-label={t('chats.snooze.title')}>
+      {/* One-shot C3 task 7: the snooze choices open in place and close the same way. */}
+      <Reveal open={Boolean(thread && snoozing && !waiting && snoozeOptions.length > 0)}>
+        {thread && <div className={cx(s.snooze, s.paneNote)} role="group" aria-label={t('chats.snooze.title')}>
           {snoozeOptions.map((option) => (
             <Button key={option.id} size="sm" disabled={pinning} onClick={() => void setState({ threadId: thread.id, state: 'snoozed', preset: option.id })}>
               <span data-preset="">{t(`chats.snooze.${option.id}`)}</span>
               <time data-num="" dateTime={option.until}>{wakeOf(option.until, clock(), zone)}</time>
             </Button>
           ))}
-        </div>
-      )}
+        </div>}
+      </Reveal>
       {thread && waiting && lockedNote && <p className={cx(s.quiet, s.paneNote)}>{t('chats.thread.waiting')}</p>}
       {shownChange && <ChangeNotice className={s.paneNote} line={shownChange.line} busy={pinning} onUndo={() => void setState(shownChange.undo)} />}
       {threadId && view.error && !shown && !fallback ? (
@@ -272,6 +274,7 @@ export function ChiefThread({ threadId, ask, onListChanged, phone }: ChiefThread
       {consent && <Consent stale={consent.stale} text={consent.text} words={consent.words} problem={consent.problem} busy={consent.busy} onAgree={() => void agree()} onNotNow={notNow} />}
       <div className={s.compose}>
         <Composer
+          waitLabel={t('progress.writing')}
           key={box.n}
           initial={box.words}
           label={t('chats.composer.label')}

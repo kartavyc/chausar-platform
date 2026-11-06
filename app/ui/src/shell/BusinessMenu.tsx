@@ -11,6 +11,7 @@ import { LeftContext, StartedContext } from '../places/onboarding/started';
 import { RunControlsMenu } from './RunControlsMenu';
 import { SETTINGS_HREF } from './settings';
 import s from './BusinessMenu.module.css';
+import { usePresence } from '../parts/motion';
 
 /**
  * The top of the rail (D's `.biz`): the open business as its initials square, its name and its kind, with a
@@ -118,6 +119,9 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
   // The popover is not next to the button in the page, so it takes the focus when it opens; Tab then walks its items.
   useEffect(() => { if (open) menu.current?.focus(); }, [open]);
 
+  // One-shot C3 task 6: it stays on screen with data-state="closing" while its exit runs (at once with motion off).
+  const presence = usePresence(open, menu);
+
   function close() { setOpen(false); setProblem(null); setNotice(null); button.current?.focus(); }
 
   /**
@@ -215,9 +219,10 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
         <Icon name={variant === 'bar' ? 'chevron-down' : 'chevrons-up-down'} size={16} className={s.chevrons} />
         <span className="sr-only">{t('business.switchTo')}</span>
       </button>
-      {open && createPortal(
+      {presence.mounted && createPortal(
         <div
           ref={menu} id={menuId} className={s.menu} data-variant={variant} role="dialog" aria-label={t('business.menu', { name })} tabIndex={-1}
+          data-state={presence.state} inert={presence.state === 'closing'}
           onBlur={(event) => focusLeft(event.relatedTarget)}
         >
           <p className={s.heading}>{t('business.switchTo')}</p>

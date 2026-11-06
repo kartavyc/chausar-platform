@@ -3,6 +3,7 @@ import { ModelEstimate } from './ModelEstimate';
 import { Receipt } from './Receipt';
 import { HOLDS_MONEY, MONEY_TEXT } from '../../../../platform/runtime/owner-format';
 import s from './Figure.module.css';
+import { SwapWords } from './Swap';
 
 /**
  * How a figure is proved: a receipt from code, or the "model estimate" label. Exactly one, never both and never
@@ -73,7 +74,8 @@ export function Figure(props: FigureProps) {
   }
   return (
     <span className={cx(s.figure, className)} data-figure="" data-size={size} data-tone={tone}>
-      <span className={s.value} data-ui-number="">{amount}</span>
+      {/* One-shot C3 task 14: money cross-fades and never rolls. */}
+      <span className={s.value} data-ui-number=""><SwapWords slow>{amount}</SwapWords></span>
       {/* Words that open with a comma or semicolon sit right against the amount: no gap before the comma. */}
       {words && <span className={s.words} data-figure-words="" data-lead={/^[,;]/.test(words) ? 'punct' : undefined}>{words}</span>}
       {proof.estimate ? <ModelEstimate tone={tone} /> : <Receipt id={proof.receiptId} amount={amount} onOpen={onReceipt} tone={tone} />}
@@ -81,7 +83,4 @@ export function Figure(props: FigureProps) {
   );
 }
 
-/** A count (steps, people, runs, things waiting): the body font with tabular figures (B2), no proof, and no `data-ui-number`, since it is not money. */
-export function Count({ value, className }: { value: number | string; className?: string | undefined }) {
-  return <span className={cx(s.count, className)} data-count="">{value}</span>;
-}
+export { Count } from './Count';

@@ -44,6 +44,10 @@ export const READS = [
   'venture.tax.working', 'venture.team.keeper', 'venture.team.list', 'venture.transcription.get',
   'venture.voice.get', 'venture.voiceConsent.list', 'venture.web.search', 'venture.work.get',
   'workspace.backups.list', 'workspace.custody.get', 'workspace.list', 'workspace.status',
+  // One-shot C3: the app's own preference (animations), read at the top of the shell.
+  'app.preferences.get',
+  // One-shot C3 task 10: the live jobs, read by useWork when a page opens and on the poll's pace.
+  'venture.work.list',
 ] as const satisfies readonly MethodName[];
 
 export type ReadMethod = (typeof READS)[number];
@@ -169,7 +173,8 @@ export class ReadStore {
 
   #listen(): void {
     if (this.#off) return;
-    this.#off = this.#client.subscribe((event) => { if (event.businessId) this.#business = event.businessId; this.refresh(event); });
+    // One-shot C3: a step of long work changes no read; useWork hears it itself.
+    this.#off = this.#client.subscribe((event) => { if (event.type === 'work.step') return; if (event.businessId) this.#business = event.businessId; this.refresh(event); });
   }
 
   #quiet(): void {

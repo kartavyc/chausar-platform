@@ -12,6 +12,7 @@ import { PendingPlanRows, messageOf, quoteAgain, totalOf, usePlan } from './shar
 import { ShareAtRest, ShareFold } from './SharePrice';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Prices in the D look: each offer a card with its price at rest as the calculator's total with its receipt
@@ -26,7 +27,7 @@ export function PricesView() {
   const headingId = useId();
   const plan = usePlan();
   if (plan.error) return <p className={s.problem} role="alert">{t('business.failed', { message: plan.error.message })}</p>;
-  if (plan.data === undefined) return <p className={s.note}>{t('business.loading')}</p>;
+  if (plan.data === undefined) return <LoadingPlace shape="settings" />;
   if (plan.data === null) {
     return <EmptyState title={t('business.noPlan')} line={t('business.noPlanLine')} actions={[{ label: t('business.start'), href: '#/onboarding' }]} />;
   }

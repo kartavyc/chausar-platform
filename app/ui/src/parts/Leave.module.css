@@ -1,0 +1,48 @@
+/* Leave and arrive (one-shot C3 task 13). A row wraps its content in .row and .inner: leaving, it fades and slips 6 px
+   over the exit time, then its height closes (grid rows 1fr to 0fr) over the settle time; arriving, it fades and rises
+   6 px over the sheet time, delayed by --t-stagger times its place for the first five. All on tokens, so 0 with motion
+   off. */
+
+.row {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--t-sheet) var(--ease), transform var(--t-sheet) var(--ease);
+}
+
+.inner {
+  min-height: 0;
+  overflow: clip;
+  overflow-clip-margin: var(--sp-1);
+}
+
+.row[data-leaving] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity var(--t-exit) var(--ease-exit), transform var(--t-exit) var(--ease-exit), grid-template-rows var(--t-settle) var(--ease) var(--t-exit);
+}
+
+@starting-style {
+  .row[data-arriving] {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.row.i1 {
+  transition-delay: var(--t-stagger);
+}
+
+.row.i2 {
+  transition-delay: calc(var(--t-stagger) * 2);
+}
+
+.row.i3 {
+  transition-delay: calc(var(--t-stagger) * 3);
+}
+
+.row.i4 {
+  transition-delay: calc(var(--t-stagger) * 4);
+}

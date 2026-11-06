@@ -37,7 +37,7 @@ export const SETTINGS: readonly SettingsGroup[] = [
   {
     id: 'business',
     title: 'business.settings.group.business',
-    pages: [page('plan', 'business.plan'), page('owner', 'business.owner'), page('voice', 'business.voice'), page('knowledge', 'business.knowledge'), page('build', 'business.build')],
+    pages: [page('plan', 'business.plan'), page('owner', 'business.owner'), page('voice', 'business.voice'), page('knowledge', 'business.knowledge'), page('build', 'business.build'), page('app', 'business.app')],
   },
   {
     id: 'work',

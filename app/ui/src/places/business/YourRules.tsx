@@ -6,6 +6,7 @@ import { onDesktop, safeUrl } from '../connections/external';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
 import r from './RulesSection.module.css';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /**
  * Business > Your rules (#/business/rules), wave 6 package 6C5 (D20, D21). One screen per locked rule (a lawyer or CA
@@ -25,7 +26,7 @@ export function YourRules() {
   return (
     <div className={s.page}>
       {locks.error && !data && <p className={s.problem} role="alert">{t('business.failed', { message: locks.error.message })}</p>}
-      {!data && !locks.error && <p className={s.note}>{t('business.loading')}</p>}
+      {!data && !locks.error && <LoadingPlace shape="settings" />}
       {data && (
         <>
           <p className={s.lead}>{data.line}</p>

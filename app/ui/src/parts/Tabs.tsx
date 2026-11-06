@@ -6,6 +6,7 @@ import { Count } from './Figure';
 import { DEPT_IDS, type DeptId } from './icons';
 import { fitTabs, type Fit } from './tabs-fit';
 import s from './Tabs.module.css';
+import { useSlidingPill } from './useSlidingPill';
 
 /**
  * Tabs (C1 task 1): the one row of tabs in the app. Three modes:
@@ -19,7 +20,7 @@ import s from './Tabs.module.css';
  * width. The current item is always in the row. The row is measured on mount, when its items change, when the fonts
  * load and whenever its own width changes (a sheet opening beside the page); nothing measured (jsdom) keeps every
  * primary item in the row. No icons and no frame: one quiet look. The row carries `data-tabs` and the current item
- * `data-current`, for the motion layer to find; there is no motion here.
+ * `data-current`; one pill under the row slides to the current item (C3 task 15).
  */
 
 export interface TabItem {
@@ -86,6 +87,8 @@ export function Tabs(props: TabsProps) {
   const [sizes, setSizes] = useState<Sizes | null>(null);
   const [room, setRoom] = useState(0);
   const [fonts, setFonts] = useState(0);
+  // One-shot C3 task 15: one pill under the row slides to the current item; it is placed again when the row's items change.
+  const pill = useSlidingPill(`${value}\u0003${sizes?.key ?? ''}\u0003${room}`);
 
   const key = `${fonts}\u0002${items.map((item) => `${item.id}\u0001${item.label}\u0001${drawn(item.count) ? String(item.count) : ''}`).join('\u0002')}`;
   const measuring = sizes?.key !== key;
@@ -230,6 +233,7 @@ export function Tabs(props: TabsProps) {
   if (props.mode === 'links') {
     return (
       <nav ref={row} className={cx(s.tabs, className)} aria-label={label} data-tabs="" data-measuring={measuring ? '' : undefined}>
+        <span ref={pill} className={s.pill} data-pill="" aria-hidden="true" />
         <ul className={s.list}>{inRow.map(rowItem)}</ul>
         {more}
       </nav>
@@ -238,6 +242,7 @@ export function Tabs(props: TabsProps) {
   if (props.mode === 'buttons') {
     return (
       <div ref={row} className={cx(s.tabs, className)} role="group" aria-label={label} data-tabs="" data-measuring={measuring ? '' : undefined}>
+        <span ref={pill} className={s.pill} data-pill="" aria-hidden="true" />
         {inRow.map(rowItem)}
         {more}
       </div>
@@ -245,6 +250,7 @@ export function Tabs(props: TabsProps) {
   }
   return (
     <div ref={row} className={cx(s.tabs, className)} data-tabs="" data-measuring={measuring ? '' : undefined}>
+      <span ref={pill} className={s.pill} data-pill="" aria-hidden="true" />
       <div role="tablist" aria-label={label} className={s.list} onKeyDown={onTabKey}>{inRow.map(rowItem)}</div>
       {more}
     </div>

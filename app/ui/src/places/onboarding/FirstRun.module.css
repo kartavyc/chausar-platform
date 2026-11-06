@@ -17,6 +17,8 @@
   align-content: start;
   justify-items: center;
   padding: var(--sp-6) var(--gutter-phone) var(--sp-12);
+  /* One-shot C3: a step change cross-fades the column (tokens/motion.css ::view-transition-*(page)). */
+  view-transition-name: page;
 }
 
 .main:focus {

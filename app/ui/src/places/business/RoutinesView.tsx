@@ -17,6 +17,7 @@ import s from './Business.module.css';
 import r from './RoutinesView.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 /** Days as the engine numbers them: 1 Monday to 7 Sunday. */
 const DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
@@ -113,7 +114,7 @@ export function RoutinesView() {
     <div className={s.page}>
       <p className={s.lead}>{t('business.routines.lead')}</p>
       {list.error && !list.data && <p className={s.problem} role="alert">{t('business.failed', { message: list.error.message })}</p>}
-      {!list.data && !list.error && <p className={s.note}>{t('business.loading')}</p>}
+      {!list.data && !list.error && <LoadingPlace shape="settings" />}
       {list.data && routines.length === 0 && <p className={s.line}>{t('business.routines.none')}</p>}
       <ResultLine>{said}</ResultLine>
       {routines.length > 0 && (

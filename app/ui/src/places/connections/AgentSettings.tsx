@@ -11,6 +11,7 @@ import { McpServers } from './McpServers';
 import { Packs } from './Packs';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
+import { LoadingPlace } from '../../parts/Skeleton';
 
 export function AgentSettings() {
   const t = useT(), engine = useEngine(), id = useId();
@@ -38,7 +39,7 @@ export function AgentSettings() {
   return <Fold summary={t('connections.settings.title')} className={connections.fold} onToggle={event => setOpen(event.currentTarget.open)}>
     {open && <Inner card={false}><form className={s.form} aria-label={t('connections.settings.title')} onSubmit={event => void save(event)}>
       {resource.error && <p role="alert">{resource.error.message}</p>}
-      {!draft && !resource.error && <p>{t('connections.ai.loading')}</p>}
+      <LoadingPlace shape="settings" loading={!draft && !resource.error} />
       {draft && <>
         {(['codex', 'claude'] as const).map(name => <fieldset key={name} className={s.group} disabled={busy}>
           <legend className={connections.subheading}>{t(`connections.settings.${name}`)}</legend>

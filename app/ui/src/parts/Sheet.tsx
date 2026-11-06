@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useId, useRef, type ReactNode } from 'react';
 import { useT } from '../text';
 import { Icon } from './Icon';
+import { LoadingPlace } from './Skeleton';
 import s from './Sheet.module.css';
 
 /**
@@ -9,6 +10,13 @@ import s from './Sheet.module.css';
  * listener and nothing changes.
  */
 export const SheetTitleContext = createContext<((titleId: string | undefined) => void) | null>(null);
+
+/**
+ * One-shot C3 task 5: how the shell is showing this sheet. `leaving`: it was closed and plays its exit (Sheet.module.css
+ * [data-leaving]) before the shell drops it; `replacing`: it took another sheet's place (Read to Edit), so it cross-fades
+ * on the press time instead of sliding in.
+ */
+export const SheetMotionContext = createContext<'leaving' | 'replacing' | null>(null);
 
 export interface SheetProps {
   /** What kind of sheet this is, for the top line: "Run", "Receipt". */
@@ -31,6 +39,9 @@ export interface SheetProps {
   /** A receipt sheet (w3 3I): the sheet IS the proof, so its figures are the receipt's own lines in plain DM Mono with
    *  no receipt chip. Marks the root `data-receipt-sheet`, which the Ink rules helper lets money text sit inside. */
   receipt?: boolean | undefined;
+  /** One-shot C3 task 12: its first answer is on its way. The body is a still skeleton after 150 ms, and the title's word
+   *  stays for a screen reader only. */
+  loading?: boolean | undefined;
 }
 
 /**
@@ -39,13 +50,14 @@ export interface SheetProps {
  * Its head is D's panel head (D-TeamChat `.cp-h`): an optional avatar, the kind and eyebrow, the title and its line,
  * and the close button at the right.
  */
-export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, children, footer, avatar, width, name, receipt }: SheetProps) {
+export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, children, footer, avatar, width, name, receipt, loading }: SheetProps) {
   const t = useT();
   const titleId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const restore = useRef(returnFocus);
   restore.current = returnFocus;
   const reportTitle = useContext(SheetTitleContext);
+  const motion = useContext(SheetMotionContext);
 
   useEffect(() => {
     reportTitle?.(titleId);
@@ -62,7 +74,8 @@ export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, child
   }, []);
 
   return (
-    <aside className={s.sheet} aria-labelledby={titleId} data-sheet="" data-width={width} data-receipt-sheet={receipt ? '' : undefined}>
+    <aside className={s.sheet} aria-labelledby={titleId} data-sheet="" data-width={width} data-receipt-sheet={receipt ? '' : undefined}
+      data-leaving={motion === 'leaving' ? '' : undefined} data-replacing={motion === 'replacing' ? '' : undefined}>
       <header className={s.head}>
         {avatar && <span className={s.avatar}>{avatar}</span>}
         <div className={s.id}>
@@ -73,14 +86,14 @@ export function Sheet({ label, eyebrow, title, line, onClose, returnFocus, child
               {eyebrow && <span className={s.eyebrow}>{eyebrow}</span>}
             </div>
           )}
-          <h2 id={titleId} ref={titleRef} tabIndex={-1} className={s.title}>{title}</h2>
+          <h2 id={titleId} ref={titleRef} tabIndex={-1} className={loading ? 'sr-only' : s.title}>{title}</h2>
           {line && <div className={s.line}>{line}</div>}
         </div>
         <button type="button" className={s.close} aria-label={name ? t('sheet.closeNamed', { name }) : t('sheet.close')} onClick={onClose}>
           <Icon name="x" size={18} />
         </button>
       </header>
-      <div className={s.body}>{children}</div>
+      <div className={s.body}>{children}{loading && <LoadingPlace shape="sheet" />}</div>
       {footer && <div className={s.footer}>{footer}</div>}
     </aside>
   );

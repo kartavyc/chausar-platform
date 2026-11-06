@@ -25,6 +25,8 @@ import { familyIdea, keywordFamily } from './family-plan.ts';
 import { PROFESSIONS, professionOf } from './professions.ts';
 
 import type { AboutFile, AboutRead, FamilyTile } from './first-run-types.ts';
+import { NO_WORK, type Work } from '../../work-progress.ts';
+import { WORK_STEPS } from '../views/work-steps.ts';
 
 export type { AboutFile, AboutRead, FamilyTile } from './first-run-types.ts';
 type AboutAnswer = { familyId: FamilyId | null; professionId: string | null; offers: FamilyOffer[]; countryCode: CountryCode | null; evidence: string | null };
@@ -181,6 +183,18 @@ function ideaFor(id: FamilyId | null, text: string, offers: readonly FamilyOffer
  * contentBase64 }. With an AI connected, its strict answer; without one, the keyword guess and the family's own offers.
  */
 export async function aboutRead(deps: VentureDeps, ctx: Context, payload: unknown): Promise<AboutRead> {
+  const work = deps.work?.begin('about', WORK_STEPS.about.map(step => step.id)) ?? NO_WORK;
+  try {
+    return await aboutReadSteps(deps, ctx, payload, work);
+  } catch (error) {
+    work.failCurrent();
+    throw error;
+  } finally {
+    work.end();
+  }
+}
+
+async function aboutReadSteps(deps: VentureDeps, ctx: Context, payload: unknown, work: Work): Promise<AboutRead> {
   requireAppChannel(ctx, 'venture.about.read');
   check(ctx.role === 'owner' || ctx.role === 'cofounder', 'FORBIDDEN', 'An owner says what they do.');
   check(deps.host !== 'hosted-web', 'HOSTED_NOT_AVAILABLE', 'About you uses your AI in the desktop app.');
@@ -191,6 +205,7 @@ export async function aboutRead(deps: VentureDeps, ctx: Context, payload: unknow
 
   let file: DroppedFile | null = null;
   let fileNote: AboutFile | undefined;
+  work.step('read', 'current');
   if (body.attachment !== undefined) {
     const attachment = exactPayload(body.attachment, ['name', 'kind', 'contentBase64'], ['name', 'kind', 'contentBase64']);
     const name = singleLine(attachment.name, 'The file name', { min: 1, max: 200 });
@@ -201,15 +216,24 @@ export async function aboutRead(deps: VentureDeps, ctx: Context, payload: unknow
     fileNote = { name, included: file !== null, line: file ? null : screened.note.line ?? null };
   }
 
+  work.step('read', 'done');
+  work.step('field', 'current');
   if (deps.models.status(ctx).tiers.fast.presetId === 'built-in-templates') {
     const familyId = keywordFamily(`${text}\n${file?.text ?? ''}`);
+    work.step('field', 'done');
+    work.step('offers', 'current');
     const offers = familyId ? familyOf(familyId).offers.map(offer => ({ ...offer })) : [];
+    work.step('offers', 'done');
     return { family: familyView(familyId), profession: null, offers, country: null, evidence: null, idea: ideaFor(familyId, text, offers), source: 'keywords', ...(fileNote ? { file: fileNote } : {}) };
   }
   check(text.length > 0 || file !== null, 'INVALID_VENTURE_REQUEST', fileNote?.line ?? 'Write a few words about your work.');
   const task = aboutTask({ text, file });
+  // One answer holds the field and the offers: the two steps end together, when it lands.
   const outcome = file ? await sendFileDropTask(deps.models, ctx, withFile(task, file)) : await deps.models.generate(ctx, task);
   const answer = outcome.value;
+  work.step('field', 'done');
+  work.step('offers', 'current');
+  work.step('offers', 'done');
   return {
     family: familyView(answer.familyId), profession: professionView(answer.professionId), offers: answer.offers, country: countryView(answer.countryCode), evidence: answer.evidence,
     idea: ideaFor(answer.familyId, text, answer.offers), source: 'ai', ...(outcome.callId ? { callId: outcome.callId } : {}), ...(fileNote ? { file: fileNote } : {}),

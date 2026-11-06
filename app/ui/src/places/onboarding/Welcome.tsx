@@ -12,6 +12,7 @@ import { Brand } from './Start';
 import { ByFolder, MoveHere, Recover, RestoreBackup } from './WelcomeWays';
 import s from './Onboarding.module.css';
 import { Fold } from '../../parts/Fold';
+import { Reveal } from '../../parts/RevealBlock';
 
 type Way = { kind: 'list' } | { kind: 'recover'; folder?: string | undefined } | { kind: 'restore' } | { kind: 'move' } | { kind: 'folder' };
 
@@ -75,9 +76,9 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
                 <span>{business.name ?? t('onboarding.welcome.noName')}</span>
                 {business.opens !== 'now' && <span className={s.businessNote}>{t(`onboarding.welcome.opens.${business.opens}`)}</span>}
               </button>
-              {asking === business.key && (
+              <Reveal open={asking === business.key}>
                 <PassphraseOpen business={business} onOpened={onOpened} onForgot={() => setWay({ kind: 'recover', folder: business.key })} />
-              )}
+              </Reveal>
             </li>
           ))}
         </ul>

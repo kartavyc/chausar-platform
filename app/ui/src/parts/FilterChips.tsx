@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from 'react';
+import { Fragment, startTransition, useEffect, useRef } from 'react';
 import { useT } from '../text';
 import { initialsOf } from './Avatar';
 import { DeptDot } from './Chip';
@@ -7,6 +7,7 @@ import { Count } from './Figure';
 import { Icon } from './Icon';
 import type { DeptId, IconName } from './icons';
 import { revealInRow } from './reveal';
+import { useSlidingPill } from './useSlidingPill';
 import s from './FilterChips.module.css';
 
 export interface FilterOption {
@@ -67,6 +68,8 @@ function worthDrawing(options: readonly FilterOption[], value: string, minItems:
 export function FilterChips({ label, options, value, onChange, scroll = false, minItems = 0, drawCounts = true, className }: FilterChipsProps) {
   const t = useT();
   const row = useRef<HTMLDivElement>(null);
+  // One-shot C3 task 15: the same sliding pill as the tabs.
+  const pill = useSlidingPill(value);
   useEffect(() => {
     const pressed = row.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
     if (row.current && pressed) revealInRow(row.current, pressed);
@@ -75,6 +78,7 @@ export function FilterChips({ label, options, value, onChange, scroll = false, m
   if (shown.length === 0) return null;
   return (
     <div ref={row} className={cx(s.chips, className)} role="group" aria-label={label} data-scroll={scroll ? '' : undefined}>
+      <span ref={pill} className={s.pill} data-pill="" aria-hidden="true" />
       {shown.map((option) => (
         <Fragment key={option.id}>
           {option.separatorBefore && <span className={s.separator} data-separator="" aria-hidden="true" />}
@@ -82,7 +86,7 @@ export function FilterChips({ label, options, value, onChange, scroll = false, m
             type="button"
             className={s.chip}
             aria-pressed={option.id === value}
-            onClick={() => onChange(option.id)}
+            onClick={() => startTransition(() => onChange(option.id))}
           >
             {option.locked ? (
               <Icon name="lock" size={14} />

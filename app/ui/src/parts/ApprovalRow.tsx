@@ -16,6 +16,7 @@ import { Row } from './Row';
 import { stateText } from './states';
 import type { QueueAction, QueueDecision, QueueKind, QueueList, QueueRow } from '../engine/types';
 import s from './ApprovalRow.module.css';
+import { afterExit, motionOff } from './motion';
 
 /** Actions that open the thing to look at instead of deciding. Opening one counts as having viewed it. */
 const VIEW_ACTIONS = new Set<QueueAction['id']>(['watch', 'read']);
@@ -235,6 +236,13 @@ export function ApprovalRow({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
   const decidedRef = useRef<HTMLElement | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    if (!leaving) return undefined;
+    const card = document.querySelector(`[data-row-id="${CSS.escape(current.id)}"][data-leaving]`);
+    return afterExit(card, () => { setLeaving(false); setPhase('decided'); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaving]);
   const backToPrimary = useRef(false);
   const focusDecided = useRef(false);
   // Set before the decision is sent and checked by every way in (click, confirm, handle, keys), so two presses in the
@@ -324,12 +332,23 @@ export function ApprovalRow({
     }
   }
 
+  /**
+   * One-shot C3 task 13: the engine has answered, so the card leaves (data-leaving: a fade and a small slip over the exit
+   * time), and its decided line takes the same spot when that ends. At once with motion off. A row that was already a
+   * decided line never comes through here.
+   */
+  function leaveToDecided() {
+    // A plain row (a list inside a tile) has no card to move: its line takes its place at once.
+    if (motionOff() || layout === 'row') setPhase('decided');
+    else setLeaving(true);
+  }
+
   /** Show a decision: done or settled elsewhere shrinks the card (true), stale shows the new version, refused says why. */
   function apply(decision: QueueDecision, undo?: () => Promise<string>): boolean {
     if (decision.outcome === 'done') {
       setDecided({ line: decision.line, receiptId: decision.receiptId, undo });
       setToolsOpen(false);
-      setPhase('decided');
+      leaveToDecided();
       return true;
     }
     if (decision.outcome === 'stale') {
@@ -344,7 +363,7 @@ export function ApprovalRow({
     if (decision.reason === 'ALREADY_DECIDED' || decision.reason === 'RESOLVED_ELSEWHERE') {
       setDecided({ line: t('approval.elsewhere') });
       setToolsOpen(false);
-      setPhase('decided');
+      leaveToDecided();
       return true;
     }
     if (decision.reason === 'VIEW_FIRST') setViewedHere(false);
@@ -582,6 +601,7 @@ export function ApprovalRow({
       className={cx(s.card, compact && s.compact, busy && s.sending)}
       data-card=""
       data-row=""
+      data-leaving={leaving ? '' : undefined}
       data-row-id={current.id}
       data-layout={layout}
       data-tone={stopped ? 'fail' : undefined}

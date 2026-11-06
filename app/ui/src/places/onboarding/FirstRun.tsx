@@ -13,6 +13,7 @@ import { StartAtLogin } from './StartAtLogin';
 import { Start } from './Start';
 import f from './FirstRun.module.css';
 import s from './Onboarding.module.css';
+import { withViewTransition } from '../../parts/motion';
 
 type Step = 'ai' | 'about' | 'who' | 'check' | 'keep' | 'needs';
 const ORDER: readonly Step[] = ['ai', 'about', 'who', 'check', 'keep', 'needs'];
@@ -35,6 +36,8 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
   const t = useT();
   const client = useEngine();
   const [step, setStep] = useState<Step>('ai');
+  /** One-shot C3: each step hands over to the next in one cross-fade (parts/motion.ts); at once with motion off. */
+  const goStep = (next: Step) => { void withViewTransition(() => setStep(next)); };
   const [connected, setConnected] = useState<string | null>(null);
   const [aboutMode, setAboutMode] = useState<AboutMode>('a');
   const [plan, setPlan] = useState<KeptPlan | null>(null);
@@ -67,9 +70,9 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
     setInVault(true);
     if (sideWork) {
       try { await client.request('venture.compliance.set', { profession: sideWork.profession, sideWork: sideWork.sideWork, digest: sideWork.digest, ...(sideWork.size ? { size: sideWork.size } : {}) }); }
-      catch { setStep('check'); return; }
+      catch { goStep('check'); return; }
     }
-    setStep('needs');
+    goStep('needs');
   }
 
   // The hosted web app adds an AI only after a business is kept (the draft desk is desktop only): its first run stays
@@ -116,14 +119,14 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
             <li className={f.step} aria-current={business ? 'step' : undefined}>{mark(3, false)}{t('first-run.step.business')}</li>
           </ol>
         </div>
-        {step === 'ai' && <ConnectAi onDone={(name) => { setConnected(name); setStep('about'); }} onSkip={() => { setConnected(null); setStep('about'); }} />}
-        {step === 'about' && <AboutYou connected={connected !== null} onMode={setAboutMode} onKeep={(next) => { setPlan(next); setProfession(null); setStep('who'); }} />}
-        {step === 'who' && plan && <ProfessionPick family={plan.read.family} picked={plan.read.profession} onDone={(id) => { setProfession(id); setStep('check'); }} />}
+        {step === 'ai' && <ConnectAi onDone={(name) => { setConnected(name); goStep('about'); }} onSkip={() => { setConnected(null); goStep('about'); }} />}
+        {step === 'about' && <AboutYou connected={connected !== null} onMode={setAboutMode} onKeep={(next) => { setPlan(next); setProfession(null); goStep('who'); }} />}
+        {step === 'who' && plan && <ProfessionPick family={plan.read.family} picked={plan.read.profession} onDone={(id) => { setProfession(id); goStep('check'); }} />}
         {step === 'check' && plan && (
           <div className={f.wrap}>
             <h1 className={f.title}>{t('compliance.title')}</h1>
             <ComplianceCheck profession={profession ?? plan.read.family.id} record={inVault} headingLevel={2}
-              onDone={(answer) => { if (inVault) setStep('needs'); else { setSideWork(answer); setStep('keep'); } }} />
+              onDone={(answer) => { if (inVault) goStep('needs'); else { setSideWork(answer); goStep('keep'); } }} />
           </div>
         )}
         {step === 'keep' && plan && (

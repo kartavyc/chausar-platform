@@ -50,7 +50,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   };
   if (!current) {
     return (
-      <Sheet label={t('money.invoice.label')} title={t('money.loading')} onClose={onClose} returnFocus={returnFocus}>
+      <Sheet label={t('money.invoice.label')} loading={!view.error} title={t('money.loading')} onClose={onClose} returnFocus={returnFocus}>
         {view.error && <p className={s.failed} role="status" data-engine-line="">{t('money.failed', { message: view.error.message })}</p>}
       </Sheet>
     );

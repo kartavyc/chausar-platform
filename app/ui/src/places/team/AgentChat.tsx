@@ -289,6 +289,7 @@ export function AgentChat({ agent, dept, peers, playbook, onPlaybookChanged, ini
         <div className={c.compose}>
           {asking && <ChatConsent view={asking.view} onAgree={agree} onCancel={decline} />}
           <Composer
+            waitLabel={t('progress.writing')}
             key={initialKey ?? 0}
             initial={initial || undefined}
             label={t('team.chat.label', { name: agent.name })}

@@ -4,6 +4,7 @@
    (Tabs.tsx measures it); each item keeps its natural width and never wraps or cuts its words. */
 
 .tabs {
+  position: relative;
   display: flex;
   align-items: center;
   gap: calc(var(--sp-1) / 2);
@@ -50,6 +51,33 @@
 .item[aria-selected='true'] {
   background: var(--nav-on);
   color: var(--nav-on-fg);
+}
+
+/* One-shot C3 task 15: the pill under the row takes over the current item's fill once it is placed, and slides from
+   then on. Before that (the first frame) the item keeps its own fill, so nothing moves at first paint. */
+.pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--r-button-sm);
+  background: var(--nav-on);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.tabs[data-pill-ready] .pill {
+  opacity: 1;
+  transition: transform var(--t-press) var(--ease), width var(--t-press) var(--ease);
+}
+
+.tabs[data-pill-ready] .item {
+  position: relative;
+}
+
+.tabs[data-pill-ready] .item[aria-current='page'],
+.tabs[data-pill-ready] .item[aria-pressed='true'],
+.tabs[data-pill-ready] .item[aria-selected='true'] {
+  background: none;
 }
 
 .count {

@@ -35,6 +35,8 @@ export type LoginChild = {
   kill(): boolean;
 };
 export type LoginDeskOptions = {
+  /** One-shot C3 task 9: says which tool the check is on. Absent in tests that pass none. */
+  work?: import('../contracts.ts').VentureWork;
   spawn?: (launch: LoginLaunch) => LoginChild;
   locate?: (command: string) => string | null;
   platform?: NodeJS.Platform;
@@ -255,8 +257,23 @@ export class LoginDesk {
   /** venture.ai.tools {}: each tool, whether it is found, its own sign-in state, and any login in flight. */
   async tools(): Promise<ToolsView> {
     // One-shot A4 (hands-on row 96): both tools at once (each look may make a test call), answered in the same order.
-    const tools: ToolView[] = await Promise.all(this.#clis().map(cli => this.#view(cli)));
-    return { tools, line: WORDS.line };
+    // One-shot C3 task 9: one step per tool, so each card can say so as its own tool answers.
+    const clis = this.#clis();
+    const work = this.options.work?.begin('ai-tools', clis);
+    try {
+      const tools: ToolView[] = await Promise.all(clis.map(async cli => {
+        work?.step(cli, 'current');
+        const view = await this.#view(cli);
+        work?.step(cli, 'done');
+        return view;
+      }));
+      return { tools, line: WORDS.line };
+    } catch (error) {
+      work?.failCurrent();
+      throw error;
+    } finally {
+      work?.end();
+    }
   }
 
   /** venture.ai.login.start { cli }: the tool's own login, unless it already says it is signed in. */

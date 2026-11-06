@@ -24,6 +24,7 @@ import { messageOf, onMoney, typedWords, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 import { Select } from '../../parts/Select';
+import { Reveal } from '../../parts/RevealBlock';
 
 /** The ways a bill can be paid: the payment sheet's, and a cheque. */
 const METHODS: readonly PaymentMethod[] = [...PAYMENT_METHODS, 'cheque'];
@@ -54,11 +55,11 @@ export function Bills() {
         )}
       </Section>
       {/* Simple first: the form opens on request. */}
-      {adding && (
+      <Reveal open={adding}>
         <Section title={t('money.bills.add')}>
           <AddBill gst={gst} currency={currency} onAdded={list.reload} onClose={() => setAdding(false)} />
         </Section>
-      )}
+      </Reveal>
     </>
   );
 }

@@ -103,6 +103,16 @@ test('desktop forwards the nine onboarding draft methods, right after venture.pr
   for (const method of DRAFT_METHODS) assert.deepEqual(validateRequest({ method, payload: {} }), { method, payload: {} });
 });
 
+test('desktop forwards the two app preference methods, right after the custody methods (C3 added app.preferences)', async () => {
+  const { APP_PREFERENCE_METHODS } = await import('../runtime/app-preferences.ts');
+  const at = METHODS.indexOf('workspace.custody.neverContactReset');
+  assert.deepEqual(METHODS.slice(at + 1, at + 1 + APP_PREFERENCE_METHODS.length), [...APP_PREFERENCE_METHODS]);
+  assert.deepEqual(validateRequest({ method: 'app.preferences.set', payload: { motion: 'off' } }), { method: 'app.preferences.set', payload: { motion: 'off' } });
+  const { BOOTSTRAP_ONLY_METHODS } = await import('../runtime/server.ts');
+  assert.ok(BOOTSTRAP_ONLY_METHODS.includes('app.preferences.set'), 'only the computer owner changes the app');
+  assert.ok(!BOOTSTRAP_ONLY_METHODS.includes('app.preferences.get'));
+});
+
 test('desktop forwards the eleven custody methods, right after workspace.delete, in the contract order', async () => {
   const { CUSTODY_METHODS } = await import('../runtime/workspace-custody-contracts.ts');
   assert.equal(CUSTODY_METHODS.length, 11); // 4J6 added workspace.custody.neverContactReset

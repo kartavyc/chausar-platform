@@ -1,4 +1,7 @@
 {
+  "first-run.ai.stopLooking": "Stop looking",
+  "first-run.ai.checkingCodex": "Looking for Codex",
+  "first-run.ai.checkingClaude": "Looking for Claude Code",
   "first-run.steps": "Setup steps",
   "first-run.step.ai": "Connect your AI",
   "first-run.step.connected": "Connected: {name}",
@@ -43,7 +46,6 @@
   "first-run.ai.keyFirst": "Connect a key above first.",
   "first-run.ai.limits": "Chausar sends your idea, answers and plan to the AI you pick, never your books, keys or client details. It runs on your plan and its limits. Anything that sends, posts, pays or changes a price waits for your tap.",
   "first-run.ai.skip": "Skip for now: use templates",
-  "first-run.ai.checking": "Looking for Codex and Claude Code",
 
   "first-run.about.title": "What work do you do?",
   "first-run.about.sub": "Tell Chausar about your work, or pick a field.",

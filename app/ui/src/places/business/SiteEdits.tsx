@@ -6,6 +6,7 @@ import { Field } from '../../parts/Field';
 import type { SiteEditLite } from '../../engine/types';
 import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
+import { Reveal } from '../../parts/RevealBlock';
 
 export type DiffLine = { kind: 'same' | 'removed' | 'added'; text: string };
 
@@ -83,7 +84,7 @@ export function SiteEdits() {
           {edits.map((edit) => <EditLine key={edit.id} edit={edit} onChanged={replace} />)}
         </ul>
       )}
-      {staging ? (
+      <Reveal open={staging}>
         <form className={s.form} onSubmit={(event) => void stage(event)}>
           <Field label={t('business.site.path')} hint={t('business.site.pathHint')} value={path} maxLength={200} autoComplete="off" spellCheck={false} onChange={(event) => setPath(event.currentTarget.value)} />
           <Field label={t('business.site.summary')} value={summary} maxLength={200} onChange={(event) => setSummary(event.currentTarget.value)} />
@@ -94,9 +95,8 @@ export function SiteEdits() {
             <Button variant="primary" type="submit" disabled={busy}>{t('business.site.stageIt')}</Button>
           </div>
         </form>
-      ) : (
-        <div className={s.buttons}><Button size="sm" onClick={() => setStaging(true)}>{t('business.site.stage')}</Button></div>
-      )}
+      </Reveal>
+      {!staging && <div className={s.buttons}><Button size="sm" onClick={() => setStaging(true)}>{t('business.site.stage')}</Button></div>}
     </TileSection>
   );
 }

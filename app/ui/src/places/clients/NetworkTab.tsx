@@ -14,7 +14,7 @@
  * pipeline's (4E4). Someone forgotten from the person sheet leaves the results at once.
  */
 
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { memo, useEffect, useId, useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource, type Resource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
@@ -28,9 +28,10 @@ import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
 import { Receipt } from '../../parts/Receipt';
 import { Row } from '../../parts/Row';
+import { WindowedList } from '../../parts/WindowedList';
 import { StrengthDots } from '../../parts/StrengthDots';
 import { Tile, TileHead } from '../../parts/Tile';
-import type { NetworkSearchView, NetworkSourcesView, PeopleView, PipelineStage, SearchResultView } from '../../engine/types';
+import type { NetworkSearchView, NetworkSourcesView, PeopleView, PersonSummary, PipelineStage, SearchResultView } from '../../engine/types';
 import { ExternalLink } from '../connections/external';
 import { clientsChanged, useClientsChanged } from './signals';
 import { NetworkSources } from './NetworkSources';
@@ -371,6 +372,24 @@ function ResultCard({ result, searchId }: { result: SearchResultView; searchId: 
   );
 }
 
+/** One person in Browse everyone. Kept apart and memoised, so a row redraws only when its person does. */
+const PersonRow = memo(function PersonRow({ person, t }: { person: PersonSummary; t: ReturnType<typeof useT> }) {
+  return (
+    <Row
+      id={person.id}
+      mark={<Avatar name={person.name} size={32} />}
+      title={person.name}
+      line={roleLine(t, person) ?? undefined}
+      onOpen={(origin) => openSheet('person', person.id, origin)}
+      aside={<StrengthDots level={dotsOf(person)} />}
+    />
+  );
+});
+
+/** Over this many rows, the list is windowed; each row is this many layout pixels tall (the Row part at 32 px avatars). */
+const WINDOW_OVER = 300;
+const WINDOW_ROW = 56;
+
 /** Browse everyone: a page at a time, filtered by name or company once the typing stops (the engine's own match). */
 function Everyone() {
   const t = useT();
@@ -396,19 +415,15 @@ function Everyone() {
       {people.error && <p className={s.problem} role="alert">{t('sheet.failed', { message: people.error.message })}</p>}
       {view && view.people.length === 0 && <p className={s.quiet}>{t('clients.network.people.none')}</p>}
       {view && view.people.length > 0 && (
-        <ul className={s.peopleList} aria-labelledby={titleId}>
-          {view.people.map((person) => (
-            <Row
-              key={person.id}
-              id={person.id}
-              mark={<Avatar name={person.name} size={32} />}
-              title={person.name}
-              line={roleLine(t, person) ?? undefined}
-              onOpen={(origin) => openSheet('person', person.id, origin)}
-              aside={<StrengthDots level={dotsOf(person)} />}
-            />
-          ))}
-        </ul>
+        view.people.length > WINDOW_OVER ? (
+          // One-shot C3 task 16: a long list keeps only the rows near the view in the page.
+          <WindowedList items={view.people} keyOf={(person) => person.id} rowHeight={WINDOW_ROW} label={t('clients.network.people.filter')}
+            renderRow={(person) => <ul className={s.peopleList}><PersonRow person={person} t={t} /></ul>} />
+        ) : (
+          <ul className={s.peopleList} aria-labelledby={titleId}>
+            {view.people.map((person) => <PersonRow key={person.id} person={person} t={t} />)}
+          </ul>
+        )
       )}
       {view && view.total > view.people.length && <div className={s.actions}><Button size="sm" onClick={() => setLimit((now) => Math.min(now + PAGE, 500))}>{t('clients.network.people.more')}</Button></div>}
     </Tile>
