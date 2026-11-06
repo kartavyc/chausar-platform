@@ -389,6 +389,7 @@ export async function desktopPackagePrerequisites({ root = projectRoot, plan, en
     try { await work(); checks.push(name); }
     catch (error) { failures.push({ check: name, reason: error.code === 'ENOENT' ? 'required local file is missing; no download or substitute was attempted' : error.message }); }
   };
+  await check('packaged contents validation support', () => { if (!Object.hasOwn(UNPACKED_FOLDER, plan.platform)) throw new Error('macOS packaged contents validation is not implemented; this build cannot receive a packaging receipt.'); });
   await check('Node runtime', () => { if (!nodeVersionSupported(process.versions.node)) throw new Error('Node 24.13.1 or later is required'); });
   await check('desktop source entrypoints', async () => {
     for (const path of ['app/desktop/main.cjs', 'app/desktop/preload.cjs', 'app/desktop/engine-harness.cjs', 'app/desktop/ipc-contract.cjs', 'app/desktop/icon.png', 'app/desktop/icon@1.5x.png', 'app/desktop/icon@2x.png', ...ICON_FILES, AFTER_PACK_HOOK, 'platform/runtime/worker.ts', 'app/ui/index.html', 'app/ui/src/main.tsx', inkConfig]) await regular(join(root, path));

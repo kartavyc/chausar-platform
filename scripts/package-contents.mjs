@@ -8,7 +8,8 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TRIM } from './package-trim.mjs';
 
-const CODEX_VERSION = '0.166.0';
+import { CODEX_BUNDLE } from './codex-bundle.mjs';
+export const CODEX_VERSION = CODEX_BUNDLE.version;
 const INK_ENTRY = 'app/ui/dist/index.html';
 const MAX_HEADER_BYTES = 64 * 1024 * 1024;
 

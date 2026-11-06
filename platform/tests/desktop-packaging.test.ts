@@ -576,3 +576,11 @@ test('cleanup: a later node_modules inclusion cannot restore trimmed program fil
     assert.throws(() => desktopPackage.validateTrim({ ...beta, files: [...beta.files, inclusion] }), /nothing puts one back/);
   }
 });
+
+
+test('cleanup: an unsupported macOS contents gate refuses qualification explicitly', async t => {
+  const root = await fixture(t);
+  const plan = createDesktopPackagePlan({ platform: 'darwin', architecture: 'arm64', hostPlatform: 'darwin', hostArchitecture: 'arm64' });
+  const result = await desktopPackagePrerequisites({ root, plan, environment: {}, hostPlatform: 'darwin', hostArchitecture: 'arm64' });
+  assert.ok(result.failures.some((failure: any) => failure.check === 'packaged contents validation support' && /macOS/.test(failure.reason)));
+});
