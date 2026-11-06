@@ -133,7 +133,8 @@ export class FakeWorkDesk {
     if(kind!=='draft')return null;
     const run=(this.deliveries[biz]??[]).find(item=>item.id===id);
     const text=run?.editedText??run?.renderedText;
-    if(!run||!text)return null;
+    // A template draft only: a sample row's draft has its own view or none, as before.
+    if(!run||!text||run.servedBy!=='template')return null;
     const sections:QueueItemView['sections']=[];
     let current:QueueItemView['sections'][number]={lines:[]};
     for(const line of text.split('\n').filter(item=>item.trim()&&!item.startsWith('# '))){
