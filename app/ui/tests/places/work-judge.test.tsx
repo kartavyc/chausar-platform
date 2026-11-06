@@ -12,7 +12,7 @@ type Call = { method: string; params: unknown };
 interface StartOptions { language?: 'en'; engine?: FakeEngine; intercept?: Partial<Record<MethodName, (params: unknown) => unknown>> }
 
 const NOW = '2026-10-23T10:00:00.000Z';
-const PASSED = 'Every rule passed its own floor. Each yes cited something code found in the run.';
+const PASSED = 'Every rule passed its own floor. Each yes cited something code found in the job.';
 const FAILED = 'Failed: tone-fits. Only 0 of 1 vote said yes with checked evidence; this rule needs 1. The quality check said: "The reply promises a free first session."';
 const UNSETTLED = 'Not settled: goal-met. A vote without checked evidence never counts as a pass. 1 of 1 vote could not be checked, so this rule is not settled.';
 const NO_AI = 'Connect an AI for quick work first; the quality check runs on your own AI.';
