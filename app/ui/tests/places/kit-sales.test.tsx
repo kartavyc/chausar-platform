@@ -199,7 +199,7 @@ describe('Business > Prices: a share is the advanced option, one step away (foun
     expect(calls(spy, 'venture.blueprint.update')).toEqual([{ patch: { offers: [{ id: 'offer_sponsor', share: { percent: '8.33' } }] } }]);
     const queue = await request('venture.queue.list', {}) as QueueList;
     const price = queue.rows.find((row) => row.kind === 'price' && row.change?.after.includes('%'))!;
-    expect(price.change).toEqual({ label: 'Sponsor slot', before: expect.any(String), after: '8.33% of the amount your client confirms' });
+    expect(price.change).toEqual({ label: 'Sponsor slot', before: expect.any(String), after: '8.33% of the amount your client confirms', ownerEntered: true });
     // B4 task 7: a new price (or share) on one offer accepts on one press, with an Undo.
     expect(price.actions.find((action) => action.id === 'approve')?.secondAsk).toBeUndefined();
     // The pending change above the cards, and the offer's card at rest, both say the share as the owner set it.

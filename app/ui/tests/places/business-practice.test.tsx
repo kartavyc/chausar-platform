@@ -196,7 +196,7 @@ describe('Business: improving the playbook', () => {
 describe('Business: the judge setting', () => {
   it("is on by default with the engine's line; turning it off is one press, turning it on asks first and records the consent", async () => {
     const { calls } = start();
-    const judge = await region('Quality check');
+    const judge = await region('Safety checks');
     expect(await within(judge).findByText(JUDGE_ON)).toBeTruthy();
     expect(within(judge).getByText('On')).toBeTruthy();
     const reads = () => calls.filter((c) => c.method === 'venture.judge.auto.get').length;
@@ -218,7 +218,7 @@ describe('Business: the judge setting', () => {
 
   it("a refusal to change it is said in the engine's words", async () => {
     start({ intercept: { 'venture.judge.auto.set': () => { throw new EngineError('APP_APPROVAL_REQUIRED', 'Only you change when the quality check runs, inside the Chausar app.'); } } });
-    const judge = await region('Quality check');
+    const judge = await region('Safety checks');
     await within(judge).findByText(JUDGE_ON);
     await press(judge, 'Turn off');
     await waitFor(() => expect(within(judge).getByRole('alert').textContent).toBe("Couldn't change this: Only you change when the quality check runs, inside the Chausar app."));

@@ -55,16 +55,17 @@ it('new prices use the draft country before acceptance and old invoices keep the
   expect(old.figures).toEqual(before.figures);
 });
 
-it('the existing Change plan form offers country with the reset and history warning', async () => {
-  window.location.hash = '#/business/plan';
+it('Keep this business offers country with the reset and history warning', async () => {
+  window.location.hash = '#/business/keep';
   const engine = client();
   render(<App client={engine} language="en" />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Change plan' }));
+  const summary = await screen.findByText('Business country', { selector: 'summary' });
+  fireEvent.click(summary);
   const country = await screen.findByRole('combobox', { name: 'Business country' });
   await waitFor(() => expect((country as HTMLSelectElement).value).toBe('IN'));
   fireEvent.change(country, { target: { value: 'US' } });
   expect(screen.getByText('Changing country clears prices and tax settings. Set new prices before taking orders. Earlier orders and invoices keep their original currency.')).toBeTruthy();
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save changes' })); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Review country change' })); });
   await waitFor(async () => expect((await engine.request('venture.blueprint.get', {}))!.blueprint.backOffice.currency).toBe('USD'));
   expect((await engine.request('venture.get', {}))?.venture.country?.code).toBe('IN');
 });

@@ -41,7 +41,7 @@ function Value({ value, className }: { value: string; className?: string | undef
   return <span className={className}><span data-num="">{amount}</span>{rest}</span>;
 }
 
-export function Change({ label, before, after, receiptId, estimate, onReceipt, size = 'inline' }: ChangeProps) {
+export function Change({ label, before, after, receiptId, estimate, ownerEntered, onReceipt, size = 'inline' }: ChangeProps) {
   const t = useT();
   const arrow = size !== 'inline';
   const values = (
@@ -61,9 +61,10 @@ export function Change({ label, before, after, receiptId, estimate, onReceipt, s
       <Value value={after} className={s.now} />
     </>
   );
-  const proof = estimate ? <ModelEstimate /> : receiptId ? <Receipt id={receiptId} amount={after} onOpen={onReceipt} /> : null;
+  const ownerWords = ownerEntered && !estimate && !receiptId;
+  const proof = estimate ? <ModelEstimate /> : receiptId ? <Receipt id={receiptId} amount={after} onOpen={onReceipt} /> : ownerWords ? <span>{t('business.label.told-by-you')}</span> : null;
   return (
-    <span className={cx(s.change, s[size])} data-figure-group="" data-size={size}>
+    <span className={cx(s.change, s[size])} data-figure-group={ownerWords ? undefined : ''} data-content={ownerWords ? '' : undefined} data-size={size}>
       {/* The label says what changes ("Most it can cost"), so every size shows it; the small one at the label size. */}
       {label && <span className={s.label}>{label}</span>}
       {size === 'pill' ? <span className={s.pillBody}>{values}</span> : values}

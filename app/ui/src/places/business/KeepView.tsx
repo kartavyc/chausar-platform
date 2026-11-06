@@ -18,6 +18,7 @@ import { TileSection, messageOf } from './shared';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import { LoadingPlace } from '../../parts/Skeleton';
+import { CountrySetting } from './CountrySetting';
 
 /**
  * Keep this business (workspace.custody.*), the way the old app keeps it: this computer's protected storage keeps the
@@ -92,6 +93,7 @@ export function KeepView() {
 
   return (
     <div className={s.page}>
+      <CountrySetting />
       <Tile>
         <div className={s.where}>
           <span className={s.whereIcon} aria-hidden="true"><Icon name={locked ? 'lock' : 'shield-check'} size={20} /></span>
