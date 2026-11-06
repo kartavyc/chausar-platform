@@ -149,7 +149,7 @@ describe('Business > Routines (4J22a)', () => {
 describe('C7: routines wait for the AI plan', () => {
   it('the pause point saves through the AI settings, after a second ask; off at rest', async () => {
     const { calls } = start();
-    const fold = (await screen.findByText('If your AI plan runs low')).closest('details') as HTMLElement;
+    const fold = (await screen.findByText('If your AI plan runs low')).closest('details') as HTMLDetailsElement;
     expect(fold.open).toBe(false);
     fireEvent.click(within(fold).getByText('If your AI plan runs low'));
     const select = await within(fold).findByLabelText('Pause routines at');
@@ -176,7 +176,7 @@ describe('C7: the backup AI on the Routines page', () => {
     let saved: unknown = null;
     const { calls } = start({ 'venture.routines.backup.get': () => VIEW, 'venture.routines.backup.set': (params) => { saved = params; return { ...VIEW, on: true, order: ['claude-code-cli'] }; } });
     const summary = await screen.findByText("If your AI can't run");
-    const fold = summary.closest('details') as HTMLElement;
+    const fold = summary.closest('details') as HTMLDetailsElement;
     expect(fold.open).toBe(false);
     fireEvent.click(summary);
     const toggle = await within(fold).findByLabelText('Use a backup AI for routines');

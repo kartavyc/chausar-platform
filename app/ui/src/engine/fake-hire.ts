@@ -2,7 +2,7 @@
  * C7 task 16: the fake engine's hiring, with the engine's phases, codes and words (platform/runtime/venture/agents/hire.ts
  * and hire-check.ts, whose checks it runs itself). Its AI writes a role, reads and a voice from the sentence in fixed words.
  */
-import { checkHire } from '../../../../platform/runtime/venture/agents/hire-check';
+import { checkHireWith } from '../../../../platform/runtime/venture/agents/hire-check-core';
 import { EngineError, type AgentView, type HireReadLite, type HireViewLite, type HireVoiceLite } from './types';
 import type { W4DeskHost } from './fake-w4';
 
@@ -12,6 +12,8 @@ const DEPARTMENTS = ['sales', 'marketing', 'production', 'money', 'operations'] 
 const NEVER = ['No stock tips, target prices or promised returns without a SEBI registration.', 'No fake reviews.', 'It never sends, pays, posts, deletes or changes a price by itself.'];
 const STALE = 'This changed since you read it. Read it again.';
 const invalid = (message: string) => new EngineError('INVALID_VENTURE_REQUEST', message);
+/** The engine passes its policy words here (policy/effects.ts); these are the ones a sample duty meets. */
+const RULES = { departments: DEPARTMENTS, floorWords: ['send', 'post', 'publish', 'email', 'pay', 'refund', 'transfer', 'buy', 'delete', 'remove'] };
 const VOICE: HireVoiceLite = { tone: 'Warm and plain', replyLength: 'short', greeting: null, handOffLine: null, blockedTopics: [], signOff: null };
 type Held = HireViewLite;
 
@@ -34,7 +36,7 @@ export class FakeHire {
   }
   private check(role: HireViewLite['role'], reads: HireReadLite[], department: string) {
     const names = (this.host.ask('venture.team.list', {}) as { agents: AgentView[] }).agents.map((agent) => agent.name);
-    try { return checkHire({ ...role!, reads: reads.map((item) => item.read), department } as never, { agentNames: names }); }
+    try { return checkHireWith(RULES, { ...role!, reads: reads.map((item) => item.read), department } as never, { agentNames: names }); }
     catch (error) { const known = error as { code: string; message: string }; throw new EngineError(known.code, known.message); }
   }
   request(method: string, p: Record<string, unknown>): unknown {
@@ -88,7 +90,7 @@ export class FakeHire {
         const held = this.mine().find((item) => item.status === 'hired' && item.id === p.agent);
         if (!held) throw new EngineError('HIRE_NOT_FOUND', 'That hire was not found.');
         const names = (this.host.ask('venture.team.list', {}) as { agents: AgentView[] }).agents.filter((agent) => agent.id !== held.id).map((agent) => agent.name);
-        try { held.role = { ...held.role!, duties: checkHire({ ...held.role!, duties: p.duties as string[], reads: held.reads.map((item) => item.read), department: held.department } as never, { agentNames: names }).duties }; }
+        try { held.role = { ...held.role!, duties: checkHireWith(RULES, { ...held.role!, duties: p.duties as string[], reads: held.reads.map((item) => item.read), department: held.department } as never, { agentNames: names }).duties }; }
         catch (error) { const known = error as { code: string; message: string }; throw new EngineError(known.code, known.message); }
         return structuredClone(held);
       }
