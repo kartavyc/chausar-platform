@@ -19,7 +19,7 @@
   },
   "business.menu": "Business menu for {name}",
   "business.switchTo": "Switch business",
-  "business.current": "Open now",
+  "business.current": ", open now",
   "business.locked": "Locked",
   "business.keyMissing": "Key missing",
   "business.plan": "How the work is done",

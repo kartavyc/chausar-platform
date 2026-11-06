@@ -6,6 +6,7 @@ import { Button } from '../parts/Button';
 import { stoppable } from '../places/work/StopDialog';
 import menu from './BusinessMenu.module.css';
 import { useOpenBusiness } from './openBusiness';
+import { settingsPage } from './settings';
 import s from './RunControlsMenu.module.css';
 
 /**
@@ -75,7 +76,8 @@ export function RunControlsMenu({ onLeave }: { onLeave: () => void }) {
           <button ref={stopItem} type="button" className={menu.item} aria-expanded={ask === 'stop'} onClick={() => setAsk(ask === 'stop' ? null : 'stop')}>{t('business.stopAll')}</button>
         </li>
         <li>
-          <a className={menu.item} href="#/business/away" onClick={onLeave}>{t('business.away')}</a>
+          {/* C1 task 9: Away's address comes from the one settings list. */}
+          <a className={menu.item} href={settingsPage('away').href} onClick={onLeave}>{t(settingsPage('away').title)}</a>
         </li>
       </ul>
       {paused && <p className={menu.notice}>{paused.line}</p>}

@@ -45,14 +45,18 @@
   min-width: 0;
 }
 
+/* 35.f3: a long name wraps to two lines (the full name is the button's title), never one cut line. */
 .name {
+  display: -webkit-box;
   overflow: hidden;
   font-size: var(--text-body);
   font-weight: var(--weight-strong);
   line-height: 1.3;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
   color: var(--fg);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 /* 4Z3: while venture.get loads, a quiet bar where the name goes (never "No business open" before the engine says so). */
@@ -93,21 +97,26 @@
 
 .business[data-variant='bar'] .name {
   font-size: var(--text-row);
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
 }
 
 /* A popover on the body, above the page and its sheet, so neither the rail nor the phone top bar clips it.
    BusinessMenu.tsx sets top and left under the button, and a max height of the window left below it. It stays
    inside a narrow window. */
+/* C1 task 9 (bug 16): no wider than the rail, so it never reaches over the page. */
 .menu {
   position: fixed;
   top: 0;
   left: 0;
   z-index: 20;
   box-sizing: border-box;
-  width: 260px;
+  width: calc(var(--rail) - 2 * var(--sp-3));
   max-width: calc(100vw - var(--sp-4));
   max-height: calc(100vh - var(--sp-4));
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
   padding: var(--sp-2);
   border: var(--hair) solid var(--line);
   border-radius: var(--r-card);
@@ -162,6 +171,11 @@
   color: var(--mute);
 }
 
+.check {
+  flex: none;
+  color: var(--accent-text);
+}
+
 .problem {
   padding: var(--sp-1) var(--sp-2);
   font-size: var(--text-read);
@@ -198,6 +212,21 @@
   .item {
     align-items: center;
     min-height: var(--target);
+  }
+}
+
+/* C1 task 9 (34.f2): beside the folded rail the menu is a full-height panel from the window's left edge, over the
+   rail, as wide as the full rail. It scrolls, when it must, with the token scrollbar. */
+@media (min-width: 760px) and (max-width: 959px) {
+  .menu[data-variant='rail'] {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--rail);
+    max-height: none;
+    border-width: 0 var(--hair) 0 0;
+    border-radius: 0;
+    padding: var(--sp-5) var(--sp-3);
   }
 }
 
