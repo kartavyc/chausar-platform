@@ -198,7 +198,6 @@ test('size: 2,000 clients, 3,000 invoices and 200 chats of 50 messages answer on
   const started = performance.now();
   const view = await find(env, { text: 'client 19' });
   const ms = performance.now() - started;
-  console.log(`venture.find on 2,000 clients, 3,000 invoices and 10,000 messages: ${ms.toFixed(0)} ms`);
   assert.ok(items(view, 'client').length > 0);
   assert.ok(ms < 1000, `${ms} ms`);
 });
