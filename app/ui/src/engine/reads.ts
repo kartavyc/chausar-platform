@@ -1,5 +1,5 @@
 import { ownerError } from './owner-errors';
-import { EngineError, type EngineClient, type MethodName, type ParamsOf, type VentureRunEvent } from './types';
+import { EngineError, type EngineClient, type MethodName, type ParamsOf, type UiRunEvent } from './types';
 
 /**
  * One-shot B3: one read store per engine client. Every useResource reads through it, so two places reading the same
@@ -32,17 +32,17 @@ export const READS = [
   'venture.money.across', 'venture.money.aging', 'venture.money.cash', 'venture.money.flow', 'venture.money.margins',
   'venture.money.overview', 'venture.monitors.list', 'venture.needs.list', 'venture.network.people',
   'venture.network.person', 'venture.network.sources', 'venture.notify.list', 'venture.notify.push.key',
-  'venture.notify.relay', 'venture.notify.settings', 'venture.notify.telegram', 'venture.order.chain',
+  'venture.order.chain',
   'venture.order.contract', 'venture.order.list', 'venture.owner.get', 'venture.packs.list', 'venture.payment.receipt',
-  'venture.people.services', 'venture.persona.get', 'venture.phone.access', 'venture.pipeline.followups',
-  'venture.pipeline.list', 'venture.pipeline.settings', 'venture.playbook.guidance', 'venture.playbooks.list',
+  'venture.persona.get', 'venture.pipeline.followups',
+  'venture.pipeline.list', 'venture.playbook.guidance', 'venture.playbooks.list',
   'venture.posting.limits.get', 'venture.queue.list', 'venture.queue.view', 'venture.receipt.get',
   'venture.report.list', 'venture.routines.list', 'venture.routines.suggestions', 'venture.routines.runs', 'venture.rules.list',
   'venture.rules.locks', 'venture.runs.get', 'venture.runs.list', 'venture.salesProposal.get',
   'venture.settings.drafts', 'venture.share.list', 'venture.simulation.scenarios', 'venture.social.calendar',
   'venture.speechOut.providers', 'venture.spend.list', 'venture.spend.policy.get', 'venture.talk.get',
   'venture.tax.working', 'venture.team.keeper', 'venture.team.list', 'venture.transcription.get',
-  'venture.voice.get', 'venture.voiceConsent.list', 'venture.web.search', 'venture.work.get',
+  'venture.voice.get', 'venture.voiceConsent.list', 'venture.work.get',
   'updates.status', 'workspace.backups.drive.status', 'workspace.backups.inspect', 'workspace.backups.list', 'workspace.custody.get', 'workspace.list', 'workspace.status',
   // One-shot C3: the app's own preference (animations), read at the top of the shell.
   'app.preferences.get',
@@ -57,7 +57,12 @@ export const READS = [
   'venture.flows.list', 'venture.inbound.list', 'venture.simulation.get', 'venture.improve.get', 'venture.delegate.get', 'venture.compose.get',
 ] as const satisfies readonly MethodName[];
 
-export type ReadMethod = (typeof READS)[number];
+/** These existing methods read only with an empty payload; every nonempty call is a change. */
+export const EMPTY_READS = ['venture.notify.relay', 'venture.notify.settings', 'venture.notify.telegram', 'venture.people.services', 'venture.phone.access', 'venture.pipeline.settings', 'venture.web.search'] as const satisfies readonly MethodName[];
+type EmptyReadMethod = (typeof EMPTY_READS)[number];
+export type ReadMethod = (typeof READS)[number] | EmptyReadMethod;
+export type ReadParams<M extends ReadMethod> = M extends EmptyReadMethod ? Record<string, never> : ParamsOf<M>;
+const EMPTY_READ_SET: ReadonlySet<string> = new Set(EMPTY_READS);
 
 const READ_SET: ReadonlySet<string> = new Set(READS);
 
@@ -75,6 +80,7 @@ const QUIET: ReadonlySet<string> = new Set(['venture.settings.draft', 'venture.a
  */
 export function kindOf(method: string, params: unknown): 'read' | 'quiet' | 'write' {
   if (READ_SET.has(method)) return 'read';
+  if (EMPTY_READ_SET.has(method)) return params && typeof params === 'object' && !Array.isArray(params) && Object.keys(params).length === 0 ? 'read' : 'write';
   if (QUIET.has(method)) return 'quiet';
   const p = (params ?? {}) as Record<string, unknown>;
   if (method === 'venture.connectors.check' && p.last === true) return 'quiet';
@@ -84,7 +90,7 @@ export function kindOf(method: string, params: unknown): 'read' | 'quiet' | 'wri
 
 export interface ReadState<T> { data: T | undefined; error: EngineError | undefined; loading: boolean }
 
-type RefreshOn = { current: ((event: VentureRunEvent) => boolean) | undefined };
+type RefreshOn = { current: ((event: UiRunEvent) => boolean) | undefined };
 type Reader = { changed: () => void; refreshOn: RefreshOn };
 
 type Entry = {
@@ -172,7 +178,7 @@ export class ReadStore {
   }
 
   /** Read again every entry one of whose readers accepts the event (no refreshOn accepts every event). */
-  refresh(event: VentureRunEvent): void {
+  refresh(event: UiRunEvent): void {
     for (const entry of [...this.#entries.values()]) {
       if ([...entry.readers].some((reader) => !reader.refreshOn.current || reader.refreshOn.current(event))) this.#load(entry);
     }

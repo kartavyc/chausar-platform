@@ -24,8 +24,23 @@ test('registry agrees with engine dispatch, including the main-only custody oper
 });
 test('renderer registry grants exactly the UI declared methods', async () => {
   const source = await readFile(new URL('../../app/ui/src/engine/types.ts', import.meta.url), 'utf8');
-  const body = source.slice(source.indexOf('export interface EngineMethods'));
-  const names = [...body.matchAll(/^\s*'([^']+)':\s*\{/gm)].map(row => row[1]!);
+  const tree = ts.createSourceFile('types.ts', source, ts.ScriptTarget.Latest, true);
+  const methods = tree.statements.find((row): row is ts.TypeAliasDeclaration => ts.isTypeAliasDeclaration(row) && row.name.text === 'EngineMethods');
+  assert.ok(methods && ts.isIntersectionTypeNode(methods.type));
+  const [venture, core] = methods.type.types;
+  assert.ok(venture && ts.isMappedTypeNode(venture));
+  assert.equal(venture.typeParameter.constraint?.getText(tree), 'keyof VenturePayloads');
+  assert.ok(venture.type && ts.isTypeLiteralNode(venture.type));
+  assert.deepEqual(venture.type.members.map(row => row.getText(tree).replace(/\s/g, '')), ['params:MextendskeyofUiPayloadOverrides?UiPayloadOverrides[M]:VenturePayloads[M];', 'result:VentureResults[M]']);
+  const overrides = tree.statements.find((row): row is ts.TypeAliasDeclaration => ts.isTypeAliasDeclaration(row) && row.name.text === 'UiPayloadOverrides');
+  assert.ok(overrides && ts.isTypeLiteralNode(overrides.type));
+  assert.deepEqual(overrides.type.members.map(row => row.getText(tree).replace(/\s/g, '')), [
+    "'venture.desk.act':Omit<VenturePayloads['venture.desk.act'],'payload'>&{payload:unknown};",
+    "'venture.apps.call':Omit<VenturePayloads['venture.apps.call'],'arguments'>&{arguments:Record<string,unknown>};",
+    "'venture.settings.draft':Omit<VenturePayloads['venture.settings.draft'],'values'>&{values:unknown};",
+  ]);
+  assert.ok(core && ts.isTypeLiteralNode(core));
+  const names = [...VENTURE_METHODS, ...core.members.map(row => { assert.ok(ts.isPropertySignature(row) && ts.isStringLiteral(row.name)); return row.name.text; })];
   assert.deepEqual([...RENDERER_METHODS].sort(), names.sort());
   assert.equal(DRAFT_DESK_METHODS.length, 15);
 });
@@ -90,4 +105,20 @@ test('UI request names pass renderer validation and cannot use method-name escap
     }
   };
   await visitDirectory(new URL('../../app/ui/src/', import.meta.url));
+});
+
+test('untrusted UI fields still reject non-JSON input at the real desktop boundary', () => {
+  const { validateRequest } = createRequire(import.meta.url)('../../app/desktop/ipc-contract.cjs');
+  const cases = [
+    { method: 'venture.desk.act', field: 'payload', rest: { playbook: 'virtual-assistant', kind: 'room', action: 'create', id: 'sample-order' } },
+    { method: 'venture.apps.call', field: 'arguments', rest: { appId: 'sample-app', tool: 'sample-tool' } },
+    { method: 'venture.settings.draft', field: 'values', rest: { kind: 'sample-form' } },
+  ];
+  for (const row of cases) {
+    for (const invalid of [() => 'never called', { nested: Infinity }, { nested: 1n }, new Date()]) {
+      assert.throws(() => validateRequest({ method: row.method, payload: { ...row.rest, [row.field]: invalid } }), { code: 'INVALID_REQUEST' });
+    }
+    const request = { method: row.method, payload: { ...row.rest, [row.field]: { text: 'sample', count: 2, accepted: false, empty: null } } };
+    assert.deepEqual(validateRequest(request), request);
+  }
 });
