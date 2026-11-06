@@ -32,6 +32,7 @@ import { applyShareChange } from '../money/share-price.ts';
 import { countryProfile } from './countries.ts';
 import { blueprintCountry } from './country-history.ts';
 import { ABOUT_INSTRUCTIONS } from './about.ts';
+import { acceptOwnerPrice, applyOwnerPrice, ownerPriceShape } from './owner-price.ts';
 import type { ModelCallRecord } from '../contracts.ts';
 
 // ---------------------------------------------------------------------------
@@ -679,7 +680,7 @@ export function termKeysFor(blueprint: BlueprintRecord): TermRecord['key'][] {
 }
 
 /** Business terms start proposed and turn active only when evidence arrives. Each key is made once. */
-function ensureTerms(tx: VentureTx, blueprint: BlueprintRecord): void {
+export function ensureTerms(tx: VentureTx, blueprint: BlueprintRecord): void {
   const existing = new Set(tx.list('venture-term').map(t => t.key));
   for (const key of termKeysFor(blueprint)) {
     if (existing.has(key)) continue;
@@ -1004,7 +1005,10 @@ export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: 
   check(Object.keys(patch).length > 0, 'INVALID_VENTURE_REQUEST', 'Send at least one change.');
   const basedOn = Object.hasOwn(body, 'basedOn') ? basedOnOf(body.basedOn) : null;
   const adding = has(patch, 'addOffer') ? ownerOfferInput(patch.addOffer) : null;
-  return ventureAction(deps, ctx, 'prepare', 'blueprint.update', tx => {
+  // C4 task 33: the owner's own price in the app is the one press on that exact price (owner-price.ts), so it runs at the
+  // approve level; every other change is prepared and waits on Today.
+  const ownerPrice = ownerPriceShape(ctx, body, patch);
+  return ventureAction(deps, ctx, ownerPrice ? 'approve' : 'prepare', 'blueprint.update', tx => {
     const venture = tx.venture as VentureRecord;
     const latest = latestBlueprint(tx.state, venture.id);
     check(latest, 'BLUEPRINT_NOT_FOUND', 'Write your plan first.');
@@ -1031,11 +1035,14 @@ export async function blueprintUpdate(deps: VentureDeps, ctx: Context, payload: 
     applyTaxPatch(next.backOffice, patch, country, mirror);
     withTaxInvoiceFields(next.backOffice, country);
     seal(next);
+    const decided = ownerPrice ? applyOwnerPrice(tx, venture, latest, next) : null;
     tx.put(next);
     if (venture.acceptedBlueprintId === null) mirrorIntoInterview(tx, venture, next, mirror);
     tx.touch({ blueprintId: next.id, status: statusAtLeast(venture.status, 'blueprint') });
     tx.emit('blueprint-drafted', { blueprintId: next.id, version: next.version, source: 'owner' });
-    return blueprintView(tx.state, next, deps.host);
+    if (decided) acceptOwnerPrice(tx, next);
+    const view = blueprintView(tx.state, next, deps.host);
+    return decided ? { ...view, decided } : view;
   });
 }
 

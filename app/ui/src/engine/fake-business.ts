@@ -1,4 +1,5 @@
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { exportFileName } from '../../../../platform/runtime/workspace-custody-contracts';
 import { currencyMinorDigits, decimalMinor } from '../../../../platform/runtime/currency';
 import { formatMoney } from '../../../../platform/runtime/owner-format';
 import { resetCountry } from './fake-country-plan';
@@ -238,7 +239,7 @@ export class FakeBusinessDesk {
         const plaintext = p.plaintext === true;
         const path = `/Users/you/Chausar/exports/chausar-${biz}-${++this.seq}.${plaintext ? 'json' : 'vault'}`;
         (this.exports[biz] ??= []).push(path);
-        return { path, encrypted: !plaintext };
+        return { path, name: path.split('/').pop()!, encrypted: !plaintext };
       }
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
@@ -473,9 +474,65 @@ export class FakeBusinessDesk {
       blueprint: next, offerReceipts: Object.fromEntries(next.offers.map((o) => [o.id, null])),
       ...(view.playbook ? { playbook: view.playbook } : {}), ...(view.intake ? { intake: {...clone(view.intake),...Object.fromEntries(next.offers.filter(offer=>offer.addedByOwner&&offer.playbookOffer&&view.playbook?.id==='youtube').map(offer=>[offer.id,fakeYoutubeServiceIntake(offer.playbookOffer!,!!this.host.hosted?.())]))} } : {}),
     };
+    // C4 task 33, as core/owner-price.ts: the owner's own price on an accepted plan applies at once, with an Undo.
+    const decided = this.ownerPrice(biz, patch, basedOn, view.blueprint, next);
+    if (decided) {
+      this.accept(biz, next.id);
+      this.host.setRows(this.host.rows().filter((r) => !(r.businessId === biz && r.viewRef?.kind === 'plan')));
+      this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
+      return { ...clone(this.blueprints[biz]!), decided };
+    }
     this.planRow(biz, next);
     this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
     return clone(this.blueprints[biz]!);
+  }
+
+  /** C4 task 33: the owner's applied prices by Undo row id, with what it puts back and what counts as a use. */
+  private ownPrices = new Map<string, { biz: string; appliedId: string; before: BlueprintViewLite; shown: Record<string, string | undefined>; names: string[]; orders: number; used: boolean; undone: boolean }>();
+
+  private ownerPrice(biz: string, patch: Record<string, unknown>, basedOn: unknown, latest: BlueprintLite, next: BlueprintLite): { line: string; undoRowId: string } | null {
+    const accepted = this.accepted[biz]?.blueprint;
+    const shape = basedOn === undefined && Object.keys(patch).length === 1 && Array.isArray(patch.offers)
+      && (patch.offers as unknown[]).every((change) => !!change && typeof change === 'object' && Object.keys(change).every((key) => key === 'id' || key === 'unitPrice') && Object.hasOwn(change, 'unitPrice'));
+    if (!shape || !accepted || latest.status !== 'accepted' || accepted.id !== latest.id) return null;
+    const changes = next.offers.filter((offer) => (latest.offers.find((item) => item.id === offer.id)?.pricing.unitPriceMinor ?? null) !== offer.pricing.unitPriceMinor);
+    if (!changes.length) return null;
+    const unit: Record<string, string> = { month: 'a month', project: 'a project', hour: 'an hour' };
+    const words = (offer: OfferLite) => `${offer.pricing.unitPriceMinor === null ? 'no price' : formatMoney(offer.pricing.unitPriceMinor, next.backOffice.currency)} ${unit[offer.pricing.quantityUnit] ?? `per ${offer.pricing.quantityUnit}`}`;
+    const names = changes.map((offer) => offer.name.value);
+    const listed = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+    const undoRowId = `price-set:${biz}:${next.id}`;
+    const orders = (this.host.orders?.() ?? []).filter((order) => changes.some((offer) => offer.id === order.offerId)).length;
+    const shown = Object.fromEntries(accepted.offers.map((offer) => [offer.id, this.prices[`accepted:${biz}:${offer.id}`]]));
+    this.ownPrices.set(undoRowId, { biz, appliedId: next.id, before: clone(this.accepted[biz]!), shown, names, orders, used: false, undone: false });
+    return { line: changes.length === 1 ? `You set the price of ${listed} to ${words(changes[0]!)}.` : `You set new prices for ${listed}.`, undoRowId };
+  }
+
+  /** venture.queue.undo for an owner's price (fake.ts routes it here): puts back exactly the version before. */
+  undoOwnerPrice(rowId: string): { restored: boolean; line: string } {
+    const own = this.ownPrices.get(rowId);
+    if (!own || own.undone) throw new EngineError('UNDO_NOTHING', 'Nothing to undo here.');
+    const now = this.blueprints[own.biz];
+    const orders = (this.host.orders?.() ?? []).filter((order) => own.before.blueprint.offers.some((offer) => offer.id === order.offerId && own.names.includes(offer.name.value))).length;
+    if (!now || now.blueprint.id !== own.appliedId || own.used || orders > own.orders) throw new EngineError('UNDO_TOO_LATE', 'Too late to undo: the new price is in use or the plan changed since.');
+    const restored = clone(own.before);
+    restored.blueprint.version = now.blueprint.version + 1;
+    restored.blueprint.id = `bp-${own.biz}-${restored.blueprint.version}`;
+    restored.blueprint.at = this.host.now();
+    restored.blueprint.status = 'accepted';
+    restored.blueprint.digest = this.host.digest({ ...restored.blueprint, digest: '' });
+    restored.offerReceipts = Object.fromEntries(restored.blueprint.offers.map((o) => [o.id, null]));
+    for (const offer of restored.blueprint.offers) {
+      const shown = own.shown[offer.id];
+      delete this.prices[`${own.biz}:${offer.id}`];
+      if (shown) this.prices[`${own.biz}:${offer.id}`] = shown;
+    }
+    this.blueprints[own.biz] = restored;
+    own.undone = true;
+    this.accept(own.biz, restored.blueprint.id);
+    this.host.emit({ type: 'queue.changed', businessId: own.biz, at: this.host.now() });
+    const listed = own.names.length === 1 ? own.names[0]! : `${own.names.slice(0, -1).join(', ')} and ${own.names.at(-1)}`;
+    return { restored: true, line: `You took back the new price${own.names.length === 1 ? '' : 's'} for ${listed}.` };
   }
 
   private priceText(offer: OfferLite | undefined, key: string): string {
@@ -548,6 +605,8 @@ export class FakeBusinessDesk {
         : `${offer.name.value} at ${display}, no discount, no tax added, because tax is not turned on for this price.`,
     };
     this.receipts.push(receipt);
+    // C4 task 33: a quote at another quantity than the usual one uses the owner's new price, so its Undo leaves.
+    if (quantityText !== offer.pricing.defaultQuantity) for (const own of this.ownPrices.values()) if (own.biz === biz && own.appliedId === view.blueprint.id) own.used = true;
     this.host.quote?.({ receiptId: receipt.id, at: receipt.at, offer: offer.name.value, quantity: quantityText, value: showMinor(unit * quantity), currency: view.blueprint.backOffice.currency, beforeTaxMinor: String(unit * quantity), explanation: receipt.explanation });
     view.offerReceipts[offer.id] = receipt;
     // B3: as the engine's price-quoted, one queue.changed tells every screen.
@@ -600,14 +659,23 @@ export class FakeBusinessDesk {
   }
 
   /** workspace.transfer.export: one file and one code. A business locked with a passphrase needs it. */
-  private moveFile(biz: string, p: Record<string, unknown>): MoveFile {
+  /** C4 task 38: when a move file was made, by business, until the owner dismisses the line. */
+  private moveMade: Record<string, string | null> = {};
+
+  private moveFile(biz: string, p: Record<string, unknown>): MoveFile | { dismissed: true } {
+    if (Object.hasOwn(p, 'dismiss')) {
+      if (p.dismiss !== true || Object.keys(p).length !== 1) throw new EngineError('INVALID_REQUEST', 'Send dismiss: true to take the line away.');
+      this.moveMade[biz] = null;
+      return { dismissed: true };
+    }
     const held = this.heldOrThrow(biz);
     if (held.opens === 'needs-passphrase' && !(typeof p.passphrase === 'string' && p.passphrase === held.passphrase)) throw new EngineError('PASSPHRASE_WRONG', CUSTODY_ERROR_WORDS.PASSPHRASE_WRONG);
     const madeAt = this.host.now();
+    this.moveMade[biz] = madeAt;
     const text = JSON.stringify({ backupFormat: SAMPLE_MOVE_FORMAT, business: biz, name: this.host.businessName(biz), madeAt });
     // A4 review (L3): named by this computer's own date, as the engine's moveFileName.
     const at = new Date(madeAt), day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
-    return { fileName: `chausar-move-${day}.backup`, text, transferCode: SAMPLE_MOVE_CODE, bytes: text.length };
+    return { fileName: `chausar-move-${day}.chausar-move`, text, transferCode: SAMPLE_MOVE_CODE, bytes: text.length };
   }
 
   private custodyView(biz: string): CustodyViewLite {
@@ -623,6 +691,12 @@ export class FakeBusinessDesk {
       business: {
         folder: biz, unlock: held.opens === 'needs-passphrase' ? 'passphrase' : 'this-computer', recovery: held.recovery, storage: 'experimental-file',
         backups: { auto: true, count: backups.length, newestAt: backups[0]?.at ?? null, nextDueAt: null, lastError: null },
+        // C4 task 36, as the engine: the name the desktop's save dialog offers.
+        exportName: exportFileName(this.host.businessName(biz), new Date(this.host.now()), 'Asia/Kolkata', false),
+        // C4 task 37: the copies in Chausar's own exports folder.
+        exportsHere: (this.exports[biz] ?? []).length,
+        // C4 task 38: the move file made, until dismissed.
+        moveMadeAt: this.moveMade[biz] ?? null,
       },
     };
   }

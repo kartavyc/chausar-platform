@@ -23,6 +23,7 @@ import { reopenMark, RESTORED_LINE, revisionWords, SEND_BACK_MAX, startRevision,
 import { regulatedSignoff, regulatedSignoffBlock } from '../playbooks/kit/signoff-gate.ts';
 import { sumReceipt } from '../money/sums.ts';
 import { setPlan } from '../money/set-plan.ts';
+import { undoOwnerPrice } from '../core/owner-price.ts';
 
 /** The words each action leaves on its decision and says back. */
 export const ACTION_WORDS = Object.freeze({
@@ -230,6 +231,8 @@ export async function queueUndoHandler(deps: VentureDeps, ctx: Context, payload:
   const body = exactPayload(payload, ['rowId'], ['rowId']);
   check(idOk(body.rowId), 'INVALID_VENTURE_REQUEST', 'Send the id of the row to undo.');
   const rowId = body.rowId;
+  // C4 task 33: the owner's own price, applied on Save without a Today row (core/owner-price.ts).
+  if (rowId.startsWith('price-set:')) return undoOwnerPrice(deps, ctx, rowId);
   authorize(deps.store, ctx, 'approve');
   const state = deps.store.read();
   const venture = currentVenture(state);
