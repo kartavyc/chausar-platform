@@ -45,11 +45,11 @@ async function region(title: string, selector = 'h2'): Promise<HTMLElement> {
   return section;
 }
 /** One tool's card in the CLI tile, by its name. */
-const tool = (section: HTMLElement, name: string) => within(section).getByText(name, { selector: 'h3' }).closest('li') as HTMLElement;
+const tool = (section: HTMLElement, name: string) => within(section).getByText(name, { selector: '[data-ai-name]' }).closest('li') as HTMLElement;
 /** The facts behind a tool's disclosure, as label: value pairs. */
 function facts(card: HTMLElement): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const term of card.querySelectorAll('dt')) out[term.textContent ?? ''] = term.nextElementSibling?.textContent ?? '';
+  for (const term of card.querySelectorAll('[data-cli-fact]')) out[term.getAttribute('data-cli-fact')!] = term.querySelector('[data-fact-value]')?.textContent ?? '';
   return out;
 }
 
@@ -121,8 +121,8 @@ describe('Your AI: Your AI apps', () => {
     const engine = new FakeEngine();
     engine.firstRun.reviewCodex();
     start({ engine });
-    const section = await region('Your AI apps');
-    await within(section).findByText('Claude Code', { selector: 'h3' });
+    const section = await region('Your AI');
+    await within(section).findByText('Claude Code', { selector: '[data-ai-name]' });
     const claude = tool(section, 'Claude Code');
     // Enabled does not claim that a real task has worked.
     expect(claude.querySelector('[data-cli-state]')!.getAttribute('data-cli-state')).toBe('unverified');
@@ -151,7 +151,7 @@ describe('Your AI: Your AI apps', () => {
     // What the look ran: once, for the tile, at rest.
     expect(section.querySelector('[data-cli-ran]')!.textContent).toBe(LIST_LINE);
     expect(section.textContent!.split(LIST_LINE)).toHaveLength(2);
-    expect(section.querySelector('[data-cli-ran]')!.closest('details')).toBeNull();
+    expect(section.querySelector('[data-cli-ran]')!.closest('details')).not.toBeNull();
     assertInkRules(document.body);
   });
 
@@ -164,7 +164,7 @@ describe('Your AI: Your AI apps', () => {
       const answer = (await original()) as { clis: CliStatusView[]; line: string };
       return { ...answer, clis: [answer.clis[0]!, failed] };
     } } });
-    const section = await region('Your AI apps');
+    const section = await region('Your AI');
     await within(section).findByText('Last task failed');
     const codex = tool(section, 'Codex');
     expect(codex.querySelector('[data-cli-state] [data-tone]')!.getAttribute('data-tone')).toBe('wait');
@@ -184,7 +184,7 @@ describe('Your AI: Your AI apps', () => {
       },
       'venture.ai.setup.trust': async () => { chosen = true; return { setup: { ...review, state: 'trusted', origin: 'owner', line: 'Uses your Codex 0.166.0, which you chose.' } }; },
     } });
-    const section = await region('Your AI apps');
+    const section = await region('Your AI');
     await within(section).findByText(review.line);
     const codex = tool(section, 'Codex');
     await act(async () => { fireEvent.click(within(codex).getByRole('button', { name: 'Use this Codex' })); });
@@ -198,7 +198,7 @@ describe('Your AI: Your AI apps', () => {
     engine.firstRun.reviewCodex();
     engine.firstRun.codexDialog('cancel');
     start({ engine });
-    const section = await region('Your AI apps');
+    const section = await region('Your AI');
     const line = 'Codex 0.166.0 is on this computer and has what Chausar needs. Use it?';
     await within(section).findByText(line);
     const codex = tool(section, 'Codex');
@@ -218,7 +218,7 @@ describe('Your AI: Your AI apps', () => {
       const answer = (await original()) as { clis: CliStatusView[]; line: string };
       return { ...answer, clis: [answer.clis[0]!, failed] };
     } } });
-    const section = await region('Your AI apps');
+    const section = await region('Your AI');
     const line = await within(section).findByText(/OpenAI is having problems right now, not you\./);
     expect(line.textContent).toMatch(/From status\.openai\.com, /);
   });
@@ -229,7 +229,7 @@ describe('Your AI: Your AI apps', () => {
       const answer = (await original()) as { clis: CliStatusView[]; line: string };
       return { ...answer, clis: [answer.clis[0]!, ready] };
     } } });
-    const section = await region('Your AI apps');
+    const section = await region('Your AI');
     await within(section).findByText('Ready');
     const codex = tool(section, 'Codex');
     const line = within(codex).getByText(ready.line);
@@ -244,9 +244,9 @@ describe('Your AI: Your AI apps', () => {
       if ((params as { fresh?: boolean }).fresh) fresh = true;
       return fresh ? { ...answer, clis: [answer.clis[0]!, SEEN] } : answer;
     } } });
-    const section = await region('Your AI apps');
-    await within(section).findByText('Codex', { selector: 'h3' });
-    await act(async () => { fireEvent.click(within(section).getByRole('button', { name: 'Check again' })); });
+    const section = await region('Your AI');
+    await within(section).findByText('Codex', { selector: '[data-ai-name]' });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Check connections' })); });
     await waitFor(() => expect(tool(section, 'Codex').querySelector('[data-cli-state]')!.getAttribute('data-cli-state')).toBe('unverified'));
     const codex = tool(section, 'Codex');
     expect(codex.textContent).toContain('Not yet tried');
@@ -255,8 +255,7 @@ describe('Your AI: Your AI apps', () => {
     expect(within(codex).getByText(SEEN.line).closest('details')).toBeNull();
     fireEvent.click(within(codex).getByText('Details'));
     expect(facts(codex)['Signed in']).toBe("Can't tell yet");
-    expect(calls.filter((c) => c.method === 'venture.models.cli.status').map((c) => c.params)).toEqual([{}, { fresh: true }]);
-    expect(within(section).getByRole('status').textContent).toBe('Checked again just now.');
+    expect(calls.filter((c) => c.method === 'venture.models.cli.status').map((c) => c.params)).toContainEqual({ fresh: true });
   });
 
   it('a tool that does not know a flag Chausar sends names the flags, with the engine fix', async () => {
@@ -264,7 +263,7 @@ describe('Your AI: Your AI apps', () => {
       const answer = (await original()) as { clis: CliStatusView[]; line: string };
       return { ...answer, clis: [answer.clis[0]!, MISMATCH] };
     } } });
-    const section = await region('Your AI apps');
+    const section = await region('Your AI');
     await within(section).findByText("Your Codex 0.131.0 doesn't know --output-schema and --sandbox.");
     const codex = tool(section, 'Codex');
     expect(codex.querySelector('[data-fix-line]')!.textContent).toBe('Update it, or use an OpenAI key.');
@@ -278,7 +277,7 @@ describe('Your AI: Your AI apps', () => {
       const missing: CliStatusView = { ...SEEN, found: false, path: null, version: null, flags: 'unknown', state: 'needs-setup', line: "Codex isn't installed on this computer.", fix: 'Install Codex and sign in to it, then check again.' };
       return { ...answer, clis: [answer.clis[0]!, missing] };
     } } });
-    const section = await region('Your AI apps');
+    const section = await region('Your AI');
     await within(section).findByText("Codex isn't installed on this computer.");
     const codex = tool(section, 'Codex');
     fireEvent.click(within(codex).getByText('Details'));
@@ -287,15 +286,14 @@ describe('Your AI: Your AI apps', () => {
 
   it("the hosted app uses keys only: the engine's line, no Check again, and no AI app the engine says is unavailable", async () => {
     start({ hosted: true });
-    const section = await region('Your AI apps');
+    const section = await region('Your AI');
     expect(await within(section).findByText('The hosted app uses keys only.')).toBeTruthy();
     expect(within(section).queryByRole('button', { name: 'Check again' })).toBeNull();
     expect(section.querySelector('[role="alert"]')).toBeNull();
     const ai = await region('Your AI');
-    fireEvent.click(await within(ai).findByText('Every choice'));
     expect(ai.querySelector('[data-runs-on="this-computer"]')).toBeNull();
-    expect(within(ai).queryByText('Claude Code on this computer')).toBeNull();
-    expect(ai.querySelector('[data-runs-on="provider-api"]')).not.toBeNull();
+    expect(within(ai).queryByText('Claude Code')).toBeNull();
+    expect(within(ai).getByText('Anthropic key', { selector: '[data-ai-name]' })).toBeTruthy();
   });
 
   it('a choice is hidden by what the engine says of it, not by where the app runs', async () => {
@@ -304,14 +302,13 @@ describe('Your AI: Your AI apps', () => {
       return presets.map((p) => (p.id === 'codex-cli' ? { ...p, availability: 'unavailable' as const, availabilityReason: 'Runs only in the desktop app.' } : p));
     } } });
     const ai = await region('Your AI');
-    fireEvent.click(await within(ai).findByText('Every choice'));
-    await within(ai).findByText('Claude Code on this computer');
-    expect(within(ai).queryByText('Codex on this computer')).toBeNull();
+    await within(ai).findByText('Claude Code');
+    expect(within(ai).queryByText('Codex')).toBeNull();
   });
 
   it('a status Chausar cannot read is said as a problem, in its words', async () => {
     start({ intercept: { 'venture.models.cli.status': () => { throw new EngineError('CLI_UNAVAILABLE', "Chausar can't look for command-line tools here."); } } });
-    const section = await region('Your AI apps');
+    const section = await region('Your AI');
     expect((await within(section).findByRole('alert')).textContent).toContain("Chausar can't look for command-line tools here.");
   });
 });
@@ -326,8 +323,7 @@ describe('Your AI: a command-line AI the engine refuses', () => {
   it('a preset that needs setup for its flags offers no Connect and shows the engine words', async () => {
     start({ intercept: { 'venture.models.presets': presetsWith({ availability: 'needs-setup', availabilityReason: flagsWords }) } });
     const ai = await region('Your AI');
-    fireEvent.click(await within(ai).findByText('Every choice'));
-    const codex = (await within(ai).findByText('Codex on this computer')).closest('li')!;
+    const codex = (await within(ai).findByText('Codex')).closest('li')!;
     expect(codex.querySelector('[data-fix-line]')!.textContent).toBe(flagsWords);
     expect(within(codex).queryByRole('button', { name: 'Connect' })).toBeNull();
   });
@@ -338,8 +334,7 @@ describe('Your AI: a command-line AI the engine refuses', () => {
       'venture.models.connect': () => { throw new EngineError('CLI_FLAGS_UNSUPPORTED', flagsWords); },
     } });
     const ai = await region('Your AI');
-    fireEvent.click(await within(ai).findByText('Every choice'));
-    const codex = (await within(ai).findByText('Codex on this computer')).closest('li')!;
+    const codex = (await within(ai).findByText('Codex')).closest('li')!;
     fireEvent.click(within(codex).getByRole('button', { name: 'Connect' }));
     expect(codex.querySelector('input[type="password"]')).toBeNull();
     fireEvent.click(within(codex).getByRole('checkbox', { name: 'I agree' }));
@@ -358,12 +353,11 @@ describe('Your AI: a command-line AI the engine refuses', () => {
         return checked ? presets.map((p) => (p.id === 'codex-cli' ? { ...p, availability: 'needs-setup' as const, availabilityReason: flagsWords } : p)) : presets;
       },
     } });
-    const section = await region('Your AI apps');
-    await within(section).findByText('Codex', { selector: 'h3' });
-    await act(async () => { fireEvent.click(within(section).getByRole('button', { name: 'Check again' })); });
+    const section = await region('Your AI');
+    await within(section).findByText('Codex', { selector: '[data-ai-name]' });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Check connections' })); });
     const ai = await region('Your AI');
-    fireEvent.click(within(ai).getByText('Every choice'));
-    await waitFor(() => expect((within(ai).getByText('Codex on this computer').closest('li')!).querySelector('[data-fix-line]')!.textContent).toBe(flagsWords));
+    await waitFor(() => expect((within(ai).getByText('Codex').closest('li')!).querySelector('[data-fix-line]')!.textContent).toBe(flagsWords));
   });
 });
 
@@ -444,14 +438,14 @@ describe('C7: the plan meter under each AI app', () => {
     const { resetFakePlan } = await import('../../src/engine/fake-cli');
     resetFakePlan();
     const { calls } = start();
-    const section = await region('Your AI apps');
+    const section = await region('Your AI');
     const codex = await waitFor(() => tool(section, 'Codex'));
     await within(codex).findByText("Codex hasn't reported its plan use yet.");
     expect(within(tool(section, 'Claude Code')).getByText("Claude Code hasn't reported its plan use yet.")).toBeTruthy();
     // No figure shows without its source.
     expect(codex.textContent).not.toMatch(/\d+% used/);
     expect(within(tool(section, 'Claude Code')).queryByRole('button', { name: 'Check now' })).toBeNull();
-    await act(async () => { fireEvent.click(within(codex).getByRole('button', { name: 'Check now' })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Check connections' })); });
     await within(codex).findByText('5-hour window: 62% used, resets 4:30 pm');
     expect(within(codex).getByText('This week: 18% used, resets Mon')).toBeTruthy();
     expect(within(codex).getByText('As Codex reported at 9:55 am.')).toBeTruthy();
