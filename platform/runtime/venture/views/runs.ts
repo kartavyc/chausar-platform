@@ -66,7 +66,7 @@ const REASON_WORDS: Readonly<Record<DeliveryReason, string>> = {
   'claims-work-not-done': 'it claimed work that was not done', other: 'another reason', 'not-needed': 'not needed',
 };
 
-const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
+export const toolKind = (tool: string): StepKind => TOOL_KIND[tool] ?? 'work';
 const AGENT_TOOL_KIND:Readonly<Record<string,StepKind>>={read_business:'gather',read_client:'gather',read_order:'gather',list_files:'gather',read_file:'gather',search_records:'gather',calculate:'compute',draft_document:'write'};
 function agentStepState(record:DeliveryRunRecord,kind:StepKind,position:Position):RunStep['state'] {
   const calls=record.agentJob!.tools.filter(tool=>AGENT_TOOL_KIND[tool.name.split('__').at(-1)!]===kind);

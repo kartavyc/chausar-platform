@@ -78,3 +78,27 @@ describe('task 27: Export diagnostics', () => {
     expect((await within(section).findByRole('alert')).textContent).toMatch(/Read the preview again/);
   });
 });
+
+describe('task 28: diagnostics in plain words', () => {
+  it('says the engine\'s line; with nothing today it says so, and the fake answers the same words', async () => {
+    const { request } = mount();
+    const section = await screen.findByRole('region', { name: 'Diagnostics' });
+    expect(await within(section).findByText('Nothing ran today.')).toBeTruthy();
+    expect(request).toHaveBeenCalledWith('venture.diagnostics.today', {});
+    expect(within(section).queryByText('How this was counted')).toBeNull();
+  });
+
+  it('shows the engine\'s sentence, and how each sum was counted in a fold', async () => {
+    const view = { day: '2026-11-06', line: 'Today Chausar spent most of its time waiting for Claude Code (3 min) and writing drafts (40 s).', modelCalls: 2, rows: [
+      { key: 'job:claude', label: 'waiting for Claude Code', ms: 180_000, display: '3 min', receipt: { source: 'agent-jobs', items: [{ id: 'run_a', ms: 180_000 }], sumMs: 180_000 } },
+      { key: 'tool:writing drafts', label: 'writing drafts', ms: 40_000, display: '40 s', receipt: { source: 'tool-calls', items: [{ id: 'tc_a', ms: 20_000 }, { id: 'tc_b', ms: 20_000 }], sumMs: 40_000 } },
+    ] };
+    const client = createFakeClient(new FakeEngine());
+    const real = client.request.bind(client);
+    vi.spyOn(client, 'request').mockImplementation(((method: string, params: never) => (method === 'venture.diagnostics.today' ? Promise.resolve(view) : real(method as never, params))) as never);
+    render(<TextProvider language="en"><EngineProvider client={client}><ReportsView /></EngineProvider></TextProvider>);
+    expect(await screen.findByText(view.line)).toBeTruthy();
+    expect(screen.getByText('How this was counted')).toBeTruthy();
+    expect(screen.getByText('writing drafts: 40 s, from 2 records')).toBeTruthy();
+  });
+});

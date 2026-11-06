@@ -1701,7 +1701,7 @@ export type LeadSettingsRecord = RecordBase<'venture-lead-settings'> & {
 
 /** https origins the app may open from a user click. Mirrored verbatim in app/desktop/ipc-contract.cjs. */
 export const EXTERNAL_ORIGINS = Object.freeze([
-  'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
+  'https://accounts.google.com', 'https://lovable.dev', 'https://replit.com', 'https://bolt.new', 'https://v0.app', 'https://github.com',
   'https://vercel.com', 'https://www.netlify.com', 'https://www.cloudflare.com', 'https://porkbun.com', 'https://www.namecheap.com',
   'https://razorpay.com', 'https://www.cashfree.com', 'https://stripe.com', 'https://www.paypal.com', 'https://www.lemonsqueezy.com', 'https://www.paddle.com', 'https://dodopayments.com',
   'https://workspace.google.com', 'https://www.zoho.com', 'https://resend.com', 'https://postmarkapp.com',
@@ -5925,6 +5925,7 @@ export const VENTURE_METHODS = [
   'venture.accountant.schedule.set',
   'venture.accountant.pack.done',
   'venture.build.briefFile',
+  'venture.diagnostics.today',
   // Ink v2 wave 4 (W4_METHODS above)
   ...W4_METHODS,
   // Ink v2 wave 5 (W5_METHODS above)
@@ -6097,6 +6098,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.accountant.schedule.set': 'money',
   'venture.accountant.pack.done': 'money',
   'venture.build.briefFile': 'build',
+  'venture.diagnostics.today': 'views',
   // Never routed through VentureHost: the engine's draft desk (draft/handlers.ts) answers them.
   'venture.ai.options': 'models', 'venture.ai.connect': 'models', 'venture.ai.disconnect': 'models', 'venture.ai.status': 'models', 'venture.ai.calls': 'models',
   'venture.compose.decide': 'core', 'venture.compose.fill': 'core', 'venture.compose.get': 'core', 'venture.compose.update': 'core',
@@ -6551,6 +6553,7 @@ export type VenturePayloads = {
   'venture.apps.pin': { app: string; pinned: boolean }; 'venture.apps.export': { app: string };
   'venture.apps.call': { app: string; tool: string; arguments: Record<string, Json> }; 'venture.apps.remove': { app: string };
   'venture.layout.get': { place: LayoutPlace };
+  'venture.diagnostics.today': Empty;
   'venture.build.briefFile': { builder: BuilderId };
   'venture.accountant.pack.done': { month: string };
   'venture.accountant.schedule.set': { on: boolean };
@@ -6982,6 +6985,7 @@ export type VentureResults = {
   'venture.apps.pin': { app: MiniAppView; undo: { pinned: boolean }; line: Display }; 'venture.apps.export': { fileName: string; document: string; mediaType: 'text/html' };
   'venture.apps.call': MiniAppCallResult; 'venture.apps.remove': { removed: true; line: Display };
   'venture.layout.get': LayoutView;
+  'venture.diagnostics.today': import('./views/diagnostics-core.ts').DiagnosticsTodayView;
   'venture.build.briefFile': BriefFilePlan;
   'venture.accountant.pack.done': { done: boolean };
   'venture.accountant.schedule.set': CaPackScheduleView;

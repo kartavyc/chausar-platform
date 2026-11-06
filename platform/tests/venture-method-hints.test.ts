@@ -33,9 +33,9 @@ test('the pinned counts: 394 venture methods, 374 reached through the hosted hos
   // Batches 8 and 9: 6H1 mini apps (10), 6H2 recorded flows (2), 6H3 layout (2), 6I1 push-to-talk (6), all reached.
   // Batch 10: 6J2 feedback (6), all reached (hosted has no report keys composed and says so).
   // One-shot A2: venture.ai.setup.trust, the owner's choice of Codex, answered by the engine (hosted refuses it).
-  assert.equal(VENTURE_METHODS.length, 395);
+  assert.equal(VENTURE_METHODS.length, 396);
   const hosted = venture(ACTOR_ACTIONS);
-  assert.equal(hosted.length, 375);
+  assert.equal(hosted.length, 376);
   assert.deepEqual(hosted, sorted(VENTURE_METHODS.filter(method => !PRE_VAULT_METHODS.includes(method) && !DRAFT_METHODS.includes(method))));
 });
 

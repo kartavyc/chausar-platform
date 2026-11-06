@@ -39,3 +39,10 @@
   line-height: 1.45;
   color: var(--fg2);
 }
+
+/* C5 task 28: how today's sums were counted, folded away. */
+.counted summary {
+  cursor: pointer;
+  font-size: var(--text-read);
+  color: var(--fg2);
+}

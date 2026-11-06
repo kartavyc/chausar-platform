@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useT } from '../../text';
-import { useEngine } from '../../engine/context';
+import { useEngine, useResource } from '../../engine/context';
 import type { DiagnosticsPreview } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { formatFileSize } from '../../parts/when';
@@ -21,7 +21,10 @@ export function DiagnosticsSection() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
-  if (!client.previewDiagnostics || !client.saveDiagnostics) return null;
+  // C5 task 28: where today's time went, as the engine summed and worded it. The sums' receipts open from the fold.
+  const today = useResource('venture.diagnostics.today', {}).data ?? null;
+  const canExport = !!client.previewDiagnostics && !!client.saveDiagnostics;
+  if (!canExport && !today) return null;
 
   async function work(call: () => Promise<void>) {
     setBusy(true);
@@ -44,7 +47,18 @@ export function DiagnosticsSection() {
 
   return (
     <TileSection title={t('diagnostics.title')}>
-      <p className={s.line}>{t('diagnostics.line')}</p>
+      {today && <p className={s.line} data-engine-line="">{today.line}</p>}
+      {today && today.rows.length > 0 && (
+        <details className={r.counted}>
+          <summary>{t('diagnostics.counted')}</summary>
+          <ul className={r.files}>
+            {today.rows.map((row) => (
+              <li key={row.key} data-engine-line="">{t('diagnostics.row', { label: row.label, time: row.display, count: row.receipt.items.length })}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {canExport && <p className={s.line}>{t('diagnostics.line')}</p>}
       {said && <p className={s.note} role="status" data-engine-line="">{said}</p>}
       {problem && <p className={s.problem} role="alert" data-engine-line="">{problem}</p>}
       {preview ? (
@@ -65,7 +79,7 @@ export function DiagnosticsSection() {
             <Button variant="quiet" disabled={busy} onClick={() => { setPreview(null); setDumps(false); }}>{t('diagnostics.notNow')}</Button>
           </div>
         </>
-      ) : (
+      ) : canExport && (
         <div className={s.buttons}>
           <Button disabled={busy} onClick={() => void look(false)}>{t('diagnostics.export')}</Button>
         </div>
