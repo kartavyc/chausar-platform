@@ -8,13 +8,13 @@
 
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
-import type { DepartmentSpend, TeamListView, VentureRunEvent } from '../../engine/types';
+import type { DepartmentSpend, TeamListView, UiRunEvent } from '../../engine/types';
 import { splitFigure } from '../../parts/Figure';
 import type { SplitData, SplitPartId } from '../../parts/charts/types';
 import { DEPT_OF } from '../team/departments';
 
 /** The split moves when spend does: a run's calls settle, or the business changes. */
-const onSpend = (event: VentureRunEvent) => event.type.startsWith('run.') || event.type === 'queue.changed';
+const onSpend = (event: UiRunEvent) => event.type.startsWith('run.') || event.type === 'queue.changed';
 
 type Part = SplitData['parts'][number];
 

@@ -19,7 +19,7 @@ import type { SignoffCheckView } from './types';
 import { dayMonthYear, NO_PROVIDER_LINE } from './fake-bank';
 import {
   EngineError, type BankConsentView, type BankImportResult, type CaReceiptView, type CaView, type LeadMoveView, type LeadView, type MoneyOverview, type OutreachDraftView,
-  type PlaybookPick, type ShareLink, type SiteEditLite, type SpendPolicyView, type SpendRateInput, type VentureRunEvent, type CurrencyLead,
+  type PlaybookPick, type ShareLink, type SiteEditLite, type SpendPolicyView, type SpendRateInput, type UiRunEvent, type CurrencyLead,
 } from './types';
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.
 import { currencyLeadOf, rupeesLead, spendLead } from './fake-lead';
@@ -41,7 +41,7 @@ export interface ExtrasHost extends CountryMoneyHost {
   owed(): { value: string; receiptId?: string };
   /** Whether this answers as the hosted web server, which has a public address for preview links. */
   hosted(): boolean;
-  emit(event: VentureRunEvent): void;
+  emit(event: UiRunEvent): void;
 }
 
 const EXTRA_METHODS = new Set([

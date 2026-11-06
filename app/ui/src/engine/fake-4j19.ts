@@ -98,7 +98,7 @@ export class FakeApprovalsDesk {
       this.decisions.push({
         id: 'run-31/cut', at: '2026-10-21T10:21:00.000Z', subject: 'step:cut', action: 'ffmpeg.render', who: 'saved-rule',
         rule: "Your Auto setting on 'Cut the episode'", ruleId: 'gate-cut', reason: 'The agent ran ffmpeg.render without asking.',
-        line: "Allowed by your Auto setting on 'Cut the episode', without asking", by: null, agentId: 'editor', mine: false,
+        line: "Allowed by your Auto setting on 'Cut the episode', without asking", by: null, agentId: 'editor', mine: false, opens: null,
       });
     }
   }
@@ -150,7 +150,7 @@ export class FakeApprovalsDesk {
 
   private record(subject: string, action: string, reason: string, line: string, who: 'owner' | 'chausar' = 'owner'): void {
     const mine = who === 'owner';
-    this.decisions.push({ id: `fake-decision-${(this.seq += 1)}`, at: this.now(), subject, action, who, rule: null, ruleId: null, reason, line, by: mine ? 'owner' : null, agentId: null, mine });
+    this.decisions.push({ id: `fake-decision-${(this.seq += 1)}`, at: this.now(), subject, action, who, rule: null, ruleId: null, reason, line, by: mine ? 'owner' : null, agentId: null, mine, opens: null });
   }
 
   /** The row the owner saw, or what the engine answers instead: stale with the latest, or resolved elsewhere. */

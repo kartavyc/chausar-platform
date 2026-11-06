@@ -1,5 +1,5 @@
 import { WORK_STEPS, type WorkKind } from '../../../../platform/runtime/venture/views/work-steps';
-import type { VentureRunEvent, WorkJobLite, WorkStepStateLite } from './types';
+import type { UiRunEvent, WorkJobLite, WorkStepStateLite } from './types';
 
 /**
  * The fake's long work (one-shot C3 task 9), with the engine's frames (platform/runtime/work-progress.ts): `work.step`
@@ -11,7 +11,7 @@ export class FakeWorkProgress {
   private made = 0;
 
   constructor(
-    private readonly emit: (event: VentureRunEvent) => void,
+    private readonly emit: (event: UiRunEvent) => void,
     private readonly now: () => string,
     private readonly business: () => string,
     private readonly delayMs: number,

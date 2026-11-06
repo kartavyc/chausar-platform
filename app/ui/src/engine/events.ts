@@ -16,7 +16,7 @@
  * replays the gap, when the page shows.
  */
 
-import type { VentureEventsResult, VentureRunEvent, VentureRunEventType, WorkKindLite, WorkStepStateLite } from './types';
+import type { VentureEventsResult, UiRunEvent, VentureRunEventType, WorkKindLite, WorkStepStateLite } from './types';
 
 const WORK_STATES: readonly WorkStepStateLite[] = ['current', 'done', 'failed'];
 const RUN_EVENT_TYPES: readonly VentureRunEventType[] = ['run.started', 'run.step', 'run.waiting', 'run.done', 'run.failed', 'queue.changed',
@@ -52,7 +52,7 @@ export interface FeedDeps {
 }
 
 export interface EventFeed {
-  subscribe(listener: (event: VentureRunEvent) => void): () => void;
+  subscribe(listener: (event: UiRunEvent) => void): () => void;
 }
 
 /** The browser page's visibility, for the web feed. */
@@ -67,7 +67,7 @@ export function pageVisibility(doc: Document = document): PageVisibility {
 }
 
 /** A pushed event, checked field by field: seq when whole, count on notify.new alone. Anything else is dropped. */
-export function readRunEvent(value: unknown): VentureRunEvent | null {
+export function readRunEvent(value: unknown): UiRunEvent | null {
   if (!value || typeof value !== 'object') return null;
   const v = value as Record<string, unknown>;
   // One-shot C3 task 10: a step of long work has its own fields and no seq: it never waits on a gap and never replays.
@@ -78,18 +78,18 @@ export function readRunEvent(value: unknown): VentureRunEvent | null {
   }
   if (typeof v.type !== 'string' || !RUN_EVENT_TYPES.includes(v.type as VentureRunEventType)) return null;
   if (typeof v.businessId !== 'string' || typeof v.at !== 'string') return null;
-  const event: VentureRunEvent = { type: v.type as VentureRunEventType, businessId: v.businessId, at: v.at };
+  const event: UiRunEvent = { type: v.type as VentureRunEventType, businessId: v.businessId, at: v.at };
   if (v.type !== 'privacy.forgotten' && typeof v.runId === 'string') event.runId = v.runId;
   if (whole(v.seq)) event.seq = v.seq;
   if (v.type === 'notify.new' && whole(v.count)) event.count = v.count;
   return event;
 }
 
-function fromVentureEvent(record: VentureEventsResult['events'][number]): VentureRunEvent {
+function fromVentureEvent(record: VentureEventsResult['events'][number]): UiRunEvent {
   const data = record.data && typeof record.data === 'object' ? (record.data as Record<string, unknown>) : {};
   const businessId = typeof data.businessId === 'string' ? data.businessId : '';
   if (RUN_EVENT_TYPES.includes(record.name as VentureRunEventType)) {
-    const event: VentureRunEvent = { type: record.name as VentureRunEventType, businessId, at: record.at };
+    const event: UiRunEvent = { type: record.name as VentureRunEventType, businessId, at: record.at };
     if (record.name !== 'privacy.forgotten' && typeof data.runId === 'string') event.runId = data.runId;
     return event;
   }
@@ -105,8 +105,8 @@ function nextCursor(reply: VentureEventsResult): number {
 type StreamEnd = 'aborted' | 'refused' | 'dropped';
 
 export function createEventFeed(deps: FeedDeps): EventFeed {
-  const listeners = new Set<(event: VentureRunEvent) => void>();
-  const emit = (event: VentureRunEvent) => { for (const listener of [...listeners]) listener(event); };
+  const listeners = new Set<(event: UiRunEvent) => void>();
+  const emit = (event: UiRunEvent) => { for (const listener of [...listeners]) listener(event); };
   let stop: (() => void) | null = null;
   /** Bumped each time the feed stops, so a replay still under way from before applies nothing. */
   let generation = 0;
@@ -120,7 +120,7 @@ export function createEventFeed(deps: FeedDeps): EventFeed {
    * Applies one event, once. A frame of another business starts that business's count afresh (each business keeps its
    * own log). A frame past a gap asks for the gap, unless it came in a replay or a poll, which read the log in order.
    */
-  function deliver(event: VentureRunEvent, inOrder = false): void {
+  function deliver(event: UiRunEvent, inOrder = false): void {
     if (event.seq === undefined) { emit(event); return; }
     if (event.businessId !== business) { business = event.businessId; lastSeq = undefined; seen = new Set(); }
     if (seen.has(event.seq)) return;
@@ -144,7 +144,7 @@ export function createEventFeed(deps: FeedDeps): EventFeed {
 
   let replaying: Promise<void> | null = null;
   let again: number | null = null;
-  let held: VentureRunEvent[] = [];
+  let held: UiRunEvent[] = [];
 
   /** Reads what the log holds after `afterSeq` and applies its frames once. One replay at a time; a second waits. */
   function replay(afterSeq: number): Promise<void> {

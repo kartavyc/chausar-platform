@@ -12,7 +12,7 @@
 import { useId, useState, type ReactNode, useDeferredValue } from 'react';
 import { useT } from '../../text';
 import { useResource, type Resource } from '../../engine/context';
-import type { ChiefThreadSummary, ChiefThreadsView, FindItem, VentureRunEvent } from '../../engine/types';
+import type { ChiefThreadSummary, ChiefThreadsView, FindItem, UiRunEvent } from '../../engine/types';
 import { wordsOf } from '../../../../../platform/runtime/venture/views/find-core';
 import { FIND_WAIT_MS, useResting } from '../../shell/find/useFind';
 import { useClock, useOwnerZone } from '../../shell/clock';
@@ -30,7 +30,7 @@ import { LeaveRow } from '../../parts/LeaveRow';
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** As many chats as a find may answer. */
 const FOUND_CHATS = 20;
-const FIND_EVENTS = (event: VentureRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed';
+const FIND_EVENTS = (event: UiRunEvent) => event.type === 'chief.message' || event.type === 'queue.changed';
 type FoundChat = Extract<FindItem, { kind: 'chat' }>;
 
 /** When a chat last moved, in the owner's zone: 6:42 pm today, the weekday within six days, else the date (B2). */

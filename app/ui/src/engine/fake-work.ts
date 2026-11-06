@@ -43,7 +43,7 @@ import { isLiveStage } from '../../../../platform/runtime/venture/core/launch-st
 import { ruleCleared } from '../../../../platform/runtime/venture/playbooks/kit/attestation';
 import { FORMS_ACCESS_RULE } from '../../../../platform/runtime/venture/playbooks/data-entry-desk/rules';
 import { fakeAttested } from './fake-rules-attest';
-import { EngineError, type BlueprintViewLite, type ClientLite, type DeliveryLite, type InvoiceLite, type OfferIntakeLite, type OrderLite, type RunDetail, type UploadLite, type VentureRunEvent } from './types';
+import { EngineError, type BlueprintViewLite, type ClientLite, type DeliveryLite, type InvoiceLite, type OfferIntakeLite, type OrderLite, type RunDetail, type UploadLite, type UiRunEvent } from './types';
 
 const clone = <T>(value: T): T => structuredClone(value);
 /** The engine's limits (platform/runtime/venture/delivery/harness/files.ts). */
@@ -77,7 +77,7 @@ export interface WorkHost {
   /** The engine's run list: a started run goes to its front. */
   runs(): RunDetail[];
   agentName(): string;
-  emit(event: VentureRunEvent): void;
+  emit(event: UiRunEvent): void;
   /** 4J3: the open business's invoices, which an order's Invoice and Paid steps are read from. */
   invoices?(): InvoiceLite[];
   ask?(method: string, params: Record<string, unknown>): unknown;

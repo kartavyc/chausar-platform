@@ -248,12 +248,12 @@ export class FakeAppsDesk {
     if (!app.grant) throw new EngineError('APP_NOT_ALLOWED', APP_ERRORS.allowFirst);
     if (!this.allowed(app).includes(APP_TOOLS[body.tool]!)) throw new EngineError('APP_NOT_ALLOWED', APP_ERRORS.notAllowed);
     const none = () => { if (Object.keys(args).length) throw invalid('This tool takes no arguments.'); };
-    const result = (structuredContent: unknown): MiniAppCallResult => ({ content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false });
+    const result = (structuredContent: MiniAppCallResult['structuredContent']): MiniAppCallResult => ({ content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false });
     // C4 task 29, as the engine: the made-up rows, and nothing kept.
     if (body.sample === true) {
       const rows = sampleAnswer(body.tool, this.host.currency(), this.host.now().slice(0, 10));
       if (!rows) throw new EngineError(APP_PREVIEW_ONLY, NOT_IN_PREVIEW);
-      return result(rows);
+      return result(rows as MiniAppCallResult['structuredContent']);
     }
     switch (body.tool) {
       case 'clients_list': none(); return result({ clients: this.host.clients().filter((client) => !client.self).map((client) => ({ id: client.id, name: client.name })) });
