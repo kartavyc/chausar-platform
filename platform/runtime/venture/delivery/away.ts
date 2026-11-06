@@ -13,6 +13,9 @@ import { latestAway } from './run-guards.ts';
 import { localDayAt, ownerToday } from '../local-day.ts';
 import { calendarSlotsOrNone } from '../playbooks/social/draft-posts.ts';
 import { queueListHandler } from '../views/queue.ts';
+import { billsDue } from '../money/bills.ts';
+import { instantAt, occurrencesBetween } from '../agents/routine-time.ts';
+import { ventureTimeZone } from '../local-day.ts';
 
 /** The longest time away Chausar plans for, in days. */
 const MAX_AWAY_DAYS = 90;
@@ -113,6 +116,54 @@ async function awayView(deps: VentureDeps, ctx: Context, state: State, venture: 
   };
 }
 
+/** The days away, read and checked the same way for the setter and the preview: at most 90 days, ending today or later. */
+function awayDays(deps: VentureDeps, venture: VentureRecord, body: Record<string, unknown>): { from: string; to: string } {
+  const from = isoDate(body.from, 'The first day away');
+  const to = isoDate(body.to, 'The last day away');
+  check(from <= to, 'INVALID_VENTURE_REQUEST', 'The first day away comes before the last.');
+  check(to >= ownerToday(deps.clock, venture.country ?? { code: 'XX' }), 'INVALID_VENTURE_REQUEST', 'The last day away is already past.');
+  check(Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`) < MAX_AWAY_DAYS * DAY_MS, 'INVALID_VENTURE_REQUEST', `Chausar plans for at most ${MAX_AWAY_DAYS} days away at a time.`);
+  return { from, to };
+}
+
+/**
+ * C5 task 2: everything falling due between two days, from records only: the promises (client payments, planned
+ * posts), bills to pay, recurring invoices drafted for the owner to check, and the owner's routines that run. Routine
+ * runs are counted in the business's own time zone, from the first minute of the first day to the end of the last.
+ */
+export function dueBetween(state: State, venture: VentureRecord, from: string, to: string): AwayView['promises'] {
+  const items = [...promisesBetween(state, venture, from, to)];
+  for (const bill of billsDue(state, from, to)) items.push({ due: bill.dueDate, line: `The bill from ${bill.vendor} is due.` });
+  const clients = new Map(listRecords(state, 'venture-client', venture.id).map(client => [client.id, client.name]));
+  for (const schedule of listRecords(state, 'venture-recurring-invoice', venture.id)) {
+    if (schedule.stoppedAt || schedule.nextOn === null || schedule.nextOn < from || schedule.nextOn > to) continue;
+    items.push({ due: schedule.nextOn, line: `The recurring invoice for ${clients.get(schedule.clientId) ?? 'a client'} is drafted for you to check.` });
+  }
+  const zone = ventureTimeZone(venture.country);
+  const [fy, fm, fd] = from.split('-').map(Number) as [number, number, number];
+  const next = addDays(to, 1).split('-').map(Number) as [number, number, number];
+  const startMs = instantAt(fy, fm, fd, 0, 0, zone), endMs = instantAt(next[0], next[1], next[2], 0, 0, zone) - 1;
+  for (const routine of listRecords(state, 'venture-routine', venture.id)) {
+    if (!routine.on || routine.removedAt || routine.setBy !== 'owner') continue;
+    const runs = occurrencesBetween(routine.schedule, startMs - 1, endMs);
+    if (runs.count === 0) continue;
+    const due = runs.count === 1 && runs.latest ? localDayAt(runs.latest, venture.country ?? { code: 'XX' }) : from;
+    items.push({ due, line: runs.count === 1 ? `Routine: ${routine.name} runs once. Its result waits on Today.` : `Routine: ${routine.name} runs ${runs.count} times. Each result waits on Today.` });
+  }
+  return items.sort((a, b) => a.due.localeCompare(b.due) || a.line.localeCompare(b.line));
+}
+
+/**
+ * venture.away.preview { from, to } (read): what falls due between the two days, before the owner sets them. The same
+ * rules as the setter; writes nothing.
+ */
+export async function awayPreviewHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<{ from: string; to: string; items: AwayView['promises'] }> {
+  const body = exactPayload(payload, ['from', 'to'], ['from', 'to']);
+  const { state, venture } = readAs(deps, ctx, 'read');
+  const { from, to } = awayDays(deps, venture, body);
+  return { from, to, items: dueBetween(state, venture, from, to) };
+}
+
 /**
  * venture.away.set { from, to } (approve, app only): the days the owner will be away, at most 90, ending today or
  * later. Returns the code-built list; Chausar sends nothing.
@@ -120,12 +171,8 @@ async function awayView(deps: VentureDeps, ctx: Context, state: State, venture: 
 export async function awaySetHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<AwayView> {
   requireAppChannel(ctx, 'venture.away.set');
   const body = exactPayload(payload, ['from', 'to'], ['from', 'to']);
-  const from = isoDate(body.from, 'The first day away');
-  const to = isoDate(body.to, 'The last day away');
-  check(from <= to, 'INVALID_VENTURE_REQUEST', 'The first day away comes before the last.');
   const { venture } = readAs(deps, ctx, 'approve');
-  check(to >= ownerToday(deps.clock, venture.country ?? { code: 'XX' }), 'INVALID_VENTURE_REQUEST', 'The last day away is already past.');
-  check(Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`) < MAX_AWAY_DAYS * DAY_MS, 'INVALID_VENTURE_REQUEST', `Chausar plans for at most ${MAX_AWAY_DAYS} days away at a time.`);
+  const { from, to } = awayDays(deps, venture, body);
   const record = await ventureAction(deps, ctx, 'approve', 'away.set', tx => tx.put<AwayRecord>({ ...tx.base('venture-away'), from, to, by: ctx.memberId, clearedAt: null }));
   const after = readAs(deps, ctx, 'read');
   return awayView(deps, ctx, after.state, after.venture, record);

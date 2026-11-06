@@ -112,3 +112,30 @@ test('away: promises falling due, what keeps running, approvals that wait and an
   assert.match(back.line, /^You were away from 18 Oct 2026 to 24 Oct 2026\. \d+ (thing|things) came in since you left\.$/);
   void started; void failed;
 });
+
+// C5 task 2: before Set, the preview lists what falls due between two days: invoices, bills, recurring drafts and the
+// owner's routines, nothing outside; it writes nothing.
+test('away preview lists an invoice, a bill and a routine inside the days, nothing outside, and writes nothing', async () => {
+  const env = await setup();
+  const plan = await seedBlueprint(env);
+  const { order, client } = await seedOrder(env, plan);
+  await seedInvoice(env, order, client.id, 'INV-0007', '2026-10-21');
+  await seedInvoice(env, order, client.id, 'INV-0008', '2026-10-30');
+  await ventureAction(env.deps, owner, 'prepare', 'seed.bills', tx => {
+    for (const [vendor, dueDate] of [['Office rent', '2026-10-20'], ['Paper supplier', '2026-11-02']] as const) {
+      tx.put({ ...tx.base('venture-bill'), vendor, dueDate, status: 'posted', currency: 'INR', totalMinor: '100000', paidMinor: '0', payments: [] } as any);
+    }
+    tx.put({ ...tx.base('venture-routine'), name: 'Daily check', agent: null, setBy: 'owner', prompt: 'Check the inbox.', schedule: { kind: 'calendar', weekdays: [1, 2, 3, 4, 5], time: '09:00', timeZone: 'Asia/Kolkata' }, on: true, removedAt: null } as any);
+  });
+  const before = env.store.read().revision;
+  const preview = await call<{ from: string; to: string; items: AwayView['promises'] }>(env, 'venture.away.preview', { from: '2026-10-20', to: '2026-10-22' });
+  assert.deepEqual(preview.items.map(item => [item.due, item.line]), [
+    ['2026-10-20', 'Routine: Daily check runs 3 times. Each result waits on Today.'],
+    ['2026-10-20', 'The bill from Office rent is due.'],
+    ['2026-10-21', `${CLIENT_NAME}'s payment for INV-0007 is due.`],
+  ]);
+  assert.equal(env.store.read().revision, before, 'the preview writes nothing');
+  await assert.rejects(call(env, 'venture.away.preview', { from: '2026-10-22', to: '2026-10-20' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(call(env, 'venture.away.preview', { from: '2026-10-01', to: '2026-10-02' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(call(env, 'venture.away.preview', { from: '2026-10-20', to: '2027-02-20' }), code('INVALID_VENTURE_REQUEST'));
+});

@@ -57,3 +57,25 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* C5 task 2: the quick dates, quiet text buttons above the two fields. */
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+}
+
+.chip {
+  font: inherit;
+  font-size: var(--text-read);
+  color: var(--link);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.chip[aria-pressed='true'] {
+  color: var(--fg);
+  font-weight: var(--weight-medium);
+}

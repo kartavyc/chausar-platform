@@ -119,3 +119,27 @@ describe('Business > Away', () => {
     expect(within(pages).getByRole('link', { name: 'Away' }).getAttribute('href')).toBe('#/business/away');
   });
 });
+
+// C5 task 2: quick dates in the owner's own zone (Lumen is in India), whatever the computer's zone is; picking one shows
+// what falls due between the days before Set. Run with TZ=UTC too: 00:30 IST on Friday is still Thursday in UTC.
+describe('Away: quick dates and what falls due', () => {
+  it('at 00:30 IST on Friday 6 Nov, This weekend fills 7 to 8 Nov and shows the bill due on 7 Nov before Set', async () => {
+    window.location.hash = '#/business/away';
+    const engine = new FakeEngine({ now: () => '2026-11-05T19:00:00.000Z' });
+    await engine.request('venture.bills.add', { vendor: 'Studio rent', lines: [{ description: 'November rent', amount: '15000', taxName: '', taxRateBps: '0' }], billDate: '2026-11-01', dueDate: '2026-11-07' });
+    const client = createFakeClient(engine);
+    const calls: Call[] = [];
+    const request = client.request.bind(client);
+    client.request = ((method: MethodName, params?: unknown) => { calls.push({ method, params }); return request(method, params as never); }) as typeof client.request;
+    render(<ClockProvider now={() => new Date('2026-11-06T00:30:00.000+05:30')}><App client={client} language="en" /></ClockProvider>);
+    const quick = await screen.findByRole('group', { name: 'Quick dates' });
+    expect(within(quick).getAllByRole('button').map((b) => b.textContent)).toEqual(['Tomorrow', 'This weekend', 'Next week']);
+    await click(within(quick).getByRole('button', { name: 'This weekend' }));
+    expect((screen.getByLabelText('First day away') as HTMLInputElement).value).toBe('2026-11-07');
+    expect((screen.getByLabelText('Last day away') as HTMLInputElement).value).toBe('2026-11-08');
+    expect(of(calls, 'venture.away.preview')).toEqual([{ from: '2026-11-07', to: '2026-11-08' }]);
+    const due = screen.getByRole('region', { name: 'Falls due between these days' });
+    expect(due.textContent).toContain('The bill from Studio rent is due.');
+    expect(of(calls, 'venture.away.set')).toEqual([]);
+  });
+});

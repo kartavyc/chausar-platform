@@ -13,12 +13,12 @@
  */
 
 import { formatDay, formatMoney } from '../../../../platform/runtime/owner-format';
-import { EngineError, type AwayView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail } from './types';
+import { EngineError, type AwayView, type BillView, type InvoiceLite, type ClientLite, type QueueAction, type QueueRow, type RowFigureReceipt, type RunDetail } from './types';
 import type { W4DeskHost } from './fake-w4';
 import {redactSecrets,screenReadback} from '../../../../platform/runtime/venture/core/secrets';
 
 export const FAKE_4F3_METHODS: readonly string[] = [
-  'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set', 'venture.away.get',
+  'venture.runs.stop', 'venture.runs.resume', 'venture.runs.roundGate', 'venture.runs.steer', 'venture.business.pause', 'venture.away.set', 'venture.away.get', 'venture.away.preview',
 ];
 
 /** The engine's words (delivery/harness/controls.ts, delivery/run-controls.ts, views/runs.ts, delivery/away.ts). */
@@ -155,6 +155,7 @@ export class FakeRunControls {
       case 'venture.business.pause': return this.pause(p);
       case 'venture.away.set': return this.awaySet(p);
       case 'venture.away.get': return this.awayView();
+      case 'venture.away.preview': return this.awayPreview(p);
       default: throw new EngineError('METHOD_NOT_ALLOWED', 'The sample business can\'t do that yet.');
     }
   }
@@ -354,7 +355,19 @@ export class FakeRunControls {
     return { paused: p.paused, stopped, line };
   }
 
-  private awaySet(p: Record<string, unknown>): AwayView {
+  /** C5 task 2 venture.away.preview: the setter's checks, then what falls due between the days; nothing is kept. */
+  private awayPreview(p: Record<string, unknown>): { from: string; to: string; items: AwayView['promises'] } {
+    this.checkDays(p);
+    const from = p.from as string, to = p.to as string;
+    const read = <T>(method: string): T | null => { try { return this.host.ask(method, {}) as T; } catch { return null; } };
+    const bills = (read<{ bills: BillView[] }>('venture.bills.list')?.bills ?? [])
+      .filter((bill) => bill.state !== 'paid' && bill.dueDate >= from && bill.dueDate <= to)
+      .map((bill) => ({ due: bill.dueDate, line: `The bill from ${bill.vendor} is due.` }));
+    const items = [...this.promises(from, to), ...bills].sort((a, b) => a.due.localeCompare(b.due) || a.line.localeCompare(b.line));
+    return { from, to, items };
+  }
+
+  private checkDays(p: Record<string, unknown>): void {
     if (Object.keys(p).some((key) => key !== 'from' && key !== 'to')) throw new EngineError('INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
     if (!isDay(p.from)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The first day away must be a date like 2026-10-15.');
     if (!isDay(p.to)) throw new EngineError('INVALID_VENTURE_REQUEST', 'The last day away must be a date like 2026-10-15.');
@@ -363,7 +376,11 @@ export class FakeRunControls {
     if (Date.parse(`${p.to}T00:00:00.000Z`) - Date.parse(`${p.from}T00:00:00.000Z`) >= MAX_AWAY_DAYS * DAY_MS) {
       throw new EngineError('INVALID_VENTURE_REQUEST', `Chausar plans for at most ${MAX_AWAY_DAYS} days away at a time.`);
     }
-    this.away = { from: p.from, to: p.to };
+  }
+
+  private awaySet(p: Record<string, unknown>): AwayView {
+    this.checkDays(p);
+    this.away = { from: p.from as string, to: p.to as string };
     return this.awayView();
   }
 
