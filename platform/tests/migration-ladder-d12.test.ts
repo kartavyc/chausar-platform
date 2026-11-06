@@ -125,3 +125,13 @@ test('step 1 to 2 on the beta fixture: nothing old changes, every record stays, 
   assert.equal(once.schemaVersion, 2);
   assert.ok(v1.conversations.some((row: any) => row?.kind === 'venture-record'), 'the fixture holds a business');
 });
+
+
+test('each migration fixture holds a client, order, invoice, routine and chat', async () => {
+  const { readFile } = await import('node:fs/promises');
+  for (let version = 1; version <= CURRENT_SCHEMA; version++) {
+    const state = JSON.parse(await readFile(new URL(`./fixtures/vault-ladder/state-v${version}.json`, import.meta.url), 'utf8'));
+    const kinds = new Set(state.conversations.map((row: any) => row.kind));
+    for (const kind of ['venture-client', 'venture-order', 'venture-invoice', 'venture-routine', 'venture-chief-message']) assert.ok(kinds.has(kind), `version ${version}: ${kind}`);
+  }
+});
