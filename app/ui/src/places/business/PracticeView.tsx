@@ -42,11 +42,12 @@ export function PracticeView() {
       <Rehearsal onSuggested={() => setSuggested((count) => count + 1)} />
       <div className={s.split} data-ratio="even">
         <Improvement suggested={suggested} />
-        <JudgeSetting />
+        <TileSection title={t('business.practice.safety')}>
+          <JudgeSetting />
+          <Drills />
+        </TileSection>
       </div>
       {/* W4 4J22a: the drills against the version in use, and each guidance line with the check that sees it. */}
-      <Drills />
-      <GuidanceReport />
     </div>
   );
 }
@@ -63,7 +64,7 @@ function Confirm({ ask, label, onConfirm, onCancel }: { ask: string; label: stri
       <p className={s.line}>{ask}</p>
       <div className={s.buttons}>
         <Button ref={cancelRef} variant="quiet" onClick={onCancel}>{t('approval.cancel')}</Button>
-        <Button variant="primary" onClick={onConfirm}>{label}</Button>
+        <Button onClick={onConfirm}>{label}</Button>
       </div>
     </div>
   );
@@ -139,7 +140,7 @@ function Rehearsal({ onSuggested }: { onSuggested: () => void }) {
         {scenarios.data && templates.length === 0 && <p className={s.line}>{t('business.practice.none')}</p>}
         {templates.length > 0 && <ScenarioList scenarios={templates} />}
         <div className={s.buttons}>
-          <Button disabled={busy || templates.length === 0} onClick={() => void rehearse()}>{busy ? t('business.practice.rehearsing') : t('business.practice.rehearse')}</Button>
+          <Button variant={result && result.summary.passed > 0 ? 'secondary' : 'primary'} disabled={busy || templates.length === 0} onClick={() => void rehearse()}>{busy ? t('business.practice.rehearsing') : t('business.practice.rehearse')}</Button>
         </div>
         <p className={s.note}>{t('business.practice.ownAi')}</p>
         {/* One-shot C3 task 11: one row per practice client, ticking as each finishes. */}
@@ -324,6 +325,7 @@ function Improvement({ suggested }: { suggested: number }) {
           {problem && <p className={s.problem} role="alert">{problem}</p>}
         </>
       )}
+      <GuidanceReport />
     </TileSection>
   );
 }
@@ -353,7 +355,8 @@ function JudgeSetting() {
   }
 
   return (
-    <TileSection title={t('business.practice.judge')}>
+    <div>
+      <h3 className={s.groupTitle}>{t('business.practice.judge')}</h3>
       {setting.error && !view && <p className={s.problem} role="alert">{t('business.failed', { message: setting.error.message })}</p>}
       {!view && !setting.error && <LoadingPlace shape="settings" />}
       {view && (
@@ -373,6 +376,6 @@ function JudgeSetting() {
           {problem && <p className={s.problem} role="alert">{problem}</p>}
         </>
       )}
-    </TileSection>
+    </div>
   );
 }

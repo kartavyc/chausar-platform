@@ -46,8 +46,10 @@ describe('Work: runs', () => {
     const working = await screen.findByRole('region', { name: 'Running now' });
     expect(within(await rowOf('Cutting shorts from episode 13', working)).getByRole('img', { name: '3 of 5 steps done' })).toBeTruthy();
     expect(within(await rowOf('Checking titles against the last 30 videos', working)).getByRole('img', { name: 'Working, no step count yet' })).toBeTruthy();
-    const waiting = await rowOf('Pricing the sponsor slot', working);
-    expect((await within(waiting).findByText('2 of 3 done, waits on you')).className).toMatch(/wait/);
+    const needs = await screen.findByRole('region', { name: 'Needs you' });
+    const waiting = await rowOf('Pricing the sponsor slot', needs);
+    expect((await within(waiting).findByText(/^Waiting/)).closest('p')!.className).toMatch(/wait/);
+    expect(within(waiting).getByRole('img', { name: '2 of 3 steps done, waiting on you' })).toBeTruthy();
     // D's order: running, then the stopped run beside Finished, then orders.
     const finished = await screen.findByRole('region', { name: 'Finished' });
     const orders = await screen.findByRole('region', { name: 'Orders' });
@@ -353,8 +355,8 @@ describe('Work: new order', () => {
   });
 
   it('adds a new client from the same form', async () => {
-    const { calls, sheet, clientField, service } = await openForm();
-    fireEvent.change(clientField, { target: { value: '+new' } });
+    const { calls, sheet, service } = await openForm();
+    fireEvent.click(within(sheet).getByRole('button', { name: '+ New client' }));
     fireEvent.change(within(sheet).getByLabelText("Client's name"), { target: { value: 'Kavya Rao' } });
     fireEvent.change(service, { target: { value: 'offer_sponsor' } });
     fireEvent.change(within(sheet).getByLabelText('What they asked for'), { target: { value: 'One mention in her podcast' } });

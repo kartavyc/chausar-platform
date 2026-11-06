@@ -96,25 +96,17 @@ describe('Business > About you', () => {
   });
 });
 
-describe('Business > Plan: the setup steps by name', () => {
-  it('the steps left, each linking where it is done, and every step one fold away', async () => {
+describe('Business > Plan: setup progress', () => {
+  it('one progress bar and one link lead to the steps on Today', async () => {
     await start('#/business/plan');
     const heading = await screen.findByText('Setup', { selector: 'h2' });
     const setup = heading.closest('section')!;
-    const left = await within(setup).findByRole('list', { name: 'Next steps' });
-    const links = within(left).getAllByRole('link');
+    const links = within(setup).getAllByRole('link');
     expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
-      ['Build your website', '#/business/build'],
-      ['Follow the build on GitHub', '#/business/build'],
-      ['Rehearse with practice clients', '#/business/practice'],
+      ["What's left", '#/today?show=setup'],
     ]);
-    const fold = setup.querySelector('details') as HTMLDetailsElement;
-    expect(fold.querySelector('summary')?.textContent).toBe('All 12 steps');
-    const all = within(fold).getAllByRole('listitem');
-    expect(all).toHaveLength(12);
-    expect(all[0]!.textContent).toContain('Connect your AI');
-    expect(all[0]!.querySelector('[data-done]')).not.toBeNull();
-    expect(all[11]!.querySelector('[data-done]')).toBeNull();
+    expect(within(setup).getByRole('img', { name: '6 of 12 steps done' })).toBeTruthy();
+    expect(setup.querySelector('details, ul')).toBeNull();
   });
 });
 
@@ -124,6 +116,7 @@ describe('Settings drafts on every settings form (W4 4J21, W3 O22)', () => {
   it('Goals keeps the typed goal as its draft, exactly what venture.goals.set takes, and offers it back', async () => {
     const engine = new FakeEngine({ now: () => NOW });
     const first = await start('#/business/goals', { engine });
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }));
     fireEvent.change(await screen.findByRole('textbox', { name: 'Goal amount' }), { target: { value: '180000' } });
     await waitFor(() => expect(drafted(first.calls)).toEqual([{ form: 'goals', values: { month: '2026-10', amount: '180000' } }]), { timeout: 3000 });
     document.body.innerHTML = '';
