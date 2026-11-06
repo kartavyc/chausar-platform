@@ -28,6 +28,8 @@ export type AiSettingsView = {
   /** C1 task 13: the models Codex itself lists, in its order; null when there is no list (no Codex, a failed read, or
    *  the fixed fallback ids, which are never shown as if Codex listed them). Claude has no list to read. */
   models: { codex: string[] | null };
+  /** Product defaults for the simple model choice, separate from what the tool actually lists. */
+  modelChoices: Record<AiProvider, { faster: string; smarter: string }>;
 };
 export const AI_SETTING_BOUNDARIES: AiSettingsView['boundaries'] = Object.freeze({ jobFolderOnly: true, windowsSandbox: 'unelevated', shell: 'unavailable', mcp: 'chausar-proxy', externalMcp: 'approval-required' });
 
@@ -37,6 +39,10 @@ export function defaultAiSettings(): AiSettings {
     claude: { quick: { model: 'claude-haiku-5-5', effort: 'high' }, main: { model: 'claude-sonnet-5-5', effort: 'high' }, network: 'research', webSearch: 'research', shell: false, fallbackModel: 'claude-haiku-5-5' },
     autoReview: true, agentAutoReview: {}, mcpServers: [],
   };
+}
+export function aiModelChoices(): AiSettingsView['modelChoices'] {
+  const settings = defaultAiSettings();
+  return { codex: { faster: settings.codex.quick.model, smarter: settings.codex.main.model }, claude: { faster: settings.claude.quick.model, smarter: settings.claude.main.model } };
 }
 const BAD = 'INVALID_VENTURE_REQUEST';
 function exact(raw: unknown, required: readonly string[], optional: readonly string[] = []): Record<string, unknown> {

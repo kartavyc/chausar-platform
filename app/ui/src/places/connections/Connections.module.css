@@ -690,3 +690,5 @@
   margin-bottom: var(--sp-4);
   font-size: var(--text-body);
 }
+
+.needsRow { padding: var(--sp-3) 0; border-bottom: 1px solid var(--line); }
