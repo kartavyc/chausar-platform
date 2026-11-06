@@ -1,0 +1,933 @@
+{
+  "format": "chausar-rpc-recording/1",
+  "scenario": "team-template",
+  "epoch": "2026-11-06T12:00:00.000Z",
+  "placeholders": {
+    "<digest-1>": {
+      "kind": "digest"
+    },
+    "<id-1>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-2>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-3>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-4>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-5>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-6>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-7>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-8>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-9>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-10>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-11>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<id-12>": {
+      "kind": "id",
+      "prefix": "sum_"
+    },
+    "<digest-2>": {
+      "kind": "digest"
+    },
+    "<time-1>": {
+      "kind": "time",
+      "offsetMs": 0,
+      "precision": 3
+    },
+    "<id-13>": {
+      "kind": "id",
+      "prefix": "agentmsg_"
+    },
+    "<id-14>": {
+      "kind": "id",
+      "prefix": "agentmsg_"
+    }
+  },
+  "frames": [
+    {
+      "kind": "request",
+      "id": 1,
+      "method": "venture.team.list",
+      "payload": {}
+    },
+    {
+      "kind": "answer",
+      "id": 1,
+      "result": {
+        "agents": [
+          {
+            "id": "delivery",
+            "name": "Bookkeeping agent",
+            "role": "Reads each order, works on it with tools, and drafts the reply for you to check.",
+            "now": "Connect your AI",
+            "posture": "rehearsal",
+            "spend": "$0.00",
+            "steps": [
+              {
+                "id": "gather",
+                "purpose": "Read the client's message and files and pull out what is needed",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "clarify",
+                "purpose": "Decide what is still unclear",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "work",
+                "purpose": "Sort and match every entry",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "price",
+                "purpose": "Take prices from the calculator",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "draft",
+                "purpose": "Draft the monthly report for review",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "verify",
+                "purpose": "Check the draft",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "approve",
+                "purpose": "You review the draft",
+                "gate": "hold",
+                "floor": false
+              },
+              {
+                "id": "send",
+                "purpose": "Send it to the client (you copy it for now)",
+                "gate": "hold",
+                "floor": true
+              }
+            ],
+            "department": "money",
+            "kind": "agent",
+            "state": "idle",
+            "health": {
+              "status": "healthy",
+              "reason": null,
+              "digest": "<digest-1>"
+            },
+            "postureSetBy": "business",
+            "chat": true
+          },
+          {
+            "id": "keeper",
+            "name": "Keeper",
+            "role": "Keeps Chausar running by fixed rules, not AI: backups, delivery checks, connection checks, rule and rate dates, posting steps and network strength.",
+            "now": "Idle",
+            "posture": "rehearsal",
+            "spend": "$0.00",
+            "steps": [],
+            "department": "operations",
+            "kind": "code",
+            "state": "idle",
+            "chat": false
+          }
+        ],
+        "departments": [
+          {
+            "id": "sales",
+            "name": "Sales and clients",
+            "counts": {
+              "working": 0,
+              "waiting": 0,
+              "stopped": 0,
+              "idle": 0
+            },
+            "doneThisWeek": {
+              "count": 0,
+              "receiptId": "<id-1>",
+              "permille": 0
+            },
+            "spendThisMonth": {
+              "display": "$0.00",
+              "receiptId": "<id-2>",
+              "lead": {
+                "currency": "USD",
+                "figure": "$0.00"
+              },
+              "sharePermille": 0
+            },
+            "series": {
+              "jobs": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ],
+              "spend": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ]
+            }
+          },
+          {
+            "id": "marketing",
+            "name": "Marketing",
+            "counts": {
+              "working": 0,
+              "waiting": 0,
+              "stopped": 0,
+              "idle": 0
+            },
+            "doneThisWeek": {
+              "count": 0,
+              "receiptId": "<id-3>",
+              "permille": 0
+            },
+            "spendThisMonth": {
+              "display": "$0.00",
+              "receiptId": "<id-4>",
+              "lead": {
+                "currency": "USD",
+                "figure": "$0.00"
+              },
+              "sharePermille": 0
+            },
+            "series": {
+              "jobs": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ],
+              "spend": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ]
+            }
+          },
+          {
+            "id": "production",
+            "name": "Production",
+            "counts": {
+              "working": 0,
+              "waiting": 0,
+              "stopped": 0,
+              "idle": 0
+            },
+            "doneThisWeek": {
+              "count": 0,
+              "receiptId": "<id-5>",
+              "permille": 0
+            },
+            "spendThisMonth": {
+              "display": "$0.00",
+              "receiptId": "<id-6>",
+              "lead": {
+                "currency": "USD",
+                "figure": "$0.00"
+              },
+              "sharePermille": 0
+            },
+            "series": {
+              "jobs": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ],
+              "spend": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ]
+            }
+          },
+          {
+            "id": "money",
+            "name": "Money",
+            "counts": {
+              "working": 0,
+              "waiting": 0,
+              "stopped": 0,
+              "idle": 1
+            },
+            "doneThisWeek": {
+              "count": 0,
+              "receiptId": "<id-7>",
+              "permille": 0
+            },
+            "spendThisMonth": {
+              "display": "$0.00",
+              "receiptId": "<id-8>",
+              "lead": {
+                "currency": "USD",
+                "figure": "$0.00"
+              },
+              "sharePermille": 0
+            },
+            "series": {
+              "jobs": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ],
+              "spend": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ]
+            }
+          },
+          {
+            "id": "operations",
+            "name": "Operations",
+            "counts": {
+              "working": 0,
+              "waiting": 0,
+              "stopped": 0,
+              "idle": 1
+            },
+            "doneThisWeek": {
+              "count": 0,
+              "receiptId": "<id-9>",
+              "permille": 0
+            },
+            "spendThisMonth": {
+              "display": "$0.00",
+              "receiptId": "<id-10>",
+              "lead": {
+                "currency": "USD",
+                "figure": "$0.00"
+              },
+              "sharePermille": 0
+            },
+            "series": {
+              "jobs": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ],
+              "spend": [
+                {
+                  "key": "2026-09-28",
+                  "label": "Week of 28 Sep 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-05",
+                  "label": "Week of 5 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-12",
+                  "label": "Week of 12 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-19",
+                  "label": "Week of 19 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-10-26",
+                  "label": "Week of 26 Oct 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                },
+                {
+                  "key": "2026-11-02",
+                  "label": "Week of 2 Nov 2026",
+                  "value": null,
+                  "valuePermille": null,
+                  "receiptId": null
+                }
+              ]
+            }
+          }
+        ],
+        "shared": null,
+        "totals": {
+          "doneThisWeek": {
+            "count": 0,
+            "receiptId": "<id-11>"
+          },
+          "spendThisMonth": {
+            "display": "$0.00",
+            "receiptId": "<id-12>",
+            "lead": {
+              "currency": "USD",
+              "figure": "$0.00"
+            }
+          },
+          "held": null
+        },
+        "teamHealth": {
+          "status": "healthy",
+          "reason": null,
+          "digest": "<digest-2>"
+        },
+        "introduce": [
+          {
+            "agentId": "delivery",
+            "line": "Bookkeeping agent reads each order, works on it with tools, and drafts the reply for you to check."
+          }
+        ]
+      }
+    },
+    {
+      "kind": "request",
+      "id": 2,
+      "method": "venture.agents.thread.list",
+      "payload": {
+        "agent": "delivery"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 2,
+      "result": {
+        "agent": {
+          "id": "delivery",
+          "name": "Bookkeeping agent",
+          "role": "Reads each order, works on it with tools, and drafts the reply for you to check."
+        },
+        "items": [],
+        "waiting": null,
+        "more": false,
+        "consent": {
+          "state": "not-needed",
+          "text": null,
+          "digest": null,
+          "at": null
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "id": 3,
+      "method": "venture.agents.thread.send",
+      "payload": {
+        "agent": "delivery",
+        "text": "What should I review before sharing work?"
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "agent.message",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 18
+      }
+    },
+    {
+      "kind": "event",
+      "event": {
+        "type": "agent.message",
+        "businessId": "main",
+        "at": "<time-1>",
+        "seq": 19
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 3,
+      "result": {
+        "added": [
+          {
+            "type": "message",
+            "message": {
+              "id": "<id-13>",
+              "at": "<time-1>",
+              "from": "owner",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "What should I review before sharing work?"
+                }
+              ]
+            }
+          },
+          {
+            "type": "message",
+            "message": {
+              "id": "<id-14>",
+              "at": "<time-1>",
+              "from": "agent",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "I have not worked on an order yet."
+                },
+                {
+                  "kind": "text",
+                  "text": "Connect your AI in Connections to ask me questions in your own words."
+                }
+              ],
+              "suggestion": {
+                "kind": "connect-ai"
+              }
+            }
+          }
+        ],
+        "line": null
+      }
+    },
+    {
+      "kind": "request",
+      "id": 4,
+      "method": "venture.agents.thread.list",
+      "payload": {
+        "agent": "delivery"
+      }
+    },
+    {
+      "kind": "answer",
+      "id": 4,
+      "result": {
+        "agent": {
+          "id": "delivery",
+          "name": "Bookkeeping agent",
+          "role": "Reads each order, works on it with tools, and drafts the reply for you to check."
+        },
+        "items": [
+          {
+            "type": "message",
+            "message": {
+              "id": "<id-13>",
+              "at": "<time-1>",
+              "from": "owner",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "What should I review before sharing work?"
+                }
+              ]
+            }
+          },
+          {
+            "type": "message",
+            "message": {
+              "id": "<id-14>",
+              "at": "<time-1>",
+              "from": "agent",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "I have not worked on an order yet."
+                },
+                {
+                  "kind": "text",
+                  "text": "Connect your AI in Connections to ask me questions in your own words."
+                }
+              ],
+              "suggestion": {
+                "kind": "connect-ai"
+              }
+            }
+          }
+        ],
+        "waiting": null,
+        "more": false,
+        "consent": {
+          "state": "not-needed",
+          "text": null,
+          "digest": null,
+          "at": null
+        }
+      }
+    }
+  ]
+}
