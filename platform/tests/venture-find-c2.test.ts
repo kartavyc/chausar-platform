@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '../runtime/contracts.ts';
-import type { ChatPart, ChiefThreadRecord, ChiefThreadsView, ClientRecord, InvoiceRecord, OrderRecord, VentureRunEvent } from '../runtime/venture/contracts.ts';
+import type { ChatPart, ChiefThreadRecord, ChiefThreadsView, ClientRecord, InvoiceRecord, ModelTransport, OrderRecord, VentureRunEvent } from '../runtime/venture/contracts.ts';
 import type { FindItem, FindView } from '../runtime/venture/views/find-core.ts';
 import { parseFindRequest } from '../runtime/venture/views/find-core.ts';
 import { listRecords, ventureAction } from '../runtime/venture/records.ts';
@@ -12,7 +12,7 @@ import { appendChiefMessage } from '../runtime/venture/chief/store.ts';
 import { threadsHandler } from '../runtime/venture/chief/threads.ts';
 import { VentureHost } from '../runtime/venture/host.ts';
 import { listInvoices } from '../runtime/venture/money/invoices.ts';
-import { ChausarError, type ModelTransport } from '../runtime/contracts.ts';
+import { ChausarError } from '../runtime/contracts.ts';
 import { call, owner, seedBlueprint, seedOrder, seedRun, setup, type Env } from './venture-views-env.ts';
 
 const find = (env: Env, payload: unknown, ctx: Context = owner) => call<FindView>(env, 'venture.find' as never, payload, ctx);
