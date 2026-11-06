@@ -1,5 +1,5 @@
 /**
- * The view models the charts draw (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, package 3B2). W4 maps
+ * The view models the charts draw (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, package 3B2). W4 maps
  * engine views onto them; W3 adds no engine type. Every number is an integer the engine scaled to per mille
  * (0 to 1000 of the chart's own scale) and every string is engine text, already formatted. The browser never
  * divides, adds up money or formats a number: it only draws what it is given.

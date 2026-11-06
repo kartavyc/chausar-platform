@@ -1,6 +1,6 @@
 /**
  * The engine contract the UI builds to. The first block is the shared contract from
- * docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md ("Shared contract"), verbatim; the engine side lives in
+ * chausar-private/docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md ("Shared contract"), verbatim; the engine side lives in
  * platform/runtime/venture/contracts.ts. The UI does not import runtime files: those pull in Node code.
  * The second block mirrors the few existing engine shapes the shell and the fake engine need, trimmed to the
  * fields the UI reads.

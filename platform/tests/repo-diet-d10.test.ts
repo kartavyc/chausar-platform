@@ -100,7 +100,7 @@ test("task 4: no tracked text file holds the founder's Windows home folder", () 
   assert.deepEqual(found, []);
 });
 
-test('task 5: no pointer into docs/superpowers, docs/specs, docs/lanes or docs/requirements unless it names the private checkout', { todo: 'D10 task 5, re-grepped on the rebased tip' }, () => {
+test('task 5: no pointer into docs/superpowers, docs/specs, docs/lanes or docs/requirements unless it names the private checkout', () => {
   const found: string[] = [];
   for (const hit of grep('-n', '-E', 'docs/(superpowers|specs|lanes|requirements)')) {
     const [file, line] = hit.split(':', 2);

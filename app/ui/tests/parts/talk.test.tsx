@@ -14,7 +14,7 @@ import { DiffCard } from '../../src/parts/DiffCard';
 import { TextProvider } from '../../src/text';
 import { assertInkRules, assertNoInlineStyles, assertOnePrimary } from '../helpers/ink-rules';
 
-/* Package 3B4 (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md): the parts W4 wires to data for warm paths,
+/* Package 3B4 (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md): the parts W4 wires to data for warm paths,
    strength, the pipeline board, the bell, agent chat and instruction changes. Every name and figure here is a prop
    written in this file; none of it is in src. */
 

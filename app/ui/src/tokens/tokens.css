@@ -1,10 +1,10 @@
 /* Ink tokens. Colours are the exact values of the design spec, section 5
-   (docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md). Every colour, size and time in app/ui is one of
+   (chausar-private/docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md). Every colour, size and time in app/ui is one of
    these names. One extra colour, --edge, is the outline of a quiet button, taken from the approved mockup A.
    One value moved from the spec: light --dim is #6e737a, not #71767d, because #71767d on --bg is 4.42:1 and struck
    values must read at 4.5:1 (tests/contrast.test.ts). The shift is too small to see.
-   Ink v2 adds the tokens of the w3 plan's table (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "Tokens"),
-   taken from direction D (docs/superpowers/designs/ink-v2-direction-d/D-STYLE.md sections 3 and 4). Where the table
+   Ink v2 adds the tokens of the w3 plan's table (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "Tokens"),
+   taken from direction D (chausar-private/docs/superpowers/designs/ink-v2-direction-d/D-STYLE.md sections 3 and 4). Where the table
    and the boards differ, the table wins: it was checked for contrast, and tests/contrast.test.ts checks it again.
    --dim reads only on --bg and --surface; plain --wait never sits on a department tint (use --wait-strong). */
 

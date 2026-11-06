@@ -1,5 +1,5 @@
 /**
- * Work, in the direction D look (docs/superpowers/designs/ink-v2-direction-d/D-Work.dc.html): what the team is doing
+ * Work, in the direction D look (chausar-private/docs/superpowers/designs/ink-v2-direction-d/D-Work.dc.html): what the team is doing
  * and has done, and every order. Filter chips under the title, held in the address (#/work?state=waiting|active|
  * failed|done, plus orders for every order, and business=<id> when runs come from more than one business). Running now
  * as tiles with rings, the failed run with what went wrong and Run again beside Finished, then orders grouped by

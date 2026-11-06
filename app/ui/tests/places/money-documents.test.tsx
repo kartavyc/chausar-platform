@@ -7,7 +7,7 @@ import type { EngineClient } from '../../src/engine/types';
 import { assertFiguresProved, assertInkRules, assertOnePrimary, receiptMark } from '../helpers/ink-rules';
 
 /*
- * Money's documents and limits in wave 4 (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w4.md, package 4J20, from
+ * Money's documents and limits in wave 4 (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w4.md, package 4J20, from
  * 4J4, 4J5 and 4F2): lateness and Remind on the invoices, cheques that wait to clear, the client's TDS, credit notes on
  * the always-ask floor, the timeline, invoices that repeat, bills, margins per client, the spend meter and the limit
  * sheet, and the accountant's read-only month. The fake engine answers each with the engine's codes and shapes.

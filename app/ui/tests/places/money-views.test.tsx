@@ -8,7 +8,7 @@ import { assertFiguresProved, assertInkRules, assertOnePrimary, receiptMark } fr
 import { cssOf } from '../helpers/css';
 
 /*
- * Money's overview with the W4 money views (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w4.md, package 4J20):
+ * Money's overview with the W4 money views (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w4.md, package 4J20):
  * owed by age with its reminders, in and out by month, cash over the next 13 weeks, the next three weeks, the month
  * picker with last month beside this one, and Export for your CA. The fake engine answers venture.money.aging, .flow,
  * .cash and .export from its own invoices and payments the way the engine does (fake-money-views.ts); overrides below

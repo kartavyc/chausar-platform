@@ -1,5 +1,5 @@
 /**
- * The Money views the charts draw, as slots wave 3 left and wave 4 fills (docs/superpowers/plans/2026-10-23-chausar-
+ * The Money views the charts draw, as slots wave 3 left and wave 4 fills (chausar-private/docs/superpowers/plans/2026-10-23-chausar-
  * ink-v2-w4.md, package 4J20):
  *
  *   goal   the goal bar on "Invoiced this month" (W4 4I2, venture.goals.get; the goal counts money invoiced before tax)

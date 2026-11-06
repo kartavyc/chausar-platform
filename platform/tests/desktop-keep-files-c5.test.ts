@@ -33,7 +33,7 @@ test('neither method that names a path is open to the window or the server', asy
 });
 
 test('pick a copy: the window gets a token and a name; the path stays in main; the token works once', async () => {
-  const path = 'E:\\usb\\my copy.vault', d = deps(path);
+  const path = process.platform === 'win32' ? 'E:\\usb\\my copy.vault' : '/media/usb/my copy.vault', d = deps(path);
   const picked = await keep.pickCopy('trusted', {}, d);
   assert.equal(picked.ok, true);
   assert.equal(picked.result.name, 'my copy.vault');

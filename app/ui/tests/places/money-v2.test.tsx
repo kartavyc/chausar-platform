@@ -12,7 +12,7 @@ import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 import { moreLinks, rowLinks } from '../helpers/tabs';
 
 /*
- * Money in the direction D look (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, package 3F). Every figure is
+ * Money in the direction D look (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, package 3F). Every figure is
  * engine text with its receipt or the "model estimate" label; the screen adds nothing up. Overrides below send what
  * the real engine sends (platform/runtime/venture/money/overview.ts gives every overview line its receipt); values are
  * written for this test.

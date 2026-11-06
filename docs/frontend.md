@@ -1,6 +1,6 @@
 # The app: Ink
 
-Chausar's app is Ink, a React app in `app/ui`, built with Vite to `app/ui/dist`. The same build runs in the desktop window and on the web. It is built around one idea: the owner approves, the team works. Its places are Today (the approval queue), Team, Work, Clients, Money and Connections, with the business menu and onboarding beside them. What each place shows, the engine methods behind it and the known limits are in [venture/ink.md](venture/ink.md); the spec is `docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md`; how to work on it is in `app/ui/README.md`.
+Chausar's app is Ink, a React app in `app/ui`, built with Vite to `app/ui/dist`. The same build runs in the desktop window and on the web. It is built around one idea: the owner approves, the team works. Its places are Today (the approval queue), Team, Work, Clients, Money and Connections, with the business menu and onboarding beside them. What each place shows, the engine methods behind it and the known limits are in [venture/ink.md](venture/ink.md); the spec is `chausar-private/docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md`; how to work on it is in `app/ui/README.md`.
 
 Ink replaced the old renderer (`app/renderer`, plain HTML and JavaScript with twelve views) on 22 October 2026. The old renderer and its tests are gone; the dated pages under `docs/` that name it are records of that time.
 

@@ -108,7 +108,7 @@ describe('Ink tokens', () => {
 });
 
 /**
- * Ink v2 colours, exactly as the w3 plan's token table (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md,
+ * Ink v2 colours, exactly as the w3 plan's token table (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md,
  * "Tokens"), whose contrast tests/contrast.test.ts checks. The accent is Jade, the founder's pick of 23 October.
  */
 const DEPTS = {

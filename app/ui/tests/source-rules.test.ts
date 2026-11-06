@@ -101,7 +101,7 @@ describe('rules the UI keeps (spec section 6)', () => {
   });
 });
 
-/* Ink v2 rules (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold"), package 3A1. */
+/* Ink v2 rules (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold"), package 3A1. */
 
 const app = join(src, '..');
 const TEXT_FILE = /\.(tsx?|css|json|svg|html|js|mjs|cjs|webmanifest|md|txt)$/;

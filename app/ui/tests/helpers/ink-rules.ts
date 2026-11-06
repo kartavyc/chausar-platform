@@ -1,7 +1,7 @@
 import { HOLDS_MONEY } from '../../../../platform/runtime/owner-format';
 /**
  * The Ink rules a test can see in rendered output, as plain assertions every part and place test calls
- * (docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold").
+ * (chausar-private/docs/superpowers/plans/2026-10-23-chausar-ink-v2-w3.md, "The rules that hold").
  *
  *   assertFiguresProved(root?)  every money figure carries its proof: a receipt, or the "model estimate" label
  *   assertOnePrimary(root?)     every card and list row holds at most one filled primary button

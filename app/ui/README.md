@@ -1,6 +1,6 @@
 # Ink, Chausar's React frontend
 
-One app for desktop (Electron) and the web, built to `app/ui/dist`. Spec: `docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md`. Plan: `docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md`. Visual reference: mockup A "Ink".
+One app for desktop (Electron) and the web, built to `app/ui/dist`. Spec: `chausar-private/docs/superpowers/designs/2026-10-21-chausar-frontend-ink.md`. Plan: `chausar-private/docs/superpowers/plans/2026-10-21-chausar-frontend-ink.md`. Visual reference: mockup A "Ink".
 
 ## Commands (from the repo root)
 

@@ -10,7 +10,7 @@ import s from '../../src/places/work/Work.module.css';
 import { assertInkRules, receiptMark } from '../helpers/ink-rules';
 
 /*
- * Work in the direction D look (w3 package 3E1, docs/superpowers/designs/ink-v2-direction-d/D-Work.dc.html): filter
+ * Work in the direction D look (w3 package 3E1, chausar-private/docs/superpowers/designs/ink-v2-direction-d/D-Work.dc.html): filter
  * chips held in the address, Running now as tiles with rings, the failed run with what went wrong and Run again,
  * Finished, and orders grouped by client. Only what the engine sends is drawn: no Stop, no order stage steps and no
  * frames until W4 (4F, 4J).
