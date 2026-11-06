@@ -1,3 +1,5 @@
+import { markNewCaptureSample, isCaptureSample } from './venture/replay/sample.ts';
+import { currentRun } from './venture/replay/scope.ts';
 import { resolve, join, relative, isAbsolute, basename } from 'node:path';
 import { CLAUDE_INSTALL_WORDS, installClaudeCode, mintClaudeInstallYes, type ClaudeInstallPorts, type ClaudeInstallProgress, type ClaudeInstallResult, type ClaudeInstallView } from './venture/models/claude-code-install.ts';
 import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
@@ -83,6 +85,7 @@ import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-sn
 
 /** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
 type DraftDeskHandle = {
+  sampleState(authority: StateStore, state?: State): Promise<State>;
   request(ctx: Context, method: string, payload: unknown): Promise<unknown>;
   /** workspace.create succeeded: reset and pause the idle timer while the owner keeps the plan safe. */
   hold(): void;
@@ -97,7 +100,7 @@ export type EngineBackupCustodyOptions = {
   /** Trusted installed host capability, never supplied by an RPC payload. */
   withCompleteOwner?<T>(context: Context, historical: State, work: (assertCurrent: () => void) => Promise<T>): Promise<T>;
 };
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
+export type EngineOptions = { capture?: { dir: string }; directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
   /** Trusted local composition: how the speech service starts the local whisper.cpp (tests inject a stand-in). */
   speech?: SpeechOptions;
   /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
@@ -178,6 +181,7 @@ export class Engine {
   #stagedVaults = new Set<Vault>();
   #transition = false;
   #activeRequests = 0;
+  #capturing = false;
   #closing = false;
   #companion: { store: Vault; sessions: PhoneSessionService; runtime: EnginePhoneRuntime } | undefined;
   #idleWaiters = new Set<() => void>();
@@ -918,7 +922,7 @@ export class Engine {
   }
   async close() {
     if (this.#activeRequests && !this.#transition) await this.stopLongWork();
-    check(!this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Chausar is still finishing work in this business. Try again in a moment.');
+    check(!this.#capturing && !this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Chausar is still finishing work in this business. Try again in a moment.');
     await this.closeVault();
   }
   private async closeVault() {
@@ -1124,7 +1128,25 @@ export class Engine {
       return { setup: await trust.record(sha256, path) };
     } finally { this.#activeRequests--; this.notifyIdle(); }
   }
+  /** Developer capability, never an RPC method. Each capture needs explicit sample-data consent. */
+  async captureDraftState(state?: State): Promise<State> {
+    check(this.options.capture && this.options.demo && this.vault && isCaptureSample(this.vault), 'CAPTURE_SAMPLE_REQUIRED', 'Use a newly created disposable sample workspace.');
+    return (await this.#draftDesk()).sampleState(this.vault!, state);
+  }
+
+  async captureRequest(method: string, payload: Record<string, unknown>, consent: string): Promise<{ result: unknown; path: string }> {
+    check(this.options.capture, 'CAPTURE_DISABLED', 'Run capture is not enabled.');
+    check(consent === 'sample business' && this.options.demo === true && !!this.vault && isCaptureSample(this.vault),
+      'CAPTURE_SAMPLE_REQUIRED', 'Capture only a sample business with explicit consent.');
+    check(!this.#capturing && !this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Finish the current request before capturing.');
+    this.#capturing = true;
+    try {
+      const { captureEngineRequest } = await import('./venture/replay/engine-run.ts');
+      return await captureEngineRequest(this, method, payload, this.options.capture.dir);
+    } finally { this.#capturing = false; }
+  }
   async request(method: string, payload: any = {}): Promise<any> {
+    check(!this.#capturing || currentRun()?.owner === this, 'VAULT_BUSY', 'Finish the sample capture before another request.');
     check(!this.#closing, 'ENGINE_STOPPING', 'Chausar is finishing its work and closing. Open it again in a moment.');
     const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'workspace.transfer.import', 'workspace.backups.restore', 'workspace.import']);
     const transition = transitions.has(method);
@@ -1286,6 +1308,7 @@ export class Engine {
           }
         }
         try {
+          if (this.options.capture && this.options.demo === true && payload.demo === true) markNewCaptureSample(result.vault);
           await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
           if (payload.demo) await seedDemo(this.store(), this.context);
           this.#draft?.hold();

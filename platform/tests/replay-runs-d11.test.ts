@@ -5,7 +5,7 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,7 +101,7 @@ test('replay-run.mjs --check summarises a capture; --records prints each differe
   const changed = run(capture, '--records', join(dir, 'changed.json'));
   assert.equal(changed.status, 1);
   assert.match(changed.stdout, /^1 difference:\n {2}records\[1\]\.text: /);
-  assert.equal(run(capture).status, 2, 'a mode is required');
+  assert.equal(run(capture).status, 1, 'a recorder-only capture has no executable operation');
 });
 
 test('replay-run.mjs refuses a capture file that holds a secret, by kind', async t => {
@@ -113,4 +113,15 @@ test('replay-run.mjs refuses a capture file that holds a secret, by kind', async
   assert.equal(result.status, 1);
   assert.match(result.stderr, /holds a secret/);
   assert.equal(result.stderr.includes(key), false);
+});
+
+test('every retained sample capture replays through the current engine', async () => {
+  const directory = new URL('./fixtures/replays/', import.meta.url);
+  const files = (await readdir(directory)).filter(name => name.endsWith('.capture.json')).sort();
+  assert.ok(files.length >= 7, 'retain the qualified injected sample flows');
+  const { replayEngineRun } = await import('../runtime/venture/replay/engine-run.ts');
+  for (const name of files) {
+    const capture = JSON.parse(await readFile(new URL(name, directory), 'utf8'));
+    assert.deepEqual((await replayEngineRun(capture)).differences, [], name);
+  }
 });

@@ -1,3 +1,4 @@
+import { runClock, runInterval, runTimeout, trackRunWork } from '../replay/scope.ts';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +23,7 @@ export function launchAgentWork(store: StateStore, runId: string, work: () => Pr
   check(!jobs.has(runId), 'JOB_BUSY', 'This job is already running.');
   const task = Promise.resolve().then(work).finally(() => jobs.delete(runId));
   jobs.set(runId, task);
+  trackRunWork(task);
   // The delivery callback persists a safe failure state. Waiting tests and live checks can still observe completion.
   void task.catch(() => undefined);
 }
@@ -68,7 +70,7 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
   const stop = () => abort.abort();
   const unregister = registerAgentJob(deps.store, job.capability.scope, stop);
   // Recheck authority even while a provider is quiet. This is a revocation watch, never an agent turn loop.
-  const monitor = setInterval(() => { try { job.capability.assert(); } catch { stop(); } }, 50);
+  const monitor = runInterval(() => { try { job.capability.assert(); } catch { stop(); } }, 50);
   monitor.unref();
   const unwatch = watchClientAiConsent(deps.store, job.capability.scope.clientId, stop);
   deps.closing?.signal.addEventListener('abort', stop, { once: true });
@@ -77,17 +79,17 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
   const buffers = new Map<string, string>();
   // A2: the watchdog's clock, and the usage of an earlier turn carried into a nudge turn's reports.
   const watchdog = { ...AGENT_WATCHDOG, ...route.watchdog };
-  let lastActivity = Date.now(), quiet = false, overtime = false, carried: AgentUsage | undefined;
+  let lastActivity = runClock().getTime(), quiet = false, overtime = false, carried: AgentUsage | undefined;
   // A2 review: waiting on the owner (an approval card) or on a tool step still running is not going quiet.
   // A2 second review: each tool step with when it started, so one that never finishes holds the clock only so long.
   let approvalsWaiting = 0;
   const toolsRunning = new Map<string, number>();
-  let idleTimer: ReturnType<typeof setInterval> | undefined, hardTimer: ReturnType<typeof setTimeout> | undefined;
+  let idleTimer: ReturnType<typeof runInterval> | undefined, hardTimer: ReturnType<typeof runTimeout> | undefined;
   let closedHard!: () => void;
   const hardClosed = new Promise<AgentTurnResult>(done => { closedHard = () => done({ status: 'interrupted', text: '' }); });
   function onEvent(event: AgentDriverEvent) {
-    lastActivity = Date.now();
-    if (event.type === 'tool-started') toolsRunning.set(event.toolUseId, Date.now());
+    lastActivity = runClock().getTime();
+    if (event.type === 'tool-started') toolsRunning.set(event.toolUseId, runClock().getTime());
     if (event.type === 'tool-completed') toolsRunning.delete(event.toolUseId);
     if (event.type === 'usage' && carried) event = { ...event, usage: addUsage(carried, event.usage)! };
     if (abort.signal.aborted) return;
@@ -155,7 +157,7 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
             guard: state => { job.capability.assert(); job.assertState(state); }, signal: abort.signal,
             secretValues: route.credentials ? [route.credentials.apiKey] : [],
           });
-        } finally { approvalsWaiting -= 1; lastActivity = Date.now(); }
+        } finally { approvalsWaiting -= 1; lastActivity = runClock().getTime(); }
       } });
     job.capability.assert();
     await billing.dispatched();
@@ -164,12 +166,12 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
     const stopQuiet = () => {
       quiet = true;
       void Promise.resolve().then(() => live.interrupt()).catch(() => undefined);
-      hardTimer = setTimeout(() => { void Promise.resolve().then(() => live.close()).catch(() => undefined); closedHard(); }, watchdog.hardCloseMs);
+      hardTimer = runTimeout(() => { void Promise.resolve().then(() => live.close()).catch(() => undefined); closedHard(); }, watchdog.hardCloseMs);
     };
     // A2 second review: the job's own time, counted only while no approval waits on the owner.
-    let ownMs = 0, lastTick = Date.now();
-    idleTimer = setInterval(() => {
-      const now = Date.now();
+    let ownMs = 0, lastTick = runClock().getTime();
+    idleTimer = runInterval(() => {
+      const now = runClock().getTime();
       if (approvalsWaiting === 0) ownMs += now - lastTick;
       lastTick = now;
       if (quiet) return;
@@ -201,15 +203,22 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
     await billing.finish(result);
     return result;
   } finally {
-    clearInterval(monitor); unregister();
-    if (idleTimer) clearInterval(idleTimer);
-    if (hardTimer) clearTimeout(hardTimer);
+    monitor.close(); unregister();
+    idleTimer?.close();
+    hardTimer?.close();
     unwatch(); deps.closing?.signal.removeEventListener('abort', stop);
     abort.abort();
     try { await events; await billing?.finish(); }
     finally {
       // A2: after a hard close a tool that never confirms is not waited on past the watchdog's grace.
-      try { await (quiet ? Promise.race([Promise.resolve(session?.close()), new Promise<void>(done => { setTimeout(done, watchdog.hardCloseMs); })]) : session?.close()); }
+      try {
+        if (!quiet) await session?.close();
+        else {
+          let deadline: ReturnType<typeof runTimeout> | undefined;
+          try { await Promise.race([Promise.resolve(session?.close()), new Promise<void>(done => { deadline = runTimeout(done, watchdog.hardCloseMs); })]); }
+          finally { deadline?.close(); }
+        }
+      }
       finally {
         try { await broker?.close(); }
         finally {
