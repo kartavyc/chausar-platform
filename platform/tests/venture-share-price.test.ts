@@ -108,7 +108,7 @@ test('setting a share is a price change: the plan keeps it as the offer\'s price
 
   // Changing the share is a price change too; a fixed price takes the share away.
   await update(env, { offers: [{ id: 'offer_2', share: { percent: '10' } }] });
-  assert.deepEqual((await list(env)).rows.find(row => row.kind === 'price')?.change, { label: 'Catch up clean up', before: '8.33% of the amount your client confirms', after: '10% of the amount your client confirms' });
+  assert.deepEqual((await list(env)).rows.find(row => row.kind === 'price')?.change, { label: 'Catch up clean up', before: '8.33% of the amount your client confirms', after: '10% of the amount your client confirms', ownerEntered: true });
   await update(env, { offers: [{ id: 'offer_2', unitPrice: '20000' }] });
   const fixed = latest(env).offers.find(item => item.id === 'offer_2')!;
   assert.equal(fixed.pricing.share, undefined);
