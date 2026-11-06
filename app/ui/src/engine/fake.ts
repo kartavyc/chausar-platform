@@ -27,6 +27,7 @@ import { FakeFirstRun, FIRST_RUN_METHODS, type AboutCallLite } from './fake-firs
 import type { ModelStatusLite } from './types';
 import { QUEUE_VIEWS } from './fixtures';
 import { FakeBusinessDesk, SAMPLE_MOVE_FORMAT } from './fake-business';
+import { FakeUpdates } from './fake-updates';
 import { FakeWorkDesk } from './fake-work';
 import { FakeMoney } from './fake-money';
 import { FakeExtrasDesk } from './fake-extras';
@@ -238,6 +239,8 @@ export class FakeEngine {
   readonly background: ReturnType<typeof createFakeBackground> | null;
   /** Your AI, plan and prices, website build: fake-business.ts. */
   private readonly desk: FakeBusinessDesk;
+  // C5 task 33: the rehearsal is a build with no release key (fake-updates.ts).
+  private readonly updates = new FakeUpdates();
   /** Orders, delivery runs, invoices and client files: fake-work.ts. */
   private readonly work: FakeWorkDesk;
   /** Invoices and payments, the books' open invoices: fake-money.ts. Public so a test can change a draft (money.touch). */
@@ -536,6 +539,7 @@ export class FakeEngine {
   async request(method: string, params: unknown = {}): Promise<unknown> {
     if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
     const p = (params ?? {}) as Record<string, unknown>;
+    if (this.updates.handles(method)) return this.updates.request(method, p);
     if (!this.open && !BEFORE_VAULT.has(method) && !method.startsWith('venture.ai.') && !method.startsWith('venture.compose.') && !method.startsWith('venture.about.')) throw new EngineError('VAULT_LOCKED', 'This business is closed. Open it first.');
     if (FIRST_RUN_METHODS.has(method)) return this.firstRun.request(method, p);
     if (method.startsWith('venture.client.aiConsent.')) return this.clientAiConsent(method, params);

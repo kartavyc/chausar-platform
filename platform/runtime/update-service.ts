@@ -7,15 +7,10 @@ import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promis
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { ChausarError, check } from './contracts.ts';
+import type { UpdateState, UpdatesView } from './update-service-core.ts';
 import { ReleaseUpdater, RELEASE_CHANNELS, compareVersions, installIdIn, type DownloadRequest, type DownloadResponse, type ReleaseChannel, type ReleaseDownload, type ReleaseManifest } from './updater.ts';
 
-export type UpdateState = 'not-set-up' | 'idle' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'needs-signing' | 'publisher-mismatch' | 'manual' | 'data-newer' | 'failed';
-export type UpdatesView = {
-  configured: boolean; version: string; installMode: 'manual-native-installer-required';
-  channel: ReleaseChannel; daily: boolean; state: UpdateState;
-  target: { version: string; bytes: number } | null; downloadedBytes: number | null;
-  reason: string | null; lastCheckedAt: string | null;
-};
+export type { UpdateState, UpdatesView } from './update-service-core.ts';
 export type FeedReader = (url: string) => Promise<{ text: string; signature: string }>;
 export type UpdateServiceOptions = {
   publicKey: string | null; feedUrl: string | null; directory: string; version: string; channel: ReleaseChannel; windowsPublisher: string | null;

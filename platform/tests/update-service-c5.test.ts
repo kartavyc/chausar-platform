@@ -267,3 +267,18 @@ test('the engine answers updates.status, updates.settings and updates.check with
   assert.equal((await unset.request('updates.status', {})).state, 'not-set-up');
   for (let wait = 0; wait < 200 && ['checking', 'downloading'].includes((await engine.request('updates.status', {})).state); wait += 1) await new Promise(accept => setTimeout(accept, 5));
 });
+
+// C5 task 32: at quit, main's own route: the engine says if a run is busy, and makes the safety copy while the vault is open.
+test('prepareUpdateInstall: no business is none-open; an open one gets a safety copy; a busy run or no ask makes none', async t => {
+  const directory = await mkdtemp(join(await realpath(tmpdir()), 'chausar-update-prepare-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const engine = new Engine({ version: '0.1.0', directory, demo: true, storage: 'experimental-file', workspaceCustody: { deviceKeys: 'none', autoBackups: false } });
+  t.after(() => engine.shutdown());
+  assert.deepEqual(await engine.prepareUpdateInstall({ backup: true }), { busy: false, openDataSchema: null, backup: 'none-open' });
+  await engine.request('workspace.create', { name: 'SYNTHETIC update business', folder: 'fixture', passphrase: 'SYNTHETIC disposable update passphrase', demo: false, pack: 'ecommerce' });
+  assert.deepEqual(await engine.prepareUpdateInstall({}), { busy: false, openDataSchema: 1, backup: 'skipped' });
+  assert.deepEqual(await engine.prepareUpdateInstall({ backup: true }), { busy: false, openDataSchema: 1, backup: 'made' });
+  const backups = await engine.request('workspace.backups.list', {});
+  assert.equal(backups.backups.filter((backup: { kind: string }) => backup.kind === 'safety').length, 1);
+  await engine.request('workspace.lock', {});
+});

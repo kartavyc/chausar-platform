@@ -14,6 +14,8 @@ import { EngineError, type BackgroundStateLite, type DiagnosticsPreview, type En
 
 export interface ChausarBridge {
   request(method: string, payload?: unknown): Promise<unknown>;
+  /** C5 task 32, desktop only: shows the downloaded installer, checked again first. */
+  showUpdateInstaller?(kind: 'staged'): Promise<void>;
   /** C5 task 27, desktop only: what Export diagnostics would save; then that preview saved, by its id. Null when cancelled. */
   previewDiagnostics?(dumps: boolean): Promise<DiagnosticsPreview>;
   saveDiagnostics?(id: string): Promise<{ saved: true; name: string; line: string } | null>;
@@ -281,6 +283,7 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     ...(bridge?.saveMoneyExport ? { saveMoneyExport: (month: string, format?: string) => (format === undefined ? bridge.saveMoneyExport!(month) : bridge.saveMoneyExport!(month, format)).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // C5 tasks 21, 23: an exported copy and a backup folder, picked by main, with its refusals as engine errors.
     ...(bridge?.saveBriefFile ? { saveBriefFile: (builder: string) => bridge.saveBriefFile!(builder).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
+    ...(bridge?.showUpdateInstaller ? { showUpdateInstaller: (kind: 'staged') => bridge.showUpdateInstaller!(kind).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.previewDiagnostics ? { previewDiagnostics: (dumps: boolean) => bridge.previewDiagnostics!(dumps).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.saveDiagnostics ? { saveDiagnostics: (id: string) => bridge.saveDiagnostics!(id).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.pickCopy ? { pickCopy: () => bridge.pickCopy!().catch((error: unknown) => { throw asEngineError(error); }) } : {}),

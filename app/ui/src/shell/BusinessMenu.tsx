@@ -68,6 +68,7 @@ export function BusinessMenu({ onNavigate, variant = 'rail' }: { onNavigate?: ()
     ['business.notify', '#/business/notifications'],
     ['business.chats', '#/business/chats'], // W6 6G1: settled chats and the quiet days (D42: the archive is in Settings)
     ['feedback.page', '#/business/reports'], // W6 6J2: the opt-in Send report, its preview and Delete my reports
+    ['updates.page', '#/business/updates'], // C5 task 33: the version, Check daily and what an update is doing
     ['business.keep', '#/business/keep'], ['business.new', '#/onboarding'],
   ];
 

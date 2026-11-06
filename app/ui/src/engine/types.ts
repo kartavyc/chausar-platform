@@ -2057,6 +2057,10 @@ export interface EngineMethods {
   'app.preferences.get': { params: Record<string, never>; result: { language: 'en' | 'hi' } };
   'app.preferences.set': { params: { language: 'en' | 'hi' }; result: { language: 'en' | 'hi' } };
   'workspace.custody.get': { params: Record<string, never>; result: CustodyViewLite };
+  // C5 tasks 31, 33: answered with no business open (platform/runtime/update-service.ts).
+  'updates.status': { params: Record<string, never>; result: UpdatesView };
+  'updates.settings': { params: { daily?: boolean; channel?: 'beta' | 'stable' }; result: UpdatesView };
+  'updates.check': { params: Record<string, never>; result: UpdatesView };
   'workspace.custody.recoveryCode': { params: { passphrase?: string }; result: { custody: CustodyViewLite; recoveryCode: string } };
   'workspace.custody.passphraseOn': { params: { passphrase: string }; result: { custody: CustodyViewLite; recoveryCode: string | null } };
   'workspace.custody.passphraseOff': { params: { passphrase: string }; result: { custody: CustodyViewLite } };
@@ -2540,6 +2544,7 @@ export class EngineError extends Error {
 }
 
 /** What the status line shows. `ok` shows nothing. */
+export type { UpdatesView } from '../../../../platform/runtime/update-service-core';
 export type { DiagnosticsTodayView } from '../../../../platform/runtime/venture/views/diagnostics-core';
 /** C5 task 27: the files and crash files going in, how many crash files are here, how many didn't fit, and the exact text. */
 export type DiagnosticsPreview = { id: string; files: { name: string; bytes: number }[]; dumps: { name: string; bytes: number }[]; dumpsThere: number; leftOut: number; text: string; bytes: number };
@@ -2554,6 +2559,7 @@ export type EngineStatus =
   | { state: 'error'; message: string };
 
 import type { DiagnosticsTodayView } from '../../../../platform/runtime/venture/views/diagnostics-core';
+import type { UpdatesView } from '../../../../platform/runtime/update-service-core';
 
 export type Transport = 'desktop' | 'web' | 'hosted' | 'fake';
 
@@ -2582,6 +2588,8 @@ export interface EngineClient {
   saveMoneyExport?(month: string, format?: MoneyExportFormat): Promise<{ saved: true; name: string; receipts?: string; line: string } | null>;
   /** C5 task 35: the desktop saves the brief where the owner picks; null when cancelled. */
   saveBriefFile?(builder: FileBuilderId): Promise<{ saved: true; name: string; companion: string } | null>;
+  /** C5 task 32, desktop only: shows the downloaded installer, checked again first. UPDATE_NOT_VERIFIED when it changed. */
+  showUpdateInstaller?(kind: 'staged'): Promise<void>;
   /** C5 task 27, desktop only: what Export diagnostics would save, read first; then that preview saved, by its id. Null when cancelled. */
   previewDiagnostics?(dumps: boolean): Promise<DiagnosticsPreview>;
   saveDiagnostics?(id: string): Promise<{ saved: true; name: string; line: string } | null>;
