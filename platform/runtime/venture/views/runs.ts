@@ -20,7 +20,7 @@ import { currentVenture, exactPayload, findRecord, identifier, listRecords } fro
 import type {
   CheckResult, DeliveryReason, DeliveryRunRecord, ImprovementRunRecord, PlaybookCheckResult, PlaybookStep, RunDetail, RunState, RunStep, RunSummary, SimulationRunRecord, StepKind,
   ToolCallRecord, VentureDeps, VentureRecord,
-  Posture, RunToolLine, RunScopeView,
+  Posture, RunToolLine, RunScopeView, Display, IsoTime,
 } from '../contracts.ts';
 // 4F3: the scope's cap in rupees at the owner's rate.
 import { rupeeFigure, rupeeRateWords, rupeesOf } from '../money/spend.ts';
@@ -148,6 +148,60 @@ function stepsFor(state: State, venture: VentureRecord, run: DeliveryRunRecord):
   try { return plan ? playbookSteps(plan, deliveryFlagship(venture, plan)) : []; } catch { return []; }
 }
 
+/** One event a run wrote, by name and moment, in the order written (venture-event records carrying its runId). */
+export type RunEvent = { name: string; at: string };
+
+/** Each run's own events, in the order written: what runTimes reads. */
+export function runEventsOf(state: State, ventureId: string): Map<string, RunEvent[]> {
+  const byRun = new Map<string, RunEvent[]>();
+  const events = listRecords(state, 'venture-event', ventureId).slice().sort((a, b) => a.seq - b.seq);
+  for (const event of events) {
+    const data = event.data;
+    const runId = data && typeof data === 'object' && !Array.isArray(data) ? data.runId : undefined;
+    if (typeof runId !== 'string') continue;
+    const list = byRun.get(runId) ?? [];
+    list.push({ name: event.name, at: event.at });
+    byRun.set(runId, list);
+  }
+  return byRun;
+}
+
+/** The events that start a wait on the owner: the run hands them a draft or a turn to approve, or asks them a question. */
+const WAIT_STARTS = new Set(['run.waiting', 'delivery-needs-answer']);
+
+export type RunTimes = { worked: Display; workedMs: number; waited?: Display; waitedMs?: number; waitingSince?: IsoTime };
+
+/**
+ * One-shot C4 task 12: a run's time split into the time it worked and the time it waited on the owner, from its own
+ * events only. A wait starts at a waiting event (the run hands the owner a draft or a turn, or asks a question) and
+ * ends at the run's next other event (the owner's answer moves it on); a wait still open is waitingSince and is not
+ * worked time. worked is the span from startedAt to end less the closed waits. A run with no waiting events keeps
+ * its whole span as worked and has no waited figure: a figure is never guessed. C5 builds per-step figures on this.
+ */
+export function runTimes(events: readonly RunEvent[], startedAt: IsoTime, end: IsoTime): RunTimes {
+  const from = Date.parse(startedAt);
+  const to = Math.max(from, Date.parse(end));
+  let waitedMs = 0;
+  let waits = 0;
+  let open: string | undefined;
+  for (const event of events) {
+    if (WAIT_STARTS.has(event.name)) { open ??= event.at; continue; }
+    if (open === undefined) continue;
+    const start = Math.max(from, Date.parse(open));
+    const stop = Math.min(to, Math.max(start, Date.parse(event.at)));
+    waitedMs += Math.max(0, stop - start);
+    waits++;
+    open = undefined;
+  }
+  const workedMs = Math.max(0, to - from - waitedMs);
+  const worked = elapsedText(startedAt, new Date(from + workedMs).toISOString());
+  return {
+    worked, workedMs,
+    ...(waits > 0 ? { waited: elapsedText(startedAt, new Date(from + waitedMs).toISOString()), waitedMs } : {}),
+    ...(open !== undefined ? { waitingSince: open } : {}),
+  };
+}
+
 type Position = { kind: StepKind; state: RunStep['state'] };
 
 /** Where a run stands: the step kind it is at and that step's state. Once reviewed, only the owner's send is left. */
@@ -205,6 +259,7 @@ type Built = { summary: RunSummary; detail: RunDetail };
  */
 function deliveryRun(
   deps: VentureDeps, state: State, venture: VentureRecord, record: DeliveryRunRecord, times: Map<string, string>, business: { id: string }, posters: PosterIndex, whole: boolean,
+  events: Map<string, RunEvent[]> = new Map(),
 ): Built {
   const now = deps.clock();
   const run = runView(record, venture, now.getTime(), state);
@@ -281,14 +336,21 @@ function deliveryRun(
   });
 
   const end = runState === 'active' ? now.toISOString() : times.get(run.id) ?? run.at;
+  // C4 task 12: worked time leaves out the owner's waits; the wait is its own figure.
+  const spent = runTimes(events.get(run.id) ?? [], run.at, end);
   // Only audited steps count as progress: a done step whose work failed its audit is not.
   const done = built.filter(step => step.state === 'done' && step.audited !== false).length;
   const client = clientNameFor(state, venture.id, run.orderId);
+  // C4 task 12: the client the run worked for, so a finished row can open the client sheet.
+  const clientRecord = order ? listRecords(state, 'venture-client', venture.id).find(item => item.id === order.clientId && !item.self) : undefined;
   const result = resultOf(run, run.status === 'edited' ? regulatedSignoffBlock(state, venture, record) : null, watchdogLine(record.agentJob));
   const receiptId = runState === 'done' ? harness?.workReceiptIds.at(-1) : undefined;
   const summary: RunSummary = plain({
     runId: run.id, businessId: business.id, agent: agentName(state, venture), purpose: run.practiceNow && run.status !== 'accepted' ? `Practice draft for ${client}` : `Draft a reply for ${client}`,
-    state: runState, startedAt: run.at, elapsed: elapsedText(run.at, end),
+    state: runState, startedAt: run.at, elapsed: spent.worked,
+    ...(spent.waited !== undefined ? { waited: spent.waited } : {}),
+    ...(runState === 'waiting' && spent.waitingSince ? { waitingSince: spent.waitingSince } : {}),
+    ...(clientRecord ? { client: { id: clientRecord.id, name: clientRecord.name } } : {}),
     ...(runState === 'active' || runState === 'waiting' ? { progress: built.length ? { done, total: built.length } : 'indeterminate' as const } : {}),
     ...(result ? { result } : {}), ...(receiptId ? { receiptId } : {}),
     ...controlSummary(state, venture, record, runState),
@@ -600,9 +662,10 @@ function improvementRun(state: State, venture: VentureRecord, record: Improvemen
 export function deliveryRunDetails(deps: VentureDeps, state: State, venture: VentureRecord): RunDetail[] {
   const business = businessOf(deps, state);
   const times = lastEventAt(state, venture.id);
+  const events = runEventsOf(state, venture.id);
   // Reversed first, so runs started at the same moment keep the later one first.
   const posters = posterIndex(state, venture);
-  return listRecords(state, 'venture-delivery-run', venture.id).reverse().map(record => deliveryRun(deps, state, venture, record, times, business, posters, false).detail)
+  return listRecords(state, 'venture-delivery-run', venture.id).reverse().map(record => deliveryRun(deps, state, venture, record, times, business, posters, false, events).detail)
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
 
@@ -615,8 +678,9 @@ function allRuns(deps: VentureDeps, ctx: Context, whole: boolean): { state: Stat
   if (!venture) return { state, venture, runs };
   const business = businessOf(deps, state);
   const times = lastEventAt(state, venture.id);
+  const events = runEventsOf(state, venture.id);
   const posters = posterIndex(state, venture);
-  for (const record of listRecords(state, 'venture-delivery-run', venture.id)) runs.set(record.id, () => deliveryRun(deps, state, venture, record, times, business, posters, whole));
+  for (const record of listRecords(state, 'venture-delivery-run', venture.id)) runs.set(record.id, () => deliveryRun(deps, state, venture, record, times, business, posters, whole, events));
   for (const record of listRecords(state, 'venture-simulation-run', venture.id)) runs.set(record.id, () => rehearsalRun(state, venture, record, business));
   for (const record of listRecords(state, 'venture-improvement-run', venture.id)) runs.set(record.id, () => improvementRun(state, venture, record, business));
   return { state, venture, runs };

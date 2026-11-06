@@ -25,6 +25,8 @@ test('runs: a template draft waits on you, its steps skip the agent loop, and it
   assert.deepEqual(summary, {
     runId: outline.id, businessId: 'main', agent: 'Bookkeeping agent', purpose: `Draft a reply for ${CLIENT_NAME}`, state: 'waiting',
     startedAt: START, elapsed: '', progress: { done: 3, total: 5 }, writtenBy: "Written by Chausar's template, not your AI",
+    // C4 task 12: it waits on the owner from the moment the draft was handed over, and names its client.
+    waitingSince: START, client: { id: order.clientId, name: CLIENT_NAME },
   });
   const detail = await get(env, outline.id);
   assert.deepEqual(states(detail), [['price', 'done'], ['draft', 'done'], ['verify', 'done'], ['approve', 'waiting'], ['send', 'pending']]);
@@ -35,13 +37,14 @@ test('runs: a template draft waits on you, its steps skip the agent loop, and it
   assert.equal(detail.question, undefined);
   assert.deepEqual(await runs(env, 'done'), []);
 
-  // Five minutes later the owner accepts it: the run is done, and its time stops at the review.
+  // Five minutes later the owner accepts it: the run is done, and its time stops at the review. C4 task 12: those five
+  // minutes were the owner's wait, so the template worked no time and waited 5 min.
   env.advance(5 * 60_000);
   await delivery['venture.delivery.review']!(env.deps, owner, { runId: outline.id, verdict: 'accepted' });
   env.advance(60 * 60_000);
   const [done] = await runs(env, 'done');
-  assert.deepEqual({ state: done.state, elapsed: done.elapsed, result: done.result, progress: done.progress },
-    { state: 'done', elapsed: '5 min', result: 'Draft accepted. You send it to the client.', progress: undefined });
+  assert.deepEqual({ state: done.state, elapsed: done.elapsed, waited: done.waited, result: done.result, progress: done.progress },
+    { state: 'done', elapsed: '', waited: '5 min', result: 'Draft accepted. You send it to the client.', progress: undefined });
   assert.deepEqual(states(await get(env, outline.id)).slice(-2), [['approve', 'done'], ['send', 'pending']]);
   assert.deepEqual(await runs(env, 'active'), []);
 });
