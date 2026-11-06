@@ -1,3 +1,5 @@
+import { currentRun } from './venture/replay/scope.ts';
+import { check } from './portable.ts';
 // A2 review: a tool Chausar starts is stopped with everything it started. On Windows, killing a process leaves its own
 // children running (Codex's app-server starts helpers), so the whole tree is ended with taskkill /T /F. Elsewhere the
 // tool starts as the leader of its own process group and the group is ended. No shell is used for either.
@@ -71,6 +73,7 @@ export function afterExitAction(tree: TreeOptions, platform: NodeJS.Platform, ki
 
 /** Starts a program without a shell so that its kill() ends its whole tree, and its own exit leaves nothing behind. */
 export function spawnTree(command: string, args: readonly string[], options: SpawnOptions, tree: TreeOptions = {}): ChildProcess {
+  check(!currentRun()?.replay, 'REPLAY_EFFECT_REFUSED', 'Replay cannot start a child process.');
   const startedAt = new Date();
   const child = spawn(command, args, { ...options, shell: false, windowsHide: true, ...(process.platform === 'win32' ? {} : { detached: true }) });
   const plain = child.kill.bind(child);
