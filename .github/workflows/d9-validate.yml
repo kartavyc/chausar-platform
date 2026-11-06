@@ -1,0 +1,52 @@
+name: D9 chunks validation
+on:
+  push:
+    branches: ['b2c/os-d9-check-*']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
+      - if: '!cancelled()'
+        run: npm run typecheck:ui
+      - if: '!cancelled()'
+        run: node --test platform/tests/ui-chunks-d9.test.ts platform/tests/text-owners-d9.test.ts platform/tests/ui-ink-hosting.test.ts
+      - if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts lazy-places-d9 sheet-owners-d9 text-groups-d9 text-keys languages tests/shell/app.test.tsx welcome-custody source-rules --maxWorkers=1
+      - if: '!cancelled()'
+        run: npx vitest run --config app/ui/vitest.config.ts tests/a11y/forms.test.tsx --maxWorkers=1 -t 'Connections, connecting an AI'
+      - if: '!cancelled()'
+        run: node scripts/check.mjs
+      - if: '!cancelled()'
+        run: node scripts/third-party-notices.mjs --check
+      - if: '!cancelled()'
+        run: npm run build:ui
+      - if: '!cancelled()'
+        run: node scripts/ui-chunks.mjs --json > "$RUNNER_TEMP/chunks.json"
+      - if: '!cancelled()'
+        run: node scripts/ui-chunks.mjs --check
+      - if: '!cancelled()'
+        run: npx vite build --config app/ui/vite.config.ts --mode fake --manifest --outDir "$RUNNER_TEMP/d9-fake"
+      - if: '!cancelled()'
+        env:
+          CHAUSAR_RUN_ROOT: ${{ runner.temp }}/chausar
+        run: node scripts/ui-shots/chunks.mjs "$RUNNER_TEMP/d9-fake"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chunks-report
+          path: |
+            ${{ runner.temp }}/chunks.json
+            ${{ runner.temp }}/chausar/ui-chunks/chunks-browser.json
+            ${{ runner.temp }}/d9-fake/.vite/manifest.json
