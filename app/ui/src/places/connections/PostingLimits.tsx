@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /** Owner posting settings, folded under each channel. Empty fields restore defaults. */
 
 import { useEffect, useId, useState } from 'react';
@@ -12,7 +13,7 @@ import own from './PostingLimits.module.css';
 
 const KEYS: readonly (keyof OwnerPostingLimits)[] = ['capPer24h', 'minGapMinutes', 'warmUpDays', 'duplicatePercent', 'linkStreak'];
 type Typed = Record<keyof OwnerPostingLimits, string>;
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 const typedFrom = (limits: OwnerPostingLimits): Typed => ({
   capPer24h: String(limits.capPer24h), minGapMinutes: String(limits.minGapMinutes), warmUpDays: String(limits.warmUpDays),
   duplicatePercent: String(limits.duplicatePercent), linkStreak: String(limits.linkStreak),

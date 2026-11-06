@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { check } from './contracts.ts';
 import type { ConnectorCapture } from './connector-framework/index.ts';
 import { hashData, sha256Bytes, type SourceRow, type SourceSchema } from '../semantic-qualification/src/index.ts';
@@ -25,7 +26,7 @@ export type SemanticTranslationBinding = SemanticTranslationReference & {
   rowLineage: (SemanticRowLineage & { deliveryId: string; pageRow: number; pageSha256: string; decodedRowHash: string; compilerRowHash: string })[];
 };
 export type SemanticTranslationResult = SemanticTranslationOutput & { binding: SemanticTranslationBinding; digest: string };
-const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const sha = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 const plain = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype;
 const exactKeys = (value: Record<string, unknown>, keys: string[]) => Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
 function assertSchema(schema: SourceSchema) {

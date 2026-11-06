@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { authorize, ChausarError, type Context } from './contracts.ts';
 import {
   canonicalInterchangeJson, interchangeDigest, readHistoricalWorkspaceState,
@@ -9,7 +10,7 @@ function requireValue(condition: unknown, code: string, message: string): assert
   if (!condition) throw new ChausarError(code, message);
 }
 const identifier = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
-const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const digest = (value: unknown): value is string => typeof value === 'string' && DIGEST_PATTERN.test(value);
 const equal = (left: unknown, right: unknown) => canonicalInterchangeJson(left) === canonicalInterchangeJson(right);
 
 /** This validates a ROOT inspection, never a caller-authored empty-directory claim. */

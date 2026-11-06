@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useId, useState, type ChangeEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -7,7 +8,7 @@ import { Icon } from '../../parts/Icon';
 import s from './AgentExtras.module.css';
 import { FilePick } from '../../parts/FilePick';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 /** The longest agent file the engine reads is 100,000 characters; a file far past it is not read at all. */
 const MOST_BYTES = 400_000;
 

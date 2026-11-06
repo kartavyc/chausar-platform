@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 import { credentialChange, assertCredentialSession } from '../models/credential-state.ts';
 import { prepareAdoptedCredentials } from '../models/credential-adoption.ts';
 // Chausar venture launcher, core (P1): venture.create and venture.get.
@@ -64,7 +65,7 @@ export function servicesDictionary(currency: string): DictionaryDraft {
 }
 
 const COMPOSE_ID = /^compose_[A-Za-z0-9_-]{1,80}$/;
-const DIGEST = /^[a-f0-9]{64}$/;
+const DIGEST = DIGEST_PATTERN;
 
 /** Minor units as decimal text for the interview's stored amount: '1850' with two digits is '18.50'. Digits only, no arithmetic. */
 export function minorText(minor: string, digits: number): string {

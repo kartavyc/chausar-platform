@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../../hash.ts';
 // Chausar playbook kit: stale by fingerprint (Ink v2 wave 5, package 5A4; catalogue P10). A derived unit (captions, a
 // translation, a dub, an article, a chapter list) is an asset that keeps the digest of the file it was made from. When
 // that file changes, or is gone, the unit is stale: it is never delivered (DERIVED_STALE) and never reused silently.
@@ -5,7 +6,7 @@
 //
 // The idea is learned from BaoCut packages/jobs/src/pipelines/dub.ts and translation-document.ts (source-available,
 // learn only): no code from it.
-import { createHash } from 'node:crypto';
+
 import { check, type State } from '../../../contracts.ts';
 import { listRecords } from '../../records.ts';
 import type { AssetRecord } from '../../contracts.ts';
@@ -13,7 +14,7 @@ import type { DerivedUnit, SourceRef } from './records-media.ts';
 
 /** The sha256 of a file's bytes or a text's UTF-8, in hex: the fingerprint a derived unit keeps of its source. */
 export function fingerprint(content: string | Uint8Array): string {
-  return createHash('sha256').update(typeof content === 'string' ? Buffer.from(content, 'utf8') : content).digest('hex');
+  return sha256Hex(typeof content === 'string' ? Buffer.from(content, 'utf8') : content);
 }
 
 /**

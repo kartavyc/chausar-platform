@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The Pipeline tab (#/clients/pipeline; the old #/clients/leads opens it too): the pipeline as the engine keeps it
  * (spec 5.5; the direction D board D-Clients; the engine's 4E1 venture.pipeline.list). On top the four tiles, then the
@@ -31,7 +32,7 @@ import { PathLine } from '../../parts/PathLine';
 import { StrengthDots } from '../../parts/StrengthDots';
 import type { LeadEmailCheck, LeadView, PipelineCardView, PipelineStage, PipelineView } from '../../engine/types';
 import { clientsChanged } from './signals';
-import { codeOf, dotsOf, messageOf, networkRefresh } from './network';
+import { codeOf, dotsOf, networkRefresh } from './network';
 import { pathPeople, pathStrength, STAGE_ORDER, useCardWords } from './pipeline';
 import { PipelineTiles } from './PipelineTiles';
 import { DueList } from './DueList';

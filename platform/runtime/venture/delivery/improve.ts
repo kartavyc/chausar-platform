@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Chausar venture launcher, delivery package (P5): the gated improvement loop (Harness Learning, EvoOntology).
 // One run: freeze the business's signals and split them by time into a pool (what the proposer may read) and a
 // held-back reserve (only the gate sees it); diagnose the pool and the latest rehearsal failures; attribute the biggest
@@ -626,7 +627,7 @@ export async function improveAdoptHandler(deps: VentureDeps, ctx: Context, paylo
   requireAppChannel(ctx, 'venture.improve.adopt');
   const body = exactPayload(payload, ['runId', 'digest'], ['runId', 'digest']);
   const runId = identifier(body.runId, 'Improvement run');
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you approved.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the change you approved.');
   const approved = body.digest;
   readAs(deps, ctx, 'approve');
   return ventureAction(deps, ctx, 'approve', 'improve.adopt', tx => {
@@ -670,7 +671,7 @@ export async function improveRollbackHandler(deps: VentureDeps, ctx: Context, pa
   requireAppChannel(ctx, 'venture.improve.rollback');
   const body = exactPayload(payload, ['playbookId', 'digest'], ['playbookId', 'digest']);
   const playbookId = identifier(body.playbookId, 'How the work is done');
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the version you saw in use.');
   const approved = body.digest;
   readAs(deps, ctx, 'approve');
   return ventureAction(deps, ctx, 'approve', 'improve.rollback', tx => {

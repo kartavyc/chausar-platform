@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * The posting steps of one text platform, on its connector card (Ink v2 wave 2, K2): the day they last worked on this
  * computer, and a button that checks them now (venture.posting.checkSteps). The engine opens the post box in the
@@ -14,7 +15,7 @@ import type { ConnectorCardLite } from '../../engine/types';
 import { useDay } from '../money/words';
 import s from './Connections.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /** The two dates of a check: every step (the first post checks the confirmation), and the post box and button only. */
 type Dates = { all: string | null; boxAndButton: string | null };

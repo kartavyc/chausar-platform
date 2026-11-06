@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // D11e: replaying a captured run against today's code. createRunReplay answers a run's model calls, driver streams,
 // fetches and clock readings from the capture, in the captured order, and says exactly which call diverged when the
 // code asks for something else. diffRecords compares the records a replay made with the captured ones after ids,
@@ -80,7 +81,7 @@ export function createRunReplay(capture: RunCapture): RunReplay {
 
 const ID = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_[A-Za-z0-9-]{6,}$/;
 const TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
-const DIGEST = /^[a-f0-9]{64}$/;
+const DIGEST = DIGEST_PATTERN;
 
 /** Records with each distinct id, time and 64-hex digest named by first appearance: <id-1>, <time-1>, <digest-1>. */
 export function normaliseRecords(records: unknown): unknown {

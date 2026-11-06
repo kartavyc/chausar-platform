@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../../shared/digest.ts';
 // AI-native CA firm: the CA of record, the CA's confirmation of each rate-table version, and recorded sign-offs on
 // regulated papers, and the CA's explanation of each difference from the portal (Ink v2 2A2). Everything is an
 // append-only 'venture-ca-firm' record. Today's queue reads caFirmQueueItems:
@@ -116,10 +117,10 @@ export async function requestCaSignoff(deps: VentureDeps, ctx: Context, payload:
   check((SIGNOFF_SUBJECTS as readonly unknown[]).includes(body.subjectKind), 'INVALID_VENTURE_REQUEST', 'Say what the papers are: a GST working, a TDS working, an income tax data pack, a letter or papers for a tax audit.');
   const title = singleLine(body.title, 'Title', { min: 3, max: 140 });
   const clientName = body.clientName === undefined || body.clientName === null ? null : singleLine(body.clientName, 'Client name', { min: 1, max: 120 });
-  internalCheck(typeof body.workingDigest === 'string' && /^[a-f0-9]{64}$/.test(body.workingDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the papers.');
+  internalCheck(typeof body.workingDigest === 'string' && DIGEST_PATTERN.test(body.workingDigest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the papers.');
   check(Array.isArray(body.receiptIds) && body.receiptIds.length >= 1 && body.receiptIds.length <= 50
     && body.receiptIds.every(id => typeof id === 'string' && /^[A-Za-z0-9_.:-]{3,80}$/.test(id)), 'INVALID_VENTURE_REQUEST', 'Send the receipts the papers rest on.');
-  internalCheck(body.playbookHash === undefined || body.playbookHash === null || (typeof body.playbookHash === 'string' && /^[a-f0-9]{64}$/.test(body.playbookHash)), 'INVALID_VENTURE_REQUEST', 'The work plan hash is a digest.');
+  internalCheck(body.playbookHash === undefined || body.playbookHash === null || (typeof body.playbookHash === 'string' && DIGEST_PATTERN.test(body.playbookHash)), 'INVALID_VENTURE_REQUEST', 'The work plan hash is a digest.');
   return ventureAction(deps, ctx, 'prepare', 'ca-firm.signoff-request', tx => {
     requireCa(tx.state, tx.venture!.id);
     const asked = deliveryId

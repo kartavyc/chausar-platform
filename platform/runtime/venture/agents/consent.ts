@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 // Chausar venture launcher, agents (Ink v2 wave 4, package 4B1): the one chat consent per business. Agent chat (and
 // Chats and network search after it) sends the owner's message and what Chausar reads to answer it to the owner's own
 // AI, so the first message waits for the owner's consent to exactly that, naming the AI. A later change of what is sent
@@ -102,7 +103,7 @@ export function requireChatConsent(deps: VentureDeps, ctx: Context, state: State
 export async function chatsConsentHandler(deps: VentureDeps, ctx: Context, payload: unknown): Promise<ChatConsentView> {
   requireAppChannel(ctx, 'venture.chats.consent');
   const body = exactPayload(payload, ['digest'], ['digest']);
-  internalCheck(typeof body.digest === 'string' && /^[a-f0-9]{64}$/.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the consent you read.');
+  internalCheck(typeof body.digest === 'string' && DIGEST_PATTERN.test(body.digest), 'INVALID_VENTURE_REQUEST', 'Send the digest of the consent you read.');
   const seen = body.digest;
   readAs(deps, ctx, 'approve');
   return ventureAction(deps, ctx, 'approve', 'chats.consent', tx => {

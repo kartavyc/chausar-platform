@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../platform/shared/errors.ts';
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useT } from '../text';
 import { Button } from './Button';
@@ -37,7 +38,7 @@ export interface ComposerFailure {
   fix?: InlineFix | undefined;
 }
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * Where the owner writes to an agent or to Chausar (D's `.cp-comp`, `.cbox`, `.sugs`, `.send`). Enter sends,

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState, type FormEvent } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -9,7 +10,7 @@ import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';
 import s from './Trackers.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 /**
  * Work > Trackers (C7 task 20): trackers the owner makes, a content calendar, GST due dates. Each opens as a list that

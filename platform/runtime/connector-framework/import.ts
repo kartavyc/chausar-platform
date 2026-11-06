@@ -1,4 +1,6 @@
-import { createHash } from 'node:crypto';
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
+import { sha256Hex } from '../hash.ts';
+
 import { audit, authorize, check, newId, type Context, type State, type StateStore, internalCheck } from '../contracts.ts';
 import { digest } from '../actions.ts';
 import { ImportService, parseIndianMoney, type ImportPreview, type MappingRecipe } from '../ingest.ts';
@@ -78,7 +80,7 @@ export type SourceReconciliation = {
   differenceMinor: string | null; snapshotConsistent: boolean;
 };
 export const CAPTURE_LIMITS = Object.freeze({ pageBytes: 4 * 1024 * 1024, totalBytes: 16 * 1024 * 1024, maxPages: 100, maxRows: 10000 });
-const sha256 = (content: string) => createHash('sha256').update(content, 'utf8').digest('hex');
+const sha256 = (content: string) => sha256Hex(content);
 const exactInteger = (v: unknown): v is string => typeof v === 'string' && /^-?(?:0|[1-9]\d{0,37})$/.test(v);
 const timestamp = (v: unknown): v is string => typeof v === 'string' && Number.isFinite(Date.parse(v)) && new Date(v).toISOString() === v;
 const boundedText = (v: unknown, max = 200): v is string => typeof v === 'string' && v.length > 0 && v.length <= max && !/[\u0000-\u001f]/.test(v);
@@ -89,7 +91,7 @@ function domainCheck(domain: ImportDomain) {
   validatePeriod(domain.period);
 }
 function decoderCheck(decoder: QualifiedDecoder) {
-  internalCheck(boundedText(decoder.id) && boundedText(decoder.version) && boundedText(decoder.identityNamespace) && /^[a-f0-9]{64}$/.test(decoder.schemaSha256) && typeof decoder.decode === 'function', 'INVALID_DECODER', 'Register a versioned decoder with a wire schema digest and stable identity namespace.');
+  internalCheck(boundedText(decoder.id) && boundedText(decoder.version) && boundedText(decoder.identityNamespace) && DIGEST_PATTERN.test(decoder.schemaSha256) && typeof decoder.decode === 'function', 'INVALID_DECODER', 'Register a versioned decoder with a wire schema digest and stable identity namespace.');
   const fields = [...decoder.businessFields, ...decoder.deliveryFields];
   check(decoder.identityFields.length > 0 && decoder.resourceIdentityFields.length > 0 && decoder.businessFields.length > 0 && fields.every(f => boundedText(f) && !['__proto__', 'constructor', 'prototype'].includes(f)) && new Set(fields).size === fields.length && [...decoder.identityFields, ...decoder.resourceIdentityFields].every(f => decoder.businessFields.includes(f)), 'INVALID_DECODER', 'Every identity and business field needs one declared meaning.');
   check(decoder.revisionOrder?.kind === 'unqualified' || decoder.revisionOrder?.kind === 'monotonic-integer' && decoder.identityFields.includes(decoder.revisionOrder.field) && !decoder.resourceIdentityFields.includes(decoder.revisionOrder.field), 'INVALID_DECODER', 'Correction ordering needs a qualified monotonic source revision field.');
@@ -101,7 +103,7 @@ export function reconcileSourceTotals(observed: ObservedSourceTotals, expected: 
   domainCheck(domain);
   check(Number.isSafeInteger(observed.rowCount) && observed.rowCount >= 0 && /^[A-Z]{3}$/.test(observed.currency) && (observed.amountMinor === null || exactInteger(observed.amountMinor)), 'INVALID_OBSERVED_TOTALS', 'Observed totals must have exact units and explicit availability.');
   if (!expected || observed.amountMinor === null) return { status: 'unavailable', reasons: [!expected ? 'SOURCE_TOTALS_REQUIRED' : 'OBSERVED_AMOUNT_UNAVAILABLE'], observed: structuredClone(observed), expected: expected ? structuredClone(expected) : null, differenceMinor: null, snapshotConsistent: false };
-  check(expected.provenance === 'independent-source-report' && boundedText(expected.reportId) && /^[a-f0-9]{64}$/.test(expected.sha256) && /^[a-f0-9]{64}$/.test(expected.domainHash) && Number.isSafeInteger(expected.rowCount) && expected.rowCount >= 0 && exactInteger(expected.amountMinor) && timestamp(expected.observedAt), 'INVALID_SOURCE_TOTALS', 'Reconciliation requires a named independent report and exact totals.');
+  check(expected.provenance === 'independent-source-report' && boundedText(expected.reportId) && DIGEST_PATTERN.test(expected.sha256) && DIGEST_PATTERN.test(expected.domainHash) && Number.isSafeInteger(expected.rowCount) && expected.rowCount >= 0 && exactInteger(expected.amountMinor) && timestamp(expected.observedAt), 'INVALID_SOURCE_TOTALS', 'Reconciliation requires a named independent report and exact totals.');
   const reasons: string[] = [];
   if (expected.domainHash !== digest(domain) || expected.company !== domain.company || expected.dataset !== domain.dataset) reasons.push('SOURCE_TOTAL_SCOPE_MISMATCH');
   if (observed.currency !== expected.currency) reasons.push('SOURCE_TOTAL_CURRENCY_MISMATCH');
@@ -164,7 +166,7 @@ export class CursorImportService {
     domainCheck(input.domain); this.#qualified(input.scope);
     check(input.recipe.scope.company === input.domain.company && digest(input.recipe.scope.branches) === digest(input.domain.branches), 'MAPPING_SCOPE_MISMATCH', 'Review the recipe for this exact company and branches.');
     check(input.recipe.onUnmapped === 'reject' && input.recipe.bindings.every(b => b.nulls !== 'zero'), 'UNSAFE_MISSING_VALUE_POLICY', 'Unknown fields require review and missing values cannot become zero.');
-    internalCheck(boundedText(input.evidence.reportId) && /^[a-f0-9]{64}$/.test(input.evidence.sha256), 'MAPPING_EVIDENCE_REQUIRED', 'Review needs a named source report and its digest.');
+    internalCheck(boundedText(input.evidence.reportId) && DIGEST_PATTERN.test(input.evidence.sha256), 'MAPPING_EVIDENCE_REQUIRED', 'Review needs a named source report and its digest.');
     const mapped = input.recipe.bindings.flatMap(b => b.source ? [b.source] : []);
     check(mapped.every(f => this.#decoder.businessFields.includes(f)), 'MAPPING_FIELDS_UNQUALIFIED', 'Bindings must use qualified business fields.');
     return this.#store.update(state => {

@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Invoices that repeat (W4 4J5, M12; venture.invoice.recurring and .recurringList): one offer for one client, every
  * month or every three months, from a start day and to an end day if the owner gives one. On each due day the engine
@@ -14,7 +15,7 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { RecurringInvoiceView } from '../../engine/types';
 import { Tile } from '../../parts/Tile';
-import { messageOf, onMoney, useDay, useLocalToday } from './words';
+import { onMoney, useDay, useLocalToday } from './words';
 import s from './Money.module.css';
 import v from './MoneyViews.module.css';
 import { Fold } from '../../parts/Fold';

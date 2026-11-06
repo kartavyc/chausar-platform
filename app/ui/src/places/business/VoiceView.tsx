@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
@@ -5,7 +6,7 @@ import type { VoiceInput, VoiceSections, VoiceView as VoiceData } from '../../en
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
-import { TileSection, messageOf } from './shared';
+import { TileSection } from './shared';
 import { ResultLine } from '../../parts/ResultLine';
 import b from './Business.module.css';
 import s from './VoiceView.module.css';

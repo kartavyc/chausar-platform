@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../../platform/shared/digest.ts';
 /**
  * The fake engine's answers for agent chat, instructions, standing orders and notes (Ink v2 wave 4, package 4B3), as
  * the engine's 4B1 and 4B2 answer them (platform/runtime/venture/agents/threads.ts, consent.ts, proposals.ts,
@@ -357,7 +358,7 @@ export class FakeAgentsDesk {
 
   private consent(p: Record<string, unknown>): ChatConsentView {
     const body = exact(p, ['digest'], ['digest']);
-    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Look at it again first.');
+    if (typeof body.digest !== 'string' || !DIGEST_PATTERN.test(body.digest)) throw invalid('Look at it again first.');
     const view = this.consentView();
     const route = this.route();
     if (!route) return view;
@@ -587,7 +588,7 @@ export class FakeAgentsDesk {
   private decide(p: Record<string, unknown>): { proposal: AgentProposalView; line: string; playbook?: { id: string; version: number } } {
     const body = exact(p, ['id', 'digest', 'decision'], ['id', 'digest', 'decision']);
     const proposalId = id(body.id, 'Proposal');
-    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Look at it again first.');
+    if (typeof body.digest !== 'string' || !DIGEST_PATTERN.test(body.digest)) throw invalid('Look at it again first.');
     if (body.decision !== 'accept' && body.decision !== 'reject') throw invalid('Choose accept or reject.');
     const book = this.book();
     const prop = book.proposals.find((x) => x.id === proposalId);
@@ -677,7 +678,7 @@ export class FakeAgentsDesk {
   private undoVersion(p: Record<string, unknown>): { playbookId: string; version: number; line: string } {
     const body = exact(p, ['agent', 'digest'], ['agent', 'digest']);
     const agent = this.agent(id(body.agent, 'Agent'));
-    if (typeof body.digest !== 'string' || !/^[a-f0-9]{64}$/.test(body.digest)) throw invalid('Look at it again first.');
+    if (typeof body.digest !== 'string' || !DIGEST_PATTERN.test(body.digest)) throw invalid('Look at it again first.');
     const book = this.book();
     const current = this.current(book);
     const changes = (current?.patches ?? []).filter((patch) => patch.agent === agent.id);

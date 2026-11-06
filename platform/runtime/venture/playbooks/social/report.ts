@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../../hash.ts';
 // Chausar flagship playbook, social media agency: the monthly report (design 7.6, 7.8). Every figure comes from the
 // platform exports the client uploads, computed here in exact whole numbers (BigInt), each with a receipt naming the
 // file, its digest, the rows and the columns it used. A model never computes a report figure; the narrative may only
@@ -9,14 +10,14 @@
 //
 // Idea taken, code written here: xjli360/sealeap-ecommerce-skills (MIT): exact arithmetic, every input named, and
 // "unknown is not zero".
-import { createHash } from 'node:crypto';
+
 import { ChausarError } from '../../../contracts.ts';
 import { digest } from '../../records.ts';
 import { extractClaims } from '../../delivery/judge/claim-check.ts';
 
 export * from './report-core.ts';
 import {createReportComputer,type ReportReceipt} from './report-core.ts';
-export const {groupDigits,parseExport,computePlatformReport,monthlyReport}=createReportComputer({text:text=>createHash('sha256').update(text).digest('hex'),value:digest,error:(code,message)=>new ChausarError(code,message)});
+export const {groupDigits,parseExport,computePlatformReport,monthlyReport}=createReportComputer({text:text=>sha256Hex(text),value:digest,error:(code,message)=>new ChausarError(code,message)});
 
 const NUMBER_WORD = '(?:zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|lakhs?|crores?|millions?|billions?|dozens?)';
 /**

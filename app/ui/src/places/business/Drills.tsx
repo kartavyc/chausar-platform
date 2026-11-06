@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState } from 'react';
 import { useT, type T } from '../../text';
 import { useOwnerZone } from '../../shell/clock';
@@ -5,7 +6,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import type { DrillRunView, ImprovementRunLite } from '../../engine/types';
-import { TileSection, dayOf, messageOf } from './shared';
+import { TileSection, dayOf } from './shared';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';
 import { Progress } from '../../parts/Progress';

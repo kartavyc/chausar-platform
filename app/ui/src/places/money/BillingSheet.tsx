@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Wave 6 money (6D1 to 6D3): how clients pay, the owner's own billing settings, in a sheet beside the invoices. The UPI
  * ID, the name clients see, the bank details, the days until an invoice is due, a payment terms line and the reminder
@@ -14,7 +15,7 @@ import { Field } from '../../parts/Field';
 import { Sheet } from '../../parts/Sheet';
 import type { BillingPatch, BillingView } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
-import { messageOf, onMoney } from './words';
+import { onMoney } from './words';
 import s from './Money.module.css';
 
 type Form = { upiId: string; payeeName: string; accountName: string; accountNumber: string; ifsc: string; swift: string; bankName: string; dueInDays: string; terms: string; reminders: string };

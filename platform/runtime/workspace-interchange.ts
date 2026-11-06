@@ -1,4 +1,6 @@
-import { createHash } from 'node:crypto';
+import { DIGEST_PATTERN } from '../shared/digest.ts';
+import { sha256Hex } from './hash.ts';
+
 import { ChausarError, now, type State } from './contracts.ts';
 import { CURRENT_SCHEMA, migrate } from './migrations/ladder.ts';
 import type { CalculationReceipt } from './calculator.ts';
@@ -11,7 +13,7 @@ import {
 const MAX_BYTES = 64 * 1024 * 1024;
 const MAX_ARTIFACTS = 4096;
 const MAX_NODES = 1_000_000;
-const digestPattern = /^[a-f0-9]{64}$/;
+const digestPattern = DIGEST_PATTERN;
 const identifierPattern = /^[A-Za-z0-9_.:-]{1,200}$/;
 const coreProfile: StoreProfile = {
   id: STATE_PROFILE,
@@ -77,7 +79,7 @@ function persistedJson(value: unknown): string {
   requireValue(typeof text === 'string' && Buffer.byteLength(text, 'utf8') <= MAX_BYTES, 'INTERCHANGE_LIMIT', 'Persisted JSON exceeds its byte bound.');
   return text;
 }
-function sha(value: string | Uint8Array): string { return createHash('sha256').update(value).digest('hex'); }
+function sha(value: string | Uint8Array): string { return sha256Hex(value); }
 function record(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }

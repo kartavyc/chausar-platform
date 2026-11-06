@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * Connections > Bank account (Ink v2 wave 2, 2D): one sheet for the bank card. The engine's line on why nothing reads
  * the bank on its own; the statement import (BankImport.tsx); each account with its consent line, Renew and Stop
@@ -28,7 +29,7 @@ import { BankImportForm } from './BankImport';
 import s from './BankSheet.module.css';
 import { Select } from '../../parts/Select';
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 type Consent = BankConsentView['status'];
 type AlertsOf = BankAlertsView['accounts'][number];
 

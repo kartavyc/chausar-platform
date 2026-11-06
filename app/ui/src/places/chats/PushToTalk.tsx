@@ -1,3 +1,4 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 /**
  * W6 6I1 (D45): push-to-talk beside the chat box. A microphone button: hold it (or hold Space or Enter on it) to talk,
  * let go to stop. Before the microphone first turns on, the engine's notice shows with "Keep my recordings" (off by
@@ -16,7 +17,7 @@ import { Icon } from '../../parts/Icon';
 import { startTalkMicrophone, type TalkMicrophone } from './talk-microphone';
 import s from './Talk.module.css';
 
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 
 export function PushToTalk({ onHeard }: { onHeard: (text: string) => void }) {
   const t = useT();

@@ -1,3 +1,4 @@
+import { DIGEST_PATTERN } from '../../../shared/digest.ts';
 import {testingJudgeCurrent} from '../playbooks/app-testing/run-source.ts';
 import {projectNativeQualityCost} from '../agent-runtime/quality-cost.ts';
 import {formsRunCurrent} from '../playbooks/data-entry-desk/run-source.ts';
@@ -78,7 +79,7 @@ const NEVER_READ = 'The quality check never read this draft before you accepted 
 export const JUDGE_UNSHOWN_LINE = 'The quality check did not run on its own: its cost was not shown before you approved this draft. Send it yourself with the cost shown.';
 export const JUDGE_AUTO_ON_LINE = "The quality check reads every draft that goes to a client or the public once it passes the code checks. It runs on your own AI, so your client's words go to your AI with the draft, and each check costs a little.";
 export const JUDGE_AUTO_OFF_LINE = 'The quality check reads a draft only when you ask, from the draft in Work.';
-const DIGEST = /^[a-f0-9]{64}$/;
+const DIGEST = DIGEST_PATTERN;
 /** Room for what wraps a judge call's text on the way to the provider (model, limits, the answer's schema). */
 const ENVELOPE_CHARS = 4000;
 /** Room for the write turn's own line in the trace and the placeholders the judge's copy of the draft holds. */

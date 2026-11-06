@@ -1,4 +1,6 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { DIGEST_PATTERN } from '../../shared/digest.ts';
+import { sha256Hex } from '../hash.ts';
+import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { PhoneError, copyAuthority, copyBinding, copyBrief, isApprovalToken, isId, isOperationVersion, requirePhone, sameBinding, validAuthority, validBrief } from './contracts.ts';
 import type { ApprovalChallenge, PhoneErrorCode, RemoteRequest, RequestResult } from './contracts.ts';
@@ -30,7 +32,7 @@ function operation(method: string, payload: unknown): PhoneHostOperation {
   }
   exact(payload, ['requestId', 'approvalId', 'token', 'decision', 'expectedDigest', 'expectedActionRevision', 'expectedOperationVersion']);
   requirePhone(isId(payload.requestId) && isId(payload.approvalId) && isApprovalToken(payload.token)
-    && (payload.decision === 'approve' || payload.decision === 'reject') && typeof payload.expectedDigest === 'string' && /^[a-f0-9]{64}$/.test(payload.expectedDigest)
+    && (payload.decision === 'approve' || payload.decision === 'reject') && typeof payload.expectedDigest === 'string' && DIGEST_PATTERN.test(payload.expectedDigest)
     && typeof payload.expectedActionRevision === 'number' && Number.isSafeInteger(payload.expectedActionRevision) && payload.expectedActionRevision > 0
     && isOperationVersion(payload.expectedOperationVersion), 'INVALID_REQUEST');
   return { kind: 'approval', input: { requestId: payload.requestId, approvalId: payload.approvalId, token: payload.token,
@@ -80,7 +82,7 @@ export class PhoneHost {
   }
   private async start(principal: PhoneHostPrincipal, request: PhoneHostOperation) {
     this.capable(principal, phoneRequestCapability(request.kind));
-    const inputDigest = createHash('sha256').update(JSON.stringify(request)).digest('hex');
+    const inputDigest = sha256Hex(JSON.stringify(request));
     const prior = await this.custody.get(principal.authority, request.input.requestId);
     if (prior) {
       requirePhone(prior.inputDigest === inputDigest && prior.identity.kind === request.kind, 'REQUEST_EXISTS');
@@ -188,7 +190,7 @@ export class PhoneHost {
         const challenge: ApprovalChallenge = await this.ports.inspectApproval(structuredClone(principal), approvalId); const preview = challenge?.preview;
         requirePhone(preview && preview.approvalId === approvalId && isId(preview.actionId) && sameBinding(preview.binding, principal.authority.binding)
           && Number.isSafeInteger(preview.actionRevision) && preview.actionRevision > 0 && isOperationVersion(preview.operationVersion)
-          && /^[a-f0-9]{64}$/.test(preview.digest) && Date.parse(preview.expiresAt) > this.clock()
+          && DIGEST_PATTERN.test(preview.digest) && Date.parse(preview.expiresAt) > this.clock()
           && Date.parse(preview.expiresAt) <= Math.min(this.clock() + 300000, Date.parse(principal.authority.expiresAt))
           && typeof preview.title === 'string' && preview.title.length <= 200 && typeof preview.summary === 'string' && preview.summary.length <= 16000
           && ['simple-reversible', 'open-desktop'].includes(preview.eligibility), 'INVALID_RESPONSE');

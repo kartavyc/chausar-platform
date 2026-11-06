@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher, recorded flows (wave 6, package 6H2; DECISIONS D41): venture.flows.list and
 // venture.flows.act, answered by the build package's table. The owner, inside the app, records a website task once in
 // the desktop's browser window (record), tests the draft with its samples (dry-run), approves that exact recipe once
@@ -7,7 +8,7 @@
 // stop waits for the owner to type it in the window (continue with no digest). A changed page stops the run and keeps
 // the controls on the page then; a repair (the owner's AI tool may propose it) picks one and becomes a new draft
 // version that needs its own dry run and approval. stop closes the window. Only the desktop has the window.
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { authorize, check, type Context, internalCheck } from '../../contracts.ts';
 import type { VentureDeps } from '../contracts.ts';
 import { exactPayload, isAppChannel, listRecords, readVenture, ventureAction } from '../records.ts';
@@ -32,7 +33,7 @@ function portOf(deps: VentureDeps): FlowBrowserPort {
   check(deps.host === 'desktop' && deps.flowBrowser, 'FLOW_BROWSER_UNAVAILABLE', FLOW_WORDS.browser);
   return deps.flowBrowser!;
 }
-const sha = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const sha = (value: unknown) => sha256Hex(JSON.stringify(value));
 const recipeOf = (row: FlowRecord): FlowRecipe => ({ name: row.name, origin: row.origin, steps: row.steps, blanks: row.blanks });
 
 function versions(deps: VentureDeps, flowId: unknown): FlowRecord[] {

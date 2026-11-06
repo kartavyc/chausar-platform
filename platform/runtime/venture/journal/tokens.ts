@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../hash.ts';
 // Chausar venture launcher: bound, single-use approval tokens for the action journal (package P2-journal).
 // An approval is a token signed with a key that lives only in this process's memory. It names one journal entry and is
 // bound to the exact action digest, the member who approved it, the session it was approved in and the business. Only
@@ -6,7 +7,7 @@
 // it straight to the code that applies. A restart forgets the key, so an approval still waiting then is refused.
 // The token bound to action, member, session and workspace, which only the owner's side ever holds, follows
 // useopendesk/opendesk (Apache-2.0, internal/ai/assistant/run.go); this is a rewrite in TypeScript, not a copy.
-import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Context, State } from '../../contracts.ts';
 import type { IsoTime } from '../contracts.ts';
 import { currentVenture } from '../records.ts';
@@ -80,7 +81,7 @@ export function readApprovalToken(store: object, token: string): ApprovalClaims 
 
 /** What the journal keeps instead of the token. */
 export function tokenHash(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
+  return sha256Hex(token);
 }
 
 /** True when the text holds something shaped like an approval token. */

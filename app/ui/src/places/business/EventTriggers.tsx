@@ -1,10 +1,11 @@
+import { messageOf } from '../../../../../platform/shared/errors.ts';
 import { useState, type FormEvent } from 'react';
 import { useT, type T } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { AgentView, RoutineSchedule } from '../../engine/types';
-import { messageOf } from './shared';
+
 import s from './Business.module.css';
 import { Select } from '../../parts/Select';
 import { Fold } from '../../parts/Fold';

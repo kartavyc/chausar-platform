@@ -1,7 +1,8 @@
+import { sha256Hex } from '../hash.ts';
 // Chausar hosted tier: the application behind the HTTP server. It signs people in, keeps each business's vault key in
 // custody, and routes every request to the business actor its session has open. The tenant always comes from the
 // session; a request can name a business only from its own user's list.
-import { createHash } from 'node:crypto';
+
 import { rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ChausarError, check } from '../contracts.ts';
@@ -36,7 +37,7 @@ const NOT_HOSTED = 'This part runs in the Chausar desktop app for now. The hoste
 const SHARE_PAGE_RATE = Object.freeze({ capacity: 30, refillEveryMs: 2_000 });
 /** A share link's token: 24 random bytes as base64url (venture/build/share-links.ts). */
 export const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32}$/;
-const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+const sha256 = (value: string) => sha256Hex(value);
 /** The token at the end of a share address made on this server, or a file request's (4J7: '/share/<token>/upload'), or null. */
 function shareTokenOf(url: string): string | null {
   const match = /\/(?:share|support-rating|site-form|store-assistant)\/([A-Za-z0-9_-]{32})(?:\/upload)?$/.exec(url);
