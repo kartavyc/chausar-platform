@@ -161,6 +161,9 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return;
     throw Object.assign(new Error(reply?.error?.message || 'The installer could not be shown.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
+  // D12 task 10: after a business couldn't be brought up to date: the version main can go back to, and going back, which main asks about in its own dialog.
+  goBackOffer: async () => { const reply = await ipcRenderer.invoke('chausar:updates:goBackOffer'); return reply?.ok === true && typeof reply.result?.version === 'string' ? { version: reply.result.version } : null; },
+  goBack: async () => { const reply = await ipcRenderer.invoke('chausar:updates:goBack'); return { state: typeof reply?.result?.state === 'string' ? reply.result.state : 'failed' }; },
   // C5 task 26: the page has painted; only the event goes to main.
   firstPaint: () => ipcRenderer.invoke('chausar:first-paint'),
   onEngineStatus: callback => {

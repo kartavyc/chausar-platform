@@ -2751,6 +2751,9 @@ export interface EngineClient {
   saveBriefFile?(builder: FileBuilderId): Promise<{ saved: true; name: string; companion: string } | null>;
   /** C5 task 32, desktop only: shows the downloaded installer, checked again first. UPDATE_NOT_VERIFIED when it changed. */
   showUpdateInstaller?(kind: 'staged'): Promise<void>;
+  /** D12 task 10: the kept release the desktop can go back to, checked now, and going back, which main asks about itself. */
+  goBackOffer?(): Promise<{ version: string } | null>;
+  goBack?(): Promise<{ state: string }>;
   /** C5 task 27, desktop only: what Export diagnostics would save, read first; then that preview saved, by its id. Null when cancelled. */
   previewDiagnostics?(dumps: boolean): Promise<DiagnosticsPreview>;
   saveDiagnostics?(id: string): Promise<{ saved: true; name: string; line: string } | null>;

@@ -120,7 +120,7 @@ async function startEngine({ metadata, demo }) {
   if (stopping) return;
   Object.assign(environment, require('./update-wiring.cjs').updateEnvironment(metadata, { userData: app.getPath('userData'), packaged: app.isPackaged }));
   engineEnvironment = environment;
-  updateWiring = require('./update-wiring.cjs').createUpdateWiring({ metadata, userData: app.getPath('userData'), packaged: app.isPackaged, version: metadata.version, platform: process.platform, appImage: process.env.APPIMAGE ?? null, updates: require('./updates.cjs'), engine: () => engine, dialog, shell, note: line => { void diagnostics.line('main.jsonl', line); }, fs: require('node:fs/promises') });
+  updateWiring = require('./update-wiring.cjs').createUpdateWiring({ metadata, userData: app.getPath('userData'), packaged: app.isPackaged, version: metadata.version, platform: process.platform, appImage: process.env.APPIMAGE ?? null, updates: require('./updates.cjs'), app, engine: () => engine, dialog, shell, note: line => { void diagnostics.line('main.jsonl', line); }, fs: require('node:fs/promises') });
   await updateWiring.beforeStart();
   // D4: the window opens first, so its first paint can come before there is a boot marker to clear.
   if (timeline.reached('first-paint')) void updateWiring.notePaint();
@@ -396,6 +396,15 @@ if (singleInstance) app.whenReady().then(async () => {
       await updateWiring.showInstaller(input.kind);
       return { ok: true };
     } catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  // D12 task 10: after a business couldn't be brought up to date, the window may offer to go back; main asks first, in its own dialog.
+  ipcMain.handle(require('./ipc-contract.cjs').UPDATE_GO_BACK_OFFER_CHANNEL, async event => {
+    try { assertTrustedSender(event, window?.webContents); return { ok: true, result: (await updateWiring?.goBackOffer()) ?? null }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
+  });
+  ipcMain.handle(require('./ipc-contract.cjs').UPDATE_GO_BACK_CHANNEL, async event => {
+    try { assertTrustedSender(event, window?.webContents); return { ok: true, result: await updateWiring.goBack(window) }; }
+    catch (error) { return { ok: false, error: publicError(error) }; }
   });
   // C5 task 26: the window has painted (app/ui/src/shell/first-paint.ts).
   ipcMain.handle(require('./ipc-contract.cjs').FIRST_PAINT_CHANNEL, event => {

@@ -6,6 +6,8 @@ export const STATUS_CHANNEL: string;
 export function validateEngineStatus(input: unknown): { state: string; healthy: boolean; phase?: string };
 export const FIRST_PAINT_CHANNEL: string;
 export const UPDATE_SHOW_CHANNEL: string;
+export const UPDATE_GO_BACK_CHANNEL: string;
+export const UPDATE_GO_BACK_OFFER_CHANNEL: string;
 export const DIAGNOSTICS_PREVIEW_CHANNEL: string;
 export const DIAGNOSTICS_SAVE_CHANNEL: string;
 export const VENTURE_EVENT_CHANNEL: string;
