@@ -567,6 +567,8 @@ const W4_SOURCES: readonly (readonly [W4RowSource, W4RowSourceFn])[] = [
   ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/social/revision-due.ts')).revisionDueRows(deps, ctx, state, venture)],
   ['proposal', proposalRows], ['followup', followupRows], ['reply', replyRows], ['notice', noticeRows], ['run-control', runControlRows],
   ['money', moneyRows], // 4J5: credit notes waiting to be issued
+  // One-shot C4 (T22): a bill due today or overdue, as a notice whose only action is Open, loaded on use
+  ['notice', async (deps, ctx, state, venture) => (await import('../money/bills.ts')).billDueRows(deps, ctx, state, venture)],
   ['routine', routineRows], // 4J13: routine runs waiting for the owner's go-ahead
   // Ink v2 wave 5 (5A1): kit chains that stopped or wait on the client past a stage's waitDays, as notices, loaded on use
   ['notice', async (deps, ctx, state, venture) => (await import('../playbooks/kit/chain.ts')).chainRows(deps, ctx, state, venture)],

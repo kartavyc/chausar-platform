@@ -8,6 +8,11 @@
  * asked only of a business registered for GST (its plan says so), and a business that is not never sees GST fields.
  * Paying records a payment the owner made (Chausar moves no money); it asks a second time, repeating what was typed,
  * and the books count it as a cost. A repeating bill can stop repeating, after a second ask.
+ *
+ * One-shot C4 (T22): a bill due today says "Due today" beside its state, and what it is for (the engine's purpose, from
+ * its lines) leads its second line. The add form's due date starts at the vendor's last terms (the engine's terms on
+ * bills.list), else the engine's default days after the bill date; left as it starts, no due date is sent and the
+ * engine works it out the same way.
  */
 
 import { useId, useState } from 'react';
@@ -55,7 +60,7 @@ export function Bills() {
       {/* Simple first: the form opens on request. */}
       {adding && (
         <Section title={t('money.bills.add')}>
-          <AddBill gst={gst} currency={currency} onAdded={list.reload} onClose={() => setAdding(false)} />
+          <AddBill gst={gst} currency={currency} terms={list.data?.terms ?? []} defaultDays={list.data?.defaultDueDays ?? null} onAdded={list.reload} onClose={() => setAdding(false)} />
         </Section>
       )}
     </>
@@ -86,10 +91,11 @@ function BillRow({ bill, currency, onChanged }: { bill: BillView; currency: stri
     <Row
       id={bill.id}
       title={bill.vendor}
-      line={t('money.bills.line', { bill: day(bill.billDate), due: day(bill.dueDate) })}
+      line={bill.purpose ? t('money.bills.lineFor', { purpose: bill.purpose, bill: day(bill.billDate), due: day(bill.dueDate) }) : t('money.bills.line', { bill: day(bill.billDate), due: day(bill.dueDate) })}
       aside={(
         <span className={v.billAside}>
           <span className={v.billState} data-state={bill.state}>{t(`money.bills.state.${bill.state}`)}</span>
+          {bill.dueToday && <span className={v.billState} data-state="due-today" data-due-today="">{t('money.bills.dueToday')}</span>}
           {bill.recurring && <span className={v.quiet}>{t(`money.bills.repeats.${bill.recurring}`)}</span>}
           {/* What is left to pay, with the receipt of how it was made; a paid bill says so in words. */}
           {bill.receiptId && bill.state !== 'paid' && <Figure value={bill.balance} receiptId={bill.receiptId} />}
@@ -171,8 +177,12 @@ function PayBill({ bill, currency, onDone, onCancel }: { bill: BillView; currenc
   );
 }
 
+/** C4 (T22): a day plus whole days, on the calendar only (no money). */
+const plusDays = (day: string, days: number) => (/^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(Date.parse(`${day}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10) : day);
+const vendorKey = (vendor: string) => vendor.trim().replace(/\s+/g, ' ').toLowerCase();
+
 /** Add a bill: one line, its dates and whether it repeats; tax only for a GST business. */
-function AddBill({ gst, currency, onAdded, onClose }: { gst: boolean; currency: string; onAdded: () => void; onClose: () => void }) {
+function AddBill({ gst, currency, terms, defaultDays, onAdded, onClose }: { gst: boolean; currency: string; terms: readonly { vendor: string; days: number }[]; defaultDays: number | null; onAdded: () => void; onClose: () => void }) {
   const t = useT();
   const engine = useEngine();
   const today = useLocalToday();
@@ -183,7 +193,10 @@ function AddBill({ gst, currency, onAdded, onClose }: { gst: boolean; currency: 
   const [taxName, setTaxName] = useState('');
   const [rate, setRate] = useState('');
   const [billDate, setBillDate] = useState(today);
-  const [dueDate, setDueDate] = useState(today);
+  // C4 (T22): null until the owner picks a due date; until then it follows the vendor's last terms.
+  const [dueTyped, setDueTyped] = useState<string | null>(null);
+  const days = terms.find((item) => vendorKey(item.vendor) === vendorKey(vendor))?.days ?? defaultDays;
+  const dueDate = dueTyped ?? (days === null ? billDate : plusDays(billDate, days));
   const [repeats, setRepeats] = useState<'none' | 'monthly' | 'quarterly'>('none');
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ text: string; problem: boolean } | null>(null);
@@ -194,11 +207,12 @@ function AddBill({ gst, currency, onAdded, onClose }: { gst: boolean; currency: 
     setSaid(null);
     try {
       await engine.request('venture.bills.add', {
-        vendor: vendor.trim(), billDate, dueDate, recurring: repeats === 'none' ? null : repeats,
+        // C4 (T22): left as it started, the engine works the due date out from the same terms.
+        vendor: vendor.trim(), billDate, ...(dueTyped !== null || days === null ? { dueDate } : {}), recurring: repeats === 'none' ? null : repeats,
         // As typed: the engine reads the amount in the business's currency and the rate as a percentage.
         lines: [{ description: what.trim() || vendor.trim(), amount: amount.trim(), taxName: typedRate !== '0' ? taxName.trim() : '', taxRate: typedRate }],
       });
-      setVendor(''); setWhat(''); setAmount(''); setTaxName(''); setRate(''); setRepeats('none');
+      setVendor(''); setWhat(''); setAmount(''); setTaxName(''); setRate(''); setRepeats('none'); setDueTyped(null);
       setSaid({ text: t('money.bills.added'), problem: false });
       onAdded();
     } catch (error) {
@@ -219,7 +233,7 @@ function AddBill({ gst, currency, onAdded, onClose }: { gst: boolean; currency: 
         </>
       )}
       <Field label={t('money.bills.billDate')} type="date" value={billDate} disabled={busy} onChange={(event) => setBillDate(event.currentTarget.value)} />
-      <Field label={t('money.bills.dueDate')} type="date" value={dueDate} disabled={busy} onChange={(event) => setDueDate(event.currentTarget.value)} />
+      <Field label={t('money.bills.dueDate')} type="date" value={dueDate} disabled={busy} onChange={(event) => setDueTyped(event.currentTarget.value)} />
       <div className={s.field}>
         <label htmlFor={repeatId} className={s.fieldLabel}>{t('money.bills.repeat')}</label>
         <select id={repeatId} className={s.select} value={repeats} disabled={busy} onChange={(event) => setRepeats(event.currentTarget.value as typeof repeats)}>
