@@ -66,7 +66,7 @@ export function noAnswerLine(expiresAt: IsoTime, venture: Pick<VentureRecord, 'c
 /** Refuses an answer to a question that already ran out, so a late approval never lets a held call run. */
 export function refuseExpiredQuestion(state: HarnessState | null | undefined, nowMs: number, venture: Pick<VentureRecord, 'country'>): void {
   const open = expiredQuestion(state, nowMs);
-  if (open) throw new ChausarError('DELIVERY_NOT_ASKING', `${noAnswerLine(open.expiresAt!, venture)} The question can no longer be answered; resume the run to go on.`);
+  if (open) throw new ChausarError('DELIVERY_NOT_ASKING', `${noAnswerLine(open.expiresAt!, venture)} The question can no longer be answered; resume the job to go on.`);
 }
 
 /**
@@ -84,7 +84,7 @@ function timeOut(tx: VentureTx, run: DeliveryRunRecord, open: HandoffRequest): D
   // The decision record (4J1) lists it as a timeout: nobody answered, so nothing the question asked about ran.
   recordDecision(tx, {
     subject: `run:${run.id}`, action: 'timeout', who: 'timeout', ruleId: null, rowId: null,
-    reason: `the question "${open.question.slice(0, 160)}" was not answered, so any call it held was declined and the run stopped.`,
+    reason: `the question "${open.question.slice(0, 160)}" was not answered, so any call it held was declined and the job stopped.`,
   });
   tx.emit('run.stopped', { runId: run.id });
   tx.emit('run.step', { runId: run.id });

@@ -13,7 +13,7 @@ import type { HarnessState, IsoTime, Json, RoundGate, RoundGateReason, VentureDe
 import { TURN_CHOICES } from './patches.ts';
 
 /** The line on a call the owner's stop kept from starting. */
-export const STOPPED_CALL = 'You stopped the run, so this call did not run.';
+export const STOPPED_CALL = 'You stopped the job, so this call did not run.';
 /** The run's line once the owner's stop took effect. */
 export const STOPPED_BY_YOU = 'Stopped by you. Finished steps are kept.';
 /** A2: what a run says when the idle-run watchdog stopped a quiet AI job (agent-runtime/runner.ts). */

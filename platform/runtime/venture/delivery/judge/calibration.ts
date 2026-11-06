@@ -92,9 +92,9 @@ function checkCalibrationVote(vote: CalibrationVote, rule: CalibrationRule, trac
   const as = (problem: string | null): CheckedCalibrationVote => ({ ...vote, cites: [...vote.cites], verified: problem === null, problem });
   if (vote.answer === 'na') {
     // A rule every run must meet always applies: na there would dodge it, so the vote is not counted.
-    if (rule.floor.kind === 'required-yes') return as('This rule applies to every run, so it needs a yes or a no, not na.');
+    if (rule.floor.kind === 'required-yes') return as('This rule applies to every job, so it needs a yes or a no, not na.');
     const unknown = vote.cites.find(id => !ids.has(id));
-    return as(unknown === undefined ? null : `This vote cited ${JSON.stringify(unknown)}, which is not in the run's trace.`);
+    return as(unknown === undefined ? null : `This vote cited ${JSON.stringify(unknown)}, which is not in the job's trace.`);
   }
   const checked = checkVote({ ...vote, answer: vote.answer }, rule, ids);
   if (!checked.verified) return as(checked.problem);
@@ -173,7 +173,7 @@ export function calibrationTask(input: RulesInput & { rules: readonly Calibratio
   schema.properties.votes.items.properties.answer.enum = ['yes', 'no', 'na'];
   return {
     ...task,
-    instructions: `${task.instructions} When a rule does not apply to this run at all, vote na instead of yes or no.`,
+    instructions: `${task.instructions} When a rule does not apply to this job at all, vote na instead of yes or no.`,
     schemaName: 'venture-judge-calibration',
     schema,
     validate: (raw: unknown) => validateCalibrationBallot(raw, input.rules),

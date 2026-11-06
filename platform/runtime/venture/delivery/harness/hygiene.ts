@@ -32,11 +32,11 @@ export const BATCH_CHARS = 40000;
 export const PREVIEW_CHARS = 600;
 /** The summary's sections, always all of them and always in this order. */
 export const HISTORY_SECTIONS = ['turnsTaken', 'earlierTurns', 'audited', 'notAudited', 'refused', 'made', 'questions'] as const;
-export const HISTORY_SUMMARY_NOTE = "Chausar wrote this summary from the run's own records, in fixed sections. No AI wrote it.";
+export const HISTORY_SUMMARY_NOTE = "Chausar wrote this summary from the job's own records, in fixed sections. No AI wrote it.";
 /** What an older result cut to a stub says. It never tells the agent to call the tool again. */
 export const SHORTENED_NOTE = '(shortened by Chausar. Work from the summary and the newer results; never repeat an outside action.)';
 /** What a previewed result says: only what is true. The stored call keeps every result whole. */
-export const KEPT_NOTE = "This result was too long to show whole, so here is its start. The full result is kept with this call in the run's record. To see more, read a smaller part, such as a later page or fewer rows.";
+export const KEPT_NOTE = "This result was too long to show whole, so here is its start. The full result is kept with this call in the job's record. To see more, read a smaller part, such as a later page or fewer rows.";
 
 /** The states of an action that may still happen or may already have happened. */
 const OPEN_STATES: readonly string[] = ['described', 'approved', 'outcome_unknown'];

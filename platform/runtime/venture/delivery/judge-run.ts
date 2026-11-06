@@ -68,7 +68,7 @@ const ALREADY = 'The quality check already read this draft.';
 const NOT_WAITING = 'Ask the quality check first, then send it.';
 const CHANGED = 'The draft changed since you asked the quality check. Ask again.';
 const RECHECK_FAILED = 'The check before the quality check ran could not finish, so it was stopped. Nothing was sent.';
-const CAP_LINE = 'The quality check did not run automatically: this run is at its spend cap. Start the check yourself with the cost shown.';
+const CAP_LINE = 'The quality check did not run automatically: this job is at its spend cap. Start the check yourself with the cost shown.';
 const STANDING_OFF = 'The quality check setting is off, or its standing consent is not recorded, so the quality check did not run on its own.';
 /** The journal's approval line for a judge call that went on its own: no person approved it. */
 const STANDING_LINE = 'Sent under your standing quality check setting.';

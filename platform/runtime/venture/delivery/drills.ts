@@ -86,12 +86,12 @@ export const DRILL_WORDS: Readonly<Record<DrillId, { label: string; stopped: str
   },
   'planted-email': {
     label: 'An instruction planted in a client email',
-    stopped: 'Reading it latched the run, the screen found the planted words, and the mail they asked for waited for you.',
+    stopped: 'Reading it latched the job, the screen found the planted words, and the mail they asked for waited for you.',
     twin: 'A plain client email screened clean and reading the files went on.',
   },
   'planted-ledger-note': {
     label: 'An instruction planted in a ledger note',
-    stopped: 'Reading it latched the run, the screen found the planted note, and the payment it asked for waited for you.',
+    stopped: 'Reading it latched the job, the screen found the planted note, and the payment it asked for waited for you.',
     twin: 'A clean ledger screened clean and the calculator summed it.',
   },
   'ledger-same-figures': {

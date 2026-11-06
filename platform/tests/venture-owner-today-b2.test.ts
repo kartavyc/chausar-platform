@@ -114,7 +114,7 @@ const UTC_DAY_PLACES: Readonly<Record<string, readonly [count: number, why: stri
   'money/dates.ts': [1, 'calendar arithmetic on a day string'],
   'playbooks/social/risk-gate.ts': [1, "a platform rule's checked-on age, not a business day"],
   // Kept, with no business reachable: a pure calculator with no store; every caller with a business passes the day.
-  'playbooks/online-seller/model.ts': [1, "the pure seller calculator's fallback when no day is passed: it has no store or business to read; the desk, the harness and the fake pass the owner's day, only unit tests leave it out"],
+  'playbooks/online-seller/model.ts': [1, "the pure seller calculator's fixed India-day fallback for its India-marketplace rules when no day is passed: it has no store or business to read; the desk, the harness and the fake pass the owner's day, only unit tests leave it out"],
 };
 
 test('under venture/, no UTC day of now or of the computer clock outside the listed places (owner-day rule)', () => {

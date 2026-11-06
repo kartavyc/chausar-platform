@@ -435,7 +435,7 @@ function rulesJudge(input: CheckInput): CheckResult | null {
 
 /** The rules judge's verdict as a check result; a real order's judge (judge-run.ts) stores it beside the code checks. */
 export function rulesJudgeResult(verdict: RulesVerdict): CheckResult {
-  if (verdict.outcome === 'pass') return { check: 'rules-judge', passed: true, detail: `${verdict.detail} Each yes cited something code found in the run.` };
+  if (verdict.outcome === 'pass') return { check: 'rules-judge', passed: true, detail: `${verdict.detail} Each yes cited something code found in the job.` };
   const first = verdict.rules.find(rule => rule.outcome === verdict.outcome);
   const said = verdict.outcome === 'fail' ? first?.votes.find(vote => vote.verified && vote.answer === 'no')?.reason : undefined;
   const why = first && first.detail !== verdict.detail ? ` ${first.detail}` : '';

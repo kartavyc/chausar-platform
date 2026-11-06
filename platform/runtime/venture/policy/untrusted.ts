@@ -44,8 +44,8 @@ export const HELD_WORDS = 'This content had words aimed at the agent or a checke
 /** What the agent reads in place of a result the screen could not check. */
 export const HELD_ERROR_WORDS = 'The screen could not check this content, so it is held for the owner. Nothing from it was read.';
 /** The owner's question on Today when a run's result is held. Words only. */
-export const HELD_QUESTION = 'Something a tool read had words aimed at the agent or a checker, so it is held for you. Look at it in the run, release it if it is fine, then answer to let the agent go on.';
-export const HELD_ERROR_QUESTION = 'The screen could not check something a tool read, so it is held for you. Look at it in the run, then answer to let the agent go on.';
+export const HELD_QUESTION = 'Something a tool read had words aimed at the agent or a checker, so it is held for you. Look at it in the job, release it if it is fine, then answer to let the agent go on.';
+export const HELD_ERROR_QUESTION = 'The screen could not check something a tool read, so it is held for you. Look at it in the job, then answer to let the agent go on.';
 /** The screen a business runs with: observe by default, enforce when the owner turns it on. released: digests the owner let through. */
 export type ScreenSetting = { mode: ScreenMode; keep?: readonly IdKind[]; released?: readonly string[] };
 /** Larger than any one tool result; anything bigger is held rather than checked in part. */
