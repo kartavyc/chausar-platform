@@ -41,7 +41,7 @@ function updateEnvironment(metadata, { userData, packaged }) {
 function createUpdateWiring({ metadata, userData, packaged, version, platform, appImage, updates, engine, dialog, shell, note = () => {}, fs = fsp, app = null, rollbackFor = null }) {
   const keys = updateMetadata(metadata, { packaged });
   const folder = join(userData, 'updates'), stage = join(folder, 'stage');
-  let ready = false, painted = false, cleared = false, work = Promise.resolve();
+  let ready = false, painted = false, cleared = false, notedLastInstall = false, work = Promise.resolve();
   const later = job => { work = work.then(job).catch(() => { /* a help, never a gate */ }); return work; };
   // D12 task 9: going back to the kept release; only for a build with update keys, in the real app.
   const rollback = keys && app ? (rollbackFor ?? createRollback)({ userData, version, platform, appImage, publicKey: keys.publicKey, windowsCertificateThumbprint: keys.windowsCertificateThumbprint, updates, app, note, signatureOf: updates.windowsSignature, spawnInstaller: updates.runInstaller, fs }) : null;
@@ -134,7 +134,13 @@ function createUpdateWiring({ metadata, userData, packaged, version, platform, a
       // The engine made the copy before it stopped; a copy that failed stops the install here.
       beforeInstall: async () => { if (prepared.backup === 'failed') throw failure('SAFETY_BACKUP_FAILED', 'The safety copy failed, so the update waits.'); },
     });
-    await fs.mkdir(folder, { recursive: true }).then(() => fs.writeFile(join(folder, 'last-install.json'), JSON.stringify({ version: answer.version, state: answer.state }), { mode: 0o600 })).catch(() => {});
+    const lastInstall = join(folder, 'last-install.json');
+    const prior = await fs.readFile(lastInstall, 'utf8').then(text => { try { return JSON.parse(text); } catch { return null; } }).catch(() => null);
+    if ((prior?.format && prior.format !== 'chausar.last-install.v1') || (typeof prior?.schemaVersion === 'number' && prior.schemaVersion > 1)) {
+      if (!notedLastInstall) { notedLastInstall = true; note({ op: 'local-file', step: 'last-install', code: 'LOCAL_FILE_NEWER' }); }
+      return answer;
+    }
+    await fs.mkdir(folder, { recursive: true }).then(() => fs.writeFile(lastInstall, JSON.stringify({ version: answer.version, state: answer.state }), { mode: 0o600 })).catch(() => {});
     return answer;
   }
 

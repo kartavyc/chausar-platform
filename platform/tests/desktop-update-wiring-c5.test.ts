@@ -246,3 +246,14 @@ test('updates.jsonl goes through diagnostics.cjs: names only, and it rotates lik
   assert.match(source, /require\('\.\/diagnostics\.cjs'\)/);
   assert.equal(source.includes('appendFile'), false);
 });
+
+
+test('cleanup: a newer last-install record stays byte-exact and is noted once', async t => {
+  const { wiring, folder, lines } = await setup(t);
+  const path = join(folder, 'last-install.json'), bytes = JSON.stringify({ format: 'chausar.last-install.v9', version: '9.0.0', state: 'future' });
+  await writeFile(path, bytes);
+  await wiring.installAfterStop(await wiring.prepareQuit());
+  await wiring.installAfterStop(await wiring.prepareQuit());
+  assert.equal(await readFile(path, 'utf8'), bytes);
+  assert.deepEqual(lines.filter(line => line.code === 'LOCAL_FILE_NEWER'), [{ op: 'local-file', step: 'last-install', code: 'LOCAL_FILE_NEWER' }]);
+});
