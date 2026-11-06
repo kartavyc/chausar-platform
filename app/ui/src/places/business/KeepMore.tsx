@@ -124,10 +124,9 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
     }
   }
 
-  return (
-    <Fold summary={t('business.allBackups', { count: String(backups.length) })} className={s.fold}>
+  const list = (items: BackupLite[]) => (
       <ul className={s.list}>
-        {backups.map((backup) => (
+        {items.map((backup) => (
           <li key={backup.file} className={s.backupRow}>
             <div className={s.backupLine}>
               <span className={s.strong}>{momentOf(backup.at, zone)}</span>
@@ -150,8 +149,11 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
           </li>
         ))}
       </ul>
-    </Fold>
   );
+  return <>
+    {list(backups.slice(0, 3))}
+    {backups.length > 3 && <Fold summary={t('business.olderBackups', { count: backups.length - 3 })} className={s.fold}>{list(backups.slice(3))}</Fold>}
+  </>;
 }
 
 /**
@@ -169,6 +171,8 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
   const [problem, setProblem] = useState<string | null>(null);
   const [made, setMade] = useState<MoveFile | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const fold = useRef<HTMLDetailsElement>(null);
+  const [open, setOpen] = useState(false);
 
   async function make(event: FormEvent) {
     event.preventDefault();
@@ -220,6 +224,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
     setMade(null);
     setCopied(null);
     setProblem(null);
+    fold.current?.querySelector('summary')?.focus();
   }
 
   return (
@@ -230,16 +235,17 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
         <Button variant="quiet" size="sm" disabled={busy} onClick={() => void dismiss()}>{t('business.moveMadeDismiss')}</Button>
       </p>
     )}
-    <Fold summary={t('business.move')} className={s.fold}>
-      {made ? (
+    <Fold ref={fold} name="keep-action" summary={t('business.move')} className={s.fold}
+      onToggle={event => { setOpen(event.currentTarget.open); if (event.currentTarget.open) event.currentTarget.scrollIntoView?.({ block: 'nearest' }); else setPassphrase(''); }}>
+      {open && (made ? (
         <div>
           <p className={s.line}>{t('business.moveCodeOnce')}</p>
-          <CodeGroups code={made.transferCode} label={t('business.moveCode')} />
           <div className={s.buttons}>
-            <Button variant="primary" onClick={() => { if (!saveTextFile(made.fileName, made.text, 'application/json')) setProblem(t('business.moveCantSave')); }}>{t('business.moveSave')}</Button>
+            <CodeGroups code={made.transferCode} label={t('business.moveCode')} />
             <Button variant="quiet" onClick={() => copy(made.transferCode)}>{t('business.copy')}</Button>
             {copied && <span className={s.note} role="status">{copied}</span>}
           </div>
+          <div className={s.buttons}><Button variant="primary" onClick={() => { if (!saveTextFile(made.fileName, made.text, 'application/json')) setProblem(t('business.moveCantSave')); }}>{t('business.moveSave')}</Button></div>
           <p className={s.warn}>{t('business.moveWarnApart')}</p>
           <p className={s.note}>{t('business.moveWarnBoth')}</p>
           {problem && <p className={s.problem} role="alert">{problem}</p>}
@@ -258,7 +264,7 @@ export function MoveAway({ locked, madeAt, noCode, onChanged, onMakeCode }: { lo
           {problem && <p className={s.problem} role="alert">{problem}</p>}
           <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.moveMake')}</Button></div>
         </form>
-      )}
+      ))}
     </Fold>
     </>
   );
@@ -289,11 +295,11 @@ export function CloseBusiness({ unlock }: { unlock: UnlockMode | null }) {
   }
 
   return (
-    <section className={s.moreRow} aria-label={t(locked ? 'business.lock' : 'business.close')}>
+    <Fold name="keep-action" summary={t(locked ? 'business.lock' : 'business.close')} className={s.fold}>
       <div className={s.buttons}><Button variant="quiet" disabled={busy} onClick={() => void close()}>{t(locked ? 'business.lock' : 'business.close')}</Button></div>
       {unlock && <p className={s.note}>{t(locked ? 'business.lockLine' : 'business.closeLine')}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
-    </section>
+    </Fold>
   );
 }
 
