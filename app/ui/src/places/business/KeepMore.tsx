@@ -124,10 +124,9 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
     }
   }
 
-  return (
-    <Fold summary={t('business.allBackups', { count: String(backups.length) })} className={s.fold}>
+  const list = (items: BackupLite[]) => (
       <ul className={s.list}>
-        {backups.map((backup) => (
+        {items.map((backup) => (
           <li key={backup.file} className={s.backupRow}>
             <div className={s.backupLine}>
               <span className={s.strong}>{momentOf(backup.at, zone)}</span>
@@ -150,8 +149,11 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
           </li>
         ))}
       </ul>
-    </Fold>
   );
+  return <>
+    {list(backups.slice(0, 3))}
+    {backups.length > 3 && <Fold summary={t('business.olderBackups', { count: backups.length - 3 })} className={s.fold}>{list(backups.slice(3))}</Fold>}
+  </>;
 }
 
 /**

@@ -1,4 +1,8 @@
 {
+  "business.olderBackups": "{count} older backups",
+  "business.knowledge.knows": "What Chausar knows",
+  "business.knowledge.kind.fact": "Fact",
+  "business.notify.advanced": "Advanced",
   "business.keep": "Keep this business",
   "business.app": "This app",
   "business.app.motion": "Animations",

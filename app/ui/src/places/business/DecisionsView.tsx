@@ -76,7 +76,7 @@ export function DecisionsView() {
 
   return (
     <div className={b.page}>
-      <TileSection title={t('business.decisions.title')} meta={t('business.decisions.line')}>
+      <TileSection title={t('business.decisions.title')} meta={list.length ? t('business.decisions.line') : undefined}>
         {decisions.error && <p className={b.problem} role="alert">{messageOf(decisions.error)}</p>}
         {decisions.data && list.length === 0 && <EmptyState title={t('business.decisions.none')} />}
         {list.length > 0 && (

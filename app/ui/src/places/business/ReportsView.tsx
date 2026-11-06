@@ -62,8 +62,7 @@ export function ReportsView() {
       <TileSection title={t('feedback.notice')}>
         <p className={s.line}>{data.notice.text}</p>
         <p className={s.note}>{data.setUp.line}</p>
-      </TileSection>
-      <TileSection title={t('feedback.choose')}>
+        <h3 className={s.groupTitle}>{t('feedback.choose')}</h3>
         <CheckRow label={t('feedback.usage')} detail={t('feedback.usageHint')} checked={usage} disabled={busy} onChange={setUsage} />
         <CheckRow label={t('feedback.crashes')} detail={t('feedback.crashesHint')} checked={crashes} disabled={busy} onChange={setCrashes} />
         <div className={s.buttons}>
@@ -77,10 +76,10 @@ export function ReportsView() {
           </Button>
           {given && <Button variant="quiet" disabled={busy} onClick={() => void run(() => client.request('venture.feedback.consent', { withdraw: true }))}>{t('feedback.turnOff')}</Button>}
         </div>
-      </TileSection>
       {data.question && <FeedbackQuestionCard question={data.question} onView={setView} />}
       {preview && (
-        <TileSection title={t('feedback.preview')}>
+        <div>
+          <h3 className={s.groupTitle}>{t('feedback.preview')}</h3>
           {preview.posthog && (
             <>
               <p className={s.note}>{t('feedback.to', { service: 'PostHog', to: preview.posthog.to })}</p>
@@ -98,9 +97,9 @@ export function ReportsView() {
           <div className={s.buttons}>
             <Button variant="primary" disabled={busy} onClick={() => void run(() => client.request('venture.feedback.send', { digest: preview.digest }))}>{t('feedback.send')}</Button>
           </div>
-        </TileSection>
+        </div>
       )}
-      <TileSection title={t('feedback.delete')}>
+      <div>
         {data.reportId && <p className={s.note}>{t('feedback.id', { id: data.reportId })}</p>}
         {data.deletion && <p className={s.line}>{data.deletion.line}</p>}
         {asking ? (
@@ -113,11 +112,12 @@ export function ReportsView() {
           </>
         ) : (
           <div className={s.buttons}>
-            <Button disabled={busy} onClick={() => setAsking(true)}>{t('feedback.delete')}</Button>
+            <Button variant="quiet" disabled={busy} onClick={() => setAsking(true)}>{t('feedback.delete')}</Button>
           </div>
         )}
-      </TileSection>
+      </div>
       <DiagnosticsSection />
+      </TileSection>
     </div>
   );
 }
