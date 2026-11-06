@@ -13,7 +13,7 @@ import type { QueueAction, QueueActionId, QueueRow } from '../../engine/types';
 import { copyText, performHandoff } from '../clients/handoff';
 import { reserveTab } from '../connections/external';
 import { draftEditable, draftRunOf, failedChecks, UndoButton } from '../today/SendBack';
-import { decide, undoOf, useTodaySession } from '../today/session';
+import { decide, undoOf, useTodaySession } from '../../parts/queue-session';
 import { practiceDraft } from './practice-drafts';
 import { workChanged } from './refresh';
 import s from './Work.module.css';

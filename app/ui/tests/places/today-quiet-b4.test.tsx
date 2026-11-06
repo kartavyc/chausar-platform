@@ -5,7 +5,7 @@ import { ClockProvider } from '../../src/shell/clock';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
 import { QUEUE, SETUP_ROWS } from '../../src/engine/fixtures';
 import type { EngineClient, GoalView, QueueRow } from '../../src/engine/types';
-import { sessionFor } from '../../src/places/today/session';
+import { sessionFor } from '../../src/parts/queue-session';
 
 /** One-shot B4 task 13: Today says each fact once. */
 const NOW = '2026-10-23T13:35:00.000Z';

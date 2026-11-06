@@ -8,7 +8,7 @@ import { Figure } from '../../parts/Figure';
 import { Receipt } from '../../parts/Receipt';
 import { stateText } from '../../parts/states';
 import type { QueueRow, QueueSetPreview } from '../../engine/types';
-import { seenKey, useTodaySession } from './session';
+import { seenKey, useTodaySession } from '../../parts/queue-session';
 import { viewSheetId } from './ViewSheet';
 import s from './TodayActions.module.css';
 

@@ -6,7 +6,7 @@ import { EngineError, type CountryLite, type PlanSuggestionView } from '../../en
 import { Button } from '../../parts/Button';
 import { saveTextFile } from '../../parts/custody';
 import { Icon } from '../../parts/Icon';
-import { Logo } from '../../parts/Logo';
+import { Brand } from '../../parts/Brand';
 import { Tile } from '../../parts/Tile';
 import { goTo } from '../../shell/navigation';
 import { BusinessPick, Suggestion, type Target } from './BusinessPick';
@@ -416,17 +416,6 @@ export function Start({ variant, onStarted, orDescribe = false, onBegin, fill, b
       {!plan && <Brand />}
       {form}
     </div>
-  );
-}
-
-/** The logo at the top of the first run and Welcome back: the mark and wordmark for the eye, "Chausar" said once. */
-export function Brand() {
-  const t = useT();
-  return (
-    <p className={s.brand}>
-      <span aria-hidden="true"><Logo wordmark size={24} /></span>
-      <span className="sr-only">{t('app.name')}</span>
-    </p>
   );
 }
 

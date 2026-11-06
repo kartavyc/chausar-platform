@@ -1,31 +1,29 @@
-/**
- * Every place, by id. Each place lives in src/places/<place>/index.tsx and exports `Place`; it may also export
- * `sheets`, a map of sheet kinds it owns (for example `agent` from Team, `client` from Clients). Phase 2 agents edit
- * only their own place folder; this file does not change when a place grows.
- */
-
+/** Page code has one loader boundary. Tests keep eager modules for existing synchronous assertions. */
 import type { ComponentType } from 'react';
-import * as approve from '../places/approve';
-import * as apps from '../places/apps';
-import * as business from '../places/business';
-import * as chats from '../places/chats';
-import * as clients from '../places/clients';
-import * as connections from '../places/connections';
-import * as money from '../places/money';
-import * as onboarding from '../places/onboarding';
-import * as team from '../places/team';
-import * as today from '../places/today';
-import * as work from '../places/work';
+import { chunkComponent } from './Chunk';
 import { BASE_SHEETS, type SheetComponent } from './sheets';
 import type { PlaceId } from './routes';
 
 export interface PlaceModule { Place: ComponentType; sheets?: Readonly<Record<string, SheetComponent>> }
+export type PlaceLoaders = Record<string, () => Promise<PlaceModule>>;
+export const PLACE_LOADERS: PlaceLoaders = import.meta.glob<PlaceModule>('../places/*/index.tsx');
+const EAGER_PLACES = import.meta.glob<PlaceModule>('../places/*/index.tsx', { eager: true });
+const placeId = (path: string) => path.split('/').at(-2) as PlaceId;
 
-export const PLACES: Readonly<Record<PlaceId, PlaceModule>> = { today, chats, team, work, clients, money, apps, connections, business, onboarding, approve };
+/** Each loaded module is shared by repeated visits. A failed promise is forgotten so retry can fetch again. */
+export function placesFor(mode: 'eager' | 'lazy', loaders: PlaceLoaders = PLACE_LOADERS): Readonly<Record<PlaceId, PlaceModule>> {
+  if (mode === 'eager') return Object.fromEntries(Object.entries(EAGER_PLACES).map(([path, module]) => [placeId(path), module])) as Record<PlaceId, PlaceModule>;
+  return Object.fromEntries(Object.entries(loaders).map(([path, loader]) => {
+    let pending: Promise<PlaceModule> | undefined;
+    const load = () => pending ??= loader().catch(error => { pending = undefined; throw error; });
+    return [placeId(path), { Place: chunkComponent(async () => (await load()).Place) }];
+  })) as Record<PlaceId, PlaceModule>;
+}
+export const PLACES = placesFor(import.meta.env.MODE === 'test' ? 'eager' : 'lazy');
 
-/** All sheet kinds: the foundation's, then each place's. A place may not replace `run` or `receipt`. */
+// The following sheet exports move behind their owning loader in task 4.
 export const SHEETS: Readonly<Record<string, SheetComponent>> = Object.assign(
-  {},
-  ...Object.values(PLACES).map((place) => place.sheets ?? {}),
-  BASE_SHEETS,
+  {}, ...Object.values(EAGER_PLACES).map(place => place.sheets ?? {}), BASE_SHEETS,
 );
+export { FirstRun } from '../places/onboarding/FirstRun';
+export { Welcome } from '../places/onboarding/Welcome';
