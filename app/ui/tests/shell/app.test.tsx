@@ -28,7 +28,7 @@ describe('shell', () => {
     expect(within(nav).getByText('YouTube channel')).toBeTruthy();
     const [brand, ...links] = within(nav).getAllByRole('link');
     expect(brand!.getAttribute('href')).toBe('#/today');
-    expect(links.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/apps', '#/connections']);
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['#/today', '#/chats', '#/team', '#/work', '#/clients', '#/money', '#/apps', '#/connections', '#/business']);
     expect(links[0]!.getAttribute('aria-current')).toBe('page');
     await waitFor(() => expect(links[0]!.textContent).toMatch(/^Today12, 12 need you$/));
     expect(screen.getByRole('status').textContent).toBe('Sample data. Nothing here is real.');

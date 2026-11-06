@@ -113,9 +113,9 @@ describe('Business > Away', () => {
     expect(await screen.findByText(/The first day away comes before the last\./)).toBeTruthy();
   });
 
-  it('is one of the business pages', async () => {
+  it('is one of the settings pages', async () => {
     await start('#/business/away');
-    const pages = screen.getByRole('navigation', { name: /pages/i });
+    const pages = screen.getByRole('navigation', { name: 'Settings' });
     expect(within(pages).getByRole('link', { name: 'Away' }).getAttribute('href')).toBe('#/business/away');
   });
 });

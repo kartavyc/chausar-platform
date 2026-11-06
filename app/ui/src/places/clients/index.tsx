@@ -64,7 +64,8 @@ function Clients({ tab }: { tab: Tab }) {
 
   // C1 task 4: Pipeline and Network wait for a client. A tab shows when it has something of its own, once there is a
   // client, or while it is the page (a link to #/clients/network still lands); with only Clients left, no tab row.
-  const anyClient = (clientCount ?? 0) > 0;
+  // While the clients load the row stays, as most owners have clients; it only leaves once the engine says there are none.
+  const anyClient = clientCount === undefined || clientCount > 0;
   const tabs = [
     { id: 'clients', label: t('clients.sub.clients'), href: '#/clients', count: clientCount },
     { id: 'pipeline', label: t('clients.sub.pipeline'), href: '#/clients/pipeline', count: leadCount },

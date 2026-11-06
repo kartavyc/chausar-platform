@@ -101,8 +101,8 @@ describe('Work v2: the filter chips', () => {
     await start('#/work?state=failed');
     const show = screen.getByRole('group', { name: 'Show' });
     // An engine-failed run is "Failed"; "Stopped" is kept for the owner's own Stop (W4 4F).
-    // Ink v2 wave 5 (5A3): Ideas, the idea pipeline, after D's chips.
-    expect(within(show).getAllByRole('button').map((b) => b.textContent)).toEqual(['All', 'Needs you', 'Running', 'Failed', 'Done', 'Ideas']);
+    // C1 task 5: Ideas is a page of its own, one link away in the toolbar, not a filter.
+    expect(within(show).getAllByRole('button').map((b) => b.textContent)).toEqual(['All', 'Needs you', 'Running', 'Failed', 'Done']);
     expect(pressed(show)).toEqual(['Failed']);
     await click(within(show).getByRole('button', { name: 'Running' }));
     expect(window.location.hash).toBe('#/work?state=active');
