@@ -20,6 +20,8 @@ import { OwnerZone } from './clock';
 import { BootScreen } from '../places/onboarding/BootScreen';
 // W6 6H3 (D40): the owner's AI offers a place; the frame shows Open and Not now, and never opens it by itself.
 import { AiGo } from '../parts/layout/AiGo';
+import { HelpButton } from './HelpButton';
+import { WhatsNewOnce } from './WhatsNew';
 import type { EngineClient } from '../engine/types';
 import s from './App.module.css';
 
@@ -75,6 +77,8 @@ function Frame({ statusLine, checking }: { statusLine: ReactNode; checking: bool
     <div className={s.app} data-phone={narrow ? '' : undefined} data-sheet-open={sheet ? '' : undefined} data-boot={checking ? '' : undefined}>
       <button type="button" className={s.skip} inert={covered} onClick={() => main.current?.focus()}>{t('shell.skip')}</button>
       <div className={s.status}>{statusLine}</div>
+      {/* C7: What's new opens once after an update, never on a fresh install. */}
+      <WhatsNewOnce />
       {narrow
         ? <div className={s.top} inert={covered}><TopBar /></div>
         : <div className={s.rail}><Rail route={route} /></div>}

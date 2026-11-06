@@ -1,0 +1,9 @@
+{
+  "whats-new.label": "This version",
+  "whats-new.title": "What's new",
+  "whats-new.close": "Close",
+  "whats-new.none": "Nothing new to show for this version.",
+  "whats-new.0.1.0-preview.1.1": "Your AI apps show how much of your Codex or Claude Code plan is used, as the tool reports it.",
+  "whats-new.0.1.0-preview.1.2": "Routines wait for your plan to reset, and can use a backup AI you choose.",
+  "whats-new.0.1.0-preview.1.3": "Help answers from Chausar's own guide."
+}

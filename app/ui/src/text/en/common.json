@@ -626,5 +626,14 @@
   "run.agentApproval.deny": "Deny step",
   "run.agentApproval.external-input": "Question from a tool",
   "run.agentApproval.answer": "Send answer",
-  "run.agentApproval.cost": "Cost"
+  "run.agentApproval.cost": "Cost",
+  "help.label": "Help",
+  "help.title": "Help",
+  "help.box": "What do you want to do?",
+  "help.find": "Find it",
+  "help.results": "Parts of the guide",
+  "help.none": "The guide doesn't cover that yet.",
+  "help.guide": "Open the guide",
+  "help.read": "Read it in the guide",
+  "help.whatsNew": "What's new"
 }

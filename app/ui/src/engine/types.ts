@@ -2123,6 +2123,9 @@ export interface EngineMethods {
   /** No scenarioIds: every template practice client. useTemplate: built-in templates, no AI and no judge. */
   'venture.simulation.run': { params: { scenarioIds?: string[]; episodes?: number; useTemplate?: boolean }; result: SimulationRunLite };
   'venture.improve.status': { params: Record<string, never>; result: ImprovementStatusLite };
+  // C7: What's new, once per version on this computer.
+  'whatsNew.get': { params: Record<string, never>; result: { version: string; seen: boolean } };
+  'whatsNew.seen': { params: { version: string }; result: { version: string; seen: boolean } };
   'venture.improve.run': { params: { maxRounds?: number; useTemplate?: boolean; budgetMicros?: string }; result: ImprovementRunLite };
   /** The owner's, inside the app: the kept version by its run and the digest the owner read (CANDIDATE_STALE otherwise). */
   'venture.improve.adopt': { params: { runId: string; digest: string }; result: PlaybookLite };

@@ -100,7 +100,12 @@ const DONE_LINES: Partial<Record<QueueAction['id'], string>> = {
 };
 const RECEIPTED = new Set(['price', 'quote', 'invoice']);
 
+/** C7: the version the fake runs as (package.json). */
+export const FAKE_VERSION = '0.1.0-preview.1';
+
 export interface FakeOptions {
+  /** C7: the version this computer last saw What's new for; left out, the running one (a fresh install shows nothing). */
+  seenVersion?: string;
   /** An opt-in synthetic UI example, never evidence of a live model run. */
   agentProgress?: boolean;
   latencyMs?: number; now?: () => string;
@@ -147,6 +152,8 @@ const BEFORE_VAULT = new Set([
   'venture.playbooks.list',
   // W6 6C6: the profession's rules, shown when onboarding picks it, before any vault exists.
   'venture.compliance.get',
+  // C7: What's new, once per version, answered by the engine before any vault.
+  'whatsNew.get', 'whatsNew.seen',
 ]);
 /** The recovery codes the sample opens with: the one made at creation and the one Keep this business makes. */
 const SAMPLE_CODES = new Set([SAMPLE_RECOVERY_CODE, 'R4KD9QXM2HTW7PLB3NCF6YJV']);
@@ -278,7 +285,11 @@ export class FakeEngine {
    */
   private readonly w5: readonly { handles(method: string): boolean; request(method: string, p: Record<string, unknown>): unknown }[];
 
+  /** C7: the running version, as package.json names it, and the version this computer last saw What's new for. */
+  readonly version = FAKE_VERSION;
+  private seenVersion: string;
   constructor(options: FakeOptions = {}) {
+    this.seenVersion = options.seenVersion ?? FAKE_VERSION;
     // `npm run dev:ui` can show the first run: add ?fresh to the address (and ?no-keys for a computer without
     // protected storage). Tests pass the options instead.
     const fresh = options.fresh ?? devAsks('fresh');
@@ -1108,6 +1119,14 @@ export class FakeEngine {
           ...(this.hosted ? { hosted: { businesses: this.businesses.map((b) => ({ id: b.id, name: b.name })), ...(this.trial ? { trial: this.trialView() } : {}) } } : {}),
         };
       }
+      // C7: as engine.ts answers them (whats-new-file.ts): { version, seen }; a mark for another version is refused.
+      case 'whatsNew.get':
+        if (Object.keys(p).length) throw new EngineError('INVALID_REQUEST', 'Send an empty request.');
+        return { version: this.version, seen: this.seenVersion === this.version };
+      case 'whatsNew.seen':
+        if (Object.keys(p).length !== 1 || p.version !== this.version) throw new EngineError('INVALID_REQUEST', 'Mark the version Chausar is running.');
+        this.seenVersion = this.version;
+        return { version: this.version, seen: true };
       case 'workspace.lock': {
         this.endPlaybookSession();
         this.open = false;

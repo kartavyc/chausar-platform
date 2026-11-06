@@ -1038,10 +1038,26 @@ export class Engine {
       this.#idleWaiters.add(finished);
     });
   }
+  /** C7: whatsNew.get {} answers { version, seen }; whatsNew.seen { version } marks the running version seen. */
+  private async whatsNew(method: 'whatsNew.get' | 'whatsNew.seen', payload: Record<string, unknown>): Promise<{ version: string; seen: boolean }> {
+    const { markSeen, whatsNewState } = await import('./whats-new-file.ts');
+    const custody = join(this.options.directory, 'custody');
+    if (method === 'whatsNew.seen') {
+      check(Object.keys(payload).length === 1 && payload.version === this.version, 'INVALID_REQUEST', 'Mark the version Chausar is running.');
+      await markSeen(custody, this.version);
+      return { version: this.version, seen: true };
+    }
+    check(Object.keys(payload).length === 0, 'INVALID_REQUEST', 'Send an empty request.');
+    let hasBusiness = !!this.vault;
+    if (!hasBusiness) { try { hasBusiness = (await this.custodyFiles().listBusinesses(this.storageKind())).businesses.length > 0; } catch { hasBusiness = false; } }
+    return whatsNewState(custody, this.version, { hasBusiness });
+  }
   private async handleRequest(method: string, payload: any = {}): Promise<any> {
     check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
     if (method === 'workspace.status') return { open: !!this.vault, workspace: this.vault?.read().workspace, storage: this.options.storage, experimental: !!this.options.demo, version: this.version,
       ...(this.options.workspaceCustody ? { ...(this.vault && this.#openUnlock ? { unlock: this.#openUnlock } : {}), closedByOwner: this.#closedByOwner } : {}) };
+    // C7: "What's new", once per version on this computer (whats-new-file.ts), before any vault.
+    if (method === 'whatsNew.get' || method === 'whatsNew.seen') return this.whatsNew(method, payload);
     if (method === 'venture.countries') return (await this.#ventureModule()).ventureCountries();
     if (method === 'venture.preview') return (await this.#ventureModule()).venturePreview(payload);
     // Wave 6 (6C6): onboarding shows the profession's rules when it is picked, before any vault exists.

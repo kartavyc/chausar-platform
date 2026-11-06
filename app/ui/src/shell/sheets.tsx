@@ -14,6 +14,8 @@ import { RunSheet } from '../parts/RunSheet';
 import { Sheet } from '../parts/Sheet';
 import { useRoute } from './navigation';
 import { NotificationCentre } from './NotificationCentre';
+import { HelpSheet } from './HelpSheet';
+import { WhatsNewSheet } from './WhatsNew';
 import type { PlaceId } from './routes';
 import s from './sheets.module.css';
 
@@ -158,4 +160,6 @@ export function UnknownSheet({ onClose, returnFocus }: SheetComponentProps) {
 
 export const BASE_SHEETS: Readonly<Record<string, SheetComponent>> = { run: RunSheetKind, receipt: ReceiptSheet, 'ca-receipt': CaReceiptSheet, more: MoreSheet,
   // W4 4G4: the notification centre the bell opens.
-  notifications: NotificationCentre };
+  notifications: NotificationCentre,
+  // C7: Help from the guide, and What's new.
+  help: HelpSheet, 'whats-new': WhatsNewSheet };
