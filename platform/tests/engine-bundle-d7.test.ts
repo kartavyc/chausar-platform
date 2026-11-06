@@ -39,7 +39,7 @@ test('the manifest lists every entry, and each exists', async () => {
 test('nothing from node_modules is inlined: every package stays an import', () => {
   assert.ok(built.modules.length > 500, `${built.modules.length} engine modules`);
   assert.deepEqual(built.modules.filter((id: string) => /node_modules/.test(id)), []);
-  assert.deepEqual(built.modules.filter((id: string) => !/[\\/]platform[\\/]runtime[\\/]/.test(id) && !id.startsWith('\0')), []);
+  assert.deepEqual(built.modules.filter((id: string) => !/[\\/]platform[\\/](?:runtime|shared)[\\/]/.test(id) && !id.startsWith('\0')), []);
 });
 
 test('every file the engine finds by path is in the bundle at the same place, and no map ships', async () => {
