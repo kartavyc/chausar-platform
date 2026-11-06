@@ -6,6 +6,7 @@ import { FAKE_DEVICE_CODE } from '../../src/engine/fake-first-run';
 import { EngineError, type EngineClient, type ModelStatusLite } from '../../src/engine/types';
 import firstRun from '../../src/text/en/first-run.json';
 import { answerSideWork, confirmProfession } from './first-run-steps';
+import { ClockProvider } from '../../src/shell/clock';
 
 /**
  * W6 first run: Connect your AI (6C1), About you as A that becomes B (6C2, DECISIONS D16a) and Connect what your
@@ -324,7 +325,8 @@ describe('one-shot A1 row 3: the plan saved is the plan shown', () => {
     fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: 'I run a small weekend photography studio in Pune.' } });
     await press('Send');
     expect(await screen.findByText('Birthday party photography')).toBeTruthy();
-    const shownName = (await screen.findByText((_, node) => node?.className?.toString().includes('name') === true && node.tagName === 'P' && node.getAttribute('data-content') === '' && (node.textContent ?? '').length > 0)).textContent;
+    // C4 task 1: the name is a field now, holding the suggested name.
+    const shownName = await waitFor(() => { const value = (document.querySelector('[data-plan-name]') as HTMLInputElement).value; expect(value.length).toBeGreaterThan(0); return value; });
     const keep = await screen.findByRole('button', { name: 'Keep this plan' });
     await waitFor(() => expect(keep.hasAttribute('disabled')).toBe(false));
     await act(async () => { fireEvent.click(keep); });
@@ -339,5 +341,105 @@ describe('one-shot A1 row 3: the plan saved is the plan shown', () => {
     expect(plan.blueprint.source).toBe('template');
     expect(plan.blueprint.offers.every((offer) => offer.name.by === 'template' && offer.pricing.model === 'project')).toBe(true);
     expect(plan.blueprint.version).toBe(1);
+  });
+});
+
+/*
+ * One-shot C4 task 2: an optional first name on About you, kept in the first run only, and saved once the business is
+ * open, so Today greets the owner by name. Left empty, nothing is written.
+ */
+describe('first run: a first name in About you (C4 task 2)', () => {
+  const at = (hour: number, minute = 0) => () => new Date(Date.UTC(2026, 9, 23, hour, minute) - 330 * 60_000);
+  function startAt() {
+    timeZone('Asia/Kolkata');
+    window.location.hash = '#/today';
+    const fake = createFakeClient(new FakeEngine({ fresh: true, now: () => at(19, 5)().toISOString() }));
+    const calls: [string, Record<string, unknown>][] = [];
+    const client: EngineClient = { ...fake, request: ((method: string, params?: Record<string, unknown>) => { calls.push([method, structuredClone(params ?? {})]); return fake.request(method as never, params as never); }) as EngineClient['request'] };
+    render(<ClockProvider now={at(19, 5)}><App client={client} language="en" /></ClockProvider>);
+    return calls;
+  }
+  async function keepToToday(firstName: string) {
+    await skipAi();
+    if (firstName) fireEvent.change(await screen.findByRole('textbox', { name: 'Your first name' }), { target: { value: firstName } });
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: 'Tuition classes for school students in Pune.' } });
+    await press('Send');
+    const keep = await screen.findByRole('button', { name: 'Keep this plan' }, { timeout: 4000 });
+    await waitFor(() => expect(keep.hasAttribute('disabled')).toBe(false));
+    await act(async () => { fireEvent.click(keep); });
+    await answerSideWork();
+    await press('Go to Today');
+  }
+
+  it('a typed name greets the owner on Today', async () => {
+    const calls = startAt();
+    await keepToToday('Asha');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Good evening, Asha' }, { timeout: 4000 })).toBeTruthy();
+    expect(calls.some(([method, params]) => method === 'venture.owner.set' && params.firstName === 'Asha')).toBe(true);
+  });
+
+  it('left empty, no first name is written', async () => {
+    const calls = startAt();
+    await keepToToday('');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Good evening' }, { timeout: 4000 })).toBeTruthy();
+    expect(calls.some(([method, params]) => method === 'venture.owner.set' && 'firstName' in params)).toBe(false);
+  });
+});
+
+/*
+ * One-shot C4 task 4: a Codex that fails offers three ways on in its own card (Try again, Use Claude Code instead when
+ * Claude Code is signed in here, Continue with templates), and the services step says how many are set up.
+ */
+describe('first run: ways on after a Codex failure, and the services count (C4 task 4)', () => {
+  const FAILED = 'Codex has used up your plan for now. Wait for it to reset, or choose another AI under Connections, Your AI.';
+  function startFailed(claudeSignedIn: boolean) {
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.signIn();
+    engine.firstRun.failTest(FAILED);
+    window.location.hash = '#/today';
+    const fake = createFakeClient(engine);
+    const calls: [string, Record<string, unknown>][] = [];
+    const client: EngineClient = { ...fake, request: (async (method: string, params?: Record<string, unknown>) => {
+      calls.push([method, structuredClone(params ?? {})]);
+      const answer = await fake.request(method as never, params as never) as unknown;
+      if (method !== 'venture.ai.tools' || !claudeSignedIn) return answer;
+      const tools = answer as { tools: { cli: string }[] };
+      return { ...tools, tools: tools.tools.map((tool) => (tool.cli === 'claude-code' ? { ...tool, found: true, signedIn: 'yes', login: { state: 'idle', code: null, link: null, line: null } } : tool)) };
+    }) as EngineClient['request'] };
+    render(<App client={client} language="en" />);
+    return calls;
+  }
+
+  it('with Claude Code signed in: Try again, Use Claude Code instead (which connects it) and Continue with templates', async () => {
+    const calls = startFailed(true);
+    const card = (await screen.findByText(FAILED)).closest('section')!;
+    expect(within(card).getByRole('button', { name: 'Try again' })).toBeTruthy();
+    expect(within(card).getByRole('button', { name: 'Continue with templates' })).toBeTruthy();
+    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Use Claude Code instead' })); });
+    expect(calls.some(([method, params]) => method === 'venture.ai.connect' && params.presetId === 'claude-code-cli')).toBe(true);
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' }, { timeout: 4000 })).toBeTruthy();
+  });
+
+  it('with Claude Code absent: two ways on', async () => {
+    startFailed(false);
+    const card = (await screen.findByText(FAILED)).closest('section')!;
+    expect(within(card).getByRole('button', { name: 'Try again' })).toBeTruthy();
+    expect(within(card).queryByRole('button', { name: 'Use Claude Code instead' })).toBeNull();
+    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: 'Continue with templates' })); });
+    expect(await screen.findByRole('heading', { level: 1, name: 'What work do you do?' }, { timeout: 4000 })).toBeTruthy();
+  });
+
+  it('the services step says how many are set up, and skipping one sets none up', async () => {
+    timeZone('Asia/Kolkata');
+    start();
+    await skipAi();
+    await press(/^Teaching and coaching/);
+    await press('Keep this plan');
+    await answerSideWork();
+    const list = await screen.findByRole('list', { name: 'Services for Teaching and coaching' }, { timeout: 4000 });
+    const total = within(list).getAllByRole('button', { name: 'Set up' }).length;
+    expect(screen.getByText(`0 of ${total} set up. You can do this later in Connections.`)).toBeTruthy();
+    await act(async () => { fireEvent.click(within(list).getAllByRole('button', { name: 'Skip' })[0]!); });
+    expect(screen.getByText(`0 of ${total} set up. You can do this later in Connections.`)).toBeTruthy();
   });
 });

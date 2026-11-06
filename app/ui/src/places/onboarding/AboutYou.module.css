@@ -276,3 +276,45 @@
 [data-motion='none'] .slide {
   animation: none;
 }
+
+/* C4 task 1: the name is a field; each offer a ticked row with a pencil, or "Removed" with Undo. */
+input.name {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: var(--hair) solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  font-family: inherit;
+}
+
+input.name:focus-visible,
+.offerEdit:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.offerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.offerTick {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.offerEdit {
+  width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-button);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-row);
+}
