@@ -50,7 +50,7 @@ export function Welcome({ status, found, problem, hosted, onOpen, onOpened, onNe
       <Shell status={status}>
         {way.kind === 'recover' && <Recover businesses={businesses} chosen={way.folder} {...shared} />}
         {way.kind === 'restore' && <RestoreBackup {...shared} />}
-        {way.kind === 'move' && <MoveHere {...shared} />}
+        {way.kind === 'move' && <MoveHere {...shared} businesses={businesses} onOpen={(business) => { back(); void choose(business); }} />}
         {way.kind === 'folder' && <ByFolder {...shared} />}
       </Shell>
     );

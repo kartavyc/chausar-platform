@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { useEngine, useResource } from '../../engine/context';
+import type { ClientAiConsentView, EngineClient } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { useT } from '../../text';
 import s from './Clients.module.css';
+
+/** The one way a client's AI permission is recorded: the owner's press on the exact words this view showed. */
+export const allowClientAi=(engine:EngineClient,clientId:string,view:ClientAiConsentView)=>engine.request('venture.client.aiConsent.agree',{clientId,disclosureDigest:view.disclosureDigest});
 
 export function AiConsent({clientId}:{clientId:string}) {
   const engine=useEngine(),t=useT();const resource=useResource('venture.client.aiConsent.get',{clientId});
@@ -13,7 +17,7 @@ export function AiConsent({clientId}:{clientId:string}) {
     setBusy(true);setProblem(null);
     try {
       if(view.status==='agreed')await engine.request('venture.client.aiConsent.withdraw',{clientId});
-      else await engine.request('venture.client.aiConsent.agree',{clientId,disclosureDigest:view.disclosureDigest});
+      else await allowClientAi(engine,clientId,view);
       resource.reload();
     } catch(error) {setProblem(error instanceof Error?error.message:String(error));resource.reload();}
     finally {setBusy(false);}

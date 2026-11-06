@@ -195,8 +195,10 @@ describe('Keep this business: export a copy', () => {
 
     fireEvent.click(within(box).getByRole('radio', { name: 'Readable, not encrypted' }));
     expect(within(box).getByText('Anyone who opens a readable copy can read everything in it: clients, invoices and notes.')).toBeTruthy();
-    await press(within(box).getByRole('button', { name: 'Export a copy' }));
-    expect(within(box).getByRole('alert').textContent).toBe('Tick the box to make a readable copy.');
+    // B4: no red line before anything was pressed. The button waits and says why; the old "Saved to" line goes with the old choice.
+    expect(within(box).queryByRole('alert')).toBeNull();
+    expect(within(box).queryByText(/^Saved to /)).toBeNull();
+    expect(within(box).getByRole('button', { name: 'Export a copy', description: 'Tick the box to make a readable copy.' })).toHaveProperty('disabled', true);
     expect(sent(calls, 'workspace.export')).toHaveLength(1);
     fireEvent.click(within(box).getByRole('checkbox', { name: 'I understand. Make it readable.' }));
     await press(within(box).getByRole('button', { name: 'Export a copy' }));

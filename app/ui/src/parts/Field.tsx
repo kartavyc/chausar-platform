@@ -27,7 +27,7 @@ export function Field(props: InputField | TextField) {
       <label htmlFor={id} className={s.label}>{props.label}</label>
       {control}
       {props.hint && <p id={hintId} className={s.hint}>{props.hint}</p>}
-      {props.error && <p id={errorId} className={s.error}><Icon name="triangle-alert" size={14} />{props.error}</p>}
+      {props.error && <p id={errorId} className={s.error} role="alert"><Icon name="triangle-alert" size={14} />{props.error}</p>}
     </div>
   );
 }

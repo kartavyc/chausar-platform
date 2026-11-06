@@ -114,6 +114,33 @@ describe('first run, step 1: "Signed in" is earned (A2)', () => {
     expect(screen.queryByText('Signed in')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Use Codex' })).toBeNull();
   });
+
+  it('a Codex that fails on Use says so inside the Codex card, in place of its button, with Try again (B4)', async () => {
+    const engine = new FakeEngine({ fresh: true });
+    engine.firstRun.signIn();
+    const fake = createFakeClient(engine);
+    let refuse = true;
+    const client: EngineClient = { ...fake, request: ((method: string, params?: Record<string, unknown>) => (method === 'venture.ai.connect' && refuse
+      ? Promise.reject(new EngineError('MODEL_UNAVAILABLE', "Chausar's reviewed setup for Codex isn't on this computer yet."))
+      : fake.request(method as never, params as never))) as EngineClient['request'] };
+    window.location.hash = '#/today';
+    render(<App client={client} language="en" />);
+    await press('Use Codex');
+    const card = screen.getByRole('region', { name: firstRun['first-run.ai.codex.name'] });
+    await waitFor(() => expect(within(card).getByRole('alert').textContent).toBe("Chausar's reviewed setup for Codex isn't on this computer yet."));
+    expect(within(card).queryByRole('button', { name: 'Use Codex' })).toBeNull();
+    refuse = false;
+    await act(async () => { fireEvent.click(within(card).getByRole('button', { name: firstRun['first-run.ai.tryAgain'] })); });
+    await waitFor(() => expect(screen.queryByRole('region', { name: firstRun['first-run.ai.codex.name'] })).toBeNull());
+  });
+
+  it('a key not yet working says so in the key card, not under the page (B4)', async () => {
+    start();
+    await press(firstRun['first-run.ai.key.add']);
+    await press(firstRun['first-run.ai.keyContinue']);
+    const card = screen.getByRole('region', { name: firstRun['first-run.ai.key.name'] });
+    await waitFor(() => expect(within(card).getByRole('alert').textContent).toBe(firstRun['first-run.ai.keyFirst']));
+  });
 });
 
 describe('first run, step 2: About you, A that becomes B', () => {
@@ -170,8 +197,14 @@ describe('first run, step 2: About you, A that becomes B', () => {
     await skipAi();
     fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: CA } });
     await press('Send');
-    const preview = await screen.findByRole('region', { name: 'Your business, live' });
-    await waitFor(() => expect(within(preview).getByRole('alert').textContent).toBe('Your AI did not answer. Try again in a moment.'));
+    // B4: the failure is Chausar's turn in the chat, with its way on; the preview only says it stopped.
+    const chat = await screen.findByRole('region', { name: firstRun['first-run.about.chat'] });
+    await waitFor(() => expect(within(chat).getByRole('alert').textContent).toBe('Your AI did not answer. Try again in a moment.'));
+    expect(chat.querySelector('[data-failed-turn]')).toBeTruthy();
+    expect(within(chat).getByRole('button', { name: firstRun['first-run.ai.tryAgain'] })).toBeTruthy();
+    const preview = screen.getByRole('region', { name: 'Your business, live' });
+    expect(within(preview).getByText(firstRun['first-run.about.stopped'])).toBeTruthy();
+    expect(within(preview).queryByRole('alert')).toBeNull();
     expect(screen.queryByText(firstRun['first-run.about.updating'])).toBeNull();
     expect(screen.queryByText(firstRun['first-run.about.reading'])).toBeNull();
     expect(screen.getAllByText('Your AI did not answer. Try again in a moment.')).toHaveLength(1);

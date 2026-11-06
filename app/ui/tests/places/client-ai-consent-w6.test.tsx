@@ -50,6 +50,42 @@ describe('per-client AI permission',()=>{
   render(<App client={client} language="en"/>);const sheet=await screen.findByRole('complementary',{name:'Boat Audio'});fireEvent.click(await within(sheet).findByText('AI permission'));
   await within(sheet).findByText('Permission is unavailable.');expect(within(sheet).queryByRole('button',{name:'Allow AI access'})).toBeNull();
  });
+ it('Work: Start refused for permission shows Allow and start, which records it through the sheet call and then starts (B4)',async()=>{
+  const engine=new FakeEngine();await engine.request('workspace.open',{folder:'ledgerline'});const client=createFakeClient(engine),base=client.request.bind(client);
+  let agreed=false;const runs:unknown[]=[];
+  client.request=((method,params)=>{
+   if(method==='venture.client.aiConsent.agree')return base(method as never,params as never).then((view:unknown)=>{agreed=true;return view;});
+   if(method==='venture.delivery.run'){runs.push(params);return agreed?Promise.resolve({}):Promise.reject(new EngineError('CLIENT_AI_CONSENT_REQUIRED','Allow this client’s data to reach your AI before starting their work.'));}
+   return base(method as never,params as never);
+  }) as EngineClient['request'];
+  const spy=vi.spyOn(client,'request');window.location.hash='#/work';render(<App client={client} language="en"/>);
+  const row=(await screen.findByText('Monthly books from October')).closest('li')!;await act(async()=>fireEvent.click(within(row).getByRole('button',{name:'Start'})));
+  const allow=await within(row).findByRole('button',{name:'Allow and start'});
+  // Refused for permission: a known state, not a red alarm; Start goes so it cannot be refused again, the exact words are one step away.
+  expect(within(row).queryByRole('alert')).toBeNull();expect(within(row).getByRole('status').textContent).toContain('Allow this client');
+  expect(within(row).queryByRole('button',{name:'Start'})).toBeNull();
+  expect(row.querySelector('[data-consent-words]')?.textContent).toContain('Withdrawal stops future sharing');
+  expect(spy.mock.calls.some(([method])=>method==='venture.client.aiConsent.agree')).toBe(false);
+  await act(async()=>fireEvent.click(allow));
+  await waitFor(()=>expect(runs).toHaveLength(2));
+  const grant=spy.mock.calls.find(([method])=>method==='venture.client.aiConsent.agree');
+  expect(grant?.[1]).toMatchObject({clientId:expect.any(String),disclosureDigest:expect.any(String)});
+  const names=spy.mock.calls.map(([method])=>method);expect(names.indexOf('venture.client.aiConsent.agree')).toBeLessThan(names.lastIndexOf('venture.delivery.run'));
+  expect(within(row).queryByRole('button',{name:'Allow and start'})).toBeNull();
+ });
+ it('Work: when the permission changed under it, Allow and start says so and starts nothing (B4)',async()=>{
+  const engine=new FakeEngine();await engine.request('workspace.open',{folder:'ledgerline'});const client=createFakeClient(engine),base=client.request.bind(client);const runs:unknown[]=[];
+  client.request=((method,params)=>{
+   if(method==='venture.client.aiConsent.agree')return Promise.reject(new EngineError('CLIENT_AI_CONSENT_CHANGED','Read the current permission and confirm it again.'));
+   if(method==='venture.delivery.run'){runs.push(params);return Promise.reject(new EngineError('CLIENT_AI_CONSENT_REQUIRED','Allow this client’s data to reach your AI before starting their work.'));}
+   return base(method as never,params as never);
+  }) as EngineClient['request'];
+  window.location.hash='#/work';render(<App client={client} language="en"/>);
+  const row=(await screen.findByText('Monthly books from October')).closest('li')!;await act(async()=>fireEvent.click(within(row).getByRole('button',{name:'Start'})));
+  await act(async()=>fireEvent.click(await within(row).findByRole('button',{name:'Allow and start'})));
+  await within(row).findByText(/Read the current permission and confirm it again\./);
+  expect(runs).toHaveLength(1);
+ });
  it('Work links a missing-permission refusal to the exact client without granting it',async()=>{
   const engine=new FakeEngine();await engine.request('workspace.open',{folder:'ledgerline'});const client=createFakeClient(engine),base=client.request.bind(client);
   client.request=((method,params)=>method==='venture.delivery.run'?Promise.reject(new EngineError('CLIENT_AI_CONSENT_REQUIRED','Allow this client’s data to reach your AI before starting their work.')):base(method as never,params as never)) as EngineClient['request'];

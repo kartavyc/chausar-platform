@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../../src/shell/App';
 import { FakeEngine, createFakeClient } from '../../src/engine/fake';
-import type { EngineClient } from '../../src/engine/types';
+import { EngineError, type EngineClient } from '../../src/engine/types';
 import { assertInkRules } from '../helpers/ink-rules';
 
 /*
@@ -82,6 +82,25 @@ describe('Apps (6H1)', () => {
     await act(async () => { release!(); });
     await screen.findByText(/Connect your AI first\./);
     expect(screen.queryByText('Your AI is writing it.')).toBeNull();
+  });
+
+  it('no AI connected is a known state: muted words, Connect in the line, the words kept (B4)', async () => {
+    window.location.hash = '#/apps';
+    const client = createFakeClient(new FakeEngine());
+    const base = client.request.bind(client);
+    client.request = ((method: string, params?: unknown) => (method === 'venture.apps.make'
+      ? Promise.reject(new EngineError('APP_NEEDS_AI', 'Connect your AI first. Your AI writes the app; Chausar checks it and runs it in a locked box.'))
+      : base(method as never, params as never))) as EngineClient['request'];
+    render(<App client={client} language="en" />);
+    const box = await screen.findByRole('textbox', { name: 'Describe the app' }) as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: 'A sheet of my batches' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
+    const line = await screen.findByText(/^Connect your AI first\./);
+    expect(line.closest('[data-tone]')!.getAttribute('data-tone')).toBe('expected');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(box.value).toBe('A sheet of my batches');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Connect your AI' })); });
+    expect(window.location.hash).toBe('#/connections');
   });
 
   it('making an app opens it beside its permission screen; it runs only after Allow, in a locked frame', async () => {

@@ -6,12 +6,15 @@ import { useClock, useOwnerZone } from '../../shell/clock';
 import { dayKeyIn, formatDay } from '../../../../../platform/runtime/owner-format';
 import { Avatar } from '../../parts/Avatar';
 import { Button } from '../../parts/Button';
+import { ConsentWords } from '../../parts/ConsentWords';
+import { InlineError } from '../../parts/InlineError';
+import { allowClientAi } from '../clients/AiConsent';
 import { StateChip } from '../../parts/Chip';
 import { Figure, proofOf } from '../../parts/Figure';
 import { Receipt } from '../../parts/Receipt';
 import { Tile } from '../../parts/Tile';
 import { cx } from '../../parts/cx';
-import { EngineError, type ClientLite } from '../../engine/types';
+import { EngineError, type ClientAiConsentView, type ClientLite } from '../../engine/types';
 import type { OrderAction, OrderView } from './orders';
 import { refusalWords } from '../../parts/custody';
 // W4 4J19: the order's stage steps and what waits on the owner.
@@ -81,6 +84,8 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
   const [phase, setPhase] = useState<'idle' | 'confirm' | 'busy'>('idle');
   const [problem, setProblem] = useState<string>();
   const [needsConsent, setNeedsConsent] = useState(false);
+  /** B4 task 4: the permission as it stands, read at the refusal: its words show and Allow and start agrees to them. */
+  const [consent, setConsent] = useState<ClientAiConsentView | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const { order, state, action, invoice } = view;
   const run = view.run && !view.run.practice ? view.run : undefined;
@@ -93,16 +98,39 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
     setPhase('busy');
     setProblem(undefined);
     setNeedsConsent(false);
+    setConsent(null);
     try {
       if (kind === 'deliver') await client.request('venture.order.deliver', { orderId: order.id, deliveredOn: todayOf(now(), zone) });
       else await client.request('venture.delivery.run', { orderId: order.id });
       onChanged();
     } catch (error) {
       setProblem(t(ACTION_FAILED[kind], { message: refusalWords(error, t) }));
-      setNeedsConsent(error instanceof EngineError && ['CLIENT_AI_CONSENT_REQUIRED','CLIENT_AI_CONSENT_CHANGED'].includes(error.code));
+      if (error instanceof EngineError && ['CLIENT_AI_CONSENT_REQUIRED','CLIENT_AI_CONSENT_CHANGED'].includes(error.code)) {
+        setNeedsConsent(true);
+        readConsent();
+      }
     } finally {
       setPhase('idle');
     }
+  }
+
+  function readConsent() {
+    client.request('venture.client.aiConsent.get', { clientId: order.clientId }).then(setConsent, () => setConsent(null));
+  }
+
+  /** Records the permission through the same call as the client sheet, on the words shown here, then starts the order. */
+  async function allowAndStart(view: ClientAiConsentView) {
+    setPhase('busy');
+    setProblem(undefined);
+    try {
+      await allowClientAi(client, order.clientId, view);
+    } catch (error) {
+      setProblem(refusalWords(error, t));
+      readConsent();
+      setPhase('idle');
+      return;
+    }
+    await act(action === 'run-again' ? 'run-again' : 'start');
   }
 
   return (
@@ -145,10 +173,10 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
       <OrderSteps order={order} />
       <div className={s.orderFoot}>
         <p className={cx(s.say, state === 'waiting' && s.wait)}>{orderSentence(view, t)}</p>
-        {(waitsOnYou(view) || (action && phase !== 'confirm')) && (
+        {(waitsOnYou(view) || (action && phase !== 'confirm' && !needsConsent)) && (
           <div className={s.orderActs}>
             {waitsOnYou(view) && <a className={s.linkButton} href="#/today">{t('work.order.onToday')}</a>}
-            {action && phase !== 'confirm' && (
+            {action && phase !== 'confirm' && !needsConsent && (
               <Button variant="primary" data-key="primary" disabled={phase === 'busy'} onClick={() => (action === 'deliver' ? setPhase('confirm') : void act(action))}>
                 {t(ACTION_LABEL[action])}
               </Button>
@@ -163,7 +191,13 @@ function OrderCard({ view, canOpen, onChanged }: { view: OrderView; canOpen: boo
           <Button variant="primary" data-confirm="" onClick={() => void act('deliver')}>{t('work.deliver')}</Button>
         </div>
       )}
-      {problem && <p className={s.problem} role="status">{problem}</p>}
+      {problem && (
+        <InlineError
+          tone={needsConsent ? 'expected' : 'failure'}
+          fix={needsConsent && consent ? { label: t('clients.ai.allowStart'), onSelect: () => void allowAndStart(consent), busy: phase === 'busy' } : undefined}
+        >{problem}</InlineError>
+      )}
+      {needsConsent && consent && <ConsentWords text={consent.disclosure} />}
       {needsConsent && <Button variant="quiet" onClick={event=>openSheet('client',order.clientId,event.currentTarget)}>{t('clients.ai.review')}</Button>}
     </li>
   );

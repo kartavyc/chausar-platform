@@ -469,5 +469,6 @@
   "clients.ai.allow": "Allow AI access",
   "clients.ai.withdraw": "Withdraw permission",
   "clients.ai.retry": "Try again",
+  "clients.ai.allowStart": "Allow and start",
   "clients.ai.review": "Review AI permission"
 }

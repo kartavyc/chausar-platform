@@ -92,13 +92,6 @@
   border-radius: var(--r-button);
 }
 
-.error {
-  font-size: var(--text-read);
-  line-height: 1.4;
-  color: var(--fail);
-  overflow-wrap: anywhere;
-}
-
 .hint {
   display: flex;
   align-items: center;

@@ -98,6 +98,54 @@ describe('Business > Routines (4J22a)', () => {
     await waitFor(() => expect(within(form).getByRole('alert').textContent).toBe("Couldn't save it: A routine runs without the chat, so \"like before\" would point at nothing. Say in full what you want each time."));
   });
 
+  it('"check your AI first" carries Check now: it runs the check, says Checking..., and saves what was asked (B4)', async () => {
+    let checked = false;
+    let finish: () => void = () => {};
+    const { calls } = start({
+      'venture.routines.set': (params) => {
+        if (!checked) throw new EngineError('ROUTINE_NEEDS_CHECK', 'Run Check connections once before a routine uses this connection, so Chausar knows it works.');
+        return { routine: { ...(params as { routine: object }).routine, id: 'routine-new', when: '', next: null } };
+      },
+      'venture.connectors.check': () => new Promise((resolve) => { finish = () => { checked = true; resolve({ at: '2026-10-23T10:00:00.000Z', rows: [] }); }; }),
+    });
+    await screen.findByRole('article', { name: 'Weekly review' });
+    const form = screen.getByRole('form', { name: 'Add a routine' });
+    fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Again' } });
+    fireEvent.change(within(form).getByLabelText('What to ask'), { target: { value: 'Write the report in full.' } });
+    fireEvent.click(within(form).getByRole('checkbox', { name: 'Friday' }));
+    await press(form, 'Save routine');
+    await press(form.querySelector('[data-second-ask]') as HTMLElement, 'Save');
+    await within(form).findByText(/^Couldn't save it: Run Check connections once/);
+    // A known state, not an alarm.
+    expect(within(form).queryByRole('alert')).toBeNull();
+    await press(form, 'Check now');
+    // The line clears on the press and says what is happening.
+    expect(within(form).queryByText(/^Couldn't save it/)).toBeNull();
+    expect(within(form).getByText('Checking...')).toBeTruthy();
+    expect(calls.some((c) => c.method === 'venture.connectors.check')).toBe(true);
+    await act(async () => { finish(); });
+    await waitFor(() => expect(calls.filter((c) => c.method === 'venture.routines.set')).toHaveLength(2));
+    expect(within(form).queryByText('Checking...')).toBeNull();
+    expect(within(form).queryByRole('button', { name: 'Check now' })).toBeNull();
+  });
+
+  it('a check that fails says so in the same slot, and saves nothing more (B4)', async () => {
+    const { calls } = start({
+      'venture.routines.set': () => { throw new EngineError('ROUTINE_NEEDS_CHECK', 'Run Check connections once before a routine uses this connection, so Chausar knows it works.'); },
+      'venture.connectors.check': () => { throw new EngineError('CHECK_FAILED', 'The check did not run.'); },
+    });
+    await screen.findByRole('article', { name: 'Weekly review' });
+    const form = screen.getByRole('form', { name: 'Add a routine' });
+    fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Again' } });
+    fireEvent.change(within(form).getByLabelText('What to ask'), { target: { value: 'Write the report in full.' } });
+    fireEvent.click(within(form).getByRole('checkbox', { name: 'Friday' }));
+    await press(form, 'Save routine');
+    await press(form.querySelector('[data-second-ask]') as HTMLElement, 'Save');
+    await press(form, 'Check now');
+    await waitFor(() => expect(within(form).getByRole('alert').textContent).toContain('The check did not run.'));
+    expect(calls.filter((c) => c.method === 'venture.routines.set')).toHaveLength(1);
+  });
+
   it('turns a routine off and on again, each after a second ask, sending its own words back', async () => {
     const { calls } = start();
     const item = await screen.findByRole('article', { name: 'Weekly review' });

@@ -5,6 +5,7 @@ import { useEngine, useResource } from '../../engine/context';
 import type { BackupLite, ParamsOf } from '../../engine/types';
 import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
+import { InlineError } from '../../parts/InlineError';
 import { NewPassphrase } from '../../parts/Secret';
 import { TRANSFER_MAX_CHARS, codeOf, momentOf, newPassphraseProblem, refusalWords } from '../../parts/custody';
 import type { Openable } from './boot';
@@ -203,11 +204,20 @@ function RestoreRow({ backup, onOpened }: { backup: BackupLite; onOpened: () => 
   );
 }
 
+/** Which business a move file holds: the engine's envelope id (the fake's `business`). Not a secret; never sent. */
+function idOfMoveFile(text: string): string | null {
+  try {
+    const file = JSON.parse(text) as { envelope?: { id?: unknown }; business?: unknown };
+    const id = file.envelope?.id ?? file.business;
+    return typeof id === 'string' ? id : null;
+  } catch { return null; }
+}
+
 /**
  * Move a business here: the file from the other computer and its one-time code. The browser's own file control stays
  * hidden; Chausar's button opens it. The code field sits outside any form, so no browser offers to keep it.
  */
-export function MoveHere({ onOpened, onBack }: WayProps) {
+export function MoveHere({ businesses, onOpen, onOpened, onBack }: WayProps & { businesses: readonly Openable[]; onOpen: (business: Openable) => void }) {
   const t = useT();
   const client = useEngine();
   const picker = useRef<HTMLInputElement>(null);
@@ -218,6 +228,9 @@ export function MoveHere({ onOpened, onBack }: WayProps) {
   const [problem, setProblem] = useState<string | null>(null);
   // B4: the file this computer already holds: typing a code can't fix that, so Move it here waits for another file.
   const [alreadyHere, setAlreadyHere] = useState<File | null>(null);
+  /** B4 task 4: the business of a file already on this computer, opened from the line; null when the list can't name it. */
+  const [here, setHere] = useState<Openable | null>(null);
+  const [codeWrong, setCodeWrong] = useState<string | null>(null);
   const missing = !file ? t('onboarding.move.fileFirst') : file === alreadyHere ? t('onboarding.move.anotherFile') : !code.trim() ? t('onboarding.move.codeFirst') : undefined;
 
   async function move() {
@@ -235,13 +248,19 @@ export function MoveHere({ onOpened, onBack }: WayProps) {
     pair.clear();
     setBusy(true);
     setProblem(null);
+    setCodeWrong(null);
     try {
       await client.request('workspace.transfer.import', payload);
       onOpened();
     } catch (error) {
       if (codeOf(error) === 'DEVICE_KEYS_UNAVAILABLE' && !pair.wanted) pair.show(messageOf(error));
+      else if (codeOf(error) === 'TRANSFER_CODE_WRONG') setCodeWrong(refusalWords(error, t));
       else setProblem(refusalWords(error, t));
-      if (codeOf(error) === 'TRANSFER_SAME_BUSINESS') setAlreadyHere(file);
+      if (codeOf(error) === 'TRANSFER_SAME_BUSINESS') {
+        setAlreadyHere(file);
+        const id = idOfMoveFile(fileText);
+        setHere(businesses.find((business) => business.key === id) ?? null);
+      }
       setBusy(false);
     } finally {
       // The file's text and the code leave memory with the request.
@@ -261,12 +280,12 @@ export function MoveHere({ onOpened, onBack }: WayProps) {
           <span className={s.note}>{file ? file.name : t('onboarding.move.noFile')}</span>
           <input
             ref={picker} type="file" hidden tabIndex={-1} accept=".backup,application/json" aria-label={t('onboarding.move.file')}
-            onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setProblem(null); }}
+            onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setProblem(null); setCodeWrong(null); setHere(null); }}
           />
         </div>
-        <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} onChange={(event) => setCode(event.currentTarget.value)} onKeyDown={onEnter} />
+        <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} error={codeWrong ?? undefined} onChange={(event) => { setCode(event.currentTarget.value); setCodeWrong(null); }} onKeyDown={onEnter} />
         {pair.node}
-        {problem && <p className={s.problem} role="alert">{problem}</p>}
+        {problem && <InlineError fix={here ? { label: t('onboarding.move.open', { name: here.name ?? t('onboarding.welcome.noName') }), onSelect: () => onOpen(here) } : undefined}>{problem}</InlineError>}
         <div className={s.actions}><Button variant="primary" disabled={busy} disabledReason={busy ? undefined : missing} onClick={() => void move()}>{t('onboarding.move.go')}</Button></div>
       </div>
     </Way>

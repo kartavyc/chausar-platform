@@ -5,6 +5,7 @@
   "apps.make.label": "Describe the app",
   "apps.make.placeholder": "Say what the app should do, like: who paid and who is due",
   "apps.make.busy": "Your AI is writing it.",
+  "apps.make.connect": "Connect your AI",
   "apps.card.open": "Open",
   "apps.card.openNamed": "Open {name}",
   "apps.card.pinned": "Pinned to Today",

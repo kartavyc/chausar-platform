@@ -75,6 +75,7 @@
   "onboarding.move.fileFirst": "Choose the move file first.",
   "onboarding.move.codeFirst": "Type the move code first.",
   "onboarding.move.anotherFile": "Choose another file",
+  "onboarding.move.open": "Open {name}",
   "onboarding.folder.title": "Find it on this computer",
   "onboarding.folder.lead": "For a business the list can't show.",
   "onboarding.folder.folder": "Folder",

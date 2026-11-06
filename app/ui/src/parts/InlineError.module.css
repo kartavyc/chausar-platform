@@ -1,0 +1,46 @@
+/* InlineError: one line in the slot of the card or button that failed, with its fix beside it. No box and no fill. */
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  min-width: 0;
+}
+
+.line {
+  display: flex;
+  flex: 1 1 16em;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--fail);
+}
+
+.line > svg {
+  flex: none;
+  margin-top: calc(var(--sp-1) / 2);
+}
+
+.line[data-tone='expected'] {
+  color: var(--mute);
+}
+
+.line[data-tone='expected'] > svg {
+  color: var(--wait);
+}
+
+.words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The long reason: normal colour, on its own line under the short one. */
+.detail {
+  display: block;
+  margin-top: calc(var(--sp-1) / 2);
+  color: var(--fg2);
+}

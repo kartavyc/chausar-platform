@@ -235,7 +235,7 @@
   "business.notify": "Notifications",
   "composer.send": "Send",
   "composer.suggestions": "Suggestions",
-  "composer.failed": "Couldn't send, so your message is still here. {message}",
+  "composer.failed": "Couldn't send, so your message is still here.",
   "thread.label": "Conversation with {name}",
   "thread.today": "Today",
   "thread.yesterday": "Yesterday",

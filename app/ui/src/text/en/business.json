@@ -622,6 +622,8 @@
   "business.routines.saveAsk": "Each job waits for your approval on Today before anything goes to your AI. Save it?",
   "business.routines.save": "Save",
   "business.routines.saveFailed": "Couldn't save it: {message}",
+  "business.routines.checkNow": "Check now",
+  "business.routines.checking": "Checking...",
   "business.practice.tried.lift": "Lift: {line}",
   "business.routines.off": "Turn off",
   "business.routines.on": "Turn on",

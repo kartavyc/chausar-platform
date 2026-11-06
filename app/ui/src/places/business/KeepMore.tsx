@@ -193,7 +193,7 @@ export function ExportCopy() {
 
   async function go(event: FormEvent) {
     event.preventDefault();
-    if (readable && !sure) { setProblem(t('business.exportTick')); return; }
+    if (readable && !sure) return;
     setBusy(true);
     setProblem(null);
     setSaved(null);
@@ -215,11 +215,11 @@ export function ExportCopy() {
         <fieldset className={s.choices}>
           <legend className="sr-only">{t('business.exportKind')}</legend>
           <label className={s.agree}>
-            <input type="radio" name={name} checked={!readable} onChange={() => { setReadable(false); setSure(false); setProblem(null); }} />
+            <input type="radio" name={name} checked={!readable} onChange={() => { setReadable(false); setSure(false); setProblem(null); setSaved(null); }} />
             {t('business.exportEncrypted')}
           </label>
           <label className={s.agree}>
-            <input type="radio" name={name} checked={readable} onChange={() => { setReadable(true); setProblem(null); }} />
+            <input type="radio" name={name} checked={readable} onChange={() => { setReadable(true); setProblem(null); setSaved(null); }} />
             {t('business.exportReadable')}
           </label>
         </fieldset>
@@ -233,7 +233,7 @@ export function ExportCopy() {
           </>
         ) : <p className={s.note}>{t('business.exportEncryptedLine')}</p>}
         {problem && <p className={s.problem} role="alert">{problem}</p>}
-        <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.export')}</Button></div>
+        <div className={s.buttons}><Button type="submit" disabled={busy} disabledReason={readable && !sure ? t('business.exportTick') : undefined}>{t('business.export')}</Button></div>
         {saved && (
           <div role="status">
             <p className={s.said}>{t('business.exportSaved', { path: saved.path })}</p>

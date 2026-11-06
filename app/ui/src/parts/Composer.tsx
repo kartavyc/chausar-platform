@@ -3,6 +3,7 @@ import { useT } from '../text';
 import { Button } from './Button';
 import { cx } from './cx';
 import { Icon } from './Icon';
+import { InlineError, type InlineFix } from './InlineError';
 import s from './Composer.module.css';
 
 export interface ComposerProps {
@@ -18,7 +19,16 @@ export interface ComposerProps {
   hint?: string | undefined;
   /** Words already in the box when it opens (W4 4C2: an ask from the header or Start), unsent until Send. */
   initial?: string | undefined;
+  /** A place's own way to say a known failure, with its fix. Left out, or null, the plain failure line shows. */
+  describeFailure?: ((failure: unknown) => ComposerFailure | null) | undefined;
   className?: string | undefined;
+}
+
+/** How a place says a failure it knows. */
+export interface ComposerFailure {
+  words: string;
+  tone?: 'failure' | 'expected' | undefined;
+  fix?: InlineFix | undefined;
 }
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -27,10 +37,11 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  * Where the owner writes to an agent or to Chausar (D's `.cp-comp`, `.cbox`, `.sugs`, `.send`). Enter sends,
  * Shift+Enter starts a new line, and nothing sends while an input method (Hindi, for one) is still composing.
  * What was written is kept until the engine confirms it stored the message (catalogue O22): while sending the box
- * is read-only and the suggestions wait, and a failure leaves the words in place with the reason under them. A send
- * starts once however fast Enter is pressed. Nothing goes to browser storage.
+ * is read-only and the suggestions wait, and a failure leaves the words in place with the reason under them: one short
+ * red line, then the long reason in the normal colour, whole (B4 task 4). A send starts once however fast Enter is
+ * pressed. Nothing goes to browser storage.
  */
-export function Composer({ label, placeholder, onSend, suggestions, hint, initial, className }: ComposerProps) {
+export function Composer({ label, placeholder, onSend, suggestions, hint, initial, describeFailure, className }: ComposerProps) {
   const t = useT();
   const id = useId();
   const box = useRef<HTMLTextAreaElement>(null);
@@ -39,7 +50,7 @@ export function Composer({ label, placeholder, onSend, suggestions, hint, initia
   const inFlight = useRef(false);
   const [text, setText] = useState(initial ?? '');
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; known: ComposerFailure | null } | null>(null);
   const empty = text.trim() === '';
 
   async function send() {
@@ -51,7 +62,7 @@ export function Composer({ label, placeholder, onSend, suggestions, hint, initia
       await onSend(text.trim());
       setText('');
     } catch (failure) {
-      setError(messageOf(failure));
+      setError({ message: messageOf(failure), known: describeFailure?.(failure) ?? null });
     } finally {
       inFlight.current = false;
       setSending(false);
@@ -115,7 +126,9 @@ export function Composer({ label, placeholder, onSend, suggestions, hint, initia
           <Icon name="send" size={18} />
         </Button>
       </div>
-      {error !== null && <p id={`${id}-error`} className={s.error} role="alert">{t('composer.failed', { message: error })}</p>}
+      {error !== null && (error.known
+        ? <InlineError id={`${id}-error`} tone={error.known.tone} fix={error.known.fix}>{error.known.words}</InlineError>
+        : <InlineError id={`${id}-error`} detail={error.message}>{t('composer.failed')}</InlineError>)}
       {hint && (
         <p id={`${id}-hint`} className={s.hint}>
           <Icon name="shield-check" size={12} />

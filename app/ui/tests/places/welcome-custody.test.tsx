@@ -225,7 +225,11 @@ describe('Welcome back: move a business here', () => {
     await press(screen.getByRole('button', { name: 'Move it here' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(CUSTODY_ERROR_WORDS.TRANSFER_CODE_WRONG));
     expect(code.value).toBe('');
+    // B4: the wrong code marks its field and its words describe it.
+    expect(code.getAttribute('aria-invalid')).toBe('true');
+    expect(code.getAttribute('aria-describedby')).toBe(screen.getByRole('alert').id);
     fireEvent.change(code, { target: { value: SAMPLE_MOVE_CODE } });
+    expect(code.getAttribute('aria-invalid')).toBeNull();
     await press(screen.getByRole('button', { name: 'Move it here' }));
     await appShown();
     expect(sent(calls, 'workspace.transfer.import')).toEqual([
@@ -247,6 +251,19 @@ describe('Welcome back: move a business here', () => {
     expect(screen.getByRole('button', { name: 'Move it here', description: 'Choose another file' })).toHaveProperty('disabled', true);
     choose(move.text, 'another.backup');
     expect(screen.getByRole('button', { name: 'Move it here' })).toHaveProperty('disabled', false);
+  });
+
+  it('a business already on this computer: the line carries Open <name>, which opens it (B4)', async () => {
+    const move = await moveFile();
+    const { calls } = start({ closed: true });
+    await welcome();
+    await press(screen.getByRole('button', { name: 'Move from another computer' }));
+    choose(move.text);
+    fireEvent.change(screen.getByLabelText('The move code'), { target: { value: SAMPLE_MOVE_CODE } });
+    await press(screen.getByRole('button', { name: 'Move it here' }));
+    await press(await screen.findByRole('button', { name: `Open ${(JSON.parse(move.text) as { name: string }).name}` }));
+    await appShown();
+    expect(sent(calls, 'workspace.open').length).toBe(1);
   });
 
   it('a file bigger than the engine takes is refused before it is sent', async () => {
