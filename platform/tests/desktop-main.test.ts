@@ -9,7 +9,7 @@ const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 // options (Ink v2 wave 4, 4G3): files, the Ink build's file names; written, the files main.cjs wrote (kept across runs).
 // channel (6J1): the packaged release channel; 'beta' is the installed, unsigned beta with real data.
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: any; startFails?: boolean[]; pending?: string; order?: unknown[]; packaged?: boolean; startGate?: Promise<void>; startGateFails?: string } = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), production = false, options: { files?: string[]; written?: Set<string>; channel?: string; whatsapp?: string; openFails?: (url: string) => boolean; platform?: string; metadata?: Record<string, unknown>; updates?: any; startFails?: boolean[]; pending?: string; order?: unknown[]; packaged?: boolean; startGate?: Promise<void>; startGateFails?: string; dialog?: Record<string, unknown> } = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   const startFails: boolean[] = options.startFails ?? [], order: unknown[] = options.order ?? [], optionsOrder = order;
   const trays: any[] = [], notes: any[] = [], written = options.written ?? new Set<string>(), logins: any[] = [], appMenus: unknown[] = [];
@@ -78,7 +78,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, shell, crashReporter: { start: (settings: unknown) => { crashStarts.push(settings); } }, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, shell, crashReporter: { start: (settings: unknown) => { crashStarts.push(settings); } }, BrowserWindow: Window, Tray, Notification, powerMonitor, Menu: { buildFromTemplate: (items: any) => items, setApplicationMenu: (menu: unknown) => { appMenus.push(menu); } }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle: (_scheme: string, handler: any) => { protocolHandler = handler; } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message), ...options.dialog }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
@@ -334,6 +334,25 @@ test('D4: the preload passes on a known phase of the start, and drops anything e
   const { WINDOW_PHASES } = require('./diagnostics.cjs');
   const preload = await readFile(new URL('../../app/desktop/preload.cjs', import.meta.url), 'utf8');
   for (const name of WINDOW_PHASES) assert.ok(preload.includes(`'${name}'`), name);
+});
+
+// One-shot D5: Install Claude Code asks in main's own dialog; the window's payload is never forwarded, and Cancel sends nothing.
+test('D5: Install Claude Code goes to the engine only after yes in main\'s dialog, and carries nothing', async () => {
+  const answers = [1, 0], asked: any[] = [], installs: unknown[][] = [];
+  const dialogOptions = { showMessageBox: async (...parts: any[]) => { asked.push(parts.at(-1)); return { response: answers.shift() }; } };
+  const d = await desktop(['--production'], Promise.resolve(), true, { dialog: dialogOptions });
+  const window = d.windows[0], own = { sender: window.webContents, senderFrame: window.webContents.mainFrame };
+  d.engines[0].installClaude = (...parts: unknown[]) => { installs.push(parts); return Promise.resolve({ outcome: 'installed', path: 'x', words: 'done' }); };
+  const handler = d.handlers.get('chausar:request');
+  const payload = { yes: true, at: new Date().toISOString() };
+  const cancelled = await handler(own, { method: 'venture.ai.claude.install', payload });
+  assert.deepEqual([cancelled.ok, cancelled.error.code, cancelled.error.message], [false, 'CLAUDE_INSTALL_NOT_CHOSEN', 'Nothing was downloaded.']);
+  assert.deepEqual(installs, [], 'Cancel sends nothing');
+  const yes = await handler(own, { method: 'venture.ai.claude.install', payload });
+  assert.equal(yes.ok, true); assert.deepEqual(installs, [[]], 'the yes reaches the engine once, with nothing from the window');
+  assert.deepEqual(d.engines[0].asked, [], 'never as a plain request');
+  assert.equal(asked[0].defaultId, 1); assert.equal(asked[0].cancelId, 1); assert.match(asked[0].detail, /Anthropic's official installer/);
+  assert.deepEqual(asked[0].buttons, ['Download and install', 'Cancel']);
 });
 
 test('desktop reports actual window, background and sleep transitions before shutdown', async () => {

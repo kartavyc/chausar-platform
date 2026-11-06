@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
-import { EngineError, type ModelStatusLite, type ToolLite, type ToolsLite } from '../../engine/types';
+import { EngineError, type ClaudeInstallViewLite, type ModelStatusLite, type ToolLite, type ToolsLite } from '../../engine/types';
 import { Bento, Tile } from '../../parts/Tile';
 import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
@@ -49,6 +49,9 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
   // A2 second review: Cancel in main's own dialog is not a problem; it is said calmly.
   const [note, setNote] = useState<{ cli: ToolLite['cli']; line: string } | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
+  /** D5: how far Install Claude Code has come, read from the engine while it runs. Only the desktop app can install. */
+  const [installing, setInstalling] = useState<ClaudeInstallViewLite | null>(null);
+  const canInstall = client.transport === 'desktop' || client.transport === 'fake';
   const [copied, setCopied] = useState(false);
   const opened = useRef(new Set<string>());
 
@@ -101,6 +104,21 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
       else setTrouble({ cli: tool.cli, line: messageOf(error), again: () => void choose(tool) });
     }
     finally { setBusy(null); }
+  }
+
+  /** D5: main asks in its own dialog; the window sends nothing that says yes. Afterwards the tools are read again. */
+  async function install() {
+    setTrouble(null); setNote(null); setBusy('claude-code');
+    setInstalling({ step: 'downloading', receivedBytes: 0, totalBytes: null, line: null });
+    const reading = setInterval(() => { client.request('venture.ai.claude.progress', {}).then(setInstalling, () => { /* the next read */ }); }, LOGIN_POLL_MS);
+    try {
+      const { words } = await client.request('venture.ai.claude.install', {});
+      setNote({ cli: 'claude-code', line: words });
+      setView(await client.request('venture.ai.tools', {}));
+    } catch (error) {
+      if (error instanceof EngineError && error.code === 'CLAUDE_INSTALL_NOT_CHOSEN') setNote({ cli: 'claude-code', line: error.message });
+      else setTrouble({ cli: 'claude-code', line: messageOf(error), again: () => void install() });
+    } finally { clearInterval(reading); setInstalling(null); setBusy(null); }
   }
 
   async function cancel(cli: ToolLite['cli']) {
@@ -187,6 +205,11 @@ export function ConnectAi({ onDone, onSkip }: { onDone: (label: string) => void;
             <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={busy !== null || !preset} aria-busy={busy === tool.cli || undefined} onClick={() => void use(tool.cli)}>{t('first-run.ai.use', { name: tool.label })}</Button>
           ) : tool.found ? (
             <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={busy !== null || Boolean(waiting)} aria-busy={busy === tool.cli || undefined} onClick={() => void signIn(tool.cli)}>{t('first-run.ai.signIn', { name: tool.label })}</Button>
+          ) : tool.cli === 'claude-code' && canInstall ? (
+            <>
+              <Button variant={primary ? 'primary' : 'secondary'} size="lg" disabled={busy !== null || Boolean(waiting)} aria-busy={installing !== null || undefined} onClick={() => void install()}>{t('first-run.ai.install')}</Button>
+              {installing && <p className={s.status} role="status" data-install-step={installing.step}>{t(installing.step === 'installing' ? 'first-run.ai.install.installing' : installing.step === 'checking' ? 'first-run.ai.install.checking' : 'first-run.ai.install.downloading')}</p>}
+            </>
           ) : null}
           {(choosing || refused) && setup ? (
             <>

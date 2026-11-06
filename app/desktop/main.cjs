@@ -372,12 +372,15 @@ if (singleInstance) app.whenReady().then(async () => {
   // A2 second review: the owner's choice of Codex is asked in main's own dialog, never forwarded from the window.
   // A fix: the engine is set later, by startEngine() below, so the choice reads it at each use.
   const codexChoice = require('./codex-choice.cjs').createCodexChoice({ engine: () => engine, dialog, window: () => window });
+  // D5: Install Claude Code asks in main's own dialog too; a yes reaches the engine over the worker's host channel only.
+  const claudeInstall = require('./claude-install.cjs').createClaudeInstall({ engine: () => engine, dialog, window: () => window });
   ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {
     try {
       assertTrustedSender(event, window?.webContents);
       const request = validateRequest(input);
       const engine = await engineGate.ready();
       if (request.method === 'venture.ai.setup.trust') return { ok: true, result: await codexChoice(request.payload) };
+      if (request.method === 'venture.ai.claude.install') return { ok: true, result: await claudeInstall() };
       if(['workspace.lock','workspace.open','workspace.create'].includes(request.method))stopFormsBrowser();
       if(request.method==='venture.desk.act'&&request.payload?.kind==='caption'&&request.payload?.action==='stop')captionMicrophone.clear();if(request.method==='venture.talk.hear')captionMicrophone.clear();
       const result=await engine.request(request.method, request.payload);timeline.mark('first-request');captionMicrophone.observe(request,result);

@@ -152,6 +152,8 @@ class EngineHarness extends EventEmitter {
   confirmCodex(payload) { return this.#send({ kind: 'host-codex-confirm', payload: confirmPayload(payload) }, this.options.requestTimeoutMs); }
   // C5 task 32: at quit, before the engine stops: is a run busy, and the safety copy. Main's own route, like the two above.
   prepareUpdateInstall(payload) { return this.#send({ kind: 'host-update-prepare', payload: { backup: payload?.backup === true } }, this.options.requestTimeoutMs); }
+  // D5: main's own route for Install Claude Code, after the owner's yes in its dialog. It carries nothing to say yes with.
+  installClaude() { return this.#send({ kind: 'host-claude-install' }, this.options.requestTimeoutMs); }
   // Trusted main-process lifecycle only. No renderer method can manufacture this cancellation.
   closeForms() { try { if (this.worker?.connected) this.worker.send({ kind: 'host-forms-closed' }, () => {}); } catch {} }
   // Whether the owner is looking at the window (shown, not minimised, focused), for the notification centre's alert

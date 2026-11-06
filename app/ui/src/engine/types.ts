@@ -1776,6 +1776,8 @@ export interface OwnerView { firstName: string | null; excludedServices: string[
  * flight: the device code and link the tool printed (platform/runtime/venture/models/login.ts).
  */
 export type ToolLoginState = 'idle' | 'starting' | 'waiting' | 'signed-in' | 'failed' | 'cancelled';
+/** D5: how far Install Claude Code has come (venture.ai.claude.progress). */
+export interface ClaudeInstallViewLite { step: 'idle' | 'downloading' | 'installing' | 'checking' | 'done' | 'failed'; receivedBytes: number; totalBytes: number | null; line: string | null }
 export interface ToolLite {
   cli: 'codex' | 'claude-code'; label: string; found: boolean; signedIn: 'yes' | 'no' | 'unknown';
   login: { state: ToolLoginState; code: string | null; link: string | null; line: string | null };
@@ -2579,6 +2581,8 @@ export interface EngineMethods {
   'venture.ai.login.cancel': { params: { cli: 'codex' | 'claude-code' }; result: ToolLite };
   // A2: the owner's yes to the Codex found on this computer, with or without a business.
   'venture.ai.setup.trust': { params: { cli: 'codex'; sha256: string }; result: { setup: CodexSetupLite } };
+  'venture.ai.claude.install': { params: Record<string, never>; result: { outcome: 'already-installed' | 'installed' | 'not-found-after'; path: string | null; installerUrl: string | null; installerSha256: string | null; words: string } };
+  'venture.ai.claude.progress': { params: Record<string, never>; result: ClaudeInstallViewLite };
   // One-shot C4 (T20): a share the owner made, or their "Mark as sent", recorded on the invoice.
   'venture.invoice.shared': { params: { invoiceId: string; how: 'whatsapp' | 'email' | 'file' | 'marked' }; result: InvoiceViewLite };
   'venture.models.plan': { params: { fresh?: boolean }; result: PlanViewLite };

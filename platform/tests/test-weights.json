@@ -66,6 +66,7 @@
   "platform/tests/venture-ca-tools.test.ts": 23.3,
   "platform/tests/venture-chief-guide-c7.test.ts": 1,
   "platform/tests/venture-claude-install-d5.test.ts": 1,
+  "platform/tests/venture-claude-install-wire-d5.test.ts": 1,
   "platform/tests/venture-cli-look-kept-d4.test.ts": 5.6,
   "platform/tests/venture-client-ai-fields-c6.test.ts": 1,
   "platform/tests/venture-client-phone-c6.test.ts": 1,
