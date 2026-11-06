@@ -11,7 +11,7 @@ it('points to a mistyped source name in its field before saving', () => {
   job = translationAction(job, 'draft', { targets: ['बिल 42।'] }, digest(job));
   const act = vi.fn();
   render(<TextProvider language="en"><TranslationSheet job={{ ...translationView(job), id: 'j' }} busy={false} act={act} /></TextProvider>);
-  const field = screen.getByLabelText('Keep source names or codes');
+  const field = screen.getByLabelText('Keep source names and codes');
   fireEvent.change(field, { target: { value: 'Invocie' } });
   expect(field.getAttribute('aria-invalid')).toBe('true');
   expect(screen.getByRole('alert').textContent).toBe('Copy each name or code exactly from the original.');
