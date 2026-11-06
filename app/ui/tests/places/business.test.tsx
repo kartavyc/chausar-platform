@@ -425,7 +425,7 @@ describe('Business: keep this business', () => {
     start('#/business/keep', engine);
     expect(await screen.findByText('Windows keeps the key for your login on this computer.')).toBeTruthy();
     expect(screen.getByText(/Not made yet/)).toBeTruthy();
-    expect(screen.getByLabelText('Passphrase').closest('details')!.open).toBe(false);
+    expect(screen.queryByLabelText('Passphrase')).toBeNull();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Make a recovery code' })); });
     const code = await screen.findByRole('group', { name: 'Recovery code' });
     expect(code.textContent).toBe('R4KD9QXM2HTW7PLB3NCF6YJV');
@@ -439,23 +439,21 @@ describe('Business: keep this business', () => {
     expect(await keepRows(engine)).toHaveLength(0);
   });
 
-  it('the passphrase is optional, behind a fold; it needs 12 characters typed twice, and is never kept on screen', async () => {
+  it('the passphrase is optional, behind a fold; one field needs 12 characters and is never kept on screen', async () => {
     const engine = await newBusiness();
     const spy = vi.spyOn(engine, 'request');
     start('#/business/keep', engine);
     const fold = (await screen.findByText('Lock it with a passphrase instead')).closest('details')!;
     expect(fold.open).toBe(false);
-    fireEvent.click(within(fold).getByText('Lock it with a passphrase instead'));
-    const first = within(fold).getByLabelText('Passphrase') as HTMLInputElement;
-    const again = within(fold).getByLabelText('Type it again') as HTMLInputElement;
+    await act(async () => { fireEvent.click(within(fold).getByText('Lock it with a passphrase instead')); });
+    const first = await within(fold).findByLabelText('Passphrase') as HTMLInputElement;
+    expect(within(fold).queryByLabelText('Type it again')).toBeNull();
     expect(first.type).toBe('password');
     fireEvent.change(first, { target: { value: 'short' } });
-    fireEvent.change(again, { target: { value: 'short' } });
     await act(async () => { fireEvent.click(within(fold).getByRole('button', { name: 'Lock with this passphrase' })); });
     expect(within(fold).getByText('Use a passphrase of at least 12 characters.')).toBeTruthy();
     expect(spy.mock.calls.some(([method]) => method === 'workspace.custody.passphraseOn')).toBe(false);
     fireEvent.change(first, { target: { value: 'kite studio keeps books' } });
-    fireEvent.change(again, { target: { value: 'kite studio keeps books' } });
     await act(async () => { fireEvent.click(within(fold).getByRole('button', { name: 'Lock with this passphrase' })); });
     expect(await screen.findByRole('group', { name: 'Recovery code' })).toBeTruthy();
     expect(first.value).toBe('');
