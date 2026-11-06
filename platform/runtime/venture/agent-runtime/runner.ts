@@ -1,3 +1,4 @@
+import { runInterval, trackRunWork } from '../replay/scope.ts';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +23,7 @@ export function launchAgentWork(store: StateStore, runId: string, work: () => Pr
   check(!jobs.has(runId), 'JOB_BUSY', 'This job is already running.');
   const task = Promise.resolve().then(work).finally(() => jobs.delete(runId));
   jobs.set(runId, task);
+  trackRunWork(task);
   // The delivery callback persists a safe failure state. Waiting tests and live checks can still observe completion.
   void task.catch(() => undefined);
 }
@@ -68,7 +70,7 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
   const stop = () => abort.abort();
   const unregister = registerAgentJob(deps.store, job.capability.scope, stop);
   // Recheck authority even while a provider is quiet. This is a revocation watch, never an agent turn loop.
-  const monitor = setInterval(() => { try { job.capability.assert(); } catch { stop(); } }, 50);
+  const monitor = runInterval(() => { try { job.capability.assert(); } catch { stop(); } }, 50);
   monitor.unref();
   const unwatch = watchClientAiConsent(deps.store, job.capability.scope.clientId, stop);
   deps.closing?.signal.addEventListener('abort', stop, { once: true });
@@ -201,7 +203,7 @@ export async function runNativeAgent(deps: VentureDeps, ctx: Context, runId: str
     await billing.finish(result);
     return result;
   } finally {
-    clearInterval(monitor); unregister();
+    monitor.close(); unregister();
     if (idleTimer) clearInterval(idleTimer);
     if (hardTimer) clearTimeout(hardTimer);
     unwatch(); deps.closing?.signal.removeEventListener('abort', stop);

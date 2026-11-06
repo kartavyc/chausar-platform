@@ -1,3 +1,4 @@
+import { currentRun, runExchange } from '../replay/scope.ts';
 // Chausar venture launcher, core: the network guard for any web address an agent opens or a client or owner supplies
 // (catalogue H16). Only http and https, never a name or password in the address, and never an address inside this
 // computer or its network: private, loopback, link-local, cloud metadata and reserved ranges are refused in every
@@ -167,6 +168,16 @@ function cleanHeaders(headers: Record<string, string> | undefined): Record<strin
  * the same site: the redirect is refused and nothing more is sent.
  */
 export async function guardedFetch(request: GuardedRequest, deps: { resolve?: NetResolver; send?: PinnedSender } = {}): Promise<GuardedResponse> {
+  if (!currentRun()) return guardedFetchLive(request, deps);
+  const answer = await runExchange('guardedFetch', { url: request.url, method: request.method ?? 'GET', body: request.body === undefined ? null : Buffer.from(request.body).toString('utf8') }, async () => {
+    const value = await guardedFetchLive(request, deps);
+    // Text only: binary captures need a separate explicit format, never hide possible secrets in base64.
+    if (!Buffer.from(value.body.toString('utf8')).equals(value.body)) throw refuse('CAPTURE_REFUSED', 'Run capture accepts text responses only.');
+    return { ...value, body: value.body.toString('utf8') };
+  });
+  return { ...answer, body: Buffer.from(answer.body, 'utf8') };
+}
+async function guardedFetchLive(request: GuardedRequest, deps: { resolve?: NetResolver; send?: PinnedSender }): Promise<GuardedResponse> {
   const resolve = deps.resolve ?? systemResolver;
   const send = deps.send ?? pinnedSend;
   const method: NetMethod = request.method ?? 'GET';
