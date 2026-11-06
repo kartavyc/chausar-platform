@@ -43,6 +43,7 @@ export function Place() {
 }
 
 function Clients({ tab }: { tab: Tab }) {
+  const route = useRoute();
   const t = useT();
   const engine = useEngine();
   const clients = useResource('venture.client.list', {}, { refreshOn });
@@ -56,11 +57,6 @@ function Clients({ tab }: { tab: Tab }) {
   const clientCount = clients.data?.length;
   const leadCount = board.data?.columns.reduce((sum, column) => sum + column.count, 0);
   const peopleCount = people.data?.total;
-  // The header line counts what the tab lists; PageTitle sets that count in bold (D's `.sub b`).
-  const count = tab === 'clients' ? clientCount : tab === 'pipeline' ? leadCount : peopleCount;
-  const line = !count ? undefined
-    : tab === 'clients' ? t('clients.count', { count: String(count) })
-      : tab === 'pipeline' ? t('clients.pipeline.line', { count: String(count) }) : t('clients.network.line', { count: String(count) });
 
   // C1 task 4: Pipeline and Network wait for a client. A tab shows when it has something of its own, once there is a
   // client, or while it is the page (a link to #/clients/network still lands); with only Clients left, no tab row.
@@ -80,7 +76,7 @@ function Clients({ tab }: { tab: Tab }) {
     tool = (
       <>
         <Button data-import-network="" onClick={(event) => openSheet('network-import', 'new', event.currentTarget)}><Icon name="upload" size={16} />{t('clients.pipeline.import')}</Button>
-        <Button data-add-lead="" onClick={(event) => openSheet('lead', 'new', event.currentTarget)}><Icon name="plus" size={16} />{t('clients.leads.add')}</Button>
+        <Button variant={route.sheet ? "secondary" : "primary"} data-add-lead="" onClick={(event) => openSheet('lead', 'new', event.currentTarget)}><Icon name="plus" size={16} />{t('clients.leads.add')}</Button>
         {/* W6 6G3: the owner's other pipelines, each a list with its own stages. */}
         <Button data-crm-lists="" onClick={(event) => openSheet('lists', 'all', event.currentTarget)}>{t('crm.lists.open')}</Button>
       </>
@@ -91,13 +87,13 @@ function Clients({ tab }: { tab: Tab }) {
 
   return (
     <>
-      <PageTitle title={t('place.clients')} line={line} count={count ? String(count) : undefined} />
+      <PageTitle title={t('place.clients')} />
       <div className={s.toolbar}>
         {tabs.length > 1 && <Tabs mode="links" label={t('clients.nav')} value={tab} items={tabs} />}
         {tool && <div className={s.tools}>{tool}</div>}
       </div>
-      {tab === 'pipeline' && <SendingLimits />}
-      {tab === 'clients' ? <ClientsTab clients={clients} /> : tab === 'pipeline' ? <PipelineTab board={board} leads={leads.data?.leads ?? []} /> : <NetworkTab count={people} />}
+      {tab === 'pipeline' && Boolean(leadCount) && <SendingLimits />}
+      {tab === 'clients' ? <ClientsTab clients={clients} /> : tab === 'pipeline' ? <PipelineTab board={board} leads={leads.data?.leads ?? []} hasNetwork={Boolean(peopleCount)} /> : <NetworkTab count={people} />}
     </>
   );
 }
