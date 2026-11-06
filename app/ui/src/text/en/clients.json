@@ -273,7 +273,7 @@
   "clients.person.before": "Before you write",
   "clients.person.before.line": "Looks at public pages only, never a LinkedIn profile.",
   "clients.person.before.go": "Look at public pages",
-  "clients.person.before.not-set-up": "Searches your network only.",
+  "clients.person.before.not-set-up": "Web search is not set up.",
   "clients.person.before.failed": "The web search did not answer. Try again later.",
   "clients.person.before.none": "Nothing usable came back from public pages.",
   "clients.person.web": "From public pages",
