@@ -19,7 +19,7 @@ import { withPriceGuide } from './fake-price-ranges';
 import { BLUEPRINTS, BUILDS, DRAFT_AI_STATUS, GITHUB_TOKEN_LINK, HANDOFF_NOTES, MODEL_PRESETS, MODEL_STATUS, OFFER_RECEIPTS, PLAYBOOKS, TEMPLATES_TIER, templateBrief } from './fixtures-business';
 import { CUSTODY_ERROR_WORDS, SAMPLE_MOVE_CODE } from './fixtures';
 import {
-  EngineError, type BackupLite, type BlueprintLite, type BlueprintViewLite, type BuilderId, type BuildStatusView, type BusinessOnComputer,
+  EngineError, type BackupInspectLite, type BackupLite, type BlueprintLite, type BlueprintViewLite, type BuilderId, type BuildStatusView, type BusinessOnComputer,
   type CustodyViewLite, type ModelPresetLite, type ModelStatusLite, type ModelTier, type MoveFile, type OfferLite, type PlaybookPick, type PricingModel, type QueueRow, type ReceiptLite, type VentureRunEvent,
 } from './types';
 
@@ -65,7 +65,7 @@ const DESK_METHODS = new Set([
   'venture.blueprint.get', 'venture.blueprint.update', 'venture.price.quote',
   'venture.build.brief', 'venture.build.briefFile', 'venture.build.handoff', 'venture.build.handoffOpened', 'venture.build.link', 'venture.build.sync', 'venture.build.status',
   'workspace.custody.get', 'workspace.custody.recoveryCode', 'workspace.custody.passphraseOn', 'workspace.custody.passphraseOff',
-  'workspace.backups.list', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.export',
+  'workspace.backups.list', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.backups.inspect', 'workspace.transfer.export', 'workspace.export',
   'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect',
   'trust.update',
 ]);
@@ -329,6 +329,7 @@ export class FakeBusinessDesk {
       // C5 task 24: the rehearsal has no Google client, as a build has none until the founder registers one.
       case 'workspace.backups.drive.status': case 'workspace.backups.drive.connect': case 'workspace.backups.drive.disconnect':
         throw new EngineError('DRIVE_NOT_SET_UP', "Google Drive needs Chausar's Google sign-in set up first. Until then, pick your Google Drive folder under Keep a copy on a drive.");
+      case 'workspace.backups.inspect': return this.inspectBackup(biz, p);
       case 'trust.update': {
         // trust.ts updatePolicy: only known fields, and send is one of three.
         if (Object.keys(p).some((key) => key !== 'send') || !['nothing', 'shape', 'samples'].includes(p.send as string)) throw new EngineError('INVALID_POLICY', 'Choose nothing, shape, or samples.');
@@ -776,6 +777,30 @@ export class FakeBusinessDesk {
     const safety = this.addBackup(biz, 'safety');
     this.host.emit({ type: 'queue.changed', businessId: biz, at: this.host.now() });
     return { workspace: { id: biz, name: this.host.businessName(biz) }, restoredFrom: clone(restoredFrom), safety: clone(safety) };
+  }
+
+  /**
+   * One-shot C6, workspace.backups.inspect: the same checks as a restore, then what the backup holds and what changed
+   * since, from the sample's own snapshots: the samples carry fixed contents; a copy made in this session holds the
+   * newest sample's contents with nothing changed since.
+   */
+  private inspectBackup(biz: string, p: Record<string, unknown>): BackupInspectLite {
+    const backup = this.backupsOf(biz).find((b) => b.file === p.file);
+    if (!backup) {
+      const elsewhere = Object.entries(this.backups).some(([other, list]) => other !== biz && list.some((b) => b.file === p.file));
+      throw elsewhere ? new EngineError('BACKUP_OTHER_BUSINESS', CUSTODY_ERROR_WORDS.BACKUP_OTHER_BUSINESS) : new EngineError('BACKUP_NOT_FOUND', CUSTODY_ERROR_WORDS.BACKUP_NOT_FOUND);
+    }
+    const count = (kind: string, n: number) => ({ kind, words: kind, count: n });
+    const change = (kind: string, added: number, changed: number, removed = 0) => ({ kind, words: kind, added, changed, removed });
+    // In the engine's order (venture/views/backup-diff.ts BACKUP_KIND_WORDS).
+    const counts = [count('clients', 3), count('orders', 12), count('invoices', 4), count('payments', 3)];
+    const sample: Record<string, BackupInspectLite['since']> = {
+      auto: [change('clients', 0, 1), change('orders', 2, 0), change('invoices', 1, 0)],
+      safety: [change('clients', 1, 1), change('orders', 3, 1), change('invoices', 1, 1)],
+      manual: [change('clients', 1, 1), change('orders', 5, 2), change('invoices', 2, 1), change('payments', 1, 0)],
+    };
+    const fromSample = backup.file === `chausar-${biz}-${backup.kind}.backup`;
+    return { file: backup.file, at: backup.at, counts, since: fromSample ? clone(sample[backup.kind] ?? []) : [] };
   }
 
   /** workspace.transfer.export: one file and one code. A business locked with a passphrase needs it. */

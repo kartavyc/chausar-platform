@@ -20,6 +20,7 @@ import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 
 import { AGENTS, BOOKS, BUSINESSES, CLIENTS, CONNECTORS, EVIDENCE, JOURNAL, QUEUE, RECEIPTS, RUNS, SPEND, SPEND_MICROS } from './fixtures';
 import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
+import { clientPhone, PHONE_REFUSED } from '../../../../platform/runtime/venture/clients/phone';
 import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE, SERVICE_KEYWORDS, SERVICE_LABELS, type FakeBusiness } from './fixtures';
 import type { BackupLite, BlueprintViewLite, InterviewAnswer, KeptShownLite, OfferLite, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
 import { createStatusStore } from './client';
@@ -1177,15 +1178,18 @@ export class FakeEngine {
     if (taxId && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(taxId)) throw new EngineError('INVALID_TAX_ID', "Check the client's GSTIN.");
     const note = text(p.note);
     if (note && note.length > 500) throw new EngineError('INVALID_VENTURE_REQUEST', 'Note must be between 1 and 500 characters.');
+    // One-shot C6: a phone or WhatsApp number, kept as typed, its WhatsApp digits worked out as the engine does.
+    const typedPhone = text(p.phone);
+    const reach = typedPhone === null ? null : this.phoneOf(typedPhone, text(p.countryCode));
     const client: ClientLite = {
       id: dryRun ? 'c-new-pending' : `c-new-${this.clientSeq++}`, at: this.now(), name, email, countryCode: text(p.countryCode), taxId,
-      stateCode: taxId ? taxId.slice(0, 2) : text(p.stateCode), note,
+      stateCode: taxId ? taxId.slice(0, 2) : text(p.stateCode), note, ...(reach ?? {}),
     };
     if (dryRun) return clone(client);
     const consent = this.aiDefault.consentFor(this.current, client.id, this.now());
     if (consent) client.aiConsent = consent;
     this.clients[this.current] = [client, ...(this.clients[this.current] ?? [])];
-    const fields = { name: client.name, email: client.email, countryCode: client.countryCode, taxId: client.taxId, stateCode: client.stateCode, note: client.note };
+    const fields = { name: client.name, email: client.email, countryCode: client.countryCode, taxId: client.taxId, stateCode: client.stateCode, note: client.note, phone: client.phone ?? null };
     for (const [field, value] of Object.entries(fields)) {
       if (value === null) continue;
       this.evidence.unshift({ id: `ev-${client.id}-${field}`, subject: `client:${client.id}`, field, value, type: 'owner-entered', strength: 'verified', claim: 'observed', source: 'You entered this.', applied: true });
@@ -1219,12 +1223,19 @@ export class FakeEngine {
     return { item: clone(item) };
   }
   /** W6 6G3: the owner's own value for a client field (venture.crm.client.edit), as owner-entered evidence written through. */
-  private editClientField(clientId: string, field: 'name' | 'email' | 'note', value: string): void {
+  private editClientField(clientId: string, field: 'name' | 'email' | 'note' | 'phone', value: string): void {
     const client = (this.clients[this.current] ?? []).find((c) => c.id === clientId);
     if (!client) return;
+    const reach = field === 'phone' ? this.phoneOf(value, client.countryCode) : null;
     for (const item of this.evidence) if (item.subject === `client:${clientId}` && item.field === field) item.applied = false;
     this.evidence.unshift({ id: `ev-${clientId}-${field}-${this.clientSeq++}`, subject: `client:${clientId}`, field, value, type: 'owner-entered', strength: 'verified', claim: 'observed', source: 'You entered this.', applied: true });
     client[field] = value;
+    if (reach) client.whatsapp = reach.whatsapp;
+  }
+  /** One-shot C6: the engine's own phone rules (clients/phone.ts), the business's country when the client has none. */
+  private phoneOf(typed: string, country: string | null): { phone: string; whatsapp: string } {
+    try { return clientPhone(typed, country ?? this.ventures.get(this.current)?.countryCode ?? 'IN'); }
+    catch { throw new EngineError('INVALID_VENTURE_REQUEST', PHONE_REFUSED); }
   }
   /** venture.journal.resolve: the owner says what they found on an unknown outcome. Nothing is sent again. */
   private resolveJournal(p: ParamsOf<'venture.journal.resolve'>) {

@@ -40,6 +40,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const clients = useResource('venture.client.list', {}, { refreshOn: never });
   const plan = useResource('venture.blueprint.get', {}, { refreshOn: never });
   const business = useResource('venture.get', {}, { refreshOn: never });
+  const [newPhone, setNewPhone] = useState(''); // C6: the new client's phone or WhatsApp number, as typed
   // W4 4B3: an agent's chat may open this sheet with the service and request filled in (prefill.ts); C4 task 11: so
   // does the owner's own form, kept while they set a price, with its client too.
   const [prefill] = useState(peekPrefill);
@@ -96,7 +97,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
       const intakeFiles = await kitIntakeFiles(ask, kitAnswers);
       const told = ask?.kit ? { ...intakeParams(ask, intake), ...kitIntakeParams(ask, kitAnswers) } : intakeParams(ask, intake);
       // One-shot A1 (row 10): a new client goes with the order in one request, so a refused order adds no client.
-      const forClient = who === NEW_CLIENT ? { newClient: { name: name.trim() } } : { clientId: who };
+      const forClient = who === NEW_CLIENT ? { newClient: { name: name.trim(), ...(newPhone.trim() ? { phone: newPhone.trim() } : {}) } } : { clientId: who };
       const order = await engine.request('venture.order.create', { ...forClient, offerId: what, request: request.trim(), ...(told ? { intake: told } : {}), ...(Object.keys(intakeFiles).length ? { intakeFiles } : {}) });
       if (who === NEW_CLIENT) { setClientId(order.clientId); clients.reload(); }
       const refused: { name: string; message: string }[] = [];
@@ -143,7 +144,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
             {clients.data.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             <option value={NEW_CLIENT}>{t('work.form.newClient')}</option>
           </Select>
-        <Reveal open={who === NEW_CLIENT}><Field label={t('work.form.clientName')} value={name} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} /></Reveal>
+        <Reveal open={who === NEW_CLIENT}><Field label={t('work.form.clientName')} value={name} autoComplete="off" onChange={(event) => setName(event.currentTarget.value)} /><Field label={t('work.form.clientPhone')} type="tel" inputMode="tel" value={newPhone} autoComplete="off" maxLength={40} onChange={(event) => setNewPhone(event.currentTarget.value)} /></Reveal>
         <Select label={t('work.form.service')} value={what} onChange={(event) => setOfferId(event.currentTarget.value)}>
             <option value="" disabled>{t('work.form.choose')}</option>
             {offers.map((offer) => {

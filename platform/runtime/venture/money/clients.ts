@@ -8,14 +8,16 @@ import { newestFirst } from './shared.ts';
 import { recordOwnerFields } from '../evidence/ledger.ts';
 import type { ClientListRow, ClientRecord, VentureDeps } from '../contracts.ts';
 import { owedPlan, sumReceipt } from './sums.ts';
+import { clientPhone } from '../clients/phone.ts';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const OTHER_TAX_ID = /^[A-Z0-9][A-Z0-9-]{4,22}[A-Z0-9]$/;
 
 /** A new client's fields as typed, checked before any write (venture.client.add, and an order's new client). */
-export type ClientFields = { name: string; email: string | null; countryCode: string | null; rawTaxId: string | null; stateCode: string | null; note: string | null };
+export type ClientFields = { name: string; email: string | null; countryCode: string | null; rawTaxId: string | null; stateCode: string | null; note: string | null; rawPhone: string | null };
 
-export const CLIENT_FIELDS = ['name', 'email', 'countryCode', 'taxId', 'stateCode', 'note'] as const;
+// One-shot C6: phone, the owner's typing; its WhatsApp digits are worked out in putClient (clients/phone.ts).
+export const CLIENT_FIELDS = ['name', 'email', 'countryCode', 'taxId', 'stateCode', 'note', 'phone'] as const;
 
 /** Checks a new client's fields; nothing is written. */
 export function clientFields(payload: unknown): ClientFields {
@@ -39,7 +41,10 @@ export function clientFields(payload: unknown): ClientFields {
     stateCode = body.stateCode;
   }
   const note = body.note === undefined ? null : plainText(body.note, 'Note', { min: 1, max: 500 });
-  return { name, email, countryCode, rawTaxId: rawTaxId as string | null, stateCode, note };
+  // C6: an empty box is no number; a number is checked in putClient, where the business's country is at hand (a refusal
+  // there ends the transaction, so nothing is written).
+  const rawPhone = body.phone === undefined || body.phone === null || (typeof body.phone === 'string' && body.phone.trim() === '') ? null : body.phone as string;
+  return { name, email, countryCode, rawTaxId: rawTaxId as string | null, stateCode, note, rawPhone };
 }
 
 /** Writes a checked new client inside the caller's transaction, so an order that fails takes its new client with it. */
@@ -66,11 +71,13 @@ export function putClient(tx: VentureTx, fields: ClientFields): ClientRecord {
     check(stateCode === null || stateCode === fromGstin, 'INVALID_TAX_ID', "The client's state must match the first two digits of their GSTIN.");
     stateCode = fromGstin;
   }
+  // C6: absent means none, so a client with no number gains no keys.
+  const reach = fields.rawPhone === null ? null : clientPhone(fields.rawPhone, countryCode ?? venture.country.code);
   // C5 task 7: with Allow AI for new clients on, the client's own consent is written in this same write.
-  const client: ClientRecord = defaultConsentFor(tx, { ...tx.base('venture-client'), name, email, countryCode, taxId, stateCode, note });
+  const client: ClientRecord = defaultConsentFor(tx, { ...tx.base('venture-client'), name, email, countryCode, taxId, stateCode, note, ...(reach ?? {}) });
   const stored = tx.put(client);
   // The evidence ledger: each field the owner typed is owner-entered and verified.
-  recordOwnerFields(tx, `client:${stored.id}`, { name, email, countryCode, taxId, stateCode, note });
+  recordOwnerFields(tx, `client:${stored.id}`, { name, email, countryCode, taxId, stateCode, note, phone: reach?.phone ?? null });
   activateTerm(tx, 'client', { recordId: stored.id, kind: 'venture-client' });
   tx.emit('client-added', { clientId: stored.id });
   return stored;

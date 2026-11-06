@@ -37,6 +37,7 @@ import { newestFirst, oneLine, recordId, requireAcceptedBlueprint, requireOffer,
 import { digestOf, journalled, type ApplyHandle } from '../journal/journal.ts';
 import { gateEffect, sealApproval } from '../policy/holds.ts';
 import { blueprintCountry, invoiceCountry } from '../core/country-history.ts';
+import { invoicePaidInFull } from './paid-in-full.ts';
 import {
   experimentalStorage, type BackOffice, type BlueprintRecord, type ClientRecord, type CountryProfile, type InvoiceLine, type InvoiceListRow, type InvoiceRecord,
   type InvoiceView, type IsoDate, type MinorString, type PaymentMethod, type PriceFigure, type PriceReceiptRecord, type TaxTreatment, type VentureDeps, type VentureRecord,
@@ -194,6 +195,8 @@ export function invoiceView(state: State, venture: VentureRecord, invoice: Invoi
     ...(howToPay ? { howToPay } : {}),
     sent: sentOf(state, venture, invoice.id),
     paymentDefaults: paymentDefaultsOf(state, venture),
+    // One-shot C6: nothing left to pay on an issued invoice.
+    paidInFull: invoicePaidInFull(invoice),
   };
 }
 

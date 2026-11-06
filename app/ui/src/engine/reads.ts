@@ -33,7 +33,7 @@ export const READS = [
   'venture.money.overview', 'venture.monitors.list', 'venture.needs.list', 'venture.network.people',
   'venture.network.person', 'venture.network.sources', 'venture.notify.list', 'venture.notify.push.key',
   'venture.notify.relay', 'venture.notify.settings', 'venture.notify.telegram', 'venture.order.chain',
-  'venture.order.contract', 'venture.order.list', 'venture.owner.get', 'venture.packs.list',
+  'venture.order.contract', 'venture.order.list', 'venture.owner.get', 'venture.packs.list', 'venture.payment.receipt',
   'venture.people.services', 'venture.persona.get', 'venture.phone.access', 'venture.pipeline.followups',
   'venture.pipeline.list', 'venture.pipeline.settings', 'venture.playbook.guidance', 'venture.playbooks.list',
   'venture.posting.limits.get', 'venture.queue.list', 'venture.queue.view', 'venture.receipt.get',
@@ -43,7 +43,7 @@ export const READS = [
   'venture.speechOut.providers', 'venture.spend.list', 'venture.spend.policy.get', 'venture.talk.get',
   'venture.tax.working', 'venture.team.keeper', 'venture.team.list', 'venture.transcription.get',
   'venture.voice.get', 'venture.voiceConsent.list', 'venture.web.search', 'venture.work.get',
-  'updates.status', 'workspace.backups.drive.status', 'workspace.backups.list', 'workspace.custody.get', 'workspace.list', 'workspace.status',
+  'updates.status', 'workspace.backups.drive.status', 'workspace.backups.inspect', 'workspace.backups.list', 'workspace.custody.get', 'workspace.list', 'workspace.status',
   // One-shot C3: the app's own preference (animations), read at the top of the shell.
   'app.preferences.get',
   // One-shot C3 task 10: the live jobs, read by useWork when a page opens and on the poll's pace.

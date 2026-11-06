@@ -81,6 +81,7 @@
   "money.status.issuedUnsent": "Issued {issued}, due {due}, not sent",
   "money.status.issuedSent": "Issued {issued}, due {due}, marked sent",
   "money.invoice.label": "Invoice",
+  "money.invoice.paidInFull": "Paid in full",
   "money.invoice.draft": "Draft invoice",
   "money.invoice.priced": "How it's priced",
   "money.invoice.books": "In the books on receipt",

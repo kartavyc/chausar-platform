@@ -397,3 +397,33 @@ describe('Clients: the lead sheet', () => {
     expect(sheet.textContent).not.toContain('2026-10-21');
   });
 });
+
+// One-shot C6 task 3 (SCREENS 62, 159.x1): a phone or WhatsApp number on a client, above Email.
+describe('Clients: a phone or WhatsApp number', () => {
+  it('Add client asks for it above Email and sends it as typed', async () => {
+    const { spy } = await start('#/clients?sheet=client:new');
+    const sheet = await screen.findByRole('complementary', { name: 'Add a client' });
+    const phoneBox = within(sheet).getByLabelText('Phone or WhatsApp');
+    const emailBox = within(sheet).getByLabelText('Email');
+    expect(phoneBox.compareDocumentPosition(emailBox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.change(within(sheet).getByLabelText('Name'), { target: { value: 'Kapoor Films' } });
+    fireEvent.change(phoneBox, { target: { value: '98765 43210' } });
+    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add client' })); });
+    expect(spy.mock.calls.find(([method]) => method === 'venture.client.add')?.[1]).toEqual({ name: 'Kapoor Films', phone: '98765 43210' });
+    const made = await screen.findByRole('complementary', { name: 'Kapoor Films' });
+    await waitFor(() => expect(within(made).getAllByText('Phone or WhatsApp').length).toBeGreaterThan(0));
+    // The field list comes first; the change form's options under it name the same fields.
+    const label = within(made).getAllByText('Phone or WhatsApp')[0]!, email = within(made).getAllByText('Email')[0]!;
+    expect(label.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(made).getByText('98765 43210')).toBeTruthy();
+  });
+
+  it("a number that is not one is refused in the engine's words, and nothing is added", async () => {
+    await start('#/clients?sheet=client:new');
+    const sheet = await screen.findByRole('complementary', { name: 'Add a client' });
+    fireEvent.change(within(sheet).getByLabelText('Name'), { target: { value: 'Kapoor Films' } });
+    fireEvent.change(within(sheet).getByLabelText('Phone or WhatsApp'), { target: { value: '12' } });
+    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: 'Add client' })); });
+    expect((await within(sheet).findByRole('alert')).textContent).toContain('Use a phone number like 98765 43210');
+  });
+});

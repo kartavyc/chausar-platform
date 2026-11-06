@@ -205,7 +205,19 @@ export class FakeGoals {
     lastMonth = this.sum(`Invoiced in ${words2}`, before.map(({ invoice, minor, client }) => ({ label: `${invoice.number} for ${client}`, minor })), `Nothing was invoiced in ${words2}.`);
 
     const ahead = isCurrent ? this.next(goal ? { month: chosen, goalMinor: Number(goal.amountMinor), invoicedMinor } : null) : { next: null, briefing: null };
+    // One-shot C6: every invoice issued in the month paid, with a receipt of each total less what was paid (paid-in-full.ts).
+    let paidInFull: GoalView['paidInFull'] = null;
+    if (issued.length && issued.every(({ invoice }) => invoice.status === 'paid')) {
+      const lines = issued.flatMap(({ invoice }) => {
+        const view = this.host.ask('venture.invoice.get', { invoiceId: invoice.id }) as InvoiceViewLite;
+        const minor = (key: string) => paise(view.figures.find((figure) => figure.key === key)?.display ?? '0', view.invoice.currency);
+        return [{ label: `${invoice.number} total`, minor: minor('total') }, { label: `Less paid on ${invoice.number}`, minor: -minor('paid') }];
+      });
+      const left = this.sum(`Left to pay on ${words} invoices`, lines, '');
+      if (lines.reduce((sum, line) => sum + line.minor, 0) === 0 && left.receiptId) paidInFull = { line: `All ${words.split(' ')[0]} invoices paid`, receiptId: left.receiptId };
+    }
     return {
+      paidInFull,
       month: chosen, state: goal ? 'set' : 'unset', goal: goalFigure, invoiced, ready: readyFigure, stillToInvoice, receivedSoFar,
       invoicedPermille, readyPermille, pacePermille, pace, paceReceiptId,
       invoicedPercent, pacePercent: Math.floor(pacePermille / 10), past: pastBy !== null, pastBy, paceBy,

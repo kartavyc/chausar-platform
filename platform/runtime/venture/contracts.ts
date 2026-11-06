@@ -1039,6 +1039,13 @@ export type ClientRecord = RecordBase<'venture-client'> & {
   note: string | null;
   /** C4 task 18: Forget of the person behind this client: the timeline holds nothing from before this time. */
   timelineClearedAt?: IsoTime;
+  /**
+   * One-shot C6: the phone or WhatsApp number as the owner typed it, and its WhatsApp digits (country code first, no
+   * plus) worked out by code (clients/phone.ts). Absent means none. Used only to open WhatsApp; never read by a model
+   * (clients/phone.ts CLIENT_AI_FIELDS); erased by Forget.
+   */
+  phone?: string | null;
+  whatsapp?: string | null;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
   sellerShopify?: import('./playbooks/online-seller/shopify-records.ts').SellerShopifyBody;
@@ -1230,6 +1237,8 @@ export type InvoiceView = {
   sent: boolean;
   /** C5 task 12: the method a new payment starts from (the newest payment's, else UPI in rupees, else bank transfer). */
   paymentDefaults?: { method: PaymentMethod };
+  /** One-shot C6: an issued invoice with nothing left to pay. */
+  paidInFull?: boolean;
 };
 export type BooksFigure = { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; minor: MinorString; display: string; stale: boolean };
 /** A books period the Money place can choose; the engine works out its dates on the owner's local calendar. */
@@ -3324,7 +3333,10 @@ export interface MoneyOverviewLine {
   needsRate?: boolean;
   kind?: FigureKind; source?: FigureSource; uses?: Display[]; basis?: TotalBasis;
 }
-export interface MoneyOverview { lines: MoneyOverviewLine[] }
+/** One-shot C6: every invoice issued in a month has nothing left to pay, with the receipt that lists them and their payments. */
+export type PaidInFullView = { line: Display; receiptId: string };
+/** paidInFull (one-shot C6): this month on the owner's calendar; absent while the business has no country. */
+export interface MoneyOverview { lines: MoneyOverviewLine[]; paidInFull?: PaidInFullView | null }
 /** venture.tax.working: the tax working for a period, every figure from code with its receipt. */
 export interface TaxWorkingLine { label: Display; value: Display; receiptId?: string }
 export interface TaxWorkingSection { id: string; title: Display; lines: TaxWorkingLine[]; note?: Display }
@@ -3374,6 +3386,8 @@ export type SumReceiptSubject =
   // How the month stands against its goal (4I1): day null, still to invoice or past the goal by; a day, today's pace on
   // that day, ahead or behind by (a new receipt each day). Both add up the goal in use, so a replaced goal reads stale.
   | { type: 'goal'; month: string; goalId: string; day: IsoDate | null }
+  // One-shot C6: what is left to pay on every invoice issued in the month (each total less its payments and credits).
+  | { type: 'paid-in-full'; month: string }
   // Open balances in five buckets by days late (4J4).
   // late (4J20): the late ones alone, more than zero days past their due date.
   | { type: 'aging'; asOf: IsoDate; late?: true }
@@ -5157,6 +5171,8 @@ export interface GoalView {
   line: Display;
   next: NextBestStep | null;
   briefing: { rowIds: string[]; more: number } | null;
+  /** One-shot C6: the month's invoices are all paid (at least one issued, none with a balance), else null. */
+  paidInFull: PaidInFullView | null;
 }
 /** 4I1. A goal the owner's AI suggested from the plan's offers and prices only: a model estimate. */
 /** 4I2: typed is the amount as the owner would type it in the goal field ("150000.00"), read back by goals.set. */
@@ -5923,6 +5939,8 @@ export const VENTURE_METHODS = [
   'venture.client.aiConsent.get', 'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
   // Wave 6 money (6D1 to 6D4): billing settings, an invoice's PDF and share links, Razorpay Payment Links
   'venture.billing.get', 'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
+  // One-shot C6: a thank-you receipt for one payment, its words and its file (the owner sends it).
+  'venture.payment.receipt',
   'venture.order.create', 'venture.order.list', 'venture.order.deliver',
   'venture.invoice.prepare', 'venture.invoice.issue', 'venture.invoice.get', 'venture.invoice.list',
   'venture.payment.record', 'venture.books.summary',
@@ -6069,7 +6087,7 @@ export const METHOD_OWNERS: Readonly<Record<VentureMethod, VenturePackageId>> = 
   'venture.mcpRegistry.list': 'models', 'venture.mcpOAuth.start': 'models', 'venture.packs.list': 'models', 'venture.packs.add': 'models', 'venture.packs.remove': 'models',
   'venture.price.quote': 'money', 'venture.receipt.get': 'money', 'venture.client.add': 'money', 'venture.client.list': 'money',
   'venture.client.aiConsent.get': 'money', 'venture.client.aiConsent.agree': 'money', 'venture.client.aiConsent.withdraw': 'money',
-  'venture.billing.get': 'money', 'venture.billing.set': 'money', 'venture.invoice.pdf': 'money', 'venture.invoice.payLink': 'money',
+  'venture.billing.get': 'money', 'venture.billing.set': 'money', 'venture.invoice.pdf': 'money', 'venture.invoice.payLink': 'money', 'venture.payment.receipt': 'money',
   'venture.order.create': 'money', 'venture.order.list': 'money', 'venture.order.deliver': 'money',
   'venture.invoice.prepare': 'money', 'venture.invoice.issue': 'money', 'venture.invoice.get': 'money', 'venture.invoice.list': 'money',
   'venture.payment.record': 'money', 'venture.books.summary': 'money',
@@ -6209,7 +6227,7 @@ export const APP_ONLY_METHODS: readonly VentureMethod[] = Object.freeze([
   'venture.mcpOAuth.start', 'venture.packs.add', 'venture.packs.remove',
   'venture.client.aiConsent.agree', 'venture.client.aiConsent.withdraw',
   'venture.rules.attest', 'venture.compliance.set',
-  'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink',
+  'venture.billing.set', 'venture.invoice.pdf', 'venture.invoice.payLink', 'venture.payment.receipt',
   'venture.create', 'venture.blueprint.accept', 'venture.models.connect', 'venture.invoice.issue', 'venture.payment.record',
   'venture.build.handoffOpened', 'venture.build.link', 'venture.launch.advance', 'venture.delivery.review',
   'venture.files.add', 'venture.improve.adopt',
@@ -6396,6 +6414,7 @@ export type VenturePayloads = {
   'venture.billing.get': Empty;
   'venture.billing.set': Partial<Omit<import('./money/billing-types.ts').BillingSettings, 'razorpay'>> & { razorpayKeys?: { keyId: string; keySecret: string } | null };
   'venture.invoice.pdf': { invoiceId: string };
+  'venture.payment.receipt': { paymentId: string };
   'venture.invoice.payLink': { invoiceId: string; action: 'create'; digest: string } | { invoiceId: string; action: 'check' };
   'venture.client.list': Empty;
   /** intake: only for a flagship playbook's offer; an offer that cuts footage needs intake.rights (delivery/rights.ts). */
@@ -6893,6 +6912,7 @@ export type VentureResults = {
   'venture.billing.get': import('./money/billing-types.ts').BillingView;
   'venture.billing.set': import('./money/billing-types.ts').BillingView;
   'venture.invoice.pdf': import('./money/invoice-pdf.ts').InvoicePdfView;
+  'venture.payment.receipt': import('./money/payment-receipt.ts').PaymentReceiptView;
   'venture.invoice.payLink': InvoiceView;
   'venture.client.list': ClientListRow[];
   'venture.order.create': OrderRecord;
@@ -7354,7 +7374,7 @@ export const VENTURE_ERRORS = [
   // A2 second review: the seal's port only (credential-port.ts noStore): this computer has no protected store at all.
   'CREDENTIAL_NO_STORE',
   'MODEL_FAILED', 'MODEL_TIMEOUT', 'BUDGET_REACHED', 'CLIENT_DATA_NEEDS_APPROVAL', 'SEND_DISABLED', 'FIXTURE_MISSING', 'CLI_UNAVAILABLE', 'PRESET_UNAVAILABLE',
-  'PLAN_ALREADY_KEPT', 'PRICE_REQUIRED', 'OFFER_NOT_FOUND', 'CLIENT_NOT_FOUND', 'ORDER_NOT_FOUND', 'INVOICE_NOT_FOUND', 'INVOICE_NOT_DRAFT', 'PAYMENT_TOO_LARGE',
+  'PLAN_ALREADY_KEPT', 'PRICE_REQUIRED', 'OFFER_NOT_FOUND', 'CLIENT_NOT_FOUND', 'ORDER_NOT_FOUND', 'INVOICE_NOT_FOUND', 'PAYMENT_NOT_FOUND', 'PAYMENT_NOT_CLEARED', 'INVOICE_NOT_DRAFT', 'PAYMENT_TOO_LARGE',
   'CLIENT_AI_CONSENT_REQUIRED', 'CLIENT_AI_CONSENT_CHANGED',
   'AI_SETTING_UNSUPPORTED',
   'RECEIPT_NOT_FOUND', 'BRIEF_NOT_FOUND', 'BRIEF_LINT_FAILED', 'HANDOFF_NOT_FOUND', 'REPO_NOT_LINKED', 'INVALID_REPO', 'TOKEN_NOT_FINE_GRAINED',

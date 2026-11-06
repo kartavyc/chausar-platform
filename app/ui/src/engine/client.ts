@@ -10,7 +10,7 @@
 import type { BackupCopyLite, CopyImportInput, CopyImportResult, PackShareResult } from './types';
 import { createEventFeed, pageVisibility, type PageVisibility } from './events';
 import { errorLine, ownerError } from './owner-errors';
-import { EngineError, type BackgroundStateLite, type DiagnosticsPreview, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ResultOf, type Transport, type VentureRunEvent } from './types';
+import { EngineError, type BackgroundStateLite, type DiagnosticsPreview, type EngineClient, type EngineStatus, type HostedMeLite, type InvoiceShareResult, type MethodName, type ParamsOf, type ReceiptShareResult, type ResultOf, type Transport, type VentureRunEvent } from './types';
 
 export interface ChausarBridge {
   request(method: string, payload?: unknown): Promise<unknown>;
@@ -50,6 +50,8 @@ export interface ChausarBridge {
   shareInvoice?(invoiceId: string, how: string): Promise<unknown>;
   /** C5 task 16: Send to my CA. */
   sharePack?(month: string, how: string): Promise<unknown>;
+  /** Desktop only (one-shot C6): a payment's thank-you receipt, on WhatsApp or kept. */
+  shareReceipt?(paymentId: string, how: string): Promise<unknown>;
   showShared?(name: string): Promise<void>;
   /** Desktop only (one-shot A5): start at login and keep running, read back from this computer (background.cjs). */
   getBackground?(): Promise<unknown>;
@@ -131,6 +133,16 @@ function backgroundState(value: unknown): BackgroundStateLite {
   const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   const flag = (key: string) => v[key] === true;
   return { supported: flag('supported'), asked: flag('asked'), startAtLogin: flag('startAtLogin'), keepRunning: flag('keepRunning'), registered: flag('registered'), systemOff: flag('systemOff') };
+}
+
+/** C6: the desktop's answer to a receipt, read field by field; anything else is a failure, never a claim it opened. */
+function receiptResult(value: unknown): ReceiptShareResult {
+  const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const file = typeof v.file === 'string' && /^[A-Za-z0-9-]{1,80}\.(?:pdf|html)$/.test(v.file) ? v.file : null;
+  const note = typeof v.note === 'string' ? v.note : null;
+  if (file && v.how === 'whatsapp' && (v.opened === 'app' || v.opened === 'web')) return { how: 'whatsapp', opened: v.opened, file, note };
+  if (file && v.how === 'save' && v.opened === 'none') return { how: 'save', opened: 'none', file, note };
+  throw new EngineError('REQUEST_FAILED', 'The desktop could not make the receipt.');
 }
 
 /** A6: the desktop's answer to a share, read field by field; anything else is a failed share, never a claim it opened. */
@@ -300,6 +312,8 @@ export function createEngineClient(env: ClientEnv = browserEnv()): EngineClient 
     // One-shot A6: an invoice shared through the owner's own apps, and its file shown, with the desktop's refusals as engine errors.
     ...(bridge?.sharePack ? { sharePack: (month: string, how: 'email' | 'whatsapp') => bridge.sharePack!(month, how).then((value) => value as PackShareResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.shareInvoice ? { shareInvoice: (invoiceId: string, how: 'email' | 'whatsapp') => bridge.shareInvoice!(invoiceId, how).then(shareResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
+    // One-shot C6: a payment's receipt the same way.
+    ...(bridge?.shareReceipt ? { shareReceipt: (paymentId: string, how: 'whatsapp' | 'save') => bridge.shareReceipt!(paymentId, how).then(receiptResult, (error: unknown) => { throw asEngineError(error); }) } : {}),
     ...(bridge?.showShared ? { showShared: (name: string) => bridge.showShared!(name).catch((error: unknown) => { throw asEngineError(error); }) } : {}),
     // One-shot A5: start at login and keep running, with the desktop's refusals as engine errors.
     ...(bridge?.getBackground ? { getBackground: () => bridge.getBackground!().then(backgroundState, (error: unknown) => { throw asEngineError(error); }) } : {}),

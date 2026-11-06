@@ -18,10 +18,10 @@ import s from './Clients.module.css';
 import { Fold } from '../../parts/Fold';
 
 /** Always shown, in this order. Other fields appear only while they ask for something. */
-const SHOWN = ['email', 'taxId', 'note'] as const;
+const SHOWN = ['phone', 'email', 'taxId', 'note'] as const; // C6: the phone or WhatsApp number above Email (159.x1)
 /** Fields kept on the client record, each with a label in the text catalogue. Other fields show their own name. */
-type RecordField = 'name' | 'email' | 'countryCode' | 'taxId' | 'stateCode' | 'note';
-const RECORD_FIELDS: ReadonlySet<string> = new Set<RecordField>(['name', 'email', 'countryCode', 'taxId', 'stateCode', 'note']);
+type RecordField = 'name' | 'phone' | 'email' | 'countryCode' | 'taxId' | 'stateCode' | 'note';
+const RECORD_FIELDS: ReadonlySet<string> = new Set<RecordField>(['name', 'phone', 'email', 'countryCode', 'taxId', 'stateCode', 'note']);
 
 interface FieldModel {
   field: string;
@@ -38,7 +38,7 @@ interface FieldModel {
 export function fieldModels(client: ClientLite, items: readonly EvidenceItem[], hidden: ReadonlySet<string>): FieldModel[] {
   const open = (item: EvidenceItem) => !item.dismissed && !hidden.has(item.id);
   const stored = (field: string): string | null => {
-    if (RECORD_FIELDS.has(field)) return client[field as RecordField];
+    if (RECORD_FIELDS.has(field)) return client[field as RecordField] ?? null;
     return items.find((item) => item.field === field && item.applied)?.value ?? null;
   };
   const model = (field: string): FieldModel => {

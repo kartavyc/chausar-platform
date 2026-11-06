@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FakeEngine } from '../../src/engine/fake';
 import { SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE } from '../../src/engine/fixtures';
-import type { BackupLite, BusinessList, EngineError, MoveFile, WorkspaceStatusLite } from '../../src/engine/types';
+import type { BackupInspectLite, BackupLite, BusinessList, EngineError, MoveFile, WorkspaceStatusLite } from '../../src/engine/types';
 
 /**
  * The fake keeps the custody rules of platform/runtime/engine.ts and workspace-custody-contracts.ts: one business open
@@ -86,6 +86,25 @@ describe('fake engine: backups', () => {
     const other = all.backups.find((b) => b.name === 'Ledgerline')!;
     await engine.request('workspace.open', { folder: 'lumen' });
     expect(await refusal(engine.request('workspace.backups.restore', { file: other.file, confirmed: true }))).toMatchObject({ code: 'BACKUP_OTHER_BUSINESS' });
+  });
+
+  it('C6: inspecting a backup says what it holds and what changed since; a fresh copy has nothing changed; another business is refused', async () => {
+    const engine = new FakeEngine();
+    const { backups } = (await engine.request('workspace.backups.list', {})) as { backups: BackupLite[] };
+    const seen = (await engine.request('workspace.backups.inspect', { file: backups[0]!.file })) as BackupInspectLite;
+    expect(seen.counts.map((row) => `${row.count} ${row.words}`)).toEqual(['3 clients', '12 orders', '4 invoices', '3 payments']);
+    expect(seen.since).toEqual([
+      { kind: 'clients', words: 'clients', added: 0, changed: 1, removed: 0 },
+      { kind: 'orders', words: 'orders', added: 2, changed: 0, removed: 0 },
+      { kind: 'invoices', words: 'invoices', added: 1, changed: 0, removed: 0 },
+    ]);
+    const fresh = (await engine.request('workspace.backups.create', {})) as BackupLite;
+    expect(((await engine.request('workspace.backups.inspect', { file: fresh.file })) as BackupInspectLite).since).toEqual([]);
+    expect(await refusal(engine.request('workspace.backups.inspect', { file: 'not-here.backup' }))).toMatchObject({ code: 'BACKUP_NOT_FOUND' });
+    await engine.request('workspace.lock', {});
+    const other = ((await engine.request('workspace.backups.list', {})) as { backups: BackupLite[] }).backups.find((b) => b.name === 'Ledgerline')!;
+    await engine.request('workspace.open', { folder: 'lumen' });
+    expect(await refusal(engine.request('workspace.backups.inspect', { file: other.file }))).toMatchObject({ code: 'BACKUP_OTHER_BUSINESS' });
   });
 
   it('with no business open, a backup opens as a new business beside the old one; a passphrase backup asks for it first', async () => {

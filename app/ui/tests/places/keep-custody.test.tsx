@@ -77,7 +77,8 @@ describe('Keep this business: all backups and their restore', () => {
       expect.stringContaining('You made it. Opens with an older passphrase or code.'),
     ]);
     await press(within(rows[2]!).getByRole('button', { name: 'Restore' }));
-    expect(within(rows[2]!).getByText('Your business goes back to how it was then. Chausar saves a copy of how it is now first.')).toBeTruthy();
+    // C6: the ask leads with what restoring takes back (the sample's manual copy, from before many changes).
+    expect(await within(rows[2]!).findByText(/^Since .*: 1 client, 5 orders, 2 invoices and 1 payment added, 1 client, 2 orders and 1 invoice changed. Restoring takes these back. How it is now is saved as a backup first.$/)).toBeTruthy();
     expect(sent(calls, 'workspace.backups.restore')).toEqual([]);
     await press(within(rows[2]!).getByRole('button', { name: 'Keep it as it is' }));
     expect(within(rows[2]!).queryByRole('button', { name: 'Restore this copy' })).toBeNull();
@@ -405,5 +406,44 @@ describe('Keep this business: secrets', () => {
     await waitFor(() => expect(document.body.textContent).not.toContain(SAMPLE_MOVE_CODE));
     for (const input of document.querySelectorAll('input')) expect(input.value).not.toBe(SAMPLE_PASSPHRASE);
     expect(sent(calls, 'workspace.transfer.export')).toEqual([{ passphrase: SAMPLE_PASSPHRASE }]);
+  });
+});
+
+// One-shot C6 task 2 (SCREENS 204.f1, 208.x1, 213.x1): what is in each backup, and what a restore takes back.
+describe('Keep this business: what is in a backup, and what a restore takes back', () => {
+  it("\"What's in it\" is closed at rest and asks the engine once, when opened", async () => {
+    const { calls } = start('#/business/keep');
+    const all = await fold('All backups, 3');
+    expect(sent(calls, 'workspace.backups.inspect')).toEqual([]);
+    const row = within(all).getAllByRole('listitem')[0]!;
+    const inside = within(row).getByText("What's in it", { selector: 'summary' }).closest('details')!;
+    expect(inside.open).toBe(false);
+    fireEvent.click(within(inside).getByText("What's in it", { selector: 'summary' }));
+    expect(await within(inside).findByText('3 clients, 12 orders, 4 invoices and 3 payments')).toBeTruthy();
+    expect(sent(calls, 'workspace.backups.inspect')).toEqual([{ file: 'chausar-lumen-auto.backup' }]);
+  });
+
+  it('the restore ask leads with what changed since, before the button, and the restore still makes its safety copy', async () => {
+    const { calls } = start('#/business/keep');
+    const all = await fold('All backups, 3');
+    const row = within(all).getAllByRole('listitem')[0]!;
+    await press(within(row).getByRole('button', { name: 'Restore' }));
+    const change = await within(row).findByText(/^Since .*: 2 orders and 1 invoice added, 1 client changed\. Restoring takes these back\. How it is now is saved as a backup first\.$/);
+    const go = within(row).getByRole('button', { name: 'Restore this copy' });
+    expect(change.compareDocumentPosition(go) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await press(go);
+    expect(sent(calls, 'workspace.backups.restore')).toEqual([{ file: 'chausar-lumen-auto.backup', confirmed: true }]);
+    const after = await fold('All backups, 4');
+    expect(within(after).getAllByRole('listitem')[0]!.textContent).toContain('Before a change.');
+  });
+
+  it('with nothing changed since, the ask says so', async () => {
+    const engine = new FakeEngine();
+    await engine.request('workspace.backups.create', {});
+    start('#/business/keep', engine);
+    const all = await fold('All backups, 4');
+    const row = within(all).getAllByRole('listitem')[0]!;
+    await press(within(row).getByRole('button', { name: 'Restore' }));
+    expect(await within(row).findByText('Nothing changed since then. How it is now is saved as a backup first.')).toBeTruthy();
   });
 });

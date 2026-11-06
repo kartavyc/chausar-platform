@@ -70,7 +70,7 @@ describe('the language preference', () => {
     const { calls } = start('#/business/app', engine, (client) => { (client as { transport: string }).transport = 'web'; });
     await waitFor(() => expect(document.documentElement.lang).toBe('hi'));
     expect(calls.some((call) => call.method === 'app.preferences.get')).toBe(true);
-    await screen.findByRole('heading', { name: '\u0906\u092a\u0915\u0947 \u092c\u093e\u0930\u0947 \u092e\u0947\u0902' });
+    await screen.findByRole('heading', { name: 'This app' });
     expect(screen.queryByRole('region', { name: '\u092d\u093e\u0937\u093e' })).toBeNull();
   });
 

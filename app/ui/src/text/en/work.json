@@ -64,6 +64,7 @@
   "work.form.choose": "Choose",
   "work.form.newClient": "New client",
   "work.form.clientName": "Client's name",
+  "work.form.clientPhone": "Phone or WhatsApp",
   "work.form.service": "Service",
   "work.form.noPrice": "{name}, no price yet",
   "work.form.setPriceFirst": "Set a price for {name} first.",

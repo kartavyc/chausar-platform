@@ -527,3 +527,44 @@ test('A7 fix round 1 (low 3): a subject that cleans to nothing, with no address,
   assert.equal(reply.result?.opened, 'link');
   assert.deepEqual(s.opened, [contract.validateExternalUrl(mailto('', subject))]);
 });
+
+test("C6: with the client's number, WhatsApp opens that chat in the app and on the web; without one it does not carry a number", async t => {
+  const withNumber = engineFile({ share: { ...engineFile().share, whatsappUrl: `https://wa.me/919876543210?text=${encodeURIComponent(WA_TEXT)}` } });
+  const app = await shareDeps(t, { app: true, file: withNumber });
+  await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, app.deps);
+  assert.deepEqual(app.opened, [`whatsapp://send?phone=919876543210&text=${encodeURIComponent(WA_TEXT)}`]);
+  const web = await shareDeps(t, { app: false, file: withNumber });
+  await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, web.deps);
+  assert.deepEqual(web.opened, [`https://wa.me/919876543210?text=${encodeURIComponent(WA_TEXT)}`]);
+  const none = await shareDeps(t, { app: true });
+  await share.shareInvoice({}, { invoiceId: 'inv-0001', how: 'whatsapp' }, none.deps);
+  assert.ok(!none.opened[0]!.includes('phone='), 'no number, no chat chosen');
+});
+
+const RECEIPT_TEXT = 'Thank you for your payment of INR 2,000.00 for invoice INV-0001. Received on 3 Nov 2026 by UPI. Nothing is left to pay.';
+function receiptFile(url: string) {
+  return engineFile({ fileName: 'Receipt-INV-0001-1.pdf', share: { ...engineFile().share, text: RECEIPT_TEXT, whatsappUrl: url } });
+}
+
+test('C6: the receipt path asks the engine for the receipt, keeps the PDF in the share folder and opens WhatsApp with the words; nothing is sent', async t => {
+  const plain = await shareDeps(t, { app: false, file: receiptFile(`https://wa.me/?text=${encodeURIComponent(RECEIPT_TEXT)}`) });
+  const reply = await share.shareInvoice({}, { document: 'receipt', paymentId: 'pay_1', how: 'whatsapp' }, plain.deps);
+  assert.deepEqual(reply, { ok: true, result: { how: 'whatsapp', opened: 'web', file: 'Receipt-INV-0001-1.pdf', note: null } });
+  assert.deepEqual(plain.asked, [['venture.payment.receipt', { paymentId: 'pay_1' }]], 'main asks the engine itself');
+  assert.deepEqual(plain.opened, [`https://wa.me/?text=${encodeURIComponent(RECEIPT_TEXT)}`]);
+  assert.deepEqual(await readFile(join(plain.folder, 'Receipt-INV-0001-1.pdf')), PDF);
+  // With the client's number, that chat, in the app.
+  const chat = await shareDeps(t, { app: true, file: receiptFile(`https://wa.me/919876543210?text=${encodeURIComponent(RECEIPT_TEXT)}`) });
+  await share.shareInvoice({}, { document: 'receipt', paymentId: 'pay_1', how: 'whatsapp' }, chat.deps);
+  assert.deepEqual(chat.opened, [`whatsapp://send?phone=919876543210&text=${encodeURIComponent(RECEIPT_TEXT)}`]);
+});
+
+test('C6: Save the receipt keeps the file and opens nothing; the window names only the payment and how', async t => {
+  const s = await shareDeps(t, { app: true, file: receiptFile(`https://wa.me/?text=${encodeURIComponent(RECEIPT_TEXT)}`) });
+  assert.deepEqual((await share.shareInvoice({}, { document: 'receipt', paymentId: 'pay_1', how: 'save' }, s.deps)).result, { how: 'save', opened: 'none', file: 'Receipt-INV-0001-1.pdf', note: null });
+  assert.deepEqual([s.opened, s.paths], [[], []]);
+  for (const bad of [{ document: 'receipt', paymentId: 'pay_1', how: 'email' }, { document: 'receipt', how: 'save' }, { document: 'receipt', paymentId: '../x', how: 'save' }, { document: 'receipt', paymentId: 'pay_1', how: 'save', text: 'other words' }]) {
+    assert.equal((await share.shareInvoice({}, bad, s.deps)).error.code, 'INVALID_REQUEST', JSON.stringify(bad));
+  }
+  assert.equal(s.asked.length, 1, 'a refused request never reached the engine');
+});

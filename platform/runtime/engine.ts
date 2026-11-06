@@ -77,7 +77,7 @@ import { type BackupCopySetting, CustodyFiles, MANAGED_COPY_TAIL, backupDue, bac
   normalizeTransferCode, parseBackupName, slugFolder, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
 import { aiSetupFile, forgetAiSetup } from './venture/models/ai-setup-file.ts';
 import { cliLookFile, cliLookPath } from './venture/models/cli-look-file.ts';
-import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, exportFileName, moveFileName, type BackupCopyView, type BackupKind, type BackupView, type CopyImportResult, type CustodyView, type DriveStatus, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
+import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, exportFileName, moveFileName, type BackupCopyView, type BackupInspectView, type BackupKind, type BackupView, type CopyImportResult, type CustodyView, type DriveStatus, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
 import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-snapshots.ts';
 
 /** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
@@ -1337,6 +1337,8 @@ export class Engine {
       case 'workspace.backups.drive.status': this.requireAppOwner(ctx); return this.driveStatus();
       case 'workspace.backups.drive.connect': this.requireAppOwner(ctx); return this.driveOf().connect();
       case 'workspace.backups.drive.disconnect': this.requireAppOwner(ctx); await this.driveOf().disconnect(); return this.custodySerial(() => this.driveNote(null).then(() => this.driveStatus()));
+      // One-shot C6: one read at a time (the custody chain), on the owner's press in the app only.
+      case 'workspace.backups.inspect': this.requireAppOwner(ctx); return this.custodySerial(() => this.inspectManagedBackup(payload));
       case 'workspace.transfer.export': this.requireAppOwner(ctx); return this.custodySerial(() => this.transferExport(payload));
       case 'workspace.backup.v2.create': return this.backupHost().create(ctx, this.journalPayload(payload,
         ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['create']>[1]);
@@ -1870,6 +1872,7 @@ export class Engine {
       case 'venture.billing.get':
       case 'venture.billing.set':
       case 'venture.invoice.pdf':
+      case 'venture.payment.receipt':
       case 'venture.invoice.payLink':
       case 'venture.invoice.shared':
       case 'venture.order.create':
@@ -3063,6 +3066,24 @@ export class Engine {
     await this.custodyFiles().writeCard({ ...next, pending: null });
     await vault.update(state => audit(state, 'custody.recovery-made', {}));
     return { custody: await this.custodyView(), recoveryCode };
+  }
+  /**
+   * One-shot C6 (section 9 idea 25): what a backup of the open business holds and what restoring it would take back.
+   * The same checks as a restore; the backup's state is decoded in memory only and never written. The open business
+   * only, so no business words ever sit outside its vault.
+   */
+  private async inspectManagedBackup(payload: any): Promise<BackupInspectView> {
+    const vault = this.store(), files = this.custodyFiles(), workspaceId = vault.read().workspace.id;
+    const parsed = typeof payload.file === 'string' ? parseBackupName(payload.file) : null;
+    check(parsed, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
+    check(parsed.workspaceId === workspaceId, 'BACKUP_OTHER_BUSINESS', CUSTODY_WORDS.errors.BACKUP_OTHER_BUSINESS);
+    const header = await files.backupHeader(parsed.name);
+    check(header, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
+    check(header.vaultId === vault.vaultId, 'BACKUP_OTHER_BUSINESS', CUSTODY_WORDS.errors.BACKUP_OTHER_BUSINESS);
+    const view = await this.backupView(parsed.name);
+    const then = await vault.readBackupState(files.backupPath(parsed.name));
+    const { backupCounts, backupDiff } = await import('./venture/views/backup-diff.ts');
+    return { file: view.file, at: view.at, counts: backupCounts(then), since: backupDiff(vault.read(), then) };
   }
   private async restoreManagedBackup(payload: any) {
     check(payload.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the restore in the app.');

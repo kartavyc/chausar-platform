@@ -177,7 +177,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   );
 }
 
-type Draft = { name: string; email: string; taxId: string; note: string };
+type Draft = { name: string; phone: string; email: string; taxId: string; note: string };
 type Problem = { field?: 'taxId'; message: string };
 
 /** Add client: venture.client.add with only what was typed. The engine checks every field and says what is wrong.
@@ -187,7 +187,7 @@ function NewClientSheet({ onClose, returnFocus }: SheetComponentProps) {
   const t = useT();
   const engine = useEngine();
   const registered = useTaxRegistered();
-  const [draft, setDraft] = useState<Draft>({ name: '', email: '', taxId: '', note: '' });
+  const [draft, setDraft] = useState<Draft>({ name: '', phone: '', email: '', taxId: '', note: '' });
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [more, setMore] = useState(false);
@@ -197,6 +197,8 @@ function NewClientSheet({ onClose, returnFocus }: SheetComponentProps) {
     event.preventDefault();
     if (busy || !draft.name.trim()) return;
     const params: ClientAddParams = { name: draft.name.trim() };
+    // One-shot C6: the number as typed; the engine works out the WhatsApp digits, or says what is wrong.
+    if (draft.phone.trim()) params.phone = draft.phone.trim();
     if (draft.email.trim()) params.email = draft.email.trim();
     if (draft.taxId.trim()) params.taxId = draft.taxId.trim();
     if (draft.note.trim()) params.note = draft.note.trim();
@@ -223,6 +225,7 @@ function NewClientSheet({ onClose, returnFocus }: SheetComponentProps) {
     <Sheet label={t('clients.sheet')} title={t('clients.new.title')} line={t('clients.new.line')} onClose={onClose} returnFocus={returnFocus}>
       <form className={s.form} onSubmit={(event) => void submit(event)} noValidate>
         <Field label={t('clients.new.name')} value={draft.name} onChange={set('name')} autoComplete="off" required maxLength={120} />
+        <Field label={t('clients.new.phone')} type="tel" inputMode="tel" value={draft.phone} onChange={set('phone')} autoComplete="off" maxLength={40} />
         <Field label={t('clients.new.email')} type="email" value={draft.email} onChange={set('email')} autoComplete="off" maxLength={200} />
         {registered && taxField}
         <Field multiline label={t('clients.new.note')} value={draft.note} onChange={set('note')} maxLength={500} />

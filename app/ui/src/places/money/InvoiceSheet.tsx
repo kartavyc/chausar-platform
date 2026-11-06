@@ -25,6 +25,7 @@ import { EngineError, type InvoiceViewLite } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
 import { Credits, NextStep, PaymentLine, RateChange, Timeline } from './InvoiceExtras';
 import { BillPart, HowToPay } from './InvoicePay';
+import { ThankYou } from './ThankYou';
 import { messageOf, onMoney, statusOf, useDay } from './words';
 import s from './Money.module.css';
 import { Fold } from '../../parts/Fold';
@@ -109,7 +110,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       label={t('money.invoice.label')}
       eyebrow={current.client.name}
       title={invoice.number ?? t('money.invoice.draft')}
-      line={statusOf(t, day, invoice, current.sent)}
+      line={current.paidInFull ? t('money.invoice.paidInFull') : statusOf(t, day, invoice, current.sent)}
       onClose={onClose}
       returnFocus={returnFocus}
       footer={footer}
@@ -151,6 +152,8 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       <RateChange view={current} onChanged={changed} />
       {/* Wave 6 (6D2, 6D3): how clients pay, the file and the share buttons, a payment link. */}
       <HowToPay view={current} onChanged={changed} />
+      {/* One-shot C6: a paid invoice's thank-you receipt, which the owner sends. */}
+      <ThankYou view={current} />
       {current.notes.map((note) => <p key={note} className={s.quietLine} data-engine-line="">{note}</p>)}
       <Credits view={current} />
       <Timeline view={current} />

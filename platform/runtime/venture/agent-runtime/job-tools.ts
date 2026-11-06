@@ -12,6 +12,7 @@ import type { AgentJobScope } from './driver-types.ts';
 import { checkJobDraftNumbers } from './draft-provenance.ts';
 import { screenSettingOf } from '../policy/untrusted-methods.ts';
 import { screenJobOutput } from './output-screen.ts';
+import { CLIENT_AI_FIELDS } from '../clients/phone.ts';
 
 export type JobFile = {id:string;ventureId:string;orderId:string;name:string;mediaType:string;bytes:number;digest:string};
 /** The host projects these fields from current state. No vault records or paths leave this boundary. */
@@ -93,7 +94,8 @@ export function createJobMCP(store:StateStore, capability:JobCapability, ports:J
       return redactPayload({id,name,serviceType,dateOrder,offer,workInstructions,style,approvedBrief,revision,playbookEvidence,notes,knowledge,sections:data.sections,draftSchema:deliverySchema(serviceType,data.sections),calculations:ports.calculations,packSkills:ports.packSkills??[]});
     }),
     register('read_client','Read only the client assigned to this job.',object(),true,async()=>{
-      const {id,name,email,taxId}= (await snapshot()).client;return redactPayload({id,name,email,...(taxId===undefined?{}:{taxId}),handoff:email?'email-handoff':'copy'});
+      // One-shot C6: only CLIENT_AI_FIELDS (never the phone or WhatsApp number), whatever the snapshot carries.
+      const client=(await snapshot()).client as Record<string,unknown>;const seen=Object.fromEntries(CLIENT_AI_FIELDS.filter(key=>client[key]!==undefined).map(key=>[key,client[key]]));return redactPayload({...seen,handoff:client.email?'email-handoff':'copy'});
     }),
     register('read_order','Read only the order assigned to this job.',object(),true,async()=>{
       const {id,clientId,request,status,intake,chainStage}= (await snapshot()).order;return redactPayload({id,clientId,request,status,intake:intake??null,chainStage:chainStage??null});

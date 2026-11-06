@@ -19,6 +19,7 @@ import { cashPlan } from './cash.ts';
 import { marginPlan } from './margins.ts';
 import { billsPlan } from './bills.ts';
 import { statementPlan } from './statement.ts';
+import { paidInFullPlan } from './paid-in-full.ts';
 import { taxTotalPlan } from './tax-total.ts';
 import { acrossPlan } from './across-plan.ts';
 import { setPlan } from './set-plan.ts';
@@ -50,6 +51,7 @@ const OPEN: readonly InvoiceRecord['status'][] = ['issued', 'part-paid'];
 const NAMED = 12;
 
 const LABELS: Readonly<Record<SumReceiptSubject['type'], string>> = Object.freeze({
+  'paid-in-full': 'Paid in full',
   'agent-cost': 'AI usage cost',
   'agent-job-cost': 'AI job and quality check',
   'spent-by': 'AI spend',
@@ -124,6 +126,7 @@ export function currentPlan(state: State, venture: VentureRecord, subject: SumRe
   if (subject.type === 'held') return heldPlan(state, venture, subject);
   if (subject.type === 'invoiced') return invoicedPlan(state, venture, subject);
   if (subject.type === 'goal') return goalPlan(state, venture, subject);
+  if (subject.type === 'paid-in-full') return paidInFullPlan(state, venture, subject); // one-shot C6
   if (subject.type === 'aging') return agingPlan(state, venture, subject);
   if (subject.type === 'flow') return flowPlan(state, venture, subject);
   if (subject.type === 'cash') return cashPlan(state, venture, subject);

@@ -115,7 +115,7 @@ test('desktop forwards the two app preference methods, right after the custody m
 
 test('desktop forwards the twelve custody methods, right after workspace.delete, in the contract order', async () => {
   const { CUSTODY_METHODS } = await import('../runtime/workspace-custody-contracts.ts');
-  assert.equal(CUSTODY_METHODS.length, 15); // 4J6 added workspace.custody.neverContactReset; C4 added workspace.transfer.peek; C5 task 24 the three Drive methods
+  assert.equal(CUSTODY_METHODS.length, 16); // 4J6 added workspace.custody.neverContactReset; C4 added workspace.transfer.peek; C5 task 24 the three Drive methods; C6 added workspace.backups.inspect
   const at = METHODS.indexOf('workspace.delete');
   assert.deepEqual(METHODS.slice(at + 1, at + 1 + CUSTODY_METHODS.length), [...CUSTODY_METHODS]);
   const declared = await readFile(new URL('../../app/desktop/ipc-contract.d.cts', import.meta.url), 'utf8');

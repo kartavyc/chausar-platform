@@ -107,6 +107,12 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     if (reply?.ok === true) return reply.result;
     throw Object.assign(new Error(reply?.error?.message || 'The invoice could not be shared.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
   },
+  // One-shot C6: a payment's thank-you receipt, on WhatsApp or kept; only the payment and how go to main, which makes the file.
+  shareReceipt: async (paymentId, how) => {
+    const reply = await ipcRenderer.invoke('chausar:invoice:share', { document: 'receipt', paymentId: String(paymentId), how: String(how) });
+    if (reply?.ok === true) return reply.result;
+    throw Object.assign(new Error(reply?.error?.message || 'The receipt could not be made.'), { code: reply?.error?.code || 'REQUEST_FAILED' }, reply?.error?.owner === true ? { owner: true } : {});
+  },
   // A6: show the invoice file Chausar kept for sharing in the file manager, by its file name only.
   showShared: async name => {
     const reply = await ipcRenderer.invoke('chausar:share:show', { name: String(name) });

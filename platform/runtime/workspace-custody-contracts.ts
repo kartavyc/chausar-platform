@@ -18,6 +18,8 @@ export const CUSTODY_METHODS = Object.freeze([
   'workspace.transfer.peek',
   // C5 task 24: Google Drive, built up to the OAuth client.
   'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect',
+  // One-shot C6: what a backup of the open business holds and what restoring it would take back (read only).
+  'workspace.backups.inspect',
 ] as const);
 export type CustodyMethod = typeof CUSTODY_METHODS[number];
 /**
@@ -28,7 +30,7 @@ export const CUSTODY_MAIN_ONLY_METHODS = Object.freeze(['workspace.import', 'wor
 /** Answered before the vault check; they also answer with a vault open. */
 export const CUSTODY_PRE_VAULT_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.get', 'workspace.list', 'workspace.backups.list', 'workspace.transfer.import', 'workspace.transfer.peek']);
 /** The owner, in the app (desktop channel, untainted), with a vault open. */
-export const CUSTODY_APP_ONLY_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect']);
+export const CUSTODY_APP_ONLY_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.custody.passphraseOn', 'workspace.custody.passphraseOff', 'workspace.custody.recoveryCode', 'workspace.backups.create', 'workspace.backups.restore', 'workspace.transfer.export', 'workspace.custody.neverContactReset', 'workspace.backups.drive.status', 'workspace.backups.drive.connect', 'workspace.backups.drive.disconnect', 'workspace.backups.inspect']);
 /** These change which vault is open or replace its state: engine transitions. */
 export const CUSTODY_TRANSITION_METHODS: readonly CustodyMethod[] = Object.freeze(['workspace.transfer.import', 'workspace.backups.restore']);
 /** After one of these succeeds, an automatic backup is due at the next tick. */
@@ -105,6 +107,16 @@ export type BackupView = {
   after?: string;
 };
 
+/**
+ * One-shot C6: what a backup of the open business holds (`counts`, the backup's own) and what changed since it was made
+ * (`since`: restoring takes these back). Kinds and words come from venture/views/backup-diff.ts BACKUP_KIND_WORDS.
+ */
+export type BackupInspectView = {
+  file: string; at: IsoTime;
+  counts: { kind: string; words: string; count: number }[];
+  since: { kind: string; words: string; added: number; changed: number; removed: number }[];
+};
+
 export type WorkspaceCreatePayload = { name: string; pack?: string; demo?: boolean; passphrase?: string; folder?: string | null };
 export type WorkspaceCreateResult = { workspace: { id: string; name: string; currency: string; demo: boolean; createdAt: string };
   folder: string; unlock: UnlockMode; recoveryCode: string | null; recoveryKit: string | null; experimental: boolean };
@@ -131,6 +143,7 @@ export type CustodyPayloads = {
   'workspace.backups.drive.status': Record<string, never>;
   'workspace.backups.drive.connect': Record<string, never>;
   'workspace.backups.drive.disconnect': Record<string, never>;
+  'workspace.backups.inspect': { file: string };
 };
 export type DriveStatus = { state: 'not-connected' | 'connecting' | 'connected'; lastCopiedAt: IsoTime | null; problem: string | null };
 export type CopyImportPayload = { file: string; passphrase?: string; recoveryCode?: string; restore?: boolean };
@@ -151,6 +164,7 @@ export type CustodyResults = {
   'workspace.backups.drive.status': DriveStatus;
   'workspace.backups.drive.connect': { state: 'connecting'; url: string };
   'workspace.backups.drive.disconnect': DriveStatus;
+  'workspace.backups.inspect': BackupInspectView;
 };
 
 export const CUSTODY_ERRORS = Object.freeze([

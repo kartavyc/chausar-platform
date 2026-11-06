@@ -38,7 +38,7 @@ export type CrmHost = W4DeskHost & {
   clients: () => readonly ClientLite[];
   people: () => readonly CrmPerson[];
   /** The owner's own value for a client field: kept as owner-entered evidence and written to the client. */
-  editClient: (clientId: string, field: 'name' | 'email' | 'note', value: string) => void;
+  editClient: (clientId: string, field: 'name' | 'email' | 'note' | 'phone', value: string) => void;
   touches: (match: (card: { personId: string; clientName: string | null }) => boolean) => ClientTouch[];
 };
 

@@ -356,7 +356,7 @@ export interface MoneyOverviewLine {
   needsRate?: boolean;
   kind?: FigureKind; source?: FigureSource; uses?: Display[]; basis?: TotalBasis;
 }
-export interface MoneyOverview { lines: MoneyOverviewLine[] }
+export interface MoneyOverview { lines: MoneyOverviewLine[]; /** One-shot C6: this month's invoices all paid. */ paidInFull?: { line: Display; receiptId: string } | null }
 
 /** `venture.tax.working`: the tax working for a period, worked by the calculator, each figure with its receipt. */
 export interface TaxWorkingLine { label: Display; value: Display; receiptId?: string }
@@ -710,6 +710,12 @@ export interface CopyImportInput { token: string; passphrase?: string; recoveryC
 export interface CopyImportResult { workspace: WorkspaceLite; folder: string; unlock: UnlockMode; restored?: boolean }
 /** after (C5 task 20): what came just before it, while the business is open. */
 export interface BackupLite { file: string; kind: 'auto' | 'manual' | 'safety'; at: string; revision: number; bytes: number; name: string | null; opensNow: boolean; after?: string }
+/** One-shot C6: what a backup of the open business holds and what changed since (restoring takes these back). */
+export interface BackupInspectLite {
+  file: string; at: string;
+  counts: { kind: string; words: string; count: number }[];
+  since: { kind: string; words: string; added: number; changed: number; removed: number }[];
+}
 /** The vault's own record of a business, as workspace.open, .recover, .restore and the moves return it (trimmed). */
 export interface WorkspaceLite { id?: string; name: string }
 /**
@@ -730,9 +736,11 @@ export interface ClientLite {
   aiConsent?: ClientAiConsent;
   self?: true;
   id: string; at: string; name: string; email: string | null; countryCode: string | null; taxId: string | null; stateCode: string | null; note: string | null;
+  /** One-shot C6: the phone or WhatsApp number as typed, and its WhatsApp digits (only ever used to open WhatsApp). */
+  phone?: string | null; whatsapp?: string | null;
   owed?: { display: Display; receiptId: string };
 }
-export interface ClientAddParams { name: string; email?: string; countryCode?: string; taxId?: string; stateCode?: string; note?: string }
+export interface ClientAddParams { name: string; email?: string; countryCode?: string; taxId?: string; stateCode?: string; note?: string; phone?: string }
 export type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { SearchProviderId, WebSearchView, WebReadView } from '../../../../platform/runtime/venture/web/search-types';
 import type { PeopleLookupView, PeopleSearchView } from '../../../../platform/runtime/venture/people/people-types';
@@ -939,6 +947,8 @@ export interface InvoiceViewLite {
   howToPay?: HowToPayLite;
   /** One-shot C4 (T20): true only once the owner marked it sent. */
   sent?: boolean;
+  /** One-shot C6: an issued invoice with nothing left to pay. */
+  paidInFull?: boolean;
 }
 
 /** Wave 6 (6D2, 6D3): an invoice's ways to pay, as text and a QR code the engine drew; no amount the UI could add up. */
@@ -970,6 +980,8 @@ export type BillingPatch = Partial<Omit<BillingSettingsLite, 'razorpay' | 'bank'
  * on disk (maybe INV-0001-2.pdf), for Show the PDF in its folder. whatsapp: the desktop app or the web page, never
  * with the file.
  */
+/** One-shot C6: what the desktop did with a payment's receipt: kept it, and opened WhatsApp when asked. */
+export type ReceiptShareResult = { how: 'whatsapp'; opened: 'app' | 'web'; file: string; note: string | null } | { how: 'save'; opened: 'none'; file: string; note: string | null };
 export type InvoiceShareResult =
   | { how: 'email'; opened: 'draft' | 'link' | 'none'; file: string; attached: string; to: boolean; note: string | null }
   | { how: 'whatsapp'; opened: 'app' | 'web'; file: string; note: string | null };
@@ -1550,6 +1562,8 @@ export interface GoalView {
   invoicedPercent: number | null; pacePercent: number; past: boolean; pastBy: MoneyFigure | null; paceBy: MoneyFigure | null;
   elapsedDays: number; monthDays: number; daysLeft: number; lastDay: boolean;
   lastMonth: GoalFigure | null; line: Display; next: NextBestStep | null; briefing: { rowIds: string[]; more: number } | null;
+  /** One-shot C6: every invoice issued in the month is paid ("All November invoices paid"), with its receipt; else null. */
+  paidInFull?: { line: Display; receiptId: string } | null;
 }
 /** typed: the amount as the owner would type it in the goal field ("150000.00"). */
 export interface GoalSuggestion { amountMinor: string; display: Display; estimate: true; line: Display; typed: string }
@@ -2143,6 +2157,8 @@ export interface EngineMethods {
   'workspace.backups.drive.disconnect': { params: Record<string, never>; result: DriveStatusLite };
   /** The open business goes back to the backup. The engine writes a safety copy of how it is now first. */
   'workspace.backups.restore': { params: { file: string; confirmed: true }; result: { workspace: WorkspaceLite; restoredFrom: BackupLite; safety: BackupLite } };
+  /** One-shot C6: reads the backup in memory (never restores or writes); the open business's own backups only. */
+  'workspace.backups.inspect': { params: { file: string }; result: BackupInspectLite };
   /** Needs the passphrase when the business is locked with one (PASSPHRASE_WRONG otherwise). */
   /** dismiss (C4 task 38): takes the "Move file made" line away. */
   'workspace.transfer.export': { params: { passphrase?: string } | { dismiss: true }; result: MoveFile | { dismissed: true } };
@@ -2176,6 +2192,8 @@ export interface EngineMethods {
   'venture.billing.get': { params: Record<string, never>; result: BillingView };
   'venture.billing.set': { params: BillingPatch; result: BillingView };
   'venture.invoice.pdf': { params: { invoiceId: string }; result: InvoicePdfView };
+  /** One-shot C6: a payment's thank-you receipt: its words, its WhatsApp link and its file, made by code. Nothing is sent. */
+  'venture.payment.receipt': { params: { paymentId: string }; result: InvoicePdfView };
   'venture.invoice.payLink': { params: { invoiceId: string; action: 'create'; digest: string } | { invoiceId: string; action: 'check' }; result: InvoiceViewLite };
   'venture.agentSettings.get': { params: Record<string,never>; result: AiSettingsView };
   'venture.agentSettings.set': { params: {settings:AiSettings; approveMcpConfiguration?:true}; result: AiSettingsView };
@@ -2419,7 +2437,7 @@ export interface EngineMethods {
   'venture.people.lookup': { params: { service: 'happenstance' | 'probe42'; query?: string; clientId?: string; digest?: string; searchId?: string }; result: PeopleLookupView };
   // W6 6G3 the CRM: field history, companies with two-way links, client timelines and lists (pipelines with their own stages).
   'venture.crm.client': { params: { clientId: string }; result: ClientCrmView };
-  'venture.crm.client.edit': { params: { clientId: string; field: 'name' | 'email' | 'note'; value: string }; result: ClientCrmView };
+  'venture.crm.client.edit': { params: { clientId: string; field: 'name' | 'email' | 'note' | 'phone'; value: string }; result: ClientCrmView };
   'venture.crm.companies': { params: Record<string, never>; result: CompanyRow[] };
   'venture.crm.company': { params: { companyId: string }; result: CompanyView };
   'venture.crm.company.save': { params: { companyId?: string; name?: string; domain?: string | null; note?: string | null }; result: CompanyView };
@@ -2697,6 +2715,11 @@ export interface EngineClient {
   /** C5 task 16: Send to my CA: a draft or WhatsApp with the month's file; desktop only. */
   sharePack?(month: string, how: 'email' | 'whatsapp'): Promise<PackShareResult>;
   shareInvoice?(invoiceId: string, how: 'email' | 'whatsapp'): Promise<InvoiceShareResult>;
+  /**
+   * Desktop only (one-shot C6): a payment's thank-you receipt. The desktop asks the engine for it (venture.payment.receipt),
+   * keeps the file in Chausar's share folder and, for whatsapp, opens the owner's WhatsApp with the words. Nothing is sent.
+   */
+  shareReceipt?(paymentId: string, how: 'whatsapp' | 'save'): Promise<ReceiptShareResult>;
   /** Desktop only (A6): shows the invoice file the desktop kept for sharing in the file manager. SHARE_FILE_GONE when it is gone. */
   showShared?(name: string): Promise<void>;
   /**

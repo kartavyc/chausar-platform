@@ -132,10 +132,10 @@ function RunDraft({ id, onClose, returnFocus }: SheetComponentProps) {
   });
 
   const whatsapp = () => {
-    // A web tab is reserved inside the click. C6 task 3 adds the client's phone to this link.
+    // A web tab is reserved inside the click. C6 task 3: with the client's number, the link opens their chat.
     let tab: Window | null = null;
     try { tab = reserveTab(); } catch (error) { setSaid({ line: refusalWords(error, t), problem: true }); return; }
-    void open({ action: 'whatsapp', url: `https://wa.me/?text=${encodeURIComponent(message ?? '')}`, line: '' }, tab);
+    void open({ action: 'whatsapp', url: `https://wa.me/${who?.whatsapp ?? ''}?text=${encodeURIComponent(message ?? '')}`, line: '' }, tab);
   };
   const email = () => {
     const to = who?.email ? encodeURIComponent(who.email).replace(/%40/g, '@') : '';
