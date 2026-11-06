@@ -58,6 +58,33 @@
   color: var(--on-selected);
 }
 
+/* One-shot C3 task 15: the pill under the row takes over the current segment's fill once it is placed, and slides from
+   then on. Before that (the first frame) the segment keeps its own fill, so nothing moves at first paint. */
+.pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--r-button-sm);
+  background: var(--selected);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.seg[data-pill-ready] .pill {
+  opacity: 1;
+  transition: transform var(--t-press) var(--ease), width var(--t-press) var(--ease);
+}
+
+.seg[data-pill-ready] .list,
+.seg[data-pill-ready] .item {
+  position: relative;
+}
+
+.seg[data-pill-ready] .item[aria-pressed='true'],
+.seg[data-pill-ready] .item[aria-current='page'] {
+  background: none;
+}
+
 .count {
   font-size: var(--text-label);
   color: var(--mute);

@@ -1,4 +1,4 @@
-import { type FocusEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { type FocusEvent, startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import type { T } from '../text';
 import { DeptDot } from './Chip';
 import { cx } from './cx';
@@ -6,6 +6,7 @@ import { Count } from './Figure';
 import { Icon } from './Icon';
 import { DEPT_IDS, type DeptId, type IconName } from './icons';
 import { revealInRow } from './reveal';
+import { useSlidingPill } from './useSlidingPill';
 import s from './Segmented.module.css';
 
 export interface SegmentOption {
@@ -71,6 +72,8 @@ function moreOf(row: HTMLElement): More {
 export function Segmented(props: SegmentedProps) {
   const { label, value, className } = props;
   const row = useRef<HTMLElement | null>(null);
+  // One-shot C3 task 15: one pill under the row slides to the current segment over the press time.
+  const pill = useSlidingPill(value);
   const [more, setMore] = useState<More>(undefined);
   const setRow = (element: HTMLElement | null) => {
     row.current = element;
@@ -98,6 +101,7 @@ export function Segmented(props: SegmentedProps) {
   if (props.mode === 'links') {
     return (
       <nav ref={setRow} className={cx(s.seg, className)} aria-label={label} data-more={more} onScroll={measure} onFocus={onFocus}>
+        <span ref={pill} className={s.pill} data-pill="" aria-hidden="true" />
         <ul className={s.list}>
           {props.options.map((option) => (
             <li key={option.id}>
@@ -113,8 +117,9 @@ export function Segmented(props: SegmentedProps) {
   const { onChange } = props;
   return (
     <div ref={setRow} className={cx(s.seg, className)} role="group" aria-label={label} data-more={more} onScroll={measure} onFocus={onFocus}>
+      <span ref={pill} className={s.pill} data-pill="" aria-hidden="true" />
       {props.options.map((option) => (
-        <button key={option.id} type="button" className={s.item} aria-pressed={option.id === value} onClick={() => onChange(option.id)}>
+        <button key={option.id} type="button" className={s.item} aria-pressed={option.id === value} onClick={() => startTransition(() => onChange(option.id))}>
           <Inside option={option} />
         </button>
       ))}

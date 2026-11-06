@@ -49,7 +49,15 @@
   height: 3px;
   border-radius: 0 0 3px 3px;
   background: var(--accent);
+  transition: transform var(--t-sheet) var(--ease);
   transform: translateX(-50%);
+}
+
+/* One-shot C3 task 15: the mark comes in on the current tab over the sheet time as it slides in from under the bar. */
+@starting-style {
+  .line {
+    transform: translateX(-50%) scaleX(0);
+  }
 }
 
 .word {
