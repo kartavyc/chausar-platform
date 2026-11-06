@@ -65,9 +65,10 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const invoices = useResource('venture.invoice.list', {}, { refreshOn });
   const files = useResource('venture.files.list', {}, { refreshOn });
   const registered = useTaxRegistered();
+  const brandKit = useResource('venture.brandKit.get', { clientId: id });
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [problems, setProblems] = useState<ReadonlyMap<string, string>>(new Map());
-  useClientsChanged(engine, () => { clients.reload(); evidence.reload(); });
+  useClientsChanged(engine, () => { clients.reload(); evidence.reload(); brandKit.reload(); });
 
   /** Dismiss goes to the engine and stays dismissed. The row leaves at once; a refusal brings it back with the reason. */
   async function dismiss(itemId: string) {
@@ -97,6 +98,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const requestOf = new Map(mine.map((o) => [o.id, o.request]));
   const theirDrafts = (drafts.data ?? []).filter((d) => !d.practice && orderIds.has(d.orderId));
   const theirFiles = (files.data ?? []).filter((f) => f.scope.kind === 'order' && orderIds.has(f.scope.orderId));
+  const theirMedia = (files.data ?? []).filter(f => f.scope.kind === 'media' && orderIds.has(f.scope.orderId));
 
   return (
     <Sheet
@@ -108,10 +110,10 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     >
       {client && (
         <>
-          <section aria-labelledby={ordersId}>
+          <AiConsent key={client.id} clientId={client.id} clientName={client.name} />
+          {(mine.length > 0 || theirInvoices.length > 0 || client.owed) && <section aria-labelledby={ordersId}>
             <h3 id={ordersId} className={s.heading}>{t('clients.ordersInvoices')}</h3>
             {client.owed && <p className={s.item}><Owed owed={client.owed} lead /></p>}
-            {orders.data && mine.length === 0 && <p className={s.quiet}>{t('clients.order.none')}</p>}
             {mine.length > 0 && (
               <ul className={s.items} aria-label={t('clients.orders')}>
                 {mine.map((order) => (
@@ -134,15 +136,16 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
                 ))}
               </ul>
             )}
-            {/* W5 5A2: a sales proposal for this client, drafted from the records; it waits on Today, and the owner sends it. */}
-            <div className={s.formActions}><Button size="sm" onClick={(event) => openSheet('proposal', `client:${client.id}`, event.currentTarget)}>{t('kit-sales.proposal.open')}</Button></div>
-          </section>
+          </section>}
 
           <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} foldTax={!registered} />
-          <AiConsent key={client.id} clientId={client.id} clientName={client.name} />
-          <ClientCrm key={`crm-${client.id}`} clientId={client.id} />
+          <ClientCrm key={`crm-${client.id}`} clientId={client.id} addDetails={<>
+            <div className={s.formActions}><Button size="sm" onClick={(event) => openSheet('proposal', `client:${client.id}`, event.currentTarget)}>{t('kit-sales.proposal.open')}</Button></div>
+            {brandKit.data?.version === null && <BrandKit clientId={client.id} files={theirMedia} />}
+          </>} />
 
-          <BrandKit clientId={client.id} files={(files.data ?? []).filter((f) => f.scope.kind === 'media' && orderIds.has(f.scope.orderId))} />
+          {brandKit.error && <div><p role="alert">{brandKit.error.message}</p><Button disabled={brandKit.loading} onClick={brandKit.reload}>{t('status.retry')}</Button></div>}
+          {brandKit.data?.version != null && <BrandKit clientId={client.id} files={theirMedia} />}
 
           {theirDrafts.length > 0 && (
             <section aria-labelledby={draftsId}>

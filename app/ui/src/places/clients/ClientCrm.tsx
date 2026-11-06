@@ -9,7 +9,7 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
  * line and day comes from the engine; nothing is added up here.
  */
 
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
@@ -18,14 +18,14 @@ import { Field } from '../../parts/Field';
 import type { ClientCrmView, CrmEntryKind } from '../../engine/types';
 import { useLocalToday } from '../money/words';
 import { CrmFold, HistoryList, TimelineList } from './CrmParts';
-import { FactsSection } from './FactsSection';
+import { AddFact, FactsSection } from './FactsSection';
 import { clientsChanged } from './signals';
 import s from './Crm.module.css';
 import { Select } from '../../parts/Select';
 
 const KINDS: readonly CrmEntryKind[] = ['call', 'whatsapp', 'meeting', 'note'];
 
-export function ClientCrm({ clientId }: { clientId: string }) {
+export function ClientCrm({ clientId, addDetails }: { clientId: string; addDetails?: ReactNode }) {
   const t = useT();
   const companyId = useId();
   const timelineId = useId();
@@ -41,18 +41,17 @@ export function ClientCrm({ clientId }: { clientId: string }) {
   return (
     <>
       {said && <p className={said.problem ? s.failed : s.said} role={said.problem ? 'alert' : 'status'}>{said.line}</p>}
-      <section aria-labelledby={companyId} data-crm-company="">
+      {view.company && <section aria-labelledby={companyId} data-crm-company="">
         <h3 id={companyId} className={s.heading}>{t('crm.company')}</h3>
         <CompanyLine view={view} onChanged={changed} onFailed={failed} />
-      </section>
+      </section>}
 
-      <section aria-labelledby={timelineId}>
+      {view.timeline.length > 0 && <section aria-labelledby={timelineId}>
         <h3 id={timelineId} className={s.heading}>{t('crm.timeline')}</h3>
         <TimelineList entries={view.timeline} />
-        <CrmFold summary={t('crm.log.open')}><LogForm clientId={clientId} onChanged={changed} onFailed={failed} /></CrmFold>
-      </section>
+      </section>}
 
-      <section aria-labelledby={listsId}>
+      {view.lists.length > 0 && <section aria-labelledby={listsId}>
         <h3 id={listsId} className={s.heading}>{t('crm.lists')}</h3>
         {view.lists.length === 0 ? <p className={s.quiet}>{t('crm.lists.none')}</p> : (
           <ul className={s.items}>
@@ -64,13 +63,18 @@ export function ClientCrm({ clientId }: { clientId: string }) {
             ))}
           </ul>
         )}
+      </section>}
+
+      <FactsSection subject={`client:${clientId}`} quiet />
+
+      {view.history.length > 0 && <CrmFold summary={t('crm.history')}><HistoryList rows={view.history} /></CrmFold>}
+      <CrmFold summary={t('crm.addDetails')}>
+        {!view.company && <CompanyLine view={view} onChanged={changed} onFailed={failed} />}
+        <CrmFold summary={t('crm.log.open')}><LogForm clientId={clientId} onChanged={changed} onFailed={failed} /></CrmFold>
         <CrmFold summary={t('crm.lists.add')}><PlaceInList member={`client:${clientId}`} onChanged={changed} onFailed={failed} /></CrmFold>
-      </section>
-
-      <FactsSection subject={`client:${clientId}`} />
-
-      <CrmFold summary={t('crm.history')}><HistoryList rows={view.history} /></CrmFold>
-      <CrmFold summary={t('crm.edit.open')}><EditForm clientId={clientId} onChanged={changed} onFailed={failed} /></CrmFold>
+        {addDetails}
+      </CrmFold>
+      <div data-client-edit><CrmFold summary={t('crm.edit.open')}><EditForm clientId={clientId} onChanged={changed} onFailed={failed} /></CrmFold></div>
     </>
   );
 }
@@ -113,7 +117,6 @@ function CompanyLine({ view, onChanged, onFailed }: { view: ClientCrmView; onCha
   }
   return (
     <>
-      <p className={s.quiet}>{t('crm.company.none')}</p>
       <CrmFold summary={t('crm.company.pick')}>
         <form className={s.form} onSubmit={(event) => void join(event)}>
           <div className={s.choice}>
@@ -213,13 +216,13 @@ function EditForm({ clientId, onChanged, onFailed }: { clientId: string; onChang
   const t = useT();
   const engine = useEngine();
   const ids = useId();
-  const [field, setField] = useState<'name' | 'phone' | 'email' | 'note'>('note');
+  const [field, setField] = useState<'name' | 'phone' | 'email' | 'note' | 'fact'>('note');
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (busy || !value.trim()) return;
+    if (busy || !value.trim() || field === 'fact') return;
     setBusy(true);
     try {
       await engine.request('venture.crm.client.edit', { clientId, field, value: value.trim() });
@@ -230,18 +233,19 @@ function EditForm({ clientId, onChanged, onFailed }: { clientId: string; onChang
   }
 
   return (
-    <form className={s.form} onSubmit={(event) => void submit(event)}>
+    <div className={s.form}>
       <div className={s.choice}>
         <label className={s.label} htmlFor={`${ids}-field`}>{t('crm.edit.field')}</label>
-        <Select id={`${ids}-field`} className={s.select} value={field} onChange={(event) => setField(event.currentTarget.value as 'name' | 'phone' | 'email' | 'note')}>
-          {(['name', 'phone', 'email', 'note'] as const).map((one) => <option key={one} value={one}>{t(`crm.edit.field.${one}`)}</option>)}
+        <Select id={`${ids}-field`} className={s.select} value={field} onChange={(event) => setField(event.currentTarget.value as typeof field)}>
+          {(['name', 'phone', 'email', 'note', 'fact'] as const).map((one) => <option key={one} value={one}>{t(`crm.edit.field.${one}`)}</option>)}
         </Select>
       </div>
-      {field === 'note'
-        ? <Field multiline label={t('crm.edit.value')} value={value} maxLength={500} onChange={(event) => setValue(event.currentTarget.value)} />
-        : <Field label={t('crm.edit.value')} value={value} maxLength={field === 'email' ? 200 : field === 'phone' ? 40 : 120} autoComplete="off" onChange={(event) => setValue(event.currentTarget.value)} />}
-      <div className={s.actions}><Button type="submit" disabled={busy || !value.trim()}>{t('crm.edit.save')}</Button></div>
-    </form>
+      {field === 'fact' ? <AddFact subject={`client:${clientId}`} textLabel={t('crm.edit.value')} onDone={() => { clientsChanged(engine); onChanged(); }} onFailed={onFailed} /> : <form className={s.form} onSubmit={(event) => void submit(event)}>
+        {field === 'note'
+          ? <Field multiline label={t('crm.edit.value')} value={value} maxLength={500} onChange={(event) => setValue(event.currentTarget.value)} />
+          : <Field label={t('crm.edit.value')} value={value} maxLength={field === 'email' ? 200 : field === 'phone' ? 40 : 120} autoComplete="off" onChange={(event) => setValue(event.currentTarget.value)} />}
+        <div className={s.actions}><Button type="submit" disabled={busy || !value.trim()}>{t('crm.edit.save')}</Button></div>
+      </form>}
+    </div>
   );
 }
-

@@ -14,6 +14,8 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import k from './BrandKit.module.css';
 import { Select } from '../../parts/Select';
+import { Fold } from '../../parts/Fold';
+import { clientsChanged } from './signals';
 
 /** The list fields the form edits as text, in the order shown. */
 const LISTS = ['colours', 'fonts', 'voice', 'bannedWords', 'bannedTopics', 'competitors'] as const;
@@ -59,6 +61,7 @@ export function BrandKit({ clientId, files }: { clientId: string; files: readonl
     try {
       setShown(await engine.request('venture.brandKit.set', { clientId, kit: input }));
       setEditing(false);
+      clientsChanged(engine);
     } catch (error) {
       setProblem(t('kit-media.kit.failed', { message: wordsOf(error, t) }));
     } finally {
@@ -70,6 +73,8 @@ export function BrandKit({ clientId, files }: { clientId: string; files: readonl
     const value = kit.resolved[field].value;
     return field !== 'logoFileId' && field !== 'claims' && Array.isArray(value) && value.length > 0;
   });
+  const house = filled.filter(field => (field === 'bannedWords' || field === 'bannedTopics') && kit.resolved[field].source === 'house-style');
+  const visible = filled.filter(field => !house.includes(field));
   const logo = kit.resolved.logoFileId.value ? files.find((file) => file.id === kit.resolved.logoFileId.value)?.name ?? null : null;
 
   return (
@@ -80,7 +85,7 @@ export function BrandKit({ clientId, files }: { clientId: string; files: readonl
         <>
           {(filled.length > 0 || logo) && (
             <dl className={k.fields}>
-              {filled.map((field) => (
+              {visible.map((field) => (
                 <div key={field} className={k.field}>
                   <dt className={k.label}>{t(`kit-media.field.${field}`)}</dt>
                   <dd className={k.value}>
@@ -103,12 +108,15 @@ export function BrandKit({ clientId, files }: { clientId: string; files: readonl
               )}
             </dl>
           )}
+          {house.length > 0 && <Fold summary={t('kit-media.source.house-style')}><dl className={k.fields}>
+            {house.map(field => <div key={field} className={k.field}><dt className={k.label}>{t(`kit-media.field.${field}`)}</dt><dd className={k.value} data-content>{(kit.resolved[field].value as string[]).join(', ')}</dd></div>)}
+          </dl></Fold>}
           {kit.memory.length > 0 && (
             <p className={k.line}>{t('kit-media.kit.memory', { count: kit.memory.length })} <span className={k.quote} data-content="">{kit.memory[0]!.request}</span></p>
           )}
           <span className={k.actions}>
             {kit.undo && <Button variant="quiet" disabled={busy} onClick={() => void save(kit.undo!)}>{t('kit-media.kit.undo')}</Button>}
-            <Button variant={kit.version === null ? 'primary' : 'secondary'} disabled={busy} onClick={() => setEditing(true)}>
+            <Button variant="secondary" disabled={busy} onClick={() => setEditing(true)}>
               {kit.version === null ? t('kit-media.kit.add') : t('kit-media.kit.edit')}
             </Button>
           </span>
