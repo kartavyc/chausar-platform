@@ -1,0 +1,2068 @@
+{
+  "format": "chausar-run-capture/1",
+  "label": "sample business",
+  "capturedAt": "2026-11-06T13:02:13.218Z",
+  "startState": {
+    "schemaVersion": 2,
+    "revision": 3,
+    "workspace": {
+      "id": "workspace_7a70ba13-7759-4586-9aa1-9e4775b1a458",
+      "name": "Flow sample",
+      "currency": "INR",
+      "demo": true,
+      "createdAt": "2026-11-06T13:02:13.202Z"
+    },
+    "members": [
+      {
+        "id": "owner",
+        "name": "Workspace owner",
+        "role": "owner",
+        "active": true,
+        "epoch": 1,
+        "branches": [
+          "*"
+        ]
+      }
+    ],
+    "policy": {
+      "send": "nothing",
+      "autonomy": false,
+      "allowedSources": [
+        "*"
+      ],
+      "retentionDays": 90,
+      "sharing": false
+    },
+    "ontology": {
+      "current": {
+        "pack": "services",
+        "label": "Professional services",
+        "currency": "INR",
+        "gstMode": "unregistered",
+        "fields": {
+          "amountMinor": "money",
+          "taxMinor": "money",
+          "customerId": "string",
+          "customerName": "string",
+          "invoiceId": "string",
+          "orderId": "string",
+          "dueDate": "date",
+          "status": "string",
+          "quantity": "integer",
+          "unit": "string",
+          "currency": "string",
+          "company": "string",
+          "gstin": "string",
+          "pan": "string",
+          "description": "string",
+          "costType": "string",
+          "accountClass": "string",
+          "bankReference": "string",
+          "projectId": "string",
+          "milestoneId": "string",
+          "deliveredHours": "integer",
+          "contractId": "string"
+        },
+        "definitions": [
+          {
+            "name": "billed",
+            "label": "Billed",
+            "kind": "invoice",
+            "meaning": "Invoice value excluding tax, by invoice date. A correction replaces the earlier claim; credit notes are separate refunds.",
+            "field": "amountMinor",
+            "currency": "INR",
+            "nulls": "reject"
+          },
+          {
+            "name": "received",
+            "label": "Received",
+            "kind": "payment",
+            "meaning": "Settled cash receipts excluding bounced or cancelled payments, by settlement date.",
+            "field": "amountMinor",
+            "currency": "INR",
+            "nulls": "reject"
+          },
+          {
+            "name": "earned",
+            "label": "Earned",
+            "kind": "sale",
+            "meaning": "Work delivered under an accepted milestone excluding tax, by completion date. An advance or invoice does not imply completed work.",
+            "field": "amountMinor",
+            "currency": "INR",
+            "nulls": "reject"
+          },
+          {
+            "name": "refunds",
+            "label": "Refunds",
+            "kind": "refund",
+            "meaning": "Positive value of credit notes or returns, by credit note date, deducted once from earned sales.",
+            "field": "amountMinor",
+            "currency": "INR",
+            "nulls": "reject"
+          },
+          {
+            "name": "costs",
+            "label": "Costs",
+            "kind": "cost",
+            "meaning": "Order or period costs excluding recoverable tax; includes goods, shipping, platform fees and advertising only where explicitly imported.",
+            "field": "amountMinor",
+            "currency": "INR",
+            "nulls": "reject"
+          },
+          {
+            "name": "purchases",
+            "label": "Purchases",
+            "kind": "purchase",
+            "meaning": "Purchase register value excluding tax, by invoice date.",
+            "field": "amountMinor",
+            "currency": "INR",
+            "nulls": "reject"
+          }
+        ],
+        "version": 1,
+        "publishedAt": "2026-11-06T13:02:13.213Z",
+        "publishedBy": "owner",
+        "operations": [
+          {
+            "id": "billed",
+            "label": "Billed",
+            "type": "sum",
+            "definitions": [
+              "billed"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "orderId"
+            ]
+          },
+          {
+            "id": "received",
+            "label": "Received",
+            "type": "sum",
+            "definitions": [
+              "received"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "orderId"
+            ]
+          },
+          {
+            "id": "earned",
+            "label": "Earned",
+            "type": "sum",
+            "definitions": [
+              "earned"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "orderId"
+            ]
+          },
+          {
+            "id": "refunds",
+            "label": "Refunds",
+            "type": "sum",
+            "definitions": [
+              "refunds"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "orderId"
+            ]
+          },
+          {
+            "id": "costs",
+            "label": "Costs",
+            "type": "sum",
+            "definitions": [
+              "costs"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "orderId"
+            ]
+          },
+          {
+            "id": "purchases",
+            "label": "Purchases",
+            "type": "sum",
+            "definitions": [
+              "purchases"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "orderId"
+            ]
+          },
+          {
+            "id": "revenue",
+            "label": "Revenue (earned)",
+            "type": "sum",
+            "definitions": [
+              "earned"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "orderId"
+            ]
+          },
+          {
+            "id": "net_sales",
+            "label": "Net sales",
+            "type": "sum",
+            "definitions": [
+              "earned",
+              "refunds"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "orderId"
+            ]
+          },
+          {
+            "id": "margin",
+            "label": "Order contribution margin",
+            "type": "margin",
+            "definitions": [
+              "earned",
+              "refunds",
+              "costs"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "orderId"
+            ]
+          },
+          {
+            "id": "aging",
+            "label": "Receivable aging",
+            "type": "aging",
+            "definitions": [
+              "billed",
+              "received",
+              "refunds"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "onDate"
+            ]
+          },
+          {
+            "id": "change",
+            "label": "Revenue change",
+            "type": "change",
+            "definitions": [
+              "earned"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "comparePeriod"
+            ]
+          },
+          {
+            "id": "scenario",
+            "label": "Price scenario",
+            "type": "scenario",
+            "definitions": [
+              "earned"
+            ],
+            "parameters": [
+              "period",
+              "asOf",
+              "branch",
+              "customerId",
+              "assumptions"
+            ]
+          }
+        ],
+        "compiledSums": [
+          {
+            "contractVersion": 1,
+            "compilerVersion": "chausar-single-sum/1",
+            "type": "single-definition-sum",
+            "operationId": "billed",
+            "definitionName": "billed",
+            "recordKind": "invoice",
+            "moneyField": "amountMinor",
+            "currency": "INR",
+            "sign": 1,
+            "nullPolicy": "reject",
+            "dictionaryVersion": 1,
+            "definitionHash": "09a4d1db5beec3648a03d386962cc5c09c8451e156155d482ad7a14091bc633b",
+            "digest": "f3848b16f47a45c766cfecbd66c3af69ea76ea9c105b39664c992f1505ae314a"
+          },
+          {
+            "contractVersion": 1,
+            "compilerVersion": "chausar-single-sum/1",
+            "type": "single-definition-sum",
+            "operationId": "received",
+            "definitionName": "received",
+            "recordKind": "payment",
+            "moneyField": "amountMinor",
+            "currency": "INR",
+            "sign": 1,
+            "nullPolicy": "reject",
+            "dictionaryVersion": 1,
+            "definitionHash": "c55c6034549f50e7c586bc115db9994d793b26b679c2555864f690bb458ac761",
+            "digest": "6744a0de0a5185f4afc67346fcfddb22859eed9b1fbd2313e3d64c6064f95cac"
+          },
+          {
+            "contractVersion": 1,
+            "compilerVersion": "chausar-single-sum/1",
+            "type": "single-definition-sum",
+            "operationId": "earned",
+            "definitionName": "earned",
+            "recordKind": "sale",
+            "moneyField": "amountMinor",
+            "currency": "INR",
+            "sign": 1,
+            "nullPolicy": "reject",
+            "dictionaryVersion": 1,
+            "definitionHash": "716011a4f988509feef3cb2297d3675fa9c820821d377902616543c6714eb812",
+            "digest": "40062518ffdf9cc63be8d2c598b45ebf24fbf50f615048d2077290a80430b498"
+          },
+          {
+            "contractVersion": 1,
+            "compilerVersion": "chausar-single-sum/1",
+            "type": "single-definition-sum",
+            "operationId": "refunds",
+            "definitionName": "refunds",
+            "recordKind": "refund",
+            "moneyField": "amountMinor",
+            "currency": "INR",
+            "sign": 1,
+            "nullPolicy": "reject",
+            "dictionaryVersion": 1,
+            "definitionHash": "7e520ac2730f8ed82eeb923db27f35486d674d0f3b6a1732e1f6985fa2d316f0",
+            "digest": "748bedc2b9a1ddc83ea7f8531871e557f6e2959a4728a0f0b521ba206aaecfa6"
+          },
+          {
+            "contractVersion": 1,
+            "compilerVersion": "chausar-single-sum/1",
+            "type": "single-definition-sum",
+            "operationId": "costs",
+            "definitionName": "costs",
+            "recordKind": "cost",
+            "moneyField": "amountMinor",
+            "currency": "INR",
+            "sign": 1,
+            "nullPolicy": "reject",
+            "dictionaryVersion": 1,
+            "definitionHash": "cb7611c98113721c344c882e5eb668d7c5f06077b27a01c929acc2946662d412",
+            "digest": "87c39400b86459965d446a101798ddff229199399bada412baaa5c81a5d94a2f"
+          },
+          {
+            "contractVersion": 1,
+            "compilerVersion": "chausar-single-sum/1",
+            "type": "single-definition-sum",
+            "operationId": "purchases",
+            "definitionName": "purchases",
+            "recordKind": "purchase",
+            "moneyField": "amountMinor",
+            "currency": "INR",
+            "sign": 1,
+            "nullPolicy": "reject",
+            "dictionaryVersion": 1,
+            "definitionHash": "57ab6be219748489a5327a89d36ce81a10dc40b8fbacc484294d06cb3b9177a1",
+            "digest": "9e2ac2added24778c0d0da02b4a62f8fa40394e823dddc64af68bc53c745cbf2"
+          },
+          {
+            "contractVersion": 1,
+            "compilerVersion": "chausar-single-sum/1",
+            "type": "single-definition-sum",
+            "operationId": "revenue",
+            "definitionName": "earned",
+            "recordKind": "sale",
+            "moneyField": "amountMinor",
+            "currency": "INR",
+            "sign": 1,
+            "nullPolicy": "reject",
+            "dictionaryVersion": 1,
+            "definitionHash": "716011a4f988509feef3cb2297d3675fa9c820821d377902616543c6714eb812",
+            "digest": "b70c74b038683b886af46ad834996d07a9edb63daeaba45d796f6c0598cfca8e"
+          }
+        ],
+        "schema": {
+          "amountMinor": "money",
+          "taxMinor": "money",
+          "customerId": "string",
+          "customerName": "string",
+          "invoiceId": "string",
+          "orderId": "string",
+          "dueDate": "date",
+          "status": "string",
+          "quantity": "integer",
+          "unit": "string",
+          "currency": "string",
+          "company": "string",
+          "gstin": "string",
+          "pan": "string",
+          "description": "string",
+          "costType": "string",
+          "accountClass": "string",
+          "bankReference": "string",
+          "projectId": "string",
+          "milestoneId": "string",
+          "deliveredHours": "integer",
+          "contractId": "string"
+        },
+        "checks": {
+          "required": [
+            "entityId",
+            "validFrom",
+            "currency"
+          ],
+          "currency": "INR",
+          "nullRules": {
+            "billed": "reject",
+            "received": "reject",
+            "earned": "reject",
+            "refunds": "reject",
+            "costs": "reject",
+            "purchases": "reject"
+          }
+        },
+        "hash": "63383428bfa4ad2624e5394ffd6e2906a1a568e27fafc7f19aff53a003c93f03"
+      },
+      "history": [
+        {
+          "pack": "services",
+          "label": "Professional services",
+          "currency": "INR",
+          "gstMode": "unregistered",
+          "fields": {
+            "amountMinor": "money",
+            "taxMinor": "money",
+            "customerId": "string",
+            "customerName": "string",
+            "invoiceId": "string",
+            "orderId": "string",
+            "dueDate": "date",
+            "status": "string",
+            "quantity": "integer",
+            "unit": "string",
+            "currency": "string",
+            "company": "string",
+            "gstin": "string",
+            "pan": "string",
+            "description": "string",
+            "costType": "string",
+            "accountClass": "string",
+            "bankReference": "string",
+            "projectId": "string",
+            "milestoneId": "string",
+            "deliveredHours": "integer",
+            "contractId": "string"
+          },
+          "definitions": [
+            {
+              "name": "billed",
+              "label": "Billed",
+              "kind": "invoice",
+              "meaning": "Invoice value excluding tax, by invoice date. A correction replaces the earlier claim; credit notes are separate refunds.",
+              "field": "amountMinor",
+              "currency": "INR",
+              "nulls": "reject"
+            },
+            {
+              "name": "received",
+              "label": "Received",
+              "kind": "payment",
+              "meaning": "Settled cash receipts excluding bounced or cancelled payments, by settlement date.",
+              "field": "amountMinor",
+              "currency": "INR",
+              "nulls": "reject"
+            },
+            {
+              "name": "earned",
+              "label": "Earned",
+              "kind": "sale",
+              "meaning": "Work delivered under an accepted milestone excluding tax, by completion date. An advance or invoice does not imply completed work.",
+              "field": "amountMinor",
+              "currency": "INR",
+              "nulls": "reject"
+            },
+            {
+              "name": "refunds",
+              "label": "Refunds",
+              "kind": "refund",
+              "meaning": "Positive value of credit notes or returns, by credit note date, deducted once from earned sales.",
+              "field": "amountMinor",
+              "currency": "INR",
+              "nulls": "reject"
+            },
+            {
+              "name": "costs",
+              "label": "Costs",
+              "kind": "cost",
+              "meaning": "Order or period costs excluding recoverable tax; includes goods, shipping, platform fees and advertising only where explicitly imported.",
+              "field": "amountMinor",
+              "currency": "INR",
+              "nulls": "reject"
+            },
+            {
+              "name": "purchases",
+              "label": "Purchases",
+              "kind": "purchase",
+              "meaning": "Purchase register value excluding tax, by invoice date.",
+              "field": "amountMinor",
+              "currency": "INR",
+              "nulls": "reject"
+            }
+          ],
+          "version": 1,
+          "publishedAt": "2026-11-06T13:02:13.213Z",
+          "publishedBy": "owner",
+          "operations": [
+            {
+              "id": "billed",
+              "label": "Billed",
+              "type": "sum",
+              "definitions": [
+                "billed"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "orderId"
+              ]
+            },
+            {
+              "id": "received",
+              "label": "Received",
+              "type": "sum",
+              "definitions": [
+                "received"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "orderId"
+              ]
+            },
+            {
+              "id": "earned",
+              "label": "Earned",
+              "type": "sum",
+              "definitions": [
+                "earned"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "orderId"
+              ]
+            },
+            {
+              "id": "refunds",
+              "label": "Refunds",
+              "type": "sum",
+              "definitions": [
+                "refunds"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "orderId"
+              ]
+            },
+            {
+              "id": "costs",
+              "label": "Costs",
+              "type": "sum",
+              "definitions": [
+                "costs"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "orderId"
+              ]
+            },
+            {
+              "id": "purchases",
+              "label": "Purchases",
+              "type": "sum",
+              "definitions": [
+                "purchases"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "orderId"
+              ]
+            },
+            {
+              "id": "revenue",
+              "label": "Revenue (earned)",
+              "type": "sum",
+              "definitions": [
+                "earned"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "orderId"
+              ]
+            },
+            {
+              "id": "net_sales",
+              "label": "Net sales",
+              "type": "sum",
+              "definitions": [
+                "earned",
+                "refunds"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "orderId"
+              ]
+            },
+            {
+              "id": "margin",
+              "label": "Order contribution margin",
+              "type": "margin",
+              "definitions": [
+                "earned",
+                "refunds",
+                "costs"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "orderId"
+              ]
+            },
+            {
+              "id": "aging",
+              "label": "Receivable aging",
+              "type": "aging",
+              "definitions": [
+                "billed",
+                "received",
+                "refunds"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "onDate"
+              ]
+            },
+            {
+              "id": "change",
+              "label": "Revenue change",
+              "type": "change",
+              "definitions": [
+                "earned"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "comparePeriod"
+              ]
+            },
+            {
+              "id": "scenario",
+              "label": "Price scenario",
+              "type": "scenario",
+              "definitions": [
+                "earned"
+              ],
+              "parameters": [
+                "period",
+                "asOf",
+                "branch",
+                "customerId",
+                "assumptions"
+              ]
+            }
+          ],
+          "compiledSums": [
+            {
+              "contractVersion": 1,
+              "compilerVersion": "chausar-single-sum/1",
+              "type": "single-definition-sum",
+              "operationId": "billed",
+              "definitionName": "billed",
+              "recordKind": "invoice",
+              "moneyField": "amountMinor",
+              "currency": "INR",
+              "sign": 1,
+              "nullPolicy": "reject",
+              "dictionaryVersion": 1,
+              "definitionHash": "09a4d1db5beec3648a03d386962cc5c09c8451e156155d482ad7a14091bc633b",
+              "digest": "f3848b16f47a45c766cfecbd66c3af69ea76ea9c105b39664c992f1505ae314a"
+            },
+            {
+              "contractVersion": 1,
+              "compilerVersion": "chausar-single-sum/1",
+              "type": "single-definition-sum",
+              "operationId": "received",
+              "definitionName": "received",
+              "recordKind": "payment",
+              "moneyField": "amountMinor",
+              "currency": "INR",
+              "sign": 1,
+              "nullPolicy": "reject",
+              "dictionaryVersion": 1,
+              "definitionHash": "c55c6034549f50e7c586bc115db9994d793b26b679c2555864f690bb458ac761",
+              "digest": "6744a0de0a5185f4afc67346fcfddb22859eed9b1fbd2313e3d64c6064f95cac"
+            },
+            {
+              "contractVersion": 1,
+              "compilerVersion": "chausar-single-sum/1",
+              "type": "single-definition-sum",
+              "operationId": "earned",
+              "definitionName": "earned",
+              "recordKind": "sale",
+              "moneyField": "amountMinor",
+              "currency": "INR",
+              "sign": 1,
+              "nullPolicy": "reject",
+              "dictionaryVersion": 1,
+              "definitionHash": "716011a4f988509feef3cb2297d3675fa9c820821d377902616543c6714eb812",
+              "digest": "40062518ffdf9cc63be8d2c598b45ebf24fbf50f615048d2077290a80430b498"
+            },
+            {
+              "contractVersion": 1,
+              "compilerVersion": "chausar-single-sum/1",
+              "type": "single-definition-sum",
+              "operationId": "refunds",
+              "definitionName": "refunds",
+              "recordKind": "refund",
+              "moneyField": "amountMinor",
+              "currency": "INR",
+              "sign": 1,
+              "nullPolicy": "reject",
+              "dictionaryVersion": 1,
+              "definitionHash": "7e520ac2730f8ed82eeb923db27f35486d674d0f3b6a1732e1f6985fa2d316f0",
+              "digest": "748bedc2b9a1ddc83ea7f8531871e557f6e2959a4728a0f0b521ba206aaecfa6"
+            },
+            {
+              "contractVersion": 1,
+              "compilerVersion": "chausar-single-sum/1",
+              "type": "single-definition-sum",
+              "operationId": "costs",
+              "definitionName": "costs",
+              "recordKind": "cost",
+              "moneyField": "amountMinor",
+              "currency": "INR",
+              "sign": 1,
+              "nullPolicy": "reject",
+              "dictionaryVersion": 1,
+              "definitionHash": "cb7611c98113721c344c882e5eb668d7c5f06077b27a01c929acc2946662d412",
+              "digest": "87c39400b86459965d446a101798ddff229199399bada412baaa5c81a5d94a2f"
+            },
+            {
+              "contractVersion": 1,
+              "compilerVersion": "chausar-single-sum/1",
+              "type": "single-definition-sum",
+              "operationId": "purchases",
+              "definitionName": "purchases",
+              "recordKind": "purchase",
+              "moneyField": "amountMinor",
+              "currency": "INR",
+              "sign": 1,
+              "nullPolicy": "reject",
+              "dictionaryVersion": 1,
+              "definitionHash": "57ab6be219748489a5327a89d36ce81a10dc40b8fbacc484294d06cb3b9177a1",
+              "digest": "9e2ac2added24778c0d0da02b4a62f8fa40394e823dddc64af68bc53c745cbf2"
+            },
+            {
+              "contractVersion": 1,
+              "compilerVersion": "chausar-single-sum/1",
+              "type": "single-definition-sum",
+              "operationId": "revenue",
+              "definitionName": "earned",
+              "recordKind": "sale",
+              "moneyField": "amountMinor",
+              "currency": "INR",
+              "sign": 1,
+              "nullPolicy": "reject",
+              "dictionaryVersion": 1,
+              "definitionHash": "716011a4f988509feef3cb2297d3675fa9c820821d377902616543c6714eb812",
+              "digest": "b70c74b038683b886af46ad834996d07a9edb63daeaba45d796f6c0598cfca8e"
+            }
+          ],
+          "schema": {
+            "amountMinor": "money",
+            "taxMinor": "money",
+            "customerId": "string",
+            "customerName": "string",
+            "invoiceId": "string",
+            "orderId": "string",
+            "dueDate": "date",
+            "status": "string",
+            "quantity": "integer",
+            "unit": "string",
+            "currency": "string",
+            "company": "string",
+            "gstin": "string",
+            "pan": "string",
+            "description": "string",
+            "costType": "string",
+            "accountClass": "string",
+            "bankReference": "string",
+            "projectId": "string",
+            "milestoneId": "string",
+            "deliveredHours": "integer",
+            "contractId": "string"
+          },
+          "checks": {
+            "required": [
+              "entityId",
+              "validFrom",
+              "currency"
+            ],
+            "currency": "INR",
+            "nullRules": {
+              "billed": "reject",
+              "received": "reject",
+              "earned": "reject",
+              "refunds": "reject",
+              "costs": "reject",
+              "purchases": "reject"
+            }
+          },
+          "hash": "63383428bfa4ad2624e5394ffd6e2906a1a568e27fafc7f19aff53a003c93f03"
+        }
+      ]
+    },
+    "facts": [],
+    "imports": [],
+    "receipts": [],
+    "answers": [],
+    "decisions": [],
+    "actions": [],
+    "jobs": [],
+    "learning": [
+      {
+        "id": "dictionary_63383428bfa4ad2624e5394ffd6e2906a1a568e27fafc7f19aff53a003c93f03",
+        "at": "2026-11-06T13:02:13.213Z",
+        "category": "dictionary",
+        "decision": "published",
+        "version": 1,
+        "definitionNames": [
+          "billed",
+          "received",
+          "earned",
+          "refunds",
+          "costs",
+          "purchases"
+        ],
+        "shared": false
+      }
+    ],
+    "plugins": [],
+    "modelReceipts": [],
+    "activity": [
+      {
+        "id": "event_aff1a8ad-df1b-45d8-8ada-adbcb426357e",
+        "at": "2026-11-06T13:02:13.213Z",
+        "event": "dictionary.published",
+        "details": {
+          "version": 1,
+          "hash": "63383428bfa4ad2624e5394ffd6e2906a1a568e27fafc7f19aff53a003c93f03",
+          "pack": "services"
+        }
+      },
+      {
+        "id": "event_bddb445d-c376-4a42-b274-a582d28e7d0a",
+        "at": "2026-11-06T13:02:13.213Z",
+        "event": "venture.seed.venture",
+        "details": {
+          "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+          "memberId": "owner"
+        }
+      },
+      {
+        "id": "event_82015261-f2f1-4b5a-883e-65b9565a5801",
+        "at": "2026-11-06T13:02:13.214Z",
+        "event": "venture.seed.blueprint",
+        "details": {
+          "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+          "memberId": "owner"
+        }
+      }
+    ],
+    "conflicts": [],
+    "merges": [],
+    "tombstones": [],
+    "conversations": [
+      {
+        "id": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+        "kind": "venture-record",
+        "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+        "memberId": "owner",
+        "epoch": 1,
+        "at": "2026-10-15T10:00:00.000Z",
+        "idea": "Monthly bookkeeping for cafes and small shops in Pune.",
+        "ideaDigest": "idea-digest",
+        "workingName": "Ledger Cafe Books",
+        "country": {
+          "code": "IN",
+          "name": "India",
+          "currency": "INR",
+          "minorDigits": 2,
+          "region": "india",
+          "tax": {
+            "mode": "gst",
+            "label": "GST",
+            "standardRateBps": "1800",
+            "registrationNote": "Check with a CA.",
+            "idLabel": "GSTIN",
+            "idPattern": null,
+            "invoiceKind": "tax-invoice",
+            "checkedOn": "2026-10-15"
+          },
+          "paymentRails": [
+            "razorpay",
+            "cashfree",
+            "paypal"
+          ],
+          "dateOrder": "day-month-year",
+          "complianceNotes": []
+        },
+        "serviceType": "bookkeeping",
+        "status": "build",
+        "launchStage": "rehearsal",
+        "blueprintId": "blueprint_bf2d0832-08c5-4510-9f0b-cdc23af8016b",
+        "acceptedBlueprintId": "blueprint_bf2d0832-08c5-4510-9f0b-cdc23af8016b",
+        "playbookId": null,
+        "invoiceSequence": 0,
+        "updatedAt": "2026-10-15T10:00:00.000Z"
+      },
+      {
+        "id": "blueprint_bf2d0832-08c5-4510-9f0b-cdc23af8016b",
+        "kind": "venture-blueprint",
+        "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+        "memberId": "owner",
+        "epoch": 1,
+        "at": "2026-10-15T10:00:00.000Z",
+        "version": 1,
+        "source": "template",
+        "structureHash": "structure-hash",
+        "modelCallIds": [],
+        "serviceType": "bookkeeping",
+        "name": {
+          "value": "Ledger Cafe Books",
+          "label": "told-by-you",
+          "by": "owner"
+        },
+        "oneLiner": {
+          "value": "Monthly books for cafes, drafted with AI help and checked by you.",
+          "label": "assumption",
+          "by": "template"
+        },
+        "customer": {
+          "value": "Cafe and small shop owners.",
+          "label": "assumption",
+          "by": "template"
+        },
+        "offers": [
+          {
+            "id": "offer_1",
+            "name": {
+              "value": "Monthly books",
+              "label": "assumption",
+              "by": "template"
+            },
+            "description": {
+              "value": "Bank matching and a short monthly report.",
+              "label": "assumption",
+              "by": "template"
+            },
+            "pricing": {
+              "model": "monthly",
+              "quantityUnit": "month",
+              "unitPriceMinor": "249900",
+              "unitPriceLabel": "told-by-you",
+              "defaultQuantity": "1"
+            }
+          },
+          {
+            "id": "offer_2",
+            "name": {
+              "value": "Catch up clean up",
+              "label": "assumption",
+              "by": "template"
+            },
+            "description": {
+              "value": "A one time tidy up of past months.",
+              "label": "assumption",
+              "by": "template"
+            },
+            "pricing": {
+              "model": "project",
+              "quantityUnit": "project",
+              "unitPriceMinor": null,
+              "unitPriceLabel": "not-set",
+              "defaultQuantity": "1"
+            }
+          }
+        ],
+        "deliverySteps": [
+          {
+            "id": "step_1",
+            "title": {
+              "value": "Collect bills and bank statements",
+              "label": "assumption",
+              "by": "template"
+            },
+            "doneBy": "you",
+            "capability": "planned",
+            "note": "You collect what the client sends and add the files to the order, where the agent reads them. Reading inboxes for you is planned."
+          },
+          {
+            "id": "step_2",
+            "title": {
+              "value": "Sort and match every entry",
+              "label": "assumption",
+              "by": "template"
+            },
+            "doneBy": "you",
+            "capability": "planned",
+            "note": "You do the hands-on work. For bookkeeping, an agent reconciles a month from the files you add, for you to check; other hands-on work is planned."
+          },
+          {
+            "id": "step_3",
+            "title": {
+              "value": "Draft the monthly report for review",
+              "label": "assumption",
+              "by": "template"
+            },
+            "doneBy": "agent-then-you",
+            "capability": "drafts-now",
+            "note": "An agent drafts a reply from the client's message. You check it."
+          },
+          {
+            "id": "step_4",
+            "title": {
+              "value": "Send the report to the client",
+              "label": "assumption",
+              "by": "template"
+            },
+            "doneBy": "you",
+            "capability": "planned",
+            "note": "You send it to the client. Sending for you is planned."
+          }
+        ],
+        "approvals": [
+          {
+            "value": "Every monthly report before it reaches a client",
+            "label": "assumption",
+            "by": "template"
+          },
+          {
+            "value": "Any message that asks a client for money",
+            "label": "assumption",
+            "by": "template"
+          }
+        ],
+        "backOffice": {
+          "currency": "INR",
+          "taxMode": "gst",
+          "taxLabel": "GST",
+          "taxRegistered": {
+            "value": true,
+            "label": "told-by-you",
+            "by": "owner"
+          },
+          "taxRateBps": "1800",
+          "taxRateBy": "country-table",
+          "taxId": "27ZZZZZ9999Z1Z8",
+          "taxState": "27",
+          "sacCode": "998222",
+          "lutConfirmed": false,
+          "invoiceKind": "tax-invoice",
+          "taxInvoiceReady": true,
+          "taxInvoiceMissing": [],
+          "paymentRail": "razorpay",
+          "invoicePrefix": "INV"
+        },
+        "starterConnectorIds": [
+          "lovable",
+          "github",
+          "razorpay",
+          "mail-app",
+          "cal-com",
+          "chausar-books"
+        ],
+        "status": "accepted",
+        "digest": "a18c06bcdd3b37d4e9b1babc883c2e241cf8db6f50042f11563655e25bfc000d"
+      }
+    ],
+    "routes": [],
+    "sessions": [],
+    "unsupported": [],
+    "schedules": [],
+    "sourceRules": []
+  },
+  "events": [
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.221Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.221Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.221Z"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:playbook",
+      "value": "playbook_35591bb2-8819-421e-a6e6-2fbdf1e55d23"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:vevent",
+      "value": "vevent_061d69d4-2000-45cf-a95d-a1929af81f12"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:event",
+      "value": "event_b9af8192-504d-46d8-8a67-60c8bdde0209"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.222Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.225Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.235Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.244Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.244Z"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:simrun",
+      "value": "simrun_deb16019-d117-4347-9e8e-0dc99d9c84b0"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:vevent",
+      "value": "vevent_d296e7bc-640b-48e3-bcc9-7b789de039af"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:vevent",
+      "value": "vevent_56ceaa43-b961-49f3-9678-75a43bd4a8a1"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:vevent",
+      "value": "vevent_5f8829eb-9fa8-4fe8-a772-dc6da0d64120"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:event",
+      "value": "event_b2841c2b-4a2a-4a55-b795-a14e1d86974d"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.245Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.248Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.249Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.250Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.250Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.251Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.251Z"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.252Z"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:notif",
+      "value": "notif_83f491bf-257c-44c9-ad07-33cce55829c0"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:notif",
+      "value": "notif_4c327d2d-7875-4582-8dc9-04e135b0446e"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:digest",
+      "value": "digest_0fc256bf-0448-4826-9043-c89f0008573a"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:vevent",
+      "value": "vevent_53e39794-6ce1-4aa6-9d14-0fb35993f27a"
+    },
+    {
+      "kind": "identity",
+      "purpose": "record:event",
+      "value": "event_92b3b6ba-bcfc-41a9-b803-03fb1571bb7f"
+    },
+    {
+      "kind": "clock",
+      "at": "2026-11-06T13:02:13.252Z"
+    }
+  ],
+  "records": [
+    {
+      "id": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "kind": "venture-record",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-10-15T10:00:00.000Z",
+      "idea": "Monthly bookkeeping for cafes and small shops in Pune.",
+      "ideaDigest": "idea-digest",
+      "workingName": "Ledger Cafe Books",
+      "country": {
+        "code": "IN",
+        "name": "India",
+        "currency": "INR",
+        "minorDigits": 2,
+        "region": "india",
+        "tax": {
+          "mode": "gst",
+          "label": "GST",
+          "standardRateBps": "1800",
+          "registrationNote": "Check with a CA.",
+          "idLabel": "GSTIN",
+          "idPattern": null,
+          "invoiceKind": "tax-invoice",
+          "checkedOn": "2026-10-15"
+        },
+        "paymentRails": [
+          "razorpay",
+          "cashfree",
+          "paypal"
+        ],
+        "dateOrder": "day-month-year",
+        "complianceNotes": []
+      },
+      "serviceType": "bookkeeping",
+      "status": "rehearsal",
+      "launchStage": "rehearsal",
+      "blueprintId": "blueprint_bf2d0832-08c5-4510-9f0b-cdc23af8016b",
+      "acceptedBlueprintId": "blueprint_bf2d0832-08c5-4510-9f0b-cdc23af8016b",
+      "playbookId": "playbook_35591bb2-8819-421e-a6e6-2fbdf1e55d23",
+      "invoiceSequence": 0,
+      "updatedAt": "2026-11-06T13:02:13.244Z"
+    },
+    {
+      "id": "blueprint_bf2d0832-08c5-4510-9f0b-cdc23af8016b",
+      "kind": "venture-blueprint",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-10-15T10:00:00.000Z",
+      "version": 1,
+      "source": "template",
+      "structureHash": "structure-hash",
+      "modelCallIds": [],
+      "serviceType": "bookkeeping",
+      "name": {
+        "value": "Ledger Cafe Books",
+        "label": "told-by-you",
+        "by": "owner"
+      },
+      "oneLiner": {
+        "value": "Monthly books for cafes, drafted with AI help and checked by you.",
+        "label": "assumption",
+        "by": "template"
+      },
+      "customer": {
+        "value": "Cafe and small shop owners.",
+        "label": "assumption",
+        "by": "template"
+      },
+      "offers": [
+        {
+          "id": "offer_1",
+          "name": {
+            "value": "Monthly books",
+            "label": "assumption",
+            "by": "template"
+          },
+          "description": {
+            "value": "Bank matching and a short monthly report.",
+            "label": "assumption",
+            "by": "template"
+          },
+          "pricing": {
+            "model": "monthly",
+            "quantityUnit": "month",
+            "unitPriceMinor": "249900",
+            "unitPriceLabel": "told-by-you",
+            "defaultQuantity": "1"
+          }
+        },
+        {
+          "id": "offer_2",
+          "name": {
+            "value": "Catch up clean up",
+            "label": "assumption",
+            "by": "template"
+          },
+          "description": {
+            "value": "A one time tidy up of past months.",
+            "label": "assumption",
+            "by": "template"
+          },
+          "pricing": {
+            "model": "project",
+            "quantityUnit": "project",
+            "unitPriceMinor": null,
+            "unitPriceLabel": "not-set",
+            "defaultQuantity": "1"
+          }
+        }
+      ],
+      "deliverySteps": [
+        {
+          "id": "step_1",
+          "title": {
+            "value": "Collect bills and bank statements",
+            "label": "assumption",
+            "by": "template"
+          },
+          "doneBy": "you",
+          "capability": "planned",
+          "note": "You collect what the client sends and add the files to the order, where the agent reads them. Reading inboxes for you is planned."
+        },
+        {
+          "id": "step_2",
+          "title": {
+            "value": "Sort and match every entry",
+            "label": "assumption",
+            "by": "template"
+          },
+          "doneBy": "you",
+          "capability": "planned",
+          "note": "You do the hands-on work. For bookkeeping, an agent reconciles a month from the files you add, for you to check; other hands-on work is planned."
+        },
+        {
+          "id": "step_3",
+          "title": {
+            "value": "Draft the monthly report for review",
+            "label": "assumption",
+            "by": "template"
+          },
+          "doneBy": "agent-then-you",
+          "capability": "drafts-now",
+          "note": "An agent drafts a reply from the client's message. You check it."
+        },
+        {
+          "id": "step_4",
+          "title": {
+            "value": "Send the report to the client",
+            "label": "assumption",
+            "by": "template"
+          },
+          "doneBy": "you",
+          "capability": "planned",
+          "note": "You send it to the client. Sending for you is planned."
+        }
+      ],
+      "approvals": [
+        {
+          "value": "Every monthly report before it reaches a client",
+          "label": "assumption",
+          "by": "template"
+        },
+        {
+          "value": "Any message that asks a client for money",
+          "label": "assumption",
+          "by": "template"
+        }
+      ],
+      "backOffice": {
+        "currency": "INR",
+        "taxMode": "gst",
+        "taxLabel": "GST",
+        "taxRegistered": {
+          "value": true,
+          "label": "told-by-you",
+          "by": "owner"
+        },
+        "taxRateBps": "1800",
+        "taxRateBy": "country-table",
+        "taxId": "27ZZZZZ9999Z1Z8",
+        "taxState": "27",
+        "sacCode": "998222",
+        "lutConfirmed": false,
+        "invoiceKind": "tax-invoice",
+        "taxInvoiceReady": true,
+        "taxInvoiceMissing": [],
+        "paymentRail": "razorpay",
+        "invoicePrefix": "INV"
+      },
+      "starterConnectorIds": [
+        "lovable",
+        "github",
+        "razorpay",
+        "mail-app",
+        "cal-com",
+        "chausar-books"
+      ],
+      "status": "accepted",
+      "digest": "a18c06bcdd3b37d4e9b1babc883c2e241cf8db6f50042f11563655e25bfc000d"
+    },
+    {
+      "id": "playbook_35591bb2-8819-421e-a6e6-2fbdf1e55d23",
+      "kind": "venture-playbook",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-11-06T13:02:13.221Z",
+      "version": 1,
+      "hash": "8463985aa4497c82e8100b754eeac1cb53e61a6f9d90626471a2b55dc0fc500b",
+      "blueprintDigest": "a18c06bcdd3b37d4e9b1babc883c2e241cf8db6f50042f11563655e25bfc000d",
+      "serviceType": "bookkeeping",
+      "steps": [
+        {
+          "id": "gather",
+          "kind": "gather",
+          "title": "Read the client's message and files and pull out what is needed",
+          "tier": "actor",
+          "model": "fast",
+          "doneBy": "agent",
+          "requiredSections": [],
+          "checks": [],
+          "tools": [
+            "files.list",
+            "files.read",
+            "dictionary.browse",
+            "dictionary.resolve",
+            "handoff.client",
+            "handoff.owner",
+            "evidence.record"
+          ],
+          "guidance": []
+        },
+        {
+          "id": "clarify",
+          "kind": "question",
+          "title": "Decide what is still unclear",
+          "tier": "actor",
+          "model": "fast",
+          "doneBy": "agent",
+          "requiredSections": [],
+          "checks": [
+            "questions-raised"
+          ],
+          "tools": [
+            "dictionary.resolve",
+            "handoff.client",
+            "handoff.owner"
+          ],
+          "guidance": []
+        },
+        {
+          "id": "work",
+          "kind": "work",
+          "title": "Sort and match every entry",
+          "tier": "wasm-lite",
+          "model": "fast",
+          "doneBy": "agent",
+          "requiredSections": [],
+          "checks": [],
+          "tools": [
+            "files.read",
+            "calc.sum",
+            "calc.totals",
+            "books.reconcile",
+            "bills.pick",
+            "sandbox.transform",
+            "sandbox.python",
+            "handoff.client",
+            "handoff.owner",
+            "agent.delegate",
+            "evidence.record"
+          ],
+          "guidance": []
+        },
+        {
+          "id": "price",
+          "kind": "compute",
+          "title": "Take prices from the calculator",
+          "tier": "code",
+          "model": null,
+          "doneBy": "agent",
+          "requiredSections": [],
+          "checks": [
+            "figures-resolve"
+          ],
+          "tools": [],
+          "guidance": []
+        },
+        {
+          "id": "draft",
+          "kind": "write",
+          "title": "Draft the monthly report for review",
+          "tier": "actor",
+          "model": "main",
+          "doneBy": "agent",
+          "requiredSections": [
+            "Summary",
+            "What we will do",
+            "What we need from you",
+            "Next steps"
+          ],
+          "checks": [
+            "no-numeric-prose",
+            "figures-resolve",
+            "required-sections",
+            "house-style",
+            "length-bounds",
+            "no-done-claims"
+          ],
+          "tools": [],
+          "guidance": []
+        },
+        {
+          "id": "verify",
+          "kind": "verify",
+          "title": "Check the draft",
+          "tier": "code",
+          "model": null,
+          "doneBy": "agent",
+          "requiredSections": [],
+          "checks": [
+            "no-numeric-prose",
+            "figures-resolve",
+            "required-sections",
+            "no-outside-writes",
+            "house-style",
+            "prompt-leak",
+            "length-bounds",
+            "no-done-claims",
+            "claims-grounded",
+            "receipts"
+          ],
+          "tools": [],
+          "guidance": []
+        },
+        {
+          "id": "approve",
+          "kind": "approve",
+          "title": "You review the draft",
+          "tier": "code",
+          "model": null,
+          "doneBy": "you",
+          "requiredSections": [],
+          "checks": [],
+          "tools": [],
+          "guidance": []
+        },
+        {
+          "id": "send",
+          "kind": "operator",
+          "title": "Send it to the client (you copy it for now)",
+          "tier": "code",
+          "model": null,
+          "doneBy": "you",
+          "requiredSections": [],
+          "checks": [
+            "no-outside-writes"
+          ],
+          "tools": [],
+          "guidance": []
+        }
+      ],
+      "validated": true,
+      "tierCeiling": "owner-cli",
+      "format": 2,
+      "limits": {
+        "maxTurns": 4,
+        "maxToolCalls": 12,
+        "maxCallsPerTurn": 4,
+        "maxCostMicros": "250000",
+        "keepOutputs": 6,
+        "stubChars": 600
+      },
+      "aliases": {},
+      "patches": [],
+      "parentId": null,
+      "origin": "plan"
+    },
+    {
+      "id": "vevent_061d69d4-2000-45cf-a95d-a1929af81f12",
+      "kind": "venture-event",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-11-06T13:02:13.221Z",
+      "seq": 1,
+      "name": "playbook-ready",
+      "data": {
+        "playbookId": "playbook_35591bb2-8819-421e-a6e6-2fbdf1e55d23",
+        "version": 1,
+        "hash": "8463985aa4497c82e8100b754eeac1cb53e61a6f9d90626471a2b55dc0fc500b"
+      }
+    },
+    {
+      "id": "simrun_deb16019-d117-4347-9e8e-0dc99d9c84b0",
+      "kind": "venture-simulation-run",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-11-06T13:02:13.244Z",
+      "playbookId": "playbook_35591bb2-8819-421e-a6e6-2fbdf1e55d23",
+      "playbookHash": "8463985aa4497c82e8100b754eeac1cb53e61a6f9d90626471a2b55dc0fc500b",
+      "scenarioIds": [
+        "bookkeeping-clean"
+      ],
+      "episodes": [
+        {
+          "scenarioId": "bookkeeping-clean",
+          "index": 0,
+          "turns": [
+            {
+              "turn": 1,
+              "by": "client",
+              "text": "Hi, I own a small cafe. Could you take care of my monthly books? I can send the statement from my bank and photos of every bill.",
+              "author": "template",
+              "callId": null
+            },
+            {
+              "turn": 2,
+              "by": "agent",
+              "text": "# Reply outline\n\n## Summary\nThanks for your message. This reply sets out how we will handle your books.\n\n## What we will do\nWe will sort your bills, match them to your bank statement and list anything that needs your answer.\n\n## What we need from you\nPlease send your bank statement and your bills for the period.\n\n## Next steps\nOnce the files arrive, we will prepare a short report for you to review.\n\nQuestions for you:\n- Is anything missing that we should know before we start?",
+              "author": "template",
+              "callId": null
+            },
+            {
+              "turn": 3,
+              "by": "client",
+              "text": "That is all I can share for now. Please go ahead with what you have.",
+              "author": "template",
+              "callId": null
+            },
+            {
+              "turn": 4,
+              "by": "agent",
+              "text": "# Reply outline\n\n## Summary\nThanks for your message. This reply sets out how we will handle your books.\n\n## What we will do\nWe will sort your bills, match them to your bank statement and list anything that needs your answer.\n\n## What we need from you\nPlease send your bank statement and your bills for the period.\n\n## Next steps\nOnce the files arrive, we will prepare a short report for you to review.\n\nQuestions for you:\n- Is anything missing that we should know before we start?",
+              "author": "template",
+              "callId": null
+            }
+          ],
+          "deliverable": {
+            "title": "Reply outline",
+            "sections": [
+              {
+                "heading": "Summary",
+                "parts": [
+                  {
+                    "kind": "text",
+                    "text": "Thanks for your message. This reply sets out how we will handle your books."
+                  }
+                ]
+              },
+              {
+                "heading": "What we will do",
+                "parts": [
+                  {
+                    "kind": "text",
+                    "text": "We will sort your bills, match them to your bank statement and list anything that needs your answer."
+                  }
+                ]
+              },
+              {
+                "heading": "What we need from you",
+                "parts": [
+                  {
+                    "kind": "text",
+                    "text": "Please send your bank statement and your bills for the period."
+                  }
+                ]
+              },
+              {
+                "heading": "Next steps",
+                "parts": [
+                  {
+                    "kind": "text",
+                    "text": "Once the files arrive, we will prepare a short report for you to review."
+                  }
+                ]
+              }
+            ],
+            "questionsForClient": [
+              "Is anything missing that we should know before we start?"
+            ]
+          },
+          "renderedText": "# Reply outline\n\n## Summary\nThanks for your message. This reply sets out how we will handle your books.\n\n## What we will do\nWe will sort your bills, match them to your bank statement and list anything that needs your answer.\n\n## What we need from you\nPlease send your bank statement and your bills for the period.\n\n## Next steps\nOnce the files arrive, we will prepare a short report for you to review.\n\nQuestions for you:\n- Is anything missing that we should know before we start?",
+          "mocks": [
+            {
+              "connector": "mail-app",
+              "operation": "send-deliverable",
+              "payloadDigest": "180bb254959ddfc9bcfb2e14d4d3dd520545cdf5d725b95c3c6850145be8e333",
+              "recordedAt": "2026-11-06T13:02:13.235Z"
+            }
+          ],
+          "checks": [
+            {
+              "check": "no-numeric-prose",
+              "passed": true,
+              "detail": "Every number in the draft comes from a receipt."
+            },
+            {
+              "check": "figures-resolve",
+              "passed": true,
+              "detail": "The draft quotes no price."
+            },
+            {
+              "check": "required-sections",
+              "passed": true,
+              "detail": "Every required section is there."
+            },
+            {
+              "check": "no-outside-writes",
+              "passed": true,
+              "detail": "Nothing was sent anywhere. In this build every outside effect is only recorded, never carried out."
+            },
+            {
+              "check": "house-style",
+              "passed": true,
+              "detail": "No long dashes and no words on the avoid list."
+            },
+            {
+              "check": "prompt-leak",
+              "passed": true,
+              "detail": "The draft has no words meant for the AI."
+            },
+            {
+              "check": "length-bounds",
+              "passed": true,
+              "detail": "The draft length is within bounds."
+            },
+            {
+              "check": "turn-limit",
+              "passed": true,
+              "detail": "The agent stayed within its turns."
+            },
+            {
+              "check": "no-done-claims",
+              "passed": true,
+              "detail": "The draft describes work ahead and never claims it is done."
+            },
+            {
+              "check": "claims-grounded",
+              "passed": true,
+              "detail": "The draft makes no specific claim to check."
+            },
+            {
+              "check": "receipts",
+              "passed": true,
+              "detail": "The draft states no number, file or link that needs a receipt."
+            }
+          ],
+          "judge": [
+            {
+              "question": "goal-met",
+              "answer": "not-judged",
+              "reason": "No AI quality check connected.",
+              "callId": null
+            },
+            {
+              "question": "tone-fits",
+              "answer": "not-judged",
+              "reason": "No AI quality check connected.",
+              "callId": null
+            },
+            {
+              "question": "policy-followed",
+              "answer": "not-judged",
+              "reason": "No AI quality check connected.",
+              "callId": null
+            },
+            {
+              "question": "no-unbacked-claims",
+              "answer": "not-judged",
+              "reason": "No AI quality check connected.",
+              "callId": null
+            }
+          ],
+          "passed": true,
+          "firstFailure": null,
+          "costMicros": "0"
+        }
+      ],
+      "passed": true,
+      "summary": {
+        "scenarios": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "costMicros": "0",
+      "costDisplay": "Free",
+      "startedAt": "2026-11-06T13:02:13.221Z",
+      "finishedAt": "2026-11-06T13:02:13.244Z",
+      "modelMode": "template"
+    },
+    {
+      "id": "vevent_d296e7bc-640b-48e3-bcc9-7b789de039af",
+      "kind": "venture-event",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-11-06T13:02:13.244Z",
+      "seq": 2,
+      "name": "simulation-finished",
+      "data": {
+        "runId": "simrun_deb16019-d117-4347-9e8e-0dc99d9c84b0",
+        "passed": true,
+        "modelMode": "template",
+        "scenarioIds": [
+          "bookkeeping-clean"
+        ]
+      }
+    },
+    {
+      "id": "vevent_56ceaa43-b961-49f3-9678-75a43bd4a8a1",
+      "kind": "venture-event",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-11-06T13:02:13.244Z",
+      "seq": 3,
+      "name": "run.done",
+      "data": {
+        "runId": "simrun_deb16019-d117-4347-9e8e-0dc99d9c84b0"
+      }
+    },
+    {
+      "id": "vevent_5f8829eb-9fa8-4fe8-a772-dc6da0d64120",
+      "kind": "venture-event",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-11-06T13:02:13.244Z",
+      "seq": 4,
+      "name": "queue.changed",
+      "data": {}
+    },
+    {
+      "id": "notif_83f491bf-257c-44c9-ad07-33cce55829c0",
+      "kind": "venture-notification",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-11-06T13:02:13.252Z",
+      "subject": "setup:ai",
+      "rowId": "setup:ai:none",
+      "rowKind": "setup",
+      "title": "Connect your AI",
+      "readAt": null,
+      "alertedAt": "2026-11-06T13:02:13.252Z",
+      "digestOn": "2026-11-06",
+      "expiresAt": null,
+      "alert": "sent"
+    },
+    {
+      "id": "notif_4c327d2d-7875-4582-8dc9-04e135b0446e",
+      "kind": "venture-notification",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-11-06T13:02:13.252Z",
+      "subject": "setup:prices",
+      "rowId": "setup:prices:blueprint_bf2d0832-08c5-4510-9f0b-cdc23af8016b",
+      "rowKind": "setup",
+      "title": "Set your prices",
+      "readAt": null,
+      "alertedAt": "2026-11-06T13:02:13.252Z",
+      "digestOn": "2026-11-06",
+      "expiresAt": null,
+      "alert": "sent"
+    },
+    {
+      "id": "digest_0fc256bf-0448-4826-9043-c89f0008573a",
+      "kind": "venture-notify-digest",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-11-06T13:02:13.252Z",
+      "day": "2026-11-06",
+      "needYou": 2,
+      "listed": [
+        "notif_83f491bf-257c-44c9-ad07-33cce55829c0",
+        "notif_4c327d2d-7875-4582-8dc9-04e135b0446e"
+      ],
+      "stillWaiting": 0,
+      "runIds": [
+        "simrun_deb16019-d117-4347-9e8e-0dc99d9c84b0"
+      ],
+      "ready": null,
+      "line": "Today: 2 need you (2 to set up). 1 job finished.",
+      "alertedAt": "2026-11-06T13:02:13.252Z"
+    },
+    {
+      "id": "vevent_53e39794-6ce1-4aa6-9d14-0fb35993f27a",
+      "kind": "venture-event",
+      "ventureId": "venture_8902afc2-ea7e-49a5-8015-aae2d06a461a",
+      "memberId": "owner",
+      "epoch": 1,
+      "at": "2026-11-06T13:02:13.252Z",
+      "seq": 5,
+      "name": "notify.new",
+      "data": {
+        "count": 2
+      }
+    }
+  ],
+  "runtime": {
+    "modelReplay": false
+  },
+  "operation": {
+    "method": "venture.simulation.run",
+    "payload": {
+      "scenarioIds": [
+        "bookkeeping-clean"
+      ],
+      "episodes": 1,
+      "useTemplate": true
+    }
+  }
+}

@@ -1,3 +1,5 @@
+import { runIdentity } from '../replay/scope.ts';
+import { runCodexSpawn } from '../replay/driver-hooks.ts';
 import { spawnTree } from '../../process-tree.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -126,11 +128,11 @@ export class CodexDriver implements AgentDriver {
     if (input.settings.shell) throw new CodexError('AGENT_SHELL_UNAVAILABLE', 'Shell access is not available for this Codex connection. Use the scoped Chausar tools.');
     if (!isAbsolute(input.jobRoot) || !/^~?[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,191}$/.test(input.settings.model) || !/^[a-zA-Z0-9_-]{1,64}$/.test(input.mcp.name)) throw failPolicy();
     if (input.credentials?.baseUrl) { const url = new URL(input.credentials.baseUrl); if (url.protocol !== 'https:' || url.username || url.password) throw failPolicy(); }
-    const profile = `chausar-${randomUUID()}`, platform = this.options.platform ?? process.platform;
+    const profile = runIdentity('codex-profile', () => `chausar-${randomUUID()}`), platform = this.options.platform ?? process.platform;
     const config = codexConfig(input, profile, platform), program = executable(this.options);
     const env = cliEnv('codex-cli'); if (input.credentials) env.CHAUSAR_AGENT_API_KEY = input.credentials.apiKey;
     const launch: Launch = { command: program.command, args: [...program.prefix, 'app-server', '--listen', 'stdio://', '--strict-config', ...Object.entries(config).flatMap(([key, value]) => ['--config', `${key}=${toml(value)}`])], cwd: input.jobRoot, env };
-    const child = (this.options.spawn ?? defaultSpawn)(launch);
+    const child = runCodexSpawn(() => (this.options.spawn ?? defaultSpawn)(launch), { jobRoot: input.jobRoot, mcp: { name: input.mcp.name, command: input.mcp.command, args: [...input.mcp.args], env: input.mcp.env } });
     let threadId = '', closed = false, active: Active | undefined;
     let threadUsage: Record<string, number> = {};
     const emit = (event: AgentDriverEvent) => { input.guard(); input.onEvent(event); };
