@@ -34,7 +34,7 @@ describe('Reject with a reason', () => {
     const card = (await screen.findByRole('heading', { level: 3, name: 'Draft reply for Asha Rao' })).closest('article') as HTMLElement;
     await press(within(card).getByRole('button', { name: 'Reject' }));
     const reasons = within(card).getByRole('group', { name: 'Why reject it?' });
-    expect(within(reasons).getAllByRole('button').map((b) => b.textContent)).toEqual(['Wrong facts', 'Wrong tone', 'Not needed', 'Just reject']);
+    expect(within(reasons).getAllByRole('button').map((b) => b.textContent)).toEqual(['Wrong facts', 'Wrong tone', 'Not needed', 'Just reject', 'Cancel']);
     expect(decides(spy)).toEqual([]);
     await press(within(reasons).getByRole('button', { name: 'Wrong facts' }));
     await waitFor(() => expect(decides(spy)).toHaveLength(1));

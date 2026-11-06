@@ -59,6 +59,7 @@ export function AwayView() {
     setCopied(null);
     try {
       setShown(await client.request('venture.away.set', { from, to }));
+      setPreview(null);
     } catch (error) {
       setProblem(t('business.away.failed', { message: refusalWords(error, t) }));
     } finally {

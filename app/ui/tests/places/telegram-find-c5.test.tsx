@@ -23,7 +23,7 @@ describe('Telegram: Find me', () => {
     fold.open = true;
     fireEvent(fold, new Event('toggle'));
     await within(fold).findByText('No Telegram bot is set. Alerts can go to your own bot as a count only.');
-    expect(within(fold).queryByLabelText('Your chat id')).toBeNull();
+    expect((within(fold).getByLabelText('Your chat id').closest('details') as HTMLDetailsElement).open).toBe(false);
     fireEvent.change(within(fold).getByLabelText('Bot token'), { target: { value: TOKEN } });
     fireEvent.click(within(fold).getByRole('button', { name: 'Find me' }));
     await within(fold).findByText('Is this you: Kartavy?');
