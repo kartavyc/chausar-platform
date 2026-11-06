@@ -1,0 +1,32 @@
+name: D8 area type convergence
+on:
+  push:
+    branches: ['b2c/os-d8-area-*']
+permissions:
+  contents: read
+jobs:
+  projection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.1
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --max-old-space-size=3072 scripts/contract-types.mjs
+      - run: npm run typecheck:ui > "$RUNNER_TEMP/d8-declarations.log" 2>&1
+        if: success()
+      - run: node --test platform/tests/contract-declarations-d8.test.ts
+        if: success()
+      - run: npx vitest run --config app/ui/vitest.config.ts --maxWorkers=1 app/ui/tests/engine app/ui/tests/places/work app/ui/tests/parts/run app/ui/tests/parts/sheet-steps
+        if: success()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d8-declarations
+          path: |
+            app/ui/src/engine/contract.gen.ts
+            ${{ runner.temp }}/d8-declarations.log
