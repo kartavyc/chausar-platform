@@ -230,7 +230,8 @@ describe('Team: live and empty', () => {
     start('#/team', { intercept: (method) => (method === 'venture.team.list' ? Promise.resolve({ agents: [] }) : undefined) });
     expect(await within(main()).findByText('No team yet.')).toBeTruthy();
     const link = within(main()).getByRole('link', { name: 'Accept your plan to meet them.' });
-    expect(link.getAttribute('href')).toBe('#/business/plan');
+    // C4 task 10 (36.x1): to Today, with the plan's card in view and the plan open to read.
+    expect(link.getAttribute('href')).toBe('#/today?focus=plan&read=1');
     expect(within(main()).queryByRole('list', { name: 'Agents' })).toBeNull();
   });
 

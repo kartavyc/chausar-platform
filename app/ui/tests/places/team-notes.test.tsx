@@ -48,10 +48,22 @@ describe('The Notes tab', () => {
     const note = within(list).getByText(NOTE).closest('li')!;
     expect(note.textContent).toContain('About Nimbus Mics · Saved 21 Oct');
     expect(note.textContent).toContain(`You said: 'Remember that ${NOTE}'`);
-    expect(within(panel).getByText('0 of 2000 characters it reads on every order')).toBeTruthy();
+    // C4 task 10 (57.w1): the characters line shows only while the owner writes a note.
+    expect(within(panel).queryByText('0 of 2,000 characters it reads on every order')).toBeNull();
     const changes = within(panel).getByRole('list', { name: 'Changes' });
     expect(within(changes).getByText('Saved from your words.')).toBeTruthy();
     assertInkRules(document.body);
+  });
+
+  it('C4 task 10: the characters line shows once the box has focus, and goes when the note is closed', async () => {
+    start();
+    const { panel } = await notesOf();
+    await press(within(panel).getByRole('button', { name: 'Add a note' }));
+    expect(within(panel).queryByText(/characters it reads on every order/)).toBeNull();
+    await act(async () => { fireEvent.focus(within(panel).getByRole('textbox', { name: 'New note' })); });
+    expect(within(panel).getByText('0 of 2,000 characters it reads on every order')).toBeTruthy();
+    await press(within(panel).getByRole('button', { name: 'Cancel' }));
+    expect(within(panel).queryByText(/characters it reads on every order/)).toBeNull();
   });
 
   it('adds a note, and its change line has Undo, which takes it away again', async () => {
