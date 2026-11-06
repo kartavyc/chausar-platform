@@ -476,3 +476,16 @@ test('shards containing skipped or todo tests fail complete-run admission even w
 });
 
 // D1: the two ci.yml shape tests moved to ci-workflow-d1.test.ts, so later batches change one file.
+
+
+test('cleanup: refreshed weights keep the slower measured host independent of receipt order', async t => {
+  const f = await fixture(t, false, false, 1);
+  const receipt = (seconds: number) => ({ schema: 'chausar.factory-bench.v1', fileTimings: { 'platform/tests/fixture-1.test.ts': seconds } });
+  await writeFile(join(f.directory, 'slow.json'), JSON.stringify(receipt(8.34)));
+  await writeFile(join(f.directory, 'fast.json'), JSON.stringify(receipt(2.01)));
+  for (const paths of ['slow.json,fast.json', 'fast.json,slow.json']) {
+    assert.equal(f.invoke([`--write-weights=${paths}`]).status, 0);
+    const weights = JSON.parse(await readFile(join(f.directory, 'platform/tests/test-weights.json'), 'utf8'));
+    assert.equal(weights['platform/tests/fixture-1.test.ts'], 8.3);
+  }
+});
