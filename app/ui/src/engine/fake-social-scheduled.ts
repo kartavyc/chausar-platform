@@ -3,7 +3,8 @@ import { EngineError } from './types';
 import type { W4DeskHost } from './fake-w4';
 import type { FakeForgottenPerson, FakeDeskKind } from './fake-playbooks';
 import { POSTING_WORDS } from './fake-posting';
-import { SLOT_GRACE_MS, SCHEDULED_WORDS, slotApprovalPart, type SocialScheduledItem } from '../../../../platform/runtime/venture/playbooks/social/scheduled-core';
+import { SLOT_GRACE_MS, SCHEDULED_WORDS, slotApprovalPart } from '../../../../platform/shared/venture/playbooks/social/scheduled-core.ts';
+import type { SocialScheduledItem } from '../../../../platform/runtime/venture/playbooks/social/scheduled-core.ts';
 const need = (ok: unknown, code: string, line: string): void => {
     if (!ok)
         throw new EngineError(code, line);

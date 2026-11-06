@@ -1,8 +1,8 @@
 // Original local approved-career-pack delivery. The browser never invents a client approval or an AI call.
-import {digest} from '../../../../platform/runtime/portable';
+import { digest } from '../../../../platform/shared/portable.ts';
 import {fakeAttested} from './fake-rules-attest';
-import {careerPackDeliverable} from '../../../../platform/runtime/venture/playbooks/job-search-desk/pack';
-import {careerDraftCheck} from '../../../../platform/runtime/venture/playbooks/job-search-desk/draft-check';
+import { careerPackDeliverable } from '../../../../platform/shared/venture/playbooks/job-search-desk/pack.ts';
+import { careerDraftCheck } from '../../../../platform/shared/venture/playbooks/job-search-desk/draft-check.ts';
 import {exact,clientRule} from './fake-job-search-desk-core';
 import {EngineError,type DeliveryLite,type OrderLite,type QueueRow,type QueueItemView} from './types';
 import type {WorkHost} from './fake-work';

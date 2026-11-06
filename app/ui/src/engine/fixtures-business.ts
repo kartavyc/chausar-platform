@@ -2,8 +2,8 @@ import r5Connectors from './r5-connectors.json';
 import testingConnectors from './app-testing-connectors.json';
 import phoneConnector from './phone-connector.json';
 import formsConnector from './forms-connector.json';
-import {siteScreenFlowText} from '../../../../platform/runtime/venture/playbooks/website-studio/screen-flow';
-import {SITE_UI_ARTIFACT_GUIDANCE} from '../../../../platform/runtime/venture/playbooks/website-studio/ui-contract';
+import { siteScreenFlowText } from '../../../../platform/shared/venture/playbooks/website-studio/screen-flow.ts';
+import { SITE_UI_ARTIFACT_GUIDANCE } from '../../../../platform/shared/venture/playbooks/website-studio/ui-contract.ts';
 /**
  * Sample data for Connections and the business menu: connectors, Your AI, plan and playbook, prices and website build.
  * Every shape and every sentence is the engine's (platform/runtime/venture/build/connectors.ts, posting.ts, catalogue.ts,

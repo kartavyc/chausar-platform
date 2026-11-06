@@ -2,10 +2,10 @@
 import {EngineError,type DeliveryLite,type OrderLite,type BlueprintViewLite} from './types';
 import type {W4DeskHost} from './fake-w4';
 import type {FakeDeskKind} from './fake-playbooks';
-import {seoExact,} from '../../../../platform/runtime/venture/playbooks/seo-visibility/work-core';
-import {seoNeed} from '../../../../platform/runtime/venture/playbooks/seo-visibility/content-core';
-import {checkUrlValue} from '../../../../platform/runtime/venture/core/net-address';
-import {articleHtml} from '../../../../platform/runtime/venture/playbooks/seo-visibility/article-html';
+import { seoExact } from '../../../../platform/shared/venture/playbooks/seo-visibility/work-core.ts';
+import { seoNeed } from '../../../../platform/shared/venture/playbooks/seo-visibility/content-core.ts';
+import { checkUrlValue } from '../../../../platform/shared/venture/core/net-address.ts';
+import { articleHtml } from '../../../../platform/shared/venture/playbooks/seo-visibility/article-html.ts';
 type Config={url:string;username:string;password:string}|{siteUrl:string;accountId:string;namespaceId:string;token:string};
 const urlOf=(raw:string)=>{const u=checkUrlValue(raw,(code,words)=>new EngineError(code,words));seoNeed(u.protocol==='https:'&&!u.search&&!u.hash,'WORDPRESS_SITE_INVALID','Use the public HTTPS address of the client WordPress installation.');u.pathname=u.pathname.replace(/\/+$/,'')+'/';return u;};
 export function fakeSeoPublishingKinds(host:W4DeskHost):Record<string,FakeDeskKind>{

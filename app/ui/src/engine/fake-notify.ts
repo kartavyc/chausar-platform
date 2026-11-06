@@ -9,10 +9,10 @@
  * subscription, so the fake accepts one without it. Nothing here sends anything anywhere.
  */
 
-import { dayKeyIn, formatClock, formatDay, formatTime, ownerZone, timeKeyIn } from '../../../../platform/runtime/owner-format';
+import { dayKeyIn, formatClock, formatDay, formatTime, ownerZone, timeKeyIn } from '../../../../platform/shared/owner-format.ts';
 import { EngineError, type NotificationView, type NotifyDigestView, type NotifySettingsView, type PushSubscriptionInput, type QueueRow } from './types';
 import type { W4DeskHost } from './fake-w4';
-import { qrMatrix } from '../../../../platform/runtime/venture/money/qr';
+import { qrMatrix } from '../../../../platform/shared/venture/money/qr.ts';
 
 const NOTIFY_METHODS = new Set<string>([
   'venture.notify.list', 'venture.notify.read', 'venture.notify.settings',

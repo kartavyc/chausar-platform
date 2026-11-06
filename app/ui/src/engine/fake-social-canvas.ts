@@ -2,10 +2,10 @@
 import { EngineError, type BlueprintViewLite, type OrderLite, type DeliveryLite } from './types';
 import type { W4DeskHost } from './fake-w4';
 import type { FakeDeskKind } from './fake-playbooks';
-import { redactSecrets } from '../../../../platform/runtime/venture/core/secrets';
-import { socialCanvas } from '../../../../platform/runtime/venture/playbooks/social/canvas';
-import { socialSourceText } from '../../../../platform/runtime/venture/playbooks/social/source-text';
-import type { SocialChannel } from '../../../../platform/runtime/venture/playbooks/social/channel-ids';
+import { redactSecrets } from '../../../../platform/shared/venture/core/secrets.ts';
+import { socialCanvas } from '../../../../platform/shared/venture/playbooks/social/canvas.ts';
+import { socialSourceText } from '../../../../platform/shared/venture/playbooks/social/source-text.ts';
+import type { SocialChannel } from '../../../../platform/runtime/venture/playbooks/social/channel-ids.ts';
 const need = (ok: unknown, line: string, code = 'INVALID_VENTURE_REQUEST') => { if (!ok)
     throw new EngineError(code, line); };
 function exact(value: unknown, keys: string[], required: string[] = []) { need(value !== null && typeof value === 'object' && !Array.isArray(value), 'Send one request object.'); const body = value as Record<string, unknown>; need(Object.keys(body).every(key => keys.includes(key)) && required.every(key => Object.hasOwn(body, key)), 'Send the required fields and nothing else.'); return body; }

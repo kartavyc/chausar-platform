@@ -3,7 +3,7 @@ import {useState} from 'react';
 import {useEngine} from '../../../engine/context';
 import {useT} from '../../../text';
 import {Button} from '../../../parts/Button';
-import type {setupDraft} from '../../../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/setup';
+import type { setupDraft } from '../../../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/setup.ts';
 import s from './CollectionsDesk.module.css';
 export function BooksSetupReview({id,reviewDigest,setup,stale}:{id:string;reviewDigest:string;setup:ReturnType<typeof setupDraft>;stale:boolean}){
  const engine=useEngine(),t=useT(),word=(key:string)=>t('pb-books-finance.'+key);const [busy,setBusy]=useState(false),[failed,setFailed]=useState(false),[file,setFile]=useState<{name:string;content:string}|null>(null);

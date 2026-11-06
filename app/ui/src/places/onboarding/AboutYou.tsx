@@ -188,7 +188,7 @@ export function AboutYou({ connected, onKeep, onMode }: { connected: boolean; on
   }
 
   /** A tile: straight to the plan in A, or a correction of the field in B. No AI either way. */
-  async function pick(familyId: import('../../engine/types').FamilyLite['id'], keep: Mode) {
+  async function pick(familyId: import('../../engine/types.ts').FamilyLite['id'], keep: Mode) {
     setBusy(true); setProblem(null);
     try {
       const words = cleanSentence(said || text);

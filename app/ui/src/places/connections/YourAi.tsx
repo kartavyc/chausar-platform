@@ -225,7 +225,7 @@ function ConnectForm({ choice, draft, onCancel, onDone }: { choice: Choice; draf
         <Field label={t('connections.ai.cap')} hint={t('connections.ai.capHint')} inputMode="decimal" value={cap} onChange={(event) => setCap(event.currentTarget.value)} />
       )}
       <div>
-        <h4 className={s.groupLabel}>{t('connections.ai.consent')}</h4>
+        <h3 className={s.groupLabel}>{t('connections.ai.consent')}</h3>
         {consents.map((text) => <p key={text} className={s.consent}>{text}</p>)}
       </div>
       <label className={s.agree}>

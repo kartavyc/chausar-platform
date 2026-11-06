@@ -1,6 +1,6 @@
 // Original tender desk. Every model request, type approval and file export uses the current engine digest.
 import {useCallback,useRef,useState} from 'react';
-import type {Json} from '../../../../../../platform/runtime/portable';
+import type { Json } from '../../../../../../platform/runtime/portable.ts';
 import {useT} from '../../../text';
 import {useEngine,useResource} from '../../../engine/context';
 import {EngineError} from '../../../engine/types';

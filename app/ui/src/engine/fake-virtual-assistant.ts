@@ -1,7 +1,7 @@
 // Original VA local purchase handoff. No browser or payment credentials are accepted.
 import type {FakePlaybookDesk} from './fake-playbooks';import type {W4DeskHost} from './fake-w4';
-import {check} from '../../../../platform/runtime/portable';
-import {purchaseHandoff,paymentFieldAllowed} from '../../../../platform/runtime/venture/playbooks/virtual-assistant/payment';
+import { check } from '../../../../platform/shared/portable.ts';
+import { purchaseHandoff, paymentFieldAllowed } from '../../../../platform/shared/venture/playbooks/virtual-assistant/payment.ts';
 import {roomOrder,roomExact,roomGuard} from './fake-client-room';
 import type {BlueprintViewLite,VentureViewLite} from './types';
 export function fakeVirtualAssistantDesk(host:W4DeskHost):FakePlaybookDesk{return {playbook:'virtual-assistant',kinds:{

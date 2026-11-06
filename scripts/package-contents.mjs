@@ -1,7 +1,7 @@
 // D5 task 5: what a packaged build carries, read from the unpacked folder electron-builder leaves (win-unpacked,
 // linux-unpacked). It only reads: the locale file names, the app.asar file list from the archive's own header (nothing
 // is extracted), the unpacked @anthropic-ai folders, the bundled Codex's BUNDLE.json version and the size of each piece.
-// It never starts the build. `node scripts/package-contents.mjs <unpacked dir> [--mode beta|preview|final] [--json]`
+// It never starts the build. `node scripts/package-contents.mjs <unpacked dir> [--mode beta|preview|final] [--ink-root <build dir>] [--json]`
 // prints the problems and exits 1 when there are any.
 import { lstat, open, readdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
@@ -60,7 +60,7 @@ async function measure(path) {
 const names = async path => { try { return (await readdir(path)).sort(); } catch { return []; } };
 
 /** What the build carries and every problem, in plain words. mode beta and final need the bundled Codex; preview has none. */
-export async function readPackageContents(unpackedDir, { mode = 'beta' } = {}) {
+export async function readPackageContents(unpackedDir, { mode = 'beta', inkRoot } = {}) {
   const resources = join(unpackedDir, 'resources');
   const unpacked = join(resources, 'app.asar.unpacked');
   const problems = [];
@@ -74,6 +74,20 @@ export async function readPackageContents(unpackedDir, { mode = 'beta' } = {}) {
   try { archive = await readAsarFileList(join(resources, 'app.asar')); }
   catch (error) { problems.push(error.code === 'ENOENT' ? 'resources/app.asar is missing' : error.message); }
   if (archive.length && !archive.includes(INK_ENTRY)) problems.push(`the Ink build (${INK_ENTRY}) is missing from the archive`);
+  // D9: compare every emitted file, including lazy pages, text packs and their CSS.
+  if (inkRoot) {
+    try {
+      inkRoot = resolve(inkRoot);
+      const expected = (await readdir(inkRoot, { recursive: true, withFileTypes: true }))
+        .filter(entry => entry.isFile()).map(entry => join(entry.parentPath ?? entry.path, entry.name).slice(resolve(inkRoot).length + 1).replace(/\\/g, '/')).sort();
+      if (!expected.includes('index.html')) problems.push('the comparison Ink build has no index.html');
+      const packagedInk = archive.filter(path => path.startsWith('app/ui/dist/')).map(path => path.slice('app/ui/dist/'.length)).sort();
+      const missing = expected.filter(path => !packagedInk.includes(path));
+      const extra = packagedInk.filter(path => !expected.includes(path));
+      if (missing.length) problems.push(`Ink build missing from archive: ${missing.join(', ')}`);
+      if (extra.length) problems.push(`Ink archive has files absent from build: ${extra.join(', ')}`);
+    } catch (error) { problems.push(`cannot compare the Ink build: ${error.message}`); }
+  }
   const inkSource = archive.filter(path => path.startsWith('app/ui/src/'));
   if (inkSource.length) problems.push(`Ink source in the archive: ${inkSource.slice(0, 5).join(', ')}`);
 
@@ -134,13 +148,15 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const json = args.includes('--json');
   const modeAt = args.indexOf('--mode');
   const mode = modeAt >= 0 ? args[modeAt + 1] : 'beta';
-  const folder = args.find((arg, index) => !arg.startsWith('--') && (modeAt < 0 || index !== modeAt + 1));
-  if (!folder || !['beta', 'preview', 'final'].includes(mode)) {
-    console.error('Usage: node scripts/package-contents.mjs <unpacked dir> [--mode beta|preview|final] [--json]');
+  const inkAt = args.indexOf('--ink-root');
+  const inkRoot = inkAt >= 0 ? args[inkAt + 1] : fileURLToPath(new URL('../app/ui/dist', import.meta.url));
+  const folder = args.find((arg, index) => !arg.startsWith('--') && (modeAt < 0 || index !== modeAt + 1) && (inkAt < 0 || index !== inkAt + 1));
+  if (!folder || !inkRoot || inkRoot.startsWith('--') || !['beta', 'preview', 'final'].includes(mode)) {
+    console.error('Usage: node scripts/package-contents.mjs <unpacked dir> [--mode beta|preview|final] [--ink-root <build dir>] [--json]');
     process.exitCode = 1;
   } else {
     try {
-      const contents = await readPackageContents(folder, { mode });
+      const contents = await readPackageContents(folder, { mode, inkRoot });
       if (json) console.log(JSON.stringify(contents, null, 2));
       else {
         console.log(`${contents.fileCount} files, ${contents.totalBytes} bytes; locales ${contents.locales.join(', ')}; @anthropic-ai ${contents.anthropic.join(', ') || 'none'}; Codex ${contents.codexVersion ?? 'none'}.`);

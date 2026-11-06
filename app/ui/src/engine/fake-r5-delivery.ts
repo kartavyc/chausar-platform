@@ -1,7 +1,7 @@
 // Original source-bound source-service delivery with current evidence. No model send or client effect is invented.
-import {digest} from '../../../../platform/runtime/portable';
-import {watchDelivery,watchChecks} from '../../../../platform/runtime/venture/playbooks/monitored-data/report';
-import {triageDelivery,triageChecks} from '../../../../platform/runtime/venture/playbooks/it-triage/report';
+import { digest } from '../../../../platform/shared/portable.ts';
+import { watchDelivery, watchChecks } from '../../../../platform/shared/venture/playbooks/monitored-data/report.ts';
+import { triageDelivery, triageChecks } from '../../../../platform/shared/venture/playbooks/it-triage/report.ts';
 import {roomExact} from './fake-client-room';
 import {EngineError,type DeliveryLite,type OrderLite,type QueueRow,type QueueItemView,type ModelStatusLite} from './types';
 import type {WorkHost} from './fake-work';

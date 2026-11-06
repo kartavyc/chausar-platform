@@ -12,7 +12,7 @@ import { STATE_TONES, STATE_WORDS, stateWord, type StateKind } from '../../src/p
  */
 
 const ENGINE_DIR = join(import.meta.dirname, '../../../../platform/runtime/venture');
-const CONTRACTS = readFileSync(join(ENGINE_DIR, 'contracts.ts'), 'utf8');
+const CONTRACTS = ['contracts/records.ts', 'contracts/views.ts'].map(file => readFileSync(join(ENGINE_DIR, file), 'utf8')).join('\n');
 // The engine's own lists (4J14's one vocabulary), read from the file that exports them: a drift test, not a copy. Read
 // as text, so the UI's typecheck never takes in the engine's sources.
 const VERDICTS = readFileSync(join(ENGINE_DIR, 'delivery/verdicts.ts'), 'utf8');

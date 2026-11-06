@@ -10,7 +10,7 @@ import { InlineError } from '../../parts/InlineError';
 import { PassphraseField } from '../../parts/PassphraseField';
 import { NewPassphrase } from '../../parts/Secret';
 import { TRANSFER_MAX_CHARS, codeOf, momentOf, newPassphraseProblem, refusalWords } from '../../parts/custody';
-import type { Openable } from './boot';
+import type { Openable } from '../../shell/boot';
 import s from './Onboarding.module.css';
 import { Fold } from '../../parts/Fold';
 import { Select } from '../../parts/Select';

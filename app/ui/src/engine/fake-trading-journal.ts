@@ -1,10 +1,11 @@
 // The fake engine's trading journal (wave 6, package 6E7): the engine's own core (playbooks/trading-journal/desk-core.ts,
 // journal.ts, receipt.ts) over in-memory entries, so codes, words, figures and receipts match the engine. It holds only
 // the owner's own trades, reaches no broker and never says what to trade.
-import { check, digest } from '../../../../platform/runtime/portable';
-import { dayKeyIn, ownerZone } from '../../../../platform/runtime/owner-format';
-import { JOURNAL_LINES, sourcesOf, importEntry, importPayload, journalItem, journalOf, listRows, openingLot, packFor, type JournalEntryRow } from '../../../../platform/runtime/venture/playbooks/trading-journal/desk-core';
-import { journalReceipt, taxPackReceipt } from '../../../../platform/runtime/venture/playbooks/trading-journal/receipt';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { dayKeyIn, ownerZone } from '../../../../platform/shared/owner-format.ts';
+import { JOURNAL_LINES, sourcesOf, importEntry, importPayload, journalItem, journalOf, listRows, openingLot, packFor } from '../../../../platform/shared/venture/playbooks/trading-journal/desk-core.ts';
+import type { JournalEntryRow } from '../../../../platform/runtime/venture/playbooks/trading-journal/desk-core.ts';
+import { journalReceipt, taxPackReceipt } from '../../../../platform/shared/venture/playbooks/trading-journal/receipt.ts';
 import type { TradeJournalEntry } from '../../../../platform/runtime/venture/playbooks/trading-journal/records';
 import { roomGuard } from './fake-client-room';
 import type { FakePlaybookDesk } from './fake-playbooks';

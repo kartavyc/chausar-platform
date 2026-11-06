@@ -2,7 +2,7 @@
  * C7 task 16: the fake engine's hiring, with the engine's phases, codes and words (platform/runtime/venture/agents/hire.ts
  * and hire-check.ts, whose checks it runs itself). Its AI writes a role, reads and a voice from the sentence in fixed words.
  */
-import { checkHireWith } from '../../../../platform/runtime/venture/agents/hire-check-core';
+import { checkHireWith } from '../../../../platform/shared/venture/agents/hire-check-core.ts';
 import { EngineError, type AgentView, type HireReadLite, type HireViewLite, type HireVoiceLite } from './types';
 import type { W4DeskHost } from './fake-w4';
 

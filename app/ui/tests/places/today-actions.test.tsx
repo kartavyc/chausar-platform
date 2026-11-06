@@ -1,4 +1,4 @@
-import { decide, sessionFor } from '../../src/places/today/session';
+import { decide, sessionFor } from '../../src/parts/queue-session';
 import type { T } from '../../src/text';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';

@@ -15,7 +15,7 @@ import type { CustodyViewLite, Deleted, UnlockMode } from '../../engine/types';
 import { formatBytes } from '../../parts/when';
 import { AllBackups, CloseBusiness, DeleteBusiness, ExportCopy, MoveAway, OpenCopyFold, takeRestoredLine } from './KeepMore';
 import { KeepCopy } from './KeepCopy';
-import { LeftContext } from '../onboarding/started';
+import { LeftContext } from '../../shell/started';
 import { TileSection } from './shared';
 import s from './Business.module.css';
 import { Fold } from '../../parts/Fold';

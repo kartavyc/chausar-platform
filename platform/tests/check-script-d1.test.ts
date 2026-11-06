@@ -22,6 +22,7 @@ const GOOD: Record<string, string> = {
   'platform/shape.d.cts': "import { EventEmitter } from 'node:events';\nexport declare function make(): EventEmitter;\n",
   'platform/typed.cts': "const count: number = 1;\nmodule.exports = count;\n",
   'scripts/typed.mts': "export const name: string = 'x';\n",
+  'scripts/gen-contract.mjs': 'export async function checkGenerated() { return []; }\n',
   'scripts/run.mjs': "#!/usr/bin/env node\nconsole.log(import.meta.url);\n",
   'app/esm.js': "import { join } from 'node:path';\nexport const where = join('a');\n",
   'app/legacy/package.json': '{"type":"commonjs"}\n',
@@ -68,8 +69,8 @@ test('the good tree passes, including a .ts that opens with a type alias, and th
   const root = await repo(t);
   const result = run(root);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  // 10 runnable sources from GOOD (declaration files are not counted) plus the copied check.mjs itself.
-  assert.match(result.stdout, /passed for 11 source files/);
+  // 11 runnable sources from GOOD (declaration files are not counted) plus the copied check.mjs itself.
+  assert.match(result.stdout, /passed for 12 source files/);
   assert.equal(result.stderr, '', 'no experimental warnings or other noise');
 });
 
@@ -107,4 +108,12 @@ test('cleanup: the syntax checker refuses a second parser start instead of loopi
   const result = spawnSync(process.execPath, ['scripts/check.mjs', '--parser-started'], { cwd: root, encoding: 'utf8', timeout: 10000, windowsHide: true });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /parser is unavailable after restart/);
+});
+
+
+test('generated contract drift fails the check and names the artifact', async t => {
+  const root = await repo(t, { 'scripts/gen-contract.mjs': "export async function checkGenerated() { return ['ipc-methods.cjs: stale generated fixture']; }\n" });
+  const result = run(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /ipc-methods\.cjs: stale generated fixture/);
 });

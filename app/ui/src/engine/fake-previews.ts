@@ -8,7 +8,7 @@
  * ffmpeg, so it takes no still: the poster method answers as the engine does on a computer without ffmpeg.
  */
 
-import { formatDay } from '../../../../platform/runtime/owner-format';
+import { formatDay } from '../../../../platform/shared/owner-format.ts';
 import {
   EngineError, type InvoiceLite, type OrderLite, type OrderStageReason, type OrderStageView, type OrderWaitsOnYou, type QueuePreview, type QueueRow, type UploadLite,
 } from './types';

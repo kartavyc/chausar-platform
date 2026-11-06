@@ -3,9 +3,9 @@ import {EngineError,type OrderLite} from './types';
 import type {W4DeskHost} from './fake-w4';
 import type {FakeDeskKind} from './fake-playbooks';
 import type {BooksPostingBody} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/records';
-import {check,digest} from '../../../../platform/runtime/portable';
-import {sellerBooksSource} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/seller-books-source';
-import {settlementPayments,settlementPaymentSource} from '../../../../platform/runtime/venture/playbooks/bookkeeping-cfo/settlement-payments';
+import { check, digest } from '../../../../platform/shared/portable.ts';
+import { sellerBooksSource } from '../../../../platform/shared/venture/playbooks/bookkeeping-cfo/seller-books-source.ts';
+import { settlementPayments, settlementPaymentSource } from '../../../../platform/shared/venture/playbooks/bookkeeping-cfo/settlement-payments.ts';
 type Row=BooksPostingBody&{id:string};
 function exact(raw:unknown,keys:string[],required=keys){check(raw&&typeof raw==='object'&&!Array.isArray(raw)&&Object.getPrototypeOf(raw)===Object.prototype,'INVALID_VENTURE_REQUEST','Use one request object.');const value=raw as Record<string,unknown>;check(Object.keys(value).every(key=>keys.includes(key))&&required.every(key=>Object.hasOwn(value,key)),'INVALID_VENTURE_REQUEST','Use the exact required fields.');return value;}
 const top=(raw:unknown,op:'list'|'get'|'act')=>exact(raw,op==='list'?['playbook','kind','filter']:op==='get'?['playbook','kind','id']:['playbook','kind','id','action','payload','digest'],op==='list'?['playbook','kind']:op==='get'?['playbook','kind','id']:['playbook','kind','id','action','payload']);

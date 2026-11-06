@@ -1,31 +1,80 @@
-/**
- * Every place, by id. Each place lives in src/places/<place>/index.tsx and exports `Place`; it may also export
- * `sheets`, a map of sheet kinds it owns (for example `agent` from Team, `client` from Clients). Phase 2 agents edit
- * only their own place folder; this file does not change when a place grows.
- */
-
+/** Page code has one loader boundary. Tests keep eager modules for existing synchronous assertions. */
 import type { ComponentType } from 'react';
-import * as approve from '../places/approve';
-import * as apps from '../places/apps';
-import * as business from '../places/business';
-import * as chats from '../places/chats';
-import * as clients from '../places/clients';
-import * as connections from '../places/connections';
-import * as money from '../places/money';
-import * as onboarding from '../places/onboarding';
-import * as team from '../places/team';
-import * as today from '../places/today';
-import * as work from '../places/work';
-import { BASE_SHEETS, type SheetComponent } from './sheets';
-import type { PlaceId } from './routes';
+import { chunkComponent } from './Chunk';
+import { loadText } from '../text';
+import { BASE_SHEETS, SHEET_OWNERS, type SheetComponent, type SheetComponentProps } from './sheets';
+import { RAIL_PLACES, TAB_PLACES, type PlaceId } from './routes';
 
 export interface PlaceModule { Place: ComponentType; sheets?: Readonly<Record<string, SheetComponent>> }
+export type PlaceLoaders = Record<string, () => Promise<PlaceModule>>;
+type OnboardingModule = typeof import('../places/onboarding/index');
+export const PLACE_LOADERS: PlaceLoaders = import.meta.glob<PlaceModule>('../places/*/index.tsx');
+// Eager *rendering* for tests, without eager imports whose CSS side effects survive a production dead branch.
+const EAGER_PLACES: Record<string, PlaceModule & Partial<OnboardingModule>> = import.meta.env.MODE === 'test'
+  ? Object.fromEntries(await Promise.all(Object.entries(PLACE_LOADERS).map(async ([path, load]) => [path, await load()])))
+  : {};
+const placeId = (path: string) => path.split('/').at(-2) as PlaceId;
+const modulePath = (id: PlaceId) => `../places/${id}/index.tsx`;
+const caches = new WeakMap<PlaceLoaders, Map<string, Promise<PlaceModule>>>();
 
-export const PLACES: Readonly<Record<PlaceId, PlaceModule>> = { today, chats, team, work, clients, money, apps, connections, business, onboarding, approve };
+/** Pages, sheets and idle prefetch share one promise. A failure is forgotten so a press can retry it. */
+function loadModule(path: string, loaders: PlaceLoaders): Promise<PlaceModule> {
+  let cache = caches.get(loaders);
+  if (!cache) { cache = new Map(); caches.set(loaders, cache); }
+  let pending = cache.get(path);
+  if (!pending) {
+    pending = Promise.resolve().then(() => {
+      const loader = loaders[path];
+      if (!loader) throw new Error('Missing page loader');
+      return loader();
+    }).catch(error => { cache!.delete(path); throw error; });
+    cache.set(path, pending);
+  }
+  return pending;
+}
+function loadWithText(path: string, loaders: PlaceLoaders): Promise<PlaceModule> {
+  return Promise.all([loadModule(path, loaders), loadText(placeId(path))]).then(([module]) => module);
+}
+export function loadPlace(id: PlaceId): Promise<PlaceModule> { return loadWithText(modulePath(id), PLACE_LOADERS); }
+export function placesFor(mode: 'eager' | 'lazy', loaders: PlaceLoaders = PLACE_LOADERS): Readonly<Record<PlaceId, PlaceModule>> {
+  if (mode === 'eager') return Object.fromEntries(Object.entries(EAGER_PLACES).map(([path, module]): [PlaceId, PlaceModule] => [placeId(path), module])) as Record<PlaceId, PlaceModule>;
+  return Object.fromEntries(Object.keys(loaders).map(path => [placeId(path), {
+    Place: chunkComponent(async () => (await loadWithText(path, loaders)).Place),
+  }])) as Record<PlaceId, PlaceModule>;
+}
+export function sheetsFor(mode: 'eager' | 'lazy', loaders: PlaceLoaders = PLACE_LOADERS): Readonly<Record<string, SheetComponent>> {
+  if (mode === 'eager') return Object.assign({}, ...Object.values(EAGER_PLACES).map(place => place.sheets ?? {}), BASE_SHEETS);
+  return { ...Object.fromEntries(Object.entries(SHEET_OWNERS).map(([kind, owner]) => [kind,
+    chunkComponent<SheetComponentProps>(async () => {
+      const sheet = (await loadWithText(modulePath(owner), loaders)).sheets?.[kind];
+      if (!sheet) throw new Error('Missing sheet in its page');
+      return sheet;
+    }),
+  ])), ...BASE_SHEETS };
+}
+const mode = import.meta.env.MODE === 'test' ? 'eager' : 'lazy';
+export const PLACES = placesFor(mode);
+export const SHEETS = sheetsFor(mode);
+const onboarding = EAGER_PLACES[modulePath('onboarding')];
+export const FirstRun = import.meta.env.MODE === 'test' ? onboarding!.FirstRun! : chunkComponent(async () => ((await loadPlace('onboarding')) as OnboardingModule).FirstRun);
+export const Welcome = import.meta.env.MODE === 'test' ? onboarding!.Welcome! : chunkComponent(async () => ((await loadPlace('onboarding')) as OnboardingModule).Welcome);
 
-/** All sheet kinds: the foundation's, then each place's. A place may not replace `run` or `receipt`. */
-export const SHEETS: Readonly<Record<string, SheetComponent>> = Object.assign(
-  {},
-  ...Object.values(PLACES).map((place) => place.sheets ?? {}),
-  BASE_SHEETS,
-);
+/** First draw, then idle. Only navigation places are fetched; their words wait until they are opened. */
+export function prefetchPlaces(loaders: PlaceLoaders = PLACE_LOADERS): () => void {
+  let idle: number | undefined, timer: ReturnType<typeof setTimeout> | undefined;
+  let cancelled = false;
+  const run = () => {
+    if (cancelled) return;
+    for (const id of new Set([...RAIL_PLACES, ...TAB_PLACES])) void loadModule(modulePath(id), loaders).catch(() => {});
+  };
+  const frame = requestAnimationFrame(() => {
+    if (typeof requestIdleCallback === 'function') idle = requestIdleCallback(run);
+    else timer = setTimeout(run, 50);
+  });
+  return () => {
+    cancelled = true;
+    cancelAnimationFrame(frame);
+    if (idle !== undefined && typeof cancelIdleCallback === 'function') cancelIdleCallback(idle);
+    if (timer !== undefined) clearTimeout(timer);
+  };
+}

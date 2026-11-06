@@ -7,7 +7,7 @@
  * only. On the hosted app only the open business shows. Times read in Kolkata, as the sample businesses are in India.
  */
 
-import { formatMoment, formatUsd, ownerZone } from '../../../../platform/runtime/owner-format';
+import { formatMoment, formatUsd, ownerZone } from '../../../../platform/shared/owner-format.ts';
 import { EngineError, type AcrossLeftOut, type AcrossMoneyView, type AcrossRunsView, type AgingView, type GoalView, type MoneyOverview, type ReceiptLite, type SpendLead, type SpendPolicyView } from './types';
 import { inr } from './fake-money';
 import type { W4DeskHost } from './fake-w4';

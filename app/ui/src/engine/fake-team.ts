@@ -16,7 +16,7 @@
  * business, ₹60.10 at that rate), split the way the engine splits it; the receipts this desk makes are served by `receipt`.
  */
 
-import { formatUsd } from '../../../../platform/runtime/owner-format';
+import { formatUsd } from '../../../../platform/shared/owner-format.ts';
 import { EngineError, type AgentHealth, type AgentView, type DepartmentId, type DepartmentSpend, type DepartmentView, type KeeperJobView, type ModelStatusLite, type ReceiptLite, type RunSummary, type SeriesPoint, type TeamListView } from './types';
 import type { W4DeskHost } from './fake-w4';
 // 4Z3: which currency leads spend, as the engine's money/spend.ts.

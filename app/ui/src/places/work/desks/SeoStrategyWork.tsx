@@ -6,7 +6,7 @@ import {useDay} from '../../../parts/when';
 import {Tile} from '../../../parts/Tile';
 import {Button} from '../../../parts/Button';
 import type {SeoStrategy,SeoPublication} from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/records';
-import type {SeoWorkItem} from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/work-core';
+import type { SeoWorkItem } from '../../../../../../platform/runtime/venture/playbooks/seo-visibility/work-core.ts';
 import s from './SeoVisibilityDesk.module.css';
 import { Fold } from '../../../parts/Fold';
 import { Select } from '../../../parts/Select';

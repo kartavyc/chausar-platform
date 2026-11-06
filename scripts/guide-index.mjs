@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // C7 task 23: the guide, indexed at build. Splits docs/beta-guide.md by its ## and ### headings and writes
-// platform/runtime/venture/core/guide-data.json: each section's anchor (the same as the guide's own links), title, level,
+// platform/shared/venture/core/guide-data.json: each section's anchor (the same as the guide's own links), title, level,
 // the ## part it sits in, and its words with images left out. In-app help (C7 tasks 24, 25) quotes these words and
 // links to the anchor; nothing is written by a model. --check fails when the data is out of date with the guide.
 // Usage: node scripts/guide-index.mjs [--check] [--guide <file.md>] [--out <file.json>]
@@ -55,7 +55,7 @@ export function guideData(markdown) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const usage = 'Usage: node scripts/guide-index.mjs [--check] [--guide <file.md>] [--out <file.json>]';
-  const args = process.argv.slice(2), options = { check: false, guide: join(root, 'docs', 'beta-guide.md'), out: join(root, 'platform', 'runtime', 'venture', 'core', 'guide-data.json') };
+  const args = process.argv.slice(2), options = { check: false, guide: join(root, 'docs', 'beta-guide.md'), out: join(root, 'platform', 'shared', 'venture', 'core', 'guide-data.json') };
   for (let index = 0; index < args.length; index++) {
     const flag = args[index];
     if (flag === '--check') { options.check = true; continue; }

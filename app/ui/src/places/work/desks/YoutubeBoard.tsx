@@ -7,7 +7,7 @@ import { Button } from '../../../parts/Button';
 import { Count } from '../../../parts/Figure';
 import { Field } from '../../../parts/Field';
 import { Tile, TileHead } from '../../../parts/Tile';
-import type { BoardOutput, YoutubeBoardBody } from '../../../../../../platform/runtime/venture/playbooks/youtube/board-core';
+import type { BoardOutput, YoutubeBoardBody } from '../../../../../../platform/runtime/venture/playbooks/youtube/board-core.ts';
 import s from './YoutubeDesk.module.css';
 import { YoutubeBoardChecks } from './YoutubeBoardChecks';
 import { Fold } from '../../../parts/Fold';

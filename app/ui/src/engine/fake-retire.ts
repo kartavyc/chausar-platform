@@ -11,10 +11,7 @@
  * the fake's receipts, journal, Today rows and notes stay as they were, and Today names the agent with "(retired)".
  */
 
-import {
-  inFlightWords, lastOneLine, NOT_RETIRED, OWNER_HANDOVER, restoredLine, RETIRE_CHOOSE, RETIRE_KEPT_LINE, RETIRE_RUN_WORDS, RETIRE_STALE, RETIRED_LINE,
-  RETIRED_SUFFIX, retiredLine, SHELF_THREAD_LINE, shelfLine,
-} from '../../../../platform/runtime/venture/agents/retired-words';
+import { inFlightWords, lastOneLine, NOT_RETIRED, OWNER_HANDOVER, restoredLine, RETIRE_CHOOSE, RETIRE_KEPT_LINE, RETIRE_RUN_WORDS, RETIRE_STALE, RETIRED_LINE, RETIRED_SUFFIX, retiredLine, SHELF_THREAD_LINE, shelfLine } from '../../../../platform/shared/venture/agents/retired-words.ts';
 import {
   EngineError, type AgentNotesView, type AgentThreadView, type AgentView, type QueueRow, type RetireCheckView, type RetiredAgentView, type RoutineView,
   type RunSummary, type StandingOrdersView, type TeamListView,

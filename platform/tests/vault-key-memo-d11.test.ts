@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 test('the key memo is a constructor-only test option absent from production entrypoints and environment settings', async () => {
-  const engine = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
+  const engine = await readFile(new URL('../runtime/engine/shared.ts', import.meta.url), 'utf8');
   assert.ok(/kdfMemo\?:/.test(engine), 'Engine exposes the explicit test-only memo option');
   for (const file of ['../runtime/worker.ts', '../runtime/server.ts', '../runtime/hosted/server.ts', '../runtime/config/env.ts']) {
     const source = await readFile(new URL(file, import.meta.url), 'utf8');

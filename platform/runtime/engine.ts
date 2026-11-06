@@ -1,212 +1,189 @@
-import { DRAFT_DESK_METHODS, VENTURE_METHODS, isLegacyMethod } from './method-registry.ts';
-import { markNewCaptureSample, isCaptureSample } from './venture/replay/sample.ts';
+import { isCaptureSample } from './venture/replay/sample.ts';
 import { currentRun } from './venture/replay/scope.ts';
 import { DIGEST_PATTERN } from '../shared/digest.ts';
 import { resolve, join, relative, isAbsolute, basename } from 'node:path';
-import { CLAUDE_INSTALL_WORDS, installClaudeCode, mintClaudeInstallYes, type ClaudeInstallPorts, type ClaudeInstallProgress, type ClaudeInstallResult, type ClaudeInstallView } from './venture/models/claude-code-install.ts';
-import { mkdir, readdir, rmdir, unlink } from 'node:fs/promises';
-import { randomBytes } from 'node:crypto';
+import { CLAUDE_INSTALL_WORDS, installClaudeCode, mintClaudeInstallYes, type ClaudeInstallProgress, type ClaudeInstallResult, type ClaudeInstallView } from './venture/models/claude-code-install.ts';
+import { readdir } from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { STORE_LIMIT_BYTES, Vault, atomicWriteText, readBoundedText, safeDirectory, type EncryptedSnapshotAdapter, type VaultWriterGuard, type KdfMemo } from './vault.ts';
+import { Vault, atomicWriteText, safeDirectory, type VaultWriterGuard } from './vault.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
-import { OntologyService } from './ontology.ts';
-import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
 import { MemoryService } from './memory.ts';
-import { canSeeFact } from './memory.ts';
-import { CalculatorService, type CalculatorOptions, type CalculationRequest, type CalculationReceipt } from './calculator.ts';
-import { explainAnswerRecovery, assertPreparedAnswerRecoveryCurrent, completeAnswerRecovery, type AnswerRecoveryEvidence, type PreparedAnswerRecovery, type CompletedAnswerRecovery } from './answer-recovery.ts';
-import { ForecastService } from './forecast-service.ts';
-import { AlertsService } from './alerts.ts';
-import { ReportService, type ReportOptions } from './reports.ts';
-import { createJournalExecutionResolver } from './journal-execution.ts';
-import { BridgeService, type BridgeServiceOptions } from './bridge-service.ts';
-import { InvestigationService } from './investigations.ts';
+import { CalculatorService, type CalculationReceipt } from './calculator.ts';
+import { type AnswerRecoveryEvidence, type PreparedAnswerRecovery, type CompletedAnswerRecovery } from './answer-recovery.ts';
 import { PostgresInvestigationSearch } from './investigation-search.ts';
-import { ResearchSearchService, type ResearchSearchPort } from './research-search.ts';
-import { TrustService, sourceAllowed, assertSourceAccess } from './trust.ts';
+import { type ResearchSearchPort } from './research-search.ts';
 import { ModelGateway } from './gateway.ts';
-import type { GatewayOptions } from './gateway.ts';
-import type { ReviewedConversationCalculationParameters } from './conversation-calculation-arguments.ts';
-
-import { ConversationHistoryService, createCalculationAnswerRecord, conversationRecordIntegrity } from './conversation-history.ts';
-import { ConversationSynthesisHost } from './conversation-synthesis-host.ts';
-import { installedConversationSynthesisCodec } from './conversation-synthesis-codec.ts';
-import type { ConversationSynthesisCodec } from './conversation-synthesis-contract.ts';
-import { assertBusinessContextCurrent, renderBusinessAnswer, BusinessProfileService, type BusinessContextHooks, type BusinessContextManifest } from './conversation-context.ts';
-import { SpeechService, type SpeechOptions } from './speech.ts';
-import { AuthService } from './auth.ts';
+import { type BusinessContextManifest } from './conversation-context.ts';
 import { PhoneSessionService } from './engine-phone-sessions.ts';
 import { EnginePhoneRuntime } from './engine-phone-runtime.ts';
-import { createPhoneHttpHandler } from './phone/host.ts';
-import { requirePhone } from './phone/contracts.ts';
-import { preferenceChange, readAppPreferences, writeAppPreferences } from './app-preferences.ts';
 import { WorkProgress } from './work-progress.ts';
 import type { WorkKind } from './venture/views/work-steps.ts';
 import type { Brief, ChatAnswer } from './phone/contracts.ts';
-import { SyncService, type SyncOptions } from './sync.ts';
-import { writerStateDigest, type SyncWriterAdmission } from './sync-writer-admission.ts';
-import { ActionService, digest } from './actions.ts';
+import { writerStateDigest } from './sync-writer-admission.ts';
 import { JobService } from './jobs.ts';
-import { createEngineJobRunner, type EngineJobOptions, type JobLifecycle } from './engine-jobs.ts';
+import { type JobLifecycle } from './engine-jobs.ts';
 import type { Job } from './jobs.ts';
-import type { CalendarRules } from './calendar-zone.ts';
-import type { CalendarBounds } from './calendar.ts';
-import { PluginService } from './plugins.ts';
-import { LearningService } from './learning.ts';
-import { MCPService } from './mcp.ts';
-import { ConnectorService, type CredentialBroker } from './connectors.ts';
-import { EngineConnectorService, type EngineConnectorOptions } from './engine-connectors.ts';
-import { PrivateTrialHostService } from './private-trial-host.ts';
 import type { PrivateTrialAtomicPublication } from './private-trial-host.ts';
 import type { PrivateTrialRecipeEvidence } from './private-trial-contracts.ts';
-import { producerReplacementPins, producerReplacementOutputDigest, publishProducerReplacement } from './producer-replacement.ts';
-import { WorkspaceInterchangeHost } from './workspace-interchange-host.ts';
-import { createWorkspaceInterchangeLocalPorts } from './workspace-interchange-local.ts';
-import { WorkspaceBackupV2Host, type WorkspaceBackupV2Budgets, type WorkspaceBackupV2ExternalKeyRequirement } from './workspace-backup-v2.ts';
-import { createWorkspaceBackupV2LocalPorts, type WorkspaceBackupV2FilesystemBudgets } from './workspace-backup-local.ts';
-import { EngineWorkspaceActivation, type EngineWorkspaceActivationOptions } from './workspace-activation-engine.ts';
-import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
-import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
-import { AnalyticalHelper } from './helper.ts';
-import { ReleaseUpdater, compareVersions } from './updater.ts';
-import { UpdateService, type UpdateServiceOptions } from './update-service.ts';
-import { authorize, audit, check, ChausarError, hash, InternalError, internalCheck, newId, now, type Context, type State, type StateStore } from './contracts.ts';
-import type { BusinessSnapshot, BusinessSnapshotRead, SecretShelf, VentureClosingPort, VentureFrame, VentureHostOptions, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
+import { WorkspaceBackupV2Host } from './workspace-backup-v2.ts';
+import { EngineWorkspaceActivation } from './workspace-activation-engine.ts';
+import { compareVersions } from './updater.ts';
+import { UpdateService } from './update-service.ts';
+import { authorize, check, ChausarError, hash, InternalError, internalCheck, now, type Context, type State, type StateStore } from './contracts.ts';
+import type { BusinessSnapshotRead, SecretShelf, VentureClosingPort, VentureFrame, VentureRunEvent, VentureWorkspacePort } from './venture/contracts.ts';
 import type { DraftHandoverPort } from './venture/onboarding-contracts.ts';
-import { deviceKeyFailed, deviceKeysUnavailable, noDeviceKeyStore, osDeviceKeyStore, type DeviceKeyRecord, type DeviceKeyStore, type ProbeResult } from './device-custody.ts';
-import { DriveBackup, driveClientOfBuild, type DriveEndpoints, type DriveTokens } from './drive-backup.ts';
-import { type BackupCopySetting, CustodyFiles, MANAGED_COPY_TAIL, backupDue, backupName, computerView, keepBackups, makeTransferCode, newCard, nextBackupAt, nextFolder,
-  normalizeTransferCode, parseBackupName, slugFolder, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
-import { aiSetupFile, forgetAiSetup } from './venture/models/ai-setup-file.ts';
+import { type DeviceKeyRecord, type DeviceKeyStore } from './device-custody.ts';
+import { DriveBackup } from './drive-backup.ts';
+import { CustodyFiles, MANAGED_COPY_TAIL, backupName, type BackupSchedule, type VaultCard } from './workspace-custody.ts';
+import { aiSetupFile } from './venture/models/ai-setup-file.ts';
 import { cliLookFile, cliLookPath } from './venture/models/cli-look-file.ts';
-import { BACKUP_AFTER_METHODS, CUSTODY_WORDS, TRANSFER, exportFileName, moveFileName, type BackupCopyView, type BackupInspectView, type BackupKind, type BackupView, type CopyImportResult, type CustodyView, type DriveStatus, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
-import { SNAPSHOT_FORMAT, WorkspaceSnapshots, snapshotDue } from './workspace-snapshots.ts';
-
-/** The engine's view of the draft desk (platform/runtime/venture/draft/): AI and plan state before any vault exists. */
-type DraftDeskHandle = {
-  sampleState(authority: StateStore, state?: State): Promise<State>;
-  request(ctx: Context, method: string, payload: unknown): Promise<unknown>;
-  /** workspace.create succeeded: reset and pause the idle timer while the owner keeps the plan safe. */
-  hold(): void;
-  /** Wipes keys, records and the compose session. */
-  clear(): void;
-  handover: DraftHandoverPort;
-};
-
-export type EngineBackupCustodyOptions = {
-  budgets?: WorkspaceBackupV2Budgets; filesystemBudgets?: WorkspaceBackupV2FilesystemBudgets;
-  externalKeyRequirements?: WorkspaceBackupV2ExternalKeyRequirement[];
-  /** Trusted installed host capability, never supplied by an RPC payload. */
-  withCompleteOwner?<T>(context: Context, historical: State, work: (assertCurrent: () => void) => Promise<T>): Promise<T>;
-};
-export type EngineOptions = { kdfMemo?: KdfMemo; capture?: { dir: string }; directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
-  /** Trusted local composition: how the speech service starts the local whisper.cpp (tests inject a stand-in). */
-  speech?: SpeechOptions;
-  /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
-  workspaceActivation?: EngineWorkspaceActivationOptions;
-  workspaceAuthority?: {workspaceId: string; ownerId: string; vaultId?: string};
-  venture?: VentureHostOptions;
-  /** Trusted host composition, never from an RPC: with storage 'postgres', the PostgreSQL vault adapter for a workspace
-   * folder, over a pool the host owns. The hosted server uses it for one slot per business (hosted/runtime/business.ts). */
-  vaultStorage?: (folder: string) => Promise<EncryptedSnapshotAdapter>;
-  /** Trusted host composition (server.ts, worker.ts): keep each business's vault key with this computer's login and
-   * write automatic encrypted backups. Absent: today's behaviour, a passphrase for every vault and no automatic backups. */
-  workspaceCustody?: { deviceKeys: 'os' | 'none' | DeviceKeyStore; autoBackups: boolean; clock?: () => number };
-  /** D5: Install Claude Code. Only the desktop worker passes this, with the real ports; a test passes fakes. Absent: refused. */
-  claudeInstall?: { host: 'desktop' | 'hosted-web'; ports: ClaudeInstallPorts; platform?: NodeJS.Platform; environment?: NodeJS.ProcessEnv; onFound?: (path: string) => void };
-  /** C5 task 31: the daily update check: main hands the worker the build's key, feed and folder (update-service.ts). Tests add seams. */
-  updates?: Omit<UpdateServiceOptions, 'version' | 'isBusy'>;
-  /** C5 task 24: the Google client, for tests; a build's comes from package.json. tokens: where tests keep the refresh token. */
-  drive?: { clientId: string | null; clientSecret?: string | null; endpoints?: DriveEndpoints; tokens?: DriveTokens; chunkBytes?: number };
-};
-// Operational admission ceilings reject the complete operation; no namespace is truncated.
-const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
-  maxEntryBytes: 16 * 1024 * 1024, maxTotalEntryBytes: 16 * 1024 * 1024, maxEntries: 4096, maxJsonDepth: 128, maxJsonNodes: 200_000 };
-const defaultBackupFilesystemBudgets: WorkspaceBackupV2FilesystemBudgets = { maxFiles: 8192, maxBytes: 128 * 1024 * 1024, maxDepth: 16 };
-/** How often the scheduler tick sweeps the venture action journal (venture/build/journal-sweep.ts). */
-const JOURNAL_SWEEP_EVERY_MS = 5 * 60_000;
-/**
- * How often the scheduler tick lets the notification centre look at Today (venture/notify/centre.ts, Ink v2 wave 4 4G1):
- * a little under a minute, so the hosted app's 60 s housekeeping tick looks every time, never every other minute (4G3).
- */
-export const NOTIFY_EVERY_MS = 55_000;
-
-/** Trusted host result. Identifiers and private scope are not automatic outbound disclosure. */
-export type ConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
-  sourceIds: string[]; requestScope: BusinessContextManifest['request'] | Record<string, unknown>; digest: string;
-  exchanges?: { question: string; clarification: string }[]; reviewedCalculationParameters?: ReviewedConversationCalculationParameters };
-
-export type AnswerRecoveryRecord = { id: string; type: 'answer-recovery-request-v1'; workspaceId: string; memberId: string; epoch: number;
-  at: string; preparation: PreparedAnswerRecovery; evidencePin: string; dictionary: { hash: string; version: number };
-  status: 'prepared' | 'completed'; lineage?: CompletedAnswerRecovery; integrity: string };
-function answerRecoveryRecordIntegrity(record: Omit<AnswerRecoveryRecord, 'integrity'> | AnswerRecoveryRecord) {
-  // Other output-management flows may add staleness labels. Those labels grant no recovery authority.
-  return hash({ id: record.id, type: record.type, workspaceId: record.workspaceId, memberId: record.memberId, epoch: record.epoch,
-    at: record.at, preparation: record.preparation, evidencePin: record.evidencePin, dictionary: record.dictionary,
-    status: record.status, lineage: record.lineage ?? null });
-}
-
-/** The sole product authority. The renderer receives named, bounded results only. */
-/** The recovery state a move file says it carries (plaintext metadata, written by transfer.export). */
-function transferHint(parsed: any): RecoveryState {
-  return parsed?.transfer?.format === 'chausar.transfer.v1' && ['made', 'not-made'].includes(parsed.transfer.recovery) ? parsed.transfer.recovery : 'unknown';
-}
-/** C4 task 38: when the newest move file was made, unless the owner dismissed the line after it. */
-function moveMadeOf(activity: readonly { at: string; event: string }[]): string | null {
-  let made: string | null = null;
-  for (const item of activity) {
-    if (item.event === 'custody.transfer-exported') made = item.at;
-    else if (item.event === 'custody.transfer-dismissed') made = null;
-  }
-  return made;
-}
-
-/** C5 task 23: the card's copy setting as the window may see it: the folder's last name, never its path. */
-function copyViewOf(copy: BackupCopySetting | null | undefined): BackupCopyView | null {
-  return copy ? { folderName: copy.folder.split(/[\\/]/).filter(Boolean).pop() ?? copy.folder, lastCopiedAt: copy.lastCopiedAt, problem: copy.problem } : null;
-}
-
-
-/** Bound private capabilities for the older dispatch surface, never an RPC payload. */
-export type LegacyInternals = {
-  store: Vault;
-  context: Context;
-  services: Engine['services'];
-  journalPayload: Engine['journalPayload'];
-  privateRestatementContext: Engine['privateRestatementContext'];
-  companionRuntime: Engine['companionRuntime'];
-  writerStatus: Engine['writerStatus'];
-  writerConfiguration: Engine['writerConfiguration'];
-  workspacePath: Engine['workspacePath'];
-  adapter: Engine['adapter'];
-  visibleImports: Engine['visibleImports'];
-  visibleActivity: Engine['visibleActivity'];
-  executeConversationPlan: Engine['executeConversationPlan'];
-  retainConversationAnswer: Engine['retainConversationAnswer'];
-  purgeManagedCopies: Engine['purgeManagedCopies'];
-  answerRecoveryEvidence: Engine['answerRecoveryEvidence'];
-  answerRecoveryView: Engine['answerRecoveryView'];
-  answerRecoveryCalculator: Engine['answerRecoveryCalculator'];
-  answerRecoveryRead: Engine['answerRecoveryRead'];
-  executeAnswerRecovery: Engine['executeAnswerRecovery'];
-  workbookBytes: Engine['workbookBytes'];
-  workbookInput: Engine['workbookInput'];
-  journalWriter: Engine['journalWriter'];
-  journalRevision: Engine['journalRevision'];
-  createBriefJob: Engine['createBriefJob'];
-  jobRunner: Engine['jobRunner'];
-  typedJob: Engine['typedJob'];
-  runJob: Engine['runJob'];
-  openUnlock: UnlockMode | null;
-  stageVault(vault: Vault): void;
-  jobLifecycle: JobLifecycle;
-  recordIntegrity: typeof answerRecoveryRecordIntegrity;
-};
-
-const DRAFT_DESK_DISPATCH: ReadonlySet<string> = new Set(DRAFT_DESK_METHODS);
-const VENTURE_DISPATCH: ReadonlySet<string> = new Set(VENTURE_METHODS);
+import { BACKUP_AFTER_METHODS, type BackupCopyView, type BackupInspectView, type BackupKind, type BackupView, type CopyImportResult, type CustodyView, type DriveStatus, type RecoveryState, type UnlockMode } from './workspace-custody-contracts.ts';
+import { WorkspaceSnapshots } from './workspace-snapshots.ts';
+import { type DraftDeskHandle, type EngineBackupCustodyOptions, type EngineOptions, JOURNAL_SWEEP_EVERY_MS, NOTIFY_EVERY_MS, type ConversationContinuation, type AnswerRecoveryRecord, answerRecoveryRecordIntegrity, type LegacyInternals } from './engine/shared.ts';
+export type { EngineOptions, EngineBackupCustodyOptions, ConversationContinuation, AnswerRecoveryRecord, LegacyInternals } from './engine/shared.ts';
+export { NOTIFY_EVERY_MS } from './engine/shared.ts';
+import type { EngineInternals } from './engine/internals.ts';
+import { ENGINE_HANDLERS } from './engine/dispatch.ts';
+import { unknownRequest } from './engine/admission.ts';
+import * as conversation from './engine/conversation.ts';
+import * as services from './engine/services.ts';
+import * as legacy_operations from './engine/legacy-operations.ts';
+import * as custody from './engine/custody.ts';
 export class Engine {
+  /** Private composition only. No capability object is returned by a request. */
+  #internals: EngineInternals = (() => { const engine = this; return {
+    engine,
+    get privateActiveRequests() { return engine.#activeRequests; }, set privateActiveRequests(value) { engine.#activeRequests = value; },
+    privateAiSetup: engine.#aiSetup.bind(engine),
+    get privateAnswerRecoveryExecutions() { return engine.#answerRecoveryExecutions; }, set privateAnswerRecoveryExecutions(value) { engine.#answerRecoveryExecutions = value; },
+    get privateBaseContext() { return engine.#baseContext; }, set privateBaseContext(value) { engine.#baseContext = value; },
+    get privateClaudeProgress() { return engine.#claudeProgress; }, set privateClaudeProgress(value) { engine.#claudeProgress = value; },
+    get privateClosedByOwner() { return engine.#closedByOwner; }, set privateClosedByOwner(value) { engine.#closedByOwner = value; },
+    get privateClosing() { return engine.#closing; }, set privateClosing(value) { engine.#closing = value; },
+    get privateCompanion() { return engine.#companion; }, set privateCompanion(value) { engine.#companion = value; },
+    get privateCustody() { return engine.#custody; }, set privateCustody(value) { engine.#custody = value; },
+    get privateCustodyChain() { return engine.#custodyChain; }, set privateCustodyChain(value) { engine.#custodyChain = value; },
+    get privateCustodyFiles() { return engine.#custodyFiles; }, set privateCustodyFiles(value) { engine.#custodyFiles = value; },
+    get privateDraft() { return engine.#draft; }, set privateDraft(value) { engine.#draft = value; },
+    privateDraftDesk: engine.#draftDesk.bind(engine),
+    get privateDrive() { return engine.#drive; }, set privateDrive(value) { engine.#drive = value; },
+    privateOneStep: engine.#oneStep.bind(engine),
+    get privateOpenFolder() { return engine.#openFolder; }, set privateOpenFolder(value) { engine.#openFolder = value; },
+    get privateOpenUnlock() { return engine.#openUnlock; }, set privateOpenUnlock(value) { engine.#openUnlock = value; },
+    get privateSchedule() { return engine.#schedule; }, set privateSchedule(value) { engine.#schedule = value; },
+    get privateSnapshotMark() { return engine.#snapshotMark; }, set privateSnapshotMark(value) { engine.#snapshotMark = value; },
+    get privateSnapshots() { return engine.#snapshots; }, set privateSnapshots(value) { engine.#snapshots = value; },
+    get privateStopWork() { return engine.#stopWork; }, set privateStopWork(value) { engine.#stopWork = value; },
+    get privateTransition() { return engine.#transition; }, set privateTransition(value) { engine.#transition = value; },
+    get privateUnknownAnswerRecoveries() { return engine.#unknownAnswerRecoveries; }, set privateUnknownAnswerRecoveries(value) { engine.#unknownAnswerRecoveries = value; },
+    get privateVenture() { return engine.#venture; }, set privateVenture(value) { engine.#venture = value; },
+    privateVentureHost: engine.#ventureHost.bind(engine),
+    privateVentureModule: engine.#ventureModule.bind(engine),
+    get privateVenturePromise() { return engine.#venturePromise; }, set privateVenturePromise(value) { engine.#venturePromise = value; },
+    get privateVentureWorkspace() { return engine.#ventureWorkspace; }, set privateVentureWorkspace(value) { engine.#ventureWorkspace = value; },
+    get privateWork() { return engine.#work; }, set privateWork(value) { engine.#work = value; },
+    privateWorkBusiness: engine.#workBusiness.bind(engine),
+    activationHost: engine.activationHost.bind(engine),
+    adapter: engine.adapter.bind(engine),
+    afterOpen: engine.afterOpen.bind(engine),
+    answerRecoveryCalculator: engine.answerRecoveryCalculator.bind(engine),
+    answerRecoveryEvidence: engine.answerRecoveryEvidence.bind(engine),
+    answerRecoveryOwner: engine.answerRecoveryOwner.bind(engine),
+    answerRecoveryRead: engine.answerRecoveryRead.bind(engine),
+    answerRecoveryRecord: engine.answerRecoveryRecord.bind(engine),
+    answerRecoveryView: engine.answerRecoveryView.bind(engine),
+    assertRestatementCustodyRetained: engine.assertRestatementCustodyRetained.bind(engine),
+    attach: engine.attach.bind(engine),
+    attachSafely: engine.attachSafely.bind(engine),
+    backupCompleteOwner: engine.backupCompleteOwner.bind(engine),
+    backupCopyTo: engine.backupCopyTo.bind(engine),
+    backupHost: engine.backupHost.bind(engine),
+    backupList: engine.backupList.bind(engine),
+    backupView: engine.backupView.bind(engine),
+    builtinActions: engine.builtinActions.bind(engine),
+    closeVault: engine.closeVault.bind(engine),
+    closingBackup: engine.closingBackup.bind(engine),
+    companionAnswerText: engine.companionAnswerText.bind(engine),
+    companionBriefs: engine.companionBriefs.bind(engine),
+    companionConversation: engine.companionConversation.bind(engine),
+    companionRuntime: engine.companionRuntime.bind(engine),
+    computerSecret: engine.computerSecret.bind(engine),
+    get context() { return engine.context; }, set context(value) { engine.context = value; },
+    conversationContinuation: engine.conversationContinuation.bind(engine),
+    copyBackupOut: engine.copyBackupOut.bind(engine),
+    currentCard: engine.currentCard.bind(engine),
+    currentWorkspaceOwner: engine.currentWorkspaceOwner.bind(engine),
+    custodyFiles: engine.custodyFiles.bind(engine),
+    custodyHost: engine.custodyHost.bind(engine),
+    custodyNow: engine.custodyNow.bind(engine),
+    custodySerial: engine.custodySerial.bind(engine),
+    custodyView: engine.custodyView.bind(engine),
+    driveBackupOut: engine.driveBackupOut.bind(engine),
+    driveNote: engine.driveNote.bind(engine),
+    driveOf: engine.driveOf.bind(engine),
+    driveStatus: engine.driveStatus.bind(engine),
+    existingComputerSecret: engine.existingComputerSecret.bind(engine),
+    forgetBusiness: engine.forgetBusiness.bind(engine),
+    forgetKeyIfUnused: engine.forgetKeyIfUnused.bind(engine),
+    handleRequest: engine.handleRequest.bind(engine),
+    importCopy: engine.importCopy.bind(engine),
+    inspectManagedBackup: engine.inspectManagedBackup.bind(engine),
+    interchangeOwner: engine.interchangeOwner.bind(engine),
+    jobRunner: engine.jobRunner.bind(engine),
+    journalPayload: engine.journalPayload.bind(engine),
+    labelledBackups: engine.labelledBackups.bind(engine),
+    legacyInternals: engine.legacyInternals.bind(engine),
+    loadSchedule: engine.loadSchedule.bind(engine),
+    makeRecoveryCode: engine.makeRecoveryCode.bind(engine),
+    managedExports: engine.managedExports.bind(engine),
+    migrationBackup: engine.migrationBackup.bind(engine),
+    neverContactReset: engine.neverContactReset.bind(engine),
+    noteLiveVersion: engine.noteLiveVersion.bind(engine),
+    noteMigrated: engine.noteMigrated.bind(engine),
+    notifyIdle: engine.notifyIdle.bind(engine),
+    get options() { return engine.options; }, set options(value) { engine.options = value; },
+    passphraseOff: engine.passphraseOff.bind(engine),
+    passphraseOn: engine.passphraseOn.bind(engine),
+    privatePromotionImpact: engine.privatePromotionImpact.bind(engine),
+    privateRecipeEvidence: engine.privateRecipeEvidence.bind(engine),
+    privateSearchAdapter: engine.privateSearchAdapter.bind(engine),
+    promotePrivateTrial: engine.promotePrivateTrial.bind(engine),
+    purgeManagedCopies: engine.purgeManagedCopies.bind(engine),
+    removeEmptyFolder: engine.removeEmptyFolder.bind(engine),
+    requestAs: engine.requestAs.bind(engine),
+    requireAppOwner: engine.requireAppOwner.bind(engine),
+    requireWorkspaceOwner: engine.requireWorkspaceOwner.bind(engine),
+    resealManaged: engine.resealManaged.bind(engine),
+    resetCustodySession: engine.resetCustodySession.bind(engine),
+    resolveContinuationTurn: engine.resolveContinuationTurn.bind(engine),
+    restoreFromCopy: engine.restoreFromCopy.bind(engine),
+    restoreManagedBackup: engine.restoreManagedBackup.bind(engine),
+    retainConversationAnswer: engine.retainConversationAnswer.bind(engine),
+    safetyBackup: engine.safetyBackup.bind(engine),
+    get services() { return engine.services; }, set services(value) { engine.services = value; },
+    snapshotReads: engine.snapshotReads.bind(engine),
+    snapshotStore: engine.snapshotStore.bind(engine),
+    snapshotWanted: engine.snapshotWanted.bind(engine),
+    storageKind: engine.storageKind.bind(engine),
+    store: engine.store.bind(engine),
+    storeComputerSecret: engine.storeComputerSecret.bind(engine),
+    transferExport: engine.transferExport.bind(engine),
+    transferImport: engine.transferImport.bind(engine),
+    transferPeek: engine.transferPeek.bind(engine),
+    undoLockChange: engine.undoLockChange.bind(engine),
+    updateService: engine.updateService.bind(engine),
+    get vault() { return engine.vault; }, set vault(value) { engine.vault = value; },
+    get version() { return engine.version; },
+    whatsNew: engine.whatsNew.bind(engine),
+    withContext: engine.withContext.bind(engine),
+    workbookBytes: engine.workbookBytes.bind(engine),
+    workspacePath: engine.workspacePath.bind(engine),
+    writeBackup: engine.writeBackup.bind(engine),
+    writeSnapshot: engine.writeSnapshot.bind(engine),
+    writerGuard: engine.writerGuard.bind(engine),
+    }; })();
+
   options: EngineOptions;
   readonly version: string;
   vault: Vault | null = null;
@@ -400,256 +377,18 @@ export class Engine {
   }
   constructor(options: EngineOptions) { this.version = options.version ?? '0.1.0-preview.1'; compareVersions(this.version, this.version); this.options = { ...options, directory: resolve(options.directory) }; }
   /** Resolve retained objective text only through current private authority. No inference or resend. */
-  conversationContinuation(ctx: Context, id: string, view: StateStore = this.store(), resolvedByModelReceiptId?: string): ConversationContinuation {
-    authorize(view, ctx);
-    const state = view.read(), records = state.conversations.filter(record => record?.id === id), record = records[0];
-    const unavailable = 'CONVERSATION_CONTINUATION_UNAVAILABLE';
-    check(typeof id === 'string' && records.length === 1 && record?.kind === 'conversation-clarification-answer'
-      && record.memberId === ctx.memberId && record.epoch === ctx.epoch && record.integrity === conversationRecordIntegrity(record), unavailable, 'This pending clarification is unavailable.');
-    check(typeof record.question === 'string' && record.question.trim().length > 0 && record.question.length <= 8000
-      && Number.isFinite(Date.parse(record.at)) && Number.isFinite(state.policy.retentionDays) && state.policy.retentionDays >= 0
-      && Date.parse(record.at) >= Date.now() - state.policy.retentionDays * 86400000, unavailable, 'This pending clarification is unavailable.');
-    const model = this.services.gateway.assertConversationReceipt(ctx, record.modelReceiptId, view);
-    const models = state.modelReceipts.filter(item => item?.id === record.modelReceiptId);
-    check(models.length === 1 && hash(models[0]) === hash(model), unavailable, 'This pending clarification is unavailable.');
-    check(model.naturalQuestion === record.question && model.plan?.kind === 'clarification' && model.businessContext?.request
-      && hash(model.sourceIds) === hash([...(model.reviewedCalculationParameters !== undefined
-        ? model.businessContext.request.sourceIds ?? model.businessContext.sourceIds : model.businessContext.sourceIds)].sort())
-      && model.businessContext.sourceIds.every((sourceId: string) => model.sourceIds.includes(sourceId)), unavailable, 'This pending clarification is unavailable.');
-    const expected = { clarification: model.plan.clarification, modelReceiptId: model.id };
-    check(hash(record.answer) === hash(expected), unavailable, 'This pending clarification is unavailable.');
-    const rowIds = [...new Set<string>([...(model.factIds ?? []), ...(model.rowIds ?? [])])].sort();
-    const sourceIds = [...new Set<string>([...(model.sourceIds ?? []),
-      ...rowIds.map(rowId => state.facts.find(fact => fact.id === rowId)?.sourceId).filter((value): value is string => typeof value === 'string')])].sort();
-    check(hash(record.rowIds) === hash(rowIds) && hash(record.sourceIds) === hash(sourceIds), unavailable, 'This pending clarification is unavailable.');
-    assertSourceAccess(state, ctx, sourceIds);
-    const resolutions = state.conversations.filter(item => item?.kind === 'conversation-continuation-resolved' && item.continuationId === id);
-    if (resolutions.length) {
-      const resolution = resolutions[0], answers = state.conversations.filter(item => item?.id === resolution.answerId), answer = answers[0];
-      check(resolutions.length === 1 && resolution.memberId === ctx.memberId && resolution.epoch === ctx.epoch && resolution.integrity === conversationRecordIntegrity(resolution)
-        && answers.length === 1 && answer.memberId === ctx.memberId && answer.epoch === ctx.epoch && answer.modelReceiptId === resolution.modelReceiptId
-        && answer.integrity === conversationRecordIntegrity(answer), unavailable, 'This clarification has already been continued.');
-      check(resolvedByModelReceiptId !== undefined, 'CONVERSATION_CONTINUATION_RESOLVED', 'This clarification has already been answered. Start a new question.');
-      check(typeof resolvedByModelReceiptId === 'string' && resolution.modelReceiptId === resolvedByModelReceiptId, unavailable, 'This clarification has already been continued by a different turn.');
-    }
-    // Preserve selected zero-row sources separately from observed fact lineage.
-    const selectedSourceIds = [...(model.businessContext.request.sourceIds ?? model.sourceIds)].sort();
-    assertSourceAccess(state, ctx, selectedSourceIds);
-    const prior = model.continuation, exchanges = [...(prior?.exchanges ?? (prior ? [{ question: prior.originalQuestion, clarification: prior.clarification }] : [])),
-      { question: record.question, clarification: model.plan.clarification }];
-    check(exchanges.length <= 8, 'CONVERSATION_CONTINUATION_LIMIT', 'This clarification chain is full. Start a new question.');
-    const body = { schemaVersion: 1 as const, turnId: id, originalQuestion: prior?.originalQuestion ?? record.question, clarification: model.plan.clarification,
-      exchanges, sourceIds: selectedSourceIds, requestScope: structuredClone(model.businessContext.request),
-      ...(model.reviewedCalculationParameters !== undefined ? { reviewedCalculationParameters: structuredClone(model.reviewedCalculationParameters) } : {}) };
-    check(Buffer.byteLength(JSON.stringify(body)) <= 65536, 'CONVERSATION_CONTINUATION_LIMIT', 'This clarification context is too long. Start a new question.');
-    return { ...body, digest: hash(body) };
-  }
-  private resolveContinuationTurn(ctx: Context, model: any, answerId: string, state: ReturnType<StateStore['read']>) {
-    if (model.continuationId === undefined) return;
-    const store = this.store(), view = { read: () => state, update: store.update.bind(store) };
-    // The resulting answer and consumption marker commit together. Failure leaves the objective pending.
-    const continuation = this.conversationContinuation(ctx, model.continuationId, view);
-    check(continuation.digest === model.continuationDigest && hash(continuation) === hash(model.continuation),
-      'CONVERSATION_CONTINUATION_UNAVAILABLE', 'The pending objective changed before this turn could be retained.');
-    const answer = state.conversations.find(item => item?.id === answerId);
-    check(answer && answer.modelReceiptId === model.id && answer.memberId === ctx.memberId && answer.epoch === ctx.epoch,
-      'CONVERSATION_CONTINUATION_UNAVAILABLE', 'Retain the resulting turn before resolving its clarification.');
-    const record = { id: newId('conversation_resolution'), kind: 'conversation-continuation-resolved', at: now(), memberId: ctx.memberId, epoch: ctx.epoch,
-      continuationId: model.continuationId, answerId, modelReceiptId: model.id,
-      sourceIds: [...new Set<string>([...continuation.sourceIds, ...answer.sourceIds])].sort(), rowIds: [...answer.rowIds] };
-    state.conversations.push({ ...record, integrity: conversationRecordIntegrity(record) });
-  }
-  private async retainConversationAnswer(ctx: Context, question: string, answer: any, manifest?: BusinessContextManifest, modelReceiptId?: string) {
-    const store = this.store(), s = this.services;
-    let result = answer;
-    if (manifest) {
-      const id = newId('business_answer');
-      result = { ...result, id, receipt: { id, kind: 'business-context-receipt', contextDigest: manifest.digest, financialCalculation: false,
-        sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, ...(modelReceiptId ? { modelReceiptId } : {}) } };
-    }
-    const record = await store.update(state => {
-      const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx);
-      let saved: any;
-      if (manifest) {
-        assertBusinessContextCurrent(view, ctx, manifest, s.businessContextHooks);
-        const body = { id: result.id, kind: 'business-context-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question,
-          manifest, answer: structuredClone(result), sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, profileIds: manifest.profileIds };
-        saved = { ...body, integrity: conversationRecordIntegrity(body) };
-      } else {
-        const receiptId = result.receipt?.id ?? (result.figures ? result.id : undefined);
-        saved = receiptId ? createCalculationAnswerRecord(ctx, question, result, s.conversationHistory.currentReceipt(ctx, receiptId, view))
-          : { id: newId('message'), at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question, role: 'user' };
-      }
-      state.conversations.push(saved); return structuredClone(saved);
-    });
-    return { answer: result, record };
-  }
-  private async executeConversationPlan(ctx: Context, request: any, gateway: Extract<Awaited<ReturnType<ModelGateway['execute']>>, { kind: 'conversation' }>) {
-    const s = this.services, store = this.store();
-    const model = s.gateway.assertConversationReceipt(ctx, gateway.receipt.id);
-    if (gateway.plan.kind === 'clarification') {
-      const id = newId('conversation_clarification');
-      const answer = { clarification: gateway.plan.clarification, modelReceiptId: model.id };
-      await store.update(state => {
-        const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx);
-        const current = s.gateway.assertConversationReceipt(ctx, model.id, view);
-        check(current.plan.kind === 'clarification' && current.plan.clarification === answer.clarification, 'PAYLOAD_CHANGED', 'The admitted clarification changed.');
-        const rowIds = [...new Set<string>([...(current.factIds ?? []), ...(current.rowIds ?? [])])].sort();
-        const sourceIds = [...new Set<string>([...(current.sourceIds ?? []),
-          ...rowIds.map(rowId => state.facts.find(fact => fact.id === rowId)?.sourceId).filter((value): value is string => typeof value === 'string')])].sort();
-        const record = { id, kind: 'conversation-clarification-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: request.question,
-          answer, modelReceiptId: current.id, sourceIds, rowIds };
-        state.conversations.push({ ...record, integrity: conversationRecordIntegrity(record) });
-        this.resolveContinuationTurn(ctx, current, id, state);
-      });
-      return answer;
-    }
-    const results: any[] = [], children: any[] = [], resultRefs: { tool: string; answerId: string }[] = [];
-    for (const call of gateway.plan.calls) {
-      s.gateway.assertConversationReceipt(ctx, model.id);
-      try {
-        let answer: any, manifest: BusinessContextManifest | undefined;
-        if (call.tool === 'business.describe') {
-          manifest = model.businessContext;
-          answer = renderBusinessAnswer(store, ctx, manifest!, call.args, s.businessContextHooks);
-        } else {
-          // Source admission precedes version/conflict resolution and arithmetic.
-          // Empty reviewed scopes stay empty; they never mean "all visible".
-          check(model.businessContext?.request
-            && hash(model.sourceIds) === hash([...(model.reviewedCalculationParameters !== undefined
-              ? model.businessContext.request.sourceIds ?? model.businessContext.sourceIds : model.businessContext.sourceIds)].sort())
-            && model.businessContext.sourceIds.every((sourceId: string) => model.sourceIds.includes(sourceId)),
-            'TOOL_SCOPE_CHANGED', 'The calculation source scope no longer matches the exact reviewed source admission.');
-          const scope = model.businessContext.request, args: any = { ...call.args, sourceIds: [...(model.businessContext.request.sourceIds ?? model.sourceIds)] };
-          for (const key of ['period', 'branch'] as const) if (scope[key] !== undefined) {
-            check(args[key] === undefined || hash(args[key]) === hash(scope[key]), 'TOOL_SCOPE_CHANGED', 'The calculation must use the exact reviewed scope.'); args[key] = scope[key];
-          }
-          // Comparison periods and scenario assumptions come only from the admitted
-          // planner arguments, already validated against the exact owner review.
-          for (const key of ['comparePeriod', 'assumptions'] as const) if (args[key] !== undefined)
-            check(model.reviewedCalculationParameters?.[key] !== undefined && hash(args[key]) === hash(model.reviewedCalculationParameters[key]),
-              'TOOL_SCOPE_CHANGED', 'The calculation inputs differ from the exact reviewed owner parameters.');
-          for (const key of ['asOf', 'onDate'] as const) if (scope[key] !== undefined) args[key] = scope[key];
-          answer = await s.calculator.calculate(ctx, args);
-          check(answer.sourceIds.every((id: string) => model.sourceIds.includes(id)) && answer.rowIds.every((id: string) => model.factIds.includes(id)),
-            'TOOL_SCOPE_CHANGED', 'The calculation used evidence outside the reviewed source scope.');
-        }
-        s.gateway.assertConversationReceipt(ctx, model.id);
-        const saved = await this.retainConversationAnswer(ctx, request.question, answer, manifest, model.id);
-        results.push({ tool: call.tool, answer: saved.answer }); children.push(saved.record); resultRefs.push({ tool: call.tool, answerId: saved.record.id });
-      } catch (error) {
-        if (!(error instanceof ChausarError)) throw error;
-        results.push({ tool: call.tool, error: { code: error.code, message: error.message.slice(0, 512) } });
-      }
-      // A scope, grant, route or privacy change withholds the whole response, including earlier results.
-      s.gateway.assertConversationReceipt(ctx, model.id);
-    }
-    const id = newId('conversation_tools');
-    const answer = { id, kind: 'grounded-conversation', results, modelReceiptId: model.id,
-      receipt: { id, kind: 'conversation-tool-receipt', modelReceiptId: model.id, resultRefs } };
-    await store.update(state => {
-      const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx); s.gateway.assertConversationReceipt(ctx, model.id, view);
-      // Readback rechecks each retained child; no recalculation or new provider invocation.
-      for (const ref of resultRefs) s.conversationHistory.get(ctx, ref.answerId);
-      const rowIds = [...new Set<string>([...(model.factIds ?? []), ...(model.rowIds ?? []), ...children.flatMap(child => child.rowIds ?? [])])].sort();
-      const sourceIds = [...new Set<string>([...(model.sourceIds ?? []), ...children.flatMap(child => child.sourceIds ?? []),
-        ...rowIds.map(rowId => state.facts.find(fact => fact.id === rowId)?.sourceId).filter((value): value is string => typeof value === 'string')])].sort();
-      const record = { id, kind: 'conversation-tools-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: request.question,
-        answer, resultRefs, modelReceiptId: model.id, sourceIds, rowIds };
-      state.conversations.push({ ...record, integrity: conversationRecordIntegrity(record) });
-      this.resolveContinuationTurn(ctx, model, id, state);
-    });
-    return answer;
-  }
-  contextForSession(token: string, channel: Context['channel'] = 'desktop'): Context { this.store(); return this.services.auth.authenticate(token, channel); }
+  conversationContinuation(ctx: Context, id: string, view: StateStore = this.store(), resolvedByModelReceiptId?: string): ConversationContinuation { return conversation.conversationContinuation(this.#internals, ctx, id, view, resolvedByModelReceiptId); }
+  private resolveContinuationTurn(ctx: Context, model: any, answerId: string, state: ReturnType<StateStore['read']>): void { return conversation.resolveContinuationTurn(this.#internals, ctx, model, answerId, state); }
+  private async retainConversationAnswer(ctx: Context, question: string, answer: any, manifest?: BusinessContextManifest, modelReceiptId?: string): Promise<{ answer: any; record: any; }> { return conversation.retainConversationAnswer(this.#internals, ctx, question, answer, manifest, modelReceiptId); }
+  private async executeConversationPlan(ctx: Context, request: any, gateway: Extract<Awaited<ReturnType<ModelGateway['execute']>>, { kind: 'conversation' }>): Promise<{ clarification: string; modelReceiptId: any; } | { id: `${string}_${string}-${string}-${string}-${string}-${string}`; kind: string; results: any[]; modelReceiptId: any; receipt: { id: `${string}_${string}-${string}-${string}-${string}-${string}`; kind: string; modelReceiptId: any; resultRefs: { tool: string; answerId: string; }[]; }; }> { return conversation.executeConversationPlan(this.#internals, ctx, request, gateway); }
+  contextForSession(token: string, channel: Context['channel'] = 'desktop'): Context { return conversation.contextForSession(this.#internals, token, channel); }
   /** Fixed loopback companion host; authority comes only from the current encrypted workspace. */
-  private companionRuntime() {
-    check(!this.#closing && !this.#transition, 'VAULT_BUSY', 'The current workspace is not available for companion requests.');
-    const store = this.store();
-    if (this.#companion?.store === store) return this.#companion;
-    const sessions = new PhoneSessionService(store);
-    const runtime = new EnginePhoneRuntime(store, sessions, {
-      review: (ctx, request, view) => {
-        const matches = view.read().modelReceipts.filter(item => item.id === request.previewId);
-        requirePhone(matches.length === 1, 'PREVIEW_CHANGED');
-        const model = ['dispatching', 'failed'].includes(matches[0].status)
-          ? this.services.gateway.assertDispatchedConversationRequest(ctx, request, view)
-          : this.services.gateway.assertReviewedConversationRequest(ctx, request, view);
-        return { sourceIds: [...model.sourceIds], operationVersion: hash({ schemaDigest: model.schemaDigest,
-          dictionaryHash: model.publishedCalculations.dictionaryHash, dictionaryVersion: model.publishedCalculations.dictionaryVersion }) };
-      },
-      executeConversation: (ctx, request) => this.requestAs(ctx, 'conversation.ask', request),
-      reconcileConversation: (ctx, previewId, view) => this.companionConversation(ctx, previewId, view),
-      briefs: (ctx, view) => this.companionBriefs(ctx, view),
-      receipt: (ctx, id, view) => {
-        // Reuse the current history boundary, including receipt/fact retention
-        // and its actual calculator/managed-source readiness guards on this view.
-        const receipt = new ConversationHistoryService(view, this.services.conversationHistory.options).currentReceipt(ctx, id, view);
-        return { id: receipt.id, workspaceId: view.read().workspace.id, text: this.companionAnswerText(receipt) };
-      },
-    });
-    this.#companion = { store, sessions, runtime }; return this.#companion;
-  }
-  async handleCompanionHttp(request: IncomingMessage, response: ServerResponse): Promise<void> {
-    check(!this.#closing && !this.#transition, 'VAULT_BUSY', 'Wait for the workspace operation to finish.');
-    this.#activeRequests++;
-    try { await createPhoneHttpHandler(this.companionRuntime().runtime.host)(request, response); }
-    finally { this.#activeRequests--; this.notifyIdle(); }
-  }
+  private companionRuntime(): { store: Vault; sessions: PhoneSessionService; runtime: EnginePhoneRuntime; } { return conversation.companionRuntime(this.#internals); }
+  async handleCompanionHttp(request: IncomingMessage, response: ServerResponse): Promise<void> { return conversation.handleCompanionHttp(this.#internals, request, response); }
   /** Project already guarded local text and exact displayed figures; never synthesize a new answer. */
-  private companionAnswerText(answer: any): string {
-    const parts: string[] = [];
-    if (answer?.kind === 'grounded-conversation') {
-      for (const result of answer.results) parts.push(result.error
-        ? `Unable to complete this part: ${result.error.message}` : this.companionAnswerText(result.answer));
-    } else {
-      const explanation = answer?.text ?? answer?.message ?? answer?.explanation ?? answer?.clarification;
-      if (typeof explanation === 'string') parts.push(explanation);
-      for (const figure of answer?.figures ?? answer?.receipt?.figures ?? []) parts.push(`${figure.label}: ${figure.display}`);
-      for (const gap of answer?.coverage?.gaps ?? []) parts.push(`Coverage: ${gap}`);
-    }
-    const text = parts.filter(Boolean).join('\n');
-    requirePhone(text.length > 0 && text.length <= 64000, 'OPEN_DESKTOP'); return text;
-  }
-  private companionConversation(ctx: Context, previewId: string, view: StateStore): ChatAnswer | undefined {
-    authorize(view, ctx);
-    const records = view.read().conversations.filter(item => ['conversation-tools-answer', 'conversation-clarification-answer'].includes(item.kind)
-      && item.modelReceiptId === previewId && item.memberId === ctx.memberId && item.epoch === ctx.epoch);
-    if (!records.length) return undefined;
-    requirePhone(records.length === 1, 'CACHE_INVALID');
-    this.services.gateway.assertConversationReceipt(ctx, previewId, view);
-    const history = new ConversationHistoryService(view, this.services.conversationHistory.options);
-    const saved = history.get(ctx, records[0].id), receiptIds: string[] = [];
-    for (const ref of records[0].resultRefs ?? []) {
-      const child = history.get(ctx, ref.answerId);
-      if (child.kind === 'calculation') {
-        const receiptId = child.answer.receipt?.id ?? child.answer.id;
-        history.currentReceipt(ctx, receiptId, view); receiptIds.push(receiptId);
-      }
-    }
-    return { conversationId: saved.id, text: this.companionAnswerText(saved.answer), receiptIds: [...new Set(receiptIds)] };
-  }
-  private companionBriefs(ctx: Context, view: StateStore): Brief[] {
-    const installed = this.services.jobs as JobService;
-    const jobs = new JobService(view, { clock: installed.clock, deliverableGuard: installed.deliverableGuard,
-      calendarRules: installed.calendarRules, calendarBounds: installed.calendarBounds });
-    const briefs: Brief[] = [];
-    for (const job of jobs.list(ctx)) {
-      const deliverable = job.deliverable as any, result = deliverable?.result;
-      if (job.type !== 'owner-brief' || job.plan || deliverable?.kind !== 'brief' || !result) continue;
-      const parts = (result.report?.sections ?? []).map((section: any) => this.companionAnswerText(section));
-      for (const gap of result.report?.gaps ?? []) parts.push(`Coverage: ${gap}`);
-      for (const item of result.alerts?.items ?? []) parts.push(`${item.label}. Last recorded observation: ${item.observation
-        ? `${item.observation.state} at ${item.observation.observedAt}` : 'not observed'}. Retained episodes: ${item.episodes
-        .map((episode: any) => `${episode.status} (${episode.severity}${episode.uncertain ? ', uncertain' : ''})`).join('; ') || 'none'}. Evidence: ${item.evidence.state}${item.evidence.issues.length
-        ? ` — ${item.evidence.issues.join('; ')}` : ''}.`);
-      const summary = parts.join('\n');
-      requirePhone(summary.length <= 16000 && briefs.length < 100, 'OPEN_DESKTOP');
-      briefs.push({ id: result.id, workspaceId: view.read().workspace.id, version: digest(deliverable),
-        generatedAt: deliverable.at, title: result.headline, summary, receiptIds: [...result.receiptIds] });
-    }
-    return briefs;
-  }
+  private companionAnswerText(answer: any): string { return conversation.companionAnswerText(this.#internals, answer); }
+  private companionConversation(ctx: Context, previewId: string, view: StateStore): ChatAnswer | undefined { return conversation.companionConversation(this.#internals, ctx, previewId, view); }
+  private companionBriefs(ctx: Context, view: StateStore): Brief[] { return conversation.companionBriefs(this.#internals, ctx, view); }
   async withContext<T>(context: Context, work: () => T | Promise<T>): Promise<T> {
     const scoped = Object.freeze({ ...context }); if (this.vault) authorize(this.vault, scoped);
     return this.#requestContext.run(scoped, async () => await work());
@@ -739,226 +478,8 @@ export class Engine {
     const path = resolve(this.options.directory, name); const rel = relative(this.options.directory, path);
     check(!rel.startsWith('..') && !isAbsolute(rel), 'INVALID_PATH', 'That place is outside this business\'s folder.'); return path;
   }
-  private async attach(vault: Vault) {
-    this.#venture?.close(); this.#venture = null; this.#venturePromise = null;
-    // A new workspace starts with long local work allowed again.
-    if (this.#stopWork.signal.aborted) this.#stopWork = new AbortController();
-    // Vault paths are canonicalized when opened. Resolve the independently
-    // configured root under the same no-symlink checks before comparing scope
-    // (Windows may spell the same directory with a short-name alias).
-    const applicationDirectory = await safeDirectory(this.options.directory);
-    const owner = this.currentWorkspaceOwner(vault);
-    check(owner, 'OWNER_REQUIRED', 'This business has no owner set up yet.');
-    this.vault = vault; delete this.services.workspaceActivation;
-    this.#unknownAnswerRecoveries.clear();
-    this.context = { memberId: owner.id, role: owner.role, epoch: owner.epoch, channel: 'desktop' };
-    const store: StateStore = vault;
-    this.services.ontology = new OntologyService(store);
-    this.services.imports = new ImportService(store);
-    this.services.memory = new MemoryService(store);
-    // Preview arithmetic is exact integer math. Production additionally refuses
-    // numbers until the registered isolated SQL query verifies the same projection.
-    const database = this.options.demo ? null : new DatabaseCalculator(this.options.analytics);
-    const connectorRuntime = new EngineConnectorService(store, this.options.connectorRuntime);
-    this.services.connectorRuntime = connectorRuntime;
-    const calculationOptions: CalculatorOptions = {
-      ...(database ? { verifier: (receipt: any) => database.verify(receipt) } : {}),
-      consumerGuard: (ctx, request) => connectorRuntime.assertCalculationReady(ctx, request),
-      receiptGuard: (ctx, receipt) => connectorRuntime.assertReceiptReady(ctx, receipt),
-    };
-    this.services.calculator = new CalculatorService(store, calculationOptions);
-    this.services.forecasts = new ForecastService(store, calculationOptions);
-    // Execution resolution is a trusted host port, never a route or RPC setting.
-    const reportOptions: ReportOptions = { ...calculationOptions, executionReceipt: (ctx, id, view) => {
-      const resolver = this.options.reports?.executionReceipt ?? createJournalExecutionResolver(this.services.actions);
-      return resolver(ctx, id, view);
-    }, alertBrief: (ctx, scope, view) => new AlertsService(view, { calculatorOptions: current => {
-      const connectors = connectorForView(current);
-      return { consumerGuard: (member, request) => connectors.assertCalculationReady(member, request),
-        receiptGuard: (member, receipt) => connectors.assertReceiptReady(member, receipt) };
-    } }).brief(ctx, scope) };
-    this.services.reports = new ReportService(store, reportOptions);
-    this.services.bridge = new BridgeService(store, { calculator: calculationOptions, ...this.options.bridge });
-    this.services.investigations = new InvestigationService(store, calculationOptions);
-    this.services.research = new ResearchSearchService(store, { calculator: calculationOptions, reports: reportOptions,
-      adapter: () => this.privateSearchAdapter() });
-    this.services.connectors = new ConnectorService(store, { credentialBroker: this.options.connectorCredentials });
-    this.services.helper = new AnalyticalHelper({ executable: this.options.pythonExecutable });
-    if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: this.options.updates ? join(this.options.updates.directory, 'stage') : resolve(this.options.directory, 'updates') });
-    this.services.trust = new TrustService(store);
-    const connectorForView = (view: StateStore) => view === store ? connectorRuntime : new EngineConnectorService(view, this.options.connectorRuntime);
-    this.services.privateTrials = new PrivateTrialHostService(store, {
-      custody: {
-        write: input => vault.writeArtifact(input).then(ref => ({ ...ref, purpose: 'private-trial' as const })),
-        read: input => vault.readArtifact(input).then(ref => ({ ...ref, purpose: 'private-trial' as const })),
-        list: input => vault.listArtifacts(input).then(refs => refs.map(ref => ({ ...ref, purpose: 'private-trial' as const }))),
-        remove: input => vault.removeArtifact(input),
-      },
-      now,
-      resolveRecipeEvidence: (ctx, sourceId) => this.privateRecipeEvidence(ctx, sourceId),
-      calculatorGuards: view => {
-        const connectors = connectorForView(view);
-        return { consumerGuard: (ctx, request) => connectors.assertCalculationReady(ctx, request),
-          receiptGuard: (ctx, receipt) => connectors.assertReceiptReady(ctx, receipt) };
-      },
-      resolvePromotionImpact: (ctx, _fork, _evaluation, strategy) => this.privatePromotionImpact(ctx, this.store().read(), strategy),
-      promoteAtomic: (ctx, publication) => this.promotePrivateTrial(ctx, publication),
-    });
-    const interchangeLocal = createWorkspaceInterchangeLocalPorts({ vault, applicationDirectory,
-      assertCompleteOwner: async (ctx, historical) => this.interchangeOwner(ctx, historical) });
-    this.services.interchangeLocal = interchangeLocal;
-    this.services.interchange = new WorkspaceInterchangeHost(interchangeLocal.ports);
-    if (vault.storageKind === 'experimental-file') {
-      const backup = this.options.backupCustody;
-      const budgets = backup?.budgets ?? defaultBackupBudgets;
-      let installedActivation: EngineWorkspaceActivation | undefined;
-      const backupLocal = createWorkspaceBackupV2LocalPorts({ vault, applicationDirectory, budgets,
-        ...(this.options.workspaceActivation ? {workspaceActivation: {journalVault: this.options.workspaceActivation.journalVault,
-          inspectCurrentLive: async (input: Parameters<EngineWorkspaceActivation['inspectCurrentLive']>[0]) => {
-            check(installedActivation, 'ACTIVATION_ROOT_REQUIRED', 'Complete the trusted activation composition before live custody inspection.');
-            await installedActivation.inspectCurrentLive(input);
-          }}} : {}),
-        filesystemBudgets: backup?.filesystemBudgets ?? defaultBackupFilesystemBudgets,
-        externalKeyRequirements: backup?.externalKeyRequirements ?? [{ provider: 'other', namespace: 'operator/credential-wrappers',
-          requirement: 'Retain the operator passphrase or recovery credential separately. Encrypted wrappers do not include that credential.' }],
-        assertCompleteOwner: async (ctx, historical) => this.backupCompleteOwner(ctx, historical),
-        withCompleteOwner: async (ctx, historical, work) => vault.withCustodyWriterAdmission(async assertVault => {
-          const admission = async (assertAdditional: () => void) => {
-            const assertCurrent = () => {
-              check(this.options.backupCustody === backup, 'BACKUP_HOST_CONFIGURATION_CHANGED', 'Installed custody admission changed during publication.');
-              assertVault(); this.backupCompleteOwner(ctx, historical);
-              check(assertAdditional() === undefined, 'BACKUP_HOST_GUARD', 'Held readiness admission must be synchronous and complete.');
-            };
-            assertCurrent(); const result = await work(assertCurrent); assertCurrent(); return result;
-          };
-          if (!backup?.withCompleteOwner) return admission(() => {});
-          let calls = 0;
-          const result = await backup.withCompleteOwner(structuredClone(ctx), structuredClone(historical), async assertAdditional => {
-            check(++calls === 1 && typeof assertAdditional === 'function', 'BACKUP_HOST_GUARD', 'Use one held installed readiness admission.');
-            return admission(assertAdditional);
-          });
-          check(calls === 1, 'BACKUP_HOST_GUARD', 'Installed admission did not execute the backup publication.'); return result;
-        }),
-      });
-      this.services.backupLocal = backupLocal;
-      this.services.backupV2 = new WorkspaceBackupV2Host(backupLocal.ports, budgets);
-      const activation = this.options.workspaceActivation;
-      if (activation) {
-        check(this.options.demo === true && this.options.sync === undefined
-          && !vault.read().imports.some(item => typeof item.type === 'string' && item.type.startsWith('connector-')),
-        'ACTIVATION_SOURCE_PROFILE', 'This joined activation profile supports explicitly approved synthetic local sources; sync and managed connector activation need their separate qualified profiles.');
-        installedActivation = new EngineWorkspaceActivation({...activation, sourceVault: vault, applicationDirectory,
-          backup: backupLocal, interchange: interchangeLocal,
-          backupPolicy: {approvedSyntheticWorkspaceIds: [...activation.policy.approvedSyntheticWorkspaceIds], backupBudgets: budgets,
-            maxMaterialUtf8Bytes: activation.policy.budgets.maxCandidateBytes, maxCandidateUtf8Bytes: activation.policy.budgets.maxCandidateBytes},
-          assertCompleteOwner: async (ctx, historical) => {
-            check(this.options.workspaceActivation === activation && this.options.sync === undefined,
-              'ACTIVATION_HOST_CONFIGURATION_CHANGED', 'Installed activation admission changed during custody.');
-            this.backupCompleteOwner(ctx, historical);
-            check(!this.store().read().imports.some(item => typeof item.type === 'string' && item.type.startsWith('connector-')),
-              'ACTIVATION_SOURCE_PROFILE', 'Current managed connector imports need a separately qualified activation profile.');
-          }});
-        this.services.workspaceActivation = installedActivation;
-      }
-    }
-    this.services.alerts = new AlertsService(store, { calculatorOptions: view => {
-      const connectors = connectorForView(view);
-      return {
-        consumerGuard: (ctx, request) => connectors.assertCalculationReady(ctx, request),
-        receiptGuard: (ctx, receipt) => connectors.assertReceiptReady(ctx, receipt),
-      };
-    } });
-    const businessContextHooks: BusinessContextHooks = { assertEvidenceReady: (ctx, refs, view = store) => {
-      this.options.gateway?.businessContext?.assertEvidenceReady?.(ctx, refs, view);
-      return connectorForView(view).assertBusinessEvidenceReady(ctx, refs);
-    } };
-    this.services.businessContextHooks = businessContextHooks;
-    this.services.conversationHistory = new ConversationHistoryService(store, {
-      assertBusinessContext: (ctx, manifest, view) => assertBusinessContextCurrent(view, ctx, manifest, businessContextHooks),
-      receipt: (ctx, id, view) => new CalculatorService(view, {
-        receiptGuard: (currentCtx, receipt) => connectorForView(view).assertReceiptReady(currentCtx, receipt),
-      }).receipt(ctx, id),
-      assertModelReceipt: (ctx, id, view) => this.services.gateway.assertConversationReceipt(ctx, id, view),
-      assertSynthesisAnswer: (ctx, record, view) => this.services.synthesisHost.assertRecord(ctx, record, view),
-    });
-    this.services.synthesisHost = new ConversationSynthesisHost(store, {
-      history: view => new ConversationHistoryService(view, this.services.conversationHistory.options),
-      planner: (ctx, id, view) => this.services.gateway.assertConversationReceipt(ctx, id, view),
-      synthesis: (ctx, id, view) => this.services.gateway.assertSynthesisReceipt(ctx, id, view),
-      codec: () => this.options.synthesis ?? this.options.gateway?.synthesisCodec ?? installedConversationSynthesisCodec,
-    });
-    this.services.businessProfile = new BusinessProfileService(store);
-    this.services.gateway = new ModelGateway(store, { ...this.options.gateway, businessContext: businessContextHooks,
-      conversationContinuation: (ctx, id, view, resolvedBy) => this.conversationContinuation(ctx, id, view, resolvedBy),
-      conversationSynthesis: (ctx, id, view) => this.services.synthesisHost.resolve(ctx, id, view),
-      synthesisCodec: this.options.synthesis ?? this.options.gateway?.synthesisCodec ?? installedConversationSynthesisCodec });
-    this.services.speech = new SpeechService(store, this.options.speech);
-    // The whisper.cpp the owner set up in Connections > Your AI, kept in the vault; never on the hosted server.
-    if (this.options.venture?.host !== 'hosted-web') this.services.speech.restoreLocal(store.read());
-    this.services.auth = new AuthService(store);
-    this.services.sync = new SyncService(store, { ...this.options.sync, vault, requireWriterAdmission: true });
-    this.services.actions = new ActionService(store, this.builtinActions(store));
-    this.services.jobs = new JobService(store, { clock: this.options.durableJobs?.clock,
-      calendarRules: this.options.jobCalendar?.rules, calendarBounds: this.options.jobCalendar?.bounds,
-      deliverableGuard: (ctx: Context, job: any, candidateView?: StateStore) => {
-      if (!job.deliverable) return true;
-      if (job.plan) return this.services.jobRunner?.canRelease(ctx, job) === true;
-      const ids = job.deliverable.result?.receiptIds;
-      if (!Array.isArray(ids) || ids.length === 0) return false;
-      try {
-        const snapshot = store.read();
-        const view = candidateView ?? { read: () => structuredClone(snapshot), update: async () => { throw new Error('Brief evidence is read-only.'); } };
-        const connectors = connectorForView(view);
-        const evidenceOptions = { ...reportOptions,
-          consumerGuard: (member: Context, request: CalculationRequest) => connectors.assertCalculationReady(member, request),
-          receiptGuard: (member: Context, receipt: CalculationReceipt) => connectors.assertReceiptReady(member, receipt) };
-        const calculator = new CalculatorService(view, evidenceOptions);
-        // Alert episodes intentionally retain historical receipts. Their current
-        // uncertainty and observation state are checked by the exact section pin.
-        // Every reference still needs current access; only the current report's
-        // arithmetic must be fresh and within current receipt/row retention.
-        const reportIds = job.deliverable.result?.report?.receiptIds;
-        if (!Array.isArray(reportIds) || reportIds.length === 0 || reportIds.some((id: string) => !ids.includes(id))) return false;
-        for (const id of ids) calculator.receipt(ctx, id);
-        const history = new ConversationHistoryService(view, this.services.conversationHistory.options);
-        for (const id of reportIds) history.currentReceipt(ctx, id, view);
-        const currentDecisions = new Set(new ReportService(view, evidenceOptions).decisions(ctx).map((item: any) => item.id));
-        const savedAlerts = job.deliverable.result?.alerts;
-        if (savedAlerts) {
-          if (savedAlerts.configured !== true || savedAlerts.evaluated !== false || typeof savedAlerts.pin !== 'string'
-            || !savedAlerts.scope || !Array.isArray(savedAlerts.items)) return false;
-          const currentAlerts = reportOptions.alertBrief!(ctx, {
-            ...(savedAlerts.scope.branch === null ? {} : { branch: savedAlerts.scope.branch }),
-            ...(savedAlerts.scope.sourceIds === null ? {} : { sourceIds: savedAlerts.scope.sourceIds }),
-          }, view);
-          if (currentAlerts.pin !== savedAlerts.pin || digest(currentAlerts.items) !== digest(savedAlerts.items)) return false;
-        }
-        return (job.deliverable.result?.decisions ?? []).every((item: any) => currentDecisions.has(item.id));
-      } catch { return false; }
-    } });
-    if (this.options.durableJobs) this.services.jobRunner = createEngineJobRunner(store, this.services.jobs, this.services.actions, calculationOptions, this.options.durableJobs);
-    this.services.plugins = new PluginService(store, {});
-    this.services.learning = new LearningService(store);
-    this.services.mcp = new MCPService(store, { calculations: [{
-      name: 'calculate', description: 'Run a published read-only business calculation and return its exact receipt.',
-      inputSchema: { type: 'object', additionalProperties: false, required: ['operation'], properties: { operation: { type: 'string', enum: ['billed', 'received', 'earned', 'refunds', 'costs', 'purchases', 'revenue', 'net_sales', 'margin', 'aging', 'change', 'scenario'] }, period: { type: 'object' }, asOf: { type: 'string' }, branch: { type: 'string' }, customerId: { type: 'string' }, orderId: { type: 'string' }, comparePeriod: { type: 'object' }, assumptions: { type: 'object' }, onDate: { type: 'string' } } },
-      calculate: async (request: any, ctx: Context) => { const receipt = await this.services.calculator.calculate(ctx, request); return { value: receipt.totalMinor, receipt }; },
-    }], receiptReader: (ctx: Context, id: string) => this.services.calculator.receipt(ctx, id) });
-  }
-  private builtinActions(store: StateStore): any {
-    const draft = {
-      title: 'Create a payment reminder draft', description: 'Creates a local draft. It does not send a message.', impact: 'reversible',
-      validate: (payload: any) => { check(payload && typeof payload.invoiceId === 'string' && typeof payload.text === 'string' && payload.text.length <= 4000, 'INVALID_ACTION', 'Provide an invoice and reminder text.'); return payload; },
-      execute: async (payload: any, key: string) => store.update(state => {
-        const existing = state.conversations.find(item => item.kind === 'reminder-draft' && item.key === key);
-        if (existing) { check(hash(existing.payload) === hash(payload), 'IDEMPOTENCY_CONFLICT', 'The draft key belongs to different content.'); return { externalId: existing.id, data: existing, businessSuccess: false }; }
-        const item = { id: newId('draft'), key, payload, kind: 'reminder-draft', status: 'drafted', delivered: false, at: now() }; state.conversations.push(item); audit(state, 'reminder.drafted', { draftId: item.id }); return { externalId: item.id, data: item, businessSuccess: false };
-      }),
-      reconcile: async (payload: any, key: string) => { const item = store.read().conversations.find(item => item.kind === 'reminder-draft' && item.key === key); return { verified: !!item && hash(item.payload) === hash(payload), businessSuccess: false, externalId: item?.id, data: item, absent: !item }; },
-      idempotency: 'A stable key identifies a persisted local draft; changed content is refused.', readback: 'Reads the persisted draft and compares its exact content.',
-    };
-    return [{ id: 'local', title: 'Chausar local workspace', operations: { 'reminder-draft': draft } }];
-  }
+  private async attach(vault: Vault): Promise<void> { return services.attach(this.#internals, vault); }
+  private builtinActions(store: StateStore): any { return services.builtinActions(this.#internals, store); }
   async close() {
     if (this.#activeRequests && !this.#transition) await this.stopLongWork();
     check(!this.#capturing && !this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Chausar is still finishing work in this business. Try again in a moment.');
@@ -1265,736 +786,39 @@ export class Engine {
     };
   }
   private async handleRequest(method: string, payload: any = {}): Promise<any> {
-    check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
-    if (method === 'workspace.status') return { open: !!this.vault, workspace: this.vault?.read().workspace, storage: this.options.storage, experimental: !!this.options.demo, version: this.version,
-      ...(this.options.workspaceCustody ? { ...(this.vault && this.#openUnlock ? { unlock: this.#openUnlock } : {}), closedByOwner: this.#closedByOwner } : {}) };
-    // C7: "What's new", once per version on this computer (whats-new-file.ts), before any vault.
-    if (method === 'whatsNew.get' || method === 'whatsNew.seen') return this.whatsNew(method, payload);
-    if (method === 'venture.countries') return (await this.#ventureModule()).ventureCountries();
-    if (method === 'venture.preview') return (await this.#ventureModule()).venturePreview(payload);
-    // Wave 6 (6C6): onboarding shows the profession's rules when it is picked, before any vault exists.
-    if (method === 'venture.compliance.get' && !this.vault) return (await import('./venture/core/compliance.ts')).complianceBeforeVault(payload);
-    if (method === 'venture.country.suggest' && !this.vault?.read().conversations.some(record => record?.kind === 'venture-record')) {
-      return (await this.#draftDesk()).request(this.context, method, payload);
-    }
-    // The ways to earn (4J8); while a vault is open its state is read (never written) so its business says "You run this".
-    // The other businesses here say it from what Chausar saved when each was last open (4J6), never their vaults.
-    if (method === 'venture.playbooks.list') return (await this.#ventureModule()).venturePlaybooks(payload, this.vault ? { state: this.vault.read(), businessId: (this.options.venture?.workspace ?? this.#ventureWorkspace).current().id } : null,
-      (await this.snapshotReads()).flatMap(read => (read.snapshot ? [{ businessId: read.id, name: read.snapshot.name, playbook: read.snapshot.playbook }] : [])));
-    // The draft desk answers these before the vault check: connect an AI and compose a plan before any vault exists.
-    if (DRAFT_DESK_DISPATCH.has(method)) return (await this.#draftDesk()).request(this.context, method, payload);
-    // A2: the owner's yes to the Codex found on this computer, before the vault (onboarding) and after it (Your AI).
-    // A2 second review: never as a request; only main's dialog confirms a Codex (confirmCodexSetup).
-    if (method === 'venture.ai.setup.trust') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
-    // D5: never as a request either: a payload can't say yes. Only main's dialog starts it (installClaudeCodeFor).
-    if (method === 'venture.ai.claude.install') throw new ChausarError('APP_APPROVAL_REQUIRED', 'Do this inside the Chausar app.');
-    if (method === 'venture.ai.claude.progress') {
-      check(Object.keys(payload).length === 0, 'INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
-      return this.#claudeProgress;
-    }
-    // One-shot C3 task 9: the open business's live jobs and any before a business was opened, never another business's.
-    if (method === 'venture.work.list') {
-      check(Object.keys(payload).length === 0, 'INVALID_VENTURE_REQUEST', 'Send the required fields and nothing else.');
-      const here = this.#workBusiness();
-      return { work: [...this.#work.list(''), ...(here ? this.#work.list(here) : [])] };
-    }
-    // One-shot C3: the app's own preference on this computer (animations), answered before the vault check so it works
-    // with no business open; with one open, only its owner may change it, as with export.
-    if (method === 'app.preferences.get') { check(Object.keys(payload).length === 0, 'INVALID_PREFERENCE', 'Ask for the settings of this app with nothing else.'); return readAppPreferences(this.options.directory); }
-    if (method === 'app.preferences.set') {
-      const change = preferenceChange(payload);
-      if (this.vault) this.requireWorkspaceOwner(this.context);
-      return writeAppPreferences(this.options.directory, change);
-    }
-    // Keeping the vault key on this computer (KEYCHAIN-SPEC 2 to 4). Answered before the vault check.
-    switch (method) {
-      case 'workspace.custody.get': return this.custodyView();
-      // C5 task 31: updates need no business open.
-      case 'updates.status': return this.updateService().view();
-      case 'updates.settings': return this.updateService().settings(payload);
-      case 'updates.check': return this.updateService().checkNow();
-      case 'workspace.list': return this.custodyFiles().listBusinesses(this.storageKind());
-      case 'workspace.backups.list': return this.backupList();
-      case 'workspace.transfer.import': return this.#oneStep('move-in', 'move', () => this.transferImport(payload));
-      case 'workspace.transfer.peek': return this.transferPeek(payload);
-      case 'workspace.import': return this.importCopy(payload);
-    }
-    if (method === 'workspace.create') {
-      check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
-      check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
-      check(typeof payload.name === 'string' && payload.name.trim().length >= 2 && payload.name.length <= 100, 'INVALID_NAME', 'Give your business a name.');
-      const pack = payload.pack ?? 'ecommerce'; check(new OntologyService({ read: () => { throw new Error('No vault'); }, update: async () => { throw new Error('No vault'); } }).packs().some(p => p.pack === pack), 'UNKNOWN_PACK', 'Choose an available business starter pack.');
-      const custody = this.custodyHost(), files = this.custodyFiles(), name = payload.name.trim();
-      // No passphrase: this computer keeps a random secret in the passphrase slot (KEYCHAIN-SPEC 2.1, 2.9).
-      const computer = payload.passphrase === undefined || payload.passphrase === null;
-      if (computer) {
-        if (!custody) throw deviceKeysUnavailable('not-configured');
-        const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
-      }
-      const taken = payload.folder === null ? await files.takenFolders() : null;
-      let folder: string = taken ? slugFolder(name, taken) : payload.folder ?? 'main';
-      this.workspacePath(folder);
-      let wroteCard = false, record: DeviceKeyRecord | null = null;
-      const secret = computer ? randomBytes(32) : null;
-      try {
-        let result!: Awaited<ReturnType<typeof Vault.create>>;
-        for (;;) {
-          if (custody && !(await files.readCard(folder))) {
-            await files.writeCard(newCard({ folder, name, demo: !!payload.demo, unlock: computer ? 'this-computer' : 'passphrase', recovery: computer ? 'not-made' : 'made', state: 'creating' }));
-            wroteCard = true;
-          }
-          try { result = await Vault.create({ directory: this.workspacePath(folder), passphrase: secret ? secret.toString('base64url') : payload.passphrase, name, demo: !!payload.demo, storage: await this.adapter(folder), kdfMemo: this.options.kdfMemo }); break; }
-          catch (error) {
-            // The engine picked the folder, and an old vault with no card holds that slot (PostgreSQL storage
-            // keeps no folder to find): take the next name instead. slugFolder stops after -99.
-            if (!taken || (error as ChausarError).code !== 'VAULT_EXISTS') throw error;
-            if (wroteCard) { await files.removeCard(folder).catch(() => {}); wroteCard = false; }
-            taken.push(folder); folder = slugFolder(name, taken); this.workspacePath(folder);
-          }
-        }
-        if (custody && secret) {
-          try { record = await custody.keys.protect(result.vault.vaultId, secret); await files.writeKey(record); }
-          catch (error) {
-            await result.vault.delete().catch(() => {});
-            if (record) { await custody.keys.forget(record).catch(() => {}); await files.removeKey(record.vaultId).catch(() => {}); }
-            throw error instanceof ChausarError && error.code === 'DEVICE_KEY_FAILED' ? error : deviceKeyFailed();
-          }
-        }
-        try {
-          if (this.options.capture && this.options.demo === true && payload.demo === true) markNewCaptureSample(result.vault);
-          await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
-          if (payload.demo) await seedDemo(this.store(), this.context);
-          this.#draft?.hold();
-          await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: computer ? 'not-made' : 'made', created: true });
-          wroteCard = false;
-          const recoveryCode = computer ? null : result.recoveryCode;
-          return { workspace: this.store().read().workspace, folder, unlock: computer ? 'this-computer' : 'passphrase', recoveryKit: recoveryCode, recoveryCode, experimental: !!this.options.demo };
-        } catch (error) {
-          await result.vault.delete(); this.vault = null; this.services = {}; this.resetCustodySession();
-          if (record && custody) { await custody.keys.forget(record).catch(() => {}); await files.removeKey(record.vaultId).catch(() => {}); }
-          throw error;
-        }
-      } catch (error) {
-        if (wroteCard) await files.removeCard(folder).catch(() => {});
-        throw error;
-      } finally { secret?.fill(0); }
-    }
-    if (method === 'workspace.open') {
-      check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); this.#draft?.clear();
-      const folder = payload.folder ?? payload.path ?? 'main'; this.workspacePath(folder);
-      const custody = this.custodyHost(), typed = payload.passphrase !== undefined && payload.passphrase !== null;
-      const files = this.custodyFiles(), card = custody ? await files.readCard(folder) : null;
-      const unlockWith = async (passphrase: string) => Vault.open({ directory: this.workspacePath(folder), passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard(), kdfMemo: this.options.kdfMemo });
-      const unlockFailed = (error: unknown) => (error as ChausarError)?.code === 'UNLOCK_FAILED';
-      const passphraseRequired = () => new ChausarError('PASSPHRASE_REQUIRED', CUSTODY_WORDS.errors.PASSPHRASE_REQUIRED);
-      // A lock change cut short (KEYCHAIN-SPEC 3.1, 3.2) leaves its marker on the card: the vault may already open the new way.
-      const changing = card?.pending === 'to-passphrase' || card?.pending === 'to-this-computer';
-      let vault: Vault, how: 'this-computer' | 'typed';
-      if (!custody || typed) {
-        try { vault = await unlockWith(payload.passphrase); how = 'typed'; }
-        catch (error) {
-          const secret = custody && changing && unlockFailed(error) && card?.vaultId ? await this.existingComputerSecret(card.vaultId) : null;
-          if (!secret) throw error;
-          try { vault = await unlockWith(secret); how = 'this-computer'; } catch { throw error; }
-        }
-      } else if (card?.unlock === 'passphrase') {
-        // Try this computer's key only when the change to it was cut short, or a key record for the vault is on disk.
-        const record = card.vaultId ? await files.readKey(card.vaultId) : null;
-        const secret = card.vaultId && (card.pending === 'to-this-computer' || record) ? await this.existingComputerSecret(card.vaultId) : null;
-        if (!secret) throw passphraseRequired();
-        try { vault = await unlockWith(secret); how = 'this-computer'; }
-        catch (error) { if (unlockFailed(error)) throw passphraseRequired(); throw error; }
-      } else {
-        // No card and no envelope to read (PostgreSQL storage, or no such folder): it needs a passphrase.
-        const secret = await this.computerSecret(card?.vaultId ?? await files.folderVaultId(folder));
-        try { vault = await unlockWith(secret); how = 'this-computer'; }
-        catch (error) {
-          // Turning the passphrase on was cut short after the rewrap: only the passphrase opens it now.
-          if (unlockFailed(error)) throw card?.pending === 'to-passphrase' ? passphraseRequired() : deviceKeyFailed();
-          throw error;
-        }
-      }
-      await this.attachSafely(vault);
-      await this.afterOpen(folder, how);
-      return { workspace: this.store().read().workspace };
-    }
-    if (method === 'workspace.recover') {
-      check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); this.#draft?.clear();
-      const folder = payload.folder ?? 'main'; this.workspacePath(folder);
-      const custody = this.custodyHost(), computer = !!custody && (payload.passphrase === undefined || payload.passphrase === null);
-      let newPassphrase = payload.passphrase, fresh: Buffer | null = null;
-      if (computer) {
-        const probe = await custody!.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
-        const files = this.custodyFiles(), card = await files.readCard(folder);
-        const vaultId = card?.vaultId ?? await files.folderVaultId(folder);
-        // Another folder may already open this vault with this computer's key: keep its secret.
-        newPassphrase = vaultId ? await this.existingComputerSecret(vaultId) : null;
-        if (!newPassphrase) { fresh = randomBytes(32); newPassphrase = fresh.toString('base64url'); }
-      }
-      try {
-        let moved: { from: number; backup: string } | null = null;
-        const vault = await Vault.recover({ migrationBackup: async (json, workspaceId, from) => { moved = { from, backup: await this.migrationBackup(json, workspaceId, from) }; }, directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard(), kdfMemo: this.options.kdfMemo });
-        if (fresh) await this.storeComputerSecret(vault, fresh);
-        if (moved) await this.noteMigrated(vault, (moved as { from: number }).from, vault.read().schemaVersion, (moved as { backup: string }).backup);
-        await this.attachSafely(vault);
-      } finally { fresh?.fill(0); }
-      await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: 'made', reseal: true });
-      return { workspace: this.store().read().workspace };
-    }
-    if (method === 'workspace.restore') {
-      check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before restoring.');
-      this.#draft?.clear();
-      check(typeof payload.backupFile === 'string', 'INVALID_PATH', 'Choose a backup from this app.');
-      const backupRoot = resolve(this.options.directory, 'backups'); const backupFile = resolve(backupRoot, payload.backupFile); const rel = relative(backupRoot, backupFile);
-      check(!rel.startsWith('..') && !isAbsolute(rel) && rel.endsWith('.backup'), 'INVALID_PATH', 'Choose a managed backup file.');
-      const custody = this.custodyHost(), files = this.custodyFiles();
-      const header = custody && !rel.includes('/') && !rel.includes('\\') ? await files.backupHeader(rel) : null;
-      const original = header ? (await files.listCards()).find(card => card.vaultId === header.vaultId && card.state === 'ready') ?? null : null;
-      const folder = payload.folder === null ? nextFolder(`${original?.folder ?? 'restored'}${original ? '-restored' : ''}`.slice(0, 64), await files.takenFolders()) : payload.folder ?? 'restored';
-      this.workspacePath(folder);
-      const recoveryCode = typeof payload.recoveryCode === 'string' ? payload.recoveryCode : undefined;
-      const typed = payload.passphrase !== undefined && payload.passphrase !== null;
-      let how: 'this-computer' | 'typed' = typed ? 'typed' : 'this-computer', fresh: Buffer | null = null, credentials: { passphrase: string } | { recoveryCode: string; newPassphrase: string };
-      if (recoveryCode !== undefined && typed) credentials = { recoveryCode, newPassphrase: payload.passphrase };
-      else if (recoveryCode !== undefined && custody) {
-        const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
-        let secret = header ? await this.existingComputerSecret(header.vaultId) : null;
-        if (!secret) { fresh = randomBytes(32); secret = fresh.toString('base64url'); }
-        credentials = { recoveryCode, newPassphrase: secret };
-      } else if (!typed && custody) {
-        check(header, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
-        credentials = { passphrase: (await this.computerSecret(header.vaultId))! };
-      } else { credentials = { passphrase: payload.passphrase }; how = 'typed'; }
-      try {
-        let vault: Vault;
-        try { vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile, ...credentials, storage: await this.adapter(folder), writerGuard: this.writerGuard(), kdfMemo: this.options.kdfMemo }); }
-        catch (error) { if (custody && how === 'this-computer' && !('recoveryCode' in credentials) && (error as ChausarError).code === 'UNLOCK_FAILED') throw deviceKeyFailed(); throw error; }
-        if (fresh) await this.storeComputerSecret(vault, fresh);
-        await this.attachSafely(vault);
-      } finally { fresh?.fill(0); }
-      const rewrapped = 'recoveryCode' in credentials;
-      await this.afterOpen(folder, how, { recovery: rewrapped ? 'made' : original?.recovery ?? (how === 'typed' ? 'made' : 'unknown'), reseal: rewrapped });
-      return { workspace: this.store().read().workspace, folder };
-    }
-    if (method === 'workspace.lock') {
-      if (this.vault) { authorize(this.vault, this.context, 'admin'); await this.closingBackup(); }
-      await this.closeVault(); this.#closedByOwner = true; return { locked: true };
-    }
-    const store = this.store(); const ctx = this.context; authorize(store, ctx);
-    const s = this.services;
-    if (isLegacyMethod(method)) return this.withContext(ctx, async () => {
-      const internals = this.legacyInternals(store, this.context, s);
-      return (await import('./legacy/dispatch.ts')).legacyRequest(this, internals, method, payload);
-    });
-    switch (method) {
-      case 'workspace.custody.passphraseOn': this.requireAppOwner(ctx); return this.custodySerial(() => this.passphraseOn(payload));
-      case 'workspace.custody.passphraseOff': this.requireAppOwner(ctx); return this.custodySerial(() => this.passphraseOff(payload));
-      case 'workspace.custody.recoveryCode': this.requireAppOwner(ctx); return this.custodySerial(() => this.makeRecoveryCode(payload));
-      case 'workspace.custody.neverContactReset': this.requireAppOwner(ctx); return this.custodySerial(() => this.neverContactReset(payload));
-      case 'workspace.backups.create': this.requireAppOwner(ctx); return this.custodySerial(() => this.writeBackup('manual'));
-      case 'workspace.backups.restore': this.requireAppOwner(ctx); return this.#oneStep('restore', 'restore', () => this.custodySerial(() => this.restoreManagedBackup(payload)));
-      case 'workspace.backups.copyTo': this.requireAppOwner(ctx); return this.custodySerial(() => this.backupCopyTo(payload));
-      case 'workspace.backups.drive.status': this.requireAppOwner(ctx); return this.driveStatus();
-      case 'workspace.backups.drive.connect': this.requireAppOwner(ctx); return this.driveOf().connect();
-      case 'workspace.backups.drive.disconnect': this.requireAppOwner(ctx); await this.driveOf().disconnect(); return this.custodySerial(() => this.driveNote(null).then(() => this.driveStatus()));
-      // One-shot C6: one read at a time (the custody chain), on the owner's press in the app only.
-      case 'workspace.backups.inspect': this.requireAppOwner(ctx); return this.custodySerial(() => this.inspectManagedBackup(payload));
-      case 'workspace.transfer.export': this.requireAppOwner(ctx); return this.custodySerial(() => this.transferExport(payload));
-      case 'workspace.backup.v2.create': return this.backupHost().create(ctx, this.journalPayload(payload,
-        ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['create']>[1]);
-      case 'workspace.backup.v2.read': return this.backupHost().read(ctx, this.journalPayload(payload,
-        ['backupId'], ['backupId'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['read']>[1]);
-      case 'workspace.backup.v2.restoreInert': {
-        const input = this.journalPayload(payload, ['backupId', 'targetId', 'reviewedDigest', 'confirmed'],
-          ['backupId', 'targetId', 'reviewedDigest', 'confirmed'], 'INVALID_BACKUP_REQUEST');
-        check(input.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the exact reviewed archive and separate closed copy.');
-        return this.backupHost().restoreInert(ctx, { backupId: input.backupId as string, targetId: input.targetId as string, reviewedDigest: input.reviewedDigest as string });
-      }
-      case 'workspace.backup.v2.readRestored': return this.backupHost().readRestored(ctx, this.journalPayload(payload,
-        ['backupId', 'targetId', 'creationId', 'reviewedDigest'], ['backupId', 'targetId', 'creationId', 'reviewedDigest'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['readRestored']>[1]);
-      case 'workspace.backup.v2.inspectRestored': {
-        const input = this.journalPayload(payload, ['backupId', 'targetId', 'reviewedDigest'],
-          ['backupId', 'targetId', 'reviewedDigest'], 'INVALID_BACKUP_REQUEST');
-        const host = this.backupHost(); const reviewed = await host.read(ctx, { backupId: input.backupId as string });
-        check(input.reviewedDigest === reviewed.summary.archiveDigest, 'BACKUP_REVIEW_CHANGED', 'This backup changed since you looked. Look at it again before restoring.');
-        const identity = await s.backupLocal.restoredIdentity(ctx, input.targetId);
-        check(identity.archiveDigest === reviewed.summary.archiveDigest, 'BACKUP_TARGET_CHANGED', 'The reserved copy belongs to a different archive.');
-        return host.readRestored(ctx, { backupId: input.backupId as string, targetId: identity.targetId,
-          creationId: identity.creationId, reviewedDigest: reviewed.summary.archiveDigest });
-      }
-      case 'workspace.backup.v2.diagnostics': {
-        this.journalPayload(payload, [], [], 'INVALID_BACKUP_REQUEST'); this.backupHost(); this.backupCompleteOwner(ctx, store.read());
-        return s.backupLocal.diagnostics();
-      }
-      case 'workspace.activation.target.create': {
-        const input = this.journalPayload(payload, ['targetId', 'confirmed'], ['targetId', 'confirmed'], 'INVALID_ACTIVATION_REQUEST');
-        check(input.confirmed === true && typeof input.targetId === 'string', 'CONFIRMATION_REQUIRED', 'Confirm a new empty managed activation target.');
-        return this.activationHost().createTarget(ctx, input.targetId);
-      }
-      case 'workspace.activation.target.get': return this.activationHost().inspectTarget(ctx,
-        this.journalPayload(payload, ['targetId'], ['targetId'], 'INVALID_ACTIVATION_REQUEST').targetId as string);
-      case 'workspace.backup.activation.prepare': return this.activationHost().bridge.prepare(ctx, this.journalPayload(payload,
-        ['backupId', 'materialId', 'inertTargetId', 'inertCreationId', 'candidateId', 'targetId', 'reviewedArchiveDigest', 'confirmed'],
-        ['backupId', 'materialId', 'inertTargetId', 'inertCreationId', 'candidateId', 'targetId', 'reviewedArchiveDigest', 'confirmed'], 'INVALID_ACTIVATION_REQUEST') as Parameters<EngineWorkspaceActivation['bridge']['prepare']>[1]);
-      case 'workspace.backup.activation.inspect': return (await this.activationHost().bridge.inspect(ctx,
-        this.journalPayload(payload, ['candidateId'], ['candidateId'], 'INVALID_ACTIVATION_REQUEST') as Parameters<EngineWorkspaceActivation['bridge']['inspect']>[1])).review;
-      case 'workspace.activation.review': return this.activationHost().activation.review(ctx, this.journalPayload(payload,
-        ['candidateId', 'reviewedDigest'], ['candidateId', 'reviewedDigest'], 'INVALID_ACTIVATION_REQUEST') as Parameters<EngineWorkspaceActivation['activation']['review']>[1]);
-      case 'workspace.activation.execute': return this.activationHost().activation.activate(ctx, this.journalPayload(payload,
-        ['candidateId', 'reviewedDigest', 'projectionDigest', 'activationId', 'confirmed'],
-        ['candidateId', 'reviewedDigest', 'projectionDigest', 'activationId', 'confirmed'], 'INVALID_ACTIVATION_REQUEST') as Parameters<EngineWorkspaceActivation['activation']['activate']>[1]);
-      case 'workspace.activation.get': return this.activationHost().activation.resolve(ctx, this.journalPayload(payload,
-        ['activationId'], ['activationId'], 'INVALID_ACTIVATION_REQUEST') as Parameters<EngineWorkspaceActivation['activation']['resolve']>[1]);
-      case 'workspace.interchange.export': return s.interchange.export(ctx, this.journalPayload(payload,
-        ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_INTERCHANGE_REQUEST'));
-      case 'workspace.interchange.prepare': return s.interchange.prepare(ctx, this.journalPayload(payload,
-        ['exportId', 'candidateId', 'targetId'], ['exportId', 'candidateId', 'targetId'], 'INVALID_INTERCHANGE_REQUEST'));
-      case 'workspace.interchange.review': return s.interchange.review(ctx, this.journalPayload(payload,
-        ['candidateId', 'reviewedDigest'], ['candidateId', 'reviewedDigest'], 'INVALID_INTERCHANGE_REQUEST'));
-      case 'workspace.interchange.discard': return s.interchange.discard(ctx, this.journalPayload(payload,
-        ['recordId', 'reviewedDigest'], ['recordId', 'reviewedDigest'], 'INVALID_INTERCHANGE_REQUEST'));
-      case 'workspace.interchange.diagnostics': {
-        this.journalPayload(payload, [], [], 'INVALID_INTERCHANGE_REQUEST'); this.interchangeOwner(ctx, store.read());
-        return s.interchangeLocal.diagnostics();
-      }
-      case 'trust.update': return s.trust.updatePolicy(ctx, payload.policy ?? payload);
-      case 'updates.verify': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater, 'UPDATES_UNAVAILABLE', 'Updates aren\'t set up in this copy of Chausar.'); return s.updater.verify(payload.manifest, payload.signature);
-      case 'updates.stage': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater && payload.confirmed === true, 'UPDATES_UNAVAILABLE', 'Review and explicitly confirm a publisher-signed update.'); return s.updater.stage(payload.manifest, payload.signature);
-      case 'workspace.backup': {
-        this.requireWorkspaceOwner(ctx); const folder = join(this.options.directory, 'backups'); await mkdir(folder, { recursive: true });
-        const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.backup`); await store.backup(path); return { path, encrypted: true };
-      }
-      case 'workspace.export': {
-        this.requireWorkspaceOwner(ctx); check(payload.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the export in the app.');
-        const tail = payload.plaintext ? 'json' : 'vault';
-        // C4 task 36 (206.x1): a path only the desktop's own save dialog chose (main.cjs, export-save.cjs; the window's
-        // requests can't carry one): absolute, with the export's own extension. Without one, Chausar's exports folder.
-        if (payload.path !== undefined) {
-          check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Export a copy from inside the app.');
-          check(typeof payload.path === 'string' && isAbsolute(payload.path) && payload.path.length <= 1024 && payload.path.toLowerCase().endsWith(`.${tail}`), 'INVALID_PATH', 'Choose where to save the copy in the save dialog.');
-          await store.export(payload.path, { plaintext: payload.plaintext === true });
-          // C5 task 22: a readable copy notes itself, so Today can ask about it a day later; the path stays in the custody files.
-          if (payload.plaintext === true) await this.custodyFiles().noteReadable(`chausar-${store.read().workspace.id}-${Date.now()}.json`, new Date(this.custodyNow()).toISOString(), payload.path).catch(() => {});
-          return { path: payload.path, name: basename(payload.path), encrypted: payload.plaintext !== true };
-        }
-        const folder = join(this.options.directory, 'exports'); await mkdir(folder, { recursive: true }); const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.${tail}`);
-        await store.export(path, { plaintext: payload.plaintext === true });
-        // C5 task 22: a readable copy notes itself, kind and time only, so Today can ask about it a day later.
-        if (payload.plaintext === true) await this.custodyFiles().noteReadable(basename(path), new Date(this.custodyNow()).toISOString()).catch(() => {});
-        return { path, name: basename(path), encrypted: payload.plaintext !== true };
-      }
-      case 'workspace.delete': {
-        this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete it.');
-        // One-shot A1 (row 1): its backups go; the copies the owner exported stay, and the answer names them.
-        const removed = await this.purgeManagedCopies(['backups']), exportsKept = await this.managedExports();
-        const deletedVault = store.vaultId, deletedFolder = this.#openFolder, deletedWorkspace = store.read().workspace.id, deletedName = store.read().workspace.name;
-        await store.delete(); await this.closeVault(); await this.forgetBusiness(deletedFolder, deletedVault);
-        // A4 review round 2 (M2): the AI setup it saved goes too, so no later business names it. Never fails the delete.
-        const aiSetup = this.#aiSetup();
-        if (aiSetup) await forgetAiSetup(aiSetup, deletedWorkspace).catch(() => {});
-        // One-shot A4 (hands-on S10): the business's own folder goes too, only when nothing is left in it.
-        await this.removeEmptyFolder(this.workspacePath(deletedFolder ?? undefined));
-        // C4 task 37 (211.x1): the name and how many backups went, for Welcome's "Pune Frames is deleted. 7 backups removed."
-        return { deleted: true, name: deletedName, backupsRemoved: removed.filter(path => path.startsWith('backups/')).length, copiesRemoved: removed, exportsKept, externalCopies: 'Copies made outside this app must be removed by their owner.' };
-      }
-      default:
-        if (VENTURE_DISPATCH.has(method)) return (await this.#ventureHost()).request(ctx, method, payload);
-        throw new Error(`Unknown request: ${method}`);
-    }
-  }
-  private async runJob(id: string) {
-    const configured = this.store().read().jobs.find((item: any) => item.id === id);
-    check(configured, 'NOT_FOUND', 'Job not found.');
-    if (configured.plan) return this.jobRunner().run(this.context, id);
-    check(configured.type === 'owner-brief', 'JOB_TYPE_UNSUPPORTED', 'This job has no installed runner.');
-    check(this.context.memberId === configured.ownerId || this.context.role === 'owner', 'JOB_OWNER_REQUIRED', 'Only the job owner or workspace owner can run this job.');
-    const owner = this.store().read().members.find(member => member.id === configured.ownerId);
-    check(owner?.active && owner.epoch === configured.ownerEpoch && owner.role === configured.ownerRole, 'JOB_OWNER_REVOKED', 'The job owner changed or was revoked.');
-    const jobContext: Context = { memberId: owner.id, role: owner.role, epoch: owner.epoch, channel: 'desktop' };
-    const job = await this.services.jobs.acquire(jobContext, id, 'desktop-engine');
-    if (job.status !== 'running' || !job.lease) return job;
-    const result = await this.services.reports.brief(jobContext, { sourceIds: [...job.sourceIds] });
-    const completed = await this.services.jobs.complete(jobContext, id, job.lease, { kind: 'brief', result, at: now() }, '0');
-    // The scheduler may administer another member's run, but does not disclose
-    // that member's cached report to a different requesting identity.
-    if (this.context.memberId !== owner.id) return { id: completed.id, status: completed.status };
-    return completed;
-  }
-  private answerRecoveryOwner(ctx: Context, view: StateStore) {
-    const member = authorize(view, ctx, 'admin');
-    check(member.role === 'owner' && ctx.channel === 'desktop' && !ctx.sourceTainted,
-      'ANSWER_RECOVERY_OWNER_REQUIRED', 'Only the current owner in the untainted app can review and create this fresh calculation.');
-  }
-  private answerRecoveryView(state: State): StateStore {
-    // Calculator writes affect only this candidate. The caller performs ONE Vault.update commit;
-    // this store never re-enters the non-reentrant Vault guard or commits a partial receipt.
-    return { read: () => structuredClone(state), update: async change => await change(state) };
-  }
-  private answerRecoveryCalculator(view: StateStore) {
-    const configured = this.services.calculator as CalculatorService;
-    const connectors = new EngineConnectorService(view, this.options.connectorRuntime);
-    return new CalculatorService(view, {
-      ...(configured.verifier ? { verifier: configured.verifier } : {}),
-      consumerGuard: (ctx, request) => connectors.assertCalculationReady(ctx, request),
-      receiptGuard: (ctx, receipt) => connectors.assertReceiptReady(ctx, receipt),
-    });
-  }
-  private answerRecoveryEvidence(ctx: Context, answerId: unknown, view: StateStore) {
-    this.answerRecoveryOwner(ctx, view);
-    check(typeof answerId === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(answerId), 'INVALID_ANSWER_RECOVERY', 'Choose one saved answer.');
-    const state = view.read(), matches = state.answers.filter(answer => answer.id === answerId), answer = matches[0];
-    check(matches.length === 1 && answer.request && typeof answer.receiptId === 'string'
-      && state.receipts.filter(receipt => receipt.id === answer.receiptId).length === 1,
-      'ANSWER_RECOVERY_SOURCE_CHANGED', 'The exact original answer and private receipt are unavailable.');
-    const calculator = this.answerRecoveryCalculator(view), receipt = calculator.receipt(ctx, answer.receiptId);
-    const evidence: AnswerRecoveryEvidence = { workspaceId: state.workspace.id,
-      answer: { id: answer.id, receiptId: answer.receiptId, request: structuredClone(answer.request) }, receipt };
-    explainAnswerRecovery(evidence);
-    calculator.consumerGuard?.(ctx, structuredClone(answer.request));
-    const current = new OntologyService(view).current(ctx);
-    check(current, 'DICTIONARY_REQUIRED', 'Publish current business definitions before preparing a fresh calculation.');
-    // Exclude unrelated output/audit appends and the issuing record itself. Every input,
-    // meaning, retained connector binding and current authority dependency stays pinned.
-    const evidencePin = hash({ vaultId: this.store().vaultId, workspaceId: state.workspace.id,
-      memberId: ctx.memberId, epoch: ctx.epoch, originalAnswer: answer, originalReceipt: receipt,
-      ontology: state.ontology, facts: state.facts, imports: state.imports, sourceRules: state.sourceRules,
-      merges: state.merges, tombstones: state.tombstones, members: state.members, policy: state.policy });
-    return { evidence, evidencePin, dictionary: { hash: current.hash, version: current.version } };
-  }
-  private answerRecoveryRecord(ctx: Context, newRequestId: unknown, view: StateStore) {
-    this.answerRecoveryOwner(ctx, view);
-    check(typeof newRequestId === 'string' && /^answer_recovery_[A-Za-z0-9_-]{1,160}$/.test(newRequestId),
-      'INVALID_ANSWER_RECOVERY', 'Use a host-issued fresh calculation request.');
-    const state = view.read(), records = state.answers.filter(answer => answer.id === newRequestId), record = records[0] as AnswerRecoveryRecord;
-    check(records.length === 1 && record?.type === 'answer-recovery-request-v1' && record.workspaceId === state.workspace.id
-      && record.memberId === ctx.memberId && record.epoch === ctx.epoch && record.preparation?.newRequestId === newRequestId
-      && ['prepared', 'completed'].includes(record.status) && record.integrity === answerRecoveryRecordIntegrity(record),
-      'ANSWER_RECOVERY_REQUEST_UNAVAILABLE', 'This exact issued request is unavailable under your current private ownership.');
-    const resolved = this.answerRecoveryEvidence(ctx, record.preparation.source.originalAnswerId, view);
-    assertPreparedAnswerRecoveryCurrent(resolved.evidence, record.preparation);
-    return { record, resolved };
-  }
-  private answerRecoveryRead(ctx: Context, newRequestId: unknown) {
-    const view = this.store(), { record, resolved } = this.answerRecoveryRecord(ctx, newRequestId, view);
-    const base = { newRequestId: record.id, preparationDigest: record.preparation.digest,
-      interpretation: 'new-calculation-with-declared-time-scope', historicalReplay: false, grantsAuthority: false,
-      preservesOriginalRecords: true, retrospectivePromotion: 'still-blocked-by-preserved-unpinned-original' };
-    if (record.status === 'prepared') {
-      if (this.#unknownAnswerRecoveries.has(record.id)) return { ...base, status: 'outcome-unknown', requiresReopen: true,
-        message: 'The commit acknowledgement is unknown. Lock and reopen this workspace, then inspect this issued request before explicitly retrying.' };
-      check(record.evidencePin === resolved.evidencePin, 'ANSWER_RECOVERY_EVIDENCE_CHANGED', 'Evidence or access changed. Review and prepare a separate fresh request.');
-      this.answerRecoveryCalculator(view).consumerGuard?.(ctx, structuredClone(record.preparation.request));
-      return { ...base, status: 'prepared', preparation: structuredClone(record.preparation), dictionary: record.dictionary };
-    }
-    check(record.lineage, 'ANSWER_RECOVERY_RESULT_CHANGED', 'The completed request lacks its retained lineage.');
-    const state = view.read(), answers = state.answers.filter(answer => answer.id === record.lineage!.newAnswerId), answer = answers[0];
-    check(answers.length === 1 && answer?.newRequestId === record.id && answer.interpretation === base.interpretation
-      && state.receipts.filter(receipt => receipt.id === record.lineage!.newReceiptId).length === 1,
-      'ANSWER_RECOVERY_RESULT_CHANGED', 'The separate fresh answer and receipt are unavailable.');
-    const receipt = this.answerRecoveryCalculator(view).receipt(ctx, record.lineage.newReceiptId);
-    const result = { answer: { id: answer.id, receiptId: answer.receiptId, request: structuredClone(answer.request) }, receipt };
-    const lineage = completeAnswerRecovery(resolved.evidence, record.preparation, result);
-    check(hash(lineage) === hash(record.lineage), 'ANSWER_RECOVERY_RESULT_CHANGED', 'The retained completed lineage does not match its exact issued result.');
-    return { ...base, status: 'completed', lineage: structuredClone(lineage), answer: result.answer, receipt };
-  }
-  private async executeAnswerRecovery(ctx: Context, newRequestId: unknown, preparationDigest: unknown) {
-    check(typeof preparationDigest === 'string' && DIGEST_PATTERN.test(preparationDigest), 'INVALID_ANSWER_RECOVERY', 'This answer changed since you looked. Look at it again before confirming.');
-    const vault = this.store(), issued = this.answerRecoveryRecord(ctx, newRequestId, vault);
-    check(issued.record.preparation.digest === preparationDigest, 'ANSWER_RECOVERY_PREPARATION_CHANGED', 'Review this exact issued preparation before execution.');
-    if (issued.record.status === 'completed') return this.answerRecoveryRead(ctx, newRequestId);
-    check(!this.#unknownAnswerRecoveries.has(issued.record.id), 'ANSWER_RECOVERY_OUTCOME_UNKNOWN', 'Lock and reopen, then inspect this issued request. Do not repeat an ambiguous calculation.');
-    const pending = this.#answerRecoveryExecutions.get(issued.record.id);
-    if (pending) { await pending; return this.answerRecoveryRead(ctx, newRequestId); }
-    let completed!: () => void, failed!: (error: unknown) => void;
-    const completion = new Promise<void>((resolveCompletion, rejectCompletion) => { completed = resolveCompletion; failed = rejectCompletion; });
-    void completion.catch(() => {}); // The issuing request still reports its own failure.
-    this.#answerRecoveryExecutions.set(issued.record.id, completion);
-    let calculated = false;
-    try {
-      await vault.update(async state => {
-        const view = this.answerRecoveryView(state), { record, resolved } = this.answerRecoveryRecord(ctx, newRequestId, view);
-        check(record.preparation.digest === preparationDigest, 'ANSWER_RECOVERY_PREPARATION_CHANGED', 'The issued preparation changed before commit.');
-        if (record.status === 'completed') return; // A concurrent exact retry observes the same result.
-        check(record.evidencePin === resolved.evidencePin, 'ANSWER_RECOVERY_EVIDENCE_CHANGED', 'Current evidence or access changed before execution. Review again.');
-        const calculator = this.answerRecoveryCalculator(view);
-        const receipt = await calculator.calculate(ctx, structuredClone(record.preparation.request)); calculated = true;
-        const fresh = state.answers.filter(answer => answer.receiptId === receipt.id);
-        check(fresh.length === 1, 'ANSWER_RECOVERY_RESULT_CHANGED', 'The fresh calculation must retain one separate answer.');
-        // Re-resolve the original after verification and calculator candidate writes.
-        const after = this.answerRecoveryEvidence(ctx, record.preparation.source.originalAnswerId, view);
-        check(after.evidencePin === record.evidencePin, 'ANSWER_RECOVERY_EVIDENCE_CHANGED', 'Original evidence or current authority changed during execution.');
-        const result = { answer: { id: fresh[0].id, receiptId: receipt.id, request: structuredClone(fresh[0].request) },
-          receipt: calculator.receipt(ctx, receipt.id) };
-        const lineage = completeAnswerRecovery(after.evidence, record.preparation, result);
-        fresh[0].newRequestId = record.id; fresh[0].interpretation = lineage.interpretation;
-        const persisted = state.answers.find(answer => answer.id === record.id) as AnswerRecoveryRecord;
-        persisted.status = 'completed'; persisted.lineage = structuredClone(lineage); persisted.integrity = answerRecoveryRecordIntegrity(persisted);
-        audit(state, 'answer-recovery.completed', { newRequestId: record.id, originalAnswerId: lineage.source.originalAnswerId,
-          newAnswerId: lineage.newAnswerId, newReceiptId: lineage.newReceiptId, historicalReplay: false });
-      });
-      completed();
-    } catch (error) {
-      // Once a candidate result exists, an error may be an adapter's lost commit acknowledgement.
-      // This handle refuses another computation until reopen resolves durable authority.
-      if (calculated) {
-        this.#unknownAnswerRecoveries.add(issued.record.id);
-        const unknown = new ChausarError('ANSWER_RECOVERY_OUTCOME_UNKNOWN', 'The fresh calculation commit acknowledgement is unknown. Lock and reopen, then inspect this issued request; do not automatically retry.');
-        failed(unknown); throw unknown;
-      }
-      failed(error); throw error;
-    } finally {
-      this.#answerRecoveryExecutions.delete(issued.record.id);
-    }
-    return this.answerRecoveryRead(ctx, newRequestId);
-  }
-  private journalPayload(value: unknown, allowed: readonly string[], required: readonly string[], code: string): Record<string, unknown> {
-    check(value !== null && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value)), code, 'Use a journal object payload.');
-    check(Object.keys(value).every(key => allowed.includes(key)) && required.every(key => Object.hasOwn(value, key)), code, 'Supply the required journal fields without unknown properties.');
-    return value as Record<string, unknown>;
-  }
-  private journalWriter(ctx: Context) {
-    authorize(this.store(), ctx, 'prepare');
-    check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_DECISION_REQUIRED', 'Prepare and review an internal decision explicitly inside the app.');
-  }
-  private journalRevision(value: unknown): asserts value is number {
-    check(typeof value === 'number' && Number.isSafeInteger(value) && value >= 1, 'REVISION_CONFLICT', 'Supply the loaded journal revision before changing it.');
-  }
-  private workbookBytes(payload: any): Uint8Array {
-    const value = payload.bytesBase64 ?? payload.moduleBase64;
-    check(typeof value === 'string' && value.length > 0 && value.length <= 2_800_000 && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value), 'INVALID_WORKBOOK', 'Choose a bounded XLSX workbook.');
-    return Buffer.from(value, 'base64');
-  }
-  private workbookInput(payload: any) {
-    const workbook = readWorkbook(this.workbookBytes(payload), { sheet: payload.sheet });
-    check(workbook.sheets.length === 1 || typeof payload.sheet === 'string', 'SHEET_REQUIRED', 'Choose the exact worksheet to import.');
-    const sheet = payload.sheet ? workbook.sheets.find(item => item.name === payload.sheet) : workbook.sheets[0];
-    check(sheet, 'SHEET_REQUIRED', 'The selected worksheet is missing.');
-    return { sourceId: payload.sourceId, format: 'csv' as const, content: workbookSheetToCSV(sheet), ...(payload.recipe ? { recipe: payload.recipe } : {}), ...(payload.expectedTotals ? { expectedTotals: payload.expectedTotals } : {}) };
-  }
-  private visibleImports() {
-    const store = this.store(); const state = store.read(); const ctx = this.context;
-    const legacy = state.imports.filter(item => !item.type && Array.isArray(item.rowIds) && sourceAllowed(state, ctx, item.sourceId)
-      && item.rowIds.every((id: string) => { const fact = state.facts.find(f => f.id === id); return !!fact && canSeeFact(store, ctx, fact); }));
-    return [...legacy.map(importPublicRecord), ...this.services.connectorRuntime.sourceSummaries(ctx)];
-  }
-  private privateRecipeEvidence(ctx: Context, sourceId: string): PrivateTrialRecipeEvidence {
-    const state = this.store().read(); assertSourceAccess(state, ctx, [sourceId]);
-    check(state.facts.filter(fact => fact.sourceId === sourceId).every(fact => canSeeFact(this.store(), ctx, fact)), 'FORBIDDEN_BRANCH', 'A recipe trial requires access to the complete retained producer history.');
-    const imports = state.imports.filter(item => item.sourceId === sourceId && item.format);
-    check(imports.length > 0 && imports.every(item => item.retainedInput?.version === 1 && item.retainedInput.digest === hash(item.retainedInput.input)
-      && item.contentHash === hash(item.retainedInput.input.content) && item.recipeHash === hash(item.retainedInput.input.recipe)
-      && item.coverage?.reconciled === true && Array.isArray(item.rowIds) && Number.isSafeInteger(item.retainedInput.input.expectedTotals?.rowCount)
-      && /^-?\d+$/.test(item.retainedInput.input.expectedTotals?.amountMinor)), 'TRIAL_RECIPE_CUSTODY_REQUIRED', 'Every source generation needs its exact retained original input, recipe, explicit independent controls and reconciled lineage. Older hash-only imports cannot be inferred.');
-    check(!state.imports.some(item => item.sourceId === sourceId && item.type?.startsWith('connector-')), 'TRIAL_RECIPE_CUSTODY_REQUIRED', 'Managed capture remapping requires its full qualified source custody resolver.');
-    return { sourceId, recipe: structuredClone(imports.at(-1)!.retainedInput.input.recipe), captures: imports.map(item => ({ importId: item.id,
-      generation: item.retainedInput.generation, complete: true, input: structuredClone(item.retainedInput.input), factIds: [...item.rowIds] })) };
-  }
-  private interchangeOwner(ctx: Context, historical: State) {
-    this.requireWorkspaceOwner(ctx);
-    check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Complete workspace copying requires the untainted desktop owner.');
-    check(this.options.sync === undefined, 'INTERCHANGE_EXTERNAL_CUSTODY_REQUIRED', 'Configured device sync needs its independently enumerated external custody before a complete local transfer can be admitted.');
-    const current = this.store().read();
-    const sourceIds = [...new Set<string>([...historical.facts.map(fact => fact.sourceId), ...historical.imports.map(item => item.sourceId).filter((id): id is string => typeof id === 'string')])];
-    assertSourceAccess(current, ctx, sourceIds);
-    check(historical.facts.every(fact => canSeeFact(this.store(), ctx, fact)), 'INTERCHANGE_READ_SCOPE_REQUIRED', 'Workspace copying requires current access to every retained historical row.');
-    const managedSourceIds = [...new Set<string>(current.imports.filter(item => ['connector-capture-v1', 'connector-consumer-binding-v1'].includes(item.type)).map(item => item.sourceId).filter((id): id is string => typeof id === 'string'))];
-    this.services.connectorRuntime.assertBusinessEvidenceReady(ctx, { sourceIds, managedSourceIds, factIds: [], profileIds: [], request: {} });
-  }
-  private backupHost(): WorkspaceBackupV2Host {
-    check(this.services.backupV2 instanceof WorkspaceBackupV2Host, 'BACKUP_STORAGE_PROFILE_REQUIRED',
-      'This storage profile requires its separately reviewed complete encrypted-custody implementation.');
-    return this.services.backupV2;
-  }
-  private activationHost(): EngineWorkspaceActivation {
-    internalCheck(this.services.workspaceActivation instanceof EngineWorkspaceActivation, 'ACTIVATION_ROOT_REQUIRED',
-      'Install the reviewed synthetic local activation, actual encrypted journal and fresh credential capability in the trusted host.');
-    return this.services.workspaceActivation;
-  }
-  private backupCompleteOwner(ctx: Context, historical: State) {
-    this.requireWorkspaceOwner(ctx);
-    check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Complete encrypted archive custody requires the untainted desktop owner.');
-    const current = this.store().read();
-    const sourceIds = [...new Set<string>([...historical.facts.map(fact => fact.sourceId),
-      ...historical.imports.map(item => item.sourceId).filter((id): id is string => typeof id === 'string')])];
-    assertSourceAccess(current, ctx, sourceIds);
-    check(historical.facts.every(fact => canSeeFact(this.store(), ctx, fact)), 'BACKUP_READ_SCOPE_REQUIRED', 'Current access must cover every retained historical row.');
-    const managedSourceIds = [...new Set<string>([...current.imports, ...historical.imports]
-      .filter(item => ['connector-capture-v1', 'connector-consumer-binding-v1'].includes(item.type))
-      .map(item => item.sourceId).filter((id): id is string => typeof id === 'string'))];
-    check((this.options.sync === undefined && managedSourceIds.length === 0) || typeof this.options.backupCustody?.withCompleteOwner === 'function',
-      'BACKUP_HELD_READINESS_REQUIRED', 'Configured sync and managed sources require installed held owner/source/readiness admission through archive publication.');
-    this.services.connectorRuntime.assertBusinessEvidenceReady(ctx, { sourceIds, managedSourceIds, factIds: [], profileIds: [], request: {} });
-  }
-  private privatePromotionImpact(ctx: Context, state = this.store().read(), strategy?: 'prospective' | 'retrospective') {
-    const view: StateStore = { read: () => structuredClone(state), update: async () => { throw new Error('Impact inspection is read-only.'); } };
-    const member = authorize(view, ctx, 'admin');
-    check(member.branches.includes('*'), 'TRIAL_IMPACT_SCOPE_REQUIRED', 'Complete publication impact requires every workspace branch.');
-    assertSourceAccess(state, ctx, [...new Set(state.facts.map(fact => fact.sourceId))]);
-    // Conservatively include every persisted output: meaning changes can affect even equal totals.
-    const outputs = [state.receipts, state.answers, state.decisions, state.jobs, state.actions, state.conversations, state.modelReceipts, state.learning, state.schedules, state.plugins];
-    const affectedArtifactIds = [...new Set<string>(outputs.flatMap(records => records.map(record => record.id).filter((id): id is string => typeof id === 'string' && id.length > 0)))].sort();
-    const rebuildArtifactIds = [...new Set<string>(state.answers.filter(record => record.request && record.receiptId).map(record => record.id))].sort();
-    if (strategy === 'retrospective') {
-      const ineligible = state.answers.filter(answer => rebuildArtifactIds.includes(answer.id)).filter(answer => {
-        const receipt = state.receipts.find(receipt => receipt.id === answer.receiptId);
-        return !answer.request?.asOf || receipt?.memberId !== ctx.memberId || receipt?.epoch !== ctx.epoch;
-      }).map(answer => answer.id);
-      check(ineligible.length === 0, 'TRIAL_REBUILD_REQUIRED', `Retrospective publication needs current private ownership and explicitly pinned requests for these outputs: ${ineligible.join(', ')}.`);
-    }
-    const activeWorkIds = [...new Set<string>([
-      ...state.jobs.filter(job => !['accepted', 'cancelled', 'revoked', 'stopped'].includes(job.status) || job.lease
-        || [job.execution, ...(job.archivedExecutions ?? [])].some(execution => execution?.attempts?.some((attempt: any) => ['dispatched', 'unknown'].includes(attempt.status)))),
-      ...state.actions.filter(action => !['verified', 'cancelled', 'rejected'].includes(action.status)
-        || action.attempts?.some((attempt: any) => ['executing', 'unknown'].includes(attempt.outcome))),
-      ...state.schedules.filter(schedule => schedule.enabled !== false && schedule.status !== 'cancelled'),
-    ].map(record => record.id).filter((id): id is string => typeof id === 'string'))].sort();
-    return { complete: true as const, affectedArtifactIds, rebuildArtifactIds, activeWorkIds };
-  }
-  private async promotePrivateTrial(ctx: Context, publication: PrivateTrialAtomicPublication): Promise<{ publicationId: string }> {
-    const vault = this.store();
-    return vault.update(async state => {
-      const view: StateStore = { read: () => structuredClone(state), update: async () => { throw new ChausarError('REENTRANT_TRANSACTION', 'Use the current publication transaction.'); } };
-      publication.assertCurrent(view);
-      check(hash(this.privatePromotionImpact(ctx, state, publication.proposal.impact.strategy)) === hash({ complete: publication.proposal.impact.complete,
-        affectedArtifactIds: publication.proposal.impact.affectedArtifactIds, rebuildArtifactIds: publication.proposal.impact.rebuildArtifactIds,
-        activeWorkIds: publication.proposal.impact.activeWorkIds }), 'TRIAL_IMPACT_CHANGED', 'Complete publication dependencies changed inside the commit.');
-      const { fork, proposal } = publication; const at = now(), publicationId = newId('trialpublication');
-      if (fork.change.type === 'definition') {
-        // Preserve the exact reviewed compilation metadata/hash. Operational activation time is separate.
-        state.ontology = structuredClone(fork.candidate.ontology);
-      } else if (fork.change.type === 'source-precedence') {
-        state.sourceRules.push({ id: newId('rule'), kind: fork.change.kind, sourceIds: [...fork.change.sourceIds], at, by: ctx.memberId, trialPublicationId: publicationId });
-      } else {
-        const change = fork.change;
-        const live = new Map(state.facts.filter(fact => fact.sourceId === change.sourceId && !fact.supersededAt && !fact.deletedAt).map(fact => [JSON.stringify([fact.kind, fact.entityId]), fact]));
-        const capture = fork.recipeEvidence[0]?.captures.toSorted((left, right) => left.generation - right.generation).at(-1);
-        check(capture && [...live.values()].every(fact => capture.factIds.includes(fact.id)), 'TRIAL_PRODUCER_GENERATION_REQUIRED', 'Publication needs one retained complete latest producer generation; incremental fragments cannot be silently treated as a full replacement.');
-        const preview = new ImportService(view).preview(ctx, { ...capture.input, recipe: change.replacement });
-        check(preview.accepted && preview.facts.length === live.size, 'TRIAL_RECIPE_CUSTODY_CHANGED', 'The reviewed latest complete source generation must still reconcile at publication.');
-        const outputs = capture.factIds.map(id => fork.candidate.facts.find(fact => fact.id === id)!).map(fact => ({ entityId: fact.entityId, sourceId: fact.sourceId,
-          sourceRow: fact.sourceRow, kind: fact.kind, validFrom: fact.validFrom, validTo: fact.validTo, fields: structuredClone(fact.fields), ...(fact.branch ? { branch: fact.branch } : {}) }));
-        const source = new EngineConnectorService(view, this.options.connectorRuntime);
-        const request = { version: 1 as const, complete: true as const, sourceId: change.sourceId, expected: producerReplacementPins(state, change.sourceId), publishedAt: at,
-          outputs, custody: { inputDigest: hash(fork.recipeEvidence), recipeDigest: hash(change.replacement), outputDigest: producerReplacementOutputDigest(outputs) },
-          controls: { rowCount: outputs.length, sums: [{ field: 'amountMinor', minor: String(outputs.reduce((sum, output) => sum + BigInt(String(output.fields.amountMinor)), 0n)) }] } };
-        publishProducerReplacement(state, request, { assertCustody: (_state, input) => {
-          check(input.custody.inputDigest === hash(fork.recipeEvidence) && input.custody.recipeDigest === hash(change.replacement), 'TRIAL_RECIPE_CUSTODY_CHANGED', 'Publication must use the exact reviewed issued custody.');
-        }, assertCurrentAdmission: () => { for (const saved of fork.savedRequests) source.assertCalculationReady(ctx, saved.request); } });
-        const next = new Map(state.facts.filter(fact => fact.sourceId === change.sourceId && !fact.supersededAt && !fact.deletedAt).map(fact => [JSON.stringify([fact.kind, fact.entityId]), fact]));
-        const retained = JSON.parse(JSON.stringify({ ...capture.input, recipe: change.replacement }));
-        const rowIds = preview.facts.map(fact => next.get(JSON.stringify([fact.kind, fact.entityId]))?.id);
-        check(rowIds.every(id => typeof id === 'string'), 'TRIAL_RECIPE_CUSTODY_CHANGED', 'Every published producer row needs its actual live assertion lineage.');
-        state.imports.push({ id: newId('import'), at, sourceId: change.sourceId, format: capture.input.format,
-          contentHash: preview.contentHash, recipeHash: preview.recipeHash, rowIds, coverage: preview.coverage, totalsMinor: preview.totalsMinor,
-          expectedTotals: capture.input.expectedTotals, unmappedFields: preview.unmappedFields, qualification: 'experimental', trialPublicationId: publicationId,
-          retainedInput: { version: 1, generation: state.imports.filter(item => item.sourceId === change.sourceId && item.format).length + 1,
-            input: retained, digest: hash(retained) } });
-        state.learning.push({ id: publicationId, type: 'private-trial-recipe-publication-v1', sourceId: change.sourceId,
-          sourceIds: [change.sourceId], recipe: structuredClone(change.replacement), recipeHash: hash(change.replacement), at, shared: false });
-      }
-      // Original receipts are immutable historical evidence; current answers carry explicit staleness.
-      for (const answer of state.answers) { answer.stale = true; answer.staleReason = 'A reviewed private trial changed the published meaning.'; }
-      if (proposal.impact.strategy === 'retrospective') {
-        // Restatement is new evidence. It never overwrites historical receipts or their IDs.
-        let replay = structuredClone(fork.candidate);
-        const local: StateStore = { read: () => structuredClone(replay), update: async change => {
-          const draft = structuredClone(replay); const result = await change(draft); replay = draft; return result;
-        } };
-        const connectors = new EngineConnectorService(local, this.options.connectorRuntime);
-        const database = this.options.demo ? null : new DatabaseCalculator(this.options.analytics);
-        const rebuilds = proposal.impact.rebuildArtifactIds.map(id => state.answers.find(answer => answer.id === id));
-        for (const saved of rebuilds) {
-          const original = state.receipts.find(receipt => receipt.id === saved?.receiptId);
-          check(saved?.request?.asOf && original?.memberId === ctx.memberId && original?.epoch === ctx.epoch, 'TRIAL_REBUILD_REQUIRED', 'Every acknowledged rebuild needs its current private owner and explicitly pinned original request.');
-          const calculator = new CalculatorService(local, { ...(database ? { verifier: receipt => database.verify(receipt) } : {}), consumerGuard: (context, request) => connectors.assertCalculationReady(context, request),
-            receiptGuard: (context, receipt) => connectors.assertReceiptReady(context, receipt),
-            restatement: { version: 1, interpretation: 'restated-private-diagnostic', trialId: fork.id, forkDigest: fork.digest,
-              candidateStateDigest: fork.candidatePin.stateDigest, publicationId, originalAnswerId: saved.id, originalReceiptId: original.id } });
-          const receipt = await calculator.calculate(ctx, structuredClone(saved.request));
-          state.receipts.push(structuredClone(receipt));
-          state.answers.push({ id: newId('answer'), request: structuredClone(saved.request), receiptId: receipt.id, memberId: ctx.memberId,
-            epoch: ctx.epoch, at, interpretation: 'restated-private-diagnostic', restatement: 'reviewed-private-trial', publicationId, originalAnswerId: saved.id });
-        }
-      }
-      audit(state, 'private-trial.published', { publicationId, trialId: fork.id, strategy: proposal.impact.strategy,
-        candidatePin: fork.candidatePin.stateDigest, activatedAt: at });
-      return { publicationId };
-    });
-  }
-  private async privateRestatementContext(ctx: Context, receiptId: unknown) {
-    check(typeof receiptId === 'string', 'RESTATEMENT_CONTEXT_REQUIRED', 'Choose one retained restated calculation receipt.');
-    const receipt = this.services.calculator.receipt(ctx, receiptId), anchor = receipt.restatement;
-    check(anchor?.version === 1 && anchor.interpretation === 'restated-private-diagnostic', 'RESTATEMENT_CONTEXT_REQUIRED', 'This receipt has no issued private restatement context.');
-    this.assertRestatementCustodyRetained(receiptId);
-    let retained, binding;
-    try {
-      retained = await this.store().readArtifact({ id: `${anchor.trialId}-fork`, purpose: 'private-trial' });
-      binding = await this.store().readArtifact({ id: `${anchor.trialId}-binding`, purpose: 'private-trial' });
-    } catch (error: any) {
-      this.assertRestatementCustodyRetained(receiptId);
-      if (error.code === 'ARTIFACT_NOT_FOUND') throw new ChausarError('RESTATEMENT_CUSTODY_UNAVAILABLE', 'The issued restatement payload is absent; the historical receipt remains labelled but its paired interpretation cannot be released.');
-      throw error;
-    }
-    const fork = retained.value as PrivateTrialAtomicPublication['fork'], issued = binding.value as any;
-    const { digest: ignored, ...body } = fork;
-    check(fork.digest === anchor.forkDigest && hash(body) === fork.digest && fork.candidatePin.stateDigest === anchor.candidateStateDigest
-      && fork.memberId === ctx.memberId && fork.epoch === ctx.epoch && fork.workspaceId === this.store().read().workspace.id
-      && issued.status === 'promoted' && issued.publicationId === anchor.publicationId && issued.fork.issuedDigest === fork.digest
-      && issued.fork.ref.valueDigest === retained.valueDigest, 'RESTATEMENT_CONTEXT_CHANGED', 'The retained restatement differs from its independently issued fork and publication context.');
-    const originalReceipt = this.services.calculator.receipt(ctx, anchor.originalReceiptId);
-    const view: StateStore = { read: () => structuredClone(fork.candidate), update: async () => { throw new Error('Restatement context is inert.'); } };
-    new EngineConnectorService(view, this.options.connectorRuntime).assertReceiptReady(ctx, receipt);
-    // Recheck live access after custody I/O, including every retained exclusion.
-    this.services.calculator.receipt(ctx, receiptId);
-    this.assertRestatementCustodyRetained(receiptId);
-    return { receiptId, interpretation: anchor.interpretation, originalReceipt, forkDigest: fork.digest, candidatePin: fork.candidatePin,
-      change: structuredClone(fork.change), rows: receipt.rowIds.map((id: string) => ({ factId: id,
-        original: structuredClone(fork.baseline.facts.find(fact => fact.id === id)), restated: structuredClone(fork.candidate.facts.find(fact => fact.id === id)) })) };
-  }
-  private assertRestatementCustodyRetained(receiptId: string) {
-    check(!this.store().read().tombstones.some(item => item.kind === 'private-restatement-custody' && item.receiptIds?.includes(receiptId)),
-      'RESTATEMENT_CUSTODY_REVOKED', 'Managed retention or source deletion released the complete fork containing this receipt. Its immutable restatement anchor remains, but paired interpretation is explicitly unavailable.');
-  }
-  private visibleActivity(ctx: Context) {
-    const store = this.store(); const member = authorize(store, ctx); const state = store.read();
-    return state.activity.filter(item => {
-      const details = item.details ?? {};
-      const sourceIds = details.sourceId ? [details.sourceId] : details.sourceIds;
-      if (Array.isArray(sourceIds) && !sourceIds.every((id: string) => sourceAllowed(state, ctx, id) && state.facts.filter(f => f.sourceId === id).every(f => canSeeFact(store, ctx, f)))) return false;
-      return (member.role === 'owner' && member.branches.includes('*')) || details.memberId === ctx.memberId;
-    });
-  }
+check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
+return (ENGINE_HANDLERS[method] ?? unknownRequest(method))(this.#internals, payload);
+}
+  private async runJob(id: string): Promise<any> { return legacy_operations.runJob(this.#internals, id); }
+  private answerRecoveryOwner(ctx: Context, view: StateStore): void { return legacy_operations.answerRecoveryOwner(this.#internals, ctx, view); }
+  private answerRecoveryView(state: State): StateStore { return legacy_operations.answerRecoveryView(this.#internals, state); }
+  private answerRecoveryCalculator(view: StateStore): CalculatorService { return legacy_operations.answerRecoveryCalculator(this.#internals, view); }
+  private answerRecoveryEvidence(ctx: Context, answerId: unknown, view: StateStore): { evidence: AnswerRecoveryEvidence; evidencePin: string; dictionary: { hash: string; version: number; }; } { return legacy_operations.answerRecoveryEvidence(this.#internals, ctx, answerId, view); }
+  private answerRecoveryRecord(ctx: Context, newRequestId: unknown, view: StateStore): { record: AnswerRecoveryRecord; resolved: { evidence: AnswerRecoveryEvidence; evidencePin: string; dictionary: { hash: string; version: number; }; }; } { return legacy_operations.answerRecoveryRecord(this.#internals, ctx, newRequestId, view); }
+  private answerRecoveryRead(ctx: Context, newRequestId: unknown): { status: string; requiresReopen: boolean; message: string; newRequestId: string; preparationDigest: string; interpretation: string; historicalReplay: boolean; grantsAuthority: boolean; preservesOriginalRecords: boolean; retrospectivePromotion: string; } | { status: string; preparation: PreparedAnswerRecovery; dictionary: { hash: string; version: number; }; newRequestId: string; preparationDigest: string; interpretation: string; historicalReplay: boolean; grantsAuthority: boolean; preservesOriginalRecords: boolean; retrospectivePromotion: string; } | { status: string; lineage: CompletedAnswerRecovery; answer: { id: any; receiptId: any; request: any; }; receipt: CalculationReceipt; newRequestId: string; preparationDigest: string; interpretation: string; historicalReplay: boolean; grantsAuthority: boolean; preservesOriginalRecords: boolean; retrospectivePromotion: string; } { return legacy_operations.answerRecoveryRead(this.#internals, ctx, newRequestId); }
+  private async executeAnswerRecovery(ctx: Context, newRequestId: unknown, preparationDigest: unknown): Promise<{ status: string; requiresReopen: boolean; message: string; newRequestId: string; preparationDigest: string; interpretation: string; historicalReplay: boolean; grantsAuthority: boolean; preservesOriginalRecords: boolean; retrospectivePromotion: string; } | { status: string; preparation: PreparedAnswerRecovery; dictionary: { hash: string; version: number; }; newRequestId: string; preparationDigest: string; interpretation: string; historicalReplay: boolean; grantsAuthority: boolean; preservesOriginalRecords: boolean; retrospectivePromotion: string; } | { status: string; lineage: CompletedAnswerRecovery; answer: { id: any; receiptId: any; request: any; }; receipt: CalculationReceipt; newRequestId: string; preparationDigest: string; interpretation: string; historicalReplay: boolean; grantsAuthority: boolean; preservesOriginalRecords: boolean; retrospectivePromotion: string; }> { return legacy_operations.executeAnswerRecovery(this.#internals, ctx, newRequestId, preparationDigest); }
+  private journalPayload(value: unknown, allowed: readonly string[], required: readonly string[], code: string): Record<string, unknown> { return legacy_operations.journalPayload(this.#internals, value, allowed, required, code); }
+  private journalWriter(ctx: Context): void { return legacy_operations.journalWriter(this.#internals, ctx); }
+  private journalRevision(value: unknown): asserts value is number { return legacy_operations.journalRevision(this.#internals, value); }
+  private workbookBytes(payload: any): Uint8Array { return legacy_operations.workbookBytes(this.#internals, payload); }
+  private workbookInput(payload: any): { expectedTotals?: any; recipe?: any; sourceId: any; format: "csv"; content: string; } { return legacy_operations.workbookInput(this.#internals, payload); }
+  private visibleImports(): any[] { return legacy_operations.visibleImports(this.#internals); }
+  private privateRecipeEvidence(ctx: Context, sourceId: string): PrivateTrialRecipeEvidence { return legacy_operations.privateRecipeEvidence(this.#internals, ctx, sourceId); }
+  private interchangeOwner(ctx: Context, historical: State): void { return legacy_operations.interchangeOwner(this.#internals, ctx, historical); }
+  private backupHost(): WorkspaceBackupV2Host { return legacy_operations.backupHost(this.#internals); }
+  private activationHost(): EngineWorkspaceActivation { return legacy_operations.activationHost(this.#internals); }
+  private backupCompleteOwner(ctx: Context, historical: State): void { return legacy_operations.backupCompleteOwner(this.#internals, ctx, historical); }
+  private privatePromotionImpact(ctx: Context, state = this.store().read(), strategy?: 'prospective' | 'retrospective'): { complete: true; affectedArtifactIds: string[]; rebuildArtifactIds: string[]; activeWorkIds: string[]; } { return legacy_operations.privatePromotionImpact(this.#internals, ctx, state, strategy); }
+  private async promotePrivateTrial(ctx: Context, publication: PrivateTrialAtomicPublication): Promise<{ publicationId: string }> { return legacy_operations.promotePrivateTrial(this.#internals, ctx, publication); }
+  private async privateRestatementContext(ctx: Context, receiptId: unknown): Promise<{ receiptId: string; interpretation: any; originalReceipt: any; forkDigest: string; candidatePin: import("./private-trial-contracts.ts").PrivateTrialVersionPin; change: import("./private-trial-contracts.ts").PrivateTrialChange; rows: any; }> { return legacy_operations.privateRestatementContext(this.#internals, ctx, receiptId); }
+  private assertRestatementCustodyRetained(receiptId: string): void { return legacy_operations.assertRestatementCustodyRetained(this.#internals, receiptId); }
+  private visibleActivity(ctx: Context): any[] { return legacy_operations.visibleActivity(this.#internals, ctx); }
   /**
    * One-shot A1 (row 1): the copies in Chausar's exports folder of this business. Delete keeps them (the owner exported
    * them to keep); Forget and a source delete still remove them, because they hold what was forgotten.
    */
-  private async managedExports(): Promise<string[]> {
-    const folder = resolve(this.options.directory, 'exports'), prefix = `chausar-${this.store().read().workspace.id}-`;
-    let files;
-    try { files = await readdir(folder, { withFileTypes: true }); } catch (error) { if ((error as any).code === 'ENOENT') return []; throw error; }
-    return files.filter(file => file.isFile() && file.name.startsWith(prefix) && MANAGED_COPY_TAIL.test(file.name.slice(prefix.length))).map(file => join(folder, file.name)).sort();
-  }
-  private async purgeManagedCopies(folders: readonly ('backups' | 'exports')[] = ['backups', 'exports']) {
-    // A whole-workspace fork can hold forgotten bytes from another source. Revoke
-    // surviving receipt contexts BEFORE deleting those copies; never retain the
-    // forgotten fork solely to satisfy an unrelated receipt's interpretation.
-    const vault = this.store(), current = vault.read();
-    if (current.receipts.some(receipt => receipt.restatement && !current.tombstones.some(item => item.kind === 'private-restatement-custody' && item.receiptIds?.includes(receipt.id)))) {
-      await vault.update(state => {
-        const receiptIds = state.receipts.filter(receipt => receipt.restatement && !state.tombstones.some(item => item.kind === 'private-restatement-custody' && item.receiptIds?.includes(receipt.id))).map(receipt => receipt.id).sort();
-        if (receiptIds.length) state.tombstones.push({ id: newId('tombstone'), kind: 'private-restatement-custody', receiptIds,
-          reason: 'managed-retention-or-deletion', deletedAt: now() });
-      });
-    }
-    const removed: string[] = await this.store().purgeArtifacts();
-    const prefix = `chausar-${this.store().read().workspace.id}-`;
-    for (const name of folders) {
-      const folder = resolve(this.options.directory, name); let files;
-      try { files = await readdir(folder, { withFileTypes: true }); } catch (error) { if ((error as any).code === 'ENOENT') continue; throw error; }
-      for (const file of files) if (file.isFile() && file.name.startsWith(prefix) && MANAGED_COPY_TAIL.test(file.name.slice(prefix.length))) { const path = resolve(folder, file.name); check(relative(folder, path) === file.name, 'INVALID_PATH', 'A managed file left its export directory.'); await unlink(path); removed.push(`${name}/${file.name}`); }
-    }
-    return removed;
-  }
+  private async managedExports(): Promise<string[]> { return custody.managedExports(this.#internals); }
+  private async purgeManagedCopies(folders: readonly ('backups' | 'exports')[] = ['backups', 'exports']): Promise<string[]> { return custody.purgeManagedCopies(this.#internals, folders); }
   // ------------------------------------------------------------ keeping the vault key on this computer
   // KEYCHAIN-SPEC sections 2 to 4 and 8. The computer secret sits in the vault's passphrase slot; the
   // operating system keeps it for the owner's login. Secrets never reach a result, a record, a log or an error.
@@ -2005,51 +829,22 @@ export class Engine {
   #openUnlock: UnlockMode | null = null;
   #closedByOwner = false;
   #schedule: BackupSchedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
-  private custodyHost() {
-    const option = this.options.workspaceCustody; if (!option) return null;
-    if (!this.#custody) {
-      const keys = option.deviceKeys === 'os' ? osDeviceKeyStore() : option.deviceKeys === 'none' ? noDeviceKeyStore('not-configured') : option.deviceKeys;
-      this.#custody = { files: this.custodyFiles(), keys, autoBackups: option.autoBackups === true, clock: option.clock ?? Date.now };
-    }
-    return this.#custody;
-  }
-  private custodyFiles(): CustodyFiles { return this.#custodyFiles ??= new CustodyFiles(this.options.directory); }
-  private custodyNow(): number { return this.custodyHost()?.clock() ?? Date.now(); }
-  private storageKind(): 'experimental-file' | 'postgres' {
-    return this.vault?.storageKind ?? (this.options.storage === 'experimental-file' && (this.options.demo || this.options.venture?.host === 'desktop') ? 'experimental-file' : 'postgres');
-  }
+  private custodyHost(): { files: CustodyFiles; keys: DeviceKeyStore; autoBackups: boolean; clock: () => number; } | null { return custody.custodyHost(this.#internals); }
+  private custodyFiles(): CustodyFiles { return custody.custodyFiles(this.#internals); }
+  private custodyNow(): number { return custody.custodyNow(this.#internals); }
+  private storageKind(): 'experimental-file' | 'postgres' { return custody.storageKind(this.#internals); }
   /** One custody change, backup write, rotation or reseal at a time. */
-  private custodySerial<T>(work: () => Promise<T>): Promise<T> {
-    const next = this.#custodyChain.then(work); this.#custodyChain = next.catch(() => {}); return next;
-  }
-  private resetCustodySession() {
-    this.#openFolder = null; this.#openUnlock = null;
-    this.#schedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
-    this.#snapshotMark = { at: null, revision: null };
-    // C5 task 24: an unfinished Google sign-in closes with the business.
-    this.#drive?.client.close(); this.#drive = null;
-  }
+  private custodySerial<T>(work: () => Promise<T>): Promise<T> { return custody.custodySerial(this.#internals, work); }
+  private resetCustodySession(): void { return custody.resetCustodySession(this.#internals); }
   // ------------------------------------------------------------ business snapshots (Ink v2 wave 4, 4J6)
   // What the other businesses on this computer may know about one that is closed (workspace-snapshots.ts): written at
   // most once a minute while it changes and again on lock, only for a business that opens with this computer.
   #snapshots: WorkspaceSnapshots | null = null;
   #snapshotMark: { at: number | null; revision: number | null } = { at: null, revision: null };
   /** The summaries and the never-contact list on this computer; null on the hosted app or without custody. */
-  private snapshotStore(): WorkspaceSnapshots | null {
-    if (this.options.venture?.host === 'hosted-web') return null;
-    const custody = this.custodyHost(); if (!custody) return null;
-    return this.#snapshots ??= new WorkspaceSnapshots(this.options.directory, () => custody.keys);
-  }
+  private snapshotStore(): WorkspaceSnapshots | null { return custody.snapshotStore(this.#internals); }
   /** The other businesses as their summaries read, the open one left out; a passphrase one is never read. Never throws. */
-  private async snapshotReads(): Promise<BusinessSnapshotRead[]> {
-    const store = this.snapshotStore(); if (!store) return [];
-    try {
-      const files = this.custodyFiles();
-      const listed = (await files.listBusinesses(this.storageKind())).businesses;
-      const vaults = new Map((await files.listCards()).map(card => [card.folder, card.vaultId]));
-      return await store.list(listed.map(item => ({ id: item.folder, name: item.name, opens: item.opens, openedAt: item.openedAt })), vaults, this.vault ? this.#openFolder : null);
-    } catch { return []; }
-  }
+  private async snapshotReads(): Promise<BusinessSnapshotRead[]> { return custody.snapshotReads(this.#internals); }
   /**
    * workspace.custody.neverContactReset { confirmation } (4J6): the owner's explicit step to start a new never-contact
    * list, only while the old one can no longer be checked (NEVER_CONTACT_LOST; one that still checks is NEVER_CONTACT_OK).
@@ -2057,537 +852,81 @@ export class Engine {
    * The open business adds its own blocklist again at once, the others when next opened; people forgotten elsewhere
    * can't be put back. Journalled in the audit.
    */
-  private async neverContactReset(payload: any): Promise<{ line: string }> {
-    const store = this.snapshotStore(), vault = this.store();
-    check(store, 'TIER_UNAVAILABLE', 'This computer keeps no never-contact list.');
-    check(typeof payload?.confirmation === 'string' && payload.confirmation === vault.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to start a new never-contact list.');
-    let lost = false;
-    try { await store.neverContactHas([]); } catch (error) { if ((error as ChausarError)?.code !== 'NEVER_CONTACT_LOST') throw error; lost = true; }
-    check(lost, 'NEVER_CONTACT_OK', 'Your never-contact list on this computer still checks, so there is nothing to start again.');
-    const line = await store.neverContactReset();
-    await vault.update(state => audit(state, 'custody.never-contact-reset', {}));
-    this.#snapshotMark = { at: null, revision: null };
-    await this.writeSnapshot(false);
-    return { line };
-  }
+  private async neverContactReset(payload: any): Promise<{ line: string }> { return custody.neverContactReset(this.#internals, payload); }
   /** At a tick: the open business's summary, when one is due. Never throws. */
-  private async snapshotTick() {
-    if (this.#closing || this.#transition || !this.vault) return;
-    this.#activeRequests++;
-    try { await this.writeSnapshot(false); } finally { this.#activeRequests--; this.notifyIdle(); }
-  }
+  private async snapshotTick(): Promise<void> { return custody.snapshotTick(this.#internals); }
   /**
    * The open business's summary when due, or on lock: written only for a business that opens with this computer; one
    * that needs a passphrase has its summary taken away. Either way the addresses its own blocklist keeps out join the
    * never-contact list, as keyed checks. Never throws: the next tick or lock tries again.
    */
   /** Whether a summary is due now: a store, an open venture business, and snapshotDue. Synchronous; never throws. */
-  private snapshotWanted(lock: boolean): boolean {
-    const store = this.snapshotStore(), vault = this.vault, folder = this.#openFolder;
-    if (!store || !vault || !folder) return false;
-    try {
-      if (!vault.read().conversations.some((record: any) => record?.kind === 'venture-record')) return false;
-      return snapshotDue(this.#snapshotMark, vault.read().revision, this.custodyNow(), lock);
-    } catch { return false; }
-  }
-  private async writeSnapshot(lock: boolean) {
-    const store = this.snapshotStore(), vault = this.vault, folder = this.#openFolder;
-    if (!store || !vault || !folder) return;
-    try {
-      if (!this.snapshotWanted(lock)) return;
-      const host = await this.#ventureHost() as unknown as { snapshot?: (ctx: Context) => Promise<{ snapshot: Record<string, unknown>; neverContact: string[] } | null> };
-      if (this.vault !== vault || typeof host.snapshot !== 'function') return;
-      const made = await host.snapshot({ ...this.#baseContext });
-      if (!made) return;
-      this.#snapshotMark = { at: this.custodyNow(), revision: vault.read().revision };
-      if (made.neverContact.length) await store.neverContactAdd(made.neverContact).catch(() => {});
-      if (this.#openUnlock !== 'this-computer') { await store.remove(folder); return; }
-      await store.write(folder, { format: SNAPSHOT_FORMAT, businessId: folder, vaultId: vault.vaultId, ...made.snapshot } as BusinessSnapshot);
-    } catch { /* The next tick or lock tries again. */ }
-  }
-  private requireAppOwner(ctx: Context) {
-    this.requireWorkspaceOwner(ctx);
-    check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Change how your business is kept from inside the app.');
-  }
+  private snapshotWanted(lock: boolean): boolean { return custody.snapshotWanted(this.#internals, lock); }
+  private async writeSnapshot(lock: boolean): Promise<void> { return custody.writeSnapshot(this.#internals, lock); }
+  private requireAppOwner(ctx: Context): void { return custody.requireAppOwner(this.#internals, ctx); }
   /** The secret this computer keeps for a vault. PASSPHRASE_REQUIRED with no key record; DEVICE_KEY_FAILED when the OS refuses. */
-  private async computerSecret(vaultId: string | null): Promise<string> {
-    const custody = this.custodyHost(); if (!custody) throw deviceKeysUnavailable('not-configured');
-    const record = vaultId ? await custody.files.readKey(vaultId) : null;
-    if (!record) throw new ChausarError('PASSPHRASE_REQUIRED', CUSTODY_WORDS.errors.PASSPHRASE_REQUIRED);
-    // A business already kept by this computer: no passphrase opens it, so never say "Chausar asks for a passphrase".
-    const probe = await custody.keys.probe();
-    if (!probe.available) throw probe.reason === 'not-configured' || probe.reason === 'platform' ? deviceKeyFailed(probe.reason)
-      : Object.assign(new ChausarError('DEVICE_KEY_FAILED', CUSTODY_WORDS.lock.keyNotAnswering), { reason: probe.reason });
-    let secret: Buffer | null;
-    try { secret = await custody.keys.unprotect(record); } catch { throw deviceKeyFailed(); }
-    if (!secret) throw deviceKeyFailed();
-    try { return secret.toString('base64url'); } finally { secret.fill(0); }
-  }
+  private async computerSecret(vaultId: string | null): Promise<string> { return custody.computerSecret(this.#internals, vaultId); }
   /** The secret another folder of the same vault already uses, so both keep opening; null when there is none. */
-  private async existingComputerSecret(vaultId: string): Promise<string | null> {
-    try { return await this.computerSecret(vaultId); } catch { return null; }
-  }
-  private async storeComputerSecret(vault: Vault, secret: Buffer) {
-    const custody = this.custodyHost()!; let record: DeviceKeyRecord | null = null;
-    try { record = await custody.keys.protect(vault.vaultId, secret); await custody.files.writeKey(record); }
-    catch {
-      if (record) await custody.keys.forget(record).catch(() => {});
-      await vault.close().catch(() => {}); throw deviceKeyFailed();
-    }
-  }
+  private async existingComputerSecret(vaultId: string): Promise<string | null> { return custody.existingComputerSecret(this.#internals, vaultId); }
+  private async storeComputerSecret(vault: Vault, secret: Buffer): Promise<void> { return custody.storeComputerSecret(this.#internals, vault, secret); }
   /** Forget this computer's key for a vault unless another business folder still opens with it. */
-  private async forgetKeyIfUnused(vaultId: string, folder: string | null) {
-    const custody = this.custodyHost(); if (!custody) return;
-    const others = (await custody.files.listCards()).filter(card => card.vaultId === vaultId && card.folder !== folder && card.unlock === 'this-computer');
-    if (others.length) return;
-    const record = await custody.files.readKey(vaultId); if (!record) return;
-    await custody.keys.forget(record).catch(() => {});
-    await custody.files.removeKey(vaultId);
-  }
-  private async currentCard(): Promise<VaultCard> {
-    const custody = this.custodyHost(); if (!custody) throw deviceKeysUnavailable('not-configured');
-    const card = this.#openFolder ? await custody.files.readCard(this.#openFolder) : null;
-    check(card, 'VAULT_LOCKED', 'Open your business first.');
-    return card;
-  }
+  private async forgetKeyIfUnused(vaultId: string, folder: string | null): Promise<void> { return custody.forgetKeyIfUnused(this.#internals, vaultId, folder); }
+  private async currentCard(): Promise<VaultCard> { return custody.currentCard(this.#internals); }
   /** After a vault opens: remember how, write or refresh its card, finish an interrupted custody change. */
-  private async afterOpen(folder: string, how: 'this-computer' | 'typed', options: { recovery?: RecoveryState; reseal?: boolean; created?: boolean } = {}) {
-    this.#openFolder = folder; this.#openUnlock = how === 'this-computer' ? 'this-computer' : 'passphrase'; this.#closedByOwner = false;
-    const custody = this.custodyHost(); if (!custody) return;
-    await this.noteLiveVersion(folder);
-    await this.loadSchedule();
-    const vault = this.store(), state = vault.read(), unlock = this.#openUnlock, prior = await custody.files.readCard(folder);
-    const recovery: RecoveryState = options.recovery ?? (prior?.state === 'ready' ? prior.recovery : how === 'typed' ? 'made' : 'unknown');
-    const reseal = !!options.reseal || (!!prior && prior.state === 'ready' && (prior.pending !== null || prior.unlock !== unlock));
-    const card: VaultCard = { ...(prior ?? newCard({ folder, unlock, recovery })), vaultId: vault.vaultId, workspaceId: state.workspace.id,
-      name: state.workspace.name, demo: state.workspace.demo, unlock, recovery, state: 'ready', pending: reseal ? 'reseal' : null,
-      wrappersDigest: vault.wrappersDigest, openedAt: new Date(this.custodyNow()).toISOString() };
-    await custody.files.writeCard(card);
-    if (reseal) await this.resealManaged();
-    if (how === 'typed') await this.forgetKeyIfUnused(vault.vaultId, folder);
-    if (how === 'typed') await this.snapshotStore()?.remove(folder); // a passphrase business keeps no summary (4J6)
-    if (reseal) await custody.files.writeCard({ ...card, pending: null });
-  }
+  private async afterOpen(folder: string, how: 'this-computer' | 'typed', options: { recovery?: RecoveryState; reseal?: boolean; created?: boolean } = {}): Promise<void> { return custody.afterOpen(this.#internals, folder, how, options); }
   /** D12: what the open business's live file holds, for a closed business's count at the next update. Keeps who moved it. */
-  private async noteLiveVersion(folder: string) {
-    const files = this.custodyFiles(), state = this.store().read(), prior = (await files.readDataVersions()).live[folder];
-    await files.noteDataVersion({ live: { folder, entry: { ...(prior?.version === state.schemaVersion ? prior : {}), version: state.schemaVersion, workspaceId: state.workspace.id } } });
-  }
-  private async loadSchedule() {
-    this.#schedule = { lastAt: null, lastRevision: null, due: false, lastError: null };
-    const vault = this.vault; if (!vault || !this.custodyHost()) return;
-    const files = this.custodyFiles(), newest = (await files.backupFiles(vault.read().workspace.id))[0];
-    if (!newest) return;
-    const header = await files.backupHeader(newest.name);
-    this.#schedule = { ...this.#schedule, lastAt: newest.at, lastRevision: header?.vaultId === vault.vaultId ? header.revision : null };
-  }
+  private async noteLiveVersion(folder: string): Promise<void> { return custody.noteLiveVersion(this.#internals, folder); }
+  private async loadSchedule(): Promise<void> { return custody.loadSchedule(this.#internals); }
   /** Re-seal this vault's managed backups and encrypted exports with the live wrappers (KEYCHAIN-SPEC 4.4). Skipped when
    * this folder opens with this computer and another folder of the same vault is locked with a passphrase: the backups
    * are shared by workspace id, and resealing them would quietly undo that passphrase. */
-  private async resealManaged() {
-    const vault = this.store(), files = this.custodyFiles(), workspaceId = vault.read().workspace.id;
-    if (this.#openUnlock !== 'passphrase' && (await files.listCards()).some(card => card.state === 'ready' && card.vaultId === vault.vaultId
-      && card.folder !== this.#openFolder && card.unlock === 'passphrase')) return { resealed: [], skipped: [] };
-    const paths = [...(await files.backupFiles(workspaceId)).map(file => join(files.backups, file.name)), ...await files.exportFiles(workspaceId)];
-    return vault.resealBackups(paths);
-  }
-  private async backupView(name: string): Promise<BackupView> {
-    const files = this.custodyFiles(), cards = this.custodyHost() ? await files.listCards() : [];
-    const found = (await files.backupViews(this.store().read().workspace.id, cards)).backups.find(view => view.file === name);
-    check(found, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
-    return (await this.labelledBackups([found]))[0]!;
-  }
+  private async resealManaged(): Promise<{ resealed: string[]; skipped: { path: string; reason: string; }[]; }> { return custody.resealManaged(this.#internals); }
+  private async backupView(name: string): Promise<BackupView> { return custody.backupView(this.#internals, name); }
   /** Writes one managed backup (ciphertext only) and, for automatic and safety copies, applies the rotation. */
-  private async writeBackup(kind: BackupKind): Promise<BackupView> {
-    const vault = this.store(), files = this.custodyFiles(), workspaceId = vault.read().workspace.id, revision = vault.read().revision;
-    const folder = await safeDirectory(files.backups, true);
-    let at = this.custodyNow(), name = backupName(workspaceId, at, kind);
-    for (const taken = new Set((await readdir(folder)).map(item => item.toLowerCase())); taken.has(name.toLowerCase()); name = backupName(workspaceId, ++at, kind));
-    await vault.backup(join(folder, name));
-    await files.noteDataVersion({ file: { name, version: vault.read().schemaVersion } });
-    this.#schedule = { lastAt: at, lastRevision: revision, due: false, lastError: null };
-    if (kind !== 'manual') {
-      const { remove } = keepBackups(await files.backupFiles(workspaceId), this.custodyNow());
-      for (const old of remove) await files.removeBackup(old).catch(() => {});
-    }
-    if (kind === 'auto') await this.copyBackupOut();
-    return this.backupView(name);
-  }
+  private async writeBackup(kind: BackupKind): Promise<BackupView> { return custody.writeBackup(this.#internals, kind); }
   /** C5 task 23: sets or clears the drive or folder automatic backups are copied to, and copies the newest now. Main asks this after its own folder pick. */
-  private async backupCopyTo(payload: any): Promise<{ copy: BackupCopyView | null }> {
-    check(payload.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the folder in the app.');
-    const card = await this.currentCard(), files = this.custodyFiles();
-    if (payload.folder === null) { await files.writeCard({ ...card, copy: null }); return { copy: null }; }
-    check(typeof payload.folder === 'string' && isAbsolute(payload.folder), 'INVALID_PATH', 'Pick the folder in the app.');
-    const inside = relative(resolve(this.options.directory), resolve(payload.folder));
-    check(inside.startsWith('..') || isAbsolute(inside), 'INVALID_PATH', "Pick a folder outside Chausar's own folders.");
-    await files.writeCard({ ...card, copy: { folder: resolve(payload.folder), lastFile: null, lastCopiedAt: null, problem: null } });
-    await this.copyBackupOut();
-    return { copy: copyViewOf((await this.currentCard()).copy) };
-  }
+  private async backupCopyTo(payload: any): Promise<{ copy: BackupCopyView | null }> { return custody.backupCopyTo(this.#internals, payload); }
   /** C5 task 24: the open business's Drive client. Its refresh token stays in the credential store, under this business. */
-  private driveOf(): DriveBackup {
-    const workspaceId = this.store().read().workspace.id;
-    if (this.#drive?.workspaceId === workspaceId) return this.#drive.client;
-    this.#drive?.client.close();
-    const option = this.options.drive, build = option ?? driveClientOfBuild(), port = this.options.venture?.credentials;
-    const tokens: DriveTokens = option?.tokens ?? {
-      read: async () => (port ? port.get(workspaceId, 'backups:google-drive') : null),
-      write: async (text: string) => { if (!port) throw new ChausarError('DRIVE_NOT_SET_UP', CUSTODY_WORDS.errors.DRIVE_NOT_SET_UP); await port.set(workspaceId, 'backups:google-drive', text); },
-      remove: async () => { await port?.delete(workspaceId, 'backups:google-drive'); },
-    };
-    const client = new DriveBackup({ clientId: build.clientId, clientSecret: build.clientSecret ?? null, tokens, ...(option?.endpoints ? { endpoints: option.endpoints } : {}), ...(option?.chunkBytes ? { chunkBytes: option.chunkBytes } : {}) });
-    this.#drive = { workspaceId, client };
-    return client;
-  }
-  private async driveStatus(): Promise<DriveStatus> {
-    const { state } = await this.driveOf().status();
-    const card = this.custodyHost() && this.#openFolder ? await this.custodyFiles().readCard(this.#openFolder) : null;
-    return { state, lastCopiedAt: card?.drive?.lastCopiedAt ?? null, problem: card?.drive?.problem ?? null };
-  }
+  private driveOf(): DriveBackup { return custody.driveOf(this.#internals); }
+  private async driveStatus(): Promise<DriveStatus> { return custody.driveStatus(this.#internals); }
   /** What the card remembers about Drive: the last file and when, or the problem. Never a token. */
-  private async driveNote(note: NonNullable<VaultCard['drive']> | null): Promise<void> {
-    const custody = this.custodyHost(); if (!custody || !this.#openFolder) return;
-    const card = await custody.files.readCard(this.#openFolder);
-    if (card) await custody.files.writeCard({ ...card, drive: note });
-  }
+  private async driveNote(note: NonNullable<VaultCard['drive']> | null): Promise<void> { return custody.driveNote(this.#internals, note); }
   /** C5 task 24: the newest backup to Drive, when Drive is connected and hasn't got it. Never throws: a problem is said on the card. */
-  private async driveBackupOut(): Promise<void> {
-    const custody = this.custodyHost(), vault = this.vault;
-    if (!custody || !vault || !this.#openFolder) return;
-    try {
-      const drive = this.driveOf();
-      if ((await drive.status()).state !== 'connected') return;
-      const card = await custody.files.readCard(this.#openFolder), workspaceId = vault.read().workspace.id;
-      const newest = (await custody.files.backupFiles(workspaceId))[0];
-      if (!card || !newest || (card.drive?.lastFile === newest.name && !card.drive.problem)) return;
-      try {
-        await drive.upload(newest.name, Buffer.from(await readBoundedText(custody.files.backupPath(newest.name))), workspaceId);
-        await this.driveNote({ lastFile: newest.name, lastCopiedAt: new Date(this.custodyNow()).toISOString(), problem: null });
-      } catch (error) {
-        await this.driveNote({ lastFile: card.drive?.lastFile ?? null, lastCopiedAt: card.drive?.lastCopiedAt ?? null, problem: error instanceof ChausarError ? error.message : "Google Drive didn't take the copy. Chausar tries again with the next backup." });
-      }
-    } catch { /* not set up, or nothing to do: Drive is a help, never a gate */ }
-  }
+  private async driveBackupOut(): Promise<void> { return custody.driveBackupOut(this.#internals); }
   /** C5 task 23: the newest backup to the owner's folder, when it isn't there yet. Never throws: a problem is said on the card, and the next tick tries again. */
-  private async copyBackupOut(): Promise<void> {
-    const custody = this.custodyHost(), vault = this.vault;
-    if (!custody || !vault || !this.#openFolder) return;
-    try {
-      const files = custody.files, card = await files.readCard(this.#openFolder), copy = card?.copy;
-      if (!card || !copy) return;
-      const workspaceId = vault.read().workspace.id, newest = (await files.backupFiles(workspaceId))[0];
-      if (!newest || (copy.lastFile === newest.name && !copy.problem)) return;
-      let next = copy;
-      try {
-        await files.copyBackupOut(newest.name, copy.folder, workspaceId);
-        next = { ...copy, lastFile: newest.name, lastCopiedAt: new Date(this.custodyNow()).toISOString(), problem: null };
-      } catch (error) {
-        const code = (error as { code?: unknown }).code;
-        const words = code === 'ENOENT' || code === 'ENOTDIR' || code === 'ENODEV' ? CUSTODY_WORDS.copy.missing
-          : code === 'EACCES' || code === 'EPERM' || code === 'EROFS' ? CUSTODY_WORDS.copy.denied
-            : code === 'ENOSPC' || code === 'EDQUOT' ? CUSTODY_WORDS.copy.full : CUSTODY_WORDS.copy.failed;
-        next = { ...copy, problem: words };
-      }
-      await files.writeCard({ ...card, copy: next });
-    } catch { /* the copy is a help, never a gate: the next tick tries again */ }
-  }
+  private async copyBackupOut(): Promise<void> { return custody.copyBackupOut(this.#internals); }
   /** A safety copy before a lock change. Best effort, except with no recovery code yet: then it is the only way back
    * if the change is cut short, so the change is refused (SAFETY_BACKUP_FAILED) and nothing changes. */
-  private async safetyBackup(required = false): Promise<BackupView | null> {
-    try { return await this.writeBackup('safety'); }
-    catch (error) {
-      this.#schedule.lastError = (error as Error).message.slice(0, 300);
-      if (required) throw new ChausarError('SAFETY_BACKUP_FAILED', CUSTODY_WORDS.lock.safetyBackupFailed);
-      return null;
-    }
-  }
+  private async safetyBackup(required = false): Promise<BackupView | null> { return custody.safetyBackup(this.#internals, required); }
   /** Puts a lock change that failed partway back the way it was, with the secret the vault opened with before.
    * When even that fails, the card keeps its marker and the next open tries both ways in. Never throws. */
-  private async undoLockChange(card: VaultCard, secret: string | null, made: DeviceKeyRecord | null) {
-    const custody = this.custodyHost(), vault = this.vault; if (!custody || !vault || !secret) return;
-    try {
-      await vault.rewrapPassphrase(secret);
-      await custody.files.writeCard({ ...card, pending: null, wrappersDigest: vault.wrappersDigest });
-    } catch { return; }
-    this.#openUnlock = card.unlock;
-    if (made) { await custody.keys.forget(made).catch(() => {}); await custody.files.removeKey(made.vaultId).catch(() => {}); }
-    // The undo made a new wrapper (a new salt), so bring the backups to it again.
-    await this.resealManaged().catch(() => {});
-  }
+  private async undoLockChange(card: VaultCard, secret: string | null, made: DeviceKeyRecord | null): Promise<void> { return custody.undoLockChange(this.#internals, card, secret, made); }
   /** At a tick: an automatic backup when one is due (KEYCHAIN-SPEC 4.1). Never throws. */
-  private async backupTick() {
-    const custody = this.custodyHost();
-    if (!custody?.autoBackups || this.#closing || this.#transition || !this.vault) return;
-    this.#activeRequests++;
-    try {
-      await this.custodySerial(async () => {
-        if (!this.vault || !backupDue(this.#schedule, this.vault.read().revision, custody.clock())) return;
-        try { await this.writeBackup('auto'); }
-        catch (error) { this.#schedule.lastError = (error as Error).message.slice(0, 300); }
-      });
-      // C5 task 23: a copy that couldn't reach its folder goes when it can.
-      await this.custodySerial(() => this.copyBackupOut());
-      // C5 task 24: and the newest to Google Drive, once it is connected.
-      await this.custodySerial(() => this.driveBackupOut());
-    } finally { this.#activeRequests--; this.notifyIdle(); }
-  }
+  private async backupTick(): Promise<void> { return custody.backupTick(this.#internals); }
   /** Closing: back up first when the business changed since its last backup. Best effort, never blocks closing. */
-  private async closingBackup() {
-    const custody = this.custodyHost();
-    if (!custody?.autoBackups || !this.vault || this.#schedule.lastRevision === this.vault.read().revision) return;
-    await this.custodySerial(async () => {
-      try { if (this.vault) await this.writeBackup('auto'); }
-      catch (error) { this.#schedule.lastError = (error as Error).message.slice(0, 300); }
-    }).catch(() => {});
-  }
-  private async custodyView(): Promise<CustodyView> {
-    const custody = this.custodyHost();
-    const probe: ProbeResult = custody ? await custody.keys.probe() : { available: false, reason: 'not-configured' };
-    const computer = computerView(custody?.keys.scheme ?? null, probe, probe.available);
-    if (!this.vault) return { computer, business: null };
-    const vault = this.vault, files = this.custodyFiles(), card = custody && this.#openFolder ? await files.readCard(this.#openFolder) : null;
-    const backups = await files.backupFiles(vault.read().workspace.id), next = custody?.autoBackups ? nextBackupAt(this.#schedule, vault.read().revision, this.custodyNow()) : null;
-    return { computer, business: { folder: this.#openFolder ?? '', unlock: this.#openUnlock ?? 'passphrase', recovery: card?.recovery ?? 'unknown', storage: vault.storageKind,
-      backups: { auto: !!custody?.autoBackups, count: backups.length, newestAt: backups[0] ? new Date(backups[0].at).toISOString() : null,
-        nextDueAt: next === null ? null : new Date(next).toISOString(), lastError: this.#schedule.lastError, copy: copyViewOf(card?.copy) },
-      // C4 task 36: the name the save dialog offers, by the day on this computer's own clock and zone.
-      exportName: exportFileName(vault.read().workspace.name, new Date(this.custodyNow()), Intl.DateTimeFormat().resolvedOptions().timeZone, false),
-      // C4 task 37 (210.x2): the copies in Chausar's own exports folder, which Delete keeps.
-      exportsHere: (await this.managedExports()).length,
-      // C4 task 38 (219.x1): the newest move file made, until the owner dismisses it.
-      moveMadeAt: moveMadeOf(vault.read().activity),
-      storeBytes: vault.storeBytes(), storeLimit: STORE_LIMIT_BYTES } };
-  }
-  private async backupList() {
-    const files = this.custodyFiles(), cards = await files.listCards();
-    const listed = await files.backupViews(this.vault ? this.vault.read().workspace.id : null, cards);
-    return this.vault ? { ...listed, backups: await this.labelledBackups(listed.backups) } : listed;
-  }
+  private async closingBackup(): Promise<void> { return custody.closingBackup(this.#internals); }
+  private async custodyView(): Promise<CustodyView> { return custody.custodyView(this.#internals); }
+  private async backupList(): Promise<{ backups: BackupView[]; more: boolean; }> { return custody.backupList(this.#internals); }
   /** C5 task 20: each backup with what came just before it, read from the open vault. A label that can't be worked out is left off. */
-  private async labelledBackups(backups: BackupView[]): Promise<BackupView[]> {
-    if (!this.vault || !backups.length) return backups;
-    try {
-      // A label holds business words, and this list is answered before the vault check: the owner, in the app, only.
-      this.requireAppOwner(this.context);
-      const { backupLabels } = await import('./venture/journal/backup-labels.ts');
-      const labels = backupLabels(this.vault.read(), backups.map(backup => backup.at), this.context.memberId);
-      return backups.map((backup, index) => (labels[index] ? { ...backup, after: labels[index]! } : backup));
-    } catch { return backups; }
-  }
-  private async passphraseOn(payload: any) {
-    const vault = this.store(), card = await this.currentCard();
-    check(card.unlock === 'this-computer', 'CUSTODY_UNCHANGED', CUSTODY_WORDS.errors.CUSTODY_UNCHANGED);
-    check(typeof payload.passphrase === 'string' && payload.passphrase.length >= 12 && payload.passphrase.length <= 1024, 'WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
-    const files = this.custodyFiles();
-    await this.safetyBackup(card.recovery !== 'made');
-    // The secret it opens with now, to put things back if a step below fails.
-    const before = await this.existingComputerSecret(vault.vaultId);
-    // The marker goes on the card before the rewrap, so a crash after it still finds the way in (workspace.open).
-    await files.writeCard({ ...card, pending: 'to-passphrase' });
-    let recoveryCode: string | null = null, next: VaultCard;
-    try {
-      await vault.rewrapPassphrase(payload.passphrase);
-      // A passphrase can be forgotten and nobody can reset it, so the owner always leaves holding a recovery code.
-      recoveryCode = card.recovery === 'made' ? null : await vault.rewrapRecovery();
-      next = { ...card, unlock: 'passphrase', recovery: 'made', pending: 'forget', wrappersDigest: vault.wrappersDigest };
-      await files.writeCard(next);
-    } catch (error) {
-      // Even a failed rewrap may have reached the disk, so commit the old secret again either way.
-      await this.undoLockChange(card, before, null);
-      throw error;
-    }
-    this.#openUnlock = 'passphrase';
-    await this.snapshotStore()?.remove(card.folder); // its summary goes at once: a passphrase business keeps none (4J6)
-    await this.resealManaged();
-    await this.forgetKeyIfUnused(vault.vaultId, card.folder);
-    await files.writeCard({ ...next, pending: null });
-    await vault.update(state => audit(state, 'custody.passphrase-on', { recoveryMade: recoveryCode !== null }));
-    return { custody: await this.custodyView(), recoveryCode };
-  }
-  private async passphraseOff(payload: any) {
-    const custody = this.custodyHost()!, vault = this.store(), card = await this.currentCard();
-    check(card.unlock === 'passphrase', 'CUSTODY_UNCHANGED', CUSTODY_WORDS.errors.CUSTODY_UNCHANGED);
-    // Other devices pull with the passphrase; a secret only this computer holds would shut them out of new revisions.
-    check(!(this.services.sync?.status(this.context).enabled), 'SYNC_NEEDS_PASSPHRASE', CUSTODY_WORDS.errors.SYNC_NEEDS_PASSPHRASE);
-    check(typeof payload.passphrase === 'string' && await vault.verifyPassphrase(payload.passphrase), 'PASSPHRASE_WRONG', CUSTODY_WORDS.errors.PASSPHRASE_WRONG);
-    const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
-    let secret = await this.existingComputerSecret(vault.vaultId), made: DeviceKeyRecord | null = null;
-    if (!secret) {
-      const bytes = randomBytes(32);
-      try { made = await custody.keys.protect(vault.vaultId, bytes); await custody.files.writeKey(made); secret = bytes.toString('base64url'); }
-      catch (error) { if (made) await custody.keys.forget(made).catch(() => {}); throw error instanceof ChausarError && error.code === 'DEVICE_KEY_FAILED' ? error : deviceKeyFailed(); }
-      finally { bytes.fill(0); }
-    }
-    try { await this.safetyBackup(card.recovery !== 'made'); }
-    catch (error) { if (made) { await custody.keys.forget(made).catch(() => {}); await custody.files.removeKey(made.vaultId).catch(() => {}); } throw error; }
-    // The marker goes on the card before the rewrap; the key record stays until the change is settled either way.
-    await custody.files.writeCard({ ...card, pending: 'to-this-computer' });
-    let next: VaultCard;
-    try {
-      await vault.rewrapPassphrase(secret);
-      next = { ...card, unlock: 'this-computer', pending: 'reseal', wrappersDigest: vault.wrappersDigest };
-      await custody.files.writeCard(next);
-    } catch (error) {
-      // The typed passphrase was just checked, so it puts the vault back; then the new key record goes.
-      await this.undoLockChange(card, payload.passphrase, made);
-      throw error;
-    }
-    this.#openUnlock = 'this-computer';
-    await this.resealManaged();
-    await custody.files.writeCard({ ...next, pending: null });
-    await vault.update(state => audit(state, 'custody.passphrase-off', {}));
-    return { custody: await this.custodyView() };
-  }
-  private async makeRecoveryCode(payload: any) {
-    const vault = this.store(), card = await this.currentCard();
-    if (card.unlock === 'passphrase') check(typeof payload.passphrase === 'string' && await vault.verifyPassphrase(payload.passphrase), 'PASSPHRASE_WRONG', CUSTODY_WORDS.errors.PASSPHRASE_WRONG);
-    const recoveryCode = await vault.rewrapRecovery();
-    const next: VaultCard = { ...card, recovery: 'made', pending: 'reseal', wrappersDigest: vault.wrappersDigest };
-    await this.custodyFiles().writeCard(next);
-    await this.resealManaged();
-    await this.custodyFiles().writeCard({ ...next, pending: null });
-    await vault.update(state => audit(state, 'custody.recovery-made', {}));
-    return { custody: await this.custodyView(), recoveryCode };
-  }
+  private async labelledBackups(backups: BackupView[]): Promise<BackupView[]> { return custody.labelledBackups(this.#internals, backups); }
+  private async passphraseOn(payload: any): Promise<{ custody: CustodyView; recoveryCode: string | null; }> { return custody.passphraseOn(this.#internals, payload); }
+  private async passphraseOff(payload: any): Promise<{ custody: CustodyView; }> { return custody.passphraseOff(this.#internals, payload); }
+  private async makeRecoveryCode(payload: any): Promise<{ custody: CustodyView; recoveryCode: string; }> { return custody.makeRecoveryCode(this.#internals, payload); }
   /**
    * One-shot C6 (section 9 idea 25): what a backup of the open business holds and what restoring it would take back.
    * The same checks as a restore; the backup's state is decoded in memory only and never written. The open business
    * only, so no business words ever sit outside its vault.
    */
-  private async inspectManagedBackup(payload: any): Promise<BackupInspectView> {
-    const vault = this.store(), files = this.custodyFiles(), workspaceId = vault.read().workspace.id;
-    const parsed = typeof payload.file === 'string' ? parseBackupName(payload.file) : null;
-    check(parsed, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
-    check(parsed.workspaceId === workspaceId, 'BACKUP_OTHER_BUSINESS', CUSTODY_WORDS.errors.BACKUP_OTHER_BUSINESS);
-    const header = await files.backupHeader(parsed.name);
-    check(header, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
-    check(header.vaultId === vault.vaultId, 'BACKUP_OTHER_BUSINESS', CUSTODY_WORDS.errors.BACKUP_OTHER_BUSINESS);
-    const view = await this.backupView(parsed.name);
-    const then = await vault.readBackupState(files.backupPath(parsed.name));
-    const { backupCounts, backupDiff } = await import('./venture/views/backup-diff.ts');
-    return { file: view.file, at: view.at, counts: backupCounts(then), since: backupDiff(vault.read(), then) };
-  }
-  private async restoreManagedBackup(payload: any) {
-    check(payload.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the restore in the app.');
-    const vault = this.store(), files = this.custodyFiles(), workspaceId = vault.read().workspace.id;
-    const parsed = typeof payload.file === 'string' ? parseBackupName(payload.file) : null;
-    check(parsed, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
-    check(parsed.workspaceId === workspaceId, 'BACKUP_OTHER_BUSINESS', CUSTODY_WORDS.errors.BACKUP_OTHER_BUSINESS);
-    const header = await files.backupHeader(parsed.name);
-    check(header, 'BACKUP_NOT_FOUND', CUSTODY_WORDS.errors.BACKUP_NOT_FOUND);
-    check(header.vaultId === vault.vaultId, 'BACKUP_OTHER_BUSINESS', CUSTODY_WORDS.errors.BACKUP_OTHER_BUSINESS);
-    const restoredFrom = await this.backupView(parsed.name);
-    // The safety copy is required here: the business's current state is about to be replaced.
-    const safety = await this.writeBackup('safety');
-    await vault.replaceFromBackup(files.backupPath(parsed.name));
-    await this.attachSafely(vault);
-    await vault.update(state => audit(state, 'backup.restored', { file: parsed.name, revision: header.revision }));
-    return { workspace: this.store().read().workspace, restoredFrom, safety };
-  }
-  private async transferExport(payload: any) {
-    // C4 task 38 (219.x1): the owner takes away the "Move file made" line; nothing else changes.
-    if (payload && Object.hasOwn(payload, 'dismiss')) {
-      check(payload.dismiss === true && Object.keys(payload).length === 1, 'INVALID_REQUEST', 'Send dismiss: true to take the line away.');
-      await this.store().update(state => audit(state, 'custody.transfer-dismissed', {}));
-      return { dismissed: true };
-    }
-    const vault = this.store(), card = this.custodyHost() && this.#openFolder ? await this.custodyFiles().readCard(this.#openFolder) : null;
-    if ((card?.unlock ?? this.#openUnlock ?? 'passphrase') === 'passphrase')
-      check(typeof payload.passphrase === 'string' && await vault.verifyPassphrase(payload.passphrase), 'PASSPHRASE_WRONG', CUSTODY_WORDS.errors.PASSPHRASE_WRONG);
-    const transferCode = makeTransferCode(), madeAt = new Date(this.custodyNow()).toISOString();
-    const text = await vault.transferText(transferCode, { recovery: (card ? card.recovery === 'made' : true) ? 'made' : 'not-made', madeAt });
-    check(text.length <= TRANSFER.maxTextChars, 'TRANSFER_TOO_LARGE', CUSTODY_WORDS.errors.TRANSFER_TOO_LARGE);
-    await vault.update(state => audit(state, 'custody.transfer-exported', {}));
-    return { fileName: moveFileName(new Date(madeAt)), text, transferCode, bytes: Buffer.byteLength(text) };
-  }
+  private async inspectManagedBackup(payload: any): Promise<BackupInspectView> { return custody.inspectManagedBackup(this.#internals, payload); }
+  private async restoreManagedBackup(payload: any): Promise<{ workspace: { id: string; name: string; currency: string; demo: boolean; createdAt: string; }; restoredFrom: BackupView; safety: BackupView; }> { return custody.restoreManagedBackup(this.#internals, payload); }
+  private async transferExport(payload: any): Promise<{ dismissed: boolean; fileName?: undefined; text?: undefined; transferCode?: undefined; bytes?: undefined; } | { fileName: string; text: string; transferCode: string; bytes: number; dismissed?: undefined; }> { return custody.transferExport(this.#internals, payload); }
   /**
    * C4 task 38 (223.x1): the business name and the time a move file was made, read with its code before "Move it here".
    * Vault-less and quiet: the file's header is opened in memory only and nothing is written. A wrong code gets exactly
    * the refusal the import gives, so a peek never helps a guess.
    */
-  private async transferPeek(payload: any) {
-    check(payload && typeof payload === 'object' && Object.keys(payload).every(key => key === 'fileText' || key === 'transferCode'), 'INVALID_REQUEST', 'Send the move file and its code.');
-    const text = payload.fileText;
-    check(typeof text === 'string', 'TRANSFER_INVALID', CUSTODY_WORDS.errors.TRANSFER_INVALID);
-    check(text.length <= TRANSFER.maxTextChars, 'TRANSFER_TOO_LARGE', CUSTODY_WORDS.errors.TRANSFER_TOO_LARGE);
-    let parsed: any;
-    try { parsed = JSON.parse(text); } catch { parsed = null; }
-    const envelope = parsed?.envelope;
-    check(parsed?.backupFormat === 'chausar.backup.v1' && envelope?.format === 'chausar.vault.v1' && typeof envelope.id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(envelope.id)
-      && [envelope.passphrase, envelope.recovery, envelope.snapshot].every(part => part && typeof part === 'object'), 'TRANSFER_INVALID', CUSTODY_WORDS.errors.TRANSFER_INVALID);
-    const code = normalizeTransferCode(payload.transferCode);
-    check(code, 'TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG);
-    const seen = await Vault.peekTransfer(text, code);
-    check(seen, 'TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG);
-    return { name: seen.name, movedOutAt: seen.madeAt };
-  }
-  private async transferImport(payload: any) {
-    check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.');
-    this.#draft?.clear();
-    const text = payload.fileText;
-    check(typeof text === 'string', 'TRANSFER_INVALID', CUSTODY_WORDS.errors.TRANSFER_INVALID);
-    check(text.length <= TRANSFER.maxTextChars, 'TRANSFER_TOO_LARGE', CUSTODY_WORDS.errors.TRANSFER_TOO_LARGE);
-    let parsed: any;
-    try { parsed = JSON.parse(text); } catch { parsed = null; }
-    const envelope = parsed?.envelope;
-    check(parsed?.backupFormat === 'chausar.backup.v1' && envelope?.format === 'chausar.vault.v1' && typeof envelope.id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(envelope.id)
-      && Number.isSafeInteger(envelope.revision) && envelope.revision >= 0 && [envelope.passphrase, envelope.recovery, envelope.snapshot].every(part => part && typeof part === 'object'),
-      'TRANSFER_INVALID', CUSTODY_WORDS.errors.TRANSFER_INVALID);
-    const files = this.custodyFiles();
-    check(!(await files.vaultIds()).has(envelope.id), 'TRANSFER_SAME_BUSINESS', CUSTODY_WORDS.errors.TRANSFER_SAME_BUSINESS);
-    const code = normalizeTransferCode(payload.transferCode);
-    check(code, 'TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG);
-    const custody = this.custodyHost(), computer = payload.passphrase === undefined || payload.passphrase === null;
-    if (computer) {
-      if (!custody) throw deviceKeysUnavailable('not-configured');
-      const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
-    } else check(typeof payload.passphrase === 'string' && payload.passphrase.length >= 12 && payload.passphrase.length <= 1024, 'WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
-    const folder = nextFolder(`moved-${randomBytes(3).toString('hex')}`, await files.takenFolders());
-    const path = await files.transferFile(text);
-    try {
-      let vault: Vault;
-      // Review of A1 (row 8): the step a failed move stopped at goes to the custody diagnostic log, with the error's code.
-      const note = (step: string, error: unknown) => files.noteDiagnostic('transfer.import', step, error, new Date(this.custodyNow()).toISOString());
-      try { vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile: path, passphrase: code, storage: await this.adapter(folder), writerGuard: this.writerGuard(), kdfMemo: this.options.kdfMemo }); }
-      catch (error) {
-        if ((error as ChausarError).code === 'UNLOCK_FAILED') throw new ChausarError('TRANSFER_CODE_WRONG', CUSTODY_WORDS.errors.TRANSFER_CODE_WRONG);
-        await note('restore', error); throw error;
-      }
-      let record: DeviceKeyRecord | null = null;
-      const secret = computer ? randomBytes(32) : null;
-      let step = 'protect';
-      try {
-        // One-shot A1 (row 8): a key this computer could not keep offers the passphrase instead (DEVICE_KEYS_UNAVAILABLE,
-        // which the move screen answers with a passphrase), never "this computer's key didn't open your business".
-        if (secret) {
-          try { record = await custody!.keys.protect(vault.vaultId, secret); }
-          catch (error) {
-            const reason = (error as { reason?: unknown }).reason;
-            throw deviceKeysUnavailable(typeof reason === 'string' && Object.hasOwn(CUSTODY_WORDS.unavailable, reason) ? reason as keyof typeof CUSTODY_WORDS.unavailable : 'failed');
-          }
-          step = 'write-key'; await files.writeKey(record);
-          step = 'rewrap'; await vault.rewrapPassphrase(secret.toString('base64url'));
-        }
-        else { step = 'rewrap'; await vault.rewrapPassphrase(payload.passphrase); }
-        // The card goes down before attaching, so if attaching fails the list still shows the right way in.
-        step = 'write-card';
-        const state = vault.read();
-        await files.writeCard(newCard({ folder, vaultId: vault.vaultId, workspaceId: state.workspace.id, name: state.workspace.name, demo: state.workspace.demo,
-          unlock: computer ? 'this-computer' : 'passphrase', recovery: transferHint(parsed), wrappersDigest: vault.wrappersDigest }));
-      } catch (error) {
-        await note(step, error);
-        await files.removeCard(folder).catch(() => {});
-        await vault.delete().catch(() => {});
-        if (record) { await custody!.keys.forget(record).catch(() => {}); await files.removeKey(record.vaultId).catch(() => {}); }
-        // Anything else that stopped the move (a file Chausar could not write) says so in plain words; nothing was kept.
-        throw error instanceof ChausarError ? error : new ChausarError('TRANSFER_FAILED', CUSTODY_WORDS.errors.TRANSFER_FAILED);
-      } finally { secret?.fill(0); }
-      await this.attachSafely(vault);
-    } finally { await files.removeTransfer(path).catch(() => {}); }
-    await this.afterOpen(folder, computer ? 'this-computer' : 'typed', { recovery: transferHint(parsed) });
-    return { workspace: this.store().read().workspace, folder, unlock: computer ? 'this-computer' : 'passphrase' };
-  }
+  private async transferPeek(payload: any): Promise<{ name: string; movedOutAt: string | null; }> { return custody.transferPeek(this.#internals, payload); }
+  private async transferImport(payload: any): Promise<{ workspace: { id: string; name: string; currency: string; demo: boolean; createdAt: string; }; folder: string; unlock: string; }> { return custody.transferImport(this.#internals, payload); }
   /**
    * C5 task 21: workspace.import { file, passphrase?, recoveryCode?, restore? }. The desktop's main process asks it after its
    * own file pick, so no window ever names a path. The encrypted export is the backup format. A business not on this computer
@@ -2595,78 +934,13 @@ export class Engine {
    * goes through the restore path, opening it first when it is closed and making a safety copy first. A readable copy is
    * refused: nothing proves it wasn't changed.
    */
-  private async importCopy(payload: any): Promise<CopyImportResult> {
-    check(typeof payload.file === 'string' && isAbsolute(payload.file), 'INVALID_PATH', 'Choose the copy in the app.');
-    const errors = CUSTODY_WORDS.errors;
-    let parsed: any = null;
-    try { parsed = JSON.parse(await readBoundedText(payload.file)); } catch { parsed = null; }
-    if (parsed && parsed.backupFormat === undefined && parsed.workspace && Number.isSafeInteger(parsed.revision)) throw new ChausarError('IMPORT_READABLE', errors.IMPORT_READABLE);
-    if (payload.file.toLowerCase().endsWith('.json') && parsed?.backupFormat === undefined) throw new ChausarError('IMPORT_READABLE', errors.IMPORT_READABLE);
-    const envelope = parsed?.envelope;
-    check(parsed?.backupFormat === 'chausar.backup.v1' && envelope?.format === 'chausar.vault.v1' && typeof envelope.id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(envelope.id)
-      && [envelope.passphrase, envelope.recovery, envelope.snapshot].every(part => part && typeof part === 'object'), 'IMPORT_INVALID', errors.IMPORT_INVALID);
-    const files = this.custodyFiles(), id: string = envelope.id;
-    if (this.vault) {
-      this.requireAppOwner(this.context);
-      check(this.vault.vaultId === id, 'IMPORT_CLOSE_FIRST', errors.IMPORT_CLOSE_FIRST);
-      check(payload.restore === true, 'IMPORT_ALREADY_HERE', errors.IMPORT_ALREADY_HERE);
-      return this.custodySerial(() => this.restoreFromCopy(payload.file));
-    }
-    this.#draft?.clear();
-    if ((await files.vaultIds()).has(id)) {
-      check(payload.restore === true, 'IMPORT_ALREADY_HERE', errors.IMPORT_ALREADY_HERE);
-      const card = (await files.listCards()).find(item => item.vaultId === id && item.state === 'ready');
-      await this.handleRequest('workspace.open', { folder: card?.folder ?? 'main', ...(typeof payload.passphrase === 'string' ? { passphrase: payload.passphrase } : {}) });
-      return this.custodySerial(() => this.restoreFromCopy(payload.file));
-    }
-    const recoveryCode = typeof payload.recoveryCode === 'string' && payload.recoveryCode ? payload.recoveryCode : undefined;
-    const typed = typeof payload.passphrase === 'string' && payload.passphrase ? payload.passphrase as string : undefined;
-    check(recoveryCode !== undefined || typed !== undefined, 'PASSPHRASE_REQUIRED', errors.IMPORT_NEEDS_SECRET);
-    const custody = this.custodyHost();
-    const folder = nextFolder(`copy-${randomBytes(3).toString('hex')}`, await files.takenFolders());
-    this.workspacePath(folder);
-    let how: 'this-computer' | 'typed' = 'typed', fresh: Buffer | null = null, credentials: { passphrase: string } | { recoveryCode: string; newPassphrase: string };
-    if (recoveryCode !== undefined && typed !== undefined) credentials = { recoveryCode, newPassphrase: typed };
-    else if (recoveryCode !== undefined) {
-      if (!custody) throw deviceKeysUnavailable('not-configured');
-      const probe = await custody.keys.probe(); if (!probe.available) throw deviceKeysUnavailable(probe.reason);
-      fresh = randomBytes(32); how = 'this-computer';
-      credentials = { recoveryCode, newPassphrase: fresh.toString('base64url') };
-    } else credentials = { passphrase: typed! };
-    try {
-      const vault = await Vault.restore({ directory: this.workspacePath(folder), backupFile: payload.file, ...credentials, storage: await this.adapter(folder), writerGuard: this.writerGuard(), kdfMemo: this.options.kdfMemo });
-      if (fresh) await this.storeComputerSecret(vault, fresh);
-      await this.attachSafely(vault);
-    } catch (error) {
-      await this.removeEmptyFolder(this.workspacePath(folder));
-      throw error;
-    } finally { fresh?.fill(0); }
-    await this.afterOpen(folder, how, { recovery: recoveryCode !== undefined ? 'made' : 'unknown', reseal: recoveryCode !== undefined });
-    return { workspace: this.store().read().workspace, folder, unlock: how === 'typed' ? 'passphrase' : 'this-computer' };
-  }
+  private async importCopy(payload: any): Promise<CopyImportResult> { return custody.importCopy(this.#internals, payload); }
   /** The open business from an exported copy of itself, with a safety copy first, as a backup's restore does. */
-  private async restoreFromCopy(file: string): Promise<CopyImportResult> {
-    const vault = this.store();
-    await this.writeBackup('safety');
-    await vault.replaceFromBackup(file);
-    await this.attachSafely(vault);
-    await vault.update(state => audit(state, 'backup.restored', { file: 'exported-copy', revision: vault.read().revision }));
-    return { workspace: this.store().read().workspace, folder: this.#openFolder ?? '', unlock: this.#openUnlock ?? 'passphrase', restored: true };
-  }
+  private async restoreFromCopy(file: string): Promise<CopyImportResult> { return custody.restoreFromCopy(this.#internals, file); }
   /** One-shot A4: removes a deleted business's folder when it holds nothing (never recursive); else leaves it. Never throws. */
-  private async removeEmptyFolder(path: string) {
-    try { await rmdir(path); } catch { /* not empty, or already gone */ }
-  }
-  private async forgetBusiness(folder: string | null, vaultId: string) {
-    const custody = this.custodyHost(); if (!custody || !folder) return;
-    await custody.files.removeCard(folder);
-    await this.snapshotStore()?.remove(folder); // its summary goes with it (4J6)
-    if (!(await custody.files.listCards()).some(card => card.vaultId === vaultId)) {
-      const record = await custody.files.readKey(vaultId);
-      if (record) { await custody.keys.forget(record).catch(() => {}); await custody.files.removeKey(vaultId); }
-    }
-  }
-  private requireWorkspaceOwner(ctx: Context) { const member = authorize(this.store(), ctx, 'admin'); check(member.role === 'owner' && member.branches.includes('*'), 'FORBIDDEN', 'Only the business\'s owner can copy or delete the whole business.'); }
+  private async removeEmptyFolder(path: string): Promise<void> { return custody.removeEmptyFolder(this.#internals, path); }
+  private async forgetBusiness(folder: string | null, vaultId: string): Promise<void> { return custody.forgetBusiness(this.#internals, folder, vaultId); }
+  private requireWorkspaceOwner(ctx: Context): void { return custody.requireWorkspaceOwner(this.#internals, ctx); }
   private jobRunner() { check(this.services.jobRunner, 'JOB_POLICY_REQUIRED', 'Configure explicit worker, active-job and lease policy before creating typed goals.'); return this.services.jobRunner; }
   private createBriefJob(ctx: Context, payload: any) {
     check(payload.plan === undefined, 'INVALID_JOB_PLAN', 'The installed runner creates its own plan.');

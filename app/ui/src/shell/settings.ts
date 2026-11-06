@@ -8,7 +8,7 @@
  */
 
 import type { T } from '../text';
-import { match } from '../../../../platform/runtime/venture/views/find-core';
+import { match } from '../../../../platform/shared/venture/views/find-core.ts';
 
 export type SettingsGroupId = 'business' | 'work' | 'money' | 'safety';
 

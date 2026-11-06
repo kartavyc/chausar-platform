@@ -51,7 +51,11 @@
         "platform/tests/fixtures/*worker.ts",
         "platform/tests/fixtures/*process.ts",
         "app/ui/public/*.js",
-        "app/ui/specimens/index.tsx"
+        "app/ui/specimens/index.tsx",
+        "app/ui/src/places/*/index.tsx",
+        "scripts/ui-chunks.mjs",
+        "scripts/text-owners.mjs",
+        "scripts/ui-shots/chunks.mjs"
       ],
       "project": [
         "platform/**/*.{ts,js,mjs,cjs}",

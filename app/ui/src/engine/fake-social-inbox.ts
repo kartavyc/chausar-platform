@@ -2,8 +2,9 @@
 import { EngineError, type BlueprintViewLite, type OrderLite } from './types';
 import type { W4DeskHost } from './fake-w4';
 import type { FakeDeskKind, FakeForgottenPerson } from './fake-playbooks';
-import { importInbox, editInbox, decideReply, replyHandoff, type InboxItem } from '../../../../platform/runtime/venture/playbooks/social/inbox';
-import { SOCIAL_D2_KEYS } from '../../../../platform/runtime/venture/playbooks/social/d2-core';
+import { importInbox, editInbox, decideReply, replyHandoff } from '../../../../platform/shared/venture/playbooks/social/inbox.ts';
+import type { InboxItem } from '../../../../platform/runtime/venture/playbooks/social/inbox.ts';
+import { SOCIAL_D2_KEYS } from '../../../../platform/shared/venture/playbooks/social/d2-core.ts';
 type Stored=InboxItem&{id:string};
 function need(ok:unknown,code:string,words:string):asserts ok{if(!ok)throw new EngineError(code,words);}
 function exact(value:unknown,keys:string[],required:string[]=[]){need(value&&typeof value==='object'&&!Array.isArray(value),'INVALID_VENTURE_REQUEST','Send one request object.');const body=value as Record<string,unknown>;need(Object.keys(body).every(key=>keys.includes(key))&&required.every(key=>Object.hasOwn(body,key)),'INVALID_VENTURE_REQUEST','Send the required fields and nothing else.');return body;}

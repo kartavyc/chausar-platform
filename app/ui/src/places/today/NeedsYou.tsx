@@ -7,7 +7,7 @@ import { EmptyState } from '../../parts/EmptyState';
 import { FilterChips, type FilterOption } from '../../parts/FilterChips';
 import { Icon } from '../../parts/Icon';
 import { SectionHead } from '../../parts/Tile';
-import type { DecidedLine } from './session';
+import type { DecidedLine } from '../../parts/queue-session';
 // W4 4J19: approve several (O9) and sort Today (O18).
 import { SetPicker, setCandidates } from './SetPicker';
 import { TriageBox } from './TriageBox';

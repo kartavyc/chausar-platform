@@ -9,7 +9,7 @@ import { Beside, FitTile, NotSure, useFit } from './AskChausar';
 import { GalleryFilters } from './GalleryFilters';
 import { HowStarting } from './HowStarting';
 import { ResumeSetup } from './ResumeSetup';
-import { StartedContext } from './started';
+import { StartedContext } from '../../shell/started';
 import { Start } from './Start';
 import { filterWays, orderWays, waysSlotOf, waysToShow, type WaySort, type WaysSlot } from './ways';
 import s from './Onboarding.module.css';
@@ -108,3 +108,6 @@ export function StartPage({ gallery, onStarted, business, country }: {
     </div>
   );
 }
+
+export { FirstRun } from './FirstRun';
+export { Welcome } from './Welcome';

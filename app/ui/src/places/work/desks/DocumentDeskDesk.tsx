@@ -8,9 +8,9 @@ import {EngineError} from '../../../engine/types';
 import {Tile,TileHead} from '../../../parts/Tile';
 import {Button} from '../../../parts/Button';
 import {Field} from '../../../parts/Field';
-import {DOCUMENT_TYPE_LABELS} from '../../../../../../platform/runtime/venture/playbooks/document-desk/core';
-import {DOCUMENT_TYPES} from '../../../../../../platform/runtime/venture/playbooks/document-desk/records';
-import type {DocumentBody} from '../../../../../../platform/runtime/venture/playbooks/document-desk/records';
+import { DOCUMENT_TYPE_LABELS } from '../../../../../../platform/shared/venture/playbooks/document-desk/core.ts';
+import { DOCUMENT_TYPES } from '../../../../../../platform/shared/venture/playbooks/document-desk/records.ts';
+import type { DocumentBody } from '../../../../../../platform/runtime/venture/playbooks/document-desk/records.ts';
 import s from './R5.module.css';
 import { Select } from '../../../parts/Select';
 

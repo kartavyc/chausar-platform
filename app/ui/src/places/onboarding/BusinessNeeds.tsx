@@ -7,7 +7,7 @@ import { ConnectorLabel } from '../../parts/ConnectorLabel';
 import { Tile } from '../../parts/Tile';
 import { goTo, openSheet } from '../../shell/navigation';
 import { useOwnerCountry } from '../../shell/clock';
-import { formatCount } from '../../../../../platform/runtime/owner-format';
+import { formatCount } from '../../../../../platform/shared/owner-format.ts';
 import f from './FirstRun.module.css';
 
 /**

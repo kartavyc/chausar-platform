@@ -17,13 +17,324 @@ import type * as ExternalContract7 from "@modelcontextprotocol/sdk/shared/auth.j
 
 import type * as ExternalContract8 from "node:fs/promises";
 
-declare namespace ContractModule57 {
-export type Json = null | boolean | number | string | Json[] | {
-    [key: string]: Json;
+declare namespace ContractModule2 {
+export type AgentDriverSettings = {
+    model: string;
+    effort: 'low' | 'medium' | 'high' | 'max';
+    autoReview: boolean;
+    webSearch: boolean;
+    network: boolean;
+    shell: boolean;
+    fallbackModel?: string;
+    connectors?: boolean;
 };
 }
 
-declare namespace ContractModule75 {
+declare namespace ContractModule3 {
+export type CountryCode = string;
+export type CountryProfile = {
+    code: CountryCode;
+    name: string;
+    currency: string;
+    minorDigits: number;
+    region: 'india' | 'global';
+    tax: {
+        mode: TaxMode;
+        label: string;
+        standardRateBps: string;
+        registrationNote: string;
+        idLabel: string;
+        idPattern: string | null;
+        invoiceKind: 'tax-invoice' | 'invoice';
+        checkedOn: string;
+    };
+    paymentRails: string[];
+    dateOrder: DateOrder;
+    complianceNotes: string[];
+};
+export type TaxMode = 'gst' | 'vat' | 'sales-tax' | 'none';
+export type DateOrder = 'day-month-year' | 'month-day-year' | 'year-month-day';
+}
+
+declare namespace ContractModule4 {
+export type FamilyId = 'money-tax' | 'teaching' | 'creative' | 'writing' | 'local-services' | 'documents' | 'research' | 'people' | 'shop-office' | 'tech' | 'licensed';
+export type FamilyOffer = {
+    name: string;
+    line: string;
+};
+export type NeedConnect = {
+    kind: 'sign-in' | 'key' | 'guide' | 'none';
+    connectorId: string | null;
+    place: 'connections' | 'connections/ai' | null;
+};
+export type NeedLabel = 'write' | 'read' | 'handoff' | 'planned';
+export type NeedView = {
+    id: string;
+    name: string;
+    why: string;
+    label: NeedLabel;
+    connect: NeedConnect;
+    waitsOn: string | null;
+    meanwhile: string | null;
+    required: false;
+};
+export type NeedsList = {
+    family: {
+        id: FamilyId;
+        label: string;
+    } | null;
+    needs: NeedView[];
+};
+}
+
+declare namespace ContractModule5 {
+export type BankDetails = {
+    accountName: string;
+    accountNumber: string;
+    ifsc: string | null;
+    swift: string | null;
+    bankName: string | null;
+};
+export type BillingSettings = {
+    dueInDays: number;
+    terms: string | null;
+    reminderDays: number[];
+    upiId: string | null;
+    payeeName: string | null;
+    bank: BankDetails | null;
+    razorpay: RazorpayAccount | null;
+};
+export type RazorpayAccount = {
+    mode: 'test' | 'live';
+    keyHint: string;
+    savedAt: string;
+};
+export type QrMatrix = {
+    version: number;
+    size: number;
+    rows: string[];
+};
+export type InvoicePart = {
+    kind: 'advance' | 'milestone' | 'partial' | 'final';
+    label: string;
+    shareBps: string | null;
+    basisReceiptId: string;
+    orderTotalMinor: MinorText;
+    earlierMinor: MinorText;
+};
+export type MinorText = string;
+}
+
+declare namespace ContractModule6 {
+export type PriceStep = {
+    op: 'multiply' | 'discount' | 'tax' | 'tax-split' | 'add';
+    inputs: string[];
+    resultMinor: MinorString;
+    rule: string;
+};
+export type MinorString = string;
+export type TaxTreatment = 'none' | 'single' | 'cgst-sgst' | 'igst' | 'zero-rated-lut';
+}
+
+declare namespace ContractModule8 {
+export type KeyedPeopleServiceId = Exclude<PeopleServiceId, 'tofler'>;
+export type PeopleServiceId = 'happenstance' | 'probe42' | 'tofler';
+export type PeopleSearchView = {
+    services: PeopleServiceView[];
+    line: string;
+};
+export type PeopleServiceView = {
+    id: PeopleServiceId;
+    name: string;
+    covers: string;
+    label: 'fixture-tested' | 'planned';
+    needs: string;
+    docs: string;
+    saved: {
+        keyHint: string;
+        savedAt: string;
+    } | null;
+    planned: {
+        waitsOn: string;
+        meanwhile: string;
+    } | null;
+};
+export type SavedPeopleKeys = Partial<Record<KeyedPeopleServiceId, {
+    keyHint: string;
+    savedAt: string;
+}>>;
+}
+
+declare namespace ContractModule17 {
+export type IsoDate = string;
+}
+
+declare namespace ContractModule27 {
+export type PanelSpec = {
+    questions: {
+        id: string;
+        text: string;
+    }[];
+    engines: string[];
+    timepoints: {
+        id: string;
+        from: string;
+        to: string;
+    }[];
+    repeats: number;
+    minimumFilled: number;
+};
+export type SeoObservationBody = {
+    panelId: string;
+    panelDigest: string;
+    questionId: string;
+    engine: string;
+    timepointId: string;
+    repeat: number;
+    capturedAt: string;
+    method: 'owner-capture' | 'api';
+    screenshotFileId: string | null;
+    answer: string;
+    mentioned: boolean;
+    fixture: boolean;
+    slot: string;
+};
+export type SeoPanelBody = {
+    spec: PanelSpec;
+    state: 'draft' | 'approved';
+    approvedDigest: string | null;
+    orderId: string | null;
+};
+export type WebsiteCheckData = {
+    url: string;
+    receipt: string;
+    findings: {
+        what: string;
+        selector: string;
+        measured: string;
+        expected: string;
+        fix: string;
+        repeats: number;
+        unresolved: boolean;
+    }[];
+    approved: boolean;
+    previousReceipt: string | null;
+    checkedFrames: number;
+    limits: string;
+};
+}
+
+declare namespace ContractModule29 {
+export type CrossPostPlan = {
+    video: {
+        id: string;
+        digest: string;
+        kind: 'client';
+    };
+    posts: {
+        platform: string;
+        text: string;
+        ownerApproved: boolean;
+        clientApproved: boolean;
+    }[];
+    capability: 'handoff';
+    upload: 'planned';
+};
+}
+
+declare namespace ContractModule31 {
+import BrokerId = ContractModule1935.BrokerId;
+import TradeRow = ContractModule1932.TradeRow;
+import OpeningLot = ContractModule1934.OpeningLot;
+import TaxPack = ContractModule1937.TaxPack;
+export type TradeJournalEntry = {
+    kind: 'import';
+    broker: BrokerId;
+    name: string;
+    sourceDigest: string;
+    formatChecked: boolean;
+    trades: TradeRow[];
+    receiptId: string;
+} | {
+    kind: 'opening';
+    lot: OpeningLot;
+    receiptId: string;
+} | {
+    kind: 'pack';
+    yearId: TaxPack['yearId'];
+    pack: TaxPack;
+    sourceDigest: string;
+    receiptId: string;
+};
+}
+
+declare namespace ContractModule34 {
+export type EditWord = {
+    id: string;
+    text: string;
+    startMs: number;
+    endMs: number;
+};
+export type EditDocument = {
+    durationMs: number;
+    words: EditWord[];
+    cuts: (WordRange & {
+        startMs: number;
+        endMs: number;
+        manual?: boolean;
+    })[];
+    settings: {
+        title?: string;
+        layout?: string;
+        captions?: string;
+        hook?: WordRange;
+        clips?: WordRange[];
+        zooms?: (WordRange & {
+            scale: number;
+        })[];
+    };
+};
+export type WordRange = {
+    from: string;
+    to: string;
+};
+}
+
+declare namespace ContractModule35 {
+export type AiNetworkSetting = 'off' | 'research' | 'on';
+export type SavedSearchKey = {
+    provider: SearchProviderId;
+    keyHint: string;
+    savedAt: string;
+    consentDigest: string;
+};
+export type SearchProviderId = 'brave' | 'exa' | 'tavily';
+export type WebSearchView = {
+    builtIn: {
+        codex: AiNetworkSetting;
+        claude: AiNetworkSetting;
+        line: string;
+    };
+    key: {
+        provider: SearchProviderId;
+        name: string;
+        keyHint: string;
+        savedAt: string;
+        label: 'fixture-tested';
+    } | null;
+    providers: {
+        id: SearchProviderId;
+        name: string;
+        label: 'fixture-tested';
+        keyPage: string;
+        consent: string;
+        consentDigest: string;
+    }[];
+    line: string;
+};
+}
+
+declare namespace ContractModule111 {
 export type AgentJobScope = {
     jobId: string;
     runId: string;
@@ -36,16 +347,6 @@ export type AgentJobScope = {
     consentId: string;
     consentRevision: number;
     generation: number;
-};
-export type AgentDriverSettings = {
-    model: string;
-    effort: 'low' | 'medium' | 'high' | 'max';
-    autoReview: boolean;
-    webSearch: boolean;
-    network: boolean;
-    shell: boolean;
-    fallbackModel?: string;
-    connectors?: boolean;
 };
 export type AgentUsage = {
     inputTokens: number;
@@ -68,26 +369,7 @@ export type AgentApprovalRequest = {
 };
 }
 
-declare namespace ContractModule77 {
-type Identity = {
-    id: string;
-    name: string;
-    credentialRef?: string;
-    credentialRevision?: string;
-};
-export type ExternalMcpServer = Identity & ({
-    transport: 'stdio';
-    command: string;
-    args: string[];
-    tokenEnv?: string;
-} | {
-    transport: 'http';
-    url: string;
-    oauth?: true;
-});
-}
-
-declare namespace ContractModule84 {
+declare namespace ContractModule120 {
 export type JobProposal = {
     kind: 'send-handoff';
     transport: 'copy' | 'email-handoff';
@@ -100,102 +382,31 @@ export type JobProposal = {
 };
 }
 
-declare namespace ContractModule90 {
-import ExternalMcpServer = ContractModule77.ExternalMcpServer;
-export type CuratedMcpServer = {
-    id: string;
-    name: string;
-    about: string;
-    registryName: string;
-    registryVersion: string;
-    checkedOn: string;
-    signIn: 'none' | 'oauth' | 'key';
-    access: 'read' | 'write';
-    server: ExternalMcpServer;
-};
-export type CuratedMcpView = {
-    source: 'https://registry.modelcontextprotocol.io';
-    checkedOn: string;
-    servers: CuratedMcpServer[];
-};
+declare namespace ContractModule126 {
+export import CuratedMcpView = ContractModule1646.CuratedMcpView;
 }
 
-declare namespace ContractModule102 {
-import AgentDriverSettings = ContractModule75.AgentDriverSettings;
-import ExternalMcpServer = ContractModule77.ExternalMcpServer;
-export type AiProvider = 'codex' | 'claude';
-export type AiNetwork = 'off' | 'research' | 'on';
-export type AiTaskSettings = {
-    model: string;
-    effort: AgentDriverSettings['effort'];
-};
-export type AiProviderSettings = {
-    quick: AiTaskSettings;
-    main: AiTaskSettings;
-    network: AiNetwork;
-    webSearch: AiNetwork;
-    shell: false;
-    fallbackModel?: string;
-    connectors?: boolean;
-};
-export type AiSettings = {
-    codex: AiProviderSettings;
-    claude: AiProviderSettings;
-    autoReview: boolean;
-    agentAutoReview: Record<string, boolean>;
-    mcpServers: ExternalMcpServer[];
-    planPause?: number | null;
-    offerWays?: boolean;
-};
-export type AiSettingsView = {
-    settings: AiSettings;
-    boundaries: {
-        jobFolderOnly: true;
-        windowsSandbox: 'unelevated';
-        shell: 'unavailable';
-        mcp: 'chausar-proxy';
-        externalMcp: 'approval-required';
-    };
-    agents: {
-        id: string;
-        name: string;
-    }[];
-    models: {
-        codex: string[] | null;
-    };
-    modelChoices: Record<AiProvider, {
-        faster: string;
-        smarter: string;
-    }>;
-};
+declare namespace ContractModule138 {
+export import AiSettings = ContractModule1647.AiSettings;
+export import AiSettingsView = ContractModule1647.AiSettingsView;
 }
 
-declare namespace ContractModule111 {
-export const HIRE_READS: readonly [
-    "clients",
-    "orders",
-    "runs",
-    "money",
-    "plan",
-    "journal",
-    "notes",
-    "trackers"
-];
-export type HireRead = typeof HIRE_READS[number];
+declare namespace ContractModule147 {
+export import HireRead = ContractModule1648.HireRead;
 }
 
-declare namespace ContractModule112 {
-export import HireRead = ContractModule111.HireRead;
+declare namespace ContractModule148 {
+export import HireRead = ContractModule147.HireRead;
 }
 
-declare namespace ContractModule113 {
-import DepartmentId = ContractModule266.DepartmentId;
-import IsoTime = ContractModule266.IsoTime;
-import PersonaFields = ContractModule266.PersonaFields;
-import RecordBase = ContractModule266.RecordBase;
+declare namespace ContractModule149 {
+import DepartmentId = ContractModule302.DepartmentId;
+import IsoTime = ContractModule302.IsoTime;
+import PersonaFields = ContractModule302.PersonaFields;
+import RecordBase = ContractModule302.RecordBase;
 export type HirePhase = 'role' | 'reads' | 'voice' | 'review';
 export type HireReadChoice = {
-    read: ContractModule112.HireRead;
+    read: ContractModule148.HireRead;
     why: string;
 };
 export type HireRecord = RecordBase<'venture-agent-hire'> & {
@@ -215,13 +426,13 @@ export type HireRecord = RecordBase<'venture-agent-hire'> & {
 };
 }
 
-declare namespace ContractModule114 {
-import DepartmentId = ContractModule266.DepartmentId;
-import PersonaFields = ContractModule266.PersonaFields;
-import HireRead = ContractModule112.HireRead;
-import HirePhase = ContractModule113.HirePhase;
-import HireReadChoice = ContractModule113.HireReadChoice;
-import HireRecord = ContractModule113.HireRecord;
+declare namespace ContractModule150 {
+import DepartmentId = ContractModule302.DepartmentId;
+import PersonaFields = ContractModule302.PersonaFields;
+import HireRead = ContractModule148.HireRead;
+import HirePhase = ContractModule149.HirePhase;
+import HireReadChoice = ContractModule149.HireReadChoice;
+import HireRecord = ContractModule149.HireRecord;
 export type HireCard = {
     does: string[];
     reads: HireReadChoice[];
@@ -244,8 +455,8 @@ export type HireView = {
 };
 }
 
-declare namespace ContractModule133 {
-import ModelPresetId = ContractModule266.ModelPresetId;
+declare namespace ContractModule169 {
+import ModelPresetId = ContractModule302.ModelPresetId;
 export type BackupChoice = {
     presetId: ModelPresetId;
     label: string;
@@ -260,116 +471,29 @@ export type BackupView = {
 };
 }
 
-declare namespace ContractModule141 {
-export type TalkView = {
-    desktop: boolean;
-    consent: {
-        given: boolean;
-        stale: boolean;
-        text: string;
-        digest: string;
-        at: string | null;
-        keepAudio: boolean;
-    };
-    listen: 'whisper-local' | 'sarvam';
-    whisper: {
-        ready: boolean;
-        line: string;
-    };
-    sarvam: {
-        label: 'fixture-tested';
-        connected: boolean;
-        price: {
-            paisePerMinute: string;
-            checkedOn: string;
-            source: string;
-        };
-        rateDigest: string;
-        capMinor: string;
-        cap: string;
-        spentMinor: string;
-        spent: string;
-        line: string;
-    };
-    speak: {
-        label: 'write' | 'planned: write';
-        line: string;
-    };
-    session: {
-        id: string;
-        expiresAt: string;
-    } | null;
-    recordings: number;
-    line: string;
-};
-export type TalkStarted = {
-    sessionId: string;
-    expiresAt: string;
-    seconds: number;
-    provider: 'whisper-local' | 'sarvam';
-};
-export type TalkHeard = {
-    text: string;
-    provider: 'whisper-local' | 'sarvam';
-    kept: boolean;
-    cost: {
-        minor: string;
-        figure: string;
-    } | null;
-    line: string;
-};
-export type TalkSaid = {
-    spoken: string;
-    quote: {
-        chars: number;
-        figure: string;
-        checkedOn: string;
-        textDigest: string;
-        rateDigest: string;
-    } | null;
-    audioBase64: string | null;
-    line: string;
-};
-export type TalkConsentInput = {
-    digest: string;
-    keepAudio: boolean;
-} | {
-    withdraw: true;
-};
-export type TalkSetupInput = {
-    listen: 'whisper-local';
-} | {
-    listen: 'sarvam';
-    key?: string;
-    capMinor: string;
-    rateDigest: string;
-} | {
-    clearSarvam: true;
-};
+declare namespace ContractModule177 {
+export import TalkView = ContractModule1652.TalkView;
+export import TalkStarted = ContractModule1652.TalkStarted;
+export import TalkHeard = ContractModule1652.TalkHeard;
+export import TalkSaid = ContractModule1652.TalkSaid;
+export import TalkConsentInput = ContractModule1652.TalkConsentInput;
+export import TalkSetupInput = ContractModule1652.TalkSetupInput;
 }
 
-declare namespace ContractModule149 {
-export const APP_PERMISSIONS: readonly [
-    "clients",
-    "orders",
-    "invoices",
-    "notes",
-    "calculator",
-    "propose"
-];
-export type AppPermission = typeof APP_PERMISSIONS[number];
+declare namespace ContractModule185 {
+export import AppPermission = ContractModule1654.AppPermission;
 }
 
-declare namespace ContractModule158 {
+declare namespace ContractModule194 {
 export type AndroidScreenFile = {
     serial: string;
     path: string;
 };
 }
 
-declare namespace ContractModule162 {
-import IsoDate = ContractModule266.IsoDate;
-import MinorString = ContractModule266.MinorString;
+declare namespace ContractModule198 {
+import IsoDate = ContractModule302.IsoDate;
+import MinorString = ContractModule302.MinorString;
 export type BankAlertRule = {
     kind: 'balance-below';
     minor: MinorString;
@@ -401,17 +525,17 @@ export type BankAlertRuleInput = {
 };
 }
 
-declare namespace ContractModule196 {
+declare namespace ContractModule232 {
 export type EventSource = 'razorpay' | 'cal-com';
 export type EventKind = 'payment' | 'booking' | 'booking-cancelled';
 export type EventState = 'new' | 'confirmed' | 'refused' | 'drafted' | 'missed';
 }
 
-declare namespace ContractModule197 {
-import IsoTime = ContractModule266.IsoTime;
-import EventKind = ContractModule196.EventKind;
-import EventSource = ContractModule196.EventSource;
-import EventState = ContractModule196.EventState;
+declare namespace ContractModule233 {
+import IsoTime = ContractModule302.IsoTime;
+import EventKind = ContractModule232.EventKind;
+import EventSource = ContractModule232.EventSource;
+import EventState = ContractModule232.EventState;
 export type RelayEventView = {
     id: string;
     source: EventSource;
@@ -431,10 +555,10 @@ export type EventsView = {
 };
 }
 
-declare namespace ContractModule213 {
-import Json = ContractModule266.Json;
-import OpenAccountView = ContractModule214.OpenAccountView;
-export import OpenAccountView = ContractModule214.OpenAccountView;
+declare namespace ContractModule249 {
+import Json = ContractModule302.Json;
+import OpenAccountView = ContractModule250.OpenAccountView;
+export import OpenAccountView = ContractModule250.OpenAccountView;
 export type OpenPostingDeskTypes = {
     'open-posting': {
         filter: null;
@@ -448,30 +572,15 @@ export type OpenPostingDeskTypes = {
 };
 }
 
-declare namespace ContractModule214 {
-export type OpenPlatform = 'bluesky' | 'mastodon' | 'telegram' | 'discord';
-export type OpenPostingAccount = {
-    platform: OpenPlatform;
-    server: string;
-    accountId: string;
-    destinationId: string;
-    label: string;
-    maxChars: number;
-};
-export type OpenAccountView = {
-    id: OpenPlatform;
-    account: OpenPostingAccount | null;
-    digest: string;
-    connected: boolean;
-    revision: number;
-};
+declare namespace ContractModule250 {
+export import OpenAccountView = ContractModule1658.OpenAccountView;
 }
 
-declare namespace ContractModule226 {
-import Display = ContractModule266.Display;
-import IsoDate = ContractModule266.IsoDate;
-import IsoTime = ContractModule266.IsoTime;
-import MicroString = ContractModule266.MicroString;
+declare namespace ContractModule262 {
+import Display = ContractModule302.Display;
+import IsoDate = ContractModule302.IsoDate;
+import IsoTime = ContractModule302.IsoTime;
+import MicroString = ContractModule302.MicroString;
 export type MonitorKind = 'change' | 'contains' | 'price-below';
 export type MonitorAlert = {
     at: IsoTime;
@@ -604,73 +713,16 @@ export type SpeechProvidersView = {
 };
 }
 
-declare namespace ContractModule231 {
-import SellerCaps = ContractModule1112.SellerCaps;
-import SellerChange = ContractModule1112.SellerChange;
-export type ShopifyProduct = {
-    variantId: string;
-    productId: string;
-    inventoryItemId: string;
-    locationId: string;
-    sku: string | null;
-    title: string;
-    priceMinor: string;
-    currency: string;
-    stock: string;
-};
-export type ShopifyCatalogueRow = Pick<ShopifyProduct, 'variantId' | 'productId' | 'sku' | 'title' | 'priceMinor' | 'currency'>;
-export function shopifyChange(context: {
-    product: ShopifyProduct;
-    breakEvenMinor: string | null;
-    caps: SellerCaps;
-    today: string;
-    operationId: string;
-    ownerSku?: string;
-}, change: SellerChange): {
-    proposal: ContractModule1112.SellerStaged;
-    query: string;
-    variables: Record<string, unknown>;
-    expected: string;
-    field: "price" | "title" | "stock";
-};
+declare namespace ContractModule267 {
+export import ShopifyCatalogueRow = ContractModule1659.ShopifyCatalogueRow;
 }
 
-declare namespace ContractModule238 {
-export type StorefrontProduct = {
-    variantId: string;
-    productId: string;
-    title: string;
-    variantTitle: string;
-    available: boolean;
-    currency: string;
-    priceMinor: string;
-};
-export type StorefrontCatalogue = {
-    rows: StorefrontProduct[];
-    truncated: boolean;
-    total: number | null;
-    reason: 'page-limit' | 'variants-limited' | 'read-failed' | 'rows-changed' | 'cursor-repeated' | null;
-};
+declare namespace ContractModule296 {
+export import ClientAiContextBinding = ContractModule1663.ClientAiContextBinding;
+export import ClientAiDefaultView = ContractModule1663.ClientAiDefaultView;
 }
 
-declare namespace ContractModule260 {
-export type ClientAiContextBinding = {
-    ventureId: string;
-    orderId: string;
-    clientId: string;
-    consentId: string;
-    consentRevision: number;
-};
-export type ClientAiDefaultView = {
-    on: boolean;
-    disclosure: string;
-    digest: string;
-    setAt: string | null;
-    line: string;
-};
-}
-
-declare namespace ContractModule265 {
+declare namespace ContractModule301 {
 export const SERVICE_TYPES: readonly [
     "agency",
     "studio",
@@ -1262,328 +1314,328 @@ export const OUTREACH_KINDS: readonly [
 ];
 }
 
-declare namespace ContractModule266 {
-export import Json = ContractModule268.Json;
-export import IsoDate = ContractModule268.IsoDate;
-export import IsoTime = ContractModule268.IsoTime;
-export import MinorString = ContractModule268.MinorString;
-export import BpsString = ContractModule268.BpsString;
-export import MicroString = ContractModule268.MicroString;
-export import LineLabel = ContractModule268.LineLabel;
-export import Labelled = ContractModule268.Labelled;
-export import CountryCode = ContractModule268.CountryCode;
-export import CountryProfile = ContractModule268.CountryProfile;
-export import ServiceType = ContractModule268.ServiceType;
-export import RecordBase = ContractModule268.RecordBase;
-export import PlaybookPick = ContractModule268.PlaybookPick;
-export import InterviewQuestion = ContractModule268.InterviewQuestion;
-export import InterviewAnswer = ContractModule268.InterviewAnswer;
-export import PricingModel = ContractModule268.PricingModel;
-export import Offer = ContractModule268.Offer;
-export import PlanFlagshipStep = ContractModule268.PlanFlagshipStep;
-export import BlueprintStep = ContractModule268.BlueprintStep;
-export import BackOffice = ContractModule268.BackOffice;
-export import PriceGuideView = ContractModule268.PriceGuideView;
-export import PriceRangeView = ContractModule268.PriceRangeView;
-export import PriceSourceView = ContractModule268.PriceSourceView;
-export import ModelPresetId = ContractModule272.ModelPresetId;
-export import ModelTier = ContractModule272.ModelTier;
-export import ModelAvailability = ContractModule272.ModelAvailability;
-export import ModelPreset = ContractModule272.ModelPreset;
-export import ModelStatusView = ContractModule272.ModelStatusView;
-export import ModelCallRecord = ContractModule272.ModelCallRecord;
-export import OrderStageId = ContractModule273.OrderStageId;
-export import OrderStageReason = ContractModule273.OrderStageReason;
-export import OrderStageView = ContractModule273.OrderStageView;
-export import OrderWaitsOnYou = ContractModule273.OrderWaitsOnYou;
-export import PaymentMethod = ContractModule273.PaymentMethod;
-export import InvoiceNext = ContractModule273.InvoiceNext;
-export import InvoiceTimelineEntry = ContractModule273.InvoiceTimelineEntry;
-export import BooksPeriodKey = ContractModule273.BooksPeriodKey;
-export import BuilderId = ContractModule267.BuilderId;
-export import BuildStatusWord = ContractModule267.BuildStatusWord;
-export import ConnectorModeName = ContractModule267.ConnectorModeName;
-export import ConnectorLadder = ContractModule267.ConnectorLadder;
-export import ConnectorCard = ContractModule267.ConnectorCard;
-export import PostingStepId = ContractModule267.PostingStepId;
-export import SiteEditState = ContractModule267.SiteEditState;
-export import BankImportResult = ContractModule267.BankImportResult;
-export import BankConsentView = ContractModule267.BankConsentView;
-export import LeadEmailCheck = ContractModule267.LeadEmailCheck;
-export import OutreachDraftView = ContractModule267.OutreachDraftView;
-export import LeadSendView = ContractModule267.LeadSendView;
-export import LeadMoveView = ContractModule267.LeadMoveView;
-export import LeadView = ContractModule267.LeadView;
-export import QuestionOption = ContractModule269.QuestionOption;
-export import QuestionItem = ContractModule269.QuestionItem;
-export import QuestionCard = ContractModule269.QuestionCard;
-export import RunFailureKind = ContractModule269.RunFailureKind;
-export import FixKind = ContractModule269.FixKind;
-export import DelegateCli = ContractModule269.DelegateCli;
-export import Display = ContractModule277.Display;
-export import SpendRateUnit = ContractModule277.SpendRateUnit;
-export import CurrencyLead = ContractModule277.CurrencyLead;
-export import SpendLead = ContractModule277.SpendLead;
-export import SpendRow = ContractModule277.SpendRow;
-export import SpendRateInput = ContractModule277.SpendRateInput;
-export import SpendPolicyView = ContractModule277.SpendPolicyView;
-export import SpendMeterView = ContractModule277.SpendMeterView;
-export import LimitReachedView = ContractModule277.LimitReachedView;
-export import SpendMeterRowView = ContractModule277.SpendMeterRowView;
-export import SpendMetersView = ContractModule277.SpendMetersView;
-export import ModelReceiptView = ContractModule277.ModelReceiptView;
-export import AgentCapView = ContractModule277.AgentCapView;
-export import WriteCapView = ContractModule277.WriteCapView;
-export import RateCardLine = ContractModule277.RateCardLine;
-export import QueueActionId = ContractModule275.QueueActionId;
-export import QueueAction = ContractModule275.QueueAction;
-export import QueueChange = ContractModule275.QueueChange;
-export import QueueKind = ContractModule275.QueueKind;
-export import QueueRow = ContractModule275.QueueRow;
-export import QueueSendsTo = ContractModule275.QueueSendsTo;
-export import QueueAmount = ContractModule275.QueueAmount;
-export import QueueRowMeta = ContractModule275.QueueRowMeta;
-export import QueueCount = ContractModule275.QueueCount;
-export import QueuePreview = ContractModule275.QueuePreview;
-export import PreviewFigure = ContractModule275.PreviewFigure;
-export import PreviewReceiptKind = ContractModule275.PreviewReceiptKind;
-export import PreviewWords = ContractModule275.PreviewWords;
-export import PreviewLength = ContractModule275.PreviewLength;
-export import QueueList = ContractModule275.QueueList;
-export import QueueDecision = ContractModule275.QueueDecision;
-export import RunState = ContractModule275.RunState;
-export import RunStep = ContractModule275.RunStep;
-export import CoverageView = ContractModule275.CoverageView;
-export import ReportItem = ContractModule275.ReportItem;
-export import DeliverableReport = ContractModule275.DeliverableReport;
-export import RunToolLine = ContractModule275.RunToolLine;
-export import RunSummary = ContractModule275.RunSummary;
-export import RunDetail = ContractModule275.RunDetail;
-export import DeliveredView = ContractModule275.DeliveredView;
-export import DeliveredFile = ContractModule275.DeliveredFile;
-export import RunScopeView = ContractModule275.RunScopeView;
-export import Posture = ContractModule275.Posture;
-export import AgentView = ContractModule275.AgentView;
-export import VentureRunEventType = ContractModule275.VentureRunEventType;
-export import VentureRunEvent = ContractModule275.VentureRunEvent;
-export import JournalEntry = ContractModule275.JournalEntry;
-export import EvidenceItem = ContractModule275.EvidenceItem;
-export import QueueItemView = ContractModule275.QueueItemView;
-export import MoneyOverviewLine = ContractModule278.MoneyOverviewLine;
-export import MoneyOverview = ContractModule278.MoneyOverview;
-export import TaxWorkingLine = ContractModule278.TaxWorkingLine;
-export import TaxWorkingSection = ContractModule278.TaxWorkingSection;
-export import CaPendingRate = ContractModule278.CaPendingRate;
-export import CaLatestPapers = ContractModule278.CaLatestPapers;
-export import ShareLinkView = ContractModule278.ShareLinkView;
-export import PostingProposal = ContractModule278.PostingProposal;
-export import PostingStepsView = ContractModule278.PostingStepsView;
-export import PostingLimitsView = ContractModule278.PostingLimitsView;
-export import SocialCalendarFile = ContractModule278.SocialCalendarFile;
-export import BankRowClass = ContractModule278.BankRowClass;
-export import BankLedgerRow = ContractModule278.BankLedgerRow;
-export import BankLedgerView = ContractModule278.BankLedgerView;
-export import BankApplyResult = ContractModule278.BankApplyResult;
-export import BankAlertsView = ContractModule278.BankAlertsView;
-export import CaDiffExplanation = ContractModule278.CaDiffExplanation;
-export import CaReceiptView = ContractModule278.CaReceiptView;
-export import PlatformRuleView = ContractModule278.PlatformRuleView;
-export import RecipeView = ContractModule278.RecipeView;
-export import BoundaryView = ContractModule278.BoundaryView;
-export import RulesListView = ContractModule278.RulesListView;
-export import JudgeAutoView = ContractModule278.JudgeAutoView;
-export import TranscriptionSetupView = ContractModule278.TranscriptionSetupView;
-export import SeriesPoint = ContractModule278.SeriesPoint;
-export import AgentHealthStatus = ContractModule278.AgentHealthStatus;
-export import AgentHealth = ContractModule278.AgentHealth;
-export import DepartmentSpend = ContractModule278.DepartmentSpend;
-export import DepartmentView = ContractModule278.DepartmentView;
-export import KeeperJobView = ContractModule278.KeeperJobView;
-export import KeeperView = ContractModule278.KeeperView;
-export import TeamListView = ContractModule278.TeamListView;
-export import RetiredAgentView = ContractModule278.RetiredAgentView;
-export import RetireInFlight = ContractModule278.RetireInFlight;
-export import RetireCheckView = ContractModule278.RetireCheckView;
-export import MiniAppMessage = ContractModule278.MiniAppMessage;
-export import MiniAppCard = ContractModule278.MiniAppCard;
-export import MiniAppView = ContractModule278.MiniAppView;
-export import MiniAppCallResult = ContractModule278.MiniAppCallResult;
-export import ChatConsentView = ContractModule278.ChatConsentView;
-export import AgentMessageView = ContractModule278.AgentMessageView;
-export import AgentProposalView = ContractModule278.AgentProposalView;
-export import AgentRunItem = ContractModule278.AgentRunItem;
-export import AgentThreadItem = ContractModule278.AgentThreadItem;
-export import AgentThreadView = ContractModule278.AgentThreadView;
-export import AgentSendResult = ContractModule278.AgentSendResult;
-export import StandingOrderView = ContractModule278.StandingOrderView;
-export import StandingPlaybookView = ContractModule278.StandingPlaybookView;
-export import StandingStepView = ContractModule278.StandingStepView;
-export import StandingUndoView = ContractModule278.StandingUndoView;
-export import StandingOrdersView = ContractModule278.StandingOrdersView;
-export import AgentNoteView = ContractModule278.AgentNoteView;
-export import NoteChangeView = ContractModule278.NoteChangeView;
-export import AgentNotesView = ContractModule278.AgentNotesView;
-export import AgentNoteChange = ContractModule278.AgentNoteChange;
-export import ChiefLineAmount = ContractModule278.ChiefLineAmount;
-export import ChiefThreadSummary = ContractModule278.ChiefThreadSummary;
-export import ChiefThreadState = ContractModule278.ChiefThreadState;
-export import ChiefSnoozePreset = ContractModule278.ChiefSnoozePreset;
-export import ChiefSnoozeOption = ContractModule278.ChiefSnoozeOption;
-export import ChiefThreadStateInput = ContractModule278.ChiefThreadStateInput;
-export import ChiefThreadStateResult = ContractModule278.ChiefThreadStateResult;
-export import ChiefSettleResult = ContractModule278.ChiefSettleResult;
-export import ChiefThreadsView = ContractModule278.ChiefThreadsView;
-export import ProposalView = ContractModule278.ProposalView;
-export import ChiefMessageView = ContractModule278.ChiefMessageView;
-export import ChiefThreadView = ContractModule278.ChiefThreadView;
-export import ChiefSendResult = ContractModule278.ChiefSendResult;
-export import ChiefFit = ContractModule278.ChiefFit;
-export import PersonSummary = ContractModule278.PersonSummary;
-export import PeopleView = ContractModule278.PeopleView;
-export import WarmPathView = ContractModule278.WarmPathView;
-export import PersonView = ContractModule278.PersonView;
-export import NetworkBandCounts = ContractModule278.NetworkBandCounts;
-export import NetworkSourcesView = ContractModule278.NetworkSourcesView;
-export import NetworkImportView = ContractModule278.NetworkImportView;
-export import NetworkImportResult = ContractModule278.NetworkImportResult;
-export import SearchResultView = ContractModule278.SearchResultView;
-export import SearchWebState = ContractModule278.SearchWebState;
-export import NetworkSearchView = ContractModule278.NetworkSearchView;
-export import PipelineCardView = ContractModule278.PipelineCardView;
-export import StatTileView = ContractModule278.StatTileView;
-export import PipelineView = ContractModule278.PipelineView;
-export import PipelineQuoteView = ContractModule278.PipelineQuoteView;
-export import FollowupView = ContractModule278.FollowupView;
-export import PipelineSettingsView = ContractModule278.PipelineSettingsView;
-export import OutreachView = ContractModule278.OutreachView;
-export import OutreachHandoff = ContractModule278.OutreachHandoff;
-export import MailboxView = ContractModule278.MailboxView;
-export import InboundView = ContractModule278.InboundView;
-export import CalendarFeedView = ContractModule278.CalendarFeedView;
-export import RunControlResult = ContractModule278.RunControlResult;
-export import AwayView = ContractModule278.AwayView;
-export import WriteCapKind = ContractModule278.WriteCapKind;
-export import NotificationView = ContractModule278.NotificationView;
-export import NotifyDigestView = ContractModule278.NotifyDigestView;
-export import NotifySettingsView = ContractModule278.NotifySettingsView;
-export import PushSubscriptionInput = ContractModule278.PushSubscriptionInput;
-export import TelegramView = ContractModule278.TelegramView;
-export import PhoneAccessView = ContractModule278.PhoneAccessView;
-export import CliStatusView = ContractModule278.CliStatusView;
-export import RoleModelView = ContractModule278.RoleModelView;
-export import NextBestStep = ContractModule278.NextBestStep;
-export import GoalView = ContractModule278.GoalView;
-export import GoalSuggestion = ContractModule278.GoalSuggestion;
-export import DecisionView = ContractModule278.DecisionView;
-export import DecisionOpens = ContractModule278.DecisionOpens;
-export import QueueSetPreview = ContractModule278.QueueSetPreview;
-export import TriagePreview = ContractModule278.TriagePreview;
-export import DraftChangeView = ContractModule278.DraftChangeView;
-export import DraftChangesView = ContractModule278.DraftChangesView;
-export import SettingsDraftView = ContractModule278.SettingsDraftView;
-export import FigureKind = ContractModule278.FigureKind;
-export import FigureSource = ContractModule278.FigureSource;
-export import TotalBasis = ContractModule278.TotalBasis;
-export import KindedFigure = ContractModule278.KindedFigure;
-export import AgingBucketId = ContractModule278.AgingBucketId;
-export import AgingView = ContractModule278.AgingView;
-export import FlowView = ContractModule278.FlowView;
-export import CashIssueView = ContractModule278.CashIssueView;
-export import CashView = ContractModule278.CashView;
-export import MarginsView = ContractModule278.MarginsView;
-export import MoneyExportFile = ContractModule278.MoneyExportFile;
-export import SignedReceiptsFile = ContractModule278.SignedReceiptsFile;
-export import BillView = ContractModule278.BillView;
-export import CreditNoteView = ContractModule278.CreditNoteView;
-export import RecurringInvoiceView = ContractModule278.RecurringInvoiceView;
-export import BusinessSnapshotView = ContractModule278.BusinessSnapshotView;
-export import AcrossLineKey = ContractModule278.AcrossLineKey;
-export import AcrossLeftOut = ContractModule278.AcrossLeftOut;
-export import AcrossMoneyView = ContractModule278.AcrossMoneyView;
-export import AcrossRunsView = ContractModule278.AcrossRunsView;
-export import ConnectorCheckRow = ContractModule278.ConnectorCheckRow;
-export import ConnectorChecksView = ContractModule278.ConnectorChecksView;
-export import FileRequestView = ContractModule278.FileRequestView;
-export import WayCategory = ContractModule278.WayCategory;
-export import WayNeeds = ContractModule278.WayNeeds;
-export import WayView = ContractModule278.WayView;
-export import WaysView = ContractModule278.WaysView;
-export import PlanChangeView = ContractModule278.PlanChangeView;
-export import PlanSuggestionView = ContractModule278.PlanSuggestionView;
-export import OwnerView = ContractModule278.OwnerView;
-export import ReceiptVerifyView = ContractModule278.ReceiptVerifyView;
-export import JournalChainView = ContractModule278.JournalChainView;
-export import OrderContractView = ContractModule278.OrderContractView;
-export import RoutineView = ContractModule278.RoutineView;
-export import RoutineSuggestion = ContractModule278.RoutineSuggestion;
-export import RoutineInput = ContractModule278.RoutineInput;
-export import RankedOptionView = ContractModule278.RankedOptionView;
-export import DrillRunView = ContractModule278.DrillRunView;
-export import AutoReadinessView = ContractModule278.AutoReadinessView;
-export import ShadowSummaryView = ContractModule278.ShadowSummaryView;
-export import GuidanceLineView = ContractModule278.GuidanceLineView;
-export import FixTheRuleView = ContractModule278.FixTheRuleView;
-export import VoiceView = ContractModule278.VoiceView;
-export import VoiceInput = ContractModule278.VoiceInput;
-export import PersonaView = ContractModule278.PersonaView;
-export import KnowledgeSourceInput = ContractModule278.KnowledgeSourceInput;
-export import KnowledgeSourceView = ContractModule278.KnowledgeSourceView;
-export import IdeaView = ContractModule278.IdeaView;
-export import CapabilityItemView = ContractModule278.CapabilityItemView;
-export import CapabilityPageView = ContractModule278.CapabilityPageView;
-export import DepartmentId = ContractModule276.DepartmentId;
-export import KeeperJobId = ContractModule276.KeeperJobId;
-export import ChatPart = ContractModule276.ChatPart;
-export import AgentSuggestion = ContractModule276.AgentSuggestion;
-export import DiffLine = ContractModule276.DiffLine;
-export import AgentNoteLoad = ContractModule276.AgentNoteLoad;
-export import AgentNoteScope = ContractModule276.AgentNoteScope;
-export import ChiefCounted = ContractModule276.ChiefCounted;
-export import ProposalKind = ContractModule276.ProposalKind;
-export import ProposalStatus = ContractModule276.ProposalStatus;
-export import NetworkImportKind = ContractModule276.NetworkImportKind;
-export import TieBand = ContractModule276.TieBand;
-export import RowFigure = ContractModule276.RowFigure;
-export import RowFigureReceipt = ContractModule276.RowFigureReceipt;
-export import PipelineStage = ContractModule276.PipelineStage;
-export import LostReason = ContractModule276.LostReason;
-export import LawfulBasis = ContractModule276.LawfulBasis;
-export import ScoreRule = ContractModule276.ScoreRule;
-export import OutreachLane = ContractModule276.OutreachLane;
-export import PipelineCaps = ContractModule276.PipelineCaps;
-export import OutreachKind = ContractModule276.OutreachKind;
-export import OutreachChannel = ContractModule276.OutreachChannel;
-export import OutreachSentChannel = ContractModule276.OutreachSentChannel;
-export import OutreachLanguage = ContractModule276.OutreachLanguage;
-export import InboundTriage = ContractModule276.InboundTriage;
-export import TriageField = ContractModule276.TriageField;
-export import TriageRule = ContractModule276.TriageRule;
-export import BillLineInput = ContractModule276.BillLineInput;
-export import OrderContract = ContractModule276.OrderContract;
-export import RoutineSchedule = ContractModule276.RoutineSchedule;
-export import RoutineRunState = ContractModule276.RoutineRunState;
-export import VoiceSections = ContractModule276.VoiceSections;
-export import PersonaFields = ContractModule276.PersonaFields;
-export import SharePrice = ContractModule274.SharePrice;
-export import YoutubeEditRecord = ContractModule274.YoutubeEditRecord;
-export import YoutubeStyleRecord = ContractModule274.YoutubeStyleRecord;
-export import SellerSkuRecord = ContractModule274.SellerSkuRecord;
-export import SupportTicketRecord = ContractModule274.SupportTicketRecord;
-export import SupportMessageRecord = ContractModule274.SupportMessageRecord;
-export import SupportRequestRecord = ContractModule274.SupportRequestRecord;
-export import SupportRatingRecord = ContractModule274.SupportRatingRecord;
-export import RoomBriefRecord = ContractModule274.RoomBriefRecord;
-export import VenturePayloads = ContractModule271.VenturePayloads;
-export import VentureResults = ContractModule271.VentureResults;
+declare namespace ContractModule302 {
+export import Json = ContractModule304.Json;
+export import IsoDate = ContractModule304.IsoDate;
+export import IsoTime = ContractModule304.IsoTime;
+export import MinorString = ContractModule304.MinorString;
+export import BpsString = ContractModule304.BpsString;
+export import MicroString = ContractModule304.MicroString;
+export import LineLabel = ContractModule304.LineLabel;
+export import Labelled = ContractModule304.Labelled;
+export import CountryCode = ContractModule304.CountryCode;
+export import CountryProfile = ContractModule304.CountryProfile;
+export import ServiceType = ContractModule304.ServiceType;
+export import RecordBase = ContractModule304.RecordBase;
+export import PlaybookPick = ContractModule304.PlaybookPick;
+export import InterviewQuestion = ContractModule304.InterviewQuestion;
+export import InterviewAnswer = ContractModule304.InterviewAnswer;
+export import PricingModel = ContractModule304.PricingModel;
+export import Offer = ContractModule304.Offer;
+export import PlanFlagshipStep = ContractModule304.PlanFlagshipStep;
+export import BlueprintStep = ContractModule304.BlueprintStep;
+export import BackOffice = ContractModule304.BackOffice;
+export import PriceGuideView = ContractModule304.PriceGuideView;
+export import PriceRangeView = ContractModule304.PriceRangeView;
+export import PriceSourceView = ContractModule304.PriceSourceView;
+export import ModelPresetId = ContractModule308.ModelPresetId;
+export import ModelTier = ContractModule308.ModelTier;
+export import ModelAvailability = ContractModule308.ModelAvailability;
+export import ModelPreset = ContractModule308.ModelPreset;
+export import ModelStatusView = ContractModule308.ModelStatusView;
+export import ModelCallRecord = ContractModule308.ModelCallRecord;
+export import OrderStageId = ContractModule309.OrderStageId;
+export import OrderStageReason = ContractModule309.OrderStageReason;
+export import OrderStageView = ContractModule309.OrderStageView;
+export import OrderWaitsOnYou = ContractModule309.OrderWaitsOnYou;
+export import PaymentMethod = ContractModule309.PaymentMethod;
+export import InvoiceNext = ContractModule309.InvoiceNext;
+export import InvoiceTimelineEntry = ContractModule309.InvoiceTimelineEntry;
+export import BooksPeriodKey = ContractModule309.BooksPeriodKey;
+export import BuilderId = ContractModule303.BuilderId;
+export import BuildStatusWord = ContractModule303.BuildStatusWord;
+export import ConnectorModeName = ContractModule303.ConnectorModeName;
+export import ConnectorLadder = ContractModule303.ConnectorLadder;
+export import ConnectorCard = ContractModule303.ConnectorCard;
+export import PostingStepId = ContractModule303.PostingStepId;
+export import SiteEditState = ContractModule303.SiteEditState;
+export import BankImportResult = ContractModule303.BankImportResult;
+export import BankConsentView = ContractModule303.BankConsentView;
+export import LeadEmailCheck = ContractModule303.LeadEmailCheck;
+export import OutreachDraftView = ContractModule303.OutreachDraftView;
+export import LeadSendView = ContractModule303.LeadSendView;
+export import LeadMoveView = ContractModule303.LeadMoveView;
+export import LeadView = ContractModule303.LeadView;
+export import QuestionOption = ContractModule305.QuestionOption;
+export import QuestionItem = ContractModule305.QuestionItem;
+export import QuestionCard = ContractModule305.QuestionCard;
+export import RunFailureKind = ContractModule305.RunFailureKind;
+export import FixKind = ContractModule305.FixKind;
+export import DelegateCli = ContractModule305.DelegateCli;
+export import Display = ContractModule313.Display;
+export import SpendRateUnit = ContractModule313.SpendRateUnit;
+export import CurrencyLead = ContractModule313.CurrencyLead;
+export import SpendLead = ContractModule313.SpendLead;
+export import SpendRow = ContractModule313.SpendRow;
+export import SpendRateInput = ContractModule313.SpendRateInput;
+export import SpendPolicyView = ContractModule313.SpendPolicyView;
+export import SpendMeterView = ContractModule313.SpendMeterView;
+export import LimitReachedView = ContractModule313.LimitReachedView;
+export import SpendMeterRowView = ContractModule313.SpendMeterRowView;
+export import SpendMetersView = ContractModule313.SpendMetersView;
+export import ModelReceiptView = ContractModule313.ModelReceiptView;
+export import AgentCapView = ContractModule313.AgentCapView;
+export import WriteCapView = ContractModule313.WriteCapView;
+export import RateCardLine = ContractModule313.RateCardLine;
+export import QueueActionId = ContractModule311.QueueActionId;
+export import QueueAction = ContractModule311.QueueAction;
+export import QueueChange = ContractModule311.QueueChange;
+export import QueueKind = ContractModule311.QueueKind;
+export import QueueRow = ContractModule311.QueueRow;
+export import QueueSendsTo = ContractModule311.QueueSendsTo;
+export import QueueAmount = ContractModule311.QueueAmount;
+export import QueueRowMeta = ContractModule311.QueueRowMeta;
+export import QueueCount = ContractModule311.QueueCount;
+export import QueuePreview = ContractModule311.QueuePreview;
+export import PreviewFigure = ContractModule311.PreviewFigure;
+export import PreviewReceiptKind = ContractModule311.PreviewReceiptKind;
+export import PreviewWords = ContractModule311.PreviewWords;
+export import PreviewLength = ContractModule311.PreviewLength;
+export import QueueList = ContractModule311.QueueList;
+export import QueueDecision = ContractModule311.QueueDecision;
+export import RunState = ContractModule311.RunState;
+export import RunStep = ContractModule311.RunStep;
+export import CoverageView = ContractModule311.CoverageView;
+export import ReportItem = ContractModule311.ReportItem;
+export import DeliverableReport = ContractModule311.DeliverableReport;
+export import RunToolLine = ContractModule311.RunToolLine;
+export import RunSummary = ContractModule311.RunSummary;
+export import RunDetail = ContractModule311.RunDetail;
+export import DeliveredView = ContractModule311.DeliveredView;
+export import DeliveredFile = ContractModule311.DeliveredFile;
+export import RunScopeView = ContractModule311.RunScopeView;
+export import Posture = ContractModule311.Posture;
+export import AgentView = ContractModule311.AgentView;
+export import VentureRunEventType = ContractModule311.VentureRunEventType;
+export import VentureRunEvent = ContractModule311.VentureRunEvent;
+export import JournalEntry = ContractModule311.JournalEntry;
+export import EvidenceItem = ContractModule311.EvidenceItem;
+export import QueueItemView = ContractModule311.QueueItemView;
+export import MoneyOverviewLine = ContractModule314.MoneyOverviewLine;
+export import MoneyOverview = ContractModule314.MoneyOverview;
+export import TaxWorkingLine = ContractModule314.TaxWorkingLine;
+export import TaxWorkingSection = ContractModule314.TaxWorkingSection;
+export import CaPendingRate = ContractModule314.CaPendingRate;
+export import CaLatestPapers = ContractModule314.CaLatestPapers;
+export import ShareLinkView = ContractModule314.ShareLinkView;
+export import PostingProposal = ContractModule314.PostingProposal;
+export import PostingStepsView = ContractModule314.PostingStepsView;
+export import PostingLimitsView = ContractModule314.PostingLimitsView;
+export import SocialCalendarFile = ContractModule314.SocialCalendarFile;
+export import BankRowClass = ContractModule314.BankRowClass;
+export import BankLedgerRow = ContractModule314.BankLedgerRow;
+export import BankLedgerView = ContractModule314.BankLedgerView;
+export import BankApplyResult = ContractModule314.BankApplyResult;
+export import BankAlertsView = ContractModule314.BankAlertsView;
+export import CaDiffExplanation = ContractModule314.CaDiffExplanation;
+export import CaReceiptView = ContractModule314.CaReceiptView;
+export import PlatformRuleView = ContractModule314.PlatformRuleView;
+export import RecipeView = ContractModule314.RecipeView;
+export import BoundaryView = ContractModule314.BoundaryView;
+export import RulesListView = ContractModule314.RulesListView;
+export import JudgeAutoView = ContractModule314.JudgeAutoView;
+export import TranscriptionSetupView = ContractModule314.TranscriptionSetupView;
+export import SeriesPoint = ContractModule314.SeriesPoint;
+export import AgentHealthStatus = ContractModule314.AgentHealthStatus;
+export import AgentHealth = ContractModule314.AgentHealth;
+export import DepartmentSpend = ContractModule314.DepartmentSpend;
+export import DepartmentView = ContractModule314.DepartmentView;
+export import KeeperJobView = ContractModule314.KeeperJobView;
+export import KeeperView = ContractModule314.KeeperView;
+export import TeamListView = ContractModule314.TeamListView;
+export import RetiredAgentView = ContractModule314.RetiredAgentView;
+export import RetireInFlight = ContractModule314.RetireInFlight;
+export import RetireCheckView = ContractModule314.RetireCheckView;
+export import MiniAppMessage = ContractModule314.MiniAppMessage;
+export import MiniAppCard = ContractModule314.MiniAppCard;
+export import MiniAppView = ContractModule314.MiniAppView;
+export import MiniAppCallResult = ContractModule314.MiniAppCallResult;
+export import ChatConsentView = ContractModule314.ChatConsentView;
+export import AgentMessageView = ContractModule314.AgentMessageView;
+export import AgentProposalView = ContractModule314.AgentProposalView;
+export import AgentRunItem = ContractModule314.AgentRunItem;
+export import AgentThreadItem = ContractModule314.AgentThreadItem;
+export import AgentThreadView = ContractModule314.AgentThreadView;
+export import AgentSendResult = ContractModule314.AgentSendResult;
+export import StandingOrderView = ContractModule314.StandingOrderView;
+export import StandingPlaybookView = ContractModule314.StandingPlaybookView;
+export import StandingStepView = ContractModule314.StandingStepView;
+export import StandingUndoView = ContractModule314.StandingUndoView;
+export import StandingOrdersView = ContractModule314.StandingOrdersView;
+export import AgentNoteView = ContractModule314.AgentNoteView;
+export import NoteChangeView = ContractModule314.NoteChangeView;
+export import AgentNotesView = ContractModule314.AgentNotesView;
+export import AgentNoteChange = ContractModule314.AgentNoteChange;
+export import ChiefLineAmount = ContractModule314.ChiefLineAmount;
+export import ChiefThreadSummary = ContractModule314.ChiefThreadSummary;
+export import ChiefThreadState = ContractModule314.ChiefThreadState;
+export import ChiefSnoozePreset = ContractModule314.ChiefSnoozePreset;
+export import ChiefSnoozeOption = ContractModule314.ChiefSnoozeOption;
+export import ChiefThreadStateInput = ContractModule314.ChiefThreadStateInput;
+export import ChiefThreadStateResult = ContractModule314.ChiefThreadStateResult;
+export import ChiefSettleResult = ContractModule314.ChiefSettleResult;
+export import ChiefThreadsView = ContractModule314.ChiefThreadsView;
+export import ProposalView = ContractModule314.ProposalView;
+export import ChiefMessageView = ContractModule314.ChiefMessageView;
+export import ChiefThreadView = ContractModule314.ChiefThreadView;
+export import ChiefSendResult = ContractModule314.ChiefSendResult;
+export import ChiefFit = ContractModule314.ChiefFit;
+export import PersonSummary = ContractModule314.PersonSummary;
+export import PeopleView = ContractModule314.PeopleView;
+export import WarmPathView = ContractModule314.WarmPathView;
+export import PersonView = ContractModule314.PersonView;
+export import NetworkBandCounts = ContractModule314.NetworkBandCounts;
+export import NetworkSourcesView = ContractModule314.NetworkSourcesView;
+export import NetworkImportView = ContractModule314.NetworkImportView;
+export import NetworkImportResult = ContractModule314.NetworkImportResult;
+export import SearchResultView = ContractModule314.SearchResultView;
+export import SearchWebState = ContractModule314.SearchWebState;
+export import NetworkSearchView = ContractModule314.NetworkSearchView;
+export import PipelineCardView = ContractModule314.PipelineCardView;
+export import StatTileView = ContractModule314.StatTileView;
+export import PipelineView = ContractModule314.PipelineView;
+export import PipelineQuoteView = ContractModule314.PipelineQuoteView;
+export import FollowupView = ContractModule314.FollowupView;
+export import PipelineSettingsView = ContractModule314.PipelineSettingsView;
+export import OutreachView = ContractModule314.OutreachView;
+export import OutreachHandoff = ContractModule314.OutreachHandoff;
+export import MailboxView = ContractModule314.MailboxView;
+export import InboundView = ContractModule314.InboundView;
+export import CalendarFeedView = ContractModule314.CalendarFeedView;
+export import RunControlResult = ContractModule314.RunControlResult;
+export import AwayView = ContractModule314.AwayView;
+export import WriteCapKind = ContractModule314.WriteCapKind;
+export import NotificationView = ContractModule314.NotificationView;
+export import NotifyDigestView = ContractModule314.NotifyDigestView;
+export import NotifySettingsView = ContractModule314.NotifySettingsView;
+export import PushSubscriptionInput = ContractModule314.PushSubscriptionInput;
+export import TelegramView = ContractModule314.TelegramView;
+export import PhoneAccessView = ContractModule314.PhoneAccessView;
+export import CliStatusView = ContractModule314.CliStatusView;
+export import RoleModelView = ContractModule314.RoleModelView;
+export import NextBestStep = ContractModule314.NextBestStep;
+export import GoalView = ContractModule314.GoalView;
+export import GoalSuggestion = ContractModule314.GoalSuggestion;
+export import DecisionView = ContractModule314.DecisionView;
+export import DecisionOpens = ContractModule314.DecisionOpens;
+export import QueueSetPreview = ContractModule314.QueueSetPreview;
+export import TriagePreview = ContractModule314.TriagePreview;
+export import DraftChangeView = ContractModule314.DraftChangeView;
+export import DraftChangesView = ContractModule314.DraftChangesView;
+export import SettingsDraftView = ContractModule314.SettingsDraftView;
+export import FigureKind = ContractModule314.FigureKind;
+export import FigureSource = ContractModule314.FigureSource;
+export import TotalBasis = ContractModule314.TotalBasis;
+export import KindedFigure = ContractModule314.KindedFigure;
+export import AgingBucketId = ContractModule314.AgingBucketId;
+export import AgingView = ContractModule314.AgingView;
+export import FlowView = ContractModule314.FlowView;
+export import CashIssueView = ContractModule314.CashIssueView;
+export import CashView = ContractModule314.CashView;
+export import MarginsView = ContractModule314.MarginsView;
+export import MoneyExportFile = ContractModule314.MoneyExportFile;
+export import SignedReceiptsFile = ContractModule314.SignedReceiptsFile;
+export import BillView = ContractModule314.BillView;
+export import CreditNoteView = ContractModule314.CreditNoteView;
+export import RecurringInvoiceView = ContractModule314.RecurringInvoiceView;
+export import BusinessSnapshotView = ContractModule314.BusinessSnapshotView;
+export import AcrossLineKey = ContractModule314.AcrossLineKey;
+export import AcrossLeftOut = ContractModule314.AcrossLeftOut;
+export import AcrossMoneyView = ContractModule314.AcrossMoneyView;
+export import AcrossRunsView = ContractModule314.AcrossRunsView;
+export import ConnectorCheckRow = ContractModule314.ConnectorCheckRow;
+export import ConnectorChecksView = ContractModule314.ConnectorChecksView;
+export import FileRequestView = ContractModule314.FileRequestView;
+export import WayCategory = ContractModule314.WayCategory;
+export import WayNeeds = ContractModule314.WayNeeds;
+export import WayView = ContractModule314.WayView;
+export import WaysView = ContractModule314.WaysView;
+export import PlanChangeView = ContractModule314.PlanChangeView;
+export import PlanSuggestionView = ContractModule314.PlanSuggestionView;
+export import OwnerView = ContractModule314.OwnerView;
+export import ReceiptVerifyView = ContractModule314.ReceiptVerifyView;
+export import JournalChainView = ContractModule314.JournalChainView;
+export import OrderContractView = ContractModule314.OrderContractView;
+export import RoutineView = ContractModule314.RoutineView;
+export import RoutineSuggestion = ContractModule314.RoutineSuggestion;
+export import RoutineInput = ContractModule314.RoutineInput;
+export import RankedOptionView = ContractModule314.RankedOptionView;
+export import DrillRunView = ContractModule314.DrillRunView;
+export import AutoReadinessView = ContractModule314.AutoReadinessView;
+export import ShadowSummaryView = ContractModule314.ShadowSummaryView;
+export import GuidanceLineView = ContractModule314.GuidanceLineView;
+export import FixTheRuleView = ContractModule314.FixTheRuleView;
+export import VoiceView = ContractModule314.VoiceView;
+export import VoiceInput = ContractModule314.VoiceInput;
+export import PersonaView = ContractModule314.PersonaView;
+export import KnowledgeSourceInput = ContractModule314.KnowledgeSourceInput;
+export import KnowledgeSourceView = ContractModule314.KnowledgeSourceView;
+export import IdeaView = ContractModule314.IdeaView;
+export import CapabilityItemView = ContractModule314.CapabilityItemView;
+export import CapabilityPageView = ContractModule314.CapabilityPageView;
+export import DepartmentId = ContractModule312.DepartmentId;
+export import KeeperJobId = ContractModule312.KeeperJobId;
+export import ChatPart = ContractModule312.ChatPart;
+export import AgentSuggestion = ContractModule312.AgentSuggestion;
+export import DiffLine = ContractModule312.DiffLine;
+export import AgentNoteLoad = ContractModule312.AgentNoteLoad;
+export import AgentNoteScope = ContractModule312.AgentNoteScope;
+export import ChiefCounted = ContractModule312.ChiefCounted;
+export import ProposalKind = ContractModule312.ProposalKind;
+export import ProposalStatus = ContractModule312.ProposalStatus;
+export import NetworkImportKind = ContractModule312.NetworkImportKind;
+export import TieBand = ContractModule312.TieBand;
+export import RowFigure = ContractModule312.RowFigure;
+export import RowFigureReceipt = ContractModule312.RowFigureReceipt;
+export import PipelineStage = ContractModule312.PipelineStage;
+export import LostReason = ContractModule312.LostReason;
+export import LawfulBasis = ContractModule312.LawfulBasis;
+export import ScoreRule = ContractModule312.ScoreRule;
+export import OutreachLane = ContractModule312.OutreachLane;
+export import PipelineCaps = ContractModule312.PipelineCaps;
+export import OutreachKind = ContractModule312.OutreachKind;
+export import OutreachChannel = ContractModule312.OutreachChannel;
+export import OutreachSentChannel = ContractModule312.OutreachSentChannel;
+export import OutreachLanguage = ContractModule312.OutreachLanguage;
+export import InboundTriage = ContractModule312.InboundTriage;
+export import TriageField = ContractModule312.TriageField;
+export import TriageRule = ContractModule312.TriageRule;
+export import BillLineInput = ContractModule312.BillLineInput;
+export import OrderContract = ContractModule312.OrderContract;
+export import RoutineSchedule = ContractModule312.RoutineSchedule;
+export import RoutineRunState = ContractModule312.RoutineRunState;
+export import VoiceSections = ContractModule312.VoiceSections;
+export import PersonaFields = ContractModule312.PersonaFields;
+export import SharePrice = ContractModule310.SharePrice;
+export import YoutubeEditRecord = ContractModule310.YoutubeEditRecord;
+export import YoutubeStyleRecord = ContractModule310.YoutubeStyleRecord;
+export import SellerSkuRecord = ContractModule310.SellerSkuRecord;
+export import SupportTicketRecord = ContractModule310.SupportTicketRecord;
+export import SupportMessageRecord = ContractModule310.SupportMessageRecord;
+export import SupportRequestRecord = ContractModule310.SupportRequestRecord;
+export import SupportRatingRecord = ContractModule310.SupportRatingRecord;
+export import RoomBriefRecord = ContractModule310.RoomBriefRecord;
+export import VenturePayloads = ContractModule307.VenturePayloads;
+export import VentureResults = ContractModule307.VentureResults;
 }
 
-declare namespace ContractModule267 {
-import BUILDER_IDS = ContractModule265.BUILDER_IDS;
-import CONNECTOR_CATEGORIES = ContractModule265.CONNECTOR_CATEGORIES;
-import IsoDate = ContractModule268.IsoDate;
-import IsoTime = ContractModule268.IsoTime;
-import RecordBase = ContractModule268.RecordBase;
-import Display = ContractModule277.Display;
+declare namespace ContractModule303 {
+import BUILDER_IDS = ContractModule301.BUILDER_IDS;
+import CONNECTOR_CATEGORIES = ContractModule301.CONNECTOR_CATEGORIES;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import RecordBase = ContractModule304.RecordBase;
+import Display = ContractModule313.Display;
 export type BuilderId = typeof BUILDER_IDS[number];
 export type BriefLintRule = 'required-section' | 'required-text' | 'too-long' | 'em-dash' | 'banned-word' | 'contact-detail' | 'price-mismatch' | 'brief-id' | 'first-line';
 export type BriefLint = {
@@ -1863,28 +1915,28 @@ export type LeadView = {
 };
 }
 
-declare namespace ContractModule268 {
-import SERVICE_TYPES = ContractModule265.SERVICE_TYPES;
-import LAUNCH_STAGES = ContractModule265.LAUNCH_STAGES;
-import VENTURE_RECORD_KINDS = ContractModule265.VENTURE_RECORD_KINDS;
-import ApprovalBlockId = ContractModule658.ApprovalBlockId;
-import ComposedNote = ContractModule658.ComposedNote;
-import ComposedPage = ContractModule658.ComposedPage;
-import OfferBlockId = ContractModule658.OfferBlockId;
-import PlanKind = ContractModule658.PlanKind;
-import StepBlockId = ContractModule658.StepBlockId;
-import ToolBlockId = ContractModule658.ToolBlockId;
-import ViewSelection = ContractModule658.ViewSelection;
-import RightsBasis = ContractModule458.RightsBasis;
-import PriceGuideView = ContractModule315.PriceGuideView;
-import KitIntakeField = ContractModule913.KitIntakeField;
-import SharePrice = ContractModule949.SharePrice;
-import CountryCode = ContractModule291.CountryCode;
-import TaxMode = ContractModule291.TaxMode;
-import CountryProfile = ContractModule291.CountryProfile;
-import ModelPresetId = ContractModule272.ModelPresetId;
-import Display = ContractModule277.Display;
-import PriceReceiptRecord = ContractModule273.PriceReceiptRecord;
+declare namespace ContractModule304 {
+import SERVICE_TYPES = ContractModule301.SERVICE_TYPES;
+import LAUNCH_STAGES = ContractModule301.LAUNCH_STAGES;
+import VENTURE_RECORD_KINDS = ContractModule301.VENTURE_RECORD_KINDS;
+import ApprovalBlockId = ContractModule692.ApprovalBlockId;
+import ComposedNote = ContractModule692.ComposedNote;
+import ComposedPage = ContractModule692.ComposedPage;
+import OfferBlockId = ContractModule692.OfferBlockId;
+import PlanKind = ContractModule692.PlanKind;
+import StepBlockId = ContractModule692.StepBlockId;
+import ToolBlockId = ContractModule692.ToolBlockId;
+import ViewSelection = ContractModule692.ViewSelection;
+import RightsBasis = ContractModule493.RightsBasis;
+import PriceGuideView = ContractModule350.PriceGuideView;
+import KitIntakeField = ContractModule945.KitIntakeField;
+import SharePrice = ContractModule978.SharePrice;
+import CountryCode = ContractModule327.CountryCode;
+import TaxMode = ContractModule327.TaxMode;
+import CountryProfile = ContractModule327.CountryProfile;
+import ModelPresetId = ContractModule308.ModelPresetId;
+import Display = ContractModule313.Display;
+import PriceReceiptRecord = ContractModule309.PriceReceiptRecord;
 export type Json = null | boolean | number | string | Json[] | {
     [key: string]: Json;
 };
@@ -1901,9 +1953,9 @@ export type Labelled<T> = {
     by: LineAuthor;
     estimate?: true;
 };
-export import CountryCode = ContractModule291.CountryCode;
-export import TaxMode = ContractModule291.TaxMode;
-export import CountryProfile = ContractModule291.CountryProfile;
+export import CountryCode = ContractModule327.CountryCode;
+export import TaxMode = ContractModule327.TaxMode;
+export import CountryProfile = ContractModule327.CountryProfile;
 export type ServiceType = typeof SERVICE_TYPES[number];
 export type LaunchStage = typeof LAUNCH_STAGES[number];
 export type VentureStatus = 'interview' | 'blueprint' | 'build' | 'rehearsal' | 'live';
@@ -1917,7 +1969,7 @@ export type RecordBase<K extends VentureRecordKind> = {
     at: IsoTime;
 };
 export type VentureRecord = RecordBase<'venture-record'> & {
-    aiSettings?: ContractModule102.AiSettings;
+    aiSettings?: ContractModule138.AiSettings;
     routineBackup?: {
         on: boolean;
         order: ModelPresetId[];
@@ -1942,11 +1994,11 @@ export type VentureRecord = RecordBase<'venture-record'> & {
     blueprintId: string | null;
     acceptedBlueprintId: string | null;
     formsSignInErasure?: string[];
-    appTestErasure?: ContractModule690.AppTestErasure[];
-    appTestScreenErasure?: ContractModule158.AndroidScreenFile[];
-    demoDesktopErasure?: ContractModule677.DemoSession[];
+    appTestErasure?: ContractModule724.AppTestErasure[];
+    appTestScreenErasure?: ContractModule194.AndroidScreenFile[];
+    demoDesktopErasure?: ContractModule711.DemoSession[];
     playbookId: string | null;
-    youtubePublicQuota?: ContractModule1517.YoutubeQuotaUse[];
+    youtubePublicQuota?: ContractModule1535.YoutubeQuotaUse[];
     invoiceSequence: number;
     updatedAt: IsoTime;
     journalHead?: {
@@ -1958,9 +2010,9 @@ export type VentureRecord = RecordBase<'venture-record'> & {
         at: IsoTime;
         mac?: string;
     };
-    billing?: Partial<ContractModule539.BillingSettings>;
-    webSearchKey?: ContractModule1614.SavedSearchKey | null;
-    peopleKeys?: ContractModule662.SavedPeopleKeys;
+    billing?: Partial<ContractModule574.BillingSettings>;
+    webSearchKey?: ContractModule1631.SavedSearchKey | null;
+    peopleKeys?: ContractModule696.SavedPeopleKeys;
 };
 export type TermLifecycle = 'proposed' | 'active' | 'retired';
 export type TermRecord = RecordBase<'venture-term'> & {
@@ -2177,9 +2229,9 @@ export type BlueprintView = {
         undoRowId: string;
     };
 };
-export import PriceGuideView = ContractModule315.PriceGuideView;
-export import PriceRangeView = ContractModule315.PriceRangeView;
-export import PriceSourceView = ContractModule315.PriceSourceView;
+export import PriceGuideView = ContractModule350.PriceGuideView;
+export import PriceRangeView = ContractModule350.PriceRangeView;
+export import PriceSourceView = ContractModule350.PriceSourceView;
 export type PlanPreview = {
     idea: string;
     country: CountryProfile;
@@ -2199,39 +2251,39 @@ export type PlanPreview = {
 };
 }
 
-declare namespace ContractModule269 {
-import CHECK_IDS = ContractModule265.CHECK_IDS;
-import JUDGE_QUESTIONS = ContractModule265.JUDGE_QUESTIONS;
-import DELIVERY_REASONS = ContractModule265.DELIVERY_REASONS;
-import TOOL_NAMES = ContractModule265.TOOL_NAMES;
-import ATTRIBUTION_LEVELS = ContractModule265.ATTRIBUTION_LEVELS;
-import PLAYBOOK_PATCH_OPS = ContractModule265.PLAYBOOK_PATCH_OPS;
-import DELEGATE_CLIS = ContractModule265.DELEGATE_CLIS;
-import PlaybookOrigin = ContractModule664.PlaybookOrigin;
-import SectionRef = ContractModule778.SectionRef;
-import TableStamp = ContractModule778.TableStamp;
-import CaEngine = ContractModule779.CaEngine;
-import CaReceiptStep = ContractModule779.CaReceiptStep;
-import ReportReceipt = ContractModule1320.ReportReceipt;
-import DateRef = ContractModule272.DateRef;
-import ModelPresetId = ContractModule272.ModelPresetId;
-import ModelPreview = ContractModule272.ModelPreview;
-import ModelTier = ContractModule272.ModelTier;
-import ConnectorModeName = ContractModule267.ConnectorModeName;
-import IsoDate = ContractModule268.IsoDate;
-import IsoTime = ContractModule268.IsoTime;
-import Json = ContractModule268.Json;
-import MicroString = ContractModule268.MicroString;
-import MinorString = ContractModule268.MinorString;
-import RecordBase = ContractModule268.RecordBase;
-import ServiceType = ContractModule268.ServiceType;
-import PriceFigure = ContractModule273.PriceFigure;
-import JudgeRuleResult = ContractModule275.JudgeRuleResult;
-import Posture = ContractModule275.Posture;
-import DraftFix = ContractModule276.DraftFix;
-import DraftMerge = ContractModule276.DraftMerge;
-import DraftRevision = ContractModule276.DraftRevision;
-import Display = ContractModule277.Display;
+declare namespace ContractModule305 {
+import CHECK_IDS = ContractModule301.CHECK_IDS;
+import JUDGE_QUESTIONS = ContractModule301.JUDGE_QUESTIONS;
+import DELIVERY_REASONS = ContractModule301.DELIVERY_REASONS;
+import TOOL_NAMES = ContractModule301.TOOL_NAMES;
+import ATTRIBUTION_LEVELS = ContractModule301.ATTRIBUTION_LEVELS;
+import PLAYBOOK_PATCH_OPS = ContractModule301.PLAYBOOK_PATCH_OPS;
+import DELEGATE_CLIS = ContractModule301.DELEGATE_CLIS;
+import PlaybookOrigin = ContractModule698.PlaybookOrigin;
+import SectionRef = ContractModule810.SectionRef;
+import TableStamp = ContractModule810.TableStamp;
+import CaEngine = ContractModule811.CaEngine;
+import CaReceiptStep = ContractModule811.CaReceiptStep;
+import ReportReceipt = ContractModule1343.ReportReceipt;
+import DateRef = ContractModule308.DateRef;
+import ModelPresetId = ContractModule308.ModelPresetId;
+import ModelPreview = ContractModule308.ModelPreview;
+import ModelTier = ContractModule308.ModelTier;
+import ConnectorModeName = ContractModule303.ConnectorModeName;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import Json = ContractModule304.Json;
+import MicroString = ContractModule304.MicroString;
+import MinorString = ContractModule304.MinorString;
+import RecordBase = ContractModule304.RecordBase;
+import ServiceType = ContractModule304.ServiceType;
+import PriceFigure = ContractModule309.PriceFigure;
+import JudgeRuleResult = ContractModule311.JudgeRuleResult;
+import Posture = ContractModule311.Posture;
+import DraftFix = ContractModule312.DraftFix;
+import DraftMerge = ContractModule312.DraftMerge;
+import DraftRevision = ContractModule312.DraftRevision;
+import Display = ContractModule313.Display;
 export type StepKind = 'gather' | 'question' | 'work' | 'compute' | 'write' | 'verify' | 'approve' | 'operator';
 export type ExecutionTier = 'code' | 'actor' | 'wasm-lite' | 'wasm' | 'container' | 'owner-cli' | 'hosted';
 export type CheckId = typeof CHECK_IDS[number];
@@ -2433,14 +2485,14 @@ export type DeliveryWorkflow = {
 };
 export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
     agentJob?: {
-        scope: ContractModule75.AgentJobScope;
+        scope: ContractModule111.AgentJobScope;
         sourceDigest: string;
         draftDigest: string | null;
         reviewReady?: boolean;
         quiet?: boolean;
         overtime?: boolean;
         unavailableSites?: string[];
-        failure?: ContractModule353.FailureWords;
+        failure?: ContractModule388.FailureWords;
         recalled?: string[];
         sourcesRead?: {
             id: string;
@@ -2450,7 +2502,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
             tool: string;
             note: ScreenNote;
         }[];
-        proposal: ContractModule84.JobProposal | null;
+        proposal: ContractModule120.JobProposal | null;
         proposalAt?: string;
         messages: {
             id: string;
@@ -2466,7 +2518,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
         calculations?: ToolCallRecord[];
         pendingFacts?: {
             digest: string;
-            missing: ContractModule770.MissingFact[];
+            missing: ContractModule802.MissingFact[];
             question: string;
             callId: string;
             at: string;
@@ -2485,7 +2537,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
             status: 'running' | 'done' | 'failed';
         }[];
         model?: string;
-        usage?: ContractModule75.AgentUsage;
+        usage?: ContractModule111.AgentUsage;
         cost?: {
             display: string;
             state: 'priced' | 'unknown';
@@ -2498,7 +2550,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
             tier: ModelTier;
         };
         pendingApproval?: {
-            request: ContractModule75.AgentApprovalRequest;
+            request: ContractModule111.AgentApprovalRequest;
             digest: string;
         };
     };
@@ -2510,7 +2562,7 @@ export type DeliveryRunRecord = RecordBase<'venture-delivery-run'> & {
     appTestingBinding?: string;
     vaBriefBinding?: string;
     formsSourceBinding?: string;
-    socialGhostwriting?: ContractModule1256.GhostwritingState;
+    socialGhostwriting?: ContractModule1280.GhostwritingState;
     workflow?: DeliveryWorkflow;
     orderId: string;
     chainStage?: number;
@@ -3223,323 +3275,323 @@ export type DelegateRunRecord = RecordBase<'venture-delegate-run'> & {
 };
 }
 
-declare namespace ContractModule271 {
-import AccountantView = ContractModule533.AccountantView;
-import CaPackScheduleView = ContractModule543.CaPackScheduleView;
-import TelegramFound = ContractModule656.TelegramFound;
-import ClientAiDefaultView = ContractModule260.ClientAiDefaultView;
-import OnboardingPayloads = ContractModule658.OnboardingPayloads;
-import OnboardingResults = ContractModule658.OnboardingResults;
-import BankAlertRuleInput = ContractModule162.BankAlertRuleInput;
-import FamilyId = ContractModule297.FamilyId;
-import NeedsList = ContractModule297.NeedsList;
-import LayoutPlace = ContractModule1589.LayoutPlace;
-import LayoutRequest = ContractModule1589.LayoutRequest;
-import LayoutChangeResult = ContractModule1590.LayoutChangeResult;
-import LayoutView = ContractModule1590.LayoutView;
-import FindRequest = ContractModule1584.FindRequest;
-import FindView = ContractModule1584.FindView;
-import IntakeValue = ContractModule913.IntakeValue;
-import OrderChainView = ContractModule945.OrderChainView;
-import GoNoGoCardView = ContractModule949.GoNoGoCardView;
-import GoNoGoInputs = ContractModule949.GoNoGoInputs;
-import GoNoGoListView = ContractModule949.GoNoGoListView;
-import SalesPilotTerms = ContractModule949.SalesPilotTerms;
-import SalesProposalView = ContractModule949.SalesProposalView;
-import IdeaAddedView = ContractModule948.IdeaAddedView;
-import IdeaGrade = ContractModule948.IdeaGrade;
-import IdeaGradedView = ContractModule948.IdeaGradedView;
-import IdeaMovedView = ContractModule948.IdeaMovedView;
-import IdeaStage = ContractModule948.IdeaStage;
-import AssetRerunView = ContractModule946.AssetRerunView;
-import AssetReuseView = ContractModule946.AssetReuseView;
-import AssetsView = ContractModule946.AssetsView;
-import BrandKitInput = ContractModule946.BrandKitInput;
-import BrandKitView = ContractModule946.BrandKitView;
-import VoiceConsentsView = ContractModule946.VoiceConsentsView;
-import VoiceConsentView = ContractModule946.VoiceConsentView;
-import ReportFormat = ContractModule947.ReportFormat;
-import ReportListView = ContractModule947.ReportListView;
-import ReportShareView = ContractModule947.ReportShareView;
-import ReportView = ContractModule947.ReportView;
-import LocalAppsView = ContractModule226.LocalAppsView;
-import MailImportView = ContractModule226.MailImportView;
-import MailThreadsView = ContractModule226.MailThreadsView;
-import MonitorInput = ContractModule226.MonitorInput;
-import MonitorsView = ContractModule226.MonitorsView;
-import MonitorView = ContractModule226.MonitorView;
-import SpeechProvidersView = ContractModule226.SpeechProvidersView;
-import WebhookView = ContractModule226.WebhookView;
-import WebhookSendView = ContractModule226.WebhookSendView;
-import CitationsConfirmView = ContractModule781.CitationsConfirmView;
-import DataPackExportView = ContractModule781.DataPackExportView;
-import DifferentialAddView = ContractModule781.DifferentialAddView;
-import SignoffCheckView = ContractModule781.SignoffCheckView;
-import DeskActPayload = ContractModule817.DeskActPayload;
-import DeskActView = ContractModule817.DeskActView;
-import DeskGetPayload = ContractModule817.DeskGetPayload;
-import DeskItemView = ContractModule817.DeskItemView;
-import DeskListPayload = ContractModule817.DeskListPayload;
-import DeskListView = ContractModule817.DeskListView;
-import CountryCode = ContractModule291.CountryCode;
-import CountryProfile = ContractModule291.CountryProfile;
-import TalkConsentInput = ContractModule141.TalkConsentInput;
-import TalkHeard = ContractModule141.TalkHeard;
-import TalkSaid = ContractModule141.TalkSaid;
-import TalkSetupInput = ContractModule141.TalkSetupInput;
-import TalkStarted = ContractModule141.TalkStarted;
-import TalkView = ContractModule141.TalkView;
-import FeedbackAnswerInput = ContractModule295.FeedbackAnswerInput;
-import FeedbackConsentInput = ContractModule295.FeedbackConsentInput;
-import FeedbackCrashInput = ContractModule295.FeedbackCrashInput;
-import FeedbackCrashKept = ContractModule295.FeedbackCrashKept;
-import FeedbackView = ContractModule295.FeedbackView;
-import BlueprintPatch = ContractModule268.BlueprintPatch;
-import BlueprintView = ContractModule268.BlueprintView;
-import InterviewAnswer = ContractModule268.InterviewAnswer;
-import InterviewView = ContractModule268.InterviewView;
-import IsoDate = ContractModule268.IsoDate;
-import IsoTime = ContractModule268.IsoTime;
-import Json = ContractModule268.Json;
-import MicroString = ContractModule268.MicroString;
-import MinorString = ContractModule268.MinorString;
-import PlanPreview = ContractModule268.PlanPreview;
-import PricingModel = ContractModule268.PricingModel;
-import VentureView = ContractModule268.VentureView;
-import ModelCallRecord = ContractModule272.ModelCallRecord;
-import ModelPreset = ContractModule272.ModelPreset;
-import ModelPresetId = ContractModule272.ModelPresetId;
-import ModelPurpose = ContractModule272.ModelPurpose;
-import ModelStatusView = ContractModule272.ModelStatusView;
-import ModelTier = ContractModule272.ModelTier;
-import BooksPeriodKey = ContractModule273.BooksPeriodKey;
-import BooksSummary = ContractModule273.BooksSummary;
-import ClientAiConsentView = ContractModule273.ClientAiConsentView;
-import ClientRecord = ContractModule273.ClientRecord;
-import InvoiceView = ContractModule273.InvoiceView;
-import OrderIntake = ContractModule273.OrderIntake;
-import OrderListRow = ContractModule273.OrderListRow;
-import OrderRecord = ContractModule273.OrderRecord;
-import PaymentMethod = ContractModule273.PaymentMethod;
-import PriceReceiptRecord = ContractModule273.PriceReceiptRecord;
-import CurrencyLead = ContractModule277.CurrencyLead;
-import Display = ContractModule277.Display;
-import SpendLead = ContractModule277.SpendLead;
-import SpendPolicyView = ContractModule277.SpendPolicyView;
-import SpendRateInput = ContractModule277.SpendRateInput;
-import SpendRow = ContractModule277.SpendRow;
-import AcrossMoneyView = ContractModule278.AcrossMoneyView;
-import AcrossRunsView = ContractModule278.AcrossRunsView;
-import AgentExportFile = ContractModule278.AgentExportFile;
-import AgentHealth = ContractModule278.AgentHealth;
-import AgentNoteChange = ContractModule278.AgentNoteChange;
-import AgentNotesView = ContractModule278.AgentNotesView;
-import AgentProposalDecision = ContractModule278.AgentProposalDecision;
-import AgentProposalView = ContractModule278.AgentProposalView;
-import AgentRestored = ContractModule278.AgentRestored;
-import AgentRetired = ContractModule278.AgentRetired;
-import AgentSendResult = ContractModule278.AgentSendResult;
-import AgentThreadView = ContractModule278.AgentThreadView;
-import AgentVersionUndo = ContractModule278.AgentVersionUndo;
-import AgingView = ContractModule278.AgingView;
-import AllowSessionView = ContractModule278.AllowSessionView;
-import AllowWritesView = ContractModule278.AllowWritesView;
-import AutoReadinessView = ContractModule278.AutoReadinessView;
-import AwayView = ContractModule278.AwayView;
-import BankAlertsView = ContractModule278.BankAlertsView;
-import BankApplyResult = ContractModule278.BankApplyResult;
-import BankLedgerView = ContractModule278.BankLedgerView;
-import BillResult = ContractModule278.BillResult;
-import BillsView = ContractModule278.BillsView;
-import CaDiffExplanation = ContractModule278.CaDiffExplanation;
-import CaFirmView = ContractModule278.CaFirmView;
-import CaReceiptView = ContractModule278.CaReceiptView;
-import CaRequestView = ContractModule278.CaRequestView;
-import CalendarFeedView = ContractModule278.CalendarFeedView;
-import CapabilityPageView = ContractModule278.CapabilityPageView;
-import CashView = ContractModule278.CashView;
-import ChatConsentView = ContractModule278.ChatConsentView;
-import ChiefFit = ContractModule278.ChiefFit;
-import ChiefSendResult = ContractModule278.ChiefSendResult;
-import ChiefSettleResult = ContractModule278.ChiefSettleResult;
-import ChiefThreadStateInput = ContractModule278.ChiefThreadStateInput;
-import ChiefThreadStateResult = ContractModule278.ChiefThreadStateResult;
-import ChiefThreadSummary = ContractModule278.ChiefThreadSummary;
-import ChiefThreadView = ContractModule278.ChiefThreadView;
-import ChiefThreadsView = ContractModule278.ChiefThreadsView;
-import CliStatusList = ContractModule278.CliStatusList;
-import ClientListRow = ContractModule278.ClientListRow;
-import ComplianceView = ContractModule278.ComplianceView;
-import ConnectorChecksView = ContractModule278.ConnectorChecksView;
-import CreditNoteView = ContractModule278.CreditNoteView;
-import DecisionsView = ContractModule278.DecisionsView;
-import DeliveryJudgePreview = ContractModule278.DeliveryJudgePreview;
-import DraftChangesView = ContractModule278.DraftChangesView;
-import DraftPostView = ContractModule278.DraftPostView;
-import DrillRunView = ContractModule278.DrillRunView;
-import DrillRunsView = ContractModule278.DrillRunsView;
-import FileRequestView = ContractModule278.FileRequestView;
-import FlowView = ContractModule278.FlowView;
-import FollowupsView = ContractModule278.FollowupsView;
-import GoalSuggestion = ContractModule278.GoalSuggestion;
-import GoalView = ContractModule278.GoalView;
-import GuidanceView = ContractModule278.GuidanceView;
-import IdeaStarted = ContractModule278.IdeaStarted;
-import IdeasView = ContractModule278.IdeasView;
-import InboundListView = ContractModule278.InboundListView;
-import InboundView = ContractModule278.InboundView;
-import InvoiceListRow = ContractModule278.InvoiceListRow;
-import JournalChainView = ContractModule278.JournalChainView;
-import JudgeAutoView = ContractModule278.JudgeAutoView;
-import KeeperView = ContractModule278.KeeperView;
-import KnowledgeSourceInput = ContractModule278.KnowledgeSourceInput;
-import KnowledgeSourceView = ContractModule278.KnowledgeSourceView;
-import KnowledgeTestView = ContractModule278.KnowledgeTestView;
-import KnowledgeView = ContractModule278.KnowledgeView;
-import MailboxSync = ContractModule278.MailboxSync;
-import MailboxView = ContractModule278.MailboxView;
-import MarginsView = ContractModule278.MarginsView;
-import MeetingDigestView = ContractModule278.MeetingDigestView;
-import MiniAppCallResult = ContractModule278.MiniAppCallResult;
-import MiniAppCard = ContractModule278.MiniAppCard;
-import MiniAppView = ContractModule278.MiniAppView;
-import MoneyExportFile = ContractModule278.MoneyExportFile;
-import MoneyOverview = ContractModule278.MoneyOverview;
-import NetworkForgotten = ContractModule278.NetworkForgotten;
-import NetworkImportResult = ContractModule278.NetworkImportResult;
-import NetworkImportUndo = ContractModule278.NetworkImportUndo;
-import NetworkRecompute = ContractModule278.NetworkRecompute;
-import NetworkSearchView = ContractModule278.NetworkSearchView;
-import NetworkSourcesView = ContractModule278.NetworkSourcesView;
-import NotifyListView = ContractModule278.NotifyListView;
-import NotifySettingsView = ContractModule278.NotifySettingsView;
-import OrderContractView = ContractModule278.OrderContractView;
-import OutreachHandoff = ContractModule278.OutreachHandoff;
-import OutreachRestriction = ContractModule278.OutreachRestriction;
-import OutreachSentResult = ContractModule278.OutreachSentResult;
-import OutreachView = ContractModule278.OutreachView;
-import OwnerPostingLimitsView = ContractModule278.OwnerPostingLimitsView;
-import OwnerView = ContractModule278.OwnerView;
-import PauseView = ContractModule278.PauseView;
-import PeopleView = ContractModule278.PeopleView;
-import PersonResearch = ContractModule278.PersonResearch;
-import PersonSplit = ContractModule278.PersonSplit;
-import PersonSummary = ContractModule278.PersonSummary;
-import PersonView = ContractModule278.PersonView;
-import PersonaTestView = ContractModule278.PersonaTestView;
-import PersonaView = ContractModule278.PersonaView;
-import PhoneAccessView = ContractModule278.PhoneAccessView;
-import PipelineCardResult = ContractModule278.PipelineCardResult;
-import PipelineEvidenceInput = ContractModule278.PipelineEvidenceInput;
-import PipelineSettingsView = ContractModule278.PipelineSettingsView;
-import PipelineView = ContractModule278.PipelineView;
-import PlanSuggestionView = ContractModule278.PlanSuggestionView;
-import PostingLimitsView = ContractModule278.PostingLimitsView;
-import PostingProposal = ContractModule278.PostingProposal;
-import PostingStepsView = ContractModule278.PostingStepsView;
-import ProposalRaised = ContractModule278.ProposalRaised;
-import ProposalView = ContractModule278.ProposalView;
-import PushKeyView = ContractModule278.PushKeyView;
-import PushStateView = ContractModule278.PushStateView;
-import PushSubscriptionInput = ContractModule278.PushSubscriptionInput;
-import QueueSetPreview = ContractModule278.QueueSetPreview;
-import QueueSetResult = ContractModule278.QueueSetResult;
-import QueueUndoResult = ContractModule278.QueueUndoResult;
-import ReceiptVerifyView = ContractModule278.ReceiptVerifyView;
-import RecurringInvoiceView = ContractModule278.RecurringInvoiceView;
-import RecurringInvoicesView = ContractModule278.RecurringInvoicesView;
-import RelayView = ContractModule278.RelayView;
-import RerankView = ContractModule278.RerankView;
-import RetireCheckView = ContractModule278.RetireCheckView;
-import RoleModelsView = ContractModule278.RoleModelsView;
-import RoutineInput = ContractModule278.RoutineInput;
-import RoutineRunsView = ContractModule278.RoutineRunsView;
-import RoutineSuggestionsView = ContractModule278.RoutineSuggestionsView;
-import RoutineView = ContractModule278.RoutineView;
-import RoutinesView = ContractModule278.RoutinesView;
-import RuleLocksView = ContractModule278.RuleLocksView;
-import RulesListView = ContractModule278.RulesListView;
-import RunControlResult = ContractModule278.RunControlResult;
-import SavedSearchView = ContractModule278.SavedSearchView;
-import SettingsDraftSaved = ContractModule278.SettingsDraftSaved;
-import SettingsDraftsView = ContractModule278.SettingsDraftsView;
-import ShadowSummaryView = ContractModule278.ShadowSummaryView;
-import ShareAnswerView = ContractModule278.ShareAnswerView;
-import ShareKind = ContractModule278.ShareKind;
-import ShareLinkView = ContractModule278.ShareLinkView;
-import SocialCalendarFile = ContractModule278.SocialCalendarFile;
-import StandingOrdersView = ContractModule278.StandingOrdersView;
-import SumReceiptRecord = ContractModule278.SumReceiptRecord;
-import TaxWorkingView = ContractModule278.TaxWorkingView;
-import TeamListView = ContractModule278.TeamListView;
-import TelegramView = ContractModule278.TelegramView;
-import TranscriptionSetupView = ContractModule278.TranscriptionSetupView;
-import TriagePreview = ContractModule278.TriagePreview;
-import TriageRuleView = ContractModule278.TriageRuleView;
-import VoiceInput = ContractModule278.VoiceInput;
-import VoiceView = ContractModule278.VoiceView;
-import WaysView = ContractModule278.WaysView;
-import WriteCapKind = ContractModule278.WriteCapKind;
-import BankConsentView = ContractModule267.BankConsentView;
-import BankImportResult = ContractModule267.BankImportResult;
-import BriefFilePlan = ContractModule267.BriefFilePlan;
-import BriefRecord = ContractModule267.BriefRecord;
-import BuildFollowRecord = ContractModule267.BuildFollowRecord;
-import BuildStatus = ContractModule267.BuildStatus;
-import BuilderId = ContractModule267.BuilderId;
-import ConnectorCard = ContractModule267.ConnectorCard;
-import ConnectorCategory = ContractModule267.ConnectorCategory;
-import HandoffPlan = ContractModule267.HandoffPlan;
-import HandoffRecord = ContractModule267.HandoffRecord;
-import LeadView = ContractModule267.LeadView;
-import OutreachDraftView = ContractModule267.OutreachDraftView;
-import SiteEditRecord = ContractModule267.SiteEditRecord;
-import CapabilityStatus = ContractModule269.CapabilityStatus;
-import DelegateRunRecord = ContractModule269.DelegateRunRecord;
-import DeliveryReason = ContractModule269.DeliveryReason;
-import DeliveryRunView = ContractModule269.DeliveryRunView;
-import ImprovementRunRecord = ContractModule269.ImprovementRunRecord;
-import ImprovementStatus = ContractModule269.ImprovementStatus;
-import LaunchStatus = ContractModule269.LaunchStatus;
-import PlaybookRecord = ContractModule269.PlaybookRecord;
-import Scenario = ContractModule269.Scenario;
-import SimulationRunRecord = ContractModule269.SimulationRunRecord;
-import UploadView = ContractModule269.UploadView;
-import WorkReceiptRecord = ContractModule269.WorkReceiptRecord;
-import AgentView = ContractModule275.AgentView;
-import CoverageView = ContractModule275.CoverageView;
-import EvidenceItem = ContractModule275.EvidenceItem;
-import JournalEntry = ContractModule275.JournalEntry;
-import Posture = ContractModule275.Posture;
-import QueueActionId = ContractModule275.QueueActionId;
-import QueueDecision = ContractModule275.QueueDecision;
-import QueueItemView = ContractModule275.QueueItemView;
-import QueueList = ContractModule275.QueueList;
-import RunDetail = ContractModule275.RunDetail;
-import RunSummary = ContractModule275.RunSummary;
-import VentureEventRecord = ContractModule275.VentureEventRecord;
-import VentureRunEvent = ContractModule275.VentureRunEvent;
-import BillLineInput = ContractModule276.BillLineInput;
-import CardVote = ContractModule276.CardVote;
-import InvoiceShareHow = ContractModule276.InvoiceShareHow;
-import LawfulBasis = ContractModule276.LawfulBasis;
-import LostReason = ContractModule276.LostReason;
-import NetworkImportKind = ContractModule276.NetworkImportKind;
-import OpportunityTrigger = ContractModule276.OpportunityTrigger;
-import OrderContract = ContractModule276.OrderContract;
-import OutreachChannel = ContractModule276.OutreachChannel;
-import OutreachKind = ContractModule276.OutreachKind;
-import OutreachLane = ContractModule276.OutreachLane;
-import OutreachLanguage = ContractModule276.OutreachLanguage;
-import OutreachSentChannel = ContractModule276.OutreachSentChannel;
-import PersonaFields = ContractModule276.PersonaFields;
-import PipelineStage = ContractModule276.PipelineStage;
-import ReceiptSignature = ContractModule276.ReceiptSignature;
-import RowFigureReceipt = ContractModule276.RowFigureReceipt;
-import ScoreRule = ContractModule276.ScoreRule;
-import TieReceipt = ContractModule276.TieReceipt;
-import TriageRule = ContractModule276.TriageRule;
-import TypedAmount = ContractModule276.TypedAmount;
+declare namespace ContractModule307 {
+import AccountantView = ContractModule568.AccountantView;
+import CaPackScheduleView = ContractModule578.CaPackScheduleView;
+import TelegramFound = ContractModule690.TelegramFound;
+import ClientAiDefaultView = ContractModule296.ClientAiDefaultView;
+import OnboardingPayloads = ContractModule692.OnboardingPayloads;
+import OnboardingResults = ContractModule692.OnboardingResults;
+import BankAlertRuleInput = ContractModule198.BankAlertRuleInput;
+import FamilyId = ContractModule333.FamilyId;
+import NeedsList = ContractModule333.NeedsList;
+import LayoutPlace = ContractModule1606.LayoutPlace;
+import LayoutRequest = ContractModule1606.LayoutRequest;
+import LayoutChangeResult = ContractModule1607.LayoutChangeResult;
+import LayoutView = ContractModule1607.LayoutView;
+import FindRequest = ContractModule1601.FindRequest;
+import FindView = ContractModule1601.FindView;
+import IntakeValue = ContractModule945.IntakeValue;
+import OrderChainView = ContractModule974.OrderChainView;
+import GoNoGoCardView = ContractModule978.GoNoGoCardView;
+import GoNoGoInputs = ContractModule978.GoNoGoInputs;
+import GoNoGoListView = ContractModule978.GoNoGoListView;
+import SalesPilotTerms = ContractModule978.SalesPilotTerms;
+import SalesProposalView = ContractModule978.SalesProposalView;
+import IdeaAddedView = ContractModule977.IdeaAddedView;
+import IdeaGrade = ContractModule977.IdeaGrade;
+import IdeaGradedView = ContractModule977.IdeaGradedView;
+import IdeaMovedView = ContractModule977.IdeaMovedView;
+import IdeaStage = ContractModule977.IdeaStage;
+import AssetRerunView = ContractModule975.AssetRerunView;
+import AssetReuseView = ContractModule975.AssetReuseView;
+import AssetsView = ContractModule975.AssetsView;
+import BrandKitInput = ContractModule975.BrandKitInput;
+import BrandKitView = ContractModule975.BrandKitView;
+import VoiceConsentsView = ContractModule975.VoiceConsentsView;
+import VoiceConsentView = ContractModule975.VoiceConsentView;
+import ReportFormat = ContractModule976.ReportFormat;
+import ReportListView = ContractModule976.ReportListView;
+import ReportShareView = ContractModule976.ReportShareView;
+import ReportView = ContractModule976.ReportView;
+import LocalAppsView = ContractModule262.LocalAppsView;
+import MailImportView = ContractModule262.MailImportView;
+import MailThreadsView = ContractModule262.MailThreadsView;
+import MonitorInput = ContractModule262.MonitorInput;
+import MonitorsView = ContractModule262.MonitorsView;
+import MonitorView = ContractModule262.MonitorView;
+import SpeechProvidersView = ContractModule262.SpeechProvidersView;
+import WebhookView = ContractModule262.WebhookView;
+import WebhookSendView = ContractModule262.WebhookSendView;
+import CitationsConfirmView = ContractModule813.CitationsConfirmView;
+import DataPackExportView = ContractModule813.DataPackExportView;
+import DifferentialAddView = ContractModule813.DifferentialAddView;
+import SignoffCheckView = ContractModule813.SignoffCheckView;
+import DeskActPayload = ContractModule849.DeskActPayload;
+import DeskActView = ContractModule849.DeskActView;
+import DeskGetPayload = ContractModule849.DeskGetPayload;
+import DeskItemView = ContractModule849.DeskItemView;
+import DeskListPayload = ContractModule849.DeskListPayload;
+import DeskListView = ContractModule849.DeskListView;
+import CountryCode = ContractModule327.CountryCode;
+import CountryProfile = ContractModule327.CountryProfile;
+import TalkConsentInput = ContractModule177.TalkConsentInput;
+import TalkHeard = ContractModule177.TalkHeard;
+import TalkSaid = ContractModule177.TalkSaid;
+import TalkSetupInput = ContractModule177.TalkSetupInput;
+import TalkStarted = ContractModule177.TalkStarted;
+import TalkView = ContractModule177.TalkView;
+import FeedbackAnswerInput = ContractModule331.FeedbackAnswerInput;
+import FeedbackConsentInput = ContractModule331.FeedbackConsentInput;
+import FeedbackCrashInput = ContractModule331.FeedbackCrashInput;
+import FeedbackCrashKept = ContractModule331.FeedbackCrashKept;
+import FeedbackView = ContractModule331.FeedbackView;
+import BlueprintPatch = ContractModule304.BlueprintPatch;
+import BlueprintView = ContractModule304.BlueprintView;
+import InterviewAnswer = ContractModule304.InterviewAnswer;
+import InterviewView = ContractModule304.InterviewView;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import Json = ContractModule304.Json;
+import MicroString = ContractModule304.MicroString;
+import MinorString = ContractModule304.MinorString;
+import PlanPreview = ContractModule304.PlanPreview;
+import PricingModel = ContractModule304.PricingModel;
+import VentureView = ContractModule304.VentureView;
+import ModelCallRecord = ContractModule308.ModelCallRecord;
+import ModelPreset = ContractModule308.ModelPreset;
+import ModelPresetId = ContractModule308.ModelPresetId;
+import ModelPurpose = ContractModule308.ModelPurpose;
+import ModelStatusView = ContractModule308.ModelStatusView;
+import ModelTier = ContractModule308.ModelTier;
+import BooksPeriodKey = ContractModule309.BooksPeriodKey;
+import BooksSummary = ContractModule309.BooksSummary;
+import ClientAiConsentView = ContractModule309.ClientAiConsentView;
+import ClientRecord = ContractModule309.ClientRecord;
+import InvoiceView = ContractModule309.InvoiceView;
+import OrderIntake = ContractModule309.OrderIntake;
+import OrderListRow = ContractModule309.OrderListRow;
+import OrderRecord = ContractModule309.OrderRecord;
+import PaymentMethod = ContractModule309.PaymentMethod;
+import PriceReceiptRecord = ContractModule309.PriceReceiptRecord;
+import CurrencyLead = ContractModule313.CurrencyLead;
+import Display = ContractModule313.Display;
+import SpendLead = ContractModule313.SpendLead;
+import SpendPolicyView = ContractModule313.SpendPolicyView;
+import SpendRateInput = ContractModule313.SpendRateInput;
+import SpendRow = ContractModule313.SpendRow;
+import AcrossMoneyView = ContractModule314.AcrossMoneyView;
+import AcrossRunsView = ContractModule314.AcrossRunsView;
+import AgentExportFile = ContractModule314.AgentExportFile;
+import AgentHealth = ContractModule314.AgentHealth;
+import AgentNoteChange = ContractModule314.AgentNoteChange;
+import AgentNotesView = ContractModule314.AgentNotesView;
+import AgentProposalDecision = ContractModule314.AgentProposalDecision;
+import AgentProposalView = ContractModule314.AgentProposalView;
+import AgentRestored = ContractModule314.AgentRestored;
+import AgentRetired = ContractModule314.AgentRetired;
+import AgentSendResult = ContractModule314.AgentSendResult;
+import AgentThreadView = ContractModule314.AgentThreadView;
+import AgentVersionUndo = ContractModule314.AgentVersionUndo;
+import AgingView = ContractModule314.AgingView;
+import AllowSessionView = ContractModule314.AllowSessionView;
+import AllowWritesView = ContractModule314.AllowWritesView;
+import AutoReadinessView = ContractModule314.AutoReadinessView;
+import AwayView = ContractModule314.AwayView;
+import BankAlertsView = ContractModule314.BankAlertsView;
+import BankApplyResult = ContractModule314.BankApplyResult;
+import BankLedgerView = ContractModule314.BankLedgerView;
+import BillResult = ContractModule314.BillResult;
+import BillsView = ContractModule314.BillsView;
+import CaDiffExplanation = ContractModule314.CaDiffExplanation;
+import CaFirmView = ContractModule314.CaFirmView;
+import CaReceiptView = ContractModule314.CaReceiptView;
+import CaRequestView = ContractModule314.CaRequestView;
+import CalendarFeedView = ContractModule314.CalendarFeedView;
+import CapabilityPageView = ContractModule314.CapabilityPageView;
+import CashView = ContractModule314.CashView;
+import ChatConsentView = ContractModule314.ChatConsentView;
+import ChiefFit = ContractModule314.ChiefFit;
+import ChiefSendResult = ContractModule314.ChiefSendResult;
+import ChiefSettleResult = ContractModule314.ChiefSettleResult;
+import ChiefThreadStateInput = ContractModule314.ChiefThreadStateInput;
+import ChiefThreadStateResult = ContractModule314.ChiefThreadStateResult;
+import ChiefThreadSummary = ContractModule314.ChiefThreadSummary;
+import ChiefThreadView = ContractModule314.ChiefThreadView;
+import ChiefThreadsView = ContractModule314.ChiefThreadsView;
+import CliStatusList = ContractModule314.CliStatusList;
+import ClientListRow = ContractModule314.ClientListRow;
+import ComplianceView = ContractModule314.ComplianceView;
+import ConnectorChecksView = ContractModule314.ConnectorChecksView;
+import CreditNoteView = ContractModule314.CreditNoteView;
+import DecisionsView = ContractModule314.DecisionsView;
+import DeliveryJudgePreview = ContractModule314.DeliveryJudgePreview;
+import DraftChangesView = ContractModule314.DraftChangesView;
+import DraftPostView = ContractModule314.DraftPostView;
+import DrillRunView = ContractModule314.DrillRunView;
+import DrillRunsView = ContractModule314.DrillRunsView;
+import FileRequestView = ContractModule314.FileRequestView;
+import FlowView = ContractModule314.FlowView;
+import FollowupsView = ContractModule314.FollowupsView;
+import GoalSuggestion = ContractModule314.GoalSuggestion;
+import GoalView = ContractModule314.GoalView;
+import GuidanceView = ContractModule314.GuidanceView;
+import IdeaStarted = ContractModule314.IdeaStarted;
+import IdeasView = ContractModule314.IdeasView;
+import InboundListView = ContractModule314.InboundListView;
+import InboundView = ContractModule314.InboundView;
+import InvoiceListRow = ContractModule314.InvoiceListRow;
+import JournalChainView = ContractModule314.JournalChainView;
+import JudgeAutoView = ContractModule314.JudgeAutoView;
+import KeeperView = ContractModule314.KeeperView;
+import KnowledgeSourceInput = ContractModule314.KnowledgeSourceInput;
+import KnowledgeSourceView = ContractModule314.KnowledgeSourceView;
+import KnowledgeTestView = ContractModule314.KnowledgeTestView;
+import KnowledgeView = ContractModule314.KnowledgeView;
+import MailboxSync = ContractModule314.MailboxSync;
+import MailboxView = ContractModule314.MailboxView;
+import MarginsView = ContractModule314.MarginsView;
+import MeetingDigestView = ContractModule314.MeetingDigestView;
+import MiniAppCallResult = ContractModule314.MiniAppCallResult;
+import MiniAppCard = ContractModule314.MiniAppCard;
+import MiniAppView = ContractModule314.MiniAppView;
+import MoneyExportFile = ContractModule314.MoneyExportFile;
+import MoneyOverview = ContractModule314.MoneyOverview;
+import NetworkForgotten = ContractModule314.NetworkForgotten;
+import NetworkImportResult = ContractModule314.NetworkImportResult;
+import NetworkImportUndo = ContractModule314.NetworkImportUndo;
+import NetworkRecompute = ContractModule314.NetworkRecompute;
+import NetworkSearchView = ContractModule314.NetworkSearchView;
+import NetworkSourcesView = ContractModule314.NetworkSourcesView;
+import NotifyListView = ContractModule314.NotifyListView;
+import NotifySettingsView = ContractModule314.NotifySettingsView;
+import OrderContractView = ContractModule314.OrderContractView;
+import OutreachHandoff = ContractModule314.OutreachHandoff;
+import OutreachRestriction = ContractModule314.OutreachRestriction;
+import OutreachSentResult = ContractModule314.OutreachSentResult;
+import OutreachView = ContractModule314.OutreachView;
+import OwnerPostingLimitsView = ContractModule314.OwnerPostingLimitsView;
+import OwnerView = ContractModule314.OwnerView;
+import PauseView = ContractModule314.PauseView;
+import PeopleView = ContractModule314.PeopleView;
+import PersonResearch = ContractModule314.PersonResearch;
+import PersonSplit = ContractModule314.PersonSplit;
+import PersonSummary = ContractModule314.PersonSummary;
+import PersonView = ContractModule314.PersonView;
+import PersonaTestView = ContractModule314.PersonaTestView;
+import PersonaView = ContractModule314.PersonaView;
+import PhoneAccessView = ContractModule314.PhoneAccessView;
+import PipelineCardResult = ContractModule314.PipelineCardResult;
+import PipelineEvidenceInput = ContractModule314.PipelineEvidenceInput;
+import PipelineSettingsView = ContractModule314.PipelineSettingsView;
+import PipelineView = ContractModule314.PipelineView;
+import PlanSuggestionView = ContractModule314.PlanSuggestionView;
+import PostingLimitsView = ContractModule314.PostingLimitsView;
+import PostingProposal = ContractModule314.PostingProposal;
+import PostingStepsView = ContractModule314.PostingStepsView;
+import ProposalRaised = ContractModule314.ProposalRaised;
+import ProposalView = ContractModule314.ProposalView;
+import PushKeyView = ContractModule314.PushKeyView;
+import PushStateView = ContractModule314.PushStateView;
+import PushSubscriptionInput = ContractModule314.PushSubscriptionInput;
+import QueueSetPreview = ContractModule314.QueueSetPreview;
+import QueueSetResult = ContractModule314.QueueSetResult;
+import QueueUndoResult = ContractModule314.QueueUndoResult;
+import ReceiptVerifyView = ContractModule314.ReceiptVerifyView;
+import RecurringInvoiceView = ContractModule314.RecurringInvoiceView;
+import RecurringInvoicesView = ContractModule314.RecurringInvoicesView;
+import RelayView = ContractModule314.RelayView;
+import RerankView = ContractModule314.RerankView;
+import RetireCheckView = ContractModule314.RetireCheckView;
+import RoleModelsView = ContractModule314.RoleModelsView;
+import RoutineInput = ContractModule314.RoutineInput;
+import RoutineRunsView = ContractModule314.RoutineRunsView;
+import RoutineSuggestionsView = ContractModule314.RoutineSuggestionsView;
+import RoutineView = ContractModule314.RoutineView;
+import RoutinesView = ContractModule314.RoutinesView;
+import RuleLocksView = ContractModule314.RuleLocksView;
+import RulesListView = ContractModule314.RulesListView;
+import RunControlResult = ContractModule314.RunControlResult;
+import SavedSearchView = ContractModule314.SavedSearchView;
+import SettingsDraftSaved = ContractModule314.SettingsDraftSaved;
+import SettingsDraftsView = ContractModule314.SettingsDraftsView;
+import ShadowSummaryView = ContractModule314.ShadowSummaryView;
+import ShareAnswerView = ContractModule314.ShareAnswerView;
+import ShareKind = ContractModule314.ShareKind;
+import ShareLinkView = ContractModule314.ShareLinkView;
+import SocialCalendarFile = ContractModule314.SocialCalendarFile;
+import StandingOrdersView = ContractModule314.StandingOrdersView;
+import SumReceiptRecord = ContractModule314.SumReceiptRecord;
+import TaxWorkingView = ContractModule314.TaxWorkingView;
+import TeamListView = ContractModule314.TeamListView;
+import TelegramView = ContractModule314.TelegramView;
+import TranscriptionSetupView = ContractModule314.TranscriptionSetupView;
+import TriagePreview = ContractModule314.TriagePreview;
+import TriageRuleView = ContractModule314.TriageRuleView;
+import VoiceInput = ContractModule314.VoiceInput;
+import VoiceView = ContractModule314.VoiceView;
+import WaysView = ContractModule314.WaysView;
+import WriteCapKind = ContractModule314.WriteCapKind;
+import BankConsentView = ContractModule303.BankConsentView;
+import BankImportResult = ContractModule303.BankImportResult;
+import BriefFilePlan = ContractModule303.BriefFilePlan;
+import BriefRecord = ContractModule303.BriefRecord;
+import BuildFollowRecord = ContractModule303.BuildFollowRecord;
+import BuildStatus = ContractModule303.BuildStatus;
+import BuilderId = ContractModule303.BuilderId;
+import ConnectorCard = ContractModule303.ConnectorCard;
+import ConnectorCategory = ContractModule303.ConnectorCategory;
+import HandoffPlan = ContractModule303.HandoffPlan;
+import HandoffRecord = ContractModule303.HandoffRecord;
+import LeadView = ContractModule303.LeadView;
+import OutreachDraftView = ContractModule303.OutreachDraftView;
+import SiteEditRecord = ContractModule303.SiteEditRecord;
+import CapabilityStatus = ContractModule305.CapabilityStatus;
+import DelegateRunRecord = ContractModule305.DelegateRunRecord;
+import DeliveryReason = ContractModule305.DeliveryReason;
+import DeliveryRunView = ContractModule305.DeliveryRunView;
+import ImprovementRunRecord = ContractModule305.ImprovementRunRecord;
+import ImprovementStatus = ContractModule305.ImprovementStatus;
+import LaunchStatus = ContractModule305.LaunchStatus;
+import PlaybookRecord = ContractModule305.PlaybookRecord;
+import Scenario = ContractModule305.Scenario;
+import SimulationRunRecord = ContractModule305.SimulationRunRecord;
+import UploadView = ContractModule305.UploadView;
+import WorkReceiptRecord = ContractModule305.WorkReceiptRecord;
+import AgentView = ContractModule311.AgentView;
+import CoverageView = ContractModule311.CoverageView;
+import EvidenceItem = ContractModule311.EvidenceItem;
+import JournalEntry = ContractModule311.JournalEntry;
+import Posture = ContractModule311.Posture;
+import QueueActionId = ContractModule311.QueueActionId;
+import QueueDecision = ContractModule311.QueueDecision;
+import QueueItemView = ContractModule311.QueueItemView;
+import QueueList = ContractModule311.QueueList;
+import RunDetail = ContractModule311.RunDetail;
+import RunSummary = ContractModule311.RunSummary;
+import VentureEventRecord = ContractModule311.VentureEventRecord;
+import VentureRunEvent = ContractModule311.VentureRunEvent;
+import BillLineInput = ContractModule312.BillLineInput;
+import CardVote = ContractModule312.CardVote;
+import InvoiceShareHow = ContractModule312.InvoiceShareHow;
+import LawfulBasis = ContractModule312.LawfulBasis;
+import LostReason = ContractModule312.LostReason;
+import NetworkImportKind = ContractModule312.NetworkImportKind;
+import OpportunityTrigger = ContractModule312.OpportunityTrigger;
+import OrderContract = ContractModule312.OrderContract;
+import OutreachChannel = ContractModule312.OutreachChannel;
+import OutreachKind = ContractModule312.OutreachKind;
+import OutreachLane = ContractModule312.OutreachLane;
+import OutreachLanguage = ContractModule312.OutreachLanguage;
+import OutreachSentChannel = ContractModule312.OutreachSentChannel;
+import PersonaFields = ContractModule312.PersonaFields;
+import PipelineStage = ContractModule312.PipelineStage;
+import ReceiptSignature = ContractModule312.ReceiptSignature;
+import RowFigureReceipt = ContractModule312.RowFigureReceipt;
+import ScoreRule = ContractModule312.ScoreRule;
+import TieReceipt = ContractModule312.TieReceipt;
+import TriageRule = ContractModule312.TriageRule;
+import TypedAmount = ContractModule312.TypedAmount;
 type Empty = Record<string, never>;
 export type VenturePayloads = {
     'venture.countries': Empty;
@@ -3629,7 +3681,7 @@ export type VenturePayloads = {
     };
     'venture.agentSettings.get': Empty;
     'venture.agentSettings.set': {
-        settings: ContractModule102.AiSettings;
+        settings: ContractModule138.AiSettings;
         approveMcpConfiguration?: true;
     };
     'venture.mcpCredential.set': {
@@ -3656,10 +3708,10 @@ export type VenturePayloads = {
         clientId: string;
     };
     'venture.billing.get': Empty;
-    'venture.billing.set': Partial<Omit<ContractModule539.BillingSettings, 'razorpay' | 'bank' | 'dueInDays' | 'reminderDays'>> & {
+    'venture.billing.set': Partial<Omit<ContractModule574.BillingSettings, 'razorpay' | 'bank' | 'dueInDays' | 'reminderDays'>> & {
         dueInDays?: number | string;
         reminderDays?: (number | string)[];
-        bank?: (Pick<ContractModule539.BankDetails, 'accountName' | 'accountNumber'> & Partial<Omit<ContractModule539.BankDetails, 'accountName' | 'accountNumber'>>) | null;
+        bank?: (Pick<ContractModule574.BankDetails, 'accountName' | 'accountNumber'> & Partial<Omit<ContractModule574.BankDetails, 'accountName' | 'accountNumber'>>) | null;
         razorpayKeys?: {
             keyId: string;
             keySecret: string;
@@ -4363,7 +4415,7 @@ export type VenturePayloads = {
         hours?: number;
     };
     'venture.web.search': {
-        provider?: ContractModule1614.SearchProviderId | null;
+        provider?: ContractModule1631.SearchProviderId | null;
         key?: string;
         consentDigest?: string;
     };
@@ -4513,7 +4565,7 @@ export type VenturePayloads = {
     };
     'venture.crm.log': {
         clientId: string;
-        kind: ContractModule331.CrmEntryKind;
+        kind: ContractModule366.CrmEntryKind;
         on: IsoDate;
         text: string;
     };
@@ -4539,7 +4591,7 @@ export type VenturePayloads = {
         topic: string;
         text: string;
         since?: IsoDate;
-        visibility?: ContractModule494.FactVisibility;
+        visibility?: ContractModule529.FactVisibility;
     };
     'venture.memory.replace': {
         factId: string;
@@ -4548,7 +4600,7 @@ export type VenturePayloads = {
     };
     'venture.memory.visibility': {
         factId: string;
-        visibility: ContractModule494.FactVisibility;
+        visibility: ContractModule529.FactVisibility;
     };
     'venture.memory.forget': {
         factId: string;
@@ -4917,14 +4969,14 @@ export type VenturePayloads = {
         outputs: Json;
         capturedBy: string;
     };
-    'venture.ca.dataPack.export': ContractModule772.PackSelection & {
+    'venture.ca.dataPack.export': ContractModule804.PackSelection & {
         approvalDigest: string;
     };
     'venture.desk.list': DeskListPayload;
     'venture.desk.get': DeskGetPayload;
     'venture.desk.act': DeskActPayload;
     'venture.flows.list': Empty;
-    'venture.flows.act': ContractModule478.FlowsActPayload;
+    'venture.flows.act': ContractModule513.FlowsActPayload;
     'venture.ai.options': OnboardingPayloads['venture.ai.options'];
     'venture.ai.connect': OnboardingPayloads['venture.ai.connect'];
     'venture.ai.disconnect': OnboardingPayloads['venture.ai.disconnect'];
@@ -5048,34 +5100,34 @@ export type VentureResults = {
     };
     'venture.client.add': ClientRecord;
     'venture.client.aiConsent.get': ClientAiConsentView;
-    'venture.agentSettings.get': ContractModule102.AiSettingsView;
-    'venture.agentSettings.set': ContractModule102.AiSettingsView;
+    'venture.agentSettings.get': ContractModule138.AiSettingsView;
+    'venture.agentSettings.set': ContractModule138.AiSettingsView;
     'venture.mcpCredential.set': {
         serverId: string;
         saved: boolean;
     };
-    'venture.mcpRegistry.list': ContractModule90.CuratedMcpView;
+    'venture.mcpRegistry.list': ContractModule126.CuratedMcpView;
     'venture.mcpOAuth.start': {
         serverId: string;
         authorizationUrl: string;
     };
     'venture.packs.list': {
-        packs: ContractModule659.PackView[];
+        packs: ContractModule693.PackView[];
     };
     'venture.packs.add': {
         added: boolean;
         digest: string;
-        pack: ContractModule659.PackView;
+        pack: ContractModule693.PackView;
     };
     'venture.packs.remove': {
         removed: boolean;
     };
     'venture.client.aiConsent.agree': ClientAiConsentView;
     'venture.client.aiConsent.withdraw': ClientAiConsentView;
-    'venture.billing.get': ContractModule539.BillingView;
-    'venture.billing.set': ContractModule539.BillingView;
-    'venture.invoice.pdf': ContractModule562.InvoicePdfView;
-    'venture.payment.receipt': ContractModule575.PaymentReceiptView;
+    'venture.billing.get': ContractModule574.BillingView;
+    'venture.billing.set': ContractModule574.BillingView;
+    'venture.invoice.pdf': ContractModule597.InvoicePdfView;
+    'venture.payment.receipt': ContractModule610.PaymentReceiptView;
     'venture.invoice.payLink': InvoiceView;
     'venture.client.list': ClientListRow[];
     'venture.order.create': OrderRecord;
@@ -5329,8 +5381,8 @@ export type VentureResults = {
     'venture.notify.relay': RelayView;
     'venture.notify.telegram': TelegramView;
     'venture.phone.access': PhoneAccessView;
-    'venture.web.search': ContractModule1614.WebSearchView;
-    'venture.web.read': ContractModule1614.WebReadView;
+    'venture.web.search': ContractModule1631.WebSearchView;
+    'venture.web.read': ContractModule1631.WebReadView;
     'venture.chief.thread.state': ChiefThreadStateResult;
     'venture.chief.settle.set': ChiefSettleResult;
     'venture.agents.retire.check': RetireCheckView;
@@ -5384,7 +5436,7 @@ export type VentureResults = {
         line: Display;
     };
     'venture.layout.get': LayoutView;
-    'venture.diagnostics.today': ContractModule1581.DiagnosticsTodayView;
+    'venture.diagnostics.today': ContractModule1598.DiagnosticsTodayView;
     'venture.build.briefFile': BriefFilePlan;
     'venture.accountant.pack.done': {
         done: boolean;
@@ -5418,24 +5470,24 @@ export type VentureResults = {
     'venture.feedback.answer': FeedbackView;
     'venture.feedback.crash': FeedbackCrashKept;
     'venture.feedback.delete': FeedbackView;
-    'venture.people.services': ContractModule662.PeopleSearchView;
-    'venture.people.lookup': ContractModule662.PeopleLookupView;
-    'venture.crm.client': ContractModule331.ClientCrmView;
-    'venture.crm.client.edit': ContractModule331.ClientCrmView;
-    'venture.crm.companies': ContractModule331.CompanyRow[];
-    'venture.crm.company': ContractModule331.CompanyView;
-    'venture.crm.company.save': ContractModule331.CompanyView;
-    'venture.crm.link': ContractModule331.CrmMemberView;
-    'venture.crm.log': ContractModule331.ClientCrmView;
-    'venture.crm.lists': ContractModule331.CrmListRow[];
-    'venture.crm.list': ContractModule331.CrmListView;
-    'venture.crm.list.save': ContractModule331.CrmListView;
-    'venture.crm.list.place': ContractModule331.CrmListView;
-    'venture.memory.list': ContractModule494.MemoryView;
-    'venture.memory.add': ContractModule494.MemoryChange;
-    'venture.memory.replace': ContractModule494.MemoryChange;
-    'venture.memory.visibility': ContractModule494.MemoryChange;
-    'venture.memory.forget': ContractModule494.MemoryChange;
+    'venture.people.services': ContractModule696.PeopleSearchView;
+    'venture.people.lookup': ContractModule696.PeopleLookupView;
+    'venture.crm.client': ContractModule366.ClientCrmView;
+    'venture.crm.client.edit': ContractModule366.ClientCrmView;
+    'venture.crm.companies': ContractModule366.CompanyRow[];
+    'venture.crm.company': ContractModule366.CompanyView;
+    'venture.crm.company.save': ContractModule366.CompanyView;
+    'venture.crm.link': ContractModule366.CrmMemberView;
+    'venture.crm.log': ContractModule366.ClientCrmView;
+    'venture.crm.lists': ContractModule366.CrmListRow[];
+    'venture.crm.list': ContractModule366.CrmListView;
+    'venture.crm.list.save': ContractModule366.CrmListView;
+    'venture.crm.list.place': ContractModule366.CrmListView;
+    'venture.memory.list': ContractModule529.MemoryView;
+    'venture.memory.add': ContractModule529.MemoryChange;
+    'venture.memory.replace': ContractModule529.MemoryChange;
+    'venture.memory.visibility': ContractModule529.MemoryChange;
+    'venture.memory.forget': ContractModule529.MemoryChange;
     'venture.models.cli.status': CliStatusList;
     'venture.models.roles': RoleModelsView;
     'venture.goals.get': GoalView;
@@ -5576,8 +5628,8 @@ export type VentureResults = {
     'venture.desk.list': DeskListView;
     'venture.desk.get': DeskItemView;
     'venture.desk.act': DeskActView;
-    'venture.flows.list': ContractModule478.FlowsListView;
-    'venture.flows.act': ContractModule478.FlowsActView;
+    'venture.flows.list': ContractModule513.FlowsListView;
+    'venture.flows.act': ContractModule513.FlowsActView;
     'venture.ai.options': OnboardingResults['venture.ai.options'];
     'venture.ai.connect': OnboardingResults['venture.ai.connect'];
     'venture.ai.disconnect': OnboardingResults['venture.ai.disconnect'];
@@ -5588,25 +5640,25 @@ export type VentureResults = {
     'venture.ai.login.start': OnboardingResults['venture.ai.login.start'];
     'venture.ai.login.cancel': OnboardingResults['venture.ai.login.cancel'];
     'venture.ai.setup.trust': {
-        setup: ContractModule297.CodexSetupView;
+        setup: ContractModule333.CodexSetupView;
     };
-    'venture.ai.claude.install': ContractModule501.ClaudeInstallResult;
-    'venture.ai.claude.progress': ContractModule501.ClaudeInstallView;
+    'venture.ai.claude.install': ContractModule536.ClaudeInstallResult;
+    'venture.ai.claude.progress': ContractModule536.ClaudeInstallView;
     'venture.work.list': {
-        work: ContractModule1616.WorkJobView[];
+        work: ContractModule1633.WorkJobView[];
     };
     'venture.invoice.shared': InvoiceView;
     'venture.routines.suggestions': RoutineSuggestionsView;
-    'venture.agents.hire.duties': ContractModule114.HireView;
-    'venture.events.calKey.set': ContractModule197.EventsView;
-    'venture.events.relay.set': ContractModule197.EventsView;
-    'venture.events.get': ContractModule197.EventsView;
+    'venture.agents.hire.duties': ContractModule150.HireView;
+    'venture.events.calKey.set': ContractModule233.EventsView;
+    'venture.events.relay.set': ContractModule233.EventsView;
+    'venture.events.get': ContractModule233.EventsView;
     'venture.agents.hire.cancel': {
         cancelled: true;
     };
-    'venture.agents.hire.confirm': ContractModule114.HireView;
-    'venture.agents.hire.answer': ContractModule114.HireView;
-    'venture.agents.hire.start': ContractModule114.HireView;
+    'venture.agents.hire.confirm': ContractModule150.HireView;
+    'venture.agents.hire.answer': ContractModule150.HireView;
+    'venture.agents.hire.start': ContractModule150.HireView;
     'venture.trackers.rows.undo': {
         undone: true;
     };
@@ -5614,22 +5666,22 @@ export type VentureResults = {
         removed: true;
     };
     'venture.trackers.rows.edit': {
-        row: ContractModule1578.TrackerRowView;
+        row: ContractModule1595.TrackerRowView;
     };
     'venture.trackers.rows.add': {
-        row: ContractModule1578.TrackerRowView;
+        row: ContractModule1595.TrackerRowView;
     };
     'venture.trackers.remove': {
         removed: true;
     };
     'venture.trackers.set': {
-        tracker: ContractModule1578.TrackerView;
+        tracker: ContractModule1595.TrackerView;
     };
-    'venture.trackers.get': ContractModule1578.TrackerDetail;
-    'venture.trackers.list': ContractModule1578.TrackersView;
-    'venture.routines.backup.set': ContractModule133.BackupView;
-    'venture.routines.backup.get': ContractModule133.BackupView;
-    'venture.models.plan': ContractModule522.PlanView;
+    'venture.trackers.get': ContractModule1595.TrackerDetail;
+    'venture.trackers.list': ContractModule1595.TrackersView;
+    'venture.routines.backup.set': ContractModule169.BackupView;
+    'venture.routines.backup.get': ContractModule169.BackupView;
+    'venture.models.plan': ContractModule557.PlanView;
     'venture.about.read': OnboardingResults['venture.about.read'];
     'venture.about.pick': OnboardingResults['venture.about.pick'];
     'venture.about.families': OnboardingResults['venture.about.families'];
@@ -5641,14 +5693,14 @@ export type VentureResults = {
 };
 }
 
-declare namespace ContractModule272 {
-import MODEL_PRESET_IDS = ContractModule265.MODEL_PRESET_IDS;
-import MODEL_PURPOSES = ContractModule265.MODEL_PURPOSES;
-import IsoDate = ContractModule268.IsoDate;
-import IsoTime = ContractModule268.IsoTime;
-import Json = ContractModule268.Json;
-import MicroString = ContractModule268.MicroString;
-import RecordBase = ContractModule268.RecordBase;
+declare namespace ContractModule308 {
+import MODEL_PRESET_IDS = ContractModule301.MODEL_PRESET_IDS;
+import MODEL_PURPOSES = ContractModule301.MODEL_PURPOSES;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import Json = ContractModule304.Json;
+import MicroString = ContractModule304.MicroString;
+import RecordBase = ContractModule304.RecordBase;
 export type ModelPresetId = typeof MODEL_PRESET_IDS[number];
 export type ModelRouteKind = 'anthropic-messages' | 'openai-responses' | 'claude-cli' | 'codex-cli' | 'template';
 export type ModelTier = 'fast' | 'main';
@@ -5762,7 +5814,7 @@ export type ModelCallRecord = RecordBase<'venture-model-call'> & {
     kept?: Json;
 };
 export type ModelPreview = {
-    clientAi?: ContractModule260.ClientAiContextBinding;
+    clientAi?: ContractModule296.ClientAiContextBinding;
     callId: string;
     payloadText: string;
     digest: string;
@@ -5776,25 +5828,25 @@ export type ModelPreview = {
 export type DateRef = string;
 }
 
-declare namespace ContractModule273 {
-import FootageRights = ContractModule458.FootageRights;
-import SocialChannel = ContractModule1266.SocialChannel;
-import IntakeValue = ContractModule913.IntakeValue;
-import CountryCode = ContractModule291.CountryCode;
-import TaxMode = ContractModule291.TaxMode;
-import CountryProfile = ContractModule291.CountryProfile;
-import TaxTreatment = ContractModule578.TaxTreatment;
-import PriceStep = ContractModule578.PriceStep;
-import BpsString = ContractModule268.BpsString;
-import IsoDate = ContractModule268.IsoDate;
-import IsoTime = ContractModule268.IsoTime;
-import MinorString = ContractModule268.MinorString;
-import RecordBase = ContractModule268.RecordBase;
-import Display = ContractModule277.Display;
-import InvoiceShareHow = ContractModule276.InvoiceShareHow;
-import CreditNoteView = ContractModule278.CreditNoteView;
-export import TaxTreatment = ContractModule578.TaxTreatment;
-export import PriceStep = ContractModule578.PriceStep;
+declare namespace ContractModule309 {
+import FootageRights = ContractModule493.FootageRights;
+import SocialChannel = ContractModule1290.SocialChannel;
+import IntakeValue = ContractModule945.IntakeValue;
+import CountryCode = ContractModule327.CountryCode;
+import TaxMode = ContractModule327.TaxMode;
+import CountryProfile = ContractModule327.CountryProfile;
+import TaxTreatment = ContractModule613.TaxTreatment;
+import PriceStep = ContractModule613.PriceStep;
+import BpsString = ContractModule304.BpsString;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import MinorString = ContractModule304.MinorString;
+import RecordBase = ContractModule304.RecordBase;
+import Display = ContractModule313.Display;
+import InvoiceShareHow = ContractModule312.InvoiceShareHow;
+import CreditNoteView = ContractModule314.CreditNoteView;
+export import TaxTreatment = ContractModule613.TaxTreatment;
+export import PriceStep = ContractModule613.PriceStep;
 export type PriceFigure = {
     key: 'unit' | 'subtotal' | 'discount' | 'taxable' | 'tax' | 'cgst' | 'sgst' | 'igst' | 'total' | 'paid' | 'balance' | 'credited';
     label: string;
@@ -5873,19 +5925,19 @@ export type ClientRecord = RecordBase<'venture-client'> & {
     whatsapp?: string | null;
 };
 export type OrderRecord = RecordBase<'venture-order'> & {
-    sellerShopify?: ContractModule1107.SellerShopifyBody;
-    sellerStorefront?: ContractModule1117.SellerStorefrontBody;
-    youtubePublic?: ContractModule1517.YoutubePublicRead;
-    youtubeResearch?: ContractModule1527.YoutubeResearchBody;
+    sellerShopify?: ContractModule1133.SellerShopifyBody;
+    sellerStorefront?: ContractModule1143.SellerStorefrontBody;
+    youtubePublic?: ContractModule1535.YoutubePublicRead;
+    youtubeResearch?: ContractModule1545.YoutubeResearchBody;
     narrationFetched?: {
         fileId: string;
         url: string;
         finalUrl: string;
         digest: string;
     };
-    socialPostHistory?: ContractModule1339.SocialHookHistory[];
-    socialGhostwriting?: ContractModule1256.GhostwritingState;
-    socialProduction?: ContractModule1313.SocialProduction;
+    socialPostHistory?: ContractModule1362.SocialHookHistory[];
+    socialGhostwriting?: ContractModule1280.GhostwritingState;
+    socialProduction?: ContractModule1337.SocialProduction;
     internal?: true;
     clientId: string;
     offerId: string;
@@ -5897,7 +5949,7 @@ export type OrderRecord = RecordBase<'venture-order'> & {
     saleFactId: string | null;
     intake?: OrderIntake;
     taxInclusive?: boolean;
-    socialChain?: ContractModule1264.SocialChainPin;
+    socialChain?: ContractModule1288.SocialChainPin;
     chainStage?: number;
     chainState?: 'running' | 'waiting' | 'stopped' | 'done';
     chainSince?: IsoTime;
@@ -5906,7 +5958,7 @@ export type OrderRecord = RecordBase<'venture-order'> & {
         reply: string;
     };
     dueDate?: IsoDate;
-    foreignPrice?: ContractModule539.ForeignPrice;
+    foreignPrice?: ContractModule574.ForeignPrice;
 };
 export type OrderIntake = {
     rights: FootageRights | null;
@@ -6001,10 +6053,10 @@ export type InvoiceRecord = RecordBase<'venture-invoice'> & {
     booksNote: string | null;
     paidMinor: MinorString;
     balanceMinor: MinorString;
-    part?: ContractModule539.InvoicePart;
+    part?: ContractModule574.InvoicePart;
     terms?: string;
     reminderDays?: number[];
-    payLink?: ContractModule539.PayLinkState;
+    payLink?: ContractModule574.PayLinkState;
 };
 export type PaymentMethod = 'bank-transfer' | 'upi' | 'card' | 'cash' | 'payment-link' | 'other' | 'cheque';
 export type PaymentRecord = RecordBase<'venture-payment'> & {
@@ -6062,8 +6114,8 @@ export type InvoiceView = {
         days: number;
         line: Display;
     };
-    billed?: ContractModule539.OrderBilledView;
-    howToPay?: ContractModule539.HowToPayView;
+    billed?: ContractModule574.OrderBilledView;
+    howToPay?: ContractModule574.HowToPayView;
     sent: boolean;
     paymentDefaults?: {
         method: PaymentMethod;
@@ -6119,17 +6171,17 @@ export type BooksSummary = {
 };
 }
 
-declare namespace ContractModule274 {
-export import SharePrice = ContractModule949.SharePrice;
-import YoutubeEditBody = ContractModule1519.YoutubeEditBody;
-import YoutubeStyleBody = ContractModule1519.YoutubeStyleBody;
-import SellerSkuBody = ContractModule1100.SellerSkuBody;
-import SupportMessageBody = ContractModule1356.SupportMessageBody;
-import SupportRatingBody = ContractModule1356.SupportRatingBody;
-import SupportRequestBody = ContractModule1356.SupportRequestBody;
-import SupportTicketBody = ContractModule1356.SupportTicketBody;
-import RoomBriefBody = ContractModule1438.RoomBriefBody;
-import RecordBase = ContractModule268.RecordBase;
+declare namespace ContractModule310 {
+export import SharePrice = ContractModule978.SharePrice;
+import YoutubeEditBody = ContractModule1537.YoutubeEditBody;
+import YoutubeStyleBody = ContractModule1537.YoutubeStyleBody;
+import SellerSkuBody = ContractModule1126.SellerSkuBody;
+import SupportMessageBody = ContractModule1379.SupportMessageBody;
+import SupportRatingBody = ContractModule1379.SupportRatingBody;
+import SupportRequestBody = ContractModule1379.SupportRequestBody;
+import SupportTicketBody = ContractModule1379.SupportTicketBody;
+import RoomBriefBody = ContractModule1460.RoomBriefBody;
+import RecordBase = ContractModule304.RecordBase;
 export type YoutubeEditRecord = RecordBase<'venture-youtube-edit'> & YoutubeEditBody;
 export type YoutubeStyleRecord = RecordBase<'venture-youtube-style'> & YoutubeStyleBody;
 export type SellerSkuRecord = RecordBase<'venture-seller-sku'> & SellerSkuBody;
@@ -6140,23 +6192,23 @@ export type SupportRatingRecord = RecordBase<'venture-support-rating'> & Support
 export type RoomBriefRecord = RecordBase<'venture-room-brief'> & RoomBriefBody;
 }
 
-declare namespace ContractModule275 {
-import VENTURE_EVENTS = ContractModule265.VENTURE_EVENTS;
-import IsoDate = ContractModule268.IsoDate;
-import IsoTime = ContractModule268.IsoTime;
-import Json = ContractModule268.Json;
-import RecordBase = ContractModule268.RecordBase;
-import Display = ContractModule277.Display;
-import ModelReceiptView = ContractModule277.ModelReceiptView;
-import DepartmentId = ContractModule276.DepartmentId;
-import InboundTopic = ContractModule276.InboundTopic;
-import OutreachChannel = ContractModule276.OutreachChannel;
-import FixKind = ContractModule269.FixKind;
-import QuestionCard = ContractModule269.QuestionCard;
-import RoundGateReason = ContractModule269.RoundGateReason;
-import RunFailureKind = ContractModule269.RunFailureKind;
-import RunStepState = ContractModule269.RunStepState;
-import AgentHealth = ContractModule278.AgentHealth;
+declare namespace ContractModule311 {
+import VENTURE_EVENTS = ContractModule301.VENTURE_EVENTS;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import Json = ContractModule304.Json;
+import RecordBase = ContractModule304.RecordBase;
+import Display = ContractModule313.Display;
+import ModelReceiptView = ContractModule313.ModelReceiptView;
+import DepartmentId = ContractModule312.DepartmentId;
+import InboundTopic = ContractModule312.InboundTopic;
+import OutreachChannel = ContractModule312.OutreachChannel;
+import FixKind = ContractModule305.FixKind;
+import QuestionCard = ContractModule305.QuestionCard;
+import RoundGateReason = ContractModule305.RoundGateReason;
+import RunFailureKind = ContractModule305.RunFailureKind;
+import RunStepState = ContractModule305.RunStepState;
+import AgentHealth = ContractModule314.AgentHealth;
 export type VentureEventName = typeof VENTURE_EVENTS[number];
 export type VentureEventRecord = RecordBase<'venture-event'> & {
     seq: number;
@@ -6524,7 +6576,7 @@ export interface RunDetail extends RunSummary {
         model?: string;
         unavailableSites?: string[];
         pendingApproval?: {
-            request: ContractModule75.AgentApprovalRequest;
+            request: ContractModule111.AgentApprovalRequest;
             digest: string;
         };
     };
@@ -6706,23 +6758,23 @@ export interface QueueItemView {
 }
 }
 
-declare namespace ContractModule276 {
-import DEPARTMENT_IDS = ContractModule265.DEPARTMENT_IDS;
-import PROPOSAL_KINDS = ContractModule265.PROPOSAL_KINDS;
-import NETWORK_IMPORT_KINDS = ContractModule265.NETWORK_IMPORT_KINDS;
-import TIE_BANDS = ContractModule265.TIE_BANDS;
-import PIPELINE_STAGES = ContractModule265.PIPELINE_STAGES;
-import LOST_REASONS = ContractModule265.LOST_REASONS;
-import OUTREACH_KINDS = ContractModule265.OUTREACH_KINDS;
-import BpsString = ContractModule268.BpsString;
-import IsoTime = ContractModule268.IsoTime;
-import MinorString = ContractModule268.MinorString;
-import RecordBase = ContractModule268.RecordBase;
-import Display = ContractModule277.Display;
-import DeliveryRunStatus = ContractModule269.DeliveryRunStatus;
-import HarnessState = ContractModule269.HarnessState;
-import ScreenNote = ContractModule269.ScreenNote;
-import PriceFigure = ContractModule273.PriceFigure;
+declare namespace ContractModule312 {
+import DEPARTMENT_IDS = ContractModule301.DEPARTMENT_IDS;
+import PROPOSAL_KINDS = ContractModule301.PROPOSAL_KINDS;
+import NETWORK_IMPORT_KINDS = ContractModule301.NETWORK_IMPORT_KINDS;
+import TIE_BANDS = ContractModule301.TIE_BANDS;
+import PIPELINE_STAGES = ContractModule301.PIPELINE_STAGES;
+import LOST_REASONS = ContractModule301.LOST_REASONS;
+import OUTREACH_KINDS = ContractModule301.OUTREACH_KINDS;
+import BpsString = ContractModule304.BpsString;
+import IsoTime = ContractModule304.IsoTime;
+import MinorString = ContractModule304.MinorString;
+import RecordBase = ContractModule304.RecordBase;
+import Display = ContractModule313.Display;
+import DeliveryRunStatus = ContractModule305.DeliveryRunStatus;
+import HarnessState = ContractModule305.HarnessState;
+import ScreenNote = ContractModule305.ScreenNote;
+import PriceFigure = ContractModule309.PriceFigure;
 export type DepartmentId = typeof DEPARTMENT_IDS[number];
 export type KeeperJobId = 'backups' | 'journal-sweep' | 'connection-checks' | 'rule-freshness' | 'rate-tables' | 'posting-steps' | 'network-strength' | 'probes' | 'calendar-feed' | 'monitors';
 export type KeeperOutcome = 'ok' | 'warn' | 'failed';
@@ -6863,7 +6915,7 @@ export type DraftRevision = {
             channel: string;
             text: string;
         }[];
-        prior: ContractModule1256.GhostwritingState;
+        prior: ContractModule1280.GhostwritingState;
     };
     by: 'send-back' | 'fix';
     words: string;
@@ -7017,11 +7069,11 @@ export type KnowledgeRecord = RecordBase<'venture-knowledge'> & {
 };
 }
 
-declare namespace ContractModule277 {
-import IsoDate = ContractModule268.IsoDate;
-import IsoTime = ContractModule268.IsoTime;
-import MicroString = ContractModule268.MicroString;
-import WriteCapKind = ContractModule278.WriteCapKind;
+declare namespace ContractModule313 {
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import MicroString = ContractModule304.MicroString;
+import WriteCapKind = ContractModule314.WriteCapKind;
 export type Display = string;
 export type SpendRateUnit = 'per-million-tokens' | 'per-call' | 'per-run-cap';
 export type SpendRate = {
@@ -7216,81 +7268,81 @@ export interface RateCardLine {
 }
 }
 
-declare namespace ContractModule278 {
-import PlaybookOrigin = ContractModule664.PlaybookOrigin;
-import ComposeAttachmentNote = ContractModule658.ComposeAttachmentNote;
-import BankAlertRule = ContractModule162.BankAlertRule;
-import FamilyId = ContractModule297.FamilyId;
-import TableStamp = ContractModule778.TableStamp;
-import CaEngine = ContractModule779.CaEngine;
-import PriceGuideView = ContractModule315.PriceGuideView;
-import PipelineIdeaView = ContractModule948.PipelineIdeaView;
-import PriceStep = ContractModule578.PriceStep;
-import AppPermission = ContractModule149.AppPermission;
-import Display = ContractModule277.Display;
-import ModelReceiptView = ContractModule277.ModelReceiptView;
-import SpendLead = ContractModule277.SpendLead;
-import BlueprintPatch = ContractModule268.BlueprintPatch;
-import IsoDate = ContractModule268.IsoDate;
-import IsoTime = ContractModule268.IsoTime;
-import Json = ContractModule268.Json;
-import MicroString = ContractModule268.MicroString;
-import MinorString = ContractModule268.MinorString;
-import RecordBase = ContractModule268.RecordBase;
-import ClientRecord = ContractModule273.ClientRecord;
-import InvoiceNext = ContractModule273.InvoiceNext;
-import InvoiceRecord = ContractModule273.InvoiceRecord;
-import PriceFigure = ContractModule273.PriceFigure;
-import AgentMessageFrom = ContractModule276.AgentMessageFrom;
-import AgentNoteLoad = ContractModule276.AgentNoteLoad;
-import AgentNoteScope = ContractModule276.AgentNoteScope;
-import AgentProposalKind = ContractModule276.AgentProposalKind;
-import AgentProposalStatus = ContractModule276.AgentProposalStatus;
-import AgentSuggestion = ContractModule276.AgentSuggestion;
-import ChatPart = ContractModule276.ChatPart;
-import ChiefCounted = ContractModule276.ChiefCounted;
-import DepartmentId = ContractModule276.DepartmentId;
-import DiffLine = ContractModule276.DiffLine;
-import InboundTriage = ContractModule276.InboundTriage;
-import KeeperJobId = ContractModule276.KeeperJobId;
-import KeeperOutcome = ContractModule276.KeeperOutcome;
-import KnowledgeRecord = ContractModule276.KnowledgeRecord;
-import LawfulBasis = ContractModule276.LawfulBasis;
-import NetworkImportKind = ContractModule276.NetworkImportKind;
-import OrderContract = ContractModule276.OrderContract;
-import OutreachChannel = ContractModule276.OutreachChannel;
-import OutreachKind = ContractModule276.OutreachKind;
-import OutreachLanguage = ContractModule276.OutreachLanguage;
-import OutreachSentChannel = ContractModule276.OutreachSentChannel;
-import PersonaFields = ContractModule276.PersonaFields;
-import PipelineCaps = ContractModule276.PipelineCaps;
-import PipelineStage = ContractModule276.PipelineStage;
-import ProposalKind = ContractModule276.ProposalKind;
-import ProposalStatus = ContractModule276.ProposalStatus;
-import ReceiptSignatureRecord = ContractModule276.ReceiptSignatureRecord;
-import RoutineRunState = ContractModule276.RoutineRunState;
-import RoutineSchedule = ContractModule276.RoutineSchedule;
-import ScoreRule = ContractModule276.ScoreRule;
-import TieBand = ContractModule276.TieBand;
-import TriageRule = ContractModule276.TriageRule;
-import VoiceSections = ContractModule276.VoiceSections;
-import BankConsentView = ContractModule267.BankConsentView;
-import BankMatchRecord = ContractModule267.BankMatchRecord;
-import ConnectorPostState = ContractModule267.ConnectorPostState;
-import PostingCandidate = ContractModule267.PostingCandidate;
-import PostingStepId = ContractModule267.PostingStepId;
-import AgentView = ContractModule275.AgentView;
-import QueueDecision = ContractModule275.QueueDecision;
-import QueueKind = ContractModule275.QueueKind;
-import QueueRow = ContractModule275.QueueRow;
-import RunDetail = ContractModule275.RunDetail;
-import RunState = ContractModule275.RunState;
-import RunStep = ContractModule275.RunStep;
-import CheckId = ContractModule269.CheckId;
-import DelegateCli = ContractModule269.DelegateCli;
-import ModelAvailability = ContractModule272.ModelAvailability;
-import ModelPresetId = ContractModule272.ModelPresetId;
-import ModelTier = ContractModule272.ModelTier;
+declare namespace ContractModule314 {
+import PlaybookOrigin = ContractModule698.PlaybookOrigin;
+import ComposeAttachmentNote = ContractModule692.ComposeAttachmentNote;
+import BankAlertRule = ContractModule198.BankAlertRule;
+import FamilyId = ContractModule333.FamilyId;
+import TableStamp = ContractModule810.TableStamp;
+import CaEngine = ContractModule811.CaEngine;
+import PriceGuideView = ContractModule350.PriceGuideView;
+import PipelineIdeaView = ContractModule977.PipelineIdeaView;
+import PriceStep = ContractModule613.PriceStep;
+import AppPermission = ContractModule185.AppPermission;
+import Display = ContractModule313.Display;
+import ModelReceiptView = ContractModule313.ModelReceiptView;
+import SpendLead = ContractModule313.SpendLead;
+import BlueprintPatch = ContractModule304.BlueprintPatch;
+import IsoDate = ContractModule304.IsoDate;
+import IsoTime = ContractModule304.IsoTime;
+import Json = ContractModule304.Json;
+import MicroString = ContractModule304.MicroString;
+import MinorString = ContractModule304.MinorString;
+import RecordBase = ContractModule304.RecordBase;
+import ClientRecord = ContractModule309.ClientRecord;
+import InvoiceNext = ContractModule309.InvoiceNext;
+import InvoiceRecord = ContractModule309.InvoiceRecord;
+import PriceFigure = ContractModule309.PriceFigure;
+import AgentMessageFrom = ContractModule312.AgentMessageFrom;
+import AgentNoteLoad = ContractModule312.AgentNoteLoad;
+import AgentNoteScope = ContractModule312.AgentNoteScope;
+import AgentProposalKind = ContractModule312.AgentProposalKind;
+import AgentProposalStatus = ContractModule312.AgentProposalStatus;
+import AgentSuggestion = ContractModule312.AgentSuggestion;
+import ChatPart = ContractModule312.ChatPart;
+import ChiefCounted = ContractModule312.ChiefCounted;
+import DepartmentId = ContractModule312.DepartmentId;
+import DiffLine = ContractModule312.DiffLine;
+import InboundTriage = ContractModule312.InboundTriage;
+import KeeperJobId = ContractModule312.KeeperJobId;
+import KeeperOutcome = ContractModule312.KeeperOutcome;
+import KnowledgeRecord = ContractModule312.KnowledgeRecord;
+import LawfulBasis = ContractModule312.LawfulBasis;
+import NetworkImportKind = ContractModule312.NetworkImportKind;
+import OrderContract = ContractModule312.OrderContract;
+import OutreachChannel = ContractModule312.OutreachChannel;
+import OutreachKind = ContractModule312.OutreachKind;
+import OutreachLanguage = ContractModule312.OutreachLanguage;
+import OutreachSentChannel = ContractModule312.OutreachSentChannel;
+import PersonaFields = ContractModule312.PersonaFields;
+import PipelineCaps = ContractModule312.PipelineCaps;
+import PipelineStage = ContractModule312.PipelineStage;
+import ProposalKind = ContractModule312.ProposalKind;
+import ProposalStatus = ContractModule312.ProposalStatus;
+import ReceiptSignatureRecord = ContractModule312.ReceiptSignatureRecord;
+import RoutineRunState = ContractModule312.RoutineRunState;
+import RoutineSchedule = ContractModule312.RoutineSchedule;
+import ScoreRule = ContractModule312.ScoreRule;
+import TieBand = ContractModule312.TieBand;
+import TriageRule = ContractModule312.TriageRule;
+import VoiceSections = ContractModule312.VoiceSections;
+import BankConsentView = ContractModule303.BankConsentView;
+import BankMatchRecord = ContractModule303.BankMatchRecord;
+import ConnectorPostState = ContractModule303.ConnectorPostState;
+import PostingCandidate = ContractModule303.PostingCandidate;
+import PostingStepId = ContractModule303.PostingStepId;
+import AgentView = ContractModule311.AgentView;
+import QueueDecision = ContractModule311.QueueDecision;
+import QueueKind = ContractModule311.QueueKind;
+import QueueRow = ContractModule311.QueueRow;
+import RunDetail = ContractModule311.RunDetail;
+import RunState = ContractModule311.RunState;
+import RunStep = ContractModule311.RunStep;
+import CheckId = ContractModule305.CheckId;
+import DelegateCli = ContractModule305.DelegateCli;
+import ModelAvailability = ContractModule308.ModelAvailability;
+import ModelPresetId = ContractModule308.ModelPresetId;
+import ModelTier = ContractModule308.ModelTier;
 export interface MoneyOverviewLine {
     id: 'owed' | 'received' | 'spent';
     label: Display;
@@ -7351,7 +7403,7 @@ export interface CaLatestPapers {
     receiptIds: string[];
 }
 export interface CaFirmView {
-    citations?: ContractModule781.CaCitationsView;
+    citations?: ContractModule813.CaCitationsView;
     ca: {
         name: string;
         membershipNo: string;
@@ -7794,7 +7846,7 @@ export type ComplianceView = {
         sideWork: 'no-day-job' | 'allowed' | 'not-allowed' | 'not-sure';
         acknowledgedOn: IsoDate;
     } | null;
-    size: ContractModule283.SizeAsk | null;
+    size: ContractModule319.SizeAsk | null;
 };
 export interface RulesListView {
     playbook: {
@@ -7944,7 +7996,7 @@ export interface RetireCheckView {
     blocked: Display | null;
     digest: string;
 }
-export import AppPermission = ContractModule149.AppPermission;
+export import AppPermission = ContractModule185.AppPermission;
 export type MiniAppMessage = {
     at: IsoTime;
     from: 'owner' | 'chausar';
@@ -8829,8 +8881,8 @@ export type CliStatusView = {
     state: ModelAvailability;
     line: Display;
     fix: Display | null;
-    setup?: ContractModule297.CodexSetupView;
-    provider?: ContractModule297.ProviderTrouble;
+    setup?: ContractModule333.CodexSetupView;
+    provider?: ContractModule333.ProviderTrouble;
     kept?: true;
     checkedAt?: IsoTime;
 };
@@ -9663,185 +9715,30 @@ export interface CapabilityPageView {
 }
 }
 
-declare namespace ContractModule283 {
-export const ASKED_MEASURES: readonly [
-    "turnover",
-    "headcount"
-];
-export type AskedMeasure = (typeof ASKED_MEASURES)[number];
-export type SizeChoice = {
-    id: string;
-    label: string;
-};
-export type SizeQuestion = {
-    measure: AskedMeasure;
-    question: string;
-    choices: SizeChoice[];
-    answer: string | null;
-};
-export type SizeAsk = {
-    measures: AskedMeasure[];
-    line: string;
-    questions: SizeQuestion[];
-};
+declare namespace ContractModule319 {
+export import SizeAsk = ContractModule1665.SizeAsk;
 }
 
-declare namespace ContractModule291 {
-export type CountryCode = string;
-export type TaxMode = 'gst' | 'vat' | 'sales-tax' | 'none';
-export type DateOrder = 'day-month-year' | 'month-day-year' | 'year-month-day';
-export type CountryProfile = {
-    code: CountryCode;
-    name: string;
-    currency: string;
-    minorDigits: number;
-    region: 'india' | 'global';
-    tax: {
-        mode: TaxMode;
-        label: string;
-        standardRateBps: string;
-        registrationNote: string;
-        idLabel: string;
-        idPattern: string | null;
-        invoiceKind: 'tax-invoice' | 'invoice';
-        checkedOn: string;
-    };
-    paymentRails: string[];
-    dateOrder: DateOrder;
-    complianceNotes: string[];
-};
+declare namespace ContractModule327 {
+export import CountryCode = ContractModule3.CountryCode;
+export import CountryProfile = ContractModule3.CountryProfile;
+export import TaxMode = ContractModule3.TaxMode;
 }
 
-declare namespace ContractModule295 {
-import ReportAnswer = ContractModule326.ReportAnswer;
-export const QUESTION_MILESTONES: readonly [
-    "ai_connected",
-    "first_job_done",
-    "first_invoice",
-    "first_payment"
-];
-export type QuestionMilestone = typeof QUESTION_MILESTONES[number];
-export const CRASH_SOURCES: readonly [
-    "window",
-    "engine",
-    "desktop"
-];
-export type CrashSource = typeof CRASH_SOURCES[number];
-export type ReportEvent = {
-    event: string;
-    distinct_id: string;
-    properties: Record<string, string | number | boolean>;
-};
-export type CrashFrame = {
-    function: string;
-    filename: string;
-    lineno: number;
-    colno: number;
-    in_app: true;
-};
-export type SentryEvent = {
-    event_id: string;
-    platform: 'node';
-    level: 'error';
-    release: string;
-    environment: string;
-    tags: Record<string, string>;
-    user: {
-        id: string;
-    };
-    exception: {
-        values: {
-            type: string;
-            value: string;
-            stacktrace: {
-                frames: CrashFrame[];
-            };
-        }[];
-    };
-};
-export type FeedbackPreview = {
-    digest: string;
-    posthog: {
-        to: string;
-        events: ReportEvent[];
-    } | null;
-    sentry: {
-        to: string;
-        events: SentryEvent[];
-    } | null;
-};
-export type FeedbackSend = {
-    at: string;
-    posthog: number | null;
-    sentry: number | null;
-    accepted: boolean;
-    line: string;
-};
-export type FeedbackView = {
-    host: string;
-    notice: {
-        text: string;
-        digest: string;
-    };
-    consent: {
-        given: boolean;
-        stale: boolean;
-        usage: boolean;
-        crashes: boolean;
-        at: string | null;
-    };
-    setUp: {
-        posthog: boolean;
-        sentry: boolean;
-        line: string;
-    };
-    reportId: string | null;
-    preview: FeedbackPreview | null;
-    question: {
-        id: QuestionMilestone;
-        text: string;
-        choices: {
-            id: ReportAnswer;
-            label: string;
-        }[];
-    } | null;
-    lastSend: FeedbackSend | null;
-    deletion: {
-        at: string;
-        reportId: string;
-        line: string;
-    } | null;
-    line: string;
-};
-export type FeedbackCrashKept = {
-    kept: boolean;
-    line: string;
-};
-export type FeedbackConsentInput = {
-    digest: string;
-    usage: boolean;
-    crashes: boolean;
-} | {
-    withdraw: true;
-};
-export type FeedbackCrashInput = {
-    source: CrashSource;
-    name: string;
-    message: string;
-    stack?: string;
-};
-export type FeedbackAnswerInput = {
-    questionId: QuestionMilestone;
-    answer: ReportAnswer | 'skip';
-};
+declare namespace ContractModule331 {
+export import FeedbackView = ContractModule1669.FeedbackView;
+export import FeedbackCrashKept = ContractModule1669.FeedbackCrashKept;
+export import FeedbackConsentInput = ContractModule1669.FeedbackConsentInput;
+export import FeedbackCrashInput = ContractModule1669.FeedbackCrashInput;
+export import FeedbackAnswerInput = ContractModule1669.FeedbackAnswerInput;
 }
 
-declare namespace ContractModule297 {
-export type FamilyId = 'money-tax' | 'teaching' | 'creative' | 'writing' | 'local-services' | 'documents' | 'research' | 'people' | 'shop-office' | 'tech' | 'licensed';
-export type FamilyOffer = {
-    name: string;
-    line: string;
-};
+declare namespace ContractModule333 {
+import FamilyId = ContractModule4.FamilyId;
+import FamilyOffer = ContractModule4.FamilyOffer;
+export import FamilyId = ContractModule4.FamilyId;
+export import FamilyOffer = ContractModule4.FamilyOffer;
+export import NeedsList = ContractModule4.NeedsList;
 export type AboutFile = {
     name: string;
     included: boolean;
@@ -9878,29 +9775,6 @@ export type FamilyTile = {
         id: string;
         label: string;
     }[];
-};
-export type NeedLabel = 'write' | 'read' | 'handoff' | 'planned';
-export type NeedConnect = {
-    kind: 'sign-in' | 'key' | 'guide' | 'none';
-    connectorId: string | null;
-    place: 'connections' | 'connections/ai' | null;
-};
-export type NeedView = {
-    id: string;
-    name: string;
-    why: string;
-    label: NeedLabel;
-    connect: NeedConnect;
-    waitsOn: string | null;
-    meanwhile: string | null;
-    required: false;
-};
-export type NeedsList = {
-    family: {
-        id: FamilyId;
-        label: string;
-    } | null;
-    needs: NeedView[];
 };
 export type LoginState = 'idle' | 'starting' | 'waiting' | 'signed-in' | 'failed' | 'cancelled';
 export type ToolLogin = {
@@ -9939,136 +9813,26 @@ export type ToolsView = {
 };
 }
 
-declare namespace ContractModule315 {
-export type PriceSourceView = {
-    url: string;
-    publisher: string;
-    title: string;
-    published: string | null;
-};
-export type PriceRangeView = {
-    id: string;
-    label: string;
-    currency: string;
-    lowMinor: string;
-    highMinor: string;
-    kind: 'range' | 'minimums' | 'cap';
-    text: string;
-    per: string;
-    city: string | null;
-    sources: PriceSourceView[];
-    checkedOn: string;
-    checked: string;
-    note: string;
-};
-export type PriceGuideView = {
-    profession: string;
-    label: string;
-    family: string;
-    status: 'sourced' | 'no-reliable-data';
-    ranges: PriceRangeView[];
-    line: string | null;
-    reason: string | null;
-    checkedOn: string;
-    checked: string;
-};
+declare namespace ContractModule350 {
+export import PriceSourceView = ContractModule1675.PriceSourceView;
+export import PriceRangeView = ContractModule1675.PriceRangeView;
+export import PriceGuideView = ContractModule1675.PriceGuideView;
 }
 
-declare namespace ContractModule326 {
-export const REPORT_ANSWERS: readonly [
-    "easy",
-    "okay",
-    "hard"
-];
-export type ReportAnswer = typeof REPORT_ANSWERS[number];
+declare namespace ContractModule366 {
+export import CrmEntryKind = ContractModule1682.CrmEntryKind;
+export import ClientCrmView = ContractModule1682.ClientCrmView;
+export import CrmMemberView = ContractModule1682.CrmMemberView;
+export import CompanyRow = ContractModule1682.CompanyRow;
+export import CompanyView = ContractModule1682.CompanyView;
+export import CrmListRow = ContractModule1682.CrmListRow;
+export import CrmListView = ContractModule1682.CrmListView;
 }
 
-declare namespace ContractModule331 {
-export type CrmEntryKind = 'call' | 'whatsapp' | 'meeting' | 'note';
-export type FieldChangeView = {
-    id: string;
-    subject: string;
-    field: string;
-    label: string;
-    who: string;
-    at: string;
-    line: string;
-    before: string | null;
-    after: string | null;
-};
-export type TimelineKind = CrmEntryKind | 'sent' | 'reply' | 'invoice' | 'order' | 'draft';
-export type TimelineEntryView = {
-    id: string;
-    kind: TimelineKind;
-    on: string;
-    at: string;
-    line: string;
-    text: string | null;
-    clientId: string;
-};
-export type CrmRef = {
-    id: string;
-    name: string;
-};
-export type ClientCrmView = {
-    clientId: string;
-    company: CrmRef | null;
-    history: FieldChangeView[];
-    timeline: TimelineEntryView[];
-    lists: {
-        listId: string;
-        name: string;
-        stage: string;
-    }[];
-};
-export type CrmMemberView = {
-    member: string;
-    company: CrmRef | null;
-    history: FieldChangeView[];
-};
-export type CompanyRow = {
-    id: string;
-    name: string;
-    domain: string | null;
-    clients: number;
-    people: number;
-};
-export type CompanyView = {
-    company: CompanyRow & {
-        note: string | null;
-    };
-    clients: CrmRef[];
-    people: CrmRef[];
-    history: FieldChangeView[];
-    timeline: TimelineEntryView[];
-};
-export type CrmListRow = {
-    id: string;
-    name: string;
-    stages: string[];
-    count: number;
-};
-export type CrmListEntry = {
-    member: string;
-    kind: 'client' | 'person' | 'company';
-    name: string;
-    at: string;
-};
-export type CrmListView = {
-    list: CrmListRow;
-    groups: {
-        stage: string;
-        entries: CrmListEntry[];
-    }[];
-    history: FieldChangeView[];
-    line: string;
-};
-}
-
-declare namespace ContractModule353 {
-import Display = ContractModule266.Display;
-import FixKind = ContractModule266.FixKind;
-import RunFailureKind = ContractModule266.RunFailureKind;
+declare namespace ContractModule388 {
+import Display = ContractModule302.Display;
+import FixKind = ContractModule302.FixKind;
+import RunFailureKind = ContractModule302.RunFailureKind;
 export type FailureKind = RunFailureKind;
 export type FailureWords = {
     kind: FailureKind;
@@ -10079,9 +9843,9 @@ export type FailureWords = {
 };
 }
 
-declare namespace ContractModule458 {
-import IsoDate = ContractModule266.IsoDate;
-import IsoTime = ContractModule266.IsoTime;
+declare namespace ContractModule493 {
+import IsoDate = ContractModule302.IsoDate;
+import IsoTime = ContractModule302.IsoTime;
 export const RIGHTS_BASES: readonly [
     "own-footage",
     "licence",
@@ -10099,7 +9863,7 @@ export type FootageRights = {
 };
 }
 
-declare namespace ContractModule474 {
+declare namespace ContractModule509 {
 export type FlowCandidate = {
     kind: 'id' | 'name' | 'test-id' | 'aria-label' | 'label';
     value: string;
@@ -10239,45 +10003,19 @@ export type FlowsActPayload = {
 };
 }
 
-declare namespace ContractModule478 {
-export import FlowsActPayload = ContractModule474.FlowsActPayload;
-export import FlowsActView = ContractModule474.FlowsActView;
-export import FlowsListView = ContractModule474.FlowsListView;
+declare namespace ContractModule513 {
+export import FlowsActPayload = ContractModule509.FlowsActPayload;
+export import FlowsActView = ContractModule509.FlowsActView;
+export import FlowsListView = ContractModule509.FlowsListView;
 }
 
-declare namespace ContractModule494 {
-export type FactVisibility = 'ai' | 'owner';
-export type FactSourceKind = 'owner' | 'ai';
-export type FactView = {
-    id: string;
-    subject: string;
-    topic: string;
-    text: string;
-    since: string;
-    at: string;
-    source: FactSourceKind;
-    sourceLine: string;
-    visibility: FactVisibility;
-    visibilityLine: string;
-    current: boolean;
-    replaces: string | null;
-    replacedBy: string | null;
-    replacedAt: string | null;
-    erased: boolean;
-};
-export type MemoryView = {
-    facts: FactView[];
-    earlier: FactView[];
-    line: string;
-};
-export type MemoryChange = {
-    fact: FactView | null;
-    replaced: FactView | null;
-    line: string;
-};
+declare namespace ContractModule529 {
+export import FactVisibility = ContractModule1688.FactVisibility;
+export import MemoryView = ContractModule1688.MemoryView;
+export import MemoryChange = ContractModule1688.MemoryChange;
 }
 
-declare namespace ContractModule501 {
+declare namespace ContractModule536 {
 export type ClaudeInstallStep = 'downloading' | 'installing' | 'checking' | 'done' | 'failed';
 export type ClaudeInstallView = {
     step: ClaudeInstallStep | 'idle';
@@ -10294,16 +10032,16 @@ export type ClaudeInstallResult = {
 };
 }
 
-declare namespace ContractModule520 {
+declare namespace ContractModule555 {
 export type PlanWindowKind = 'five-hour' | 'week';
 export type PlanState = 'ok' | 'near' | 'used-up' | 'unknown';
 }
 
-declare namespace ContractModule522 {
-import DelegateCli = ContractModule266.DelegateCli;
-import IsoTime = ContractModule266.IsoTime;
-import PlanState = ContractModule520.PlanState;
-import PlanWindowKind = ContractModule520.PlanWindowKind;
+declare namespace ContractModule557 {
+import DelegateCli = ContractModule302.DelegateCli;
+import IsoTime = ContractModule302.IsoTime;
+import PlanState = ContractModule555.PlanState;
+import PlanWindowKind = ContractModule555.PlanWindowKind;
 export type PlanWindowView = {
     kind: PlanWindowKind;
     usedPercent: number | null;
@@ -10325,7 +10063,7 @@ export type PlanView = {
 };
 }
 
-declare namespace ContractModule533 {
+declare namespace ContractModule568 {
 export type AccountantView = {
     email: string | null;
     whatsapp: string | null;
@@ -10333,29 +10071,16 @@ export type AccountantView = {
 };
 }
 
-declare namespace ContractModule539 {
-export type MinorText = string;
-export type BankDetails = {
-    accountName: string;
-    accountNumber: string;
-    ifsc: string | null;
-    swift: string | null;
-    bankName: string | null;
-};
-export type RazorpayAccount = {
-    mode: 'test' | 'live';
-    keyHint: string;
-    savedAt: string;
-};
-export type BillingSettings = {
-    dueInDays: number;
-    terms: string | null;
-    reminderDays: number[];
-    upiId: string | null;
-    payeeName: string | null;
-    bank: BankDetails | null;
-    razorpay: RazorpayAccount | null;
-};
+declare namespace ContractModule574 {
+import BankDetails = ContractModule5.BankDetails;
+import BillingSettings = ContractModule5.BillingSettings;
+import QrMatrix = ContractModule5.QrMatrix;
+import MinorText = ContractModule5.MinorText;
+export import BankDetails = ContractModule5.BankDetails;
+export import BillingSettings = ContractModule5.BillingSettings;
+export import QrMatrix = ContractModule5.QrMatrix;
+export import InvoicePart = ContractModule5.InvoicePart;
+export import MinorText = ContractModule5.MinorText;
 export type BillingView = {
     settings: BillingSettings;
     defaults: {
@@ -10363,14 +10088,6 @@ export type BillingView = {
         reminderDays: number[];
     };
     razorpayLabel: 'fixture-tested';
-};
-export type InvoicePart = {
-    kind: 'advance' | 'milestone' | 'partial' | 'final';
-    label: string;
-    shareBps: string | null;
-    basisReceiptId: string;
-    orderTotalMinor: MinorText;
-    earlierMinor: MinorText;
 };
 export type OrderBilledView = {
     orderTotalMinor: MinorText;
@@ -10380,11 +10097,6 @@ export type OrderBilledView = {
     billed: string;
     left: string;
     invoices: number;
-};
-export type QrMatrix = {
-    version: number;
-    size: number;
-    rows: string[];
 };
 export type PayLinkState = {
     id: string;
@@ -10427,7 +10139,7 @@ export type ForeignPrice = {
 };
 }
 
-declare namespace ContractModule543 {
+declare namespace ContractModule578 {
 export type CaPackScheduleView = {
     on: boolean;
     at: string | null;
@@ -10435,7 +10147,7 @@ export type CaPackScheduleView = {
 };
 }
 
-declare namespace ContractModule562 {
+declare namespace ContractModule597 {
 export type InvoicePdfView = {
     fileName: string;
     format: 'pdf' | 'html';
@@ -10451,23 +10163,17 @@ export type InvoicePdfView = {
 };
 }
 
-declare namespace ContractModule575 {
-import InvoicePdfView = ContractModule562.InvoicePdfView;
+declare namespace ContractModule610 {
+import InvoicePdfView = ContractModule597.InvoicePdfView;
 export type PaymentReceiptView = InvoicePdfView;
 }
 
-declare namespace ContractModule578 {
-export type MinorString = string;
-export type TaxTreatment = 'none' | 'single' | 'cgst-sgst' | 'igst' | 'zero-rated-lut';
-export type PriceStep = {
-    op: 'multiply' | 'discount' | 'tax' | 'tax-split' | 'add';
-    inputs: string[];
-    resultMinor: MinorString;
-    rule: string;
-};
+declare namespace ContractModule613 {
+export import PriceStep = ContractModule6.PriceStep;
+export import TaxTreatment = ContractModule6.TaxTreatment;
 }
 
-declare namespace ContractModule656 {
+declare namespace ContractModule690 {
 export type TelegramFound = {
     found: {
         chatId: string;
@@ -10477,30 +10183,30 @@ export type TelegramFound = {
 };
 }
 
-declare namespace ContractModule658 {
-import BackOffice = ContractModule266.BackOffice;
-import BlueprintStep = ContractModule266.BlueprintStep;
-import ConnectorCard = ContractModule266.ConnectorCard;
-import CountryCode = ContractModule266.CountryCode;
-import CountryProfile = ContractModule266.CountryProfile;
-import InterviewAnswer = ContractModule266.InterviewAnswer;
-import InterviewQuestion = ContractModule266.InterviewQuestion;
-import IsoTime = ContractModule266.IsoTime;
-import Labelled = ContractModule266.Labelled;
-import ModelCallRecord = ContractModule266.ModelCallRecord;
-import ModelPreset = ContractModule266.ModelPreset;
-import ModelPresetId = ContractModule266.ModelPresetId;
-import ModelStatusView = ContractModule266.ModelStatusView;
-import ModelTier = ContractModule266.ModelTier;
-import Offer = ContractModule266.Offer;
-import PlanFlagshipStep = ContractModule266.PlanFlagshipStep;
-import PricingModel = ContractModule266.PricingModel;
-import ServiceType = ContractModule266.ServiceType;
-import AboutRead = ContractModule297.AboutRead;
-import FamilyId = ContractModule297.FamilyId;
-import FamilyTile = ContractModule297.FamilyTile;
-import ToolView = ContractModule297.ToolView;
-import ToolsView = ContractModule297.ToolsView;
+declare namespace ContractModule692 {
+import BackOffice = ContractModule302.BackOffice;
+import BlueprintStep = ContractModule302.BlueprintStep;
+import ConnectorCard = ContractModule302.ConnectorCard;
+import CountryCode = ContractModule302.CountryCode;
+import CountryProfile = ContractModule302.CountryProfile;
+import InterviewAnswer = ContractModule302.InterviewAnswer;
+import InterviewQuestion = ContractModule302.InterviewQuestion;
+import IsoTime = ContractModule302.IsoTime;
+import Labelled = ContractModule302.Labelled;
+import ModelCallRecord = ContractModule302.ModelCallRecord;
+import ModelPreset = ContractModule302.ModelPreset;
+import ModelPresetId = ContractModule302.ModelPresetId;
+import ModelStatusView = ContractModule302.ModelStatusView;
+import ModelTier = ContractModule302.ModelTier;
+import Offer = ContractModule302.Offer;
+import PlanFlagshipStep = ContractModule302.PlanFlagshipStep;
+import PricingModel = ContractModule302.PricingModel;
+import ServiceType = ContractModule302.ServiceType;
+import AboutRead = ContractModule333.AboutRead;
+import FamilyId = ContractModule333.FamilyId;
+import FamilyTile = ContractModule333.FamilyTile;
+import ToolView = ContractModule333.ToolView;
+import ToolsView = ContractModule333.ToolsView;
 export const OPEN_BOX_KINDS: readonly [
     "idea",
     "skill",
@@ -10874,68 +10580,15 @@ export type OnboardingResults = {
 };
 }
 
-declare namespace ContractModule659 {
-import ExternalMcpServer = ContractModule77.ExternalMcpServer;
-export type PackUnit = 'money' | 'count' | 'bps';
-export type PackInput = {
-    name: string;
-    label: string;
-    unit: PackUnit;
-};
-export type PackCalculatorView = {
-    id: string;
-    name: string;
-    about: string;
-    inputs: PackInput[];
-    output: {
-        label: string;
-        unit: PackUnit;
-    };
-    moduleDigest: string;
-};
-export type PackView = {
-    id: string;
-    name: string;
-    version: string;
-    about: string;
-    digest: string;
-    skills: {
-        id: string;
-        title: string;
-        words: number;
-    }[];
-    mcpServers: ExternalMcpServer[];
-    calculators: PackCalculatorView[];
-};
+declare namespace ContractModule693 {
+export import PackView = ContractModule1705.PackView;
 }
 
-declare namespace ContractModule662 {
-export type PeopleServiceId = 'happenstance' | 'probe42' | 'tofler';
-export type KeyedPeopleServiceId = Exclude<PeopleServiceId, 'tofler'>;
-export type SavedPeopleKeys = Partial<Record<KeyedPeopleServiceId, {
-    keyHint: string;
-    savedAt: string;
-}>>;
-export type PeopleServiceView = {
-    id: PeopleServiceId;
-    name: string;
-    covers: string;
-    label: 'fixture-tested' | 'planned';
-    needs: string;
-    docs: string;
-    saved: {
-        keyHint: string;
-        savedAt: string;
-    } | null;
-    planned: {
-        waitsOn: string;
-        meanwhile: string;
-    } | null;
-};
-export type PeopleSearchView = {
-    services: PeopleServiceView[];
-    line: string;
-};
+declare namespace ContractModule696 {
+import KeyedPeopleServiceId = ContractModule8.KeyedPeopleServiceId;
+export import KeyedPeopleServiceId = ContractModule8.KeyedPeopleServiceId;
+export import PeopleSearchView = ContractModule8.PeopleSearchView;
+export import SavedPeopleKeys = ContractModule8.SavedPeopleKeys;
 export type PersonFound = {
     name: string;
     title: string | null;
@@ -10969,16 +10622,11 @@ export type PeopleLookupView = {
 };
 }
 
-declare namespace ContractModule664 {
-export const PLAYBOOK_ORIGINS: readonly [
-    "plan",
-    "improvement",
-    "owner"
-];
-export type PlaybookOrigin = (typeof PLAYBOOK_ORIGINS)[number];
+declare namespace ContractModule698 {
+export import PlaybookOrigin = ContractModule1707.PlaybookOrigin;
 }
 
-declare namespace ContractModule677 {
+declare namespace ContractModule711 {
 export type DemoSession = {
     runId: string;
     imageId: string;
@@ -10986,8 +10634,8 @@ export type DemoSession = {
 };
 }
 
-declare namespace ContractModule684 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule718 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type AppTestingDeskTypes = {
     test: DeskKindTypes;
     demo: DeskKindTypes;
@@ -10995,7 +10643,7 @@ export type AppTestingDeskTypes = {
 };
 }
 
-declare namespace ContractModule690 {
+declare namespace ContractModule724 {
 export type AppTestErasure = {
     serial: string;
     packageName: string;
@@ -11003,15 +10651,15 @@ export type AppTestErasure = {
 };
 }
 
-declare namespace ContractModule702 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule736 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type BookingDeskDeskTypes = {
     slot: DeskKindTypes;
     booking: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule715 {
+declare namespace ContractModule749 {
 export type CollectionsInvoiceRow = {
     id: string;
     clientId: string;
@@ -11025,7 +10673,7 @@ export type CollectionsInvoiceRow = {
 };
 }
 
-declare namespace ContractModule716 {
+declare namespace ContractModule750 {
 export type CollectionStage = {
     id: string;
     fromDay: number;
@@ -11040,15 +10688,15 @@ export function reminderDraft(clientId: string, invoiceId: string, text: string,
 };
 }
 
-declare namespace ContractModule720 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
-import CollectionsInvoiceRow = ContractModule715.CollectionsInvoiceRow;
-import reminderDraft = ContractModule716.reminderDraft;
-import CollectionStage = ContractModule716.CollectionStage;
-import FinanceDeskTypes = ContractModule721.FinanceDeskTypes;
-import BooksPostingDeskTypes = ContractModule725.BooksPostingDeskTypes;
-import SettlementDeskTypes = ContractModule735.SettlementDeskTypes;
-import SetupDeskTypes = ContractModule738.SetupDeskTypes;
+declare namespace ContractModule754 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
+import CollectionsInvoiceRow = ContractModule749.CollectionsInvoiceRow;
+import reminderDraft = ContractModule750.reminderDraft;
+import CollectionStage = ContractModule750.CollectionStage;
+import FinanceDeskTypes = ContractModule755.FinanceDeskTypes;
+import BooksPostingDeskTypes = ContractModule759.BooksPostingDeskTypes;
+import SettlementDeskTypes = ContractModule769.SettlementDeskTypes;
+import SetupDeskTypes = ContractModule772.SetupDeskTypes;
 export type PromiseRow = {
     id: string;
     clientId: string;
@@ -11112,7 +10760,7 @@ export type BookkeepingCfoDeskTypes = FinanceDeskTypes & BooksPostingDeskTypes &
 };
 }
 
-declare namespace ContractModule721 {
+declare namespace ContractModule755 {
 export type FinanceDeskTypes = {
     finance: {
         filter: any;
@@ -11126,7 +10774,7 @@ export type FinanceDeskTypes = {
 };
 }
 
-declare namespace ContractModule725 {
+declare namespace ContractModule759 {
 export type BooksPostingDeskTypes = {
     posting: {
         filter: any;
@@ -11140,7 +10788,7 @@ export type BooksPostingDeskTypes = {
 };
 }
 
-declare namespace ContractModule735 {
+declare namespace ContractModule769 {
 export type SettlementDeskTypes = {
     settlement: {
         filter: any;
@@ -11154,7 +10802,7 @@ export type SettlementDeskTypes = {
 };
 }
 
-declare namespace ContractModule738 {
+declare namespace ContractModule772 {
 export type SetupDeskTypes = {
     setup: {
         filter: any;
@@ -11168,7 +10816,7 @@ export type SetupDeskTypes = {
 };
 }
 
-declare namespace ContractModule749 {
+declare namespace ContractModule783 {
 export type CitationRow = {
     id: string;
     act: '1961' | '2025';
@@ -11187,99 +10835,37 @@ export type CitationConfirmation = {
 };
 }
 
-declare namespace ContractModule753 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule787 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type CaFirmDeskTypes = {
     'data-pack': DeskKindTypes;
     working: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule769 {
-export type IsoDate = string;
+declare namespace ContractModule802 {
+export import MissingFact = ContractModule1735.MissingFact;
 }
 
-declare namespace ContractModule770 {
-export const FACT_FIELDS: readonly [
-    "regime",
-    "residency",
-    "ageBand",
-    "income",
-    "filedOn",
-    "gstin",
-    "period",
-    "payeeKind",
-    "paymentDate",
-    "entity",
-    "houseProperties",
-    "presumptive",
-    "capitalGains",
-    "agriculture",
-    "formExclusions",
-    "regimeHistory",
-    "totalIncome",
-    "taxEstimate",
-    "taxCredits",
-    "businessIncome"
-];
-export type FactField = typeof FACT_FIELDS[number];
-export type MissingFact = {
-    field: FactField;
-    about?: string;
-};
+declare namespace ContractModule804 {
+export import PackSelection = ContractModule1737.PackSelection;
 }
 
-declare namespace ContractModule772 {
-export type PackSelection = {
-    packId: string;
-    digest: string;
-    fields: string[];
-    unmask: string[];
-    requestedBy: string;
-    purpose: string;
-};
+declare namespace ContractModule810 {
+export import SectionRef = ContractModule1738.SectionRef;
+export import TableStamp = ContractModule1738.TableStamp;
 }
 
-declare namespace ContractModule778 {
-import IsoDate = ContractModule769.IsoDate;
-export type SectionRef = {
-    key: string;
-    act: string;
-    section: string;
-    title: string;
-    needsCaConfirmation: true;
-};
-export type TableStamp = {
-    id: string;
-    version: number;
-    hash: string;
-    title: string;
-    validFrom: IsoDate;
-    validTo: IsoDate | null;
-    confirmed: boolean;
-    confirmedBy: string | null;
-    needsCaConfirmation: true;
-};
+declare namespace ContractModule811 {
+export import CaEngine = ContractModule1739.CaEngine;
+export import CaReceiptStep = ContractModule1739.CaReceiptStep;
 }
 
-declare namespace ContractModule779 {
-export type CaEngine = 'advance-tax' | 'income-tax' | 'interest-234' | 'gst-working' | 'tds-working' | 'reconcile' | 'books-close' | 'portal-diff' | 'what-if' | 'doc-entry' | 'books-health' | 'data-pack';
-export type CaFigure = {
-    key: string;
-    label: string;
-    minor: string;
-    display: string;
-};
-export type CaReceiptStep = CaFigure & {
-    section: string | null;
-};
-}
-
-declare namespace ContractModule781 {
+declare namespace ContractModule813 {
 export type CaCitationsView = {
     version: number;
     tableHash: string;
-    rows: ContractModule749.CitationRow[];
+    rows: ContractModule783.CitationRow[];
     rules: {
         id: string;
         title: string;
@@ -11289,7 +10875,7 @@ export type CaCitationsView = {
         verification: string;
         source: string;
     }[];
-    confirmedBy: ContractModule749.CitationConfirmation | null;
+    confirmedBy: ContractModule783.CitationConfirmation | null;
 };
 export type CaCitationsBody = {
     version: number;
@@ -11341,45 +10927,45 @@ export type DataPackExportView = {
 };
 }
 
-declare namespace ContractModule803 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule835 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type DataEntryDeskDeskTypes = {
     entries: DeskKindTypes;
     browser: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule817 {
-import Display = ContractModule266.Display;
-import Json = ContractModule266.Json;
-import YoutubeDeskTypes = ContractModule1499.YoutubeDeskTypes;
-import CaFirmDeskTypes = ContractModule753.CaFirmDeskTypes;
-import SocialAgencyDeskTypes = ContractModule1282.SocialAgencyDeskTypes;
-import SeoVisibilityDeskTypes = ContractModule1208.SeoVisibilityDeskTypes;
-import OnlineSellerDeskTypes = ContractModule1080.OnlineSellerDeskTypes;
-import SupportDeskDeskTypes = ContractModule1347.SupportDeskDeskTypes;
-import RecruitingDeskDeskTypes = ContractModule1176.RecruitingDeskDeskTypes;
-import JobSearchDeskDeskTypes = ContractModule877.JobSearchDeskDeskTypes;
-import TranslationStudioDeskTypes = ContractModule1408.TranslationStudioDeskTypes;
-import BookkeepingCfoDeskTypes = ContractModule720.BookkeepingCfoDeskTypes;
-import PodcastToArticleDeskTypes = ContractModule1147.PodcastToArticleDeskTypes;
-import LeadGenerationDeskTypes = ContractModule972.LeadGenerationDeskTypes;
-import NewsletterStudioDeskTypes = ContractModule1055.NewsletterStudioDeskTypes;
-import TenderDeskDeskTypes = ContractModule1371.TenderDeskDeskTypes;
-import WebsiteStudioDeskTypes = ContractModule1455.WebsiteStudioDeskTypes;
-import NarrationStudioDeskTypes = ContractModule1017.NarrationStudioDeskTypes;
-import VirtualAssistantDeskTypes = ContractModule1436.VirtualAssistantDeskTypes;
-import DataEntryDeskDeskTypes = ContractModule803.DataEntryDeskDeskTypes;
-import AppTestingDeskTypes = ContractModule684.AppTestingDeskTypes;
-import DevAgencyDeskTypes = ContractModule826.DevAgencyDeskTypes;
-import MonitoredDataDeskTypes = ContractModule995.MonitoredDataDeskTypes;
-import ItTriageDeskTypes = ContractModule860.ItTriageDeskTypes;
-import PhoneReceptionistDeskTypes = ContractModule1125.PhoneReceptionistDeskTypes;
-import TradingJournalDeskTypes = ContractModule1392.TradingJournalDeskTypes;
-import LessonDeskDeskTypes = ContractModule984.LessonDeskDeskTypes;
-import BookingDeskDeskTypes = ContractModule702.BookingDeskDeskTypes;
-import SignoffDeskDeskTypes = ContractModule1246.SignoffDeskDeskTypes;
-import DocumentDeskDeskTypes = ContractModule848.DocumentDeskDeskTypes;
+declare namespace ContractModule849 {
+import Display = ContractModule302.Display;
+import Json = ContractModule302.Json;
+import YoutubeDeskTypes = ContractModule1519.YoutubeDeskTypes;
+import CaFirmDeskTypes = ContractModule787.CaFirmDeskTypes;
+import SocialAgencyDeskTypes = ContractModule1306.SocialAgencyDeskTypes;
+import SeoVisibilityDeskTypes = ContractModule1232.SeoVisibilityDeskTypes;
+import OnlineSellerDeskTypes = ContractModule1107.OnlineSellerDeskTypes;
+import SupportDeskDeskTypes = ContractModule1370.SupportDeskDeskTypes;
+import RecruitingDeskDeskTypes = ContractModule1200.RecruitingDeskDeskTypes;
+import JobSearchDeskDeskTypes = ContractModule909.JobSearchDeskDeskTypes;
+import TranslationStudioDeskTypes = ContractModule1431.TranslationStudioDeskTypes;
+import BookkeepingCfoDeskTypes = ContractModule754.BookkeepingCfoDeskTypes;
+import PodcastToArticleDeskTypes = ContractModule1172.PodcastToArticleDeskTypes;
+import LeadGenerationDeskTypes = ContractModule1000.LeadGenerationDeskTypes;
+import NewsletterStudioDeskTypes = ContractModule1083.NewsletterStudioDeskTypes;
+import TenderDeskDeskTypes = ContractModule1394.TenderDeskDeskTypes;
+import WebsiteStudioDeskTypes = ContractModule1477.WebsiteStudioDeskTypes;
+import NarrationStudioDeskTypes = ContractModule1045.NarrationStudioDeskTypes;
+import VirtualAssistantDeskTypes = ContractModule1458.VirtualAssistantDeskTypes;
+import DataEntryDeskDeskTypes = ContractModule835.DataEntryDeskDeskTypes;
+import AppTestingDeskTypes = ContractModule718.AppTestingDeskTypes;
+import DevAgencyDeskTypes = ContractModule858.DevAgencyDeskTypes;
+import MonitoredDataDeskTypes = ContractModule1023.MonitoredDataDeskTypes;
+import ItTriageDeskTypes = ContractModule892.ItTriageDeskTypes;
+import PhoneReceptionistDeskTypes = ContractModule1151.PhoneReceptionistDeskTypes;
+import TradingJournalDeskTypes = ContractModule1415.TradingJournalDeskTypes;
+import LessonDeskDeskTypes = ContractModule1012.LessonDeskDeskTypes;
+import BookingDeskDeskTypes = ContractModule736.BookingDeskDeskTypes;
+import SignoffDeskDeskTypes = ContractModule1270.SignoffDeskDeskTypes;
+import DocumentDeskDeskTypes = ContractModule880.DocumentDeskDeskTypes;
 export type DeskKindTypes = {
     filter: Json;
     row: unknown;
@@ -11475,30 +11061,30 @@ export type DeskActView = {
 };
 }
 
-declare namespace ContractModule826 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule858 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type DevAgencyDeskTypes = {
     project: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule848 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule880 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type DocumentDeskDeskTypes = {
     document: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule860 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule892 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type ItTriageDeskTypes = {
     channel: DeskKindTypes;
     orders: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule877 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule909 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type JobSearchDeskDeskTypes = {
     fact: DeskKindTypes;
     listing: DeskKindTypes;
@@ -11507,60 +11093,19 @@ export type JobSearchDeskDeskTypes = {
 };
 }
 
-declare namespace ContractModule905 {
-export type TimedWord = {
-    text: string;
-    startMs: number;
-    endMs: number;
-};
-export type CaptionCue = {
-    id: string;
-    startMs: number;
-    endMs: number;
-    lines: string[];
-    words: TimedWord[] | null;
-};
-export type CaptionProfileId = 'web' | 'broadcast' | 'vertical';
+declare namespace ContractModule937 {
+export import CaptionCue = ContractModule1769.CaptionCue;
+export import CaptionProfileId = ContractModule1769.CaptionProfileId;
 }
 
-declare namespace ContractModule908 {
-export type RoomPrice = {
-    offerId: string;
-    minor: string;
-    currency: string;
-    receiptId: string;
-    priceDigest: string;
-    display: string;
-};
-export type RoomFields = {
-    scope: string;
-    deliverable: string;
-    deadline: string;
-};
-export type RoomInput = {
-    orderId: string;
-    clientId: string;
-    request: string;
-    via: 'owner-recorded' | 'client-page';
-    fields: RoomFields;
-    price: RoomPrice;
-};
-export type ApprovedRoomBrief = RoomInput & {
-    version: number;
-    digest: string;
-    by: string;
-    at: string;
-};
-export type RoomBrief = RoomInput & {
-    version: number;
-    digest: string;
-    approved: ApprovedRoomBrief | null;
-};
+declare namespace ContractModule940 {
+export import RoomPrice = ContractModule1770.RoomPrice;
+export import RoomBrief = ContractModule1770.RoomBrief;
 }
 
-declare namespace ContractModule910 {
-import RoomBriefRecord = ContractModule266.RoomBriefRecord;
-import RoomPrice = ContractModule908.RoomPrice;
+declare namespace ContractModule942 {
+import RoomBriefRecord = ContractModule302.RoomBriefRecord;
+import RoomPrice = ContractModule940.RoomPrice;
 export function roomOwnerView(row: RoomBriefRecord, served: boolean): {
     client: {
         brief: {
@@ -11579,16 +11124,16 @@ export function roomOwnerView(row: RoomBriefRecord, served: boolean): {
     ventureId: string;
     memberId: string;
     epoch: number;
-    at: ContractModule266.IsoTime;
+    at: ContractModule302.IsoTime;
     orderId: string;
     clientId: string;
     playbook: string;
-    requests: ContractModule1438.RoomRequest[];
-    brief: ContractModule908.RoomBrief | null;
+    requests: ContractModule1460.RoomRequest[];
+    brief: ContractModule940.RoomBrief | null;
 };
 }
 
-declare namespace ContractModule913 {
+declare namespace ContractModule945 {
 export type IntakePerson = {
     name: string;
     consentId: string | null;
@@ -11605,7 +11150,7 @@ export type KitIntakeField = {
 };
 }
 
-declare namespace ContractModule927 {
+declare namespace ContractModule957 {
 export type ManualPathView = {
     step: string;
     connector: string;
@@ -11614,9 +11159,9 @@ export type ManualPathView = {
 };
 }
 
-declare namespace ContractModule945 {
-import IsoTime = ContractModule266.IsoTime;
-import ManualPathView = ContractModule927.ManualPathView;
+declare namespace ContractModule974 {
+import IsoTime = ContractModule302.IsoTime;
+import ManualPathView = ContractModule957.ManualPathView;
 export type ChainStageState = 'done' | 'now' | 'waiting' | 'not-started' | 'stopped';
 export type ChainStageView = {
     n: number;
@@ -11650,9 +11195,9 @@ export type OrderChainView = {
 };
 }
 
-declare namespace ContractModule946 {
-import IsoDate = ContractModule266.IsoDate;
-import IsoTime = ContractModule266.IsoTime;
+declare namespace ContractModule975 {
+import IsoDate = ContractModule302.IsoDate;
+import IsoTime = ContractModule302.IsoTime;
 export type KitClaim = {
     claim: string;
     proofFileId: string;
@@ -11804,9 +11349,9 @@ export type VoiceConsentsView = {
 };
 }
 
-declare namespace ContractModule947 {
+declare namespace ContractModule976 {
+import IsoDate = ContractModule17.IsoDate;
 export type Display = string;
-type IsoDate = string;
 type IsoTime = string;
 export type ReportFormat = 'html' | 'pdf' | 'docx' | 'xlsx';
 export type ReportFile = {
@@ -11875,9 +11420,9 @@ export type ReportListView = {
 };
 }
 
-declare namespace ContractModule948 {
-import Display = ContractModule266.Display;
-import IsoDate = ContractModule266.IsoDate;
+declare namespace ContractModule977 {
+import Display = ContractModule302.Display;
+import IsoDate = ContractModule302.IsoDate;
 export type IdeaStage = 'inbox' | 'triage' | 'drafted' | 'made' | 'published' | 'dropped';
 export type IdeaGrade = 'worked' | 'so-so' | 'did-not';
 export type PipelineIdeaView = {
@@ -11912,13 +11457,13 @@ export type IdeaGradedView = {
 };
 }
 
-declare namespace ContractModule949 {
-import BpsString = ContractModule266.BpsString;
-import Display = ContractModule266.Display;
-import IsoDate = ContractModule266.IsoDate;
-import IsoTime = ContractModule266.IsoTime;
-import MinorString = ContractModule266.MinorString;
-import OutreachHandoff = ContractModule266.OutreachHandoff;
+declare namespace ContractModule978 {
+import BpsString = ContractModule302.BpsString;
+import Display = ContractModule302.Display;
+import IsoDate = ContractModule302.IsoDate;
+import IsoTime = ContractModule302.IsoTime;
+import MinorString = ContractModule302.MinorString;
+import OutreachHandoff = ContractModule302.OutreachHandoff;
 export type SharePrice = {
     kind: 'share';
     bps: BpsString;
@@ -12027,55 +11572,22 @@ export type SalesProposalView = {
 };
 }
 
-declare namespace ContractModule967 {
-export type CommunityVote = {
-    dimension: string;
-    score: number;
-    quote: string;
-};
-export type CommunityPost = {
-    id: string;
-    url: string;
-    community: string;
-    rulesUrl: string;
-    rulesCheckedOn: string;
-    readingAllowed: boolean;
-    on: string;
-    removed: boolean;
-    text: string;
-    votes: CommunityVote[];
-};
-export type CommunityInput = {
-    product: string;
-    confirmed: boolean;
-    problem: string;
-    categories: string[];
-    painWords: string[];
-    days: number;
-    posts: CommunityPost[];
-};
-export function communityReport(input: CommunityInput): {
-    product: string;
-    problem: string;
-    categories: string[];
-    painWords: string[];
-    posts: CommunityPost[];
-    coverage: string;
-    actions: never[];
-};
+declare namespace ContractModule995 {
+export import communityReport = ContractModule1786.communityReport;
+export import CommunityInput = ContractModule1786.CommunityInput;
 }
 
-declare namespace ContractModule968 {
-import report = ContractModule967.communityReport;
-import CommunityInput = ContractModule967.CommunityInput;
-export import CommunityInput = ContractModule967.CommunityInput;
+declare namespace ContractModule996 {
+import report = ContractModule995.communityReport;
+import CommunityInput = ContractModule995.CommunityInput;
+export import CommunityInput = ContractModule995.CommunityInput;
 export function communityReport(input: CommunityInput): ReturnType<typeof report>;
 }
 
-declare namespace ContractModule972 {
-import Json = ContractModule266.Json;
-import communityReport = ContractModule968.communityReport;
-import LeadDeskRow = ContractModule977.LeadDeskRow;
+declare namespace ContractModule1000 {
+import Json = ContractModule302.Json;
+import communityReport = ContractModule996.communityReport;
+import LeadDeskRow = ContractModule1005.LeadDeskRow;
 export type LeadGenerationDeskTypes = {
     source: {
         filter: Json;
@@ -12091,7 +11603,7 @@ export type LeadGenerationDeskTypes = {
 };
 }
 
-declare namespace ContractModule977 {
+declare namespace ContractModule1005 {
 export type LeadDeskRow = {
     id: string;
     type: 'lead' | 'followup' | 'community';
@@ -12105,45 +11617,45 @@ export type LeadDeskRow = {
 };
 }
 
-declare namespace ContractModule984 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1012 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type LessonDeskDeskTypes = {
     batch: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule995 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1023 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type MonitoredDataDeskTypes = {
     source: DeskKindTypes;
     orders: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1017 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1045 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type NarrationStudioDeskTypes = {
     job: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1055 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1083 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type NewsletterStudioDeskTypes = {
     issues: DeskKindTypes;
     contacts: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1080 {
-import SellerOperationsDeskTypes = ContractModule1088.SellerOperationsDeskTypes;
-import SellerShopifyDeskTypes = ContractModule1105.SellerShopifyDeskTypes;
-import SellerStorefrontDeskTypes = ContractModule1114.SellerStorefrontDeskTypes;
-import DeskKindTypes = ContractModule817.DeskKindTypes;
-import Json = ContractModule266.Json;
-import SellerSkuRecord = ContractModule266.SellerSkuRecord;
-import SellerSkuBody = ContractModule1100.SellerSkuBody;
-import SellerMode = ContractModule1111.SellerMode;
+declare namespace ContractModule1107 {
+import SellerOperationsDeskTypes = ContractModule1114.SellerOperationsDeskTypes;
+import SellerShopifyDeskTypes = ContractModule1131.SellerShopifyDeskTypes;
+import SellerStorefrontDeskTypes = ContractModule1140.SellerStorefrontDeskTypes;
+import DeskKindTypes = ContractModule849.DeskKindTypes;
+import Json = ContractModule302.Json;
+import SellerSkuRecord = ContractModule302.SellerSkuRecord;
+import SellerSkuBody = ContractModule1126.SellerSkuBody;
+import SellerMode = ContractModule1137.SellerMode;
 export type SellerDeskRow = {
     id: string;
     orderId: string;
@@ -12166,15 +11678,15 @@ export type OnlineSellerDeskTypes = SellerOperationsDeskTypes & SellerShopifyDes
 };
 }
 
-declare namespace ContractModule1088 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1114 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type SellerOperationsDeskTypes = {
     operations: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1100 {
-import SellerMode = ContractModule1111.SellerMode;
+declare namespace ContractModule1126 {
+import SellerMode = ContractModule1137.SellerMode;
 export type SellerSkuBody = {
     orderId: string;
     mode: SellerMode;
@@ -12194,18 +11706,18 @@ export type SellerSkuBody = {
 };
 }
 
-declare namespace ContractModule1105 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1131 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type SellerShopifyDeskTypes = {
     shopify: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1107 {
-import SellerCaps = ContractModule1112.SellerCaps;
-import ShopifyRead = ContractModule1109.ShopifyRead;
-import ShopifyWrite = ContractModule1109.ShopifyWrite;
-import ShopifyCatalogueRow = ContractModule231.ShopifyCatalogueRow;
+declare namespace ContractModule1133 {
+import SellerCaps = ContractModule1138.SellerCaps;
+import ShopifyRead = ContractModule1135.ShopifyRead;
+import ShopifyWrite = ContractModule1135.ShopifyWrite;
+import ShopifyCatalogueRow = ContractModule267.ShopifyCatalogueRow;
 export type SellerShopifyBody = {
     connection: {
         domain: string;
@@ -12232,118 +11744,47 @@ export type SellerShopifyBody = {
 };
 }
 
-declare namespace ContractModule1109 {
-import shopifyChange = ContractModule231.shopifyChange;
-import ShopifyProduct = ContractModule231.ShopifyProduct;
-export type ShopifyRead = {
-    id: string;
-    orderId: string;
-    clientId: string;
-    domain: string;
-    storeId: string;
-    connectionDigest: string;
-    sessionId: string;
-    memberId: string;
-    epoch: number;
-    at: string;
-    product: ShopifyProduct;
-};
-export type ShopifyWrite = {
-    id: string;
-    read: ShopifyRead;
-    request: ReturnType<typeof shopifyChange>;
-    createdAt: string;
-    expiresAt: string;
-    phase: 'staged' | 'sending' | 'applied' | 'rejected' | 'unknown';
-    claimedAt: string | null;
-    finishedAt: string | null;
-    liveVerified: string | null;
-};
+declare namespace ContractModule1135 {
+export import ShopifyRead = ContractModule1833.ShopifyRead;
+export import ShopifyWrite = ContractModule1833.ShopifyWrite;
 }
 
-declare namespace ContractModule1111 {
-export type SellerMode = 'economics' | 'ads' | 'settlement' | 'listing';
+declare namespace ContractModule1137 {
+export import SellerMode = ContractModule1834.SellerMode;
 }
 
-declare namespace ContractModule1112 {
-export type SellerProduct = {
-    sku: string;
-    channel: string;
-    priceMinor: string;
-    breakEvenMinor: string | null;
-    stock: string;
-    title: string;
-    currency: string;
-};
-export type SellerCaps = {
-    priceChangeBps: string;
-    promotionBps: string;
-};
-export type SellerChange = {
-    field: string;
-    value: string;
-    clearance?: boolean;
-    scope?: string;
-    depthBps?: string;
-    endsOn?: string;
-};
-export type SellerStaged = {
-    product: SellerProduct;
-    change: SellerChange;
-    dryRun: true;
-    descriptionComplete: boolean;
-    missing: string[];
-    clearance: boolean;
-    confirmName: string | null;
-    money: boolean;
-    caps: SellerCaps;
-    capability: 'handoff';
-};
+declare namespace ContractModule1138 {
+export import SellerCaps = ContractModule1835.SellerCaps;
 }
 
-declare namespace ContractModule1114 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1140 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type SellerStorefrontDeskTypes = {
     storefront: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1117 {
-import StorefrontCatalogue = ContractModule238.StorefrontCatalogue;
-export type SellerStorefrontBody = {
-    domain: string;
-    modelConnectionId: string;
-    maxPages: number;
-    language: 'en' | 'hi';
-    notice: string;
-    publicTokenDigest: string;
-    catalogue: StorefrontCatalogue;
-    readAt: string;
-    active: boolean;
-    link: {
-        tokenHash: string;
-        expiresAt: string;
-    } | null;
-};
+declare namespace ContractModule1143 {
+export import SellerStorefrontBody = ContractModule1837.SellerStorefrontBody;
 }
 
-declare namespace ContractModule1125 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1151 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type PhoneReceptionistDeskTypes = {
     calls: DeskKindTypes;
     orders: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1147 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1172 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type PodcastToArticleDeskTypes = {
     ledger: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1176 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1200 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type RecruitingDeskDeskTypes = {
     role: DeskKindTypes;
     candidate: DeskKindTypes;
@@ -12352,16 +11793,16 @@ export type RecruitingDeskDeskTypes = {
 };
 }
 
-declare namespace ContractModule1208 {
-import panelMetrics = ContractModule1222.panelMetrics;
-import SeoPanelBody = ContractModule1224.SeoPanelBody;
-import SeoObservationBody = ContractModule1224.SeoObservationBody;
-import SeoWebsiteItem = ContractModule1224.SeoWebsiteItem;
-import SeoWorkDeskTypes = ContractModule1240.SeoWorkDeskTypes;
-import SeoPublishingDeskTypes = ContractModule1223.SeoPublishingDeskTypes;
-import SeoStrategyDeskTypes = ContractModule1232.SeoStrategyDeskTypes;
-import SeoEdgeDeskTypes = ContractModule1210.SeoEdgeDeskTypes;
-import SeoMonitorItem = ContractModule1217.SeoMonitorItem;
+declare namespace ContractModule1232 {
+import panelMetrics = ContractModule1246.panelMetrics;
+import SeoPanelBody = ContractModule1248.SeoPanelBody;
+import SeoObservationBody = ContractModule1248.SeoObservationBody;
+import SeoWebsiteItem = ContractModule1248.SeoWebsiteItem;
+import SeoWorkDeskTypes = ContractModule1264.SeoWorkDeskTypes;
+import SeoPublishingDeskTypes = ContractModule1247.SeoPublishingDeskTypes;
+import SeoStrategyDeskTypes = ContractModule1256.SeoStrategyDeskTypes;
+import SeoEdgeDeskTypes = ContractModule1234.SeoEdgeDeskTypes;
+import SeoMonitorItem = ContractModule1241.SeoMonitorItem;
 export type SeoPanelRow = {
     id: string;
     state: 'draft' | 'approved';
@@ -12408,7 +11849,7 @@ export type SeoVisibilityDeskTypes = SeoWorkDeskTypes & SeoPublishingDeskTypes &
 };
 }
 
-declare namespace ContractModule1210 {
+declare namespace ContractModule1234 {
 export type SeoEdgeDeskTypes = {
     edge: {
         filter: null;
@@ -12422,33 +11863,13 @@ export type SeoEdgeDeskTypes = {
 };
 }
 
-declare namespace ContractModule1217 {
-export type SeoMonitorBody = {
-    url: string;
-    root: string;
-    cycles: number;
-    intervalSeconds: number;
-    state: 'draft' | 'active' | 'collecting' | 'complete' | 'stopped' | 'held';
-    approvedDigest: string | null;
-    completed: number;
-    lastAt: string | null;
-    nextAt: string | null;
-    error: string | null;
-    evidence: {
-        index: number;
-        folder: string;
-        receipt: string;
-        at: string;
-    }[];
-};
-export type SeoMonitorItem = SeoMonitorBody & {
-    id: string;
-};
+declare namespace ContractModule1241 {
+export import SeoMonitorItem = ContractModule1878.SeoMonitorItem;
 }
 
-declare namespace ContractModule1222 {
-import SeoObservationBody = ContractModule1224.SeoObservationBody;
-import SeoPanelBody = ContractModule1224.SeoPanelBody;
+declare namespace ContractModule1246 {
+import SeoObservationBody = ContractModule1248.SeoObservationBody;
+import SeoPanelBody = ContractModule1248.SeoPanelBody;
 export function panelMetrics(panel: SeoPanelBody, observations: readonly SeoObservationBody[]): {
     mentions: {
         numerator: number;
@@ -12464,7 +11885,7 @@ export function panelMetrics(panel: SeoPanelBody, observations: readonly SeoObse
 };
 }
 
-declare namespace ContractModule1223 {
+declare namespace ContractModule1247 {
 export type SeoPublishingDeskTypes = {
     publishing: {
         filter: null;
@@ -12478,59 +11899,11 @@ export type SeoPublishingDeskTypes = {
 };
 }
 
-declare namespace ContractModule1224 {
-export type PanelSpec = {
-    questions: {
-        id: string;
-        text: string;
-    }[];
-    engines: string[];
-    timepoints: {
-        id: string;
-        from: string;
-        to: string;
-    }[];
-    repeats: number;
-    minimumFilled: number;
-};
-export type SeoPanelBody = {
-    spec: PanelSpec;
-    state: 'draft' | 'approved';
-    approvedDigest: string | null;
-    orderId: string | null;
-};
-export type SeoObservationBody = {
-    panelId: string;
-    panelDigest: string;
-    questionId: string;
-    engine: string;
-    timepointId: string;
-    repeat: number;
-    capturedAt: string;
-    method: 'owner-capture' | 'api';
-    screenshotFileId: string | null;
-    answer: string;
-    mentioned: boolean;
-    fixture: boolean;
-    slot: string;
-};
-export type WebsiteCheckData = {
-    url: string;
-    receipt: string;
-    findings: {
-        what: string;
-        selector: string;
-        measured: string;
-        expected: string;
-        fix: string;
-        repeats: number;
-        unresolved: boolean;
-    }[];
-    approved: boolean;
-    previousReceipt: string | null;
-    checkedFrames: number;
-    limits: string;
-};
+declare namespace ContractModule1248 {
+import WebsiteCheckData = ContractModule27.WebsiteCheckData;
+export import SeoObservationBody = ContractModule27.SeoObservationBody;
+export import SeoPanelBody = ContractModule27.SeoPanelBody;
+export import WebsiteCheckData = ContractModule27.WebsiteCheckData;
 export type SeoWebsiteItem = {
     id: string;
     report: WebsiteCheckData;
@@ -12547,7 +11920,7 @@ export type WebsiteRecheck = {
 };
 }
 
-declare namespace ContractModule1232 {
+declare namespace ContractModule1256 {
 export type SeoStrategyDeskTypes = {
     strategy: {
         filter: null;
@@ -12561,40 +11934,12 @@ export type SeoStrategyDeskTypes = {
 };
 }
 
-declare namespace ContractModule1239 {
-export const SEO_WORK_OPERATIONS: readonly [
-    "content",
-    "meta",
-    "impact",
-    "refresh",
-    "local",
-    "strategy"
-];
-export type SeoWorkOperation = typeof SEO_WORK_OPERATIONS[number];
-export type SeoWorkBody = {
-    orderId: string;
-    clientId: string;
-    operation: SeoWorkOperation;
-    uploadId: string;
-    sourceDigest: string;
-    result: any;
-    receipt: string;
-    checkedAt: string;
-    state: 'checked' | 'approved' | 'muted' | 'resolved';
-    appliedEditId: string | null;
-    acceptance: {
-        checkedOn: string;
-        receipt: string;
-    } | null;
-};
-export type SeoWorkItem = SeoWorkBody & {
-    id: string;
-    stale: boolean;
-};
+declare namespace ContractModule1263 {
+export import SeoWorkItem = ContractModule1883.SeoWorkItem;
 }
 
-declare namespace ContractModule1240 {
-import SeoWorkItem = ContractModule1239.SeoWorkItem;
+declare namespace ContractModule1264 {
+import SeoWorkItem = ContractModule1263.SeoWorkItem;
 export type SeoWorkDeskTypes = {
     work: {
         filter: null;
@@ -12608,22 +11953,22 @@ export type SeoWorkDeskTypes = {
 };
 }
 
-declare namespace ContractModule1246 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1270 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type SignoffDeskDeskTypes = {
     professional: DeskKindTypes;
     paper: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1256 {
-export import GhostwritingState = ContractModule1327.GhostwritingState;
-import GhostwritingState = ContractModule1327.GhostwritingState;
+declare namespace ContractModule1280 {
+export import GhostwritingState = ContractModule1350.GhostwritingState;
+import GhostwritingState = ContractModule1350.GhostwritingState;
 }
 
-declare namespace ContractModule1261 {
-import Json = ContractModule266.Json;
-import SocialCanvasView = ContractModule1262.SocialCanvasView;
+declare namespace ContractModule1285 {
+import Json = ContractModule302.Json;
+import SocialCanvasView = ContractModule1286.SocialCanvasView;
 export type SocialCanvasDeskTypes = {
     canvas: {
         filter: Json;
@@ -12634,32 +11979,11 @@ export type SocialCanvasDeskTypes = {
 };
 }
 
-declare namespace ContractModule1262 {
-import SocialChannel = ContractModule1265.SocialChannel;
-import SocialFormat = ContractModule1286.SocialFormat;
-import SourceInventory = ContractModule1301.SourceInventory;
-import PostPlan = ContractModule1311.PostPlan;
-export type CanvasPost = {
-    id: string;
-    runId: string;
-    text: string;
-    channel: SocialChannel;
-    plan: Omit<PostPlan, 'postId'> | null;
-};
-export type SocialCanvasView = {
-    id: string;
-    orderId: string;
-    request: string;
-    runId: string | null;
-    inventory: SourceInventory | null;
-    sourceProblem: string | null;
-    cards: (SocialFormat & {
-        posts: CanvasPost[];
-    })[];
-};
+declare namespace ContractModule1286 {
+export import SocialCanvasView = ContractModule1889.SocialCanvasView;
 }
 
-declare namespace ContractModule1264 {
+declare namespace ContractModule1288 {
 export type SocialVoicePin = {
     runId: string;
     digest: string;
@@ -12673,112 +11997,30 @@ export type SocialChainPin = {
 };
 }
 
-declare namespace ContractModule1265 {
-export const SOCIAL_CHANNELS: readonly [
-    "instagram",
-    "facebook",
-    "linkedin",
-    "x",
-    "threads",
-    "tiktok",
-    "youtube-shorts",
-    "bluesky",
-    "mastodon",
-    "telegram",
-    "discord"
-];
-export type SocialChannel = typeof SOCIAL_CHANNELS[number];
+declare namespace ContractModule1289 {
+export import SocialChannel = ContractModule1890.SocialChannel;
 }
 
-declare namespace ContractModule1266 {
-import SocialChannel = ContractModule1265.SocialChannel;
-export import SocialChannel = ContractModule1265.SocialChannel;
+declare namespace ContractModule1290 {
+import SocialChannel = ContractModule1289.SocialChannel;
+export import SocialChannel = ContractModule1289.SocialChannel;
 }
 
-declare namespace ContractModule1271 {
-export type CrossPostPlan = {
-    video: {
-        id: string;
-        digest: string;
-        kind: 'client';
-    };
-    posts: {
-        platform: string;
-        text: string;
-        ownerApproved: boolean;
-        clientApproved: boolean;
-    }[];
-    capability: 'handoff';
-    upload: 'planned';
-};
-}
-
-declare namespace ContractModule1282 {
-import OpenPostingDeskTypes = ContractModule213.OpenPostingDeskTypes;
-import SocialCanvasDeskTypes = ContractModule1261.SocialCanvasDeskTypes;
-import SocialRevisionDeskTypes = ContractModule1323.SocialRevisionDeskTypes;
-import ScheduledDeskTypes = ContractModule1333.ScheduledDeskTypes;
-import SocialInboxDeskTypes = ContractModule1291.SocialInboxDeskTypes;
-import SocialProductionDeskTypes = ContractModule1312.SocialProductionDeskTypes;
-import SocialInfluencerDeskTypes = ContractModule1295.SocialInfluencerDeskTypes;
+declare namespace ContractModule1306 {
+import OpenPostingDeskTypes = ContractModule249.OpenPostingDeskTypes;
+import SocialCanvasDeskTypes = ContractModule1285.SocialCanvasDeskTypes;
+import SocialRevisionDeskTypes = ContractModule1346.SocialRevisionDeskTypes;
+import ScheduledDeskTypes = ContractModule1356.ScheduledDeskTypes;
+import SocialInboxDeskTypes = ContractModule1315.SocialInboxDeskTypes;
+import SocialProductionDeskTypes = ContractModule1336.SocialProductionDeskTypes;
+import SocialInfluencerDeskTypes = ContractModule1319.SocialInfluencerDeskTypes;
 export type SocialAgencyDeskTypes = OpenPostingDeskTypes & SocialCanvasDeskTypes & SocialRevisionDeskTypes & ScheduledDeskTypes & SocialInboxDeskTypes & SocialProductionDeskTypes & SocialInfluencerDeskTypes;
 }
 
-declare namespace ContractModule1285 {
-export type InfluencerCoefficient = {
-    basisPoints: number;
-    source: 'owner' | 'default' | 'agent-judgement';
-    reason: string;
-};
-export type InfluencerPost = {
-    id: string;
-    publishedAt: string;
-    views: string;
-    comparable: boolean;
-    sourceUrl: string;
-    reason: string;
-};
-export function influencerFairPrice(raw: unknown): {
-    sampleCount: number;
-    coverage: string;
-    medianViews: string;
-    amountMinor: string;
-    display: string;
-    label: string;
-    actualRevenueMinor: null;
-    receipt: {
-        digest: string;
-        kind: "code";
-        formula: string;
-        rounding: string;
-        postIds: string[];
-        posts: InfluencerPost[];
-        coefficients: Record<"clickRate" | "signupRate" | "fit" | "competition", InfluencerCoefficient>;
-        inputs: {
-            asOf: string;
-            medianViews: string;
-            targetCpaMinor: string;
-            capMinor: string;
-        };
-        outputMinor: string;
-    };
-};
-}
-
-declare namespace ContractModule1286 {
-import SocialChannel = ContractModule1265.SocialChannel;
-export type SocialFormat = {
-    channel: SocialChannel;
-    format: 'text' | 'thread' | 'image' | 'image-brief' | 'video' | 'video-brief';
-    ready: boolean;
-    trace: string[];
-};
-}
-
-declare namespace ContractModule1291 {
-import Json = ContractModule266.Json;
-import replyHandoff = ContractModule1292.replyHandoff;
-import InboxView = ContractModule1292.InboxView;
+declare namespace ContractModule1315 {
+import Json = ContractModule302.Json;
+import replyHandoff = ContractModule1316.replyHandoff;
+import InboxView = ContractModule1316.InboxView;
 export type SocialInboxDeskTypes = {
     inbox: {
         filter: {
@@ -12794,107 +12036,19 @@ export type SocialInboxDeskTypes = {
 };
 }
 
-declare namespace ContractModule1292 {
-import ReplyBucket = ContractModule1317.ReplyBucket;
-export type InboxItem = {
-    orderId: string;
-    channel: string;
-    externalId: string;
-    author: string;
-    text: string;
-    source: 'paste' | 'export';
-    syncedAt: string;
-    bucket: ReplyBucket;
-    priority: number;
-    state: 'needs-reply' | 'handled' | 'ignored';
-    assignee: string | null;
-    reply: string;
-    ownerApproved: boolean;
-    clientApproved: boolean;
-    optedOut: boolean;
-};
-export type InboxView = InboxItem & {
-    id: string;
-    digest: string;
-};
-export function replyHandoff(row: InboxItem): {
-    capability: "handoff";
-    sent: boolean;
-    text: string;
-    channel: string;
-    to: string;
-};
+declare namespace ContractModule1316 {
+export import replyHandoff = ContractModule1901.replyHandoff;
+export import InboxView = ContractModule1901.InboxView;
 }
 
-declare namespace ContractModule1293 {
-import InfluencerCreator = ContractModule1299.InfluencerCreator;
-import InfluencerKeywords = ContractModule1299.InfluencerKeywords;
-import influencerFairPrice = ContractModule1285.influencerFairPrice;
-export type InfluencerActual = {
-    views: string;
-    signups: string;
-    spendMinor: string;
-    revenueMinor: string;
-    spendDisplay: string;
-    revenueDisplay: string;
-    sourceUrl: string;
-    observedAt: string;
-    note: string;
-    receipt: {
-        kind: 'code';
-        inputs: Record<string, string>;
-        output: {
-            spendMinor: string;
-            revenueMinor: string;
-        };
-        digest: string;
-    };
-};
-export type InfluencerFee = {
-    minor: string;
-    display: string;
-    receipt: {
-        kind: 'code';
-        inputs: {
-            priceRupees: string;
-        };
-        output: {
-            minor: string;
-        };
-        digest: string;
-    };
-};
-export type InfluencerCaseCreator = InfluencerCreator & {
-    priceCheckFee: InfluencerFee | null;
-    estimate: ReturnType<typeof influencerFairPrice> | null;
-    brief: {
-        objective: string;
-        deliverables: string;
-        disclosure: string;
-        platformLabel: 'Paid partnership';
-    } | null;
-    actual: InfluencerActual | null;
-    outreach: {
-        leadId: string;
-        draftId: string;
-    } | null;
-};
-export type InfluencerCase = {
-    orderId: string;
-    keywords: InfluencerKeywords;
-    creators: InfluencerCaseCreator[];
-    updatedAt: string;
-};
-export type InfluencerView = InfluencerCase & {
-    id: string;
-    digest: string;
-};
+declare namespace ContractModule1317 {
+export import InfluencerView = ContractModule1902.InfluencerView;
 }
 
-declare namespace ContractModule1295 {
-import CampaignPacket = ContractModule1297.CampaignPacket;
-import Json = ContractModule266.Json;
-import InfluencerView = ContractModule1293.InfluencerView;
+declare namespace ContractModule1319 {
+import CampaignPacket = ContractModule1321.CampaignPacket;
+import Json = ContractModule302.Json;
+import InfluencerView = ContractModule1317.InfluencerView;
 export type SocialInfluencerDeskTypes = {
     influencer: {
         filter: {
@@ -12910,78 +12064,13 @@ export type SocialInfluencerDeskTypes = {
 };
 }
 
-declare namespace ContractModule1297 {
-export type CampaignPacket = {
-    sourceDigest: string;
-    language: 'en' | 'hi';
-    title: string;
-    sections: {
-        heading: string;
-        lines: string[];
-        figures: {
-            label: string;
-            value: string;
-            receiptId: string;
-            estimate: boolean;
-        }[];
-    }[];
-    receipts: unknown[];
-    content: string;
-    filename: string;
-    digest: string;
-};
+declare namespace ContractModule1321 {
+export import CampaignPacket = ContractModule1905.CampaignPacket;
 }
 
-declare namespace ContractModule1299 {
-export const INFLUENCER_GROUPS: readonly [
-    "product",
-    "pain",
-    "scenario",
-    "creator",
-    "tags",
-    "competitors",
-    "negative"
-];
-export type InfluencerKeywords = Record<typeof INFLUENCER_GROUPS[number], string[]>;
-export type InfluencerCreator = {
-    id: string;
-    name: string;
-    channel: string;
-    channelUrl: string;
-    businessEmail: string | null;
-    businessEmailSource: string | null;
-    publicBusinessEmail: boolean;
-};
-}
-
-declare namespace ContractModule1301 {
-export type InventoryKind = 'claims' | 'numbers' | 'stories' | 'mistakes' | 'quotes';
-export type InventoryItem = {
-    kind: InventoryKind;
-    text: string;
-    from: number;
-    to: number;
-    numbers: string[];
-};
-export type SourceInventory = {
-    items: InventoryItem[];
-    counts: Record<InventoryKind | 'total', number>;
-};
-}
-
-declare namespace ContractModule1311 {
-export type PostPlan = {
-    postId: string;
-    kind: 'value' | 'sell';
-    goals: string[];
-    actions: string[];
-    hookFormula: string;
-};
-}
-
-declare namespace ContractModule1312 {
-import Json = ContractModule266.Json;
-import SocialProductionView = ContractModule1313.SocialProductionView;
+declare namespace ContractModule1336 {
+import Json = ContractModule302.Json;
+import SocialProductionView = ContractModule1337.SocialProductionView;
 export type SocialProductionDeskTypes = {
     production: {
         filter: {
@@ -12997,127 +12086,25 @@ export type SocialProductionDeskTypes = {
 };
 }
 
-declare namespace ContractModule1313 {
-import CrossPostPlan = ContractModule1271.CrossPostPlan;
-export type ReelPlan = {
-    cuts: {
-        clipId: string;
-        startMs: number;
-        durationMs: number;
-        timelineMs: number;
-    }[];
-    captions: string;
-    durationMs: number;
-    endCard: {
-        contact: string;
-        durationMs: number;
-    };
-    hook: string;
-    capability: 'desktop';
-};
-export type ReelJob = {
-    sources: {
-        id: string;
-        digest: string;
-        durationMs: number;
-        hasAudio: boolean;
-    }[];
-    plan: ReelPlan;
-    output: string;
-    approvedDigest: string | null;
-    rendered: {
-        path: string;
-        digest: string;
-    } | null;
-};
-export type SocialAdPlan = {
-    photo: {
-        id: string;
-        digest: string;
-        kind: 'client';
-    };
-    category: string;
-    style: string;
-    stills: {
-        id: string;
-        digest: string;
-    }[];
-    boardDigest: string;
-    approvedDigest: string | null;
-    quote: {
-        units: number;
-        totalMinor: string;
-        display: string;
-        receiptId: string;
-        disclosure: string | null;
-        formula: string;
-        capability: 'handoff';
-        providerCalled: false;
-    } | null;
-};
-export type SocialProduction = {
-    cross: CrossPostPlan | null;
-    reel: ReelJob | null;
-    ad: SocialAdPlan | null;
-};
-export type SocialProductionView = {
-    id: string;
-    request: string;
-    digest: string;
-    production: SocialProduction;
-    capability: 'handoff';
-    videoUpload: 'planned';
-};
+declare namespace ContractModule1337 {
+export import SocialProduction = ContractModule1912.SocialProduction;
+export import SocialProductionView = ContractModule1912.SocialProductionView;
 }
 
-declare namespace ContractModule1317 {
-export const REPLY_BUCKETS: readonly [
-    "complaint",
-    "lead",
-    "question",
-    "request",
-    "praise",
-    "noise"
-];
-export type ReplyBucket = typeof REPLY_BUCKETS[number];
+declare namespace ContractModule1341 {
+export import ReportReceipt = ContractModule1914.ReportReceipt;
 }
 
-declare namespace ContractModule1318 {
-export type ExportPlatform = 'instagram' | 'linkedin';
-export type ReportFigureKey = 'posts' | 'views' | 'reach' | 'impressions' | 'engagements' | 'engagement-rate' | 'follows' | 'top-post';
-export type ReportReceipt = {
-    id: string;
-    platform: ExportPlatform;
-    month: string;
-    key: ReportFigureKey;
-    label: string;
-    value: string;
-    display: string;
-    unit: 'count' | 'percent' | 'post';
-    formula: string;
-    inputs: {
-        fileId: string;
-        fileName: string;
-        fileDigest: string;
-        columns: string[];
-        rows: number[];
-    };
-    numerator?: string;
-    denominator?: string;
-    digest: string;
-};
+declare namespace ContractModule1343 {
+export import ReportReceipt = ContractModule1341.ReportReceipt;
+import ReportReceipt = ContractModule1341.ReportReceipt;
 }
 
-declare namespace ContractModule1320 {
-export import ReportReceipt = ContractModule1318.ReportReceipt;
-import ReportReceipt = ContractModule1318.ReportReceipt;
-}
-
-declare namespace ContractModule1323 {
-import RevisionQuote = ContractModule1327.RevisionQuote;
-import SocialRevisionRow = ContractModule1327.SocialRevisionRow;
-export import RevisionQuote = ContractModule1327.RevisionQuote;
-export import SocialRevisionRow = ContractModule1327.SocialRevisionRow;
+declare namespace ContractModule1346 {
+import RevisionQuote = ContractModule1350.RevisionQuote;
+import SocialRevisionRow = ContractModule1350.SocialRevisionRow;
+export import RevisionQuote = ContractModule1350.RevisionQuote;
+export import SocialRevisionRow = ContractModule1350.SocialRevisionRow;
 export type SocialRevisionDeskTypes = {
     revision: {
         filter: {
@@ -13161,7 +12148,7 @@ export type SocialRevisionDeskTypes = {
 };
 }
 
-declare namespace ContractModule1327 {
+declare namespace ContractModule1350 {
 export type RevisionQuote = {
     round: number;
     amountMinor: string;
@@ -13203,31 +12190,12 @@ export type GhostwritingState = {
 };
 }
 
-declare namespace ContractModule1332 {
-export type SocialScheduledBody = {
-    postId: string | null;
-    connectorId: string;
-    text: string;
-    account: string | null;
-    mode: string | null;
-    dueAt: string;
-    deadlineAt: string;
-    postDigest: string | null;
-    filesDigest: string | null;
-    approvedDigest: string | null;
-    approvedAt: string | null;
-    approvedBy: string | null;
-    nothingReadyAt: string | null;
-    state: 'draft' | 'scheduled' | 'waiting' | 'posted' | 'missed' | 'blocked' | 'unknown' | 'cancelled';
-    reason: string;
-};
-export type SocialScheduledItem = SocialScheduledBody & {
-    id: string;
-};
+declare namespace ContractModule1355 {
+export import SocialScheduledItem = ContractModule1918.SocialScheduledItem;
 }
 
-declare namespace ContractModule1333 {
-import SocialScheduledItem = ContractModule1332.SocialScheduledItem;
+declare namespace ContractModule1356 {
+import SocialScheduledItem = ContractModule1355.SocialScheduledItem;
 export type ScheduledDeskTypes = {
     scheduled: {
         filter: null;
@@ -13255,27 +12223,21 @@ export type ScheduledDeskTypes = {
 };
 }
 
-declare namespace ContractModule1338 {
-export type SocialHookHistory = {
-    runId: string;
-    postId: string;
-    textDigest: string;
-    hookFormula: string;
-    approvedAt: string;
-};
+declare namespace ContractModule1361 {
+export import SocialHookHistory = ContractModule1920.SocialHookHistory;
 }
 
-declare namespace ContractModule1339 {
-export import SocialHookHistory = ContractModule1338.SocialHookHistory;
+declare namespace ContractModule1362 {
+export import SocialHookHistory = ContractModule1361.SocialHookHistory;
 }
 
-declare namespace ContractModule1347 {
-import Json = ContractModule266.Json;
-import SupportTicketRecord = ContractModule266.SupportTicketRecord;
-import SupportMessageRecord = ContractModule266.SupportMessageRecord;
-import SupportRequestRecord = ContractModule266.SupportRequestRecord;
-import SupportRatingRecord = ContractModule266.SupportRatingRecord;
-import TicketStatus = ContractModule1356.TicketStatus;
+declare namespace ContractModule1370 {
+import Json = ContractModule302.Json;
+import SupportTicketRecord = ContractModule302.SupportTicketRecord;
+import SupportMessageRecord = ContractModule302.SupportMessageRecord;
+import SupportRequestRecord = ContractModule302.SupportRequestRecord;
+import SupportRatingRecord = ContractModule302.SupportRatingRecord;
+import TicketStatus = ContractModule1379.TicketStatus;
 export type SupportTicketRow = {
     id: string;
     thread: string;
@@ -13314,7 +12276,7 @@ export type SupportDeskDeskTypes = {
 };
 }
 
-declare namespace ContractModule1351 {
+declare namespace ContractModule1374 {
 export type ShopCustomerMatch = {
     matchedId: string | null;
     needsConfirmation: boolean;
@@ -13331,8 +12293,8 @@ export type ShopCustomerMatch = {
 };
 }
 
-declare namespace ContractModule1356 {
-import ShopCustomerMatch = ContractModule1351.ShopCustomerMatch;
+declare namespace ContractModule1379 {
+import ShopCustomerMatch = ContractModule1374.ShopCustomerMatch;
 export type TicketStatus = 'open' | 'in-progress' | 'waiting-customer' | 'resolved' | 'closed';
 export type SupportDraft = {
     original: string;
@@ -13408,93 +12370,22 @@ export type SupportRatingBody = {
 };
 }
 
-declare namespace ContractModule1371 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1394 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type TenderDeskDeskTypes = {
     bid: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1387 {
-import BrokerId = ContractModule1394.BrokerId;
-import Exchange = ContractModule1394.Exchange;
-export type Instrument = 'equity' | 'future' | 'option';
-export type TradeRow = {
-    broker: BrokerId;
-    line: number;
-    tradeId: string;
-    orderId: string;
-    date: string;
-    time: string | null;
-    symbol: string;
-    isin: string | null;
-    exchange: Exchange;
-    instrument: Instrument;
-    side: 'buy' | 'sell';
-    quantity: string;
-    value4: string;
-    expiry: string | null;
-};
+declare namespace ContractModule1414 {
+export import JournalListRow = ContractModule1933.JournalListRow;
+export import JournalItem = ContractModule1933.JournalItem;
 }
 
-declare namespace ContractModule1391 {
-import Journal = ContractModule1393.Journal;
-import OpeningLot = ContractModule1393.OpeningLot;
-import BrokerId = ContractModule1394.BrokerId;
-import TaxPack = ContractModule1399.TaxPack;
-import TradeJournalEntry = ContractModule1396.TradeJournalEntry;
-export type JournalListRow = {
-    id: string;
-    kind: TradeJournalEntry['kind'];
-    label: string;
-    at: string;
-    receiptId: string;
-};
-export type JournalItem = {
-    imports: {
-        id: string;
-        broker: BrokerId;
-        brokerName: string;
-        name: string;
-        trades: number;
-        formatChecked: boolean;
-        receiptId: string;
-    }[];
-    openings: (OpeningLot & {
-        entryId: string;
-    })[];
-    packs: {
-        id: string;
-        yearId: TaxPack['yearId'];
-        year: string;
-        act: string;
-        line: string;
-        receiptId: string;
-        stale: boolean;
-        figures: {
-            key: string;
-            label: string;
-            display: string;
-            section: string;
-        }[];
-    }[];
-    journal: Journal | null;
-    sourceDigest: string | null;
-    summary: {
-        receiptId: string;
-        figures: {
-            key: string;
-            label: string;
-            display: string;
-        }[];
-    } | null;
-};
-}
-
-declare namespace ContractModule1392 {
-import Json = ContractModule266.Json;
-import JournalItem = ContractModule1391.JournalItem;
-import JournalListRow = ContractModule1391.JournalListRow;
+declare namespace ContractModule1415 {
+import Json = ContractModule302.Json;
+import JournalItem = ContractModule1414.JournalItem;
+import JournalListRow = ContractModule1414.JournalListRow;
 export type TradingJournalDeskTypes = {
     journal: {
         filter: Json;
@@ -13521,7 +12412,7 @@ export type TradingJournalDeskTypes = {
                 result: {
                     id: string;
                     receiptId: string;
-                    pack: ContractModule1399.TaxPack;
+                    pack: ContractModule1422.TaxPack;
                 };
             };
         };
@@ -13529,176 +12420,12 @@ export type TradingJournalDeskTypes = {
 };
 }
 
-declare namespace ContractModule1393 {
-import BrokerId = ContractModule1394.BrokerId;
-import Exchange = ContractModule1394.Exchange;
-import LegKind = ContractModule1394.LegKind;
-export type OpeningLot = {
-    id: string;
-    symbol: string;
-    isin: string | null;
-    boughtOn: string;
-    quantity: string;
-    costMinor: string;
-    fmvMinor: string | null;
-};
-export type ChargeLine = {
-    brokerage: string;
-    stt: string;
-    exchange: string;
-    sebi: string;
-    ipft: string;
-    stamp: string;
-    dp: string;
-    gst: string;
-    total: string;
-};
-export type ContractNote = {
-    broker: BrokerId;
-    date: string;
-    exchange: Exchange;
-    kind: LegKind;
-    buyMinor: string;
-    sellMinor: string;
-    orders: number;
-    dpScrips: number;
-    charges: ChargeLine;
-};
-export type RealisedLot = {
-    kind: 'intraday' | 'fno' | 'capital';
-    symbol: string;
-    isin: string | null;
-    quantity: string;
-    openedOn: string;
-    closedOn: string;
-    costMinor: string;
-    saleMinor: string;
-    pnlMinor: string;
-    closedBy: 'trade' | 'expiry';
-    longTerm: boolean;
-    grandfathered: {
-        fmvMinor: string;
-        costUsedMinor: string;
-    } | null;
-    needsFmv: boolean;
-};
-export type OpenPosition = {
-    symbol: string;
-    kind: 'equity' | 'fno';
-    quantity: string;
-    side: 'long' | 'short';
-    openedOn: string;
-};
-export type Unmatched = {
-    symbol: string;
-    date: string;
-    quantity: string;
-    line: string;
-};
-export type Journal = {
-    legs: number;
-    notes: ContractNote[];
-    realised: RealisedLot[];
-    open: OpenPosition[];
-    unmatched: Unmatched[];
-    totals: ChargeLine;
-    brokers: BrokerId[];
-};
+declare namespace ContractModule1422 {
+export import TaxPack = ContractModule1937.TaxPack;
 }
 
-declare namespace ContractModule1394 {
-export type LegKind = 'intraday' | 'delivery' | 'futures' | 'options';
-export type Exchange = 'NSE' | 'BSE';
-export type BrokerId = 'zerodha' | 'groww' | 'upstox' | 'dhan';
-}
-
-declare namespace ContractModule1396 {
-import TradeRow = ContractModule1387.TradeRow;
-import OpeningLot = ContractModule1393.OpeningLot;
-import TaxPack = ContractModule1399.TaxPack;
-import BrokerId = ContractModule1394.BrokerId;
-export type TradeJournalEntry = {
-    kind: 'import';
-    broker: BrokerId;
-    name: string;
-    sourceDigest: string;
-    formatChecked: boolean;
-    trades: TradeRow[];
-    receiptId: string;
-} | {
-    kind: 'opening';
-    lot: OpeningLot;
-    receiptId: string;
-} | {
-    kind: 'pack';
-    yearId: TaxPack['yearId'];
-    pack: TaxPack;
-    sourceDigest: string;
-    receiptId: string;
-};
-}
-
-declare namespace ContractModule1399 {
-import TaxRule = ContractModule1400.TaxRule;
-import TaxYearRules = ContractModule1400.TaxYearRules;
-export type TaxFigure = {
-    key: string;
-    label: string;
-    minor: string;
-    display: string;
-    unit: 'money' | 'percent' | 'count';
-    how: string;
-    rule: TaxRule;
-    act: string;
-    year: string;
-};
-export type TaxPack = {
-    yearId: TaxYearRules['id'];
-    year: string;
-    act: string;
-    figures: TaxFigure[];
-    needsFmv: number;
-    unmatched: number;
-    openPositions: number;
-    line: string;
-};
-}
-
-declare namespace ContractModule1400 {
-export type RuleRead = 'official' | 'secondary' | 'unchecked';
-export type TaxRule = {
-    section: string;
-    words: string;
-    source: string;
-    read: RuleRead;
-};
-export type TaxYearRules = {
-    id: 'fy-2025-26' | 'ty-2026-27';
-    label: string;
-    act: string;
-    from: string;
-    to: string;
-    speculative: TaxRule;
-    nonSpeculative: TaxRule;
-    holding: TaxRule & {
-        months: number;
-    };
-    stcg: TaxRule & {
-        rateBps: number;
-    };
-    ltcg: TaxRule & {
-        rateBps: number;
-        exemptionMinor: string;
-    };
-    grandfather: TaxRule & {
-        fmvDay: string;
-    };
-    turnover: TaxRule;
-};
-}
-
-declare namespace ContractModule1408 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1431 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type TranslationStudioDeskTypes = {
     job: DeskKindTypes;
     dub: DeskKindTypes;
@@ -13706,12 +12433,12 @@ export type TranslationStudioDeskTypes = {
 };
 }
 
-declare namespace ContractModule1436 {
-import RoomBriefRecord = ContractModule266.RoomBriefRecord;
-import ShareLinkView = ContractModule266.ShareLinkView;
-import Json = ContractModule266.Json;
-import roomOwnerView = ContractModule910.roomOwnerView;
-import purchaseHandoff = ContractModule1437.purchaseHandoff;
+declare namespace ContractModule1458 {
+import RoomBriefRecord = ContractModule302.RoomBriefRecord;
+import ShareLinkView = ContractModule302.ShareLinkView;
+import Json = ContractModule302.Json;
+import roomOwnerView = ContractModule942.roomOwnerView;
+import purchaseHandoff = ContractModule1459.purchaseHandoff;
 type Purchase = ReturnType<typeof purchaseHandoff>;
 export type VirtualAssistantDeskTypes = {
     room: {
@@ -13748,32 +12475,11 @@ export type VirtualAssistantDeskTypes = {
 };
 }
 
-declare namespace ContractModule1437 {
-export function purchaseHandoff(input: {
-    item: string;
-    quantity: string;
-    unitMinor: string;
-    currency: string;
-}): {
-    totalMinor: string;
-    display: string;
-    receipt: {
-        operation: "multiply";
-        inputs: string[];
-        result: string;
-        unit: "minor";
-    };
-    receiptId: string;
-    purchased: false;
-    line: string;
-    item: string;
-    quantity: string;
-    unitMinor: string;
-    currency: string;
-};
+declare namespace ContractModule1459 {
+export import purchaseHandoff = ContractModule1952.purchaseHandoff;
 }
 
-declare namespace ContractModule1438 {
+declare namespace ContractModule1460 {
 export type RoomRequest = {
     id: string;
     text: string;
@@ -13785,176 +12491,33 @@ export type RoomBriefBody = {
     clientId: string;
     playbook: string;
     requests: RoomRequest[];
-    brief: ContractModule908.RoomBrief | null;
+    brief: ContractModule940.RoomBrief | null;
 };
 }
 
-declare namespace ContractModule1455 {
-import DeskKindTypes = ContractModule817.DeskKindTypes;
+declare namespace ContractModule1477 {
+import DeskKindTypes = ContractModule849.DeskKindTypes;
 export type WebsiteStudioDeskTypes = {
     projects: DeskKindTypes;
 };
 }
 
-declare namespace ContractModule1483 {
-export type Finding = {
-    id: string;
-    outcome: 'pass' | 'fail' | 'not-run';
-    detail: string;
-};
+declare namespace ContractModule1506 {
+export import YoutubeBoardBody = ContractModule1971.YoutubeBoardBody;
 }
 
-declare namespace ContractModule1485 {
-export function timedBeats(lines: string[], loopBack: string, wordsPerMinute: number, bucketSeconds: 4 | 6 | 8): {
-    beats: {
-        line: string;
-        startMs: number;
-        endMs: number;
-        bucketSeconds: 4 | 6 | 8;
-    }[];
-    findings: {
-        code: string;
-        beat: number | null;
-    }[];
-    durationMs: number;
-    passed: boolean;
-};
-}
-
-declare namespace ContractModule1486 {
-import CutTimeline = ContractModule1506.CutTimeline;
-import publishingText = ContractModule1518.publishingText;
-import planBroll = ContractModule1489.planBroll;
-import timedBeats = ContractModule1485.timedBeats;
-import Finding = ContractModule1483.Finding;
-export type BoardOutput = {
-    id: string;
-    kind: 'interchange' | 'publishing' | 'captions' | 'instructions' | 'page';
-    path: string;
-    text: string;
-    decision: 'pending' | 'approved' | 'discarded';
-    request: string | null;
-    publishing?: ReturnType<typeof publishingText>;
-};
-export type YoutubeBoardBody = {
-    editVersion: string;
-    editorCommand?: {
-        app: string;
-        args: string[];
-        line: string;
-    } | null;
-    grids?: Record<string, {
-        digest: string;
-        assetId: string;
-        sourceDigest: string;
-        contentBase64: string;
-    }>;
-    reviews?: Record<string, {
-        passed: boolean;
-        gridDigest: string;
-        answers: {
-            burnedCaptions: boolean;
-            lowerThirds: boolean;
-            watermarks: boolean;
-        };
-    }>;
-    timeline: CutTimeline;
-    outputs: BoardOutput[];
-    broll?: ReturnType<typeof planBroll>;
-    removedBroll?: string[];
-    brollReview?: {
-        passed: boolean;
-        answers: {
-            burnedCaptions: boolean;
-            lowerThirds: boolean;
-            watermarks: boolean;
-        };
-        gridDigest: string;
-    };
-    grid?: {
-        digest: string;
-        assetId: string;
-        sourceDigest: string;
-    };
-    beats?: ReturnType<typeof timedBeats>;
-    finishing?: Finding[];
-    finishingBinding?: {
-        sourceFile: string;
-        sourceDigest: string;
-        file: string;
-        fileDigest: string;
-    };
-    clips?: {
-        passed: boolean;
-        rows: {
-            index: number;
-            startMs: number;
-            endMs: number;
-            durationMs: number;
-            problems: string[];
-        }[];
-    };
-};
-}
-
-declare namespace ContractModule1487 {
-import YoutubeEditRecord = ContractModule266.YoutubeEditRecord;
+declare namespace ContractModule1507 {
+import YoutubeEditRecord = ContractModule302.YoutubeEditRecord;
 export function boardView(edit: YoutubeEditRecord): {
     id: string;
     orderId: string;
     digest: string;
-    board: ContractModule1486.YoutubeBoardBody | null;
+    board: ContractModule1506.YoutubeBoardBody | null;
 };
 }
 
-declare namespace ContractModule1489 {
-import EditWord = ContractModule1501.EditWord;
-export type BrollBeat = {
-    id: string;
-    wordId: string;
-    assetId: string | null;
-    kind: 'receipt' | 'entity' | 'concept' | 'meme';
-    delayMs: number;
-    durationMs: number;
-};
-export type BrollAsset = {
-    id: string;
-    source: {
-        kind: string;
-        licenceId?: string;
-        uploadId?: string | null;
-    };
-    licence: string | null;
-    state: string;
-    fileDigest: string | null;
-    supersededBy: string | null;
-};
-export function planBroll(words: readonly EditWord[], beats: BrollBeat[], assets: BrollAsset[], removed: string[]): {
-    digest: string;
-    approvedDigest: string | null;
-    beats: BrollBeat[];
-    windows: {
-        ids: string[];
-        assetId: string | null;
-        startMs: number;
-        endMs: number;
-    }[];
-    removed: string[];
-    assetBindings: {
-        id: string;
-        fileDigest: string | null;
-        licence: string | null;
-        source: {
-            kind: string;
-            licenceId?: string;
-            uploadId?: string | null;
-        };
-    }[];
-};
-}
-
-declare namespace ContractModule1493 {
-import EditDocument = ContractModule1501.EditDocument;
+declare namespace ContractModule1513 {
+import EditDocument = ContractModule1521.EditDocument;
 export type QuietSpan = {
     startMs: number;
     endMs: number;
@@ -13975,11 +12538,11 @@ export type CleanupInput = {
 };
 }
 
-declare namespace ContractModule1499 {
-import styleView = ContractModule1540.styleView;
-import boardView = ContractModule1487.boardView;
-import Json = ContractModule266.Json;
-import YoutubeEditView = ContractModule1519.YoutubeEditView;
+declare namespace ContractModule1519 {
+import styleView = ContractModule1558.styleView;
+import boardView = ContractModule1507.boardView;
+import Json = ContractModule302.Json;
+import YoutubeEditView = ContractModule1537.YoutubeEditView;
 export type YoutubeDeskTypes = {
     public: {
         filter: Json;
@@ -14060,17 +12623,11 @@ export type YoutubeDeskTypes = {
 };
 }
 
-declare namespace ContractModule1501 {
-export type EditWord = {
-    id: string;
-    text: string;
-    startMs: number;
-    endMs: number;
-};
-export type WordRange = {
-    from: string;
-    to: string;
-};
+declare namespace ContractModule1521 {
+import EditDocument = ContractModule34.EditDocument;
+import WordRange = ContractModule34.WordRange;
+export import EditDocument = ContractModule34.EditDocument;
+export import WordRange = ContractModule34.WordRange;
 export type EditOp = ({
     kind: 'cut' | 'restore' | 'clip' | 'hook';
 } & WordRange) | ({
@@ -14085,25 +12642,6 @@ export type EditOp = ({
 } | {
     kind: 'title';
     text: string;
-};
-export type EditDocument = {
-    durationMs: number;
-    words: EditWord[];
-    cuts: (WordRange & {
-        startMs: number;
-        endMs: number;
-        manual?: boolean;
-    })[];
-    settings: {
-        title?: string;
-        layout?: string;
-        captions?: string;
-        hook?: WordRange;
-        clips?: WordRange[];
-        zooms?: (WordRange & {
-            scale: number;
-        })[];
-    };
 };
 export type EditResult = {
     document: EditDocument;
@@ -14127,115 +12665,21 @@ export type EditResult = {
 };
 }
 
-declare namespace ContractModule1506 {
-export type FrameRate = 25 | 30 | '29.97df';
-export type FrameRange = {
-    source: string;
-    startFrame: number;
-    endFrame: number;
-};
-export type CutTimeline = {
-    rate: FrameRate;
-    ranges: FrameRange[];
-};
+declare namespace ContractModule1535 {
+export import YoutubeQuotaUse = ContractModule1981.YoutubeQuotaUse;
+export import YoutubePublicRead = ContractModule1981.YoutubePublicRead;
 }
 
-declare namespace ContractModule1517 {
-import Json = ContractModule57.Json;
-export type YoutubePublicRequest = {
-    kind: 'videos' | 'channels';
-    ids: string[];
-} | {
-    kind: 'search';
-    query: string;
-    pageToken?: string;
-};
-export type YoutubeQuotaUse = {
-    project: string;
-    day: string;
-    shared: number;
-    search: number;
-};
-export type YoutubePublicRead = {
-    id: string;
-    project: string;
-    connection: string;
-    request: YoutubePublicRequest;
-    orderDigest: string;
-    state: 'prepared' | 'running' | 'completed' | 'failed';
-    preparedAt: string;
-    attemptedAt: string | null;
-    result: Json | null;
-    error: string | null;
-    receiptId: string | null;
-    uploadId: string | null;
-    uploadDigest: string | null;
-};
-}
-
-declare namespace ContractModule1518 {
-export const PUBLISH_LIMITS: {
-    youtube: {
-        limit: number;
-        unit: string;
-        checkedOn: string;
-        source: string;
-    };
-    instagram: {
-        verification: string;
-        limit: number;
-        unit: string;
-        checkedOn: string;
-        source: string;
-    };
-    tiktok: {
-        limit: number;
-        unit: string;
-        checkedOn: string;
-        source: string;
-    };
-};
-export function publishingText(platform: keyof typeof PUBLISH_LIMITS, text: string): {
-    passed: boolean;
-    limit: number;
-    unit: string;
-    checkedOn: string;
-    source: string;
-    platform: "instagram" | "youtube" | "tiktok";
-    text: string;
-    count: number;
-} | {
-    passed: boolean;
-    verification: string;
-    limit: number;
-    unit: string;
-    checkedOn: string;
-    source: string;
-    platform: "instagram" | "youtube" | "tiktok";
-    text: string;
-    count: number;
-} | {
-    passed: boolean;
-    limit: number;
-    unit: string;
-    checkedOn: string;
-    source: string;
-    platform: "instagram" | "youtube" | "tiktok";
-    text: string;
-    count: number;
-};
-}
-
-declare namespace ContractModule1519 {
-import YoutubeBoardBody = ContractModule1486.YoutubeBoardBody;
-import styleCard = ContractModule1541.styleCard;
-import SourceRef = ContractModule946.SourceRef;
-import EditDocument = ContractModule1501.EditDocument;
-import EditOp = ContractModule1501.EditOp;
-import EditResult = ContractModule1501.EditResult;
-import CleanupInput = ContractModule1493.CleanupInput;
-import CaptionCue = ContractModule905.CaptionCue;
-import CaptionProfileId = ContractModule905.CaptionProfileId;
+declare namespace ContractModule1537 {
+import YoutubeBoardBody = ContractModule1506.YoutubeBoardBody;
+import styleCard = ContractModule1559.styleCard;
+import SourceRef = ContractModule975.SourceRef;
+import EditDocument = ContractModule1521.EditDocument;
+import EditOp = ContractModule1521.EditOp;
+import EditResult = ContractModule1521.EditResult;
+import CleanupInput = ContractModule1513.CleanupInput;
+import CaptionCue = ContractModule937.CaptionCue;
+import CaptionProfileId = ContractModule937.CaptionProfileId;
 export type YoutubeWordSource = Omit<CleanupInput, 'document'> & {
     label: string;
     document: EditDocument;
@@ -14290,28 +12734,12 @@ export type YoutubeEditView = YoutubeEditBody & {
 };
 }
 
-declare namespace ContractModule1527 {
-import Json = ContractModule57.Json;
-export type ResearchMode = 'after-publish' | 'outliers' | 'niche' | 'comments' | 'script' | 'archive';
-export type YoutubeResearchBody = {
-    mode: ResearchMode;
-    source: {
-        id: string;
-        name: string;
-        digest: string;
-    };
-    orderDigest: string;
-    mapping: Record<string, string>;
-    options: Record<string, Json>;
-    sourceConsent: true;
-    result: Json;
-    receiptId: string;
-    approval: string | null;
-};
+declare namespace ContractModule1545 {
+export import YoutubeResearchBody = ContractModule1986.YoutubeResearchBody;
 }
 
-declare namespace ContractModule1540 {
-import YoutubeStyleRecord = ContractModule266.YoutubeStyleRecord;
+declare namespace ContractModule1558 {
+import YoutubeStyleRecord = ContractModule302.YoutubeStyleRecord;
 export const styleView: (record: YoutubeStyleRecord) => {
     id: string;
     digest: string;
@@ -14323,14 +12751,14 @@ export const styleView: (record: YoutubeStyleRecord) => {
     }[];
     card: {
         count: number;
-        metrics: ContractModule1541.StyleMeasure;
+        metrics: ContractModule1559.StyleMeasure;
         line: string;
         faceLine: string;
     };
 };
 }
 
-declare namespace ContractModule1541 {
+declare namespace ContractModule1559 {
 export type StyleSample = {
     durationMs: number;
     sceneTimesMs: number[];
@@ -14358,7 +12786,7 @@ export function styleCard(samples: StyleSample[]): {
 };
 }
 
-declare namespace ContractModule1576 {
+declare namespace ContractModule1593 {
 export const COLUMN_KINDS: readonly [
     "text",
     "date",
@@ -14386,9 +12814,9 @@ export type CellView = {
 };
 }
 
-declare namespace ContractModule1578 {
-import CellView = ContractModule1576.CellView;
-import TrackerColumn = ContractModule1576.TrackerColumn;
+declare namespace ContractModule1595 {
+import CellView = ContractModule1593.CellView;
+import TrackerColumn = ContractModule1593.TrackerColumn;
 export type TrackerView = {
     id: string;
     name: string;
@@ -14421,7 +12849,1959 @@ export type TrackerDetail = {
 };
 }
 
-declare namespace ContractModule1581 {
+declare namespace ContractModule1598 {
+export import DiagnosticsTodayView = ContractModule1996.DiagnosticsTodayView;
+}
+
+declare namespace ContractModule1601 {
+export import FindRequest = ContractModule1997.FindRequest;
+export import FindView = ContractModule1997.FindView;
+}
+
+declare namespace ContractModule1606 {
+export import LayoutPlace = ContractModule1998.LayoutPlace;
+export import LayoutRequest = ContractModule1998.LayoutRequest;
+export import LayoutBlockView = ContractModule1998.LayoutBlockView;
+}
+
+declare namespace ContractModule1607 {
+import LayoutBlockView = ContractModule1606.LayoutBlockView;
+import LayoutPlace = ContractModule1606.LayoutPlace;
+import LayoutRequest = ContractModule1606.LayoutRequest;
+export type LayoutView = {
+    place: LayoutPlace;
+    title: string;
+    href: string;
+    blocks: LayoutBlockView[];
+    views: {
+        id: string;
+        name: string;
+    }[];
+    custom: boolean;
+    ai: {
+        count: number;
+        lines: string[];
+        undo: LayoutRequest;
+    } | null;
+    go: {
+        id: string;
+        href: string;
+        title: string;
+        at: string;
+    } | null;
+};
+export type LayoutChangeResult = {
+    layout: LayoutView;
+    undo: LayoutRequest;
+    line: string;
+};
+}
+
+declare namespace ContractModule1627 {
+export import WorkKind = ContractModule1999.WorkKind;
+}
+
+declare namespace ContractModule1631 {
+export import SavedSearchKey = ContractModule35.SavedSearchKey;
+export import SearchProviderId = ContractModule35.SearchProviderId;
+export import WebSearchView = ContractModule35.WebSearchView;
+export type WebReadView = {
+    url: string;
+    title: string | null;
+    siteName: string | null;
+    text: string;
+    words: number;
+    more: boolean;
+    via: 'page' | 'javascript';
+    label: string;
+    line: string;
+};
+}
+
+declare namespace ContractModule1633 {
+import WorkKind = ContractModule1627.WorkKind;
+export type WorkStepState = 'waiting' | 'current' | 'done' | 'failed';
+export type WorkJobView = {
+    workId: string;
+    kind: WorkKind;
+    startedAt: string;
+    steps: {
+        id: string;
+        state: WorkStepState;
+        passed?: boolean;
+    }[];
+};
+}
+
+declare namespace ContractModule1644 {
+export type Json = null | boolean | number | string | Json[] | {
+    [key: string]: Json;
+};
+}
+
+declare namespace ContractModule1645 {
+type Identity = {
+    id: string;
+    name: string;
+    credentialRef?: string;
+    credentialRevision?: string;
+};
+export type ExternalMcpServer = Identity & ({
+    transport: 'stdio';
+    command: string;
+    args: string[];
+    tokenEnv?: string;
+} | {
+    transport: 'http';
+    url: string;
+    oauth?: true;
+});
+}
+
+declare namespace ContractModule1646 {
+import ExternalMcpServer = ContractModule1645.ExternalMcpServer;
+export type CuratedMcpServer = {
+    id: string;
+    name: string;
+    about: string;
+    registryName: string;
+    registryVersion: string;
+    checkedOn: string;
+    signIn: 'none' | 'oauth' | 'key';
+    access: 'read' | 'write';
+    server: ExternalMcpServer;
+};
+export type CuratedMcpView = {
+    source: 'https://registry.modelcontextprotocol.io';
+    checkedOn: string;
+    servers: CuratedMcpServer[];
+};
+}
+
+declare namespace ContractModule1647 {
+import AgentDriverSettings = ContractModule2.AgentDriverSettings;
+import ExternalMcpServer = ContractModule1645.ExternalMcpServer;
+export type AiProvider = 'codex' | 'claude';
+export type AiNetwork = 'off' | 'research' | 'on';
+export type AiTaskSettings = {
+    model: string;
+    effort: AgentDriverSettings['effort'];
+};
+export type AiProviderSettings = {
+    quick: AiTaskSettings;
+    main: AiTaskSettings;
+    network: AiNetwork;
+    webSearch: AiNetwork;
+    shell: false;
+    fallbackModel?: string;
+    connectors?: boolean;
+};
+export type AiSettings = {
+    codex: AiProviderSettings;
+    claude: AiProviderSettings;
+    autoReview: boolean;
+    agentAutoReview: Record<string, boolean>;
+    mcpServers: ExternalMcpServer[];
+    planPause?: number | null;
+    offerWays?: boolean;
+};
+export type AiSettingsView = {
+    settings: AiSettings;
+    boundaries: {
+        jobFolderOnly: true;
+        windowsSandbox: 'unelevated';
+        shell: 'unavailable';
+        mcp: 'chausar-proxy';
+        externalMcp: 'approval-required';
+    };
+    agents: {
+        id: string;
+        name: string;
+    }[];
+    models: {
+        codex: string[] | null;
+    };
+    modelChoices: Record<AiProvider, {
+        faster: string;
+        smarter: string;
+    }>;
+};
+}
+
+declare namespace ContractModule1648 {
+export const HIRE_READS: readonly [
+    "clients",
+    "orders",
+    "runs",
+    "money",
+    "plan",
+    "journal",
+    "notes",
+    "trackers"
+];
+export type HireRead = typeof HIRE_READS[number];
+}
+
+declare namespace ContractModule1652 {
+export type TalkView = {
+    desktop: boolean;
+    consent: {
+        given: boolean;
+        stale: boolean;
+        text: string;
+        digest: string;
+        at: string | null;
+        keepAudio: boolean;
+    };
+    listen: 'whisper-local' | 'sarvam';
+    whisper: {
+        ready: boolean;
+        line: string;
+    };
+    sarvam: {
+        label: 'fixture-tested';
+        connected: boolean;
+        price: {
+            paisePerMinute: string;
+            checkedOn: string;
+            source: string;
+        };
+        rateDigest: string;
+        capMinor: string;
+        cap: string;
+        spentMinor: string;
+        spent: string;
+        line: string;
+    };
+    speak: {
+        label: 'write' | 'planned: write';
+        line: string;
+    };
+    session: {
+        id: string;
+        expiresAt: string;
+    } | null;
+    recordings: number;
+    line: string;
+};
+export type TalkStarted = {
+    sessionId: string;
+    expiresAt: string;
+    seconds: number;
+    provider: 'whisper-local' | 'sarvam';
+};
+export type TalkHeard = {
+    text: string;
+    provider: 'whisper-local' | 'sarvam';
+    kept: boolean;
+    cost: {
+        minor: string;
+        figure: string;
+    } | null;
+    line: string;
+};
+export type TalkSaid = {
+    spoken: string;
+    quote: {
+        chars: number;
+        figure: string;
+        checkedOn: string;
+        textDigest: string;
+        rateDigest: string;
+    } | null;
+    audioBase64: string | null;
+    line: string;
+};
+export type TalkConsentInput = {
+    digest: string;
+    keepAudio: boolean;
+} | {
+    withdraw: true;
+};
+export type TalkSetupInput = {
+    listen: 'whisper-local';
+} | {
+    listen: 'sarvam';
+    key?: string;
+    capMinor: string;
+    rateDigest: string;
+} | {
+    clearSarvam: true;
+};
+}
+
+declare namespace ContractModule1654 {
+export const APP_PERMISSIONS: readonly [
+    "clients",
+    "orders",
+    "invoices",
+    "notes",
+    "calculator",
+    "propose"
+];
+export type AppPermission = typeof APP_PERMISSIONS[number];
+}
+
+declare namespace ContractModule1658 {
+export type OpenPlatform = 'bluesky' | 'mastodon' | 'telegram' | 'discord';
+export type OpenPostingAccount = {
+    platform: OpenPlatform;
+    server: string;
+    accountId: string;
+    destinationId: string;
+    label: string;
+    maxChars: number;
+};
+export type OpenAccountView = {
+    id: OpenPlatform;
+    account: OpenPostingAccount | null;
+    digest: string;
+    connected: boolean;
+    revision: number;
+};
+}
+
+declare namespace ContractModule1659 {
+import SellerCaps = ContractModule1835.SellerCaps;
+import SellerChange = ContractModule1835.SellerChange;
+export type ShopifyProduct = {
+    variantId: string;
+    productId: string;
+    inventoryItemId: string;
+    locationId: string;
+    sku: string | null;
+    title: string;
+    priceMinor: string;
+    currency: string;
+    stock: string;
+};
+export type ShopifyCatalogueRow = Pick<ShopifyProduct, 'variantId' | 'productId' | 'sku' | 'title' | 'priceMinor' | 'currency'>;
+export function shopifyChange(context: {
+    product: ShopifyProduct;
+    breakEvenMinor: string | null;
+    caps: SellerCaps;
+    today: string;
+    operationId: string;
+    ownerSku?: string;
+}, change: SellerChange): {
+    proposal: ContractModule1835.SellerStaged;
+    query: string;
+    variables: Record<string, unknown>;
+    expected: string;
+    field: "price" | "title" | "stock";
+};
+}
+
+declare namespace ContractModule1661 {
+export type StorefrontProduct = {
+    variantId: string;
+    productId: string;
+    title: string;
+    variantTitle: string;
+    available: boolean;
+    currency: string;
+    priceMinor: string;
+};
+export type StorefrontCatalogue = {
+    rows: StorefrontProduct[];
+    truncated: boolean;
+    total: number | null;
+    reason: 'page-limit' | 'variants-limited' | 'read-failed' | 'rows-changed' | 'cursor-repeated' | null;
+};
+}
+
+declare namespace ContractModule1663 {
+export type ClientAiContextBinding = {
+    ventureId: string;
+    orderId: string;
+    clientId: string;
+    consentId: string;
+    consentRevision: number;
+};
+export type ClientAiDefaultView = {
+    on: boolean;
+    disclosure: string;
+    digest: string;
+    setAt: string | null;
+    line: string;
+};
+}
+
+declare namespace ContractModule1665 {
+export const ASKED_MEASURES: readonly [
+    "turnover",
+    "headcount"
+];
+export type AskedMeasure = (typeof ASKED_MEASURES)[number];
+export type SizeChoice = {
+    id: string;
+    label: string;
+};
+export type SizeQuestion = {
+    measure: AskedMeasure;
+    question: string;
+    choices: SizeChoice[];
+    answer: string | null;
+};
+export type SizeAsk = {
+    measures: AskedMeasure[];
+    line: string;
+    questions: SizeQuestion[];
+};
+}
+
+declare namespace ContractModule1669 {
+import ReportAnswer = ContractModule1681.ReportAnswer;
+export const QUESTION_MILESTONES: readonly [
+    "ai_connected",
+    "first_job_done",
+    "first_invoice",
+    "first_payment"
+];
+export type QuestionMilestone = typeof QUESTION_MILESTONES[number];
+export const CRASH_SOURCES: readonly [
+    "window",
+    "engine",
+    "desktop"
+];
+export type CrashSource = typeof CRASH_SOURCES[number];
+export type ReportEvent = {
+    event: string;
+    distinct_id: string;
+    properties: Record<string, string | number | boolean>;
+};
+export type CrashFrame = {
+    function: string;
+    filename: string;
+    lineno: number;
+    colno: number;
+    in_app: true;
+};
+export type SentryEvent = {
+    event_id: string;
+    platform: 'node';
+    level: 'error';
+    release: string;
+    environment: string;
+    tags: Record<string, string>;
+    user: {
+        id: string;
+    };
+    exception: {
+        values: {
+            type: string;
+            value: string;
+            stacktrace: {
+                frames: CrashFrame[];
+            };
+        }[];
+    };
+};
+export type FeedbackPreview = {
+    digest: string;
+    posthog: {
+        to: string;
+        events: ReportEvent[];
+    } | null;
+    sentry: {
+        to: string;
+        events: SentryEvent[];
+    } | null;
+};
+export type FeedbackSend = {
+    at: string;
+    posthog: number | null;
+    sentry: number | null;
+    accepted: boolean;
+    line: string;
+};
+export type FeedbackView = {
+    host: string;
+    notice: {
+        text: string;
+        digest: string;
+    };
+    consent: {
+        given: boolean;
+        stale: boolean;
+        usage: boolean;
+        crashes: boolean;
+        at: string | null;
+    };
+    setUp: {
+        posthog: boolean;
+        sentry: boolean;
+        line: string;
+    };
+    reportId: string | null;
+    preview: FeedbackPreview | null;
+    question: {
+        id: QuestionMilestone;
+        text: string;
+        choices: {
+            id: ReportAnswer;
+            label: string;
+        }[];
+    } | null;
+    lastSend: FeedbackSend | null;
+    deletion: {
+        at: string;
+        reportId: string;
+        line: string;
+    } | null;
+    line: string;
+};
+export type FeedbackCrashKept = {
+    kept: boolean;
+    line: string;
+};
+export type FeedbackConsentInput = {
+    digest: string;
+    usage: boolean;
+    crashes: boolean;
+} | {
+    withdraw: true;
+};
+export type FeedbackCrashInput = {
+    source: CrashSource;
+    name: string;
+    message: string;
+    stack?: string;
+};
+export type FeedbackAnswerInput = {
+    questionId: QuestionMilestone;
+    answer: ReportAnswer | 'skip';
+};
+}
+
+declare namespace ContractModule1675 {
+export type PriceSourceView = {
+    url: string;
+    publisher: string;
+    title: string;
+    published: string | null;
+};
+export type PriceRangeView = {
+    id: string;
+    label: string;
+    currency: string;
+    lowMinor: string;
+    highMinor: string;
+    kind: 'range' | 'minimums' | 'cap';
+    text: string;
+    per: string;
+    city: string | null;
+    sources: PriceSourceView[];
+    checkedOn: string;
+    checked: string;
+    note: string;
+};
+export type PriceGuideView = {
+    profession: string;
+    label: string;
+    family: string;
+    status: 'sourced' | 'no-reliable-data';
+    ranges: PriceRangeView[];
+    line: string | null;
+    reason: string | null;
+    checkedOn: string;
+    checked: string;
+};
+}
+
+declare namespace ContractModule1681 {
+export const REPORT_ANSWERS: readonly [
+    "easy",
+    "okay",
+    "hard"
+];
+export type ReportAnswer = typeof REPORT_ANSWERS[number];
+}
+
+declare namespace ContractModule1682 {
+export type CrmEntryKind = 'call' | 'whatsapp' | 'meeting' | 'note';
+export type FieldChangeView = {
+    id: string;
+    subject: string;
+    field: string;
+    label: string;
+    who: string;
+    at: string;
+    line: string;
+    before: string | null;
+    after: string | null;
+};
+export type TimelineKind = CrmEntryKind | 'sent' | 'reply' | 'invoice' | 'order' | 'draft';
+export type TimelineEntryView = {
+    id: string;
+    kind: TimelineKind;
+    on: string;
+    at: string;
+    line: string;
+    text: string | null;
+    clientId: string;
+};
+export type CrmRef = {
+    id: string;
+    name: string;
+};
+export type ClientCrmView = {
+    clientId: string;
+    company: CrmRef | null;
+    history: FieldChangeView[];
+    timeline: TimelineEntryView[];
+    lists: {
+        listId: string;
+        name: string;
+        stage: string;
+    }[];
+};
+export type CrmMemberView = {
+    member: string;
+    company: CrmRef | null;
+    history: FieldChangeView[];
+};
+export type CompanyRow = {
+    id: string;
+    name: string;
+    domain: string | null;
+    clients: number;
+    people: number;
+};
+export type CompanyView = {
+    company: CompanyRow & {
+        note: string | null;
+    };
+    clients: CrmRef[];
+    people: CrmRef[];
+    history: FieldChangeView[];
+    timeline: TimelineEntryView[];
+};
+export type CrmListRow = {
+    id: string;
+    name: string;
+    stages: string[];
+    count: number;
+};
+export type CrmListEntry = {
+    member: string;
+    kind: 'client' | 'person' | 'company';
+    name: string;
+    at: string;
+};
+export type CrmListView = {
+    list: CrmListRow;
+    groups: {
+        stage: string;
+        entries: CrmListEntry[];
+    }[];
+    history: FieldChangeView[];
+    line: string;
+};
+}
+
+declare namespace ContractModule1688 {
+export type FactVisibility = 'ai' | 'owner';
+export type FactSourceKind = 'owner' | 'ai';
+export type FactView = {
+    id: string;
+    subject: string;
+    topic: string;
+    text: string;
+    since: string;
+    at: string;
+    source: FactSourceKind;
+    sourceLine: string;
+    visibility: FactVisibility;
+    visibilityLine: string;
+    current: boolean;
+    replaces: string | null;
+    replacedBy: string | null;
+    replacedAt: string | null;
+    erased: boolean;
+};
+export type MemoryView = {
+    facts: FactView[];
+    earlier: FactView[];
+    line: string;
+};
+export type MemoryChange = {
+    fact: FactView | null;
+    replaced: FactView | null;
+    line: string;
+};
+}
+
+declare namespace ContractModule1705 {
+import ExternalMcpServer = ContractModule1645.ExternalMcpServer;
+export type PackUnit = 'money' | 'count' | 'bps';
+export type PackInput = {
+    name: string;
+    label: string;
+    unit: PackUnit;
+};
+export type PackCalculatorView = {
+    id: string;
+    name: string;
+    about: string;
+    inputs: PackInput[];
+    output: {
+        label: string;
+        unit: PackUnit;
+    };
+    moduleDigest: string;
+};
+export type PackView = {
+    id: string;
+    name: string;
+    version: string;
+    about: string;
+    digest: string;
+    skills: {
+        id: string;
+        title: string;
+        words: number;
+    }[];
+    mcpServers: ExternalMcpServer[];
+    calculators: PackCalculatorView[];
+};
+}
+
+declare namespace ContractModule1707 {
+export const PLAYBOOK_ORIGINS: readonly [
+    "plan",
+    "improvement",
+    "owner"
+];
+export type PlaybookOrigin = (typeof PLAYBOOK_ORIGINS)[number];
+}
+
+declare namespace ContractModule1734 {
+export type IsoDate = string;
+}
+
+declare namespace ContractModule1735 {
+export const FACT_FIELDS: readonly [
+    "regime",
+    "residency",
+    "ageBand",
+    "income",
+    "filedOn",
+    "gstin",
+    "period",
+    "payeeKind",
+    "paymentDate",
+    "entity",
+    "houseProperties",
+    "presumptive",
+    "capitalGains",
+    "agriculture",
+    "formExclusions",
+    "regimeHistory",
+    "totalIncome",
+    "taxEstimate",
+    "taxCredits",
+    "businessIncome"
+];
+export type FactField = typeof FACT_FIELDS[number];
+export type MissingFact = {
+    field: FactField;
+    about?: string;
+};
+}
+
+declare namespace ContractModule1737 {
+export type PackSelection = {
+    packId: string;
+    digest: string;
+    fields: string[];
+    unmask: string[];
+    requestedBy: string;
+    purpose: string;
+};
+}
+
+declare namespace ContractModule1738 {
+import IsoDate = ContractModule1734.IsoDate;
+export type SectionRef = {
+    key: string;
+    act: string;
+    section: string;
+    title: string;
+    needsCaConfirmation: true;
+};
+export type TableStamp = {
+    id: string;
+    version: number;
+    hash: string;
+    title: string;
+    validFrom: IsoDate;
+    validTo: IsoDate | null;
+    confirmed: boolean;
+    confirmedBy: string | null;
+    needsCaConfirmation: true;
+};
+}
+
+declare namespace ContractModule1739 {
+export type CaEngine = 'advance-tax' | 'income-tax' | 'interest-234' | 'gst-working' | 'tds-working' | 'reconcile' | 'books-close' | 'portal-diff' | 'what-if' | 'doc-entry' | 'books-health' | 'data-pack';
+export type CaFigure = {
+    key: string;
+    label: string;
+    minor: string;
+    display: string;
+};
+export type CaReceiptStep = CaFigure & {
+    section: string | null;
+};
+}
+
+declare namespace ContractModule1769 {
+export type TimedWord = {
+    text: string;
+    startMs: number;
+    endMs: number;
+};
+export type CaptionCue = {
+    id: string;
+    startMs: number;
+    endMs: number;
+    lines: string[];
+    words: TimedWord[] | null;
+};
+export type CaptionProfileId = 'web' | 'broadcast' | 'vertical';
+}
+
+declare namespace ContractModule1770 {
+export type RoomPrice = {
+    offerId: string;
+    minor: string;
+    currency: string;
+    receiptId: string;
+    priceDigest: string;
+    display: string;
+};
+export type RoomFields = {
+    scope: string;
+    deliverable: string;
+    deadline: string;
+};
+export type RoomInput = {
+    orderId: string;
+    clientId: string;
+    request: string;
+    via: 'owner-recorded' | 'client-page';
+    fields: RoomFields;
+    price: RoomPrice;
+};
+export type ApprovedRoomBrief = RoomInput & {
+    version: number;
+    digest: string;
+    by: string;
+    at: string;
+};
+export type RoomBrief = RoomInput & {
+    version: number;
+    digest: string;
+    approved: ApprovedRoomBrief | null;
+};
+}
+
+declare namespace ContractModule1786 {
+export type CommunityVote = {
+    dimension: string;
+    score: number;
+    quote: string;
+};
+export type CommunityPost = {
+    id: string;
+    url: string;
+    community: string;
+    rulesUrl: string;
+    rulesCheckedOn: string;
+    readingAllowed: boolean;
+    on: string;
+    removed: boolean;
+    text: string;
+    votes: CommunityVote[];
+};
+export type CommunityInput = {
+    product: string;
+    confirmed: boolean;
+    problem: string;
+    categories: string[];
+    painWords: string[];
+    days: number;
+    posts: CommunityPost[];
+};
+export function communityReport(input: CommunityInput): {
+    product: string;
+    problem: string;
+    categories: string[];
+    painWords: string[];
+    posts: CommunityPost[];
+    coverage: string;
+    actions: never[];
+};
+}
+
+declare namespace ContractModule1833 {
+import shopifyChange = ContractModule1659.shopifyChange;
+import ShopifyProduct = ContractModule1659.ShopifyProduct;
+export type ShopifyRead = {
+    id: string;
+    orderId: string;
+    clientId: string;
+    domain: string;
+    storeId: string;
+    connectionDigest: string;
+    sessionId: string;
+    memberId: string;
+    epoch: number;
+    at: string;
+    product: ShopifyProduct;
+};
+export type ShopifyWrite = {
+    id: string;
+    read: ShopifyRead;
+    request: ReturnType<typeof shopifyChange>;
+    createdAt: string;
+    expiresAt: string;
+    phase: 'staged' | 'sending' | 'applied' | 'rejected' | 'unknown';
+    claimedAt: string | null;
+    finishedAt: string | null;
+    liveVerified: string | null;
+};
+}
+
+declare namespace ContractModule1834 {
+export type SellerMode = 'economics' | 'ads' | 'settlement' | 'listing';
+}
+
+declare namespace ContractModule1835 {
+export type SellerProduct = {
+    sku: string;
+    channel: string;
+    priceMinor: string;
+    breakEvenMinor: string | null;
+    stock: string;
+    title: string;
+    currency: string;
+};
+export type SellerCaps = {
+    priceChangeBps: string;
+    promotionBps: string;
+};
+export type SellerChange = {
+    field: string;
+    value: string;
+    clearance?: boolean;
+    scope?: string;
+    depthBps?: string;
+    endsOn?: string;
+};
+export type SellerStaged = {
+    product: SellerProduct;
+    change: SellerChange;
+    dryRun: true;
+    descriptionComplete: boolean;
+    missing: string[];
+    clearance: boolean;
+    confirmName: string | null;
+    money: boolean;
+    caps: SellerCaps;
+    capability: 'handoff';
+};
+}
+
+declare namespace ContractModule1837 {
+import StorefrontCatalogue = ContractModule1661.StorefrontCatalogue;
+export type SellerStorefrontBody = {
+    domain: string;
+    modelConnectionId: string;
+    maxPages: number;
+    language: 'en' | 'hi';
+    notice: string;
+    publicTokenDigest: string;
+    catalogue: StorefrontCatalogue;
+    readAt: string;
+    active: boolean;
+    link: {
+        tokenHash: string;
+        expiresAt: string;
+    } | null;
+};
+}
+
+declare namespace ContractModule1878 {
+export type SeoMonitorBody = {
+    url: string;
+    root: string;
+    cycles: number;
+    intervalSeconds: number;
+    state: 'draft' | 'active' | 'collecting' | 'complete' | 'stopped' | 'held';
+    approvedDigest: string | null;
+    completed: number;
+    lastAt: string | null;
+    nextAt: string | null;
+    error: string | null;
+    evidence: {
+        index: number;
+        folder: string;
+        receipt: string;
+        at: string;
+    }[];
+};
+export type SeoMonitorItem = SeoMonitorBody & {
+    id: string;
+};
+}
+
+declare namespace ContractModule1883 {
+export const SEO_WORK_OPERATIONS: readonly [
+    "content",
+    "meta",
+    "impact",
+    "refresh",
+    "local",
+    "strategy"
+];
+export type SeoWorkOperation = typeof SEO_WORK_OPERATIONS[number];
+export type SeoWorkBody = {
+    orderId: string;
+    clientId: string;
+    operation: SeoWorkOperation;
+    uploadId: string;
+    sourceDigest: string;
+    result: any;
+    receipt: string;
+    checkedAt: string;
+    state: 'checked' | 'approved' | 'muted' | 'resolved';
+    appliedEditId: string | null;
+    acceptance: {
+        checkedOn: string;
+        receipt: string;
+    } | null;
+};
+export type SeoWorkItem = SeoWorkBody & {
+    id: string;
+    stale: boolean;
+};
+}
+
+declare namespace ContractModule1889 {
+import SocialChannel = ContractModule1890.SocialChannel;
+import SocialFormat = ContractModule1897.SocialFormat;
+import SourceInventory = ContractModule1907.SourceInventory;
+import PostPlan = ContractModule1911.PostPlan;
+export type CanvasPost = {
+    id: string;
+    runId: string;
+    text: string;
+    channel: SocialChannel;
+    plan: Omit<PostPlan, 'postId'> | null;
+};
+export type SocialCanvasView = {
+    id: string;
+    orderId: string;
+    request: string;
+    runId: string | null;
+    inventory: SourceInventory | null;
+    sourceProblem: string | null;
+    cards: (SocialFormat & {
+        posts: CanvasPost[];
+    })[];
+};
+}
+
+declare namespace ContractModule1890 {
+export const SOCIAL_CHANNELS: readonly [
+    "instagram",
+    "facebook",
+    "linkedin",
+    "x",
+    "threads",
+    "tiktok",
+    "youtube-shorts",
+    "bluesky",
+    "mastodon",
+    "telegram",
+    "discord"
+];
+export type SocialChannel = typeof SOCIAL_CHANNELS[number];
+}
+
+declare namespace ContractModule1896 {
+export type InfluencerCoefficient = {
+    basisPoints: number;
+    source: 'owner' | 'default' | 'agent-judgement';
+    reason: string;
+};
+export type InfluencerPost = {
+    id: string;
+    publishedAt: string;
+    views: string;
+    comparable: boolean;
+    sourceUrl: string;
+    reason: string;
+};
+export function influencerFairPrice(raw: unknown): {
+    sampleCount: number;
+    coverage: string;
+    medianViews: string;
+    amountMinor: string;
+    display: string;
+    label: string;
+    actualRevenueMinor: null;
+    receipt: {
+        digest: string;
+        kind: "code";
+        formula: string;
+        rounding: string;
+        postIds: string[];
+        posts: InfluencerPost[];
+        coefficients: Record<"clickRate" | "signupRate" | "fit" | "competition", InfluencerCoefficient>;
+        inputs: {
+            asOf: string;
+            medianViews: string;
+            targetCpaMinor: string;
+            capMinor: string;
+        };
+        outputMinor: string;
+    };
+};
+}
+
+declare namespace ContractModule1897 {
+import SocialChannel = ContractModule1890.SocialChannel;
+export type SocialFormat = {
+    channel: SocialChannel;
+    format: 'text' | 'thread' | 'image' | 'image-brief' | 'video' | 'video-brief';
+    ready: boolean;
+    trace: string[];
+};
+}
+
+declare namespace ContractModule1901 {
+import ReplyBucket = ContractModule1913.ReplyBucket;
+export type InboxItem = {
+    orderId: string;
+    channel: string;
+    externalId: string;
+    author: string;
+    text: string;
+    source: 'paste' | 'export';
+    syncedAt: string;
+    bucket: ReplyBucket;
+    priority: number;
+    state: 'needs-reply' | 'handled' | 'ignored';
+    assignee: string | null;
+    reply: string;
+    ownerApproved: boolean;
+    clientApproved: boolean;
+    optedOut: boolean;
+};
+export type InboxView = InboxItem & {
+    id: string;
+    digest: string;
+};
+export function replyHandoff(row: InboxItem): {
+    capability: "handoff";
+    sent: boolean;
+    text: string;
+    channel: string;
+    to: string;
+};
+}
+
+declare namespace ContractModule1902 {
+import InfluencerCreator = ContractModule1906.InfluencerCreator;
+import InfluencerKeywords = ContractModule1906.InfluencerKeywords;
+import influencerFairPrice = ContractModule1896.influencerFairPrice;
+export type InfluencerActual = {
+    views: string;
+    signups: string;
+    spendMinor: string;
+    revenueMinor: string;
+    spendDisplay: string;
+    revenueDisplay: string;
+    sourceUrl: string;
+    observedAt: string;
+    note: string;
+    receipt: {
+        kind: 'code';
+        inputs: Record<string, string>;
+        output: {
+            spendMinor: string;
+            revenueMinor: string;
+        };
+        digest: string;
+    };
+};
+export type InfluencerFee = {
+    minor: string;
+    display: string;
+    receipt: {
+        kind: 'code';
+        inputs: {
+            priceRupees: string;
+        };
+        output: {
+            minor: string;
+        };
+        digest: string;
+    };
+};
+export type InfluencerCaseCreator = InfluencerCreator & {
+    priceCheckFee: InfluencerFee | null;
+    estimate: ReturnType<typeof influencerFairPrice> | null;
+    brief: {
+        objective: string;
+        deliverables: string;
+        disclosure: string;
+        platformLabel: 'Paid partnership';
+    } | null;
+    actual: InfluencerActual | null;
+    outreach: {
+        leadId: string;
+        draftId: string;
+    } | null;
+};
+export type InfluencerCase = {
+    orderId: string;
+    keywords: InfluencerKeywords;
+    creators: InfluencerCaseCreator[];
+    updatedAt: string;
+};
+export type InfluencerView = InfluencerCase & {
+    id: string;
+    digest: string;
+};
+}
+
+declare namespace ContractModule1905 {
+export type CampaignPacket = {
+    sourceDigest: string;
+    language: 'en' | 'hi';
+    title: string;
+    sections: {
+        heading: string;
+        lines: string[];
+        figures: {
+            label: string;
+            value: string;
+            receiptId: string;
+            estimate: boolean;
+        }[];
+    }[];
+    receipts: unknown[];
+    content: string;
+    filename: string;
+    digest: string;
+};
+}
+
+declare namespace ContractModule1906 {
+export const INFLUENCER_GROUPS: readonly [
+    "product",
+    "pain",
+    "scenario",
+    "creator",
+    "tags",
+    "competitors",
+    "negative"
+];
+export type InfluencerKeywords = Record<typeof INFLUENCER_GROUPS[number], string[]>;
+export type InfluencerCreator = {
+    id: string;
+    name: string;
+    channel: string;
+    channelUrl: string;
+    businessEmail: string | null;
+    businessEmailSource: string | null;
+    publicBusinessEmail: boolean;
+};
+}
+
+declare namespace ContractModule1907 {
+export type InventoryKind = 'claims' | 'numbers' | 'stories' | 'mistakes' | 'quotes';
+export type InventoryItem = {
+    kind: InventoryKind;
+    text: string;
+    from: number;
+    to: number;
+    numbers: string[];
+};
+export type SourceInventory = {
+    items: InventoryItem[];
+    counts: Record<InventoryKind | 'total', number>;
+};
+}
+
+declare namespace ContractModule1911 {
+export type PostPlan = {
+    postId: string;
+    kind: 'value' | 'sell';
+    goals: string[];
+    actions: string[];
+    hookFormula: string;
+};
+}
+
+declare namespace ContractModule1912 {
+import CrossPostPlan = ContractModule29.CrossPostPlan;
+export type ReelPlan = {
+    cuts: {
+        clipId: string;
+        startMs: number;
+        durationMs: number;
+        timelineMs: number;
+    }[];
+    captions: string;
+    durationMs: number;
+    endCard: {
+        contact: string;
+        durationMs: number;
+    };
+    hook: string;
+    capability: 'desktop';
+};
+export type ReelJob = {
+    sources: {
+        id: string;
+        digest: string;
+        durationMs: number;
+        hasAudio: boolean;
+    }[];
+    plan: ReelPlan;
+    output: string;
+    approvedDigest: string | null;
+    rendered: {
+        path: string;
+        digest: string;
+    } | null;
+};
+export type SocialAdPlan = {
+    photo: {
+        id: string;
+        digest: string;
+        kind: 'client';
+    };
+    category: string;
+    style: string;
+    stills: {
+        id: string;
+        digest: string;
+    }[];
+    boardDigest: string;
+    approvedDigest: string | null;
+    quote: {
+        units: number;
+        totalMinor: string;
+        display: string;
+        receiptId: string;
+        disclosure: string | null;
+        formula: string;
+        capability: 'handoff';
+        providerCalled: false;
+    } | null;
+};
+export type SocialProduction = {
+    cross: CrossPostPlan | null;
+    reel: ReelJob | null;
+    ad: SocialAdPlan | null;
+};
+export type SocialProductionView = {
+    id: string;
+    request: string;
+    digest: string;
+    production: SocialProduction;
+    capability: 'handoff';
+    videoUpload: 'planned';
+};
+}
+
+declare namespace ContractModule1913 {
+export const REPLY_BUCKETS: readonly [
+    "complaint",
+    "lead",
+    "question",
+    "request",
+    "praise",
+    "noise"
+];
+export type ReplyBucket = typeof REPLY_BUCKETS[number];
+}
+
+declare namespace ContractModule1914 {
+export type ExportPlatform = 'instagram' | 'linkedin';
+export type ReportFigureKey = 'posts' | 'views' | 'reach' | 'impressions' | 'engagements' | 'engagement-rate' | 'follows' | 'top-post';
+export type ReportReceipt = {
+    id: string;
+    platform: ExportPlatform;
+    month: string;
+    key: ReportFigureKey;
+    label: string;
+    value: string;
+    display: string;
+    unit: 'count' | 'percent' | 'post';
+    formula: string;
+    inputs: {
+        fileId: string;
+        fileName: string;
+        fileDigest: string;
+        columns: string[];
+        rows: number[];
+    };
+    numerator?: string;
+    denominator?: string;
+    digest: string;
+};
+}
+
+declare namespace ContractModule1918 {
+export type SocialScheduledBody = {
+    postId: string | null;
+    connectorId: string;
+    text: string;
+    account: string | null;
+    mode: string | null;
+    dueAt: string;
+    deadlineAt: string;
+    postDigest: string | null;
+    filesDigest: string | null;
+    approvedDigest: string | null;
+    approvedAt: string | null;
+    approvedBy: string | null;
+    nothingReadyAt: string | null;
+    state: 'draft' | 'scheduled' | 'waiting' | 'posted' | 'missed' | 'blocked' | 'unknown' | 'cancelled';
+    reason: string;
+};
+export type SocialScheduledItem = SocialScheduledBody & {
+    id: string;
+};
+}
+
+declare namespace ContractModule1920 {
+export type SocialHookHistory = {
+    runId: string;
+    postId: string;
+    textDigest: string;
+    hookFormula: string;
+    approvedAt: string;
+};
+}
+
+declare namespace ContractModule1932 {
+import BrokerId = ContractModule1935.BrokerId;
+import Exchange = ContractModule1935.Exchange;
+export type Instrument = 'equity' | 'future' | 'option';
+export type TradeRow = {
+    broker: BrokerId;
+    line: number;
+    tradeId: string;
+    orderId: string;
+    date: string;
+    time: string | null;
+    symbol: string;
+    isin: string | null;
+    exchange: Exchange;
+    instrument: Instrument;
+    side: 'buy' | 'sell';
+    quantity: string;
+    value4: string;
+    expiry: string | null;
+};
+}
+
+declare namespace ContractModule1933 {
+import Journal = ContractModule1934.Journal;
+import OpeningLot = ContractModule1934.OpeningLot;
+import BrokerId = ContractModule1935.BrokerId;
+import TaxPack = ContractModule1937.TaxPack;
+import TradeJournalEntry = ContractModule31.TradeJournalEntry;
+export type JournalListRow = {
+    id: string;
+    kind: TradeJournalEntry['kind'];
+    label: string;
+    at: string;
+    receiptId: string;
+};
+export type JournalItem = {
+    imports: {
+        id: string;
+        broker: BrokerId;
+        brokerName: string;
+        name: string;
+        trades: number;
+        formatChecked: boolean;
+        receiptId: string;
+    }[];
+    openings: (OpeningLot & {
+        entryId: string;
+    })[];
+    packs: {
+        id: string;
+        yearId: TaxPack['yearId'];
+        year: string;
+        act: string;
+        line: string;
+        receiptId: string;
+        stale: boolean;
+        figures: {
+            key: string;
+            label: string;
+            display: string;
+            section: string;
+        }[];
+    }[];
+    journal: Journal | null;
+    sourceDigest: string | null;
+    summary: {
+        receiptId: string;
+        figures: {
+            key: string;
+            label: string;
+            display: string;
+        }[];
+    } | null;
+};
+}
+
+declare namespace ContractModule1934 {
+import BrokerId = ContractModule1935.BrokerId;
+import Exchange = ContractModule1935.Exchange;
+import LegKind = ContractModule1935.LegKind;
+export type OpeningLot = {
+    id: string;
+    symbol: string;
+    isin: string | null;
+    boughtOn: string;
+    quantity: string;
+    costMinor: string;
+    fmvMinor: string | null;
+};
+export type ChargeLine = {
+    brokerage: string;
+    stt: string;
+    exchange: string;
+    sebi: string;
+    ipft: string;
+    stamp: string;
+    dp: string;
+    gst: string;
+    total: string;
+};
+export type ContractNote = {
+    broker: BrokerId;
+    date: string;
+    exchange: Exchange;
+    kind: LegKind;
+    buyMinor: string;
+    sellMinor: string;
+    orders: number;
+    dpScrips: number;
+    charges: ChargeLine;
+};
+export type RealisedLot = {
+    kind: 'intraday' | 'fno' | 'capital';
+    symbol: string;
+    isin: string | null;
+    quantity: string;
+    openedOn: string;
+    closedOn: string;
+    costMinor: string;
+    saleMinor: string;
+    pnlMinor: string;
+    closedBy: 'trade' | 'expiry';
+    longTerm: boolean;
+    grandfathered: {
+        fmvMinor: string;
+        costUsedMinor: string;
+    } | null;
+    needsFmv: boolean;
+};
+export type OpenPosition = {
+    symbol: string;
+    kind: 'equity' | 'fno';
+    quantity: string;
+    side: 'long' | 'short';
+    openedOn: string;
+};
+export type Unmatched = {
+    symbol: string;
+    date: string;
+    quantity: string;
+    line: string;
+};
+export type Journal = {
+    legs: number;
+    notes: ContractNote[];
+    realised: RealisedLot[];
+    open: OpenPosition[];
+    unmatched: Unmatched[];
+    totals: ChargeLine;
+    brokers: BrokerId[];
+};
+}
+
+declare namespace ContractModule1935 {
+export type LegKind = 'intraday' | 'delivery' | 'futures' | 'options';
+export type Exchange = 'NSE' | 'BSE';
+export type BrokerId = 'zerodha' | 'groww' | 'upstox' | 'dhan';
+}
+
+declare namespace ContractModule1937 {
+import TaxRule = ContractModule1938.TaxRule;
+import TaxYearRules = ContractModule1938.TaxYearRules;
+export type TaxFigure = {
+    key: string;
+    label: string;
+    minor: string;
+    display: string;
+    unit: 'money' | 'percent' | 'count';
+    how: string;
+    rule: TaxRule;
+    act: string;
+    year: string;
+};
+export type TaxPack = {
+    yearId: TaxYearRules['id'];
+    year: string;
+    act: string;
+    figures: TaxFigure[];
+    needsFmv: number;
+    unmatched: number;
+    openPositions: number;
+    line: string;
+};
+}
+
+declare namespace ContractModule1938 {
+export type RuleRead = 'official' | 'secondary' | 'unchecked';
+export type TaxRule = {
+    section: string;
+    words: string;
+    source: string;
+    read: RuleRead;
+};
+export type TaxYearRules = {
+    id: 'fy-2025-26' | 'ty-2026-27';
+    label: string;
+    act: string;
+    from: string;
+    to: string;
+    speculative: TaxRule;
+    nonSpeculative: TaxRule;
+    holding: TaxRule & {
+        months: number;
+    };
+    stcg: TaxRule & {
+        rateBps: number;
+    };
+    ltcg: TaxRule & {
+        rateBps: number;
+        exemptionMinor: string;
+    };
+    grandfather: TaxRule & {
+        fmvDay: string;
+    };
+    turnover: TaxRule;
+};
+}
+
+declare namespace ContractModule1952 {
+export function purchaseHandoff(input: {
+    item: string;
+    quantity: string;
+    unitMinor: string;
+    currency: string;
+}): {
+    totalMinor: string;
+    display: string;
+    receipt: {
+        operation: "multiply";
+        inputs: string[];
+        result: string;
+        unit: "minor";
+    };
+    receiptId: string;
+    purchased: false;
+    line: string;
+    item: string;
+    quantity: string;
+    unitMinor: string;
+    currency: string;
+};
+}
+
+declare namespace ContractModule1968 {
+export type Finding = {
+    id: string;
+    outcome: 'pass' | 'fail' | 'not-run';
+    detail: string;
+};
+}
+
+declare namespace ContractModule1970 {
+export function timedBeats(lines: string[], loopBack: string, wordsPerMinute: number, bucketSeconds: 4 | 6 | 8): {
+    beats: {
+        line: string;
+        startMs: number;
+        endMs: number;
+        bucketSeconds: 4 | 6 | 8;
+    }[];
+    findings: {
+        code: string;
+        beat: number | null;
+    }[];
+    durationMs: number;
+    passed: boolean;
+};
+}
+
+declare namespace ContractModule1971 {
+import CutTimeline = ContractModule1977.CutTimeline;
+import publishingText = ContractModule1982.publishingText;
+import planBroll = ContractModule1972.planBroll;
+import timedBeats = ContractModule1970.timedBeats;
+import Finding = ContractModule1968.Finding;
+export type BoardOutput = {
+    id: string;
+    kind: 'interchange' | 'publishing' | 'captions' | 'instructions' | 'page';
+    path: string;
+    text: string;
+    decision: 'pending' | 'approved' | 'discarded';
+    request: string | null;
+    publishing?: ReturnType<typeof publishingText>;
+};
+export type YoutubeBoardBody = {
+    editVersion: string;
+    editorCommand?: {
+        app: string;
+        args: string[];
+        line: string;
+    } | null;
+    grids?: Record<string, {
+        digest: string;
+        assetId: string;
+        sourceDigest: string;
+        contentBase64: string;
+    }>;
+    reviews?: Record<string, {
+        passed: boolean;
+        gridDigest: string;
+        answers: {
+            burnedCaptions: boolean;
+            lowerThirds: boolean;
+            watermarks: boolean;
+        };
+    }>;
+    timeline: CutTimeline;
+    outputs: BoardOutput[];
+    broll?: ReturnType<typeof planBroll>;
+    removedBroll?: string[];
+    brollReview?: {
+        passed: boolean;
+        answers: {
+            burnedCaptions: boolean;
+            lowerThirds: boolean;
+            watermarks: boolean;
+        };
+        gridDigest: string;
+    };
+    grid?: {
+        digest: string;
+        assetId: string;
+        sourceDigest: string;
+    };
+    beats?: ReturnType<typeof timedBeats>;
+    finishing?: Finding[];
+    finishingBinding?: {
+        sourceFile: string;
+        sourceDigest: string;
+        file: string;
+        fileDigest: string;
+    };
+    clips?: {
+        passed: boolean;
+        rows: {
+            index: number;
+            startMs: number;
+            endMs: number;
+            durationMs: number;
+            problems: string[];
+        }[];
+    };
+};
+}
+
+declare namespace ContractModule1972 {
+import EditWord = ContractModule34.EditWord;
+export type BrollBeat = {
+    id: string;
+    wordId: string;
+    assetId: string | null;
+    kind: 'receipt' | 'entity' | 'concept' | 'meme';
+    delayMs: number;
+    durationMs: number;
+};
+export type BrollAsset = {
+    id: string;
+    source: {
+        kind: string;
+        licenceId?: string;
+        uploadId?: string | null;
+    };
+    licence: string | null;
+    state: string;
+    fileDigest: string | null;
+    supersededBy: string | null;
+};
+export function planBroll(words: readonly EditWord[], beats: BrollBeat[], assets: BrollAsset[], removed: string[]): {
+    digest: string;
+    approvedDigest: string | null;
+    beats: BrollBeat[];
+    windows: {
+        ids: string[];
+        assetId: string | null;
+        startMs: number;
+        endMs: number;
+    }[];
+    removed: string[];
+    assetBindings: {
+        id: string;
+        fileDigest: string | null;
+        licence: string | null;
+        source: {
+            kind: string;
+            licenceId?: string;
+            uploadId?: string | null;
+        };
+    }[];
+};
+}
+
+declare namespace ContractModule1977 {
+export type FrameRate = 25 | 30 | '29.97df';
+export type FrameRange = {
+    source: string;
+    startFrame: number;
+    endFrame: number;
+};
+export type CutTimeline = {
+    rate: FrameRate;
+    ranges: FrameRange[];
+};
+}
+
+declare namespace ContractModule1981 {
+import Json = ContractModule1644.Json;
+export type YoutubePublicRequest = {
+    kind: 'videos' | 'channels';
+    ids: string[];
+} | {
+    kind: 'search';
+    query: string;
+    pageToken?: string;
+};
+export type YoutubeQuotaUse = {
+    project: string;
+    day: string;
+    shared: number;
+    search: number;
+};
+export type YoutubePublicRead = {
+    id: string;
+    project: string;
+    connection: string;
+    request: YoutubePublicRequest;
+    orderDigest: string;
+    state: 'prepared' | 'running' | 'completed' | 'failed';
+    preparedAt: string;
+    attemptedAt: string | null;
+    result: Json | null;
+    error: string | null;
+    receiptId: string | null;
+    uploadId: string | null;
+    uploadDigest: string | null;
+};
+}
+
+declare namespace ContractModule1982 {
+export const PUBLISH_LIMITS: {
+    youtube: {
+        limit: number;
+        unit: string;
+        checkedOn: string;
+        source: string;
+    };
+    instagram: {
+        verification: string;
+        limit: number;
+        unit: string;
+        checkedOn: string;
+        source: string;
+    };
+    tiktok: {
+        limit: number;
+        unit: string;
+        checkedOn: string;
+        source: string;
+    };
+};
+export function publishingText(platform: keyof typeof PUBLISH_LIMITS, text: string): {
+    passed: boolean;
+    limit: number;
+    unit: string;
+    checkedOn: string;
+    source: string;
+    platform: "instagram" | "youtube" | "tiktok";
+    text: string;
+    count: number;
+} | {
+    passed: boolean;
+    verification: string;
+    limit: number;
+    unit: string;
+    checkedOn: string;
+    source: string;
+    platform: "instagram" | "youtube" | "tiktok";
+    text: string;
+    count: number;
+} | {
+    passed: boolean;
+    limit: number;
+    unit: string;
+    checkedOn: string;
+    source: string;
+    platform: "instagram" | "youtube" | "tiktok";
+    text: string;
+    count: number;
+};
+}
+
+declare namespace ContractModule1986 {
+import Json = ContractModule1644.Json;
+export type ResearchMode = 'after-publish' | 'outliers' | 'niche' | 'comments' | 'script' | 'archive';
+export type YoutubeResearchBody = {
+    mode: ResearchMode;
+    source: {
+        id: string;
+        name: string;
+        digest: string;
+    };
+    orderDigest: string;
+    mapping: Record<string, string>;
+    options: Record<string, Json>;
+    sourceConsent: true;
+    result: Json;
+    receiptId: string;
+    approval: string | null;
+};
+}
+
+declare namespace ContractModule1996 {
 export type DiagnosticsRow = {
     key: string;
     label: string;
@@ -14444,7 +14824,7 @@ export type DiagnosticsTodayView = {
 };
 }
 
-declare namespace ContractModule1584 {
+declare namespace ContractModule1997 {
 type IsoTime = string;
 type ChiefLineAmount = {
     text: string;
@@ -14528,7 +14908,7 @@ export type FindView = {
 };
 }
 
-declare namespace ContractModule1589 {
+declare namespace ContractModule1998 {
 export const LAYOUT_PLACES: readonly [
     "today",
     "money"
@@ -14577,659 +14957,566 @@ export type LayoutBlockView = {
 };
 }
 
-declare namespace ContractModule1590 {
-import LayoutBlockView = ContractModule1589.LayoutBlockView;
-import LayoutPlace = ContractModule1589.LayoutPlace;
-import LayoutRequest = ContractModule1589.LayoutRequest;
-export type LayoutView = {
-    place: LayoutPlace;
-    title: string;
-    href: string;
-    blocks: LayoutBlockView[];
-    views: {
-        id: string;
-        name: string;
-    }[];
-    custom: boolean;
-    ai: {
-        count: number;
-        lines: string[];
-        undo: LayoutRequest;
-    } | null;
-    go: {
-        id: string;
-        href: string;
-        title: string;
-        at: string;
-    } | null;
-};
-export type LayoutChangeResult = {
-    layout: LayoutView;
-    undo: LayoutRequest;
-    line: string;
-};
-}
-
-declare namespace ContractModule1610 {
+declare namespace ContractModule1999 {
 export type WorkKind = 'about' | 'ai-tools' | 'rehearse' | 'improve' | 'brief' | 'goal-suggest' | 'drills' | 'restore' | 'move-in' | 'import';
 }
 
-declare namespace ContractModule1614 {
-export type SearchProviderId = 'brave' | 'exa' | 'tavily';
-export type AiNetworkSetting = 'off' | 'research' | 'on';
-export type SavedSearchKey = {
-    provider: SearchProviderId;
-    keyHint: string;
-    savedAt: string;
-    consentDigest: string;
-};
-export type WebSearchView = {
-    builtIn: {
-        codex: AiNetworkSetting;
-        claude: AiNetworkSetting;
-        line: string;
-    };
-    key: {
-        provider: SearchProviderId;
-        name: string;
-        keyHint: string;
-        savedAt: string;
-        label: 'fixture-tested';
-    } | null;
-    providers: {
-        id: SearchProviderId;
-        name: string;
-        label: 'fixture-tested';
-        keyPage: string;
-        consent: string;
-        consentDigest: string;
-    }[];
-    line: string;
-};
-export type WebReadView = {
-    url: string;
-    title: string | null;
-    siteName: string | null;
-    text: string;
-    words: number;
-    more: boolean;
-    via: 'page' | 'javascript';
-    label: string;
-    line: string;
-};
-}
+export type AcrossLeftOut = ContractModule302.AcrossLeftOut;
 
-declare namespace ContractModule1616 {
-import WorkKind = ContractModule1610.WorkKind;
-export type WorkStepState = 'waiting' | 'current' | 'done' | 'failed';
-export type WorkJobView = {
-    workId: string;
-    kind: WorkKind;
-    startedAt: string;
-    steps: {
-        id: string;
-        state: WorkStepState;
-        passed?: boolean;
-    }[];
-};
-}
+export type AcrossLineKey = ContractModule302.AcrossLineKey;
 
-export type AcrossLeftOut = ContractModule266.AcrossLeftOut;
+export type AcrossMoneyView = ContractModule302.AcrossMoneyView;
 
-export type AcrossLineKey = ContractModule266.AcrossLineKey;
+export type AcrossRunsView = ContractModule302.AcrossRunsView;
 
-export type AcrossMoneyView = ContractModule266.AcrossMoneyView;
+export type AgentCapView = ContractModule302.AgentCapView;
 
-export type AcrossRunsView = ContractModule266.AcrossRunsView;
+export type AgentHealth = ContractModule302.AgentHealth;
 
-export type AgentCapView = ContractModule266.AgentCapView;
+export type AgentHealthStatus = ContractModule302.AgentHealthStatus;
 
-export type AgentHealth = ContractModule266.AgentHealth;
+export type AgentMessageView = ContractModule302.AgentMessageView;
 
-export type AgentHealthStatus = ContractModule266.AgentHealthStatus;
+export type AgentNoteChange = ContractModule302.AgentNoteChange;
 
-export type AgentMessageView = ContractModule266.AgentMessageView;
+export type AgentNoteLoad = ContractModule302.AgentNoteLoad;
 
-export type AgentNoteChange = ContractModule266.AgentNoteChange;
+export type AgentNoteScope = ContractModule302.AgentNoteScope;
 
-export type AgentNoteLoad = ContractModule266.AgentNoteLoad;
+export type AgentNoteView = ContractModule302.AgentNoteView;
 
-export type AgentNoteScope = ContractModule266.AgentNoteScope;
+export type AgentNotesView = ContractModule302.AgentNotesView;
 
-export type AgentNoteView = ContractModule266.AgentNoteView;
+export type AgentProposalView = ContractModule302.AgentProposalView;
 
-export type AgentNotesView = ContractModule266.AgentNotesView;
+export type AgentRunItem = ContractModule302.AgentRunItem;
 
-export type AgentProposalView = ContractModule266.AgentProposalView;
+export type AgentSendResult = ContractModule302.AgentSendResult;
 
-export type AgentRunItem = ContractModule266.AgentRunItem;
+export type AgentSuggestion = ContractModule302.AgentSuggestion;
 
-export type AgentSendResult = ContractModule266.AgentSendResult;
+export type AgentThreadItem = ContractModule302.AgentThreadItem;
 
-export type AgentSuggestion = ContractModule266.AgentSuggestion;
+export type AgentThreadView = ContractModule302.AgentThreadView;
 
-export type AgentThreadItem = ContractModule266.AgentThreadItem;
+export type AgentView = ContractModule302.AgentView;
 
-export type AgentThreadView = ContractModule266.AgentThreadView;
+export type AgingBucketId = ContractModule302.AgingBucketId;
 
-export type AgentView = ContractModule266.AgentView;
+export type AgingView = ContractModule302.AgingView;
 
-export type AgingBucketId = ContractModule266.AgingBucketId;
+export type AutoReadinessView = ContractModule302.AutoReadinessView;
 
-export type AgingView = ContractModule266.AgingView;
+export type AwayView = ContractModule302.AwayView;
 
-export type AutoReadinessView = ContractModule266.AutoReadinessView;
+export type BankAlertsView = ContractModule302.BankAlertsView;
 
-export type AwayView = ContractModule266.AwayView;
+export type BankApplyResult = ContractModule302.BankApplyResult;
 
-export type BankAlertsView = ContractModule266.BankAlertsView;
+export type BankConsentView = ContractModule302.BankConsentView;
 
-export type BankApplyResult = ContractModule266.BankApplyResult;
+export type BankImportResult = ContractModule302.BankImportResult;
 
-export type BankConsentView = ContractModule266.BankConsentView;
+export type BankLedgerRow = ContractModule302.BankLedgerRow;
 
-export type BankImportResult = ContractModule266.BankImportResult;
+export type BankLedgerView = ContractModule302.BankLedgerView;
 
-export type BankLedgerRow = ContractModule266.BankLedgerRow;
+export type BankRowClass = ContractModule302.BankRowClass;
 
-export type BankLedgerView = ContractModule266.BankLedgerView;
+export type BillLineInput = ContractModule302.BillLineInput;
 
-export type BankRowClass = ContractModule266.BankRowClass;
+export type BillView = ContractModule302.BillView;
 
-export type BillLineInput = ContractModule266.BillLineInput;
+export type BooksPeriodKey = ContractModule302.BooksPeriodKey;
 
-export type BillView = ContractModule266.BillView;
+export type BoundaryView = ContractModule302.BoundaryView;
 
-export type BooksPeriodKey = ContractModule266.BooksPeriodKey;
+export type BuildStatusWord = ContractModule302.BuildStatusWord;
 
-export type BoundaryView = ContractModule266.BoundaryView;
+export type BuilderId = ContractModule302.BuilderId;
 
-export type BuildStatusWord = ContractModule266.BuildStatusWord;
+export type BusinessSnapshotView = ContractModule302.BusinessSnapshotView;
 
-export type BuilderId = ContractModule266.BuilderId;
+export type CaDiffExplanation = ContractModule302.CaDiffExplanation;
 
-export type BusinessSnapshotView = ContractModule266.BusinessSnapshotView;
+export type CaLatestPapers = ContractModule302.CaLatestPapers;
 
-export type CaDiffExplanation = ContractModule266.CaDiffExplanation;
+export type CaPendingRate = ContractModule302.CaPendingRate;
 
-export type CaLatestPapers = ContractModule266.CaLatestPapers;
+export type CaReceiptView = ContractModule302.CaReceiptView;
 
-export type CaPendingRate = ContractModule266.CaPendingRate;
+export type CalendarFeedView = ContractModule302.CalendarFeedView;
 
-export type CaReceiptView = ContractModule266.CaReceiptView;
+export type CapabilityItemView = ContractModule302.CapabilityItemView;
 
-export type CalendarFeedView = ContractModule266.CalendarFeedView;
+export type CapabilityPageView = ContractModule302.CapabilityPageView;
 
-export type CapabilityItemView = ContractModule266.CapabilityItemView;
+export type CashIssueView = ContractModule302.CashIssueView;
 
-export type CapabilityPageView = ContractModule266.CapabilityPageView;
+export type CashView = ContractModule302.CashView;
 
-export type CashIssueView = ContractModule266.CashIssueView;
+export type ChatConsentView = ContractModule302.ChatConsentView;
 
-export type CashView = ContractModule266.CashView;
+export type ChatPart = ContractModule302.ChatPart;
 
-export type ChatConsentView = ContractModule266.ChatConsentView;
+export type ChiefCounted = ContractModule302.ChiefCounted;
 
-export type ChatPart = ContractModule266.ChatPart;
+export type ChiefFit = ContractModule302.ChiefFit;
 
-export type ChiefCounted = ContractModule266.ChiefCounted;
+export type ChiefLineAmount = ContractModule302.ChiefLineAmount;
 
-export type ChiefFit = ContractModule266.ChiefFit;
+export type ChiefMessageView = ContractModule302.ChiefMessageView;
 
-export type ChiefLineAmount = ContractModule266.ChiefLineAmount;
+export type ChiefSendResult = ContractModule302.ChiefSendResult;
 
-export type ChiefMessageView = ContractModule266.ChiefMessageView;
+export type ChiefSettleResult = ContractModule302.ChiefSettleResult;
 
-export type ChiefSendResult = ContractModule266.ChiefSendResult;
+export type ChiefSnoozeOption = ContractModule302.ChiefSnoozeOption;
 
-export type ChiefSettleResult = ContractModule266.ChiefSettleResult;
+export type ChiefSnoozePreset = ContractModule302.ChiefSnoozePreset;
 
-export type ChiefSnoozeOption = ContractModule266.ChiefSnoozeOption;
+export type ChiefThreadState = ContractModule302.ChiefThreadState;
 
-export type ChiefSnoozePreset = ContractModule266.ChiefSnoozePreset;
+export type ChiefThreadStateInput = ContractModule302.ChiefThreadStateInput;
 
-export type ChiefThreadState = ContractModule266.ChiefThreadState;
+export type ChiefThreadStateResult = ContractModule302.ChiefThreadStateResult;
 
-export type ChiefThreadStateInput = ContractModule266.ChiefThreadStateInput;
+export type ChiefThreadSummary = ContractModule302.ChiefThreadSummary;
 
-export type ChiefThreadStateResult = ContractModule266.ChiefThreadStateResult;
+export type ChiefThreadView = ContractModule302.ChiefThreadView;
 
-export type ChiefThreadSummary = ContractModule266.ChiefThreadSummary;
+export type ChiefThreadsView = ContractModule302.ChiefThreadsView;
 
-export type ChiefThreadView = ContractModule266.ChiefThreadView;
+export type CliStatusView = ContractModule302.CliStatusView;
 
-export type ChiefThreadsView = ContractModule266.ChiefThreadsView;
+export type ConnectorCheckRow = ContractModule302.ConnectorCheckRow;
 
-export type CliStatusView = ContractModule266.CliStatusView;
+export type ConnectorChecksView = ContractModule302.ConnectorChecksView;
 
-export type ConnectorCheckRow = ContractModule266.ConnectorCheckRow;
+export type ConnectorLadder = ContractModule302.ConnectorLadder;
 
-export type ConnectorChecksView = ContractModule266.ConnectorChecksView;
+export type ConnectorModeName = ContractModule302.ConnectorModeName;
 
-export type ConnectorLadder = ContractModule266.ConnectorLadder;
+export type CoverageView = ContractModule302.CoverageView;
 
-export type ConnectorModeName = ContractModule266.ConnectorModeName;
+export type CreditNoteView = ContractModule302.CreditNoteView;
 
-export type CoverageView = ContractModule266.CoverageView;
+export type CurrencyLead = ContractModule302.CurrencyLead;
 
-export type CreditNoteView = ContractModule266.CreditNoteView;
+export type DecisionOpens = ContractModule302.DecisionOpens;
 
-export type CurrencyLead = ContractModule266.CurrencyLead;
+export type DecisionView = ContractModule302.DecisionView;
 
-export type DecisionOpens = ContractModule266.DecisionOpens;
+export type DeliverableReport = ContractModule302.DeliverableReport;
 
-export type DecisionView = ContractModule266.DecisionView;
+export type DeliveredFile = ContractModule302.DeliveredFile;
 
-export type DeliverableReport = ContractModule266.DeliverableReport;
+export type DeliveredView = ContractModule302.DeliveredView;
 
-export type DeliveredFile = ContractModule266.DeliveredFile;
+export type DepartmentId = ContractModule302.DepartmentId;
 
-export type DeliveredView = ContractModule266.DeliveredView;
+export type DepartmentSpend = ContractModule302.DepartmentSpend;
 
-export type DepartmentId = ContractModule266.DepartmentId;
+export type DepartmentView = ContractModule302.DepartmentView;
 
-export type DepartmentSpend = ContractModule266.DepartmentSpend;
+export type DiffLine = ContractModule302.DiffLine;
 
-export type DepartmentView = ContractModule266.DepartmentView;
+export type Display = ContractModule302.Display;
 
-export type DiffLine = ContractModule266.DiffLine;
+export type DraftChangeView = ContractModule302.DraftChangeView;
 
-export type Display = ContractModule266.Display;
+export type DraftChangesView = ContractModule302.DraftChangesView;
 
-export type DraftChangeView = ContractModule266.DraftChangeView;
+export type DrillRunView = ContractModule302.DrillRunView;
 
-export type DraftChangesView = ContractModule266.DraftChangesView;
+export type EvidenceItem = ContractModule302.EvidenceItem;
 
-export type DrillRunView = ContractModule266.DrillRunView;
+export type FigureKind = ContractModule302.FigureKind;
 
-export type EvidenceItem = ContractModule266.EvidenceItem;
+export type FigureSource = ContractModule302.FigureSource;
 
-export type FigureKind = ContractModule266.FigureKind;
+export type FileRequestView = ContractModule302.FileRequestView;
 
-export type FigureSource = ContractModule266.FigureSource;
+export type FixTheRuleView = ContractModule302.FixTheRuleView;
 
-export type FileRequestView = ContractModule266.FileRequestView;
+export type FlowView = ContractModule302.FlowView;
 
-export type FixTheRuleView = ContractModule266.FixTheRuleView;
+export type FollowupView = ContractModule302.FollowupView;
 
-export type FlowView = ContractModule266.FlowView;
+export type GoalSuggestion = ContractModule302.GoalSuggestion;
 
-export type FollowupView = ContractModule266.FollowupView;
+export type GoalView = ContractModule302.GoalView;
 
-export type GoalSuggestion = ContractModule266.GoalSuggestion;
+export type GuidanceLineView = ContractModule302.GuidanceLineView;
 
-export type GoalView = ContractModule266.GoalView;
+export type IdeaView = ContractModule302.IdeaView;
 
-export type GuidanceLineView = ContractModule266.GuidanceLineView;
+export type InboundTriage = ContractModule302.InboundTriage;
 
-export type IdeaView = ContractModule266.IdeaView;
+export type InboundView = ContractModule302.InboundView;
 
-export type InboundTriage = ContractModule266.InboundTriage;
+export type InterviewAnswer = ContractModule302.InterviewAnswer;
 
-export type InboundView = ContractModule266.InboundView;
+export type InvoiceNext = ContractModule302.InvoiceNext;
 
-export type InterviewAnswer = ContractModule266.InterviewAnswer;
+export type InvoiceTimelineEntry = ContractModule302.InvoiceTimelineEntry;
 
-export type InvoiceNext = ContractModule266.InvoiceNext;
+export type JournalChainView = ContractModule302.JournalChainView;
 
-export type InvoiceTimelineEntry = ContractModule266.InvoiceTimelineEntry;
+export type JournalEntry = ContractModule302.JournalEntry;
 
-export type JournalChainView = ContractModule266.JournalChainView;
+export type JudgeAutoView = ContractModule302.JudgeAutoView;
 
-export type JournalEntry = ContractModule266.JournalEntry;
+export type KeeperJobId = ContractModule302.KeeperJobId;
 
-export type JudgeAutoView = ContractModule266.JudgeAutoView;
+export type KeeperJobView = ContractModule302.KeeperJobView;
 
-export type KeeperJobId = ContractModule266.KeeperJobId;
+export type KeeperView = ContractModule302.KeeperView;
 
-export type KeeperJobView = ContractModule266.KeeperJobView;
+export type KindedFigure = ContractModule302.KindedFigure;
 
-export type KeeperView = ContractModule266.KeeperView;
+export type KnowledgeSourceInput = ContractModule302.KnowledgeSourceInput;
 
-export type KindedFigure = ContractModule266.KindedFigure;
+export type KnowledgeSourceView = ContractModule302.KnowledgeSourceView;
 
-export type KnowledgeSourceInput = ContractModule266.KnowledgeSourceInput;
+export type LawfulBasis = ContractModule302.LawfulBasis;
 
-export type KnowledgeSourceView = ContractModule266.KnowledgeSourceView;
+export type LeadEmailCheck = ContractModule302.LeadEmailCheck;
 
-export type LawfulBasis = ContractModule266.LawfulBasis;
+export type LeadMoveView = ContractModule302.LeadMoveView;
 
-export type LeadEmailCheck = ContractModule266.LeadEmailCheck;
+export type LeadSendView = ContractModule302.LeadSendView;
 
-export type LeadMoveView = ContractModule266.LeadMoveView;
+export type LeadView = ContractModule302.LeadView;
 
-export type LeadSendView = ContractModule266.LeadSendView;
+export type LimitReachedView = ContractModule302.LimitReachedView;
 
-export type LeadView = ContractModule266.LeadView;
+export type LineLabel = ContractModule302.LineLabel;
 
-export type LimitReachedView = ContractModule266.LimitReachedView;
+export type LostReason = ContractModule302.LostReason;
 
-export type LineLabel = ContractModule266.LineLabel;
+export type MailboxView = ContractModule302.MailboxView;
 
-export type LostReason = ContractModule266.LostReason;
+export type MarginsView = ContractModule302.MarginsView;
 
-export type MailboxView = ContractModule266.MailboxView;
+export type MiniAppCallResult = ContractModule302.MiniAppCallResult;
 
-export type MarginsView = ContractModule266.MarginsView;
+export type MiniAppCard = ContractModule302.MiniAppCard;
 
-export type MiniAppCallResult = ContractModule266.MiniAppCallResult;
+export type MiniAppMessage = ContractModule302.MiniAppMessage;
 
-export type MiniAppCard = ContractModule266.MiniAppCard;
+export type MiniAppView = ContractModule302.MiniAppView;
 
-export type MiniAppMessage = ContractModule266.MiniAppMessage;
+export type ModelAvailability = ContractModule302.ModelAvailability;
 
-export type MiniAppView = ContractModule266.MiniAppView;
+export type ModelReceiptView = ContractModule302.ModelReceiptView;
 
-export type ModelAvailability = ContractModule266.ModelAvailability;
+export type ModelTier = ContractModule302.ModelTier;
 
-export type ModelReceiptView = ContractModule266.ModelReceiptView;
+export type MoneyExportFile = ContractModule302.MoneyExportFile;
 
-export type ModelTier = ContractModule266.ModelTier;
+export type MoneyOverview = ContractModule302.MoneyOverview;
 
-export type MoneyExportFile = ContractModule266.MoneyExportFile;
+export type MoneyOverviewLine = ContractModule302.MoneyOverviewLine;
 
-export type MoneyOverview = ContractModule266.MoneyOverview;
+export type NetworkBandCounts = ContractModule302.NetworkBandCounts;
 
-export type MoneyOverviewLine = ContractModule266.MoneyOverviewLine;
+export type NetworkImportKind = ContractModule302.NetworkImportKind;
 
-export type NetworkBandCounts = ContractModule266.NetworkBandCounts;
+export type NetworkImportResult = ContractModule302.NetworkImportResult;
 
-export type NetworkImportKind = ContractModule266.NetworkImportKind;
+export type NetworkImportView = ContractModule302.NetworkImportView;
 
-export type NetworkImportResult = ContractModule266.NetworkImportResult;
+export type NetworkSearchView = ContractModule302.NetworkSearchView;
 
-export type NetworkImportView = ContractModule266.NetworkImportView;
+export type NetworkSourcesView = ContractModule302.NetworkSourcesView;
 
-export type NetworkSearchView = ContractModule266.NetworkSearchView;
+export type NextBestStep = ContractModule302.NextBestStep;
 
-export type NetworkSourcesView = ContractModule266.NetworkSourcesView;
+export type NoteChangeView = ContractModule302.NoteChangeView;
 
-export type NextBestStep = ContractModule266.NextBestStep;
+export type NotificationView = ContractModule302.NotificationView;
 
-export type NoteChangeView = ContractModule266.NoteChangeView;
+export type NotifyDigestView = ContractModule302.NotifyDigestView;
 
-export type NotificationView = ContractModule266.NotificationView;
+export type NotifySettingsView = ContractModule302.NotifySettingsView;
 
-export type NotifyDigestView = ContractModule266.NotifyDigestView;
+export type OrderContract = ContractModule302.OrderContract;
 
-export type NotifySettingsView = ContractModule266.NotifySettingsView;
+export type OrderContractView = ContractModule302.OrderContractView;
 
-export type OrderContract = ContractModule266.OrderContract;
+export type OrderStageId = ContractModule302.OrderStageId;
 
-export type OrderContractView = ContractModule266.OrderContractView;
+export type OrderStageReason = ContractModule302.OrderStageReason;
 
-export type OrderStageId = ContractModule266.OrderStageId;
+export type OrderStageView = ContractModule302.OrderStageView;
 
-export type OrderStageReason = ContractModule266.OrderStageReason;
+export type OrderWaitsOnYou = ContractModule302.OrderWaitsOnYou;
 
-export type OrderStageView = ContractModule266.OrderStageView;
+export type OutreachChannel = ContractModule302.OutreachChannel;
 
-export type OrderWaitsOnYou = ContractModule266.OrderWaitsOnYou;
+export type OutreachDraftView = ContractModule302.OutreachDraftView;
 
-export type OutreachChannel = ContractModule266.OutreachChannel;
+export type OutreachHandoff = ContractModule302.OutreachHandoff;
 
-export type OutreachDraftView = ContractModule266.OutreachDraftView;
+export type OutreachKind = ContractModule302.OutreachKind;
 
-export type OutreachHandoff = ContractModule266.OutreachHandoff;
+export type OutreachLane = ContractModule302.OutreachLane;
 
-export type OutreachKind = ContractModule266.OutreachKind;
+export type OutreachLanguage = ContractModule302.OutreachLanguage;
 
-export type OutreachLane = ContractModule266.OutreachLane;
+export type OutreachSentChannel = ContractModule302.OutreachSentChannel;
 
-export type OutreachLanguage = ContractModule266.OutreachLanguage;
+export type OutreachView = ContractModule302.OutreachView;
 
-export type OutreachSentChannel = ContractModule266.OutreachSentChannel;
+export type OwnerView = ContractModule302.OwnerView;
 
-export type OutreachView = ContractModule266.OutreachView;
+export type PaymentMethod = ContractModule302.PaymentMethod;
 
-export type OwnerView = ContractModule266.OwnerView;
+export type PeopleView = ContractModule302.PeopleView;
 
-export type PaymentMethod = ContractModule266.PaymentMethod;
+export type PersonSummary = ContractModule302.PersonSummary;
 
-export type PeopleView = ContractModule266.PeopleView;
+export type PersonView = ContractModule302.PersonView;
 
-export type PersonSummary = ContractModule266.PersonSummary;
+export type PersonaFields = ContractModule302.PersonaFields;
 
-export type PersonView = ContractModule266.PersonView;
+export type PersonaView = ContractModule302.PersonaView;
 
-export type PersonaFields = ContractModule266.PersonaFields;
+export type PhoneAccessView = ContractModule302.PhoneAccessView;
 
-export type PersonaView = ContractModule266.PersonaView;
+export type PipelineCaps = ContractModule302.PipelineCaps;
 
-export type PhoneAccessView = ContractModule266.PhoneAccessView;
+export type PipelineCardView = ContractModule302.PipelineCardView;
 
-export type PipelineCaps = ContractModule266.PipelineCaps;
+export type PipelineQuoteView = ContractModule302.PipelineQuoteView;
 
-export type PipelineCardView = ContractModule266.PipelineCardView;
+export type PipelineSettingsView = ContractModule302.PipelineSettingsView;
 
-export type PipelineQuoteView = ContractModule266.PipelineQuoteView;
+export type PipelineStage = ContractModule302.PipelineStage;
 
-export type PipelineSettingsView = ContractModule266.PipelineSettingsView;
+export type PipelineView = ContractModule302.PipelineView;
 
-export type PipelineStage = ContractModule266.PipelineStage;
+export type PlanChangeView = ContractModule302.PlanChangeView;
 
-export type PipelineView = ContractModule266.PipelineView;
+export type PlanSuggestionView = ContractModule302.PlanSuggestionView;
 
-export type PlanChangeView = ContractModule266.PlanChangeView;
+export type PlatformRuleView = ContractModule302.PlatformRuleView;
 
-export type PlanSuggestionView = ContractModule266.PlanSuggestionView;
+export type PlaybookPick = ContractModule302.PlaybookPick;
 
-export type PlatformRuleView = ContractModule266.PlatformRuleView;
+export type PostingLimitsView = ContractModule302.PostingLimitsView;
 
-export type PlaybookPick = ContractModule266.PlaybookPick;
+export type PostingProposal = ContractModule302.PostingProposal;
 
-export type PostingLimitsView = ContractModule266.PostingLimitsView;
+export type PostingStepId = ContractModule302.PostingStepId;
 
-export type PostingProposal = ContractModule266.PostingProposal;
+export type PostingStepsView = ContractModule302.PostingStepsView;
 
-export type PostingStepId = ContractModule266.PostingStepId;
+export type Posture = ContractModule302.Posture;
 
-export type PostingStepsView = ContractModule266.PostingStepsView;
+export type PreviewFigure = ContractModule302.PreviewFigure;
 
-export type Posture = ContractModule266.Posture;
+export type PreviewLength = ContractModule302.PreviewLength;
 
-export type PreviewFigure = ContractModule266.PreviewFigure;
+export type PreviewReceiptKind = ContractModule302.PreviewReceiptKind;
 
-export type PreviewLength = ContractModule266.PreviewLength;
+export type PreviewWords = ContractModule302.PreviewWords;
 
-export type PreviewReceiptKind = ContractModule266.PreviewReceiptKind;
+export type PriceGuideView = ContractModule302.PriceGuideView;
 
-export type PreviewWords = ContractModule266.PreviewWords;
+export type PriceRangeView = ContractModule302.PriceRangeView;
 
-export type PriceGuideView = ContractModule266.PriceGuideView;
+export type PriceSourceView = ContractModule302.PriceSourceView;
 
-export type PriceRangeView = ContractModule266.PriceRangeView;
+export type PricingModel = ContractModule302.PricingModel;
 
-export type PriceSourceView = ContractModule266.PriceSourceView;
+export type ProposalKind = ContractModule302.ProposalKind;
 
-export type PricingModel = ContractModule266.PricingModel;
+export type ProposalStatus = ContractModule302.ProposalStatus;
 
-export type ProposalKind = ContractModule266.ProposalKind;
+export type ProposalView = ContractModule302.ProposalView;
 
-export type ProposalStatus = ContractModule266.ProposalStatus;
+export type PushSubscriptionInput = ContractModule302.PushSubscriptionInput;
 
-export type ProposalView = ContractModule266.ProposalView;
+export type QuestionCard = ContractModule302.QuestionCard;
 
-export type PushSubscriptionInput = ContractModule266.PushSubscriptionInput;
+export type QuestionItem = ContractModule302.QuestionItem;
 
-export type QuestionCard = ContractModule266.QuestionCard;
+export type QuestionOption = ContractModule302.QuestionOption;
 
-export type QuestionItem = ContractModule266.QuestionItem;
+export type QueueAction = ContractModule302.QueueAction;
 
-export type QuestionOption = ContractModule266.QuestionOption;
+export type QueueActionId = ContractModule302.QueueActionId;
 
-export type QueueAction = ContractModule266.QueueAction;
+export type QueueAmount = ContractModule302.QueueAmount;
 
-export type QueueActionId = ContractModule266.QueueActionId;
+export type QueueChange = ContractModule302.QueueChange;
 
-export type QueueAmount = ContractModule266.QueueAmount;
+export type QueueCount = ContractModule302.QueueCount;
 
-export type QueueChange = ContractModule266.QueueChange;
+export type QueueDecision = ContractModule302.QueueDecision;
 
-export type QueueCount = ContractModule266.QueueCount;
+export type QueueItemView = ContractModule302.QueueItemView;
 
-export type QueueDecision = ContractModule266.QueueDecision;
+export type QueueKind = ContractModule302.QueueKind;
 
-export type QueueItemView = ContractModule266.QueueItemView;
+export type QueueList = ContractModule302.QueueList;
 
-export type QueueKind = ContractModule266.QueueKind;
+export type QueuePreview = ContractModule302.QueuePreview;
 
-export type QueueList = ContractModule266.QueueList;
+export type QueueRow = ContractModule302.QueueRow;
 
-export type QueuePreview = ContractModule266.QueuePreview;
+export type QueueRowMeta = ContractModule302.QueueRowMeta;
 
-export type QueueRow = ContractModule266.QueueRow;
+export type QueueSendsTo = ContractModule302.QueueSendsTo;
 
-export type QueueRowMeta = ContractModule266.QueueRowMeta;
+export type QueueSetPreview = ContractModule302.QueueSetPreview;
 
-export type QueueSendsTo = ContractModule266.QueueSendsTo;
+export type RankedOptionView = ContractModule302.RankedOptionView;
 
-export type QueueSetPreview = ContractModule266.QueueSetPreview;
+export type RateCardLine = ContractModule302.RateCardLine;
 
-export type RankedOptionView = ContractModule266.RankedOptionView;
+export type ReceiptVerifyView = ContractModule302.ReceiptVerifyView;
 
-export type RateCardLine = ContractModule266.RateCardLine;
+export type RecipeView = ContractModule302.RecipeView;
 
-export type ReceiptVerifyView = ContractModule266.ReceiptVerifyView;
+export type RecurringInvoiceView = ContractModule302.RecurringInvoiceView;
 
-export type RecipeView = ContractModule266.RecipeView;
+export type ReportItem = ContractModule302.ReportItem;
 
-export type RecurringInvoiceView = ContractModule266.RecurringInvoiceView;
+export type RetireCheckView = ContractModule302.RetireCheckView;
 
-export type ReportItem = ContractModule266.ReportItem;
+export type RetireInFlight = ContractModule302.RetireInFlight;
 
-export type RetireCheckView = ContractModule266.RetireCheckView;
+export type RetiredAgentView = ContractModule302.RetiredAgentView;
 
-export type RetireInFlight = ContractModule266.RetireInFlight;
+export type RoleModelView = ContractModule302.RoleModelView;
 
-export type RetiredAgentView = ContractModule266.RetiredAgentView;
+export type RoutineInput = ContractModule302.RoutineInput;
 
-export type RoleModelView = ContractModule266.RoleModelView;
+export type RoutineRunState = ContractModule302.RoutineRunState;
 
-export type RoutineInput = ContractModule266.RoutineInput;
+export type RoutineSchedule = ContractModule302.RoutineSchedule;
 
-export type RoutineRunState = ContractModule266.RoutineRunState;
+export type RoutineSuggestion = ContractModule302.RoutineSuggestion;
 
-export type RoutineSchedule = ContractModule266.RoutineSchedule;
+export type RoutineView = ContractModule302.RoutineView;
 
-export type RoutineSuggestion = ContractModule266.RoutineSuggestion;
+export type RowFigure = ContractModule302.RowFigure;
 
-export type RoutineView = ContractModule266.RoutineView;
+export type RowFigureReceipt = ContractModule302.RowFigureReceipt;
 
-export type RowFigure = ContractModule266.RowFigure;
+export type RulesListView = ContractModule302.RulesListView;
 
-export type RowFigureReceipt = ContractModule266.RowFigureReceipt;
+export type RunControlResult = ContractModule302.RunControlResult;
 
-export type RulesListView = ContractModule266.RulesListView;
+export type RunDetail = ContractModule302.RunDetail;
 
-export type RunControlResult = ContractModule266.RunControlResult;
+export type RunScopeView = ContractModule302.RunScopeView;
 
-export type RunDetail = ContractModule266.RunDetail;
+export type RunState = ContractModule302.RunState;
 
-export type RunScopeView = ContractModule266.RunScopeView;
+export type RunStep = ContractModule302.RunStep;
 
-export type RunState = ContractModule266.RunState;
+export type RunSummary = ContractModule302.RunSummary;
 
-export type RunStep = ContractModule266.RunStep;
+export type RunToolLine = ContractModule302.RunToolLine;
 
-export type RunSummary = ContractModule266.RunSummary;
+export type ScoreRule = ContractModule302.ScoreRule;
 
-export type RunToolLine = ContractModule266.RunToolLine;
+export type SearchResultView = ContractModule302.SearchResultView;
 
-export type ScoreRule = ContractModule266.ScoreRule;
+export type SearchWebState = ContractModule302.SearchWebState;
 
-export type SearchResultView = ContractModule266.SearchResultView;
+export type SeriesPoint = ContractModule302.SeriesPoint;
 
-export type SearchWebState = ContractModule266.SearchWebState;
+export type ServiceType = ContractModule302.ServiceType;
 
-export type SeriesPoint = ContractModule266.SeriesPoint;
+export type SettingsDraftView = ContractModule302.SettingsDraftView;
 
-export type ServiceType = ContractModule266.ServiceType;
+export type ShadowSummaryView = ContractModule302.ShadowSummaryView;
 
-export type SettingsDraftView = ContractModule266.SettingsDraftView;
+export type SharePrice = ContractModule302.SharePrice;
 
-export type ShadowSummaryView = ContractModule266.ShadowSummaryView;
+export type SignedReceiptsFile = ContractModule302.SignedReceiptsFile;
 
-export type SharePrice = ContractModule266.SharePrice;
+export type SiteEditState = ContractModule302.SiteEditState;
 
-export type SignedReceiptsFile = ContractModule266.SignedReceiptsFile;
+export type SocialCalendarFile = ContractModule302.SocialCalendarFile;
 
-export type SiteEditState = ContractModule266.SiteEditState;
+export type SpendLead = ContractModule302.SpendLead;
 
-export type SocialCalendarFile = ContractModule266.SocialCalendarFile;
+export type SpendMeterRowView = ContractModule302.SpendMeterRowView;
 
-export type SpendLead = ContractModule266.SpendLead;
+export type SpendMeterView = ContractModule302.SpendMeterView;
 
-export type SpendMeterRowView = ContractModule266.SpendMeterRowView;
+export type SpendMetersView = ContractModule302.SpendMetersView;
 
-export type SpendMeterView = ContractModule266.SpendMeterView;
+export type SpendPolicyView = ContractModule302.SpendPolicyView;
 
-export type SpendMetersView = ContractModule266.SpendMetersView;
+export type SpendRateInput = ContractModule302.SpendRateInput;
 
-export type SpendPolicyView = ContractModule266.SpendPolicyView;
+export type SpendRateUnit = ContractModule302.SpendRateUnit;
 
-export type SpendRateInput = ContractModule266.SpendRateInput;
+export type SpendRow = ContractModule302.SpendRow;
 
-export type SpendRateUnit = ContractModule266.SpendRateUnit;
+export type StandingOrderView = ContractModule302.StandingOrderView;
 
-export type SpendRow = ContractModule266.SpendRow;
+export type StandingOrdersView = ContractModule302.StandingOrdersView;
 
-export type StandingOrderView = ContractModule266.StandingOrderView;
+export type StandingPlaybookView = ContractModule302.StandingPlaybookView;
 
-export type StandingOrdersView = ContractModule266.StandingOrdersView;
+export type StandingStepView = ContractModule302.StandingStepView;
 
-export type StandingPlaybookView = ContractModule266.StandingPlaybookView;
+export type StandingUndoView = ContractModule302.StandingUndoView;
 
-export type StandingStepView = ContractModule266.StandingStepView;
+export type StatTileView = ContractModule302.StatTileView;
 
-export type StandingUndoView = ContractModule266.StandingUndoView;
+export type TaxWorkingLine = ContractModule302.TaxWorkingLine;
 
-export type StatTileView = ContractModule266.StatTileView;
+export type TaxWorkingSection = ContractModule302.TaxWorkingSection;
 
-export type TaxWorkingLine = ContractModule266.TaxWorkingLine;
+export type TeamListView = ContractModule302.TeamListView;
 
-export type TaxWorkingSection = ContractModule266.TaxWorkingSection;
+export type TelegramView = ContractModule302.TelegramView;
 
-export type TeamListView = ContractModule266.TeamListView;
+export type TieBand = ContractModule302.TieBand;
 
-export type TelegramView = ContractModule266.TelegramView;
+export type TotalBasis = ContractModule302.TotalBasis;
 
-export type TieBand = ContractModule266.TieBand;
+export type TranscriptionSetupView = ContractModule302.TranscriptionSetupView;
 
-export type TotalBasis = ContractModule266.TotalBasis;
+export type TriageField = ContractModule302.TriageField;
 
-export type TranscriptionSetupView = ContractModule266.TranscriptionSetupView;
+export type TriagePreview = ContractModule302.TriagePreview;
 
-export type TriageField = ContractModule266.TriageField;
+export type TriageRule = ContractModule302.TriageRule;
 
-export type TriagePreview = ContractModule266.TriagePreview;
+export type VenturePayloads = ContractModule302.VenturePayloads;
 
-export type TriageRule = ContractModule266.TriageRule;
+export type VentureResults = ContractModule302.VentureResults;
 
-export type VenturePayloads = ContractModule266.VenturePayloads;
+export type VentureRunEvent = ContractModule302.VentureRunEvent;
 
-export type VentureResults = ContractModule266.VentureResults;
+export type VentureRunEventType = ContractModule302.VentureRunEventType;
 
-export type VentureRunEvent = ContractModule266.VentureRunEvent;
+export type VoiceInput = ContractModule302.VoiceInput;
 
-export type VentureRunEventType = ContractModule266.VentureRunEventType;
+export type VoiceSections = ContractModule302.VoiceSections;
 
-export type VoiceInput = ContractModule266.VoiceInput;
+export type VoiceView = ContractModule302.VoiceView;
 
-export type VoiceSections = ContractModule266.VoiceSections;
+export type WarmPathView = ContractModule302.WarmPathView;
 
-export type VoiceView = ContractModule266.VoiceView;
+export type WayCategory = ContractModule302.WayCategory;
 
-export type WarmPathView = ContractModule266.WarmPathView;
+export type WayNeeds = ContractModule302.WayNeeds;
 
-export type WayCategory = ContractModule266.WayCategory;
+export type WayView = ContractModule302.WayView;
 
-export type WayNeeds = ContractModule266.WayNeeds;
+export type WaysView = ContractModule302.WaysView;
 
-export type WayView = ContractModule266.WayView;
+export type WriteCapKind = ContractModule302.WriteCapKind;
 
-export type WaysView = ContractModule266.WaysView;
-
-export type WriteCapKind = ContractModule266.WriteCapKind;
-
-export type WriteCapView = ContractModule266.WriteCapView;
+export type WriteCapView = ContractModule302.WriteCapView;

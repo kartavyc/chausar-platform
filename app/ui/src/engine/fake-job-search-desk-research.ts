@@ -1,11 +1,14 @@
 // Local career research shares native calculations; browser network reads refuse rather than inventing results.
-import {check} from '../../../../platform/runtime/portable';import type {FakeDeskKind} from './fake-playbooks';
+import { check } from '../../../../platform/shared/portable.ts';import type {FakeDeskKind} from './fake-playbooks';
 import {exact,guarded,type CareerFakeState} from './fake-job-search-desk-core';
-import {careerShortlist,type CareerMatch,type CareerVerdict} from '../../../../platform/runtime/venture/playbooks/job-search-desk/shortlist';
-import {careerCoaching,type CareerCoachingInput} from '../../../../platform/runtime/venture/playbooks/job-search-desk/coaching';
-import {renderClaims} from '../../../../platform/runtime/venture/playbooks/job-search-desk/facts';
-import {beforeCareerSend} from '../../../../platform/runtime/venture/playbooks/job-search-desk/before-send';
-import {boardJobs,boardUrl,type BoardGates} from '../../../../platform/runtime/venture/playbooks/recruiting-desk/boards';
+import { careerShortlist } from '../../../../platform/shared/venture/playbooks/job-search-desk/shortlist.ts';
+import type { CareerMatch, CareerVerdict } from '../../../../platform/runtime/venture/playbooks/job-search-desk/shortlist.ts';
+import { careerCoaching } from '../../../../platform/shared/venture/playbooks/job-search-desk/coaching.ts';
+import type { CareerCoachingInput } from '../../../../platform/runtime/venture/playbooks/job-search-desk/coaching.ts';
+import { renderClaims } from '../../../../platform/shared/venture/playbooks/job-search-desk/facts.ts';
+import { beforeCareerSend } from '../../../../platform/shared/venture/playbooks/job-search-desk/before-send.ts';
+import { boardJobs, boardUrl } from '../../../../platform/shared/venture/playbooks/recruiting-desk/boards.ts';
+import type { BoardGates } from '../../../../platform/runtime/venture/playbooks/recruiting-desk/boards.ts';
 export function fakeCareerResearch(c:CareerFakeState):FakeDeskKind{return {
  get:raw=>guarded(()=>{const p=c.request(raw,'research','get'),order=c.order(p.id),evidence=c.evidence(order.id);return{playbook:'job-search-desk',kind:'research',item:{orderId:order.id,facts:evidence.facts,listings:evidence.listings,humanPath:'The client sends and applies.'},digest:c.host.digest({order,...evidence})};}),
  act:raw=>guarded(()=>{const p=c.request(raw,'research','act');check(Object.hasOwn(p,'digest'),'INVALID_VENTURE_REQUEST','Send the required fields and nothing else.');const order=c.order(p.id),e=c.evidence(order.id);check(p.digest===c.host.digest({order,...e}),'CAREER_SOURCE_CHANGED','Review the current order, facts and sources.');const reply=(result:unknown)=>({playbook:'job-search-desk',kind:'research',id:order.id,result,line:'Review this research. The client sends and applies.'});

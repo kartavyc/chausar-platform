@@ -6,13 +6,12 @@
  * not pinned, so Today at rest is unchanged.
  */
 
-import {
-  APP_PERMISSIONS, APP_TOOLS, appCodeFindings, appDocument, appUri, exportDocument, permissionsOf, type AppPermission,
-} from '../../../../platform/runtime/venture/apps/frame';
-import { APP_ERRORS, APP_IDEAS, APP_LINES, APP_NEVER_LINE, madeLine, PERMISSION_WORDS } from '../../../../platform/runtime/venture/apps/words';
-import { APP_PREVIEW_ONLY, DATA_READS, NOT_IN_PREVIEW, sampleAnswer } from '../../../../platform/runtime/venture/apps/sample-data';
-import { appCalcPlan, appCalcSubject } from '../../../../platform/runtime/venture/apps/calc';
-import { formatMoney } from '../../../../platform/runtime/owner-format';
+import { APP_PERMISSIONS, APP_TOOLS, appCodeFindings, appDocument, appUri, exportDocument, permissionsOf } from '../../../../platform/shared/venture/apps/frame.ts';
+import type { AppPermission } from '../../../../platform/runtime/venture/apps/frame.ts';
+import { APP_ERRORS, APP_IDEAS, APP_LINES, APP_NEVER_LINE, madeLine, PERMISSION_WORDS } from '../../../../platform/shared/venture/apps/words.ts';
+import { APP_PREVIEW_ONLY, DATA_READS, NOT_IN_PREVIEW, sampleAnswer } from '../../../../platform/shared/venture/apps/sample-data.ts';
+import { appCalcPlan, appCalcSubject } from '../../../../platform/shared/venture/apps/calc.ts';
+import { formatMoney } from '../../../../platform/shared/owner-format.ts';
 import { EngineError, type ClientLite, type MiniAppCallResult, type MiniAppCard, type MiniAppMessage, type MiniAppView, type OrderLite, type ReceiptLite } from './types';
 
 export const FAKE_APP_METHODS: ReadonlySet<string> = new Set([

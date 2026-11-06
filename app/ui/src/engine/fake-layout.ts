@@ -7,10 +7,8 @@
  * demo, stored as made by the AI exactly as the engine stores them.
  */
 
-import {
-  applyChange, defaultLayout, describeBlocks, goLine, isCustom, KEEP_LINE, layoutPlace, LAYOUT_LIBRARY, navigation, normalizeLayout, parseChange, restoreLine,
-  type LayoutBy, type LayoutChange, type LayoutState,
-} from '../../../../platform/runtime/venture/views/layout-core';
+import { applyChange, defaultLayout, describeBlocks, goLine, isCustom, KEEP_LINE, layoutPlace, LAYOUT_LIBRARY, navigation, normalizeLayout, parseChange, restoreLine } from '../../../../platform/shared/venture/views/layout-core.ts';
+import type { LayoutBy, LayoutChange, LayoutState } from '../../../../platform/runtime/venture/views/layout-core.ts';
 import { EngineError, type LayoutChangeResult, type LayoutPlace, type LayoutRequest, type LayoutView } from './types';
 
 export const FAKE_LAYOUT_METHODS: ReadonlySet<string> = new Set(['venture.layout.get', 'venture.layout.change']);

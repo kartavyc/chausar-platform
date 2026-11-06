@@ -5,41 +5,20 @@
 
 /* First run and Welcome back: the whole window, the status line on top and the tile in the middle. */
 .first {
-  display: grid;
-  grid-template-rows: auto minmax(auto, 1fr);
-  height: 100vh;
-  height: 100dvh;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  background: var(--bg);
-  color: var(--fg);
+  composes: first from '../../parts/Entry.module.css';
 }
 
 .firstMain {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: center;
-  justify-items: center;
-  padding: var(--sp-10) var(--sp-4) 12vh;
+  composes: firstMain from '../../parts/Entry.module.css';
 }
 
-.firstMain:focus {
-  outline: none;
-}
+
 
 /* Welcome's card starts at a fixed height, so an error line under a field grows down and never moves the card. */
-.firstMain[data-anchored] {
-  align-content: start;
-  padding-top: calc(var(--sp-12) * 2);
-}
+
 
 .alone {
-  width: min(600px, 100%);
-  padding: var(--sp-8);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--r-tile);
-  background: var(--surface);
-  box-shadow: var(--shadow-tile);
+  composes: alone from '../../parts/Entry.module.css';
 }
 
 /* B4 task 12: Welcome sits in the first run's frame, on the page ground with no card. */
@@ -64,17 +43,11 @@
 
 /* The logo at the top of the first run and Welcome back. */
 .brand {
-  display: flex;
-  align-items: center;
-  margin-bottom: var(--sp-6);
+  composes: brand from '../../parts/Entry.module.css';
 }
 
 .question {
-  margin-bottom: var(--sp-2);
-  font-size: var(--text-title);
-  font-weight: var(--weight-strong);
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  composes: question from '../../parts/Entry.module.css';
 }
 
 /* Inside the app: the Start page. The header keeps D's 24 px above the first tile. */
@@ -358,9 +331,7 @@
 }
 
 .sentence {
-  font-size: var(--text-read);
-  line-height: 1.5;
-  color: var(--fg2);
+  composes: sentence from '../../parts/Entry.module.css';
 }
 
 .countryEvidence {
@@ -578,15 +549,7 @@
 
 /* A phone: the tile fills the width, the steps stack as rows, and every control is a full touch target. */
 @media (max-width: 759px) {
-  .firstMain,
-  .firstMain[data-anchored] {
-    align-content: start;
-    padding: var(--sp-4) var(--gutter-phone);
-  }
 
-  .alone {
-    padding: var(--pad-tile);
-  }
 
   .howSteps {
     grid-template-columns: minmax(0, 1fr);

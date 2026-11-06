@@ -11,12 +11,13 @@ import { DIGEST_PATTERN } from '../../../../platform/shared/digest.ts';
  *   venture.needs.list                                what the business needs (core/needs-data.ts), the same data.
  */
 import { EngineError, type AboutReadLite, type FamilyTileLite, type CountryLite, type ModelStatusLite, type NeedsListLite, type ToolLite, type ToolsLite, type CodexSetupLite } from './types';
-import { FAMILIES, familyIdeaWith, familyOf, familyTiles, isFamilyId, keywordFamilyWith, type FamilyId } from '../../../../platform/runtime/venture/core/families';
-import { businessFamily, businessNeeds } from '../../../../platform/runtime/venture/core/needs-data';
-import { PROFESSIONS } from '../../../../platform/runtime/venture/core/professions';
-import { profileEntry, profileTextFromCsv } from '../../../../platform/runtime/venture/core/profile-csv';
-import { pdfText } from '../../../../platform/runtime/venture/core/pdf-text-core';
-import { isRefusal } from '../../../../platform/runtime/venture/refusal-brand';
+import { FAMILIES, familyIdeaWith, familyOf, familyTiles, isFamilyId, keywordFamilyWith } from '../../../../platform/shared/venture/core/families.ts';
+import type { FamilyId } from '../../../../platform/runtime/venture/core/families.ts';
+import { businessFamily, businessNeeds } from '../../../../platform/shared/venture/core/needs-data.ts';
+import { PROFESSIONS } from '../../../../platform/shared/venture/core/professions.ts';
+import { profileEntry, profileTextFromCsv } from '../../../../platform/shared/venture/core/profile-csv.ts';
+import { pdfText } from '../../../../platform/shared/venture/core/pdf-text-core.ts';
+import { isRefusal } from '../../../../platform/shared/venture/refusal-brand.ts';
 
 export const FIRST_RUN_METHODS: ReadonlySet<string> = new Set([
   'venture.ai.tools', 'venture.ai.login.start', 'venture.ai.login.cancel',

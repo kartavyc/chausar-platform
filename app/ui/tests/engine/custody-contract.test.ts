@@ -6,11 +6,11 @@ import { CUSTODY_ERROR_WORDS } from '../../src/engine/fixtures';
 import { TRANSFER_MAX_CHARS } from '../../src/parts/custody';
 
 /**
- * Ink keeps two copies of the custody contract (platform/runtime/workspace-custody-contracts.ts): the move file limit it
+ * Ink keeps two copies of the custody contract (platform/shared/workspace-custody-contracts.ts): the move file limit it
  * checks before sending, with the words it says then, and the fake engine's refusal words. Both must equal the
- * contract, as the old renderer's copies had to. Read as text: the UI never imports runtime files.
+ * contract, as the old renderer's copies had to. Read the canonical browser-safe contract as text.
  */
-const contract = readFileSync(join(import.meta.dirname, '../../../../platform/runtime/workspace-custody-contracts.ts'), 'utf8');
+const contract = readFileSync(join(import.meta.dirname, '../../../../platform/shared/workspace-custody-contracts.ts'), 'utf8');
 const errors = contract.slice(contract.indexOf('errors: Object.freeze({'), contract.indexOf('}),', contract.indexOf('errors: Object.freeze({')));
 const wordsOf = (code: string) => {
   const match = new RegExp(`\\b${code}: (['"])((?:(?!\\1).)*)\\1`).exec(errors);

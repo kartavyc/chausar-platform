@@ -1,6 +1,6 @@
 // Original Chausar social production desk. Local preparation and owner handoffs only.
 import {useState,type ReactNode,type ChangeEvent} from 'react';import {useEngine,useResource} from '../../../engine/context';import {EngineError} from '../../../engine/types';import {useT} from '../../../text';import {Tile,TileHead} from '../../../parts/Tile';import {Field} from '../../../parts/Field';
-import type {SocialProductionView} from '../../../../../../platform/runtime/venture/playbooks/social/production-types';
+import type { SocialProductionView } from '../../../../../../platform/runtime/venture/playbooks/social/production-types.ts';
 import {SocialAnalytics} from './SocialAnalytics';import {SocialMedia} from './SocialMedia';import {SocialAds} from './SocialAds';import s from './SocialCanvas.module.css';
 import { Select } from '../../../parts/Select';
 export type SocialAct=(action:string,payload:Record<string,unknown>)=>Promise<unknown>;

@@ -2,12 +2,12 @@ import { useId, useState, type ReactNode } from 'react';
 import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { ApprovalRow } from '../../parts/ApprovalRow';
-import { decide as decideRow, reread as rereadRow, useTodaySession } from '../today/session';
+import { decide as decideRow, reread as rereadRow, useTodaySession } from '../../parts/queue-session';
 import { ModelEstimate } from '../../parts/ModelEstimate';
 import { Tile, TileHead } from '../../parts/Tile';
 import { cx } from '../../parts/cx';
 import type { BlueprintViewLite, EngineClient, LabelledLite, QueueDecision, QueueRow } from '../../engine/types';
-import { formatDay } from '../../../../../platform/runtime/owner-format';
+import { formatDay } from '../../../../../platform/shared/owner-format.ts';
 import s from './Business.module.css';
 
 

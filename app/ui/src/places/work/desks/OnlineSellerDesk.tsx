@@ -8,7 +8,7 @@ import { Field } from '../../../parts/Field';
 import { Button } from '../../../parts/Button';
 import { Figure } from '../../../parts/Figure';
 import { Sheet } from '../../../parts/Sheet';
-import type { SellerMode } from '../../../../../../platform/runtime/venture/playbooks/online-seller/source';
+import type { SellerMode } from '../../../../../../platform/runtime/venture/playbooks/online-seller/source.ts';
 import type { SellerSkuBody } from '../../../../../../platform/runtime/venture/playbooks/online-seller/records';
 import s from './OnlineSellerDesk.module.css';
 import {SellerOperations} from './SellerOperations';

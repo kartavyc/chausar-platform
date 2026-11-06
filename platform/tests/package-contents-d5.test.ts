@@ -130,7 +130,12 @@ test('each problem is named', async t => {
 });
 
 test('the command line prints the problems and exits 1, or 0 with --json for a clean build', async t => {
-  const clean = spawnSync(process.execPath, [SCRIPT, await build(t), '--json'], { encoding: 'utf8', windowsHide: true });
+  const inkRoot = await mkdtemp(join(tmpdir(), 'chausar-contents-cli-'));
+  t.after(() => rm(inkRoot, { recursive: true, force: true }));
+  await mkdir(join(inkRoot, 'assets'));
+  await writeFile(join(inkRoot, 'index.html'), 'html');
+  await writeFile(join(inkRoot, 'assets', 'index.js'), 'js');
+  const clean = spawnSync(process.execPath, [SCRIPT, await build(t), '--ink-root', inkRoot, '--json'], { encoding: 'utf8', windowsHide: true });
   assert.equal(clean.status, 0, clean.stderr);
   assert.deepEqual(JSON.parse(clean.stdout).problems, []);
   const bad = spawnSync(process.execPath, [SCRIPT, await build(t, { locales: ['de.pak'] })], { encoding: 'utf8', windowsHide: true });
@@ -165,4 +170,21 @@ test('cleanup: contents checks share the staging Codex version pin', async () =>
   const { CODEX_BUNDLE } = await import(staging);
   const contents = await import(modulePath);
   assert.equal(contents.CODEX_VERSION, CODEX_BUNDLE.version);
+});
+
+// D9: the complete hashed build must survive packaging, not just index.html.
+test('D9: archive Ink files exactly match the named build, including every lazy chunk', async t => {
+  const root = await build(t);
+  const inkRoot = await mkdtemp(join(tmpdir(), 'chausar-contents-ink-'));
+  t.after(() => rm(inkRoot, { recursive: true, force: true }));
+  await mkdir(join(inkRoot, 'assets'));
+  await writeFile(join(inkRoot, 'index.html'), '<!doctype html>');
+  await writeFile(join(inkRoot, 'assets', 'index.js'), 'x');
+  assert.deepEqual((await readPackageContents(root, { inkRoot })).problems, []);
+  await writeFile(join(inkRoot, 'assets', 'money-AB_12.js'), 'lazy');
+  assert.match((await readPackageContents(root, { inkRoot })).problems.join('\n'), /Ink build missing from archive: assets\/money-AB_12.js/);
+  await writeFile(join(root, 'resources', 'app.asar'), asar({ ...CLEAN.archive, 'app/ui/dist/assets/money-AB_12.js': 'lazy', 'app/ui/dist/assets/old-CD_34.js': 'old' }));
+  assert.match((await readPackageContents(root, { inkRoot })).problems.join('\n'), /Ink archive has files absent from build: assets\/old-CD_34.js/);
+  await writeFile(join(root, 'resources', 'app.asar'), asar({ ...CLEAN.archive, 'app/ui/dist/assets/money-AB_12.js': 'lazy' }));
+  assert.deepEqual((await readPackageContents(root, { inkRoot })).problems, []);
 });

@@ -1,14 +1,14 @@
 import { FakeClientAiDefault, fakeClientAiConsent } from './fake-client-ai-consent';
 import { ownerError } from './owner-errors';
-import { INTERNAL_LINE_CODES, refusalTravel } from '../../../../platform/runtime/owner-flag';
-import { shownLine } from '../../../../platform/runtime/venture/core/shown-line';
+import { INTERNAL_LINE_CODES, refusalTravel } from '../../../../platform/shared/owner-flag.ts';
+import { shownLine } from '../../../../platform/shared/venture/core/shown-line.ts';
 import { rejectFakeAgentApproval } from './fake-agent-approval';
 import { FakeAgentSettings } from './fake-agent-settings';
 import { FakePacks } from './fake-packs';
 import { FakePreferences, PREFERENCE_METHODS } from './fake-preferences';
 import { FakeWorkProgress } from './fake-work-progress';
 import {withSellerCards} from './fake-seller-cards';
-import {percentBps} from '../../../../platform/runtime/venture/money/rate-core';
+import { percentBps } from '../../../../platform/shared/venture/money/rate-core.ts';
 import {fakeYoutubeForIdea,fakeYoutubePlan} from './fake-youtube-plan';
 import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
 /**
@@ -19,8 +19,8 @@ import { fakeCaPlan, fakeCaForIdea } from './fake-ca-plan';
  */
 
 import { AGENTS, BOOKS, BUSINESSES, CLIENTS, CONNECTORS, EVIDENCE, JOURNAL, QUEUE, RECEIPTS, RUNS, SPEND, SPEND_MICROS } from './fixtures';
-import { countryProfile } from '../../../../platform/runtime/venture/core/countries';
-import { clientPhone, PHONE_REFUSED } from '../../../../platform/runtime/venture/clients/phone';
+import { countryProfile } from '../../../../platform/shared/venture/core/countries.ts';
+import { clientPhone, PHONE_REFUSED } from '../../../../platform/shared/venture/clients/phone.ts';
 import { COUNTRIES, CUSTODY_ERROR_WORDS, NEW_BUSINESS_ROWS, SAMPLE_MOVE_CODE, SAMPLE_PASSPHRASE, SAMPLE_RECOVERY_CODE, SERVICE_KEYWORDS, SERVICE_LABELS, type FakeBusiness } from './fixtures';
 import type { BackupLite, BlueprintViewLite, InterviewAnswer, KeptShownLite, OfferLite, InterviewQuestionLite, ServiceType, WorkspaceCreated } from './types';
 import { createStatusStore } from './client';
@@ -78,15 +78,16 @@ import { fakeLaunchAdvance, fakeLaunchStatus, type LaunchFacts } from './fake-la
 import { FakeRulesAttest } from './fake-rules-attest';
 import type { ComplianceLite } from './types';
 import type { TeamListView } from './types';
-import { SIDE_WORK_ANSWERS, complianceOf, complianceSized, professionCompliance, readSizeFor, type ProfessionCompliance } from '../../../../platform/runtime/venture/core/compliance-data';
-import type { SizeAnswers } from '../../../../platform/runtime/venture/core/business-size';
-import { HARD_STOP_WORDS } from '../../../../platform/runtime/venture/policy/hard-stops';
-import { COUNTRY_TIME_ZONES } from '../../../../platform/runtime/venture/local-day-data';
+import { SIDE_WORK_ANSWERS, complianceOf, complianceSized, professionCompliance, readSizeFor } from '../../../../platform/shared/venture/core/compliance-data.ts';
+import type { ProfessionCompliance } from '../../../../platform/runtime/venture/core/compliance-data.ts';
+import type { SizeAnswers } from '../../../../platform/runtime/venture/core/business-size.ts';
+import { HARD_STOP_WORDS } from '../../../../platform/shared/venture/policy/hard-stops.ts';
+import { COUNTRY_TIME_ZONES } from '../../../../platform/shared/venture/local-day-data.ts';
 /** The business's own calendar day (as the engine's local-day.ts reads it from the country's time zone). */
 const localDayAt = (instant: string, country: { code: string }) => new Intl.DateTimeFormat('en-CA', { timeZone: COUNTRY_TIME_ZONES[country.code] ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(instant));
 import { withPriceGuide } from './fake-price-ranges';
 import { createFakeBackground, type FakeBackgroundStart } from './fake-background';
-import { introLine } from '../../../../platform/runtime/venture/agents/intro-core';
+import { introLine } from '../../../../platform/shared/venture/agents/intro-core.ts';
 import type { DeliveryLite, InvoiceLite, OrderLite, ReceiptLite } from './types';
 import { EngineError, type HostedMeLite, type AgentView, type ClientLite, type EngineClient, type EvidenceItem, type MethodName, type ParamsOf, type Posture, type QueueAction, type QueueDecision, type QueueRow, type ResultOf, type RunDetail, type UiRunEvent } from './types';
 
@@ -439,7 +440,7 @@ export class FakeEngine {
       ask: (method: string, p: Record<string, unknown>) => this.answerNow(method, p),
       // 5G: only screened imported mail words, through an internal host seam.
       scheduledPost: (id:string) => this.posting.scheduledSnapshot(id),
-      moveScheduledPost: (id:string,binding:import('../../../../platform/runtime/venture/playbooks/social/scheduled-core').ScheduledPostBinding) => this.posting.moveScheduled(id,binding),
+      moveScheduledPost: (id:string,binding:import('../../../../platform/shared/venture/playbooks/social/scheduled-core.ts').ScheduledPostBinding) => this.posting.moveScheduled(id,binding),
       scheduledSession:()=>this.scheduledSession,
       scheduledBusy:(id:string)=>this.posting.scheduledBusy(id),
       eraseScheduledPost:(id:string)=>this.posting.eraseScheduled(id),
@@ -454,7 +455,7 @@ export class FakeEngine {
       roomPrice:(orderId:string)=>this.work.roomPrice(this.current,orderId),
       narrationPrice: (orderId:string) => this.work.narrationPrice(this.current,orderId),
       orderFiles: (orderId: string) => this.work.orderFiles(this.current, orderId),
-      keepSellerAsset: (asset:Omit<import('./types').AssetView,'stale'|'blocked'|'sourceLine'|'costLine'>) => this.w5?.find((desk): desk is FakeKitMediaDesk => desk instanceof FakeKitMediaDesk)?.recordSellerAsset(asset),
+      keepSellerAsset: (asset:Omit<import('./types.ts').AssetView,'stale'|'blocked'|'sourceLine'|'costLine'>) => this.w5?.find((desk): desk is FakeKitMediaDesk => desk instanceof FakeKitMediaDesk)?.recordSellerAsset(asset),
       eraseSellerAssets: (ids:readonly string[]) => this.w5?.find((desk): desk is FakeKitMediaDesk => desk instanceof FakeKitMediaDesk)?.eraseSellerAssets(ids),
       eraseSellerFiles: (ids:readonly string[]) => this.work.eraseSellerFiles(this.current,ids),
       recruitingReports:(orderId:string)=>this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.recruitingReports(this.current,orderId)??{reports:[],shares:[]},
@@ -475,7 +476,7 @@ export class FakeEngine {
       eraseFormsCopies:(orderIds:readonly string[])=>{this.work.eraseCareerOrders(this.current,orderIds);const ids=this.work.eraseRecruitingCopies(this.current,orderIds,'Client data deleted.');this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);this.posting.eraseRunCopies(ids);},
       eraseRecruitingCopies:(orderIds:readonly string[])=>{const ids=this.work.eraseRecruitingCopies(this.current,orderIds);this.extras.eraseRecruitingCopies(this.current,ids);this.w5?.find((desk):desk is FakeKitReportDesk=>desk instanceof FakeKitReportDesk)?.eraseRecruitingCopies(this.current,ids);},
       socialChain:(orderId:string)=>this.work.narrationChain.view(orderId)??this.work.articleChain.view(orderId)??this.work.socialChain.view(orderId),
-      supportImported: (mail: import('./fake-w4').SupportImportedMail) => this.w5?.find((desk): desk is FakePlaybooksDesk => desk instanceof FakePlaybooksDesk)?.importSupportMail(mail),
+      supportImported: (mail: import('./fake-w4.ts').SupportImportedMail) => this.w5?.find((desk): desk is FakePlaybooksDesk => desk instanceof FakePlaybooksDesk)?.importSupportMail(mail),
       supportThread: (id: string) => this.w5?.find((desk): desk is FakeKitConnectDesk => desk instanceof FakeKitConnectDesk)?.supportThread(id) ?? null,
       // 5K1: read stored payment parts, never parse the formatted UI payment view.
       paymentFacts: () => {
@@ -897,7 +898,7 @@ export class FakeEngine {
         return venture ? { venture: { id: `venture_${this.current}`, workingName: venture.workingName, serviceType: venture.serviceType, launchStage: venture.launchStage ?? 'rehearsal', country: venture.countryCode ? countryProfile(venture.countryCode) : null, ...(venture.originalCountry ? { originalCountry: clone(venture.originalCountry) } : {}) }, done: venture.done, total: 12, checklist: fakeChecklist(venture.done), ...(playbook ? { playbook } : {}), ...this.w4.pausedField() } : null;
         }
 
-  private shareView(p:Record<string,unknown>){const method='venture.share.list';const base=this.extras.request(method,p) as {links:import('./types').ShareLink[];shares:import('./types').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];const openPosts=typeof p.deliveryId==='string'?this.posting.openPosts(p.deliveryId):[];const answer=typeof p.deliveryId==='string'?this.posting.socialClientAnswer(p.deliveryId)?.answer:null;return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra],...(openPosts.length?{posts:openPosts,clientApproval:true,answer:answer??null}: {})};}
+  private shareView(p:Record<string,unknown>){const method='venture.share.list';const base=this.extras.request(method,p) as {links:import('./types.ts').ShareLink[];shares:import('./types.ts').ShareLink[]};const extra=this.w5?.find((desk):desk is FakePlaybooksDesk=>desk instanceof FakePlaybooksDesk)?.sharedLinks(typeof p.deliveryId==='string'?p.deliveryId:undefined)??[];const openPosts=typeof p.deliveryId==='string'?this.posting.openPosts(p.deliveryId):[];const answer=typeof p.deliveryId==='string'?this.posting.socialClientAnswer(p.deliveryId)?.answer:null;return {...base,links:[...base.links,...extra],shares:[...base.shares,...extra],...(openPosts.length?{posts:openPosts,clientApproval:true,answer:answer??null}: {})};}
 
   /** C5 task 16: the CA's contact per business (money/accountant.ts). */
   private readonly accountants: Record<string, { email: string | null; whatsapp: string | null; at: string | null }> = {};

@@ -3,7 +3,7 @@
  * the profession the plan's playbook serves, from the engine's own data and code (core/price-ranges.ts), so the two
  * answer exactly alike. Information only; it never touches an offer's price.
  */
-import { priceGuideForPlaybook } from '../../../../platform/runtime/venture/core/price-ranges';
+import { priceGuideForPlaybook } from '../../../../platform/shared/venture/core/price-ranges.ts';
 import type { BlueprintViewLite, PriceGuideView } from './types';
 
 /** countryCode: the business's country, used when the plan carries none (the engine reads the plan's, then the venture's). */
