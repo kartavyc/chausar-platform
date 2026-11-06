@@ -207,7 +207,7 @@ export class FakeBusinessDesk {
       case 'venture.ai.disconnect': return this.disconnect(this.draftAi, p, null);
       // W6 6C3: every plan view carries its profession's price guide, as the engine's blueprintView adds it.
       case 'venture.blueprint.get': { const view = this.blueprints[biz]; return view ? withPriceGuide(clone(view), this.host.country?.(biz).code ?? 'IN') : null; }
-      case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn, p.ownerSave), this.host.country?.(biz).code ?? 'IN');
+      case 'venture.blueprint.update': return withPriceGuide(this.update(biz, p.patch, p.basedOn, p.ownerSave === true ? true : undefined), this.host.country?.(biz).code ?? 'IN');
       case 'venture.price.quote': return this.quote(biz, p);
       case 'venture.build.status': return clone(this.buildOf(biz));
       case 'venture.build.brief': return this.brief(biz);

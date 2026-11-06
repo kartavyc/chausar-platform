@@ -63,6 +63,8 @@ export function FirstRun({ status, onStarted, onBack, onExisting }: {
    */
   async function kept() {
     if (plan) await client.request('venture.owner.set', { familyId: plan.read.family.id }).catch(() => undefined);
+    // C4 task 2: the first name asked in About you, now that the business is open; left empty, nothing is written.
+    if (plan?.firstName) await client.request('venture.owner.set', { firstName: plan.firstName }).catch(() => undefined);
     setInVault(true);
     if (sideWork) {
       try { await client.request('venture.compliance.set', { profession: sideWork.profession, sideWork: sideWork.sideWork, digest: sideWork.digest, ...(sideWork.size ? { size: sideWork.size } : {}) }); }

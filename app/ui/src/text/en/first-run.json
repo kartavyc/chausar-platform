@@ -50,6 +50,7 @@
   "first-run.about.title": "What work do you do?",
   "first-run.about.sub": "Tell Chausar about your work, or pick a field.",
   "first-run.about.label": "Tell Chausar about your work",
+  "first-run.about.firstName": "Your first name",
   "first-run.about.placeholder": "For example: I'm a CA with six years in audit and want to do books and GST for small shops near me.",
   "first-run.about.attach": "Attach your resume PDF or LinkedIn data export ZIP",
   "first-run.about.removeFile": "Remove {name}",

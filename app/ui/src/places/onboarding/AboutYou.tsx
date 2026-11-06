@@ -5,6 +5,7 @@ import type { AboutReadLite, CountryLite } from '../../engine/types';
 import { Bento, Tile } from '../../parts/Tile';
 import { Button } from '../../parts/Button';
 import { Chip } from '../../parts/Chip';
+import { Field } from '../../parts/Field';
 import { Icon } from '../../parts/Icon';
 import { cleanSentence, computerCountry, pickCountry, sentenceProblem, OPEN_BOX } from './flow';
 import { aboutFile, type AboutFile } from './linkedin';
@@ -25,7 +26,7 @@ const CARD_OFFERS_MAX = 3;
 const ASKS_RENAME = /\b(?:(?:call|name)\s+(?:it|this|the business|my business|this business)|rename)\b/i;
 const rowsOf = (next: AboutReadLite): OfferRow[] => next.offers.map((offer, index) => ({ key: index, name: offer.name, line: offer.line ?? '', kept: true, editing: false }));
 /** name (one-shot A1, row 3): the name the card shows, which the saved plan keeps with the card's offers. */
-export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string };
+export type KeptPlan = { read: AboutReadLite & { idea: string; family: NonNullable<AboutReadLite['family']> }; countryCode: string; name: string; firstName?: string };
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** True when the computer asks for reduced motion: then A becomes B with no motion at all. */
@@ -58,6 +59,8 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
   const [mode, setMode] = useState<Mode>('a');
   const [motion] = useState(() => (prefersReducedMotion() ? 'none' : 'once'));
   const [text, setText] = useState('');
+  // C4 task 2 (8.w1): optional, kept here only until the business is open (FirstRun's kept()).
+  const [firstName, setFirstName] = useState('');
   const [file, setFile] = useState<AboutFile | null>(null);
   const [said, setSaid] = useState('');
   const [reply, setReply] = useState('');
@@ -203,7 +206,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
   const keptOffers = rows.filter((row) => row.kept && row.name.trim().length >= 2).map((row) => ({ name: row.name.trim(), line: row.line.trim() }));
   const noOffer = read !== null && read.offers.length > 0 && keptOffers.length === 0;
   const keepable = read?.family && read.idea && countryCode && !noOffer
-    ? { read: { ...read, offers: keptOffers.length ? keptOffers : read.offers } as KeptPlan['read'], countryCode, name: (ownName ?? name ?? read.family.label).trim() } : null;
+    ? { read: { ...read, offers: keptOffers.length ? keptOffers : read.offers } as KeptPlan['read'], countryCode, name: (ownName ?? name ?? read.family.label).trim(), ...(firstName.trim() ? { firstName: firstName.trim() } : {}) } : null;
   const noOfferId = `${fieldId}-none`;
 
   function change(key: number, next: Partial<OfferRow>) { setRows((was) => was.map((row) => (row.key === key ? { ...row, ...next } : row))); }
@@ -326,6 +329,8 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
     );
   }
 
+  const firstNameField = <Field label={t('first-run.about.firstName')} autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.currentTarget.value)} />;
+
   if (mode === 'a') {
     return (
       <div className={f.wrap}>
@@ -334,6 +339,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
         <p className={f.sub}>{t('first-run.about.sub')}</p>
         <Bento className={f.grid} as="section" labelledBy={headingId}>
           <Tile span={12} card>
+            {firstNameField}
             <form className={s.box} onSubmit={send} noValidate>
               <label htmlFor={boxId} className={s.boxLabel}>{t('first-run.about.label')}</label>
               <div className={s.boxRow}>
@@ -390,6 +396,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
               <span className={s.hint}>{t('first-run.about.chatMeta')}</span>
               <Button variant="quiet" onClick={() => setMode('a')}>{t('first-run.about.back')}</Button>
             </div>
+            {firstNameField}
             {thread.map((bubble, index) => (
               <p key={index} className={`${s.bubble} ${bubble.who === 'me' ? s.me : s.them}`} data-content={bubble.who === 'me' ? '' : undefined}>{bubble.text}</p>
             ))}

@@ -62,7 +62,7 @@ export function useOwnerHour(): number {
 
 /** One-shot C4 (T22): a day key plus whole days, on the calendar only; anything else comes back as it is. */
 export function dayPlus(day: string, days: number): string {
-  if (!/^d{4}-d{2}-d{2}$/.test(day)) return day;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return day;
   return dayKeyIn(new Date(Date.parse(`${day}T00:00:00.000Z`) + days * 86_400_000), 'UTC');
 }
 

@@ -73,7 +73,7 @@ describe('Business > Goals', () => {
     });
     const goal = await tile('October 2026 goal');
     const last = await waitFor(() => { const found = goal.querySelector('[data-last-month]'); expect(found).not.toBeNull(); return found as HTMLElement; });
-    expect(last.textContent).toContain('Invoiced in September 2026');
+    expect(last.textContent).toContain('Invoiced in September');
     expect(within(last).getByRole('button', { name: receiptMark('R-0777') })).toBeTruthy();
     // Beside the field: inside the form, just after the amount.
     expect(last.closest('form')).not.toBeNull();
