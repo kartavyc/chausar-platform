@@ -1,3 +1,4 @@
+import { currentRun } from '../replay/scope.ts';
 import { check, type Context } from '../../contracts.ts';
 import type { VentureDeps } from '../contracts.ts';
 import { listRecords, readVenture } from '../records.ts';
@@ -9,6 +10,21 @@ import type { AgentRoute } from './route-types.ts';
 
 /** Only trusted playbook metadata may enable research defaults, never words in a client's request. */
 export async function selectAgentRoute(deps: VentureDeps, ctx: Context, agentId: string, research = false): Promise<AgentRoute> {
+  const run = currentRun(), request = JSON.stringify({ agentId, research });
+  if (run?.replay) {
+    const metadata = JSON.parse(run.replay.model('agent-route', request));
+    const driver = metadata.provider === 'claude' ? createClaudeDriver({ executable: process.execPath }) : new CodexDriver({ executable: process.execPath });
+    return { ...metadata.route, driver, ...(metadata.keyed ? { credentials: { apiKey: 'sample-replay-credential', ...(metadata.baseUrl ? { baseUrl: metadata.baseUrl } : {}) } } : {}) };
+  }
+  const route = await selectLiveAgentRoute(deps, ctx, agentId, research);
+  if (run?.recorder) {
+    const { driver: _driver, credentials, ...saved } = route;
+    const provider = route.presetId?.startsWith('claude') || route.presetId?.startsWith('anthropic') ? 'claude' : 'codex';
+    run.recorder.model('agent-route', request, JSON.stringify({ provider, route: saved, keyed: !!credentials, ...(credentials?.baseUrl ? { baseUrl: credentials.baseUrl } : {}) }));
+  }
+  return route;
+}
+async function selectLiveAgentRoute(deps: VentureDeps, ctx: Context, agentId: string, research: boolean): Promise<AgentRoute> {
   if (deps.agentRoute) return deps.agentRoute(ctx, agentId);
   check(deps.host !== 'hosted-web', 'PRESET_UNAVAILABLE', 'Run your AI tools in the desktop app.');
   const { state, venture } = readVenture(deps, ctx);
