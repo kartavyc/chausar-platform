@@ -1,7 +1,7 @@
 // B1 fix round 1 (the founder's naming answers, 5 Nov): a single agent task is a "job" everywhere the owner reads it
 // (Work stays the place, client orders stay "orders"); Today's "Questions" filter is "From your agents"; "Settled chats"
 // are "Old chats", and the Settle action's word follows; one spelling, "Practice". Code names are unchanged.
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CATALOGUES } from '../src/text';
@@ -38,7 +38,11 @@ describe('one name for an agent task: a job', () => {
  * these sources (it starts with a capital and has a space) is read, so a line added later is checked too.
  */
 const ROOT = join(import.meta.dirname, '../../..');
-const SCREEN_SOURCES = [
+const SCREEN_SOURCES = [...new Set([
+  ...['delivery', 'flows', 'policy', 'money'].flatMap(area => {
+    const folder = 'platform/runtime/venture/' + area;
+    return readdirSync(join(ROOT, folder), { recursive: true }).filter((file): file is string => typeof file === 'string' && file.endsWith('.ts')).map(file => folder + '/' + file.replaceAll('\\', '/'));
+  }),
   'platform/runtime/venture/views/health.ts', 'platform/runtime/venture/views/queue.ts', 'platform/runtime/venture/views/row-receipts.ts',
   'platform/runtime/venture/views/runs.ts', 'platform/runtime/venture/views/keeper.ts', 'platform/runtime/venture/agents/ideas.ts',
   'platform/runtime/venture/agents/relay.ts', 'platform/runtime/venture/agents/roles.ts', 'platform/runtime/venture/agents/persona.ts',
@@ -47,7 +51,7 @@ const SCREEN_SOURCES = [
   'platform/runtime/venture/money/spend-meter.ts', 'platform/runtime/venture/notify/digest.ts',
   'app/ui/src/engine/fake-agent-extras.ts', 'app/ui/src/engine/fake-agents.ts', 'app/ui/src/engine/fake-retire.ts',
   'app/ui/src/engine/fake-run-controls.ts', 'app/ui/src/engine/fake-team.ts',
-];
+])];
 const QUOTED = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g;
 function sentences(file: string): string[] {
   const source = readFileSync(join(ROOT, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
