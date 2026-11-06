@@ -145,7 +145,7 @@ for (const entry of entries) {
 }
 
 const vaultSource = await readFile(join(root, 'platform/runtime/vault.ts'), 'utf8').catch(() => '');
-const passed = entries.every(entry => entry.status !== 'over');
+const passed = entries.every(entry => entry.status !== 'over' && !(entry.name === 'slow-test-files' && entry.status === 'not-measured'));
 const receipt = { schema: 'chausar.perf-budgets.v1', at: new Date().toISOString(), nodeVersion: process.version, platform: process.platform,
   architecture: process.arch, standIn: Boolean(standIn), entries, passed,
   notes: { vaultSnapshotCeiling: /const MAX_BYTES = ([^;]+);/.exec(vaultSource)?.[1] ?? 'not found' } };
