@@ -256,7 +256,7 @@ export async function assetsRerunHandler(deps: VentureDeps, ctx: Context, payloa
     const superseded = tx.replace<AssetRecord>({ ...old, supersededBy: next.id });
     return {
       asset: assetView(tx.state, next, tx.now), superseded: assetView(tx.state, superseded, tx.now),
-      line: `${old.name} is asked for again, with the same request. The old one is kept; the order's next run makes the new one.`,
+      line: `${old.name} is asked for again, with the same request. The old one is kept; the order's next job makes the new one.`,
     };
   });
 }

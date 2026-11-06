@@ -174,8 +174,8 @@ export class FakeWorkDesk {
   async nativeRestart(run:RunDetail,resume:boolean):Promise<RunDetail> {
     const biz=this.host.current(),delivery=(this.deliveries[biz]??[]).find(item=>item.id===run.runId);
     if(!delivery)throw new EngineError('RUN_RESTART_REQUIRED','There is no current saved work to continue. Choose Run again to start a fresh AI job.');
-    if(resume && (this.deliveries[biz]??[]).find(item=>item.orderId===delivery.orderId)?.id!==run.runId)throw new EngineError('RUN_SUPERSEDED','A newer run of this order replaced this one, so it cannot be resumed. Open the newer run instead.');
-    if(this.order(biz,delivery.orderId).status==='cancelled')throw new EngineError('ORDER_NOT_ACTIVE','This order was cancelled, so its run cannot go on.');
+    if(resume && (this.deliveries[biz]??[]).find(item=>item.orderId===delivery.orderId)?.id!==run.runId)throw new EngineError('RUN_SUPERSEDED','A newer job of this order replaced this one, so it cannot be resumed. Open the newer job instead.');
+    if(this.order(biz,delivery.orderId).status==='cancelled')throw new EngineError('ORDER_NOT_ACTIVE','This order was cancelled, so its job cannot go on.');
     if(resume&&!this.nativeCanResume(run))throw new EngineError('RUN_RESTART_REQUIRED','There is no current saved work to continue. Choose Run again to start a fresh AI job.');
     const next=await this.start(biz,{orderId:delivery.orderId},resume?run:undefined);
     const view=this.host.runs().find(item=>item.businessId===biz&&item.runId===next.id)!;

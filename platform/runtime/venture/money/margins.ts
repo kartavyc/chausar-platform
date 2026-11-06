@@ -121,7 +121,7 @@ export async function moneyMargins(deps: VentureDeps, ctx: Context, payload: unk
   const shown = monthWords(month);
   const why = venture.country.currency === 'INR' ? 'no rupee rate set' : `no rate from US dollars to ${venture.country.currency}`;
   const basis = basisOf(
-    [`Invoices issued in ${shown}, before tax, less credit notes`, 'AI and tool spend by UTC month, tagged to a client through its run and order', ...rateBasis(counted ? rate : null)],
+    [`Invoices issued in ${shown}, before tax, less credit notes`, 'AI and tool spend by UTC month, tagged to a client through its job and order', ...rateBasis(counted ? rate : null)],
     notCountedOf([
       otherCurrency(invoicesElsewhere(state, venture, calendarMonth(month).from, calendarMonth(month).to), 'invoice', 'invoices', venture.country.currency),
       counted ? { count: untagged, one: 'paid call no order can claim', many: 'paid calls no order can claim' } : { count: all, one: `paid call with ${why}`, many: `paid calls with ${why}` },

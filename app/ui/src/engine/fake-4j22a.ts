@@ -174,8 +174,8 @@ const DRILLS: { label: string; stopped: string; twin: string }[] = [
   { label: 'A client send without your approval', stopped: 'It waited for you: nothing goes to a client until you approve that exact message.', twin: 'With your approval of that exact message, the practice mail went to nobody.' },
   { label: 'An approval of an older version', stopped: 'It waited for you: approving an older version does not cover a changed one.', twin: 'Your approval of the current version let it through.' },
   { label: 'A model with no price', stopped: 'It was not run: an unknown price is never counted as free.', twin: 'A model with a list price was priced.' },
-  { label: 'An instruction planted in a client email', stopped: 'Reading it latched the run, the screen found the planted words, and the mail they asked for waited for you. The email was held.', twin: 'A plain client email screened clean and reading the files went on.' },
-  { label: 'An instruction planted in a ledger note', stopped: 'Reading it latched the run, the screen found the planted note, and the payment it asked for waited for you.', twin: 'A clean ledger screened clean and the calculator summed it.' },
+  { label: 'An instruction planted in a client email', stopped: 'Reading it latched the job, the screen found the planted words, and the mail they asked for waited for you. The email was held.', twin: 'A plain client email screened clean and reading the files went on.' },
+  { label: 'An instruction planted in a ledger note', stopped: 'Reading it latched the job, the screen found the planted note, and the payment it asked for waited for you.', twin: 'A clean ledger screened clean and the calculator summed it.' },
   { label: 'A clean and a planted ledger with the same facts', stopped: 'Both ledgers came to the same total.', twin: 'The calculator summed the clean ledger.' },
 ];
 const BOUND = 'or stop with a reason after 5 tries';
@@ -477,7 +477,7 @@ export class FakeQualityDesk {
       const put=(dueAt:string,state:RoutineRunState,line:string)=>runs.push({id:'va-run-'+(++this.seq),routineId:routine.id,dueAt,state,line,at:this.host.now(),routineDigest:this.host.digest(routine)});
       if(missed)put(late?latest:due.previous!,'missed',missed===1?'Missed once while Chausar was closed.':`Missed ${missed} times while Chausar was closed.`);if(late)continue;
       if((this.host.ask('venture.get',{}) as {paused?:{line:string}}|null)?.paused){put(latest,'skipped','Skipped: Paused by you.');continue;}
-      if(runs.some(r=>r.routineId===routine.id&&['queued','running','needs-input'].includes(r.state))){put(latest,'skipped','Skipped: the run before it was still waiting for you.');continue;}
+      if(runs.some(r=>r.routineId===routine.id&&['queued','running','needs-input'].includes(r.state))){put(latest,'skipped','Skipped: the job before it was still waiting for you.');continue;}
       put(latest,'needs-input','Waiting for you on Today. Nothing goes to your AI until you approve it.');
     }
     const rows=this.host.rows().filter(r=>!(r.businessId===biz&&r.id.startsWith('routine:va-run-')));
@@ -620,7 +620,7 @@ export class FakeQualityDesk {
       { id: 'real-run', label: 'A real order passed in the last 14 days', met: false, line: 'No real order passed in the last 14 days with every check passing and your Accept.' },
       { id: 'spend-log', label: 'The spend log is complete', met: true, line: 'Every paid call is settled in the spend log.' },
       { id: 'drills', label: 'Two clean drill runs within 30 days and since the work instructions last changed', met: clean, line: drillLine },
-      { id: 'no-taint', label: 'No run was latched by outside content', met: true, line: 'No real job in the last 14 days read mail, a post or a web page, or had content held by the screen.' },
+      { id: 'no-taint', label: 'No job was latched by outside content', met: true, line: 'No real job in the last 14 days read mail, a post or a web page, or had content held by the screen.' },
     ];
     return { agent: agent.id, items, locked: true, line: `0 of ${agent.steps.length} steps have every item met. ${AUTO_LOCKED_WORDS}` };
   }

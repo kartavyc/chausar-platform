@@ -98,9 +98,9 @@ function quotesRule(quote: string, rule: JudgeRule): boolean {
 /** One vote, checked: it cites at least one id, every id is in the trace, and a no quotes the rule. */
 export function checkVote(vote: RuleVote, rule: JudgeRule, ids: ReadonlySet<string>): CheckedVote {
   const verdict = (problem: string | null): CheckedVote => ({ ...vote, cites: [...vote.cites], verified: problem === null, problem });
-  if (!vote.cites.length) return verdict('This vote cited no evidence from the run.');
+  if (!vote.cites.length) return verdict('This vote cited no evidence from the job.');
   const unknown = vote.cites.find(id => !ids.has(id));
-  if (unknown !== undefined) return verdict(`This vote cited ${JSON.stringify(unknown)}, which is not in the run's trace.`);
+  if (unknown !== undefined) return verdict(`This vote cited ${JSON.stringify(unknown)}, which is not in the job's trace.`);
   if (vote.answer === 'no' && !quotesRule(vote.quote, rule)) return verdict('This no does not quote the rule it says was broken.');
   return verdict(null);
 }

@@ -9,7 +9,7 @@ import type { DeliveredFile, DeliveredView, DeliveryRunRecord, IsoTime, UploadRe
 import { TOOL_PURPOSE } from './harness/tool-purpose.ts';
 import { DELEGATE_LABELS } from './harness/delegate.ts';
 
-export const CHANGED_DURING_RUN = "Changed during this run, not proven to be the agent's.";
+export const CHANGED_DURING_RUN = "Changed during this job, not proven to be the agent's.";
 const DRAFT_ONLY = 'Handed over the draft only: its tools made no files.';
 /** The verdicts that hand a draft over: accepted as it is, or accepted in the owner's edited version. */
 const HANDED_OVER: readonly DeliveryRunRecord['status'][] = ['accepted', 'edited'];

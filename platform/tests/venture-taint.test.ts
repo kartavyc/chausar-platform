@@ -82,7 +82,7 @@ test('latch: once tainted, a call that writes, sends, reaches outside, moves mon
       }
     }
   }
-  assert.equal(TAINT_WORDS, 'This run read outside content, so anything that writes, sends or reaches outside waits for you.');
+  assert.equal(TAINT_WORDS, 'This job read outside content, so anything that writes, sends or reaches outside waits for you.');
   // Reading and working on the run's own files go on as before.
   assert.deepEqual(pick(ladder(call('files.read', 'read'), context({ taint: TAINT }))), { verdict: 'allow', code: 'auto' });
   assert.deepEqual(pick(ladder(call('calc.sum', 'compute'), context({ taint: TAINT, posture: 'approve-each', approval: { kind: 'owner-turn' } }))), { verdict: 'allow', code: 'owner_turn' });

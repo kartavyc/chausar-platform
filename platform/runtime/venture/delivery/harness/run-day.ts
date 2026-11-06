@@ -8,7 +8,7 @@ import type { ToolEnv } from './tools.ts';
 
 /**
  * Today for this run, in the business's zone. Every run the engine starts has a vault and a business; a tool
- * environment built by hand (a unit test) may have neither, and then the engine's fallback for a business with no
+ * environment built by hand (a unit test) may have no store, or a store without that business. In either case the engine's fallback for a business with no
  * country applies (UTC, local-day.ts ventureTimeZone).
  */
 export function runDay(env: Pick<ToolEnv, 'deps' | 'ventureId' | 'now'>): IsoDate {
