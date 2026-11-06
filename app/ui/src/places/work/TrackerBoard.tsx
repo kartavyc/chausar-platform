@@ -1,6 +1,7 @@
 import { useT } from '../../text';
 import type { TrackerColumnLite, TrackerDetailLite, TrackerRowLite } from '../../engine/types';
 import { AddedBy, Cell } from './Trackers';
+import { Select } from '../../parts/Select';
 import s from './Trackers.module.css';
 
 /**
@@ -25,10 +26,10 @@ export function TrackerBoard({ detail, column, onMove, onUndo }: { detail: Track
                   {words.map((cell) => <div key={cell.column}><Cell cell={cell} /></div>)}
                   <label className={s.select}>
                     <span>{t('work.trackers.moveTo')}</span>
-                    <select value={String(valueOf(row))} onChange={(event) => onMove(row, column.id, event.currentTarget.value)}>
+                    <Select value={String(valueOf(row))} onChange={(event) => onMove(row, column.id, event.currentTarget.value)}>
                       {!options.includes(String(valueOf(row))) && <option value="">{t('work.trackers.notSet')}</option>}
                       {options.map((one) => <option key={one} value={one}>{one}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <AddedBy row={row} onUndo={onUndo} />
                 </li>

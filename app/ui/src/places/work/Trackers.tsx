@@ -5,6 +5,8 @@ import { Button } from '../../parts/Button';
 import { Field } from '../../parts/Field';
 import type { TrackerCellLite, TrackerColumnLite, TrackerDetailLite, TrackerLite, TrackerRowLite } from '../../engine/types';
 import { TrackerBoard } from './TrackerBoard';
+import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 import s from './Trackers.module.css';
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -113,15 +115,14 @@ function KeptBy({ tracker, onChanged }: { tracker: TrackerLite; onChanged: () =>
     } catch (error) { setProblem(messageOf(error)); }
   }
   return (
-    <details className={s.fold} data-fold="kept-by" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{t('work.trackers.keptBy')}</summary>
+    <Fold summary={t('work.trackers.keptBy')} className={s.fold} data-fold="kept-by" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <div className={s.form}>
         <p className={s.line}>{t('work.trackers.keptByLine')}</p>
         {agents.map((agent) => <label key={agent.id} className={s.select}><input type="checkbox" checked={picked.includes(agent.id)} onChange={() => toggle(agent.id)} /> <span>{agent.name}</span></label>)}
         <div><Button size="sm" disabled={chosen === null} onClick={() => void save()}>{t('work.trackers.saveKeptBy')}</Button></div>
         {problem && <p className={s.problem} role="alert">{problem}</p>}
       </div>
-    </details>
+    </Fold>
   );
 }
 
@@ -180,16 +181,15 @@ function AddRow({ tracker, onAdded }: { tracker: TrackerLite; onAdded: () => voi
     } catch (error) { setProblem(messageOf(error)); }
   }
   return (
-    <details className={s.fold}>
-      <summary>{t('work.trackers.add')}</summary>
+    <Fold summary={t('work.trackers.add')} className={s.fold}>
       <form className={s.form} onSubmit={(event) => void submit(event)} aria-label={t('work.trackers.add')}>
         {fields.map((column) => {
           if (column.kind === 'choice') return (
             <label key={column.id} className={s.select}><span>{column.name}</span>
-              <select value={values[column.id] ?? ''} onChange={(event) => set(column, event.currentTarget.value)}>
+              <Select value={values[column.id] ?? ''} onChange={(event) => set(column, event.currentTarget.value)}>
                 <option value="" />
                 {(column.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
+              </Select>
             </label>
           );
           if (column.kind === 'check') return <label key={column.id} className={s.select}><input type="checkbox" checked={values[column.id] === 'yes'} onChange={(event) => set(column, event.currentTarget.checked ? 'yes' : '')} /> <span>{column.name}</span></label>;
@@ -198,6 +198,6 @@ function AddRow({ tracker, onAdded }: { tracker: TrackerLite; onAdded: () => voi
         <div><Button type="submit" variant="primary">{t('work.trackers.addIt')}</Button></div>
         {problem && <p className={s.problem} role="alert">{problem}</p>}
       </form>
-    </details>
+    </Fold>
   );
 }

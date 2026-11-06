@@ -102,7 +102,7 @@ describe('Work v2: the filter chips', () => {
     const show = screen.getByRole('group', { name: 'Show' });
     // An engine-failed run is "Failed"; "Stopped" is kept for the owner's own Stop (W4 4F).
     // C1 task 5: Ideas is a page of its own, one link away in the toolbar, not a filter.
-    expect(within(show).getAllByRole('button').map((b) => b.textContent)).toEqual(['All', 'Needs you', 'Running', 'Failed', 'Done']);
+    expect(within(show).getAllByRole('button').map((b) => b.textContent)).toEqual(['All', 'Needs you', 'Running', 'Failed', 'Done', 'Trackers']);
     expect(pressed(show)).toEqual(['Failed']);
     await click(within(show).getByRole('button', { name: 'Running' }));
     expect(window.location.hash).toBe('#/work?state=active');

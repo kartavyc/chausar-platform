@@ -25,6 +25,7 @@ import { Instructions } from './Instructions';
 import { KeeperJobs } from './KeeperCard';
 import { RING, Result, agentRow, currentRun, elapsedOf, refreshOn, stateWords, toneOf } from './shared';
 import s from './Team.module.css';
+import { Fold } from '../../parts/Fold';
 import c from './AgentChat.module.css';
 
 /** A role whose steps are code has no chat and keeps no notes (engine 4B1 AGENT_IS_CODE): its instructions and runs. */
@@ -239,11 +240,10 @@ function HiredDuties({ agent, duties, onChanged }: { agent: string; duties: stri
     finally { setBusy(false); }
   }
   return (
-    <details className={s.hireFold}>
-      <summary>{t('team.hire.change')}</summary>
+    <Fold summary={t('team.hire.change')} className={s.hireFold}>
       <Field multiline rows={4} label={t('team.hire.duties')} hint={t('team.hire.dutiesHint')} value={text} onChange={(event) => setText(event.currentTarget.value)} />
       {problem && <p className={s.hireProblem} role="alert">{problem}</p>}
       <Button size="sm" disabled={busy} onClick={() => void save()}>{t('team.hire.saveDuties')}</Button>
-    </details>
+    </Fold>
   );
 }

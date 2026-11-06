@@ -13,7 +13,7 @@ describe('Allow AI for new clients', () => {
     window.location.hash = '#/clients';
     const engine = new FakeEngine();
     render(<App client={createFakeClient(engine)} language="en" />);
-    const fold = (await screen.findByText('Allow AI for new clients', { selector: 'summary' })).closest('details') as HTMLDetailsElement;
+    const fold = (await screen.findByText('Allow AI for new clients')).closest('details') as HTMLDetailsElement;
     expect(fold.open).toBe(false);
     expect(within(fold).getByText(/Off/)).toBeTruthy();
     fold.open = true;

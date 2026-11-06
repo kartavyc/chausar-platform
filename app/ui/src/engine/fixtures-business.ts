@@ -141,7 +141,7 @@ export const CONNECTORS: ConnectorCardLite[] = [
     id: 'cal-com', name: 'Cal.com', category: 'booking', categoryLabel: 'Booking and calendar',
     modes: [PLANNED_HANDOFF, plannedRead('Cal.com')],
     chips: ['planned: handoff', 'planned: read'], regions: GI, regionNote: null, auth: 'API key', vendorUrl: 'https://cal.com/',
-    note: 'A booking page for calls. You can put its link on your site yourself; adding it through the brief is planned.', starter: true, postingOptions: [],
+    note: 'A booking page for calls. You can put its link on your site yourself; adding it through the brief is planned. A booking can start a routine: events are read through your own relay and checked here with your key, tested with stand-ins until you run one.', starter: true, postingOptions: [],
   },
   {
     id: 'chausar-books', name: 'Chausar back office', category: 'books-tax', categoryLabel: 'Books, tax and invoicing',

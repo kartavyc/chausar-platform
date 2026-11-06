@@ -6,6 +6,8 @@ import { Field } from '../../parts/Field';
 import type { AgentView, RoutineSchedule } from '../../engine/types';
 import { messageOf } from './shared';
 import s from './Business.module.css';
+import { Select } from '../../parts/Select';
+import { Fold } from '../../parts/Fold';
 import r from './RoutinesView.module.css';
 
 type EventSchedule = Extract<RoutineSchedule, { kind: 'event' }>;
@@ -38,8 +40,7 @@ export function EventTriggers({ agents, onSaved }: { agents: AgentView[]; onSave
   const saveRelay = (event: FormEvent) => { event.preventDefault(); void act(() => client.request('venture.events.relay.set', { address: address.trim() })).then(() => setAddress('')); };
   const saveKey = (event: FormEvent) => { event.preventDefault(); void act(() => client.request('venture.events.calKey.set', { key: calKey.trim() })).then(() => setCalKey('')); };
   return (
-    <details className={s.fold} data-fold="event-triggers" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{t('business.triggers.title')}</summary>
+    <Fold summary={t('business.triggers.title')} className={s.fold} data-fold="event-triggers" onToggle={(event) => setOpen(event.currentTarget.open)}>
       {data && (
         <div className={r.list}>
           <p className={s.line} data-closed-line="">{data.line}</p>
@@ -67,7 +68,7 @@ export function EventTriggers({ agents, onSaved }: { agents: AgentView[]; onSave
           )}
         </div>
       )}
-    </details>
+    </Fold>
   );
 }
 
@@ -95,16 +96,16 @@ function AddTrigger({ agents, blanks, onSaved }: { agents: AgentView[]; blanks: 
     <form className={r.form} aria-label={t('business.triggers.add')} onSubmit={(event) => { event.preventDefault(); if (prompt.trim()) setAsking(true); }}>
       <label className={r.select}>
         <span className={r.legend}>{t('business.triggers.event')}</span>
-        <select value={which} onChange={(event) => { setWhich(Number(event.currentTarget.value)); setAsking(false); }}>
+        <Select value={which} onChange={(event) => { setWhich(Number(event.currentTarget.value)); setAsking(false); }}>
           {EVENTS.map((item, index) => <option key={item.event} value={index}>{t(`business.triggers.when.${item.event}`)}</option>)}
-        </select>
+        </Select>
       </label>
       <label className={r.select}>
         <span className={r.legend}>{t('business.routines.who')}</span>
-        <select value={agent} onChange={(event) => setAgent(event.currentTarget.value)}>
+        <Select value={agent} onChange={(event) => setAgent(event.currentTarget.value)}>
           <option value="">{t('business.routines.chausar')}</option>
           {agents.map((one) => <option key={one.id} value={one.id}>{one.name}</option>)}
-        </select>
+        </Select>
       </label>
       <Field multiline rows={3} label={t('business.triggers.prompt')} hint={t('business.triggers.promptHint', { blanks: allowed.map((blank) => `{${blank}}`).join(', ') })} value={prompt} maxLength={2000} onChange={(event) => { setPrompt(event.currentTarget.value); setAsking(false); }} />
       {asking ? (

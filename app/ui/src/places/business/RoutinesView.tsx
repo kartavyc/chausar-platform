@@ -366,22 +366,21 @@ function PlanPause() {
     } finally { setBusy(false); setAsking(false); }
   }
   return (
-    <details className={s.fold} data-fold="plan-pause" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{t('business.routines.plan.title')}</summary>
+    <Fold summary={t('business.routines.plan.title')} className={s.fold} data-fold="plan-pause" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <p className={s.note}>{t('business.routines.plan.line')}</p>
       <label className={r.select} htmlFor={id}>
         <span className={r.legend}>{t('business.routines.plan.at')}</span>
-        <select id={id} value={value} disabled={!current.data} onChange={(event) => { setChoice(event.currentTarget.value); setSaid(null); }}>
+        <Select id={id} value={value} disabled={!current.data} onChange={(event) => { setChoice(event.currentTarget.value); setSaid(null); }}>
           <option value="none">{t('business.routines.plan.none')}</option>
           {PAUSE_POINTS.map((point) => <option key={point} value={String(point)}>{t('business.routines.plan.percent', { percent: point })}</option>)}
-        </select>
+        </Select>
       </label>
       {asking
         ? <Ask ask={t('business.routines.plan.ask')} label={t('business.routines.save')} busy={busy} onNo={() => setAsking(false)} onYes={() => void save()} />
         : <div className={s.buttons}><Button disabled={!current.data || choice === null} onClick={() => setAsking(true)}>{t('business.routines.save')}</Button></div>}
       {said && <p className={s.note} role="status">{said}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
-    </details>
+    </Fold>
   );
 }
 
@@ -425,8 +424,7 @@ function BackupAi() {
     } finally { setBusy(false); setAsking(false); }
   }
   return (
-    <details className={s.fold} data-fold="backup-ai" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{t('business.routines.backup.title')}</summary>
+    <Fold summary={t('business.routines.backup.title')} className={s.fold} data-fold="backup-ai" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <p className={s.note}>{t('business.routines.backup.line')}</p>
       {data && data.choices.length === 0 && <p className={s.line}>{t('business.routines.backup.none')}</p>}
       {data && data.choices.length > 0 && (
@@ -463,6 +461,6 @@ function BackupAi() {
       )}
       {said && <p className={s.note} role="status">{said}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
-    </details>
+    </Fold>
   );
 }

@@ -74,7 +74,7 @@ describe('task 20: backup labels', () => {
   it('shows what came before a backup, and nothing where the engine says nothing', async () => {
     start('#/business/keep', new FakeEngine(), {}, { 'workspace.backups.list': (result) => ({ ...result, backups: result.backups.map((backup: any, index: number) => (index === 0 ? { ...backup, after: 'you drafted the Bakery reply' } : backup)) }) });
     const fold = (await screen.findByText(/^All backups|backups?$/i, { selector: 'summary' })).closest('details')!;
-    fireEvent.click(within(fold).getByText(/./, { selector: 'summary' }));
+    fireEvent.click(fold.querySelector('summary')!);
     expect(within(fold).getByText('after you drafted the Bakery reply')).toBeTruthy();
     expect(within(fold).getAllByText(/^after /)).toHaveLength(1);
   });

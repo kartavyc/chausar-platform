@@ -6,6 +6,8 @@ import { Field } from '../../parts/Field';
 import { Button } from '../../parts/Button';
 import { EngineError, type HireViewLite } from '../../engine/types';
 import type { SheetComponentProps } from '../../shell/sheets';
+import { Fold } from '../../parts/Fold';
+import { Select } from '../../parts/Select';
 import s from './Team.module.css';
 
 const DEPT_KEY: Readonly<Record<string, string>> = { sales: 'dept.sales', marketing: 'dept.mkt', production: 'dept.prod', money: 'dept.money', operations: 'dept.ops' };
@@ -80,9 +82,9 @@ export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
           ))}
         </fieldset>
         <label className={s.hireSelect}>{t('team.hire.department')}
-          <select value={edits.department ?? hire.department} onChange={(event) => setEdits({ ...edits, department: event.currentTarget.value })}>
+          <Select value={edits.department ?? hire.department} onChange={(event) => setEdits({ ...edits, department: event.currentTarget.value })}>
             {hire.departments.map((id) => <option key={id} value={id}>{t(DEPT_KEY[id] ?? 'dept.ops')}</option>)}
-          </select>
+          </Select>
         </label>
         {problemLine}
         <div><Button variant="primary" disabled={busy} onClick={() => void answer({ reads: hire.reads, department: edits.department ?? hire.department })}>{t('team.hire.next')}</Button></div>
@@ -105,10 +107,9 @@ export function HireSheet({ onClose, returnFocus }: SheetComponentProps) {
         <ul className={s.hireList}>{hire.card?.does.map((line) => <li key={line} data-content="">{line}</li>)}</ul>
         <h4 className={s.hireHead}>{t('team.hire.readsCard')}</h4>
         <ul className={s.hireList}>{hire.card?.reads.map((item) => <li key={item.read}>{t(`team.hire.read.${item.read}`)}</li>)}</ul>
-        <details className={s.hireFold}>
-          <summary>{t('team.hire.never')}</summary>
+        <Fold summary={t('team.hire.never')} className={s.hireFold}>
           <ul className={s.hireList}>{hire.card?.never.map((line) => <li key={line}>{line}</li>)}</ul>
-        </details>
+        </Fold>
         <p className={s.hireLine}>{hire.card?.asks}</p>
         {problemLine}
         <div><Button variant="primary" disabled={busy} onClick={() => void confirm()}>{t('team.hire.hire')}</Button></div>

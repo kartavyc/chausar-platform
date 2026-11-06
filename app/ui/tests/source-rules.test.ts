@@ -50,7 +50,7 @@ describe('rules the UI keeps (spec section 6)', () => {
     // Each place, how many exact calls or exact amounts it writes, and why; the engine's own list is
     // platform/tests/owner-format-sources-b2.test.ts. A hand-made formatter (its own digit grouping) is never allowed.
     const EXACT: Record<string, [count: number, why: string]> = {
-      'engine/fake-money.ts': [1, 'the words sent with a shared invoice leave the app, as money/invoice-pdf.ts writes them'],
+      'engine/fake-money.ts': [3, 'the words sent with a shared invoice and a thank-you receipt leave the app, as money/invoice-pdf.ts and money/payment-receipt.ts write them'],
       'engine/fake-work.ts': [1, 'the client room keeps the exact price, as playbooks/kit/client-room-state.ts does'],
       'engine/fake-model-receipt.ts': [1, "a model call's receipt keeps four decimals, as money/model-receipt.ts does"],
     };
