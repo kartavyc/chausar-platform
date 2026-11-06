@@ -3254,6 +3254,8 @@ export interface QueueItemView {
   kind: 'draft' | 'file' | 'plan'; id: string; businessName: string; agent?: string;
   title: string; line?: Display;
   sections: { heading?: string; lines: Display[] }[];
+  /** One-shot C4 task 16: on a draft, each amount its text holds, with its receipt or as a model estimate (delivery/deliverable.ts draftAmounts). */
+  amounts?: { display: Display; receiptId?: string; receiptKind?: 'work'; estimate?: true }[];
 }
 /**
  * venture.money.overview: three lines code adds up in BigInt, each with the receipt behind it. rupees: the AI spend line
@@ -3353,6 +3355,8 @@ export type SumReceiptSubject =
 /** 4J6. The figures a snapshot keeps and the across views show. */
 export type AcrossFigureId = 'invoiced' | 'received' | 'owed' | 'spend';
 export type SumReceiptRecord = RecordBase<'venture-sum-receipt'> & {
+  /** C4 (T27): what was counted and over which dates, in code words; added when served, never stored or signed. */
+  basis?: Display;
   subject: SumReceiptSubject;
   operation: 'venture.sum';
   currency: string;

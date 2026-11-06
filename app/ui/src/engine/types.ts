@@ -437,6 +437,8 @@ export interface VentureEventsResult { events: VentureEventRecordLite[]; lastSeq
 export interface PriceFigureLite { key: string; label: string; display: Display }
 export interface ReceiptLite {
   id: string; at: string; figures: PriceFigureLite[]; explanation: string; stale: boolean;
+  /** C4 (T27): what a money sum counted and over which dates ("Counted: payments dated 1 to 30 Nov 2026"). */
+  basis?: Display;
   /** Raw code-computed total on a price receipt; absent on other receipt kinds. */
   totalMinor?: string;
   /** 4J10 (mirrored by 4J22a): a stored receipt's signature and the public half that checks it; absent when unsigned. */
@@ -962,8 +964,12 @@ export interface InterviewViewLite { interview: { questions: InterviewQuestionLi
  * approving. Not an engine method yet: P3-wire answers it from venture.delivery.list (draft), venture.invoice.get
  * (file) and venture.blueprint.get (plan). Text only; figures arrive formatted.
  */
+/** C4 task 16: an amount in a draft's words, as the engine matched it. */
+export type DraftAmount = { display: Display; receiptId?: string; receiptKind?: 'work'; estimate?: true };
 export interface QueueItemView {
   kind: 'draft' | 'file' | 'plan'; id: string; businessName: string; agent?: string;
+  /** C4 task 16: on a draft, each amount its text holds, with its receipt or as a model estimate. */
+  amounts?: DraftAmount[];
   title: string; line?: Display;
   sections: { heading?: string; lines: Display[] }[];
 }

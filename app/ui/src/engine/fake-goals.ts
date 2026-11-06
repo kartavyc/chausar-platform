@@ -112,7 +112,7 @@ export class FakeGoals {
   }
 
   /** One receipt per distinct sum: the same lines give the same id, as the engine keeps one per digest. */
-  private sum(label: string, lines: { label: string; minor: number }[], none: string): GoalFigure {
+  private sum(label: string, lines: { label: string; minor: number }[], none: string, basis?: string): GoalFigure {
     const total = lines.reduce((sum, line) => sum + line.minor, 0);
     if (!lines.length) return { display: this.money(0), receiptId: null };
     const explanation = `${lines.length} ${lines.length === 1 ? 'item' : 'items'}: ${lines.map((line) => `${line.label} ${this.money(line.minor)}`).join('; ')}. Added together: ${this.money(total)}.`;
@@ -121,7 +121,7 @@ export class FakeGoals {
     if (!id) {
       id = `R-${this.seq++}`;
       this.made.set(key, id);
-      this.receipts.push({ id, at: this.host.now(), explanation: explanation || none, stale: false, figures: [{ key: 'total', label, display: this.money(total) }] });
+      this.receipts.push({ id, at: this.host.now(), explanation: explanation || none, ...(basis ? { basis } : {}), stale: false, figures: [{ key: 'total', label, display: this.money(total) }] });
     }
     return { display: this.money(total), receiptId: id };
   }
@@ -161,7 +161,8 @@ export class FakeGoals {
     const ready = this.invoices(chosen, 'ready');
     const invoicedMinor = issued.reduce((sum, item) => sum + item.minor, 0);
     const readyMinor = ready.reduce((sum, item) => sum + item.minor, 0);
-    const invoiced = this.sum(`Invoiced in ${words}`, issued.map(({ invoice, minor, client }) => ({ label: `${invoice.number} for ${client}`, minor })), `Nothing was invoiced in ${words}.`);
+    // C4 (T27), as money/sums.ts sumBasis: the dates the sum used.
+    const invoiced = this.sum(`Invoiced in ${words}`, issued.map(({ invoice, minor, client }) => ({ label: `${invoice.number} for ${client}`, minor })), `Nothing was invoiced in ${words}.`, `Counted: invoices issued 1 to ${days} ${words.slice(0, 3)} ${chosen.slice(0, 4)}`);
     const readyFigure = this.sum(`Ready to issue in ${words}`, ready.map(({ invoice, minor, client }) => ({ label: `Draft for ${client}, dated ${invoice.issueDate}`, minor })), `No drafts are ready to issue in ${words}.`);
     // The books' own received figure for this month (the sample books are this month's).
     const changedCountry = !!this.venture()?.venture.originalCountry || currency !== 'INR';

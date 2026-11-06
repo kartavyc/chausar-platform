@@ -5,10 +5,10 @@
 // Ink v2 wave 4 added subjects whose plans live in their owners' files (package 4-0 named them, each package fills its
 // own); currentPlan calls them, so no package edits this file. A plan may give its own words for the explanation.
 import { type Context, type State } from '../../contracts.ts';
-import { formatUsd, formatMoney } from '../../owner-format.ts';
+import { formatMonth, formatUsd, formatMoney } from '../../owner-format.ts';
 import { digest, formatVentureDate, listRecords, ventureAction, type VentureTx } from '../records.ts';
 import type {
-  InvoiceRecord, IsoDate, PriceFigure, PriceStep, RecordBase, SumReceiptRecord, SumReceiptSubject, VentureDeps, VentureRecord,
+  Display, InvoiceRecord, IsoDate, PriceFigure, PriceStep, RecordBase, SumReceiptRecord, SumReceiptSubject, VentureDeps, VentureRecord,
 } from '../contracts.ts';
 import { spendOfMonth } from './spend.ts';
 import { departmentSpendPlan, heldPlan, jobsCountPlan } from './department-spend.ts';
@@ -23,6 +23,7 @@ import { taxTotalPlan } from './tax-total.ts';
 import { acrossPlan } from './across-plan.ts';
 import { setPlan } from './set-plan.ts';
 import { paymentState } from './ledger.ts';
+import { calendarMonth } from './dates.ts';
 import { funnelCountPlan } from '../network/funnel.ts';
 import { bandsCountPlan } from '../network/bands.ts';
 import { agentCostPlan } from '../agent-runtime/cost-proof.ts';
@@ -202,7 +203,42 @@ export function sumReceiptIn(tx: VentureTx, plan: SumPlan): SumReceiptRecord {
   return tx.list('venture-sum-receipt').find(record => record.digest === sealed) ?? tx.put<SumReceiptRecord>(receiptOf(tx.base('venture-sum-receipt'), plan, sealed));
 }
 
-/** A stored sum receipt as venture.receipt.get serves it: stale once the same subject adds up to something else. */
+/**
+ * C4 (T27): two calendar days as the owner reads them: "1 to 30 Nov 2026", "1 Oct to 30 Nov 2026", "1 Dec 2025 to 31 Jan
+ * 2026", or "5 Nov 2026" for one day. Calendar days never shift with a zone.
+ */
+export function rangeWords(from: IsoDate, to: IsoDate): Display {
+  const parts = (day: IsoDate) => ({ year: day.slice(0, 4), month: formatMonth(day.slice(0, 7), 'short'), day: day.slice(8, 10).replace(/^0/, '') });
+  const a = parts(from), b = parts(to);
+  if (from === to) return `${a.day} ${a.month} ${a.year}`;
+  if (a.year !== b.year) return `${a.day} ${a.month} ${a.year} to ${b.day} ${b.month} ${b.year}`;
+  if (a.month !== b.month) return `${a.day} ${a.month} to ${b.day} ${b.month} ${b.year}`;
+  return `${a.day} to ${b.day} ${b.month} ${b.year}`;
+}
+
+/**
+ * C4 (T27): how a money sum was counted, from the same dates the sum used; null for a sum this does not speak for. A goal's
+ * receipt counts the month's issued invoices, and to its day when it is the day's pace.
+ */
+export function sumBasis(subject: SumReceiptSubject): Display | null {
+  if (subject.type === 'received') return `Counted: payments dated ${rangeWords(subject.from, subject.to)}`;
+  if (subject.type === 'owed') return 'Counted: invoices still open, tax included';
+  if (subject.type === 'invoiced' && subject.which === 'issued') {
+    const { from, to } = calendarMonth(subject.month);
+    return `Counted: invoices issued ${rangeWords(from, to)}`;
+  }
+  if (subject.type === 'goal') {
+    const { from, to } = calendarMonth(subject.month);
+    return `Counted: invoices issued ${rangeWords(from, subject.day ?? to)}`;
+  }
+  return null;
+}
+
+/**
+ * A stored sum receipt as venture.receipt.get serves it: stale once the same subject adds up to something else. Its basis
+ * line (C4 T27) is worked out here and never stored, so the record and its signature stay as they were.
+ */
 export function servedSumReceipt(state: State, venture: VentureRecord, record: SumReceiptRecord): SumReceiptRecord {
-  return { ...record, stale: record.stale || sumDigest(currentPlan(state, venture, record.subject)) !== record.digest };
+  const basis = sumBasis(record.subject);
+  return { ...record, stale: record.stale || sumDigest(currentPlan(state, venture, record.subject)) !== record.digest, ...(basis ? { basis } : {}) };
 }
