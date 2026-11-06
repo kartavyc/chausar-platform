@@ -1,7 +1,8 @@
 /**
- * The client sheet (`?sheet=client:<id>`): the client's fields with their evidence, their orders (each a link into
- * Work, with its price receipt), their drafts in plain state words, and the files they sent. `client:new` is the
- * Add client form. Figures arrive formatted from the engine with their receipt; nothing is added up here.
+ * The client sheet (`?sheet=client:<id>`): C4 task 18 leads with their orders (each a link into Work, with its price
+ * receipt), their invoices and what they owe, then the client's fields with their evidence, their drafts in plain state
+ * words, and the files they sent. `client:new` is the Add client form. Figures arrive formatted from the engine with
+ * their receipt; nothing is added up here.
  */
 
 import { useId, useState, type FormEvent } from 'react';
@@ -23,6 +24,7 @@ import { BrandKit } from './BrandKit';
 import { AiConsent } from './AiConsent';
 // W6 6G3, 6G4: the client's company, timeline, lists, dated facts and field history.
 import { ClientCrm } from './ClientCrm';
+import { InvoiceRef } from '../money/parts';
 import { clientsChanged, useClientsChanged } from './signals';
 import s from './Clients.module.css';
 
@@ -39,12 +41,12 @@ function useTaxRegistered(): boolean {
   return plan.data?.blueprint.backOffice.taxRegistered.value === true;
 }
 
-/** What a client owes, as the engine formatted it, through Figure with the receipt behind it. */
-export function Owed({ owed }: { owed: NonNullable<ClientLite['owed']> }) {
+/** What a client owes, as the engine formatted it, through Figure with the receipt behind it. lead: it starts its own line ("Owes"). */
+export function Owed({ owed, lead }: { owed: NonNullable<ClientLite['owed']>; lead?: boolean }) {
   const t = useT();
   return (
     <span className={s.owed}>
-      <span className={s.owesWord}>{t('clients.owes')}</span>{' '}
+      <span className={s.owesWord}>{t(lead ? 'clients.owesLead' : 'clients.owes')}</span>{' '}
       <Figure value={owed.display} receiptId={owed.receiptId} />
     </span>
   );
@@ -60,6 +62,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const evidence = useResource('venture.evidence.list', { subject: `client:${id}` }, { refreshOn });
   const orders = useResource('venture.order.list', {}, { refreshOn });
   const drafts = useResource('venture.delivery.list', {}, { refreshOn });
+  const invoices = useResource('venture.invoice.list', {}, { refreshOn });
   const files = useResource('venture.files.list', {}, { refreshOn });
   const registered = useTaxRegistered();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
@@ -84,7 +87,12 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     : !clients.data ? t('sheet.loading')
       : client ? client.name : t('clients.notFound');
 
-  const mine = client ? (orders.data ?? []).filter((o) => o.clientId === client.id) : [];
+  // Open ones first, each group in the engine's order; the timeline below holds all of them with their dates.
+  const isOpen = (status: string) => status === 'open' || status === 'invoiced';
+  const theirOrders = client ? (orders.data ?? []).filter((o) => o.clientId === client.id) : [];
+  const mine = [...theirOrders.filter((o) => isOpen(o.status)), ...theirOrders.filter((o) => !isOpen(o.status))];
+  // Issued ones: a draft invoice is not the client's yet.
+  const theirInvoices = client ? (invoices.data ?? []).filter((invoice) => invoice.clientId === client.id && invoice.number !== null) : [];
   const orderIds = new Set(mine.map((o) => o.id));
   const requestOf = new Map(mine.map((o) => [o.id, o.request]));
   const theirDrafts = (drafts.data ?? []).filter((d) => !d.practice && orderIds.has(d.orderId));
@@ -94,24 +102,18 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     <Sheet
       label={t('clients.sheet')}
       title={title}
-      line={client?.owed ? <Owed owed={client.owed} /> : undefined}
       avatar={client ? <Avatar name={client.name} size={40} /> : undefined}
       onClose={onClose}
       returnFocus={returnFocus}
     >
       {client && (
         <>
-          <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} foldTax={!registered} />
-          <AiConsent key={client.id} clientId={client.id} />
-          <ClientCrm key={`crm-${client.id}`} clientId={client.id} />
-
-          <BrandKit clientId={client.id} files={(files.data ?? []).filter((f) => f.scope.kind === 'media' && orderIds.has(f.scope.orderId))} />
-
           <section aria-labelledby={ordersId}>
-            <h3 id={ordersId} className={s.heading}>{t('clients.orders')}</h3>
+            <h3 id={ordersId} className={s.heading}>{t('clients.ordersInvoices')}</h3>
+            {client.owed && <p className={s.item}><Owed owed={client.owed} lead /></p>}
             {orders.data && mine.length === 0 && <p className={s.quiet}>{t('clients.order.none')}</p>}
             {mine.length > 0 && (
-              <ul className={s.items} aria-labelledby={ordersId}>
+              <ul className={s.items} aria-label={t('clients.orders')}>
                 {mine.map((order) => (
                   <li key={order.id} className={s.item}>
                     <a className={s.link} href={formatHash({ place: 'work', query: { order: order.id } })}>{order.request}</a>{' '}
@@ -121,9 +123,26 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
                 ))}
               </ul>
             )}
+            {theirInvoices.length > 0 && (
+              <ul className={s.items} aria-label={t('clients.invoices')}>
+                {theirInvoices.map((invoice) => (
+                  <li key={invoice.id} className={s.item}>
+                    <InvoiceRef id={invoice.id} number={invoice.number ?? ''} />{' '}
+                    {invoice.total && invoice.receiptId && <><Figure value={invoice.total} receiptId={invoice.receiptId} />{' '}</>}
+                    <span className={s.state}>{t(`state.invoice.${invoice.status}`)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             {/* W5 5A2: a sales proposal for this client, drafted from the records; it waits on Today, and the owner sends it. */}
             <div className={s.formActions}><Button size="sm" onClick={(event) => openSheet('proposal', `client:${client.id}`, event.currentTarget)}>{t('kit-sales.proposal.open')}</Button></div>
           </section>
+
+          <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} foldTax={!registered} />
+          <AiConsent key={client.id} clientId={client.id} />
+          <ClientCrm key={`crm-${client.id}`} clientId={client.id} />
+
+          <BrandKit clientId={client.id} files={(files.data ?? []).filter((f) => f.scope.kind === 'media' && orderIds.has(f.scope.orderId))} />
 
           {theirDrafts.length > 0 && (
             <section aria-labelledby={draftsId}>
