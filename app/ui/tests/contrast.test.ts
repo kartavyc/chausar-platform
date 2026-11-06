@@ -96,6 +96,8 @@ const TEXT_PAIRS: [string, string][] = [
   // tab, and its count, in both themes.
   ['fail', 'inner'],
   ['wait', 'inner'],
+  ['wait-strong', 'surface'],
+  ['wait-strong', 'inner'],
   ['nav-on-fg', 'nav-on'],
   ['nav-count-fg', 'nav-count'],
 ];

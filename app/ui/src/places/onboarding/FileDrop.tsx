@@ -60,9 +60,7 @@ export function FileDrop({ file, onFile, disabled = false }: { file: DroppedFile
           </Button>
         </p>
       ) : (
-        <p className={s.file}>
-          <FilePick choose={t('onboarding.ways.file.add')} files={[]} accept={ACCEPT} disabled={disabled} aria-describedby={noteId} onChange={(event) => { void take(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} />
-        </p>
+        <FilePick choose={t('onboarding.ways.file.add')} files={[]} accept={ACCEPT} disabled={disabled} aria-describedby={noteId} onChange={(event) => { void take(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} />
       )}
       <p id={noteId} className={s.note}>{t('onboarding.ways.file.note')}</p>
       {problem && <p className={s.problem} role="alert">{problem}</p>}

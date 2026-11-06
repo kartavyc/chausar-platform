@@ -121,7 +121,7 @@ function MonthPicker({ month }: { month: string }) {
   const months = monthsOffered(thisMonth);
   return (
     <Select
-      aria-label={t('money.month')}
+        aria-label={t('money.month')}
         value={month}
         onChange={(event) => {
           const { month: _old, ...query } = route.query;
