@@ -98,6 +98,7 @@ export function DecisionsView() {
               const href = hrefOf(decision.opens);
               return (
                 <Row
+                  className={s.row}
                   key={decision.id}
                   id={`decision-${decision.id}`}
                   eyebrow={(
