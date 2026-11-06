@@ -14,7 +14,7 @@ import { PLACES, RECEIPTED, type PlaceAtRest } from './helpers/places';
  * holds the rule on what is there. Each place task adds its id to WALK; task 23 checks the list holds every place.
  */
 
-const WALK: readonly string[] = ['today', 'business', 'work/ideas', 'onboarding', 'clients', 'clients/pipeline', 'clients/network', 'money', 'money/invoices', 'money/bills', 'money/books', 'money/margins', 'money/spend', 'money/journal', 'apps', 'chats', 'connections', 'connections/ai', 'team', 'work', 'business/plan', 'business/prices', 'business/goals', 'business/build', 'business/practice', 'business/keep'];
+const WALK: readonly string[] = PLACES.map(place => place.id);
 
 const NOW = '2026-10-23T13:35:00.000Z';
 const at = () => new Date(NOW);
@@ -65,6 +65,9 @@ const nextIs = (rowId: string, title: string) => ({
 });
 
 describe('one filled primary per view: the walk', () => {
+  it('covers every at-rest place in the catalogue', () => {
+    expect([...WALK].sort()).toEqual(PLACES.map(place => place.id).sort());
+  });
   it('walks only places that exist', () => {
     const known = PLACES.map((place) => place.id);
     for (const id of WALK) expect(known).toContain(id);

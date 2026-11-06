@@ -49,7 +49,7 @@ describe('source rule', () => {
     const walk = (dir: string): string[] => readdirSync(dir).flatMap((name) => { const path = join(dir, name); return statSync(path).isDirectory() ? walk(path) : [path]; });
     // A sheet's heading says its state while it loads, for a screen reader (the eye sees the skeleton), and a step of a
     // list keeps its one line in its reserved slot.
-    const allowed = /^(?:parts\/RunSheet|places\/work\/DraftSheet|places\/clients\/(?:CardSheet|ClientSheet|CompanySheet|Leads|ListsSheet|PersonSheet)|places\/business\/(?:CaRules|YourCa)|places\/money\/(?:InvoiceSheet|PaymentSheet)|places\/team\/AgentSheet|places\/today\/(?:EditSheet|ViewSheet))\.tsx$/;
+    const allowed = /^(?:parts\/RunSheet|places\/work\/DraftSheet|places\/clients\/(?:CardSheet|ClientSheet|CompanySheet|Leads|ListsSheet|PersonSheet)|places\/business\/(?:CaRules|YourCa)|places\/money\/InvoiceSheet|places\/team\/AgentSheet|places\/today\/(?:EditSheet|ViewSheet))\.tsx$/;
     const found: string[] = [];
     for (const file of walk(src).filter((f) => f.endsWith('.tsx'))) {
       const name = relative(src, file).split(sep).join('/');
