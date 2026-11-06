@@ -244,3 +244,19 @@ describe('Apps (6H1)', () => {
     expect(screen.queryByRole('article')).toBeNull();
   });
 });
+
+
+it('C3: only a newly made app version arrives and highlights its changed summary', async () => {
+  const { container } = await start('#/apps?app=miniapp_sample');
+  await screen.findByRole('heading', { name: 'What it may do' });
+  expect(container.querySelector('[data-version][data-arriving]')).toBeNull();
+  expect(container.querySelector('[data-version] [data-changed]')).toBeNull();
+  await send('Ask for a change', 'Add a column for the phone number');
+  const added = container.querySelector('[data-version="2"]');
+  expect(added?.hasAttribute('data-arriving')).toBe(true);
+  expect(added?.querySelector('[data-content][data-changed]')).not.toBeNull();
+  const first = container.querySelector('[data-version="1"]');
+  expect(first?.hasAttribute('data-arriving')).toBe(false);
+  await click(screen.getByRole('button', { name: 'Use version 1' }));
+  expect(container.querySelectorAll('[data-version][data-arriving]')).toHaveLength(0);
+});
