@@ -1,3 +1,5 @@
+import ts from 'typescript';
+import { contractDeclarations } from './contract-types.mjs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +11,13 @@ export async function contractArtifacts() {
   const declaration = await readFile(join(root, 'app/desktop/ipc-contract.d.cts'), 'utf8');
   const tuple = /export const METHODS:\s*readonly\s*\[[\s\S]*?\];/;
   if (!tuple.test(declaration)) throw new Error('The desktop declaration needs its method tuple.');
+  const contract = contractDeclarations();
+  const tree = ts.createSourceFile('contract.gen.ts', contract, ts.ScriptTarget.Latest, true);
+  const types = tree.statements.filter(ts.isTypeAliasDeclaration).map(row => row.name.text);
+  const parity = header + "import type * as Engine from '../runtime/venture/contracts.ts';\nimport type * as Generated from '../../app/ui/src/engine/contract.gen.ts';\ntype Same<A, B> = [A] extends [B] ? [B] extends [A] ? true : false : false;\ntype Assert<T extends true> = T;\n" + types.map(name => `export type Check${name} = Assert<Same<Engine.${name}, Generated.${name}>>;`).join('\n') + '\n';
   return new Map([
+    ['platform/tests/contract-type-parity.gen.ts', parity],
+    ['app/ui/src/engine/contract.gen.ts', contract],
     ['app/desktop/engine-methods.cjs', header + "'use strict';\nmodule.exports = Object.freeze(" + JSON.stringify(ALL_METHODS, null, 2) + ');\n'],
     ['app/desktop/ipc-methods.cjs', `${header}'use strict';\nmodule.exports = Object.freeze(${JSON.stringify(names, null, 2)});\n`],
     ['app/desktop/ipc-contract.d.cts', declaration.replace(tuple, `export const METHODS: readonly ${JSON.stringify(names)};`).replace(/\r\n/g, '\n')],
