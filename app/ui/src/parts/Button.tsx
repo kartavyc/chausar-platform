@@ -2,7 +2,8 @@ import { useId, type ButtonHTMLAttributes, type Ref } from 'react';
 import { useT } from '../text';
 import { cx } from './cx';
 import { Icon } from './Icon';
-import { SwapWords } from './Swap';
+import { SwapWords, useOldCopy, useSwapped } from './Swap';
+import { motionOff } from './motion';
 import s from './Button.module.css';
 
 /**
@@ -44,6 +45,9 @@ export function Button({
   const t = useT();
   const lockedId = useId();
   const reasonId = useId();
+  const { old: wasLocked, gen, clear } = useSwapped(locked, locked);
+  const leavingLock = !locked && wasLocked === true && !motionOff();
+  const lockRef = useOldCopy(gen, leavingLock, clear);
   if (import.meta.env.DEV && variant === 'chat' && !rest['aria-label'] && !rest['aria-labelledby']) {
     throw new Error('A chat button needs an aria-label that says whose chat it opens, such as "Chat with Editor".');
   }
@@ -71,7 +75,7 @@ export function Button({
         {...rest}
         aria-describedby={describedBy}
       >
-        {locked && <Icon name="lock" size={height === 'sm' ? 14 : 16} />}
+        {(locked || leavingLock) && <span ref={lockRef} className={s.lock} aria-hidden="true" data-lock-leaving={leavingLock ? '' : undefined}><Icon name="lock" size={height === 'sm' ? 14 : 16} /></span>}
         {variant === 'chat' && <Icon name="message-square" size={14} />}
         {/* One-shot C3 task 8: a label that changes (Save to Saved) fades in place; at rest the text stands alone. */}
         {typeof children === 'string' ? <SwapWords>{children}</SwapWords> : children ?? (variant === 'chat' ? t('button.chat') : null)}

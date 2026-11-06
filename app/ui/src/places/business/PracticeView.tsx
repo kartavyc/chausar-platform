@@ -16,6 +16,7 @@ import { LaunchStages } from './LaunchStages';
 import s from './Business.module.css';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { Progress } from '../../parts/Progress';
+import { ConfirmSlot } from '../../parts/Confirm';
 
 /**
  * Business > Practice and improve (#/business/practice), Ink v2 wave 2 (catalogue Q2's screen, and the judge setting
@@ -59,7 +60,7 @@ const onQueue = (event: UiRunEvent) => event.type === 'queue.changed';
 function Confirm({ ask, label, onConfirm, onCancel }: { ask: string; label: string; onConfirm: () => void; onCancel: () => void }) {
   const t = useT();
   const cancelRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => { cancelRef.current?.focus(); }, []);
+  useEffect(() => { if (!cancelRef.current?.closest('[inert]')) cancelRef.current?.focus(); }, []);
   return (
     <div className={s.foldBody} data-second-ask="">
       <p className={s.line}>{ask}</p>
@@ -312,7 +313,7 @@ function Improvement({ suggested }: { suggested: number }) {
               <ul className={s.plain}>
                 {candidate.changes.map((change) => <li key={change}>{change}</li>)}
               </ul>
-              {phase === 'adopt' ? (
+              <ConfirmSlot asking={phase === 'adopt'}>{phase === 'adopt' ? (
                 <Confirm
                   ask={t('business.practice.adoptAsk')} label={t('business.practice.adopt')}
                   onCancel={() => setPhase('idle')}
@@ -322,13 +323,13 @@ function Improvement({ suggested }: { suggested: number }) {
                 <div className={s.buttons}>
                   <Button ref={adoptRef} disabled={phase !== 'idle'} onClick={() => { setProblem(null); setPhase('adopt'); }}>{t('business.practice.adopt')}</Button>
                 </div>
-              )}
+              )}</ConfirmSlot>
             </div>
           )}
           {inUse && (
             <div className={s.foldBody} data-in-use={inUse.playbookId}>
               <p className={s.strong}>{t(`business.practice.inUse.${inUse.origin}`, { version: String(inUse.version) })}</p>
-              {rollback && (phase === 'rollback' ? (
+              {rollback && <ConfirmSlot asking={phase === 'rollback'}>{phase === 'rollback' ? (
                 <Confirm
                   ask={t('business.practice.rollbackAsk', { version: String(rollback.version) })} label={t('business.practice.rollback', { version: String(rollback.version) })}
                   onCancel={() => setPhase('idle')}
@@ -338,7 +339,7 @@ function Improvement({ suggested }: { suggested: number }) {
                 <div className={s.buttons}>
                   <Button disabled={phase !== 'idle'} onClick={() => { setProblem(null); setPhase('rollback'); }}>{t('business.practice.rollback', { version: String(rollback.version) })}</Button>
                 </div>
-              ))}
+              )}</ConfirmSlot>}
             </div>
           )}
           {problem && <p className={s.problem} role="alert">{problem}</p>}
@@ -383,7 +384,7 @@ function JudgeSetting() {
           <p className={s.strong}>{view.auto ? t('business.practice.judgeOn') : t('business.practice.judgeOff')}</p>
           <p className={s.line}>{view.line}</p>
           {view.auto && view.consentAt && <p className={s.note}>{t('business.practice.consent', { day: dayOf(view.consentAt, zone) })}</p>}
-          {phase === 'ask' ? (
+          <ConfirmSlot asking={phase === 'ask'}>{phase === 'ask' ? (
             <Confirm ask={t('business.practice.turnOnAsk')} label={t('business.practice.turnOn')} onCancel={() => setPhase('idle')} onConfirm={() => void set(true)} />
           ) : (
             <div className={s.buttons}>
@@ -391,7 +392,7 @@ function JudgeSetting() {
                 ? <Button disabled={phase !== 'idle'} onClick={() => void set(false)}>{t('business.practice.turnOff')}</Button>
                 : <Button disabled={phase !== 'idle'} onClick={() => { setProblem(null); setPhase('ask'); }}>{t('business.practice.turnOn')}</Button>}
             </div>
-          )}
+          )}</ConfirmSlot>
           {problem && <p className={s.problem} role="alert">{problem}</p>}
         </>
       )}

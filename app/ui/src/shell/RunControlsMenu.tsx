@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
 import { refusalWords } from '../parts/custody';
-import { Confirm } from '../parts/Confirm';
+import { Confirm, ConfirmSlot } from '../parts/Confirm';
 import { stoppable } from '../places/work/StopDialog';
 import menu from './BusinessMenu.module.css';
 import { useOpenBusiness } from './openBusiness';
@@ -81,7 +81,7 @@ export function RunControlsMenu({ onLeave }: { onLeave: () => void }) {
         </li>
       </ul>
       {paused && <p className={menu.notice}>{paused.line}</p>}
-      {ask && (
+      <ConfirmSlot asking={Boolean(ask)}>{ask && (
         <div className={s.ask}>
           {/* B4: Stop all stops work: the danger tone, never the green fill. Keyed, so Cancel takes the focus each time it asks. */}
           <Confirm
@@ -91,7 +91,7 @@ export function RunControlsMenu({ onLeave }: { onLeave: () => void }) {
             <p>{question}</p>
           </Confirm>
         </div>
-      )}
+      )}</ConfirmSlot>
       {said && <p className={said.problem ? menu.problem : menu.notice} role="status">{said.line}</p>}
     </>
   );

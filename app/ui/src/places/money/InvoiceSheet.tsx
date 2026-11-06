@@ -19,7 +19,7 @@ import { useT } from '../../text';
 import { useEngine, useResource } from '../../engine/context';
 import { openSheet } from '../../shell/navigation';
 import { Button } from '../../parts/Button';
-import { Confirm } from '../../parts/Confirm';
+import { Confirm, ConfirmSlot } from '../../parts/Confirm';
 import { Receipt } from '../../parts/Receipt';
 import { Sheet } from '../../parts/Sheet';
 import { EngineError, type InvoiceViewLite } from '../../engine/types';
@@ -90,7 +90,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
 
   let footer = null;
   if (invoice.status === 'draft') {
-    footer = phase === 'confirm' ? (
+    footer = <ConfirmSlot asking={phase === 'confirm'}>{phase === 'confirm' ? (
       <Confirm action={t(noPay ? 'money.invoice.noPayIssue' : 'money.invoice.issueConfirm')} onCancel={() => setPhase('idle')} onConfirm={() => void issue(current)}>
         <p>{t('money.invoice.issueAsk')}</p>
         {noPay && <p data-no-pay="">{t('money.invoice.noPay')}</p>}
@@ -100,7 +100,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       <div className={s.buttons}>
         <Button variant="primary" disabled={phase === 'sending'} onClick={() => setPhase('confirm')}>{t('money.invoice.issue')}</Button>
       </div>
-    );
+    )}</ConfirmSlot>;
   } else if (invoice.status === 'issued' || invoice.status === 'part-paid') {
     footer = (
       <div className={s.buttons}>
