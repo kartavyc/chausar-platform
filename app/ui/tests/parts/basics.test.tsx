@@ -83,6 +83,60 @@ describe('Button', () => {
   });
 });
 
+describe('Button: it tells the truth (B4)', () => {
+  const css = () => readFileSync(join(import.meta.dirname, '../../src/parts/Button.module.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('disabledReason disables it and prints the reason, in its accessible description', () => {
+    const onClick = vi.fn();
+    render(<Button variant="primary" disabledReason="Pick both days first" onClick={onClick}>Set the days</Button>);
+    const button = screen.getByRole('button', { name: 'Set the days', description: 'Pick both days first' });
+    expect(button).toHaveProperty('disabled', true);
+    expect(screen.getByText('Pick both days first').hasAttribute('hidden')).toBe(false);
+    fireEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('no reason: nothing printed, nothing described, and it can be pressed', () => {
+    const onClick = vi.fn();
+    const { container } = render(<Button disabledReason={undefined} onClick={onClick}>Save</Button>);
+    const button = screen.getByRole('button', { name: 'Save' });
+    expect(button).toHaveProperty('disabled', false);
+    expect(button.hasAttribute('aria-describedby')).toBe(false);
+    expect(container.querySelector('[data-disabled-reason]')).toBeNull();
+    fireEvent.click(button);
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a description it is given, before the reason', () => {
+    render(<><Button aria-describedby="hint" disabledReason="Add the amount first">Add bill</Button><p id="hint">Saved as a draft.</p></>);
+    expect(screen.getByRole('button', { name: 'Add bill', description: 'Saved as a draft. Add the amount first' })).toBeTruthy();
+  });
+
+  it('a busy button stays disabled and says nothing', () => {
+    const { container } = render(<Button disabled>Save</Button>);
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
+    expect(container.querySelector('[data-disabled-reason]')).toBeNull();
+  });
+
+  it('tone="danger" is marked, and never takes the accent fill', () => {
+    render(<Button tone="danger">Delete this business</Button>);
+    expect(screen.getByRole('button', { name: 'Delete this business' }).dataset.tone).toBe('danger');
+    const text = css();
+    expect(text).toMatch(/\.button\[data-tone='danger'\]\s*\{[^}]*background:\s*var\(--surface\)[^}]*border-color:\s*var\(--fail\)[^}]*color:\s*var\(--fail\)/);
+    for (const [, selector, body] of text.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      if (selector!.includes('data-tone')) expect(body).not.toMatch(/var\(--accent/);
+    }
+  });
+
+  it('a disabled button is plainly apart from an enabled one: no fill and no dimmed accent, a danger one too', () => {
+    const text = css();
+    expect(text).toMatch(/\.button:disabled\s*\{[^}]*background:\s*var\(--wash\)[^}]*border-color:\s*var\(--line\)[^}]*color:\s*var\(--mute\)/);
+    expect(text).toMatch(/\.button\[data-tone='danger'\]:disabled\s*\{[^}]*background:\s*var\(--wash\)[^}]*color:\s*var\(--mute\)/);
+    expect(text).toMatch(/\.quiet:disabled\s*\{[^}]*color:\s*var\(--mute\)/);
+    expect(text).not.toMatch(/opacity:\s*0\./);
+  });
+});
+
 describe('Change', () => {
   it('strikes the old value, shows the new one in the body font and links its receipt', () => {
     const onReceipt = vi.fn();

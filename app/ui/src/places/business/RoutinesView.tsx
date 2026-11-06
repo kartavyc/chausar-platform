@@ -213,6 +213,12 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
   useEffect(() => { if (!initial) setTimeZone(zone); }, [zone, initial]);
   const keeps = initial !== undefined && calendar === null;
   const ready = name.trim() !== '' && prompt.trim() !== '' && (keeps || (days.length > 0 && time !== '' && timeZone.trim() !== ''));
+  /** The first thing still missing, said under Save routine (B4). */
+  const missing = ready ? undefined
+    : name.trim() === '' ? t('business.routines.needName')
+      : prompt.trim() === '' ? t('business.routines.needPrompt')
+        : days.length === 0 ? t('business.routines.needDay')
+          : t('business.routines.needTime');
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -270,7 +276,7 @@ function RoutineForm({ agents, zone, initial, onSaved, onCancel }: { agents: Age
       ) : (
         <div className={s.buttons}>
           {onCancel && <Button variant="quiet" onClick={onCancel}>{t('approval.cancel')}</Button>}
-          <Button type="submit" disabled={!ready}>{t('business.routines.saveRoutine')}</Button>
+          <Button type="submit" disabledReason={missing}>{t('business.routines.saveRoutine')}</Button>
         </div>
       )}
       {problem && <p className={s.problem} role="alert">{problem}</p>}

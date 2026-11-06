@@ -166,7 +166,7 @@ function AddFact({ subject, onDone, onFailed }: { subject: string; onDone: (line
           <option value="owner">{t('crm.facts.who.owner')}</option>
         </select>
       </div>
-      <div className={s.actions}><Button type="submit" disabled={busy || !topic.trim() || !text.trim()}>{t('crm.facts.keep')}</Button></div>
+      <div className={s.actions}><Button type="submit" disabled={busy} disabledReason={!topic.trim() || !text.trim() ? t('crm.facts.needBoth') : undefined}>{t('crm.facts.keep')}</Button></div>
     </form>
   );
 }

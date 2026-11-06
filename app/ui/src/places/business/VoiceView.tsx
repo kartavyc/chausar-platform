@@ -240,7 +240,6 @@ function LearnTile({ draft, line, onLearned, onSet }: {
   const t = useT();
   const engine = useEngine();
   const name = useVoiceName();
-  const noteId = useId();
   const [texts, setTexts] = useState<string[]>(() => Array.from({ length: MIN_TEXTS }, () => ''));
   const [asking, setAsking] = useState<VoiceInput | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -297,15 +296,12 @@ function LearnTile({ draft, line, onLearned, onSet }: {
           size="sm"
           variant={draft ? 'secondary' : 'primary'}
           disabled={busy}
-          locked={filled < MIN_TEXTS}
-          lockedReason={t('business.voice.needTexts')}
-          lockedNoteId={filled < MIN_TEXTS ? noteId : undefined}
+          disabledReason={filled < MIN_TEXTS ? t('business.voice.needTexts') : undefined}
           onClick={() => void learn()}
         >
           {t('business.voice.learnButton')}
         </Button>
       </div>
-      {filled < MIN_TEXTS && <p id={noteId} className={b.note}>{t('business.voice.needTexts')}</p>}
       {problem && <p className={b.problem} role="alert">{problem}</p>}
       {draft && (
         <section className={s.draft} aria-label={t('business.voice.draft')}>

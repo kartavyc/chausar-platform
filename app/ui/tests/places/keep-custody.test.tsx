@@ -215,8 +215,8 @@ describe('Keep this business: delete this business', () => {
     expect(within(box).getByText("It can't delete a move file or a copy kept somewhere else.")).toBeTruthy();
     const name = within(box).getByLabelText('Type Lumen Studio to delete it') as HTMLInputElement;
     fireEvent.change(name, { target: { value: 'lumen studio' } });
-    await press(within(box).getByRole('button', { name: 'Delete this business' }));
-    expect(within(box).getByRole('alert').textContent).toBe("Type the name exactly as it's shown.");
+    // B4: Delete stays dim until the name matches, and says so.
+    await press(within(box).getByRole('button', { name: 'Delete this business', description: 'Type the business name to delete it' }));
     expect(sent(calls, 'workspace.delete')).toEqual([]);
     fireEvent.change(name, { target: { value: 'Lumen Studio' } });
     await press(within(box).getByRole('button', { name: 'Delete this business' }));

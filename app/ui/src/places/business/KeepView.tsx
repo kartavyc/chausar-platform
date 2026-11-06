@@ -229,7 +229,7 @@ function CodeOnce({ code, folder, onDone }: { code: string; folder: string; onDo
           <input type="checkbox" checked={saved} onChange={(event) => setSaved(event.currentTarget.checked)} />
           {t('business.codeSaved')}
         </label>
-        <div className={s.buttons}><Button variant="primary" disabled={!saved} onClick={onDone}>{t('business.done')}</Button></div>
+        <div className={s.buttons}><Button variant="primary" disabledReason={saved ? undefined : t('business.tickFirst')} onClick={onDone}>{t('business.done')}</Button></div>
       </div>
     </Tile>
   );

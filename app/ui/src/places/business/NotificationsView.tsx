@@ -241,7 +241,7 @@ function Relay({ view }: { view: { relay: string | null; line: string } }) {
       {shown && <p className={s.note}>{shown.line}</p>}
       <Field label={t('business.notify.relay')} hint={t('business.notify.relayHint')} type="url" inputMode="url" autoComplete="off" spellCheck={false} value={url} disabled={busy} onChange={(event) => setUrl(event.currentTarget.value)} />
       <div className={s.buttons}>
-        <Button type="submit" variant="secondary" disabled={busy || !url.trim()}>{t('business.notify.relaySave')}</Button>
+        <Button type="submit" variant="secondary" disabled={busy} disabledReason={url.trim() ? undefined : t('business.notify.relayFirst')}>{t('business.notify.relaySave')}</Button>
         {shown?.relay && <Button variant="quiet" disabled={busy} onClick={() => void send(null)}>{t('business.notify.relayRemove')}</Button>}
       </div>
       {problem && <p className={s.problem} role="alert">{problem}</p>}
@@ -344,7 +344,7 @@ function QuietTimes({ settings, change }: { settings: NotifySettingsView; change
               label={t('business.notify.pause')} hint={t('business.notify.pauseHint')} type="date" value={until} disabled={busy}
               min={dayKeyPlus(today, 1)} max={dayKeyPlus(today, 30)} onChange={(event) => setUntil(event.currentTarget.value)}
             />
-            <div className={s.buttons}><Button variant="secondary" disabled={busy || !until} onClick={() => void pause()}>{t('business.notify.pauseButton')}</Button></div>
+            <div className={s.buttons}><Button variant="secondary" disabled={busy} disabledReason={until ? undefined : t('business.notify.pauseFirst')} onClick={() => void pause()}>{t('business.notify.pauseButton')}</Button></div>
           </>
         )}
       </div>

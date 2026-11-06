@@ -245,7 +245,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
       )}
       {where}
       <div className={s.keep}>
-        <Button variant="primary" size="lg" disabled={!keepable || busy} onClick={() => { if (keepable) onKeep(keepable); }}>{t('first-run.about.keep')}</Button>
+        <Button variant="primary" size="lg" disabled={!keepable || busy} disabledReason={!busy && read && !read.family ? t('first-run.about.pickField') : undefined} onClick={() => { if (keepable) onKeep(keepable); }}>{t('first-run.about.keep')}</Button>
       </div>
     </>
     );
@@ -270,7 +270,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
                   <span className="sr-only">{t('first-run.about.attach')}</span>
                   <input className="sr-only" type="file" accept=".pdf,.zip,application/pdf,application/zip" onChange={(event) => void onFile(event)} />
                 </label>
-                <Button variant="primary" size="lg" type="submit" disabled={busy}>{t('first-run.about.send')}</Button>
+                <Button variant="primary" size="lg" type="submit" disabled={busy || (!text.trim() && !file)}>{t('first-run.about.send')}</Button>
               </div>
               {file && (
                 <p className={s.file}><Icon name="file-text" size={14} /><span data-content="">{file.name}</span>
@@ -334,7 +334,7 @@ export function AboutYou({ connected, onKeep }: { connected: boolean; onKeep: (p
               <div className={s.boxRow}>
                 <textarea id={sayId} className={s.input} rows={2} value={reply} placeholder={t('first-run.about.sayPlaceholder')}
                   onChange={(event) => setReply(event.target.value)} onKeyDown={(event) => onKey(event, sendReply)} />
-                <Button type="submit" disabled={busy}>{t('first-run.about.send')}</Button>
+                <Button type="submit" disabled={busy || !reply.trim()}>{t('first-run.about.send')}</Button>
               </div>
             </form>
           </Tile>

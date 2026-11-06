@@ -301,6 +301,10 @@ describe('Today: send back, edit and undo (O5, O6)', () => {
     const text = await within(sheet).findByRole('textbox', { name: 'Your version' }) as HTMLTextAreaElement;
     expect(text.value).toBe('This episode is brought to you by Boat Audio.\n\nWe tested five budget mics in one room, and the one that won costs less than you think.');
     expect(text.closest('[data-content]') ?? text).toBeTruthy();
+    // B4: Save my version says why it waits.
+    expect(within(sheet).getByRole('button', { name: 'Save my version', description: 'Change the words first' })).toHaveProperty('disabled', true);
+    fireEvent.change(text, { target: { value: '  ' } });
+    expect(within(sheet).getByRole('button', { name: 'Save my version', description: 'Write your version first' })).toHaveProperty('disabled', true);
     fireEvent.change(text, { target: { value: 'This episode is brought to you by Boat Audio.\n\nFive budget mics, one room, one winner.' } });
     await press(within(sheet).getByRole('button', { name: 'Save my version' }));
     expect(calls(spy, 'venture.queue.edit')).toEqual([{ rowId: 'q-script', digest: expect.any(String), text: 'This episode is brought to you by Boat Audio.\n\nFive budget mics, one room, one winner.' }]);

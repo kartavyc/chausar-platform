@@ -173,7 +173,7 @@ export function CloseBusiness({ unlock }: { unlock: UnlockMode | null }) {
 
   return (
     <section className={s.moreRow} aria-label={t(locked ? 'business.lock' : 'business.close')}>
-      <div className={s.buttons}><Button disabled={busy} onClick={() => void close()}>{t(locked ? 'business.lock' : 'business.close')}</Button></div>
+      <div className={s.buttons}><Button variant="quiet" disabled={busy} onClick={() => void close()}>{t(locked ? 'business.lock' : 'business.close')}</Button></div>
       {unlock && <p className={s.note}>{t(locked ? 'business.lockLine' : 'business.closeLine')}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </section>
@@ -274,7 +274,7 @@ export function DeleteBusiness({ onDeleted }: { onDeleted: (result: Deleted) => 
 
   return (
     <details className={s.fold}>
-      <summary>{t('business.delete')}</summary>
+      <summary data-tone="danger">{t('business.delete')}</summary>
       {name === null ? (
         status.error ? <p className={s.problem} role="alert">{failed(t, status.error)}</p> : <p className={s.note}>{t('business.loading')}</p>
       ) : (
@@ -283,7 +283,7 @@ export function DeleteBusiness({ onDeleted }: { onDeleted: (result: Deleted) => 
           <p className={s.warn}>{t('business.deleteCant')}</p>
           <Field label={t('business.deleteType', { name })} value={typed} autoComplete="off" spellCheck={false} onChange={(event) => setTyped(event.currentTarget.value)} />
           {problem && <p className={s.problem} role="alert">{problem}</p>}
-          <div className={s.buttons}><Button type="submit" disabled={busy}>{t('business.delete')}</Button></div>
+          <div className={s.buttons}><Button type="submit" tone="danger" disabled={busy} disabledReason={typed !== name ? t('business.deleteTypeFirst') : undefined}>{t('business.delete')}</Button></div>
         </form>
       )}
     </details>

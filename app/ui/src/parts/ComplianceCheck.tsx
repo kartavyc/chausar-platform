@@ -43,7 +43,6 @@ export function ComplianceCheck({ profession, record = true, onDone, headingLeve
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const name = useId();
-  const noteId = useId();
   const data: ComplianceLite | undefined = view.data;
 
   /** A5 fix round 2: a second press while the first is on its way sends nothing. */
@@ -104,9 +103,8 @@ export function ComplianceCheck({ profession, record = true, onDone, headingLeve
       )}
       {own.length > 0 && <ul className={s.list} aria-label={t('compliance.stops')}>{own.map((stop) => <li key={stop.id}>{stop.line}</li>)}</ul>}
       <div className={s.buttons}>
-        <Button variant="primary" disabled={busy} locked={!answer} lockedReason={t('compliance.answerFirst')} lockedNoteId={noteId} onClick={() => void done()}>{t('compliance.continue')}</Button>
+        <Button variant="primary" disabled={busy} locked={!answer} lockedReason={t('compliance.answerFirst')} onClick={() => void done()}>{t('compliance.continue')}</Button>
       </div>
-      {!answer && <p className={s.note} id={noteId}>{t('compliance.answerFirst')}</p>}
       {problem && <p className={s.problem} role="alert">{problem}</p>}
     </section>
   );

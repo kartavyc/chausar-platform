@@ -214,11 +214,14 @@ describe('Welcome back: move a business here', () => {
     expect(code.type).toBe('password');
     expect(code.autocomplete).toBe('off');
     expect(code.closest('form')).toBeNull();
-    await press(screen.getByRole('button', { name: 'Move it here' }));
-    expect(screen.getByRole('alert').textContent).toBe('Choose the move file first.');
+    // B4: Move it here waits for the file and the code, and says which.
+    const go = () => screen.getByRole('button', { name: 'Move it here' }) as HTMLButtonElement;
+    expect(screen.getByRole('button', { name: 'Move it here', description: 'Choose the move file first.' })).toHaveProperty('disabled', true);
     choose(move.text);
     expect(screen.getByText('chausar-move-2026-10-22.backup')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Move it here', description: 'Type the move code first.' })).toHaveProperty('disabled', true);
     fireEvent.change(code, { target: { value: 'CHT-WRONG' } });
+    expect(go().disabled).toBe(false);
     await press(screen.getByRole('button', { name: 'Move it here' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(CUSTODY_ERROR_WORDS.TRANSFER_CODE_WRONG));
     expect(code.value).toBe('');
@@ -229,6 +232,21 @@ describe('Welcome back: move a business here', () => {
       { fileText: move.text, transferCode: 'CHT-WRONG' },
       { fileText: move.text, transferCode: SAMPLE_MOVE_CODE },
     ]);
+  });
+
+  it('a business already on this computer: Move it here waits for another file (B4)', async () => {
+    const move = await moveFile();
+    start({ closed: true });
+    await welcome();
+    await press(screen.getByRole('button', { name: 'Move from another computer' }));
+    choose(move.text);
+    fireEvent.change(screen.getByLabelText('The move code'), { target: { value: SAMPLE_MOVE_CODE } });
+    await press(screen.getByRole('button', { name: 'Move it here' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(CUSTODY_ERROR_WORDS.TRANSFER_SAME_BUSINESS));
+    fireEvent.change(screen.getByLabelText('The move code'), { target: { value: SAMPLE_MOVE_CODE } });
+    expect(screen.getByRole('button', { name: 'Move it here', description: 'Choose another file' })).toHaveProperty('disabled', true);
+    choose(move.text, 'another.backup');
+    expect(screen.getByRole('button', { name: 'Move it here' })).toHaveProperty('disabled', false);
   });
 
   it('a file bigger than the engine takes is refused before it is sent', async () => {

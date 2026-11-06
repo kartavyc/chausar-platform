@@ -72,7 +72,7 @@ function Telegram() {
       <Field label={t('business.notify.botToken')} hint={t('business.notify.botTokenHint')} type="password" autoComplete="off" spellCheck={false} value={token} disabled={busy} onChange={(event) => setToken(event.currentTarget.value)} />
       <Field label={t('business.notify.chatId')} inputMode="numeric" autoComplete="off" spellCheck={false} value={chatId} disabled={busy} onChange={(event) => setChatId(event.currentTarget.value)} />
       <div className={s.buttons}>
-        <Button type="submit" variant="secondary" disabled={busy || !token.trim() || !chatId.trim()}>{t('business.notify.botSave')}</Button>
+        <Button type="submit" variant="secondary" disabled={busy} disabledReason={!token.trim() || !chatId.trim() ? t('business.notify.botFirst') : undefined}>{t('business.notify.botSave')}</Button>
         {shown.connected && <Button variant="quiet" disabled={busy} onClick={() => void send({ test: true })}>{t('business.notify.botTest')}</Button>}
         {shown.connected && <Button variant="quiet" disabled={busy} onClick={() => void send({ bot: null })}>{t('business.notify.botRemove')}</Button>}
       </div>

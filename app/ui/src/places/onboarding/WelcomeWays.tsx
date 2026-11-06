@@ -216,9 +216,13 @@ export function MoveHere({ onOpened, onBack }: WayProps) {
   const pair = useNewPassphrase();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // B4: the file this computer already holds: typing a code can't fix that, so Move it here waits for another file.
+  const [alreadyHere, setAlreadyHere] = useState<File | null>(null);
+  const missing = !file ? t('onboarding.move.fileFirst') : file === alreadyHere ? t('onboarding.move.anotherFile') : !code.trim() ? t('onboarding.move.codeFirst') : undefined;
 
   async function move() {
     if (!file) { setProblem(t('onboarding.move.fileFirst')); return; }
+    if (file === alreadyHere) return;
     let fileText = await file.text();
     if (fileText.length > TRANSFER_MAX_CHARS) { setProblem(t('custody.tooLarge')); return; }
     const transferCode = code.trim();
@@ -237,6 +241,7 @@ export function MoveHere({ onOpened, onBack }: WayProps) {
     } catch (error) {
       if (codeOf(error) === 'DEVICE_KEYS_UNAVAILABLE' && !pair.wanted) pair.show(messageOf(error));
       else setProblem(refusalWords(error, t));
+      if (codeOf(error) === 'TRANSFER_SAME_BUSINESS') setAlreadyHere(file);
       setBusy(false);
     } finally {
       // The file's text and the code leave memory with the request.
@@ -262,7 +267,7 @@ export function MoveHere({ onOpened, onBack }: WayProps) {
         <Field label={t('onboarding.move.code')} type="password" autoComplete="off" spellCheck={false} value={code} onChange={(event) => setCode(event.currentTarget.value)} onKeyDown={onEnter} />
         {pair.node}
         {problem && <p className={s.problem} role="alert">{problem}</p>}
-        <div className={s.actions}><Button variant="primary" disabled={busy} onClick={() => void move()}>{t('onboarding.move.go')}</Button></div>
+        <div className={s.actions}><Button variant="primary" disabled={busy} disabledReason={busy ? undefined : missing} onClick={() => void move()}>{t('onboarding.move.go')}</Button></div>
       </div>
     </Way>
   );

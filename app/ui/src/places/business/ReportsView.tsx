@@ -73,7 +73,8 @@ export function ReportsView() {
         <div className={s.buttons}>
           <Button
             variant={given ? 'secondary' : 'primary'}
-            disabled={busy || (!usage && !crashes)}
+            disabled={busy}
+            disabledReason={!usage && !crashes ? t('feedback.tickFirst') : undefined}
             onClick={() => void run(() => client.request('venture.feedback.consent', { digest: data.notice.digest, usage, crashes }))}
           >
             {t(given ? 'feedback.save' : 'feedback.turnOn')}

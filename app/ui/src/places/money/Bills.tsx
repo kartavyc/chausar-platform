@@ -230,7 +230,7 @@ function AddBill({ gst, currency, onAdded, onClose }: { gst: boolean; currency: 
       </div>
       <div className={s.buttons}>
         <Button disabled={busy} onClick={onClose}>{t('approval.cancel')}</Button>
-        <Button variant="primary" type="submit" disabled={busy || vendor.trim() === '' || amount.trim() === ''}>{t('money.bills.addButton')}</Button>
+        <Button variant="primary" type="submit" disabled={busy} disabledReason={vendor.trim() === '' || amount.trim() === '' ? t('money.bills.needBoth') : undefined}>{t('money.bills.addButton')}</Button>
       </div>
       {said && <p className={said.problem ? s.refusal : s.notice} role="status" data-engine-line={said.problem ? '' : undefined}>{said.text}</p>}
     </form>

@@ -167,8 +167,9 @@ export function ImportSheet({ id, onClose, returnFocus }: SheetComponentProps) {
                 </>
               )}
               <div className={s.actions}>
-                <Button variant="quiet" onClick={() => setStep({ kind: 'choose' })}>{t('clients.import.again')}</Button>
-                <Button variant="primary" onClick={() => void importFile(step.file)}>{t('clients.import.go')}</Button>
+                {/* B4: with nobody to import, choosing another file is the one thing left to do. */}
+                <Button variant={step.check.kept === 0 ? 'primary' : 'quiet'} onClick={() => setStep({ kind: 'choose' })}>{t('clients.import.again')}</Button>
+                <Button variant={step.check.kept === 0 ? 'secondary' : 'primary'} disabledReason={step.check.kept === 0 ? t('clients.import.nobody') : undefined} onClick={() => void importFile(step.file)}>{t('clients.import.go')}</Button>
               </div>
             </div>
           )}

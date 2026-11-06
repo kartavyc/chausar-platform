@@ -72,6 +72,7 @@
   "crm.facts.who.ai": "You and your AI",
   "crm.facts.who.owner": "Only you",
   "crm.facts.keep": "Keep fact",
+  "crm.facts.needBoth": "Add the topic and the fact first",
   "crm.facts.replace": "Replace",
   "crm.facts.replaceWith": "Replace with",
   "crm.facts.replaceSave": "Save new fact",

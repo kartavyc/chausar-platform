@@ -57,6 +57,18 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
   const filesOk = files.every((f) => fileProblem(f) === null);
   const ready = !sending && !!business.data?.venture.country && (who === NEW_CLIENT ? name.trim() !== '' : who !== '') && what !== '' && request.trim() !== '' && intakeReady(ask, intake) && kitIntakeReady(ask, kitAnswers) && filesOk;
 
+  /** The first thing still missing, said under Add order (B4). */
+  const typesName = who === NEW_CLIENT || (clients.data ?? []).length === 0;
+  const noClient = who === NEW_CLIENT ? name.trim() === '' : who === '';
+  const missing = ready || sending ? undefined
+    : !business.data?.venture.country ? t('work.form.needCountry')
+      : noClient && what === '' ? t(typesName ? 'work.form.needNameAndService' : 'work.form.needClientAndService')
+        : noClient ? t(typesName ? 'work.form.needName' : 'work.form.needClient')
+          : what === '' ? t('work.form.needService')
+            : request.trim() === '' ? t('work.form.needRequest')
+              : !filesOk ? t('work.form.needFiles')
+                : t('work.form.needIntake');
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!ready) return;
@@ -152,7 +164,7 @@ export function NewOrderSheet({ id, onClose, returnFocus }: SheetComponentProps)
         </div>
         {error && <p className={s.problem} role="status">{error}</p>}
         <div className={s.submit}>
-          <Button variant="primary" type="submit" disabled={!ready}>{sending ? t('work.form.sending') : t('work.form.submit')}</Button>
+          <Button variant="primary" type="submit" disabled={!ready} disabledReason={missing}>{sending ? t('work.form.sending') : t('work.form.submit')}</Button>
         </div>
       </form>
     );

@@ -84,7 +84,8 @@ export function RunControlsMenu({ onLeave }: { onLeave: () => void }) {
           <p className={s.askLine}>{question}</p>
           <div className={s.askActs}>
             <Button ref={notNow} size="sm" variant="quiet" onClick={() => { (ask === 'stop' ? stopItem : pauseItem).current?.focus(); setAsk(null); }}>{t('approval.cancel')}</Button>
-            <Button size="sm" variant="primary" data-confirm="" onClick={() => void pause(true, ask === 'stop')}>
+            {/* B4: Stop all stops work: the danger tone, never the green fill. */}
+            <Button size="sm" variant={ask === 'stop' ? 'secondary' : 'primary'} tone={ask === 'stop' ? 'danger' : undefined} data-confirm="" onClick={() => void pause(true, ask === 'stop')}>
               {t(ask === 'pause' ? 'business.pauseAll' : 'business.stopAll')}
             </Button>
           </div>

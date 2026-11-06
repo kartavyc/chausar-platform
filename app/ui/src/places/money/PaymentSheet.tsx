@@ -58,6 +58,8 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const takesPayment = current?.invoice.status === 'issued' || current?.invoice.status === 'part-paid';
   // A split needs at least one part typed before it can be recorded.
   const ready = amount.trim() !== '' && receivedOn !== '' && (!split || allocations.length > 0);
+  /** The first thing still missing, said under Record payment (B4). */
+  const missing = ready ? undefined : amount.trim() === '' ? t('money.payment.needAmount') : receivedOn === '' ? t('money.payment.needDate') : t('money.payment.needSplit');
   // TDS is an Indian tax: offered by the business's country, whatever the invoice's currency.
   const business = useResource('venture.get', {});
   const india = (current?.country?.code ?? business.data?.venture.country?.code) === 'IN';
@@ -158,7 +160,7 @@ export function PaymentSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           </details>
           {phase === 'form' && (
             <div className={s.buttons}>
-              <Button variant="primary" type="submit" disabled={!ready}>{t('money.payment.record')}</Button>
+              <Button variant="primary" type="submit" disabledReason={missing}>{t('money.payment.record')}</Button>
             </div>
           )}
         </form>

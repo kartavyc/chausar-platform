@@ -66,7 +66,7 @@ export function AwayView() {
             <Field label={t('business.away.to')} type="date" value={to} disabled={busy} required onChange={(event) => setTo(event.currentTarget.value)} />
           </div>
           <div className={a.acts}>
-            <Button type="submit" variant="primary" disabled={busy || !from || !to}>{t('business.away.set')}</Button>
+            <Button type="submit" variant="primary" disabled={busy} disabledReason={!from || !to ? t('business.away.pickBoth') : undefined}>{t('business.away.set')}</Button>
           </div>
           {problem && <p className={s.problem} role="status">{problem}</p>}
         </form>

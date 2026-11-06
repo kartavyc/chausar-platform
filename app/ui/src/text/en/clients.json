@@ -241,6 +241,7 @@
   "clients.import.samples": "First people in the file",
   "clients.import.dropped": "Left out",
   "clients.import.go": "Import",
+  "clients.import.nobody": "0 people to import. Choose another file",
   "clients.import.again": "Choose another file",
   "clients.import.undo": "Undo this import",
   "clients.import.undo.confirm": "Yes, undo it",

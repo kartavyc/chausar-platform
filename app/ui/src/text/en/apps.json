@@ -30,6 +30,7 @@
   "apps.view.pin": "Pin to Today",
   "apps.view.unpin": "Take off Today",
   "apps.view.export": "Export",
+  "apps.view.allowFirst": "Allow it first",
   "apps.view.exported": "Saved as {file}. It runs on its own with no data.",
   "apps.view.undo": "Undo",
   "apps.view.change": "Ask for a change",

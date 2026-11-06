@@ -434,6 +434,11 @@
   color: var(--link-hover);
 }
 
+.fold > summary[data-tone='danger'],
+.fold > summary[data-tone='danger']:hover {
+  color: var(--fail);
+}
+
 .fold[open] > summary {
   margin-bottom: var(--sp-2);
 }

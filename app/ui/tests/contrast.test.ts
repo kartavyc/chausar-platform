@@ -75,6 +75,8 @@ const TEXT_PAIRS: [string, string][] = [
   ['mute', 'accent-soft'],
   // B4: the locked primary, an outline on the surface.
   ['mute', 'surface'],
+  // B4: the danger tone, red words on an outline.
+  ['fail', 'surface'],
   ['wait', 'wait-soft'],
   ...DEPTS.map((d): [string, string] => ['wait-strong', `${d}-tint`]),
   ['fail', 'fail-soft'],

@@ -44,6 +44,7 @@ export function BankImportForm({ onImported }: { onImported?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<BankImportResult | null>(null);
+  const missing = !account.trim() && !file ? t('connections.bank.needBoth') : !file ? t('connections.bank.fileFirst') : !account.trim() ? t('connections.bank.accountFirst') : undefined;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -68,7 +69,7 @@ export function BankImportForm({ onImported }: { onImported?: () => void }) {
         <Field label={t('connections.bank.account')} hint={t('connections.bank.accountHint')} value={account} maxLength={60} autoComplete="off" onChange={(event) => setAccount(event.currentTarget.value)} />
         <Field label={t('connections.bank.file')} type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.currentTarget.files?.[0] ?? null); setResult(null); }} />
         {problem && <p className={s.problem} role="alert">{problem}</p>}
-        <div className={s.buttons}><Button variant="primary" type="submit" disabled={busy}>{t('connections.bank.import')}</Button></div>
+        <div className={s.buttons}><Button variant="primary" type="submit" disabled={busy} disabledReason={missing}>{t('connections.bank.import')}</Button></div>
       </form>
       {result && (
         <div role="status">

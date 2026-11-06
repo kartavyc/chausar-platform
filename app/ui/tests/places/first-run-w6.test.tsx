@@ -218,7 +218,9 @@ describe('first run: the side-work question (6C6, DECISIONS D5)', () => {
     expect(calls.find(([method]) => method === 'venture.compliance.get')?.[1]).toEqual({ profession: 'teaching' });
     // Nothing is kept yet: the vault waits for the answer.
     expect(calls.some(([method]) => method === 'workspace.create')).toBe(false);
-    expect(within(check).getByRole('button', { name: 'Continue' }).getAttribute('aria-disabled')).toBe('true');
+    expect(within(check).getByRole('button', { name: 'Continue', description: 'Locked. Answer the question first.' }).getAttribute('aria-disabled')).toBe('true');
+    // B4: the lock alone says it: no extra line under the button.
+    expect(within(check).queryByText('Answer the question first.')).toBeNull();
     await act(async () => { fireEvent.click(within(check).getByRole('radio', { name: 'I am not sure' })); });
     await act(async () => { fireEvent.click(within(check).getByRole('button', { name: 'Continue' })); });
     expect(await screen.findByRole('heading', { level: 1, name: 'Connect what your business needs' }, { timeout: 4000 })).toBeTruthy();
@@ -301,6 +303,30 @@ describe('Connections: the services this business needs', () => {
     expect(within(list).getAllByRole('listitem').length).toBeGreaterThan(0);
     // Nothing to skip here: the list stays for later.
     expect(within(list).queryByRole('button', { name: 'Skip' })).toBeNull();
+  });
+});
+
+describe('first run: buttons that say why (B4)', () => {
+  it('Send waits for words or a file', async () => {
+    start();
+    await skipAi();
+    const box = await screen.findByRole('textbox', { name: 'Tell Chausar about your work' });
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(box, { target: { value: CA } });
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('Keep this plan says to pick a field when the AI could not tell it', async () => {
+    const fake = createFakeClient(new FakeEngine({ fresh: true }));
+    const read = { family: null, offers: [], country: null, evidence: null, idea: null, source: 'ai' as const };
+    const client: EngineClient = { ...fake, request: ((method: string, params?: Record<string, unknown>) => (method === 'venture.about.read' ? Promise.resolve(structuredClone(read)) : fake.request(method as never, params as never))) as EngineClient['request'] };
+    window.location.hash = '#/today';
+    render(<App client={client} language="en" />);
+    await skipAi();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Tell Chausar about your work' }), { target: { value: CA } });
+    await press('Send');
+    const keep = await screen.findByRole('button', { name: 'Keep this plan', description: 'Pick a field first' });
+    expect((keep as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

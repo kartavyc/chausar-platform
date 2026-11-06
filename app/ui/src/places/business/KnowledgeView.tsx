@@ -197,7 +197,7 @@ function AddSource({ onAdded }: { onAdded: (line: string) => void }) {
         {kind === 'past-work' && <p className={b.note}>{t('business.knowledge.workNote')}</p>}
         {problem && <p className={b.problem} role="alert">{problem}</p>}
         <div className={s.buttons}>
-          <Button size="sm" variant="primary" type="submit" disabled={busy || !ready}>{t('business.knowledge.addButton')}</Button>
+          <Button size="sm" variant="primary" type="submit" disabled={busy} disabledReason={ready ? undefined : t(`business.knowledge.need.${kind}`)}>{t('business.knowledge.addButton')}</Button>
         </div>
       </form>
     </TileSection>

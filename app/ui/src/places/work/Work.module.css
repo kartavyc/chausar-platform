@@ -806,7 +806,10 @@
 
 .submit {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: var(--sp-1);
+  text-align: end;
 }
 
 /* Preview links under a draft: the address as text to select or copy, when it stops working, Copy and Revoke. */

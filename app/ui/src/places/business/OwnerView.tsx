@@ -102,7 +102,7 @@ export function OwnerView() {
           {said && said.map((line) => <p key={line} className={b.said} role="status">{line}</p>)}
           <div className={s.end}>
             <span className={b.buttons}>
-              <Button variant="primary" type="submit" disabled={busy} aria-busy={busy || undefined}>{t('business.owner.save')}</Button>
+              <Button variant="primary" type="submit" disabled={busy || (!touched && said !== null)} disabledReason={!busy && !touched && said === null ? t('business.owner.changeFirst') : undefined} aria-busy={busy || undefined}>{t('business.owner.save')}</Button>
               {owner.data?.firstName && <Button variant="quiet" disabled={busy} onClick={() => void send({ firstName: null })}>{t('business.owner.takeBack')}</Button>}
             </span>
             <DraftWord saved={draft.saved} refused={draft.refused} shown={touched} />
