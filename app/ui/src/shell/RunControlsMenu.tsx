@@ -3,7 +3,7 @@ import { useT } from '../text';
 import { useEngine, useResource } from '../engine/context';
 import { refusalWords } from '../parts/custody';
 import { Confirm, ConfirmSlot } from '../parts/Confirm';
-import { stoppable } from '../places/work/StopDialog';
+import { stoppable } from '../parts/stoppable';
 import menu from './BusinessMenu.module.css';
 import { useOpenBusiness } from './openBusiness';
 import { settingsPage } from './settings';

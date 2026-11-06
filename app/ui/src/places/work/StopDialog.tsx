@@ -18,7 +18,7 @@ export interface StopRun {
 }
 
 /** A run Stop applies to: going or waiting on the owner, and not already stopping or stopped (the engine's rule). */
-export const stoppable = (run: RunSummary) => (run.state === 'active' || run.state === 'waiting') && !run.stop;
+import { stoppable } from '../../parts/stoppable';
 
 /**
  * Stop on a running run (spec 5.6, catalogue O1; D-Work `.rt-foot` Stop). The button opens a small dialog beside it:

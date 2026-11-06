@@ -1,4 +1,4 @@
-import { messageOf } from '../../../../../platform/shared/errors.ts';
+import { messageOf } from '../../../../platform/shared/errors.ts';
 /**
  * The window before the app. It asks the engine once what to show (boot.ts): the first run, "Welcome back" with the
  * businesses on this computer, or the app itself. While the engine is starting, offline or the browser is not paired,
@@ -11,15 +11,14 @@ import { messageOf } from '../../../../../platform/shared/errors.ts';
  */
 
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useEngine, useEngineStatus } from '../../engine/context';
-import { goTo } from '../../shell/navigation';
-import { FirstRun } from './FirstRun';
-import { Welcome } from './Welcome';
+import { useEngine, useEngineStatus } from '../engine/context';
+import { goTo } from './navigation';
+import { FirstRun, Welcome } from './places';
 import { LeftContext, StartedContext, type Leaving } from './started';
 import { openByItself, readBoot, type Openable, type WelcomeFound } from './boot';
-import type { Deleted } from '../../engine/types';
-import s from './Onboarding.module.css';
-import { withViewTransition } from '../../parts/motion';
+import type { Deleted } from '../engine/types';
+import s from '../parts/Entry.module.css';
+import { withViewTransition } from '../parts/motion';
 
 type WelcomeShown = WelcomeFound & { ask?: Leaving['ask'] };
 type Shown = { kind: 'checking' } | { kind: 'leaving' } | { kind: 'app' } | { kind: 'first-run'; back?: WelcomeShown } | WelcomeShown;
