@@ -17,7 +17,7 @@ import { useEngine, useResource } from '../../engine/context';
 import { openSheet, setQuery, useRoute } from '../../shell/navigation';
 import { Bento } from '../../parts/Tile';
 import { Button } from '../../parts/Button';
-import { FilterChips } from '../../parts/FilterChips';
+import { Select } from '../../parts/Select';
 import { Figure } from '../../parts/Figure';
 import { Icon } from '../../parts/Icon';
 import type { IconName } from '../../parts/icons';
@@ -40,7 +40,7 @@ export function Books() {
   const books = useResource('venture.books.summary', { period: chosen }, { refreshOn: onMoney });
   const data = books.data;
   const periods = data?.periods ?? PERIODS.map((key) => ({ key, label: t(`money.books.period.${key}`) }));
-  const [first, ...more] = data?.notes ?? [];
+  const notes = data?.notes ?? [];
   // A link opens only on the hosted app, so the desktop has no invite; the sheet holds both ways (AccountantSheet.tsx).
   const linksWork = !useEngine().saveMoneyExport;
 
@@ -51,12 +51,9 @@ export function Books() {
         {linksWork && <Button variant="quiet" onClick={(event) => openSheet('accountant', 'books', event.currentTarget)}>{t('money.accountant.invite')}</Button>}
       </div>
       <div className={s.periodRow}>
-        <FilterChips
-          label={t('money.books.period')}
-          options={periods.map((period) => ({ id: period.key, label: period.label }))}
-          value={chosen}
-          onChange={(id) => setQuery({ ...route.query, period: id })}
-        />
+        <Select aria-label={t('money.books.period')} value={chosen} onChange={event => setQuery({ ...route.query, period: event.currentTarget.value })}>
+          {periods.map(period => <option key={period.key} value={period.key}>{period.label}</option>)}
+        </Select>
         {data && <p className={s.range}>{t('money.books.range', { from: day(data.period.from), to: day(data.period.to) })}</p>}
       </div>
       {books.error && <Failed error={books.error} />}
@@ -72,10 +69,9 @@ export function Books() {
               </MoneyTile>
             ))}
           </Bento>
-          {first && <p className={s.notes}>{first}</p>}
-          {more.length > 0 && (
+          {notes.length > 0 && (
             <Fold summary={t('money.books.about')} className={s.fold}>
-              {more.map((note) => <p key={note}>{note}</p>)}
+              {notes.map((note) => <p key={note}>{note}</p>)}
             </Fold>
           )}
           <Section title={t('money.books.open')}>

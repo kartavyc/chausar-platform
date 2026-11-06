@@ -7,6 +7,7 @@
  */
 
 import { useId } from 'react';
+import { Fold } from '../../parts/Fold';
 import { useT } from '../../text';
 import { useResource } from '../../engine/context';
 import { EmptyState } from '../../parts/EmptyState';
@@ -28,7 +29,7 @@ export function Margins({ month }: { month: string }) {
   const view = margins.data;
   return (
     <section className={s.section} aria-labelledby={id}>
-      <SectionHead id={id} title={t('money.margins.title', { month: monthWords(month) })} />
+      <SectionHead id={id} title={t('money.sub.margins')} />
       {margins.error && <Failed error={margins.error} />}
       {view && view.rows.length === 0 && <Tile><EmptyState title={t('money.margins.none')} /></Tile>}
       {view && view.rows.length > 0 && (
@@ -57,7 +58,7 @@ export function Margins({ month }: { month: string }) {
         </Tile>
       )}
       {view && (
-        <div className={v.basis}>
+        <Fold summary={t('money.books.about')} className={v.basis}>
           {/* The engine's sentence: the month, before tax, and the rate the spend was counted at (or why it was not). */}
           <p>
             <EngineWords>{view.line}</EngineWords>
@@ -65,7 +66,7 @@ export function Margins({ month }: { month: string }) {
             {view.needsRate && <> <a className={s.more} href={SET_RATE_HREF}>{t('money.margins.setRate')}</a></>}
           </p>
           {view.basis.notCounted && <p>{view.basis.notCounted.line}</p>}
-        </div>
+        </Fold>
       )}
     </section>
   );

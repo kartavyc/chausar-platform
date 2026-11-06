@@ -1,7 +1,8 @@
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { frameVariables, openBridge, type BridgeOptions } from '../../src/places/apps/bridge';
 import { chausarTheme } from '../../src/places/apps/MiniAppFrame';
-import { APP_PROTOCOL_VERSION } from '../../../../platform/runtime/venture/apps/frame';
+import { APP_PROTOCOL_VERSION, appDocument } from '../../../../platform/runtime/venture/apps/frame';
 
 // Wave 6 package 6H1 (D39): the Ink app's side of the MCP Apps bridge. It answers only the frame it opened (by the
 // message's source window), hands the sandbox proxy the app document once, answers ui/initialize, and relays a
@@ -76,7 +77,8 @@ describe('the mini app bridge (6H1)', () => {
     root.setAttribute('data-theme', 'light');
     expect(chausarTheme()).toBe('light');
     root.removeAttribute('data-theme');
-    expect(chausarTheme()).toBe('dark');
+    expect(chausarTheme()).toBe('light');
+    expect(media).not.toHaveBeenCalled();
     media.mockRestore();
     if (before !== null) root.setAttribute('data-theme', before);
   });
@@ -121,7 +123,7 @@ describe('the mini app bridge (6H1)', () => {
     t.send({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 300, height: 50 } });
     t.send({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 300, height: 99999 } });
     t.send({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 300, height: 480 } });
-    expect(t.onSize.mock.calls.map((item) => item[0])).toEqual([160, 1600, 480]);
+    expect(t.onSize.mock.calls.map((item) => item[0])).toEqual([50, 1600, 480]);
     t.close();
   });
 
@@ -141,4 +143,22 @@ describe('the mini app bridge (6H1)', () => {
     t.send({ jsonrpc: '2.0', id: 13, method: 'ping' });
     expect(t.posted.length).toBe(count);
   });
+});
+
+
+it('reports the app content height again when it shrinks, independent of the previous viewport (B4)', () => {
+  const posted: { method?: string; params?: { height: number } }[] = [];
+  const events = new Map<string, () => void>();
+  let height = 420, resized: (() => void) | undefined;
+  const body = { getBoundingClientRect: () => ({ height }), scrollHeight: 80, offsetHeight: 80 };
+  const root = { scrollWidth: 600, scrollHeight: 900 };
+  class Observer { constructor(callback: () => void) { resized = callback; } observe() {} }
+  const win = { addEventListener: (event: string, callback: () => void) => events.set(event, callback), ResizeObserver: Observer };
+  const script = appDocument('<p>Content</p>', 'Small app').match(/<script>([\s\S]*?)<\/script>/)![1]!;
+  runInNewContext(script, { window: win, document: { body, documentElement: root }, parent: { postMessage: (message: typeof posted[number]) => posted.push(message) }, ResizeObserver: Observer });
+  events.get('load')!();
+  expect(posted.filter(message => message.method === 'ui/notifications/size-changed').at(-1)?.params?.height).toBe(420);
+  height = 80;
+  resized!();
+  expect(posted.filter(message => message.method === 'ui/notifications/size-changed').at(-1)?.params?.height).toBe(80);
 });

@@ -97,10 +97,10 @@ describe('Money v2: the sub-pages', () => {
 });
 
 describe('Money v2: the overview tiles', () => {
-  it('with no goal for the month (W4 4I2), Invoiced this month is the goals view figure for this month with its receipt, and draws no goal bar', async () => {
+  it('with no goal for the month (W4 4I2), Invoiced is the goals view figure for this month with its receipt, and draws no goal bar', async () => {
     const noGoal: Override = async (params, request) => ({ ...(await request('venture.goals.get', params) as GoalView), state: 'unset', goal: null, invoicedPermille: null, readyPermille: null, stillToInvoice: null, pace: null, paceReceiptId: null, invoicedPercent: null, past: false, pastBy: null, paceBy: null });
     const { calls } = start('#/money', { override: { 'venture.money.overview': overview(), 'venture.goals.get': noGoal } });
-    const invoiced = await tile('Invoiced this month');
+    const invoiced = await tile('Invoiced');
     expect(await within(invoiced).findByText('₹1,12,400')).toBeTruthy();
     expect(invoiced.querySelector('[data-receipt]')).not.toBeNull();
     expect(calls).toContainEqual(['venture.goals.get', {}]);
@@ -247,7 +247,7 @@ describe('Money v2: owed and due next', () => {
   it('from an engine without the W4 money views, draws no in-and-out chart and no cash line, and no sentence promises them', async () => {
     start('#/money', { override: { ...OLDER, 'venture.money.overview': overview() } });
     await within(await tile('Owed to you')).findByText('₹47,580');
-    // The goal bar on Invoiced this month is the only chart the engine sends data for here (W4 4I2).
+    // The goal bar on Invoiced is the only chart the engine sends data for here (W4 4I2).
     expect(within(main()).queryAllByRole('img').filter((img) => !/of the goal invoiced|by department/.test(img.getAttribute('aria-label') ?? ''))).toEqual([]);
     expect(main().textContent).not.toMatch(/in and out|cash|13 weeks|coming soon/i);
   });
@@ -295,7 +295,7 @@ describe('Money v2: the charts, once W4 sends their data', () => {
     const request = client.request.bind(client);
     client.request = (async (method: string, params?: unknown) => (method === 'venture.money.overview' ? structuredClone(OVERVIEW) : request(method as never, params as never))) as typeof client.request;
     render(<EngineProvider client={client}><TextProvider language="en"><Overview views={VIEWS} /></TextProvider></EngineProvider>);
-    const invoiced = await tile('Invoiced this month');
+    const invoiced = await tile('Invoiced');
     expect(within(invoiced).getByRole('img', { name: /of the goal invoiced/ })).toBeTruthy();
     expect(within(await tile('AI spend this month')).getByRole('img', { name: /AI spend by department/ })).toBeTruthy();
     const owed = await tile('Owed to you');
@@ -364,10 +364,10 @@ describe('Money v2: books, simple first', () => {
     expect(await within(billed).findByText('₹1,12,400')).toBeTruthy();
     expect(within(billed).getByRole('button', { name: receiptMark('R-0401') })).toBeTruthy();
     expect(within(await tile('Earned')).getByRole('button', { name: receiptMark('R-0403') })).toBeTruthy();
-    const periods = screen.getByRole('group', { name: 'Period' });
-    await click(within(periods).getByRole('button', { name: 'Last month' }));
+    const periods = screen.getByRole('combobox', { name: 'Period' });
+    await act(async () => { fireEvent.change(periods, { target: { value: 'last-month' } }); window.dispatchEvent(new HashChangeEvent('hashchange')); });
     expect(window.location.hash).toBe('#/money/books?period=last-month');
-    await waitFor(() => expect(within(periods).getByRole('button', { name: 'Last month' }).getAttribute('aria-pressed')).toBe('true'));
+    expect((periods as HTMLSelectElement).value).toBe('last-month');
     assertInkRules();
   });
 
@@ -535,10 +535,10 @@ describe('Money v2: Amount', () => {
 
 // One-shot C6 task 4 (SCREENS 94): "Paid in full" for the month on screen, the engine's line with its receipt mark.
 describe('Money v2: paid in full', () => {
-  it('when every invoice of the month is paid, Invoiced this month says so with the receipt mark; otherwise nothing', async () => {
+  it('when every invoice of the month is paid, Invoiced says so with the receipt mark; otherwise nothing', async () => {
     const paid: Override = async (params, request) => ({ ...(await request('venture.goals.get', params) as GoalView), paidInFull: { line: 'All October invoices paid', receiptId: 'R-PAID' } });
     start('#/money', { override: { 'venture.money.overview': overview(), 'venture.goals.get': paid } });
-    const invoiced = await tile('Invoiced this month');
+    const invoiced = await tile('Invoiced');
     const line = await within(invoiced).findByText('All October invoices paid');
     expect(within(line.parentElement!).getByRole('button', { name: receiptMark('R-PAID') })).toBeTruthy();
     assertInkRules();
@@ -546,7 +546,7 @@ describe('Money v2: paid in full', () => {
 
   it('says nothing while an invoice of the month is open', async () => {
     start('#/money', { override: { 'venture.money.overview': overview() } });
-    const invoiced = await tile('Invoiced this month');
+    const invoiced = await tile('Invoiced');
     await within(invoiced).findByText('₹1,12,400');
     expect(within(invoiced).queryByText(/invoices paid$/)).toBeNull();
   });

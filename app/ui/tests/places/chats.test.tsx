@@ -675,3 +675,32 @@ describe('Chats: the list writes times in the owner zone (one-shot B2)', () => {
     expect(chatList().querySelector(`time[datetime="${LATE}"]`)!.textContent).toBe('12:42 am');
   });
 });
+
+
+describe('Chats, one composer and one figure (B4 task 19)', () => {
+  it('keeps New chat off while the empty chat is already open and the mic beside Send', async () => {
+    stubWidth(false);
+    await start('#/chats');
+    await screen.findByRole('textbox', { name: 'Ask Chausar' });
+    await settle();
+    expect((within(chatList()).getByRole('button', { name: 'New chat' }) as HTMLButtonElement).disabled).toBe(true);
+    const form = screen.getByRole('form', { name: 'Ask Chausar' });
+    expect(form.querySelector('[data-talk]')).not.toBeNull();
+  });
+  it('shows each worked amount once and a plain sentence above it', async () => {
+    await start('#/chats?thread=chiefthread-billed');
+    const table = await screen.findByRole('table', { name: 'Worked by the calculator' });
+    const message = table.closest('[data-chief-message]')!;
+    expect(assertFiguresProved(message).map(node => node.textContent)).toEqual(['₹1,12,400', '₹86,200']);
+    expect(message.querySelector('p[dir=auto] [data-figure]')).toBeNull();
+  });
+  it('a suggestion disappears after that question has been sent', async () => {
+    await start('#/chats');
+    const question = 'What did we invoice this month?';
+    await click(await screen.findByRole('button', { name: question }));
+    await click(screen.getByRole('button', { name: 'Send' }));
+    await settle();
+    expect(within(thread()).getByText(question)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: question })).toBeNull();
+  });
+});

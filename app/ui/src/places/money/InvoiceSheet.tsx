@@ -60,6 +60,9 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
     );
   }
   const { invoice } = current;
+  const simpleBalance = invoice.status !== 'draft' && current.payments.length === 0 && !current.figures.some(figure => !['subtotal', 'discount', 'total', 'paid', 'balance', 'credited'].includes(figure.key));
+  const shownFigures = current.figures.filter(figure => invoice.status === 'draft' ? !['paid', 'balance'].includes(figure.key) : !simpleBalance || figure.key === 'balance');
+  const restFigures = simpleBalance ? current.figures.filter(figure => figure.key !== 'balance') : [];
   // C4 (T21): no way for clients to pay is in the view the sheet already reads (howToPay, as the engine built it).
   const pay = current.howToPay;
   const noPay = !pay || (!pay.upi && !pay.bank && !pay.upiNote);
@@ -110,7 +113,7 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       label={t('money.invoice.label')}
       eyebrow={current.client.name}
       title={invoice.number ?? t('money.invoice.draft')}
-      line={current.paidInFull ? t('money.invoice.paidInFull') : statusOf(t, day, invoice, current.sent)}
+      line={current.paidInFull ? t('money.invoice.paidInFull') : `${statusOf(t, day, invoice, current.sent)}${current.next?.action === 'wait' ? ` ${t('money.next.wait')}` : ''}`}
       onClose={onClose}
       returnFocus={returnFocus}
       footer={footer}
@@ -119,13 +122,14 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           the receipts beside it (one data-figure-group). */}
       <div className={s.sheetCard} data-figure-group="">
         <dl className={s.sheetFigures}>
-          {current.figures.map((figure) => (
+          {shownFigures.map((figure) => (
             <div key={figure.key} className={s.sheetFigure} data-key={figure.key}>
               <dt>{figure.label}</dt>
               <dd data-num="">{figure.display}</dd>
             </div>
           ))}
         </dl>
+        {restFigures.length > 0 && <Fold summary={t('money.invoice.details')}><dl className={s.sheetFigures}>{restFigures.map(figure => <div key={figure.key} className={s.sheetFigure}><dt>{figure.label}</dt><dd data-num>{figure.display}</dd></div>)}</dl></Fold>}
         <p className={s.sheetLine}>
           <span className={s.figureLabel}>{t('money.invoice.priced')}</span>
           {/* 4Z3: the mark named for the total the price receipt proves, when the engine sent it. */}
@@ -155,9 +159,8 @@ export function InvoiceSheet({ id, onClose, returnFocus }: SheetComponentProps) 
       {/* One-shot C6: a paid invoice's thank-you receipt, which the owner sends. */}
       <ThankYou view={current} />
       {current.notes.map((note) => <p key={note} className={s.quietLine} data-engine-line="">{note}</p>)}
-      <Credits view={current} />
-      <Timeline view={current} />
-      <Fold summary={t('money.invoice.document')} className={`${s.fold} ${s.block}`}>
+      <Fold summary={t('money.invoice.more')}><Credits view={current} /><Timeline view={current} /></Fold>
+      <Fold open summary={t('money.invoice.document')} className={`${s.fold} ${s.block}`}>
         {/* The invoice as the client gets it, quoted as written; its figures are the ones above, with their receipts. */}
         <pre className={s.pre} data-content="">{current.documentText}</pre>
       </Fold>

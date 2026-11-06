@@ -61,7 +61,8 @@ describe('a chat\'s head: Pin, Snooze and Settle, each with Undo', () => {
     await waitFor(() => expect(within(chatList()).queryByText('@Editor cut a short trailer for episode 14')).toBeNull());
     const link = within(chatList()).getByRole('link', { name: '2 old chats' });
     expect(link.getAttribute('href')).toBe('#/business/chats');
-    await waitFor(() => expect(within(screen.getByRole('group', { name: 'Chat actions' })).getByRole('button', { name: 'Reopen' })).toBeTruthy());
+    expect(link.textContent).toBe('Old chats (2)');
+    await waitFor(() => expect(within(screen.getByRole('group', { name: 'Chat actions' })).queryByRole('button', { name: 'Reopen' })).toBeNull());
     await act(async () => { fireEvent.click(within(screen.getByRole('status', { name: 'Chat change' })).getByRole('button', { name: 'Undo' })); });
     await settle();
     expect(calls(spy, 'venture.chief.thread.state').at(-1)).toEqual({ threadId: 'chiefthread-trailer', state: 'active' });

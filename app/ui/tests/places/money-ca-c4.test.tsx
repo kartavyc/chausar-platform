@@ -7,7 +7,7 @@ import type { EngineClient } from '../../src/engine/types';
 
 /*
  * One-shot C4 task 24 (founder decision 2's default): Books becomes "For your CA": the page at the same address, with
- * Share with your CA at its top and Invite your accountant beside it; one sheet with two ways, Save the files and Make a
+ * Share with your CA at its top and Invite your accountant beside it; one sheet with two ways, Export for your CA and Make a
  * link, the second only where links work (never on the desktop); after saving, how many files, which folder and Show in
  * folder. C1's Money More menu is not in this tree: the page stays a tab until C1 moves it.
  */
@@ -41,15 +41,15 @@ describe('C4 T24: For your CA', () => {
     start('#/money');
     await screen.findByRole('region', { name: 'AI spend this month' });
     expect(screen.queryByRole('button', { name: /Export for your CA/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Save the files/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Export for your CA/ })).toBeNull();
   });
 
-  it('on the web the one sheet has two ways: Save the files and Make a link, saying how long a link lasts', async () => {
+  it('on the web the one sheet has two ways: Export for your CA and Make a link, saying how long a link lasts', async () => {
     start('#/money/books');
     await click(await screen.findByRole('button', { name: 'Share with your CA' }));
     const panel = await sheet();
     expect(within(panel).getByRole('heading', { name: 'Share with your CA' })).toBeTruthy();
-    expect(within(panel).getByRole('button', { name: /^Save the files/ })).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: /^Export for your CA/ })).toBeTruthy();
     expect(within(panel).getByRole('button', { name: 'Make a link' })).toBeTruthy();
     expect(panel.textContent).toContain('Lasts 7 days. You can take it back.');
   });
@@ -62,7 +62,7 @@ describe('C4 T24: For your CA', () => {
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function click(this: HTMLAnchorElement) { names.push(this.download); });
     start('#/money/books?sheet=accountant:books');
     const panel = await sheet();
-    await click(within(panel).getByRole('button', { name: /^Save the files/ }));
+    await click(within(panel).getByRole('button', { name: /^Export for your CA/ }));
     await waitFor(() => expect(names).toEqual(['Lumen Studio, sales, Oct 2026.csv']));
     await click(await within(panel).findByRole('button', { name: 'Download the signed receipts' }));
     expect(names[1]).toBe('Lumen Studio, receipts, Oct 2026.json');
@@ -76,7 +76,7 @@ describe('C4 T24: For your CA', () => {
     await click(await screen.findByRole('button', { name: 'Share with your CA' }));
     const panel = await sheet();
     expect(within(panel).queryByRole('button', { name: 'Make a link' })).toBeNull();
-    await click(within(panel).getByRole('button', { name: /^Save the files/ }));
+    await click(within(panel).getByRole('button', { name: /^Export for your CA/ }));
     expect(save).toHaveBeenCalledWith('2026-10');
     expect(await within(panel).findByText('Saved 3 files to Documents. Chausar did not send them anywhere.')).toBeTruthy();
     expect(panel.textContent).not.toMatch(/[A-Z]:\\/);
@@ -89,7 +89,7 @@ describe('C4 T24: For your CA', () => {
     start('#/money/books?sheet=accountant:books', { saveMoneyExport: save });
     const panel = await sheet();
     await act(async () => { fireEvent.change(within(panel).getByRole('combobox', { name: 'Month' }), { target: { value: '2026-09' } }); });
-    await click(within(panel).getByRole('button', { name: /^Save the files/ }));
+    await click(within(panel).getByRole('button', { name: /^Export for your CA/ }));
     expect(save).toHaveBeenCalledWith('2026-09');
     expect(within(panel).queryByRole('status')).toBeNull();
   });
