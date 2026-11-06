@@ -98,6 +98,7 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
   const requestOf = new Map(mine.map((o) => [o.id, o.request]));
   const theirDrafts = (drafts.data ?? []).filter((d) => !d.practice && orderIds.has(d.orderId));
   const theirFiles = (files.data ?? []).filter((f) => f.scope.kind === 'order' && orderIds.has(f.scope.orderId));
+  const theirMedia = (files.data ?? []).filter(f => f.scope.kind === 'media' && orderIds.has(f.scope.orderId));
 
   return (
     <Sheet
@@ -140,10 +141,11 @@ function ExistingClientSheet({ id, onClose, returnFocus }: SheetComponentProps) 
           <Fields client={client} items={evidence.data?.items ?? []} hidden={hidden} problems={problems} onDismiss={(itemId) => void dismiss(itemId)} foldTax={!registered} />
           <ClientCrm key={`crm-${client.id}`} clientId={client.id} addDetails={<>
             <div className={s.formActions}><Button size="sm" onClick={(event) => openSheet('proposal', `client:${client.id}`, event.currentTarget)}>{t('kit-sales.proposal.open')}</Button></div>
-            {brandKit.data?.version === null && <BrandKit clientId={client.id} files={[]} />}
+            {brandKit.data?.version === null && <BrandKit clientId={client.id} files={theirMedia} />}
           </>} />
 
-          {brandKit.data?.version != null && <BrandKit clientId={client.id} files={(files.data ?? []).filter((f) => f.scope.kind === 'media' && orderIds.has(f.scope.orderId))} />}
+          {brandKit.error && <div><p role="alert">{brandKit.error.message}</p><Button disabled={brandKit.loading} onClick={brandKit.reload}>{t('status.retry')}</Button></div>}
+          {brandKit.data?.version != null && <BrandKit clientId={client.id} files={theirMedia} />}
 
           {theirDrafts.length > 0 && (
             <section aria-labelledby={draftsId}>
