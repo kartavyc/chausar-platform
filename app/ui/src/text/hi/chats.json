@@ -16,10 +16,7 @@
   "chats.group.earlier": "पहले",
   "chats.group.snoozed": "टाली हुई",
   "chats.list.wakes": "वापस आएगी",
-  "chats.list.settled": {
-    "one": "{count} पुरानी चैट",
-    "other": "{count} पुरानी चैट"
-  },
+  "chats.list.settled": "पुरानी चैट ({count})",
   "chats.thread.new": "नई चैट",
   "chats.thread.role": "आपका बही-खाता, टीम और रसीदें पढ़ता है",
   "chats.thread.pin": "पिन करें",

@@ -53,7 +53,8 @@ describe('Team: one row per agent', () => {
     await act(async () => { await base.request('workspace.open', { folder: 'ledgerline' }); });
     const bookkeeper = await rowOf('Bookkeeper');
     await click(within(bookkeeper).getByRole('button', { name: receiptMark('R-0412') }));
-    expect(await screen.findByRole('complementary', { name: 'R-0412' })).toBeTruthy();
+    const sheet = await screen.findByRole('complementary', { name: '212 of 214' });
+    expect(sheet.querySelector('[data-code]')?.textContent).toBe('R-0412');
   });
 
   it("an idle agent's model-written last result says 'model estimate' and has no receipt", async () => {
