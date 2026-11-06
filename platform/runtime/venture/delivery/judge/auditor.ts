@@ -36,7 +36,7 @@ const PROOFS_BY_TOOL: Readonly<Record<string, readonly ClaimProofKind[]>> = Obje
 const TOTALS_OPERATIONS: readonly string[] = Object.freeze(['work.sum', 'work.totals', 'ca.engine', 'social.report']);
 
 export const NOT_RUN_REASON = 'The step did not run.';
-export const BEFORE_LEDGER_REASON = 'This run started before steps were audited.';
+export const BEFORE_LEDGER_REASON = 'This job started before steps were audited.';
 /** A heavy-work brief is audited again when it is settled (settleDelegation in the loop). */
 export const WAITING_BRIEF_REASON = "The brief waits for the owner. It counts once the owner's tool has finished.";
 
@@ -79,7 +79,7 @@ export function auditStep(env: AuditEnv, outcome: ToolOutcome): AuditVerdict {
   const evidence: string[] = [];
   for (const id of record.receiptIds) {
     const receipt = env.receipts.find(item => item.id === id);
-    if (!receipt) return no(`The receipt ${id} the step reported is not in the run.`, evidence);
+    if (!receipt) return no(`The receipt ${id} the step reported is not in the job.`, evidence);
     if (receipt.ventureId !== env.ventureId || !sameRun(receipt.runRef, env.runRef)) return no(`The receipt ${id} belongs to another run.`, evidence);
     if (!receipt.figures.length) return no(`The receipt ${id} holds no figures.`, evidence);
     if (!receiptHolds(receipt)) return no(`The receipt ${id} does not match its own digest.`, evidence);
@@ -87,7 +87,7 @@ export function auditStep(env: AuditEnv, outcome: ToolOutcome): AuditVerdict {
   }
   for (const id of record.tableIds) {
     const table = env.tables.find(item => item.id === id);
-    if (!table) return no(`The table ${id} the step reported is not in the run.`, evidence);
+    if (!table) return no(`The table ${id} the step reported is not in the job.`, evidence);
     if (table.ventureId !== env.ventureId || !sameRun(table.runRef, env.runRef)) return no(`The table ${id} belongs to another run.`, evidence);
     if (!tableHolds(table)) return no(`The table ${id} does not match its own digest.`, evidence);
     evidence.push(id);
@@ -101,7 +101,7 @@ export function auditStep(env: AuditEnv, outcome: ToolOutcome): AuditVerdict {
     const rec = receipt?.reconciliation ?? null;
     if (proof.kind === 'file-read') {
       const target = readTarget(env, proof.tableId);
-      if (!target) return no(`${proof.tableId ?? 'The read'} is not a file or table of this run.`, evidence);
+      if (!target) return no(`${proof.tableId ?? 'The read'} is not a file or table of this job.`, evidence);
       if (!evidence.includes(target)) evidence.push(target);
     }
     if (proof.kind === 'transformed' && (!proof.tableId || !record.tableIds.includes(proof.tableId))) return no('The transform proof does not point at the table this step made.', evidence);

@@ -35,10 +35,10 @@ export function traceFromHarness(
       id: `handoff.${index + 1}`, kind: 'handoff', summary: short(`Asked the ${handoff.to}: ${handoff.question} Answer: ${handoff.answer ?? 'none yet'}`),
     }));
     for (const id of state.uploadIds) add({ id, kind: 'file', summary: 'A file the client sent.' });
-    for (const id of state.tableIds) add({ id, kind: 'table', summary: 'A table a tool made in this run.' });
+    for (const id of state.tableIds) add({ id, kind: 'table', summary: 'A table a tool made in this job.' });
     for (const id of state.workReceiptIds) {
       const receipt = options.receipts?.find(item => item.id === id);
-      add({ id, kind: 'receipt', summary: short(receipt?.explanation ? `Calculator receipt: ${receipt.explanation}` : 'A calculator receipt from this run.') });
+      add({ id, kind: 'receipt', summary: short(receipt?.explanation ? `Calculator receipt: ${receipt.explanation}` : 'A calculator receipt from this job.') });
     }
   }
   for (const event of options.extra ?? []) add({ id: event.id, kind: event.kind, summary: short(event.summary) });

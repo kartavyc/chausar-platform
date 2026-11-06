@@ -27,7 +27,7 @@ function localAppRunTool(): Spec {
     },
     async run(env, input) {
       if (env.runRef.kind !== 'delivery') throw new ChausarError('TOOL_FAILED', REAL_ORDER_ONLY_APPS);
-      if (!env.ctx) throw new ChausarError('TOOL_FAILED', 'Only a run the owner approved can start an app.');
+      if (!env.ctx) throw new ChausarError('TOOL_FAILED', 'Only a job the owner approved can start an app.');
       const apps = await import('../../build/local-apps.ts');
       const args = apps.commandOf(input.args);
       const result = apps.readOnlyCommand(args)
@@ -55,7 +55,7 @@ function mailReadTool(): Spec {
       const venture = currentVenture(state);
       const run = findRecord(state, 'venture-delivery-run', env.runRef.runId);
       const order = run ? findRecord(state, 'venture-order', run.orderId) : undefined;
-      if (!venture || !order) throw new ChausarError('TOOL_FAILED', 'This run\'s order was not found.');
+      if (!venture || !order) throw new ChausarError('TOOL_FAILED', 'This job\'s order was not found.');
       const threads = mail.mailThreadsOf(state, venture).filter(thread => thread.clientId === order.clientId);
       if (!input.thread) return { result: { threads: threads.map(thread => ({ id: thread.id, subject: thread.subject, count: thread.count, lastAt: thread.lastAt, held: thread.held })) } };
       if (!threads.some(thread => thread.id === input.thread)) throw new ChausarError('TOOL_FAILED', 'That thread is not mail from this order\'s client.');

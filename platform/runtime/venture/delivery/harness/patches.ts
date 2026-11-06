@@ -258,7 +258,7 @@ export function applyPatch(body: PlaybookBody, patch: PlaybookPatch, context: { 
     case 'checks.add': {
       const step = stepOf(kind => kind === 'verify' || kind === 'write', 'a writing or checking step');
       if (!(CHECK_IDS as readonly string[]).includes(patch.value)) refuse(`There is no check called ${JSON.stringify(patch.value)}.`);
-      if (step.checks.includes(patch.value as CheckId)) refuse('The step already runs that check.');
+      if (step.checks.includes(patch.value as CheckId)) refuse('The step already performs that check.');
       step.checks = [...step.checks, patch.value as CheckId];
       break;
     }
