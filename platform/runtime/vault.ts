@@ -924,9 +924,11 @@ export class Vault implements StateStore {
           } catch (error) { item.reject(error); }
         }
         if (completed.length) {
-          const envelope = encodeSnapshot(draft, { ...this.#envelope, revision: draft.revision }, this.#key);
+          // The callback may retain its draft. Detach the exact state we seal before yielding to IO.
+          const committed = structuredClone(draft);
+          const envelope = encodeSnapshot(committed, { ...this.#envelope, revision: committed.revision }, this.#key);
           assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
-          this.#state = structuredClone(draft); this.#envelope = envelope;
+          this.#state = committed; this.#envelope = envelope;
         }
         return { result: undefined, committedState: structuredClone(this.#state) };
       }));

@@ -81,3 +81,12 @@ test('writer admission checks the previous revision and publishes the final batc
   assert.deepEqual(revisions, [[0, 20], [20, 30]]); assert.equal(published, 30);
   assert.equal(JSON.parse(await readFile(join(env.directory, 'authority.encrypted.json'), 'utf8')).revision, 30);
 });
+
+test('a retained callback draft cannot change committed memory while its sealed bytes are being saved', async t => {
+  const env = await setup(t); env.block(); let draft: any;
+  const pending = env.vault.update(state => { state.workspace.name = 'Sealed value'; draft = state; });
+  await setImmediate(); draft.workspace.name = 'After sealing'; env.release(); await pending;
+  assert.equal(env.vault.read().workspace.name, 'Sealed value'); await env.vault.close();
+  const reopened = await Vault.open({ directory: env.directory, storage: 'experimental-file', passphrase });
+  assert.equal(reopened.read().workspace.name, 'Sealed value'); await reopened.close();
+});
