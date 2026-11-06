@@ -108,3 +108,18 @@
 .link {
   font-size: var(--text-read);
 }
+.checks {
+  display: grid;
+  gap: var(--sp-2);
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-read);
+}
+
+.checks li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.checks svg { flex: none; color: var(--accent-text); }

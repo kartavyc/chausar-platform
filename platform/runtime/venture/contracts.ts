@@ -3136,6 +3136,9 @@ export type RunToolLine = { name: string; line: string; state?: 'done' | 'error'
  */
 export interface RunSummary {
   runId: string; businessId: string; agent: string; purpose: string; state: RunState; startedAt: string; elapsed: Display;
+  /** Completion and practice are recorded facts, so Work never infers them from a title or start date. */
+  finishedAt?: IsoTime;
+  practice?: true;
   /**
    * C5 task 4: the run's time apart: worked (elapsed less every wait for the owner) and waited (each span from the run
    * waiting to the next thing it did). Only on runs whose calls carry stamped times; an older run shows elapsed alone.

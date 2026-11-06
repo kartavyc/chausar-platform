@@ -31,12 +31,12 @@ describe('Work: order stage steps', () => {
     expect(steps.getAttribute('aria-label')).toBe('Steps for this order');
     const items = [...steps.querySelectorAll('li')];
     expect(items.map((li) => li.getAttribute('data-state'))).toEqual(['done', 'waits', 'waits', 'always-asks', 'not-yet', 'not-yet']);
-    expect(items.map((li) => li.querySelector('span:not(.sr-only):not([aria-hidden])')!.textContent)).toEqual(['Agreed', 'Price', 'Episode', 'Publish', 'Invoice', 'Paid']);
+    expect(items.map((li) => li.querySelector('span:not(.sr-only):not([aria-hidden])')!.textContent)).toEqual(['Agreed', 'Price set', 'Episode ready', 'Published', 'Invoiced', 'Paid']);
     // The screen's own words from the codes (4J19 review), never the engine's English detail.
     expect(items[1]!.querySelector('.sr-only')!.textContent).toBe(', waits on you');
     expect(items[0]!.querySelector('.sr-only')!.textContent).toBe(', done');
     expect(items[3]!.querySelector('.sr-only')!.textContent).toBe(', always asks you');
-    expect(card.querySelector('[data-waits-on-you]')!.textContent).toBe('2 wait on you: Price, Episode');
+    expect(card.querySelector('[data-waits-on-you]')!.textContent).toBe('2 wait on you: Price set, Episode ready');
     assertInkRules(document.body);
     assertOnePrimary(document.body);
   });
