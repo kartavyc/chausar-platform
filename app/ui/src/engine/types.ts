@@ -1,3 +1,5 @@
+import type { BuilderId, MiniAppCallResult, MiniAppCard, MiniAppMessage, MiniAppView } from './contract.gen';
+export type { BuilderId, MiniAppCallResult, MiniAppCard, MiniAppMessage, MiniAppView } from './contract.gen';
 import type { AgentCapView, AgentHealth, AgentMessageView, AgentNoteView, AgentProposalView, AgentRunItem, AgentThreadView, AgentView, ChiefCounted, ChiefFit, ChiefLineAmount, ChiefMessageView, ChiefSnoozeOption, ChiefThreadStateInput, ChiefThreadSummary, ChiefThreadsView, DepartmentId, DepartmentView, ProposalKind, ProposalView, RetireInFlight, RetiredAgentView, RoleModelView, RoutineInput, RoutineSchedule, RoutineSuggestion, RoutineView, StandingOrderView, StandingPlaybookView, StandingStepView, TeamListView } from './contract.gen';
 export type { AgentCapView, AgentHealth, AgentMessageView, AgentNoteView, AgentProposalView, AgentRunItem, AgentThreadView, AgentView, ChiefCounted, ChiefFit, ChiefLineAmount, ChiefMessageView, ChiefSnoozeOption, ChiefThreadStateInput, ChiefThreadSummary, ChiefThreadsView, DepartmentId, DepartmentView, ProposalKind, ProposalView, RetireInFlight, RetiredAgentView, RoleModelView, RoutineInput, RoutineSchedule, RoutineSuggestion, RoutineView, StandingOrderView, StandingPlaybookView, StandingStepView, TeamListView } from './contract.gen';
 import type { FollowupView, InboundView, LeadEmailCheck, LeadMoveView, LeadSendView, LeadView, LostReason, MailboxView, NetworkBandCounts, NetworkImportKind, NetworkImportView, NetworkSourcesView, OutreachDraftView, OutreachKind, OutreachView, PeopleView, PersonSummary, PersonView, PipelineCaps, PipelineCardView, PipelineQuoteView, PipelineStage, PipelineView, TieBand, TriageRule, WarmPathView } from './contract.gen';
@@ -459,7 +461,7 @@ export interface BlueprintPatchLite {
 }
 
 /** `venture.build.*` (BriefRecord, HandoffPlan, HandoffRecord, BuildFollowRecord, BuildStatus), trimmed. */
-export type BuilderId = 'lovable' | 'replit' | 'bolt' | 'v0';
+
 export interface BriefLite {
   id: string; at: string; briefId: string; version: number; markdown: string; chars: number; wordsBy: 'model' | 'template' | 'mixed';
   lint: { ok: boolean; findings: { rule: string; line: number | null; message: string }[] }; estimate?: true;
@@ -573,24 +575,13 @@ import type { FeedbackAnswerInput, FeedbackConsentInput, FeedbackCrashInput, Fee
 // W6 6H1 (D39): mini apps. The permission names and bridge tools live in the browser-safe apps/frame.ts.
 import type { AppPermission } from '../../../../platform/runtime/venture/apps/frame';
 export type { AppPermission };
-export interface MiniAppMessage { at: string; from: 'owner' | 'chausar'; text: Display; version: number | null }
+
 /** An app on the Apps place: reads are the chips that say what it reads or uses; allowed: it may run now. */
-export interface MiniAppCard { id: string; name: string; version: number; summary: Display; reads: Display[]; pinned: boolean; madeAt: string; allowed: boolean }
+
 /** One app, opened (apps/apps.ts appView): its frame document, versions, permission screen (ask) and the tools that answer now. */
-export interface MiniAppView extends MiniAppCard {
-  uri: string; document: string;
-  /** C4 task 29: the app reads the business, and every read it may make has nothing to show now. */
-  empty: boolean;
-  versions: { version: number; at: string; summary: Display; current: boolean }[];
-  permissions: { id: AppPermission; verb: 'Read' | 'Keep' | 'Use' | 'Propose'; line: Display }[];
-  grant: { permissions: AppPermission[]; at: string } | null;
-  ask: { digest: string; added: AppPermission[]; first: boolean } | null;
-  tools: string[];
-  messages: MiniAppMessage[];
-  never: Display;
-}
+
 /** What the bridge answers for one tools/call, in the MCP CallToolResult shape. */
-export interface MiniAppCallResult { content: { type: 'text'; text: string }[]; structuredContent: unknown; isError: false }
+
 export type { ClientCrmView, CompanyRow, CompanyView, CrmEntryKind, CrmListRow, CrmListView, CrmMemberView, FieldChangeView, TimelineEntryView, FactView, FactVisibility, MemoryChange, MemoryView };
 import type { ClientAiConsent, ClientAiConsentView, ClientAiDefaultView } from '../../../../platform/runtime/venture/clients/ai-consent-core';
 import type { AiSettings, AiSettingsView } from '../../../../platform/runtime/venture/agent-runtime/settings';

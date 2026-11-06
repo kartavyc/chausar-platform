@@ -1,6 +1,5 @@
 [
   "AwayView",
-  "BuilderId",
   "BusinessSnapshotView",
   "CalendarFeedView",
   "ChatConsentView",
@@ -16,10 +15,6 @@
   "JudgeAutoView",
   "KeeperJobView",
   "KnowledgeSourceView",
-  "MiniAppCallResult",
-  "MiniAppCard",
-  "MiniAppMessage",
-  "MiniAppView",
   "NoteChangeView",
   "NotificationView",
   "NotifyDigestView",
