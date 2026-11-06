@@ -18,6 +18,9 @@ import { Fold } from '../../parts/Fold';
 import { Reveal } from '../../parts/RevealBlock';
 import { LoadingPlace } from '../../parts/Skeleton';
 import { Progress, useWaitLabel } from '../../parts/Progress';
+import { useArrivals } from '../../parts/useArrivals';
+import { useFlip } from '../../parts/flip';
+import motion from '../../parts/Leave.module.css';
 
 /**
  * The rest of Keep this business: what the old app's "Your workspace" menu and its Trust & access panel offered for
@@ -103,6 +106,8 @@ function RestoreChange({ backup }: { backup: BackupLite }) {
 
 /** Every backup of this business, newest first. Restore says what happens and waits for a second press. */
 export function AllBackups({ backups }: { backups: BackupLite[] }) {
+  const arrivals = useArrivals(backups.map(backup => backup.file));
+  const rows = useFlip<HTMLDivElement>(backups.map(backup => backup.file).join(' '));
   const t = useT();
   const zone = useOwnerZone();
   const client = useEngine();
@@ -129,7 +134,7 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
   const list = (items: BackupLite[]) => (
       <ul className={s.list}>
         {items.map((backup) => (
-          <li key={backup.file} className={s.backupRow}>
+          <li key={backup.file} className={`${s.backupRow} ${motion.arrive}`} data-backup={backup.file} data-flip-id={backup.file} data-arriving={arrivals.has(backup.file) ? '' : undefined}>
             <div className={s.backupLine}>
               <span className={s.strong}>{momentOf(backup.at, zone)}</span>
               {/* C4 task 36 (203.x1): each copy's size. Seam: C5 task 20 labels the copies, C6 tasks 1 and 2 their contents. */}
@@ -149,10 +154,10 @@ export function AllBackups({ backups }: { backups: BackupLite[] }) {
         ))}
       </ul>
   );
-  return <>
+  return <div ref={rows} className={s.backupList}>
     {list(backups.slice(0, 3))}
     {backups.length > 3 && <Fold summary={t('business.olderBackups', { count: backups.length - 3 })} className={s.fold}>{list(backups.slice(3))}</Fold>}
-  </>;
+  </div>;
 }
 
 /**
