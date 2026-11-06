@@ -1,0 +1,58 @@
+name: Dispatch snapshot checks
+on:
+  push:
+    branches: ['b2c/os-dispatch-check-*']
+permissions:
+  contents: read
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: --max-old-space-size=3072
+      CHAUSAR_RUN_ROOT: /tmp/dispatch-receipts
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Measure matched imports
+        run: |
+          mkdir -p /tmp/dispatch-receipts
+          git clone --no-hardlinks "$GITHUB_WORKSPACE" /tmp/dispatch-before
+          git -C /tmp/dispatch-before checkout --detach bf28e9d20811660a92b0a46c00bca6370ee77e2a
+          (cd /tmp/dispatch-before && npm ci --ignore-scripts)
+          (cd /tmp/dispatch-before && node "$GITHUB_WORKSPACE/.github/dispatch-measure.mjs" /tmp/dispatch-receipts/imports-before.json)
+          node .github/dispatch-measure.mjs /tmp/dispatch-receipts/imports-after.json
+      - name: Lazy and tier regressions
+        run: |
+          set -o pipefail
+          timeout 180s node --test --test-concurrency=2 platform/tests/engine-legacy-lazy-d10.test.ts platform/tests/codex-replay-d11.test.ts platform/tests/method-registry-d8.test.ts platform/tests/desktop-harness.test.ts platform/tests/desktop-ipc-methods.test.ts platform/tests/benchmark-sharding.test.ts platform/tests/test-isolation-d2.test.ts 2>&1 | tee /tmp/dispatch-receipts/tests.log
+      - name: Focused receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-focused-receipts
+          path: /tmp/dispatch-receipts
+      - name: Engine types
+        if: always()
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee /tmp/dispatch-receipts/types.log
+      - name: UI types
+        if: always()
+        run: npm run typecheck:ui 2>&1 | tee /tmp/dispatch-receipts/ui-types.log
+      - name: Source checks
+        if: always()
+        run: node scripts/check.mjs 2>&1 | tee /tmp/dispatch-receipts/checks.log
+      - name: Retain receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-snapshot-receipts
+          path: /tmp/dispatch-receipts
+
